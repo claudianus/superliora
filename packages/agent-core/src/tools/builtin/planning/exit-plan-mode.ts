@@ -149,25 +149,24 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
 
     const isUltra = this.agent.planMode.isUltraMode;
 
-    // Ultra Plan Mode: enforce phase workflow
+    // Ultra Plan Mode: the phase workflow and seed sections are guidance, not
+    // hard blockers. Collect advisory notes and continue to approval.
+    const ultraAdvisories: string[] = [];
     if (isUltra) {
       const phase = this.agent.planMode.phase;
       if (phase !== 'write' && phase !== 'exit') {
-        return {
-          isError: true,
-          output: `ExitPlanMode is blocked in ${phase} phase. Complete the current phase and use NextPhase to advance through the workflow: research -> interview -> design -> review -> write -> exit.`,
-        };
+        ultraAdvisories.push(
+          `ExitPlanMode was called in the ${phase} phase. The Ultra workflow recommends advancing through research -> interview -> design -> review -> write -> exit with NextPhase before approval.`,
+        );
       }
 
-      // Verify plan file contains the full UltraPlan Seed contract.
       const planData = await this.agent.planMode.data();
       const planContent = planData?.content ?? '';
       const missing = missingUltraPlanSections(planContent);
       if (missing.length > 0) {
-        return {
-          isError: true,
-          output: `ExitPlanMode blocked: the Ultra Plan file is missing required sections: ${missing.join(', ')}. Write the complete verifiable UltraGoal Seed contract before exiting.`,
-        };
+        ultraAdvisories.push(
+          `The Ultra Plan file is missing recommended sections: ${missing.join(', ')}. Consider completing the verifiable UltraGoal Seed contract.`,
+        );
       }
     }
 
@@ -175,19 +174,13 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     if (!resolvedPlan.ok) return resolvedPlan.error;
 
     const ultraDrift = isUltra ? await this.validateUltraPlanDrift(resolvedPlan.plan) : undefined;
-    if (ultraDrift?.ok === false) return ultraDrift.error;
 
     if (isUltra) {
       const missingSeedSections = enforceSeedCoverage(resolvedPlan.plan);
       if (missingSeedSections.length > 0) {
-        return {
-          isError: true,
-          output: [
-            'ExitPlanMode blocked: the Ultra Plan does not cover all Seed Spec sections.',
-            `Missing section(s): ${missingSeedSections.join(', ')}`,
-            'Reopen the interview and fill the missing Seed sections before exiting.',
-          ].join('\n\n'),
-        };
+        ultraAdvisories.push(
+          `The Ultra Plan does not cover all Seed Spec sections (missing: ${missingSeedSections.join(', ')}). Consider filling them before execution.`,
+        );
       }
     }
 
@@ -236,15 +229,17 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
 
     this.agent.telemetry.track('plan_resolved', { outcome: 'auto_approved', ultra: isUltra });
 
-    return {
-      isError: false,
-      output: formatPlanForOutput(
-        resolvedPlan.plan,
-        resolvedPlan.path,
-        ultraDrift,
-        seededWorkGraph,
-      ),
-    };
+    const approvedOutput = formatPlanForOutput(
+      resolvedPlan.plan,
+      resolvedPlan.path,
+      ultraDrift,
+      seededWorkGraph,
+    );
+    const output =
+      ultraAdvisories.length > 0
+        ? `${approvedOutput}\n\n---\n## Advisory notes (non-blocking)\n${ultraAdvisories.map((note) => `- ${note}`).join('\n')}`
+        : approvedOutput;
+    return { isError: false, output };
   }
 
   private async validateUltraPlanDrift(plan: string): Promise<UltraPlanDriftResult> {
@@ -269,18 +264,17 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     if (isDriftAcceptable(metrics)) {
       return { ok: true, metrics };
     }
-    this.agent.planMode.reopenUltraInterviewForDrift(metrics);
+    // Drift is advisory: surface the metrics and let the model decide whether
+    // to refine the Seed Spec or proceed. The harness no longer reopens the
+    // interview or blocks approval on drift.
     return {
-      ok: false,
-      error: {
-        isError: true,
-        output: [
-          'ExitPlanMode blocked: Ultra Plan drift exceeds the accepted threshold.',
-          formatUltraPlanMetrics(metrics),
-          'Ultra Plan interview has been reopened because the Seed Spec is not specific enough to anchor the plan.',
-          'Do not keep rewriting the plan from Exit phase. Ask 1-3 focused AskUserQuestion questions to close the seed gap, then advance through NextPhase -> Design -> Review -> Write -> Exit with the regenerated Seed Spec.',
-        ].join('\n\n'),
-      },
+      ok: true,
+      metrics,
+      warning: [
+        'Ultra Plan drift exceeds the accepted threshold: the plan may diverge from the Seed Spec.',
+        formatUltraPlanMetrics(metrics),
+        'If the plan is wrong, re-enter the UltraPlan interview/design phases and close the seed gap with 1-3 focused questions before executing.',
+      ].join('\n\n'),
     };
   }
 
@@ -746,7 +740,7 @@ function formatPlanForOutput(
     }
     const nextAction = ultraSwarmEngageNextAction(plan, seededWorkGraph);
     if (nextAction !== undefined) {
-      output += `\n\n---\n## Required Next Action\n${nextAction}`;
+      output += `\n\n---\n## Recommended Next Action\n${nextAction}`;
     }
     output += `\n\n---\n${formatUltraPlanMetrics(ultraDrift.metrics)}`;
   }

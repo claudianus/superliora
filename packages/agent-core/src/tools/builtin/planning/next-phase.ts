@@ -20,7 +20,7 @@ export const NextPhaseInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'Only valid for interview→design when the UltraGoal is already verifiable and the round cap is reached. Soft-fills remaining seed gaps with conservative defaults; never bypasses a non-verifiable UltraGoal.',
+      'Only valid for interview→design. Soft-fills remaining seed gaps with conservative defaults; useful when advancing with a not-yet-verifiable UltraGoal.',
     ),
 }).strict();
 
@@ -31,7 +31,7 @@ export class NextPhaseTool implements BuiltinTool<NextPhaseInput> {
   readonly description = `Advance to the next phase in Ultra Plan Mode workflow. Call when the current phase is complete.
 
 - research → interview: after a compact evidence pack for upcoming questions
-- interview → design: only when the UltraGoal is verifiable (readiness READY). Soft seed gaps and ambiguity floors are recommendations, not hard blockers. advance_with_defaults never bypasses a non-verifiable UltraGoal. If blocked, capture a true/false Completion Criterion via AskUserQuestion — do not Write the plan file or repeat resolved questions.
+- interview → design: recommended once the UltraGoal is verifiable (readiness READY). Verifiability, soft seed gaps, and ambiguity floors are recommendations, not hard blockers — advancing before READY appends a non-blocking warning. Capture a true/false Completion Criterion via AskUserQuestion when you can; do not Write the plan file or repeat resolved questions.
 - design → review → write → exit: advance one phase at a time
 
 This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advance phases. Forward only, never backward.`;
@@ -82,18 +82,16 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
       };
     }
 
+    let verifiabilityWarning: string | undefined;
     if (currentPhase === 'interview' && targetPhase === 'design') {
       const readiness = await this.agent.planMode.ultraEngine.interviewReadiness({ rescore: true });
-      // Hard gate = verifiable UltraGoal only (readiness.ready ≡ verifiableGoal).
-      // advance_with_defaults never bypasses !verifiableGoal; when hardReady it only
-      // soft-fills remaining seed gaps via Seed Spec auto-generation.
+      // Verifiability is advisory: a not-yet-verifiable UltraGoal appends the
+      // readiness guide as a non-blocking warning instead of halting the
+      // workflow. Seed gaps are soft-filled so design always has a Seed Spec.
       if (!readiness.ready) {
-        return {
-          isError: true,
-          output: await this.agent.planMode.ultraEngine.readinessBlockerMessage(),
-        };
+        verifiabilityWarning = await this.agent.planMode.ultraEngine.readinessBlockerMessage(readiness);
       }
-      const softFillDefaults = args.advance_with_defaults === true;
+      const softFillDefaults = args.advance_with_defaults === true || !readiness.ready;
       if (this.agent.planMode.ultraEngine.seedSpec === null || softFillDefaults) {
         const seed = await this.agent.planMode.ultraEngine.autoGenerateSeedSpecFromInterview(
           'UltraGoal',
@@ -113,9 +111,11 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
     this.agent.planMode.setPhase(targetPhase);
     this.agent.telemetry.track('ultra_plan_phase_transition', { from: currentPhase, to: targetPhase });
 
-    return {
-      output: `Advanced from ${currentPhase} phase to ${targetPhase} phase.\n\n${this.phaseInstructions(targetPhase)}`,
-    };
+    let output = `Advanced from ${currentPhase} phase to ${targetPhase} phase.\n\n${this.phaseInstructions(targetPhase)}`;
+    if (verifiabilityWarning !== undefined) {
+      output += `\n\n---\n## Advisory (non-blocking): UltraGoal not yet verifiable\n${verifiabilityWarning}`;
+    }
+    return { output };
   }
 
   private phaseInstructions(phase: string): string {

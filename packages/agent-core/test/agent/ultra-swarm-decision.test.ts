@@ -43,7 +43,7 @@ describe('ultraSwarmDecision', () => {
     });
 
     it('returns guidance string for ENGAGE', () => {
-      expect(ultraSwarmEngageNextAction('Swarm decision: ENGAGE')).toContain('UltraSwarm ENGAGE is binding');
+      expect(ultraSwarmEngageNextAction('Swarm decision: ENGAGE')).toContain('UltraSwarm ENGAGE approved');
     });
   });
 });

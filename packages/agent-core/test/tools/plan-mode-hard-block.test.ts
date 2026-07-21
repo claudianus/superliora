@@ -320,7 +320,7 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'Grep', { pattern: 'TODO', path: '/workspace' })).toBeUndefined();
   });
 
-  it('starts Ultra Plan in research phase before user questions are allowed', async () => {
+  it('starts Ultra Plan in research phase and defers early questions to the permission mode', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
 
     expect(planMode.phase).toBe('research');
@@ -345,11 +345,11 @@ describe('Plan mode permission policy', () => {
       }),
     ).toBeUndefined();
 
-    const questionDeny = expectDeny(
+    // Phase workflow is guidance only: asking during research defers to the
+    // user's permission mode instead of a harness deny.
+    expect(
       evaluatePlanPolicy(agent, 'AskUserQuestion', { question: 'Which option?' }),
-    );
-    expect(questionDeny.message ?? '').toContain('blocked in Research phase');
-    expect(questionDeny.message ?? '').toContain('NextPhase({ phase: "interview" })');
+    ).toBeUndefined();
   });
 
   it('allows workflow-report.md edits during Ultra Plan research when Ultrawork is active', async () => {
@@ -436,7 +436,7 @@ describe('Plan mode permission policy', () => {
     expect(planMode.interviewRoundCount).toBe(3);
   });
 
-  it('blocks actionable ultra plans from advancing until UltraGoal is verifiable', async () => {
+  it('advances interview to design with a non-verifiable UltraGoal and appends an advisory', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
@@ -447,15 +447,13 @@ describe('Plan mode permission policy', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
-    expect(result.output).toContain('NOT READY for Design');
-    expect(result.output).toContain('verifiable_goal=false');
-    expect(result.output).toContain('NEXT TURN');
-    expect(planMode.phase).toBe('interview');
-    expect(planMode.interviewRoundCount).toBe(0);
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Advanced from interview phase to design phase');
+    expect(result.output).toContain('Advisory (non-blocking): UltraGoal not yet verifiable');
+    expect(planMode.phase).toBe('design');
   });
 
-  it('never lets advance_with_defaults bypass a non-verifiable UltraGoal at max rounds', async () => {
+  it('lets advance_with_defaults soft-fill seed gaps and advance with an advisory at max rounds', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
     // Force non-verifiable scoring path via empty evidence + default blocked scorer in activePlanAgent.
@@ -474,10 +472,10 @@ describe('Plan mode permission policy', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
-    expect(result.output).toContain('NOT READY for Design');
-    expect(result.output).toContain('verifiable_goal=false');
-    expect(planMode.phase).toBe('interview');
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Advanced from interview phase to design phase');
+    expect(result.output).toContain('Advisory (non-blocking): UltraGoal not yet verifiable');
+    expect(planMode.phase).toBe('design');
   });
 
   it('lets ultra interview advance once the seed ledger and verifiable goal are closed', async () => {
@@ -654,14 +652,13 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, toolName, args)).toBeUndefined();
   });
 
-  it('points blocked interview tools toward NextPhase when no question is needed', async () => {
+  it('defers ExitPlanMode during ultra interview to the permission mode', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, 'ExitPlanMode', {}));
-
-    expect(deny.message ?? '').toContain('call NextPhase');
-    expect(deny.message ?? '').not.toContain('at least 3 interview rounds');
+    // Phase timing is guidance only; the ExitPlanMode tool itself appends a
+    // non-blocking advisory when called before the write/exit phases.
+    expect(evaluatePlanPolicy(agent, 'ExitPlanMode', {})).toBeUndefined();
   });
 
   it('allows read-only research tools during Ultra Plan interview', async () => {
@@ -701,14 +698,13 @@ describe('Plan mode permission policy', () => {
     expect(deny.message ?? '').toContain('current plan file');
   });
 
-  it('explains that EnterPlanMode is not a phase transition tool in ultra interview', async () => {
+  it('defers EnterPlanMode during ultra interview to the permission mode', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
-    const deny = expectDeny(evaluatePlanPolicy(agent, 'EnterPlanMode', {}));
-
-    expect(deny.message ?? '').toContain('EnterPlanMode is already active');
-    expect(deny.message ?? '').toContain('Use NextPhase');
+    // Re-entry semantics are handled by the EnterPlanMode tool itself; the
+    // permission guard no longer denies it on Ultra phase grounds.
+    expect(evaluatePlanPolicy(agent, 'EnterPlanMode', {})).toBeUndefined();
   });
 
   it.each([
@@ -1007,20 +1003,13 @@ describe('Plan mode permission policy', () => {
   );
 
   it.each(['manual', 'yolo', 'auto'] as const)(
-    'blocks TaskStop while plan mode is active in %s mode',
+    'defers TaskStop to ordinary %s permission handling while plan mode is active',
     async (mode) => {
       const { agent } = await activePlanAgent();
 
-      const result = evaluatePlanPolicy(
-        agent,
-        'TaskStop',
-        { task_id: 'bash-abc12345' },
-        mode,
-      );
-
-      const deny = expectDeny(result);
-      expect(deny.message ?? '').toContain('plan mode');
-      expect(deny.message ?? '').toContain('ExitPlanMode');
+      expect(
+        evaluatePlanPolicy(agent, 'TaskStop', { task_id: 'bash-abc12345' }, mode),
+      ).toBeUndefined();
     },
   );
 
@@ -1075,21 +1064,22 @@ describe('Plan mode permission policy', () => {
     ).toBeUndefined();
   });
 
-  it('blocks RecordInterviewFinding outside interview phase', async () => {
+  it('defers RecordInterviewFinding outside interview phase to the permission mode', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('research');
 
-    const deny = expectDeny(
+    // Phase applicability is the tool's own contract; the permission guard no
+    // longer denies on Ultra phase grounds.
+    expect(
       evaluatePlanPolicy(agent, 'RecordInterviewFinding', {
         question_answered: 'What framework version?',
         finding: 'Next.js 14.2.0',
         origin: 'code',
       }),
-    );
-    expect(deny.message ?? '').toContain('only available during Ultra Plan interview');
+    ).toBeUndefined();
   });
 
-  it('blocks RecordInterviewFinding after 3 consecutive non-user answers (Rhythm Guard)', async () => {
+  it('no longer denies RecordInterviewFinding after consecutive non-user answers (guidance only)', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
@@ -1097,14 +1087,14 @@ describe('Plan mode permission policy', () => {
     planMode.ultraEngine.addInterviewRound('Q2', 'code answer 2', 'code');
     planMode.ultraEngine.addInterviewRound('Q3', 'code answer 3', 'code');
 
-    const deny = expectDeny(
+    // The rhythm guard is now prompt guidance; the permission layer stays open.
+    expect(
       evaluatePlanPolicy(agent, 'RecordInterviewFinding', {
         question_answered: 'Q4',
         finding: 'code answer 4',
         origin: 'code',
       }),
-    );
-    expect(deny.message ?? '').toContain('Rhythm Guard');
+    ).toBeUndefined();
   });
 
   it('allows AskUserQuestion even when Rhythm Guard is active', async () => {

@@ -181,8 +181,8 @@ describe('ExitPlanMode telemetry', () => {
 
     expect(result.isError).toBe(false);
     expect(exitPlanMode).toHaveBeenCalledTimes(1);
-    expect(result.output).toContain('UltraSwarm ENGAGE is binding');
-    expect(result.output).toContain('call UltraSwarm as the only tool call');
+    expect(result.output).toContain('UltraSwarm ENGAGE approved');
+    expect(result.output).toContain('call UltraSwarm before product-file edits');
   });
 
   it('handles revision requests with feedback through permission approval telemetry', async () => {

@@ -301,7 +301,7 @@ describe('ExitPlanModeTool', () => {
 
     expect(result.isError).toBe(false);
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
-    expect(result.output).not.toContain('UltraSwarm ENGAGE is binding');
+    expect(result.output).not.toContain('UltraSwarm ENGAGE approved');
   });
 
   it('accepts a complete Ultra Plan written with Korean headings and field labels', async () => {
@@ -364,8 +364,8 @@ describe('ExitPlanModeTool', () => {
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
   });
 
-  it('keeps Ultra Plan active when drift exceeds the accepted threshold', async () => {
-    const { agent, emit } = makeAgent({
+  it('exits with an advisory warning when drift exceeds the accepted threshold', async () => {
+    const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
       drift: {
@@ -418,19 +418,11 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
-    expect(result.output).toContain('ExitPlanMode blocked');
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Plan mode deactivated');
+    expect(result.output).toContain('Ultra Plan drift exceeds the accepted threshold');
     expect(result.output).toContain('Combined Drift: 0.622 (threshold: 0.4)');
-    expect(result.output).toContain('Status: BLOCKED');
-    expect(result.output).toContain('Ultra Plan interview has been reopened');
-    expect(result.output).toContain('Ask 1-3 focused AskUserQuestion questions');
-    expect(agent.planMode.phase).toBe('interview');
-    expect(agent.planMode.reopenUltraInterviewForDrift).toHaveBeenCalledWith({
-      goalDrift: 0.964,
-      constraintDrift: 0,
-      ontologyDrift: 0.7,
-    });
-    expect(emit).not.toHaveBeenCalled();
+    expect(agent.planMode.reopenUltraInterviewForDrift).not.toHaveBeenCalled();
   });
 
   it('tells approved Ultra Plan ENGAGE decisions to call UltraSwarm next', async () => {
@@ -486,8 +478,8 @@ describe('ExitPlanModeTool', () => {
 
     expect(result.isError).toBe(false);
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
-    expect(result.output).toContain('UltraSwarm ENGAGE is binding');
-    expect(result.output).toContain('call UltraSwarm as the only tool call');
+    expect(result.output).toContain('UltraSwarm ENGAGE approved');
+    expect(result.output).toContain('call UltraSwarm before product-file edits');
     expect(result.output).toContain('work_node_ids: ac_1');
     expect(result.output).toContain('## UltraworkGraph Seed');
     expect(toolStore[ULTRAWORK_GRAPH_STORE_KEY]).toMatchObject({
@@ -499,8 +491,8 @@ describe('ExitPlanModeTool', () => {
     ]);
   });
 
-  it('blocks Ultra Plan exit when the Swarm decision lacks specialist value and owner', async () => {
-    const { agent, emit } = makeAgent({
+  it('exits with an advisory when the Swarm decision lacks specialist value and owner', async () => {
+    const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
       plan: [
@@ -539,14 +531,15 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Plan mode deactivated');
+    expect(result.output).toContain('Advisory notes (non-blocking)');
     expect(result.output).toContain('Specialist value');
     expect(result.output).toContain('Verification owner');
-    expect(emit).not.toHaveBeenCalled();
   });
 
-  it('blocks Ultra Plan exit when the WorkGraph section is missing', async () => {
-    const { agent, emit } = makeAgent({
+  it('exits with an advisory when the WorkGraph section is missing', async () => {
+    const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
       plan: [
@@ -591,13 +584,14 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Plan mode deactivated');
+    expect(result.output).toContain('Advisory notes (non-blocking)');
     expect(result.output).toContain('WorkGraph');
-    expect(emit).not.toHaveBeenCalled();
   });
 
-  it('blocks Ultra Plan exit when the Swarm decision lacks the audit line', async () => {
-    const { agent, emit } = makeAgent({
+  it('exits with an advisory when the Swarm decision lacks the audit line', async () => {
+    const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
       plan: [
@@ -643,13 +637,14 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Plan mode deactivated');
+    expect(result.output).toContain('Advisory notes (non-blocking)');
     expect(result.output).toContain('Swarm decision audit line');
-    expect(emit).not.toHaveBeenCalled();
   });
 
-  it('blocks Ultra Plan DEFER without a waiver', async () => {
-    const { agent, emit } = makeAgent({
+  it('exits with an advisory when DEFER lacks a waiver', async () => {
+    const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
       plan: [
@@ -695,13 +690,14 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Plan mode deactivated');
+    expect(result.output).toContain('Advisory notes (non-blocking)');
     expect(result.output).toContain('Swarm DEFER waiver');
-    expect(emit).not.toHaveBeenCalled();
   });
 
-  it('blocks Ultra Plan DEFER with a placeholder waiver', async () => {
-    const { agent, emit } = makeAgent({
+  it('exits with an advisory when DEFER has only a placeholder waiver', async () => {
+    const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
       plan: [
@@ -748,9 +744,10 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).toBe(true);
+    expect(result.isError).not.toBe(true);
+    expect(result.output).toContain('Plan mode deactivated');
+    expect(result.output).toContain('Advisory notes (non-blocking)');
     expect(result.output).toContain('Swarm DEFER waiver');
-    expect(emit).not.toHaveBeenCalled();
   });
 
   it('accepts Ultra Plan required fields written as markdown headings with body text', async () => {

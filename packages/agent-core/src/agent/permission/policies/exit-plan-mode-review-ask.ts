@@ -83,13 +83,13 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
         : `Selected approach: ${selected.label}\nExecute ONLY the selected approach. Do not execute any unselected alternatives.\n\n`;
     const savedTo = display.path !== undefined ? `Plan saved to: ${display.path}\n\n` : '';
     const formattedPlan = `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${display.plan}`;
-    const requiredNextAction =
-      nextAction === undefined ? '' : `\n\n---\n## Required Next Action\n${nextAction}`;
+    const recommendedNextAction =
+      nextAction === undefined ? '' : `\n\n---\n## Recommended Next Action\n${nextAction}`;
     return {
       kind: 'result' as const,
       syntheticResult: {
         isError: false,
-        output: `Exited plan mode. ${optionPrefix}${formattedPlan}${requiredNextAction}`,
+        output: `Exited plan mode. ${optionPrefix}${formattedPlan}${recommendedNextAction}`,
       },
     };
   }
