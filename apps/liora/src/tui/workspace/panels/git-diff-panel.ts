@@ -15,6 +15,7 @@ interface DiffFile {
   readonly additions: number;
   readonly deletions: number;
   readonly hunks: DiffHunk[];
+  readonly isBinary?: boolean;
 }
 
 interface DiffHunk {
@@ -284,7 +285,8 @@ export class GitDiffPanel implements PanelDefinition {
         fileBar = ` ${green('▓'.repeat(fileAddBlocks))}${red('▓'.repeat(fileDelBlocks))}`;
       }
       const path = file.path.length > width - 12 ? `...${file.path.slice(-(width - 15))}` : file.path;
-      lines.push(` ${statusIcon} ${path}${fileBar} ${stats}`);
+      const binaryBadge = file.isBinary ? ` ${currentTheme.fg('warning', '[bin]')}` : '';
+      lines.push(` ${statusIcon} ${path}${binaryBadge}${fileBar} ${stats}`);
     }
 
     lines.push('');
@@ -419,6 +421,8 @@ function parseDiff(output: string): DiffFile[] {
     if (chunk.includes('new file mode')) status = 'added';
     else if (chunk.includes('deleted file mode')) status = 'deleted';
     else if (chunk.includes('rename from')) status = 'renamed';
+    // Detect binary files
+    const isBinary = chunk.includes('Binary files') || chunk.includes('GIT binary patch');
 
     const hunks: DiffHunk[] = [];
     let currentHunk: DiffHunk | null = null;
@@ -443,7 +447,7 @@ function parseDiff(output: string): DiffFile[] {
     }
     if (currentHunk) hunks.push(currentHunk);
 
-    files.push({ path: filePath, status, additions, deletions, hunks });
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary });
   }
 
   return files;
