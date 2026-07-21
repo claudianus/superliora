@@ -71,7 +71,8 @@ export class SideChatPanel implements PanelDefinition {
     } else {
       // Message count badge in first row
       if (lines.length === 0) {
-        const countBadge = currentTheme.dimFg('textMuted', `${String(this.messages.length)} msgs`);
+        const totalWords = this.messages.reduce((sum, m) => sum + m.text.split(/\s+/).filter(Boolean).length, 0);
+        const countBadge = currentTheme.dimFg('textMuted', `${String(this.messages.length)} msgs · ${String(totalWords)}w`);
         lines.push(this.pad(` ${countBadge}`, width));
       }
       // Clamp scroll
