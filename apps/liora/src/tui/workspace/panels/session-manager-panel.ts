@@ -105,9 +105,12 @@ export class SessionManagerPanel implements PanelDefinition {
 
     // Header line
     const countLabel = this.loading ? '…' : String(this.sessions.length);
+    const searchInfo = searchQuery && searchQuery.length > 0
+      ? currentTheme.dimFg('textMuted', ` (${String(filtered.length)} match)`)
+      : '';
     const header = this.loading && animate
       ? renderPulseText(` ${countLabel} sessions`, 'sessions:loading', 'primary', appearance)
-      : currentTheme.boldFg('primary', ` ${countLabel} sessions`);
+      : currentTheme.boldFg('primary', ` ${countLabel} sessions`) + searchInfo;
     lines.push(this.pad(header, width));
 
     if (this.loading && this.sessions.length === 0) {
