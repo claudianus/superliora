@@ -293,7 +293,11 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const errorCount = entries.filter((e) => e.isError).length;
     const filterLabel = this.filterKind !== null ? ` ${this.filterKind}` : '';
     const grouped = groupEntries(entries);
-    let headerText = `${String(entries.length)} events${filterLabel}`;
+    // Uptime: time since first entry
+    const firstTs = entries.length > 0 ? entries[0]!.timestamp : now;
+    const uptimeSec = Math.floor((now - firstTs) / 1000);
+    const uptimeLabel = uptimeSec >= 60 ? `${String(Math.floor(uptimeSec / 60))}m${String(uptimeSec % 60)}s` : `${String(uptimeSec)}s`;
+    let headerText = `${String(entries.length)} events${filterLabel} · ${uptimeLabel}`;
     if (activeCount > 0) {
       headerText += ` · ${String(activeCount)} active`;
     }

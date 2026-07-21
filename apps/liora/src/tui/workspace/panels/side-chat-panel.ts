@@ -126,7 +126,10 @@ export class SideChatPanel implements PanelDefinition {
     const prompt = focused ? currentTheme.boldFg('primary', '❯ ') : '  ';
     const cursor = focused ? currentTheme.fg('primary', '▏') : '';
     const inputDisplay = this.inputBuffer.slice(0, width - 3);
-    const inputLine = `${prompt}${inputDisplay}${cursor}`;
+    const charCount = this.inputBuffer.length > 0
+      ? currentTheme.dimFg('textMuted', ` ${String(this.inputBuffer.length)}`)
+      : '';
+    const inputLine = `${prompt}${inputDisplay}${cursor}${charCount}`;
     lines.push(this.pad(inputLine, width));
 
     return lines.slice(0, height);
