@@ -317,6 +317,15 @@ export class GitDiffPanel implements PanelDefinition {
     lines.push('');
 
     for (const file of this.files) {
+      // File type icon based on extension
+      const ext = file.path.includes('.') ? file.path.slice(file.path.lastIndexOf('.') + 1).toLowerCase() : '';
+      const FILE_ICONS: Record<string, string> = {
+        ts: '🟦', tsx: '⚛', js: '🟨', jsx: '⚛', json: '📋', md: '📝',
+        css: '🎨', scss: '🎨', html: '🌐', svg: '🖼', png: '🖼', jpg: '🖼',
+        yaml: '⚙', yml: '⚙', toml: '⚙', lock: '🔒', sh: '▶', py: '🐍',
+        rs: '🦀', go: '🐹', rb: '💎', sql: '🗄', txt: '📄', env: '🔐',
+      };
+      const fileIcon = FILE_ICONS[ext] ?? '📄';
       const statusIcon = file.status === 'added' ? green('+')
         : file.status === 'deleted' ? red('-')
         : file.status === 'renamed' ? currentTheme.fg('accent', '→')
@@ -336,7 +345,7 @@ export class GitDiffPanel implements PanelDefinition {
       const modeBadge = file.modeChange ? ` ${currentTheme.fg('accent', `[${file.modeChange}]`)}` : '';
       const wsBadge = file.whitespaceOnly ? ` ${currentTheme.dimFg('textMuted', '[ws]')}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
-      lines.push(` ${statusIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${fileBar} ${stats}${hunkCount}`);
+      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${fileBar} ${stats}${hunkCount}`);
     }
 
     lines.push('');
