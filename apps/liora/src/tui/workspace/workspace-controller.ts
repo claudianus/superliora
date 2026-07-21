@@ -129,6 +129,13 @@ export class WorkspaceController {
   // Panel breadcrumb: track navigation path for spatial awareness
   private breadcrumbTrail: string[] = [];
 
+  // Layout memory: persist dock widths for session restore
+  private layoutMemory: { leftWidth: number; rightWidth: number; lastFocused: string | null } = {
+    leftWidth: 0,
+    rightWidth: 0,
+    lastFocused: null,
+  };
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -394,8 +401,17 @@ export class WorkspaceController {
     if (prevWidth > 0 && Math.abs(dockRect.width - prevWidth) > 1) {
       this.resizeAnimStart = Date.now();
     }
-    if (dockId === 'left') this.lastDockWidth.left = dockRect.width;
-    else this.lastDockWidth.right = dockRect.width;
+    if (dockId === 'left') {
+      this.lastDockWidth.left = dockRect.width;
+      this.layoutMemory.leftWidth = dockRect.width;
+    } else {
+      this.lastDockWidth.right = dockRect.width;
+      this.layoutMemory.rightWidth = dockRect.width;
+    }
+    // Track last focused panel for layout memory
+    if (focusedId !== null) {
+      this.layoutMemory.lastFocused = focusedId;
+    }
 
     // Tab bar (1 row)
     const tabBar = this.renderTabBar(dockId, dockRect.width, panels, focusedId);
@@ -1569,6 +1585,16 @@ export class WorkspaceController {
   // -------------------------------------------------------------------------
   // Lifecycle (continued)
   // -------------------------------------------------------------------------
+
+  /** Get the current layout memory for persistence. */
+  getLayoutMemory(): { leftWidth: number; rightWidth: number; lastFocused: string | null } {
+    return { ...this.layoutMemory };
+  }
+
+  /** Restore layout from persisted memory. */
+  restoreLayout(memory: { leftWidth: number; rightWidth: number; lastFocused: string | null }): void {
+    this.layoutMemory = { ...memory };
+  }
 
   dispose(): void {
     this.dragController.detach();
