@@ -766,8 +766,13 @@ export class WorkspaceController {
     if (!this.helpOpen) return null;
     const w = 44;
     const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const divider = animated
+      ? renderParticleDivider(w, 'help:divider', appearance)
+      : currentTheme.fg('primary', '─'.repeat(w));
     lines.push(currentTheme.boldFg('primary', ' 키보드 단축키'));
-    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
+    lines.push(divider);
     const shortcuts: Array<[string, string]> = [
       ['F1', '키보드 도움말'],
       ['F2', '패널 퀵 스위처'],
@@ -794,7 +799,7 @@ export class WorkspaceController {
       const pad = Math.max(1, 18 - key.length);
       lines.push(` ${keyCol}${' '.repeat(pad)}${currentTheme.fg('text', desc)}`);
     }
-    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
+    lines.push(divider);
     lines.push(` ${currentTheme.dimFg('textMuted', '아무 키나 눌러 닫기')}`);
     return lines;
   }
