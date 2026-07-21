@@ -8,8 +8,8 @@ import type { TUIState } from '../tui-state';
 const INLINE_DEBOUNCE_MS = 700;
 /** Debounce before requesting next-task suggestions when the editor is empty. */
 const SUGGEST_DEBOUNCE_MS = 800;
-/** Minimum characters before inline completion fires (avoids LLM calls on "a", "ab"). */
-const INLINE_MIN_CHARS = 3;
+/** Minimum characters before inline completion fires (short input → low-quality predictions). */
+const INLINE_MIN_CHARS = 10;
 /** Maximum entries in the inline-completion LRU cache. */
 const CACHE_MAX_SIZE = 32;
 

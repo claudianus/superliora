@@ -24,7 +24,7 @@ export const SUGGEST_MAX_TOKENS = 96;
 /** Upper bound on suggestions returned to the TUI. */
 export const MAX_SUGGESTIONS = 5;
 /** Character budget for the compacted history sent as context. */
-const HISTORY_CONTEXT_CHARS = 2400;
+const HISTORY_CONTEXT_CHARS = 800;
 /** Per-message truncation when compacting history. */
 const PER_MESSAGE_CHARS = 400;
 

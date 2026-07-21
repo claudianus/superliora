@@ -54,7 +54,7 @@ export class GitDiffPanel implements PanelDefinition {
   // PanelDefinition implementation
   // -------------------------------------------------------------------------
 
-  render(width: number, height: number, focused: boolean): string[] {
+  render(width: number, height: number, focused: boolean, searchQuery?: string): string[] {
     // Auto-refresh every 5 seconds
     const now = Date.now();
     if (now - this.lastRefresh > 5000) {
@@ -78,9 +78,27 @@ export class GitDiffPanel implements PanelDefinition {
     return visible.map((line, i) => {
       const globalIdx = this.scrollTop + i;
       const isCursor = focused && globalIdx === this.cursorIndex;
-      const truncated = (line ?? '').slice(0, width);
+      let truncated = (line ?? '').slice(0, width);
+      // Highlight search matches
+      if (searchQuery && searchQuery.length > 0) {
+        truncated = this.highlightSearch(truncated, searchQuery);
+      }
       return isCursor ? inverse(truncated.padEnd(width)) : truncated;
     });
+  }
+
+  /** Highlight search query matches in a line. */
+  private highlightSearch(line: string, query: string): string {
+    const lowerLine = line.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerLine.indexOf(lowerQuery);
+    if (idx === -1) return line;
+
+    // Wrap match in highlight ANSI codes (reverse video)
+    const before = line.slice(0, idx);
+    const match = line.slice(idx, idx + query.length);
+    const after = line.slice(idx + query.length);
+    return `${before}\u001B[7m${match}\u001B[0m${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {
