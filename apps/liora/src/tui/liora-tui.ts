@@ -933,6 +933,12 @@ export class LioraTUI {
             const overlayWidth = 32;
             const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
             const overlayY = Math.max(1, Math.floor((rows - switcherLines.length) / 2));
+            // Backdrop: dim the area behind the overlay
+            for (let row = overlayY - 1; row <= overlayY + switcherLines.length; row++) {
+              if (row >= 0 && row < rows) {
+                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+              }
+            }
             for (let row = 0; row < switcherLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, switcherLines[row] ?? '');
             }
@@ -943,6 +949,11 @@ export class LioraTUI {
             const overlayWidth = 46;
             const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
             const overlayY = Math.max(1, Math.floor((rows - helpLines.length) / 2));
+            for (let row = overlayY - 1; row <= overlayY + helpLines.length; row++) {
+              if (row >= 0 && row < rows) {
+                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+              }
+            }
             for (let row = 0; row < helpLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, helpLines[row] ?? '');
             }
@@ -953,6 +964,11 @@ export class LioraTUI {
             const overlayWidth = 34;
             const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
             const overlayY = Math.max(1, Math.floor((rows - presetLines.length) / 2));
+            for (let row = overlayY - 1; row <= overlayY + presetLines.length; row++) {
+              if (row >= 0 && row < rows) {
+                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+              }
+            }
             for (let row = 0; row < presetLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, presetLines[row] ?? '');
             }
@@ -963,6 +979,11 @@ export class LioraTUI {
             const overlayWidth = 40;
             const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
             const overlayY = Math.max(1, Math.floor((rows - paletteLines.length) / 2));
+            for (let row = overlayY - 1; row <= overlayY + paletteLines.length; row++) {
+              if (row >= 0 && row < rows) {
+                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+              }
+            }
             for (let row = 0; row < paletteLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, paletteLines[row] ?? '');
             }

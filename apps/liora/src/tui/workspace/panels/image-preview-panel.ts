@@ -116,7 +116,7 @@ export class ImagePreviewPanel implements PanelDefinition {
     }
 
     // Separator
-    lines.push(this.pad(`${currentTheme.dimFg('border', ' ─── ')}${currentTheme.fg('accent', 'preview')}${currentTheme.dimFg('border', ' ───')}`, width));
+    lines.push(this.pad(`${currentTheme.dimFg('border', ' ── ')}${currentTheme.fg('accent', '◈ preview')}${currentTheme.dimFg('border', ' ──')}`, width));
 
     // Preview area (bottom half)
     const selected = this.images[this.cursorIndex];
@@ -125,19 +125,22 @@ export class ImagePreviewPanel implements PanelDefinition {
         this.loadPreview(selected);
       }
       if (this.statusMessage !== null) {
-        lines.push(this.pad(` ${this.statusMessage}`, width));
+        lines.push(this.pad(` ${currentTheme.fg('warning', this.statusMessage)}`, width));
       } else {
-        lines.push(this.pad(` ${currentTheme.boldFg('textStrong', selected.name)}`, width));
-        lines.push(this.pad(` ${currentTheme.dimFg('textMuted', `${formatSize(selected.sizeBytes)} · ${selected.ext.slice(1).toUpperCase()}`)}`, width));
-        // Kitty graphics placeholder indicator
-        lines.push(this.pad(` ${currentTheme.dimFg('textMuted', '[Kitty graphics: inline display')}`, width));
-        lines.push(this.pad(` ${currentTheme.dimFg('textMuted', ' active in supported terminals]')}`, width));
+        // File info header
+        const extBadge = currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${selected.ext.slice(1).toUpperCase()} `));
+        lines.push(this.pad(` ${currentTheme.boldFg('textStrong', selected.name)} ${extBadge}`, width));
+        lines.push(this.pad(` ${currentTheme.dimFg('textMuted', `${formatSize(selected.sizeBytes)}`)}`, width));
+        // Visual preview placeholder with themed border
+        lines.push(this.pad(` ${currentTheme.dimFg('border', '┌')}${currentTheme.dimFg('border', '─'.repeat(Math.min(width - 4, 24)))}${currentTheme.dimFg('border', '┐')}`, width));
+        lines.push(this.pad(` ${currentTheme.dimFg('border', '│')} ${currentTheme.fg('accent', '🖼')} ${currentTheme.dimFg('textMuted', 'Kitty inline preview')}${currentTheme.dimFg('border', ' │')}`, width));
+        lines.push(this.pad(` ${currentTheme.dimFg('border', '└')}${currentTheme.dimFg('border', '─'.repeat(Math.min(width - 4, 24)))}${currentTheme.dimFg('border', '┘')}`, width));
       }
     }
 
     // Hint
     if (focused) {
-      lines.push(this.pad(` ${currentTheme.dimFg('textMuted', 'j/k:nav enter:preview r:rescan')}`, width));
+      lines.push(this.pad(` ${currentTheme.dimFg('textMuted', 'j/k:nav ↵:preview r:rescan')}`, width));
     }
 
     return this.fillLines(lines, height, width);
