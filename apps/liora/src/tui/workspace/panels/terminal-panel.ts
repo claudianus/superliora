@@ -82,6 +82,8 @@ export class TerminalPanel implements PanelDefinition {
   private bookmarkLine = -1;
   /** Output statistics overlay */
   private statsOverlayOpen = false;
+  /** Whether ANSI colors were detected in output */
+  private hasAnsiColors = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -143,7 +145,8 @@ export class TerminalPanel implements PanelDefinition {
       const cwdBadge = this.detectedCwd ? currentTheme.dimFg('textMuted', ` · ${this.detectedCwd.split('/').slice(-2).join('/')}`) : '';
       const wrapBadge = this.wrapLines ? currentTheme.fg('accent', ' ↩') : '';
       const bookmarkBadge = this.bookmarkLine >= 0 ? currentTheme.fg('primary', ' ⚑') : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + encBadge;
+      const colorBadge = this.hasAnsiColors ? currentTheme.fg('accent', ' 🎨') : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + colorBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -492,6 +495,11 @@ export class TerminalPanel implements PanelDefinition {
     // Detect non-UTF8 or binary output
     if (!this.hasNonUtf8 && /[\x80-\xFF]{3,}/.test(data) && !data.includes('\x1b')) {
       this.hasNonUtf8 = true;
+    }
+
+    // Detect ANSI color codes in output
+    if (!this.hasAnsiColors && /\x1b\[[0-9;]*m/.test(data)) {
+      this.hasAnsiColors = true;
     }
 
     const parts = data.split('\n');
