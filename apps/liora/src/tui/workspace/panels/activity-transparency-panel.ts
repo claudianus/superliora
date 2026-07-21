@@ -346,6 +346,18 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       }
     }
 
+    // Error summary row: show latest error when errors exist
+    if (errorCount > 0 && height > 5) {
+      const latestError = [...entries].reverse().find((e) => e.isError);
+      if (latestError) {
+        const errText = `✗ ${latestError.label}`;
+        const errLine = animate
+          ? renderPulseText(errText, 'error-summary', 'error', appearance)
+          : currentTheme.boldFg('error', errText);
+        lines.push(this.pad(` ${errLine}`, width));
+      }
+    }
+
     // Clamp scroll
     const headerRows = focused && height > 5 ? 2 : 1; // header + optional filter chips
     const visibleRows = height - headerRows - (activeCount > 0 && height > 4 ? 1 : 0) - 1; // spotlight + hint
