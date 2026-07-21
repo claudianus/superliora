@@ -336,7 +336,11 @@ export class GitDiffPanel implements PanelDefinition {
     const lines: Array<{ text: string; type: string }> = [];
 
     for (const file of this.files) {
-      lines.push({ text: bold(`── ${file.path} ──`), type: 'header' });
+      const statusTag = file.status === 'added' ? green(' [new]')
+        : file.status === 'deleted' ? red(' [del]')
+        : file.status === 'renamed' ? currentTheme.fg('accent', ' [renamed]')
+        : '';
+      lines.push({ text: bold(`── ${file.path} ──`) + statusTag, type: 'header' });
       for (const hunk of file.hunks) {
         lines.push({ text: cyan(hunk.header), type: 'header' });
         // Render with inline word-level diff highlighting
