@@ -292,6 +292,8 @@ export class GitDiffPanel implements PanelDefinition {
 
     lines.push('');
     lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk jump  [r] refresh`));
+    // Color legend
+    lines.push(dim(` ${green('+')}added ${red('-')}deleted ${yellow('~')}modified ${currentTheme.fg('accent', '→')}renamed`));
     return lines;
   }
 
