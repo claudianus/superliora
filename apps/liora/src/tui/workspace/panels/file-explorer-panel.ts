@@ -111,6 +111,16 @@ export class FileExplorerPanel implements PanelDefinition {
       lines.push(line);
     }
 
+    // File path footer when focused (shows full path of selected entry)
+    if (focused && this.entries.length > 0) {
+      const selected = this.entries[this.cursorIndex];
+      if (selected) {
+        const relPath = path.relative(this.rootPath, selected.fullPath);
+        const pathLine = currentTheme.dimFg('textMuted', ` ${truncate(relPath, width - 2)}`);
+        lines.push(pathLine);
+      }
+    }
+
     this.renderCache = { key: cacheKey, lines };
     return lines;
   }
