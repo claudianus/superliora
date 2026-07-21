@@ -108,6 +108,10 @@ export class WorkspaceController {
   private resizeAnimStart = 0;
   private static readonly RESIZE_ANIM_DURATION = 300; // ms
 
+  // Panel focus history (for Alt+Tab cycling)
+  private focusHistory: string[] = [];
+  private static readonly MAX_FOCUS_HISTORY = 8;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -368,10 +372,16 @@ export class WorkspaceController {
     // Active panel content (remaining height)
     const activePanel = panels.find((p) => p.instanceId === focusedId) ?? panels[0];
 
-    // Detect focus change for flash animation
+    // Detect focus change for flash animation + history tracking
     if (focusedId !== null && focusedId !== this.lastFocusedPanelId) {
       this.lastFocusedPanelId = focusedId;
       this.focusFlashStart = Date.now();
+      // Track focus history for Alt+Tab cycling
+      this.focusHistory = this.focusHistory.filter((id) => id !== focusedId);
+      this.focusHistory.unshift(focusedId);
+      if (this.focusHistory.length > WorkspaceController.MAX_FOCUS_HISTORY) {
+        this.focusHistory = this.focusHistory.slice(0, WorkspaceController.MAX_FOCUS_HISTORY);
+      }
     }
     if (activePanel) {
       const contentWidth = dockRect.width - 2;
