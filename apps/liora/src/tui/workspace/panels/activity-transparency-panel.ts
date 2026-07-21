@@ -485,6 +485,26 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
         }
       }
+      // Operation latency histogram: compact distribution of durations
+      if (entries.length > 5 && height > 19) {
+        const completed = entries.filter((e) => e.durationMs !== undefined);
+        if (completed.length > 3) {
+          const durations = completed.map((e) => e.durationMs!);
+          const fast = durations.filter((d) => d < 500).length;
+          const medium = durations.filter((d) => d >= 500 && d < 2000).length;
+          const slow = durations.filter((d) => d >= 2000).length;
+          const LAT_W = Math.min(18, width - 12);
+          const total = durations.length;
+          const fastW = Math.round((fast / total) * LAT_W);
+          const medW = Math.round((medium / total) * LAT_W);
+          const slowW = LAT_W - fastW - medW;
+          const latBar = currentTheme.fg('success', '▓'.repeat(fastW)) +
+            currentTheme.fg('warning', '▓'.repeat(medW)) +
+            currentTheme.fg('error', '▓'.repeat(Math.max(0, slowW)));
+          const latLabel = currentTheme.dimFg('textMuted', ` <500ms:${String(fast)} <2s:${String(medium)} >2s:${String(slow)}`);
+          lines.push(this.pad(` ${latBar}${latLabel}`, width));
+        }
+      }
       // Success/failure ratio bar: compact green/red visualization
       if (entries.length > 3 && height > 18) {
         const successes = entries.filter((e) => e.durationMs !== undefined && !e.isError).length;
