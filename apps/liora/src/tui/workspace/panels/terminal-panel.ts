@@ -50,6 +50,8 @@ export class TerminalPanel implements PanelDefinition {
   /** Command execution time tracking */
   private cmdStartTime = 0;
   private cmdRunning = false;
+  /** Output encoding detection */
+  private hasNonUtf8 = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -98,8 +100,9 @@ export class TerminalPanel implements PanelDefinition {
     }
     // PID indicator in first row when PTY is active
     if (this.pty && visible.length > 0) {
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)}`);
-      visible[0] = (visible[0] ?? '').slice(0, this.cols - 12) + pidLabel;
+      const encBadge = this.hasNonUtf8 ? currentTheme.fg('warning', ' ⚠enc') : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)}`) + encBadge;
+      visible[0] = (visible[0] ?? '').slice(0, this.cols - 16) + pidLabel;
     }
     // Command execution time indicator
     const renderNow = Date.now();
@@ -320,6 +323,11 @@ export class TerminalPanel implements PanelDefinition {
     // Detect bell character (\x07) for flash effect
     if (data.includes('\x07')) {
       this.bellFlashStart = Date.now();
+    }
+
+    // Detect non-UTF8 or binary output
+    if (!this.hasNonUtf8 && /[\x80-\xFF]{3,}/.test(data) && !data.includes('\x1b')) {
+      this.hasNonUtf8 = true;
     }
 
     const parts = data.split('\n');
