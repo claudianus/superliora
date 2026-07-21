@@ -344,7 +344,13 @@ export class ArtifactViewerPanel implements PanelDefinition {
     for (const line of lines) {
       if (line.startsWith('```')) {
         inCodeBlock = !inCodeBlock;
-        rendered.push(currentTheme.dimFg('border', inCodeBlock ? '┌─ code ─' : '└─────────'));
+        if (inCodeBlock) {
+          const lang = line.slice(3).trim();
+          const langLabel = lang.length > 0 ? ` ${lang} ` : ' code ';
+          rendered.push(currentTheme.dimFg('border', '┌─') + currentTheme.fg('accent', langLabel) + currentTheme.dimFg('border', '─'));
+        } else {
+          rendered.push(currentTheme.dimFg('border', '└─────────'));
+        }
         continue;
       }
       if (inCodeBlock) {
