@@ -17,6 +17,7 @@ interface DiffFile {
   readonly hunks: DiffHunk[];
   readonly isBinary?: boolean;
   readonly modeChange?: string;
+  readonly whitespaceOnly?: boolean;
 }
 
 interface DiffHunk {
@@ -303,8 +304,9 @@ export class GitDiffPanel implements PanelDefinition {
       const path = file.path.length > width - 12 ? `...${file.path.slice(-(width - 15))}` : file.path;
       const binaryBadge = file.isBinary ? ` ${currentTheme.fg('warning', '[bin]')}` : '';
       const modeBadge = file.modeChange ? ` ${currentTheme.fg('accent', `[${file.modeChange}]`)}` : '';
+      const wsBadge = file.whitespaceOnly ? ` ${currentTheme.dimFg('textMuted', '[ws]')}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
-      lines.push(` ${statusIcon} ${path}${binaryBadge}${modeBadge}${fileBar} ${stats}${hunkCount}`);
+      lines.push(` ${statusIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${fileBar} ${stats}${hunkCount}`);
     }
 
     lines.push('');
@@ -495,7 +497,15 @@ function parseDiff(output: string): DiffFile[] {
     }
     if (currentHunk) hunks.push(currentHunk);
 
-    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange });
+    // Detect whitespace-only changes (all added/removed lines differ only in whitespace)
+    let whitespaceOnly = false;
+    if (additions > 0 && additions === deletions && hunks.length > 0) {
+      const addLines = hunks.flatMap((h) => h.lines.filter((l) => l.type === 'add').map((l) => l.content.trim()));
+      const delLines = hunks.flatMap((h) => h.lines.filter((l) => l.type === 'del').map((l) => l.content.trim()));
+      whitespaceOnly = addLines.length === delLines.length && addLines.every((l, i) => l === delLines[i]);
+    }
+
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly });
   }
 
   return files;
