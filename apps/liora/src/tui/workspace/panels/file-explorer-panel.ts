@@ -16,6 +16,7 @@ interface FileEntry {
   readonly isDirectory: boolean;
   readonly depth: number;
   readonly gitStatus?: string;
+  readonly sizeBytes?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -248,12 +249,23 @@ export class FileExplorerPanel implements PanelDefinition {
       const fullPath = path.join(dirPath, item.name);
       const isDirectory = item.isDirectory();
 
+      // Get file size for non-directory entries
+      let sizeBytes: number | undefined;
+      if (!isDirectory) {
+        try {
+          sizeBytes = fs.statSync(fullPath).size;
+        } catch {
+          // ignore stat errors
+        }
+      }
+
       this.entries.push({
         name: item.name,
         fullPath,
         isDirectory,
         depth,
         gitStatus: this.gitStatusMap.get(path.relative(this.rootPath, fullPath)),
+        sizeBytes,
       });
 
       if (isDirectory && this.expandedDirs.has(fullPath)) {
@@ -364,7 +376,11 @@ export class FileExplorerPanel implements PanelDefinition {
     const nameStyled = entry.isDirectory
       ? currentTheme.boldFg('textStrong', entry.name)
       : currentTheme.fg(getFileNameToken(entry.name), entry.name);
-    const label = `${connector}${styledIcon} ${nameStyled}${gitBadge}`;
+    // File size for non-directory entries (compact)
+    const sizeBadge = entry.sizeBytes !== undefined && entry.sizeBytes > 0
+      ? ` ${currentTheme.dimFg('textMuted', formatFileSize(entry.sizeBytes))}`
+      : '';
+    const label = `${connector}${styledIcon} ${nameStyled}${gitBadge}${sizeBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
@@ -437,6 +453,13 @@ export class FileExplorerPanel implements PanelDefinition {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Format file size in human-readable form (B/K/M). */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)}B`;
+  if (bytes < 1024 * 1024) return `${String(Math.round(bytes / 1024))}K`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}M`;
+}
 
 function getFileIcon(name: string): string {
   const ext = path.extname(name).toLowerCase();
