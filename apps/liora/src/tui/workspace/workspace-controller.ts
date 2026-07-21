@@ -103,6 +103,11 @@ export class WorkspaceController {
   // Panel activity tracking (for tab bar activity dots)
   private panelActivity: Map<string, number> = new Map();
 
+  // Resize animation tracking
+  private lastDockWidth: { left: number; right: number } = { left: 0, right: 0 };
+  private resizeAnimStart = 0;
+  private static readonly RESIZE_ANIM_DURATION = 300; // ms
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -347,6 +352,14 @@ export class WorkspaceController {
     focusedId: string | null,
   ): string[] {
     const allLines: string[] = [];
+
+    // Detect dock width change for resize animation
+    const prevWidth = dockId === 'left' ? this.lastDockWidth.left : this.lastDockWidth.right;
+    if (prevWidth > 0 && Math.abs(dockRect.width - prevWidth) > 1) {
+      this.resizeAnimStart = Date.now();
+    }
+    if (dockId === 'left') this.lastDockWidth.left = dockRect.width;
+    else this.lastDockWidth.right = dockRect.width;
 
     // Tab bar (1 row)
     const tabBar = this.renderTabBar(dockId, dockRect.width, panels, focusedId);
