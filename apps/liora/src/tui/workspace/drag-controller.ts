@@ -52,6 +52,8 @@ export interface DragControllerCallbacks {
   readonly onLayoutChange: () => void;
   /** Get the current workspace layout for hit-testing. */
   readonly getLayout: () => WorkspaceLayoutResult | null;
+  /** Called when a panel title bar is double-clicked (toggle maximize). */
+  readonly onDoubleClickPanel?: (panelInstanceId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +65,9 @@ export class DragController {
   private readonly panelManager: PanelManager;
   private readonly callbacks: DragControllerCallbacks;
   private unregisterHandler: (() => void) | null = null;
+  /** Track last click time and target for double-click detection. */
+  private lastClickAt = 0;
+  private lastClickPanelId: string | null = null;
 
   constructor(panelManager: PanelManager, callbacks: DragControllerCallbacks) {
     this.panelManager = panelManager;
@@ -179,6 +184,17 @@ export class DragController {
     // Check if pressing on a panel title bar (for drag/move)
     const panelHit = this.hitTestPanelTitleBar(event.x, event.y, layout);
     if (panelHit) {
+      // Double-click detection: toggle maximize
+      const now = Date.now();
+      if (this.lastClickPanelId === panelHit && now - this.lastClickAt < 400) {
+        this.lastClickAt = 0;
+        this.lastClickPanelId = null;
+        this.callbacks.onDoubleClickPanel?.(panelHit);
+        return true;
+      }
+      this.lastClickAt = now;
+      this.lastClickPanelId = panelHit;
+
       const panel = this.panelManager.getPanel(panelHit);
       this.state = {
         type: 'dragging-panel',

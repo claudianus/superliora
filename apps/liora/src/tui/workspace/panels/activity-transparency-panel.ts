@@ -657,7 +657,7 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     // Label color: active entries pulse, errors are bold error, done are normal
     let labelPart: string;
     if (entry.isError) {
-      labelPart = currentTheme.boldFg('error', label);
+      labelPart = currentTheme.boldFg('error', `✗ ${label}`);
     } else if (isActive && animate) {
       labelPart = renderPulseText(label, `label:${entry.id}`, token, getActiveAppearancePreferences());
     } else if (entry.kind === 'tool-result' || entry.kind === 'agent-done') {
@@ -670,11 +670,15 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     let detailPart = '';
     if (entry.detail !== undefined && entry.detail.length > 0) {
       const detailMax = width - 4;
-      detailPart = currentTheme.dimFg('textMuted', truncate(entry.detail, detailMax));
+      detailPart = entry.isError
+        ? currentTheme.fg('error', truncate(entry.detail, detailMax))
+        : currentTheme.dimFg('textMuted', truncate(entry.detail, detailMax));
     }
 
-    const mainLine = `${timePart} ${iconPart} ${labelPart}${trailing}`;
-    return this.pad(detailPart.length > 0 ? `${mainLine}` : mainLine, width);
+    const mainLine = entry.isError
+      ? `${timePart} ${iconPart} ${labelPart}${trailing} ${currentTheme.dimFg('error', '⚠')}`
+      : `${timePart} ${iconPart} ${labelPart}${trailing}`;
+    return this.pad(mainLine, width);
   }
 
   /** Render a compact progress bar using theme colors. */

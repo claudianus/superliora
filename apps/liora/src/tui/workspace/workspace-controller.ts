@@ -102,6 +102,15 @@ export class WorkspaceController {
     this.dragController = new DragController(this.panelManager, {
       onLayoutChange: () => this.requestRender(),
       getLayout: () => this.currentLayout,
+      onDoubleClickPanel: (panelInstanceId) => {
+        // Toggle maximize on double-click
+        if (this.maximizedPanelId === panelInstanceId) {
+          this.maximizedPanelId = null;
+        } else {
+          this.maximizedPanelId = panelInstanceId;
+        }
+        this.requestRender();
+      },
     });
 
     this.dragController.attach(options.inputRouter);
