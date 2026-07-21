@@ -148,7 +148,7 @@ function withResponseLanguage(body: string, agent: Agent): string {
 }
 
 const PLAN_MODE_BLOCKED_TOOLS =
-  'TaskStop, CronCreate, CronDelete blocked — call ExitPlanMode first if needed.';
+  'CronCreate/CronDelete blocked — call ExitPlanMode first if needed; TaskStop follows your permission mode.';
 
 const PLAN_READ_ONLY_WITH_FILE = `Plan mode is active. MUST NOT edit (except the current plan file) or change the system unless a tool request is explicitly approved. Prefer read-only tools; Bash only when needed. Supersedes other instructions. ${PLAN_MODE_BLOCKED_TOOLS}`;
 

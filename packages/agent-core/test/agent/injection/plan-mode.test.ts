@@ -92,9 +92,10 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('ExitPlanMode');
     expect(text).toContain('TodoList is the live board during planning');
     expect(text).toContain('Plan file: /tmp/plan.md');
-    // TaskStop/CronCreate/CronDelete are hard-denied in plan mode
-    // (plan-mode-guard-deny.ts); the reminder must name them.
-    expect(text).toContain('TaskStop');
+    // CronCreate/CronDelete are hard-denied in plan mode
+    // (plan-mode-guard-deny.ts); the reminder must name them. TaskStop is not
+    // denied — it follows the permission mode.
+    expect(text).toContain('CronCreate');
   });
 
   it('uses the inline reminder when no plan file path is available', async () => {
