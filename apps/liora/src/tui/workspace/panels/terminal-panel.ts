@@ -57,6 +57,8 @@ export class TerminalPanel implements PanelDefinition {
   /** Terminal output search */
   private searchQuery = '';
   private searchActive = false;
+  /** Prompt detection for visual highlighting */
+  private lastPromptLine = -1;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -130,6 +132,16 @@ export class TerminalPanel implements PanelDefinition {
         : currentTheme.dimFg('textMuted', ` ${String(Math.round(this.outputRate))}B/s`);
       visible[visible.length - 1] = (visible[visible.length - 1] ?? '').slice(0, this.cols - 10) + rateLabel;
     }
+    // Prompt line highlighting: subtle accent on the detected prompt line
+    if (this.lastPromptLine >= 0) {
+      const promptIdx = this.lastPromptLine - this.scrollTop;
+      if (promptIdx >= 0 && promptIdx < visible.length) {
+        const promptLine = visible[promptIdx] ?? '';
+        // Add a subtle accent marker at the start of the prompt line
+        visible[promptIdx] = currentTheme.fg('accent', '▎') + promptLine.slice(1);
+      }
+    }
+
     // Search bar overlay (Ctrl+F)
     if (this.searchActive && visible.length > 0) {
       const searchLabel = currentTheme.fg('primary', `/${this.searchQuery}`) + currentTheme.fg('primary', '▏');
@@ -403,6 +415,12 @@ export class TerminalPanel implements PanelDefinition {
     const MAX_LINES = 1000;
     if (this.lines.length > MAX_LINES) {
       this.lines = this.lines.slice(this.lines.length - MAX_LINES);
+    }
+
+    // Detect shell prompt line for visual highlighting
+    const promptLineStr = this.lines[this.lines.length - 1] ?? '';
+    if (/^\s*[\$❯%>]\s*$/.test(promptLineStr) || /\$\s*$/.test(promptLineStr) || /❯\s*$/.test(promptLineStr)) {
+      this.lastPromptLine = this.lines.length - 1;
     }
 
     // Auto-scroll to bottom
