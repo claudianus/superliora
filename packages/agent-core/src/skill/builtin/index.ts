@@ -17,6 +17,7 @@ import {
   NO_AI_SLOP_SKILL,
   NO_AI_SLOP_UI_SKILL,
 } from './no-ai-slop';
+import { ULTRAWORK_SKILL } from './ultrawork';
 import { WRITE_GOAL_SKILL } from './write-goal';
 import { registerCatalogSkills as loadCatalogSkills } from '../catalog-loader';
 
@@ -26,6 +27,7 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(UPDATE_CONFIG_SKILL);
   registry.registerBuiltinSkill(CUSTOM_THEME_SKILL);
   registry.registerBuiltinSkill(WRITE_GOAL_SKILL);
+  registry.registerBuiltinSkill(ULTRAWORK_SKILL);
   for (const skill of NO_AI_SLOP_BUILTIN_SKILLS) {
     registry.registerBuiltinSkill(skill);
   }
@@ -52,6 +54,7 @@ export {
   SUB_SKILL_CONSOLIDATE,
   SUB_SKILL_PARENT,
   SUB_SKILL_REVIEW,
+  ULTRAWORK_SKILL,
   UPDATE_CONFIG_SKILL,
   WRITE_GOAL_SKILL,
 };

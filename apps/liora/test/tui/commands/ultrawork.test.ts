@@ -265,7 +265,7 @@ describe('buildUltraworkCoverageMatrix', () => {
 });
 
 describe('buildUltraworkPrompt', () => {
-  it('wraps the objective in the branded workflow contract', () => {
+  it('wraps the objective in a lean contract that points at the ultrawork skill', () => {
     const prompt = buildUltraworkPrompt('Ship feature X', 'manual');
 
     expect(prompt).toContain('<ultrawork_flow>');
@@ -275,55 +275,29 @@ describe('buildUltraworkPrompt', () => {
     expect(prompt).toContain('capability_visual_surface: false');
     expect(prompt).toContain('capability_bench_surface: false');
 
-    expect(prompt).toContain('Ultrawork orchestration');
+    // Methodology lives in the `ultrawork` builtin skill; the prompt is a lean pointer plus runtime data.
+    expect(prompt).toContain('load the `ultrawork` builtin skill via the Skill tool');
+    expect(prompt).toContain('phase checkpoints are advisory, not hard blocks');
     expect(prompt).toContain(
-      'UltraResearch prelude -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn',
+      'UltraResearch -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn',
     );
-    expect(prompt).toContain('force Ultra Plan Research first');
-    expect(prompt).toContain('Shift-Tab turns Ultrawork mode ON');
-    expect(prompt).toContain('cannot turn mode off while a run is active');
-    expect(prompt).toContain('Seed Spec, AC Tree, WorkGraph, Evaluation Plan, and Execution Plan');
-    expect(prompt).toContain('Swarm decision: ENGAGE|DEFER');
-    expect(prompt).toContain('call UltraSwarm as the only tool call before further product implementation edits');
-    expect(prompt).toContain('Dual source-of-truth for product edits');
-    expect(prompt).toContain('Interview allows product Write/Edit');
-    expect(prompt).toContain('Research is investigation-only');
-    expect(prompt).toContain('Headless/auto without TUI defaults to Manual');
-    expect(prompt).not.toContain('No product-file edits until Write/Exit');
-    expect(prompt).not.toContain('no mutating edits');
-    expect(prompt).toContain('product Write/Edit allowed under planMode');
-    expect(prompt).toContain('Do not ask the user to choose /ultraplan, /ultraresearch, /ultragoal, or /ultraswarm');
+    expect(prompt).toContain('ExitPlanMode is the approval point before post-plan implementation');
+    expect(prompt).toContain('do not ask the user to choose /ultraplan, /ultraresearch, /ultragoal, or /ultraswarm');
     expect(prompt).toContain('울트라플랜');
-    expect(prompt).toContain('ultra-plan');
-    expect(prompt).toContain('kanban');
-    expect(prompt).toContain('Core operating rules');
-    expect(prompt).toContain('Liora Lean Context');
-    expect(prompt).toContain('LioraRead');
-    expect(prompt).toContain('LioraCallgraph');
-    expect(prompt).toContain('Liora Knowledge Map');
-    expect(prompt).toContain('EXTRACTED');
-    expect(prompt).toContain('workflow-report.md');
-    expect(prompt).toContain('Knowledge persistence ledger');
-    expect(prompt).toContain('liora_recall');
-    expect(prompt).toContain('llm_wiki');
-    expect(prompt).toContain('wrote|skipped|blocked');
-    expect(prompt).toContain('UltraResearch / free web research');
-    expect(prompt).toContain('Context7Resolve/Context7Docs');
-    expect(prompt).toContain('LocalResearchStack');
+    expect(prompt).toContain('UpdateGoal complete/blocked');
+
+    // Methodology detail is no longer injected inline.
+    expect(prompt).not.toContain('Ultrawork orchestration');
+    expect(prompt).not.toContain('Core operating rules');
+    expect(prompt).not.toContain('Liora Knowledge Map');
+    expect(prompt).not.toContain('Shift-Tab turns Ultrawork mode ON');
+    expect(prompt).not.toContain('Capability Coverage Matrix');
+    expect(prompt).not.toContain('Baseline + Upgrade');
     // Non-visual/non-bench objectives omit surface-conditional blocks.
     expect(prompt).not.toContain('Browser / computer-use verification');
     expect(prompt).not.toContain('LioraBench');
-    expect(prompt).toContain('Capability Coverage Matrix');
-    expect(prompt).toContain('Definition of Done');
-    expect(prompt).toContain('Premium Quality (default ON in Ultrawork)');
-    expect(prompt).toContain('Art Direction Brief');
-    expect(prompt).toContain('Human Writing / Anti-Slop');
-    expect(prompt).toContain('Baseline + Upgrade');
-    expect(prompt).toContain('NextPhase({ phase: "interview" })');
-    expect(prompt).toContain('NextPhase({ phase: "design" })');
-    expect(prompt).toContain('UpdateGoal');
-    // Lean activation: merged core blocks + conditional surfaces only.
-    expect(prompt.length).toBeLessThan(8_000);
+    // Lean activation: skill pointer + runtime data only.
+    expect(prompt.length).toBeLessThan(3_000);
   });
 
   it('includes GUI verification only when capabilities mark a visual surface', () => {
@@ -347,10 +321,9 @@ describe('buildUltraworkPrompt', () => {
     );
     expect(prompt).toContain('capability_bench_surface: true');
     expect(prompt).toContain('LioraBench');
-    expect(prompt).toContain('node scripts/liora-agent-sota-gate.mjs');
-    expect(prompt).toContain('C001');
-    expect(prompt).toContain('C002');
-    expect(prompt).toContain('C003');
+    expect(prompt).toContain('Bench surface detected');
+    expect(prompt).toContain('do not treat browser-only UI as TUI success');
+    expect(prompt).not.toContain('Browser / computer-use verification');
   });
 
   it('marks /goal activations as already-created goal seeds', () => {
