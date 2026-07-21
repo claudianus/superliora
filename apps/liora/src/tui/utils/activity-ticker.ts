@@ -6,6 +6,11 @@
  */
 
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 import type { ActivityEntry } from '../workspace/panels/activity-transparency-panel';
 
@@ -38,9 +43,13 @@ export function renderActivityTicker(
   columns: number,
 ): string {
   const parts: string[] = [];
+  const appearance = getActiveAppearancePreferences();
+  const animate = shouldRenderAmbientEffects(appearance);
 
   // Activity indicator (pulsing dot when active)
-  parts.push(agentActive ? currentTheme.fg('success', '●') : currentTheme.dimFg('textMuted', '○'));
+  parts.push(agentActive
+    ? (animate ? renderPulseText('●', 'ticker:active', 'success', appearance) : currentTheme.fg('success', '●'))
+    : currentTheme.dimFg('textMuted', '○'));
 
   if (latestEntry) {
     const meta = KIND_TICKER_GLYPHS[latestEntry.kind];
@@ -49,7 +58,10 @@ export function renderActivityTicker(
       : currentTheme.dimFg('textMuted', '·');
     const elapsed = formatElapsed(Date.now() - latestEntry.timestamp);
     const label = truncateText(latestEntry.label, Math.max(10, columns - 20));
-    parts.push(`${icon} ${label} ${currentTheme.dimFg('textMuted', elapsed)}`);
+    const styledLabel = animate && agentActive
+      ? renderPulseText(label, `ticker:label:${latestEntry.id}`, meta?.token ?? 'text', appearance)
+      : currentTheme.fg(meta?.token ?? 'text', label);
+    parts.push(`${icon} ${styledLabel} ${currentTheme.dimFg('textMuted', elapsed)}`);
   } else {
     parts.push(currentTheme.dimFg('textMuted', ' 대기 중'));
   }
