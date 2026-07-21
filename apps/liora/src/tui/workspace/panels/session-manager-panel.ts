@@ -173,11 +173,18 @@ export class SessionManagerPanel implements PanelDefinition {
       const line1 = `${marker} ${truncate(title, maxTitle)}${timeStr}`;
       lines.push(this.styleLine(line1, width, isSelected, isCurrent));
 
-      // Line 2 (if space): work_dir abbreviated
+      // Line 2 (if space): work_dir abbreviated + session age
       if (visibleRows > this.sessions.length) {
         const dir = session.workDir.replace(/^.*\//, '');
-        const line2 = `   ${truncate(dir, width - 4)}`;
-        lines.push(this.pad(this.dim(line2), width));
+        const ageSec = Math.floor(Math.max(0, Date.now() - session.updatedAt) / 1000);
+        const ageLabel = ageSec < 3600
+          ? `${String(Math.floor(ageSec / 60))}m`
+          : ageSec < 86400
+            ? `${String(Math.floor(ageSec / 3600))}h${String(Math.floor((ageSec % 3600) / 60))}m`
+            : `${String(Math.floor(ageSec / 86400))}d`;
+        const ageStr = currentTheme.dimFg('textMuted', ` · ${ageLabel}`);
+        const line2 = `   ${truncate(dir, width - 10)}${ageStr}`;
+        lines.push(this.pad(line2, width));
       }
     }
 
