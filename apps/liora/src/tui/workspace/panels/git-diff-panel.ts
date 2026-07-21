@@ -63,7 +63,10 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     if (this.files.length === 0) {
-      return [dim('  No changes detected'), dim('  (working tree clean)')];
+      return [
+        `  ${currentTheme.fg('success', '✓')} ${currentTheme.dimFg('textMuted', 'No changes detected')}`,
+        `  ${currentTheme.dimFg('textMuted', '(working tree clean)')}`,
+      ];
     }
 
     const lines = this.mode === 'summary'
