@@ -485,6 +485,21 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
         }
       }
+      // Throughput trend: compare recent rate to session average
+      if (entries.length > 10 && height > 21) {
+        const now = Date.now();
+        const sessionDuration = Math.max(1, now - (entries[0]?.timestamp ?? now));
+        const avgRate = entries.length / (sessionDuration / 1000);
+        const recentWindow = 10_000; // last 10s
+        const recentCount = entries.filter((e) => now - e.timestamp < recentWindow).length;
+        const recentRate = recentCount / (recentWindow / 1000);
+        const trendRatio = avgRate > 0 ? recentRate / avgRate : 1;
+        if (trendRatio > 1.5) {
+          lines.push(this.pad(` ${currentTheme.fg('success', '▲')} ${currentTheme.dimFg('textMuted', `throughput ↑ ${trendRatio.toFixed(1)}× avg`)}`, width));
+        } else if (trendRatio < 0.5 && recentCount > 0) {
+          lines.push(this.pad(` ${currentTheme.fg('warning', '▼')} ${currentTheme.dimFg('textMuted', `throughput ↓ ${trendRatio.toFixed(1)}× avg`)}`, width));
+        }
+      }
       // Operation queue depth: show in-progress vs completed pipeline
       if (entries.length > 2 && height > 20) {
         const inProgress = entries.filter((e) => e.durationMs === undefined && !e.isError).length;
