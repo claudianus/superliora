@@ -69,6 +69,8 @@ export class TerminalPanel implements PanelDefinition {
   private syntaxHighlight = true;
   /** Detected working directory from prompt */
   private detectedCwd: string | null = null;
+  /** Line wrapping mode (vs truncation) */
+  private wrapLines = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -128,7 +130,8 @@ export class TerminalPanel implements PanelDefinition {
       const cmdCount = this.commandHistory.length > 0 ? currentTheme.dimFg('textMuted', ` · ${String(this.commandHistory.length)}cmd`) : '';
       const compressBadge = this.bufferCompressed ? currentTheme.dimFg('textMuted', ` · ${String(this.totalLinesReceived)}L↑`) : '';
       const cwdBadge = this.detectedCwd ? currentTheme.dimFg('textMuted', ` · ${this.detectedCwd.split('/').slice(-2).join('/')}`) : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + encBadge;
+      const wrapBadge = this.wrapLines ? currentTheme.fg('accent', ' ↩') : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -241,6 +244,12 @@ export class TerminalPanel implements PanelDefinition {
       // Ctrl+H: toggle output syntax highlighting
       if (event.ctrl && event.key === 'character' && event.text === 'h') {
         this.syntaxHighlight = !this.syntaxHighlight;
+        return true;
+      }
+
+      // Ctrl+T: toggle line wrapping
+      if (event.ctrl && event.key === 'character' && event.text === 't') {
+        this.wrapLines = !this.wrapLines;
         return true;
       }
 
