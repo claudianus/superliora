@@ -1101,8 +1101,13 @@ export class WorkspaceController {
     if (!this.statsOpen) return null;
     const w = 36;
     const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const divider = animated
+      ? renderParticleDivider(w, 'stats:divider', appearance)
+      : currentTheme.fg('primary', '─'.repeat(w));
     lines.push(currentTheme.boldFg('primary', ' 세션 통계'));
-    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
+    lines.push(divider);
 
     const duration = formatDurationShort(stats.sessionDurationMs);
     lines.push(` ${currentTheme.dimFg('textMuted', '세션 시간')}      ${currentTheme.fg('text', duration)}`);
@@ -1120,7 +1125,7 @@ export class WorkspaceController {
       lines.push(` ${currentTheme.dimFg('textMuted', '컨텍스트')}      ${currentTheme.fg('text', `${formatTokens(stats.contextTokens)}/${formatTokens(stats.maxContextTokens)} (${String(pct)}%)`)}`);
     }
 
-    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
+    lines.push(divider);
     lines.push(` ${currentTheme.dimFg('textMuted', '아무 키나 눌러 닫기')}`);
     return lines;
   }
