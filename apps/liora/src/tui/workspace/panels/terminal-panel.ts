@@ -357,6 +357,14 @@ export class TerminalPanel implements PanelDefinition {
         const pad = Math.max(0, this.cols - 6);
         result[0] = (result[0] ?? '').slice(0, pad) + indicator;
       }
+      // Mini scroll region bar (right edge, 1 char per visible region)
+      const barHeight = Math.min(result.length, 8);
+      const barPos = Math.round((this.scrollTop / maxScroll) * (barHeight - 1));
+      for (let i = 0; i < barHeight && i < result.length; i++) {
+        const barChar = i === barPos ? '█' : '░';
+        const barColor = i === barPos ? currentTheme.fg('accent', barChar) : currentTheme.dimFg('border', barChar);
+        result[i] = (result[i] ?? '').slice(0, this.cols - 1) + barColor;
+      }
     }
 
     return result;
