@@ -19,18 +19,20 @@ Plan file: ${planFilePath}`;
 const ULTRA_PLAN_READ_TOOLS =
   'Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking';
 
-const ULTRA_PLAN_BLOCKED_MUTATORS = 'Write, Edit, TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED.';
-const ULTRA_PLAN_INTERVIEW_BLOCKED_MUTATORS =
-  'TaskStop, CronCreate, CronDelete, ExitPlanMode BLOCKED. Product Write/Edit allowed for investigation prototypes under planMode; plan-file Write/Edit still deferred to Write phase (Seed Spec auto-extracts on Design).';
+/** Harness-enforced plan-mode guards (true denies); everything else is guidance. */
+const ULTRA_PLAN_RESEARCH_GUARDS =
+  'Product Write/Edit BLOCKED by plan mode; CronCreate/CronDelete BLOCKED. TaskStop and ExitPlanMode follow your permission mode.';
+const ULTRA_PLAN_INTERVIEW_GUARDS =
+  'CronCreate/CronDelete BLOCKED. Product Write/Edit allowed for investigation prototypes under planMode; plan-file Write/Edit still deferred to Write phase (Seed Spec auto-extracts on Design). TaskStop and ExitPlanMode follow your permission mode.';
 
 const PHASE_INSTRUCTIONS: Record<string, string> = {
   research: `## Research Phase
-Allowed: ${ULTRA_PLAN_READ_TOOLS}, NextPhase.
-AskUserQuestion, ${ULTRA_PLAN_BLOCKED_MUTATORS}
+Allowed: ${ULTRA_PLAN_READ_TOOLS}, NextPhase, AskUserQuestion.
+${ULTRA_PLAN_RESEARCH_GUARDS}
 
 Goal: source-backed context + improvement levers before UltraPlan interview elevates goals.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths. Research is product-write read-only — no plan-file Write/Edit.
+Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths. Research is product-write read-only; defer plan-file writing to the Write phase (guidance).
 Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
@@ -38,7 +40,7 @@ Your turn MUST end with a short evidence-pack summary, then call NextPhase({ pha
 Mission: interview quality drives plan quality. Act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrades.
 
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase, product Write/Edit for investigation prototypes.
-${ULTRA_PLAN_INTERVIEW_BLOCKED_MUTATORS}
+${ULTRA_PLAN_INTERVIEW_GUARDS}
 
 Routing:
 - PATH 1 auto-answer from code/config via RecordInterviewFinding(origin="code").
@@ -48,7 +50,7 @@ Routing:
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 
 UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
-Hard gate for NextPhase to Design: verifiable UltraGoal only. Soft seed gaps, ambiguity floors, and open_gaps are recommendations and do not hard-block Design.
+Recommended for NextPhase to Design: a verifiable UltraGoal. Soft seed gaps, ambiguity floors, and open_gaps are recommendations and do not block Design; NextPhase soft-fills the Seed Spec and advances with a readiness warning.
 Follow the live readiness checklist below; do not guess or repeat resolved topics.
 Prefer not to Write the formal plan file during Interview (Seed Spec auto-extracts on Design). Product Write/Edit for investigation prototypes is allowed under planMode.
 
@@ -59,15 +61,15 @@ AskUserQuestion: 1-2 focused assumption-led questions — Baseline + 1-3 Upgrade
 Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Same-turn investigation (including product Write/Edit prototypes) is allowed.`,
 
   design: `## Design Phase
-Allowed: ${ULTRA_PLAN_READ_TOOLS}. Write/Edit BLOCKED.
+Allowed: ${ULTRA_PLAN_READ_TOOLS}. Product Write/Edit BLOCKED by plan mode (plan-file Write/Edit allowed, but converge first); CronCreate/CronDelete BLOCKED.
 Converge on one approach. TodoList for the live design board; SearchSkill/Skill when useful; SearchExpert for UltraSwarm candidates.
-Cannot write the plan file or call ExitPlanMode. Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
+Guidance: finish the design before writing the plan file; ExitPlanMode is not phase-gated but exits only after a complete Seed Spec. Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
 
   review: `## Review Phase
-Allowed: ${ULTRA_PLAN_READ_TOOLS}, TaskList, TaskOutput. Write, Edit, general Bash BLOCKED.
+Allowed: ${ULTRA_PLAN_READ_TOOLS}, TaskList, TaskOutput. Product Write/Edit BLOCKED by plan mode; CronCreate/CronDelete BLOCKED. General Bash follows your permission mode — keep it read-only here.
 Verify design against code. Re-search when external claims stay uncertain. TodoList for verification gaps.
 Bash read-only: cat, sed -n, head/tail, grep/rg, read-only git (+ ls/find/jq as needed).
-Cannot write the plan file or call ExitPlanMode.
+Guidance: verification only; defer plan edits to the Write phase. ExitPlanMode is not phase-gated.
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase

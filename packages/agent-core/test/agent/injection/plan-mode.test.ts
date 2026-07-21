@@ -169,7 +169,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('response language');
   });
 
-  it('keeps Ultra Plan interview hard-gated on verifiable UltraGoal only', async () => {
+  it('recommends a verifiable UltraGoal before Design without hard-blocking', async () => {
     const agent = planAgent({
       isActive: true,
       isUltraMode: true,
@@ -186,7 +186,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('unknown-unknowns');
     expect(text).toContain('Baseline + 1-3 Upgrades');
     expect(text).toContain('UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail');
-    expect(text).toContain('Hard gate for NextPhase to Design: verifiable UltraGoal only');
+    expect(text).toContain('Recommended for NextPhase to Design: a verifiable UltraGoal');
     expect(text).toContain('Soft seed gaps, ambiguity floors, and open_gaps are recommendations');
     expect(text).toContain('assumption-led');
     expect(text).toContain('Research-first before AskUserQuestion');
