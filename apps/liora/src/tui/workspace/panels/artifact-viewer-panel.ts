@@ -154,6 +154,15 @@ export class ArtifactViewerPanel implements PanelDefinition {
           this.scrollTop = this.renderedLines.length;
           return true;
         }
+        // Heading navigation: jump between markdown headings
+        if (event.text === 'h' || event.text === 'H') {
+          this.jumpToPrevHeading();
+          return true;
+        }
+        if (event.text === 'l' || event.text === 'L') {
+          this.jumpToNextHeading();
+          return true;
+        }
         return false;
       default:
         return false;
@@ -163,6 +172,45 @@ export class ArtifactViewerPanel implements PanelDefinition {
   dispose(): void {
     this.content = [];
     this.renderedLines = [];
+  }
+
+  /** Jump to the next heading in the rendered lines. */
+  private jumpToNextHeading(): void {
+    for (let i = this.scrollTop + 1; i < this.renderedLines.length; i++) {
+      const line = this.renderedLines[i] ?? '';
+      // Detect headings by checking for bold/primary styled text (h1/h2 markers)
+      if (line.includes('▎') || line.includes('─'.repeat(3))) {
+        this.scrollTop = Math.max(0, i - 1);
+        return;
+      }
+    }
+    // Wrap around
+    for (let i = 0; i <= this.scrollTop; i++) {
+      const line = this.renderedLines[i] ?? '';
+      if (line.includes('▎') || line.includes('─'.repeat(3))) {
+        this.scrollTop = Math.max(0, i - 1);
+        return;
+      }
+    }
+  }
+
+  /** Jump to the previous heading in the rendered lines. */
+  private jumpToPrevHeading(): void {
+    for (let i = this.scrollTop - 1; i >= 0; i--) {
+      const line = this.renderedLines[i] ?? '';
+      if (line.includes('▎') || line.includes('─'.repeat(3))) {
+        this.scrollTop = Math.max(0, i - 1);
+        return;
+      }
+    }
+    // Wrap around
+    for (let i = this.renderedLines.length - 1; i >= this.scrollTop; i--) {
+      const line = this.renderedLines[i] ?? '';
+      if (line.includes('▎') || line.includes('─'.repeat(3))) {
+        this.scrollTop = Math.max(0, i - 1);
+        return;
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
