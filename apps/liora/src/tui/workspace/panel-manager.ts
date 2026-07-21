@@ -46,6 +46,7 @@ export class PanelManager {
   private leftDockMode: DockMode;
   private rightDockMode: DockMode;
   private focusedPanelId: string | null = null;
+  private lastFocusChangeAtMs = 0;
 
   constructor(options: PanelManagerOptions = {}) {
     this.leftDockWidth = options.leftDockWidth ?? 30;
@@ -182,6 +183,11 @@ export class PanelManager {
     return this.focusedPanelId;
   }
 
+  /** Timestamp of the last focus change (for transition animations). */
+  getLastFocusChangeAtMs(): number {
+    return this.lastFocusChangeAtMs;
+  }
+
   focusPanel(instanceId: string): void {
     if (this.focusedPanelId === instanceId) return;
 
@@ -192,6 +198,7 @@ export class PanelManager {
     }
 
     this.focusedPanelId = instanceId;
+    this.lastFocusChangeAtMs = Date.now();
     const next = this.panels.get(instanceId);
     next?.definition.onFocus?.();
   }
