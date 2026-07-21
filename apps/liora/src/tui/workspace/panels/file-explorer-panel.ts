@@ -37,6 +37,9 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitStatusMap = new Map<string, string>();
   private lastWidth = 30;
   private lastHeight = 20;
+  /** Render cache: avoids re-computing lines when nothing changed. */
+  private renderCache: { key: string; lines: string[] } | null = null;
+  private treeVersion = 0;
 
   constructor(rootPath: string) {
     this.rootPath = rootPath;
@@ -53,6 +56,12 @@ export class FileExplorerPanel implements PanelDefinition {
 
     if (this.entries.length === 0) {
       return [dim('  (empty)')];
+    }
+
+    // Fast-path: return cached lines when content hasn't changed
+    const cacheKey = `${width}:${height}:${focused}:${searchQuery ?? ''}:${this.cursorIndex}:${this.scrollTop}:${this.treeVersion}`;
+    if (this.renderCache !== null && this.renderCache.key === cacheKey) {
+      return this.renderCache.lines;
     }
 
     // Clamp cursor
@@ -81,6 +90,7 @@ export class FileExplorerPanel implements PanelDefinition {
       lines.push(line);
     }
 
+    this.renderCache = { key: cacheKey, lines };
     return lines;
   }
 
@@ -151,6 +161,8 @@ export class FileExplorerPanel implements PanelDefinition {
   refreshTree(): void {
     this.loadGitStatus();
     this.rebuildEntries();
+    this.treeVersion++;
+    this.renderCache = null;
   }
 
   private rebuildEntries(): void {
@@ -209,6 +221,8 @@ export class FileExplorerPanel implements PanelDefinition {
       this.expandedDirs.add(entry.fullPath);
     }
     this.rebuildEntries();
+    this.treeVersion++;
+    this.renderCache = null;
   }
 
   private collapseCurrent(): void {
@@ -218,6 +232,8 @@ export class FileExplorerPanel implements PanelDefinition {
     if (entry.isDirectory && this.expandedDirs.has(entry.fullPath)) {
       this.expandedDirs.delete(entry.fullPath);
       this.rebuildEntries();
+      this.treeVersion++;
+      this.renderCache = null;
     } else if (entry.depth > 0) {
       // Move to parent directory
       const parentPath = path.dirname(entry.fullPath);

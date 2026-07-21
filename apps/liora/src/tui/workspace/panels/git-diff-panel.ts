@@ -45,6 +45,9 @@ export class GitDiffPanel implements PanelDefinition {
   private scrollTop = 0;
   private lastRefresh = 0;
   private mode: 'summary' | 'full' = 'summary';
+  /** Render cache: avoids re-computing lines when nothing changed. */
+  private renderCache: { key: string; lines: string[] } | null = null;
+  private diffVersion = 0;
 
   constructor(cwd: string) {
     this.cwd = cwd;
@@ -69,6 +72,12 @@ export class GitDiffPanel implements PanelDefinition {
       ];
     }
 
+    // Fast-path: return cached lines when content hasn't changed
+    const cacheKey = `${width}:${height}:${focused}:${searchQuery ?? ''}:${this.cursorIndex}:${this.scrollTop}:${this.mode}:${this.diffVersion}`;
+    if (this.renderCache !== null && this.renderCache.key === cacheKey) {
+      return this.renderCache.lines;
+    }
+
     const lines = this.mode === 'summary'
       ? this.renderSummary(width)
       : this.flatLines.map((l) => l.text);
@@ -79,7 +88,7 @@ export class GitDiffPanel implements PanelDefinition {
     if (this.cursorIndex >= this.scrollTop + height) this.scrollTop = this.cursorIndex - height + 1;
 
     const visible = lines.slice(this.scrollTop, this.scrollTop + height);
-    return visible.map((line, i) => {
+    const result = visible.map((line, i) => {
       const globalIdx = this.scrollTop + i;
       const isCursor = focused && globalIdx === this.cursorIndex;
       let truncated = (line ?? '').slice(0, width);
@@ -89,6 +98,8 @@ export class GitDiffPanel implements PanelDefinition {
       }
       return isCursor ? inverse(truncated.padEnd(width)) : truncated;
     });
+    this.renderCache = { key: cacheKey, lines: result };
+    return result;
   }
 
   /** Highlight search query matches in a line. */
@@ -164,6 +175,8 @@ export class GitDiffPanel implements PanelDefinition {
       });
       this.files = parseDiff(diffOutput);
       this.flatLines = this.buildFlatLines();
+      this.diffVersion++;
+      this.renderCache = null;
     } catch {
       this.files = [];
       this.flatLines = [];
