@@ -141,6 +141,16 @@ export class SessionManagerPanel implements PanelDefinition {
     const header = this.loading && animate
       ? renderPulseText(` ${countLabel} sessions`, 'sessions:loading', 'primary', appearance)
       : currentTheme.boldFg('primary', ` ${countLabel} sessions`) + searchInfo + activitySparkline;
+    // Session duration trend indicator
+    if (this.sessions.length > 2) {
+      const now = Date.now();
+      const durations = this.sessions.map((s) => now - s.updatedAt);
+      const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
+      const recentAvg = durations.slice(0, Math.min(3, durations.length)).reduce((a, b) => a + b, 0) / Math.min(3, durations.length);
+      const trend = recentAvg < avgDuration * 0.7 ? '↑ active' : recentAvg > avgDuration * 1.5 ? '↓ idle' : '→ steady';
+      const trendToken = trend.startsWith('↑') ? 'success' : trend.startsWith('↓') ? 'textMuted' : 'accent';
+      lines.push(this.pad(` ${currentTheme.fg(trendToken as any, trend)}`, width));
+    }
     lines.push(this.pad(header, width));
 
     if (this.loading && this.sessions.length === 0) {
