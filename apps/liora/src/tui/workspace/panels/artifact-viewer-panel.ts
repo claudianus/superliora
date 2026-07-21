@@ -383,11 +383,28 @@ export class ArtifactViewerPanel implements PanelDefinition {
       } else if (line.startsWith('**') && line.endsWith('**')) {
         rendered.push(currentTheme.boldFg('textStrong', line.slice(2, -2)));
       } else {
-        rendered.push(currentTheme.fg('text', line));
+        rendered.push(this.renderInlineFormatting(line));
       }
     }
 
     return rendered;
+  }
+
+  /** Render inline markdown formatting: **bold**, *italic*, `code`. */
+  private renderInlineFormatting(text: string): string {
+    // Simple inline formatting: handle **bold**, *italic*, `code`
+    let result = text;
+    // Replace **bold** with themed bold
+    result = result.replace(/\*\*(.+?)\*\*/g, (_m, p1: string) => currentTheme.boldFg('textStrong', p1));
+    // Replace *italic* with themed italic (using dim as approximation)
+    result = result.replace(/\*(.+?)\*/g, (_m, p1: string) => currentTheme.fg('accent', p1));
+    // Replace `code` with themed inline code
+    result = result.replace(/`(.+?)`/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${p1} `)));
+    // If no formatting was applied, wrap in default text color
+    if (result === text) {
+      return currentTheme.fg('text', text);
+    }
+    return result;
   }
 }
 
