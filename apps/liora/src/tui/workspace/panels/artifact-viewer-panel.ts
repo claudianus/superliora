@@ -434,6 +434,10 @@ export class ArtifactViewerPanel implements PanelDefinition {
     result = result.replace(/<kbd>(.+?)<\/kbd>/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${p1} `)));
     // Replace <abbr title="...">text</abbr> with text + tooltip
     result = result.replace(/<abbr title="(.+?)">(.+?)<\/abbr>/g, (_m, title: string, text: string) => `${currentTheme.fg('text', text)}${currentTheme.dimFg('textMuted', ` (${title})`)}`);
+    // Replace <mark>text</mark> with highlighted text
+    result = result.replace(/<mark>(.+?)<\/mark>/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', p1)));
+    // Replace ==text== (alternative mark syntax) with highlighted text
+    result = result.replace(/==(.+?)==/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', p1)));
     // If no formatting was applied, wrap in default text color
     if (result === text) {
       return currentTheme.fg('text', text);
