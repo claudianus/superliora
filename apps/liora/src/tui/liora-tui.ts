@@ -448,6 +448,7 @@ export class LioraTUI {
         plan: startupInput.cliOptions.plan,
         model: startupInput.cliOptions.model,
         startupNotice: startupInput.startupNotice,
+        resumeGoal: startupInput.cliOptions.resumeGoal,
       },
     };
     this.options = tuiOptions;
@@ -1240,6 +1241,42 @@ export class LioraTUI {
     }
     void this.refreshDynamicSlashCommands(this.session);
     this.usageMonitor.start();
+    // Goal-driven boot protocol: automatically resume the first goal in the queue
+    if (this.options.startup.resumeGoal === true) {
+      void this.resumeGoalFromQueue();
+    }
+  }
+
+  /**
+   * Goal-driven boot protocol: automatically resume the first goal in the queue.
+   * This is triggered by the --resume-goal CLI option.
+   */
+  private async resumeGoalFromQueue(): Promise<void> {
+    const session = this.session;
+    if (session === undefined) return;
+
+    try {
+      const { readGoalQueue, removeGoalQueueItem } = await import('./goal-queue-store');
+      const queue = await readGoalQueue(session);
+      const firstGoal = queue.goals[0];
+      if (firstGoal === undefined) {
+        this.showStatus('No goals in queue to resume.', 'info');
+        return;
+      }
+
+      // Remove the goal from the queue before starting it
+      await removeGoalQueueItem(session, { goalId: firstGoal.id });
+
+      // Start the goal using the goal command handler
+      this.showStatus(`🎯 Resuming goal: ${firstGoal.objective.slice(0, 100)}...`, 'info');
+
+      // Send the goal objective as a user input to start the goal
+      this.sendNormalUserInput(`/goal ${firstGoal.objective}`, {
+        displayText: `🎯 ${firstGoal.objective.slice(0, 50)}...`,
+      });
+    } catch (error) {
+      this.showStatus(`Failed to resume goal from queue: ${error}`, 'error');
+    }
   }
 
   private async showSessionWarnings(session: Session): Promise<void> {

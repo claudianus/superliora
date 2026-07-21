@@ -275,6 +275,7 @@ export interface TUIStartupOptions {
   readonly plan: boolean;
   readonly model?: string;
   readonly startupNotice?: string;
+  readonly resumeGoal?: boolean;
 }
 
 export type TUIStartupState = 'pending' | 'ready' | 'picker';

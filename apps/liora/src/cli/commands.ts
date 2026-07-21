@@ -85,7 +85,8 @@ export function createProgram(
     )
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false))
-    .option('--plan', t('cli.option.plan'), false);
+    .option('--plan', t('cli.option.plan'), false)
+    .option('--resume-goal', t('cli.option.resumeGoal'), false);
 
   registerExportCommand(program);
   registerProviderCommand(program);
@@ -137,6 +138,7 @@ export function createProgram(
       prompt: raw['prompt'] as string | undefined,
       skillsDirs: raw['skillsDir'] as string[],
       addDirs: raw['addDir'] as string[],
+      resumeGoal: raw['resumeGoal'] as boolean,
     };
 
     onMain(opts);
