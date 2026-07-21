@@ -147,6 +147,16 @@ export class GitDiffPanel implements PanelDefinition {
           this.mode = this.mode === 'summary' ? 'full' : 'summary';
           this.cursorIndex = 0;
           this.scrollTop = 0;
+          this.renderCache = null;
+          return true;
+        }
+        // Hunk/file jump navigation
+        if (event.text === 'n' || event.text === 'N') {
+          this.jumpToNextHunk();
+          return true;
+        }
+        if (event.text === 'p' || event.text === 'P') {
+          this.jumpToPrevHunk();
           return true;
         }
         return false;
@@ -158,6 +168,44 @@ export class GitDiffPanel implements PanelDefinition {
   dispose(): void {
     this.files = [];
     this.flatLines = [];
+  }
+
+  /** Jump to the next hunk header or file header in the flat lines. */
+  private jumpToNextHunk(): void {
+    for (let i = this.cursorIndex + 1; i < this.flatLines.length; i++) {
+      if (this.flatLines[i]!.type === 'header') {
+        this.cursorIndex = i;
+        this.renderCache = null;
+        return;
+      }
+    }
+    // Wrap around
+    for (let i = 0; i <= this.cursorIndex; i++) {
+      if (this.flatLines[i]!.type === 'header') {
+        this.cursorIndex = i;
+        this.renderCache = null;
+        return;
+      }
+    }
+  }
+
+  /** Jump to the previous hunk header or file header in the flat lines. */
+  private jumpToPrevHunk(): void {
+    for (let i = this.cursorIndex - 1; i >= 0; i--) {
+      if (this.flatLines[i]!.type === 'header') {
+        this.cursorIndex = i;
+        this.renderCache = null;
+        return;
+      }
+    }
+    // Wrap around
+    for (let i = this.flatLines.length - 1; i >= this.cursorIndex; i--) {
+      if (this.flatLines[i]!.type === 'header') {
+        this.cursorIndex = i;
+        this.renderCache = null;
+        return;
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
