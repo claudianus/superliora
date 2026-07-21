@@ -136,6 +136,9 @@ export class WorkspaceController {
     lastFocused: null,
   };
 
+  // Focus ring animation: breathing border on focused panel
+  private static readonly FOCUS_RING_PERIOD = 3000; // ms for one breath cycle
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
