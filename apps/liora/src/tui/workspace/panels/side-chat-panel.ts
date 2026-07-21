@@ -107,9 +107,13 @@ export class SideChatPanel implements PanelDefinition {
           const deliveryMark = msg.role === 'user' && wi === 0
             ? (msg.delivered ? currentTheme.fg('success', ' ✓') : currentTheme.fg('warning', ' ⏳'))
             : '';
+          // Message length indicator for longer messages (>100 chars)
+          const lenMark = wi === 0 && msg.text.length > 100
+            ? currentTheme.dimFg('textMuted', ` ${String(msg.text.length)}c`)
+            : '';
           const styled = msg.role === 'user'
-            ? `${linePrefix}${currentTheme.fg('text', wl)}${deliveryMark}`
-            : `${linePrefix}${currentTheme.dimFg('textDim', wl)}`;
+            ? `${linePrefix}${currentTheme.fg('text', wl)}${deliveryMark}${lenMark}`
+            : `${linePrefix}${currentTheme.dimFg('textDim', wl)}${lenMark}`;
           lines.push(this.pad(styled, width));
         }
       }
