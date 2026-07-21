@@ -103,6 +103,14 @@ export class SessionManagerPanel implements PanelDefinition {
     const appearance = getActiveAppearancePreferences();
     const animate = shouldRenderAmbientEffects(appearance);
 
+    // Filter sessions by search query
+    const filtered = searchQuery && searchQuery.length > 0
+      ? this.sessions.filter((s) => {
+          const title = (s.title ?? s.lastPrompt ?? s.id).toLowerCase();
+          return title.includes(searchQuery.toLowerCase());
+        })
+      : this.sessions;
+
     // Header line
     const countLabel = this.loading ? '…' : String(this.sessions.length);
     const searchInfo = searchQuery && searchQuery.length > 0
@@ -122,14 +130,6 @@ export class SessionManagerPanel implements PanelDefinition {
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '(no sessions)')}`, width));
       return this.fillLines(lines, height, width);
     }
-
-    // Filter sessions by search query
-    const filtered = searchQuery && searchQuery.length > 0
-      ? this.sessions.filter((s) => {
-          const title = (s.title ?? s.lastPrompt ?? s.id).toLowerCase();
-          return title.includes(searchQuery.toLowerCase());
-        })
-      : this.sessions;
 
     if (filtered.length === 0) {
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', `(no match for "${searchQuery}")`)}`, width));
