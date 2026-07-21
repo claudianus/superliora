@@ -18,6 +18,13 @@ export interface CatalogModelEntry {
     readonly input?: readonly string[];
     readonly output?: readonly string[];
   };
+  /** Per-million-token pricing in USD (models.dev `cost` field). */
+  readonly cost?: {
+    readonly input?: number;
+    readonly output?: number;
+    readonly cache_read?: number;
+    readonly cache_write?: number;
+  };
 }
 
 export interface CatalogProviderEntry {

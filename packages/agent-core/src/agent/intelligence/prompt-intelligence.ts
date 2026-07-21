@@ -17,6 +17,49 @@ import type { Agent } from '../index';
  * reported as empty results so the input box is never disturbed.
  */
 
+/** models.dev catalog URL used to resolve per-token model pricing. */
+const MODELS_DEV_API_URL = 'https://models.dev/api.json';
+/** Timeout for the pricing catalog fetch (ms). */
+const PRICING_FETCH_TIMEOUT_MS = 5_000;
+
+/**
+ * Module-level lazy cache: model-id (lowercase) → input cost per million
+ * tokens.  Fetched once from models.dev; stays `undefined` until the fetch
+ * settles so callers can fall back to name heuristics immediately.
+ */
+let modelPricingPromise: Promise<Map<string, number>> | undefined;
+
+function getModelPricing(): Promise<Map<string, number>> {
+  modelPricingPromise ??= fetchModelPricing();
+  return modelPricingPromise;
+}
+
+async function fetchModelPricing(): Promise<Map<string, number>> {
+  const pricing = new Map<string, number>();
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PRICING_FETCH_TIMEOUT_MS);
+    const res = await fetch(MODELS_DEV_API_URL, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return pricing;
+    const data = (await res.json()) as Record<
+      string,
+      { models?: Record<string, { id?: string; cost?: { input?: number } }> }
+    >;
+    for (const provider of Object.values(data)) {
+      if (provider.models === undefined) continue;
+      for (const model of Object.values(provider.models)) {
+        if (model.id !== undefined && model.cost?.input != null) {
+          pricing.set(model.id.toLowerCase(), model.cost.input);
+        }
+      }
+    }
+  } catch {
+    // Network failure — callers fall back to name heuristics.
+  }
+  return pricing;
+}
+
 /** Max completion tokens for an inline next-words prediction. */
 export const INLINE_MAX_TOKENS = 128;
 /** Max completion tokens for the next-task suggestion list. */
@@ -75,7 +118,7 @@ export class PromptIntelligenceService {
     const draft = extractDraft(payload);
     if (draft.length === 0) return empty;
 
-    const provider = this.resolveProvider(INLINE_MAX_TOKENS);
+    const provider = await this.resolveProvider(INLINE_MAX_TOKENS);
     if (provider === undefined) return empty;
 
     const context = summarizeHistory(this.agent.context.messages, HISTORY_CONTEXT_CHARS);
@@ -111,7 +154,7 @@ export class PromptIntelligenceService {
     const empty: SuggestPromptsResult = { suggestions: [] };
     if (!this.isEnabled()) return empty;
 
-    const provider = this.resolveProvider(SUGGEST_MAX_TOKENS);
+    const provider = await this.resolveProvider(SUGGEST_MAX_TOKENS);
     if (provider === undefined) return empty;
 
     const context = summarizeHistory(this.agent.context.messages, HISTORY_CONTEXT_CHARS);
@@ -153,16 +196,31 @@ export class PromptIntelligenceService {
   }
 
   /**
-   * When no explicit `completionModel` is configured, scan the user's
-   * configured models for the cheapest / fastest one using well-known
-   * model-name patterns.  Returns the alias key or `undefined`.
+   * When no explicit `completionModel` is configured, pick the cheapest
+   * model from the user's configured aliases.  Prefers actual per-token
+   * pricing from the models.dev catalog; falls back to well-known
+   * model-name patterns when pricing is unavailable.
    */
-  private inferCheapModelAlias(): string | undefined {
+  private async inferCheapModelAlias(): Promise<string | undefined> {
     const models = this.agent.kimiConfig?.models;
     if (models === undefined) return undefined;
 
-    // Lower score = cheaper / faster.  Patterns are matched against the
-    // lowercase model alias key AND the underlying model id.
+    // 1. Try actual pricing data from models.dev.
+    const pricing = await getModelPricing();
+    if (pricing.size > 0) {
+      let bestAlias: string | undefined;
+      let bestCost = Number.POSITIVE_INFINITY;
+      for (const [alias, config] of Object.entries(models)) {
+        const cost = pricing.get(config.model.toLowerCase());
+        if (cost !== undefined && cost < bestCost) {
+          bestCost = cost;
+          bestAlias = alias;
+        }
+      }
+      if (bestAlias !== undefined) return bestAlias;
+    }
+
+    // 2. Fallback: name-pattern heuristic (lower score = cheaper / faster).
     const CHEAP_PATTERNS: ReadonlyArray<{ pattern: string; score: number }> = [
       { pattern: 'haiku', score: 1 },
       { pattern: 'flash', score: 2 },
@@ -173,7 +231,7 @@ export class PromptIntelligenceService {
     ];
 
     let bestAlias: string | undefined;
-    let bestScore = Infinity;
+    let bestScore = Number.POSITIVE_INFINITY;
 
     for (const [alias, config] of Object.entries(models)) {
       const haystack = `${alias} ${config.model}`.toLowerCase();
@@ -187,9 +245,9 @@ export class PromptIntelligenceService {
     return bestAlias;
   }
 
-  private resolveProvider(maxTokens: number): ChatProvider | undefined {
+  private async resolveProvider(maxTokens: number): Promise<ChatProvider | undefined> {
     try {
-      const alias = this.completionModelAlias() ?? this.inferCheapModelAlias();
+      const alias = this.completionModelAlias() ?? (await this.inferCheapModelAlias());
       const resolved = alias ? this.agent.modelProvider?.resolveProviderConfig(alias) : undefined;
       let provider = resolved ? createProvider(resolved.provider) : this.agent.config.provider;
       provider = provider.withThinking('off');
