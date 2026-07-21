@@ -168,6 +168,12 @@ export class SessionManagerPanel implements PanelDefinition {
         title = this.highlightSearch(title, searchQuery);
       }
 
+      // Workdir group separator (when workdir changes from previous session)
+      if (i > 0 && session.workDir !== filtered[i - 1]!.workDir) {
+        const dirName = session.workDir.replace(/^.*\//, '');
+        lines.push(this.pad(`  ${currentTheme.dimFg('border', '┄')} ${currentTheme.dimFg('textMuted', dirName)} ${currentTheme.dimFg('border', '┄'.repeat(Math.max(1, width - dirName.length - 5)))}`, width));
+      }
+
       // Line 1: marker + title + time
       const timeStr = time.length > 0 ? ` ${time}` : '';
       const maxTitle = width - 3 - timeStr.length;
