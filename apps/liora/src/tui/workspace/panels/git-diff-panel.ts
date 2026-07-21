@@ -19,6 +19,7 @@ interface DiffFile {
   readonly modeChange?: string;
   readonly whitespaceOnly?: boolean;
   readonly hasImportChanges?: boolean;
+  readonly todoCount?: number;
 }
 
 interface DiffHunk {
@@ -369,6 +370,7 @@ export class GitDiffPanel implements PanelDefinition {
       const modeBadge = file.modeChange ? ` ${currentTheme.fg('accent', `[${file.modeChange}]`)}` : '';
       const wsBadge = file.whitespaceOnly ? ` ${currentTheme.dimFg('textMuted', '[ws]')}` : '';
       const importBadge = file.hasImportChanges ? ` ${currentTheme.fg('warning', '[imp]')}` : '';
+      const todoBadge = file.todoCount ? ` ${currentTheme.fg('warning', `[TODO×${String(file.todoCount)}]`)}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
       // File age: show how recently the file was last modified on disk
       let fileAgeBadge = '';
@@ -381,7 +383,7 @@ export class GitDiffPanel implements PanelDefinition {
       } catch {
         // File may not exist (deleted)
       }
-      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
+      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${todoBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
     }
 
     lines.push('');
@@ -629,7 +631,17 @@ function parseDiff(output: string): DiffFile[] {
       if (hasImportChanges) break;
     }
 
-    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges });
+    // Detect TODO/FIXME/HACK comments in added lines
+    let todoCount = 0;
+    for (const hunk of hunks) {
+      for (const line of hunk.lines) {
+        if (line.type === 'add' && /\b(TODO|FIXME|HACK|XXX)\b/.test(line.content)) {
+          todoCount++;
+        }
+      }
+    }
+
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges, todoCount: todoCount > 0 ? todoCount : undefined });
   }
 
   return files;
