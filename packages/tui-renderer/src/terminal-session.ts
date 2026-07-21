@@ -77,6 +77,27 @@ export const ANSI_DISABLE_SGR_MOUSE_MODE = '\u001B[?1006l';
 // the layout glyph and shortcut handlers never fire.
 export const ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL = '\u001B[>5u';
 export const ANSI_POP_KITTY_KEYBOARD_PROTOCOL = '\u001B[<u';
+
+// Kitty pointer shape protocol (CSI 22 ; shape u / CSI 23 u)
+export type KittyPointerShape =
+  | 'default'
+  | 'text'
+  | 'pointer'
+  | 'crosshair'
+  | 'ew-resize'
+  | 'ns-resize'
+  | 'nwse-resize'
+  | 'nesw-resize'
+  | 'move'
+  | 'not-allowed'
+  | 'grab'
+  | 'grabbing';
+
+export function ansiPushPointerShape(shape: KittyPointerShape): string {
+  return `\u001B[22;${shape}u`;
+}
+
+export const ANSI_POP_POINTER_SHAPE = '\u001B[23u';
 export const ANSI_DISABLE_AUTO_WRAP = '\u001B[?7l';
 export const ANSI_ENABLE_AUTO_WRAP = '\u001B[?7h';
 

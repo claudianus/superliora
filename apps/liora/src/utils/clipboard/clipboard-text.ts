@@ -51,5 +51,21 @@ export async function copyTextToClipboard(text: string): Promise<void> {
     }
   }
 
-  await copyWithPlatformCommand(text);
+  try {
+    await copyWithPlatformCommand(text);
+  } catch {
+    // Final fallback: OSC 52 (works over SSH in Kitty/WezTerm/etc.)
+    copyViaOsc52(text);
+  }
+}
+
+/**
+ * Write text to the terminal clipboard via OSC 52 escape sequence.
+ * Works in Kitty, WezTerm, Ghostty, and other modern terminals,
+ * including over SSH where platform clipboard commands are unavailable.
+ */
+function copyViaOsc52(text: string): void {
+  const encoded = Buffer.from(text, 'utf-8').toString('base64');
+  // OSC 52 ; c ; <base64> ST  (ST = ESC \)
+  process.stdout.write(`\x1b]52;c;${encoded}\x1b\\`);
 }

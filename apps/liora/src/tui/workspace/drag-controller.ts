@@ -4,7 +4,7 @@ import type {
   RendererRect,
   WorkspaceLayoutResult,
 } from '@harness-kit/tui-renderer';
-import { hitTestDockDivider } from '@harness-kit/tui-renderer';
+import { hitTestDockDivider, ansiPushPointerShape, ANSI_POP_POINTER_SHAPE } from '@harness-kit/tui-renderer';
 
 import type { PanelManager } from './panel-manager';
 
@@ -138,6 +138,7 @@ export class DragController {
         startX: event.x,
         startWidth: this.panelManager.getDockWidth('left'),
       };
+      process.stdout.write(ansiPushPointerShape('ew-resize'));
       return true;
     }
 
@@ -148,6 +149,7 @@ export class DragController {
         startX: event.x,
         startWidth: this.panelManager.getDockWidth('right'),
       };
+      process.stdout.write(ansiPushPointerShape('ew-resize'));
       return true;
     }
 
@@ -166,6 +168,7 @@ export class DragController {
       };
       // Also focus the panel
       this.panelManager.focusPanel(panelHit);
+      process.stdout.write(ansiPushPointerShape('grabbing'));
       return true;
     }
 
@@ -184,6 +187,7 @@ export class DragController {
 
     if (event.action === 'release') {
       this.state = { type: 'idle' };
+      process.stdout.write(ANSI_POP_POINTER_SHAPE);
       this.callbacks.onLayoutChange();
       return true;
     }
@@ -241,6 +245,7 @@ export class DragController {
         }
       }
       this.state = { type: 'idle' };
+      process.stdout.write(ANSI_POP_POINTER_SHAPE);
       this.callbacks.onLayoutChange();
       return true;
     }
