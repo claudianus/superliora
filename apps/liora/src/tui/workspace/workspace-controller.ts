@@ -1229,19 +1229,24 @@ export class WorkspaceController {
   renderPresetOverlay(): string[] | null {
     if (!this.presetOverlayOpen || this.presetManager === null) return null;
     const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const divider = animated
+      ? renderParticleDivider(30, 'presets:divider', appearance)
+      : currentTheme.fg('primary', '─'.repeat(30));
 
     if (this.presetSaveMode) {
       lines.push(currentTheme.boldFg('primary', ' 프리셋 저장'));
-      lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+      lines.push(divider);
       lines.push(` ${currentTheme.fg('text', '이름:')} ${currentTheme.fg('textStrong', this.presetSaveName)}${currentTheme.bg('selectionBg', ' ')}`);
-      lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+      lines.push(divider);
       lines.push(` ${currentTheme.dimFg('textMuted', 'Enter 저장 · Esc 취소')}`);
       return lines;
     }
 
     const presets = this.presetManager.listPresets();
     lines.push(currentTheme.boldFg('primary', ' 레이아웃 프리셋'));
-    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+    lines.push(divider);
     if (presets.length === 0) {
       lines.push(`  ${currentTheme.dimFg('textMuted', '(저장된 프리셋 없음)')}`);
     } else {
@@ -1252,7 +1257,7 @@ export class WorkspaceController {
         lines.push(` ${marker} ${label}`);
       }
     }
-    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+    lines.push(divider);
     lines.push(` ${currentTheme.dimFg('textMuted', '↑↓ 이동 · Enter 적용 · s 저장 · d 삭제 · Esc 닫기')}`);
     return lines;
   }
