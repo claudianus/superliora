@@ -135,7 +135,11 @@ export function renderStatusBar(data: StatusBarData, columns: number, cwd: strin
     const tokenInfo = data.contextTokens !== undefined && data.maxContextTokens !== undefined
       ? `${formatTokenCount(data.contextTokens)}/${formatTokenCount(data.maxContextTokens)}`
       : `${pct}%`;
-    contextSegment = currentTheme.fg(token, tokenInfo);
+    // Compact visual bar: ▓▓▓▓░░░░░░ 42%
+    const BAR_WIDTH = 6;
+    const filled = Math.round(data.contextUsage * BAR_WIDTH);
+    const bar = '▓'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled);
+    contextSegment = `${currentTheme.fg(token, bar)} ${currentTheme.fg(token, tokenInfo)}`;
   }
 
   // Model name (shortened)
