@@ -100,6 +100,9 @@ export class WorkspaceController {
   private focusFlashStart = 0;
   private static readonly FOCUS_FLASH_DURATION = 400; // ms
 
+  // Panel activity tracking (for tab bar activity dots)
+  private panelActivity: Map<string, number> = new Map();
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -369,6 +372,8 @@ export class WorkspaceController {
         true,
         searchQuery,
       );
+      // Track panel activity for tab bar indicators
+      this.panelActivity.set(activePanel.instanceId, Date.now());
 
       // Panel content fade-in: briefly dim content on recent focus change
       const fadeAge = Date.now() - this.focusFlashStart;
@@ -425,7 +430,11 @@ export class WorkspaceController {
           ? renderPulseText(tabText, `tab:${panel.instanceId}`, 'primary', appearance)
           : currentTheme.bg('selectionBg', currentTheme.fg('selectionText', tabText)));
       } else {
-        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `) + currentTheme.dimFg('border', closeBtn));
+        // Activity dot: show when panel had recent updates (within 5s)
+        const lastActivity = this.panelActivity.get(panel.instanceId) ?? 0;
+        const hasRecentActivity = Date.now() - lastActivity < 5000 && panel.instanceId !== focusedId;
+        const activityDot = hasRecentActivity ? currentTheme.fg('success', '•') : '';
+        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `) + activityDot + currentTheme.dimFg('border', closeBtn));
       }
       // Track close button position (after label + space)
       const tabVisibleLen = label.length + 3; // space + label + space + ×
