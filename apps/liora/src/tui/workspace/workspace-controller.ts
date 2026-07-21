@@ -408,6 +408,10 @@ export class WorkspaceController {
     const appearance = getActiveAppearancePreferences();
     const animate = shouldRenderAmbientEffects(appearance);
     const tabs: string[] = [];
+    // Panel count badge (compact, shows total panels in this dock)
+    const panelCountBadge = panels.length > 1
+      ? currentTheme.dimFg('textMuted', ` ${String(panels.length)}`)
+      : '';
     // Reset close button hit zones for this dock
     this.tabCloseZones = this.tabCloseZones.filter((z) => z.dock !== dockId);
     let cursorX = 1; // leading space
