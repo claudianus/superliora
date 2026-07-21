@@ -20,6 +20,7 @@ interface FileEntry {
   readonly isSymlink?: boolean;
   readonly isExecutable?: boolean;
   readonly mode?: number;
+  readonly mtimeMs?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +299,7 @@ export class FileExplorerPanel implements PanelDefinition {
       let sizeBytes: number | undefined;
       let isExecutable = false;
       let fileMode: number | undefined;
+      let mtimeMs: number | undefined;
       if (!isDirectory) {
         try {
           const stat = fs.statSync(fullPath);
@@ -305,6 +307,7 @@ export class FileExplorerPanel implements PanelDefinition {
           // Check executable bit (owner)
           isExecutable = (stat.mode & 0o100) !== 0;
           fileMode = stat.mode;
+          mtimeMs = stat.mtimeMs;
         } catch {
           // ignore stat errors
         }
@@ -320,6 +323,7 @@ export class FileExplorerPanel implements PanelDefinition {
         isSymlink,
         isExecutable,
         mode: fileMode,
+        mtimeMs,
       });
 
       if (isDirectory && this.expandedDirs.has(fullPath)) {
@@ -534,7 +538,11 @@ export class FileExplorerPanel implements PanelDefinition {
     const permBadge = entry.mode !== undefined && !entry.isDirectory
       ? ` ${currentTheme.dimFg('textMuted', formatPerms(entry.mode))}`
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}`;
+    // File age badge (compact relative time)
+    const ageBadge = entry.mtimeMs !== undefined
+      ? ` ${currentTheme.dimFg('textMuted', formatAge(entry.mtimeMs))}`
+      : '';
+    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
@@ -609,6 +617,15 @@ export class FileExplorerPanel implements PanelDefinition {
 // ---------------------------------------------------------------------------
 
 /** Format file size in human-readable form (B/K/M). */
+/** Format file age as compact relative time (e.g. 2m, 3h, 5d). */
+function formatAge(mtimeMs: number): string {
+  const ageSec = Math.floor(Math.max(0, Date.now() - mtimeMs) / 1000);
+  if (ageSec < 60) return 'now';
+  if (ageSec < 3600) return `${String(Math.floor(ageSec / 60))}m`;
+  if (ageSec < 86400) return `${String(Math.floor(ageSec / 3600))}h`;
+  return `${String(Math.floor(ageSec / 86400))}d`;
+}
+
 /** Format file mode as compact rwx string (e.g. rw-r--r--). */
 function formatPerms(mode: number): string {
   const perms = mode & 0o777;
