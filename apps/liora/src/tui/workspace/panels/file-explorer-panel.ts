@@ -71,12 +71,26 @@ export class FileExplorerPanel implements PanelDefinition {
     if (this.cursorIndex < this.scrollTop) {
       this.scrollTop = this.cursorIndex;
     }
-    if (this.cursorIndex >= this.scrollTop + height) {
-      this.scrollTop = this.cursorIndex - height + 1;
+    const headerRows = focused ? 1 : 0;
+    if (this.cursorIndex >= this.scrollTop + height - headerRows) {
+      this.scrollTop = this.cursorIndex - height + headerRows + 1;
     }
 
     const lines: string[] = [];
-    const visibleEntries = this.entries.slice(this.scrollTop, this.scrollTop + height);
+
+    // Header stats line (visible when focused)
+    if (focused) {
+      const dirs = this.entries.filter((e) => e.isDirectory).length;
+      const files = this.entries.length - dirs;
+      const modified = this.entries.filter((e) => e.gitStatus === 'M').length;
+      const added = this.entries.filter((e) => e.gitStatus === 'A' || e.gitStatus === '??').length;
+      let stats = currentTheme.dimFg('textMuted', ` ${String(dirs)}d ${String(files)}f`);
+      if (modified > 0) stats += currentTheme.fg('warning', ` ~${String(modified)}`);
+      if (added > 0) stats += currentTheme.fg('success', ` +${String(added)}`);
+      lines.push(stats);
+    }
+
+    const visibleEntries = this.entries.slice(this.scrollTop, this.scrollTop + height - headerRows);
 
     for (let i = 0; i < visibleEntries.length; i++) {
       const entry = visibleEntries[i]!;
