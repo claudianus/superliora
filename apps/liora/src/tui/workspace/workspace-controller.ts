@@ -370,6 +370,11 @@ export class WorkspaceController {
         searchQuery,
       );
 
+      // Panel content fade-in: briefly dim content on recent focus change
+      const fadeAge = Date.now() - this.focusFlashStart;
+      const FADE_DURATION = 250; // ms
+      const isFading = fadeAge < FADE_DURATION && activePanel.instanceId === this.lastFocusedPanelId;
+
       const framed = renderPanelFrame({
         width: dockRect.width,
         height: dockRect.height - 1,
