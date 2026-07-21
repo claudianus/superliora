@@ -43,6 +43,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitBranch: string | null = null;
   private gitCommitCount = 0;
   private gitTag: string | null = null;
+  private gitRemote: string | null = null;
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -105,6 +106,8 @@ export class FileExplorerPanel implements PanelDefinition {
       if (this.gitCommitCount > 0) stats += currentTheme.dimFg('textMuted', ` ${String(this.gitCommitCount)}c`);
       // Git tag (latest)
       if (this.gitTag) stats += ` ${currentTheme.fg('accent', `🏷${this.gitTag}`)}`;
+      // Git remote
+      if (this.gitRemote) stats += currentTheme.dimFg('textMuted', ` ⬡${this.gitRemote}`);
       lines.push(stats);
     }
 
@@ -411,6 +414,17 @@ export class FileExplorerPanel implements PanelDefinition {
         this.gitTag = tag || null;
       } catch {
         this.gitTag = null;
+      }
+      // Get remote name
+      try {
+        const remote = execSync('git remote 2>/dev/null | head -1', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim();
+        this.gitRemote = remote || null;
+      } catch {
+        this.gitRemote = null;
       }
       const output = execSync('git status --porcelain', {
         cwd: this.rootPath,
