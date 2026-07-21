@@ -54,6 +54,9 @@ export class FileExplorerPanel implements PanelDefinition {
   private quickSearchQuery = '';
   /** Git blame cache for selected file */
   private blameCache: Map<string, string> = new Map();
+  /** File content preview cache */
+  private previewCache: Map<string, string[]> = new Map();
+  private previewEnabled = true;
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -177,6 +180,29 @@ export class FileExplorerPanel implements PanelDefinition {
           currentTheme.fg('error', '▓'.repeat(dW)) +
           currentTheme.dimFg('textMuted', '░'.repeat(Math.max(0, uW)));
         lines.push(` ${summaryBar}`);
+      }
+    }
+
+    // File content preview (last 3 lines of panel when a file is selected)
+    if (this.previewEnabled && focused && height > 8) {
+      const selEntry = this.entries[this.cursorIndex];
+      if (selEntry && !selEntry.isDirectory) {
+        if (!this.previewCache.has(selEntry.fullPath)) {
+          try {
+            const fileContent = fs.readFileSync(selEntry.fullPath, 'utf-8');
+            const previewLines = fileContent.split('\n').slice(0, 3).map((l) => l.slice(0, width - 4));
+            this.previewCache.set(selEntry.fullPath, previewLines);
+          } catch {
+            this.previewCache.set(selEntry.fullPath, []);
+          }
+        }
+        const preview = this.previewCache.get(selEntry.fullPath) ?? [];
+        if (preview.length > 0) {
+          lines.push(currentTheme.dimFg('border', '┄'.repeat(Math.min(width, 30))));
+          for (const pl of preview) {
+            lines.push(currentTheme.dimFg('textDim', `  ${pl}`));
+          }
+        }
       }
     }
 
