@@ -92,3 +92,25 @@ describe('MoonshotFetchURLProvider content kind', () => {
     expect(result).toEqual({ content: 'verbatim body', kind: 'passthrough' });
   });
 });
+
+describe('MoonshotFetchURLProvider custom headers', () => {
+  it('sends customHeaders on the service request and lets them override defaults', async () => {
+    const getAccessToken = vi.fn<() => Promise<string>>().mockResolvedValue('token');
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('ok', { status: 200 }));
+    const provider = new MoonshotFetchURLProvider({
+      tokenProvider: { getAccessToken },
+      baseUrl: 'https://fetch.example/v1',
+      defaultHeaders: { 'X-Default': 'default', 'X-Shared': 'from-default' },
+      customHeaders: { 'X-Custom': 'custom', 'X-Shared': 'from-custom' },
+      localFallback: fakeFetcher('fallback content'),
+      fetchImpl,
+    });
+
+    await provider.fetch('https://example.com/page');
+
+    const headers = fetchImpl.mock.calls[0]?.[1]?.headers as Record<string, string>;
+    expect(headers['X-Default']).toBe('default');
+    expect(headers['X-Custom']).toBe('custom');
+    expect(headers['X-Shared']).toBe('from-custom');
+  });
+});
