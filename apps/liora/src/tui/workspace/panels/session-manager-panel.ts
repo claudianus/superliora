@@ -118,9 +118,29 @@ export class SessionManagerPanel implements PanelDefinition {
     const searchInfo = searchQuery && searchQuery.length > 0
       ? currentTheme.dimFg('textMuted', ` (${String(filtered.length)} match)`)
       : '';
+    // Session activity sparkline: show recency distribution of sessions
+    let activitySparkline = '';
+    if (this.sessions.length > 2) {
+      const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'] as const;
+      const now = Date.now();
+      const BUCKET_COUNT = 6;
+      const BUCKET_MS = 3_600_000; // 1h per bucket = 6h window
+      const buckets = new Array<number>(BUCKET_COUNT).fill(0);
+      for (const s of this.sessions) {
+        const age = now - s.updatedAt;
+        if (age < 0 || age >= BUCKET_COUNT * BUCKET_MS) continue;
+        const idx = BUCKET_COUNT - 1 - Math.floor(age / BUCKET_MS);
+        if (idx >= 0 && idx < BUCKET_COUNT) buckets[idx] = (buckets[idx] ?? 0) + 1;
+      }
+      const max = Math.max(1, ...buckets);
+      activitySparkline = ' ' + currentTheme.dimFg('textMuted', buckets.map((count) => {
+        const level = Math.min(SPARK_CHARS.length - 1, Math.round((count / max) * (SPARK_CHARS.length - 1)));
+        return SPARK_CHARS[level]!;
+      }).join(''));
+    }
     const header = this.loading && animate
       ? renderPulseText(` ${countLabel} sessions`, 'sessions:loading', 'primary', appearance)
-      : currentTheme.boldFg('primary', ` ${countLabel} sessions`) + searchInfo;
+      : currentTheme.boldFg('primary', ` ${countLabel} sessions`) + searchInfo + activitySparkline;
     lines.push(this.pad(header, width));
 
     if (this.loading && this.sessions.length === 0) {
