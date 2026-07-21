@@ -83,6 +83,15 @@ export class ArtifactViewerPanel implements PanelDefinition {
       }
       return truncated;
     });
+    // Add line numbers when focused
+    if (focused) {
+      const gutterWidth = String(this.scrollTop + visible.length).length + 1;
+      for (let i = 0; i < contentLines.length; i++) {
+        const lineNum = this.scrollTop + i + 1;
+        const gutter = currentTheme.dimFg('border', String(lineNum).padStart(gutterWidth - 1) + ' ');
+        contentLines[i] = `${gutter}${contentLines[i] ?? ''}`;
+      }
+    }
     lines.push(...contentLines);
 
     // Scroll indicator
