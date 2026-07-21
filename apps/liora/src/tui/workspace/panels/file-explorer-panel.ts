@@ -19,6 +19,7 @@ interface FileEntry {
   readonly sizeBytes?: number;
   readonly isSymlink?: boolean;
   readonly isExecutable?: boolean;
+  readonly mode?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -296,12 +297,14 @@ export class FileExplorerPanel implements PanelDefinition {
       // Get file size for non-directory entries
       let sizeBytes: number | undefined;
       let isExecutable = false;
+      let fileMode: number | undefined;
       if (!isDirectory) {
         try {
           const stat = fs.statSync(fullPath);
           sizeBytes = stat.size;
           // Check executable bit (owner)
           isExecutable = (stat.mode & 0o100) !== 0;
+          fileMode = stat.mode;
         } catch {
           // ignore stat errors
         }
@@ -316,6 +319,7 @@ export class FileExplorerPanel implements PanelDefinition {
         sizeBytes,
         isSymlink,
         isExecutable,
+        mode: fileMode,
       });
 
       if (isDirectory && this.expandedDirs.has(fullPath)) {
@@ -526,7 +530,11 @@ export class FileExplorerPanel implements PanelDefinition {
     const sizeBadge = entry.sizeBytes !== undefined && entry.sizeBytes > 0
       ? ` ${currentTheme.dimFg('textMuted', formatFileSize(entry.sizeBytes))}`
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}`;
+    // File permission badge (compact rwx)
+    const permBadge = entry.mode !== undefined && !entry.isDirectory
+      ? ` ${currentTheme.dimFg('textMuted', formatPerms(entry.mode))}`
+      : '';
+    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
@@ -601,6 +609,16 @@ export class FileExplorerPanel implements PanelDefinition {
 // ---------------------------------------------------------------------------
 
 /** Format file size in human-readable form (B/K/M). */
+/** Format file mode as compact rwx string (e.g. rw-r--r--). */
+function formatPerms(mode: number): string {
+  const perms = mode & 0o777;
+  const r = (p: number) => (perms & p) ? '' : '-';
+  const owner = `${(perms & 0o400) ? 'r' : '-'}${(perms & 0o200) ? 'w' : '-'}${(perms & 0o100) ? 'x' : '-'}`;
+  const group = `${(perms & 0o040) ? 'r' : '-'}${(perms & 0o020) ? 'w' : '-'}${(perms & 0o010) ? 'x' : '-'}`;
+  const other = `${(perms & 0o004) ? 'r' : '-'}${(perms & 0o002) ? 'w' : '-'}${(perms & 0o001) ? 'x' : '-'}`;
+  return `${owner}${group}${other}`;
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${String(bytes)}B`;
   if (bytes < 1024 * 1024) return `${String(Math.round(bytes / 1024))}K`;
