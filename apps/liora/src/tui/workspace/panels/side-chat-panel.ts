@@ -47,6 +47,9 @@ export class SideChatPanel implements PanelDefinition {
   private scrollTop = 0;
   /** Whether auto-scroll is locked (user scrolled up) */
   private scrollLocked = false;
+  /** Message search */
+  private searchActive = false;
+  private searchQuery = '';
   private history: string[] = [];
   private historyIndex = -1;
 
@@ -147,6 +150,12 @@ export class SideChatPanel implements PanelDefinition {
       : scrollLockIndicator;
     lines.push(this.pad(`${currentTheme.dimFg('border', '─')}${statusText}${currentTheme.dimFg('border', '─'.repeat(Math.max(1, width - 4)))}`, width));
 
+    // Search bar (when active)
+    if (this.searchActive) {
+      const searchLabel = currentTheme.fg('primary', `/${this.searchQuery}`) + currentTheme.fg('primary', '▏');
+      lines.push(this.pad(searchLabel, width));
+    }
+
     // Input line
     const prompt = focused ? currentTheme.boldFg('primary', '❯ ') : '  ';
     const cursor = focused ? currentTheme.fg('primary', '▏') : '';
@@ -223,6 +232,33 @@ export class SideChatPanel implements PanelDefinition {
       this.inputBuffer = '';
       this.cursorPos = 0;
       return true;
+    }
+
+    // Ctrl+F: toggle message search
+    if (event.ctrl && event.key === 'character' && event.text === 'f') {
+      this.searchActive = !this.searchActive;
+      if (!this.searchActive) this.searchQuery = '';
+      return true;
+    }
+
+    // Handle search input when search is active
+    if (this.searchActive) {
+      if (event.key === 'escape') {
+        this.searchActive = false;
+        this.searchQuery = '';
+        return true;
+      }
+      if (event.key === 'backspace') {
+        this.searchQuery = this.searchQuery.slice(0, -1);
+        return true;
+      }
+      if (event.key === 'character' && event.text !== undefined && !event.ctrl) {
+        this.searchQuery += event.text;
+        // Scroll to first matching message
+        this.scrollToSearchMatch();
+        return true;
+      }
+      return false;
     }
 
     // Character input
@@ -337,6 +373,18 @@ export class SideChatPanel implements PanelDefinition {
   // -------------------------------------------------------------------------
   // Rendering helpers
   // -------------------------------------------------------------------------
+
+  /** Scroll to the first message matching the search query. */
+  private scrollToSearchMatch(): void {
+    if (this.searchQuery.length === 0) return;
+    const lowerQuery = this.searchQuery.toLowerCase();
+    for (let i = 0; i < this.messages.length; i++) {
+      if (this.messages[i]!.text.toLowerCase().includes(lowerQuery)) {
+        this.scrollTop = Math.max(0, i - 2);
+        return;
+      }
+    }
+  }
 
   private wrapText(text: string, maxWidth: number): string[] {
     if (text.length <= maxWidth) return [text];
