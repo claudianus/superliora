@@ -383,6 +383,20 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     lines.push('');
+    // Change density bar: proportional representation of changes per file
+    const densityTotal = this.files.reduce((s, f) => s + f.additions + f.deletions, 0);
+    if (densityTotal > 0 && this.files.length > 1) {
+      const DENSITY_W = Math.min(30, width - 4);
+      const densitySegments = this.files.map((f) => {
+        const fileChanges = f.additions + f.deletions;
+        const segLen = Math.max(1, Math.round((fileChanges / densityTotal) * DENSITY_W));
+        const ratio = f.additions / Math.max(1, fileChanges);
+        return ratio > 0.7 ? green('▓'.repeat(segLen))
+          : ratio < 0.3 ? red('▓'.repeat(segLen))
+          : yellow('▓'.repeat(segLen));
+      });
+      lines.push(` ${densitySegments.join('')}`);
+    }
     lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk  [b] blame  [r] refresh`));
     // Color legend
     lines.push(dim(` ${green('+')}added ${red('-')}deleted ${yellow('~')}modified ${currentTheme.fg('accent', '→')}renamed`));
