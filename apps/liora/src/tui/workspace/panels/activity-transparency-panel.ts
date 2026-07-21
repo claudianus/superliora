@@ -274,7 +274,10 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     // Hint bar
     let hint: string;
     if (focused) {
-      hint = currentTheme.dimFg('textMuted', ' j/k:scroll c:clear f:filter a:auto');
+      // Show scroll position when scrolled away from bottom
+      const scrollPct = maxScroll > 0 ? Math.round((this.scrollTop / maxScroll) * 100) : 100;
+      const scrollInfo = scrollPct < 100 ? ` ${currentTheme.fg('accent', `${String(scrollPct)}%`)}` : '';
+      hint = currentTheme.dimFg('textMuted', ' j/k:scroll c:clear f:filter a:auto') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
         ? renderPulseText('●', 'live-dot', 'success', appearance)
