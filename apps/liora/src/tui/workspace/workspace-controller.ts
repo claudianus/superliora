@@ -62,6 +62,11 @@ export class WorkspaceController {
   private presetSaveMode = false;
   private presetSaveName = '';
 
+  // Command palette
+  private paletteOpen = false;
+  private paletteFilter = '';
+  private paletteSelectedIndex = 0;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -369,6 +374,15 @@ export class WorkspaceController {
       return true;
     }
 
+    // Ctrl+K: toggle command palette
+    if (event.key === 'character' && event.text === 'k') {
+      this.paletteOpen = !this.paletteOpen;
+      this.paletteFilter = '';
+      this.paletteSelectedIndex = 0;
+      this.requestRender();
+      return true;
+    }
+
     return false;
   }
 
@@ -527,6 +541,7 @@ export class WorkspaceController {
       ['Ctrl+T', '독 모드 전환 (split/tabbed)'],
       ['Ctrl+1~9', '패널 포커스 (순서대로)'],
       ['Ctrl+/', '패널 퀵 스위처'],
+      ['Ctrl+K', '명령 팔레트'],
       ['Ctrl+P', '레이아웃 프리셋'],
       ['Ctrl+G', '이 도움말'],
       ['마우스 드래그', '패널 이동/독 간 이동'],
@@ -540,6 +555,163 @@ export class WorkspaceController {
     }
     lines.push('─'.repeat(w));
     lines.push(' \u001B[2m아무 키나 눌러 닫기\u001B[0m');
+    return lines;
+  }
+
+  // -------------------------------------------------------------------------
+  // Command Palette
+  // -------------------------------------------------------------------------
+
+  private static readonly COMMANDS: Array<{ id: string; label: string; shortcut?: string }> = [
+    { id: 'toggle-left', label: '왼쪽 독 표시/숨김', shortcut: 'Ctrl+B' },
+    { id: 'toggle-right', label: '오른쪽 독 표시/숨김', shortcut: 'Ctrl+N' },
+    { id: 'toggle-dock-mode', label: '독 모드 전환 (split/tabbed)', shortcut: 'Ctrl+T' },
+    { id: 'panel-switcher', label: '패널 퀵 스위처', shortcut: 'Ctrl+/' },
+    { id: 'presets', label: '레이아웃 프리셋', shortcut: 'Ctrl+P' },
+    { id: 'help', label: '키보드 도움말', shortcut: 'Ctrl+G' },
+    { id: 'refresh-files', label: '파일 탐색기 새로고침' },
+    { id: 'refresh-git', label: 'Git Diff 새로고침' },
+    { id: 'clear-activity', label: '활동 피드 지우기' },
+  ];
+
+  /** Whether the command palette is open. */
+  get isPaletteOpen(): boolean {
+    return this.paletteOpen;
+  }
+
+  private getFilteredCommands(): Array<{ id: string; label: string; shortcut?: string }> {
+    if (!this.paletteFilter) return WorkspaceController.COMMANDS;
+    const filter = this.paletteFilter.toLowerCase();
+    return WorkspaceController.COMMANDS.filter(
+      (c) => c.label.toLowerCase().includes(filter) || (c.shortcut ?? '').toLowerCase().includes(filter),
+    );
+  }
+
+  /** Handle input when command palette is open. */
+  handlePaletteInput(event: NativeInputEvent): boolean {
+    if (!this.paletteOpen) return false;
+    if (event.type !== 'key') return false;
+
+    if (event.key === 'escape' || (event.ctrl && event.key === 'character' && event.text === 'k')) {
+      this.paletteOpen = false;
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'up') {
+      this.paletteSelectedIndex = Math.max(0, this.paletteSelectedIndex - 1);
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'down') {
+      const cmds = this.getFilteredCommands();
+      this.paletteSelectedIndex = Math.min(cmds.length - 1, this.paletteSelectedIndex + 1);
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'enter') {
+      const cmds = this.getFilteredCommands();
+      const cmd = cmds[this.paletteSelectedIndex];
+      if (cmd) this.executeCommand(cmd.id);
+      this.paletteOpen = false;
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'backspace') {
+      this.paletteFilter = this.paletteFilter.slice(0, -1);
+      this.paletteSelectedIndex = 0;
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'character' && event.text && !event.ctrl && !event.meta) {
+      this.paletteFilter += event.text;
+      this.paletteSelectedIndex = 0;
+      this.requestRender();
+      return true;
+    }
+    return true;
+  }
+
+  private executeCommand(id: string): void {
+    switch (id) {
+      case 'toggle-left':
+        this.panelManager.toggleDock('left');
+        break;
+      case 'toggle-right':
+        this.panelManager.toggleDock('right');
+        break;
+      case 'toggle-dock-mode': {
+        const focusedId = this.panelManager.getFocusedPanelId();
+        if (focusedId) {
+          const leftPanels = this.panelManager.getPanelsInDock('left');
+          const isInLeft = leftPanels.some((p) => p.instanceId === focusedId);
+          this.panelManager.toggleDockMode(isInLeft ? 'left' : 'right');
+        } else {
+          this.panelManager.toggleDockMode('right');
+        }
+        break;
+      }
+      case 'panel-switcher':
+        this.switcherOpen = true;
+        this.switcherFilter = '';
+        this.switcherSelectedIndex = 0;
+        break;
+      case 'presets':
+        if (this.presetManager !== null) {
+          this.presetOverlayOpen = true;
+          this.presetSelectedIndex = 0;
+          this.presetSaveMode = false;
+          this.presetSaveName = '';
+        }
+        break;
+      case 'help':
+        this.helpOpen = true;
+        break;
+      case 'refresh-files': {
+        const filesPanel = this.panelManager.getAllPanels().find((p) => p.definition.id === 'file-explorer');
+        if (filesPanel?.definition.onInput) {
+          // Trigger refresh via 'r' key simulation
+          filesPanel.definition.onInput({ type: 'key', key: 'character', text: 'r' } as NativeInputEvent);
+        }
+        break;
+      }
+      case 'refresh-git': {
+        const gitPanel = this.panelManager.getAllPanels().find((p) => p.definition.id === 'git-diff');
+        if (gitPanel?.definition.onInput) {
+          gitPanel.definition.onInput({ type: 'key', key: 'character', text: 'r' } as NativeInputEvent);
+        }
+        break;
+      }
+      case 'clear-activity': {
+        const actPanel = this.panelManager.getAllPanels().find((p) => p.definition.id === 'activity-feed');
+        if (actPanel?.definition.onInput) {
+          actPanel.definition.onInput({ type: 'key', key: 'character', text: 'c' } as NativeInputEvent);
+        }
+        break;
+      }
+    }
+    this.requestRender();
+  }
+
+  /** Render the command palette overlay. */
+  renderPaletteOverlay(): string[] | null {
+    if (!this.paletteOpen) return null;
+    const cmds = this.getFilteredCommands();
+    const lines: string[] = [];
+    lines.push(`\u001B[1m 명령 \u001B[0m  \u001B[2m${this.paletteFilter || '입력하여 검색…'}\u001B[0m`);
+    lines.push('─'.repeat(38));
+    if (cmds.length === 0) {
+      lines.push('  \u001B[2m(결과 없음)\u001B[0m');
+    } else {
+      for (let i = 0; i < cmds.length; i++) {
+        const cmd = cmds[i]!;
+        const marker = i === this.paletteSelectedIndex ? '\u001B[36m❯\u001B[0m' : ' ';
+        const label = i === this.paletteSelectedIndex ? `\u001B[1m${cmd.label}\u001B[0m` : cmd.label;
+        const shortcut = cmd.shortcut ? ` \u001B[2m${cmd.shortcut}\u001B[0m` : '';
+        lines.push(` ${marker} ${label}${shortcut}`);
+      }
+    }
+    lines.push('─'.repeat(38));
+    lines.push(' \u001B[2m↑↓ 이동 · Enter 실행 · Esc 닫기\u001B[0m');
     return lines;
   }
 

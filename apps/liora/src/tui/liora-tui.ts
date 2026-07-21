@@ -821,6 +821,8 @@ export class LioraTUI {
       this.nativeInputRouter.router.registerGlobalHandler({
         id: 'workspace-keyboard-shortcuts',
         onInput: (event) => {
+          // Command palette consumes all input when open
+          if (wc.handlePaletteInput(event)) return true;
           // Preset overlay consumes all input when open
           if (wc.handlePresetInput(event)) return true;
           // Help overlay consumes all input when open
@@ -918,6 +920,16 @@ export class LioraTUI {
             const overlayY = Math.max(1, Math.floor((rows - presetLines.length) / 2));
             for (let row = 0; row < presetLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, presetLines[row] ?? '');
+            }
+          }
+          // Draw command palette overlay (centered)
+          const paletteLines = this.workspaceController.renderPaletteOverlay();
+          if (paletteLines) {
+            const overlayWidth = 40;
+            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
+            const overlayY = Math.max(1, Math.floor((rows - paletteLines.length) / 2));
+            for (let row = 0; row < paletteLines.length; row++) {
+              frameRenderer.writeText(overlayX, overlayY + row, paletteLines[row] ?? '');
             }
           }
           // Status bar at the bottom row
