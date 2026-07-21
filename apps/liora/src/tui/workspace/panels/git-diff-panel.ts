@@ -256,6 +256,17 @@ export class GitDiffPanel implements PanelDefinition {
     const totalLines = this.flatLines.length;
 
     lines.push(bold(` ${this.files.length} file(s) changed`) + dim(` · ${String(totalLines)} lines`));
+    // File type breakdown
+    const extCounts = new Map<string, number>();
+    for (const f of this.files) {
+      const ext = f.path.includes('.') ? f.path.slice(f.path.lastIndexOf('.')) : '(none)';
+      extCounts.set(ext, (extCounts.get(ext) ?? 0) + 1);
+    }
+    if (extCounts.size > 1) {
+      const topExts = [...extCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+      const extSummary = topExts.map(([ext, count]) => dim(`${ext}×${String(count)}`)).join(' ');
+      lines.push(` ${extSummary}`);
+    }
     // Visual diff stats bar: green/red proportional blocks
     const total = totalAdd + totalDel;
     const BAR_WIDTH = Math.min(30, Math.max(10, width - 20));
