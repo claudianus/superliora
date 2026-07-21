@@ -50,6 +50,8 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitBehind = 0;
   private gitStashCount = 0;
   private gitTagAnnotation: string | null = null;
+  /** Git submodule paths */
+  private submodulePaths: Set<string> = new Set();
   /** Quick search navigation */
   private quickSearchActive = false;
   private quickSearchQuery = '';
@@ -642,6 +644,23 @@ export class FileExplorerPanel implements PanelDefinition {
       } catch {
         // No upstream or not a tracking branch
       }
+      // Detect git submodules
+      this.submodulePaths.clear();
+      try {
+        const submoduleOutput = execSync('git submodule status 2>/dev/null', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+        });
+        for (const line of submoduleOutput.split('\n')) {
+          const match = line.match(/^\s*[+- ]?[0-9a-f]+\s+(\S+)/);
+          if (match && match[1]) {
+            this.submodulePaths.add(require('node:path').join(this.rootPath, match[1]));
+          }
+        }
+      } catch {
+        // No submodules
+      }
       // Load gitignore patterns
       this.gitignorePatterns = [];
       try {
@@ -844,7 +863,11 @@ export class FileExplorerPanel implements PanelDefinition {
     const ignoreBadge = ignoreMatch
       ? currentTheme.dimFg('textMuted', ` (${ignoreMatch})`)
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}${hotBadge}${ignoreBadge}`;
+    // Git submodule badge
+    const submoduleBadge = entry.isDirectory && this.submodulePaths.has(entry.fullPath)
+      ? currentTheme.fg('primary', ' ⬡')
+      : '';
+    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${submoduleBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}${hotBadge}${ignoreBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
