@@ -589,6 +589,7 @@ export class WorkspaceController {
       ['Ctrl+1~9', '패널 포커스 (순서대로)'],
       ['Ctrl+/', '패널 퀵 스위처'],
       ['Ctrl+K', '명령 팔레트'],
+      ['Ctrl+M', '패널 전체화면'],
       ['Ctrl+P', '레이아웃 프리셋'],
       ['Ctrl+G', '이 도움말'],
       ['마우스 드래그', '패널 이동/독 간 이동'],
@@ -613,6 +614,7 @@ export class WorkspaceController {
     { id: 'toggle-left', label: '왼쪽 독 표시/숨김', shortcut: 'Ctrl+B' },
     { id: 'toggle-right', label: '오른쪽 독 표시/숨김', shortcut: 'Ctrl+N' },
     { id: 'toggle-dock-mode', label: '독 모드 전환 (split/tabbed)', shortcut: 'Ctrl+T' },
+    { id: 'maximize', label: '패널 전체화면 전환', shortcut: 'Ctrl+M' },
     { id: 'panel-switcher', label: '패널 퀵 스위처', shortcut: 'Ctrl+/' },
     { id: 'presets', label: '레이아웃 프리셋', shortcut: 'Ctrl+P' },
     { id: 'help', label: '키보드 도움말', shortcut: 'Ctrl+G' },
@@ -708,6 +710,13 @@ export class WorkspaceController {
           this.presetSelectedIndex = 0;
           this.presetSaveMode = false;
           this.presetSaveName = '';
+        }
+        break;
+      case 'maximize':
+        if (this.maximizedPanelId !== null) {
+          this.maximizedPanelId = null;
+        } else {
+          this.maximizedPanelId = this.panelManager.getFocusedPanelId();
         }
         break;
       case 'help':
