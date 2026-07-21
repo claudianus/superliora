@@ -264,8 +264,15 @@ export class FileExplorerPanel implements PanelDefinition {
         : '▶'
       : getFileIcon(entry.name);
 
-    const gitBadge = entry.gitStatus ? ` ${gitStatusColor(entry.gitStatus)}` : '';
-    const label = `${indent}${icon} ${entry.name}${gitBadge}`;
+    // Theme-aware icon coloring
+    const styledIcon = entry.isDirectory
+      ? currentTheme.fg('accent', icon)
+      : currentTheme.dimFg('textMuted', icon);
+    const gitBadge = entry.gitStatus ? ` ${gitStatusStyled(entry.gitStatus)}` : '';
+    const nameStyled = entry.isDirectory
+      ? currentTheme.boldFg('textStrong', entry.name)
+      : currentTheme.fg('text', entry.name);
+    const label = `${indent}${styledIcon} ${nameStyled}${gitBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
@@ -318,6 +325,21 @@ function gitStatusColor(status: string): string {
       return '[-]';
     default:
       return `[${status}]`;
+  }
+}
+
+/** Theme-aware git status badge. */
+function gitStatusStyled(status: string): string {
+  switch (status) {
+    case 'M':
+      return currentTheme.fg('warning', '[M]');
+    case 'A':
+    case '??':
+      return currentTheme.fg('success', '[+]');
+    case 'D':
+      return currentTheme.fg('error', '[-]');
+    default:
+      return currentTheme.dimFg('textMuted', `[${status}]`);
   }
 }
 
