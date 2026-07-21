@@ -485,6 +485,21 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
         }
       }
+      // Operation queue depth: show in-progress vs completed pipeline
+      if (entries.length > 2 && height > 20) {
+        const inProgress = entries.filter((e) => e.durationMs === undefined && !e.isError).length;
+        const completed = entries.filter((e) => e.durationMs !== undefined).length;
+        if (inProgress > 0) {
+          const QUEUE_W = Math.min(16, width - 12);
+          const total = inProgress + completed;
+          const activeW = Math.round((inProgress / total) * QUEUE_W);
+          const doneW = QUEUE_W - activeW;
+          const queueBar = currentTheme.fg('accent', '▓'.repeat(activeW)) +
+            currentTheme.dimFg('border', '░'.repeat(doneW));
+          const queueLabel = currentTheme.dimFg('textMuted', ` ${String(inProgress)} active`);
+          lines.push(this.pad(` ${queueBar}${queueLabel}`, width));
+        }
+      }
       // Operation latency histogram: compact distribution of durations
       if (entries.length > 5 && height > 19) {
         const completed = entries.filter((e) => e.durationMs !== undefined);
