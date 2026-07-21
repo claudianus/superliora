@@ -239,8 +239,9 @@ export class GitDiffPanel implements PanelDefinition {
     const lines: string[] = [];
     const totalAdd = this.files.reduce((s, f) => s + f.additions, 0);
     const totalDel = this.files.reduce((s, f) => s + f.deletions, 0);
+    const totalLines = this.flatLines.length;
 
-    lines.push(bold(` ${this.files.length} file(s) changed`));
+    lines.push(bold(` ${this.files.length} file(s) changed`) + dim(` · ${String(totalLines)} lines`));
     // Visual diff stats bar: green/red proportional blocks
     const total = totalAdd + totalDel;
     const BAR_WIDTH = Math.min(30, Math.max(10, width - 20));

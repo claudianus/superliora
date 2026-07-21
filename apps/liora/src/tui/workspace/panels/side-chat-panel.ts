@@ -68,6 +68,11 @@ export class SideChatPanel implements PanelDefinition {
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Type a quick question…')}`, width));
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Sent to the active agent.')}`, width));
     } else {
+      // Message count badge in first row
+      if (lines.length === 0) {
+        const countBadge = currentTheme.dimFg('textMuted', `${String(this.messages.length)} msgs`);
+        lines.push(this.pad(` ${countBadge}`, width));
+      }
       // Clamp scroll
       const maxScroll = Math.max(0, this.messages.length - msgAreaHeight);
       this.scrollTop = Math.max(0, Math.min(this.scrollTop, maxScroll));
