@@ -386,6 +386,7 @@ export class LioraTUI {
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   private workspaceController: WorkspaceController | undefined;
   private workspaceLayoutPersistence: WorkspaceLayoutPersistence | undefined;
+  private readonly sessionStartTime = Date.now();
   private readonly activityFeed = new ActivityFeed();
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
@@ -822,6 +823,8 @@ export class LioraTUI {
       this.nativeInputRouter.router.registerGlobalHandler({
         id: 'workspace-keyboard-shortcuts',
         onInput: (event) => {
+          // Stats overlay consumes all input when open
+          if (wc.handleStatsInput(event)) return true;
           // Command palette consumes all input when open
           if (wc.handlePaletteInput(event)) return true;
           // Preset overlay consumes all input when open
@@ -948,6 +951,29 @@ export class LioraTUI {
             const overlayY = Math.max(1, Math.floor((rows - paletteLines.length) / 2));
             for (let row = 0; row < paletteLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, paletteLines[row] ?? '');
+            }
+          }
+          // Draw session stats overlay (centered)
+          if (this.workspaceController.isStatsOpen) {
+            const actEntries = this.activityFeed.getEntries();
+            const statsLines = this.workspaceController.renderStatsOverlay({
+              sessionDurationMs: Date.now() - this.sessionStartTime,
+              totalActivities: actEntries.length,
+              toolCalls: actEntries.filter((e) => e.kind === 'tool-start').length,
+              fileReads: actEntries.filter((e) => e.kind === 'file-read').length,
+              fileWrites: actEntries.filter((e) => e.kind === 'file-write').length,
+              commands: actEntries.filter((e) => e.kind === 'command').length,
+              thinkingEvents: actEntries.filter((e) => e.kind === 'thinking').length,
+              contextTokens: this.state.appState.contextTokens ?? 0,
+              maxContextTokens: this.state.appState.maxContextTokens ?? 0,
+            });
+            if (statsLines) {
+              const overlayWidth = 38;
+              const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
+              const overlayY = Math.max(1, Math.floor((rows - statsLines.length) / 2));
+              for (let row = 0; row < statsLines.length; row++) {
+                frameRenderer.writeText(overlayX, overlayY + row, statsLines[row] ?? '');
+              }
             }
           }
           // Status bar at the bottom row

@@ -70,6 +70,9 @@ export class WorkspaceController {
   // Panel maximize (fullscreen) mode
   private maximizedPanelId: string | null = null;
 
+  // Session stats overlay
+  private statsOpen = false;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -621,6 +624,7 @@ export class WorkspaceController {
     { id: 'refresh-files', label: '파일 탐색기 새로고침' },
     { id: 'refresh-git', label: 'Git Diff 새로고침' },
     { id: 'clear-activity', label: '활동 피드 지우기' },
+    { id: 'session-stats', label: '세션 통계 표시' },
   ];
 
   /** Whether the command palette is open. */
@@ -744,6 +748,9 @@ export class WorkspaceController {
         }
         break;
       }
+      case 'session-stats':
+        this.statsOpen = true;
+        break;
     }
     this.requestRender();
   }
@@ -768,6 +775,65 @@ export class WorkspaceController {
     }
     lines.push('─'.repeat(38));
     lines.push(' \u001B[2m↑↓ 이동 · Enter 실행 · Esc 닫기\u001B[0m');
+    return lines;
+  }
+
+  // -------------------------------------------------------------------------
+  // Session Stats Overlay
+  // -------------------------------------------------------------------------
+
+  /** Whether the stats overlay is open. */
+  get isStatsOpen(): boolean {
+    return this.statsOpen;
+  }
+
+  /** Handle input when stats overlay is open (any key closes it). */
+  handleStatsInput(event: NativeInputEvent): boolean {
+    if (!this.statsOpen) return false;
+    if (event.type === 'key') {
+      this.statsOpen = false;
+      this.requestRender();
+      return true;
+    }
+    return false;
+  }
+
+  /** Render the session stats overlay. Data is passed from the TUI. */
+  renderStatsOverlay(stats: {
+    sessionDurationMs: number;
+    totalActivities: number;
+    toolCalls: number;
+    fileReads: number;
+    fileWrites: number;
+    commands: number;
+    thinkingEvents: number;
+    contextTokens: number;
+    maxContextTokens: number;
+  }): string[] | null {
+    if (!this.statsOpen) return null;
+    const w = 36;
+    const lines: string[] = [];
+    lines.push('\u001B[1m 세션 통계 \u001B[0m');
+    lines.push('─'.repeat(w));
+
+    const duration = formatDurationShort(stats.sessionDurationMs);
+    lines.push(` \u001B[2m세션 시간\u001B[0m      ${duration}`);
+    lines.push(` \u001B[2m총 활동\u001B[0m        ${stats.totalActivities}`);
+    lines.push('');
+    lines.push(` \u001B[36m⚡ 툴 호출\u001B[0m     ${stats.toolCalls}`);
+    lines.push(` \u001B[34m📖 파일 읽기\u001B[0m   ${stats.fileReads}`);
+    lines.push(` \u001B[35m✏ 파일 쓰기\u001B[0m   ${stats.fileWrites}`);
+    lines.push(` \u001B[36m▶ 명령 실행\u001B[0m    ${stats.commands}`);
+    lines.push(` \u001B[33m◌ 추론\u001B[0m         ${stats.thinkingEvents}`);
+    lines.push('');
+
+    if (stats.maxContextTokens > 0) {
+      const pct = Math.round((stats.contextTokens / stats.maxContextTokens) * 100);
+      lines.push(` \u001B[2m컨텍스트\u001B[0m      ${formatTokens(stats.contextTokens)}/${formatTokens(stats.maxContextTokens)} (${pct}%)`);
+    }
+
+    lines.push('─'.repeat(w));
+    lines.push(' \u001B[2m아무 키나 눌러 닫기\u001B[0m');
     return lines;
   }
 
@@ -915,4 +981,24 @@ export class WorkspaceController {
 export interface WorkspaceDockRender {
   left?: string[];
   right?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatDurationShort(ms: number): string {
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}초`;
+  const mins = Math.floor(secs / 60);
+  const remainSecs = secs % 60;
+  if (mins < 60) return `${mins}분 ${remainSecs}초`;
+  const hours = Math.floor(mins / 60);
+  return `${hours}시간 ${mins % 60}분`;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
