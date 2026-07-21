@@ -38,6 +38,7 @@ import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
 import { quoteShellArg } from '#/utils/shell-quote';
 import { fetchWebContent } from '#/utils/web/web-content';
 import { ttui } from './utils/tui-i18n';
+import { renderStatusBar } from './utils/status-bar';
 
 import { BannerProvider } from './banner/banner-provider';
 import { readBannerDisplayState, writeBannerDisplayState } from './banner/state';
@@ -892,6 +893,19 @@ export class LioraTUI {
               frameRenderer.writeText(overlayX, overlayY + row, switcherLines[row] ?? '');
             }
           }
+          // Status bar at the bottom row
+          const pm = this.workspaceController.panelManager;
+          const focusedId = pm.getFocusedPanelId();
+          const focusedPanel = focusedId ? pm.getPanel(focusedId) : undefined;
+          const phase = this.state.appState.streamingPhase;
+          const agentStatus = phase === 'thinking' ? 'thinking' as const
+            : phase === 'idle' ? 'idle' as const : 'working' as const;
+          const statusLine = renderStatusBar({
+            agentStatus,
+            contextUsage: this.state.appState.contextUsage,
+            activePanel: focusedPanel?.definition.title,
+          }, columns, process.cwd());
+          frameRenderer.writeText(0, rows - 1, statusLine);
         },
       }),
     );
