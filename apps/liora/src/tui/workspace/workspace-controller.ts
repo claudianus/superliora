@@ -46,6 +46,11 @@ export class WorkspaceController {
   private currentLayout: WorkspaceLayoutResult | null = null;
   private enabled = true;
 
+  // Panel quick switcher state
+  private switcherOpen = false;
+  private switcherFilter = '';
+  private switcherSelectedIndex = 0;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -326,6 +331,15 @@ export class WorkspaceController {
       return true;
     }
 
+    // Ctrl+/: open panel quick switcher
+    if (event.key === 'character' && event.text === '/') {
+      this.switcherOpen = !this.switcherOpen;
+      this.switcherFilter = '';
+      this.switcherSelectedIndex = 0;
+      this.requestRender();
+      return true;
+    }
+
     return false;
   }
 
@@ -343,6 +357,112 @@ export class WorkspaceController {
   removePanel(instanceId: string): void {
     this.panelManager.unregisterPanel(instanceId);
     this.requestRender();
+  }
+
+  // -------------------------------------------------------------------------
+  // Panel Quick Switcher
+  // -------------------------------------------------------------------------
+
+  /** Whether the panel switcher overlay is open. */
+  get isSwitcherOpen(): boolean {
+    return this.switcherOpen;
+  }
+
+  /** Get filtered panel list for the switcher. */
+  private getFilteredPanels(): Array<{ instanceId: string; title: string; dock: 'left' | 'right' }> {
+    const allPanels: Array<{ instanceId: string; title: string; dock: 'left' | 'right' }> = [];
+    for (const p of this.panelManager.getPanelsInDock('left')) {
+      allPanels.push({ instanceId: p.instanceId, title: p.definition.title, dock: 'left' });
+    }
+    for (const p of this.panelManager.getPanelsInDock('right')) {
+      allPanels.push({ instanceId: p.instanceId, title: p.definition.title, dock: 'right' });
+    }
+    if (!this.switcherFilter) return allPanels;
+    const filter = this.switcherFilter.toLowerCase();
+    return allPanels.filter((p) => p.title.toLowerCase().includes(filter));
+  }
+
+  /**
+   * Handle input when the panel switcher is open.
+   * @returns true if the input was consumed.
+   */
+  handleSwitcherInput(event: NativeInputEvent): boolean {
+    if (!this.switcherOpen) return false;
+
+    if (event.type === 'key') {
+      // Escape or Ctrl+/: close switcher
+      if (event.key === 'escape' || (event.ctrl && event.key === 'character' && event.text === '/')) {
+        this.switcherOpen = false;
+        this.requestRender();
+        return true;
+      }
+      // Enter: select current panel
+      if (event.key === 'enter') {
+        const panels = this.getFilteredPanels();
+        const selected = panels[this.switcherSelectedIndex];
+        if (selected) {
+          this.panelManager.focusPanel(selected.instanceId);
+        }
+        this.switcherOpen = false;
+        this.requestRender();
+        return true;
+      }
+      // Arrow up/down: navigate
+      if (event.key === 'up') {
+        const panels = this.getFilteredPanels();
+        this.switcherSelectedIndex = Math.max(0, this.switcherSelectedIndex - 1);
+        if (this.switcherSelectedIndex >= panels.length) this.switcherSelectedIndex = panels.length - 1;
+        this.requestRender();
+        return true;
+      }
+      if (event.key === 'down') {
+        const panels = this.getFilteredPanels();
+        this.switcherSelectedIndex = Math.min(panels.length - 1, this.switcherSelectedIndex + 1);
+        this.requestRender();
+        return true;
+      }
+      // Backspace: remove last filter char
+      if (event.key === 'backspace') {
+        this.switcherFilter = this.switcherFilter.slice(0, -1);
+        this.switcherSelectedIndex = 0;
+        this.requestRender();
+        return true;
+      }
+      // Character: add to filter
+      if (event.key === 'character' && event.text && !event.ctrl && !event.meta) {
+        this.switcherFilter += event.text;
+        this.switcherSelectedIndex = 0;
+        this.requestRender();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Render the panel switcher overlay.
+   * Returns lines to render in the center of the screen.
+   */
+  renderSwitcherOverlay(): string[] | null {
+    if (!this.switcherOpen) return null;
+    const panels = this.getFilteredPanels();
+    const lines: string[] = [];
+    lines.push(`\u001B[1m 패널 전환 \u001B[0m  \u001B[2m${this.switcherFilter || '입력하여 필터…'}\u001B[0m`);
+    lines.push('─'.repeat(30));
+    if (panels.length === 0) {
+      lines.push('  \u001B[2m(결과 없음)\u001B[0m');
+    } else {
+      for (let i = 0; i < panels.length; i++) {
+        const p = panels[i]!;
+        const marker = i === this.switcherSelectedIndex ? '\u001B[36m❯\u001B[0m' : ' ';
+        const dock = p.dock === 'left' ? '\u001B[2m[L]\u001B[0m' : '\u001B[2m[R]\u001B[0m';
+        const title = i === this.switcherSelectedIndex ? `\u001B[1m${p.title}\u001B[0m` : p.title;
+        lines.push(` ${marker} ${dock} ${title}`);
+      }
+    }
+    lines.push('─'.repeat(30));
+    lines.push(' \u001B[2m↑↓ 이동 · Enter 선택 · Esc 닫기\u001B[0m');
+    return lines;
   }
 
   // -------------------------------------------------------------------------

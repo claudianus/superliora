@@ -820,6 +820,8 @@ export class LioraTUI {
       this.nativeInputRouter.router.registerGlobalHandler({
         id: 'workspace-keyboard-shortcuts',
         onInput: (event) => {
+          // Panel switcher consumes all input when open
+          if (wc.handleSwitcherInput(event)) return true;
           // Panel shortcuts: Ctrl+B (left dock), Ctrl+N (right dock), Ctrl+1-9 (focus)
           if (wc.handlePanelShortcut(event)) {
             this.workspaceLayoutPersistence?.scheduleSave();
@@ -878,6 +880,16 @@ export class LioraTUI {
               if (line.length > 0) {
                 frameRenderer.writeText(x, y + row, line);
               }
+            }
+          }
+          // Draw panel switcher overlay (centered)
+          const switcherLines = this.workspaceController.renderSwitcherOverlay();
+          if (switcherLines) {
+            const overlayWidth = 32;
+            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
+            const overlayY = Math.max(1, Math.floor((rows - switcherLines.length) / 2));
+            for (let row = 0; row < switcherLines.length; row++) {
+              frameRenderer.writeText(overlayX, overlayY + row, switcherLines[row] ?? '');
             }
           }
         },
