@@ -304,6 +304,12 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     if (errorCount > 0) {
       headerText += ` · ${String(errorCount)} err`;
     }
+    // Completion rate: percentage of entries that have finished
+    const completedCount = entries.filter((e) => e.durationMs !== undefined).length;
+    const completionRate = entries.length > 0 ? Math.round((completedCount / entries.length) * 100) : 0;
+    if (entries.length > 0 && completionRate < 100) {
+      headerText += ` · ${String(completionRate)}%✓`;
+    }
     // Activity rate sparkline (last 30s, 10 buckets)
     const sparkline = this.renderActivitySparkline(now, width);
     // Rate-of-change indicator (events/sec over last 5s)

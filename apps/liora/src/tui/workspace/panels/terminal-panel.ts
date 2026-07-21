@@ -105,6 +105,14 @@ export class TerminalPanel implements PanelDefinition {
         return true;
       }
 
+      // Ctrl+L: clear terminal buffer
+      if (event.ctrl && event.key === 'character' && event.text === 'l') {
+        this.lines = [''];
+        this.scrollTop = 0;
+        this.followTail = true;
+        return true;
+      }
+
       if (!this.pty || this.exited) return false;
 
       // Convert key event to terminal input
