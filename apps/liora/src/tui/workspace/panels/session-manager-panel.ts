@@ -81,6 +81,7 @@ export class SessionManagerPanel implements PanelDefinition {
   private loading = false;
   private lastRefresh = 0;
   private statusMessage: string | null = null;
+  private sortMode: 'time' | 'name' = 'time';
 
   constructor(callbacks: SessionManagerCallbacks) {
     this.callbacks = callbacks;
@@ -199,7 +200,8 @@ export class SessionManagerPanel implements PanelDefinition {
             : currentTheme.fg('accent', ` ${this.statusMessage}`);
       lines.push(this.pad(statusStyled, width));
     } else {
-      const hint = focused ? ' ↵switch r:refresh n:new j/k:nav g/G:jump' : '';
+      const sortLabel = this.sortMode === 'name' ? ' [name]' : '';
+      const hint = focused ? ` ↵switch r:refresh n:new s:sort${sortLabel} j/k:nav` : '';
       lines.push(this.pad(this.dim(hint), width));
     }
 
@@ -285,6 +287,12 @@ export class SessionManagerPanel implements PanelDefinition {
         this.requestRender();
         return true;
       }
+      if (ch === 's') {
+        this.sortMode = this.sortMode === 'time' ? 'name' : 'time';
+        this.applySorting();
+        this.requestRender();
+        return true;
+      }
     }
 
     return false;
@@ -302,8 +310,7 @@ export class SessionManagerPanel implements PanelDefinition {
     this.loading = true;
     try {
       this.sessions = await this.callbacks.listSessions();
-      // Sort by updatedAt descending (most recent first)
-      this.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+      this.applySorting();
       this.statusMessage = null;
     } catch {
       this.statusMessage = 'fetch failed';
@@ -351,6 +358,18 @@ export class SessionManagerPanel implements PanelDefinition {
       this.statusMessage = 'create error';
     }
     this.requestRender();
+  }
+
+  private applySorting(): void {
+    if (this.sortMode === 'name') {
+      this.sessions.sort((a, b) => {
+        const titleA = (a.title ?? a.lastPrompt ?? a.id).toLowerCase();
+        const titleB = (b.title ?? b.lastPrompt ?? b.id).toLowerCase();
+        return titleA.localeCompare(titleB);
+      });
+    } else {
+      this.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
   }
 
   private requestRender(): void {
