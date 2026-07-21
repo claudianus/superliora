@@ -41,6 +41,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private showHidden = false;
   private gitStatusMap = new Map<string, string>();
   private gitBranch: string | null = null;
+  private gitCommitCount = 0;
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -99,6 +100,8 @@ export class FileExplorerPanel implements PanelDefinition {
       if (this.showHidden) stats += currentTheme.fg('accent', ' [dot]');
       // Git branch badge
       if (this.gitBranch) stats += ` ${currentTheme.fg('primary', ` ${this.gitBranch}`)}`;
+      // Git commit count
+      if (this.gitCommitCount > 0) stats += currentTheme.dimFg('textMuted', ` ${String(this.gitCommitCount)}c`);
       lines.push(stats);
     }
 
@@ -370,6 +373,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private loadGitStatus(): void {
     this.gitStatusMap.clear();
     this.gitBranch = null;
+    this.gitCommitCount = 0;
     try {
       const { execSync } = require('node:child_process') as typeof import('node:child_process');
       // Get current branch
@@ -382,6 +386,17 @@ export class FileExplorerPanel implements PanelDefinition {
         if (branch && branch !== 'HEAD') this.gitBranch = branch;
       } catch {
         // ignore branch detection errors
+      }
+      // Get commit count
+      try {
+        const countStr = execSync('git rev-list --count HEAD', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim();
+        this.gitCommitCount = parseInt(countStr, 10) || 0;
+      } catch {
+        // ignore commit count errors
       }
       const output = execSync('git status --porcelain', {
         cwd: this.rootPath,
