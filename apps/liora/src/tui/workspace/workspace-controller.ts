@@ -491,6 +491,21 @@ export class WorkspaceController {
       return true;
     }
 
+    // Ctrl+Shift+Left/Right: resize focused panel's dock
+    if (event.ctrl && event.shift && (event.key === 'left' || event.key === 'right')) {
+      const focusedId = this.panelManager.getFocusedPanelId();
+      if (focusedId) {
+        const leftPanels = this.panelManager.getPanelsInDock('left');
+        const isInLeft = leftPanels.some((p) => p.instanceId === focusedId);
+        const dock = isInLeft ? 'left' : 'right';
+        const currentWidth = this.panelManager.getDockWidth(dock);
+        const delta = event.key === 'left' ? -2 : 2;
+        this.panelManager.setDockWidth(dock, currentWidth + delta);
+        this.requestRender();
+      }
+      return true;
+    }
+
     return false;
   }
 
@@ -687,6 +702,7 @@ export class WorkspaceController {
       ['Ctrl+P', '레이아웃 프리셋'],
       ['Ctrl+G', '이 도움말'],
       ['Tab/Shift+Tab', '패널 순환 이동'],
+      ['Ctrl+Shift+←/→', '독 너비 조절'],
       ['마우스 드래그', '패널 이동/독 간 이동'],
       ['패널 테두리 드래그', '패널 리사이즈'],
     ];
