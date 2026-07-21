@@ -126,6 +126,9 @@ export class WorkspaceController {
   private static readonly ACTIVITY_PULSE_INTERVAL = 2000; // ms between pulses
   private static readonly ACTIVITY_PULSE_DURATION = 600; // ms pulse duration
 
+  // Panel breadcrumb: track navigation path for spatial awareness
+  private breadcrumbTrail: string[] = [];
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -417,6 +420,14 @@ export class WorkspaceController {
       this.focusHistory.unshift(focusedId);
       if (this.focusHistory.length > WorkspaceController.MAX_FOCUS_HISTORY) {
         this.focusHistory = this.focusHistory.slice(0, WorkspaceController.MAX_FOCUS_HISTORY);
+      }
+      // Update breadcrumb trail
+      const panelDef = panels.find((p) => p.instanceId === focusedId)?.definition;
+      if (panelDef) {
+        this.breadcrumbTrail.push(`${dockId}:${panelDef.icon}${panelDef.title}`);
+        if (this.breadcrumbTrail.length > 4) {
+          this.breadcrumbTrail = this.breadcrumbTrail.slice(-4);
+        }
       }
     }
     if (activePanel) {
