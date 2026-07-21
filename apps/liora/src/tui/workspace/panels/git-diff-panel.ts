@@ -383,6 +383,20 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     lines.push('');
+    // File dependency grouping: show how many files share the same directory
+    const dirGroups = new Map<string, number>();
+    for (const f of this.files) {
+      const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : '.';
+      dirGroups.set(dir, (dirGroups.get(dir) ?? 0) + 1);
+    }
+    const multiFileDirs = [...dirGroups.entries()].filter(([, count]) => count > 1);
+    if (multiFileDirs.length > 0) {
+      const groupSummary = multiFileDirs.slice(0, 3).map(([dir, count]) => {
+        const shortDir = dir.split('/').pop() ?? dir;
+        return dim(`${shortDir}/×${String(count)}`);
+      }).join(' ');
+      lines.push(` ${currentTheme.dimFg('textMuted', '📂')} ${groupSummary}`);
+    }
     // Change density bar: proportional representation of changes per file
     const densityTotal = this.files.reduce((s, f) => s + f.additions + f.deletions, 0);
     if (densityTotal > 0 && this.files.length > 1) {
