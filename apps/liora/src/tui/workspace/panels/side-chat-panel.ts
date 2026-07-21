@@ -86,13 +86,17 @@ export class SideChatPanel implements PanelDefinition {
         const prevMsg = i > 0 ? this.messages[i - 1] : undefined;
         const isGrouped = prevMsg !== undefined && prevMsg.role === msg.role &&
           (msg.timestamp - prevMsg.timestamp) < 60_000;
+        // Thread connector: status messages that follow user messages get a └─ connector
+        const isThreaded = msg.role === 'status' && prevMsg !== undefined && prevMsg.role === 'user';
         const timeStr = isGrouped ? '     ' : formatMsgTime(msg.timestamp);
         const timePart = isGrouped
           ? currentTheme.dimFg('border', '  ⋮  ')
           : currentTheme.dimFg('textMuted', timeStr);
         const prefix = msg.role === 'user'
           ? currentTheme.fg('roleUser', '› ')
-          : currentTheme.fg('accent', '· ');
+          : isThreaded
+            ? currentTheme.dimFg('border', '└ ')
+            : currentTheme.fg('accent', '· ');
         const wrapped = this.wrapText(`${msg.text}`, width - 3);
         for (let wi = 0; wi < wrapped.length; wi++) {
           const wl = wrapped[wi]!;
