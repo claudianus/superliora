@@ -94,6 +94,8 @@ export class FileExplorerPanel implements PanelDefinition {
       if (added > 0) stats += currentTheme.fg('success', ` +${String(added)}`);
       // Sort mode indicator
       if (this.sortMode === 'type') stats += currentTheme.fg('accent', ' [type]');
+      // Hidden files indicator
+      if (this.showHidden) stats += currentTheme.fg('accent', ' [dot]');
       lines.push(stats);
     }
 
