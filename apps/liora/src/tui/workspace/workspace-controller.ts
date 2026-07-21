@@ -67,6 +67,9 @@ export class WorkspaceController {
   private paletteFilter = '';
   private paletteSelectedIndex = 0;
 
+  // Panel maximize (fullscreen) mode
+  private maximizedPanelId: string | null = null;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -152,6 +155,34 @@ export class WorkspaceController {
   renderDocks(layout: WorkspaceLayoutResult): WorkspaceDockRender {
     const result: WorkspaceDockRender = {};
 
+    // Maximize mode: render only the maximized panel
+    if (this.maximizedPanelId !== null) {
+      const panel = this.panelManager.getPanel(this.maximizedPanelId);
+      if (panel) {
+        const fullWidth = (layout.leftDock?.rect.width ?? 0) + (layout.rightDock?.rect.width ?? 0) + 40;
+        const fullHeight = layout.leftDock?.rect.height ?? layout.rightDock?.rect.height ?? 30;
+        const content = panel.definition.render(
+          Math.max(1, fullWidth - 2),
+          Math.max(1, fullHeight - 2),
+          true,
+        );
+        const framed = renderPanelFrame({
+          width: fullWidth,
+          height: fullHeight,
+          title: `${panel.definition.title} (전체화면)`,
+          icon: panel.definition.icon,
+          focused: true,
+          borderStyle: 'rounded',
+          content,
+        });
+        // Return as left dock spanning full width
+        result.left = framed;
+        return result;
+      }
+      // Panel not found, clear maximize
+      this.maximizedPanelId = null;
+    }
+
     if (layout.leftDock) {
       result.left = this.renderDock('left', layout.leftDock.rect);
     }
@@ -161,6 +192,11 @@ export class WorkspaceController {
     }
 
     return result;
+  }
+
+  /** Get the currently maximized panel ID (null if none). */
+  getMaximizedPanelId(): string | null {
+    return this.maximizedPanelId;
   }
 
   private renderDock(
@@ -379,6 +415,17 @@ export class WorkspaceController {
       this.paletteOpen = !this.paletteOpen;
       this.paletteFilter = '';
       this.paletteSelectedIndex = 0;
+      this.requestRender();
+      return true;
+    }
+
+    // Ctrl+M: toggle maximize focused panel
+    if (event.key === 'character' && event.text === 'm') {
+      if (this.maximizedPanelId !== null) {
+        this.maximizedPanelId = null;
+      } else {
+        this.maximizedPanelId = this.panelManager.getFocusedPanelId();
+      }
       this.requestRender();
       return true;
     }

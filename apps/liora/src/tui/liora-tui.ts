@@ -872,8 +872,17 @@ export class LioraTUI {
           });
           if (!layout) return;
           const docks = this.workspaceController.renderDocks(layout);
-          // Draw left dock panels
-          if (docks.left && layout.leftDock) {
+          // Draw left dock panels (or maximized panel)
+          const maximizedId = this.workspaceController.getMaximizedPanelId();
+          if (maximizedId !== null && docks.left) {
+            // Maximized: render at full width from x=0
+            for (let row = 0; row < docks.left.length; row++) {
+              const line = docks.left[row] ?? '';
+              if (line.length > 0) {
+                frameRenderer.writeText(0, row, line);
+              }
+            }
+          } else if (docks.left && layout.leftDock) {
             const { x, y } = layout.leftDock.rect;
             for (let row = 0; row < docks.left.length; row++) {
               const line = docks.left[row] ?? '';
