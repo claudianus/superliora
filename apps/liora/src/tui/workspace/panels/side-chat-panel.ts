@@ -24,6 +24,7 @@ interface ChatMessage {
   readonly role: 'user' | 'status';
   readonly text: string;
   readonly timestamp: number;
+  readonly delivered?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,8 +92,12 @@ export class SideChatPanel implements PanelDefinition {
           if (lines.length >= msgAreaHeight) break;
           // First line gets timestamp, continuation lines get indent
           const linePrefix = wi === 0 ? `${timePart} ${prefix}` : '      ';
+          // Delivery status indicator for user messages
+          const deliveryMark = msg.role === 'user' && wi === 0
+            ? (msg.delivered ? currentTheme.fg('success', ' ✓') : currentTheme.fg('warning', ' ⏳'))
+            : '';
           const styled = msg.role === 'user'
-            ? `${linePrefix}${currentTheme.fg('text', wl)}`
+            ? `${linePrefix}${currentTheme.fg('text', wl)}${deliveryMark}`
             : `${linePrefix}${currentTheme.dimFg('textDim', wl)}`;
           lines.push(this.pad(styled, width));
         }
@@ -264,6 +269,7 @@ export class SideChatPanel implements PanelDefinition {
       role: 'user',
       text,
       timestamp: Date.now(),
+      delivered: true,
     });
 
     // Clear input
