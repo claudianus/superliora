@@ -6,3 +6,5 @@ export { SessionManagerPanel } from './session-manager-panel';
 export type { SessionInfo, SessionManagerCallbacks } from './session-manager-panel';
 export { ActivityTransparencyPanel, ActivityFeed } from './activity-transparency-panel';
 export type { ActivityEntry, ActivityKind } from './activity-transparency-panel';
+export { SideChatPanel } from './side-chat-panel';
+export type { SideChatCallbacks } from './side-chat-panel';

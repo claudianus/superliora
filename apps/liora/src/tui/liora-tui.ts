@@ -172,6 +172,7 @@ import { GitDiffPanel } from './workspace/panels/git-diff-panel';
 import { ArtifactViewerPanel } from './workspace/panels/artifact-viewer-panel';
 import { SessionManagerPanel } from './workspace/panels/session-manager-panel';
 import { ActivityTransparencyPanel, ActivityFeed } from './workspace/panels/activity-transparency-panel';
+import { SideChatPanel } from './workspace/panels/side-chat-panel';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -800,6 +801,18 @@ export class LioraTUI {
       this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
       this.workspaceController.addPanel(new ArtifactViewerPanel(cwd), 'right');
       this.workspaceController.addPanel(new ActivityTransparencyPanel(this.activityFeed), 'right');
+      this.workspaceController.addPanel(
+        new SideChatPanel({
+          sendMessage: (text: string) => {
+            const session = this.session;
+            if (session === undefined) return false;
+            this.sendMessage(session, text);
+            return this.state.appState.streamingPhase === 'idle';
+          },
+          isBusy: () => this.state.appState.streamingPhase !== 'idle',
+        }),
+        'right',
+      );
       // Register keyboard shortcuts for panel management
       const wc = this.workspaceController;
       this.nativeInputRouter.router.registerGlobalHandler({
