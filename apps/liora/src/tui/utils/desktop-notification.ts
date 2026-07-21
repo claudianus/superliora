@@ -50,6 +50,7 @@ export function sendDesktopNotification(notification: DesktopNotification): void
  * Notify that the agent turn completed.
  */
 export function notifyTurnComplete(summary?: string): void {
+  ringBell();
   sendDesktopNotification({
     title: 'SuperLiora — 작업 완료',
     body: summary ?? '에이전트 응답이 완료되었습니다.',
@@ -61,6 +62,7 @@ export function notifyTurnComplete(summary?: string): void {
  * Notify that the agent encountered an error.
  */
 export function notifyError(message: string): void {
+  ringBell();
   sendDesktopNotification({
     title: 'SuperLiora — 오류',
     body: message.slice(0, 200),
@@ -82,4 +84,16 @@ export function notifyNeedsAttention(context: string): void {
 /** Escape special characters for OSC payload. */
 function escapeOsc(text: string): string {
   return text.replace(/[\u001B\u0007]/g, '').replace(/;/g, ',');
+}
+
+/**
+ * Ring the terminal bell (BEL character).
+ * Provides audio feedback when the agent needs attention.
+ */
+export function ringBell(): void {
+  try {
+    process.stdout.write('\u0007');
+  } catch {
+    // Silently ignore
+  }
 }
