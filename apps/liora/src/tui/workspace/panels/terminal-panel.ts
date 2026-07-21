@@ -74,6 +74,8 @@ export class TerminalPanel implements PanelDefinition {
   /** Timestamp gutter toggle */
   private showTimestamps = false;
   private lineTimestamps: number[] = [];
+  /** Line number gutter toggle */
+  private showLineNumbers = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -259,6 +261,12 @@ export class TerminalPanel implements PanelDefinition {
       // Ctrl+G: toggle timestamp gutter
       if (event.ctrl && event.key === 'character' && event.text === 'g') {
         this.showTimestamps = !this.showTimestamps;
+        return true;
+      }
+
+      // Ctrl+Shift+N: toggle line number gutter (use Ctrl+K as alternative)
+      if (event.ctrl && event.key === 'character' && event.text === 'k') {
+        this.showLineNumbers = !this.showLineNumbers;
         return true;
       }
 
