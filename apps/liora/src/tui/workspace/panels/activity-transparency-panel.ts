@@ -302,14 +302,16 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     }
     // Activity rate sparkline (last 30s, 10 buckets)
     const sparkline = this.renderActivitySparkline(now, width);
+    // Rate-of-change indicator (events/sec over last 5s)
+    const rateIndicator = this.renderRateIndicator(now);
     if (animate && activeCount > 0) {
       const headerStyled = errorCount > 0
         ? renderPulseText(headerText, 'activity-header', 'error', appearance)
         : renderPulseText(headerText, 'activity-header', 'primary', appearance);
-      lines.push(this.pad(` ${headerStyled}${sparkline}`, width));
+      lines.push(this.pad(` ${headerStyled}${sparkline}${rateIndicator}`, width));
     } else {
       const headerToken = errorCount > 0 ? 'error' : 'primary';
-      lines.push(this.pad(` ${currentTheme.boldFg(headerToken, headerText)}${sparkline}`, width));
+      lines.push(this.pad(` ${currentTheme.boldFg(headerToken, headerText)}${sparkline}${rateIndicator}`, width));
     }
 
     // Filter chip row (visible when focused, compact single-row chips)
@@ -740,6 +742,19 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       return SPARK_CHARS[level]!;
     }).join('');
     return ` ${currentTheme.dimFg('textMuted', spark)}`;
+  }
+
+  /** Render a compact rate-of-change indicator (events/sec over last 5s). */
+  private renderRateIndicator(now: number): string {
+    const entries = this.feed.getEntries();
+    const WINDOW_MS = 5_000;
+    const recentCount = entries.filter((e) => now - e.timestamp < WINDOW_MS).length;
+    const rate = recentCount / (WINDOW_MS / 1000);
+    if (rate === 0) return '';
+    // Arrow indicator: ↑ high rate, → moderate, ↓ low
+    const arrow = rate > 3 ? '↑' : rate > 1 ? '→' : '↓';
+    const token = rate > 3 ? 'accent' : rate > 1 ? 'primary' : 'textDim';
+    return ` ${currentTheme.fg(token, `${arrow}${rate.toFixed(1)}/s`)}`;
   }
 
   /**
