@@ -485,6 +485,21 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
         }
       }
+      // Success/failure ratio bar: compact green/red visualization
+      if (entries.length > 3 && height > 18) {
+        const successes = entries.filter((e) => e.durationMs !== undefined && !e.isError).length;
+        const failures = entries.filter((e) => e.isError).length;
+        const totalResolved = successes + failures;
+        if (totalResolved > 0) {
+          const RATIO_W = Math.min(20, width - 10);
+          const successW = Math.round((successes / totalResolved) * RATIO_W);
+          const failW = RATIO_W - successW;
+          const ratioBar = currentTheme.fg('success', '█'.repeat(successW)) +
+            (failW > 0 ? currentTheme.fg('error', '█'.repeat(failW)) : '');
+          const ratioLabel = currentTheme.dimFg('textMuted', ` ${String(successes)}✓ ${String(failures)}✗`);
+          lines.push(this.pad(` ${ratioBar}${ratioLabel}`, width));
+        }
+      }
       // Operation type distribution: compact proportional breakdown
       if (entries.length > 5 && height > 17) {
         const typeCounts = new Map<string, number>();
