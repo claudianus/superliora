@@ -44,7 +44,7 @@ export class GitDiffPanel implements PanelDefinition {
   private cursorIndex = 0;
   private scrollTop = 0;
   private lastRefresh = 0;
-  private mode: 'summary' | 'full' = 'summary';
+  private mode: 'summary' | 'full' | 'stat' = 'summary';
   /** Render cache: avoids re-computing lines when nothing changed. */
   private renderCache: { key: string; lines: string[] } | null = null;
   private diffVersion = 0;
@@ -80,7 +80,9 @@ export class GitDiffPanel implements PanelDefinition {
 
     const lines = this.mode === 'summary'
       ? this.renderSummary(width)
-      : this.flatLines.map((l) => l.text);
+      : this.mode === 'stat'
+        ? this.renderStatMode(width)
+        : this.flatLines.map((l) => l.text);
 
     // Clamp cursor
     this.cursorIndex = Math.max(0, Math.min(this.cursorIndex, lines.length - 1));
@@ -144,7 +146,8 @@ export class GitDiffPanel implements PanelDefinition {
           return true;
         }
         if (event.text === 'v' || event.text === 'V') {
-          this.mode = this.mode === 'summary' ? 'full' : 'summary';
+          // Cycle: summary → stat → full → summary
+          this.mode = this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary';
           this.cursorIndex = 0;
           this.scrollTop = 0;
           this.renderCache = null;
@@ -272,7 +275,25 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     lines.push('');
-    lines.push(dim(' [v] full diff  [n/p] hunk jump  [r] refresh'));
+    lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk jump  [r] refresh`));
+    return lines;
+  }
+
+  /** Render stat-only mode: numstat per file without full diff content. */
+  private renderStatMode(width: number): string[] {
+    const lines: string[] = [];
+    const totalAdd = this.files.reduce((s, f) => s + f.additions, 0);
+    const totalDel = this.files.reduce((s, f) => s + f.deletions, 0);
+    lines.push(bold(` ${this.files.length} file(s) · ${green(`+${totalAdd}`)} ${red(`-${totalDel}`)}`));
+    lines.push('');
+    for (const file of this.files) {
+      const addStr = green(String(file.additions).padStart(4));
+      const delStr = red(String(file.deletions).padStart(4));
+      const filePath = file.path.length > width - 14 ? `…${file.path.slice(-(width - 15))}` : file.path;
+      lines.push(` ${addStr} ${delStr}  ${filePath}`);
+    }
+    lines.push('');
+    lines.push(dim(` [v] ${this.mode === 'stat' ? 'full' : 'summary'}  [r] refresh`));
     return lines;
   }
 
