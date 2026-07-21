@@ -106,6 +106,7 @@ import type {
 } from '../types';
 import type { TUIState } from '../tui-state';
 import { createGoal as startGoalCommand } from '../commands/goal';
+import type { ActivityFeed } from '../workspace/panels/activity-transparency-panel';
 
 export interface SessionEventHost {
   state: TUIState;
@@ -141,6 +142,9 @@ export interface SessionEventHost {
 
 export class SessionEventHandler {
   readonly subAgentEventHandler: SubAgentEventHandler;
+
+  /** Optional activity feed for the workspace transparency panel. */
+  activityFeed: ActivityFeed | undefined;
 
   constructor(private readonly host: SessionEventHost) {
     this.subAgentEventHandler = new SubAgentEventHandler(host, {
@@ -694,6 +698,20 @@ export class SessionEventHandler {
       turnId,
     };
     streamingUI.registerToolCall(toolCall);
+    // Push to activity feed for transparency panel
+    if (this.activityFeed !== undefined) {
+      const kind = event.name === 'Read' || event.name === 'LioraRead'
+        ? 'file-read' as const
+        : event.name === 'Write' || event.name === 'Edit'
+          ? 'file-write' as const
+          : event.name === 'Bash'
+            ? 'command' as const
+            : event.name === 'Agent' || event.name === 'AgentSwarm'
+              ? 'agent-spawn' as const
+              : 'tool-start' as const;
+      const detail = event.description ?? summarizeArgs(toolCall.args);
+      this.activityFeed.push(kind, event.name, detail);
+    }
     if (event.name !== 'TodoList') {
       state.todoPanel.bumpActivity();
       requestTUILayoutRender(state);
@@ -765,6 +783,12 @@ export class SessionEventHandler {
       synthetic: event.synthetic,
     };
     const matchedCall = streamingUI.completeToolResult(event.toolCallId, resultData);
+    // Push result to activity feed
+    if (this.activityFeed !== undefined && matchedCall !== undefined) {
+      const kind = event.isError === true ? 'tool-error' as const : 'tool-result' as const;
+      const outputPreview = resultData.output.slice(0, 80);
+      this.activityFeed.push(kind, `${matchedCall.name} done`, outputPreview, event.isError === true);
+    }
     this.subAgentEventHandler.handleAgentSwarmToolResult(
       event.toolCallId,
       resultData,
@@ -1423,4 +1447,16 @@ function addTokenUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
     inputCacheRead: a.inputCacheRead + b.inputCacheRead,
     inputCacheCreation: a.inputCacheCreation + b.inputCacheCreation,
   };
+}
+
+function summarizeArgs(args: Record<string, unknown>): string | undefined {
+  // Pick the most informative field for a short preview
+  const candidates = ['path', 'command', 'query', 'pattern', 'url', 'description', 'prompt'];
+  for (const key of candidates) {
+    const val = args[key];
+    if (typeof val === 'string' && val.length > 0) {
+      return val.length > 60 ? `${val.slice(0, 59)}…` : val;
+    }
+  }
+  return undefined;
 }

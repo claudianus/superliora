@@ -4,3 +4,5 @@ export { GitDiffPanel } from './git-diff-panel';
 export { ArtifactViewerPanel } from './artifact-viewer-panel';
 export { SessionManagerPanel } from './session-manager-panel';
 export type { SessionInfo, SessionManagerCallbacks } from './session-manager-panel';
+export { ActivityTransparencyPanel, ActivityFeed } from './activity-transparency-panel';
+export type { ActivityEntry, ActivityKind } from './activity-transparency-panel';

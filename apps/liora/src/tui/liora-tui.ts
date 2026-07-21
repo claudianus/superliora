@@ -171,6 +171,7 @@ import { TerminalPanel } from './workspace/panels/terminal-panel';
 import { GitDiffPanel } from './workspace/panels/git-diff-panel';
 import { ArtifactViewerPanel } from './workspace/panels/artifact-viewer-panel';
 import { SessionManagerPanel } from './workspace/panels/session-manager-panel';
+import { ActivityTransparencyPanel, ActivityFeed } from './workspace/panels/activity-transparency-panel';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -381,6 +382,7 @@ export class LioraTUI {
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   private workspaceController: WorkspaceController | undefined;
   private workspaceLayoutPersistence: WorkspaceLayoutPersistence | undefined;
+  private readonly activityFeed = new ActivityFeed();
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -478,6 +480,7 @@ export class LioraTUI {
     });
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
+    this.sessionEventHandler.activityFeed = this.activityFeed;
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
     this.usageMonitor = new UsageMonitorController({
@@ -796,6 +799,7 @@ export class LioraTUI {
       );
       this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
       this.workspaceController.addPanel(new ArtifactViewerPanel(cwd), 'right');
+      this.workspaceController.addPanel(new ActivityTransparencyPanel(this.activityFeed), 'right');
       // Register keyboard shortcuts for panel management
       const wc = this.workspaceController;
       this.nativeInputRouter.router.registerGlobalHandler({
