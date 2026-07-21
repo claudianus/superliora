@@ -142,6 +142,19 @@ export class ImagePreviewPanel implements PanelDefinition {
   }
 
   onInput(event: NativeInputEvent): boolean {
+    // Mouse wheel support
+    if (event.type === 'mouse' && event.action === 'wheel') {
+      if (event.button === 'wheel-up') {
+        this.cursorIndex = Math.max(0, this.cursorIndex - 3);
+        return true;
+      }
+      if (event.button === 'wheel-down') {
+        this.cursorIndex = Math.min(this.images.length - 1, this.cursorIndex + 3);
+        return true;
+      }
+      return false;
+    }
+
     if (event.type !== 'key') return false;
 
     if (event.key === 'up') {
