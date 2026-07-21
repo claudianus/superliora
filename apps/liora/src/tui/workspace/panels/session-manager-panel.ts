@@ -82,6 +82,7 @@ export class SessionManagerPanel implements PanelDefinition {
   private lastRefresh = 0;
   private statusMessage: string | null = null;
   private sortMode: 'time' | 'name' = 'time';
+  private pinnedSessions: Set<string> = new Set();
 
   constructor(callbacks: SessionManagerCallbacks) {
     this.callbacks = callbacks;
@@ -155,11 +156,14 @@ export class SessionManagerPanel implements PanelDefinition {
       const isCurrent = session.id === currentId;
       const isSelected = i === this.cursorIndex && focused;
 
+      const isPinned = this.pinnedSessions.has(session.id);
       const marker = isCurrent
         ? currentTheme.fg('success', '●')
         : isSelected
           ? currentTheme.fg('primary', '▸')
-          : ' ';
+          : isPinned
+            ? currentTheme.fg('accent', '📌')
+            : ' ';
       let title = session.title ?? session.lastPrompt ?? session.id.slice(0, 8);
       const time = styledRelativeTime(session.updatedAt);
 
@@ -207,7 +211,7 @@ export class SessionManagerPanel implements PanelDefinition {
       lines.push(this.pad(statusStyled, width));
     } else {
       const sortLabel = this.sortMode === 'name' ? ' [name]' : '';
-      const hint = focused ? ` ↵switch r:refresh n:new s:sort${sortLabel} j/k:nav` : '';
+      const hint = focused ? ` ↵switch r:refresh n:new s:sort${sortLabel} p:pin j/k:nav` : '';
       lines.push(this.pad(this.dim(hint), width));
     }
 
@@ -299,6 +303,19 @@ export class SessionManagerPanel implements PanelDefinition {
         this.requestRender();
         return true;
       }
+      if (ch === 'p') {
+        const session = this.sessions[this.cursorIndex];
+        if (session) {
+          if (this.pinnedSessions.has(session.id)) {
+            this.pinnedSessions.delete(session.id);
+          } else {
+            this.pinnedSessions.add(session.id);
+          }
+          this.applySorting();
+          this.requestRender();
+        }
+        return true;
+      }
     }
 
     return false;
@@ -375,6 +392,14 @@ export class SessionManagerPanel implements PanelDefinition {
       });
     } else {
       this.sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+    // Pinned sessions always float to top
+    if (this.pinnedSessions.size > 0) {
+      this.sessions.sort((a, b) => {
+        const aPinned = this.pinnedSessions.has(a.id) ? 1 : 0;
+        const bPinned = this.pinnedSessions.has(b.id) ? 1 : 0;
+        return bPinned - aPinned;
+      });
     }
   }
 
