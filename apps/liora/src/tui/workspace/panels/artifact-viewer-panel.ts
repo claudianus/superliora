@@ -65,7 +65,10 @@ export class ArtifactViewerPanel implements PanelDefinition {
       const fileName = path.basename(this.currentFile);
       const wordCount = this.content.join(' ').split(/\s+/).filter(Boolean).length;
       const lineCount = this.content.length;
-      const header = `${currentTheme.boldFg('textStrong', fileName)} ${currentTheme.dimFg('textMuted', `${String(wordCount)}w · ${String(lineCount)}L`)}`;
+    // Reading time estimate (~200 words per minute)
+    const readingTimeMin = Math.max(1, Math.ceil(wordCount / 200));
+    const readingTimeLabel = currentTheme.dimFg('textMuted', ` ~${String(readingTimeMin)}min read`);
+      const header = `${currentTheme.boldFg('textStrong', fileName)} ${currentTheme.dimFg('textMuted', `${String(wordCount)}w · ${String(lineCount)}L`)}${readingTimeLabel}`;
       lines.push(header);
     }
 
