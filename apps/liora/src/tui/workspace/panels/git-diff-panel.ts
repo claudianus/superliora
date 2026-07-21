@@ -221,16 +221,35 @@ export class GitDiffPanel implements PanelDefinition {
       lines.push({ text: bold(`── ${file.path} ──`), type: 'header' });
       for (const hunk of file.hunks) {
         lines.push({ text: cyan(hunk.header), type: 'header' });
-        for (const line of hunk.lines) {
+        // Render with inline word-level diff highlighting
+        for (let i = 0; i < hunk.lines.length; i++) {
+          const line = hunk.lines[i]!;
           switch (line.type) {
-            case 'add':
-              lines.push({ text: green(`+${line.content}`), type: 'add' });
+            case 'add': {
+              // Check if previous line is a deletion (paired change)
+              const prev = i > 0 ? hunk.lines[i - 1] : undefined;
+              if (prev && prev.type === 'del') {
+                // Inline word diff: highlight changed words
+                const highlighted = this.inlineWordDiff(prev.content, line.content, 'add');
+                lines.push({ text: green('+') + highlighted, type: 'add' });
+              } else {
+                lines.push({ text: green(`+${line.content}`), type: 'add' });
+              }
               break;
-            case 'del':
-              lines.push({ text: red(`-${line.content}`), type: 'del' });
+            }
+            case 'del': {
+              // Check if next line is an addition (paired change)
+              const next = i + 1 < hunk.lines.length ? hunk.lines[i + 1] : undefined;
+              if (next && next.type === 'add') {
+                const highlighted = this.inlineWordDiff(line.content, next.content, 'del');
+                lines.push({ text: red('-') + highlighted, type: 'del' });
+              } else {
+                lines.push({ text: red(`-${line.content}`), type: 'del' });
+              }
               break;
+            }
             default:
-              lines.push({ text: ` ${line.content}`, type: 'context' });
+              lines.push({ text: currentTheme.dimFg('textMuted', ` ${line.content}`), type: 'context' });
           }
         }
       }
@@ -238,6 +257,49 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     return lines;
+  }
+
+  /**
+   * Compute inline word-level diff between two lines.
+   * Returns the `current` line with changed words highlighted.
+   */
+  private inlineWordDiff(otherLine: string, currentLine: string, mode: 'add' | 'del'): string {
+    const otherWords = otherLine.split(/(\s+)/);
+    const currentWords = currentLine.split(/(\s+)/);
+
+    // Simple LCS-based word diff for short lines
+    if (currentWords.length > 40 || otherWords.length > 40) {
+      // Too long for word diff, fall back to full-line coloring
+      return mode === 'add' ? green(currentLine) : red(currentLine);
+    }
+
+    // Find common prefix and suffix
+    let prefixLen = 0;
+    while (prefixLen < Math.min(otherWords.length, currentWords.length) &&
+           otherWords[prefixLen] === currentWords[prefixLen]) {
+      prefixLen++;
+    }
+    let suffixLen = 0;
+    while (suffixLen < Math.min(otherWords.length, currentWords.length) - prefixLen &&
+           otherWords[otherWords.length - 1 - suffixLen] === currentWords[currentWords.length - 1 - suffixLen]) {
+      suffixLen++;
+    }
+
+    const prefix = currentWords.slice(0, prefixLen).join('');
+    const suffix = currentWords.slice(currentWords.length - suffixLen).join('');
+    const changed = currentWords.slice(prefixLen, currentWords.length - suffixLen).join('');
+
+    if (changed.length === 0) {
+      return mode === 'add' ? green(currentLine) : red(currentLine);
+    }
+
+    // Render: normal prefix + highlighted change + normal suffix
+    const baseColor = mode === 'add' ? green : red;
+    const highlightColor = mode === 'add'
+      ? (t: string) => currentTheme.bg('diffAdded', currentTheme.fg('textStrong', t))
+      : (t: string) => currentTheme.bg('diffRemoved', currentTheme.fg('textStrong', t));
+
+    return baseColor(prefix) + highlightColor(changed) + baseColor(suffix);
   }
 }
 

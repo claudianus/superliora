@@ -2,6 +2,11 @@ import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
 import { currentTheme } from '#/tui/theme';
+import {
+  renderPulseText,
+  getActiveAppearancePreferences,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,6 +57,8 @@ export class SideChatPanel implements PanelDefinition {
 
   render(width: number, height: number, focused: boolean): string[] {
     const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animate = shouldRenderAmbientEffects(appearance);
 
     // Messages area (all rows except last 2 for input)
     const msgAreaHeight = height - 2;
@@ -80,6 +87,16 @@ export class SideChatPanel implements PanelDefinition {
           lines.push(this.pad(styled, width));
         }
       }
+
+      // Typing indicator when agent is busy (animated dots)
+      if (busy && lines.length < msgAreaHeight) {
+        const DOTS_FRAMES = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'] as const;
+        const frameIdx = Math.floor(Date.now() / 150) % DOTS_FRAMES.length;
+        const typingIndicator = animate
+          ? renderPulseText(`${DOTS_FRAMES[frameIdx]} agent thinking…`, 'chat:typing', 'accent', appearance)
+          : currentTheme.dimFg('textMuted', '… agent thinking');
+        lines.push(this.pad(`  ${typingIndicator}`, width));
+      }
     }
 
     // Fill message area
@@ -88,8 +105,12 @@ export class SideChatPanel implements PanelDefinition {
     }
 
     // Status line
-    const statusText = busy ? currentTheme.fg('warning', ' ⏳ agent busy') : '';
-    lines.push(this.pad(`${currentTheme.dimFg('border', ' ─')}${statusText}${currentTheme.dimFg('border', '─')}`, width));
+    const statusText = busy
+      ? (animate
+          ? renderPulseText(' ⏳ agent busy ', 'chat:busy', 'warning', appearance)
+          : currentTheme.fg('warning', ' ⏳ agent busy '))
+      : '';
+    lines.push(this.pad(`${currentTheme.dimFg('border', '─')}${statusText}${currentTheme.dimFg('border', '─'.repeat(Math.max(1, width - 4)))}`, width));
 
     // Input line
     const prompt = focused ? currentTheme.boldFg('primary', '❯ ') : '  ';
