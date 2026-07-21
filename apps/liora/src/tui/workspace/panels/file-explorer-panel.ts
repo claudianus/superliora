@@ -538,6 +538,17 @@ export class FileExplorerPanel implements PanelDefinition {
         : '▶'
       : getFileIcon(entry.name);
 
+    // Directory item count (show when expanded)
+    let dirCountBadge = '';
+    if (entry.isDirectory && this.expandedDirs.has(entry.fullPath)) {
+      const childCount = this.entries.filter((e) =>
+        e.depth === entry.depth + 1 && e.fullPath.startsWith(entry.fullPath + '/')
+      ).length;
+      if (childCount > 0) {
+        dirCountBadge = currentTheme.dimFg('textMuted', ` (${String(childCount)})`);
+      }
+    }
+
     // Theme-aware icon coloring
     const styledIcon = entry.isDirectory
       ? currentTheme.fg('accent', icon)
@@ -561,7 +572,7 @@ export class FileExplorerPanel implements PanelDefinition {
     const ageBadge = entry.mtimeMs !== undefined
       ? ` ${currentTheme.dimFg('textMuted', formatAge(entry.mtimeMs))}`
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}`;
+    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
