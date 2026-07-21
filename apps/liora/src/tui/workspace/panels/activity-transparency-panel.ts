@@ -310,6 +310,14 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     if (entries.length > 0 && completionRate < 100) {
       headerText += ` · ${String(completionRate)}%✓`;
     }
+    // Estimated operation cost (rough heuristic based on operation count and duration)
+    const totalDurationMs = entries.reduce((sum, e) => sum + (e.durationMs ?? 0), 0);
+    if (totalDurationMs > 5000) {
+      // Rough estimate: ~100 tokens per second of operation time
+      const estTokens = Math.round(totalDurationMs / 10);
+      const estCost = estTokens > 1000 ? `${(estTokens / 1000).toFixed(1)}k tok` : `${String(estTokens)} tok`;
+      headerText += ` · ~${estCost}`;
+    }
     // Tool success rate: ratio of successful completions to total completed
     const toolResults = entries.filter((e) => e.kind === 'tool-result' || e.kind === 'tool-error');
     if (toolResults.length > 0) {
