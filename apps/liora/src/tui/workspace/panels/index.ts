@@ -9,3 +9,4 @@ export type { ActivityEntry, ActivityKind } from './activity-transparency-panel'
 export { SideChatPanel } from './side-chat-panel';
 export type { SideChatCallbacks } from './side-chat-panel';
 export { ImagePreviewPanel } from './image-preview-panel';
+export { WebBrowserPanel } from './web-browser-panel';

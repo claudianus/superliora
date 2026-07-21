@@ -181,6 +181,7 @@ import { SessionManagerPanel } from './workspace/panels/session-manager-panel';
 import { ActivityTransparencyPanel, ActivityFeed } from './workspace/panels/activity-transparency-panel';
 import { SideChatPanel } from './workspace/panels/side-chat-panel';
 import { ImagePreviewPanel } from './workspace/panels/image-preview-panel';
+import { WebBrowserPanel } from './workspace/panels/web-browser-panel';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -826,6 +827,7 @@ export class LioraTUI {
         'right',
       );
       this.workspaceController.addPanel(new ImagePreviewPanel(cwd), 'right');
+      this.workspaceController.addPanel(new WebBrowserPanel(cwd), 'right');
       // Register keyboard shortcuts for panel management
       const wc = this.workspaceController;
       this.nativeInputRouter.router.registerGlobalHandler({

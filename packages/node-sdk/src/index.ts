@@ -114,3 +114,20 @@ export type {
 
 export * from '#/events';
 export type * from '#/types';
+
+// Browser-use runtime for in-app browser
+export {
+  createBrowserUseRuntime,
+  type BrowserUseProvider,
+  type BrowserUseRuntimeOptions,
+} from '@superliora/gui-use';
+export type {
+  BrowserUseRuntime,
+  BrowserObservation,
+  BrowserScreenshotInput,
+  BrowserActInput,
+  BrowserActResult,
+  BrowserAction,
+  BrowserStatus,
+  RuntimeImage,
+} from '@superliora/gui-use';

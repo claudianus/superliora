@@ -63,6 +63,7 @@
   },
   "devDependencies": {
     "@superliora/agent-core": "workspace:^",
+    "@superliora/gui-use": "workspace:^",
     "@superliora/kaos": "workspace:^",
     "@superliora/kosong": "workspace:^",
     "@superliora/oauth": "workspace:^",

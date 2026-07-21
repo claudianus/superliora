@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    zod:
+      specifier: 4.3.6
+      version: 4.3.6
+
 overrides:
   ssh2@1.17.0>cpu-features: '-'
   ssh2@1.17.0>nan: '-'
@@ -497,6 +503,9 @@ importers:
       '@superliora/agent-core':
         specifier: workspace:^
         version: link:../agent-core
+      '@superliora/gui-use':
+        specifier: workspace:^
+        version: link:../gui-use
       '@superliora/kaos':
         specifier: workspace:^
         version: link:../kaos
