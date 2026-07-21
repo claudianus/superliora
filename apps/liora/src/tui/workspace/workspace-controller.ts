@@ -118,6 +118,10 @@ export class WorkspaceController {
   private slideAnimStart = 0;
   private static readonly SLIDE_ANIM_DURATION = 200; // ms
 
+  // Quick-switch (Ctrl+N) teleport animation
+  private quickSwitchFlash = 0;
+  private static readonly QUICK_SWITCH_DURATION = 300; // ms
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -631,6 +635,7 @@ export class WorkspaceController {
     if (event.key === 'character' && event.text && /^[1-9]$/.test(event.text)) {
       const index = parseInt(event.text, 10);
       this.panelManager.focusPanelByIndex(index);
+      this.quickSwitchFlash = Date.now();
       this.requestRender();
       return true;
     }
