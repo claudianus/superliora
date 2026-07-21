@@ -139,6 +139,9 @@ export class WorkspaceController {
   // Focus ring animation: breathing border on focused panel
   private static readonly FOCUS_RING_PERIOD = 3000; // ms for one breath cycle
 
+  // Panel notification badges: track unread counts per panel
+  private panelNotifications: Map<string, number> = new Map();
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -463,6 +466,8 @@ export class WorkspaceController {
       );
       // Track panel activity for tab bar indicators
       this.panelActivity.set(activePanel.instanceId, Date.now());
+      // Clear notifications when panel is viewed
+      this.panelNotifications.delete(activePanel.instanceId);
 
       // Panel content fade-in: briefly dim content on recent focus change
       const fadeAge = Date.now() - this.focusFlashStart;
@@ -523,7 +528,12 @@ export class WorkspaceController {
         const lastActivity = this.panelActivity.get(panel.instanceId) ?? 0;
         const hasRecentActivity = Date.now() - lastActivity < 5000 && panel.instanceId !== focusedId;
         const activityDot = hasRecentActivity ? currentTheme.fg('success', '•') : '';
-        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `) + activityDot + currentTheme.dimFg('border', closeBtn));
+        // Notification badge: show unread count
+        const notifCount = this.panelNotifications.get(panel.instanceId) ?? 0;
+        const notifBadge = notifCount > 0 && panel.instanceId !== focusedId
+          ? currentTheme.bg('error', currentTheme.fg('textStrong', ` ${String(notifCount)} `))
+          : '';
+        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `) + activityDot + notifBadge + currentTheme.dimFg('border', closeBtn));
       }
       // Track close button position (after label + space)
       const tabVisibleLen = label.length + 3; // space + label + space + ×
@@ -1588,6 +1598,12 @@ export class WorkspaceController {
   // -------------------------------------------------------------------------
   // Lifecycle (continued)
   // -------------------------------------------------------------------------
+
+  /** Push a notification to a panel's badge. */
+  pushNotification(panelId: string, count = 1): void {
+    const current = this.panelNotifications.get(panelId) ?? 0;
+    this.panelNotifications.set(panelId, current + count);
+  }
 
   /** Get the current layout memory for persistence. */
   getLayoutMemory(): { leftWidth: number; rightWidth: number; lastFocused: string | null } {
