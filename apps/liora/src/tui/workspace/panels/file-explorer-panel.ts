@@ -52,6 +52,8 @@ export class FileExplorerPanel implements PanelDefinition {
   /** Quick search navigation */
   private quickSearchActive = false;
   private quickSearchQuery = '';
+  /** Git blame cache for selected file */
+  private blameCache: Map<string, string> = new Map();
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -133,6 +135,26 @@ export class FileExplorerPanel implements PanelDefinition {
           ? segments.slice(0, 2).join('/') + '/…/' + segments[segments.length - 1]
           : relPath;
         stats += currentTheme.dimFg('textMuted', ` 📍${breadcrumb}`);
+      }
+      // Git blame for selected file (last author, cached)
+      if (selectedEntry && !selectedEntry.isDirectory) {
+        const blameKey = selectedEntry.fullPath;
+        if (!this.blameCache.has(blameKey)) {
+          try {
+            const blameOutput = execSync(`git log -1 --format="%an" -- "${blameKey}" 2>/dev/null`, {
+              cwd: this.rootPath,
+              encoding: 'utf-8',
+              timeout: 2000,
+            }).trim();
+            this.blameCache.set(blameKey, blameOutput || '');
+          } catch {
+            this.blameCache.set(blameKey, '');
+          }
+        }
+        const author = this.blameCache.get(blameKey);
+        if (author && author.length > 0) {
+          stats += currentTheme.dimFg('textMuted', ` ✍${author}`);
+        }
       }
       // Git stash count
       if (this.gitStashCount > 0) stats += currentTheme.fg('accent', ` ≡${String(this.gitStashCount)}`);
