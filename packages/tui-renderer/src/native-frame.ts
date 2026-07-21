@@ -89,6 +89,11 @@ export class NativeFrameRenderer {
     this.frame.writeText(x, y, text, style);
   }
 
+  /** Parse chalk/ANSI escapes into styled cells. See {@link CellBuffer.writeAnsiText}. */
+  writeAnsiText(x: number, y: number, text: string): void {
+    this.frame.writeAnsiText(x, y, text);
+  }
+
   setCursor(cursor: RendererCursorState): void {
     this.nextCursor = normalizeCursorState(cursor);
   }

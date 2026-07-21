@@ -2579,6 +2579,26 @@ describe('RendererCellBuffer', () => {
     expect(buffer.dirtyRowSpans).toEqual([{ y: 1, x: 1, width: 3 }]);
   });
 
+  it('writeAnsiText parses SGR instead of leaking escape bodies as glyphs', () => {
+    // Dock panels / status bar emit chalk strings. writeText used to split
+    // `\u001B[38;2;…m` into cells, dropping ESC (width 0) and leaving `38;2…`.
+    const ansi =
+      '\u001B[38;2;90;90;90m\u001B[2m│\u001B[22m\u001B[39m \u001B[38;2;61;155;255mmain\u001B[39m';
+    const buffer = new RendererCellBuffer(16, 1);
+    buffer.writeAnsiText(0, 0, ansi);
+
+    const chars = Array.from({ length: 16 }, (_, x) => buffer.getCell(x, 0).char).join('');
+    expect(chars.startsWith('│ main')).toBe(true);
+    expect(chars).not.toContain('38;2');
+    expect(chars).not.toContain('[2m');
+    expect(chars).not.toContain('22m');
+    expect(chars).not.toContain('39m');
+    expect(buffer.getCell(0, 0).style?.fg?.toLowerCase()).toBe('#5a5a5a');
+    expect(buffer.getCell(0, 0).style?.dim).toBe(true);
+    expect(buffer.getCell(2, 0).char).toBe('m');
+    expect(buffer.getCell(2, 0).style?.fg?.toLowerCase()).toBe('#3d9bff');
+  });
+
   it('tracks sparse dirty row spans separately from bounding damage', () => {
     const buffer = new RendererCellBuffer(10, 10);
 

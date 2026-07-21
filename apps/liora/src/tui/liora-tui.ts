@@ -880,7 +880,7 @@ export class LioraTUI {
           const latestEntry = entries.length > 0 ? entries[entries.length - 1] : undefined;
           const agentActive = this.state.appState.streamingPhase !== 'idle';
           const tickerLine = renderActivityTicker(latestEntry, agentActive, columns);
-          frameRenderer.writeText(0, 0, tickerLine);
+          frameRenderer.writeAnsiText(0, 0, tickerLine);
 
           // Workspace-only docks/overlays. The bottom status bar renders in every
           // path below so the live band stays visible even without workspace mode.
@@ -905,7 +905,7 @@ export class LioraTUI {
             for (let row = 0; row < docks.left.length; row++) {
               const line = docks.left[row] ?? '';
               if (line.length > 0) {
-                frameRenderer.writeText(0, row, line);
+                frameRenderer.writeAnsiText(0, row, line);
               }
             }
           } else if (docks.left && layout.leftDock) {
@@ -913,7 +913,7 @@ export class LioraTUI {
             for (let row = 0; row < docks.left.length; row++) {
               const line = docks.left[row] ?? '';
               if (line.length > 0) {
-                frameRenderer.writeText(x, y + row, line);
+                frameRenderer.writeAnsiText(x, y + row, line);
               }
             }
           }
@@ -923,7 +923,7 @@ export class LioraTUI {
             for (let row = 0; row < docks.right.length; row++) {
               const line = docks.right[row] ?? '';
               if (line.length > 0) {
-                frameRenderer.writeText(x, y + row, line);
+                frameRenderer.writeAnsiText(x, y + row, line);
               }
             }
           }
@@ -936,11 +936,11 @@ export class LioraTUI {
             // Backdrop: dim the area behind the overlay
             for (let row = overlayY - 1; row <= overlayY + switcherLines.length; row++) {
               if (row >= 0 && row < rows) {
-                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
               }
             }
             for (let row = 0; row < switcherLines.length; row++) {
-              frameRenderer.writeText(overlayX, overlayY + row, switcherLines[row] ?? '');
+              frameRenderer.writeAnsiText(overlayX, overlayY + row, switcherLines[row] ?? '');
             }
           }
           // Draw keyboard help overlay (centered)
@@ -951,11 +951,11 @@ export class LioraTUI {
             const overlayY = Math.max(1, Math.floor((rows - helpLines.length) / 2));
             for (let row = overlayY - 1; row <= overlayY + helpLines.length; row++) {
               if (row >= 0 && row < rows) {
-                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
               }
             }
             for (let row = 0; row < helpLines.length; row++) {
-              frameRenderer.writeText(overlayX, overlayY + row, helpLines[row] ?? '');
+              frameRenderer.writeAnsiText(overlayX, overlayY + row, helpLines[row] ?? '');
             }
           }
           // Draw layout preset overlay (centered)
@@ -966,11 +966,11 @@ export class LioraTUI {
             const overlayY = Math.max(1, Math.floor((rows - presetLines.length) / 2));
             for (let row = overlayY - 1; row <= overlayY + presetLines.length; row++) {
               if (row >= 0 && row < rows) {
-                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
               }
             }
             for (let row = 0; row < presetLines.length; row++) {
-              frameRenderer.writeText(overlayX, overlayY + row, presetLines[row] ?? '');
+              frameRenderer.writeAnsiText(overlayX, overlayY + row, presetLines[row] ?? '');
             }
           }
           // Draw command palette overlay (centered)
@@ -981,11 +981,11 @@ export class LioraTUI {
             const overlayY = Math.max(1, Math.floor((rows - paletteLines.length) / 2));
             for (let row = overlayY - 1; row <= overlayY + paletteLines.length; row++) {
               if (row >= 0 && row < rows) {
-                frameRenderer.writeText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
+                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
               }
             }
             for (let row = 0; row < paletteLines.length; row++) {
-              frameRenderer.writeText(overlayX, overlayY + row, paletteLines[row] ?? '');
+              frameRenderer.writeAnsiText(overlayX, overlayY + row, paletteLines[row] ?? '');
             }
           }
           // Draw session stats overlay (centered)
@@ -1007,7 +1007,7 @@ export class LioraTUI {
               const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
               const overlayY = Math.max(1, Math.floor((rows - statsLines.length) / 2));
               for (let row = 0; row < statsLines.length; row++) {
-                frameRenderer.writeText(overlayX, overlayY + row, statsLines[row] ?? '');
+                frameRenderer.writeAnsiText(overlayX, overlayY + row, statsLines[row] ?? '');
               }
             }
           }
@@ -1017,7 +1017,7 @@ export class LioraTUI {
             if (searchLines) {
               const overlayY = rows - searchLines.length - 1;
               for (let row = 0; row < searchLines.length; row++) {
-                frameRenderer.writeText(1, overlayY + row, searchLines[row] ?? '');
+                frameRenderer.writeAnsiText(1, overlayY + row, searchLines[row] ?? '');
               }
             }
           }
@@ -1025,14 +1025,14 @@ export class LioraTUI {
           const dragOverlay = this.workspaceController.renderDragOverlay();
           if (dragOverlay) {
             for (let row = 0; row < dragOverlay.lines.length; row++) {
-              frameRenderer.writeText(dragOverlay.x, dragOverlay.y + row, dragOverlay.lines[row] ?? '');
+              frameRenderer.writeAnsiText(dragOverlay.x, dragOverlay.y + row, dragOverlay.lines[row] ?? '');
             }
           }
           // Draw resize indicator (during dock divider drag)
           const resizeOverlay = this.workspaceController.renderResizeIndicator();
           if (resizeOverlay) {
             for (let row = 0; row < resizeOverlay.lines.length; row++) {
-              frameRenderer.writeText(resizeOverlay.x, resizeOverlay.y + row, resizeOverlay.lines[row] ?? '');
+              frameRenderer.writeAnsiText(resizeOverlay.x, resizeOverlay.y + row, resizeOverlay.lines[row] ?? '');
             }
           }
           // Status bar at the bottom row (always-on live band)
@@ -1077,7 +1077,7 @@ export class LioraTUI {
       model: this.state.appState.model,
       sessionCostUsd: this.state.appState.sessionCostUsd,
     }, columns, process.cwd());
-    frameRenderer.writeText(0, rows - 1, statusLine);
+    frameRenderer.writeAnsiText(0, rows - 1, statusLine);
   }
 
   private startEventLoop(): void {
