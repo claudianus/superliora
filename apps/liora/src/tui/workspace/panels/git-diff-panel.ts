@@ -286,7 +286,8 @@ export class GitDiffPanel implements PanelDefinition {
       }
       const path = file.path.length > width - 12 ? `...${file.path.slice(-(width - 15))}` : file.path;
       const binaryBadge = file.isBinary ? ` ${currentTheme.fg('warning', '[bin]')}` : '';
-      lines.push(` ${statusIcon} ${path}${binaryBadge}${fileBar} ${stats}`);
+      const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
+      lines.push(` ${statusIcon} ${path}${binaryBadge}${fileBar} ${stats}${hunkCount}`);
     }
 
     lines.push('');
