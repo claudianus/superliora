@@ -318,6 +318,12 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       const estCost = estTokens > 1000 ? `${(estTokens / 1000).toFixed(1)}k tok` : `${String(estTokens)} tok`;
       headerText += ` · ~${estCost}`;
     }
+    // Memory usage indicator (compact, shows RSS in MB)
+    const memUsage = process.memoryUsage();
+    const rssMb = Math.round(memUsage.rss / (1024 * 1024));
+    if (rssMb > 100) {
+      headerText += ` · ${String(rssMb)}MB`;
+    }
     // Tool success rate: ratio of successful completions to total completed
     const toolResults = entries.filter((e) => e.kind === 'tool-result' || e.kind === 'tool-error');
     if (toolResults.length > 0) {
