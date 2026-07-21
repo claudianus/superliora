@@ -389,7 +389,12 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       // Show scroll position when scrolled away from bottom
       const scrollPct = maxScroll > 0 ? Math.round((this.scrollTop / maxScroll) * 100) : 100;
       const scrollInfo = scrollPct < 100 ? ` ${currentTheme.fg('accent', `${String(scrollPct)}%`)}` : '';
-      hint = currentTheme.dimFg('textMuted', ' j/k:scroll c:clear f:filter a:auto e:expand') + scrollInfo;
+      // Duration histogram (compact, shows distribution of completed ops)
+      const histogram = this.renderDurationHistogram(width);
+      if (histogram.length > 0 && height > 8) {
+        lines.push(this.pad(histogram, width));
+      }
+      hint = currentTheme.dimFg('textMuted', ' j/k c:clr f:filter a:auto e:exp') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
         ? renderPulseText('●', 'live-dot', 'success', appearance)
@@ -738,6 +743,41 @@ export class ActivityTransparencyPanel implements PanelDefinition {
    * across the entire session duration. Uses block characters with
    * theme-colored segments for different activity kinds.
    */
+  /**
+   * Render a compact duration histogram showing distribution of completed
+   * operation durations. Buckets: <100ms, <500ms, <1s, <5s, <30s, >30s.
+   */
+  private renderDurationHistogram(width: number): string {
+    const entries = this.feed.getEntries();
+    const completed = entries.filter((e) => e.durationMs !== undefined);
+    if (completed.length < 3) return ''; // Not enough data
+
+    const BUCKETS = [100, 500, 1000, 5000, 30000, Infinity] as const;
+    const LABELS = ['<.1s', '<.5s', '<1s', '<5s', '<30s', '>30s'] as const;
+    const counts = new Array<number>(BUCKETS.length).fill(0);
+
+    for (const entry of completed) {
+      const ms = entry.durationMs!;
+      for (let i = 0; i < BUCKETS.length; i++) {
+        if (ms < BUCKETS[i]!) {
+          counts[i] = (counts[i] ?? 0) + 1;
+          break;
+        }
+      }
+    }
+
+    const max = Math.max(1, ...counts);
+    const BAR_H = 3; // 3-row mini histogram
+    const parts: string[] = [];
+    for (let i = 0; i < BUCKETS.length; i++) {
+      const count = counts[i] ?? 0;
+      const level = Math.round((count / max) * BAR_H);
+      const bar = level > 0 ? currentTheme.fg('accent', '█'.repeat(level)) : currentTheme.dimFg('border', '░');
+      parts.push(`${bar}${currentTheme.dimFg('textMuted', LABELS[i]!)}`);
+    }
+    return ` ${parts.join(' ')}`;
+  }
+
   private renderSessionTimeline(now: number, width: number): string {
     const entries = this.feed.getEntries();
     if (entries.length === 0) return '';
