@@ -1,4 +1,5 @@
 import type { RendererRect } from './compositor';
+import { truncateToWidth } from './text-component';
 
 // ---------------------------------------------------------------------------
 // Panel border hit-test types
@@ -127,8 +128,9 @@ export function renderPanelFrame(options: PanelFrameOptions): string[] {
 
   for (let i = 0; i < contentHeight; i++) {
     const line = options.content[i] ?? '';
-    const truncated = truncateToWidth(line, contentWidth);
-    const padded = truncated.padEnd(contentWidth);
+    // truncateToWidth with pad=true is ANSI-aware (visible width). Byte-wise
+    // slice/padEnd cut mid-SGR and left `38;2…` litter in dock panels.
+    const padded = truncateToWidth(line, contentWidth, '', true);
     rows.push(`${vert}${padded}${vert}`);
   }
 
@@ -163,7 +165,8 @@ function renderTitleBar(
   const dashLeft = borderColor(chars.horizontal);
   const dashFill = borderColor(chars.horizontal.repeat(remainingDash));
 
-  return `${dashLeft}${titleText}${dashFill}${focusPart}${dashLeft}`.padEnd(width).slice(0, width);
+  // Do not padEnd/slice by byte length — that truncates mid-ANSI on styled titles.
+  return `${dashLeft}${titleText}${dashFill}${focusPart}${dashLeft}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -255,14 +258,3 @@ export function hitTestDockDivider(
   return 'none';
 }
 
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
-
-function truncateToWidth(text: string, maxWidth: number): string {
-  if (maxWidth <= 0) return '';
-  // Simple truncation - handles most cases without ANSI awareness
-  // For ANSI-aware truncation, the caller should pre-process
-  if (text.length <= maxWidth) return text;
-  return text.slice(0, maxWidth);
-}

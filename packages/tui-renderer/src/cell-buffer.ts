@@ -1,10 +1,11 @@
-import { displayClusterWidth, splitDisplayClusters } from './text-metrics';
+import { ansiTextToCells } from './ansi-text';
 import {
   clipRendererDamageRect,
   planRendererDamage,
   unionRendererDamageRect,
   type RendererDamageScanStrategy,
 } from './damage';
+import { displayClusterWidth, splitDisplayClusters } from './text-metrics';
 
 export interface RendererCellStyle {
   readonly fg?: string;
@@ -245,6 +246,19 @@ export class RendererCellBuffer {
 
   clear(cell: RendererCell = EMPTY_CELL): void {
     this.fillRect({ x: 0, y: 0, width: this.width, height: this.height }, cell);
+  }
+
+  /**
+   * Write a chalk/ANSI-styled string, parsing CSI/SGR into cell styles.
+   * Prefer this over {@link writeText} for any string that may contain escapes —
+   * `writeText` treats `\u001B[38;2…m` as literal characters (ESC is zero-width,
+   * so SGR bodies leak as visible `38;2…` / `[2m` garbage).
+   */
+  writeAnsiText(x: number, y: number, text: string): void {
+    if (text.length === 0) return;
+    const cells = ansiTextToCells(text);
+    if (cells.length === 0) return;
+    this.setRowSpan(Math.floor(y), Math.floor(x), cells, 0, cells.length);
   }
 
   writeText(x: number, y: number, text: string, style?: RendererCellStyle): void {
