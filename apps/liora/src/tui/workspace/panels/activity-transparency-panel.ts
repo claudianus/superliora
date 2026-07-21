@@ -304,6 +304,11 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       lines.push(this.pad(` ${currentTheme.boldFg('primary', headerText)}${sparkline}`, width));
     }
 
+    // Filter chip row (visible when focused, compact single-row chips)
+    if (focused && height > 5) {
+      lines.push(this.pad(this.renderFilterChips(width), width));
+    }
+
     if (entries.length === 0) {
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '(no activity yet)')}`, width));
       return this.fillLines(lines, height, width);
@@ -327,7 +332,8 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     }
 
     // Clamp scroll
-    const visibleRows = height - (activeCount > 0 && height > 4 ? 3 : 2); // header + spotlight + hint
+    const headerRows = focused && height > 5 ? 2 : 1; // header + optional filter chips
+    const visibleRows = height - headerRows - (activeCount > 0 && height > 4 ? 1 : 0) - 1; // spotlight + hint
     const maxScroll = Math.max(0, grouped.length - visibleRows);
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, maxScroll));
 
@@ -412,6 +418,21 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           this.scrollTop += 3;
           this.checkAutoScroll();
           return true;
+        }
+      }
+      // Mouse click on filter chip row (row index 1 when focused)
+      if (event.action === 'press' && event.button === 'left') {
+        // Filter chips are on the second row (y offset 1 within the panel)
+        if (event.y === 1) {
+          const chipKinds: Array<ActivityKind | null> = [null, 'tool-start', 'thinking', 'file-read', 'file-write', 'command', 'agent-spawn'];
+          // Approximate chip positions: each chip is ~7 chars wide + 1 separator
+          const chipWidth = 8;
+          const chipIndex = Math.floor((event.x - 1) / chipWidth);
+          if (chipIndex >= 0 && chipIndex < chipKinds.length) {
+            this.filterKind = chipKinds[chipIndex]!;
+            this.scrollTop = 0;
+            return true;
+          }
         }
       }
       return false;
@@ -517,6 +538,36 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const currentIdx = kinds.indexOf(this.filterKind);
     this.filterKind = kinds[(currentIdx + 1) % kinds.length]!;
     this.scrollTop = 0;
+  }
+
+  /** Render a compact row of filter chips showing available kinds. */
+  private renderFilterChips(width: number): string {
+    const chips: Array<{ kind: ActivityKind | null; label: string; token: ColorToken }> = [
+      { kind: null, label: 'all', token: 'textDim' },
+      { kind: 'tool-start', label: '⚡tool', token: 'primary' },
+      { kind: 'thinking', label: '◌think', token: 'warning' },
+      { kind: 'file-read', label: '📖read', token: 'textDim' },
+      { kind: 'file-write', label: '✏write', token: 'accent' },
+      { kind: 'command', label: '▶cmd', token: 'primary' },
+      { kind: 'agent-spawn', label: '⑂agent', token: 'particle' },
+    ];
+
+    const parts: string[] = [];
+    for (const chip of chips) {
+      const isActive = this.filterKind === chip.kind;
+      if (isActive) {
+        parts.push(currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${chip.label} `)));
+      } else {
+        parts.push(currentTheme.dimFg('textMuted', ` ${chip.label} `));
+      }
+    }
+    const row = parts.join(currentTheme.dimFg('border', '·'));
+    // Truncate if too wide
+    const visible = row.replace(/\x1b\[[0-9;]*m/g, '');
+    if (visible.length > width) {
+      return ` ${parts.slice(0, 4).join(currentTheme.dimFg('border', '·'))}`;
+    }
+    return ` ${row}`;
   }
 
   private scrollToBottom(): void {

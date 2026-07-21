@@ -257,7 +257,7 @@ export class FileExplorerPanel implements PanelDefinition {
   // -------------------------------------------------------------------------
 
   private renderEntry(entry: FileEntry, isCursor: boolean, width: number): string {
-    const indent = '  '.repeat(entry.depth);
+    const connector = this.getTreeConnector(entry);
     const icon = entry.isDirectory
       ? this.expandedDirs.has(entry.fullPath)
         ? '▼'
@@ -272,13 +272,73 @@ export class FileExplorerPanel implements PanelDefinition {
     const nameStyled = entry.isDirectory
       ? currentTheme.boldFg('textStrong', entry.name)
       : currentTheme.fg('text', entry.name);
-    const label = `${indent}${styledIcon} ${nameStyled}${gitBadge}`;
+    const label = `${connector}${styledIcon} ${nameStyled}${gitBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
       return inverse(truncated.padEnd(width));
     }
     return truncated;
+  }
+
+  /**
+   * Build a themed tree connector prefix (├── / └── / │) for the entry.
+   * Root-level entries get no connector; nested entries get proper tree lines.
+   */
+  private getTreeConnector(entry: FileEntry): string {
+    if (entry.depth === 0) return '';
+
+    // Build the prefix segments for each ancestor level
+    const segments: string[] = [];
+    for (let d = 0; d < entry.depth - 1; d++) {
+      // Check if the ancestor at this depth has more siblings below
+      const ancestorPath = this.getAncestorPath(entry, d);
+      const hasMoreSiblings = ancestorPath !== null && this.hasSiblingsBelow(ancestorPath, d);
+      segments.push(hasMoreSiblings
+        ? currentTheme.dimFg('border', '│ ')
+        : '  ');
+    }
+
+    // Final connector: is this the last sibling at its level?
+    const isLast = this.isLastSibling(entry);
+    segments.push(isLast
+      ? currentTheme.dimFg('border', '└─')
+      : currentTheme.dimFg('border', '├─'));
+
+    return segments.join('');
+  }
+
+  /** Get the ancestor directory path at a given depth for an entry. */
+  private getAncestorPath(entry: FileEntry, depth: number): string | null {
+    let p = entry.fullPath;
+    const stepsUp = entry.depth - depth;
+    for (let i = 0; i < stepsUp; i++) {
+      p = path.dirname(p);
+    }
+    return p;
+  }
+
+  /** Check if there are more entries at the same depth below the given ancestor. */
+  private hasSiblingsBelow(ancestorPath: string, depth: number): boolean {
+    const idx = this.entries.findIndex((e) => e.fullPath === ancestorPath);
+    if (idx === -1) return false;
+    // Look for subsequent entries at the same depth that share this ancestor
+    for (let i = idx + 1; i < this.entries.length; i++) {
+      const e = this.entries[i]!;
+      if (e.depth <= depth) return false; // moved past this subtree
+      if (e.depth === depth + 1) return true; // found a sibling
+    }
+    return false;
+  }
+
+  /** Check if this entry is the last sibling at its depth level. */
+  private isLastSibling(entry: FileEntry): boolean {
+    const idx = this.entries.indexOf(entry);
+    if (idx === -1) return true;
+    // Look at the next entry: if it's at the same or lower depth, this is last
+    const next = this.entries[idx + 1];
+    if (!next) return true;
+    return next.depth <= entry.depth;
   }
 }
 
