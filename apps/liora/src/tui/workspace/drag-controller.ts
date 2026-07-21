@@ -39,6 +39,14 @@ export interface DragOverlayInfo {
   readonly dropDock: 'left' | 'right' | null;
 }
 
+/** Visual info for rendering resize feedback. */
+export interface ResizeOverlayInfo {
+  readonly dock: 'left' | 'right';
+  readonly x: number;
+  readonly y: number;
+  readonly currentWidth: number;
+}
+
 export interface DragControllerCallbacks {
   /** Called when the layout needs to be re-rendered. */
   readonly onLayoutChange: () => void;
@@ -92,6 +100,21 @@ export class DragController {
       x: this.state.currentX,
       y: this.state.currentY,
       dropDock,
+    };
+  }
+
+  /** Get resize overlay info for rendering resize feedback. Returns null when not resizing. */
+  getResizeInfo(): ResizeOverlayInfo | null {
+    if (this.state.type !== 'resizing-dock') return null;
+    const layout = this.callbacks.getLayout();
+    if (!layout) return null;
+    const dockRect = this.state.dock === 'left' ? layout.leftDock?.rect : layout.rightDock?.rect;
+    const currentWidth = this.panelManager.getDockWidth(this.state.dock);
+    return {
+      dock: this.state.dock,
+      x: dockRect ? dockRect.x + Math.floor(dockRect.width / 2) - 2 : this.state.startX,
+      y: dockRect ? dockRect.y : 0,
+      currentWidth,
     };
   }
 

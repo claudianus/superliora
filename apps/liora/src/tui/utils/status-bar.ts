@@ -9,6 +9,11 @@
 import { execSync } from 'node:child_process';
 
 import { currentTheme } from '#/tui/theme';
+import {
+  renderPulseText,
+  getActiveAppearancePreferences,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 
 export interface StatusBarData {
   /** Current git branch name (if in a git repo). */
@@ -27,6 +32,10 @@ export interface StatusBarData {
   model?: string;
   /** Accumulated session cost in USD (best-effort; omitted when unknown). */
   sessionCostUsd?: number;
+  /** Current turn/step number during streaming (1-based). */
+  currentStep?: number;
+  /** Total expected steps (0 = indeterminate). */
+  totalSteps?: number;
 }
 
 /** Cache git branch to avoid spawning a process every frame. */
@@ -63,17 +72,50 @@ const STATUS_LABELS = {
 
 /** Status dot glyph + theme token, resolved at render time (theme-safe). */
 function renderStatusBadge(status: StatusBarData['agentStatus']): string {
+  const appearance = getActiveAppearancePreferences();
+  const animate = shouldRenderAmbientEffects(appearance);
   switch (status) {
     case 'thinking':
-      return `${currentTheme.fg('warning', '◐')} ${STATUS_LABELS.thinking}`;
+      return animate
+        ? renderPulseText(`◐ ${STATUS_LABELS.thinking}`, 'status:thinking', 'warning', appearance)
+        : `${currentTheme.fg('warning', '◐')} ${STATUS_LABELS.thinking}`;
     case 'working':
-      return `${currentTheme.fg('accent', '◉')} ${STATUS_LABELS.working}`;
+      return animate
+        ? renderPulseText(`◉ ${STATUS_LABELS.working}`, 'status:working', 'accent', appearance)
+        : `${currentTheme.fg('accent', '◉')} ${STATUS_LABELS.working}`;
     case 'error':
       return `${currentTheme.fg('error', '✖')} ${STATUS_LABELS.error}`;
     case 'idle':
     default:
       return `${currentTheme.fg('success', '●')} ${STATUS_LABELS.idle}`;
   }
+}
+
+/** Render a compact streaming progress indicator (step dots or bar). */
+function renderStreamingProgress(data: StatusBarData): string | undefined {
+  if (data.agentStatus === 'idle' || data.agentStatus === 'error') return undefined;
+  const appearance = getActiveAppearancePreferences();
+  const animate = shouldRenderAmbientEffects(appearance);
+
+  if (data.currentStep !== undefined && data.totalSteps !== undefined && data.totalSteps > 0) {
+    // Determinate: show step dots
+    const total = Math.min(data.totalSteps, 8); // cap visual dots
+    const current = Math.min(data.currentStep, total);
+    const filled = '●'.repeat(current);
+    const empty = '○'.repeat(total - current);
+    const dots = `${filled}${empty}`;
+    return animate
+      ? renderPulseText(dots, 'status:steps', 'primary', appearance)
+      : currentTheme.fg('primary', dots);
+  }
+
+  // Indeterminate: animated spinner dots
+  const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const;
+  const frameIdx = Math.floor(Date.now() / 120) % SPINNER_FRAMES.length;
+  const spinner = SPINNER_FRAMES[frameIdx]!;
+  return animate
+    ? renderPulseText(spinner, 'status:spinner', 'accent', appearance)
+    : currentTheme.fg('accent', spinner);
 }
 
 /** Strip ANSI escape sequences for length calculation. */
@@ -118,6 +160,12 @@ export function renderStatusBar(data: StatusBarData, columns: number, cwd: strin
 
   // Agent status
   leftParts.push(renderStatusBadge(data.agentStatus));
+
+  // Streaming progress (step dots or spinner)
+  const progressSegment = renderStreamingProgress(data);
+  if (progressSegment) {
+    leftParts.push(progressSegment);
+  }
 
   // Right side segments. Visual order: model │ context │ cost │ time.
   // Keep-priority when narrow: time > context > model > cost.

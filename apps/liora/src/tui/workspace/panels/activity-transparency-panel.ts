@@ -169,6 +169,75 @@ const PROGRESS_FILLED = '━';
 const PROGRESS_EMPTY = '┄';
 
 // ---------------------------------------------------------------------------
+// Event grouping
+// ---------------------------------------------------------------------------
+
+/** Time window (ms) within which consecutive same-kind events are grouped. */
+const GROUP_WINDOW_MS = 2_000;
+/** Minimum consecutive events of the same kind before grouping kicks in. */
+const GROUP_THRESHOLD = 3;
+
+interface ActivityGroup {
+  readonly kind: ActivityKind;
+  readonly entries: readonly ActivityEntry[];
+  readonly firstTimestamp: number;
+  readonly lastTimestamp: number;
+}
+
+/**
+ * Group consecutive same-kind entries that occur within GROUP_WINDOW_MS.
+ * Returns a mixed array of individual entries and groups.
+ */
+function groupEntries(entries: readonly ActivityEntry[]): Array<ActivityEntry | ActivityGroup> {
+  if (entries.length < GROUP_THRESHOLD) return [...entries];
+
+  const result: Array<ActivityEntry | ActivityGroup> = [];
+  let i = 0;
+
+  while (i < entries.length) {
+    const entry = entries[i]!;
+    // Only group "noisy" kinds that benefit from collapsing
+    const groupable = entry.kind === 'file-read' || entry.kind === 'file-write' ||
+      entry.kind === 'tool-result' || entry.kind === 'info';
+
+    if (!groupable) {
+      result.push(entry);
+      i++;
+      continue;
+    }
+
+    // Collect consecutive same-kind entries within the time window
+    const group: ActivityEntry[] = [entry];
+    let j = i + 1;
+    while (j < entries.length) {
+      const next = entries[j]!;
+      if (next.kind !== entry.kind) break;
+      if (next.timestamp - (group[group.length - 1]?.timestamp ?? 0) > GROUP_WINDOW_MS) break;
+      group.push(next);
+      j++;
+    }
+
+    if (group.length >= GROUP_THRESHOLD) {
+      result.push({
+        kind: entry.kind,
+        entries: group,
+        firstTimestamp: group[0]!.timestamp,
+        lastTimestamp: group[group.length - 1]!.timestamp,
+      });
+    } else {
+      for (const e of group) result.push(e);
+    }
+    i = j;
+  }
+
+  return result;
+}
+
+function isGroup(item: ActivityEntry | ActivityGroup): item is ActivityGroup {
+  return 'entries' in item;
+}
+
+// ---------------------------------------------------------------------------
 // ActivityTransparencyPanel
 // ---------------------------------------------------------------------------
 
@@ -184,6 +253,8 @@ export class ActivityTransparencyPanel implements PanelDefinition {
   private autoScroll = true;
   private unsubscribe: (() => void) | null = null;
   private filterKind: ActivityKind | null = null;
+  /** Set of expanded group indices (by first entry id). */
+  private expandedGroups = new Set<string>();
   /** Render cache: avoids re-computing lines when nothing changed. */
   private renderCache: { lines: string[]; key: string } | null = null;
   private lastEntryCount = 0;
@@ -220,6 +291,7 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     // Header with live status
     const activeCount = this.feed.getActiveCount();
     const filterLabel = this.filterKind !== null ? ` ${this.filterKind}` : '';
+    const grouped = groupEntries(entries);
     let headerText = `${String(entries.length)} events${filterLabel}`;
     if (activeCount > 0) {
       headerText += ` · ${String(activeCount)} active`;
@@ -256,19 +328,40 @@ export class ActivityTransparencyPanel implements PanelDefinition {
 
     // Clamp scroll
     const visibleRows = height - (activeCount > 0 && height > 4 ? 3 : 2); // header + spotlight + hint
-    const maxScroll = Math.max(0, entries.length - visibleRows);
+    const maxScroll = Math.max(0, grouped.length - visibleRows);
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, maxScroll));
 
     // Render visible entries (newest at bottom)
-    const end = Math.min(entries.length, this.scrollTop + visibleRows);
+    const end = Math.min(grouped.length, this.scrollTop + visibleRows);
     for (let i = this.scrollTop; i < end; i++) {
-      const entry = entries[i]!;
-      let line = this.formatEntry(entry, width, now, animate);
-      // Highlight search matches
-      if (searchQuery && searchQuery.length > 0) {
-        line = this.highlightSearch(line, searchQuery);
+      const item = grouped[i]!;
+      if (isGroup(item)) {
+        const groupKey = item.entries[0]?.id ?? `g${String(i)}`;
+        const expanded = this.expandedGroups.has(groupKey);
+        if (expanded) {
+          // Render each entry in the group
+          for (const entry of item.entries) {
+            let line = this.formatEntry(entry, width, now, animate);
+            if (searchQuery && searchQuery.length > 0) {
+              line = this.highlightSearch(line, searchQuery);
+            }
+            lines.push(line);
+          }
+        } else {
+          // Render collapsed group summary
+          let line = this.formatGroupRow(item, width, now, animate);
+          if (searchQuery && searchQuery.length > 0) {
+            line = this.highlightSearch(line, searchQuery);
+          }
+          lines.push(line);
+        }
+      } else {
+        let line = this.formatEntry(item, width, now, animate);
+        if (searchQuery && searchQuery.length > 0) {
+          line = this.highlightSearch(line, searchQuery);
+        }
+        lines.push(line);
       }
-      lines.push(line);
     }
 
     // Hint bar
@@ -277,7 +370,7 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       // Show scroll position when scrolled away from bottom
       const scrollPct = maxScroll > 0 ? Math.round((this.scrollTop / maxScroll) * 100) : 100;
       const scrollInfo = scrollPct < 100 ? ` ${currentTheme.fg('accent', `${String(scrollPct)}%`)}` : '';
-      hint = currentTheme.dimFg('textMuted', ' j/k:scroll c:clear f:filter a:auto') + scrollInfo;
+      hint = currentTheme.dimFg('textMuted', ' j/k:scroll c:clear f:filter a:auto e:expand') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
         ? renderPulseText('●', 'live-dot', 'success', appearance)
@@ -373,6 +466,11 @@ export class ActivityTransparencyPanel implements PanelDefinition {
         this.cycleFilter();
         return true;
       }
+      if (ch === 'e') {
+        // Toggle expand/collapse for the group at the current scroll position
+        this.toggleGroupAtCursor();
+        return true;
+      }
     }
 
     return false;
@@ -429,10 +527,39 @@ export class ActivityTransparencyPanel implements PanelDefinition {
 
   private checkAutoScroll(): void {
     const entries = this.getFilteredEntries();
+    const grouped = groupEntries(entries);
     const visibleRows = 20;
-    if (this.scrollTop >= entries.length - visibleRows) {
+    if (this.scrollTop >= grouped.length - visibleRows) {
       this.autoScroll = true;
     }
+  }
+
+  /** Toggle expand/collapse for the group at the current cursor/scroll position. */
+  private toggleGroupAtCursor(): void {
+    const entries = this.getFilteredEntries();
+    const grouped = groupEntries(entries);
+    const item = grouped[this.scrollTop];
+    if (item === undefined || !isGroup(item)) return;
+    const groupKey = item.entries[0]?.id ?? '';
+    if (this.expandedGroups.has(groupKey)) {
+      this.expandedGroups.delete(groupKey);
+    } else {
+      this.expandedGroups.add(groupKey);
+    }
+  }
+
+  /** Format a collapsed group row. */
+  private formatGroupRow(group: ActivityGroup, width: number, now: number, animate: boolean): string {
+    const icon = KIND_ICONS[group.kind] ?? '·';
+    const token = KIND_TOKENS[group.kind] ?? 'textDim';
+    const time = formatTime(group.firstTimestamp);
+    const count = group.entries.length;
+    const timePart = currentTheme.dimFg('textMuted', time);
+    const iconPart = currentTheme.fg(token, icon);
+    const countBadge = currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ×${String(count)} `));
+    const label = `${iconPart} ${currentTheme.fg(token, group.kind.replace(/-/g, ' '))} ${countBadge}`;
+    const expandHint = currentTheme.dimFg('textMuted', ' [e]');
+    return this.pad(`${timePart} ${label}${expandHint}`, width);
   }
 
   private formatEntry(entry: ActivityEntry, width: number, now: number, animate: boolean): string {

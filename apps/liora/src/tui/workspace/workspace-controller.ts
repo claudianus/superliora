@@ -12,6 +12,7 @@ import {
 } from '@harness-kit/tui-renderer';
 
 import { DragController } from './drag-controller';
+import type { DragOverlayInfo } from './drag-controller';
 import { PanelManager } from './panel-manager';
 import { LayoutPresetManager } from './layout-presets';
 import type { PanelDefinition } from './panel-definition';
@@ -54,7 +55,7 @@ export interface WorkspaceRenderContext {
  */
 export class WorkspaceController {
   readonly panelManager: PanelManager;
-  private readonly dragController: DragController;
+  readonly dragController: DragController;
   private readonly requestRender: () => void;
   private currentLayout: WorkspaceLayoutResult | null = null;
   private enabled = true;
@@ -90,6 +91,9 @@ export class WorkspaceController {
   private searchQuery = '';
   private searchMatches: { line: number; col: number }[] = [];
   private searchCurrentMatch = 0;
+
+  // Tab close button hit zones (populated during renderTabBar)
+  private tabCloseZones: Array<{ dock: 'left' | 'right'; instanceId: string; x: number; width: number }> = [];
 
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
@@ -366,22 +370,62 @@ export class WorkspaceController {
     const appearance = getActiveAppearancePreferences();
     const animate = shouldRenderAmbientEffects(appearance);
     const tabs: string[] = [];
+    // Reset close button hit zones for this dock
+    this.tabCloseZones = this.tabCloseZones.filter((z) => z.dock !== dockId);
+    let cursorX = 1; // leading space
     for (const panel of panels) {
       const isActive = panel.instanceId === focusedId;
-      const label = `${panel.definition.icon}${panel.definition.title.slice(0, 6)}`;
+      const label = `${panel.definition.icon}${panel.definition.title.slice(0, 5)}`;
+      const closeBtn = '×';
       if (isActive) {
-        const tabText = ` ${label} `;
+        const tabText = ` ${label} ${closeBtn}`;
         tabs.push(animate
           ? renderPulseText(tabText, `tab:${panel.instanceId}`, 'primary', appearance)
           : currentTheme.bg('selectionBg', currentTheme.fg('selectionText', tabText)));
       } else {
-        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `));
+        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `) + currentTheme.dimFg('border', closeBtn));
       }
+      // Track close button position (after label + space)
+      const tabVisibleLen = label.length + 3; // space + label + space + ×
+      const closeX = cursorX + tabVisibleLen - 1;
+      this.tabCloseZones.push({ dock: dockId, instanceId: panel.instanceId, x: closeX, width: 1 });
+      cursorX += tabVisibleLen + 1; // +1 for separator
     }
     const bar = tabs.join(currentTheme.dimFg('border', '│'));
     const visibleLen = bar.replace(/\x1b\[[0-9;]*m/g, '').length;
     const padding = Math.max(0, width - visibleLen);
     return ` ${bar}${' '.repeat(padding)}`;
+  }
+
+  /**
+   * Handle mouse click on tab close buttons.
+   * @returns true if a tab was closed.
+   */
+  handleTabCloseClick(x: number, y: number, layout: WorkspaceLayoutResult): boolean {
+    // Check if click is on the tab bar row (first row of a dock in tabbed mode)
+    for (const zone of this.tabCloseZones) {
+      const dockRect = zone.dock === 'left' ? layout.leftDock?.rect : layout.rightDock?.rect;
+      if (!dockRect) continue;
+      // Tab bar is the first row of the dock
+      if (y !== dockRect.y) continue;
+      const absX = dockRect.x + zone.x;
+      if (x >= absX && x < absX + zone.width) {
+        // Close this panel (remove from dock)
+        this.panelManager.removeFromDock(zone.instanceId);
+        // If it was focused, focus the next available panel
+        if (this.panelManager.getFocusedPanelId() === zone.instanceId) {
+          const remaining = this.panelManager.getPanelsInDock(zone.dock);
+          if (remaining.length > 0) {
+            this.panelManager.focusPanel(remaining[0]!.instanceId);
+          } else {
+            this.panelManager.blurAll();
+          }
+        }
+        this.requestRender();
+        return true;
+      }
+    }
+    return false;
   }
 
   // -------------------------------------------------------------------------
@@ -393,6 +437,14 @@ export class WorkspaceController {
    * @returns true if the event was consumed by a panel.
    */
   routeInputToPanel(event: NativeInputEvent): boolean {
+    // Check tab close button clicks first
+    if (event.type === 'mouse' && event.action === 'press' && event.button === 'left') {
+      const layout = this.currentLayout;
+      if (layout && this.handleTabCloseClick(event.x, event.y, layout)) {
+        return true;
+      }
+    }
+
     // Mouse wheel events: route to the panel under the cursor if possible,
     // otherwise to the focused panel.
     if (event.type === 'mouse' && event.action === 'wheel') {
@@ -1274,6 +1326,74 @@ export class WorkspaceController {
 
   // -------------------------------------------------------------------------
   // Lifecycle
+  // -------------------------------------------------------------------------
+
+  // -------------------------------------------------------------------------
+  // Drag overlay rendering
+  // -------------------------------------------------------------------------
+
+  /**
+   * Render the drag ghost overlay and drop-zone highlight.
+   * Returns positioned lines to composite onto the frame, or null when idle.
+   */
+  renderDragOverlay(): { x: number; y: number; lines: string[] } | null {
+    const overlay = this.dragController.getDragOverlay();
+    if (overlay === null) return null;
+
+    const appearance = getActiveAppearancePreferences();
+    const animate = shouldRenderAmbientEffects(appearance);
+    const lines: string[] = [];
+
+    // Ghost panel: a compact themed card following the cursor
+    const ghostWidth = Math.min(24, overlay.panelTitle.length + 6);
+    const title = overlay.panelTitle.slice(0, ghostWidth - 4);
+    const topBorder = currentTheme.fg('accent', `╭${'─'.repeat(ghostWidth - 2)}╮`);
+    const titleLine = currentTheme.fg('accent', '│') +
+      currentTheme.boldFg('textStrong', ` ${title} `.padEnd(ghostWidth - 2)) +
+      currentTheme.fg('accent', '│');
+    const grabLine = currentTheme.fg('accent', '│') +
+      currentTheme.dimFg('textMuted', ' ⠿ drag…'.padEnd(ghostWidth - 2)) +
+      currentTheme.fg('accent', '│');
+    const botBorder = currentTheme.fg('accent', `╰${'─'.repeat(ghostWidth - 2)}╯`);
+    lines.push(topBorder, titleLine, grabLine, botBorder);
+
+    // Drop zone indicator
+    if (overlay.dropDock !== null) {
+      const dropLabel = overlay.dropDock === 'left' ? '◀ Drop here' : 'Drop here ▶';
+      const dropLine = animate
+        ? renderPulseText(` ${dropLabel} `, 'drag:dropzone', 'primary', appearance)
+        : currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${dropLabel} `));
+      lines.push('');
+      lines.push(dropLine);
+    }
+
+    return { x: overlay.x + 1, y: overlay.y + 1, lines };
+  }
+
+  /**
+   * Render a resize indicator overlay during dock divider drag.
+   * Returns positioned lines or null when not resizing.
+   */
+  renderResizeIndicator(): { x: number; y: number; lines: string[] } | null {
+    const info = this.dragController.getResizeInfo();
+    if (info === null) return null;
+
+    const appearance = getActiveAppearancePreferences();
+    const animate = shouldRenderAmbientEffects(appearance);
+    const lines: string[] = [];
+
+    // Vertical resize indicator with width readout
+    const widthLabel = `${String(info.currentWidth)}`;
+    const indicator = animate
+      ? renderPulseText(`⟺ ${widthLabel}`, 'resize:indicator', 'accent', appearance)
+      : currentTheme.fg('accent', `⟺ ${widthLabel}`);
+    lines.push(indicator);
+
+    return { x: info.x, y: info.y, lines };
+  }
+
+  // -------------------------------------------------------------------------
+  // Lifecycle (continued)
   // -------------------------------------------------------------------------
 
   dispose(): void {

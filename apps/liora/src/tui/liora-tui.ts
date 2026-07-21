@@ -1000,6 +1000,20 @@ export class LioraTUI {
               }
             }
           }
+          // Draw drag ghost overlay (follows cursor during panel drag)
+          const dragOverlay = this.workspaceController.renderDragOverlay();
+          if (dragOverlay) {
+            for (let row = 0; row < dragOverlay.lines.length; row++) {
+              frameRenderer.writeText(dragOverlay.x, dragOverlay.y + row, dragOverlay.lines[row] ?? '');
+            }
+          }
+          // Draw resize indicator (during dock divider drag)
+          const resizeOverlay = this.workspaceController.renderResizeIndicator();
+          if (resizeOverlay) {
+            for (let row = 0; row < resizeOverlay.lines.length; row++) {
+              frameRenderer.writeText(resizeOverlay.x, resizeOverlay.y + row, resizeOverlay.lines[row] ?? '');
+            }
+          }
           // Status bar at the bottom row (always-on live band)
           const pm = this.workspaceController.panelManager;
           const focusedId = pm.getFocusedPanelId();
