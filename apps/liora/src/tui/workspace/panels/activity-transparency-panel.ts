@@ -329,6 +329,18 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     if (activeOps > 1) {
       headerText += ` · ${String(activeOps)}∥`;
     }
+    // Error recovery indicator: show if errors were recovered from
+    const errorEntries = entries.filter((e) => e.isError);
+    if (errorEntries.length > 0) {
+      const lastError = errorEntries[errorEntries.length - 1]!;
+      const lastErrorIdx = entries.indexOf(lastError);
+      const recoveredAfter = entries.slice(lastErrorIdx + 1).some((e) => e.durationMs !== undefined && !e.isError);
+      if (recoveredAfter) {
+        headerText += ' · ↺recovered';
+      } else if (entries.length - lastErrorIdx <= 2) {
+        headerText += ' · ⚠unresolved';
+      }
+    }
     // Tool success rate: ratio of successful completions to total completed
     const toolResults = entries.filter((e) => e.kind === 'tool-result' || e.kind === 'tool-error');
     if (toolResults.length > 0) {
