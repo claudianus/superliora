@@ -300,13 +300,15 @@ export class GitDiffPanel implements PanelDefinition {
     const lines: string[] = [];
     const totalAdd = this.files.reduce((s, f) => s + f.additions, 0);
     const totalDel = this.files.reduce((s, f) => s + f.deletions, 0);
-    lines.push(bold(` ${this.files.length} file(s) · ${green(`+${totalAdd}`)} ${red(`-${totalDel}`)}`));
+    const totalChanged = totalAdd + totalDel;
+    lines.push(bold(` ${this.files.length} file(s) · ${green(`+${totalAdd}`)} ${red(`-${totalDel}`)} · ${String(totalChanged)} changed`));
     lines.push('');
     for (const file of this.files) {
       const addStr = green(String(file.additions).padStart(4));
       const delStr = red(String(file.deletions).padStart(4));
       const filePath = file.path.length > width - 14 ? `…${file.path.slice(-(width - 15))}` : file.path;
-      lines.push(` ${addStr} ${delStr}  ${filePath}`);
+      const hunkInfo = file.hunks.length > 0 ? dim(` ${String(file.hunks.length)}h`) : '';
+      lines.push(` ${addStr} ${delStr}  ${filePath}${hunkInfo}`);
     }
     lines.push('');
     lines.push(dim(` [v] ${this.mode === 'stat' ? 'full' : 'summary'}  [r] refresh`));
