@@ -46,6 +46,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitRemote: string | null = null;
   private gitAhead = 0;
   private gitBehind = 0;
+  private gitStashCount = 0;
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -113,6 +114,8 @@ export class FileExplorerPanel implements PanelDefinition {
       // Git ahead/behind
       if (this.gitAhead > 0) stats += currentTheme.fg('success', ` ↑${String(this.gitAhead)}`);
       if (this.gitBehind > 0) stats += currentTheme.fg('warning', ` ↓${String(this.gitBehind)}`);
+      // Git stash count
+      if (this.gitStashCount > 0) stats += currentTheme.fg('accent', ` ≡${String(this.gitStashCount)}`);
       lines.push(stats);
     }
 
@@ -447,6 +450,18 @@ export class FileExplorerPanel implements PanelDefinition {
         }
       } catch {
         // No upstream or not a tracking branch
+      }
+      // Get stash count
+      this.gitStashCount = 0;
+      try {
+        const stashOutput = execSync('git stash list 2>/dev/null | wc -l', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim();
+        this.gitStashCount = parseInt(stashOutput, 10) || 0;
+      } catch {
+        // Not a git repo or no stashes
       }
       const output = execSync('git status --porcelain', {
         cwd: this.rootPath,
