@@ -27,6 +27,7 @@ interface DiffFile {
   readonly hasDependencyChanges?: boolean;
   readonly hasApiChanges?: boolean;
   readonly hasSecurityChanges?: boolean;
+  readonly hasPerfChanges?: boolean;
 }
 
 interface DiffHunk {
@@ -385,6 +386,7 @@ export class GitDiffPanel implements PanelDefinition {
       const depBadge = file.hasDependencyChanges ? ` ${currentTheme.fg('warning', '[deps]')}` : '';
       const apiBadge = file.hasApiChanges ? ` ${currentTheme.fg('error', '[API]')}` : '';
       const secBadge = file.hasSecurityChanges ? ` ${currentTheme.fg('error', '[SEC]')}` : '';
+      const perfBadge = file.hasPerfChanges ? ` ${currentTheme.fg('warning', '[perf]')}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
       // File age: show how recently the file was last modified on disk
       let fileAgeBadge = '';
@@ -397,7 +399,7 @@ export class GitDiffPanel implements PanelDefinition {
       } catch {
         // File may not exist (deleted)
       }
-      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${todoBadge}${testBadge}${configBadge}${docBadge}${largeBadge}${depBadge}${apiBadge}${secBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
+      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${todoBadge}${testBadge}${configBadge}${docBadge}${largeBadge}${depBadge}${apiBadge}${secBadge}${perfBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
     }
 
     lines.push('');
@@ -664,6 +666,18 @@ function parseDiff(output: string): DiffFile[] {
 
     // Detect large changes (>500 lines total)
     const isLargeChange = (additions + deletions) > 500;
+    // Detect performance-sensitive changes
+    let hasPerfChanges = false;
+    const PERF_PATTERNS = /\b(for |while |forEach|map\(|filter\(|reduce\(|async |await |Promise|cache|memo|debounce|throttle|requestAnimationFrame|setTimeout|setInterval|useMemo|useCallback|React\.memo)\b/;
+    for (const hunk of hunks) {
+      for (const line of hunk.lines) {
+        if ((line.type === 'add' || line.type === 'del') && PERF_PATTERNS.test(line.content)) {
+          hasPerfChanges = true;
+          break;
+        }
+      }
+      if (hasPerfChanges) break;
+    }
     // Detect security-sensitive changes
     let hasSecurityChanges = false;
     const SECURITY_PATTERNS = /\b(auth|token|secret|password|credential|encrypt|decrypt|hash|sign|verify|permission|chmod|sudo|eval|exec|spawn|unsafe|dangerouslySetInnerHTML)\b/i;
@@ -702,7 +716,7 @@ function parseDiff(output: string): DiffFile[] {
       }
     }
 
-    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges, todoCount: todoCount > 0 ? todoCount : undefined, isTestFile, isConfigFile, isDocFile, isLargeChange, hasDependencyChanges, hasApiChanges, hasSecurityChanges });
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges, todoCount: todoCount > 0 ? todoCount : undefined, isTestFile, isConfigFile, isDocFile, isLargeChange, hasDependencyChanges, hasApiChanges, hasSecurityChanges, hasPerfChanges });
   }
 
   return files;
