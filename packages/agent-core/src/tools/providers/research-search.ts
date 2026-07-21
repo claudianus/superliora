@@ -494,12 +494,12 @@ export class ResearchSearchEngine implements WebSearchProvider {
 
   private pickLeastUsed(slots: readonly ProviderSlot[]): ProviderSlot | undefined {
     if (slots.length === 0) return undefined;
-    return [...slots].sort((a, b) => a.useCount - b.useCount)[0];
+    return slots.toSorted((a, b) => a.useCount - b.useCount)[0];
   }
 
   private pickRateLimitAware(slots: readonly ProviderSlot[]): ProviderSlot | undefined {
     if (slots.length === 0) return undefined;
-    return [...slots].sort((a, b) => {
+    return slots.toSorted((a, b) => {
       if (a.cooldownUntil !== b.cooldownUntil) return a.cooldownUntil - b.cooldownUntil;
       return a.useCount - b.useCount;
     })[0];
@@ -889,7 +889,7 @@ function isRateLimitError(error: unknown): boolean {
 }
 
 function orderByCost(slots: readonly ProviderSlot[]): ProviderSlot[] {
-  return [...slots].sort((a, b) => {
+  return slots.toSorted((a, b) => {
     const cost = (PROVIDER_COST_RANK[a.kind] ?? 50) - (PROVIDER_COST_RANK[b.kind] ?? 50);
     if (cost !== 0) return cost;
     return a.useCount - b.useCount;
