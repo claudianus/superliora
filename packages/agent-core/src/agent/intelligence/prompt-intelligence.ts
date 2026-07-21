@@ -152,9 +152,44 @@ export class PromptIntelligenceService {
     return this.agent.kimiConfig?.loopControl?.completionModel;
   }
 
+  /**
+   * When no explicit `completionModel` is configured, scan the user's
+   * configured models for the cheapest / fastest one using well-known
+   * model-name patterns.  Returns the alias key or `undefined`.
+   */
+  private inferCheapModelAlias(): string | undefined {
+    const models = this.agent.kimiConfig?.models;
+    if (models === undefined) return undefined;
+
+    // Lower score = cheaper / faster.  Patterns are matched against the
+    // lowercase model alias key AND the underlying model id.
+    const CHEAP_PATTERNS: ReadonlyArray<{ pattern: string; score: number }> = [
+      { pattern: 'haiku', score: 1 },
+      { pattern: 'flash', score: 2 },
+      { pattern: 'nano', score: 3 },
+      { pattern: 'mini', score: 4 },
+      { pattern: 'lite', score: 5 },
+      { pattern: 'turbo', score: 6 },
+    ];
+
+    let bestAlias: string | undefined;
+    let bestScore = Infinity;
+
+    for (const [alias, config] of Object.entries(models)) {
+      const haystack = `${alias} ${config.model}`.toLowerCase();
+      for (const { pattern, score } of CHEAP_PATTERNS) {
+        if (haystack.includes(pattern) && score < bestScore) {
+          bestScore = score;
+          bestAlias = alias;
+        }
+      }
+    }
+    return bestAlias;
+  }
+
   private resolveProvider(maxTokens: number): ChatProvider | undefined {
     try {
-      const alias = this.completionModelAlias();
+      const alias = this.completionModelAlias() ?? this.inferCheapModelAlias();
       const resolved = alias ? this.agent.modelProvider?.resolveProviderConfig(alias) : undefined;
       let provider = resolved ? createProvider(resolved.provider) : this.agent.config.provider;
       provider = provider.withThinking('off');
