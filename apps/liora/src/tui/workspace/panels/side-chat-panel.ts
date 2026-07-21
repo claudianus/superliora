@@ -98,6 +98,19 @@ export class SideChatPanel implements PanelDefinition {
   }
 
   onInput(event: NativeInputEvent): boolean {
+    // Mouse wheel support
+    if (event.type === 'mouse' && event.action === 'wheel') {
+      if (event.button === 'wheel-up') {
+        this.scrollTop = Math.max(0, this.scrollTop - 3);
+        return true;
+      }
+      if (event.button === 'wheel-down') {
+        this.scrollTop += 3;
+        return true;
+      }
+      return false;
+    }
+
     if (event.type !== 'key') return false;
 
     // Named keys
