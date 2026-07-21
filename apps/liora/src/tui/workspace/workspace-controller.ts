@@ -1406,14 +1406,28 @@ export class WorkspaceController {
     const botBorder = currentTheme.fg('accent', `╰${'─'.repeat(ghostWidth - 2)}╯`);
     lines.push(topBorder, titleLine, grabLine, botBorder);
 
-    // Drop zone indicator
+    // Drop zone indicator with animated snap arrows
     if (overlay.dropDock !== null) {
-      const dropLabel = overlay.dropDock === 'left' ? '◀ Drop here' : 'Drop here ▶';
+      const isLeft = overlay.dropDock === 'left';
+      // Animated arrows pointing toward the dock
+      const frame = Math.floor(Date.now() / 200) % 3;
+      const arrows = isLeft
+        ? ['◀──', '◀◀─', '◀◀◀'][frame]!
+        : ['──▶', '─▶▶', '▶▶▶'][frame]!;
+      const dropLabel = isLeft ? `${arrows} Dock` : `Dock ${arrows}`;
       const dropLine = animate
         ? renderPulseText(` ${dropLabel} `, 'drag:dropzone', 'primary', appearance)
         : currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${dropLabel} `));
+      // Snap preview: show a thin dock outline
+      const snapWidth = ghostWidth;
+      const snapTop = currentTheme.dimFg('border', `┌${'┄'.repeat(snapWidth - 2)}┐`);
+      const snapMid = currentTheme.dimFg('border', '┆') + ' '.repeat(snapWidth - 2) + currentTheme.dimFg('border', '┆');
+      const snapBot = currentTheme.dimFg('border', `└${'┄'.repeat(snapWidth - 2)}┘`);
       lines.push('');
-      lines.push(dropLine);
+      lines.push(snapTop);
+      lines.push(dropLine.padEnd(snapWidth));
+      lines.push(snapMid);
+      lines.push(snapBot);
     }
 
     return { x: overlay.x + 1, y: overlay.y + 1, lines };
