@@ -112,6 +112,12 @@ export class WorkspaceController {
   private focusHistory: string[] = [];
   private static readonly MAX_FOCUS_HISTORY = 8;
 
+  // Panel slide transition direction tracking
+  private lastPanelIndex = 0;
+  private slideDirection: 'left' | 'right' | null = null;
+  private slideAnimStart = 0;
+  private static readonly SLIDE_ANIM_DURATION = 200; // ms
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -372,8 +378,15 @@ export class WorkspaceController {
     // Active panel content (remaining height)
     const activePanel = panels.find((p) => p.instanceId === focusedId) ?? panels[0];
 
-    // Detect focus change for flash animation + history tracking
+    // Detect focus change for flash animation + history tracking + slide direction
     if (focusedId !== null && focusedId !== this.lastFocusedPanelId) {
+      // Determine slide direction based on panel index
+      const newIndex = panels.findIndex((p) => p.instanceId === focusedId);
+      if (newIndex >= 0) {
+        this.slideDirection = newIndex > this.lastPanelIndex ? 'right' : 'left';
+        this.slideAnimStart = Date.now();
+        this.lastPanelIndex = newIndex;
+      }
       this.lastFocusedPanelId = focusedId;
       this.focusFlashStart = Date.now();
       // Track focus history for Alt+Tab cycling
