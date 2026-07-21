@@ -310,7 +310,11 @@ export class WebBrowserPanel implements PanelDefinition {
       return currentTheme.dimFg('textMuted', ` ${String(index + 1)}:${title} `);
     });
     const tabBar = tabs.join(currentTheme.dimFg('border', '│'));
-    return this.pad(` ${tabBar}`, width);
+    // Tab count badge (shows N/MAX when multiple tabs)
+    const countBadge = this.tabs.length > 1
+      ? currentTheme.dimFg('textMuted', ` ${String(this.tabs.length)}/${String(MAX_TABS)}`)
+      : '';
+    return this.pad(` ${tabBar}${countBadge}`, width);
   }
 
   private renderUrlBar(width: number, focused: boolean): string {
