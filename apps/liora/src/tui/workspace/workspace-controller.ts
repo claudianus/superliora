@@ -23,6 +23,7 @@ import {
   shouldRenderAmbientEffects,
   resolveUltraworkBorderGlowHex,
   appearanceAnimationNow,
+  renderParticleDivider,
 } from '#/tui/utils/appearance-effects';
 import chalk from 'chalk';
 
@@ -717,8 +718,13 @@ export class WorkspaceController {
     if (!this.switcherOpen) return null;
     const panels = this.getFilteredPanels();
     const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const divider = animated
+      ? renderParticleDivider(30, 'switcher:divider', appearance)
+      : currentTheme.fg('primary', '─'.repeat(30));
     lines.push(`${currentTheme.boldFg('primary', ' 패널 전환')}  ${currentTheme.dimFg('textMuted', this.switcherFilter || '입력하여 필터…')}`);
-    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+    lines.push(divider);
     if (panels.length === 0) {
       lines.push(`  ${currentTheme.dimFg('textMuted', '(결과 없음)')}`);
     } else {
@@ -730,7 +736,7 @@ export class WorkspaceController {
         lines.push(` ${marker} ${dock} ${title}`);
       }
     }
-    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+    lines.push(divider);
     lines.push(` ${currentTheme.dimFg('textMuted', '↑↓ 이동 · Enter 선택 · Esc 닫기')}`);
     return lines;
   }
