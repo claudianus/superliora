@@ -143,7 +143,12 @@ export class PromptIntelligenceController {
         editor.setGhostText(result.completion, 'inline');
       }
     } catch (error) {
-      console.debug('[prompt-intelligence] inline completion failed:', error);
+      // AbortError is expected when a newer keystroke cancels the in-flight
+      // request — do not surface it.  Genuine failures go to stderr so they
+      // stay out of the TUI render surface.
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        process.stderr.write(`[prompt-intelligence] inline completion failed: ${error}\n`);
+      }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;
     }
@@ -187,7 +192,9 @@ export class PromptIntelligenceController {
         editor.setGhostText(this.suggestionCache[0], 'suggestion');
       }
     } catch (error) {
-      console.debug('[prompt-intelligence] suggestion request failed:', error);
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        process.stderr.write(`[prompt-intelligence] suggestion request failed: ${error}\n`);
+      }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;
     }
@@ -209,27 +216,12 @@ export class PromptIntelligenceController {
   // ---------------------------------------------------------------------------
 
   private canRequestIntelligence(): boolean {
-    if (!isExperimentalFlagEnabled('prompt_intelligence')) {
-      console.debug('[prompt-intelligence] disabled: flag not enabled');
-      return false;
-    }
+    if (!isExperimentalFlagEnabled('prompt_intelligence')) return false;
     const { state } = this.host;
-    if (state.appState.streamingPhase !== 'idle') {
-      console.debug(`[prompt-intelligence] disabled: streamingPhase=${state.appState.streamingPhase}`);
-      return false;
-    }
-    if (state.appState.inputMode !== 'prompt') {
-      console.debug(`[prompt-intelligence] disabled: inputMode=${state.appState.inputMode}`);
-      return false;
-    }
-    if (state.editor.isShowingAutocomplete()) {
-      console.debug('[prompt-intelligence] disabled: autocomplete menu open');
-      return false;
-    }
-    if (this.host.session === undefined) {
-      console.debug('[prompt-intelligence] disabled: no session');
-      return false;
-    }
+    if (state.appState.streamingPhase !== 'idle') return false;
+    if (state.appState.inputMode !== 'prompt') return false;
+    if (state.editor.isShowingAutocomplete()) return false;
+    if (this.host.session === undefined) return false;
     return true;
   }
 
