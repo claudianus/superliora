@@ -3,6 +3,7 @@
   "mainEntryPointFilePath": "<projectFolder>/.tmp-api-extractor/dts/node-sdk/src/index.d.ts",
   "bundledPackages": [
     "@superliora/agent-core",
+    "@superliora/gui-use",
     "@superliora/kaos",
     "@superliora/oauth",
     "@superliora/kosong"

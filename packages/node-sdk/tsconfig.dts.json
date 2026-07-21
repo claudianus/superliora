@@ -13,6 +13,7 @@
     "src/**/*.ts",
     "../agent-core/src/**/*.ts",
     "../agent-core/src/prompt-modules.d.ts",
+    "../gui-use/src/**/*.ts",
     "../kaos/src/**/*.ts",
     "../kosong/src/**/*.ts",
     "../oauth/src/**/*.ts"

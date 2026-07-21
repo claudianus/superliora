@@ -12,9 +12,10 @@ const providerClientShimPath = path.join(dtsRoot, 'provider-clients.d.ts');
 const tscBinPath = packageBinPath('typescript', 'bin/tsc');
 const apiExtractorBinPath = packageBinPath('@microsoft/api-extractor', 'bin/api-extractor');
 
-const packageDirs = new Set(['agent-core', 'kaos', 'kosong', 'node-sdk', 'oauth']);
+const packageDirs = new Set(['agent-core', 'gui-use', 'kaos', 'kosong', 'node-sdk', 'oauth']);
 const workspacePackages = new Map([
   ['@superliora/agent-core', 'agent-core'],
+  ['@superliora/gui-use', 'gui-use'],
   ['@superliora/kaos', 'kaos'],
   ['@superliora/oauth', 'oauth'],
   ['@superliora/kosong', 'kosong'],
@@ -105,7 +106,7 @@ async function rewriteWorkspaceSpecifiers() {
           `import { GoogleGenAI as GenAIClient } from '${providerClientSpecifier}';`,
         );
       const updated = providerClientText.replaceAll(
-        /(["'])(#\/[^"']+|@superliora\/(?:agent-core|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
+        /(["'])(#\/[^"']+|@superliora\/(?:agent-core|gui-use|kaos|oauth|kosong)(?:\/[^"']+)?)\1/g,
         (_match, quote, specifier) => {
           const resolved = resolveSpecifier({
             currentFile: file,
