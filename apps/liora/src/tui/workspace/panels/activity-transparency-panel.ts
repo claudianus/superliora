@@ -477,6 +477,27 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
         }
       }
+      // Throughput mini-graph (ops per 5s window, last 6 windows)
+      if (entries.length > 5 && height > 15) {
+        const T_WINDOW = 5_000;
+        const T_BUCKETS = 6;
+        const tBuckets = new Array<number>(T_BUCKETS).fill(0);
+        for (const e of entries) {
+          const age = now - e.timestamp;
+          if (age < 0 || age >= T_BUCKETS * T_WINDOW) continue;
+          const idx = T_BUCKETS - 1 - Math.floor(age / T_WINDOW);
+          if (idx >= 0 && idx < T_BUCKETS) tBuckets[idx] = (tBuckets[idx] ?? 0) + 1;
+        }
+        const tMax = Math.max(1, ...tBuckets);
+        const GRAPH_W = Math.min(20, width - 8);
+        const tGraph = tBuckets.map((count) => {
+          const barLen = Math.round((count / tMax) * GRAPH_W);
+          return currentTheme.fg('primary', '▓'.repeat(barLen)) + currentTheme.dimFg('border', '░'.repeat(GRAPH_W - barLen));
+        });
+        // Show as compact vertical bars (one row per bucket, newest at bottom)
+        const tLabel = currentTheme.dimFg('textMuted', 'thru');
+        lines.push(this.pad(` ${tLabel} ${tGraph[tGraph.length - 1] ?? ''}`, width));
+      }
       hint = currentTheme.dimFg('textMuted', ' j/k c:clr f:filter a:auto e:exp') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
