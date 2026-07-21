@@ -59,6 +59,8 @@ export class FileExplorerPanel implements PanelDefinition {
   private previewEnabled = true;
   /** Git commit count cache for selected file */
   private fileCommitCache: Map<string, number> = new Map();
+  /** Duplicate file name detection */
+  private duplicateNames: Set<string> = new Set();
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -444,6 +446,19 @@ export class FileExplorerPanel implements PanelDefinition {
         this.walkDirectory(fullPath, depth + 1);
       }
     }
+
+    // Detect duplicate file names across directories (only at root level walk completion)
+    if (depth === 0) {
+      const nameCounts = new Map<string, number>();
+      for (const entry of this.entries) {
+        if (!entry.isDirectory) {
+          nameCounts.set(entry.name, (nameCounts.get(entry.name) ?? 0) + 1);
+        }
+      }
+      this.duplicateNames = new Set(
+        [...nameCounts.entries()].filter(([, count]) => count > 1).map(([name]) => name)
+      );
+    }
   }
 
   private toggleExpand(): void {
@@ -684,7 +699,11 @@ export class FileExplorerPanel implements PanelDefinition {
     const ageBadge = entry.mtimeMs !== undefined
       ? ` ${currentTheme.dimFg('textMuted', formatAge(entry.mtimeMs))}`
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}`;
+    // Duplicate file name badge
+    const dupBadge = !entry.isDirectory && this.duplicateNames.has(entry.name)
+      ? currentTheme.fg('warning', ' ⧉')
+      : '';
+    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
