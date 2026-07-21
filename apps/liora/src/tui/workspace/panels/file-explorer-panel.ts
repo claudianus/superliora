@@ -49,6 +49,9 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitAhead = 0;
   private gitBehind = 0;
   private gitStashCount = 0;
+  /** Quick search navigation */
+  private quickSearchActive = false;
+  private quickSearchQuery = '';
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -148,6 +151,12 @@ export class FileExplorerPanel implements PanelDefinition {
           currentTheme.dimFg('textMuted', '░'.repeat(Math.max(0, uW)));
         lines.push(` ${summaryBar}`);
       }
+    }
+
+    // Quick search bar overlay
+    if (this.quickSearchActive) {
+      const searchLabel = currentTheme.fg('primary', `/${this.quickSearchQuery}`) + currentTheme.fg('primary', '▏');
+      lines.push(this.pad(searchLabel, width));
     }
 
     const visibleEntries = this.entries.slice(this.scrollTop, this.scrollTop + height - headerRows);
@@ -539,6 +548,23 @@ export class FileExplorerPanel implements PanelDefinition {
   // -------------------------------------------------------------------------
   // Rendering
   // -------------------------------------------------------------------------
+
+  /** Jump to the first entry matching the quick search query. */
+  private jumpToSearchMatch(): void {
+    if (this.quickSearchQuery.length === 0) return;
+    const lowerQuery = this.quickSearchQuery.toLowerCase();
+    for (let i = 0; i < this.entries.length; i++) {
+      if (this.entries[i]!.name.toLowerCase().includes(lowerQuery)) {
+        this.cursorIndex = i;
+        // Ensure visible
+        if (this.cursorIndex < this.scrollTop) this.scrollTop = this.cursorIndex;
+        if (this.cursorIndex >= this.scrollTop + this.lastHeight - 2) {
+          this.scrollTop = this.cursorIndex - this.lastHeight + 3;
+        }
+        return;
+      }
+    }
+  }
 
   private renderEntry(entry: FileEntry, isCursor: boolean, width: number): string {
     const connector = this.getTreeConnector(entry);
