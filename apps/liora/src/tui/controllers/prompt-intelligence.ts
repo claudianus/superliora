@@ -107,12 +107,16 @@ export class PromptIntelligenceController {
   }
 
   private async requestInlineCompletion(): Promise<void> {
-    if (!this.canRequestIntelligence()) return;
+    if (!this.canRequestIntelligence()) {
+      process.stderr.write(`[pi-debug] canRequest=false session=${this.host.session !== undefined} phase=${this.host.state.appState.streamingPhase} mode=${this.host.state.appState.inputMode}\n`);
+      return;
+    }
 
     const editor = this.host.state.editor;
     const text = editor.getText();
     if (text.length < INLINE_MIN_CHARS) return;
     if (this.isAutocompleteTrigger(text)) return;
+    process.stderr.write(`[pi-debug] requesting inline completion for ${text.length} chars\n`);
 
     const cursor = editor.getCursor();
     const cacheKey = `${cursor.line}:${cursor.col}:${text}`;
@@ -141,6 +145,7 @@ export class PromptIntelligenceController {
       if (editor.isShowingAutocomplete()) return;
 
       this.lruSet(cacheKey, result.completion);
+      process.stderr.write(`[pi-debug] got completion: ${result.completion.length} chars: "${result.completion.slice(0, 50)}"\n`);
       if (result.completion.length > 0) {
         editor.setGhostText(result.completion, 'inline');
       }

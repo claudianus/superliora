@@ -213,6 +213,7 @@ import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
 import { notifyUserAttentionOnce } from './utils/terminal-notification';
+import { installKittyDndTracking } from './utils/kitty-dnd';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
@@ -391,6 +392,7 @@ export class LioraTUI {
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   private workspaceController: WorkspaceController | undefined;
   private workspaceLayoutPersistence: WorkspaceLayoutPersistence | undefined;
+  private kittyDndTrackingDispose: (() => void) | undefined;
   private readonly sessionStartTime = Date.now();
   private readonly activityFeed = new ActivityFeed();
 
@@ -856,6 +858,10 @@ export class LioraTUI {
       // Layout presets
       const presetManager = new LayoutPresetManager(panelManager);
       wc.setPresetManager(presetManager);
+      // Kitty DnD: file drop support
+      this.kittyDndTrackingDispose = installKittyDndTracking(this.state, (paths) => {
+        this.handleFileDrop(paths);
+      });
     }
 
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
@@ -1371,6 +1377,8 @@ export class LioraTUI {
     // Persist workspace layout before shutdown
     this.workspaceLayoutPersistence?.saveNow();
     this.workspaceLayoutPersistence?.dispose();
+    this.kittyDndTrackingDispose?.();
+    this.kittyDndTrackingDispose = undefined;
     // BUG-2: dispose the footer's goal-timer interval and the header clock.
     this.state.footer.dispose();
     this.state.header.dispose();
@@ -3738,6 +3746,29 @@ export class LioraTUI {
   private hideFileExplorer(): void {
     this.state.activeDialog = null;
     this.restoreEditor();
+  }
+
+  /**
+   * Handle files dropped onto the terminal via Kitty DnD protocol.
+   * Opens the file explorer focused on the dropped file's directory.
+   */
+  private handleFileDrop(paths: readonly string[]): void {
+    if (paths.length === 0) return;
+
+    // Log the drop event
+    this.activityFeed.push('file', `파일 드롭: ${paths.length}개 항목`, paths[0]);
+
+    // If workspace is enabled, focus the file explorer panel
+    if (this.workspaceController?.isEnabled()) {
+      const fileExplorer = this.workspaceController.panelManager.getPanels().find(
+        (p) => p.id === 'file-explorer',
+      );
+      if (fileExplorer) {
+        this.workspaceController.panelManager.focusPanel(fileExplorer.instanceId);
+        // Request render to show the focused panel
+        this.state.ui.requestRender();
+      }
+    }
   }
 
   private lastDiffReport: GitDiffReport | undefined;
