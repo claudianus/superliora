@@ -61,6 +61,8 @@ export class FileExplorerPanel implements PanelDefinition {
   private fileCommitCache: Map<string, number> = new Map();
   /** Duplicate file name detection */
   private duplicateNames: Set<string> = new Set();
+  /** Branch divergence from main */
+  private branchDivergence: { ahead: number; behind: number } | null = null;
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -603,6 +605,31 @@ export class FileExplorerPanel implements PanelDefinition {
         }
       } catch {
         // No upstream or not a tracking branch
+      }
+      // Get branch divergence from main/master
+      this.branchDivergence = null;
+      try {
+        const baseBranch = execSync('git rev-parse --verify main 2>/dev/null || git rev-parse --verify master 2>/dev/null', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 2000,
+        }).trim();
+        if (baseBranch) {
+          const divOutput = execSync('git rev-list --left-right --count HEAD...main 2>/dev/null || git rev-list --left-right --count HEAD...master 2>/dev/null', {
+            cwd: this.rootPath,
+            encoding: 'utf-8',
+            timeout: 2000,
+          }).trim();
+          const divParts = divOutput.split(/\s+/);
+          if (divParts.length === 2) {
+            this.branchDivergence = {
+              ahead: parseInt(divParts[0]!, 10) || 0,
+              behind: parseInt(divParts[1]!, 10) || 0,
+            };
+          }
+        }
+      } catch {
+        // Not on a divergent branch or no main/master
       }
       // Get stash count
       this.gitStashCount = 0;
