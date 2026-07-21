@@ -717,6 +717,26 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const isSubagent = entry.kind === 'agent-spawn' || entry.kind === 'agent-done' || entry.kind === 'agent-progress';
     const treePrefix = isSubagent ? currentTheme.dimFg('border', '├─') : '';
 
+    // Tool call chain depth: show nesting level for consecutive tool operations
+    const isToolOp = entry.kind === 'tool-start' || entry.kind === 'tool-progress' || entry.kind === 'tool-result' || entry.kind === 'tool-error';
+    let chainPrefix = '';
+    if (isToolOp) {
+      // Count how many tool-start entries precede this one without a non-tool entry between
+      const entries = this.feed.getEntries();
+      const idx = entries.findIndex((e) => e.id === entry.id);
+      if (idx > 0) {
+        let depth = 0;
+        for (let i = idx - 1; i >= 0 && i >= idx - 5; i--) {
+          const prev = entries[i];
+          if (prev && (prev.kind === 'tool-start' || prev.kind === 'tool-progress')) depth++;
+          else break;
+        }
+        if (depth > 0) {
+          chainPrefix = currentTheme.dimFg('border', '│'.repeat(Math.min(depth, 3)) + ' ');
+        }
+      }
+    }
+
     // Active entry: show elapsed time + pulse
     const isActive = entry.durationMs === undefined && !entry.isError &&
       (entry.kind === 'tool-start' || entry.kind === 'tool-progress' ||
@@ -770,8 +790,8 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     }
 
     const mainLine = entry.isError
-      ? `${timePart} ${treePrefix}${iconPart} ${labelPart}${trailing} ${currentTheme.dimFg('error', '⚠')}`
-      : `${timePart} ${treePrefix}${iconPart} ${labelPart}${trailing}`;
+      ? `${timePart} ${chainPrefix}${treePrefix}${iconPart} ${labelPart}${trailing} ${currentTheme.dimFg('error', '⚠')}`
+      : `${timePart} ${chainPrefix}${treePrefix}${iconPart} ${labelPart}${trailing}`;
     return this.pad(mainLine, width);
   }
 
