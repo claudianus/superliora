@@ -324,6 +324,11 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     if (rssMb > 100) {
       headerText += ` · ${String(rssMb)}MB`;
     }
+    // Concurrency indicator: show current active operations count
+    const activeOps = entries.filter((e) => e.durationMs === undefined && !e.isError).length;
+    if (activeOps > 1) {
+      headerText += ` · ${String(activeOps)}∥`;
+    }
     // Tool success rate: ratio of successful completions to total completed
     const toolResults = entries.filter((e) => e.kind === 'tool-result' || e.kind === 'tool-error');
     if (toolResults.length > 0) {
