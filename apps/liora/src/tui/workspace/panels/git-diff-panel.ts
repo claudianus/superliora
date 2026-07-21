@@ -256,6 +256,10 @@ export class GitDiffPanel implements PanelDefinition {
     const totalLines = this.flatLines.length;
 
     lines.push(bold(` ${this.files.length} file(s) changed`) + dim(` · ${String(totalLines)} lines`));
+    // Patch size indicator
+    const patchBytes = this.files.reduce((s, f) => s + f.additions * 40 + f.deletions * 40, 0);
+    const patchSize = patchBytes > 1024 * 1024 ? `${(patchBytes / (1024 * 1024)).toFixed(1)}MB` : patchBytes > 1024 ? `${(patchBytes / 1024).toFixed(0)}KB` : `${String(patchBytes)}B`;
+    lines.push(dim(` ~${patchSize} patch`) + dim(` · ${String(this.files.filter((f) => f.status === 'added').length)} new · ${String(this.files.filter((f) => f.status === 'deleted').length)} del`));
     // File type breakdown
     const extCounts = new Map<string, number>();
     for (const f of this.files) {
