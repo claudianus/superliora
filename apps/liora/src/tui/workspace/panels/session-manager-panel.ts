@@ -189,7 +189,7 @@ export class SessionManagerPanel implements PanelDefinition {
             : currentTheme.fg('accent', ` ${this.statusMessage}`);
       lines.push(this.pad(statusStyled, width));
     } else {
-      const hint = focused ? ' ↵switch r:refresh n:new' : '';
+      const hint = focused ? ' ↵switch r:refresh n:new j/k:nav g/G:jump' : '';
       lines.push(this.pad(this.dim(hint), width));
     }
 
