@@ -59,6 +59,9 @@ export class TerminalPanel implements PanelDefinition {
   private searchActive = false;
   /** Prompt detection for visual highlighting */
   private lastPromptLine = -1;
+  /** Command history tracking */
+  private commandHistory: string[] = [];
+  private currentCmdBuffer = '';
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -115,7 +118,8 @@ export class TerminalPanel implements PanelDefinition {
         : uptimeSec < 3600
           ? `${String(Math.floor(uptimeSec / 60))}m`
           : `${String(Math.floor(uptimeSec / 3600))}h${String(Math.floor((uptimeSec % 3600) / 60))}m`;
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + encBadge;
+      const cmdCount = this.commandHistory.length > 0 ? currentTheme.dimFg('textMuted', ` · ${String(this.commandHistory.length)}cmd`) : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -250,10 +254,17 @@ export class TerminalPanel implements PanelDefinition {
 
       if (!this.pty || this.exited) return false;
 
-      // Track command execution timing
+      // Track command execution timing and history
       if (event.key === 'enter') {
         this.cmdStartTime = Date.now();
         this.cmdRunning = true;
+        // Capture the current line as a command
+        const currentLine = this.lines[this.lines.length - 1] ?? '';
+        const cmdMatch = currentLine.match(/[$❯%>]\s*(.+)$/);
+        if (cmdMatch && cmdMatch[1] && cmdMatch[1].trim().length > 0) {
+          this.commandHistory.push(cmdMatch[1].trim());
+          if (this.commandHistory.length > 50) this.commandHistory = this.commandHistory.slice(-50);
+        }
       }
 
       // Convert key event to terminal input
