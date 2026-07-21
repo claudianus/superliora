@@ -51,6 +51,9 @@ export class WorkspaceController {
   private switcherFilter = '';
   private switcherSelectedIndex = 0;
 
+  // Keyboard help overlay
+  private helpOpen = false;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -340,6 +343,13 @@ export class WorkspaceController {
       return true;
     }
 
+    // Ctrl+G: toggle keyboard help overlay
+    if (event.key === 'character' && event.text === 'g') {
+      this.helpOpen = !this.helpOpen;
+      this.requestRender();
+      return true;
+    }
+
     return false;
   }
 
@@ -462,6 +472,54 @@ export class WorkspaceController {
     }
     lines.push('─'.repeat(30));
     lines.push(' \u001B[2m↑↓ 이동 · Enter 선택 · Esc 닫기\u001B[0m');
+    return lines;
+  }
+
+  // -------------------------------------------------------------------------
+  // Keyboard Help Overlay
+  // -------------------------------------------------------------------------
+
+  /** Whether the help overlay is open. */
+  get isHelpOpen(): boolean {
+    return this.helpOpen;
+  }
+
+  /** Handle input when help overlay is open (any key closes it). */
+  handleHelpInput(event: NativeInputEvent): boolean {
+    if (!this.helpOpen) return false;
+    if (event.type === 'key') {
+      this.helpOpen = false;
+      this.requestRender();
+      return true;
+    }
+    return false;
+  }
+
+  /** Render the keyboard shortcuts help overlay. */
+  renderHelpOverlay(): string[] | null {
+    if (!this.helpOpen) return null;
+    const w = 44;
+    const lines: string[] = [];
+    lines.push(`\u001B[1m 키보드 단축키 \u001B[0m`);
+    lines.push('─'.repeat(w));
+    const shortcuts: Array<[string, string]> = [
+      ['Ctrl+B', '왼쪽 독 표시/숨김'],
+      ['Ctrl+N', '오른쪽 독 표시/숨김'],
+      ['Ctrl+T', '독 모드 전환 (split/tabbed)'],
+      ['Ctrl+1~9', '패널 포커스 (순서대로)'],
+      ['Ctrl+/', '패널 퀵 스위처'],
+      ['Ctrl+G', '이 도움말'],
+      ['마우스 드래그', '패널 이동/독 간 이동'],
+      ['패널 테두리 드래그', '패널 리사이즈'],
+      ['탭 클릭', '탭 전환 (tabbed 모드)'],
+    ];
+    for (const [key, desc] of shortcuts) {
+      const keyCol = `\u001B[36m${key}\u001B[0m`;
+      const pad = Math.max(1, 18 - key.length);
+      lines.push(` ${keyCol}${' '.repeat(pad)}${desc}`);
+    }
+    lines.push('─'.repeat(w));
+    lines.push(' \u001B[2m아무 키나 눌러 닫기\u001B[0m');
     return lines;
   }
 

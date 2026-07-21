@@ -821,6 +821,8 @@ export class LioraTUI {
       this.nativeInputRouter.router.registerGlobalHandler({
         id: 'workspace-keyboard-shortcuts',
         onInput: (event) => {
+          // Help overlay consumes all input when open
+          if (wc.handleHelpInput(event)) return true;
           // Panel switcher consumes all input when open
           if (wc.handleSwitcherInput(event)) return true;
           // Panel shortcuts: Ctrl+B (left dock), Ctrl+N (right dock), Ctrl+1-9 (focus)
@@ -891,6 +893,16 @@ export class LioraTUI {
             const overlayY = Math.max(1, Math.floor((rows - switcherLines.length) / 2));
             for (let row = 0; row < switcherLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, switcherLines[row] ?? '');
+            }
+          }
+          // Draw keyboard help overlay (centered)
+          const helpLines = this.workspaceController.renderHelpOverlay();
+          if (helpLines) {
+            const overlayWidth = 46;
+            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
+            const overlayY = Math.max(1, Math.floor((rows - helpLines.length) / 2));
+            for (let row = 0; row < helpLines.length; row++) {
+              frameRenderer.writeText(overlayX, overlayY + row, helpLines[row] ?? '');
             }
           }
           // Status bar at the bottom row
