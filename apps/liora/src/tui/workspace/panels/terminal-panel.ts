@@ -259,7 +259,22 @@ export class TerminalPanel implements PanelDefinition {
       visible.push('');
     }
 
-    return visible.map((line) => (line ?? '').slice(0, this.cols));
+    const result = visible.map((line) => (line ?? '').slice(0, this.cols));
+
+    // Scroll position indicator when not following tail
+    if (!this.followTail && this.lines.length > height) {
+      const maxScroll = Math.max(1, this.lines.length - height);
+      const pct = Math.round((this.scrollTop / maxScroll) * 100);
+      const indicator = currentTheme.fg('accent', ` ↑${String(pct)}% `);
+      // Place indicator in the top-right corner
+      const lastIdx = result.length - 1;
+      if (lastIdx >= 0) {
+        const pad = Math.max(0, this.cols - 6);
+        result[0] = (result[0] ?? '').slice(0, pad) + indicator;
+      }
+    }
+
+    return result;
   }
 }
 
