@@ -383,6 +383,11 @@ export class ArtifactViewerPanel implements PanelDefinition {
       } else if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
         // Horizontal rule
         rendered.push(currentTheme.dimFg('border', '─'.repeat(Math.min(40, 40))));
+      } else if (line.match(/^!\[.*\]\(.*\)/)) {
+        // Markdown image: ![alt](url) — render as placeholder
+        const altMatch = line.match(/^!\[(.*?)\]/);
+        const alt = altMatch?.[1] ?? 'image';
+        rendered.push(`  ${currentTheme.fg('accent', '🖼')} ${currentTheme.dimFg('textMuted', `[${alt}]`)}`);
       } else if (line.startsWith('**') && line.endsWith('**')) {
         rendered.push(currentTheme.boldFg('textStrong', line.slice(2, -2)));
       } else {
