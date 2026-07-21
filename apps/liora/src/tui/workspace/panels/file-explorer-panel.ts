@@ -63,6 +63,8 @@ export class FileExplorerPanel implements PanelDefinition {
   private duplicateNames: Set<string> = new Set();
   /** Branch divergence from main */
   private branchDivergence: { ahead: number; behind: number } | null = null;
+  /** Recently modified files (within 1 hour) */
+  private recentlyModified: Set<string> = new Set();
   /** File type filter */
   private typeFilter: string | null = null;
   private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
@@ -442,6 +444,10 @@ export class FileExplorerPanel implements PanelDefinition {
           isExecutable = (stat.mode & 0o100) !== 0;
           fileMode = stat.mode;
           mtimeMs = stat.mtimeMs;
+          // Track recently modified files (within 1 hour)
+          if (Date.now() - stat.mtimeMs < 3_600_000) {
+            this.recentlyModified.add(fullPath);
+          }
         } catch {
           // ignore stat errors
         }
@@ -543,6 +549,7 @@ export class FileExplorerPanel implements PanelDefinition {
     this.gitStatusMap.clear();
     this.gitBranch = null;
     this.gitCommitCount = 0;
+    this.recentlyModified.clear();
     try {
       const { execSync } = require('node:child_process') as typeof import('node:child_process');
       // Get current branch
@@ -766,7 +773,11 @@ export class FileExplorerPanel implements PanelDefinition {
     const dupBadge = !entry.isDirectory && this.duplicateNames.has(entry.name)
       ? currentTheme.fg('warning', ' ⧉')
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}`;
+    // Recently modified "hot" badge
+    const hotBadge = !entry.isDirectory && this.recentlyModified.has(entry.fullPath)
+      ? currentTheme.fg('warning', ' 🔥')
+      : '';
+    const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}${hotBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
