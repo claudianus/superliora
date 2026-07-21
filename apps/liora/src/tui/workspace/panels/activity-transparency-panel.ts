@@ -248,6 +248,7 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const kinds: Array<ActivityKind | null> = [
       null,
       'tool-start',
+      'thinking',
       'file-read',
       'file-write',
       'command',

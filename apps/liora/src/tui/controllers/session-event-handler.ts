@@ -639,11 +639,7 @@ export class SessionEventHandler {
     this.host.patchLivePane({ mode: 'idle' });
     if (!wasThinking) {
       this.host.setAppState({ streamingPhase: 'thinking', streamingStartTime: Date.now() });
-      this.activityFeed?.push({
-        kind: 'thinking',
-        summary: '추론 중…',
-        detail: event.delta.slice(0, 60),
-      });
+      this.activityFeed?.push('thinking', '추론 중…', event.delta.slice(0, 60));
     }
     streamingUI.scheduleFlush();
   }
@@ -652,11 +648,7 @@ export class SessionEventHandler {
     const { state, streamingUI } = this.host;
     if (streamingUI.hasThinkingDraft()) {
       streamingUI.flushThinkingToTranscript('idle');
-      this.activityFeed?.push({
-        kind: 'thinking_complete',
-        summary: '추론 완료',
-        detail: '응답 생성 시작',
-      });
+      this.activityFeed?.push('thinking', '추론 완료', '응답 생성 시작');
     }
 
     if (event.delta.trim().length > 0) {
