@@ -253,7 +253,7 @@ export class SessionManagerPanel implements PanelDefinition {
       lines.push(this.pad(statusStyled, width));
     } else {
       const sortLabel = this.sortMode === 'name' ? ' [name]' : '';
-      const hint = focused ? ` ↵switch r:refresh n:new s:sort${sortLabel} p:pin j/k:nav` : '';
+      const hint = focused ? ` ↵switch r:refresh n:new s:sort${sortLabel} p:pin e:export j/k:nav` : '';
       lines.push(this.pad(this.dim(hint), width));
     }
 
@@ -365,6 +365,21 @@ export class SessionManagerPanel implements PanelDefinition {
           }
           this.applySorting();
           this.requestRender();
+        }
+        return true;
+      }
+      if (ch === 'e') {
+        // Export selected session info to status line
+        const session = this.sessions[this.cursorIndex];
+        if (session) {
+          const title = session.title ?? session.lastPrompt ?? session.id.slice(0, 8);
+          const dir = session.workDir.replace(/^.*\//, '');
+          this.statusMessage = `exported: ${title} (${dir})`;
+          this.requestRender();
+          setTimeout(() => {
+            this.statusMessage = null;
+            this.requestRender();
+          }, 3000);
         }
         return true;
       }
