@@ -485,6 +485,38 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
         }
       }
+      // Operation type distribution: compact proportional breakdown
+      if (entries.length > 5 && height > 17) {
+        const typeCounts = new Map<string, number>();
+        for (const e of entries) {
+          const category = e.kind.startsWith('tool') ? 'tool'
+            : e.kind.startsWith('file') ? 'file'
+            : e.kind.startsWith('agent') ? 'agent'
+            : e.kind === 'command' ? 'cmd'
+            : e.kind === 'thinking' ? 'think'
+            : 'other';
+          typeCounts.set(category, (typeCounts.get(category) ?? 0) + 1);
+        }
+        const DIST_W = Math.min(24, width - 8);
+        const total = entries.length;
+        const TYPE_TOKENS: Record<string, ColorToken> = {
+          tool: 'primary', file: 'accent', agent: 'particle', cmd: 'warning', think: 'textDim', other: 'textMuted',
+        };
+        const TYPE_LABELS: Record<string, string> = {
+          tool: '⚡', file: '📁', agent: '⑂', cmd: '▶', think: '◌', other: '·',
+        };
+        const sortedTypes = [...typeCounts.entries()].sort((a, b) => b[1] - a[1]);
+        const distSegments = sortedTypes.map(([type, count]) => {
+          const segLen = Math.max(1, Math.round((count / total) * DIST_W));
+          const token = TYPE_TOKENS[type] ?? 'textMuted';
+          return currentTheme.fg(token, '█'.repeat(segLen));
+        });
+        const distLegend = sortedTypes.slice(0, 4).map(([type, count]) => {
+          const label = TYPE_LABELS[type] ?? '·';
+          return `${label}${String(count)}`;
+        }).join(' ');
+        lines.push(this.pad(` ${distSegments.join('')} ${currentTheme.dimFg('textMuted', distLegend)}`, width));
+      }
       // Operation timeline: horizontal bar showing recent operations as colored segments
       if (entries.length > 3 && height > 16) {
         const TIMELINE_W = Math.min(30, width - 6);
