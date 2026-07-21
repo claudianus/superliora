@@ -451,6 +451,19 @@ export class ArtifactViewerPanel implements PanelDefinition {
     result = result.replace(/<sub>(.+?)<\/sub>/g, (_m, p1: string) => currentTheme.dimFg('textMuted', `₁${p1}`));
     // Replace <sup>text</sup> with superscript indicator
     result = result.replace(/<sup>(.+?)<\/sup>/g, (_m, p1: string) => currentTheme.dimFg('textMuted', `⁺${p1}`));
+    // Replace common :emoji: shortcodes with actual emoji characters
+    const EMOJI_MAP: Record<string, string> = {
+      ':check:': '✓', ':x:': '✗', ':warn:': '⚠', ':star:': '★',
+      ':heart:': '♥', ':fire:': '🔥', ':rocket:': '🚀', ':bulb:': '💡',
+      ':bug:': '🐛', ':sparkles:': '✨', ':zap:': '⚡', ':lock:': '🔒',
+      ':key:': '🔑', ':gear:': '⚙', ':wrench:': '🔧', ':hammer:': '🔨',
+      ':book:': '📖', ':memo:': '📝', ':link:': '🔗', ':globe:': '🌐',
+      ':package:': '📦', ':tada:': '🎉', ':eyes:': '👀', ':thumbsup:': '👍',
+      ':thumbsdown:': '👎', ':warning:': '⚠️', ':info:': 'ℹ', ':question:': '❓',
+      ':exclamation:': '❗', ':arrow_right:': '→', ':arrow_left:': '←',
+      ':arrow_up:': '↑', ':arrow_down:': '↓', ':heavy_check_mark:': '✔',
+    };
+    result = result.replace(/:[a-z_]+:/g, (match) => EMOJI_MAP[match] ?? match);
     // If no formatting was applied, wrap in default text color
     if (result === text) {
       return currentTheme.fg('text', text);
