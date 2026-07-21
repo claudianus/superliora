@@ -80,6 +80,8 @@ export class TerminalPanel implements PanelDefinition {
   private foldRepeated = true;
   /** Output bookmark position */
   private bookmarkLine = -1;
+  /** Output statistics overlay */
+  private statsOverlayOpen = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -165,6 +167,25 @@ export class TerminalPanel implements PanelDefinition {
         const promptLine = visible[promptIdx] ?? '';
         // Add a subtle accent marker at the start of the prompt line
         visible[promptIdx] = currentTheme.fg('accent', '▎') + promptLine.slice(1);
+      }
+    }
+
+    // Output statistics overlay (Ctrl+I)
+    if (this.statsOverlayOpen && visible.length > 2) {
+      const errorLines = this.lines.filter((l) => /\b(Error|error|ERR!|FAILED|fatal)\b/.test(l ?? '')).length;
+      const warnLines = this.lines.filter((l) => /\b(Warning|warn|WARN)\b/.test(l ?? '')).length;
+      const statsLines = [
+        currentTheme.boldFg('primary', ' Output Statistics (Ctrl+I to close)'),
+        currentTheme.dimFg('border', '─'.repeat(Math.min(30, this.cols - 2))),
+        `  Lines:    ${currentTheme.fg('text', String(this.lines.length))}`,
+        `  Errors:   ${errorLines > 0 ? currentTheme.fg('error', String(errorLines)) : currentTheme.dimFg('textMuted', '0')}`,
+        `  Warnings: ${warnLines > 0 ? currentTheme.fg('warning', String(warnLines)) : currentTheme.dimFg('textMuted', '0')}`,
+        `  Commands: ${currentTheme.fg('text', String(this.commandHistory.length))}`,
+        `  Rate:     ${currentTheme.fg('text', `${String(Math.round(this.outputRate))} B/s`)}`,
+        `  Uptime:   ${currentTheme.fg('text', `${String(Math.floor((Date.now() - this.sessionStart) / 1000))}s`)}`,
+      ];
+      for (let i = 0; i < statsLines.length && i < visible.length; i++) {
+        visible[i] = (statsLines[i] ?? '').slice(0, this.cols);
       }
     }
 
@@ -278,6 +299,12 @@ export class TerminalPanel implements PanelDefinition {
       // Ctrl+Y: toggle repeated line folding
       if (event.ctrl && event.key === 'character' && event.text === 'y') {
         this.foldRepeated = !this.foldRepeated;
+        return true;
+      }
+
+      // Ctrl+I: toggle output statistics overlay
+      if (event.ctrl && event.key === 'character' && event.text === 'i') {
+        this.statsOverlayOpen = !this.statsOverlayOpen;
         return true;
       }
 
