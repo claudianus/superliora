@@ -58,8 +58,8 @@ export class SideChatPanel implements PanelDefinition {
     const busy = this.callbacks.isBusy();
 
     if (this.messages.length === 0) {
-      lines.push(this.pad(this.dim('  Type a quick question…'), width));
-      lines.push(this.pad(this.dim('  Sent to the active agent.'), width));
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Type a quick question…')}`, width));
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Sent to the active agent.')}`, width));
     } else {
       // Clamp scroll
       const maxScroll = Math.max(0, this.messages.length - msgAreaHeight);
@@ -68,11 +68,15 @@ export class SideChatPanel implements PanelDefinition {
       const end = Math.min(this.messages.length, this.scrollTop + msgAreaHeight);
       for (let i = this.scrollTop; i < end; i++) {
         const msg = this.messages[i]!;
-        const prefix = msg.role === 'user' ? '› ' : '· ';
-        const wrapped = this.wrapText(`${prefix}${msg.text}`, width - 1);
+        const prefix = msg.role === 'user'
+          ? currentTheme.fg('roleUser', '› ')
+          : currentTheme.fg('accent', '· ');
+        const wrapped = this.wrapText(`${msg.text}`, width - 3);
         for (const wl of wrapped) {
           if (lines.length >= msgAreaHeight) break;
-          const styled = msg.role === 'user' ? wl : this.dim(wl);
+          const styled = msg.role === 'user'
+            ? `${prefix}${currentTheme.fg('text', wl)}`
+            : `${prefix}${currentTheme.dimFg('textDim', wl)}`;
           lines.push(this.pad(styled, width));
         }
       }
@@ -84,12 +88,12 @@ export class SideChatPanel implements PanelDefinition {
     }
 
     // Status line
-    const statusText = busy ? ' ⏳ agent busy' : '';
-    lines.push(this.pad(this.dim(` ─${statusText}─`), width));
+    const statusText = busy ? currentTheme.fg('warning', ' ⏳ agent busy') : '';
+    lines.push(this.pad(`${currentTheme.dimFg('border', ' ─')}${statusText}${currentTheme.dimFg('border', '─')}`, width));
 
     // Input line
-    const prompt = focused ? '❯ ' : '  ';
-    const cursor = focused ? '▏' : '';
+    const prompt = focused ? currentTheme.boldFg('primary', '❯ ') : '  ';
+    const cursor = focused ? currentTheme.fg('primary', '▏') : '';
     const inputDisplay = this.inputBuffer.slice(0, width - 3);
     const inputLine = `${prompt}${inputDisplay}${cursor}`;
     lines.push(this.pad(inputLine, width));
