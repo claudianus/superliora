@@ -335,10 +335,12 @@ export class GitDiffPanel implements PanelDefinition {
                 // Inline word diff: highlight changed words
                 const highlighted = this.inlineWordDiff(prev.content, line.content, 'add');
                 const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
-                lines.push({ text: green('+') + highlighted + longWarn, type: 'add' });
+                const trailWs = /\s+$/.test(line.content) && line.content.trim().length > 0 ? currentTheme.bg('error', ' ') : '';
+                lines.push({ text: green('+') + highlighted + trailWs + longWarn, type: 'add' });
               } else {
                 const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
-                lines.push({ text: green(`+${line.content}`) + longWarn, type: 'add' });
+                const trailWs = /\s+$/.test(line.content) && line.content.trim().length > 0 ? currentTheme.bg('error', ' ') : '';
+                lines.push({ text: green(`+${line.content}`) + trailWs + longWarn, type: 'add' });
               }
               break;
             }

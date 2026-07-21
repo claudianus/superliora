@@ -408,6 +408,8 @@ export class ArtifactViewerPanel implements PanelDefinition {
     result = result.replace(/\*(.+?)\*/g, (_m, p1: string) => currentTheme.fg('accent', p1));
     // Replace `code` with themed inline code
     result = result.replace(/`(.+?)`/g, (_m, p1: string) => currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${p1} `)));
+    // Replace [text](url) with themed link
+    result = result.replace(/\[(.+?)\]\((.+?)\)/g, (_m, p1: string, p2: string) => `${currentTheme.fg('primary', p1)}${currentTheme.dimFg('textMuted', ` (${p2})`)}`);
     // If no formatting was applied, wrap in default text color
     if (result === text) {
       return currentTheme.fg('text', text);
