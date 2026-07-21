@@ -156,6 +156,19 @@ export class FileExplorerPanel implements PanelDefinition {
           this.refreshTree();
           return true;
         }
+        if (event.text === 'c' || event.text === 'C') {
+          // Collapse all directories
+          this.expandedDirs.clear();
+          this.rebuildEntries();
+          this.treeVersion++;
+          this.renderCache = null;
+          return true;
+        }
+        if (event.text === 'e' || event.text === 'E') {
+          // Expand all directories (up to depth limit)
+          this.expandAll();
+          return true;
+        }
         return false;
       default:
         return false;
@@ -258,6 +271,30 @@ export class FileExplorerPanel implements PanelDefinition {
         this.cursorIndex = parentIndex;
       }
     }
+  }
+
+  /** Expand all directories up to the depth limit. */
+  private expandAll(): void {
+    const expandRecursive = (dirPath: string, depth: number): void => {
+      if (depth > 4) return; // Limit expansion depth for performance
+      let items: fs.Dirent[];
+      try {
+        items = fs.readdirSync(dirPath, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const item of items) {
+        if (!item.isDirectory()) continue;
+        if (item.name.startsWith('.') || item.name === 'node_modules' || item.name === '__pycache__') continue;
+        const fullPath = path.join(dirPath, item.name);
+        this.expandedDirs.add(fullPath);
+        expandRecursive(fullPath, depth + 1);
+      }
+    };
+    expandRecursive(this.rootPath, 0);
+    this.rebuildEntries();
+    this.treeVersion++;
+    this.renderCache = null;
   }
 
   private loadGitStatus(): void {
