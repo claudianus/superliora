@@ -65,6 +65,8 @@ export class TerminalPanel implements PanelDefinition {
   /** Whether buffer has been compressed (earlier output discarded) */
   private bufferCompressed = false;
   private totalLinesReceived = 0;
+  /** Whether output syntax highlighting is enabled */
+  private syntaxHighlight = true;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -230,6 +232,12 @@ export class TerminalPanel implements PanelDefinition {
       if (event.ctrl && event.key === 'character' && event.text === 'f') {
         this.searchActive = !this.searchActive;
         if (!this.searchActive) this.searchQuery = '';
+        return true;
+      }
+
+      // Ctrl+H: toggle output syntax highlighting
+      if (event.ctrl && event.key === 'character' && event.text === 'h') {
+        this.syntaxHighlight = !this.syntaxHighlight;
         return true;
       }
 
@@ -470,6 +478,21 @@ export class TerminalPanel implements PanelDefinition {
 
     const result = visible.map((line) => {
       let l = (line ?? '').slice(0, this.cols);
+      // Syntax highlighting for common output patterns
+      if (this.syntaxHighlight && l.length > 0) {
+        // Error patterns (Error:, error:, ERR!, ✗, FAILED)
+        if (/\b(Error|error|ERR!|FAILED|✗|fatal)\b/.test(l)) {
+          l = currentTheme.fg('error', l);
+        }
+        // Warning patterns (Warning:, warn:, ⚠)
+        else if (/\b(Warning|warn|⚠|WARN)\b/.test(l)) {
+          l = currentTheme.fg('warning', l);
+        }
+        // Success patterns (✓, done, OK, passed)
+        else if (/\b(✓|done|OK|passed|success)\b/.test(l)) {
+          l = currentTheme.fg('success', l);
+        }
+      }
       // Highlight search matches
       if (this.searchActive && this.searchQuery.length > 0) {
         const idx = l.toLowerCase().indexOf(this.searchQuery.toLowerCase());
