@@ -133,12 +133,14 @@ export class PromptIntelligenceController {
     try {
       const session = this.host.session;
       if (session === undefined) return;
+      process.stderr.write(`[pi-debug] calling session.inlineComplete...\n`);
       const result = await session.inlineComplete({
         text,
         cursorLine: cursor.line,
         cursorCol: cursor.col,
         signal: ac.signal,
       });
+      process.stderr.write(`[pi-debug] rpc returned, aborted=${ac.signal.aborted} textChanged=${editor.getText() !== text}\n`);
       if (ac.signal.aborted) return;
       // Guard: editor state may have changed while the request was in flight.
       if (editor.getText() !== text) return;
@@ -153,8 +155,10 @@ export class PromptIntelligenceController {
       // AbortError is expected when a newer keystroke cancels the in-flight
       // request — do not surface it.  Genuine failures go to stderr so they
       // stay out of the TUI render surface.
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        process.stderr.write(`[prompt-intelligence] inline completion failed: ${error}\n`);
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        process.stderr.write(`[pi-debug] inline aborted (user typed more)\n`);
+      } else {
+        process.stderr.write(`[pi-debug] inline error: ${error}\n`);
       }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;

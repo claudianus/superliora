@@ -832,6 +832,8 @@ export class LioraTUI {
         onInput: (event) => {
           // Stats overlay consumes all input when open
           if (wc.handleStatsInput(event)) return true;
+          // Search overlay consumes all input when open
+          if (wc.handleSearchInput(event)) return true;
           // Command palette consumes all input when open
           if (wc.handlePaletteInput(event)) return true;
           // Preset overlay consumes all input when open
@@ -986,6 +988,16 @@ export class LioraTUI {
               const overlayY = Math.max(1, Math.floor((rows - statsLines.length) / 2));
               for (let row = 0; row < statsLines.length; row++) {
                 frameRenderer.writeText(overlayX, overlayY + row, statsLines[row] ?? '');
+              }
+            }
+          }
+          // Draw search overlay (bottom-left)
+          if (this.workspaceController.isSearchOpen) {
+            const searchLines = this.workspaceController.renderSearchOverlay();
+            if (searchLines) {
+              const overlayY = rows - searchLines.length - 1;
+              for (let row = 0; row < searchLines.length; row++) {
+                frameRenderer.writeText(1, overlayY + row, searchLines[row] ?? '');
               }
             }
           }

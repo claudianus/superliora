@@ -73,6 +73,12 @@ export class WorkspaceController {
   // Session stats overlay
   private statsOpen = false;
 
+  // Panel content search
+  private searchOpen = false;
+  private searchQuery = '';
+  private searchMatches: { line: number; col: number }[] = [];
+  private searchCurrentMatch = 0;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -475,6 +481,16 @@ export class WorkspaceController {
       return true;
     }
 
+    // Ctrl+F: open panel content search
+    if (event.key === 'character' && event.text === 'f') {
+      this.searchOpen = !this.searchOpen;
+      this.searchQuery = '';
+      this.searchMatches = [];
+      this.searchCurrentMatch = 0;
+      this.requestRender();
+      return true;
+    }
+
     return false;
   }
 
@@ -665,6 +681,7 @@ export class WorkspaceController {
       ['Ctrl+T', '독 모드 전환 (split/tabbed)'],
       ['Ctrl+1~9', '패널 포커스 (순서대로)'],
       ['Ctrl+/', '패널 퀵 스위처'],
+      ['Ctrl+F', '패널 콘텐츠 검색'],
       ['Ctrl+K', '명령 팔레트'],
       ['Ctrl+M', '패널 전체화면'],
       ['Ctrl+P', '레이아웃 프리셋'],
@@ -693,6 +710,7 @@ export class WorkspaceController {
     { id: 'toggle-dock-mode', label: '독 모드 전환 (split/tabbed)', shortcut: 'Ctrl+T' },
     { id: 'maximize', label: '패널 전체화면 전환', shortcut: 'Ctrl+M' },
     { id: 'panel-switcher', label: '패널 퀵 스위처', shortcut: 'Ctrl+/' },
+    { id: 'search', label: '패널 콘텐츠 검색', shortcut: 'Ctrl+F' },
     { id: 'presets', label: '레이아웃 프리셋', shortcut: 'Ctrl+P' },
     { id: 'help', label: '키보드 도움말', shortcut: 'Ctrl+G' },
     { id: 'refresh-files', label: '파일 탐색기 새로고침' },
@@ -782,6 +800,12 @@ export class WorkspaceController {
         this.switcherFilter = '';
         this.switcherSelectedIndex = 0;
         break;
+      case 'search':
+        this.searchOpen = true;
+        this.searchQuery = '';
+        this.searchMatches = [];
+        this.searchCurrentMatch = 0;
+        break;
       case 'presets':
         if (this.presetManager !== null) {
           this.presetOverlayOpen = true;
@@ -870,6 +894,92 @@ export class WorkspaceController {
       return true;
     }
     return false;
+  }
+
+  /** Whether the search overlay is open. */
+  get isSearchOpen(): boolean {
+    return this.searchOpen;
+  }
+
+  /** Handle input when search overlay is open. */
+  handleSearchInput(event: NativeInputEvent): boolean {
+    if (!this.searchOpen) return false;
+    if (event.type !== 'key') return false;
+
+    // Escape or Ctrl+F: close search
+    if (event.key === 'escape' || (event.ctrl && event.key === 'character' && event.text === 'f')) {
+      this.searchOpen = false;
+      this.searchQuery = '';
+      this.searchMatches = [];
+      this.searchCurrentMatch = 0;
+      this.requestRender();
+      return true;
+    }
+
+    // Enter: go to next match
+    if (event.key === 'enter') {
+      if (this.searchMatches.length > 0) {
+        this.searchCurrentMatch = (this.searchCurrentMatch + 1) % this.searchMatches.length;
+        this.requestRender();
+      }
+      return true;
+    }
+
+    // Backspace: remove last character
+    if (event.key === 'backspace') {
+      this.searchQuery = this.searchQuery.slice(0, -1);
+      this.updateSearchMatches();
+      this.requestRender();
+      return true;
+    }
+
+    // Character input: add to query
+    if (event.key === 'character' && event.text) {
+      this.searchQuery += event.text;
+      this.updateSearchMatches();
+      this.requestRender();
+      return true;
+    }
+
+    return false;
+  }
+
+  /** Update search matches based on current query and focused panel content. */
+  private updateSearchMatches(): void {
+    this.searchMatches = [];
+    this.searchCurrentMatch = 0;
+
+    if (this.searchQuery.length === 0) return;
+
+    const focusedPanel = this.panelManager.getFocusedPanel();
+    if (!focusedPanel) return;
+
+    // Get panel content (render with reasonable dimensions)
+    const lines = focusedPanel.definition.render(120, 50, true);
+    const query = this.searchQuery.toLowerCase();
+
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx].toLowerCase();
+      let col = line.indexOf(query);
+      while (col !== -1) {
+        this.searchMatches.push({ line: lineIdx, col });
+        col = line.indexOf(query, col + 1);
+      }
+    }
+  }
+
+  /** Render the search overlay. */
+  renderSearchOverlay(): string[] | null {
+    if (!this.searchOpen) return null;
+
+    const lines: string[] = [];
+    const matchInfo = this.searchMatches.length > 0
+      ? ` (${this.searchCurrentMatch + 1}/${this.searchMatches.length})`
+      : this.searchQuery.length > 0 ? ' (0/0)' : '';
+
+    lines.push(`\u001B[1m 검색: \u001B[0m${this.searchQuery}\u001B[2m${matchInfo}\u001B[0m`);
+    lines.push('\u001B[2mEnter: 다음 | Esc: 닫기\u001B[0m');
+    return lines;
   }
 
   /** Render the session stats overlay. Data is passed from the TUI. */
