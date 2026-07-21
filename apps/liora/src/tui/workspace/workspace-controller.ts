@@ -909,6 +909,28 @@ export class WorkspaceController {
         lines.push(`   ${keyCol}${' '.repeat(pad)}${currentTheme.fg('text', desc)}`);
       }
     }
+    // Contextual panel shortcuts (based on currently focused panel)
+    const focusedPanel = this.panelManager.getFocusedPanel();
+    if (focusedPanel) {
+      const panelShortcuts: Record<string, Array<[string, string]>> = {
+        'file-explorer': [['s', '정렬 전환'], ['c', '모두 접기'], ['e', '모두 펼치기'], ['h', '숨김파일'], ['r', '새로고침']],
+        'git-diff': [['v', '모드 전환'], ['n/p', '헝크 이동'], ['b', 'blame'], ['c', '컨텍스트'], ['r', '새로고침']],
+        'activity': [['f', '필터'], ['a', '자동스크롤'], ['e', '그룹 펼치기'], ['c', '지우기']],
+        'terminal': [['Ctrl+L', '버퍼 지우기'], ['Ctrl+E', '환경변수'], ['r', '재시작 (종료시)']],
+        'session-manager': [['s', '정렬'], ['p', '고정'], ['n', '새 세션'], ['r', '새로고침']],
+        'artifact-viewer': [['t', 'TOC'], ['h/l', '헤딩 이동'], ['n', '줄번호']],
+        'side-chat': [['Ctrl+W', '단어 삭제'], ['Ctrl+U', '줄 지우기'], ['↑/↓', '히스토리']],
+      };
+      const shortcuts = panelShortcuts[focusedPanel.definition.id];
+      if (shortcuts && shortcuts.length > 0) {
+        lines.push(` ${currentTheme.boldFg('accent', `${focusedPanel.definition.icon} ${focusedPanel.definition.title}`)}`);
+        for (const [key, desc] of shortcuts) {
+          const keyCol = currentTheme.fg('primary', key);
+          const pad = Math.max(1, 16 - key.length);
+          lines.push(`   ${keyCol}${' '.repeat(pad)}${currentTheme.fg('text', desc)}`);
+        }
+      }
+    }
     lines.push(divider);
     lines.push(` ${currentTheme.dimFg('textMuted', 'F1/Ctrl+G: 도움말 · 아무 키: 닫기')}`);
     return lines;
