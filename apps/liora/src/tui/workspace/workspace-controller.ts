@@ -527,6 +527,7 @@ export class WorkspaceController {
       ['Ctrl+T', '독 모드 전환 (split/tabbed)'],
       ['Ctrl+1~9', '패널 포커스 (순서대로)'],
       ['Ctrl+/', '패널 퀵 스위처'],
+      ['Ctrl+P', '레이아웃 프리셋'],
       ['Ctrl+G', '이 도움말'],
       ['마우스 드래그', '패널 이동/독 간 이동'],
       ['패널 테두리 드래그', '패널 리사이즈'],
