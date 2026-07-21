@@ -351,11 +351,16 @@ export class GitDiffPanel implements PanelDefinition {
               // Check if previous line is a deletion (paired change)
               const prev = i > 0 ? hunk.lines[i - 1] : undefined;
               if (prev && prev.type === 'del') {
+                // Detect indent-only changes (whitespace prefix differs, content same)
+                const prevTrimmed = prev.content.trimStart();
+                const curTrimmed = line.content.trimStart();
+                const indentOnly = prevTrimmed === curTrimmed && prev.content !== line.content;
                 // Inline word diff: highlight changed words
                 const highlighted = this.inlineWordDiff(prev.content, line.content, 'add');
                 const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
                 const trailWs = /\s+$/.test(line.content) && line.content.trim().length > 0 ? currentTheme.bg('error', ' ') : '';
-                lines.push({ text: green('+') + highlighted + trailWs + longWarn, type: 'add' });
+                const indentTag = indentOnly ? currentTheme.dimFg('textMuted', ' [indent]') : '';
+                lines.push({ text: green('+') + highlighted + trailWs + longWarn + indentTag, type: 'add' });
               } else {
                 const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
                 const trailWs = /\s+$/.test(line.content) && line.content.trim().length > 0 ? currentTheme.bg('error', ' ') : '';
