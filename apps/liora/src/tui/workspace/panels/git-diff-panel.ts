@@ -309,7 +309,7 @@ export class GitDiffPanel implements PanelDefinition {
     const totalLines = this.flatLines.length;
 
     lines.push(bold(` ${this.files.length} file(s) changed`) + dim(` · ${String(totalLines)} lines`));
-    // Show last commit message for context
+    // Show last commit message for context + convention check
     try {
       const lastCommit = execSync('git log -1 --format="%s" 2>/dev/null', {
         cwd: this.cwd,
@@ -318,7 +318,12 @@ export class GitDiffPanel implements PanelDefinition {
       }).trim();
       if (lastCommit.length > 0) {
         const truncatedMsg = lastCommit.length > width - 6 ? lastCommit.slice(0, width - 9) + '…' : lastCommit;
-        lines.push(dim(` HEAD: ${truncatedMsg}`));
+        // Check Conventional Commits format
+        const isConventional = /^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)(\(.+\))?!?:\s/.test(lastCommit);
+        const conventionBadge = isConventional
+          ? currentTheme.fg('success', ' ✓cc')
+          : currentTheme.fg('warning', ' ⚠cc');
+        lines.push(dim(` HEAD: ${truncatedMsg}`) + conventionBadge);
       }
     } catch {
       // Not a git repo
