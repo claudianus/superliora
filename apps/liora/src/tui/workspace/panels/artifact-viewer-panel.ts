@@ -368,7 +368,15 @@ export class ArtifactViewerPanel implements PanelDefinition {
       } else if (line.startsWith('### ')) {
         rendered.push(currentTheme.fg('accent', `  ${line.slice(4)}`));
       } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        rendered.push(`  ${currentTheme.fg('primary', '•')} ${currentTheme.fg('text', line.slice(2))}`);
+        const content = line.slice(2);
+        // Task list items: - [ ] or - [x]
+        if (content.startsWith('[ ] ')) {
+          rendered.push(`  ${currentTheme.dimFg('border', '○')} ${currentTheme.fg('text', content.slice(4))}`);
+        } else if (content.startsWith('[x] ') || content.startsWith('[X] ')) {
+          rendered.push(`  ${currentTheme.fg('success', '✓')} ${currentTheme.dimFg('textDim', content.slice(4))}`);
+        } else {
+          rendered.push(`  ${currentTheme.fg('primary', '•')} ${currentTheme.fg('text', content)}`);
+        }
       } else if (line.match(/^\d+\. /)) {
         const match = line.match(/^(\d+)\. (.*)/);
         if (match) {
