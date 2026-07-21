@@ -396,6 +396,11 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       if (histogram.length > 0 && height > 8) {
         lines.push(this.pad(histogram, width));
       }
+      // Kind distribution bar (compact proportional segments)
+      const kindBar = this.renderKindDistribution(width);
+      if (kindBar.length > 0 && height > 10) {
+        lines.push(this.pad(kindBar, width));
+      }
       hint = currentTheme.dimFg('textMuted', ' j/k c:clr f:filter a:auto e:exp') + scrollInfo;
     } else if (this.autoScroll) {
       const liveDot = animate
@@ -766,6 +771,42 @@ export class ActivityTransparencyPanel implements PanelDefinition {
    * Render a compact duration histogram showing distribution of completed
    * operation durations. Buckets: <100ms, <500ms, <1s, <5s, <30s, >30s.
    */
+  /**
+   * Render a compact kind distribution bar showing proportional segments
+   * for each activity kind present in the feed.
+   */
+  private renderKindDistribution(width: number): string {
+    const entries = this.feed.getEntries();
+    if (entries.length < 5) return '';
+
+    const BAR_W = Math.min(width - 2, 30);
+    const counts = new Map<ActivityKind, number>();
+    for (const e of entries) {
+      counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
+    }
+
+    // Sort by count descending, take top kinds
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const total = entries.length;
+    const parts: string[] = [];
+    let usedWidth = 0;
+
+    for (const [kind, count] of sorted) {
+      const segWidth = Math.max(1, Math.round((count / total) * BAR_W));
+      if (usedWidth + segWidth > BAR_W) break;
+      const token = KIND_TOKENS[kind] ?? 'textDim';
+      parts.push(currentTheme.fg(token, '▓'.repeat(segWidth)));
+      usedWidth += segWidth;
+    }
+
+    // Fill remaining
+    if (usedWidth < BAR_W) {
+      parts.push(currentTheme.dimFg('border', '░'.repeat(BAR_W - usedWidth)));
+    }
+
+    return ` ${parts.join('')}`;
+  }
+
   private renderDurationHistogram(width: number): string {
     const entries = this.feed.getEntries();
     const completed = entries.filter((e) => e.durationMs !== undefined);
