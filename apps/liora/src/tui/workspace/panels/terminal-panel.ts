@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
+import { currentTheme } from '#/tui/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -330,5 +331,5 @@ function stripAnsi(text: string): string {
 }
 
 function dim(text: string): string {
-  return `\x1b[2m${text}\x1b[0m`;
+  return currentTheme.dimFg('textDim', text);
 }
