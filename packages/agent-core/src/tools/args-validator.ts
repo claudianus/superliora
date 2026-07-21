@@ -3,13 +3,19 @@ import Ajv2019 from 'ajv/dist/2019';
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 
-const DRAFT_07_AJV = new Ajv({ strict: false, allErrors: true });
+// LLMs frequently emit scalar arguments as strings (e.g. `line_offset: "96"`),
+// especially for parameters whose `type` sits inside an `anyOf` union where the
+// model cannot see a single top-level type hint. Coercing scalars toward the
+// declared type keeps those calls working while still rejecting values that
+// cannot coerce. Ajv mutates the validated args object in place, so tools
+// receive the coerced (typed) values.
+const DRAFT_07_AJV = new Ajv({ strict: false, allErrors: true, coerceTypes: true });
 addFormats(DRAFT_07_AJV);
 
-const DRAFT_2019_AJV = new Ajv2019({ strict: false, allErrors: true });
+const DRAFT_2019_AJV = new Ajv2019({ strict: false, allErrors: true, coerceTypes: true });
 addFormats(DRAFT_2019_AJV);
 
-const DRAFT_2020_AJV = new Ajv2020({ strict: false, allErrors: true });
+const DRAFT_2020_AJV = new Ajv2020({ strict: false, allErrors: true, coerceTypes: true });
 addFormats(DRAFT_2020_AJV);
 
 const DRAFT_2019_KEYWORDS = new Set([
