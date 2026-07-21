@@ -368,7 +368,18 @@ export class GitDiffPanel implements PanelDefinition {
       const modeBadge = file.modeChange ? ` ${currentTheme.fg('accent', `[${file.modeChange}]`)}` : '';
       const wsBadge = file.whitespaceOnly ? ` ${currentTheme.dimFg('textMuted', '[ws]')}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
-      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${fileBar} ${stats}${hunkCount}`);
+      // File age: show how recently the file was last modified on disk
+      let fileAgeBadge = '';
+      try {
+        const stat = require('node:fs').statSync(require('node:path').join(this.cwd, file.path));
+        const ageSec = Math.floor(Math.max(0, Date.now() - stat.mtimeMs) / 1000);
+        if (ageSec < 60) fileAgeBadge = currentTheme.fg('success', ' now');
+        else if (ageSec < 3600) fileAgeBadge = currentTheme.dimFg('textMuted', ` ${String(Math.floor(ageSec / 60))}m`);
+        else if (ageSec < 86400) fileAgeBadge = currentTheme.dimFg('textMuted', ` ${String(Math.floor(ageSec / 3600))}h`);
+      } catch {
+        // File may not exist (deleted)
+      }
+      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
     }
 
     lines.push('');
