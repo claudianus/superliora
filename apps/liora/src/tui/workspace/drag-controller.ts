@@ -23,9 +23,21 @@ type DragState =
   | {
       readonly type: 'dragging-panel';
       readonly panelInstanceId: string;
+      readonly panelTitle: string;
       readonly startX: number;
       readonly startY: number;
+      readonly currentX: number;
+      readonly currentY: number;
     };
+
+/** Visual overlay info for rendering drag feedback. */
+export interface DragOverlayInfo {
+  readonly type: 'dragging-panel';
+  readonly panelTitle: string;
+  readonly x: number;
+  readonly y: number;
+  readonly dropDock: 'left' | 'right' | null;
+}
 
 export interface DragControllerCallbacks {
   /** Called when the layout needs to be re-rendered. */
@@ -67,6 +79,20 @@ export class DragController {
 
   get isDragging(): boolean {
     return this.state.type !== 'idle';
+  }
+
+  /** Get visual overlay info for rendering drag feedback. Returns null when idle. */
+  getDragOverlay(): DragOverlayInfo | null {
+    if (this.state.type !== 'dragging-panel') return null;
+    const layout = this.callbacks.getLayout();
+    const dropDock = layout ? this.getDropTargetDock(this.state.currentX, this.state.currentY, layout) : null;
+    return {
+      type: 'dragging-panel',
+      panelTitle: this.state.panelTitle,
+      x: this.state.currentX,
+      y: this.state.currentY,
+      dropDock,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -128,11 +154,15 @@ export class DragController {
     // Check if pressing on a panel title bar (for drag/move)
     const panelHit = this.hitTestPanelTitleBar(event.x, event.y, layout);
     if (panelHit) {
+      const panel = this.panelManager.getPanel(panelHit);
       this.state = {
         type: 'dragging-panel',
         panelInstanceId: panelHit,
+        panelTitle: panel?.definition.title ?? 'Panel',
         startX: event.x,
         startY: event.y,
+        currentX: event.x,
+        currentY: event.y,
       };
       // Also focus the panel
       this.panelManager.focusPanel(panelHit);
@@ -185,13 +215,44 @@ export class DragController {
       const layout = this.callbacks.getLayout();
       if (layout) {
         const dropDock = this.getDropTargetDock(event.x, event.y, layout);
-        if (dropDock && dropDock !== this.getPanelCurrentDock(this.state.panelInstanceId)) {
+        const currentDock = this.getPanelCurrentDock(this.state.panelInstanceId);
+        if (dropDock && dropDock !== currentDock) {
+          // Cross-dock move
           this.panelManager.assignToDock(this.state.panelInstanceId, dropDock);
           this.callbacks.onLayoutChange();
+        } else if (dropDock && dropDock === currentDock) {
+          // Within-dock reorder: determine target index by Y position
+          const dockRect = dropDock === 'left' ? layout.leftDock?.rect : layout.rightDock?.rect;
+          if (dockRect) {
+            const panels = this.panelManager.getPanelsInDock(dropDock);
+            const targetIndex = this.getPanelIndexAtY(event.y, dockRect, panels.length);
+            const assignments = this.panelManager.getDockAssignments(dropDock);
+            const draggedId = this.state.panelInstanceId;
+            const currentIndex = assignments.findIndex(
+              (a) => a.panelInstanceId === draggedId,
+            );
+            if (currentIndex !== -1 && targetIndex !== currentIndex) {
+              // Remove and re-insert at target position
+              this.panelManager.removeFromDock(draggedId);
+              this.panelManager.assignToDock(draggedId, dropDock, targetIndex);
+              this.callbacks.onLayoutChange();
+            }
+          }
         }
       }
       this.state = { type: 'idle' };
+      this.callbacks.onLayoutChange();
       return true;
+    }
+
+    // Track current position for visual feedback
+    if (event.action === 'drag' || event.action === 'move') {
+      this.state = {
+        ...this.state,
+        currentX: event.x,
+        currentY: event.y,
+      };
+      this.callbacks.onLayoutChange();
     }
 
     // While dragging, consume all mouse events
