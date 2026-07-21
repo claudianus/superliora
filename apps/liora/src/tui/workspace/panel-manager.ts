@@ -13,14 +13,20 @@ export interface PanelManagerState {
   readonly rightDockWidth: number;
   readonly leftDockVisible: boolean;
   readonly rightDockVisible: boolean;
+  readonly leftDockMode: DockMode;
+  readonly rightDockMode: DockMode;
   readonly focusedPanelId: string | null;
 }
+
+export type DockMode = 'split' | 'tabbed';
 
 export interface PanelManagerOptions {
   readonly leftDockWidth?: number;
   readonly rightDockWidth?: number;
   readonly leftDockVisible?: boolean;
   readonly rightDockVisible?: boolean;
+  readonly leftDockMode?: DockMode;
+  readonly rightDockMode?: DockMode;
 }
 
 // ---------------------------------------------------------------------------
@@ -37,6 +43,8 @@ export class PanelManager {
   private rightDockWidth: number;
   private leftDockVisible: boolean;
   private rightDockVisible: boolean;
+  private leftDockMode: DockMode;
+  private rightDockMode: DockMode;
   private focusedPanelId: string | null = null;
 
   constructor(options: PanelManagerOptions = {}) {
@@ -44,6 +52,8 @@ export class PanelManager {
     this.rightDockWidth = options.rightDockWidth ?? 40;
     this.leftDockVisible = options.leftDockVisible ?? true;
     this.rightDockVisible = options.rightDockVisible ?? true;
+    this.leftDockMode = options.leftDockMode ?? 'split';
+    this.rightDockMode = options.rightDockMode ?? 'tabbed';
   }
 
   // -------------------------------------------------------------------------
@@ -127,6 +137,23 @@ export class PanelManager {
     }
   }
 
+  getDockMode(dock: WorkspaceDockId): DockMode {
+    return dock === 'left' ? this.leftDockMode : this.rightDockMode;
+  }
+
+  setDockMode(dock: WorkspaceDockId, mode: DockMode): void {
+    if (dock === 'left') {
+      this.leftDockMode = mode;
+    } else {
+      this.rightDockMode = mode;
+    }
+  }
+
+  toggleDockMode(dock: WorkspaceDockId): void {
+    const current = this.getDockMode(dock);
+    this.setDockMode(dock, current === 'split' ? 'tabbed' : 'split');
+  }
+
   isDockVisible(dock: WorkspaceDockId): boolean {
     return dock === 'left' ? this.leftDockVisible : this.rightDockVisible;
   }
@@ -198,6 +225,8 @@ export class PanelManager {
       rightDockWidth: this.rightDockWidth,
       leftDockVisible: this.leftDockVisible,
       rightDockVisible: this.rightDockVisible,
+      leftDockMode: this.leftDockMode,
+      rightDockMode: this.rightDockMode,
       focusedPanelId: this.focusedPanelId,
     };
   }
@@ -209,6 +238,8 @@ export class PanelManager {
     this.rightDockWidth = state.rightDockWidth;
     this.leftDockVisible = state.leftDockVisible;
     this.rightDockVisible = state.rightDockVisible;
+    this.leftDockMode = state.leftDockMode ?? 'split';
+    this.rightDockMode = state.rightDockMode ?? 'tabbed';
     this.focusedPanelId = state.focusedPanelId;
   }
 

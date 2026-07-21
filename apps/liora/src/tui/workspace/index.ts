@@ -1,6 +1,6 @@
 export type { PanelDefinition, PanelInstance, DockAssignment } from './panel-definition';
 export { PanelManager } from './panel-manager';
-export type { PanelManagerState, PanelManagerOptions } from './panel-manager';
+export type { PanelManagerState, PanelManagerOptions, DockMode } from './panel-manager';
 export { DragController } from './drag-controller';
 export type { DragControllerCallbacks, DragOverlayInfo } from './drag-controller';
 export { WorkspaceController } from './workspace-controller';

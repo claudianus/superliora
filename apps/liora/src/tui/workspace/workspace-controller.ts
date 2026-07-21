@@ -151,9 +151,16 @@ export class WorkspaceController {
       return Array.from({ length: dockRect.height }, () => '');
     }
 
+    const mode = this.panelManager.getDockMode(dockId);
+    const focusedId = this.panelManager.getFocusedPanelId();
+
+    if (mode === 'tabbed') {
+      return this.renderDockTabbed(dockId, dockRect, panels, focusedId);
+    }
+
+    // Split mode: all panels stacked vertically
     const allLines: string[] = [];
     const panelHeight = Math.floor(dockRect.height / panels.length);
-    const focusedId = this.panelManager.getFocusedPanelId();
 
     for (const panel of panels) {
       const isFocused = panel.instanceId === focusedId;
@@ -187,6 +194,73 @@ export class WorkspaceController {
     }
 
     return allLines.slice(0, dockRect.height);
+  }
+
+  private renderDockTabbed(
+    dockId: 'left' | 'right',
+    dockRect: RendererRect,
+    panels: Array<{ instanceId: string; definition: { id: string; title: string; icon: string; render: (w: number, h: number, f: boolean) => string[] } }>,
+    focusedId: string | null,
+  ): string[] {
+    const allLines: string[] = [];
+
+    // Tab bar (1 row)
+    const tabBar = this.renderTabBar(dockId, dockRect.width, panels, focusedId);
+    allLines.push(tabBar);
+
+    // Active panel content (remaining height)
+    const activePanel = panels.find((p) => p.instanceId === focusedId) ?? panels[0];
+    if (activePanel) {
+      const contentWidth = dockRect.width - 2;
+      const contentHeight = dockRect.height - 3; // tab bar + frame top/bottom
+
+      const content = activePanel.definition.render(
+        Math.max(1, contentWidth),
+        Math.max(1, contentHeight),
+        true,
+      );
+
+      const framed = renderPanelFrame({
+        width: dockRect.width,
+        height: dockRect.height - 1,
+        title: activePanel.definition.title,
+        icon: activePanel.definition.icon,
+        focused: true,
+        borderStyle: 'rounded',
+        content,
+      });
+
+      allLines.push(...framed);
+    }
+
+    // Pad or trim
+    while (allLines.length < dockRect.height) {
+      allLines.push('');
+    }
+
+    return allLines.slice(0, dockRect.height);
+  }
+
+  private renderTabBar(
+    dockId: 'left' | 'right',
+    width: number,
+    panels: Array<{ instanceId: string; definition: { icon: string; title: string } }>,
+    focusedId: string | null,
+  ): string {
+    const tabs: string[] = [];
+    for (const panel of panels) {
+      const isActive = panel.instanceId === focusedId;
+      const label = `${panel.definition.icon}${panel.definition.title.slice(0, 6)}`;
+      if (isActive) {
+        tabs.push(`\x1b[7m${label}\x1b[0m`);
+      } else {
+        tabs.push(`\x1b[2m${label}\x1b[0m`);
+      }
+    }
+    const bar = tabs.join('│');
+    const visibleLen = bar.replace(/\x1b\[[0-9;]*m/g, '').length;
+    const padding = Math.max(0, width - visibleLen);
+    return ` ${bar}${' '.repeat(padding)}`;
   }
 
   // -------------------------------------------------------------------------
@@ -232,6 +306,22 @@ export class WorkspaceController {
     if (event.key === 'character' && event.text && /^[1-9]$/.test(event.text)) {
       const index = parseInt(event.text, 10);
       this.panelManager.focusPanelByIndex(index);
+      this.requestRender();
+      return true;
+    }
+
+    // Ctrl+T: toggle dock mode (split/tabbed) for the focused panel's dock
+    if (event.key === 'character' && event.text === 't') {
+      const focusedId = this.panelManager.getFocusedPanelId();
+      if (focusedId) {
+        // Determine which dock the focused panel is in
+        const leftPanels = this.panelManager.getPanelsInDock('left');
+        const isInLeft = leftPanels.some((p) => p.instanceId === focusedId);
+        this.panelManager.toggleDockMode(isInLeft ? 'left' : 'right');
+      } else {
+        // Default: toggle right dock mode
+        this.panelManager.toggleDockMode('right');
+      }
       this.requestRender();
       return true;
     }
