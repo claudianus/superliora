@@ -297,11 +297,11 @@ export class FileExplorerPanel implements PanelDefinition {
     // Theme-aware icon coloring
     const styledIcon = entry.isDirectory
       ? currentTheme.fg('accent', icon)
-      : currentTheme.dimFg('textMuted', icon);
+      : currentTheme.fg(getFileToken(entry.name), icon);
     const gitBadge = entry.gitStatus ? ` ${gitStatusStyled(entry.gitStatus)}` : '';
     const nameStyled = entry.isDirectory
       ? currentTheme.boldFg('textStrong', entry.name)
-      : currentTheme.fg('text', entry.name);
+      : currentTheme.fg(getFileNameToken(entry.name), entry.name);
     const label = `${connector}${styledIcon} ${nameStyled}${gitBadge}`;
 
     const truncated = label.slice(0, width);
@@ -401,6 +401,42 @@ function getFileIcon(name: string): string {
     default:
       return '·';
   }
+}
+
+/** Theme token for file type icon based on extension. */
+function getFileToken(name: string): 'primary' | 'accent' | 'warning' | 'success' | 'textDim' | 'particle' {
+  const ext = path.extname(name).toLowerCase();
+  switch (ext) {
+    case '.ts':
+    case '.tsx':
+      return 'primary';
+    case '.js':
+    case '.mjs':
+      return 'warning';
+    case '.json':
+    case '.yaml':
+    case '.yml':
+      return 'textDim';
+    case '.md':
+      return 'accent';
+    case '.py':
+      return 'success';
+    case '.rs':
+      return 'particle';
+    case '.go':
+      return 'primary';
+    default:
+      return 'textDim';
+  }
+}
+
+/** Theme token for file name based on extension (subtler than icon). */
+function getFileNameToken(name: string): 'text' | 'textDim' {
+  const ext = path.extname(name).toLowerCase();
+  // Config/lock files are dimmer
+  if (['.lock', '.log', '.bak', '.tmp'].includes(ext)) return 'textDim';
+  if (name.startsWith('.') || name === 'package-lock.json') return 'textDim';
+  return 'text';
 }
 
 function gitStatusColor(status: string): string {
