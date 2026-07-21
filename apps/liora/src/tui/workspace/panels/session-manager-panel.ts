@@ -87,16 +87,16 @@ export class SessionManagerPanel implements PanelDefinition {
 
     // Header line
     const countLabel = this.loading ? '…' : String(this.sessions.length);
-    const header = ` ${countLabel} sessions`;
+    const header = currentTheme.boldFg('primary', ` ${countLabel} sessions`);
     lines.push(this.pad(header, width));
 
     if (this.loading && this.sessions.length === 0) {
-      lines.push(this.pad('  Loading…', width));
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Loading…')}`, width));
       return this.fillLines(lines, height, width);
     }
 
     if (this.sessions.length === 0) {
-      lines.push(this.pad('  (no sessions)', width));
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '(no sessions)')}`, width));
       return this.fillLines(lines, height, width);
     }
 
@@ -118,7 +118,11 @@ export class SessionManagerPanel implements PanelDefinition {
       const isCurrent = session.id === currentId;
       const isSelected = i === this.cursorIndex && focused;
 
-      const marker = isCurrent ? '●' : isSelected ? '▸' : ' ';
+      const marker = isCurrent
+        ? currentTheme.fg('success', '●')
+        : isSelected
+          ? currentTheme.fg('primary', '▸')
+          : ' ';
       let title = session.title ?? session.lastPrompt ?? session.id.slice(0, 8);
       const time = formatRelativeTime(session.updatedAt);
 
