@@ -21,6 +21,7 @@ interface DiffFile {
   readonly hasImportChanges?: boolean;
   readonly todoCount?: number;
   readonly isTestFile?: boolean;
+  readonly isConfigFile?: boolean;
 }
 
 interface DiffHunk {
@@ -373,6 +374,7 @@ export class GitDiffPanel implements PanelDefinition {
       const importBadge = file.hasImportChanges ? ` ${currentTheme.fg('warning', '[imp]')}` : '';
       const todoBadge = file.todoCount ? ` ${currentTheme.fg('warning', `[TODO×${String(file.todoCount)}]`)}` : '';
       const testBadge = file.isTestFile ? ` ${currentTheme.fg('accent', '[test]')}` : '';
+      const configBadge = file.isConfigFile ? ` ${currentTheme.fg('primary', '[cfg]')}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
       // File age: show how recently the file was last modified on disk
       let fileAgeBadge = '';
@@ -385,7 +387,7 @@ export class GitDiffPanel implements PanelDefinition {
       } catch {
         // File may not exist (deleted)
       }
-      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${todoBadge}${testBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
+      lines.push(` ${statusIcon} ${fileIcon} ${path}${binaryBadge}${modeBadge}${wsBadge}${importBadge}${todoBadge}${testBadge}${configBadge}${fileBar} ${stats}${hunkCount}${fileAgeBadge}`);
     }
 
     lines.push('');
@@ -645,8 +647,10 @@ function parseDiff(output: string): DiffFile[] {
 
     // Detect test files
     const isTestFile = /(\.spec\.|\.test\.|__tests__|\/test\/|\/tests\/)/.test(filePath);
+    // Detect config files
+    const isConfigFile = /(package\.json|tsconfig|\.env|\.ya?ml|\.toml|\.ini|\.cfg|webpack|vite\.config|\.eslintrc|\.prettierrc|Makefile|Dockerfile|\.github)/.test(filePath);
 
-    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges, todoCount: todoCount > 0 ? todoCount : undefined, isTestFile });
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange, whitespaceOnly, hasImportChanges, todoCount: todoCount > 0 ? todoCount : undefined, isTestFile, isConfigFile });
   }
 
   return files;
