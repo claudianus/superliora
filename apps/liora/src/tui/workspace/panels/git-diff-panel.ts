@@ -269,7 +269,10 @@ export class GitDiffPanel implements PanelDefinition {
     lines.push('');
 
     for (const file of this.files) {
-      const statusIcon = file.status === 'added' ? green('+') : file.status === 'deleted' ? red('-') : yellow('~');
+      const statusIcon = file.status === 'added' ? green('+')
+        : file.status === 'deleted' ? red('-')
+        : file.status === 'renamed' ? currentTheme.fg('accent', '→')
+        : yellow('~');
       const stats = `${green(`+${file.additions}`)} ${red(`-${file.deletions}`)}`;
       // Per-file mini bar
       const fileTotal = file.additions + file.deletions;

@@ -17,6 +17,7 @@ interface FileEntry {
   readonly depth: number;
   readonly gitStatus?: string;
   readonly sizeBytes?: number;
+  readonly isSymlink?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +249,7 @@ export class FileExplorerPanel implements PanelDefinition {
 
       const fullPath = path.join(dirPath, item.name);
       const isDirectory = item.isDirectory();
+      const isSymlink = item.isSymbolicLink();
 
       // Get file size for non-directory entries
       let sizeBytes: number | undefined;
@@ -266,6 +268,7 @@ export class FileExplorerPanel implements PanelDefinition {
         depth,
         gitStatus: this.gitStatusMap.get(path.relative(this.rootPath, fullPath)),
         sizeBytes,
+        isSymlink,
       });
 
       if (isDirectory && this.expandedDirs.has(fullPath)) {
@@ -376,11 +379,13 @@ export class FileExplorerPanel implements PanelDefinition {
     const nameStyled = entry.isDirectory
       ? currentTheme.boldFg('textStrong', entry.name)
       : currentTheme.fg(getFileNameToken(entry.name), entry.name);
+    // Symlink indicator
+    const symlinkBadge = entry.isSymlink ? currentTheme.fg('accent', ' @') : '';
     // File size for non-directory entries (compact)
     const sizeBadge = entry.sizeBytes !== undefined && entry.sizeBytes > 0
       ? ` ${currentTheme.dimFg('textMuted', formatFileSize(entry.sizeBytes))}`
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${gitBadge}${sizeBadge}`;
+    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${gitBadge}${sizeBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
