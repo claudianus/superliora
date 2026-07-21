@@ -271,7 +271,7 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     lines.push('');
-    lines.push(dim(' [v] toggle full diff  [r] refresh'));
+    lines.push(dim(' [v] full diff  [n/p] hunk jump  [r] refresh'));
     return lines;
   }
 

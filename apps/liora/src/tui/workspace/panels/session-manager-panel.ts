@@ -120,8 +120,21 @@ export class SessionManagerPanel implements PanelDefinition {
       return this.fillLines(lines, height, width);
     }
 
+    // Filter sessions by search query
+    const filtered = searchQuery && searchQuery.length > 0
+      ? this.sessions.filter((s) => {
+          const title = (s.title ?? s.lastPrompt ?? s.id).toLowerCase();
+          return title.includes(searchQuery.toLowerCase());
+        })
+      : this.sessions;
+
+    if (filtered.length === 0) {
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', `(no match for "${searchQuery}")`)}`, width));
+      return this.fillLines(lines, height, width);
+    }
+
     // Clamp cursor
-    this.cursorIndex = Math.max(0, Math.min(this.cursorIndex, this.sessions.length - 1));
+    this.cursorIndex = Math.max(0, Math.min(this.cursorIndex, filtered.length - 1));
 
     // Ensure cursor is visible
     const visibleRows = height - 2; // header + status
@@ -132,9 +145,9 @@ export class SessionManagerPanel implements PanelDefinition {
     }
 
     // Render visible sessions
-    const end = Math.min(this.sessions.length, this.scrollTop + visibleRows);
+    const end = Math.min(filtered.length, this.scrollTop + visibleRows);
     for (let i = this.scrollTop; i < end; i++) {
-      const session = this.sessions[i]!;
+      const session = filtered[i]!;
       const isCurrent = session.id === currentId;
       const isSelected = i === this.cursorIndex && focused;
 
