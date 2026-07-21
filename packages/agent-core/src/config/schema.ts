@@ -92,6 +92,15 @@ const ModelAliasBaseSchema = z.object({
   betaApi: z.boolean().optional(),
   fallbackModels: z.array(z.string().min(1)).optional(),
   routing: ModelRoutingConfigSchema.optional(),
+  /** Per-million-token pricing in USD (from models.dev catalog). */
+  cost: z
+    .object({
+      input: z.number().optional(),
+      output: z.number().optional(),
+      cache_read: z.number().optional(),
+      cache_write: z.number().optional(),
+    })
+    .optional(),
 });
 
 export const ModelAliasOverrideSchema = ModelAliasBaseSchema.omit({

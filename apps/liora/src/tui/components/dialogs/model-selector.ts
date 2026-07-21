@@ -21,6 +21,8 @@ interface ModelChoice {
   readonly provider: string;
   /** Combined text the fuzzy filter matches against (name + provider). */
   readonly label: string;
+  /** Compact pricing label, e.g. "$3/$15" (input/output per M tokens). */
+  readonly priceLabel?: string;
 }
 
 export interface ModelSelection {
@@ -74,8 +76,21 @@ function createModelChoices(models: Record<string, ModelAlias>): readonly ModelC
   return Object.entries(models).map(([alias, cfg]) => {
     const name = modelDisplayName(alias, cfg);
     const provider = providerDisplayName(cfg.provider);
-    return { alias, model: cfg, name, provider, label: `${name} (${provider})` };
+    return { alias, model: cfg, name, provider, label: `${name} (${provider})`, priceLabel: formatCost(cfg) };
   });
+}
+
+/** Formats per-million-token pricing as a compact label like "$3/$15". */
+function formatCost(model: ModelAlias): string | undefined {
+  const cost = model.cost;
+  if (cost === undefined) return undefined;
+  const input = cost.input;
+  const output = cost.output;
+  if (input === undefined && output === undefined) return undefined;
+  const fmt = (v: number): string => (v < 1 ? v.toFixed(2) : String(v));
+  if (input !== undefined && output !== undefined) return `$${fmt(input)}/$${fmt(output)}`;
+  if (input !== undefined) return `$${fmt(input)} in`;
+  return `$${fmt(output!)} out`;
 }
 
 function thinkingAvailability(model: ModelAlias): ThinkingAvailability {
@@ -275,6 +290,9 @@ export class ModelSelectorComponent extends Container implements Focusable {
         let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
         line += (isSelected ? currentTheme.boldFg('primary', truncatedName) : currentTheme.fg('text', truncatedName)) + namePad;
         line += '  ' + currentTheme.fg('textMuted', choice.provider);
+        if (choice.priceLabel !== undefined) {
+          line += ' ' + currentTheme.fg('textMuted', choice.priceLabel);
+        }
         if (isCurrent) {
           line += ' ' + currentTheme.fg('success', CURRENT_MARK);
         }

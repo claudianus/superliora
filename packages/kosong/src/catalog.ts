@@ -53,6 +53,13 @@ export interface CatalogModel {
   readonly maxOutputSize?: number;
   readonly reasoningKey?: string;
   readonly capability: ModelCapability;
+  /** Per-million-token pricing in USD (models.dev `cost` field). */
+  readonly cost?: {
+    readonly input?: number;
+    readonly output?: number;
+    readonly cache_read?: number;
+    readonly cache_write?: number;
+  };
 }
 
 const KNOWN_WIRE_TYPES = [
@@ -138,6 +145,7 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
     name: typeof model.name === 'string' && model.name.length > 0 ? model.name : undefined,
     maxOutputSize: typeof output === 'number' && output > 0 ? output : undefined,
     reasoningKey: catalogReasoningKey(model.interleaved),
+    cost: model.cost,
     capability: {
       image_in: inputs.includes('image'),
       video_in: inputs.includes('video'),

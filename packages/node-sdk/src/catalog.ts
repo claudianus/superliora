@@ -60,6 +60,7 @@ export function catalogModelToAlias(providerId: string, model: CatalogModel): Mo
     capabilities: capabilityToStrings(model.capability),
     displayName: model.name,
     reasoningKey: model.reasoningKey,
+    cost: model.cost,
   };
 }
 
