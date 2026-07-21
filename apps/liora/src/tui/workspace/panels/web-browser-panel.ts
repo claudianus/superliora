@@ -301,15 +301,17 @@ export class WebBrowserPanel implements PanelDefinition {
     const tabs = this.tabs.map((tab, index) => {
       const isActive = tab.id === this.activeTabId;
       const title = tab.title.slice(0, 15) || 'New Tab';
-      const marker = isActive ? this.cyan(`[${index + 1}]`) : this.dim(`[${index + 1}]`);
-      return `${marker} ${title}`;
+      if (isActive) {
+        return currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${String(index + 1)}:${title} `));
+      }
+      return currentTheme.dimFg('textMuted', ` ${String(index + 1)}:${title} `);
     });
-    const tabBar = tabs.join(this.dim(' │ '));
+    const tabBar = tabs.join(currentTheme.dimFg('border', '│'));
     return this.pad(` ${tabBar}`, width);
   }
 
   private renderUrlBar(width: number, focused: boolean): string {
-    const prefix = ' 🔗 ';
+    const prefix = ` ${currentTheme.fg('accent', '🔗')} `;
     const suffix = this.editingUrl ? '▏' : '';
     const url = this.editingUrl ? this.urlInput : this.state.url;
     const maxUrlWidth = width - prefix.length - suffix.length - 2;
@@ -317,8 +319,11 @@ export class WebBrowserPanel implements PanelDefinition {
       ? url.slice(0, maxUrlWidth - 1) + '…'
       : url;
 
-    const bar = `${prefix}${displayUrl}${suffix}`;
-    const border = focused ? this.cyan('│') : this.dim('│');
+    const urlStyled = this.editingUrl
+      ? currentTheme.fg('text', displayUrl) + currentTheme.fg('primary', suffix)
+      : currentTheme.dimFg('textMuted', displayUrl);
+    const bar = `${prefix}${urlStyled}`;
+    const border = focused ? currentTheme.fg('primary', '│') : currentTheme.dimFg('border', '│');
     return `${border} ${this.pad(bar, width - 4)} ${border}`;
   }
 

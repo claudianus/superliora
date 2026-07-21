@@ -75,15 +75,20 @@ export class SideChatPanel implements PanelDefinition {
       const end = Math.min(this.messages.length, this.scrollTop + msgAreaHeight);
       for (let i = this.scrollTop; i < end; i++) {
         const msg = this.messages[i]!;
+        const timeStr = formatMsgTime(msg.timestamp);
+        const timePart = currentTheme.dimFg('textMuted', timeStr);
         const prefix = msg.role === 'user'
           ? currentTheme.fg('roleUser', '› ')
           : currentTheme.fg('accent', '· ');
         const wrapped = this.wrapText(`${msg.text}`, width - 3);
-        for (const wl of wrapped) {
+        for (let wi = 0; wi < wrapped.length; wi++) {
+          const wl = wrapped[wi]!;
           if (lines.length >= msgAreaHeight) break;
+          // First line gets timestamp, continuation lines get indent
+          const linePrefix = wi === 0 ? `${timePart} ${prefix}` : '      ';
           const styled = msg.role === 'user'
-            ? `${prefix}${currentTheme.fg('text', wl)}`
-            : `${prefix}${currentTheme.dimFg('textDim', wl)}`;
+            ? `${linePrefix}${currentTheme.fg('text', wl)}`
+            : `${linePrefix}${currentTheme.dimFg('textDim', wl)}`;
           lines.push(this.pad(styled, width));
         }
       }
@@ -306,4 +311,10 @@ export class SideChatPanel implements PanelDefinition {
   private dim(text: string): string {
     return currentTheme.dimFg('textDim', text);
   }
+}
+
+/** Format a message timestamp as HH:MM. */
+function formatMsgTime(ts: number): string {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
