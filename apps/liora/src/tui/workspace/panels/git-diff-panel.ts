@@ -16,6 +16,7 @@ interface DiffFile {
   readonly deletions: number;
   readonly hunks: DiffHunk[];
   readonly isBinary?: boolean;
+  readonly modeChange?: string;
 }
 
 interface DiffHunk {
@@ -301,8 +302,9 @@ export class GitDiffPanel implements PanelDefinition {
       }
       const path = file.path.length > width - 12 ? `...${file.path.slice(-(width - 15))}` : file.path;
       const binaryBadge = file.isBinary ? ` ${currentTheme.fg('warning', '[bin]')}` : '';
+      const modeBadge = file.modeChange ? ` ${currentTheme.fg('accent', `[${file.modeChange}]`)}` : '';
       const hunkCount = file.hunks.length > 0 ? currentTheme.dimFg('textMuted', ` ${String(file.hunks.length)}h`) : '';
-      lines.push(` ${statusIcon} ${path}${binaryBadge}${fileBar} ${stats}${hunkCount}`);
+      lines.push(` ${statusIcon} ${path}${binaryBadge}${modeBadge}${fileBar} ${stats}${hunkCount}`);
     }
 
     lines.push('');
@@ -461,6 +463,14 @@ function parseDiff(output: string): DiffFile[] {
     else if (chunk.includes('rename from')) status = 'renamed';
     // Detect binary files
     const isBinary = chunk.includes('Binary files') || chunk.includes('GIT binary patch');
+    // Detect file mode changes (e.g. 100644 → 100755)
+    let modeChange: string | undefined;
+    const oldModeMatch = chunk.match(/old mode (\d+)/);
+    const newModeMatch = chunk.match(/new mode (\d+)/);
+    if (oldModeMatch && newModeMatch && oldModeMatch[1] !== newModeMatch[1]) {
+      const fmt = (m: string) => m === '100755' ? '+x' : m === '100644' ? '-x' : m;
+      modeChange = `${fmt(oldModeMatch[1]!)} → ${fmt(newModeMatch[1]!)}`;
+    }
 
     const hunks: DiffHunk[] = [];
     let currentHunk: DiffHunk | null = null;
@@ -485,7 +495,7 @@ function parseDiff(output: string): DiffFile[] {
     }
     if (currentHunk) hunks.push(currentHunk);
 
-    files.push({ path: filePath, status, additions, deletions, hunks, isBinary });
+    files.push({ path: filePath, status, additions, deletions, hunks, isBinary, modeChange });
   }
 
   return files;
