@@ -52,6 +52,8 @@ export class TerminalPanel implements PanelDefinition {
   private cmdRunning = false;
   /** Output encoding detection */
   private hasNonUtf8 = false;
+  /** Session start time for uptime display */
+  private sessionStart = Date.now();
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -101,8 +103,15 @@ export class TerminalPanel implements PanelDefinition {
     // PID indicator in first row when PTY is active
     if (this.pty && visible.length > 0) {
       const encBadge = this.hasNonUtf8 ? currentTheme.fg('warning', ' ⚠enc') : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)}`) + encBadge;
-      visible[0] = (visible[0] ?? '').slice(0, this.cols - 16) + pidLabel;
+      // Session uptime (compact)
+      const uptimeSec = Math.floor((Date.now() - this.sessionStart) / 1000);
+      const uptimeLabel = uptimeSec < 60
+        ? `${String(uptimeSec)}s`
+        : uptimeSec < 3600
+          ? `${String(Math.floor(uptimeSec / 60))}m`
+          : `${String(Math.floor(uptimeSec / 3600))}h${String(Math.floor((uptimeSec % 3600) / 60))}m`;
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + encBadge;
+      visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
     const renderNow = Date.now();
