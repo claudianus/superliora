@@ -768,6 +768,18 @@ export class LioraTUI {
       const cwd = this.state.appState.workDir ?? process.cwd();
       this.workspaceController.addPanel(new FileExplorerPanel(cwd), 'left');
       this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
+      // Register keyboard shortcuts for panel management
+      const wc = this.workspaceController;
+      this.nativeInputRouter.router.registerGlobalHandler({
+        id: 'workspace-keyboard-shortcuts',
+        onInput: (event) => {
+          // Panel shortcuts: Ctrl+B (left dock), Ctrl+N (right dock), Ctrl+1-9 (focus)
+          if (wc.handlePanelShortcut(event)) return true;
+          // Route to focused panel
+          if (wc.routeInputToPanel(event)) return true;
+          return false;
+        },
+      });
     }
 
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
@@ -786,6 +798,35 @@ export class LioraTUI {
             leftDockWidth: layoutOpts.leftDockVisible ? layoutOpts.leftDockWidth : 0,
             rightDockWidth: layoutOpts.rightDockVisible ? layoutOpts.rightDockWidth : 0,
           };
+        },
+        postFrameRender: ({ frameRenderer, columns, rows }) => {
+          if (!this.workspaceController?.isEnabled()) return;
+          const layout = this.workspaceController.computeLayout({
+            terminalColumns: columns,
+            terminalRows: rows,
+          });
+          if (!layout) return;
+          const docks = this.workspaceController.renderDocks(layout);
+          // Draw left dock panels
+          if (docks.left && layout.leftDock) {
+            const { x, y } = layout.leftDock.rect;
+            for (let row = 0; row < docks.left.length; row++) {
+              const line = docks.left[row] ?? '';
+              if (line.length > 0) {
+                frameRenderer.writeText(x, y + row, line);
+              }
+            }
+          }
+          // Draw right dock panels
+          if (docks.right && layout.rightDock) {
+            const { x, y } = layout.rightDock.rect;
+            for (let row = 0; row < docks.right.length; row++) {
+              const line = docks.right[row] ?? '';
+              if (line.length > 0) {
+                frameRenderer.writeText(x, y + row, line);
+              }
+            }
+          }
         },
       }),
     );

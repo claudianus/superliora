@@ -169,6 +169,15 @@ export interface TUIStateNativeRenderCallbackOptions {
    * When provided, the stage layout reserves space for side panels.
    */
   readonly workspaceDockWidths?: () => { leftDockWidth: number; rightDockWidth: number } | null;
+  /**
+   * Called after the main frame is rendered. Use this to draw workspace
+   * panels into the reserved dock areas via the frame renderer.
+   */
+  readonly postFrameRender?: (context: {
+    readonly frameRenderer: import('@harness-kit/tui-renderer').NativeFrameRenderer;
+    readonly columns: number;
+    readonly rows: number;
+  }) => void;
 }
 
 export interface TUIStateNativeRendererOptions
@@ -462,6 +471,12 @@ export function createTUIStateNativeRenderCallback(
       clear: effectivePolicy.clear,
       cursor: nativeFrame.cursor,
       forceCursor,
+    });
+    // Post-frame hook: draw workspace panels into reserved dock areas.
+    options.postFrameRender?.({
+      frameRenderer: runtime.frameRenderer,
+      columns: size.columns,
+      rows: height,
     });
     return result;
   };
