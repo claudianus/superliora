@@ -477,6 +477,21 @@ export class ActivityTransparencyPanel implements PanelDefinition {
           lines.push(this.pad(` ${currentTheme.fg('accent', '⚡')} ${currentTheme.dimFg('textMuted', `peak ${peakLabel} (${String(peakCount)} ops/10s)`)}`, width));
         }
       }
+      // Operation timeline: horizontal bar showing recent operations as colored segments
+      if (entries.length > 3 && height > 16) {
+        const TIMELINE_W = Math.min(30, width - 6);
+        const recentOps = entries.filter((e) => e.durationMs !== undefined).slice(-8);
+        if (recentOps.length > 0) {
+          const maxDur = Math.max(...recentOps.map((e) => e.durationMs ?? 0), 1);
+          const segments = recentOps.map((e) => {
+            const token = KIND_TOKENS[e.kind] ?? 'textDim';
+            const segLen = Math.max(1, Math.round(((e.durationMs ?? 0) / maxDur) * (TIMELINE_W / recentOps.length)));
+            return currentTheme.fg(token, '━'.repeat(segLen));
+          });
+          const timeline = segments.join(currentTheme.dimFg('border', '┃'));
+          lines.push(this.pad(` ${currentTheme.dimFg('textMuted', 'ops')} ${timeline}`, width));
+        }
+      }
       // Throughput mini-graph (ops per 5s window, last 6 windows)
       if (entries.length > 5 && height > 15) {
         const T_WINDOW = 5_000;
