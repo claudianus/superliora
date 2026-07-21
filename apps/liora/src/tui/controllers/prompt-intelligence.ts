@@ -5,9 +5,11 @@ import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import type { TUIState } from '../tui-state';
 
 /** Debounce before requesting an inline completion after the last keystroke. */
-const INLINE_DEBOUNCE_MS = 300;
+const INLINE_DEBOUNCE_MS = 700;
 /** Debounce before requesting next-task suggestions when the editor is empty. */
-const SUGGEST_DEBOUNCE_MS = 500;
+const SUGGEST_DEBOUNCE_MS = 800;
+/** Minimum characters before inline completion fires (avoids LLM calls on "a", "ab"). */
+const INLINE_MIN_CHARS = 3;
 /** Maximum entries in the inline-completion LRU cache. */
 const CACHE_MAX_SIZE = 32;
 
@@ -109,7 +111,7 @@ export class PromptIntelligenceController {
 
     const editor = this.host.state.editor;
     const text = editor.getText();
-    if (text.length === 0) return;
+    if (text.length < INLINE_MIN_CHARS) return;
     if (this.isAutocompleteTrigger(text)) return;
 
     const cursor = editor.getCursor();
