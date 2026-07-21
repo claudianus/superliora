@@ -253,7 +253,7 @@ export class SessionManagerPanel implements PanelDefinition {
       lines.push(this.pad(statusStyled, width));
     } else {
       const sortLabel = this.sortMode === 'name' ? ' [name]' : '';
-      const hint = focused ? ` ↵switch r:refresh n:new s:sort${sortLabel} p:pin e:export j/k:nav` : '';
+      const hint = focused ? ` ↵switch r:refresh n:new s:sort${sortLabel} p:pin e:export c:compare j/k:nav` : '';
       lines.push(this.pad(this.dim(hint), width));
     }
 
@@ -380,6 +380,25 @@ export class SessionManagerPanel implements PanelDefinition {
             this.statusMessage = null;
             this.requestRender();
           }, 3000);
+        }
+        return true;
+      }
+      if (ch === 'c') {
+        // Compare selected session with current session
+        const session = this.sessions[this.cursorIndex];
+        const currentId = this.callbacks.currentSessionId();
+        const currentSession = this.sessions.find((s) => s.id === currentId);
+        if (session && currentSession && session.id !== currentId) {
+          const timeDiff = Math.abs(session.updatedAt - currentSession.updatedAt);
+          const timeDiffLabel = timeDiff < 60000 ? 'now' : timeDiff < 3600000 ? `${String(Math.floor(timeDiff / 60000))}m apart` : `${String(Math.floor(timeDiff / 3600000))}h apart`;
+          const sameDir = session.workDir === currentSession.workDir;
+          const dirLabel = sameDir ? 'same dir' : 'diff dir';
+          this.statusMessage = `vs current: ${timeDiffLabel} · ${dirLabel}`;
+          this.requestRender();
+          setTimeout(() => {
+            this.statusMessage = null;
+            this.requestRender();
+          }, 4000);
         }
         return true;
       }
