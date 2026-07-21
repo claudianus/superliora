@@ -52,6 +52,9 @@ export class FileExplorerPanel implements PanelDefinition {
   /** Quick search navigation */
   private quickSearchActive = false;
   private quickSearchQuery = '';
+  /** File type filter */
+  private typeFilter: string | null = null;
+  private static readonly TYPE_FILTERS = [null, '.ts', '.json', '.md', '.css', '.html'] as const;
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -106,6 +109,8 @@ export class FileExplorerPanel implements PanelDefinition {
       if (added > 0) stats += currentTheme.fg('success', ` +${String(added)}`);
       // Sort mode indicator
       if (this.sortMode === 'type') stats += currentTheme.fg('accent', ' [type]');
+      // Type filter indicator
+      if (this.typeFilter !== null) stats += currentTheme.fg('primary', ` [${this.typeFilter}]`);
       // Hidden files indicator
       if (this.showHidden) stats += currentTheme.fg('accent', ' [dot]');
       // Git branch badge
@@ -159,7 +164,11 @@ export class FileExplorerPanel implements PanelDefinition {
       lines.push(this.pad(searchLabel, width));
     }
 
-    const visibleEntries = this.entries.slice(this.scrollTop, this.scrollTop + height - headerRows);
+    // Apply type filter
+    const filteredEntries = this.typeFilter !== null
+      ? this.entries.filter((e) => e.isDirectory || e.name.endsWith(this.typeFilter!))
+      : this.entries;
+    const visibleEntries = filteredEntries.slice(this.scrollTop, this.scrollTop + height - headerRows);
 
     for (let i = 0; i < visibleEntries.length; i++) {
       const entry = visibleEntries[i]!;
