@@ -6,3 +6,4 @@ export type { DragControllerCallbacks, DragOverlayInfo } from './drag-controller
 export { WorkspaceController } from './workspace-controller';
 export type { WorkspaceControllerOptions, WorkspaceRenderContext, WorkspaceDockRender } from './workspace-controller';
 export { WorkspaceLayoutPersistence } from './layout-persistence';
+export { LayoutPresetManager } from './layout-presets';

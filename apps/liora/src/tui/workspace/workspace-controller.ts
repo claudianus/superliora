@@ -12,6 +12,7 @@ import {
 
 import { DragController } from './drag-controller';
 import { PanelManager } from './panel-manager';
+import { LayoutPresetManager } from './layout-presets';
 import type { PanelDefinition } from './panel-definition';
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,13 @@ export class WorkspaceController {
 
   // Keyboard help overlay
   private helpOpen = false;
+
+  // Layout preset overlay
+  private presetManager: LayoutPresetManager | null = null;
+  private presetOverlayOpen = false;
+  private presetSelectedIndex = 0;
+  private presetSaveMode = false;
+  private presetSaveName = '';
 
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
@@ -350,6 +358,17 @@ export class WorkspaceController {
       return true;
     }
 
+    // Ctrl+P: toggle layout preset overlay
+    if (event.key === 'character' && event.text === 'p') {
+      if (this.presetManager === null) return false;
+      this.presetOverlayOpen = !this.presetOverlayOpen;
+      this.presetSelectedIndex = 0;
+      this.presetSaveMode = false;
+      this.presetSaveName = '';
+      this.requestRender();
+      return true;
+    }
+
     return false;
   }
 
@@ -520,6 +539,133 @@ export class WorkspaceController {
     }
     lines.push('─'.repeat(w));
     lines.push(' \u001B[2m아무 키나 눌러 닫기\u001B[0m');
+    return lines;
+  }
+
+  // -------------------------------------------------------------------------
+  // Layout Presets
+  // -------------------------------------------------------------------------
+
+  /** Set the preset manager (called after construction). */
+  setPresetManager(manager: LayoutPresetManager): void {
+    this.presetManager = manager;
+  }
+
+  /** Whether the preset overlay is open. */
+  get isPresetOverlayOpen(): boolean {
+    return this.presetOverlayOpen;
+  }
+
+  /** Handle input when preset overlay is open. */
+  handlePresetInput(event: NativeInputEvent): boolean {
+    if (!this.presetOverlayOpen || this.presetManager === null) return false;
+
+    if (event.type !== 'key') return false;
+
+    // Save mode: collect name
+    if (this.presetSaveMode) {
+      if (event.key === 'escape') {
+        this.presetSaveMode = false;
+        this.presetSaveName = '';
+        this.requestRender();
+        return true;
+      }
+      if (event.key === 'enter' && this.presetSaveName.length > 0) {
+        this.presetManager.savePreset(this.presetSaveName.trim());
+        this.presetSaveMode = false;
+        this.presetSaveName = '';
+        this.presetOverlayOpen = false;
+        this.requestRender();
+        return true;
+      }
+      if (event.key === 'backspace') {
+        this.presetSaveName = this.presetSaveName.slice(0, -1);
+        this.requestRender();
+        return true;
+      }
+      if (event.key === 'character' && event.text && !event.ctrl && !event.meta) {
+        this.presetSaveName += event.text;
+        this.requestRender();
+        return true;
+      }
+      return true; // consume all input in save mode
+    }
+
+    // List mode
+    if (event.key === 'escape' || (event.ctrl && event.key === 'character' && event.text === 'p')) {
+      this.presetOverlayOpen = false;
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'up') {
+      this.presetSelectedIndex = Math.max(0, this.presetSelectedIndex - 1);
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'down') {
+      const presets = this.presetManager.listPresets();
+      this.presetSelectedIndex = Math.min(presets.length, this.presetSelectedIndex + 1);
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'enter') {
+      const presets = this.presetManager.listPresets();
+      if (this.presetSelectedIndex < presets.length) {
+        const name = presets[this.presetSelectedIndex]!;
+        this.presetManager.loadPreset(name);
+        this.presetOverlayOpen = false;
+        this.requestRender();
+      }
+      return true;
+    }
+    if (event.key === 'character' && event.text === 's' && !event.ctrl) {
+      // Enter save mode
+      this.presetSaveMode = true;
+      this.presetSaveName = '';
+      this.requestRender();
+      return true;
+    }
+    if (event.key === 'character' && event.text === 'd' && !event.ctrl) {
+      // Delete selected preset
+      const presets = this.presetManager.listPresets();
+      if (this.presetSelectedIndex < presets.length) {
+        this.presetManager.deletePreset(presets[this.presetSelectedIndex]!);
+        this.requestRender();
+      }
+      return true;
+    }
+    return true; // consume all input when overlay is open
+  }
+
+  /** Render the preset overlay. */
+  renderPresetOverlay(): string[] | null {
+    if (!this.presetOverlayOpen || this.presetManager === null) return null;
+    const lines: string[] = [];
+
+    if (this.presetSaveMode) {
+      lines.push('\u001B[1m 프리셋 저장 \u001B[0m');
+      lines.push('─'.repeat(30));
+      lines.push(` 이름: ${this.presetSaveName}\u001B[7m \u001B[0m`);
+      lines.push('─'.repeat(30));
+      lines.push(' \u001B[2mEnter 저장 · Esc 취소\u001B[0m');
+      return lines;
+    }
+
+    const presets = this.presetManager.listPresets();
+    lines.push('\u001B[1m 레이아웃 프리셋 \u001B[0m');
+    lines.push('─'.repeat(30));
+    if (presets.length === 0) {
+      lines.push('  \u001B[2m(저장된 프리셋 없음)\u001B[0m');
+    } else {
+      for (let i = 0; i < presets.length; i++) {
+        const name = presets[i]!;
+        const marker = i === this.presetSelectedIndex ? '\u001B[36m❯\u001B[0m' : ' ';
+        const label = i === this.presetSelectedIndex ? `\u001B[1m${name}\u001B[0m` : name;
+        lines.push(` ${marker} ${label}`);
+      }
+    }
+    lines.push('─'.repeat(30));
+    lines.push(' \u001B[2m↑↓ 이동 · Enter 적용 · s 저장 · d 삭제 · Esc 닫기\u001B[0m');
     return lines;
   }
 

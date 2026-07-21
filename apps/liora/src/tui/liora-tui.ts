@@ -166,7 +166,7 @@ import {
 import {
   createTUIStateNativeRenderCallback,
 } from './utils/native-layout-frame';
-import { WorkspaceController, PanelManager, WorkspaceLayoutPersistence } from './workspace';
+import { WorkspaceController, PanelManager, WorkspaceLayoutPersistence, LayoutPresetManager } from './workspace';
 import { FileExplorerPanel } from './workspace/panels/file-explorer-panel';
 import { TerminalPanel } from './workspace/panels/terminal-panel';
 import { GitDiffPanel } from './workspace/panels/git-diff-panel';
@@ -821,6 +821,8 @@ export class LioraTUI {
       this.nativeInputRouter.router.registerGlobalHandler({
         id: 'workspace-keyboard-shortcuts',
         onInput: (event) => {
+          // Preset overlay consumes all input when open
+          if (wc.handlePresetInput(event)) return true;
           // Help overlay consumes all input when open
           if (wc.handleHelpInput(event)) return true;
           // Panel switcher consumes all input when open
@@ -838,6 +840,9 @@ export class LioraTUI {
       // Load persisted workspace layout (dock widths, visibility, panel order)
       this.workspaceLayoutPersistence = new WorkspaceLayoutPersistence(panelManager);
       this.workspaceLayoutPersistence.load();
+      // Layout presets
+      const presetManager = new LayoutPresetManager(panelManager);
+      wc.setPresetManager(presetManager);
     }
 
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
@@ -903,6 +908,16 @@ export class LioraTUI {
             const overlayY = Math.max(1, Math.floor((rows - helpLines.length) / 2));
             for (let row = 0; row < helpLines.length; row++) {
               frameRenderer.writeText(overlayX, overlayY + row, helpLines[row] ?? '');
+            }
+          }
+          // Draw layout preset overlay (centered)
+          const presetLines = this.workspaceController.renderPresetOverlay();
+          if (presetLines) {
+            const overlayWidth = 34;
+            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
+            const overlayY = Math.max(1, Math.floor((rows - presetLines.length) / 2));
+            for (let row = 0; row < presetLines.length; row++) {
+              frameRenderer.writeText(overlayX, overlayY + row, presetLines[row] ?? '');
             }
           }
           // Status bar at the bottom row
