@@ -184,7 +184,7 @@ export class SessionManagerPanel implements PanelDefinition {
       const line1 = `${marker} ${truncate(title, maxTitle)}${timeStr}`;
       lines.push(this.styleLine(line1, width, isSelected, isCurrent));
 
-      // Line 2 (if space): work_dir abbreviated + session age
+      // Line 2 (if space): work_dir abbreviated + session age + last prompt preview
       if (visibleRows > this.sessions.length) {
         const dir = session.workDir.replace(/^.*\//, '');
         const ageSec = Math.floor(Math.max(0, Date.now() - session.updatedAt) / 1000);
@@ -193,8 +193,13 @@ export class SessionManagerPanel implements PanelDefinition {
           : ageSec < 86400
             ? `${String(Math.floor(ageSec / 3600))}h${String(Math.floor((ageSec % 3600) / 60))}m`
             : `${String(Math.floor(ageSec / 86400))}d`;
+        // Last prompt preview (truncated, dimmed)
+        const promptPreview = session.lastPrompt && session.lastPrompt !== title
+          ? ` · ${truncate(session.lastPrompt, Math.max(8, width - 20))}`
+          : '';
         const ageStr = currentTheme.dimFg('textMuted', ` · ${ageLabel}`);
-        const line2 = `   ${truncate(dir, width - 10)}${ageStr}`;
+        const promptStyled = promptPreview.length > 0 ? currentTheme.dimFg('textDim', promptPreview) : '';
+        const line2 = `   ${truncate(dir, width - 10)}${ageStr}${promptStyled}`;
         lines.push(this.pad(line2, width));
       }
     }
