@@ -400,6 +400,7 @@ export class GitDiffPanel implements PanelDefinition {
 
   private buildFlatLines(): Array<{ text: string; type: string }> {
     const lines: Array<{ text: string; type: string }> = [];
+    let lineNum = 0; // Running line number for gutter
 
     for (const file of this.files) {
       const statusTag = file.status === 'added' ? green(' [new]')
@@ -429,11 +430,15 @@ export class GitDiffPanel implements PanelDefinition {
                 const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
                 const trailWs = /\s+$/.test(line.content) && line.content.trim().length > 0 ? currentTheme.bg('error', ' ') : '';
                 const indentTag = indentOnly ? currentTheme.dimFg('textMuted', ' [indent]') : '';
-                lines.push({ text: green('+') + highlighted + trailWs + longWarn + indentTag, type: 'add' });
+                lineNum++;
+                const gutterAdd = currentTheme.dimFg('textMuted', String(lineNum).padStart(4) + ' ');
+                lines.push({ text: gutterAdd + green('+') + highlighted + trailWs + longWarn + indentTag, type: 'add' });
               } else {
                 const longWarn = line.content.length > 120 ? currentTheme.fg('warning', ' ⚠') : '';
                 const trailWs = /\s+$/.test(line.content) && line.content.trim().length > 0 ? currentTheme.bg('error', ' ') : '';
-                lines.push({ text: green(`+${line.content}`) + trailWs + longWarn, type: 'add' });
+                lineNum++;
+                const gutterAdd2 = currentTheme.dimFg('textMuted', String(lineNum).padStart(4) + ' ');
+                lines.push({ text: gutterAdd2 + green(`+${line.content}`) + trailWs + longWarn, type: 'add' });
               }
               break;
             }
