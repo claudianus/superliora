@@ -84,6 +84,8 @@ export class TerminalPanel implements PanelDefinition {
   private statsOverlayOpen = false;
   /** Whether ANSI colors were detected in output */
   private hasAnsiColors = false;
+  /** Whether piped commands were detected */
+  private hasPipedCommands = false;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -146,7 +148,8 @@ export class TerminalPanel implements PanelDefinition {
       const wrapBadge = this.wrapLines ? currentTheme.fg('accent', ' ↩') : '';
       const bookmarkBadge = this.bookmarkLine >= 0 ? currentTheme.fg('primary', ' ⚑') : '';
       const colorBadge = this.hasAnsiColors ? currentTheme.fg('accent', ' 🎨') : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + colorBadge + encBadge;
+      const pipeBadge = this.hasPipedCommands ? currentTheme.dimFg('textMuted', ' |') : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + wrapBadge + bookmarkBadge + colorBadge + pipeBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -358,8 +361,13 @@ export class TerminalPanel implements PanelDefinition {
         const currentLine = this.lines[this.lines.length - 1] ?? '';
         const cmdMatch = currentLine.match(/[$❯%>]\s*(.+)$/);
         if (cmdMatch && cmdMatch[1] && cmdMatch[1].trim().length > 0) {
-          this.commandHistory.push(cmdMatch[1].trim());
+          const cmd = cmdMatch[1].trim();
+          this.commandHistory.push(cmd);
           if (this.commandHistory.length > 50) this.commandHistory = this.commandHistory.slice(-50);
+          // Detect piped commands
+          if (cmd.includes('|') && !cmd.includes('||')) {
+            this.hasPipedCommands = true;
+          }
         }
       }
 
