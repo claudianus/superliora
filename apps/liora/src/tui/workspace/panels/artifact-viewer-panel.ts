@@ -31,6 +31,7 @@ export class ArtifactViewerPanel implements PanelDefinition {
   private scrollTop = 0;
   private currentFile: string | null = null;
   private readonly watchDir: string;
+  private showToc = false;
 
   constructor(watchDir: string) {
     this.watchDir = watchDir;
@@ -50,6 +51,11 @@ export class ArtifactViewerPanel implements PanelDefinition {
         `  ${currentTheme.dimFg('textMuted', '[n] next artifact')}`,
         `  ${currentTheme.dimFg('textMuted', '[r] rescan')}`,
       ];
+    }
+
+    // TOC mode: show extracted headings as a navigable list
+    if (this.showToc) {
+      return this.renderToc(width, height);
     }
 
     const lines: string[] = [];
@@ -163,6 +169,11 @@ export class ArtifactViewerPanel implements PanelDefinition {
           this.jumpToNextHeading();
           return true;
         }
+        // TOC toggle
+        if (event.text === 't' || event.text === 'T') {
+          this.showToc = !this.showToc;
+          return true;
+        }
         return false;
       default:
         return false;
@@ -175,6 +186,37 @@ export class ArtifactViewerPanel implements PanelDefinition {
   }
 
   /** Jump to the next heading in the rendered lines. */
+  /** Render a table of contents extracted from markdown headings. */
+  private renderToc(width: number, height: number): string[] {
+    const lines: string[] = [];
+    lines.push(currentTheme.boldFg('primary', ' Table of Contents'));
+    lines.push(currentTheme.dimFg('border', '─'.repeat(Math.min(width - 2, 30))));
+
+    let headingCount = 0;
+    for (let i = 0; i < this.content.length; i++) {
+      const line = this.content[i] ?? '';
+      if (line.startsWith('# ')) {
+        lines.push(` ${currentTheme.boldFg('textStrong', line.slice(2))}`);
+        headingCount++;
+      } else if (line.startsWith('## ')) {
+        lines.push(`   ${currentTheme.fg('accent', line.slice(3))}`);
+        headingCount++;
+      } else if (line.startsWith('### ')) {
+        lines.push(`     ${currentTheme.dimFg('textDim', line.slice(4))}`);
+        headingCount++;
+      }
+      if (lines.length >= height - 2) break;
+    }
+
+    if (headingCount === 0) {
+      lines.push(`  ${currentTheme.dimFg('textMuted', '(no headings found)')}`);
+    }
+
+    lines.push('');
+    lines.push(currentTheme.dimFg('textMuted', ' [t] close TOC  [h/l] heading nav'));
+    return lines.slice(0, height);
+  }
+
   private jumpToNextHeading(): void {
     for (let i = this.scrollTop + 1; i < this.renderedLines.length; i++) {
       const line = this.renderedLines[i] ?? '';
