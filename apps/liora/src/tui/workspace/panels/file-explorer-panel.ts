@@ -354,6 +354,24 @@ export class FileExplorerPanel implements PanelDefinition {
           this.gitStatusMap.set(filePath, status);
         }
       }
+      // Also load ignored files
+      try {
+        const ignoredOutput = execSync('git status --porcelain --ignored', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 5000,
+        });
+        for (const line of ignoredOutput.split('\n')) {
+          if (line.startsWith('!!')) {
+            const filePath = line.slice(3);
+            if (filePath && !this.gitStatusMap.has(filePath)) {
+              this.gitStatusMap.set(filePath, '!');
+            }
+          }
+        }
+      } catch {
+        // Ignore errors from --ignored flag
+      }
     } catch {
       // Not a git repo or git not available
     }
@@ -554,6 +572,8 @@ function gitStatusStyled(status: string): string {
       return currentTheme.fg('success', '[+]');
     case 'D':
       return currentTheme.fg('error', '[-]');
+    case '!':
+      return currentTheme.dimFg('textMuted', '[ig]');
     default:
       return currentTheme.dimFg('textMuted', `[${status}]`);
   }
