@@ -45,6 +45,8 @@ export class SideChatPanel implements PanelDefinition {
   private inputBuffer = '';
   private cursorPos = 0;
   private scrollTop = 0;
+  /** Whether auto-scroll is locked (user scrolled up) */
+  private scrollLocked = false;
   private history: string[] = [];
   private historyIndex = -1;
 
@@ -135,11 +137,14 @@ export class SideChatPanel implements PanelDefinition {
     }
 
     // Status line
+    const scrollLockIndicator = this.scrollLocked
+      ? currentTheme.fg('accent', ' ↑locked ')
+      : '';
     const statusText = busy
       ? (animate
           ? renderPulseText(' ⏳ agent busy ', 'chat:busy', 'warning', appearance)
           : currentTheme.fg('warning', ' ⏳ agent busy '))
-      : '';
+      : scrollLockIndicator;
     lines.push(this.pad(`${currentTheme.dimFg('border', '─')}${statusText}${currentTheme.dimFg('border', '─'.repeat(Math.max(1, width - 4)))}`, width));
 
     // Input line
@@ -160,10 +165,15 @@ export class SideChatPanel implements PanelDefinition {
     if (event.type === 'mouse' && event.action === 'wheel') {
       if (event.button === 'wheel-up') {
         this.scrollTop = Math.max(0, this.scrollTop - 3);
+        this.scrollLocked = this.scrollTop > 0;
         return true;
       }
       if (event.button === 'wheel-down') {
         this.scrollTop += 3;
+        const maxScroll = Math.max(0, this.messages.length - 10);
+        if (this.scrollTop >= maxScroll) {
+          this.scrollLocked = false;
+        }
         return true;
       }
       return false;
