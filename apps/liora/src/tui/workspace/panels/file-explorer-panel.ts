@@ -44,6 +44,8 @@ export class FileExplorerPanel implements PanelDefinition {
   private gitCommitCount = 0;
   private gitTag: string | null = null;
   private gitRemote: string | null = null;
+  private gitAhead = 0;
+  private gitBehind = 0;
   private lastWidth = 30;
   private lastHeight = 20;
   /** Render cache: avoids re-computing lines when nothing changed. */
@@ -108,6 +110,9 @@ export class FileExplorerPanel implements PanelDefinition {
       if (this.gitTag) stats += ` ${currentTheme.fg('accent', `🏷${this.gitTag}`)}`;
       // Git remote
       if (this.gitRemote) stats += currentTheme.dimFg('textMuted', ` ⬡${this.gitRemote}`);
+      // Git ahead/behind
+      if (this.gitAhead > 0) stats += currentTheme.fg('success', ` ↑${String(this.gitAhead)}`);
+      if (this.gitBehind > 0) stats += currentTheme.fg('warning', ` ↓${String(this.gitBehind)}`);
       lines.push(stats);
     }
 
@@ -425,6 +430,23 @@ export class FileExplorerPanel implements PanelDefinition {
         this.gitRemote = remote || null;
       } catch {
         this.gitRemote = null;
+      }
+      // Get ahead/behind counts
+      this.gitAhead = 0;
+      this.gitBehind = 0;
+      try {
+        const abOutput = execSync('git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null', {
+          cwd: this.rootPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim();
+        const parts = abOutput.split(/\s+/);
+        if (parts.length === 2) {
+          this.gitAhead = parseInt(parts[0]!, 10) || 0;
+          this.gitBehind = parseInt(parts[1]!, 10) || 0;
+        }
+      } catch {
+        // No upstream or not a tracking branch
       }
       const output = execSync('git status --porcelain', {
         cwd: this.rootPath,
