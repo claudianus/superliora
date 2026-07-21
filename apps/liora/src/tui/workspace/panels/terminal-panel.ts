@@ -64,12 +64,17 @@ export class TerminalPanel implements PanelDefinition {
       return [
         ...this.getVisibleLines(height),
         '',
-        `${currentTheme.fg(this.exitCode === 0 ? 'success' : 'error', `[Process exited with code ${String(this.exitCode ?? '?')}]`)} ${currentTheme.dimFg('textMuted', "Press 'r' to restart")}`,
+        `${this.exitCode === 0
+          ? currentTheme.fg('success', '✓')
+          : currentTheme.fg('error', '✗')} ${currentTheme.fg(this.exitCode === 0 ? 'success' : 'error', `Process exited with code ${String(this.exitCode ?? '?')}`)} ${currentTheme.dimFg('textMuted', "· 'r' to restart")}`,
       ].slice(0, height);
     }
 
     if (!this.pty) {
-      return [`  ${currentTheme.dimFg('textMuted', 'Starting shell...')}`];
+      return [
+        `  ${currentTheme.fg('accent', '▶')} ${currentTheme.dimFg('textMuted', 'Starting shell...')}`,
+        `  ${currentTheme.dimFg('textMuted', `(cwd: ${this.cwd.split('/').slice(-2).join('/')})`)}`,
+      ];
     }
 
     return this.getVisibleLines(height);

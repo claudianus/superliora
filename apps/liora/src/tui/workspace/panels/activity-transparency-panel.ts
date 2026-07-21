@@ -290,18 +290,26 @@ export class ActivityTransparencyPanel implements PanelDefinition {
 
     // Header with live status
     const activeCount = this.feed.getActiveCount();
+    const errorCount = entries.filter((e) => e.isError).length;
     const filterLabel = this.filterKind !== null ? ` ${this.filterKind}` : '';
     const grouped = groupEntries(entries);
     let headerText = `${String(entries.length)} events${filterLabel}`;
     if (activeCount > 0) {
       headerText += ` · ${String(activeCount)} active`;
     }
+    if (errorCount > 0) {
+      headerText += ` · ${String(errorCount)} err`;
+    }
     // Activity rate sparkline (last 30s, 10 buckets)
     const sparkline = this.renderActivitySparkline(now, width);
     if (animate && activeCount > 0) {
-      lines.push(this.pad(` ${renderPulseText(headerText, 'activity-header', 'primary', appearance)}${sparkline}`, width));
+      const headerStyled = errorCount > 0
+        ? renderPulseText(headerText, 'activity-header', 'error', appearance)
+        : renderPulseText(headerText, 'activity-header', 'primary', appearance);
+      lines.push(this.pad(` ${headerStyled}${sparkline}`, width));
     } else {
-      lines.push(this.pad(` ${currentTheme.boldFg('primary', headerText)}${sparkline}`, width));
+      const headerToken = errorCount > 0 ? 'error' : 'primary';
+      lines.push(this.pad(` ${currentTheme.boldFg(headerToken, headerText)}${sparkline}`, width));
     }
 
     // Filter chip row (visible when focused, compact single-row chips)
