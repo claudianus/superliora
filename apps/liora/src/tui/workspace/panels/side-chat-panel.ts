@@ -204,6 +204,14 @@ export class SideChatPanel implements PanelDefinition {
           this.cursorPos = 0;
           return true;
         }
+        // Ctrl+W: delete word backward
+        if (event.text === 'w') {
+          const before = this.inputBuffer.slice(0, this.cursorPos);
+          const trimmed = before.replace(/\S+\s*$/, '');
+          this.inputBuffer = trimmed + this.inputBuffer.slice(this.cursorPos);
+          this.cursorPos = trimmed.length;
+          return true;
+        }
         // Ctrl+A: home
         if (event.text === 'a') {
           this.cursorPos = 0;
