@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
+import { currentTheme } from '#/tui/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,14 +95,26 @@ export class GitDiffPanel implements PanelDefinition {
     const idx = lowerLine.indexOf(lowerQuery);
     if (idx === -1) return line;
 
-    // Wrap match in highlight ANSI codes (reverse video)
     const before = line.slice(0, idx);
     const match = line.slice(idx, idx + query.length);
     const after = line.slice(idx + query.length);
-    return `${before}\u001B[7m${match}\u001B[0m${after}`;
+    return `${before}${currentTheme.bg('selectionBg', currentTheme.fg('selectionText', match))}${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {
+    // Mouse wheel support
+    if (event.type === 'mouse' && event.action === 'wheel') {
+      if (event.button === 'wheel-up') {
+        this.cursorIndex = Math.max(0, this.cursorIndex - 3);
+        return true;
+      }
+      if (event.button === 'wheel-down') {
+        this.cursorIndex = Math.min(this.flatLines.length - 1, this.cursorIndex + 3);
+        return true;
+      }
+      return false;
+    }
+
     if (event.type !== 'key') return false;
 
     switch (event.key) {
@@ -258,10 +271,10 @@ function parseDiff(output: string): DiffFile[] {
 // ANSI helpers
 // ---------------------------------------------------------------------------
 
-function dim(text: string): string { return `\x1b[2m${text}\x1b[0m`; }
-function bold(text: string): string { return `\x1b[1m${text}\x1b[0m`; }
-function green(text: string): string { return `\x1b[32m${text}\x1b[0m`; }
-function red(text: string): string { return `\x1b[31m${text}\x1b[0m`; }
-function yellow(text: string): string { return `\x1b[33m${text}\x1b[0m`; }
-function cyan(text: string): string { return `\x1b[36m${text}\x1b[0m`; }
-function inverse(text: string): string { return `\x1b[7m${text}\x1b[0m`; }
+function dim(text: string): string { return currentTheme.dimFg('textDim', text); }
+function bold(text: string): string { return currentTheme.boldFg('textStrong', text); }
+function green(text: string): string { return currentTheme.fg('diffAdded', text); }
+function red(text: string): string { return currentTheme.fg('diffRemoved', text); }
+function yellow(text: string): string { return currentTheme.fg('warning', text); }
+function cyan(text: string): string { return currentTheme.fg('primary', text); }
+function inverse(text: string): string { return currentTheme.bg('selectionBg', currentTheme.fg('selectionText', text)); }

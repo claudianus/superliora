@@ -1,6 +1,17 @@
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
+import { currentTheme } from '#/tui/theme';
+import {
+  renderPulseText,
+  renderShimmerPrefix,
+  appearanceAnimationNow,
+  shouldRenderAmbientEffects,
+  resolveQualityAdjustedAmbientEffectMode,
+  getActiveAppearancePreferences,
+} from '#/tui/utils/appearance-effects';
+import { formatElapsedTime } from '#/tui/utils/elapsed-time';
+import type { ColorToken } from '#/tui/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,6 +29,7 @@ export type ActivityKind =
   | 'command'
   | 'agent-spawn'
   | 'agent-done'
+  | 'agent-progress'
   | 'info';
 
 export interface ActivityEntry {
@@ -28,6 +40,10 @@ export interface ActivityEntry {
   readonly detail?: string;
   readonly durationMs?: number;
   readonly isError?: boolean;
+  /** For in-progress entries: when the operation started (for elapsed time). */
+  readonly startedAtMs?: number;
+  /** Progress 0-1 for determinate operations. */
+  readonly progress?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,7 +58,7 @@ export class ActivityFeed {
   private entries: ActivityEntry[] = [];
   private listeners: Array<() => void> = [];
 
-  push(kind: ActivityKind, label: string, detail?: string, isError = false): string {
+  push(kind: ActivityKind, label: string, detail?: string, isError = false, startedAtMs?: number): string {
     const id = `act-${nextEntryId++}`;
     const entry: ActivityEntry = {
       id,
@@ -51,6 +67,7 @@ export class ActivityFeed {
       label,
       detail,
       isError,
+      startedAtMs,
     };
     this.entries.push(entry);
     if (this.entries.length > MAX_ENTRIES) {
@@ -69,8 +86,20 @@ export class ActivityFeed {
     this.notify();
   }
 
+  updateProgress(id: string, progress: number): void {
+    const entry = this.entries.find((e) => e.id === id);
+    if (entry === undefined) return;
+    (entry as { progress?: number }).progress = Math.min(1, Math.max(0, progress));
+    this.notify();
+  }
+
   getEntries(): readonly ActivityEntry[] {
     return this.entries;
+  }
+
+  /** Count of currently active (in-progress) entries. */
+  getActiveCount(): number {
+    return this.entries.filter((e) => e.durationMs === undefined && !e.isError).length;
   }
 
   clear(): void {
@@ -106,8 +135,38 @@ const KIND_ICONS: Record<ActivityKind, string> = {
   command: '▶',
   'agent-spawn': '⑂',
   'agent-done': '⑁',
+  'agent-progress': '⟳',
   info: 'ℹ',
 };
+
+/** Semantic color token for each activity kind. */
+const KIND_TOKENS: Record<ActivityKind, 'primary' | 'accent' | 'success' | 'error' | 'warning' | 'textDim' | 'particle' | 'glow' | 'shellMode'> = {
+  'tool-start': 'primary',
+  'tool-progress': 'accent',
+  'tool-result': 'success',
+  'tool-error': 'error',
+  thinking: 'warning',
+  decision: 'glow',
+  'file-read': 'textDim',
+  'file-write': 'accent',
+  command: 'primary',
+  'agent-spawn': 'particle',
+  'agent-done': 'success',
+  'agent-progress': 'particle',
+  info: 'textDim',
+};
+
+// ---------------------------------------------------------------------------
+// Animation constants
+// ---------------------------------------------------------------------------
+
+/** Pulse interval for active entries (ms). */
+const ACTIVE_PULSE_MS = 320;
+/** Progress bar width in characters. */
+const PROGRESS_BAR_WIDTH = 12;
+/** Progress bar characters. */
+const PROGRESS_FILLED = '━';
+const PROGRESS_EMPTY = '┄';
 
 // ---------------------------------------------------------------------------
 // ActivityTransparencyPanel
@@ -125,10 +184,15 @@ export class ActivityTransparencyPanel implements PanelDefinition {
   private autoScroll = true;
   private unsubscribe: (() => void) | null = null;
   private filterKind: ActivityKind | null = null;
+  /** Render cache: avoids re-computing lines when nothing changed. */
+  private renderCache: { lines: string[]; key: string } | null = null;
+  private lastEntryCount = 0;
+  private lastEntryVersion = 0;
 
   constructor(feed: ActivityFeed) {
     this.feed = feed;
     this.unsubscribe = feed.onChange(() => {
+      this.lastEntryVersion++;
       if (this.autoScroll) {
         this.scrollToBottom();
       }
@@ -140,16 +204,36 @@ export class ActivityTransparencyPanel implements PanelDefinition {
   // -------------------------------------------------------------------------
 
   render(width: number, height: number, focused: boolean, searchQuery?: string): string[] {
+    // Fast-path: return cached lines when content hasn't changed and no
+    // animation is active (static panels don't need per-frame repaints).
     const entries = this.getFilteredEntries();
-    const lines: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animate = shouldRenderAmbientEffects(appearance);
+    const cacheKey = `${width}:${height}:${focused}:${searchQuery ?? ''}:${this.scrollTop}:${this.filterKind ?? ''}:${String(this.lastEntryVersion)}`;
+    if (!animate && this.renderCache !== null && this.renderCache.key === cacheKey) {
+      return this.renderCache.lines;
+    }
 
-    // Header
-    const filterLabel = this.filterKind !== null ? ` [${this.filterKind}]` : '';
-    const countLabel = `${String(entries.length)} events${filterLabel}`;
-    lines.push(this.pad(` ${countLabel}`, width));
+    const lines: string[] = [];
+    const now = appearanceAnimationNow();
+
+    // Header with live status
+    const activeCount = this.feed.getActiveCount();
+    const filterLabel = this.filterKind !== null ? ` ${this.filterKind}` : '';
+    let headerText = `${String(entries.length)} events${filterLabel}`;
+    if (activeCount > 0) {
+      headerText += ` · ${String(activeCount)} active`;
+    }
+    // Activity rate sparkline (last 30s, 10 buckets)
+    const sparkline = this.renderActivitySparkline(now, width);
+    if (animate && activeCount > 0) {
+      lines.push(this.pad(` ${renderPulseText(headerText, 'activity-header', 'primary', appearance)}${sparkline}`, width));
+    } else {
+      lines.push(this.pad(` ${currentTheme.boldFg('primary', headerText)}${sparkline}`, width));
+    }
 
     if (entries.length === 0) {
-      lines.push(this.pad(this.dim('  (no activity yet)'), width));
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '(no activity yet)')}`, width));
       return this.fillLines(lines, height, width);
     }
 
@@ -162,7 +246,7 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const end = Math.min(entries.length, this.scrollTop + visibleRows);
     for (let i = this.scrollTop; i < end; i++) {
       const entry = entries[i]!;
-      let line = this.formatEntry(entry, width);
+      let line = this.formatEntry(entry, width, now, animate);
       // Highlight search matches
       if (searchQuery && searchQuery.length > 0) {
         line = this.highlightSearch(line, searchQuery);
@@ -171,12 +255,22 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     }
 
     // Hint bar
-    const hint = focused
-      ? this.dim(' j/k:scroll c:clear f:filter a:auto')
-      : this.dim(this.autoScroll ? ' ●live' : ' ○paused');
+    let hint: string;
+    if (focused) {
+      hint = currentTheme.dimFg('textMuted', ' j/k:scroll c:clear f:filter a:auto');
+    } else if (this.autoScroll) {
+      const liveDot = animate
+        ? renderPulseText('●', 'live-dot', 'success', appearance)
+        : currentTheme.fg('success', '●');
+      hint = ` ${liveDot}${currentTheme.dimFg('textMuted', 'live')}`;
+    } else {
+      hint = ` ${currentTheme.dimFg('textMuted', '○ paused')}`;
+    }
     lines.push(this.pad(hint, width));
 
-    return this.fillLines(lines, height, width);
+    const result = this.fillLines(lines, height, width);
+    this.renderCache = { lines: result, key: cacheKey };
+    return result;
   }
 
   /** Highlight search query matches in a line. */
@@ -186,14 +280,30 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     const idx = lowerLine.indexOf(lowerQuery);
     if (idx === -1) return line;
 
-    // Wrap match in highlight ANSI codes (reverse video)
     const before = line.slice(0, idx);
     const match = line.slice(idx, idx + query.length);
     const after = line.slice(idx + query.length);
-    return `${before}\u001B[7m${match}\u001B[0m${after}`;
+    return `${before}${currentTheme.bg('selectionBg', currentTheme.fg('selectionText', match))}${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {
+    // Mouse wheel support
+    if (event.type === 'mouse') {
+      if (event.action === 'wheel') {
+        if (event.button === 'wheel-up') {
+          this.scrollTop = Math.max(0, this.scrollTop - 3);
+          this.autoScroll = false;
+          return true;
+        }
+        if (event.button === 'wheel-down') {
+          this.scrollTop += 3;
+          this.checkAutoScroll();
+          return true;
+        }
+      }
+      return false;
+    }
+
     if (event.type !== 'key') return false;
 
     if (event.key === 'up') {
@@ -272,6 +382,7 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       'command',
       'decision',
       'agent-spawn',
+      'agent-progress',
     ];
     const currentIdx = kinds.indexOf(this.filterKind);
     this.filterKind = kinds[(currentIdx + 1) % kinds.length]!;
@@ -292,30 +403,107 @@ export class ActivityTransparencyPanel implements PanelDefinition {
     }
   }
 
-  private formatEntry(entry: ActivityEntry, width: number): string {
+  private formatEntry(entry: ActivityEntry, width: number, now: number, animate: boolean): string {
     const icon = KIND_ICONS[entry.kind] ?? '·';
+    const token = KIND_TOKENS[entry.kind] ?? 'textDim';
     const time = formatTime(entry.timestamp);
-    const duration =
-      entry.durationMs !== undefined ? ` ${formatDuration(entry.durationMs)}` : '';
 
-    const prefix = `${time} ${icon} `;
-    const maxLabel = width - prefix.length - duration.length;
-    const label = truncate(entry.label, Math.max(4, maxLabel));
+    // Active entry: show elapsed time + pulse
+    const isActive = entry.durationMs === undefined && !entry.isError &&
+      (entry.kind === 'tool-start' || entry.kind === 'tool-progress' ||
+       entry.kind === 'thinking' || entry.kind === 'agent-spawn' ||
+       entry.kind === 'agent-progress' || entry.kind === 'command');
 
-    let line = `${prefix}${label}${duration}`;
-
-    // Color coding
-    if (entry.isError) {
-      line = `\x1b[31m${line}\x1b[0m`;
-    } else if (entry.kind === 'tool-result') {
-      line = `\x1b[32m${line}\x1b[0m`;
-    } else if (entry.kind === 'decision' || entry.kind === 'thinking') {
-      line = `\x1b[33m${line}\x1b[0m`;
-    } else if (entry.kind === 'agent-spawn' || entry.kind === 'agent-done') {
-      line = `\x1b[35m${line}\x1b[0m`;
+    let timePart: string;
+    if (isActive && entry.startedAtMs !== undefined) {
+      const elapsed = formatElapsedTime(entry.startedAtMs, now);
+      timePart = animate
+        ? renderPulseText(elapsed, `elapsed:${entry.id}`, 'primary', getActiveAppearancePreferences())
+        : currentTheme.fg('primary', elapsed);
+    } else {
+      timePart = currentTheme.dimFg('textMuted', time);
     }
 
-    return this.pad(line, width);
+    const iconPart = currentTheme.fg(token, icon);
+
+    // Duration or progress
+    let trailing = '';
+    if (entry.durationMs !== undefined) {
+      trailing = ` ${currentTheme.dimFg('textMuted', formatDuration(entry.durationMs))}`;
+    } else if (entry.progress !== undefined && entry.progress > 0) {
+      trailing = ` ${this.renderProgressBar(entry.progress, animate)}`;
+    }
+
+    const prefixVisibleLen = time.length + 1 + icon.length + 1; // "HH:MM:SS icon "
+    const trailingVisibleLen = trailing.replace(/\x1b\[[0-9;]*m/g, '').length;
+    const maxLabel = width - prefixVisibleLen - trailingVisibleLen;
+    const label = truncate(entry.label, Math.max(4, maxLabel));
+
+    // Label color: active entries pulse, errors are bold error, done are normal
+    let labelPart: string;
+    if (entry.isError) {
+      labelPart = currentTheme.boldFg('error', label);
+    } else if (isActive && animate) {
+      labelPart = renderPulseText(label, `label:${entry.id}`, token, getActiveAppearancePreferences());
+    } else if (entry.kind === 'tool-result' || entry.kind === 'agent-done') {
+      labelPart = currentTheme.fg('success', label);
+    } else {
+      labelPart = currentTheme.fg(token, label);
+    }
+
+    // Detail line (dimmed, truncated)
+    let detailPart = '';
+    if (entry.detail !== undefined && entry.detail.length > 0) {
+      const detailMax = width - 4;
+      detailPart = currentTheme.dimFg('textMuted', truncate(entry.detail, detailMax));
+    }
+
+    const mainLine = `${timePart} ${iconPart} ${labelPart}${trailing}`;
+    return this.pad(detailPart.length > 0 ? `${mainLine}` : mainLine, width);
+  }
+
+  /** Render a compact progress bar using theme colors. */
+  private renderProgressBar(progress: number, animate: boolean): string {
+    const filled = Math.round(progress * PROGRESS_BAR_WIDTH);
+    const empty = PROGRESS_BAR_WIDTH - filled;
+    const pct = Math.round(progress * 100);
+    const appearance = getActiveAppearancePreferences();
+
+    let bar: string;
+    if (animate && progress < 1) {
+      bar = renderPulseText(
+        PROGRESS_FILLED.repeat(filled) + PROGRESS_EMPTY.repeat(empty),
+        `progress:${pct}`,
+        'accent',
+        appearance,
+      );
+    } else {
+      bar = currentTheme.fg('accent', PROGRESS_FILLED.repeat(filled)) +
+            currentTheme.dimFg('textMuted', PROGRESS_EMPTY.repeat(empty));
+    }
+    return `${bar} ${currentTheme.dimFg('textMuted', `${String(pct)}%`)}`;
+  }
+
+  /** Render a compact activity rate sparkline (last 30s in 10 buckets). */
+  private renderActivitySparkline(now: number, width: number): string {
+    if (width < 20) return ''; // Too narrow for sparkline
+    const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'] as const;
+    const BUCKET_COUNT = 10;
+    const BUCKET_MS = 3_000; // 3s per bucket = 30s window
+    const entries = this.feed.getEntries();
+    const buckets = new Array<number>(BUCKET_COUNT).fill(0);
+    for (const entry of entries) {
+      const age = now - entry.timestamp;
+      if (age < 0 || age >= BUCKET_COUNT * BUCKET_MS) continue;
+      const idx = BUCKET_COUNT - 1 - Math.floor(age / BUCKET_MS);
+      if (idx >= 0 && idx < BUCKET_COUNT) buckets[idx] = (buckets[idx] ?? 0) + 1;
+    }
+    const max = Math.max(1, ...buckets);
+    const spark = buckets.map((count) => {
+      const level = Math.min(SPARK_CHARS.length - 1, Math.round((count / max) * (SPARK_CHARS.length - 1)));
+      return SPARK_CHARS[level]!;
+    }).join('');
+    return ` ${currentTheme.dimFg('textMuted', spark)}`;
   }
 
   // -------------------------------------------------------------------------
@@ -335,10 +523,6 @@ export class ActivityTransparencyPanel implements PanelDefinition {
       result.push(' '.repeat(width));
     }
     return result;
-  }
-
-  private dim(text: string): string {
-    return `\x1b[2m${text}\x1b[0m`;
   }
 }
 

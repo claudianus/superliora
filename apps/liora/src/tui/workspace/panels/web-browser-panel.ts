@@ -4,6 +4,7 @@ import {
   encodeKittyPlaceholderLines,
   encodeKittyDeleteImage,
 } from '@harness-kit/tui-renderer';
+import { currentTheme } from '#/tui/theme';
 import type {
   BrowserUseRuntime,
   BrowserObservation,
@@ -917,14 +918,14 @@ export class WebBrowserPanel implements PanelDefinition {
   }
 
   private dim(text: string): string {
-    return `\x1b[2m${text}\x1b[0m`;
+    return currentTheme.dimFg('textDim', text);
   }
 
   private cyan(text: string): string {
-    return `\x1b[36m${text}\x1b[0m`;
+    return currentTheme.fg('primary', text);
   }
 
   private red(text: string): string {
-    return `\x1b[31m${text}\x1b[0m`;
+    return currentTheme.fg('error', text);
   }
 }

@@ -4,6 +4,7 @@ import { join, extname, basename } from 'node:path';
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
+import { currentTheme } from '#/tui/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,7 +102,7 @@ export class ImagePreviewPanel implements PanelDefinition {
       const name = truncate(img.name, width - 10);
       const line = `${marker} ${name} ${size}`;
       if (selected && focused) {
-        lines.push(this.pad(`\x1b[7m${line}\x1b[0m`, width));
+        lines.push(this.pad(currentTheme.bg('selectionBg', currentTheme.fg('selectionText', line)), width));
       } else {
         lines.push(this.pad(line, width));
       }
@@ -280,7 +281,7 @@ export class ImagePreviewPanel implements PanelDefinition {
   }
 
   private dim(text: string): string {
-    return `\x1b[2m${text}\x1b[0m`;
+    return currentTheme.dimFg('textDim', text);
   }
 }
 

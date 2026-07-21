@@ -1,6 +1,7 @@
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
+import { currentTheme } from '#/tui/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -158,14 +159,28 @@ export class SessionManagerPanel implements PanelDefinition {
     const idx = lowerLine.indexOf(lowerQuery);
     if (idx === -1) return line;
 
-    // Wrap match in highlight ANSI codes (reverse video)
     const before = line.slice(0, idx);
     const match = line.slice(idx, idx + query.length);
     const after = line.slice(idx + query.length);
-    return `${before}\u001B[7m${match}\u001B[0m${after}`;
+    return `${before}${currentTheme.bg('selectionBg', currentTheme.fg('selectionText', match))}${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {
+    // Mouse wheel support
+    if (event.type === 'mouse' && event.action === 'wheel') {
+      if (event.button === 'wheel-up') {
+        this.cursorIndex = Math.max(0, this.cursorIndex - 3);
+        this.requestRender();
+        return true;
+      }
+      if (event.button === 'wheel-down') {
+        this.cursorIndex = Math.min(this.sessions.length - 1, this.cursorIndex + 3);
+        this.requestRender();
+        return true;
+      }
+      return false;
+    }
+
     if (event.type !== 'key') return false;
 
     // Handle named keys
@@ -308,9 +323,9 @@ export class SessionManagerPanel implements PanelDefinition {
   private styleLine(text: string, width: number, selected: boolean, current: boolean): string {
     let styled = text;
     if (current) {
-      styled = `\x1b[1;36m${text}\x1b[0m`;
+      styled = currentTheme.boldFg('primary', text);
     } else if (selected) {
-      styled = `\x1b[7m${text}\x1b[0m`;
+      styled = currentTheme.bg('selectionBg', currentTheme.fg('selectionText', text));
     }
     // Pad with spaces (not styled) to fill width
     const padding = Math.max(0, width - text.length);
@@ -318,6 +333,6 @@ export class SessionManagerPanel implements PanelDefinition {
   }
 
   private dim(text: string): string {
-    return `\x1b[2m${text}\x1b[0m`;
+    return currentTheme.dimFg('textDim', text);
   }
 }

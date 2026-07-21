@@ -1,6 +1,7 @@
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
+import { currentTheme } from '#/tui/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -265,6 +266,6 @@ export class SideChatPanel implements PanelDefinition {
   }
 
   private dim(text: string): string {
-    return `\x1b[2m${text}\x1b[0m`;
+    return currentTheme.dimFg('textDim', text);
   }
 }

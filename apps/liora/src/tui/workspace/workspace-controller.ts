@@ -14,6 +14,16 @@ import { DragController } from './drag-controller';
 import { PanelManager } from './panel-manager';
 import { LayoutPresetManager } from './layout-presets';
 import type { PanelDefinition } from './panel-definition';
+import { currentTheme } from '#/tui/theme';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
+import {
+  renderPulseText,
+  getActiveAppearancePreferences,
+  shouldRenderAmbientEffects,
+  resolveUltraworkBorderGlowHex,
+  appearanceAnimationNow,
+} from '#/tui/utils/appearance-effects';
+import chalk from 'chalk';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -184,6 +194,9 @@ export class WorkspaceController {
           icon: panel.definition.icon,
           focused: true,
           borderStyle: 'rounded',
+          borderColor: (text) => currentTheme.fg('primary', text),
+          titleColor: (text) => currentTheme.boldFg('textStrong', text),
+          iconColor: (text) => currentTheme.fg('accent', text),
           content,
         });
         // Return as left dock spanning full width
@@ -252,6 +265,21 @@ export class WorkspaceController {
         icon: panel.definition.icon,
         focused: isFocused,
         borderStyle: isFocused ? 'rounded' : 'single',
+        borderColor: isFocused
+          ? (text) => {
+              const appearance = getActiveAppearancePreferences();
+              if (shouldRenderAmbientEffects(appearance)) {
+                return chalk.hex(resolveUltraworkBorderGlowHex(appearanceAnimationNow()))(text);
+              }
+              return currentTheme.fg('primary', text);
+            }
+          : (text) => currentTheme.dimFg('border', text),
+        titleColor: isFocused
+          ? (text) => currentTheme.boldFg('textStrong', text)
+          : (text) => currentTheme.fg('textDim', text),
+        iconColor: isFocused
+          ? (text) => currentTheme.fg('accent', text)
+          : (text) => currentTheme.dimFg('textMuted', text),
         content,
       });
 
@@ -300,6 +328,9 @@ export class WorkspaceController {
         icon: activePanel.definition.icon,
         focused: true,
         borderStyle: 'rounded',
+        borderColor: (text) => currentTheme.fg('primary', text),
+        titleColor: (text) => currentTheme.boldFg('textStrong', text),
+        iconColor: (text) => currentTheme.fg('accent', text),
         content,
       });
 
@@ -320,17 +351,22 @@ export class WorkspaceController {
     panels: Array<{ instanceId: string; definition: { icon: string; title: string } }>,
     focusedId: string | null,
   ): string {
+    const appearance = getActiveAppearancePreferences();
+    const animate = shouldRenderAmbientEffects(appearance);
     const tabs: string[] = [];
     for (const panel of panels) {
       const isActive = panel.instanceId === focusedId;
       const label = `${panel.definition.icon}${panel.definition.title.slice(0, 6)}`;
       if (isActive) {
-        tabs.push(`\x1b[7m${label}\x1b[0m`);
+        const tabText = ` ${label} `;
+        tabs.push(animate
+          ? renderPulseText(tabText, `tab:${panel.instanceId}`, 'primary', appearance)
+          : currentTheme.bg('selectionBg', currentTheme.fg('selectionText', tabText)));
       } else {
-        tabs.push(`\x1b[2m${label}\x1b[0m`);
+        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `));
       }
     }
-    const bar = tabs.join('│');
+    const bar = tabs.join(currentTheme.dimFg('border', '│'));
     const visibleLen = bar.replace(/\x1b\[[0-9;]*m/g, '').length;
     const padding = Math.max(0, width - visibleLen);
     return ` ${bar}${' '.repeat(padding)}`;
@@ -345,6 +381,29 @@ export class WorkspaceController {
    * @returns true if the event was consumed by a panel.
    */
   routeInputToPanel(event: NativeInputEvent): boolean {
+    // Mouse wheel events: route to the panel under the cursor if possible,
+    // otherwise to the focused panel.
+    if (event.type === 'mouse' && event.action === 'wheel') {
+      const layout = this.currentLayout;
+      if (layout) {
+        // Determine which dock the wheel event is over
+        const leftRect = layout.leftDock?.rect;
+        const rightRect = layout.rightDock?.rect;
+        const overLeft = leftRect && event.x >= leftRect.x && event.x < leftRect.x + leftRect.width && event.y >= leftRect.y && event.y < leftRect.y + leftRect.height;
+        const overRight = rightRect && event.x >= rightRect.x && event.x < rightRect.x + rightRect.width && event.y >= rightRect.y && event.y < rightRect.y + rightRect.height;
+        if (overLeft || overRight) {
+          const focusedId = this.panelManager.getFocusedPanelId();
+          if (focusedId) {
+            const panel = this.panelManager.getPanel(focusedId);
+            if (panel?.definition.onInput) {
+              return panel.definition.onInput(event) ?? false;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
     const focusedId = this.panelManager.getFocusedPanelId();
     if (!focusedId) return false;
 
@@ -647,21 +706,21 @@ export class WorkspaceController {
     if (!this.switcherOpen) return null;
     const panels = this.getFilteredPanels();
     const lines: string[] = [];
-    lines.push(`\u001B[1m 패널 전환 \u001B[0m  \u001B[2m${this.switcherFilter || '입력하여 필터…'}\u001B[0m`);
-    lines.push('─'.repeat(30));
+    lines.push(`${currentTheme.boldFg('primary', ' 패널 전환')}  ${currentTheme.dimFg('textMuted', this.switcherFilter || '입력하여 필터…')}`);
+    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
     if (panels.length === 0) {
-      lines.push('  \u001B[2m(결과 없음)\u001B[0m');
+      lines.push(`  ${currentTheme.dimFg('textMuted', '(결과 없음)')}`);
     } else {
       for (let i = 0; i < panels.length; i++) {
         const p = panels[i]!;
-        const marker = i === this.switcherSelectedIndex ? '\u001B[36m❯\u001B[0m' : ' ';
-        const dock = p.dock === 'left' ? '\u001B[2m[L]\u001B[0m' : '\u001B[2m[R]\u001B[0m';
-        const title = i === this.switcherSelectedIndex ? `\u001B[1m${p.title}\u001B[0m` : p.title;
+        const marker = i === this.switcherSelectedIndex ? currentTheme.boldFg('primary', SELECT_POINTER) : ' ';
+        const dock = p.dock === 'left' ? currentTheme.dimFg('textMuted', '[L]') : currentTheme.dimFg('textMuted', '[R]');
+        const title = i === this.switcherSelectedIndex ? currentTheme.boldFg('textStrong', p.title) : currentTheme.fg('text', p.title);
         lines.push(` ${marker} ${dock} ${title}`);
       }
     }
-    lines.push('─'.repeat(30));
-    lines.push(' \u001B[2m↑↓ 이동 · Enter 선택 · Esc 닫기\u001B[0m');
+    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+    lines.push(` ${currentTheme.dimFg('textMuted', '↑↓ 이동 · Enter 선택 · Esc 닫기')}`);
     return lines;
   }
 
@@ -690,8 +749,8 @@ export class WorkspaceController {
     if (!this.helpOpen) return null;
     const w = 44;
     const lines: string[] = [];
-    lines.push(`\u001B[1m 키보드 단축키 \u001B[0m`);
-    lines.push('─'.repeat(w));
+    lines.push(currentTheme.boldFg('primary', ' 키보드 단축키'));
+    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
     const shortcuts: Array<[string, string]> = [
       ['F1', '키보드 도움말'],
       ['F2', '패널 퀵 스위처'],
@@ -714,12 +773,12 @@ export class WorkspaceController {
       ['패널 테두리 드래그', '패널 리사이즈'],
     ];
     for (const [key, desc] of shortcuts) {
-      const keyCol = `\u001B[36m${key}\u001B[0m`;
+      const keyCol = currentTheme.fg('accent', key);
       const pad = Math.max(1, 18 - key.length);
-      lines.push(` ${keyCol}${' '.repeat(pad)}${desc}`);
+      lines.push(` ${keyCol}${' '.repeat(pad)}${currentTheme.fg('text', desc)}`);
     }
-    lines.push('─'.repeat(w));
-    lines.push(' \u001B[2m아무 키나 눌러 닫기\u001B[0m');
+    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
+    lines.push(` ${currentTheme.dimFg('textMuted', '아무 키나 눌러 닫기')}`);
     return lines;
   }
 
@@ -881,21 +940,21 @@ export class WorkspaceController {
     if (!this.paletteOpen) return null;
     const cmds = this.getFilteredCommands();
     const lines: string[] = [];
-    lines.push(`\u001B[1m 명령 \u001B[0m  \u001B[2m${this.paletteFilter || '입력하여 검색…'}\u001B[0m`);
-    lines.push('─'.repeat(38));
+    lines.push(`${currentTheme.boldFg('primary', ' 명령')}  ${currentTheme.dimFg('textMuted', this.paletteFilter || '입력하여 검색…')}`);
+    lines.push(currentTheme.fg('primary', '─'.repeat(38)));
     if (cmds.length === 0) {
-      lines.push('  \u001B[2m(결과 없음)\u001B[0m');
+      lines.push(`  ${currentTheme.dimFg('textMuted', '(결과 없음)')}`);
     } else {
       for (let i = 0; i < cmds.length; i++) {
         const cmd = cmds[i]!;
-        const marker = i === this.paletteSelectedIndex ? '\u001B[36m❯\u001B[0m' : ' ';
-        const label = i === this.paletteSelectedIndex ? `\u001B[1m${cmd.label}\u001B[0m` : cmd.label;
-        const shortcut = cmd.shortcut ? ` \u001B[2m${cmd.shortcut}\u001B[0m` : '';
+        const marker = i === this.paletteSelectedIndex ? currentTheme.boldFg('primary', SELECT_POINTER) : ' ';
+        const label = i === this.paletteSelectedIndex ? currentTheme.boldFg('textStrong', cmd.label) : currentTheme.fg('text', cmd.label);
+        const shortcut = cmd.shortcut ? ` ${currentTheme.dimFg('textMuted', cmd.shortcut)}` : '';
         lines.push(` ${marker} ${label}${shortcut}`);
       }
     }
-    lines.push('─'.repeat(38));
-    lines.push(' \u001B[2m↑↓ 이동 · Enter 실행 · Esc 닫기\u001B[0m');
+    lines.push(currentTheme.fg('primary', '─'.repeat(38)));
+    lines.push(` ${currentTheme.dimFg('textMuted', '↑↓ 이동 · Enter 실행 · Esc 닫기')}`);
     return lines;
   }
 
@@ -1000,8 +1059,8 @@ export class WorkspaceController {
       ? ` (${this.searchCurrentMatch + 1}/${this.searchMatches.length})`
       : this.searchQuery.length > 0 ? ' (0/0)' : '';
 
-    lines.push(`\u001B[1m 검색: \u001B[0m${this.searchQuery}\u001B[2m${matchInfo}\u001B[0m`);
-    lines.push('\u001B[2mEnter: 다음 | Esc: 닫기\u001B[0m');
+    lines.push(`${currentTheme.boldFg('primary', ' 검색: ')}${currentTheme.fg('text', this.searchQuery)}${currentTheme.dimFg('textMuted', matchInfo)}`);
+    lines.push(currentTheme.dimFg('textMuted', 'Enter: 다음 | Esc: 닫기'));
     return lines;
   }
 
@@ -1020,27 +1079,27 @@ export class WorkspaceController {
     if (!this.statsOpen) return null;
     const w = 36;
     const lines: string[] = [];
-    lines.push('\u001B[1m 세션 통계 \u001B[0m');
-    lines.push('─'.repeat(w));
+    lines.push(currentTheme.boldFg('primary', ' 세션 통계'));
+    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
 
     const duration = formatDurationShort(stats.sessionDurationMs);
-    lines.push(` \u001B[2m세션 시간\u001B[0m      ${duration}`);
-    lines.push(` \u001B[2m총 활동\u001B[0m        ${stats.totalActivities}`);
+    lines.push(` ${currentTheme.dimFg('textMuted', '세션 시간')}      ${currentTheme.fg('text', duration)}`);
+    lines.push(` ${currentTheme.dimFg('textMuted', '총 활동')}        ${currentTheme.fg('text', String(stats.totalActivities))}`);
     lines.push('');
-    lines.push(` \u001B[36m⚡ 툴 호출\u001B[0m     ${stats.toolCalls}`);
-    lines.push(` \u001B[34m📖 파일 읽기\u001B[0m   ${stats.fileReads}`);
-    lines.push(` \u001B[35m✏ 파일 쓰기\u001B[0m   ${stats.fileWrites}`);
-    lines.push(` \u001B[36m▶ 명령 실행\u001B[0m    ${stats.commands}`);
-    lines.push(` \u001B[33m◌ 추론\u001B[0m         ${stats.thinkingEvents}`);
+    lines.push(` ${currentTheme.fg('primary', '⚡ 툴 호출')}     ${currentTheme.fg('text', String(stats.toolCalls))}`);
+    lines.push(` ${currentTheme.fg('accent', '📖 파일 읽기')}   ${currentTheme.fg('text', String(stats.fileReads))}`);
+    lines.push(` ${currentTheme.fg('particle', '✏ 파일 쓰기')}   ${currentTheme.fg('text', String(stats.fileWrites))}`);
+    lines.push(` ${currentTheme.fg('primary', '▶ 명령 실행')}    ${currentTheme.fg('text', String(stats.commands))}`);
+    lines.push(` ${currentTheme.fg('warning', '◌ 추론')}         ${currentTheme.fg('text', String(stats.thinkingEvents))}`);
     lines.push('');
 
     if (stats.maxContextTokens > 0) {
       const pct = Math.round((stats.contextTokens / stats.maxContextTokens) * 100);
-      lines.push(` \u001B[2m컨텍스트\u001B[0m      ${formatTokens(stats.contextTokens)}/${formatTokens(stats.maxContextTokens)} (${pct}%)`);
+      lines.push(` ${currentTheme.dimFg('textMuted', '컨텍스트')}      ${currentTheme.fg('text', `${formatTokens(stats.contextTokens)}/${formatTokens(stats.maxContextTokens)} (${String(pct)}%)`)}`);
     }
 
-    lines.push('─'.repeat(w));
-    lines.push(' \u001B[2m아무 키나 눌러 닫기\u001B[0m');
+    lines.push(currentTheme.fg('primary', '─'.repeat(w)));
+    lines.push(` ${currentTheme.dimFg('textMuted', '아무 키나 눌러 닫기')}`);
     return lines;
   }
 
@@ -1145,29 +1204,29 @@ export class WorkspaceController {
     const lines: string[] = [];
 
     if (this.presetSaveMode) {
-      lines.push('\u001B[1m 프리셋 저장 \u001B[0m');
-      lines.push('─'.repeat(30));
-      lines.push(` 이름: ${this.presetSaveName}\u001B[7m \u001B[0m`);
-      lines.push('─'.repeat(30));
-      lines.push(' \u001B[2mEnter 저장 · Esc 취소\u001B[0m');
+      lines.push(currentTheme.boldFg('primary', ' 프리셋 저장'));
+      lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+      lines.push(` ${currentTheme.fg('text', '이름:')} ${currentTheme.fg('textStrong', this.presetSaveName)}${currentTheme.bg('selectionBg', ' ')}`);
+      lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+      lines.push(` ${currentTheme.dimFg('textMuted', 'Enter 저장 · Esc 취소')}`);
       return lines;
     }
 
     const presets = this.presetManager.listPresets();
-    lines.push('\u001B[1m 레이아웃 프리셋 \u001B[0m');
-    lines.push('─'.repeat(30));
+    lines.push(currentTheme.boldFg('primary', ' 레이아웃 프리셋'));
+    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
     if (presets.length === 0) {
-      lines.push('  \u001B[2m(저장된 프리셋 없음)\u001B[0m');
+      lines.push(`  ${currentTheme.dimFg('textMuted', '(저장된 프리셋 없음)')}`);
     } else {
       for (let i = 0; i < presets.length; i++) {
         const name = presets[i]!;
-        const marker = i === this.presetSelectedIndex ? '\u001B[36m❯\u001B[0m' : ' ';
-        const label = i === this.presetSelectedIndex ? `\u001B[1m${name}\u001B[0m` : name;
+        const marker = i === this.presetSelectedIndex ? currentTheme.boldFg('primary', SELECT_POINTER) : ' ';
+        const label = i === this.presetSelectedIndex ? currentTheme.boldFg('textStrong', name) : currentTheme.fg('text', name);
         lines.push(` ${marker} ${label}`);
       }
     }
-    lines.push('─'.repeat(30));
-    lines.push(' \u001B[2m↑↓ 이동 · Enter 적용 · s 저장 · d 삭제 · Esc 닫기\u001B[0m');
+    lines.push(currentTheme.fg('primary', '─'.repeat(30)));
+    lines.push(` ${currentTheme.dimFg('textMuted', '↑↓ 이동 · Enter 적용 · s 저장 · d 삭제 · Esc 닫기')}`);
     return lines;
   }
 

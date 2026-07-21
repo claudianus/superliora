@@ -340,7 +340,21 @@ export class SessionEventHandler {
       case 'subagent.suspended':
       case 'subagent.completed':
       case 'subagent.failed':
-        this.subAgentEventHandler.handleLifecycleEvent(event); break;
+        this.subAgentEventHandler.handleLifecycleEvent(event);
+        // Track subagent lifecycle in activity feed
+        if (this.activityFeed !== undefined) {
+          const kind = event.type === 'subagent.completed' ? 'agent-done' as const
+            : event.type === 'subagent.failed' ? 'tool-error' as const
+            : event.type === 'subagent.spawned' ? 'agent-spawn' as const
+            : 'agent-progress' as const;
+          const label = event.type === 'subagent.completed' ? 'Agent 완료'
+            : event.type === 'subagent.failed' ? 'Agent 실패'
+            : event.type === 'subagent.spawned' ? 'Agent 시작'
+            : event.type === 'subagent.started' ? 'Agent 실행 중'
+            : 'Agent 일시정지';
+          this.activityFeed.push(kind, label, undefined, event.type === 'subagent.failed', Date.now());
+        }
+        break;
       case 'subagent.todo.updated':
         this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
       case 'tools.update_store':
@@ -719,7 +733,7 @@ export class SessionEventHandler {
               ? 'agent-spawn' as const
               : 'tool-start' as const;
       const detail = event.description ?? summarizeArgs(toolCall.args);
-      this.activityFeed.push(kind, event.name, detail);
+      this.activityFeed.push(kind, event.name, detail, false, Date.now());
     }
     if (event.name !== 'TodoList') {
       state.todoPanel.bumpActivity();
@@ -796,7 +810,16 @@ export class SessionEventHandler {
     if (this.activityFeed !== undefined && matchedCall !== undefined) {
       const kind = event.isError === true ? 'tool-error' as const : 'tool-result' as const;
       const outputPreview = resultData.output.slice(0, 80);
-      this.activityFeed.push(kind, `${matchedCall.name} done`, outputPreview, event.isError === true);
+      const entryId = this.activityFeed.push(kind, `${matchedCall.name} done`, outputPreview, event.isError === true);
+      // Complete the matching tool-start entry to record duration
+      const entries = this.activityFeed.getEntries();
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i]!;
+        if (e.label === matchedCall.name && e.durationMs === undefined && !e.isError) {
+          this.activityFeed.complete(e.id, Date.now() - e.timestamp, event.isError === true);
+          break;
+        }
+      }
     }
     this.subAgentEventHandler.handleAgentSwarmToolResult(
       event.toolCallId,

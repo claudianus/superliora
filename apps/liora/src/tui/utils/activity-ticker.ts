@@ -24,6 +24,7 @@ const KIND_TICKER_GLYPHS: Record<string, { glyph: string; token: TickerToken }> 
   command: { glyph: '▶', token: 'accent' },
   'agent-spawn': { glyph: '⑂', token: 'accent' },
   'agent-done': { glyph: '⑁', token: 'success' },
+  'agent-progress': { glyph: '⟳', token: 'particle' },
   info: { glyph: 'ℹ', token: 'textMuted' },
 };
 

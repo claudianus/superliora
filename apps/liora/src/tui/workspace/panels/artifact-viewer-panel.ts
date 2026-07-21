@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
+import { currentTheme } from '#/tui/theme';
 
 // ---------------------------------------------------------------------------
 // ArtifactViewerPanel
@@ -79,11 +80,10 @@ export class ArtifactViewerPanel implements PanelDefinition {
     const idx = lowerLine.indexOf(lowerQuery);
     if (idx === -1) return line;
 
-    // Wrap match in highlight ANSI codes (reverse video)
     const before = line.slice(0, idx);
     const match = line.slice(idx, idx + query.length);
     const after = line.slice(idx + query.length);
-    return `${before}\u001B[7m${match}\u001B[0m${after}`;
+    return `${before}${currentTheme.bg('selectionBg', currentTheme.fg('selectionText', match))}${after}`;
   }
 
   onInput(event: NativeInputEvent): boolean {
@@ -233,6 +233,6 @@ export class ArtifactViewerPanel implements PanelDefinition {
 // ANSI helpers
 // ---------------------------------------------------------------------------
 
-function dim(text: string): string { return `\x1b[2m${text}\x1b[0m`; }
-function bold(text: string): string { return `\x1b[1m${text}\x1b[0m`; }
-function underline(text: string): string { return `\x1b[4m${text}\x1b[0m`; }
+function dim(text: string): string { return currentTheme.dimFg('textDim', text); }
+function bold(text: string): string { return currentTheme.boldFg('textStrong', text); }
+function underline(text: string): string { return currentTheme.underlineFg('primary', text); }
