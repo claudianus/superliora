@@ -107,6 +107,7 @@ import type {
 import type { TUIState } from '../tui-state';
 import { createGoal as startGoalCommand } from '../commands/goal';
 import type { ActivityFeed } from '../workspace/panels/activity-transparency-panel';
+import { notifyTurnComplete, notifyError } from '../utils/desktop-notification';
 
 export interface SessionEventHost {
   state: TUIState;
@@ -509,6 +510,10 @@ export class SessionEventHandler {
     this.currentTurnUsage = undefined;
     this.goalCompletionTurnEnded = true;
     this.scheduleQueuedGoalPromotion();
+    // Desktop notification on successful turn completion
+    if (event.reason !== 'cancelled' && event.reason !== 'filtered') {
+      notifyTurnComplete();
+    }
   }
 
   private appendTurnSummary(event: TurnEndedEvent): void {
@@ -1106,6 +1111,8 @@ export class SessionEventHandler {
     this.host.streamingUI.flushNow();
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
+    // Desktop notification on error
+    notifyError(event.message ?? '세션 오류 발생');
     // Mark the last turn as failed so the user can re-send it with `/retry`
     // (Ctrl-Y).
     this.host.setLastTurnFailed(true);
