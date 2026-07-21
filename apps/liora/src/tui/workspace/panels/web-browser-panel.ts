@@ -5,6 +5,11 @@ import {
   encodeKittyDeleteImage,
 } from '@harness-kit/tui-renderer';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import type {
   BrowserUseRuntime,
   BrowserObservation,
@@ -320,7 +325,11 @@ export class WebBrowserPanel implements PanelDefinition {
   private renderStatusBar(width: number): string {
     const zoom = Math.round(this.state.zoom * 100);
     if (this.state.loading) {
-      return this.pad(this.dim(`  ⏳ Loading... (${zoom}%)`), width);
+      const appearance = getActiveAppearancePreferences();
+      const loadingText = `  ⏳ Loading... (${zoom}%)`;
+      return this.pad(shouldRenderAmbientEffects(appearance)
+        ? renderPulseText(loadingText, 'browser:loading', 'primary', appearance)
+        : this.dim(loadingText), width);
     }
     if (this.state.error) {
       return this.pad(this.red(`  ❌ ${this.state.error}`), width);
