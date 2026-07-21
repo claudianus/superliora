@@ -43,6 +43,7 @@ import {
   showSettingsSelector,
 } from './config';
 import { handleGoalCommand } from './goal';
+import { handleImproveHarnessCommand } from './improve-harness';
 import { handleCronCommand } from './cron';
 import { showDiff } from './diff';
 import { showLog } from './log';
@@ -455,6 +456,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'goal':
       await handleGoalCommand(host, args);
+      return;
+    case 'improve-harness':
+      await handleImproveHarnessCommand(host, args);
       return;
     case 'init':
       await handleInitCommand(host);

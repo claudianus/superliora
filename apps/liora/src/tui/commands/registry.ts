@@ -511,6 +511,14 @@ export const BUILTIN_SLASH_COMMANDS = [
     },
   },
   {
+    name: 'improve-harness',
+    aliases: [],
+    description: 'Analyze and improve the SuperLiora harness codebase (self-improvement mode)',
+    priority: 75,
+    argumentHint: '[area] [--auto]',
+    availability: () => 'idle-only',
+  },
+  {
     name: 'init',
     aliases: [],
     description: 'Analyze the codebase and generate AGENTS.md',
