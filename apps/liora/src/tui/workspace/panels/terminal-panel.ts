@@ -67,6 +67,8 @@ export class TerminalPanel implements PanelDefinition {
   private totalLinesReceived = 0;
   /** Whether output syntax highlighting is enabled */
   private syntaxHighlight = true;
+  /** Detected working directory from prompt */
+  private detectedCwd: string | null = null;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -125,7 +127,8 @@ export class TerminalPanel implements PanelDefinition {
           : `${String(Math.floor(uptimeSec / 3600))}h${String(Math.floor((uptimeSec % 3600) / 60))}m`;
       const cmdCount = this.commandHistory.length > 0 ? currentTheme.dimFg('textMuted', ` · ${String(this.commandHistory.length)}cmd`) : '';
       const compressBadge = this.bufferCompressed ? currentTheme.dimFg('textMuted', ` · ${String(this.totalLinesReceived)}L↑`) : '';
-      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + encBadge;
+      const cwdBadge = this.detectedCwd ? currentTheme.dimFg('textMuted', ` · ${this.detectedCwd.split('/').slice(-2).join('/')}`) : '';
+      const pidLabel = currentTheme.dimFg('textMuted', ` pid:${String(this.pty.pid)} · ${uptimeLabel}`) + cmdCount + compressBadge + cwdBadge + encBadge;
       visible[0] = (visible[0] ?? '').slice(0, this.cols - 22) + pidLabel;
     }
     // Command execution time indicator
@@ -446,6 +449,11 @@ export class TerminalPanel implements PanelDefinition {
     const promptLineStr = this.lines[this.lines.length - 1] ?? '';
     if (/^\s*[\$❯%>]\s*$/.test(promptLineStr) || /\$\s*$/.test(promptLineStr) || /❯\s*$/.test(promptLineStr)) {
       this.lastPromptLine = this.lines.length - 1;
+    }
+    // Detect working directory from prompt (common patterns: ~/path $ or /path ❯)
+    const cwdMatch = promptLineStr.match(/([~\/][^\s$❯%>]*)\s*[$❯%>]/);
+    if (cwdMatch && cwdMatch[1]) {
+      this.detectedCwd = cwdMatch[1];
     }
 
     // Auto-scroll to bottom
