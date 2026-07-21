@@ -326,10 +326,19 @@ export class WebBrowserPanel implements PanelDefinition {
     const zoom = Math.round(this.state.zoom * 100);
     if (this.state.loading) {
       const appearance = getActiveAppearancePreferences();
-      const loadingText = `  ⏳ Loading... (${zoom}%)`;
+      // Animated indeterminate progress bar
+      const BAR_W = Math.min(20, width - 16);
+      const pos = Math.floor(Date.now() / 100) % (BAR_W + 4);
+      const barChars = Array.from({ length: BAR_W }, (_, i) => {
+        const dist = Math.abs(i - (pos % BAR_W));
+        if (dist <= 1) return currentTheme.fg('primary', '█');
+        if (dist <= 3) return currentTheme.fg('accent', '▓');
+        return currentTheme.dimFg('border', '░');
+      }).join('');
+      const loadingText = `  ${barChars} ${zoom}%`;
       return this.pad(shouldRenderAmbientEffects(appearance)
-        ? renderPulseText(loadingText, 'browser:loading', 'primary', appearance)
-        : this.dim(loadingText), width);
+        ? loadingText
+        : this.dim(`  ⏳ Loading... (${zoom}%)`), width);
     }
     if (this.state.error) {
       return this.pad(this.red(`  ❌ ${this.state.error}`), width);

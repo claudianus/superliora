@@ -5,6 +5,11 @@ import type { NativeInputEvent } from '@harness-kit/tui-renderer';
 
 import type { PanelDefinition } from '../panel-definition';
 import { currentTheme } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  shouldRenderAmbientEffects,
+  renderParticleDivider,
+} from '#/tui/utils/appearance-effects';
 
 // ---------------------------------------------------------------------------
 // ArtifactViewerPanel
@@ -64,7 +69,11 @@ export class ArtifactViewerPanel implements PanelDefinition {
     // Scroll indicator
     if (this.renderedLines.length > height) {
       const pct = Math.round((this.scrollTop / maxScroll) * 100);
-      const footer = `${currentTheme.dimFg('border', ' ── ')}${currentTheme.fg('accent', `${String(pct)}%`)}${currentTheme.dimFg('border', ' ──')}`;
+      // Scroll progress bar
+      const BAR_W = Math.min(20, width - 10);
+      const filled = Math.round((pct / 100) * BAR_W);
+      const bar = currentTheme.fg('accent', '━'.repeat(filled)) + currentTheme.dimFg('border', '┄'.repeat(BAR_W - filled));
+      const footer = ` ${bar} ${currentTheme.fg('accent', `${String(pct)}%`)}`;
       if (lines.length > 0) {
         lines[lines.length - 1] = footer;
       }
@@ -216,25 +225,47 @@ export class ArtifactViewerPanel implements PanelDefinition {
 
   private renderMarkdown(lines: string[]): string[] {
     const rendered: string[] = [];
+    const appearance = getActiveAppearancePreferences();
+    const animate = shouldRenderAmbientEffects(appearance);
+    let inCodeBlock = false;
 
     for (const line of lines) {
+      if (line.startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        rendered.push(currentTheme.dimFg('border', inCodeBlock ? '┌─ code ─' : '└─────────'));
+        continue;
+      }
+      if (inCodeBlock) {
+        rendered.push(currentTheme.fg('accent', `│ ${line}`));
+        continue;
+      }
       if (line.startsWith('# ')) {
-        rendered.push(bold(line.slice(2)));
-        rendered.push(dim('─'.repeat(Math.min(40, line.length))));
+        const heading = currentTheme.boldFg('primary', line.slice(2));
+        rendered.push(heading);
+        rendered.push(animate
+          ? renderParticleDivider(Math.min(40, line.length + 4), 'artifact:h1', appearance)
+          : currentTheme.dimFg('border', '─'.repeat(Math.min(40, line.length + 4))));
       } else if (line.startsWith('## ')) {
-        rendered.push(bold(line.slice(3)));
+        rendered.push(currentTheme.boldFg('textStrong', `▎${line.slice(3)}`));
       } else if (line.startsWith('### ')) {
-        rendered.push(underline(line.slice(4)));
+        rendered.push(currentTheme.fg('accent', `  ${line.slice(4)}`));
       } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        rendered.push(`  • ${line.slice(2)}`);
-      } else if (line.startsWith('```')) {
-        rendered.push(dim(line));
+        rendered.push(`  ${currentTheme.fg('primary', '•')} ${currentTheme.fg('text', line.slice(2))}`);
+      } else if (line.match(/^\d+\. /)) {
+        const match = line.match(/^(\d+)\. (.*)/);
+        if (match) {
+          rendered.push(`  ${currentTheme.fg('accent', `${match[1]}.`)} ${currentTheme.fg('text', match[2] ?? '')}`);
+        } else {
+          rendered.push(currentTheme.fg('text', line));
+        }
       } else if (line.startsWith('> ')) {
-        rendered.push(dim(`│ ${line.slice(2)}`));
+        rendered.push(`${currentTheme.fg('primary', '│')} ${currentTheme.dimFg('textDim', line.slice(2))}`);
       } else if (line.trim() === '') {
         rendered.push('');
+      } else if (line.startsWith('**') && line.endsWith('**')) {
+        rendered.push(currentTheme.boldFg('textStrong', line.slice(2, -2)));
       } else {
-        rendered.push(line);
+        rendered.push(currentTheme.fg('text', line));
       }
     }
 
