@@ -76,6 +76,8 @@ export class TerminalPanel implements PanelDefinition {
   private lineTimestamps: number[] = [];
   /** Line number gutter toggle */
   private showLineNumbers = false;
+  /** Output folding for repeated lines */
+  private foldRepeated = true;
 
   constructor(cwd?: string) {
     this.cwd = cwd ?? process.cwd();
@@ -267,6 +269,12 @@ export class TerminalPanel implements PanelDefinition {
       // Ctrl+Shift+N: toggle line number gutter (use Ctrl+K as alternative)
       if (event.ctrl && event.key === 'character' && event.text === 'k') {
         this.showLineNumbers = !this.showLineNumbers;
+        return true;
+      }
+
+      // Ctrl+Y: toggle repeated line folding
+      if (event.ctrl && event.key === 'character' && event.text === 'y') {
+        this.foldRepeated = !this.foldRepeated;
         return true;
       }
 
@@ -504,7 +512,31 @@ export class TerminalPanel implements PanelDefinition {
 
   private getVisibleLines(height: number): string[] {
     const start = Math.max(0, Math.min(this.scrollTop, this.lines.length - 1));
-    const visible = this.lines.slice(start, start + height);
+    let visible = this.lines.slice(start, start + height);
+
+    // Fold repeated consecutive lines (e.g., progress bars, build output)
+    if (this.foldRepeated && visible.length > 3) {
+      const folded: string[] = [];
+      let repeatCount = 0;
+      let lastLine = '';
+      for (const line of visible) {
+        const trimmed = (line ?? '').trim();
+        if (trimmed === lastLine && trimmed.length > 0) {
+          repeatCount++;
+        } else {
+          if (repeatCount > 2) {
+            folded.push(currentTheme.dimFg('textMuted', `  ⋮ ×${String(repeatCount)} repeated`));
+          }
+          folded.push(line ?? '');
+          lastLine = trimmed;
+          repeatCount = 0;
+        }
+      }
+      if (repeatCount > 2) {
+        folded.push(currentTheme.dimFg('textMuted', `  ⋮ ×${String(repeatCount)} repeated`));
+      }
+      visible = folded;
+    }
 
     // Pad to fill height
     while (visible.length < height) {
