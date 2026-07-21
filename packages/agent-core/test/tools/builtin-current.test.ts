@@ -362,11 +362,11 @@ describe('current builtin file and shell tools', () => {
 });
 
 describe('current builtin collaboration tools', () => {
-  it('AskUserQuestion exposes parameters and auto-answers in yolo mode', async () => {
+  it('AskUserQuestion exposes parameters and auto-answers in auto mode', async () => {
     const requestQuestion = vi.fn(async () => ({ 'Which path?': 'A' }));
     const tool = new AskUserQuestionTool({
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
-      permission: { mode: 'yolo' },
+      permission: { mode: 'auto' },
       rpc: {
         requestQuestion,
       },

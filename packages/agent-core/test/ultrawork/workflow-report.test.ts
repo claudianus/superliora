@@ -22,6 +22,7 @@ function mockAgent(workDir: string) {
     kaos: { getcwd: () => workDir },
     log: { warn: () => {} },
     records: { logRecord: () => {}, flush: async () => {}, recordCount: () => 0 },
+    telemetry: { track: () => {} },
     emitEvent: () => {},
     context: {
       appendSystemReminder: (text: string) => {
@@ -167,7 +168,7 @@ describe('ultrawork workflow report harness', () => {
         evidenceRoot,
         workDir,
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isUltraworkWorkflowReportWritePath('/workspace/project/src/main.ts', evidenceRoot, workDir),
     ).toBe(false);

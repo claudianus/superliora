@@ -401,7 +401,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.systemPrompt).toContain('<persona_spec>');
     expect(child.llmCalls[0]?.systemPrompt).toContain('<role_declaration>');
     expect(child.llmCalls[0]?.systemPrompt).toContain('Anthropologist');
-    expect(child.llmCalls[0]?.systemPrompt).toContain('Anthropologist Agent Personality');
+    expect(child.llmCalls[0]?.systemPrompt).toContain('principal-level Anthropology specialist');
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'AskUserQuestion',

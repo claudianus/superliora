@@ -38,6 +38,7 @@ export interface ResearchSearchEngineOptions {
     readonly baseUrl: string;
     readonly apiKey?: string | undefined;
     readonly defaultHeaders?: Record<string, string> | undefined;
+    readonly customHeaders?: Record<string, string> | undefined;
     readonly tokenProvider?: {
       getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
     };
@@ -552,6 +553,7 @@ function buildProviderSlots(options: ResearchSearchEngineOptions): ProviderSlot[
         baseUrl: options.moonshot.baseUrl,
         apiKey: options.moonshot.apiKey,
         defaultHeaders: options.moonshot.defaultHeaders,
+        customHeaders: options.moonshot.customHeaders,
         tokenProvider: options.moonshot.tokenProvider,
         fetchImpl,
       }),

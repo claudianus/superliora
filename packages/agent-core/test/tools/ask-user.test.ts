@@ -181,37 +181,53 @@ describe('AskUserQuestionTool', () => {
     });
   });
 
-  it.each(['auto', 'yolo'] as const)(
-    'auto-answers recommended options without rpc in %s mode',
-    async (mode) => {
-      const { tool, requestQuestion, telemetryTrack } = makeTool({ mode });
+  it('auto-answers recommended options without rpc in auto mode', async () => {
+    const { tool, requestQuestion, telemetryTrack } = makeTool({ mode: 'auto' });
 
-      const result = await executeTool(tool, {
-        turnId: '0',
-        toolCallId: 'call_auto_question',
-        args: input({
-          options: [
-            { label: 'Postgres (Recommended)', description: 'Relational storage' },
-            { label: 'SQLite', description: 'Embedded storage' },
-          ],
-        }),
-        signal,
-      });
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_auto_question',
+      args: input({
+        options: [
+          { label: 'Postgres (Recommended)', description: 'Relational storage' },
+          { label: 'SQLite', description: 'Embedded storage' },
+        ],
+      }),
+      signal,
+    });
 
-      expect(result.isError).toBe(false);
-      expect(result.output).toBe(
-        JSON.stringify({
-          answers: { 'Which database?': 'Postgres (Recommended)' },
-          method: 'auto',
-        }),
-      );
-      expect(requestQuestion).not.toHaveBeenCalled();
-      expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
-        answered: 1,
+    expect(result.isError).toBe(false);
+    expect(result.output).toBe(
+      JSON.stringify({
+        answers: { 'Which database?': 'Postgres (Recommended)' },
         method: 'auto',
-      });
-    },
-  );
+      }),
+    );
+    expect(requestQuestion).not.toHaveBeenCalled();
+    expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
+      answered: 1,
+      method: 'auto',
+    });
+  });
+
+  it('asks the human through rpc in yolo mode instead of auto-answering', async () => {
+    const { tool, requestQuestion } = makeTool({ mode: 'yolo' });
+
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_yolo_question',
+      args: input({
+        options: [
+          { label: 'Postgres (Recommended)', description: 'Relational storage' },
+          { label: 'SQLite', description: 'Embedded storage' },
+        ],
+      }),
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(requestQuestion).toHaveBeenCalledOnce();
+  });
 
   it('auto-answers open-ended questions with a conservative assumption under auto', async () => {
     const { tool, requestQuestion, telemetryTrack } = makeTool({ mode: 'auto' });

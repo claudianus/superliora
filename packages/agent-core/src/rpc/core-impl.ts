@@ -1398,6 +1398,7 @@ async function createRuntimeConfig(input: {
                   baseUrl: searchService.baseUrl,
                   apiKey: moonshotCreds?.apiKey,
                   defaultHeaders: input.kimiRequestHeaders,
+                  customHeaders: searchService.customHeaders,
                   tokenProvider: moonshotCreds?.tokenProvider,
                 },
         });
