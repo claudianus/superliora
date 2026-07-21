@@ -507,8 +507,14 @@ export class TerminalPanel implements PanelDefinition {
       let l = (line ?? '').slice(0, this.cols);
       // Syntax highlighting for common output patterns
       if (this.syntaxHighlight && l.length > 0) {
+        // Diff output highlighting (+ lines green, - lines red)
+        if (/^\+[^+]/.test(l)) {
+          l = currentTheme.fg('diffAdded', l);
+        } else if (/^-[^-]/.test(l)) {
+          l = currentTheme.fg('diffRemoved', l);
+        }
         // Error patterns (Error:, error:, ERR!, ✗, FAILED)
-        if (/\b(Error|error|ERR!|FAILED|✗|fatal)\b/.test(l)) {
+        else if (/\b(Error|error|ERR!|FAILED|✗|fatal)\b/.test(l)) {
           l = currentTheme.fg('error', l);
         }
         // Warning patterns (Warning:, warn:, ⚠)
@@ -518,6 +524,10 @@ export class TerminalPanel implements PanelDefinition {
         // Success patterns (✓, done, OK, passed)
         else if (/\b(✓|done|OK|passed|success)\b/.test(l)) {
           l = currentTheme.fg('success', l);
+        }
+        // URL highlighting
+        else if (/https?:\/\//.test(l)) {
+          l = l.replace(/(https?:\/\/[^\s]+)/g, (url) => currentTheme.fg('primary', url));
         }
       }
       // Highlight search matches
