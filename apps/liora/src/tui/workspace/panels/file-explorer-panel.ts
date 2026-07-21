@@ -18,6 +18,7 @@ interface FileEntry {
   readonly gitStatus?: string;
   readonly sizeBytes?: number;
   readonly isSymlink?: boolean;
+  readonly isExecutable?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,9 +254,13 @@ export class FileExplorerPanel implements PanelDefinition {
 
       // Get file size for non-directory entries
       let sizeBytes: number | undefined;
+      let isExecutable = false;
       if (!isDirectory) {
         try {
-          sizeBytes = fs.statSync(fullPath).size;
+          const stat = fs.statSync(fullPath);
+          sizeBytes = stat.size;
+          // Check executable bit (owner)
+          isExecutable = (stat.mode & 0o100) !== 0;
         } catch {
           // ignore stat errors
         }
@@ -269,6 +274,7 @@ export class FileExplorerPanel implements PanelDefinition {
         gitStatus: this.gitStatusMap.get(path.relative(this.rootPath, fullPath)),
         sizeBytes,
         isSymlink,
+        isExecutable,
       });
 
       if (isDirectory && this.expandedDirs.has(fullPath)) {
@@ -399,11 +405,12 @@ export class FileExplorerPanel implements PanelDefinition {
       : currentTheme.fg(getFileNameToken(entry.name), entry.name);
     // Symlink indicator
     const symlinkBadge = entry.isSymlink ? currentTheme.fg('accent', ' @') : '';
+    const execBadge = entry.isExecutable ? currentTheme.fg('success', ' *') : '';
     // File size for non-directory entries (compact)
     const sizeBadge = entry.sizeBytes !== undefined && entry.sizeBytes > 0
       ? ` ${currentTheme.dimFg('textMuted', formatFileSize(entry.sizeBytes))}`
       : '';
-    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${gitBadge}${sizeBadge}`;
+    const label = `${connector}${styledIcon} ${nameStyled}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}`;
 
     const truncated = label.slice(0, width);
     if (isCursor) {
