@@ -34,6 +34,7 @@ export class FileExplorerPanel implements PanelDefinition {
   private expandedDirs = new Set<string>();
   private cursorIndex = 0;
   private scrollTop = 0;
+  private sortMode: 'name' | 'type' = 'name';
   private gitStatusMap = new Map<string, string>();
   private lastWidth = 30;
   private lastHeight = 20;
@@ -169,6 +170,14 @@ export class FileExplorerPanel implements PanelDefinition {
           this.expandAll();
           return true;
         }
+        if (event.text === 's' || event.text === 'S') {
+          // Toggle sort: name → type → name
+          this.sortMode = this.sortMode === 'name' ? 'type' : 'name';
+          this.rebuildEntries();
+          this.treeVersion++;
+          this.renderCache = null;
+          return true;
+        }
         return false;
       default:
         return false;
@@ -211,6 +220,11 @@ export class FileExplorerPanel implements PanelDefinition {
     items.sort((a, b) => {
       if (a.isDirectory() && !b.isDirectory()) return -1;
       if (!a.isDirectory() && b.isDirectory()) return 1;
+      if (this.sortMode === 'type') {
+        const extA = path.extname(a.name).toLowerCase();
+        const extB = path.extname(b.name).toLowerCase();
+        if (extA !== extB) return extA.localeCompare(extB);
+      }
       return a.name.localeCompare(b.name);
     });
 
