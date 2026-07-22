@@ -869,6 +869,18 @@ export class BentoDashboardComponent extends Container implements Focusable {
       (sum, q) => sum + (this.expandViews.get(q.id)?.getStreamLineCount() ?? 0),
       0,
     );
+    // Gen 84: fleet-wide error/warning line counts across all expand views.
+    const totalProblems = quests.reduce(
+      (acc, q) => {
+        const counts = this.expandViews.get(q.id)?.getProblemCounts();
+        if (counts !== undefined) {
+          acc.errors += counts.errors;
+          acc.warnings += counts.warnings;
+        }
+        return acc;
+      },
+      { errors: 0, warnings: 0 },
+    );
     // Gen 51: fleet-wide average health score.
     const avgHealth = quests.length > 0
       ? Math.round(quests.reduce((sum, q) => sum + questHealthScore(q, now), 0) / quests.length)
@@ -898,6 +910,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 80: fleet-wide stream line count.
     if (totalStreamLines > 0) {
       summaryParts.push(`≣ ${String(totalStreamLines)} lines`);
+    }
+    // Gen 84: fleet-wide error/warning line counts.
+    if (totalProblems.errors > 0 || totalProblems.warnings > 0) {
+      const parts: string[] = [];
+      if (totalProblems.errors > 0) parts.push(`✖${String(totalProblems.errors)}`);
+      if (totalProblems.warnings > 0) parts.push(`⚠${String(totalProblems.warnings)}`);
+      summaryParts.push(parts.join(' '));
     }
     if (avgHealth > 0) {
       summaryParts.push(`♥ ${String(avgHealth)}`);
