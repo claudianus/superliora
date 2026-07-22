@@ -74,7 +74,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
   private readonly pinController: PinController;
   private readonly approvalController: ApprovalController | undefined;
   private readonly expandViews: ReadonlyMap<string, QuestExpandView>;
-  private readonly blinkPhase: boolean;
+  private blinkPhase: boolean;
   private readonly now: () => number;
   private readonly onClose: () => void;
 
@@ -88,6 +88,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     this.blinkPhase = options.blinkPhase;
     this.now = options.now ?? (() => Date.now());
     this.onClose = options.onClose;
+  }
+
+  /** Update the blink phase (called by the dashboard refresh timer). */
+  setBlinkPhase(phase: boolean): void {
+    this.blinkPhase = phase;
   }
 
   // -------------------------------------------------------------------------

@@ -411,6 +411,7 @@ export class LioraTUI {
   private questAttentionController: AttentionController | undefined;
   private questPinController: PinController | undefined;
   private questApprovalController: QuestApprovalController | undefined;
+  private dashboardPanel: BentoDashboardComponent | undefined;
   private dashboardBlinkTimer: ReturnType<typeof setInterval> | undefined;
   private dashboardBlinkPhase = false;
 
@@ -4058,28 +4059,19 @@ export class LioraTUI {
       });
     }
 
-    // Start blink timer (500ms toggle)
+    // Initial sync from live session + background tasks
+    this.syncQuestDashboard();
+
+    // Refresh timer: re-sync quest state and toggle the blink phase so
+    // attention pulses animate and live status changes show up without
+    // needing to reopen the dashboard.
     this.dashboardBlinkPhase = false;
     this.dashboardBlinkTimer ??= setInterval(() => {
       this.dashboardBlinkPhase = !this.dashboardBlinkPhase;
+      this.syncQuestDashboard();
+      this.dashboardPanel?.setBlinkPhase(this.dashboardBlinkPhase);
       requestTUIContentRender(this.state);
     }, 500);
-
-    // Sync quest grid from live session + background tasks
-    const grid = this.questGridController;
-    const attention = this.questAttentionController;
-    if (grid && attention) {
-      const session = this.session;
-      syncQuestGridFromSnapshot(grid, attention, {
-        sessionId: this.state.appState.sessionId ?? 'unknown',
-        sessionTitle: session?.title ?? 'Main Session',
-        streamingPhase: this.state.appState.streamingPhase,
-        isCompacting: this.state.appState.isCompacting,
-        approvalPending: this.state.livePane.pendingApproval !== null,
-        backgroundTasks: this.sessionEventHandler.backgroundTasks,
-        workDir: this.state.appState.workDir ?? process.cwd(),
-      });
-    }
 
     const panel = new BentoDashboardComponent({
       gridController: this.questGridController,
@@ -4090,9 +4082,27 @@ export class LioraTUI {
       blinkPhase: this.dashboardBlinkPhase,
       onClose: () => this.hideDashboard(),
     });
+    this.dashboardPanel = panel;
 
     this.state.activeDialog = 'dashboard';
     this.mountEditorReplacement(panel);
+  }
+
+  /** Build a runtime snapshot and sync the quest grid + attention state. */
+  private syncQuestDashboard(): void {
+    const grid = this.questGridController;
+    const attention = this.questAttentionController;
+    if (grid === undefined || attention === undefined) return;
+    const session = this.session;
+    syncQuestGridFromSnapshot(grid, attention, {
+      sessionId: this.state.appState.sessionId ?? 'unknown',
+      sessionTitle: session?.title ?? 'Main Session',
+      streamingPhase: this.state.appState.streamingPhase,
+      isCompacting: this.state.appState.isCompacting,
+      approvalPending: this.state.livePane.pendingApproval !== null,
+      backgroundTasks: this.sessionEventHandler.backgroundTasks,
+      workDir: this.state.appState.workDir ?? process.cwd(),
+    });
   }
 
   private hideDashboard(): void {
@@ -4100,6 +4110,7 @@ export class LioraTUI {
       clearInterval(this.dashboardBlinkTimer);
       this.dashboardBlinkTimer = undefined;
     }
+    this.dashboardPanel = undefined;
     this.state.activeDialog = null;
     this.restoreEditor();
   }
