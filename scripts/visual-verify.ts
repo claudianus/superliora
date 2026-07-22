@@ -643,6 +643,70 @@ rename to docs/README.md
   ]);
   console.log(`  MenuBar: ${menuBar.render({ termWidth: 70, termHeight: 24, fg, boldFg, dimFg })}`);
 
+  // ═══ Iteration 18 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 18 Modules ═══\x1b[0m');
+
+  // ─── 28. Toast Notification ───────────────────────────────────────
+  console.log('\n\x1b[1;33m── ToastNotification ──\x1b[0m');
+  const { ToastManager } = await import('../apps/liora/src/tui/utils/toast-notification.ts');
+  const toastMgr = new ToastManager({ position: 'top-right' });
+  toastMgr.success('File saved', 'src/components/Button.tsx');
+  toastMgr.error('Build failed', 'TypeScript: 3 errors found');
+  toastMgr.warning('Low disk space', 'Only 2GB remaining');
+  toastMgr.show({
+    severity: 'info',
+    title: 'Downloading dependencies...',
+    progress: 0.65,
+    actions: [{ label: 'Cancel', action: () => {} }],
+  });
+  const toastLines2 = toastMgr.render({ width: 42, fg, boldFg, dimFg });
+  for (const line of toastLines2) console.log(`  ${line}`);
+  console.log(`  Position: ${toastMgr.getPosition()} | Visible: ${toastMgr.count}`);
+
+  // ─── 29. Progress Indicator ───────────────────────────────────────
+  console.log('\n\x1b[1;33m── ProgressIndicator ──\x1b[0m');
+  const { ProgressTracker, Spinner, renderStepIndicator } = await import('../apps/liora/src/tui/utils/progress-indicator.ts');
+  const progTracker = new ProgressTracker();
+  progTracker.create({ id: 'build', label: 'Building project', total: 100, unit: 'files' });
+  progTracker.update('build', 73);
+  progTracker.create({ id: 'test', label: 'Running tests', total: 45, unit: 'tests' });
+  progTracker.update('test', 45);
+  progTracker.complete('test');
+  progTracker.create({ id: 'deploy', label: 'Deploying', total: 0 }); // indeterminate
+  const progLines2 = progTracker.render({ width: 50, barStyle: 'classic', showPercentage: true, showEta: true, fg, boldFg, dimFg });
+  for (const line of progLines2) console.log(`  ${line}`);
+  // Spinner styles
+  const spinner2 = new Spinner('Loading modules', 'dots');
+  spinner2.tick(); spinner2.tick(); spinner2.tick();
+  console.log(`  Spinner: ${spinner2.render(fg)}`);
+  console.log(`  Frames: ${spinner2.getFrames().join(' ')}`);
+  // Step indicator
+  const stepLines2 = renderStepIndicator({
+    steps: ['Install', 'Configure', 'Build', 'Test', 'Deploy'],
+    current: 2,
+    width: 50,
+    fg, boldFg, dimFg,
+  });
+  for (const line of stepLines2) console.log(`  ${line}`);
+
+  // ─── 30. Quick Launcher ───────────────────────────────────────────
+  console.log('\n\x1b[1;33m── QuickLauncher ──\x1b[0m');
+  const { QuickLauncher } = await import('../apps/liora/src/tui/utils/quick-launcher.ts');
+  const launcher = new QuickLauncher();
+  launcher.registerAll([
+    { id: 'git-commit', title: 'Git: Commit Changes', category: 'Git', icon: '🔀', shortcut: '⌃⇧G', action: () => {} },
+    { id: 'git-push', title: 'Git: Push to Remote', category: 'Git', icon: '📤', action: () => {} },
+    { id: 'file-save', title: 'File: Save All', category: 'File', icon: '💾', shortcut: '⌃S', pinned: true, action: () => {} },
+    { id: 'term-toggle', title: 'Terminal: Toggle Panel', category: 'View', icon: '⬛', action: () => {} },
+    { id: 'theme-dark', title: 'Theme: Switch to Dark', category: 'Preferences', icon: '🌙', action: () => {} },
+    { id: 'search-all', title: 'Search: Find in Files', category: 'Search', icon: '🔍', shortcut: '⌃⇧F', action: () => {} },
+  ]);
+  launcher.open();
+  launcher.setQuery('git');
+  const launcherLines = launcher.render({ width: 52, height: 12, fg, boldFg, dimFg });
+  for (const line of launcherLines) console.log(`  ${line}`);
+  console.log(`  Results: ${launcher.resultCount} | Query: "${launcher.query}"`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
