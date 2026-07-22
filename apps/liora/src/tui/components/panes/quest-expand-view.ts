@@ -257,7 +257,7 @@ export class QuestExpandView {
     const headerLine2 = `   ${worktree}  ${changes}  ${elapsed}  ${idle}${dwell}`;
     lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
 
-    // Third header line: todo progress + context usage + plan step
+    // Third header line: todo progress + context usage + model/cost + plan step
     // Gen 36: mini-bars match the dashboard cells for consistent scanning.
     const progressParts: string[] = [];
     if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
@@ -266,6 +266,13 @@ export class QuestExpandView {
     }
     if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
       progressParts.push(renderContextBar(quest.contextUsage));
+    }
+    // Gen 38: model name + session cost, matching the dashboard cells.
+    if (quest.modelName !== undefined && quest.modelName.length > 0) {
+      progressParts.push(quest.modelName);
+    }
+    if (quest.sessionCostUsd !== undefined && quest.sessionCostUsd > 0) {
+      progressParts.push(`$${quest.sessionCostUsd.toFixed(2)}`);
     }
     const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
     // Gen 13: surface the pending approval in the header when awaiting one.

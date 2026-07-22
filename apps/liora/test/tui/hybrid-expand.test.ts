@@ -206,6 +206,30 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[1]).not.toContain('⏳ waiting');
   });
 
+  it('Gen 38: expand view header shows model name and session cost', () => {
+    const quest = makeQuest('a', {
+      state: 'running',
+      modelName: 'kimi-k2',
+      sessionCostUsd: 1.23,
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    // Model + cost appear on the third header line (index 2).
+    expect(lines[2]).toContain('kimi-k2');
+    expect(lines[2]).toContain('$1.23');
+  });
+
+  it('Gen 38: expand view header omits cost when zero', () => {
+    const quest = makeQuest('a', { state: 'running', sessionCostUsd: 0 });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[2]).not.toContain('$');
+  });
+
   it('expand view auto-scrolls when exceeding max visible lines', () => {
     const quest = makeQuest('a');
     const view = new QuestExpandView();
