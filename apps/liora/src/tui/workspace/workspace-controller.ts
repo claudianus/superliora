@@ -3,6 +3,7 @@ import type {
   NativeInputEvent,
   NativeInputRouter,
   RendererRect,
+  WorkspaceLayoutMode,
   WorkspaceLayoutResult,
 } from '@harness-kit/tui-renderer';
 import {
@@ -72,6 +73,9 @@ export class WorkspaceController {
   readonly dragController: DragController;
   private readonly requestRender: () => void;
   private currentLayout: WorkspaceLayoutResult | null = null;
+  // Last breakpoint mode measured by `computeLayout`, kept even when
+  // `currentLayout` is null (no docks present) — see `toggleDockDrawerAware`.
+  private lastLayoutMode: WorkspaceLayoutMode | null = null;
   private enabled = true;
 
   // Panel quick switcher state
@@ -242,6 +246,12 @@ export class WorkspaceController {
       leftDockVisible: layoutOptions.leftDockVisible,
       rightDockVisible: layoutOptions.rightDockVisible,
     });
+    // Cache the breakpoint mode independently of whether docks ended up
+    // present — `currentLayout` goes back to `null` below when neither dock
+    // is in the layout (e.g. narrow with no forced drawer yet), but the mode
+    // itself was still measured and must survive for the next
+    // `toggleDockDrawerAware` call.
+    this.lastLayoutMode = layout.mode;
 
     // Forced-dock overlay: if the dock the user last toggled ended up
     // visible but the current breakpoint would still hide it structurally
@@ -325,7 +335,14 @@ export class WorkspaceController {
    * applies it to `panelManager`/`lastToggledDock`.
    */
   private toggleDockDrawerAware(dock: 'left' | 'right'): void {
-    const mode = this.currentLayout?.mode ?? 'wide';
+    // `currentLayout` is null whenever no dock is structurally/drawer
+    // present (e.g. narrow with nothing toggled yet) — that must NOT be
+    // read as 'wide', or the breakpoint-hidden branch below never
+    // triggers and the first press falls through to a plain toggle. Use
+    // the mode cached from the last `computeLayout` measurement instead;
+    // it survives regardless of dock presence. Only fall back to 'wide'
+    // if no layout has ever been measured yet.
+    const mode = this.lastLayoutMode ?? 'wide';
     const isDockInLayout =
       dock === 'left' ? this.currentLayout?.leftDock !== undefined : this.currentLayout?.rightDock !== undefined;
     const decision = resolveDockToggleDecision({
