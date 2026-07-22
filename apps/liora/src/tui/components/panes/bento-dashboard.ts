@@ -465,6 +465,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
   private renderDashboard(quests: readonly Quest[], width: number): string[] {
     const lines: string[] = [];
+    const now = this.now();
 
     // Gen 19: summary bar — total quests, attention count, total cost.
     const attentionCount = quests.filter((q) => ATTENTION_STATES.has(q.state)).length;
@@ -475,6 +476,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 45: fleet-wide change totals.
     const totalAdded = quests.reduce((sum, q) => sum + q.changeCount.added, 0);
     const totalRemoved = quests.reduce((sum, q) => sum + q.changeCount.removed, 0);
+    // Gen 51: fleet-wide average health score.
+    const avgHealth = quests.length > 0
+      ? Math.round(quests.reduce((sum, q) => sum + questHealthScore(q, now), 0) / quests.length)
+      : 0;
     const summaryParts = [`${String(quests.length)} quests`];
     if (runningCount > 0) {
       summaryParts.push(`● ${String(runningCount)} running`);
@@ -487,6 +492,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     if (totalAdded > 0 || totalRemoved > 0) {
       summaryParts.push(`+${String(totalAdded)} -${String(totalRemoved)}`);
+    }
+    if (avgHealth > 0) {
+      summaryParts.push(`♥ ${String(avgHealth)}`);
     }
     if (totalCost > 0) {
       summaryParts.push(`$${totalCost.toFixed(2)}`);
@@ -526,7 +534,6 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return lines;
     }
 
-    const now = this.now();
     for (const quest of quests) {
       const block = this.renderCellBlock(quest, width, now);
       lines.push(...block);
