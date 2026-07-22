@@ -1,5 +1,13 @@
 export { LioraHarness, LioraMemoryClient } from '#/liora-harness';
 export type { LioraHarnessRuntimeOptions } from '#/liora-harness';
+export {
+  HarnessDiagnostics,
+  type DiagnosticCallbacks,
+  type DiagnosticEvent,
+  type DiagnosticOptions,
+  type DiagnosticSeverity,
+  type HealthSnapshot,
+} from '#/harness-diagnostics';
 export { Session } from '#/session';
 export { tryAutoResumeUltrawork, ensureUltraworkResumeSetup } from '#/ultrawork-auto-resume';
 export type { AutoResumeUltraworkResult } from '#/ultrawork-auto-resume';
