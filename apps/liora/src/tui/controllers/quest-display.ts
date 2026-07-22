@@ -7,7 +7,7 @@
  * unit-testable in isolation.
  */
 
-import { formatElapsed, type Quest, type QuestState, questHealthScore } from './quest-types';
+import { formatElapsed, type Quest, type QuestState, questHealthScore, formatChangeCount } from './quest-types';
 import type { AttentionSummary, EscalationLevel } from './attention-controller';
 import {
   rankQuestsByUrgency,
@@ -418,4 +418,22 @@ export function formatCombinedFleetSummary(
   );
   if (parts.length === 0) return null;
   return parts.join(' · ');
+}
+
+/**
+ * Gen 76: a single compact line describing one quest, e.g.
+ * "Fix login [waiting-approval] ♥ 82 +12 -3". Composes the quest name, state,
+ * health score, and change count so triage overlays and lists can render a
+ * quest summary from one call. The health and change segments are included
+ * only when they carry information.
+ */
+export function formatQuestCompactLine(quest: Quest, now: number = Date.now()): string {
+  const parts: string[] = [quest.name, `[${quest.state}]`];
+  const health = questHealthScore(quest, now);
+  parts.push(`♥ ${String(health)}`);
+  const changes = formatChangeCount(quest.changeCount);
+  if (changes !== '+0 -0') {
+    parts.push(changes);
+  }
+  return parts.join(' ');
 }

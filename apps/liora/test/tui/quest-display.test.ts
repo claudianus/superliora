@@ -22,6 +22,7 @@ import {
   classifyHealthSeverity,
   buildFleetSummarySnapshot,
   formatCombinedFleetSummary,
+  formatQuestCompactLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -644,5 +645,43 @@ describe('formatCombinedFleetSummary (Gen 75)', () => {
     };
     const combined = formatCombinedFleetSummary([], attention, [2], 100_000);
     expect(combined).toBe('2 need attention (oldest 5m, 1 critical)');
+  });
+});
+
+describe('formatQuestCompactLine (Gen 76)', () => {
+  it('renders name, state, health, and changes', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      name: 'Fix login',
+      state: 'waiting-approval',
+      lastActivityAt: now,
+      changeCount: { added: 12, removed: 3 },
+    });
+    const line = formatQuestCompactLine(quest, now);
+    expect(line).toContain('Fix login');
+    expect(line).toContain('[waiting-approval]');
+    expect(line).toContain('♥');
+    expect(line).toContain('+12 -3');
+  });
+
+  it('omits the change segment when there are no changes', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      name: 'Idle quest',
+      state: 'idle',
+      lastActivityAt: now,
+      changeCount: { added: 0, removed: 0 },
+    });
+    const line = formatQuestCompactLine(quest, now);
+    expect(line).toContain('Idle quest [idle]');
+    expect(line).toContain('♥');
+    expect(line).not.toContain('+0 -0');
+  });
+
+  it('always includes the health score', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', { state: 'running', lastActivityAt: now });
+    const line = formatQuestCompactLine(quest, now);
+    expect(line).toMatch(/♥ \d+/);
   });
 });
