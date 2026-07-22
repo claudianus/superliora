@@ -487,6 +487,87 @@ rename to docs/README.md
   console.log(`  Position: ${viewport.renderPositionIndicator({ width: 50, height: 8, fg, dimFg })}`);
   console.log(`  State: scrollY=${viewport.getState().scrollY.toFixed(1)} max=${viewport.maxScroll} atBottom=${viewport.isAtBottom}`);
 
+  // ─── 22. Tree View ────────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── TreeView ──\x1b[0m');
+  const { TreeView } = await import('../apps/liora/src/tui/utils/tree-view.ts');
+  const tree = new TreeView();
+  tree.setNodes([
+    { id: 'src', label: 'src', type: 'directory', expanded: true, children: [
+      { id: 'tui', label: 'tui', type: 'directory', expanded: true, children: [
+        { id: 'utils', label: 'utils', type: 'directory', expanded: false, badge: 'modified', children: [] },
+        { id: 'liora-tui', label: 'liora-tui.ts', type: 'file', modified: true },
+        { id: 'components', label: 'components', type: 'directory', expanded: false, children: [] },
+      ]},
+      { id: 'config', label: 'config.ts', type: 'file' },
+      { id: 'index', label: 'index.ts', type: 'file', badge: 'staged' },
+    ]},
+    { id: 'pkg', label: 'package.json', type: 'file', icon: '📦' },
+    { id: 'readme', label: 'README.md', type: 'file' },
+    { id: 'node_modules', label: 'node_modules', type: 'directory', expanded: false, disabled: true, children: [] },
+  ]);
+  const treeLines = tree.render({ width: 50, height: 12, fg, boldFg, dimFg });
+  for (const line of treeLines) console.log(`  ${line}`);
+  console.log(`  Visible: ${tree.visibleCount} nodes | Focused: ${tree.focusedNode?.label}`);
+  // Navigate
+  tree.moveDown();
+  tree.moveDown();
+  console.log(`  After 2x down: ${tree.focusedNode?.label}`);
+
+  // ─── 23. Tab Bar ──────────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── TabBar ──\x1b[0m');
+  const { TabBar } = await import('../apps/liora/src/tui/utils/tab-bar.ts');
+  const tabBar = new TabBar();
+  tabBar.addTab({ title: 'main.ts', icon: '🟦', status: 'active' });
+  tabBar.addTab({ title: 'theme-engine.ts', icon: '🟦', modified: true, status: 'working' });
+  tabBar.addTab({ title: 'README.md', icon: '📝' });
+  tabBar.addTab({ title: 'Terminal Session 1', icon: '⬛', sessionId: 'sess-1', status: 'idle' });
+  tabBar.addTab({ title: 'Terminal Session 2', icon: '⬛', sessionId: 'sess-2', status: 'error' });
+  tabBar.addTab({ title: 'Settings', icon: '⚙️', pinned: true });
+  const tabLines = tabBar.render({ width: 70, fg, boldFg, dimFg });
+  for (const line of tabLines) console.log(`  ${line}`);
+  console.log(`  Tabs: ${tabBar.tabCount} | Active: ${tabBar.activeTab?.title}`);
+  tabBar.nextTab();
+  console.log(`  After next: ${tabBar.activeTab?.title}`);
+  console.log(`  Badge: ${tabBar.renderBadge({ width: 70, fg, boldFg, dimFg })}`);
+
+  // ─── 24. Sparkline Charts ─────────────────────────────────────────
+  console.log('\n\x1b[1;33m── SparklineCharts ──\x1b[0m');
+  const { renderSparkline: renderSpark2, renderBarChart, renderGauge, renderHeatmap, renderTrend, renderMiniStat } = await import('../apps/liora/src/tui/utils/sparkline-charts.ts');
+  const fpsData = [58, 60, 59, 55, 42, 38, 52, 58, 60, 60, 59, 57, 60, 58, 55, 50, 45, 55, 58, 60];
+  console.log(`  FPS sparkline: ${renderSpark2(fpsData, { width: 20, threshold: 50, criticalThreshold: 40, fg, dimFg })}`);
+  const memData = [45, 48, 52, 55, 60, 65, 70, 72, 75, 80, 82, 85];
+  console.log(`  Memory trend:  ${renderSpark2(memData, { width: 12, fg, dimFg })} ${renderTrend(85, 45, fg, dimFg)}`);
+  // Bar chart
+  const barItems = [
+    { value: 45000, label: 'system' },
+    { value: 85000, label: 'messages' },
+    { value: 32000, label: 'tools' },
+    { value: 28000, label: 'files' },
+    { value: 8000, label: 'memory' },
+  ];
+  console.log('  Token breakdown:');
+  const barLines = renderBarChart(barItems, { width: 50, fg, boldFg, dimFg });
+  for (const line of barLines) console.log(`    ${line}`);
+  // Gauge
+  console.log('  Context gauge:');
+  const gaugeLines = renderGauge(0.72, { width: 40, label: 'Context Usage', thresholds: { warning: 0.7, critical: 0.9 }, fg, boldFg, dimFg });
+  for (const line of gaugeLines) console.log(`    ${line}`);
+  // Heatmap (activity over 7 days x 6 hours)
+  const heatData = [
+    [0, 1, 3, 5, 2, 0],
+    [1, 2, 4, 8, 6, 1],
+    [0, 3, 6, 9, 7, 2],
+    [2, 4, 7, 10, 8, 3],
+    [1, 3, 5, 7, 4, 1],
+    [0, 1, 2, 4, 3, 0],
+    [0, 0, 1, 2, 1, 0],
+  ];
+  console.log('  Activity heatmap:');
+  const heatLines = renderHeatmap(heatData, { cols: 6, rows: 7, fg, dimFg });
+  for (const line of heatLines) console.log(`    ${line}`);
+  // Mini stat
+  console.log(`  Mini stat: ${renderMiniStat('FPS', '58', fpsData.slice(-12), { width: 12, fg, dimFg })}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
