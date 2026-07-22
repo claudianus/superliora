@@ -197,3 +197,43 @@ describe('attention dwell time (Gen 32)', () => {
     expect(ctrl.getMostNeglectedQuestId()).toBeNull();
   });
 });
+
+describe('attention event idempotency (Gen 45)', () => {
+  it('does not re-ring the bell on repeated same-state events', () => {
+    const { ctrl, writeRaw } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+
+    // The bell rings exactly once, on first entry into the attention state.
+    expect(writeRaw).toHaveBeenCalledTimes(1);
+    expect(writeRaw).toHaveBeenCalledWith('\x07');
+  });
+
+  it('does not append duplicate event-log entries', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+
+    // Only one latency event is recorded, keeping the metrics clean.
+    expect(ctrl.getEventLog()).toHaveLength(1);
+  });
+
+  it('rings the bell again after leaving and re-entering attention', () => {
+    const { ctrl, writeRaw } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q1', 'running');
+    ctrl.onQuestStateChanged('q1', 'failed');
+
+    // Two genuine transitions into attention → two bells.
+    expect(writeRaw).toHaveBeenCalledTimes(2);
+    expect(ctrl.getEventLog()).toHaveLength(2);
+  });
+
+  it('keeps pulsing while the repeated event is suppressed', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    expect(ctrl.isPulsing('q1')).toBe(true);
+  });
+});

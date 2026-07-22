@@ -87,6 +87,12 @@ export class AttentionController {
       return;
     }
 
+    // Gen 45: idempotency guard — if the quest is already pulsing (already in
+    // an attention state), a repeated attention event must not re-ring the
+    // bell or append another event-log entry. The operator is already aware;
+    // re-firing would spam the bell and pollute the latency metrics.
+    const alreadyPulsing = this.pulsingQuestIds.has(questId);
+
     const receivedAt = this.now();
 
     // Trigger pulse (visual)
@@ -96,6 +102,10 @@ export class AttentionController {
     // must not reset the clock.
     if (!this.attentionEnteredAt.has(questId)) {
       this.attentionEnteredAt.set(questId, receivedAt);
+    }
+
+    if (alreadyPulsing) {
+      return;
     }
 
     // Trigger bell (auditory) — simultaneous with pulse
