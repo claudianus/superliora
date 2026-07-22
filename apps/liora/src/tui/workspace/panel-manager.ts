@@ -1,4 +1,10 @@
 import type { WorkspaceDockId, WorkspaceLayoutResult } from '@harness-kit/tui-renderer';
+import {
+  DEFAULT_LEFT_DOCK_WIDTH,
+  DEFAULT_RIGHT_DOCK_WIDTH,
+  DOCK_WIDTH_MAX,
+  DOCK_WIDTH_MIN,
+} from '@harness-kit/tui-renderer';
 
 import type { DockAssignment, PanelDefinition, PanelInstance } from './panel-definition';
 
@@ -49,8 +55,8 @@ export class PanelManager {
   private lastFocusChangeAtMs = 0;
 
   constructor(options: PanelManagerOptions = {}) {
-    this.leftDockWidth = options.leftDockWidth ?? 30;
-    this.rightDockWidth = options.rightDockWidth ?? 40;
+    this.leftDockWidth = options.leftDockWidth ?? DEFAULT_LEFT_DOCK_WIDTH;
+    this.rightDockWidth = options.rightDockWidth ?? DEFAULT_RIGHT_DOCK_WIDTH;
     this.leftDockVisible = options.leftDockVisible ?? true;
     this.rightDockVisible = options.rightDockVisible ?? true;
     this.leftDockMode = options.leftDockMode ?? 'split';
@@ -130,7 +136,7 @@ export class PanelManager {
   }
 
   setDockWidth(dock: WorkspaceDockId, width: number): void {
-    const clamped = Math.max(15, Math.min(80, width));
+    const clamped = Math.max(DOCK_WIDTH_MIN, Math.min(DOCK_WIDTH_MAX, Math.round(width)));
     if (dock === 'left') {
       this.leftDockWidth = clamped;
     } else {
