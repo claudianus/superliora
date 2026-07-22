@@ -1,10 +1,23 @@
 import chalk from 'chalk';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { visibleWidth } from '#/tui/renderer';
 
 import { BannerComponent } from '#/tui/components/chrome/banner';
 import { currentTheme } from '#/tui/theme';
 import type { BannerState } from '#/tui/types';
+
+// Disable ambient effects so tests are deterministic (no particle rail,
+// no premium headline glyph substitution).
+vi.mock('#/tui/utils/appearance-effects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/utils/appearance-effects')>();
+  return {
+    ...actual,
+    shouldRenderAmbientEffects: () => false,
+    renderParticleRail: () => '',
+    renderPremiumAccentLine: (_s: string) => _s,
+    renderPremiumHeadline: (_s: string) => _s,
+  };
+});
 
 function makeBannerState(overrides: Partial<BannerState> = {}): BannerState {
   return {
