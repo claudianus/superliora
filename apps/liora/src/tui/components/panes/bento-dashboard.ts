@@ -30,6 +30,7 @@ import type { ApprovalController } from '../../controllers/approval-controller';
 import type { PinController } from '../../controllers/pin-controller';
 import type { QuestGridController } from '../../controllers/quest-grid-controller';
 import {
+  ATTENTION_STATES,
   formatChangeCount,
   formatElapsed,
   questStateIcon,
@@ -260,6 +261,21 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
   private renderDashboard(quests: readonly Quest[], width: number): string[] {
     const lines: string[] = [];
+
+    // Gen 19: summary bar — total quests, attention count, total cost.
+    const attentionCount = quests.filter((q) => ATTENTION_STATES.has(q.state)).length;
+    const totalCost = quests.reduce((sum, q) => sum + (q.sessionCostUsd ?? 0), 0);
+    const summaryParts = [`${String(quests.length)} quests`];
+    if (attentionCount > 0) {
+      summaryParts.push(`⚡ ${String(attentionCount)} need attention`);
+    }
+    if (totalCost > 0) {
+      summaryParts.push(`$${totalCost.toFixed(2)}`);
+    }
+    const summary = `  ${summaryParts.join('  ·  ')}`;
+    lines.push(currentTheme.fg(attentionCount > 0 ? 'warning' : 'textMuted', clip(summary, width)));
+    lines.push('');
+
     const now = this.now();
     for (const quest of quests) {
       const block = this.renderCellBlock(quest, width, now);
