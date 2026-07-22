@@ -247,8 +247,10 @@ export class PanelManager {
   restoreState(state: PanelManagerState): void {
     this.leftDock = [...state.leftDock];
     this.rightDock = [...state.rightDock];
-    this.leftDockWidth = state.leftDockWidth;
-    this.rightDockWidth = state.rightDockWidth;
+    // Route through setDockWidth so restored widths are clamped (e.g. ultra-narrow
+    // widths persisted by an older version get upgraded to DOCK_WIDTH_MIN).
+    this.setDockWidth('left', state.leftDockWidth);
+    this.setDockWidth('right', state.rightDockWidth);
     this.leftDockVisible = state.leftDockVisible;
     this.rightDockVisible = state.rightDockVisible;
     this.leftDockMode = state.leftDockMode ?? 'split';

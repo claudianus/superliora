@@ -19,4 +19,31 @@ describe('PanelManager dock sizing', () => {
     pm.setDockWidth('left', 10);
     expect(pm.getDockWidth('left')).toBe(DOCK_WIDTH_MIN);
   });
+
+  it('clamps persisted ultra-narrow docks on load', () => {
+    const pm = new PanelManager({ leftDockWidth: 15, rightDockWidth: 15 });
+    // Persistence load (layout-persistence.ts) applies saved widths via setDockWidth,
+    // so old ultra-narrow values get upgraded to the new minimum on load.
+    pm.setDockWidth('left', 15);
+    pm.setDockWidth('right', 15);
+    expect(pm.getDockWidth('left')).toBe(DOCK_WIDTH_MIN);
+    expect(pm.getDockWidth('right')).toBe(DOCK_WIDTH_MIN);
+  });
+
+  it('clamps ultra-narrow widths restored via restoreState', () => {
+    const pm = new PanelManager();
+    pm.restoreState({
+      leftDock: [],
+      rightDock: [],
+      leftDockWidth: 15,
+      rightDockWidth: 15,
+      leftDockVisible: true,
+      rightDockVisible: true,
+      leftDockMode: 'split',
+      rightDockMode: 'tabbed',
+      focusedPanelId: null,
+    });
+    expect(pm.getDockWidth('left')).toBe(DOCK_WIDTH_MIN);
+    expect(pm.getDockWidth('right')).toBe(DOCK_WIDTH_MIN);
+  });
 });
