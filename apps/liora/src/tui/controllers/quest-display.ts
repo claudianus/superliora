@@ -8,7 +8,7 @@
  */
 
 import { formatElapsed, type Quest } from './quest-types';
-import type { AttentionSummary } from './attention-controller';
+import type { AttentionSummary, EscalationLevel } from './attention-controller';
 import { rankQuestsByUrgency } from './quest-urgency';
 
 /**
@@ -33,4 +33,17 @@ export function formatUrgencyRank(quests: readonly Quest[], topN: number, now: n
   return rankQuestsByUrgency(quests, now)
     .slice(0, limit)
     .map((ranked, index) => `${String(index + 1)}. ${ranked.quest.name} [${ranked.quest.state}]`);
+}
+
+/**
+ * Gen 54: a compact escalation badge for a quest cell, e.g. "⚠ 5m" for a
+ * warning-level quest or "🔥 15m" for a critical one. Returns null for level 0
+ * so callers can hide the badge entirely. The dwell time is included so the
+ * operator sees at a glance how long the quest has been ignored.
+ */
+export function formatEscalationBadge(level: EscalationLevel, dwellMs: number | null): string | null {
+  if (level === 0) return null;
+  const icon = level === 2 ? '🔥' : '⚠';
+  const dwell = dwellMs === null ? '' : ` ${formatElapsed(dwellMs)}`;
+  return `${icon}${dwell}`;
 }

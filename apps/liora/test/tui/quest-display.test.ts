@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatAttentionSummary, formatUrgencyRank } from '#/tui/controllers/quest-display';
+import { formatAttentionSummary, formatEscalationBadge, formatUrgencyRank } from '#/tui/controllers/quest-display';
 import type { AttentionSummary } from '#/tui/controllers/attention-controller';
 import type { Quest } from '#/tui/controllers/quest-types';
 
@@ -79,5 +79,28 @@ describe('formatUrgencyRank (Gen 50)', () => {
   it('returns an empty array for a non-positive topN', () => {
     const quests = [makeQuest('a', { state: 'running' })];
     expect(formatUrgencyRank(quests, 0, 100_000)).toEqual([]);
+  });
+});
+
+describe('formatEscalationBadge (Gen 54)', () => {
+  it('returns null for level 0', () => {
+    expect(formatEscalationBadge(0, 300_000)).toBeNull();
+  });
+
+  it('formats a warning badge with the dwell time', () => {
+    expect(formatEscalationBadge(1, 300_000)).toBe('⚠ 5m');
+  });
+
+  it('formats a critical badge with the dwell time', () => {
+    expect(formatEscalationBadge(2, 900_000)).toBe('🔥 15m');
+  });
+
+  it('omits the dwell time when it is unknown', () => {
+    expect(formatEscalationBadge(1, null)).toBe('⚠');
+    expect(formatEscalationBadge(2, null)).toBe('🔥');
+  });
+
+  it('formats sub-minute dwell in seconds', () => {
+    expect(formatEscalationBadge(1, 45_000)).toBe('⚠ 45s');
   });
 });
