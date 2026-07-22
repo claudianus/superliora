@@ -446,6 +446,16 @@ export class QuestExpandView {
     return this.scrollOffset;
   }
 
+  /**
+   * Gen 66: the most recent stream line, for the dashboard cell preview.
+   * Returns undefined when the stream is empty.
+   */
+  getLastStreamLine(): string | undefined {
+    return this.streamLines.length > 0
+      ? this.streamLines[this.streamLines.length - 1]
+      : undefined;
+  }
+
   /** Render the expand view as a string array (one per visible row). */
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];
