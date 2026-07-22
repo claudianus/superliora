@@ -301,4 +301,30 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(grid.getPinnedQuestId()).toBeNull();
     expect(grid.getViewMode()).toBe('dashboard');
   });
+
+  it('Gen 28: shows inline approval prompt when waiting-approval', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['line 1', 'line 2']);
+    const quest = makeQuest('q1', {
+      state: 'waiting-approval',
+      pendingApprovalSummary: 'Edit src/app.ts',
+    });
+    const lines = view.render(quest, 80);
+    const joined = lines.join('\n');
+    expect(joined).toContain('Edit src/app.ts');
+    expect(joined).toContain('[a] approve');
+    expect(joined).toContain('[x] reject');
+    expect(joined).toContain('[r] rewind');
+  });
+
+  it('Gen 28: no approval prompt for non-approval states', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['line 1']);
+    const quest = makeQuest('q2', { state: 'running' });
+    const lines = view.render(quest, 80);
+    const joined = lines.join('\n');
+    expect(joined).not.toContain('[a] approve');
+  });
 });

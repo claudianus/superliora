@@ -266,6 +266,17 @@ export class QuestExpandView {
       const clipped = line.length > width ? line.slice(0, width) : line;
       lines.push(highlightStreamLine(clipped));
     }
+
+    // Gen 28: inline approval prompt when the pinned quest awaits a decision.
+    if (quest.state === 'waiting-approval') {
+      lines.push('');
+      const summary = quest.pendingApprovalSummary ?? 'Tool approval requested';
+      const prompt = `  ⚡ ${summary}`;
+      lines.push(currentTheme.fg('warning', prompt.length > width ? prompt.slice(0, width) : prompt));
+      const actions = '  [a] approve  [x] reject  [r] rewind';
+      lines.push(currentTheme.dim(actions.length > width ? actions.slice(0, width) : actions));
+    }
+
     // Pad to maxVisibleLines + 4 (3 header lines + separator)
     while (lines.length < this.maxVisibleLines + 4) {
       lines.push('');
