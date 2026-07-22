@@ -271,3 +271,16 @@ export function formatFleetHealthSummary(quests: readonly Quest[], now: number =
   const average = Math.round(total / quests.length);
   return `avg ♥ ${String(average)}`;
 }
+
+/**
+ * Gen 70: a fleet-wide change summary, e.g. "+120 −34". Sums the added and
+ * removed line counts across all quests so the summary bar can show the total
+ * diff footprint at a glance. Returns null when there are no quests so callers
+ * can hide the segment entirely.
+ */
+export function formatFleetChangeSummary(quests: readonly Quest[]): string | null {
+  if (quests.length === 0) return null;
+  const added = quests.reduce<number>((sum, quest) => sum + quest.changeCount.added, 0);
+  const removed = quests.reduce<number>((sum, quest) => sum + quest.changeCount.removed, 0);
+  return `+${String(added)} −${String(removed)}`;
+}

@@ -8,6 +8,7 @@ import {
   formatEscalationSummary,
   formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
+  formatFleetChangeSummary,
   formatFleetHealthSummary,
   formatFleetStateSummary,
   formatHealthLabel,
@@ -414,5 +415,27 @@ describe('formatFleetHealthSummary (Gen 69)', () => {
     const freshAvg = Number(formatFleetHealthSummary(fresh, now)!.replace('avg ♥ ', ''));
     const staleAvg = Number(formatFleetHealthSummary(stale, now)!.replace('avg ♥ ', ''));
     expect(staleAvg).toBeLessThan(freshAvg);
+  });
+});
+
+describe('formatFleetChangeSummary (Gen 70)', () => {
+  it('returns null when there are no quests', () => {
+    expect(formatFleetChangeSummary([])).toBeNull();
+  });
+
+  it('sums added and removed across quests', () => {
+    const quests = [
+      makeQuest('a', { changeCount: { added: 100, removed: 20 } }),
+      makeQuest('b', { changeCount: { added: 20, removed: 14 } }),
+    ];
+    expect(formatFleetChangeSummary(quests)).toBe('+120 −34');
+  });
+
+  it('handles quests with no changes', () => {
+    const quests = [
+      makeQuest('a', { changeCount: { added: 0, removed: 0 } }),
+      makeQuest('b', { changeCount: { added: 5, removed: 0 } }),
+    ];
+    expect(formatFleetChangeSummary(quests)).toBe('+5 −0');
   });
 });
