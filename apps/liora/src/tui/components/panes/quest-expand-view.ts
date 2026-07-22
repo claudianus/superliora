@@ -68,6 +68,11 @@ export class QuestExpandView {
   // Gen 58: fullscreen stream — hides the header so the output fills the view.
   private fullscreen = false;
 
+  // Gen 61: per-line append timestamps, parallel to streamLines, so the gutter
+  // can show relative time since the first line.
+  private timestamps: number[] = [];
+  private showTimestamps = false;
+
   /** Set the maximum visible lines (from cell height). */
   setMaxVisibleLines(lines: number): void {
     this.maxVisibleLines = Math.max(1, lines);
@@ -87,6 +92,8 @@ export class QuestExpandView {
   appendLine(line: string): void {
     const followBottom = this.followTail && this.isAtBottom();
     this.streamLines.push(line);
+    // Gen 61: record the append time for the relative-timestamp gutter.
+    this.timestamps.push(Date.now());
     this.trimToCap();
     if (followBottom) {
       // Auto-scroll to bottom only when already following the tail.
@@ -100,8 +107,11 @@ export class QuestExpandView {
   /** Append multiple lines. */
   appendLines(lines: readonly string[]): void {
     const followBottom = this.followTail && this.isAtBottom();
+    const now = Date.now();
     for (const line of lines) {
       this.streamLines.push(line);
+      // Gen 61: record the append time for the relative-timestamp gutter.
+      this.timestamps.push(now);
     }
     this.trimToCap();
     if (followBottom) {
@@ -177,12 +187,15 @@ export class QuestExpandView {
     const overflow = this.streamLines.length - MAX_STREAM_LINES;
     if (overflow <= 0) return;
     this.streamLines.splice(0, overflow);
+    // Gen 61: keep the timestamp buffer aligned with the stream buffer.
+    this.timestamps.splice(0, overflow);
     this.scrollOffset = Math.max(0, this.scrollOffset - overflow);
   }
 
   /** Clear the stream. */
   clear(): void {
     this.streamLines = [];
+    this.timestamps = [];
     this.scrollOffset = 0;
   }
 
@@ -287,8 +300,20 @@ export class QuestExpandView {
   clearStream(): void {
     this.streamLines = [];
     this.diffLines = [];
+    this.timestamps = [];
     this.scrollOffset = 0;
     this.clearSearch();
+  }
+
+  /** Gen 61: toggle relative-timestamp display in the gutter. Returns new state. */
+  toggleTimestamps(): boolean {
+    this.showTimestamps = !this.showTimestamps;
+    return this.showTimestamps;
+  }
+
+  /** Gen 61: whether relative timestamps are shown. */
+  isShowingTimestamps(): boolean {
+    return this.showTimestamps;
   }
 
   /** Gen 16: current search status for header display, or null if inactive. */
@@ -457,7 +482,12 @@ export class QuestExpandView {
     // Gen 46: line-number gutter so search matches (Gen 16) are locatable.
     const lineTotal = buffer.length;
     const gutterWidth = Math.max(2, String(lineTotal).length);
-    const contentWidth = Math.max(1, width - gutterWidth - 1);
+    // Gen 61: relative-timestamp gutter (full-stream mode only, since the
+    // timestamp buffer is parallel to streamLines).
+    const showTs = this.showTimestamps && !this.diffOnly;
+    const baseTime = this.timestamps[0] ?? 0;
+    const tsWidth = showTs ? 7 : 0; // e.g. " +1m12s"
+    const contentWidth = Math.max(1, width - gutterWidth - 1 - tsWidth);
     // Gen 47: mark search-matched lines, with the active match standing out.
     const matchSet = new Set(this.searchMatches);
     const activeMatch =
@@ -470,12 +500,16 @@ export class QuestExpandView {
       const isMatch = matchSet.has(absIndex);
       const clipped = line.length > contentWidth ? line.slice(0, contentWidth) : line;
       const body = highlightStreamLine(clipped);
+      // Gen 61: relative timestamp since the first line.
+      const ts = showTs
+        ? currentTheme.dim(` ${formatRelativeDelta(this.timestamps[absIndex] ?? baseTime, baseTime).padStart(tsWidth - 1)}`)
+        : '';
       if (isActive) {
-        lines.push(`${currentTheme.fg('warning', `${lineNo} ▸`)}${currentTheme.fg('warning', clipped)}`);
+        lines.push(`${currentTheme.fg('warning', `${lineNo} ▸`)}${ts}${currentTheme.fg('warning', clipped)}`);
       } else if (isMatch) {
-        lines.push(`${currentTheme.fg('textMuted', `${lineNo} ·`)}${body}`);
+        lines.push(`${currentTheme.fg('textMuted', `${lineNo} ·`)}${ts}${body}`);
       } else {
-        lines.push(`${currentTheme.dim(`${lineNo} `)}${body}`);
+        lines.push(`${currentTheme.dim(`${lineNo} `)}${ts}${body}`);
       }
     });
 
@@ -528,4 +562,19 @@ function renderHealthBar(score: number): string {
   const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
   const token = score >= 60 ? 'success' : score >= 30 ? 'warning' : 'error';
   return currentTheme.fg(token, `♥ ${bar} ${String(score)}`);
+}
+
+/**
+ * Gen 61: format a relative time delta as a compact string, e.g. `+3s`,
+ * `+1m12s`, `+2h05m`. Used in the timestamp gutter.
+ */
+function formatRelativeDelta(timestamp: number, base: number): string {
+  const deltaMs = Math.max(0, timestamp - base);
+  const totalSec = Math.floor(deltaMs / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `+${String(h)}h${String(m).padStart(2, '0')}m`;
+  if (m > 0) return `+${String(m)}m${String(s).padStart(2, '0')}s`;
+  return `+${String(s)}s`;
 }
