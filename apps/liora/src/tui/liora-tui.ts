@@ -4122,6 +4122,9 @@ export class LioraTUI {
     // Initial sync from live session + background tasks
     this.syncQuestDashboard();
 
+    // Gen 39: land focus on the most urgent quest when the dashboard opens.
+    this.questGridController?.ensureFocus();
+
     // Refresh timer: re-sync quest state and toggle the blink phase so
     // attention pulses animate and live status changes show up without
     // needing to reopen the dashboard.

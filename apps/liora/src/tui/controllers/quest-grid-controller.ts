@@ -257,6 +257,27 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 39: guarantee a valid focus. When nothing is focused, or the focused
+   * quest is no longer in the visible (filtered/sorted) set, focus snaps to
+   * the most urgent quest — the first in the urgency-ordered list. This makes
+   * the dashboard land on the quest that needs the operator first.
+   */
+  ensureFocus(): void {
+    const ids = this.sortedQuestIds();
+    if (ids.length === 0) {
+      if (this.focusedQuestId !== null) {
+        this.focusedQuestId = null;
+        this.recomputeLayout();
+      }
+      return;
+    }
+    if (this.focusedQuestId === null || !ids.includes(this.focusedQuestId)) {
+      this.focusedQuestId = ids[0]!;
+      this.recomputeLayout();
+    }
+  }
+
+  /**
    * Gen 17: quest ids ordered by display priority (attention states first),
    * stable within the same priority. Used for rendering, focus navigation,
    * and panel spec ordering so the grid and keyboard order agree.

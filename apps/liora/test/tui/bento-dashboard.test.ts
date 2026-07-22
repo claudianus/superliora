@@ -679,3 +679,60 @@ describe('Gen 38: thumbnail strip todo progress', () => {
     expect(line).not.toContain('0/0');
   });
 });
+
+describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
+  it('focuses the most urgent quest when nothing is focused', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('running', { state: 'running' }));
+    ctrl.addQuest(makeQuest('approval', { state: 'waiting-approval' }));
+    ctrl.addQuest(makeQuest('idle', { state: 'idle' }));
+
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+    ctrl.ensureFocus();
+    // waiting-approval is the most urgent (state priority 0).
+    expect(ctrl.getFocusedQuestId()).toBe('approval');
+  });
+
+  it('keeps a valid existing focus', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'running' }));
+    ctrl.setFocusedQuest('b');
+
+    ctrl.ensureFocus();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+  });
+
+  it('re-focuses when the focused quest disappears', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'failed' }));
+    ctrl.setFocusedQuest('a');
+
+    ctrl.removeQuest('a');
+    ctrl.ensureFocus();
+    // 'a' is gone; focus snaps to the most urgent remaining quest.
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+  });
+
+  it('re-focuses when the focused quest is filtered out', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('alpha', { name: 'alpha', state: 'running' }));
+    ctrl.addQuest(makeQuest('beta', { name: 'beta', state: 'running' }));
+    ctrl.setFocusedQuest('alpha');
+
+    ctrl.setFilter('beta');
+    ctrl.ensureFocus();
+    expect(ctrl.getFocusedQuestId()).toBe('beta');
+  });
+
+  it('clears focus when no quests remain', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.setFocusedQuest('a');
+    ctrl.removeQuest('a');
+
+    ctrl.ensureFocus();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
