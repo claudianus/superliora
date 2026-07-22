@@ -780,6 +780,35 @@ describe('Gen 38: thumbnail strip todo progress', () => {
   });
 });
 
+describe('Gen 60: thumbnail strip context usage', () => {
+  it('carries context usage into entries', () => {
+    const quests = [makeQuest('a', { state: 'running', contextUsage: 0.62 })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.contextUsage).toBe(0.62);
+  });
+
+  it('renders the compact context percentage in the segment', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Work', contextUsage: 0.62 })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).toContain('62%');
+  });
+
+  it('omits the tag when there is no context usage', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Work' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).not.toContain('%');
+  });
+
+  it('omits the tag when context usage is zero', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Work', contextUsage: 0 })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).not.toContain('%');
+  });
+});
+
 describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
   it('focuses the most urgent quest when nothing is focused', () => {
     const ctrl = makeController();

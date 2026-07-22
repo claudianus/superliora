@@ -32,6 +32,8 @@ export interface ThumbnailEntry {
   readonly state: QuestState;
   /** Gen 38: todo progress ({ done, total }), if any. */
   readonly todoProgress?: { done: number; total: number } | undefined;
+  /** Gen 60: context window usage (0–1), if known. */
+  readonly contextUsage?: number | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +72,7 @@ export function buildThumbnailStrip(
         isPinned: false,
         state: q.state,
         todoProgress: q.todoProgress,
+        contextUsage: q.contextUsage,
       };
     });
 }
@@ -98,7 +101,13 @@ export function renderThumbnailStripLine(
       entry.todoProgress !== undefined && entry.todoProgress.total > 0
         ? ` ${String(entry.todoProgress.done)}/${String(entry.todoProgress.total)}`
         : '';
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}]`;
+    // Gen 60: append a compact context-usage tag so context pressure is
+    // visible across the fleet without unpinning.
+    const ctx =
+      entry.contextUsage !== undefined && entry.contextUsage > 0
+        ? ` ${String(Math.round(entry.contextUsage * 100))}%`
+        : '';
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);
