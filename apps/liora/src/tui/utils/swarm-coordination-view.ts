@@ -328,11 +328,11 @@ export class SwarmCoordinator {
         this.renderAgentCard(agent, cardWidth, fg, boldFg, dimFg, bg)
       );
 
-      // Merge cards side by side
+      // Merge cards side by side (ANSI-aware padding)
       const maxCardHeight = Math.max(...cardLines.map((c) => c.length));
       for (let row = 0; row < maxCardHeight && lines.length < height - 2; row++) {
         const rowParts = cardLines.map((card) =>
-          (card[row] ?? '').padEnd(cardWidth).slice(0, cardWidth)
+          ansiPadEnd(ansiTruncate(card[row] ?? '', cardWidth), cardWidth)
         );
         lines.push(rowParts.join(' '));
       }
@@ -361,11 +361,12 @@ export class SwarmCoordinator {
     // Name + status
     const name = truncate(agent.name, width - 8);
     const statusStr = fg(statusColor, `${glyph} ${STATUS_LABEL[agent.status]}`);
-    lines.push(dimFg('textMuted', '│') + ` ${boldFg('text', name)} ${statusStr}`.padEnd(width - 3) + dimFg('textMuted', '│'));
+    const nameLine = ` ${boldFg('text', name)} ${statusStr}`;
+    lines.push(dimFg('textMuted', '│') + ansiPadEnd(nameLine, width - 3) + dimFg('textMuted', '│'));
 
     // Task
     const task = agent.currentTask ? truncate(agent.currentTask, width - 6) : dimFg('textMuted', '(idle)');
-    lines.push(dimFg('textMuted', '│') + ` ${task}`.padEnd(width - 3) + dimFg('textMuted', '│'));
+    lines.push(dimFg('textMuted', '│') + ansiPadEnd(` ${task}`, width - 3) + dimFg('textMuted', '│'));
 
     // Progress bar
     const barWidth = width - 8;
@@ -376,7 +377,7 @@ export class SwarmCoordinator {
     // Stats
     const tokens = formatTokens(agent.tokensUsed);
     const cost = `$${agent.costUsd.toFixed(3)}`;
-    lines.push(dimFg('textMuted', '│') + dimFg('textMuted', ` ${tokens} tok · ${cost}`).padEnd(width - 3) + dimFg('textMuted', '│'));
+    lines.push(dimFg('textMuted', '│') + ansiPadEnd(dimFg('textMuted', ` ${tokens} tok · ${cost}`), width - 3) + dimFg('textMuted', '│'));
 
     // Bottom border
     const bottomBorder = isSelected ? fg('primary', '└' + '─'.repeat(width - 2) + '┘') : dimFg('textMuted', '└' + '─'.repeat(width - 2) + '┘');
@@ -540,4 +541,35 @@ function niceTimeInterval(maxMs: number, width: number): number {
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
   return text.slice(0, Math.max(0, max - 1)) + '…';
+}
+
+/** Strip ANSI escape sequences for width calculation. */
+function stripAnsi(s: string): string {
+  return s.replace(/\u001B\[[0-9;]*m/g, '');
+}
+
+/** Pad a string to a target width, accounting for ANSI escape sequences. */
+function ansiPadEnd(s: string, targetWidth: number): string {
+  const visibleLen = stripAnsi(s).length;
+  const padding = Math.max(0, targetWidth - visibleLen);
+  return s + ' '.repeat(padding);
+}
+
+/** Truncate a string to a target visible width, preserving ANSI codes. */
+function ansiTruncate(s: string, maxWidth: number): string {
+  const visible = stripAnsi(s);
+  if (visible.length <= maxWidth) return s;
+  // Walk through the string counting visible chars
+  let visibleCount = 0;
+  let result = '';
+  let inEscape = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (ch === '\u001B') { inEscape = true; result += ch; continue; }
+    if (inEscape) { result += ch; if (ch === 'm') inEscape = false; continue; }
+    if (visibleCount >= maxWidth - 1) { result += '…'; break; }
+    result += ch;
+    visibleCount++;
+  }
+  return result + '\u001B[0m';
 }
