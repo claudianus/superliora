@@ -294,6 +294,25 @@ describe('Gen 26: attention-only toggle', () => {
   });
 });
 
+describe('Gen 55: focus weakest-health quest', () => {
+  it('focuses the least-healthy quest', () => {
+    const ctrl = makeController();
+    // Health: failed (10) < blocked (45) < running (90).
+    ctrl.addQuest(makeQuest('healthy', { state: 'running' }));
+    ctrl.addQuest(makeQuest('critical', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('shaky', { state: 'blocked' }));
+
+    ctrl.focusWeakestHealth();
+    expect(ctrl.getFocusedQuestId()).toBe('critical');
+  });
+
+  it('is a no-op when no quest is visible', () => {
+    const ctrl = makeController();
+    ctrl.focusWeakestHealth();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 27: auto-pin on attention transition', () => {
   it('fires onAttentionTransition when a quest enters waiting-approval', () => {
     const transitions: Array<[string, string]> = [];
