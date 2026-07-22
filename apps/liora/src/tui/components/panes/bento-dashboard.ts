@@ -810,6 +810,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
       (sum, q) => sum + (this.expandViews.get(q.id)?.getDiffLineCount() ?? 0),
       0,
     );
+    // Gen 80: fleet-wide stream line count across all expand views.
+    const totalStreamLines = quests.reduce(
+      (sum, q) => sum + (this.expandViews.get(q.id)?.getStreamLineCount() ?? 0),
+      0,
+    );
     // Gen 51: fleet-wide average health score.
     const avgHealth = quests.length > 0
       ? Math.round(quests.reduce((sum, q) => sum + questHealthScore(q, now), 0) / quests.length)
@@ -835,6 +840,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 78: fleet-wide diff line count.
     if (totalDiffLines > 0) {
       summaryParts.push(`≡ ${String(totalDiffLines)} diff`);
+    }
+    // Gen 80: fleet-wide stream line count.
+    if (totalStreamLines > 0) {
+      summaryParts.push(`≣ ${String(totalStreamLines)} lines`);
     }
     if (avgHealth > 0) {
       summaryParts.push(`♥ ${String(avgHealth)}`);
