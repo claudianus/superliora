@@ -252,6 +252,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.stripHidden = !this.stripHidden;
         return;
       }
+      // Gen 50: d → toggle diff-only view (focus on code changes).
+      if (k === 'd') {
+        expandView?.toggleDiffOnly();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -422,6 +427,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['Space', 'Page down (pager-style)'],
           ['b', 'Page up (pager-style)'],
           ['f', 'Toggle thumbnail strip (full-height view)'],
+          ['d', 'Toggle diff-only view (code changes)'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],

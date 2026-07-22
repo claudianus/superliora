@@ -529,8 +529,9 @@ export class LioraTUI {
       this.appendQuestStreamLines([line]);
     };
     // Gen 3: feed pre-rendered diff lines (Edit tool) into the expand view.
+    // Gen 50: route them through the diff-only buffer so `d` can isolate them.
     this.sessionEventHandler.onQuestStreamLines = (lines) => {
-      this.appendQuestStreamLines(lines);
+      this.appendQuestDiffLines(lines);
     };
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
@@ -4192,6 +4193,23 @@ export class LioraTUI {
       this.dashboardExpandViews.set(targetId, view);
     }
     view.appendLines(lines);
+    requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Gen 50: feed pre-rendered diff lines into the pinned expand view's
+   * diff-only buffer (and the main stream) so `d` can isolate code changes.
+   */
+  private appendQuestDiffLines(lines: readonly string[]): void {
+    if (this.state.activeDialog !== 'dashboard' || lines.length === 0) return;
+    const targetId = this.questPinController?.getPinnedQuest()?.id
+      ?? `session:${this.state.appState.sessionId ?? 'unknown'}`;
+    let view = this.dashboardExpandViews.get(targetId);
+    if (view === undefined) {
+      view = new QuestExpandView();
+      this.dashboardExpandViews.set(targetId, view);
+    }
+    view.appendDiffLines(lines);
     requestTUIContentRender(this.state);
   }
 

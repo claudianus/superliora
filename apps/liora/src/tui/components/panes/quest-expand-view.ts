@@ -55,6 +55,11 @@ export class QuestExpandView {
   private searchMatches: number[] = [];
   private currentMatchIndex = 0;
 
+  // Gen 50: diff-only view — a parallel buffer of just the diff lines so the
+  // operator can focus on code changes without the surrounding chatter.
+  private diffLines: string[] = [];
+  private diffOnly = false;
+
   /** Set the maximum visible lines (from cell height). */
   setMaxVisibleLines(lines: number): void {
     this.maxVisibleLines = Math.max(1, lines);
@@ -97,6 +102,33 @@ export class QuestExpandView {
         this.streamLines.length - this.maxVisibleLines,
       );
     }
+  }
+
+  /**
+   * Gen 50: append diff lines to both the main stream and the diff-only
+   * buffer, so toggling diff-only view shows just the code changes.
+   */
+  appendDiffLines(lines: readonly string[]): void {
+    this.appendLines(lines);
+    for (const line of lines) {
+      this.diffLines.push(line);
+    }
+    if (this.diffLines.length > MAX_STREAM_LINES) {
+      this.diffLines.splice(0, this.diffLines.length - MAX_STREAM_LINES);
+    }
+  }
+
+  /** Gen 50: toggle the diff-only view. Returns the new state. */
+  toggleDiffOnly(): boolean {
+    this.diffOnly = !this.diffOnly;
+    // Reset the viewport to the top of the selected buffer.
+    this.scrollOffset = 0;
+    return this.diffOnly;
+  }
+
+  /** Gen 50: whether the diff-only view is active. */
+  isDiffOnly(): boolean {
+    return this.diffOnly;
   }
 
   /**
@@ -219,15 +251,21 @@ export class QuestExpandView {
 
   /** Get the currently visible lines. */
   getVisibleLines(): readonly string[] {
-    return this.streamLines.slice(
+    const source = this.activeBuffer();
+    return source.slice(
       this.scrollOffset,
       this.scrollOffset + this.maxVisibleLines,
     );
   }
 
+  /** Gen 50: the buffer backing the current view (diff-only or full stream). */
+  private activeBuffer(): readonly string[] {
+    return this.diffOnly ? this.diffLines : this.streamLines;
+  }
+
   /** Get total line count. */
   get totalLines(): number {
-    return this.streamLines.length;
+    return this.activeBuffer().length;
   }
 
   /** Get current scroll offset. */
@@ -241,7 +279,8 @@ export class QuestExpandView {
 
     // Gen 14: scroll position indicator — shows where the viewport sits in the
     // stream, and flags when the user has scrolled away from the live tail.
-    const total = this.streamLines.length;
+    // Gen 50: counts reflect the active buffer (diff-only or full stream).
+    const total = this.activeBuffer().length;
     const maxOffset = Math.max(0, total - this.maxVisibleLines);
     const atBottom = this.scrollOffset >= maxOffset;
     const scrollInfo =
@@ -249,6 +288,8 @@ export class QuestExpandView {
         ? `${String(total)} lines`
         : `${String(this.scrollOffset + 1)}–${String(Math.min(total, this.scrollOffset + this.maxVisibleLines))}/${String(total)}`;
     const scrollTag = atBottom ? scrollInfo : `${scrollInfo} ↑`;
+    // Gen 50: flag the diff-only view in the header so the mode is obvious.
+    const diffTag = this.diffOnly ? '  ≡ diff' : '';
 
     // Gen 16: append search status to the header when a search is active.
     const searchStatus = this.getSearchStatus();
@@ -262,7 +303,7 @@ export class QuestExpandView {
     const stateToken = questStateColorToken(quest.state);
     const badgeText = `[${quest.state}]`;
     const headerPrefix = `── ${quest.name} `;
-    const headerSuffix = `  ${scrollTag}${searchTag} ──`;
+    const headerSuffix = `  ${scrollTag}${searchTag}${diffTag} ──`;
     const plainHeader = `${headerPrefix}${badgeText}${headerSuffix}`;
     const headerLine1 =
       plainHeader.length > width
@@ -334,17 +375,20 @@ export class QuestExpandView {
     // Separator
     lines.push('─'.repeat(Math.min(width, 60)));
 
-    // Gen 48: placeholder when the quest has no stream output yet.
-    if (this.streamLines.length === 0) {
-      const placeholder = quest.state === 'running'
-        ? '  ⠋ Waiting for agent output…'
-        : '  No output yet.';
+    // Gen 48: placeholder when the active buffer has no output yet.
+    const buffer = this.activeBuffer();
+    if (buffer.length === 0) {
+      const placeholder = this.diffOnly
+        ? '  No diffs captured yet.'
+        : quest.state === 'running'
+          ? '  ⠋ Waiting for agent output…'
+          : '  No output yet.';
       lines.push(currentTheme.dim(placeholder.length > width ? placeholder.slice(0, width) : placeholder));
       return lines;
     }
 
     // Gen 46: line-number gutter so search matches (Gen 16) are locatable.
-    const lineTotal = this.streamLines.length;
+    const lineTotal = buffer.length;
     const gutterWidth = Math.max(2, String(lineTotal).length);
     const contentWidth = Math.max(1, width - gutterWidth - 1);
     // Gen 47: mark search-matched lines, with the active match standing out.
