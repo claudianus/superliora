@@ -61,6 +61,10 @@ export class QuestExpandView {
   private diffLines: string[] = [];
   private diffOnly = false;
 
+  // Gen 57: explicit auto-follow toggle. When off, new output never yanks the
+  // viewport down, so the operator can review history undisturbed.
+  private followTail = true;
+
   /** Set the maximum visible lines (from cell height). */
   setMaxVisibleLines(lines: number): void {
     this.maxVisibleLines = Math.max(1, lines);
@@ -78,7 +82,7 @@ export class QuestExpandView {
 
   /** Append a line to the live stream. */
   appendLine(line: string): void {
-    const followBottom = this.isAtBottom();
+    const followBottom = this.followTail && this.isAtBottom();
     this.streamLines.push(line);
     this.trimToCap();
     if (followBottom) {
@@ -92,7 +96,7 @@ export class QuestExpandView {
 
   /** Append multiple lines. */
   appendLines(lines: readonly string[]): void {
-    const followBottom = this.isAtBottom();
+    const followBottom = this.followTail && this.isAtBottom();
     for (const line of lines) {
       this.streamLines.push(line);
     }
@@ -125,6 +129,24 @@ export class QuestExpandView {
     // Reset the viewport to the top of the selected buffer.
     this.scrollOffset = 0;
     return this.diffOnly;
+  }
+
+  /**
+   * Gen 57: toggle auto-follow of the live tail. When re-enabled, snap the
+   * viewport back to the bottom so the operator immediately sees new output.
+   * Returns the new state.
+   */
+  toggleFollowTail(): boolean {
+    this.followTail = !this.followTail;
+    if (this.followTail) {
+      this.scrollOffset = Math.max(0, this.activeBuffer().length - this.maxVisibleLines);
+    }
+    return this.followTail;
+  }
+
+  /** Gen 57: whether auto-follow of the live tail is enabled. */
+  isFollowingTail(): boolean {
+    return this.followTail;
   }
 
   /** Gen 50: whether the diff-only view is active. */
@@ -291,6 +313,8 @@ export class QuestExpandView {
     const scrollTag = atBottom ? scrollInfo : `${scrollInfo} ↑`;
     // Gen 50: flag the diff-only view in the header so the mode is obvious.
     const diffTag = this.diffOnly ? '  ≡ diff' : '';
+    // Gen 57: flag when auto-follow is paused so the parked state is obvious.
+    const followTag = this.followTail ? '' : '  ⏸ paused';
 
     // Gen 16: append search status to the header when a search is active.
     const searchStatus = this.getSearchStatus();
@@ -304,7 +328,7 @@ export class QuestExpandView {
     const stateToken = questStateColorToken(quest.state);
     const badgeText = `[${quest.state}]`;
     const headerPrefix = `── ${quest.name} `;
-    const headerSuffix = `  ${scrollTag}${searchTag}${diffTag} ──`;
+    const headerSuffix = `  ${scrollTag}${searchTag}${diffTag}${followTag} ──`;
     const plainHeader = `${headerPrefix}${badgeText}${headerSuffix}`;
     const headerLine1 =
       plainHeader.length > width

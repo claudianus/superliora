@@ -263,6 +263,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.toggleDiffOnly();
         return;
       }
+      // Gen 57: w → toggle auto-follow of the live tail.
+      if (k === 'w') {
+        expandView?.toggleFollowTail();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -462,6 +467,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['b', 'Page up (pager-style)'],
           ['f', 'Toggle thumbnail strip (full-height view)'],
           ['d', 'Toggle diff-only view (code changes)'],
+          ['w', 'Toggle auto-follow (pause/resume live tail)'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],

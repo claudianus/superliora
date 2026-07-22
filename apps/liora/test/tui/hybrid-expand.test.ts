@@ -332,6 +332,44 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines.join('\n')).toContain('No diffs captured yet');
   });
 
+  it('Gen 57: toggling follow off stops the viewport from chasing new lines', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 5; i++) view.appendLine(`line ${String(i)}`);
+    // At the tail initially.
+    expect(view.currentScrollOffset).toBe(2);
+
+    // Pause auto-follow.
+    expect(view.toggleFollowTail()).toBe(false);
+    expect(view.isFollowingTail()).toBe(false);
+
+    // New output must not move the viewport.
+    view.appendLine('line 5');
+    view.appendLine('line 6');
+    expect(view.currentScrollOffset).toBe(2);
+
+    // Header shows the paused flag.
+    expect(view.render(quest, 80)[0]).toContain('⏸ paused');
+  });
+
+  it('Gen 57: re-enabling follow snaps back to the live tail', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 5; i++) view.appendLine(`line ${String(i)}`);
+
+    view.toggleFollowTail(); // off
+    view.appendLine('line 5');
+    view.appendLine('line 6');
+    expect(view.currentScrollOffset).toBe(2);
+
+    // Re-enable: snap to the new tail.
+    expect(view.toggleFollowTail()).toBe(true);
+    expect(view.currentScrollOffset).toBe(4);
+    expect(view.render(quest, 80)[0]).not.toContain('⏸ paused');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {
