@@ -77,6 +77,33 @@ export const ATTENTION_CRITICAL_MS = 15 * 60 * 1000;
  */
 export type EscalationLevel = 0 | 1 | 2;
 
+/**
+ * Gen 78: how much cognitive load the current attention demand places on the
+ * operator. Grounded in Miller's "7±2" working-memory limit — an operator can
+ * track only a handful of pending items before attention demand exceeds what
+ * they can hold at once.
+ * - 'normal': 0–3 quests need attention (comfortable).
+ * - 'elevated': 4–7 quests need attention (approaching capacity).
+ * - 'overloaded': 8+ quests need attention (beyond working-memory capacity).
+ */
+export type AttentionLoadLevel = 'normal' | 'elevated' | 'overloaded';
+
+/** Gen 78: quest count at which attention load becomes elevated. */
+export const ATTENTION_LOAD_ELEVATED_COUNT = 4;
+
+/** Gen 78: quest count at which attention load becomes overloaded. */
+export const ATTENTION_LOAD_OVERLOADED_COUNT = 8;
+
+/**
+ * Gen 78: classify the operator's cognitive load from the number of quests
+ * currently needing attention. Pure so it is unit-testable in isolation.
+ */
+export function classifyAttentionLoad(count: number): AttentionLoadLevel {
+  if (count >= ATTENTION_LOAD_OVERLOADED_COUNT) return 'overloaded';
+  if (count >= ATTENTION_LOAD_ELEVATED_COUNT) return 'elevated';
+  return 'normal';
+}
+
 /** Terminal bell character. */
 const BELL_CHAR = '\x07';
 
@@ -303,6 +330,20 @@ export class AttentionController {
       if (max === 2) break; // cannot escalate further
     }
     return max;
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 78: Fleet Attention Load
+  // -------------------------------------------------------------------------
+
+  /**
+   * Gen 78: the operator's cognitive load level from the number of quests
+   * currently needing attention. Lets the dashboard signal when parallel
+   * sessions demand more attention than one operator can comfortably hold —
+   * e.g. dimming non-critical pulses or surfacing a "you're overloaded" hint.
+   */
+  getAttentionLoadLevel(): AttentionLoadLevel {
+    return classifyAttentionLoad(this.pulsingQuestIds.size);
   }
 
   // -------------------------------------------------------------------------

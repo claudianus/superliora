@@ -5,6 +5,9 @@ import {
   ATTENTION_LATENCY_MAX_MS,
   ATTENTION_ESCALATION_MS,
   ATTENTION_CRITICAL_MS,
+  classifyAttentionLoad,
+  ATTENTION_LOAD_ELEVATED_COUNT,
+  ATTENTION_LOAD_OVERLOADED_COUNT,
 } from '#/tui/controllers/attention-controller';
 
 function makeController(nowValue = 1000) {
@@ -452,5 +455,64 @@ describe('attention summary (Gen 47)', () => {
     const summary = ctrl.getAttentionSummary();
     expect(summary.count).toBe(1);
     expect(summary.oldestQuestId).toBe('q2');
+  });
+});
+
+describe('classifyAttentionLoad (Gen 78)', () => {
+  it('classifies 0–3 quests as normal', () => {
+    expect(classifyAttentionLoad(0)).toBe('normal');
+    expect(classifyAttentionLoad(1)).toBe('normal');
+    expect(classifyAttentionLoad(ATTENTION_LOAD_ELEVATED_COUNT - 1)).toBe('normal');
+  });
+
+  it('classifies 4–7 quests as elevated', () => {
+    expect(classifyAttentionLoad(ATTENTION_LOAD_ELEVATED_COUNT)).toBe('elevated');
+    expect(classifyAttentionLoad(ATTENTION_LOAD_OVERLOADED_COUNT - 1)).toBe('elevated');
+  });
+
+  it('classifies 8+ quests as overloaded', () => {
+    expect(classifyAttentionLoad(ATTENTION_LOAD_OVERLOADED_COUNT)).toBe('overloaded');
+    expect(classifyAttentionLoad(ATTENTION_LOAD_OVERLOADED_COUNT + 5)).toBe('overloaded');
+  });
+});
+
+describe('getAttentionLoadLevel (Gen 78)', () => {
+  it('is normal when nothing needs attention', () => {
+    const { ctrl } = makeController(5000);
+    expect(ctrl.getAttentionLoadLevel()).toBe('normal');
+  });
+
+  it('tracks the number of quests currently needing attention', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q2', 'failed');
+    expect(ctrl.getAttentionLoadLevel()).toBe('normal');
+
+    ctrl.onQuestStateChanged('q3', 'waiting-approval');
+    ctrl.onQuestStateChanged('q4', 'waiting-approval');
+    expect(ctrl.getAttentionLoadLevel()).toBe('elevated');
+  });
+
+  it('drops back when quests leave the attention state', () => {
+    const { ctrl } = makeController(5000);
+    for (let i = 1; i <= 8; i += 1) {
+      ctrl.onQuestStateChanged(`q${String(i)}`, 'waiting-approval');
+    }
+    expect(ctrl.getAttentionLoadLevel()).toBe('overloaded');
+
+    // Resolve enough quests to fall back to normal.
+    for (let i = 1; i <= 6; i += 1) {
+      ctrl.onQuestStateChanged(`q${String(i)}`, 'running');
+    }
+    expect(ctrl.getAttentionLoadLevel()).toBe('normal');
+  });
+
+  it('is normal after clearAll', () => {
+    const { ctrl } = makeController(5000);
+    for (let i = 1; i <= 8; i += 1) {
+      ctrl.onQuestStateChanged(`q${String(i)}`, 'waiting-approval');
+    }
+    ctrl.clearAll();
+    expect(ctrl.getAttentionLoadLevel()).toBe('normal');
   });
 });
