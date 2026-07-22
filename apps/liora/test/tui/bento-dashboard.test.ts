@@ -650,3 +650,32 @@ describe('Gen 37: thumbnail strip state coloring', () => {
     expect(line).toContain('2:');
   });
 });
+
+describe('Gen 38: thumbnail strip todo progress', () => {
+  it('carries todo progress into entries', () => {
+    const quests = [makeQuest('a', { state: 'running', todoProgress: { done: 2, total: 5 } })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.todoProgress).toEqual({ done: 2, total: 5 });
+  });
+
+  it('renders the compact done/total count in the segment', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Work', todoProgress: { done: 3, total: 7 } })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).toContain('3/7');
+  });
+
+  it('omits the count when there is no todo progress', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Work' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).not.toContain('/');
+  });
+
+  it('omits the count when total is zero', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Work', todoProgress: { done: 0, total: 0 } })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).not.toContain('0/0');
+  });
+});

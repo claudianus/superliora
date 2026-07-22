@@ -92,7 +92,13 @@ export function renderThumbnailStripLine(
 
   for (const [i, entry] of entries.entries()) {
     const prefix = showIndex && i < 9 ? `${String(i + 1)}:` : '';
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}]`;
+    // Gen 38: append a compact todo count so sibling progress is visible
+    // without unpinning.
+    const todo =
+      entry.todoProgress !== undefined && entry.todoProgress.total > 0
+        ? ` ${String(entry.todoProgress.done)}/${String(entry.todoProgress.total)}`
+        : '';
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);
