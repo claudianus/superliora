@@ -805,6 +805,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 45: fleet-wide change totals.
     const totalAdded = quests.reduce((sum, q) => sum + q.changeCount.added, 0);
     const totalRemoved = quests.reduce((sum, q) => sum + q.changeCount.removed, 0);
+    // Gen 78: fleet-wide diff line count across all expand views.
+    const totalDiffLines = quests.reduce(
+      (sum, q) => sum + (this.expandViews.get(q.id)?.getDiffLineCount() ?? 0),
+      0,
+    );
     // Gen 51: fleet-wide average health score.
     const avgHealth = quests.length > 0
       ? Math.round(quests.reduce((sum, q) => sum + questHealthScore(q, now), 0) / quests.length)
@@ -826,6 +831,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     if (totalAdded > 0 || totalRemoved > 0) {
       summaryParts.push(`+${String(totalAdded)} -${String(totalRemoved)}`);
+    }
+    // Gen 78: fleet-wide diff line count.
+    if (totalDiffLines > 0) {
+      summaryParts.push(`≡ ${String(totalDiffLines)} diff`);
     }
     if (avgHealth > 0) {
       summaryParts.push(`♥ ${String(avgHealth)}`);
