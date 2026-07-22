@@ -237,3 +237,45 @@ describe('attention event idempotency (Gen 45)', () => {
     expect(ctrl.isPulsing('q1')).toBe(true);
   });
 });
+
+describe('attention summary (Gen 47)', () => {
+  it('reports zero count and null oldest when nothing needs attention', () => {
+    const { ctrl } = makeController(5000);
+    const summary = ctrl.getAttentionSummary();
+    expect(summary.count).toBe(0);
+    expect(summary.oldestQuestId).toBeNull();
+    expect(summary.oldestDwellMs).toBeNull();
+  });
+
+  it('counts quests needing attention', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q2', 'failed');
+    ctrl.onQuestStateChanged('q3', 'running');
+
+    expect(ctrl.getAttentionSummary().count).toBe(2);
+  });
+
+  it('reports the oldest quest and its dwell time', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(2000);
+    ctrl.onQuestStateChanged('q2', 'failed');
+    advanceTime(1000);
+
+    const summary = ctrl.getAttentionSummary();
+    expect(summary.oldestQuestId).toBe('q1');
+    expect(summary.oldestDwellMs).toBe(3000);
+  });
+
+  it('updates after a quest leaves the attention state', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q2', 'failed');
+    ctrl.onQuestStateChanged('q1', 'running');
+
+    const summary = ctrl.getAttentionSummary();
+    expect(summary.count).toBe(1);
+    expect(summary.oldestQuestId).toBe('q2');
+  });
+});

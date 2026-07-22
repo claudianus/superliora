@@ -39,6 +39,16 @@ export interface AttentionState {
   readonly stripBlinkActive: boolean;
 }
 
+/** Gen 47: a compact snapshot of the current attention situation. */
+export interface AttentionSummary {
+  /** Number of quests currently needing attention. */
+  readonly count: number;
+  /** Id of the quest left unattended the longest, or null when none. */
+  readonly oldestQuestId: string | null;
+  /** Dwell time (ms) of the oldest quest, or null when none. */
+  readonly oldestDwellMs: number | null;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -190,6 +200,21 @@ export class AttentionController {
       }
     }
     return oldestId;
+  }
+
+  /**
+   * Gen 47: a compact snapshot of the attention situation — how many quests
+   * need attention and which has been left unattended the longest (with its
+   * dwell time). Lets the summary bar render "3 need attention (oldest 2m)"
+   * without callers recomputing the traversal.
+   */
+  getAttentionSummary(): AttentionSummary {
+    const oldestQuestId = this.getMostNeglectedQuestId();
+    return {
+      count: this.pulsingQuestIds.size,
+      oldestQuestId,
+      oldestDwellMs: oldestQuestId !== null ? this.getDwellTime(oldestQuestId) : null,
+    };
   }
 
   // -------------------------------------------------------------------------
