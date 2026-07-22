@@ -35,6 +35,7 @@ import {
   formatAttentionLoadGuidance,
   formatTriageCompactLine,
   formatTriageCompactLineWithDistribution,
+  formatResolvedThroughputLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -1146,5 +1147,23 @@ describe('formatTriageCompactLineWithDistribution (Gen 94)', () => {
     expect(formatTriageCompactLineWithDistribution(quests, now)).toBe(
       "⚠ elevated (4 pending) [4 fresh] → handle 'One' first",
     );
+  });
+});
+
+describe('formatResolvedThroughputLine (Gen 96)', () => {
+  it('returns null when nothing has been resolved', () => {
+    expect(formatResolvedThroughputLine(0)).toBeNull();
+  });
+
+  it('returns null for a negative count', () => {
+    expect(formatResolvedThroughputLine(-1)).toBeNull();
+  });
+
+  it('formats a positive resolved count', () => {
+    expect(formatResolvedThroughputLine(3)).toBe('✓ 3 cleared');
+  });
+
+  it('formats a single resolved quest', () => {
+    expect(formatResolvedThroughputLine(1)).toBe('✓ 1 cleared');
   });
 });

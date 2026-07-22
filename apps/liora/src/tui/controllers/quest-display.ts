@@ -711,3 +711,15 @@ export function formatTriageCompactLineWithDistribution(
   if (parts.length === 0) return null;
   return parts.join(' ');
 }
+
+/**
+ * Gen 96: a one-line throughput label from the Gen 95 resolved count, e.g.
+ * "✓ 3 cleared". Returns null when nothing has been resolved so callers can
+ * hide the segment. Gives the operator positive feedback that demand is being
+ * cleared, not just accumulating — a counterweight to the load lines that
+ * only ever report pressure.
+ */
+export function formatResolvedThroughputLine(resolvedCount: number): string | null {
+  if (resolvedCount <= 0) return null;
+  return `✓ ${String(resolvedCount)} cleared`;
+}
