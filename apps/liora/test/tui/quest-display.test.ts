@@ -31,6 +31,7 @@ import {
   formatTriageQueueLine,
   buildTriagePanelSnapshot,
   formatUrgencyDistributionLine,
+  attentionLoadColorToken,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -748,6 +749,20 @@ describe('formatAttentionLoadLabel (Gen 79)', () => {
 
   it('formats an overloaded load with a critical icon and the pending count', () => {
     expect(formatAttentionLoadLabel('overloaded', 9)).toBe('🔥 overloaded (9 pending)');
+  });
+});
+
+describe('attentionLoadColorToken (Gen 89)', () => {
+  it('maps a normal load to success (calm)', () => {
+    expect(attentionLoadColorToken('normal')).toBe('success');
+  });
+
+  it('maps an elevated load to warning (amber)', () => {
+    expect(attentionLoadColorToken('elevated')).toBe('warning');
+  });
+
+  it('maps an overloaded load to error (red)', () => {
+    expect(attentionLoadColorToken('overloaded')).toBe('error');
   });
 });
 

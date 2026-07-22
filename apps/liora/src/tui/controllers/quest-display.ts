@@ -10,6 +10,7 @@
 import { formatElapsed, type Quest, type QuestState, questHealthScore, formatChangeCount, ATTENTION_STATES } from './quest-types';
 import type { AttentionSummary, EscalationLevel, AttentionLoadLevel } from './attention-controller';
 import { classifyAttentionLoad } from './attention-controller';
+import type { ColorToken } from '../theme';
 import {
   rankQuestsByUrgency,
   rankQuestsByEscalatedUrgency,
@@ -470,6 +471,19 @@ export function formatAttentionLoadLabel(
   if (level === 'normal') return null;
   const icon = level === 'overloaded' ? '🔥' : '⚠';
   return `${icon} ${level} (${String(pendingCount)} pending)`;
+}
+
+/**
+ * Gen 89: the theme color token for a cognitive load level, so a triage
+ * overlay can tint itself by demand — green when comfortable, amber as it
+ * approaches capacity, red once the operator is beyond working-memory limits.
+ * 'normal' maps to success so a healthy panel still reads as calm rather than
+ * unstyled.
+ */
+export function attentionLoadColorToken(level: AttentionLoadLevel): ColorToken {
+  if (level === 'overloaded') return 'error';
+  if (level === 'elevated') return 'warning';
+  return 'success';
 }
 
 /**
