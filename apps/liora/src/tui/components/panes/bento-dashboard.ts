@@ -108,7 +108,37 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
-    // j/k or arrows → move focus
+    const pinned = this.pinController.getPinnedQuest();
+
+    // Pinned mode: j/k/arrows scroll the expand view; Enter/p unpins.
+    if (pinned) {
+      const expandView = this.expandViews.get(pinned.id);
+      if (matchesKey(data, Key.down) || k === 'j') {
+        expandView?.scrollDown(1);
+        return;
+      }
+      if (matchesKey(data, Key.up) || k === 'k') {
+        expandView?.scrollUp(1);
+        return;
+      }
+      // Enter or p → unpin back to the dashboard grid
+      if (matchesKey(data, Key.enter) || k === 'p') {
+        this.pinController.togglePin(pinned.id);
+        return;
+      }
+      // a/x/r → approval actions on the pinned quest
+      if (this.approvalController && (k === 'a' || k === 'x' || k === 'r')) {
+        const action = k === 'a' ? 'approve' : k === 'x' ? 'reject' : 'rewind';
+        void this.approvalController.handleAction(pinned, action);
+        return;
+      }
+      if (k === 'q') {
+        this.onClose();
+      }
+      return;
+    }
+
+    // Dashboard mode: j/k or arrows → move focus
     if (matchesKey(data, Key.down) || k === 'j') {
       this.gridController.focusNext();
       return;
