@@ -468,8 +468,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 9: progress indicators (todo + context usage)
     const progressParts: string[] = [];
     if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
+      // Gen 31: visual mini-bar instead of plain count text.
       const { done, total } = quest.todoProgress;
-      progressParts.push(`☑ ${String(done)}/${String(total)}`);
+      progressParts.push(renderTodoBar(done, total));
     }
     if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
       // Gen 29: visual mini-bar instead of plain percentage text.
@@ -608,6 +609,19 @@ export function renderContextBar(usage: number): string {
   const filled = Math.round((pct / 100) * cells);
   const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
   return `ctx ${bar} ${String(pct)}%`;
+}
+
+/**
+ * Gen 31: render a compact todo-progress bar, e.g. `☑ ▓▓▓░░ 3/5`.
+ * Mirrors the context bar so parallel quest progress is scannable at a glance.
+ */
+export function renderTodoBar(done: number, total: number): string {
+  const safeTotal = Math.max(1, total);
+  const ratio = Math.max(0, Math.min(1, done / safeTotal));
+  const cells = 5;
+  const filled = Math.round(ratio * cells);
+  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
+  return `☑ ${bar} ${String(done)}/${String(total)}`;
 }
 
 /**
