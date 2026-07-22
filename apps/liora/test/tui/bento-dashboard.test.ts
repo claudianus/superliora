@@ -344,6 +344,33 @@ describe('Gen 58: focus first/last quest', () => {
   });
 });
 
+describe('Gen 63: focus most expensive quest', () => {
+  it('focuses the quest with the highest session cost', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('cheap', { sessionCostUsd: 0.5 }));
+    ctrl.addQuest(makeQuest('pricey', { sessionCostUsd: 4.2 }));
+    ctrl.addQuest(makeQuest('mid', { sessionCostUsd: 1.8 }));
+
+    ctrl.focusMostExpensive();
+    expect(ctrl.getFocusedQuestId()).toBe('pricey');
+  });
+
+  it('treats missing cost as zero', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('unknown'));
+    ctrl.addQuest(makeQuest('billed', { sessionCostUsd: 0.1 }));
+
+    ctrl.focusMostExpensive();
+    expect(ctrl.getFocusedQuestId()).toBe('billed');
+  });
+
+  it('is a no-op when no quest is visible', () => {
+    const ctrl = makeController();
+    ctrl.focusMostExpensive();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 27: auto-pin on attention transition', () => {
   it('fires onAttentionTransition when a quest enters waiting-approval', () => {
     const transitions: Array<[string, string]> = [];

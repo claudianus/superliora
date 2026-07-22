@@ -306,6 +306,29 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 63: focus the most expensive visible quest (highest sessionCostUsd).
+   * Cost-based triage so the operator can jump to the priciest session without
+   * scanning the fleet. No-op when no quest is visible.
+   */
+  focusMostExpensive(): void {
+    const visible = this.sortedQuestIds();
+    if (visible.length === 0) return;
+    let richestId = visible[0]!;
+    let richestCost = -Infinity;
+    for (const id of visible) {
+      const quest = this.quests.get(id);
+      if (quest === undefined) continue;
+      const cost = quest.sessionCostUsd ?? 0;
+      if (cost > richestCost) {
+        richestCost = cost;
+        richestId = id;
+      }
+    }
+    this.focusedQuestId = richestId;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 39: guarantee a valid focus. When nothing is focused, or the focused
    * quest is no longer in the visible (filtered/sorted) set, focus snaps to
    * the most urgent quest — the first in the urgency-ordered list. This makes
