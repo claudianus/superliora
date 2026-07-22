@@ -23,6 +23,7 @@ import {
   buildFleetSummarySnapshot,
   formatCombinedFleetSummary,
   formatQuestCompactLine,
+  formatEscalatedQuestCompactLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -683,5 +684,48 @@ describe('formatQuestCompactLine (Gen 76)', () => {
     const quest = makeQuest('a', { state: 'running', lastActivityAt: now });
     const line = formatQuestCompactLine(quest, now);
     expect(line).toMatch(/♥ \d+/);
+  });
+});
+
+describe('formatEscalatedQuestCompactLine (Gen 77)', () => {
+  it('degrades to the plain compact line below the escalation threshold', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      name: 'Fresh',
+      state: 'waiting-approval',
+      lastActivityAt: now,
+      attentionEnteredAt: now - 1_000,
+    });
+    expect(formatEscalatedQuestCompactLine(quest, now)).toBe(formatQuestCompactLine(quest, now));
+  });
+
+  it('appends a warning badge between the thresholds', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      name: 'Warn',
+      state: 'waiting-approval',
+      lastActivityAt: now,
+      attentionEnteredAt: now - ATTENTION_ESCALATION_MS,
+    });
+    const line = formatEscalatedQuestCompactLine(quest, now);
+    expect(line).toBe(`${formatQuestCompactLine(quest, now)} ⚠ 5m`);
+  });
+
+  it('appends a critical badge past the critical threshold', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      name: 'Critical',
+      state: 'waiting-approval',
+      lastActivityAt: now,
+      attentionEnteredAt: now - ATTENTION_CRITICAL_MS,
+    });
+    const line = formatEscalatedQuestCompactLine(quest, now);
+    expect(line).toBe(`${formatQuestCompactLine(quest, now)} 🔥 15m`);
+  });
+
+  it('omits the badge for a non-attention quest with no attentionEnteredAt', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', { name: 'Running', state: 'running', lastActivityAt: now });
+    expect(formatEscalatedQuestCompactLine(quest, now)).toBe(formatQuestCompactLine(quest, now));
   });
 });

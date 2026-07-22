@@ -437,3 +437,19 @@ export function formatQuestCompactLine(quest: Quest, now: number = Date.now()): 
   }
   return parts.join(' ');
 }
+
+/**
+ * Gen 77: the Gen 76 compact line with the Gen 54 escalation badge appended,
+ * e.g. "Fix login [waiting-approval] ♥ 82 +12 -3 🔥 15m". Long-neglected
+ * quests carry their escalation badge inline so triage lists surface neglect
+ * at a glance. The badge is omitted for quests that have not crossed an
+ * escalation threshold, so this degrades gracefully to the plain compact line.
+ */
+export function formatEscalatedQuestCompactLine(quest: Quest, now: number = Date.now()): string {
+  const base = formatQuestCompactLine(quest, now);
+  const level = escalationLevelFor(quest, now);
+  const dwellMs =
+    quest.attentionEnteredAt !== undefined ? Math.max(0, now - quest.attentionEnteredAt) : null;
+  const badge = formatEscalationBadge(level, dwellMs);
+  return badge === null ? base : `${base} ${badge}`;
+}
