@@ -37,6 +37,8 @@ export interface QuestBridgeSnapshot {
   readonly backgroundTasks: ReadonlyMap<string, BackgroundTaskInfo>;
   /** Current work directory. */
   readonly workDir: string;
+  /** Accumulated file change count for the main session (Gen 5). */
+  readonly sessionChangeCount: { added: number; removed: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -122,16 +124,24 @@ export function syncQuestGridFromSnapshot(
       state: mainState,
       createdAt: now,
       lastActivityAt: now,
-      changeCount: { added: 0, removed: 0 },
+      changeCount: snapshot.sessionChangeCount,
       planStep: snapshot.streamingPhase === 'idle' ? 'Waiting for input' : 'Working…',
       worktreePath: snapshot.workDir,
       pinned: false,
       approvalPending: snapshot.approvalPending,
     });
     attentionController.onQuestStateChanged(mainQuestId, mainState);
-  } else if (existingMain.state !== mainState) {
-    gridController.updateQuestState(mainQuestId, mainState);
-    attentionController.onQuestStateChanged(mainQuestId, mainState);
+  } else {
+    if (existingMain.state !== mainState) {
+      gridController.updateQuestState(mainQuestId, mainState);
+      attentionController.onQuestStateChanged(mainQuestId, mainState);
+    }
+    // Gen 5: keep the change statistic live as edits accumulate.
+    const cc = existingMain.changeCount;
+    const next = snapshot.sessionChangeCount;
+    if (cc.added !== next.added || cc.removed !== next.removed) {
+      gridController.updateQuestChanges(mainQuestId, next);
+    }
   }
 
   // 2. Background task quests

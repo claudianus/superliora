@@ -33,6 +33,7 @@ function makeSnapshot(overrides: Partial<QuestBridgeSnapshot> = {}): QuestBridge
     approvalPending: false,
     backgroundTasks: new Map(),
     workDir: '/tmp/test',
+    sessionChangeCount: { added: 0, removed: 0 },
     ...overrides,
   };
 }

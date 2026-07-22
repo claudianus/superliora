@@ -184,6 +184,12 @@ export class SessionEventHandler {
    */
   onQuestStreamLines: ((lines: readonly string[]) => void) | undefined;
 
+  /**
+   * Gen 5: Track file changes (added/removed lines) per session for quest
+   * change statistics. Keyed by session ID, value is { added, removed }.
+   */
+  private sessionChangeCounts = new Map<string, { added: number; removed: number }>();
+
   renderedSkillActivationIds: Set<string> = new Set();
   renderedPluginCommandActivationIds: Set<string> = new Set();
   renderedMcpServerStatusKeys: Map<string, string> = new Map();
@@ -203,6 +209,7 @@ export class SessionEventHandler {
   resetRuntimeState(): void {
     this.backgroundTasks.clear();
     this.backgroundTaskTranscriptedTerminal.clear();
+    this.sessionChangeCounts.clear();
     this.ultraworkTheatres.clear();
     this.ultraworkCompletionHandledRuns.clear();
     this.subAgentEventHandler.resetRuntimeState();
@@ -807,6 +814,8 @@ export class SessionEventHandler {
         if (diffLines.length > 0) this.onQuestStreamLines(diffLines);
       }
     }
+    // Gen 5: accumulate change statistics (added/removed lines) for quest cells.
+    this.trackFileChange(event.name, toolCall.args);
     this.host.patchLivePane({
       mode: 'tool',
       pendingApproval: null,
@@ -1409,6 +1418,40 @@ export class SessionEventHandler {
   }
 
   // ---------------------------------------------------------------------------
+  // Change tracking (Gen 5)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Accumulate added/removed line counts from file-mutating tool calls so the
+   * quest dashboard cell can show a real `+N -M` change statistic.
+   *
+   * Edit: removed = old_string lines, added = new_string lines.
+   * Write: added = content lines (full-file write counts as additions).
+   */
+  private trackFileChange(toolName: string, args: Record<string, unknown>): void {
+    if (toolName !== 'Edit' && toolName !== 'Write') return;
+    const sessionId = this.host.state.appState.sessionId ?? 'unknown';
+    const count = this.sessionChangeCounts.get(sessionId) ?? { added: 0, removed: 0 };
+
+    if (toolName === 'Edit') {
+      const oldText = typeof args['old_string'] === 'string' ? args['old_string'] : '';
+      const newText = typeof args['new_string'] === 'string' ? args['new_string'] : '';
+      count.removed += countLines(oldText);
+      count.added += countLines(newText);
+    } else {
+      const content = typeof args['content'] === 'string' ? args['content'] : '';
+      count.added += countLines(content);
+    }
+    this.sessionChangeCounts.set(sessionId, count);
+  }
+
+  /** Get the accumulated change count for the current session (Gen 5). */
+  getSessionChangeCount(): { added: number; removed: number } {
+    const sessionId = this.host.state.appState.sessionId ?? 'unknown';
+    return this.sessionChangeCounts.get(sessionId) ?? { added: 0, removed: 0 };
+  }
+
+  // ---------------------------------------------------------------------------
   // Background task lifecycle
   // ---------------------------------------------------------------------------
 
@@ -1579,4 +1622,13 @@ const QUEST_RELEVANT_EVENTS: ReadonlySet<string> = new Set([
 
 function isQuestRelevantEvent(eventType: string): boolean {
   return QUEST_RELEVANT_EVENTS.has(eventType);
+}
+
+/** Count non-empty lines in a text blob (Gen 5 change statistics). */
+function countLines(text: string): number {
+  if (text.length === 0) return 0;
+  const lines = text.split('\n');
+  // A trailing newline produces an empty final element; don't count it.
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines.length;
 }

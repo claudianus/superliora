@@ -4151,6 +4151,7 @@ export class LioraTUI {
       approvalPending: this.state.livePane.pendingApproval !== null,
       backgroundTasks: this.sessionEventHandler.backgroundTasks,
       workDir: this.state.appState.workDir ?? process.cwd(),
+      sessionChangeCount: this.sessionEventHandler.getSessionChangeCount(),
     });
   }
 
