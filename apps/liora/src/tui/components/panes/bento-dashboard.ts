@@ -186,6 +186,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.gridController.setFilter('');
         return;
       }
+      // Gen 43: if a quest is pinned, unpin first instead of closing.
+      const pinned = this.pinController.getPinnedQuest();
+      if (pinned) {
+        this.pinController.unpin();
+        return;
+      }
       this.onClose();
       return;
     }

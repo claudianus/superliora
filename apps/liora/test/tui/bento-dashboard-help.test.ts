@@ -95,3 +95,27 @@ describe('Gen 22: context-aware help overlay', () => {
     expect(helpLines).toContain('Search');
   });
 });
+
+describe('Gen 43: Esc unpins before closing', () => {
+  it('Esc in pinned mode unpins first, does not close', () => {
+    const { component, grid, pin, isClosed } = makeComponent();
+    pin.pin('a');
+    expect(grid.getPinnedQuestId()).toBe('a');
+
+    // First Esc unpins.
+    component.handleInput('\x1b');
+    expect(grid.getPinnedQuestId()).toBeNull();
+    expect(isClosed()).toBe(false);
+
+    // Second Esc now closes the dashboard.
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(true);
+  });
+
+  it('Esc in dashboard mode closes directly', () => {
+    const { component, isClosed } = makeComponent();
+
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(true);
+  });
+});
