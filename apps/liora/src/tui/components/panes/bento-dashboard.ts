@@ -450,8 +450,8 @@ export class BentoDashboardComponent extends Container implements Focusable {
       progressParts.push(`☑ ${String(done)}/${String(total)}`);
     }
     if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
-      const pct = Math.round(quest.contextUsage * 100);
-      progressParts.push(`ctx ${String(pct)}%`);
+      // Gen 29: visual mini-bar instead of plain percentage text.
+      progressParts.push(renderContextBar(quest.contextUsage));
     }
     // Gen 18: model name + session cost.
     if (quest.modelName !== undefined && quest.modelName.length > 0) {
@@ -567,6 +567,18 @@ function shorten(path: string, maxLen: number): string {
   if (maxLen <= 0) return '';
   if (path.length <= maxLen) return path;
   return '…' + path.slice(-(maxLen - 1));
+}
+
+/**
+ * Gen 29: render a compact context-usage bar, e.g. `ctx ▓▓▓░░ 62%`.
+ * The bar fills proportionally so context pressure is scannable at a glance.
+ */
+export function renderContextBar(usage: number): string {
+  const pct = Math.max(0, Math.min(100, Math.round(usage * 100)));
+  const cells = 5;
+  const filled = Math.round((pct / 100) * cells);
+  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
+  return `ctx ${bar} ${String(pct)}%`;
 }
 
 /** Height of a single dashboard cell block (for layout accounting). */

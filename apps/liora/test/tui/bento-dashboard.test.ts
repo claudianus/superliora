@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
+import { renderContextBar } from '#/tui/components/panes/bento-dashboard';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -344,5 +345,29 @@ describe('Gen 27: auto-pin on attention transition', () => {
 
     ctrl.updateQuestState('d', 'done');
     expect(transitions).toEqual([]);
+  });
+});
+
+describe('Gen 29: context usage mini-bar', () => {
+  it('renders a proportional 5-cell bar with the percentage', () => {
+    expect(renderContextBar(0.62)).toBe('ctx ▓▓▓░░ 62%');
+  });
+
+  it('renders an empty bar for zero usage', () => {
+    expect(renderContextBar(0)).toBe('ctx ░░░░░ 0%');
+  });
+
+  it('renders a full bar at 100% usage', () => {
+    expect(renderContextBar(1)).toBe('ctx ▓▓▓▓▓ 100%');
+  });
+
+  it('clamps out-of-range usage into 0–100', () => {
+    expect(renderContextBar(1.5)).toBe('ctx ▓▓▓▓▓ 100%');
+    expect(renderContextBar(-0.2)).toBe('ctx ░░░░░ 0%');
+  });
+
+  it('rounds the fill to the nearest cell', () => {
+    // 40% → 2 of 5 cells filled.
+    expect(renderContextBar(0.4)).toBe('ctx ▓▓░░░ 40%');
   });
 });
