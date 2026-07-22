@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
-import { renderContextBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
+import { renderContextBar, renderTodoBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -421,7 +421,30 @@ describe('Gen 29: context usage mini-bar', () => {
   });
 });
 
-describe('Gen 30: idle-duration severity token', () => {
+describe('Gen 31: todo progress mini-bar', () => {
+  it('renders a proportional 5-cell bar with the count', () => {
+    expect(renderTodoBar(3, 5)).toBe('☑ ▓▓▓░░ 3/5');
+  });
+
+  it('renders an empty bar for zero done', () => {
+    expect(renderTodoBar(0, 4)).toBe('☑ ░░░░░ 0/4');
+  });
+
+  it('renders a full bar when all done', () => {
+    expect(renderTodoBar(6, 6)).toBe('☑ ▓▓▓▓▓ 6/6');
+  });
+
+  it('clamps done above total into a full bar', () => {
+    expect(renderTodoBar(9, 5)).toBe('☑ ▓▓▓▓▓ 9/5');
+  });
+
+  it('rounds the fill to the nearest cell', () => {
+    // 2/5 = 40% → 2 of 5 cells filled.
+    expect(renderTodoBar(2, 5)).toBe('☑ ▓▓░░░ 2/5');
+  });
+});
+
+describe('Gen 31: idle-duration severity token', () => {
   const MIN = 60_000;
 
   it('returns muted for fresh sessions', () => {
