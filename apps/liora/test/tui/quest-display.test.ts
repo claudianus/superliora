@@ -28,6 +28,7 @@ import {
   formatFleetAttentionLoadLine,
   formatEscalatedFleetAttentionLoadLine,
   formatTriageRecommendationLine,
+  formatTriageQueueLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -875,5 +876,47 @@ describe('formatTriageRecommendationLine (Gen 82)', () => {
       makeQuest('b', { name: 'Critical', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
     ];
     expect(formatTriageRecommendationLine(quests, now)).toBe("→ handle 'Critical' first 🔥 15m");
+  });
+});
+
+describe('formatTriageQueueLine (Gen 83)', () => {
+  it('returns null when nothing needs attention', () => {
+    const now = 100_000;
+    const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
+    expect(formatTriageQueueLine(quests, 3, now)).toBeNull();
+  });
+
+  it('returns null for an empty fleet', () => {
+    expect(formatTriageQueueLine([], 3, 100_000)).toBeNull();
+  });
+
+  it('lists only attention quests, most urgent first', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'Running', state: 'running', lastActivityAt: now }),
+      makeQuest('b', { name: 'Fix login', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 1_000 }),
+      makeQuest('c', { name: 'Add tests', state: 'failed', lastActivityAt: now, attentionEnteredAt: now - 2_000 }),
+    ];
+    // waiting-approval outranks failed, so 'Fix login' comes first.
+    expect(formatTriageQueueLine(quests, 3, now)).toBe('queue: Fix login · Add tests');
+  });
+
+  it('respects the topN limit', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'One', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 3_000 }),
+      makeQuest('b', { name: 'Two', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 2_000 }),
+      makeQuest('c', { name: 'Three', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 1_000 }),
+    ];
+    expect(formatTriageQueueLine(quests, 2, now)).toBe('queue: One · Two');
+  });
+
+  it('orders a critically escalated quest ahead of fresher ones', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'Fresh', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 1_000 }),
+      makeQuest('b', { name: 'Critical', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+    ];
+    expect(formatTriageQueueLine(quests, 3, now)).toBe('queue: Critical · Fresh');
   });
 });

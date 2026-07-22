@@ -532,3 +532,25 @@ export function formatTriageRecommendationLine(
   const base = `→ handle '${top.quest.name}' first`;
   return badge === null ? base : `${base} ${badge}`;
 }
+
+/**
+ * Gen 83: the next few attention quests in priority order, e.g.
+ * "queue: Fix login · Add tests · Refactor". Where Gen 82 names the single
+ * most urgent quest, this shows the operator the short queue behind it so they
+ * can plan the next couple of interventions. Only quests needing action are
+ * listed. Returns null when nothing needs attention so callers can hide the
+ * segment.
+ */
+export function formatTriageQueueLine(
+  quests: readonly Quest[],
+  topN: number,
+  now: number = Date.now(),
+): string | null {
+  const pending = quests.filter((quest) => ATTENTION_STATES.has(quest.state));
+  if (pending.length === 0) return null;
+  const limit = Math.max(1, topN);
+  const names = rankQuestsByEscalatedUrgency(pending, now)
+    .slice(0, limit)
+    .map((ranked) => ranked.quest.name);
+  return `queue: ${names.join(' · ')}`;
+}
