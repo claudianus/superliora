@@ -1833,9 +1833,15 @@ export class LioraTUI {
   }
 
   handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void {
+    const text = event.update.text ?? '';
+    // Gen 8: mirror live shell output into the pinned quest's expand view so
+    // the user can watch command verification run. No-op unless the dashboard
+    // is open (appendQuestStreamLines guards on activeDialog).
+    if (text.length > 0) {
+      this.appendQuestStreamLines(splitShellOutputLines(text));
+    }
     const stream = this.shellOutputStreams.get(event.commandId);
     if (stream === undefined) return;
-    const text = event.update.text ?? '';
     if (text.length === 0) return;
     stream.component.append(text);
   }
@@ -4689,6 +4695,18 @@ function collectFooterModeBeats(
 function splitTailLines(tail: string): string[] {
   if (tail.length === 0) return [];
   const lines = tail.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
+/**
+ * Gen 8: split a shell-output chunk into display lines for the expand view.
+ * Chunks may be partial lines; we split on newlines and drop a trailing empty
+ * element produced by a final newline.
+ */
+function splitShellOutputLines(text: string): string[] {
+  if (text.length === 0) return [];
+  const lines = text.split('\n');
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   return lines;
 }
