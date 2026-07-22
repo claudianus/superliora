@@ -222,8 +222,22 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[0]).toContain('My Quest');
     expect(lines[0]).toContain('running');
     expect(lines[2]).toContain('Step 1');
-    expect(lines[4]).toBe('line 1');
-    expect(lines[5]).toBe('line 2');
+    // Gen 46: stream lines carry a line-number gutter prefix.
+    expect(lines[4]).toContain('line 1');
+    expect(lines[5]).toContain('line 2');
+  });
+
+  it('Gen 46: expand view stream shows line-number gutter', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('first');
+    view.appendLine('second');
+
+    const lines = view.render(quest, 80);
+    // Stream starts after the 3 header lines + separator (index 4).
+    // Gutter is right-aligned and 1-based.
+    expect(lines[4]).toMatch(/\b1\s+first/);
+    expect(lines[5]).toMatch(/\b2\s+second/);
   });
 
   it('Gen 33: expand view header shows dwell time for attention quests', () => {

@@ -334,11 +334,17 @@ export class QuestExpandView {
     // Separator
     lines.push('─'.repeat(Math.min(width, 60)));
 
+    // Gen 46: line-number gutter so search matches (Gen 16) are locatable.
+    const lineTotal = this.streamLines.length;
+    const gutterWidth = Math.max(2, String(lineTotal).length);
+    const contentWidth = Math.max(1, width - gutterWidth - 1);
     const visible = this.getVisibleLines();
-    for (const line of visible) {
-      const clipped = line.length > width ? line.slice(0, width) : line;
-      lines.push(highlightStreamLine(clipped));
-    }
+    visible.forEach((line, i) => {
+      const lineNo = String(this.scrollOffset + i + 1).padStart(gutterWidth);
+      const gutter = currentTheme.dim(`${lineNo} `);
+      const clipped = line.length > contentWidth ? line.slice(0, contentWidth) : line;
+      lines.push(`${gutter}${highlightStreamLine(clipped)}`);
+    });
 
     // Gen 28: inline approval prompt when the pinned quest awaits a decision.
     if (quest.state === 'waiting-approval') {
