@@ -14,6 +14,7 @@ import {
   rankQuestsByUrgency,
   rankQuestsByEscalatedUrgency,
   escalationLevelFor,
+  urgencyDistribution,
 } from './quest-urgency';
 
 /**
@@ -581,4 +582,24 @@ export function buildTriagePanelSnapshot(
     (line): line is string => line !== null,
   );
   return { loadLine, recommendationLine, queueLine, lines };
+}
+
+/**
+ * Gen 86: a one-line breakdown of the fleet's attention quests across
+ * escalation levels, e.g. "2 fresh · 1 escalated · 1 critical". Buckets with a
+ * zero count are omitted so the line stays compact. Returns null when no quest
+ * needs attention so callers can hide the segment. Gives the operator an
+ * at-a-glance read on how much of the pending demand is about to time out.
+ */
+export function formatUrgencyDistributionLine(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): string | null {
+  const { normal, escalated, critical } = urgencyDistribution(quests, now);
+  const segments: string[] = [];
+  if (normal > 0) segments.push(`${String(normal)} fresh`);
+  if (escalated > 0) segments.push(`${String(escalated)} escalated`);
+  if (critical > 0) segments.push(`${String(critical)} critical`);
+  if (segments.length === 0) return null;
+  return segments.join(' · ');
 }

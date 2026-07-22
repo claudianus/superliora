@@ -30,6 +30,7 @@ import {
   formatTriageRecommendationLine,
   formatTriageQueueLine,
   buildTriagePanelSnapshot,
+  formatUrgencyDistributionLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -965,5 +966,46 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     expect(snapshot.recommendationLine).toBe("→ handle 'Fix login' first");
     expect(snapshot.queueLine).toBe('queue: Fix login');
     expect(snapshot.lines).toEqual(["→ handle 'Fix login' first", 'queue: Fix login']);
+  });
+});
+
+describe('formatUrgencyDistributionLine (Gen 86)', () => {
+  it('returns null when nothing needs attention', () => {
+    const now = 100_000;
+    const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
+    expect(formatUrgencyDistributionLine(quests, now)).toBeNull();
+  });
+
+  it('returns null for an empty fleet', () => {
+    expect(formatUrgencyDistributionLine([], 100_000)).toBeNull();
+  });
+
+  it('shows only the fresh bucket for fresh attention quests', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('b', { state: 'failed', attentionEnteredAt: now - 1_000 }),
+    ];
+    expect(formatUrgencyDistributionLine(quests, now)).toBe('2 fresh');
+  });
+
+  it('omits empty buckets in a mixed fleet', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('fresh', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('crit', { state: 'failed', attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+    ];
+    // No escalated quests, so that bucket is omitted.
+    expect(formatUrgencyDistributionLine(quests, now)).toBe('1 fresh · 1 critical');
+  });
+
+  it('spreads a full fleet across all three buckets', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('fresh', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('warn', { state: 'waiting-approval', attentionEnteredAt: now - ATTENTION_ESCALATION_MS }),
+      makeQuest('crit', { state: 'failed', attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+    ];
+    expect(formatUrgencyDistributionLine(quests, now)).toBe('1 fresh · 1 escalated · 1 critical');
   });
 });
