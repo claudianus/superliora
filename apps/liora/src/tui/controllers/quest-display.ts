@@ -685,3 +685,29 @@ export function formatTriageCompactLine(
   if (parts.length === 0) return null;
   return parts.join(' ');
 }
+
+/**
+ * Gen 94: the Gen 93 compact triage line enriched with the escalation
+ * distribution (Gen 86), e.g.
+ * "⚠ elevated (4 pending) [2 fresh · 1 escalated · 1 critical] → handle 'One'
+ * first". The bracketed distribution tells the operator not just how much
+ * demand there is, but how much of it is about to time out — all on one line.
+ * Returns null when nothing needs attention so callers can hide the segment.
+ */
+export function formatTriageCompactLineWithDistribution(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): string | null {
+  const loadLine = formatEscalatedFleetAttentionLoadLine(quests, now);
+  const distributionLine = formatUrgencyDistributionLine(quests, now);
+  const recommendationLine = formatTriageRecommendationLine(quests, now);
+  const head =
+    loadLine !== null && distributionLine !== null
+      ? `${loadLine} [${distributionLine}]`
+      : loadLine ?? distributionLine;
+  const parts = [head, recommendationLine].filter(
+    (part): part is string => part !== null,
+  );
+  if (parts.length === 0) return null;
+  return parts.join(' ');
+}

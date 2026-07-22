@@ -34,6 +34,7 @@ import {
   attentionLoadColorToken,
   formatAttentionLoadGuidance,
   formatTriageCompactLine,
+  formatTriageCompactLineWithDistribution,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -1108,6 +1109,42 @@ describe('formatTriageCompactLine (Gen 93)', () => {
     ];
     expect(formatTriageCompactLine(quests, now)).toBe(
       "⚠ elevated (4 pending) → handle 'One' first",
+    );
+  });
+});
+
+describe('formatTriageCompactLineWithDistribution (Gen 94)', () => {
+  it('returns null when nothing needs attention', () => {
+    const now = 100_000;
+    const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
+    expect(formatTriageCompactLineWithDistribution(quests, now)).toBeNull();
+  });
+
+  it('returns null for an empty fleet', () => {
+    expect(formatTriageCompactLineWithDistribution([], 100_000)).toBeNull();
+  });
+
+  it('shows the distribution and recommendation for a normal load (no load line)', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'Fix login', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+    ];
+    // Normal load → no load line, so the distribution stands alone as the head.
+    expect(formatTriageCompactLineWithDistribution(quests, now)).toBe(
+      "1 fresh → handle 'Fix login' first",
+    );
+  });
+
+  it('brackets the distribution after the load line for an elevated load', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'One', state: 'waiting-approval', attentionEnteredAt: now - 3_000 }),
+      makeQuest('b', { name: 'Two', state: 'failed', attentionEnteredAt: now - 2_000 }),
+      makeQuest('c', { name: 'Three', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('d', { name: 'Four', state: 'waiting-approval', attentionEnteredAt: now - 500 }),
+    ];
+    expect(formatTriageCompactLineWithDistribution(quests, now)).toBe(
+      "⚠ elevated (4 pending) [4 fresh] → handle 'One' first",
     );
   });
 });
