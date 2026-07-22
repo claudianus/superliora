@@ -96,6 +96,38 @@ export class PinController {
     return this.pinHistory.length > 0;
   }
 
+  /**
+   * Gen 39: cycle the pin to the next quest in display order (wrapping).
+   * Lets the operator sweep through quests with `l` without unpinning.
+   * No-op when fewer than two quests exist.
+   */
+  pinNextInStrip(): void {
+    this.cyclePin(1);
+  }
+
+  /**
+   * Gen 39: cycle the pin to the previous quest in display order (wrapping).
+   * No-op when fewer than two quests exist.
+   */
+  pinPrevInStrip(): void {
+    this.cyclePin(-1);
+  }
+
+  /** Gen 39: shared cycle helper — move the pin by `delta` in ordered quests. */
+  private cyclePin(delta: number): void {
+    const quests = this.gridController.getQuests();
+    if (quests.length < 2) return;
+    const pinnedId = this.gridController.getPinnedQuestId();
+    const currentIdx = pinnedId
+      ? quests.findIndex((q) => q.id === pinnedId)
+      : -1;
+    const nextIdx = (currentIdx + delta + quests.length) % quests.length;
+    const target = quests[nextIdx];
+    if (target && target.id !== pinnedId) {
+      this.pin(target.id);
+    }
+  }
+
   /** Whether any quest is pinned. */
   get isPinned(): boolean {
     return this.gridController.getPinnedQuestId() !== null;

@@ -255,6 +255,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.pinController.pinPrevious();
         return;
       }
+      // Gen 39: h/l → cycle the pin to the previous/next quest (switch_context
+      // without unpinning; j/k stay bound to scrolling).
+      if (k === 'l') {
+        this.pinController.pinNextInStrip();
+        return;
+      }
+      if (k === 'h') {
+        this.pinController.pinPrevInStrip();
+        return;
+      }
       // Gen 6b: 1–9 → jump directly to the Nth thumbnail quest (switch_context).
       if (k.length === 1 && k >= '1' && k <= '9') {
         const stripQuests = this.pinController.getStripQuests();
@@ -375,6 +385,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['PgDn / PgUp', 'Scroll a page at a time'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
+          ['h / l', 'Previous / next quest (switch context)'],
           ['Enter / p', 'Unpin back to the grid'],
           ['-', 'Jump back to the previously pinned quest'],
           ['1–9', 'Jump to the Nth thumbnail quest'],

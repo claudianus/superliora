@@ -155,6 +155,49 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(pin.getPinnedQuest()?.id).toBe('a');
   });
 
+  it('Gen 39: pinNextInStrip cycles forward through display order', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('c');
+    // Wraps back to the first quest.
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 39: pinPrevInStrip cycles backward with wrap', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinPrevInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('c');
+    pin.pinPrevInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+  });
+
+  it('Gen 39: cycling is a no-op with a single quest', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+    pin.pinPrevInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
   it('pinned quest cell gets larger span in layout', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));
