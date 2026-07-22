@@ -929,12 +929,13 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
     expect(snapshot.loadLine).toBeNull();
+    expect(snapshot.distributionLine).toBeNull();
     expect(snapshot.recommendationLine).toBeNull();
     expect(snapshot.queueLine).toBeNull();
     expect(snapshot.lines).toEqual([]);
   });
 
-  it('combines the load, recommendation, and queue lines in order', () => {
+  it('combines the load, distribution, recommendation, and queue lines in order', () => {
     const now = 100_000;
     const quests = [
       makeQuest('a', { name: 'One', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 3_000 }),
@@ -944,18 +945,20 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     ];
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
     expect(snapshot.loadLine).toBe('⚠ elevated (4 pending)');
+    expect(snapshot.distributionLine).toBe('4 fresh');
     expect(snapshot.recommendationLine).toBe("→ handle 'One' first");
     // waiting-approval (priority 0) outranks failed (priority 1) regardless of
     // dwell time, so the three waiting-approval quests fill the queue first.
     expect(snapshot.queueLine).toBe('queue: One · Three · Four');
     expect(snapshot.lines).toEqual([
       '⚠ elevated (4 pending)',
+      '4 fresh',
       "→ handle 'One' first",
       'queue: One · Three · Four',
     ]);
   });
 
-  it('omits the load line for a normal load but keeps the recommendation and queue', () => {
+  it('omits the load line for a normal load but keeps the rest', () => {
     const now = 100_000;
     const quests = [
       makeQuest('a', { name: 'Fix login', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 1_000 }),
@@ -963,9 +966,14 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
     // A single pending quest is a normal load, so the load line is hidden.
     expect(snapshot.loadLine).toBeNull();
+    expect(snapshot.distributionLine).toBe('1 fresh');
     expect(snapshot.recommendationLine).toBe("→ handle 'Fix login' first");
     expect(snapshot.queueLine).toBe('queue: Fix login');
-    expect(snapshot.lines).toEqual(["→ handle 'Fix login' first", 'queue: Fix login']);
+    expect(snapshot.lines).toEqual([
+      '1 fresh',
+      "→ handle 'Fix login' first",
+      'queue: Fix login',
+    ]);
   });
 });
 
