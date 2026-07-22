@@ -79,6 +79,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
   private readonly now: () => number;
   private readonly onClose: () => void;
 
+  // Gen 16: inline search state
+  private searchMode = false;
+  private searchBuffer = '';
+
   constructor(options: BentoDashboardOptions) {
     super();
     this.gridController = options.gridController;
@@ -102,6 +106,29 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
   handleInput(data: string): void {
     const k = printableChar(data);
+
+    // Gen 16: inline search mode — capture typing until Enter/Esc.
+    if (this.searchMode) {
+      if (matchesKey(data, Key.escape)) {
+        this.searchMode = false;
+        this.searchBuffer = '';
+        this.expandViews.get(this.pinController.getPinnedQuest()?.id ?? '')?.clearSearch();
+        return;
+      }
+      if (matchesKey(data, Key.enter)) {
+        this.searchMode = false;
+        return;
+      }
+      if (data === '\x7f' || data === '\b') {
+        // Backspace: shrink the query.
+        this.searchBuffer = this.searchBuffer.slice(0, -1);
+      } else if (k.length === 1) {
+        this.searchBuffer += k;
+      }
+      const view = this.expandViews.get(this.pinController.getPinnedQuest()?.id ?? '');
+      view?.startSearch(this.searchBuffer);
+      return;
+    }
 
     // Esc or Ctrl+G → close dashboard
     if (matchesKey(data, Key.escape) || data === '\x07') {
@@ -137,6 +164,20 @@ export class BentoDashboardComponent extends Container implements Focusable {
       }
       if (k === 'g') {
         expandView?.scrollToTop();
+        return;
+      }
+      // Gen 16: / starts inline search; n/N jump between matches.
+      if (k === '/') {
+        this.searchMode = true;
+        this.searchBuffer = '';
+        return;
+      }
+      if (k === 'n') {
+        expandView?.searchNext();
+        return;
+      }
+      if (k === 'N') {
+        expandView?.searchPrev();
         return;
       }
       // Enter or p → unpin back to the dashboard grid

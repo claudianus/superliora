@@ -223,6 +223,73 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.currentScrollOffset).toBe(25);
   });
 
+  it('Gen 16: search finds matches and jumps to them', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines([
+      'apple pie',
+      'banana bread',
+      'apple sauce',
+      'cherry tart',
+      'apple crumble',
+      'date cake',
+      'elderberry jam',
+      'fig newton',
+      'grapefruit',
+      'honeydew',
+    ]);
+    // Search for "apple" — 3 matches, jumps to first (line 0).
+    const count = view.startSearch('apple');
+    expect(count).toBe(3);
+    expect(view.currentScrollOffset).toBe(0);
+
+    // Status reflects 1/3.
+    let status = view.getSearchStatus();
+    expect(status?.current).toBe(1);
+    expect(status?.total).toBe(3);
+
+    // Next → 2nd match (line 2).
+    view.searchNext();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(2);
+
+    // Next again → 3rd match (line 4).
+    view.searchNext();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(3);
+
+    // Next wraps to 1st match.
+    view.searchNext();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(1);
+
+    // Prev wraps back to 3rd match.
+    view.searchPrev();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(3);
+  });
+
+  it('Gen 16: search is case-insensitive and clearable', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['Hello World', 'hello there', 'HELLO AGAIN']);
+    expect(view.startSearch('hello')).toBe(3);
+    expect(view.getSearchStatus()).not.toBeNull();
+
+    view.clearSearch();
+    expect(view.getSearchStatus()).toBeNull();
+  });
+
+  it('Gen 16: no matches returns 0 and status shows 0/0', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['foo', 'bar', 'baz']);
+    expect(view.startSearch('xyz')).toBe(0);
+    const status = view.getSearchStatus();
+    expect(status?.current).toBe(0);
+    expect(status?.total).toBe(0);
+  });
+
   it('removing pinned quest resets pin state', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));

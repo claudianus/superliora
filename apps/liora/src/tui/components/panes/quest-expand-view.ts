@@ -33,6 +33,11 @@ export class QuestExpandView {
   private scrollOffset = 0;
   private maxVisibleLines = 20;
 
+  // Gen 16: search state
+  private searchQuery: string | null = null;
+  private searchMatches: number[] = [];
+  private currentMatchIndex = 0;
+
   /** Set the maximum visible lines (from cell height). */
   setMaxVisibleLines(lines: number): void {
     this.maxVisibleLines = Math.max(1, lines);
@@ -112,6 +117,70 @@ export class QuestExpandView {
     this.scrollOffset = Math.max(0, this.streamLines.length - this.maxVisibleLines);
   }
 
+  // -------------------------------------------------------------------------
+  // Gen 16: in-stream text search
+  // -------------------------------------------------------------------------
+
+  /**
+   * Gen 16: start (or update) a case-insensitive search over the stream and
+   * jump to the first match. Returns the number of matches found.
+   */
+  startSearch(query: string): number {
+    this.searchQuery = query.length > 0 ? query : null;
+    this.searchMatches = [];
+    this.currentMatchIndex = 0;
+    if (this.searchQuery === null) return 0;
+    const needle = this.searchQuery.toLowerCase();
+    for (let i = 0; i < this.streamLines.length; i++) {
+      if (this.streamLines[i]!.toLowerCase().includes(needle)) {
+        this.searchMatches.push(i);
+      }
+    }
+    if (this.searchMatches.length > 0) {
+      this.jumpToLine(this.searchMatches[0]!);
+    }
+    return this.searchMatches.length;
+  }
+
+  /** Gen 16: jump to the next search match (wraps around). */
+  searchNext(): void {
+    if (this.searchMatches.length === 0) return;
+    this.currentMatchIndex = (this.currentMatchIndex + 1) % this.searchMatches.length;
+    this.jumpToLine(this.searchMatches[this.currentMatchIndex]!);
+  }
+
+  /** Gen 16: jump to the previous search match (wraps around). */
+  searchPrev(): void {
+    if (this.searchMatches.length === 0) return;
+    this.currentMatchIndex =
+      (this.currentMatchIndex - 1 + this.searchMatches.length) % this.searchMatches.length;
+    this.jumpToLine(this.searchMatches[this.currentMatchIndex]!);
+  }
+
+  /** Gen 16: clear the active search. */
+  clearSearch(): void {
+    this.searchQuery = null;
+    this.searchMatches = [];
+    this.currentMatchIndex = 0;
+  }
+
+  /** Gen 16: current search status for header display, or null if inactive. */
+  getSearchStatus(): { query: string; current: number; total: number } | null {
+    if (this.searchQuery === null) return null;
+    return {
+      query: this.searchQuery,
+      current: this.searchMatches.length > 0 ? this.currentMatchIndex + 1 : 0,
+      total: this.searchMatches.length,
+    };
+  }
+
+  /** Scroll so the given line index is visible (centered when possible). */
+  private jumpToLine(lineIndex: number): void {
+    const maxOffset = Math.max(0, this.streamLines.length - this.maxVisibleLines);
+    const target = Math.max(0, lineIndex - Math.floor(this.maxVisibleLines / 2));
+    this.scrollOffset = Math.min(maxOffset, target);
+  }
+
   /** Get the currently visible lines. */
   getVisibleLines(): readonly string[] {
     return this.streamLines.slice(
@@ -145,8 +214,15 @@ export class QuestExpandView {
         : `${String(this.scrollOffset + 1)}–${String(Math.min(total, this.scrollOffset + this.maxVisibleLines))}/${String(total)}`;
     const scrollTag = atBottom ? scrollInfo : `${scrollInfo} ↑`;
 
+    // Gen 16: append search status to the header when a search is active.
+    const searchStatus = this.getSearchStatus();
+    const searchTag =
+      searchStatus !== null
+        ? `  /${searchStatus.query} ${String(searchStatus.current)}/${String(searchStatus.total)}`
+        : '';
+
     // Gen 11: rich header with quest metadata
-    const headerLine1 = `── ${quest.name} [${quest.state}]  ${scrollTag} ──`;
+    const headerLine1 = `── ${quest.name} [${quest.state}]  ${scrollTag}${searchTag} ──`;
     lines.push(headerLine1.length > width ? headerLine1.slice(0, width) : headerLine1);
 
     // Second header line: worktree + change count
