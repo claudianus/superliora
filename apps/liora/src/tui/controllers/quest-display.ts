@@ -135,3 +135,14 @@ export function formatStripBlinkLabel(maxLevel: EscalationLevel): string | null 
   if (maxLevel === 0) return null;
   return maxLevel === 2 ? '🔥 BLINK' : '⚡ BLINK';
 }
+
+/**
+ * Gen 62: a compact session-cost label, e.g. "$1.23". Returns null when the
+ * cost is undefined or not positive so callers can hide the segment entirely.
+ * Centralizes the "$N.NN" formatting that was previously duplicated across the
+ * dashboard cells and the expand view.
+ */
+export function formatCostUsd(costUsd: number | undefined): string | null {
+  if (costUsd === undefined || costUsd <= 0) return null;
+  return `$${costUsd.toFixed(2)}`;
+}

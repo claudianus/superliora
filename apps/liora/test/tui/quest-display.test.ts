@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatAttentionSummary,
+  formatCostUsd,
   formatEscalationBadge,
   formatEscalationSummary,
   formatEscalatedAttentionSummary,
@@ -236,5 +237,22 @@ describe('formatStripBlinkLabel (Gen 61)', () => {
 
   it('formats a critical-level blink label', () => {
     expect(formatStripBlinkLabel(2)).toBe('🔥 BLINK');
+  });
+});
+
+describe('formatCostUsd (Gen 62)', () => {
+  it('returns null when the cost is undefined', () => {
+    expect(formatCostUsd(undefined)).toBeNull();
+  });
+
+  it('returns null when the cost is zero or negative', () => {
+    expect(formatCostUsd(0)).toBeNull();
+    expect(formatCostUsd(-1)).toBeNull();
+  });
+
+  it('formats a positive cost to two decimals', () => {
+    expect(formatCostUsd(1.234)).toBe('$1.23');
+    expect(formatCostUsd(0.05)).toBe('$0.05');
+    expect(formatCostUsd(12)).toBe('$12.00');
   });
 });
