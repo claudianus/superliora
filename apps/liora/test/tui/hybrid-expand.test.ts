@@ -152,6 +152,51 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.currentScrollOffset).toBe(6);
   });
 
+  it('Gen 14: scrolled-up view does not auto-follow new lines', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // Parked at bottom (offset 7). Scroll up to review history.
+    view.scrollUp(4);
+    expect(view.currentScrollOffset).toBe(3);
+
+    // New output arrives while reviewing — viewport must stay put.
+    view.appendLine('line 10');
+    view.appendLines(['line 11', 'line 12']);
+    expect(view.currentScrollOffset).toBe(3);
+    expect(view.getVisibleLines()[0]).toBe('line 3');
+  });
+
+  it('Gen 14: bottom-parked view follows new lines', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    expect(view.currentScrollOffset).toBe(7);
+
+    // At bottom — new output should be followed.
+    view.appendLine('line 10');
+    expect(view.currentScrollOffset).toBe(8);
+    expect(view.getVisibleLines()[2]).toBe('line 10');
+  });
+
+  it('Gen 14: header shows scroll position and ↑ when not at tail', () => {
+    const quest = makeQuest('a', { name: 'Q', state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // At tail: no ↑ marker.
+    expect(view.render(quest, 80)[0]).not.toContain('↑');
+    // Scroll up: ↑ marker appears.
+    view.scrollUp(3);
+    expect(view.render(quest, 80)[0]).toContain('↑');
+  });
+
   it('removing pinned quest resets pin state', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));

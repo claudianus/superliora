@@ -38,25 +38,41 @@ export class QuestExpandView {
     this.maxVisibleLines = Math.max(1, lines);
   }
 
+  /**
+   * Gen 14: whether the viewport is parked at the bottom. New output only
+   * auto-follows when true, so scrolling up to review history is not yanked
+   * back down by incoming lines.
+   */
+  private isAtBottom(): boolean {
+    const maxOffset = Math.max(0, this.streamLines.length - this.maxVisibleLines);
+    return this.scrollOffset >= maxOffset;
+  }
+
   /** Append a line to the live stream. */
   appendLine(line: string): void {
+    const followBottom = this.isAtBottom();
     this.streamLines.push(line);
-    // Auto-scroll to bottom
-    this.scrollOffset = Math.max(
-      0,
-      this.streamLines.length - this.maxVisibleLines,
-    );
+    if (followBottom) {
+      // Auto-scroll to bottom only when already following the tail.
+      this.scrollOffset = Math.max(
+        0,
+        this.streamLines.length - this.maxVisibleLines,
+      );
+    }
   }
 
   /** Append multiple lines. */
   appendLines(lines: readonly string[]): void {
+    const followBottom = this.isAtBottom();
     for (const line of lines) {
       this.streamLines.push(line);
     }
-    this.scrollOffset = Math.max(
-      0,
-      this.streamLines.length - this.maxVisibleLines,
-    );
+    if (followBottom) {
+      this.scrollOffset = Math.max(
+        0,
+        this.streamLines.length - this.maxVisibleLines,
+      );
+    }
   }
 
   /** Clear the stream. */
@@ -98,8 +114,19 @@ export class QuestExpandView {
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];
 
+    // Gen 14: scroll position indicator — shows where the viewport sits in the
+    // stream, and flags when the user has scrolled away from the live tail.
+    const total = this.streamLines.length;
+    const maxOffset = Math.max(0, total - this.maxVisibleLines);
+    const atBottom = this.scrollOffset >= maxOffset;
+    const scrollInfo =
+      total <= this.maxVisibleLines
+        ? `${String(total)} lines`
+        : `${String(this.scrollOffset + 1)}–${String(Math.min(total, this.scrollOffset + this.maxVisibleLines))}/${String(total)}`;
+    const scrollTag = atBottom ? scrollInfo : `${scrollInfo} ↑`;
+
     // Gen 11: rich header with quest metadata
-    const headerLine1 = `── ${quest.name} [${quest.state}] ──`;
+    const headerLine1 = `── ${quest.name} [${quest.state}]  ${scrollTag} ──`;
     lines.push(headerLine1.length > width ? headerLine1.slice(0, width) : headerLine1);
 
     // Second header line: worktree + change count
