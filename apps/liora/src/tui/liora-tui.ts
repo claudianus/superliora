@@ -897,17 +897,24 @@ export class LioraTUI {
             return;
           }
 
-          // Bento grid mode: render all panels as grid tiles
-          if (layout.bentoGrid) {
-            this.workspaceController.renderBentoGrid(frameRenderer, layout);
-            this.renderBottomStatusBar(frameRenderer, columns, rows, layout);
-            return;
-          }
-
           // Outer shell frame first — dock panel frames below paint on top of
           // their portion, so this shows through only around/above/below the
           // center stage, unifying the whole workspace into one composition.
           this.workspaceController.paintShellChrome(frameRenderer, layout);
+
+          // Bento grid dock rendering: use bento tiles when available
+          const leftGrid = this.workspaceController.getDockBentoGrid('left');
+          const rightGrid = this.workspaceController.getDockBentoGrid('right');
+          if (leftGrid) {
+            this.workspaceController.renderBentoGrid(frameRenderer, leftGrid);
+          }
+          if (rightGrid) {
+            this.workspaceController.renderBentoGrid(frameRenderer, rightGrid);
+          }
+          if (leftGrid || rightGrid) {
+            // Bento dock mode: panels already rendered as bento tiles
+          } else {
+          // Fallback: old dock rendering
           const docks = this.workspaceController.renderDocks(layout);
           // Draw left dock panels (or maximized panel)
           const maximizedId = this.workspaceController.getMaximizedPanelId();
@@ -938,6 +945,7 @@ export class LioraTUI {
               }
             }
           }
+          } // end else (old dock rendering)
           // Draw panel switcher overlay (centered)
           const switcherLines = this.workspaceController.renderSwitcherOverlay();
           if (switcherLines) {

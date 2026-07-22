@@ -5,6 +5,7 @@ import type {
   RendererRect,
   WorkspaceLayoutMode,
   WorkspaceLayoutResult,
+  BentoGridLayout,
 } from '@harness-kit/tui-renderer';
 import {
   measureWorkspaceLayout,
@@ -75,6 +76,9 @@ export class WorkspaceController {
   readonly dragController: DragController;
   private readonly requestRender: () => void;
   private currentLayout: WorkspaceLayoutResult | null = null;
+  /** Bento grids for dock areas (computed alongside the main layout). */
+  private leftBentoGrid: BentoGridLayout | null = null;
+  private rightBentoGrid: BentoGridLayout | null = null;
   // Last breakpoint mode measured by `computeLayout`, kept even when
   // `currentLayout` is null (no docks present) — see `toggleDockDrawerAware`.
   private lastLayoutMode: WorkspaceLayoutMode | null = null;
@@ -243,28 +247,6 @@ export class WorkspaceController {
       height: ctx.terminalRows,
     };
 
-    // Bento grid mode: when grid cells are assigned, use the bento grid layout
-    const gridSpecs = this.panelManager.getBentoPanelSpecs();
-    if (gridSpecs.length > 0) {
-      const bentoGrid = measureBentoGridLayout(
-        viewport,
-        gridSpecs,
-        this.panelManager.getFocusedPanelId(),
-      );
-      const layout: WorkspaceLayoutResult = {
-        mode: 'wide',
-        viewport,
-        shell: viewport,
-        center: viewport,
-        dockGap: 0,
-        shellInsetX: 0,
-        shellInsetY: 0,
-        bentoGrid,
-      };
-      this.currentLayout = layout;
-      return layout;
-    }
-
     let layout = measureWorkspaceLayout({
       viewport,
       leftDockWidth: layoutOptions.leftDockWidth,
@@ -308,6 +290,36 @@ export class WorkspaceController {
       this.lastShellSettleColumns = -1;
       this.lastShellSettleRows = -1;
       return null;
+    }
+
+    // Compute bento grids for dock areas (panels rendered as bento tiles
+    // within each dock rect, while center remains the main chat/editor).
+    const gridSpecs = this.panelManager.getBentoPanelSpecs();
+    if (gridSpecs.length > 0) {
+      const focusedId = this.panelManager.getFocusedPanelId();
+      if (layout.leftDock) {
+        const leftPanels = this.panelManager.getPanelsInDock('left')
+          .map((p) => gridSpecs.find((s) => s.id === p.instanceId))
+          .filter((s): s is NonNullable<typeof s> => s !== undefined);
+        this.leftBentoGrid = leftPanels.length > 0
+          ? measureBentoGridLayout(layout.leftDock.rect, leftPanels, focusedId)
+          : null;
+      } else {
+        this.leftBentoGrid = null;
+      }
+      if (layout.rightDock) {
+        const rightPanels = this.panelManager.getPanelsInDock('right')
+          .map((p) => gridSpecs.find((s) => s.id === p.instanceId))
+          .filter((s): s is NonNullable<typeof s> => s !== undefined);
+        this.rightBentoGrid = rightPanels.length > 0
+          ? measureBentoGridLayout(layout.rightDock.rect, rightPanels, focusedId)
+          : null;
+      } else {
+        this.rightBentoGrid = null;
+      }
+    } else {
+      this.leftBentoGrid = null;
+      this.rightBentoGrid = null;
     }
 
     this.trackShellMotionState(layout, ctx);
@@ -490,10 +502,7 @@ export class WorkspaceController {
    * Each cell gets a box-drawing frame (bright for focused, dim for others)
    * and the panel content is rendered inside.
    */
-  renderBentoGrid(frameRenderer: NativeFrameRenderer, layout: WorkspaceLayoutResult): void {
-    const grid = layout.bentoGrid;
-    if (!grid) return;
-
+  renderBentoGrid(frameRenderer: NativeFrameRenderer, grid: BentoGridLayout): void {
     const focusedId = this.panelManager.getFocusedPanelId();
     const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
 
@@ -510,20 +519,16 @@ export class WorkspaceController {
       const contentLines = panel.definition.render(contentWidth, contentHeight, isFocused, searchQuery);
 
       // Draw box frame
-      const borderChar = isFocused ? '─' : '─';
-      const cornerTL = isFocused ? '┌' : '┌';
-      const cornerTR = isFocused ? '┐' : '┐';
-      const cornerBL = isFocused ? '└' : '┘';
-      const cornerBR = isFocused ? '┘' : '┘';
+      const borderChar = '─';
+      const cornerTL = '┌';
+      const cornerTR = '┐';
+      const cornerBL = '└';
+      const cornerBR = '┘';
       const vertChar = '│';
-
-      const borderColor = isFocused
-        ? currentTheme.color('primary')
-        : currentTheme.color('border');
 
       // Top border with title
       const title = ` ${panel.definition.icon ?? ''} ${panel.definition.title} `;
-      const topLine = this.buildBentoTopBorder(cornerTL, borderChar, cornerTR, title, width, borderColor);
+      const topLine = this.buildBentoTopBorder(cornerTL, borderChar, cornerTR, title, width, isFocused);
       frameRenderer.writeAnsiText(x, y, topLine);
 
       // Content rows
@@ -542,9 +547,27 @@ export class WorkspaceController {
     }
   }
 
+  /** Get the bento grid for a specific dock area (null if not computed). */
+  getDockBentoGrid(dock: 'left' | 'right'): BentoGridLayout | null {
+    return dock === 'left' ? this.leftBentoGrid : this.rightBentoGrid;
+  }
+
+  /** Hit-test both dock bento grids; returns the first cell hit or null. */
+  private hitTestDockBentoGrids(x: number, y: number): { cellId: string } | null {
+    if (this.leftBentoGrid) {
+      const hit = hitTestBentoGrid(this.leftBentoGrid, x, y);
+      if (hit) return hit;
+    }
+    if (this.rightBentoGrid) {
+      const hit = hitTestBentoGrid(this.rightBentoGrid, x, y);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
   private buildBentoTopBorder(
     tl: string, horizontal: string, tr: string,
-    title: string, width: number, borderColor: string,
+    title: string, width: number, isFocused: boolean,
   ): string {
     const innerWidth = Math.max(0, width - 2);
     const titleTrunc = title.length > innerWidth ? title.slice(0, innerWidth) : title;
@@ -552,7 +575,7 @@ export class WorkspaceController {
     const leftPad = Math.floor(remaining / 2);
     const rightPad = remaining - leftPad;
     const line = tl + horizontal.repeat(leftPad) + titleTrunc + horizontal.repeat(rightPad) + tr;
-    return currentTheme.fg('primary', line);
+    return currentTheme.fg(isFocused ? 'primary' : 'border', line);
   }
 
   /**
@@ -959,17 +982,15 @@ export class WorkspaceController {
       const layout = this.currentLayout;
       if (layout) {
         // Bento grid hit-test: focus the clicked cell
-        if (layout.bentoGrid) {
-          const hit = hitTestBentoGrid(layout.bentoGrid, event.x, event.y);
-          if (hit) {
-            if (this.panelManager.getFocusedPanelId() !== hit.cellId) {
-              this.panelManager.focusPanel(hit.cellId);
-              this.requestRender();
-            }
-            // Route the click to the panel
-            const panel = this.panelManager.getPanel(hit.cellId);
-            return panel?.definition.onInput?.(event) ?? true;
+        const hit = this.hitTestDockBentoGrids(event.x, event.y);
+        if (hit) {
+          if (this.panelManager.getFocusedPanelId() !== hit.cellId) {
+            this.panelManager.focusPanel(hit.cellId);
+            this.requestRender();
           }
+          // Route the click to the panel
+          const panel = this.panelManager.getPanel(hit.cellId);
+          return panel?.definition.onInput?.(event) ?? true;
         }
         if (this.handleTabSwitchClick(event.x, event.y, layout)) {
           return true;
@@ -987,13 +1008,10 @@ export class WorkspaceController {
       const layout = this.currentLayout;
       if (!layout) return false;
       // Bento grid wheel routing
-      if (layout.bentoGrid) {
-        const hit = hitTestBentoGrid(layout.bentoGrid, event.x, event.y);
-        if (hit) {
-          const panel = this.panelManager.getPanel(hit.cellId);
-          return panel?.definition.onInput?.(event) ?? false;
-        }
-        return false;
+      const wheelHit = this.hitTestDockBentoGrids(event.x, event.y);
+      if (wheelHit) {
+        const panel = this.panelManager.getPanel(wheelHit.cellId);
+        return panel?.definition.onInput?.(event) ?? false;
       }
       const targetId = resolveWheelTargetPanel(layout, this.panelManager, event.x, event.y);
       if (!targetId) return false;
