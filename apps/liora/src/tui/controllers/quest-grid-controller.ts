@@ -239,6 +239,29 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 58: jump focus to the first quest in the current sort order.
+   * Vim-style endpoint navigation for long fleets (paired with `focusLast`).
+   * No-op when no quest is visible.
+   */
+  focusFirst(): void {
+    const ids = this.sortedQuestIds();
+    if (ids.length === 0) return;
+    this.focusedQuestId = ids[0]!;
+    this.recomputeLayout();
+  }
+
+  /**
+   * Gen 58: jump focus to the last quest in the current sort order.
+   * No-op when no quest is visible.
+   */
+  focusLast(): void {
+    const ids = this.sortedQuestIds();
+    if (ids.length === 0) return;
+    this.focusedQuestId = ids[ids.length - 1]!;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 25: move focus to the next quest that needs attention
    * (waiting-approval or failed), cycling within that subset only.
    * No-op when no quest needs attention.

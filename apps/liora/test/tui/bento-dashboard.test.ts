@@ -313,6 +313,37 @@ describe('Gen 55: focus weakest-health quest', () => {
   });
 });
 
+describe('Gen 58: focus first/last quest', () => {
+  it('focusFirst jumps to the first quest in sort order', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('c', { state: 'idle' }));
+    // Attention sort puts failed first: b, then a/c by insertion.
+    ctrl.setFocusedQuest('c');
+    ctrl.focusFirst();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+  });
+
+  it('focusLast jumps to the last quest in sort order', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('c', { state: 'idle' }));
+    ctrl.setFocusedQuest('b');
+    ctrl.focusLast();
+    expect(ctrl.getFocusedQuestId()).toBe('c');
+  });
+
+  it('focusFirst/focusLast are no-ops when nothing is visible', () => {
+    const ctrl = makeController();
+    ctrl.focusFirst();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+    ctrl.focusLast();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 27: auto-pin on attention transition', () => {
   it('fires onAttentionTransition when a quest enters waiting-approval', () => {
     const transitions: Array<[string, string]> = [];
