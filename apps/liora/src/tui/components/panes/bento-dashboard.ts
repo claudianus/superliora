@@ -815,6 +815,20 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (avgHealth > 0) {
       summaryParts.push(`♥ ${String(avgHealth)}`);
     }
+    // Gen 70: surface the longest-idle quest so the most neglected session is
+    // obvious at a glance (only meaningful once there are several quests).
+    if (quests.length > 1) {
+      let stalest: Quest | undefined;
+      for (const q of quests) {
+        if (stalest === undefined || q.lastActivityAt < stalest.lastActivityAt) {
+          stalest = q;
+        }
+      }
+      if (stalest !== undefined) {
+        const idleFor = Math.max(0, now - stalest.lastActivityAt);
+        summaryParts.push(`⌛ stalest: ${stalest.name} ${formatElapsed(idleFor)}`);
+      }
+    }
     if (totalCost > 0) {
       summaryParts.push(`$${totalCost.toFixed(2)}`);
     }
