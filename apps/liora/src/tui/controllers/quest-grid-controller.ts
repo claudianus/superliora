@@ -27,9 +27,9 @@ import {
   type DashboardViewMode,
   type QuestSortMode,
   ATTENTION_STATES,
-  questStatePriority,
   nextSortMode,
 } from './quest-types';
+import { compareByUrgency } from './quest-urgency';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -285,12 +285,13 @@ export class QuestGridController {
 
   /**
    * Gen 30: comparator for the active sort mode. Returns negative when
-   * `a` should come before `b`. `attention` keeps the Gen 17 priority order.
+   * `a` should come before `b`. `attention` uses the Gen 38 urgency score so
+   * the longest-neglected quest of equal priority sorts first.
    */
   private compareBySortMode(a: Quest, b: Quest): number {
     switch (this.sortMode) {
       case 'attention':
-        return questStatePriority(a.state) - questStatePriority(b.state);
+        return compareByUrgency(a, b);
       case 'cost':
         // Highest cost first.
         return (b.sessionCostUsd ?? 0) - (a.sessionCostUsd ?? 0);
