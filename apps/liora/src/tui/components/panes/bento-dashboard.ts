@@ -342,6 +342,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 55: g → focus the least-healthy quest (health-based triage).
+    if (k === 'g') {
+      this.gridController.focusWeakestHealth();
+      return;
+    }
+
     // Gen 26: ! → toggle attention-only view.
     if (k === '!') {
       this.gridController.toggleAttentionOnly();
@@ -357,6 +363,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 30: s → cycle the dashboard sort mode.
     if (k === 's') {
       this.gridController.cycleSortMode();
+      return;
+    }
+
+    // Gen 54: 0 → reset all view state (filter, attention-only, sort mode).
+    if (k === '0') {
+      this.filterBuffer = '';
+      this.gridController.resetView();
       return;
     }
 

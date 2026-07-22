@@ -258,6 +258,31 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 55: focus the least-healthy visible quest. Health (Gen 47) blends
+   * state, idle time, and context pressure, so this lands the operator on the
+   * quest most at risk — a softer triage than `focusNextAttention`, which only
+   * considers attention states. No-op when no quest is visible.
+   */
+  focusWeakestHealth(): void {
+    const visible = this.sortedQuestIds();
+    if (visible.length === 0) return;
+    const now = Date.now();
+    let weakestId = visible[0]!;
+    let weakestScore = Infinity;
+    for (const id of visible) {
+      const quest = this.quests.get(id);
+      if (quest === undefined) continue;
+      const score = questHealthScore(quest, now);
+      if (score < weakestScore) {
+        weakestScore = score;
+        weakestId = id;
+      }
+    }
+    this.focusedQuestId = weakestId;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 39: guarantee a valid focus. When nothing is focused, or the focused
    * quest is no longer in the visible (filtered/sorted) set, focus snaps to
    * the most urgent quest — the first in the urgency-ordered list. This makes
@@ -383,6 +408,18 @@ export class QuestGridController {
   /** Get the active sort mode. */
   getSortMode(): QuestSortMode {
     return this.sortMode;
+  }
+
+  /**
+   * Gen 54: reset all dashboard view state (filter, attention-only, sort mode)
+   * back to defaults in one shot, so the operator can quickly return to the
+   * baseline view after exploring.
+   */
+  resetView(): void {
+    this.filterQuery = '';
+    this.attentionOnly = false;
+    this.sortMode = 'attention';
+    this.recomputeLayout();
   }
 
   // -------------------------------------------------------------------------

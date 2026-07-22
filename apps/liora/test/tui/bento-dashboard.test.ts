@@ -451,6 +451,28 @@ describe('Gen 30: dashboard sort mode cycling', () => {
   });
 });
 
+describe('Gen 54: resetView restores baseline view state', () => {
+  it('clears filter, attention-only, and sort mode in one shot', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'failed' }));
+
+    // Mutate every piece of view state.
+    ctrl.setFilter('zzz');
+    ctrl.setAttentionOnly(true);
+    ctrl.cycleSortMode(); // → cost
+    expect(ctrl.getFilter()).toBe('zzz');
+    expect(ctrl.isAttentionOnly()).toBe(true);
+    expect(ctrl.getSortMode()).toBe('cost');
+
+    // Reset returns everything to defaults.
+    ctrl.resetView();
+    expect(ctrl.getFilter()).toBe('');
+    expect(ctrl.isAttentionOnly()).toBe(false);
+    expect(ctrl.getSortMode()).toBe('attention');
+  });
+});
+
 describe('Gen 29: context usage mini-bar', () => {
   it('renders a proportional 5-cell bar with the percentage', () => {
     expect(renderContextBar(0.62)).toBe('ctx ▓▓▓░░ 62%');
