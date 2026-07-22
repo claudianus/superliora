@@ -8,7 +8,7 @@
  */
 
 import { formatElapsed, type Quest, type QuestState, questHealthScore, formatChangeCount } from './quest-types';
-import type { AttentionSummary, EscalationLevel } from './attention-controller';
+import type { AttentionSummary, EscalationLevel, AttentionLoadLevel } from './attention-controller';
 import {
   rankQuestsByUrgency,
   rankQuestsByEscalatedUrgency,
@@ -452,4 +452,20 @@ export function formatEscalatedQuestCompactLine(quest: Quest, now: number = Date
     quest.attentionEnteredAt !== undefined ? Math.max(0, now - quest.attentionEnteredAt) : null;
   const badge = formatEscalationBadge(level, dwellMs);
   return badge === null ? base : `${base} ${badge}`;
+}
+
+/**
+ * Gen 79: a summary-bar label for the operator's cognitive load (Gen 78), e.g.
+ * "⚠ overloaded (9 pending)". Returns null for the 'normal' level so callers
+ * can hide the segment entirely — only elevated and overloaded loads are worth
+ * surfacing. The pending count is included so the operator sees the raw demand
+ * behind the classification.
+ */
+export function formatAttentionLoadLabel(
+  level: AttentionLoadLevel,
+  pendingCount: number,
+): string | null {
+  if (level === 'normal') return null;
+  const icon = level === 'overloaded' ? '🔥' : '⚠';
+  return `${icon} ${level} (${String(pendingCount)} pending)`;
 }

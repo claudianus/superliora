@@ -24,6 +24,7 @@ import {
   formatCombinedFleetSummary,
   formatQuestCompactLine,
   formatEscalatedQuestCompactLine,
+  formatAttentionLoadLabel,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -727,5 +728,19 @@ describe('formatEscalatedQuestCompactLine (Gen 77)', () => {
     const now = 100_000;
     const quest = makeQuest('a', { name: 'Running', state: 'running', lastActivityAt: now });
     expect(formatEscalatedQuestCompactLine(quest, now)).toBe(formatQuestCompactLine(quest, now));
+  });
+});
+
+describe('formatAttentionLoadLabel (Gen 79)', () => {
+  it('returns null for the normal level', () => {
+    expect(formatAttentionLoadLabel('normal', 2)).toBeNull();
+  });
+
+  it('formats an elevated load with a warning icon and the pending count', () => {
+    expect(formatAttentionLoadLabel('elevated', 5)).toBe('⚠ elevated (5 pending)');
+  });
+
+  it('formats an overloaded load with a critical icon and the pending count', () => {
+    expect(formatAttentionLoadLabel('overloaded', 9)).toBe('🔥 overloaded (9 pending)');
   });
 });
