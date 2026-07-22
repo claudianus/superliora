@@ -272,6 +272,37 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines.join('\n')).toContain('No output yet');
   });
 
+  it('Gen 50: diff-only view shows only the diff buffer', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('chatter line');
+    view.appendDiffLines(['+added code']);
+    view.appendLine('more chatter');
+
+    // Default: full stream includes chatter and diff.
+    const full = view.render(quest, 80).join('\n');
+    expect(full).toContain('chatter line');
+    expect(full).toContain('+added code');
+
+    // Toggle diff-only: only the diff buffer is shown.
+    expect(view.toggleDiffOnly()).toBe(true);
+    expect(view.isDiffOnly()).toBe(true);
+    const diffOnly = view.render(quest, 80).join('\n');
+    expect(diffOnly).toContain('+added code');
+    expect(diffOnly).not.toContain('chatter line');
+    expect(diffOnly).toContain('≡ diff');
+  });
+
+  it('Gen 50: diff-only view shows a placeholder when no diffs captured', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('chatter only');
+    view.toggleDiffOnly();
+
+    const lines = view.render(quest, 80);
+    expect(lines.join('\n')).toContain('No diffs captured yet');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {
