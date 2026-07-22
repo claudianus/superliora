@@ -169,6 +169,24 @@ describe('syncQuestGridFromSnapshot', () => {
     expect(grid.getQuest('task:t1')).toBeUndefined();
   });
 
+  it('Gen 46: clears attention state when a quest is removed', () => {
+    const grid = makeGrid();
+    const attention = makeAttention();
+    const tasks = new Map<string, BackgroundTaskInfo>();
+    tasks.set('t1', makeTask('t1', 'failed'));
+
+    // Failed task → pulsing with a dwell timestamp.
+    syncQuestGridFromSnapshot(grid, attention, makeSnapshot({ backgroundTasks: tasks }));
+    expect(attention.isPulsing('task:t1')).toBe(true);
+    expect(attention.getDwellTime('task:t1')).not.toBeNull();
+
+    // Task disappears from the snapshot → quest removed and attention cleared.
+    syncQuestGridFromSnapshot(grid, attention, makeSnapshot());
+    expect(grid.getQuest('task:t1')).toBeUndefined();
+    expect(attention.isPulsing('task:t1')).toBe(false);
+    expect(attention.getDwellTime('task:t1')).toBeNull();
+  });
+
   it('triggers attention for failed background tasks', () => {
     const grid = makeGrid();
     const attention = makeAttention();

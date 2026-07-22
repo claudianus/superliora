@@ -229,6 +229,19 @@ export class AttentionController {
   // Clear
   // -------------------------------------------------------------------------
 
+  /**
+   * Gen 46: drop all attention state for a single quest. Called when a quest
+   * is removed from the grid so a deleted quest cannot keep pulsing or hold
+   * a stale dwell timestamp (a "ghost" attention entry).
+   */
+  clearQuest(questId: string): void {
+    const wasPulsing = this.pulsingQuestIds.delete(questId);
+    const hadDwell = this.attentionEnteredAt.delete(questId);
+    if (wasPulsing || hadDwell) {
+      this.requestRender();
+    }
+  }
+
   /** Clear all pulsing state (e.g. when leaving dashboard). */
   clearAll(): void {
     this.pulsingQuestIds.clear();

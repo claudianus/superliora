@@ -226,6 +226,9 @@ export function syncQuestGridFromSnapshot(
   for (const quest of gridController.getQuests()) {
     if (!seenIds.has(quest.id)) {
       gridController.removeQuest(quest.id);
+      // Gen 46: drop the removed quest's attention state so it cannot keep
+      // pulsing or hold a stale dwell timestamp.
+      attentionController.clearQuest(quest.id);
     }
   }
 
