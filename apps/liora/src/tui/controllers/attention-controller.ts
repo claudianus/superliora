@@ -121,6 +121,10 @@ export class AttentionController {
   // Gen 52: quests whose escalation has already been reported to the operator,
   // so pollNewlyEscalated() only fires once per escalation episode.
   private readonly escalatedReported = new Set<string>();
+  // Gen 95: how many quests have left an attention state since the last
+  // clearAll — a throughput signal so the operator sees demand being cleared,
+  // not just accumulating.
+  private resolvedCount = 0;
   private readonly writeRaw: (data: string) => void;
   private readonly requestRender: () => void;
   private readonly now: () => number;
@@ -142,11 +146,16 @@ export class AttentionController {
   onQuestStateChanged(questId: string, newState: QuestState): void {
     if (!ATTENTION_STATES.has(newState)) {
       // State no longer needs attention — stop pulsing
-      this.pulsingQuestIds.delete(questId);
+      const wasPulsing = this.pulsingQuestIds.delete(questId);
       this.attentionEnteredAt.delete(questId);
       // Gen 52: allow a fresh escalation report if the quest re-enters
       // attention later.
       this.escalatedReported.delete(questId);
+      // Gen 95: a quest genuinely left an attention state — count it as
+      // resolved so the operator sees throughput, not just accumulation.
+      if (wasPulsing) {
+        this.resolvedCount += 1;
+      }
       this.requestRender();
       return;
     }
@@ -222,6 +231,15 @@ export class AttentionController {
   /** Get the attention event log. */
   getEventLog(): readonly AttentionEvent[] {
     return this.eventLog;
+  }
+
+  /**
+   * Gen 95: how many quests have left an attention state since the last
+   * clearAll. A throughput signal — the operator sees demand being cleared,
+   * not just accumulating.
+   */
+  getResolvedCount(): number {
+    return this.resolvedCount;
   }
 
   // -------------------------------------------------------------------------
@@ -424,6 +442,7 @@ export class AttentionController {
     this.attentionEnteredAt.clear();
     this.escalatedReported.clear();
     this.stripBlinkActive = false;
+    this.resolvedCount = 0;
     this.requestRender();
   }
 }

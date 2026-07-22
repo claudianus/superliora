@@ -458,6 +458,59 @@ describe('attention summary (Gen 47)', () => {
   });
 });
 
+describe('resolved count throughput (Gen 95)', () => {
+  it('starts at zero', () => {
+    const { ctrl } = makeController(5000);
+    expect(ctrl.getResolvedCount()).toBe(0);
+  });
+
+  it('counts a quest that leaves an attention state', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    expect(ctrl.getResolvedCount()).toBe(0);
+
+    ctrl.onQuestStateChanged('q1', 'running');
+    expect(ctrl.getResolvedCount()).toBe(1);
+  });
+
+  it('counts each quest that is resolved', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q2', 'failed');
+    ctrl.onQuestStateChanged('q1', 'running');
+    ctrl.onQuestStateChanged('q2', 'done');
+    expect(ctrl.getResolvedCount()).toBe(2);
+  });
+
+  it('does not count a quest that was never in an attention state', () => {
+    const { ctrl } = makeController(5000);
+    // q1 goes running → idle; neither is an attention state, so nothing
+    // resolves.
+    ctrl.onQuestStateChanged('q1', 'running');
+    ctrl.onQuestStateChanged('q1', 'idle');
+    expect(ctrl.getResolvedCount()).toBe(0);
+  });
+
+  it('counts a quest that re-enters and leaves attention again', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q1', 'running');
+    ctrl.onQuestStateChanged('q1', 'failed');
+    ctrl.onQuestStateChanged('q1', 'done');
+    expect(ctrl.getResolvedCount()).toBe(2);
+  });
+
+  it('resets on clearAll', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.onQuestStateChanged('q1', 'running');
+    expect(ctrl.getResolvedCount()).toBe(1);
+
+    ctrl.clearAll();
+    expect(ctrl.getResolvedCount()).toBe(0);
+  });
+});
+
 describe('classifyAttentionLoad (Gen 78)', () => {
   it('classifies 0–3 quests as normal', () => {
     expect(classifyAttentionLoad(0)).toBe('normal');
