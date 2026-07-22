@@ -768,6 +768,59 @@ rename to docs/README.md
   // Named colors count
   console.log(`  Named colors: ${Object.keys(getNamedColors()).length}`);
 
+  // ═══ Iteration 20 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 20 Modules ═══\x1b[0m');
+
+  // ─── 34. Kanban Board ─────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── KanbanBoard ──\x1b[0m');
+  const { KanbanBoard, createDefaultBoard } = await import('../apps/liora/src/tui/utils/kanban-board.ts');
+  const kanban = createDefaultBoard();
+  kanban.addCard('todo', {
+    id: 'card-1', title: 'Fix login bug', priority: 'high',
+    labels: [{ id: 'bug', name: 'bug', color: '#FF0000' }],
+    assignees: ['alice'], createdAt: Date.now(),
+  });
+  kanban.addCard('todo', {
+    id: 'card-2', title: 'Update docs', priority: 'low',
+    labels: [], assignees: [], createdAt: Date.now(),
+  });
+  kanban.addCard('progress', {
+    id: 'card-3', title: 'Add tests', priority: 'medium',
+    labels: [{ id: 'test', name: 'testing', color: '#00FF00' }],
+    assignees: ['bob'], createdAt: Date.now(),
+  });
+  kanban.addCard('done', {
+    id: 'card-4', title: 'Setup CI', priority: 'medium',
+    labels: [], assignees: ['alice'], createdAt: Date.now(), completedAt: Date.now(),
+  });
+  const kanbanLines = kanban.render({ width: 70, height: 12, compact: true, fg, boldFg, dimFg });
+  for (const line of kanbanLines) console.log(`  ${line}`);
+  console.log(`  Total cards: ${kanban.totalCards} | Columns: ${kanban.getColumns().length}`);
+
+  // ─── 35. Calendar View ────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── CalendarView ──\x1b[0m');
+  const { CalendarView } = await import('../apps/liora/src/tui/utils/calendar-view.ts');
+  const calendar = new CalendarView(new Date(2026, 6, 22)); // July 22, 2026
+  calendar.addEvent({ id: 'evt-1', title: 'Team meeting', date: new Date(2026, 6, 22), icon: '📅' });
+  calendar.addEvent({ id: 'evt-2', title: 'Release v2.0', date: new Date(2026, 6, 25), icon: '🚀' });
+  calendar.addEvent({ id: 'evt-3', title: 'Code review', date: new Date(2026, 6, 22), icon: '👀' });
+  const calLines = calendar.render({ width: 28, mode: 'month', showEvents: true, fg, boldFg, dimFg });
+  for (const line of calLines) console.log(`  ${line}`);
+  console.log(`  Today: ${calendar.isToday(new Date()) ? 'yes' : 'no'} | Mode: ${calendar.getMode()}`);
+
+  // ─── 36. Terminal Multiplexer ─────────────────────────────────────
+  console.log('\n\x1b[1;33m── TerminalMultiplexer ──\x1b[0m');
+  const { TerminalMultiplexer } = await import('../apps/liora/src/tui/utils/terminal-multiplexer.ts');
+  const mux = new TerminalMultiplexer('dev-session');
+  const win1 = mux.createWindow('editor');
+  mux.splitPane('horizontal', 'terminal');
+  mux.splitPane('vertical', 'output');
+  const win2 = mux.createWindow('logs');
+  mux.switchWindow(win1);
+  const muxLines = mux.render({ width: 60, height: 10, showStatusBar: true, fg, boldFg, dimFg });
+  for (const line of muxLines) console.log(`  ${line}`);
+  console.log(`  Windows: ${mux.windowCount} | Panes: ${mux.paneCount}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
