@@ -336,6 +336,18 @@ export class QuestExpandView {
   }
 
   /**
+   * Gen 67: jump to a 1-based line number (as shown in the gutter). Clamps to
+   * the buffer bounds. Returns false when the buffer is empty.
+   */
+  jumpToLineNumber(lineNumber: number): boolean {
+    const buffer = this.activeBuffer();
+    if (buffer.length === 0) return false;
+    const index = Math.max(0, Math.min(buffer.length - 1, lineNumber - 1));
+    this.jumpToLine(index);
+    return true;
+  }
+
+  /**
    * Gen 62: jump to the next error/warning line after the current viewport.
    * Returns true if a match was found. Wraps to the top when none is found
    * below so repeated presses cycle through all problem lines.

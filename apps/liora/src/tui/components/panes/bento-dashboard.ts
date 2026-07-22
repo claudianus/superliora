@@ -99,6 +99,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
   private searchMode = false;
   private searchBuffer = '';
 
+  // Gen 67: line-number jump state (`:N` in pinned mode)
+  private lineJumpMode = false;
+  private lineJumpBuffer = '';
+
   // Gen 22: context-aware help overlay
   private helpVisible = false;
 
@@ -187,6 +191,31 @@ export class BentoDashboardComponent extends Container implements Focusable {
       }
       const view = this.expandViews.get(this.pinController.getPinnedQuest()?.id ?? '');
       view?.startSearch(this.searchBuffer);
+      return;
+    }
+
+    // Gen 67: line-number jump mode — capture digits until Enter/Esc.
+    if (this.lineJumpMode) {
+      if (matchesKey(data, Key.escape)) {
+        this.lineJumpMode = false;
+        this.lineJumpBuffer = '';
+        return;
+      }
+      if (matchesKey(data, Key.enter)) {
+        const lineNum = Number.parseInt(this.lineJumpBuffer, 10);
+        if (!Number.isNaN(lineNum) && lineNum > 0) {
+          const view = this.expandViews.get(this.pinController.getPinnedQuest()?.id ?? '');
+          view?.jumpToLineNumber(lineNum);
+        }
+        this.lineJumpMode = false;
+        this.lineJumpBuffer = '';
+        return;
+      }
+      if (data === '\x7f' || data === '\b') {
+        this.lineJumpBuffer = this.lineJumpBuffer.slice(0, -1);
+      } else if (k.length === 1 && k >= '0' && k <= '9') {
+        this.lineJumpBuffer += k;
+      }
       return;
     }
 
@@ -353,6 +382,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       if (k === '/') {
         this.searchMode = true;
         this.searchBuffer = '';
+        return;
+      }
+      // Gen 67: : starts line-number jump mode.
+      if (k === ':') {
+        this.lineJumpMode = true;
+        this.lineJumpBuffer = '';
         return;
       }
       if (k === 'n') {
@@ -577,6 +612,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['i', 'Show quest info overlay'],
           ['t', 'Toggle relative timestamps'],
           ['e / E', 'Jump to next / previous error line'],
+          [':N', 'Jump to line number N'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
@@ -951,6 +987,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
   private renderPinned(pinned: Quest, allQuests: readonly Quest[], width: number): string[] {
     const expandView = this.expandViews.get(pinned.id);
     const lines: string[] = [];
+
+    // Gen 67: line-number jump prompt while typing `:N`.
+    if (this.lineJumpMode) {
+      lines.push(currentTheme.fg('accent', clip(`  :${this.lineJumpBuffer}█  (Enter to jump, Esc to cancel)`, width)));
+    }
 
     if (expandView) {
       // Gen 45: when the strip is hidden, give the expand view the extra rows.
