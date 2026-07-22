@@ -1029,11 +1029,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const diffCount = expandView?.getDiffLineCount() ?? 0;
     const diffPlain = diffCount > 0 ? `  ≡${String(diffCount)}` : '';
     const diffSegment = diffCount > 0 ? currentTheme.fg('textMuted', `  ≡${String(diffCount)}`) : '';
-    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${diffPlain}${line2Suffix}`;
+    // Gen 79: stream line count segment so the cell shows how much output the
+    // quest has generated.
+    const streamCount = expandView?.getStreamLineCount() ?? 0;
+    const streamPlain = streamCount > 0 ? `  ≣${String(streamCount)}` : '';
+    const streamSegment = streamCount > 0 ? currentTheme.fg('textMuted', `  ≣${String(streamCount)}`) : '';
+    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${diffPlain}${streamPlain}${line2Suffix}`;
     const line2 =
       plainLine2.length > width
         ? dimToken(clip(plainLine2, width))
-        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${diffSegment}${dimToken(line2Suffix)}`;
+        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${diffSegment}${streamSegment}${dimToken(line2Suffix)}`;
 
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.

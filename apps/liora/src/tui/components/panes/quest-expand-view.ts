@@ -486,6 +486,14 @@ export class QuestExpandView {
     return this.diffLines.length;
   }
 
+  /**
+   * Gen 79: the number of stream lines in the buffer, for the dashboard cell.
+   * Returns 0 when the stream is empty.
+   */
+  getStreamLineCount(): number {
+    return this.streamLines.length;
+  }
+
   /** Render the expand view as a string array (one per visible row). */
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];
