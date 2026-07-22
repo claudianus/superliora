@@ -35,6 +35,7 @@ import {
   formatElapsed,
   questStateIcon,
   questStateColorToken,
+  questHealthScore,
   renderContextBar,
   renderTodoBar,
   sortModeLabel,
@@ -615,11 +616,15 @@ export class BentoDashboardComponent extends Container implements Focusable {
         : line2Token === 'error'
           ? currentTheme.fg('error', text)
           : currentTheme.dim(text);
-    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${line2Suffix}`;
+    // Gen 48: health score segment (colorized by severity).
+    const health = questHealthScore(quest, now);
+    const healthPlain = `  ♥ ${String(health)}`;
+    const healthSegment = `  ${renderHealthScore(health)}`;
+    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${line2Suffix}`;
     const line2 =
       plainLine2.length > width
         ? dimToken(clip(plainLine2, width))
-        : `${dimToken(line2Prefix)}${changeSegment}${dimToken(line2Suffix)}`;
+        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${dimToken(line2Suffix)}`;
 
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
@@ -697,6 +702,15 @@ export function renderChangeCount(cc: QuestChangeCount): string {
   const added = currentTheme.fg('success', `+${String(cc.added)}`);
   const removed = currentTheme.fg('error', `-${String(cc.removed)}`);
   return `${added} ${removed}`;
+}
+
+/**
+ * Gen 48: render a colorized health score, e.g. `♥ 82`. Green when healthy,
+ * warning as it degrades, error when critical — so fleet health is scannable.
+ */
+export function renderHealthScore(score: number): string {
+  const token = score >= 60 ? 'success' : score >= 30 ? 'warning' : 'error';
+  return currentTheme.fg(token, `♥ ${String(score)}`);
 }
 
 /** Gen 33: braille spinner frames for the running state. */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
-import { renderContextBar, renderTodoBar, renderChangeCount, spinnerFrame, actionHintBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
+import { renderContextBar, renderTodoBar, renderChangeCount, renderHealthScore, spinnerFrame, actionHintBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
 import { buildThumbnailStrip, renderThumbnailStripLine } from '#/tui/components/panes/thumbnail-strip';
 import type { Quest } from '#/tui/controllers/quest-types';
 
@@ -492,6 +492,17 @@ describe('Gen 32: colorized change-count stats', () => {
     const out = renderChangeCount({ added: 0, removed: 0 });
     expect(out).toContain('+0');
     expect(out).toContain('-0');
+  });
+});
+
+describe('Gen 48: colorized health score', () => {
+  it('renders the score value with a heart glyph', () => {
+    expect(renderHealthScore(82)).toContain('♥ 82');
+  });
+
+  it('renders low and critical scores', () => {
+    expect(renderHealthScore(15)).toContain('♥ 15');
+    expect(renderHealthScore(45)).toContain('♥ 45');
   });
 });
 
