@@ -957,6 +957,35 @@ rename to docs/README.md
   for (const line of settingsLines) console.log(`  ${line}`);
   console.log(`  Modified: ${settings.modifiedCount} | fontSize=${settings.getValue<number>('fontSize')}`);
 
+  // ═══ Iteration 24 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 24 Modules ═══\x1b[0m');
+
+  // ─── 46. Process Manager ─────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ProcessManager ──\x1b[0m');
+  const { ProcessManager, createDemoProcessManager } = await import('../apps/liora/src/tui/utils/process-manager.ts');
+  const procMgr = createDemoProcessManager();
+  const procLines = procMgr.render({ width: 58, height: 12, showTree: true, fg, boldFg, dimFg });
+  for (const line of procLines) console.log(`  ${line}`);
+  const topProc = procMgr.getTopConsumer();
+  console.log(`  Top consumer: ${topProc?.name} (${topProc?.cpu}% CPU)`);
+
+  // ─── 47. Hex Viewer ──────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── HexViewer ──\x1b[0m');
+  const { HexViewer, createDemoHexViewer } = await import('../apps/liora/src/tui/utils/hex-viewer.ts');
+  const hexView = createDemoHexViewer();
+  const hexLines = hexView.render({ width: 62, height: 10, showBitView: true, fg, boldFg, dimFg });
+  for (const line of hexLines) console.log(`  ${line}`);
+  const searchResults = hexView.searchAscii('PNG');
+  console.log(`  Search "PNG": ${searchResults.length} hit(s) @ 0x${searchResults[0]?.offset.toString(16)}`);
+
+  // ─── 48. Notification Hub ──────────────────────────────────────
+  console.log('\n\x1b[1;33m── NotificationHub ──\x1b[0m');
+  const { NotificationHub, createDemoNotificationHub } = await import('../apps/liora/src/tui/utils/notification-hub.ts');
+  const notifHub = createDemoNotificationHub();
+  const notifHubLines = notifHub.render({ width: 55, height: 14, fg, boldFg, dimFg });
+  for (const line of notifHubLines) console.log(`  ${line}`);
+  console.log(`  Unread: ${notifHub.unreadCount} | Groups: ${notifHub.getGroups().length}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
