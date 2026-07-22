@@ -198,6 +198,35 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(pin.getPinnedQuest()?.id).toBe('a');
   });
 
+  it('Gen 54: pinNextAttention cycles only through attention quests', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('ok', { state: 'running' }));
+    grid.addQuest(makeQuest('wait', { state: 'waiting-approval' }));
+    grid.addQuest(makeQuest('bad', { state: 'failed' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('ok');
+    // First attention quest in display order.
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('wait');
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('bad');
+    // Wraps back to the first attention quest, skipping the healthy one.
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('wait');
+  });
+
+  it('Gen 54: pinNextAttention is a no-op when nothing needs attention', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'idle' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
   it('pinned quest cell gets larger span in layout', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));

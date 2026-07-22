@@ -9,7 +9,7 @@
  */
 
 import type { QuestGridController } from './quest-grid-controller';
-import type { Quest } from './quest-types';
+import { ATTENTION_STATES, type Quest } from './quest-types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -123,6 +123,24 @@ export class PinController {
       : -1;
     const nextIdx = (currentIdx + delta + quests.length) % quests.length;
     const target = quests[nextIdx];
+    if (target && target.id !== pinnedId) {
+      this.pin(target.id);
+    }
+  }
+
+  /**
+   * Gen 54: cycle the pin to the next quest needing attention (wrapping), in
+   * display order. Lets the operator triage waiting-approval/failed quests
+   * with `w` without scanning the whole fleet. No-op when none need attention.
+   */
+  pinNextAttention(): void {
+    const quests = this.gridController.getQuests();
+    const attention = quests.filter((q) => ATTENTION_STATES.has(q.state));
+    if (attention.length === 0) return;
+    const pinnedId = this.gridController.getPinnedQuestId();
+    const currentIdx = attention.findIndex((q) => q.id === pinnedId);
+    const nextIdx = (currentIdx + 1) % attention.length;
+    const target = attention[nextIdx];
     if (target && target.id !== pinnedId) {
       this.pin(target.id);
     }
