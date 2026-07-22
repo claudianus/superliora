@@ -146,3 +146,15 @@ export function formatCostUsd(costUsd: number | undefined): string | null {
   if (costUsd === undefined || costUsd <= 0) return null;
   return `$${costUsd.toFixed(2)}`;
 }
+
+/**
+ * Gen 63: a fleet-wide total cost label, e.g. "$4.56 total". Sums the given
+ * per-quest costs (ignoring undefined entries) and returns null when the total
+ * is not positive so callers can hide the segment entirely. Centralizes the
+ * fleet total that the summary bar computes inline.
+ */
+export function formatTotalCostUsd(costs: readonly (number | undefined)[]): string | null {
+  const total = costs.reduce((sum, cost) => sum + (cost ?? 0), 0);
+  if (total <= 0) return null;
+  return `$${total.toFixed(2)} total`;
+}

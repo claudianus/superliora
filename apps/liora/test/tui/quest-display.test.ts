@@ -8,6 +8,7 @@ import {
   formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
   formatStripBlinkLabel,
+  formatTotalCostUsd,
   formatUrgencyRank,
 } from '#/tui/controllers/quest-display';
 import {
@@ -254,5 +255,20 @@ describe('formatCostUsd (Gen 62)', () => {
     expect(formatCostUsd(1.234)).toBe('$1.23');
     expect(formatCostUsd(0.05)).toBe('$0.05');
     expect(formatCostUsd(12)).toBe('$12.00');
+  });
+});
+
+describe('formatTotalCostUsd (Gen 63)', () => {
+  it('returns null when there are no costs', () => {
+    expect(formatTotalCostUsd([])).toBeNull();
+  });
+
+  it('returns null when all costs are undefined or zero', () => {
+    expect(formatTotalCostUsd([undefined, 0, undefined])).toBeNull();
+  });
+
+  it('sums the costs and appends a total suffix', () => {
+    expect(formatTotalCostUsd([1.234, 2.0, undefined])).toBe('$3.23 total');
+    expect(formatTotalCostUsd([0.05, 0.05])).toBe('$0.10 total');
   });
 });
