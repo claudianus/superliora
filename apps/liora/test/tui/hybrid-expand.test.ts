@@ -490,6 +490,23 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(header).toContain('⚠1');
   });
 
+  it('Gen 67: jumpToLineNumber jumps to a 1-based line and clamps', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) view.appendLine(`line ${String(i)}`);
+
+    // Jump to line 5 (1-based → index 4), centered.
+    expect(view.jumpToLineNumber(5)).toBe(true);
+    expect(view.currentScrollOffset).toBeGreaterThan(0);
+
+    // Out-of-range clamps to the last line rather than failing.
+    expect(view.jumpToLineNumber(999)).toBe(true);
+
+    // Empty buffer returns false.
+    const empty = new QuestExpandView();
+    expect(empty.jumpToLineNumber(1)).toBe(false);
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {
