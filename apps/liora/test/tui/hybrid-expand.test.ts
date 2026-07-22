@@ -424,6 +424,24 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.render(quest, 80)[0]).toContain('⏸ paused');
   });
 
+  it('Gen 61: toggling timestamps shows relative deltas in the gutter', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('first line');
+    view.appendLine('second line');
+
+    // Off by default: no timestamp markers.
+    expect(view.isShowingTimestamps()).toBe(false);
+    const off = view.render(quest, 80);
+    expect(off[4]).not.toContain('+0s');
+
+    // Toggle on: gutter shows the relative delta.
+    expect(view.toggleTimestamps()).toBe(true);
+    const on = view.render(quest, 80);
+    // First line is the base (+0s).
+    expect(on[4]).toContain('+0s');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {
