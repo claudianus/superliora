@@ -14,6 +14,7 @@ import {
 
 import { DragController } from './drag-controller';
 import type { DragOverlayInfo } from './drag-controller';
+import { resolveDockToggleDecision } from './dock-toggle';
 import { PanelManager } from './panel-manager';
 import { resolveWheelTargetPanel } from './pointer-routing';
 import { LayoutPresetManager } from './layout-presets';
@@ -314,6 +315,32 @@ export class WorkspaceController {
     this.reflowFromWidth = result.fromWidth;
     this.reflowToWidth = result.toWidth;
     if (result.restarted) this.reflowStartedAt = now;
+  }
+
+  /**
+   * Toggle `dock`'s visibility from a keyboard shortcut or command,
+   * accounting for docks the current breakpoint hides structurally (narrow
+   * hides both docks; medium hides the left dock). See
+   * {@link resolveDockToggleDecision} for the decision table — this just
+   * applies it to `panelManager`/`lastToggledDock`.
+   */
+  private toggleDockDrawerAware(dock: 'left' | 'right'): void {
+    const mode = this.currentLayout?.mode ?? 'wide';
+    const isDockInLayout =
+      dock === 'left' ? this.currentLayout?.leftDock !== undefined : this.currentLayout?.rightDock !== undefined;
+    const decision = resolveDockToggleDecision({
+      dock,
+      mode,
+      isDockVisible: this.panelManager.isDockVisible(dock),
+      isDockInLayout,
+    });
+    if (decision.action === 'close-drawer') {
+      this.panelManager.setDockVisible(dock, false);
+    } else if (decision.action === 'toggle') {
+      this.panelManager.toggleDock(dock);
+    }
+    // 'open-drawer': visibility is already true — leave it untouched.
+    this.lastToggledDock = decision.lastToggledDock;
   }
 
   /**
@@ -868,16 +895,14 @@ export class WorkspaceController {
 
     // Ctrl+B: toggle left dock
     if (event.key === 'character' && event.text === 'b') {
-      this.panelManager.toggleDock('left');
-      this.lastToggledDock = 'left';
+      this.toggleDockDrawerAware('left');
       this.requestRender();
       return true;
     }
 
     // Ctrl+N: toggle right dock (using 'n' for "navigation panel")
     if (event.key === 'character' && event.text === 'n') {
-      this.panelManager.toggleDock('right');
-      this.lastToggledDock = 'right';
+      this.toggleDockDrawerAware('right');
       this.requestRender();
       return true;
     }
@@ -1316,12 +1341,10 @@ export class WorkspaceController {
   private executeCommand(id: string): void {
     switch (id) {
       case 'toggle-left':
-        this.panelManager.toggleDock('left');
-        this.lastToggledDock = 'left';
+        this.toggleDockDrawerAware('left');
         break;
       case 'toggle-right':
-        this.panelManager.toggleDock('right');
-        this.lastToggledDock = 'right';
+        this.toggleDockDrawerAware('right');
         break;
       case 'toggle-dock-mode': {
         const focusedId = this.panelManager.getFocusedPanelId();
