@@ -383,6 +383,40 @@ describe('Gen 58: focus first/last quest', () => {
   });
 });
 
+describe('Gen 87: focus Nth quest', () => {
+  it('focusNth jumps to the Nth quest in sort order', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('c', { state: 'idle' }));
+    // Attention sort: b (failed) first, then a, c by insertion.
+
+    ctrl.focusNth(1);
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+    ctrl.focusNth(2);
+    expect(ctrl.getFocusedQuestId()).toBe('a');
+    ctrl.focusNth(3);
+    expect(ctrl.getFocusedQuestId()).toBe('c');
+  });
+
+  it('focusNth is a no-op when the index is out of range', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.setFocusedQuest('a');
+
+    ctrl.focusNth(0);
+    expect(ctrl.getFocusedQuestId()).toBe('a');
+    ctrl.focusNth(5);
+    expect(ctrl.getFocusedQuestId()).toBe('a');
+  });
+
+  it('focusNth is a no-op when nothing is visible', () => {
+    const ctrl = makeController();
+    ctrl.focusNth(1);
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 63: focus most expensive quest', () => {
   it('focuses the quest with the highest session cost', () => {
     const ctrl = makeController();
@@ -502,7 +536,7 @@ describe('Gen 33: attention dwell stamp on quests', () => {
 });
 
 describe('Gen 30: dashboard sort mode cycling', () => {
-  it('cycles attention → cost → age → name → health → ctx → attention', () => {
+  it('cycles attention → cost → age → name → health → ctx → problems → attention', () => {
     const ctrl = makeController();
     expect(ctrl.getSortMode()).toBe('attention');
     ctrl.cycleSortMode();
@@ -517,6 +551,9 @@ describe('Gen 30: dashboard sort mode cycling', () => {
     // Gen 74: ctx joins the cycle.
     ctrl.cycleSortMode();
     expect(ctrl.getSortMode()).toBe('ctx');
+    // Gen 87: problems joins the cycle.
+    ctrl.cycleSortMode();
+    expect(ctrl.getSortMode()).toBe('problems');
     ctrl.cycleSortMode();
     expect(ctrl.getSortMode()).toBe('attention');
   });
@@ -581,6 +618,26 @@ describe('Gen 30: dashboard sort mode cycling', () => {
     ctrl.cycleSortMode(); // → health
     ctrl.cycleSortMode(); // → ctx
     expect(ctrl.getQuests().map((q) => q.id)).toEqual(['high', 'mid', 'low']);
+  });
+
+  it('Gen 85: problems mode sorts most error/warning lines first', () => {
+    const problemCounts: Record<string, number> = { clean: 0, shaky: 2, broken: 5 };
+    const ctrl = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      getProblemCount: (id) => problemCounts[id] ?? 0,
+    });
+    ctrl.addQuest(makeQuest('clean', { state: 'running' }));
+    ctrl.addQuest(makeQuest('broken', { state: 'running' }));
+    ctrl.addQuest(makeQuest('shaky', { state: 'running' }));
+
+    ctrl.cycleSortMode(); // → cost
+    ctrl.cycleSortMode(); // → age
+    ctrl.cycleSortMode(); // → name
+    ctrl.cycleSortMode(); // → health
+    ctrl.cycleSortMode(); // → ctx
+    ctrl.cycleSortMode(); // → problems
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['broken', 'shaky', 'clean']);
   });
 });
 
