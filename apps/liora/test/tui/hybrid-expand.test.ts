@@ -472,6 +472,24 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.jumpToPrevError()).toBe(false);
   });
 
+  it('Gen 65: header shows an error/warning count badge', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('ok line');
+    view.appendLine('fatal: something broke');
+    view.appendLine('warning: deprecation ahead');
+
+    // Clean stream: no badge.
+    const cleanView = new QuestExpandView();
+    cleanView.appendLine('all good');
+    expect(cleanView.render(quest, 80)[0]).not.toContain('✖');
+
+    // Problem stream: badge shows error and warning counts.
+    const header = view.render(quest, 80)[0];
+    expect(header).toContain('✖1');
+    expect(header).toContain('⚠1');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {
