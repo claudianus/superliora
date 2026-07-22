@@ -1,0 +1,97 @@
+import { describe, expect, it } from 'vitest';
+
+import { AttentionController } from '#/tui/controllers/attention-controller';
+import { PinController } from '#/tui/controllers/pin-controller';
+import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
+import type { Quest } from '#/tui/controllers/quest-types';
+import { BentoDashboardComponent } from '#/tui/components/panes/bento-dashboard';
+
+function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
+  return {
+    id,
+    name: `Quest ${id}`,
+    sessionRef: `session-${id}`,
+    state: 'running',
+    createdAt: Date.now() - 60_000,
+    lastActivityAt: Date.now(),
+    changeCount: { added: 3, removed: 1 },
+    planStep: 'Implementing feature',
+    worktreePath: `/tmp/worktrees/${id}`,
+    pinned: false,
+    approvalPending: false,
+    ...overrides,
+  };
+}
+
+function makeComponent() {
+  const grid = new QuestGridController({
+    getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+    requestRender: () => {},
+  });
+  grid.addQuest(makeQuest('a'));
+  grid.addQuest(makeQuest('b'));
+  const attention = new AttentionController({
+    writeRaw: () => {},
+    requestRender: () => {},
+  });
+  const pin = new PinController({ gridController: grid, requestRender: () => {} });
+  let closed = false;
+  const component = new BentoDashboardComponent({
+    gridController: grid,
+    attentionController: attention,
+    pinController: pin,
+    expandViews: new Map(),
+    blinkPhase: false,
+    onClose: () => {
+      closed = true;
+    },
+  });
+  return { component, grid, pin, isClosed: () => closed };
+}
+
+describe('Gen 22: context-aware help overlay', () => {
+  it('? opens dashboard help and any key dismisses it', () => {
+    const { component } = makeComponent();
+
+    // Before: normal dashboard render (no help title).
+    expect(component.render(120).join('\n')).not.toContain('Dashboard Help');
+
+    // ? opens help.
+    component.handleInput('?');
+    const helpLines = component.render(120).join('\n');
+    expect(helpLines).toContain('Dashboard Help');
+    expect(helpLines).toContain('Move focus between quests');
+
+    // Any key dismisses help (consumed, not acted on).
+    component.handleInput('j');
+    expect(component.render(120).join('\n')).not.toContain('Dashboard Help');
+  });
+
+  it('Esc closes help first, not the whole dashboard', () => {
+    const { component, isClosed } = makeComponent();
+
+    component.handleInput('?');
+    expect(component.render(120).join('\n')).toContain('Dashboard Help');
+
+    // Esc dismisses help but keeps the dashboard open.
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(false);
+    expect(component.render(120).join('\n')).not.toContain('Dashboard Help');
+
+    // A second Esc now closes the dashboard.
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(true);
+  });
+
+  it('pinned mode shows the pinned help with stream shortcuts', () => {
+    const { component, grid, pin } = makeComponent();
+    pin.pin('a');
+    expect(grid.getPinnedQuestId()).toBe('a');
+
+    component.handleInput('?');
+    const helpLines = component.render(120).join('\n');
+    expect(helpLines).toContain('Pinned Quest Help');
+    expect(helpLines).toContain('Scroll the live stream');
+    expect(helpLines).toContain('Search');
+  });
+});

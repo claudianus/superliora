@@ -84,6 +84,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
   private searchMode = false;
   private searchBuffer = '';
 
+  // Gen 22: context-aware help overlay
+  private helpVisible = false;
+
   constructor(options: BentoDashboardOptions) {
     super();
     this.gridController = options.gridController;
@@ -133,7 +136,23 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
     // Esc or Ctrl+G → close dashboard
     if (matchesKey(data, Key.escape) || data === '\x07') {
+      // Gen 22: if help is open, close it first instead of the whole dashboard.
+      if (this.helpVisible) {
+        this.helpVisible = false;
+        return;
+      }
       this.onClose();
+      return;
+    }
+
+    // Gen 22: ? toggles the context-aware help overlay.
+    if (k === '?') {
+      this.helpVisible = !this.helpVisible;
+      return;
+    }
+    // While help is shown, any other key dismisses it (and is consumed).
+    if (this.helpVisible) {
+      this.helpVisible = false;
       return;
     }
 
@@ -249,10 +268,53 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
 
     const pinned = this.pinController.getPinnedQuest();
+    // Gen 22: help overlay replaces the normal view while visible.
+    if (this.helpVisible) {
+      return this.renderHelp(pinned !== null, width);
+    }
     if (pinned) {
       return this.renderPinned(pinned, quests, width);
     }
     return this.renderDashboard(quests, width);
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 22: context-aware help overlay
+  // -------------------------------------------------------------------------
+
+  private renderHelp(pinnedMode: boolean, width: number): string[] {
+    const lines: string[] = [];
+    const title = pinnedMode ? '── Pinned Quest Help ──' : '── Dashboard Help ──';
+    lines.push(currentTheme.fg('accent', title));
+    lines.push('');
+
+    const rows: ReadonlyArray<readonly [string, string]> = pinnedMode
+      ? [
+          ['j / k  ↓ ↑', 'Scroll the live stream'],
+          ['PgDn / PgUp', 'Scroll a page at a time'],
+          ['G / g', 'Jump to bottom / top'],
+          ['/  n  N', 'Search · next / previous match'],
+          ['Enter / p', 'Unpin back to the grid'],
+          ['1–9', 'Jump to the Nth thumbnail quest'],
+          ['a / x / r', 'Approve / reject / rewind approval'],
+          ['? / Esc', 'Close this help'],
+          ['q', 'Close the dashboard'],
+        ]
+      : [
+          ['j / k  ↓ ↑', 'Move focus between quests'],
+          ['Enter / p', 'Pin (expand) the focused quest'],
+          ['a / x / r', 'Approve / reject / rewind focused quest'],
+          ['?', 'Show this help'],
+          ['Esc / q', 'Close the dashboard'],
+        ];
+
+    for (const [keys, desc] of rows) {
+      const keyCell = currentTheme.fg('warning', keys.padEnd(14));
+      lines.push(`  ${keyCell}${desc}`);
+    }
+    lines.push('');
+    lines.push(currentTheme.dim('  Press any key to dismiss.'));
+    return lines.map((line) => clip(line, width));
   }
 
   // -------------------------------------------------------------------------
