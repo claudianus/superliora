@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { questUrgencyScore, compareByUrgency } from '#/tui/controllers/quest-urgency';
+import { questUrgencyScore, compareByUrgency, rankQuestsByUrgency } from '#/tui/controllers/quest-urgency';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -76,5 +76,46 @@ describe('quest urgency scoring (Gen 38)', () => {
     const future = makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now + 5_000 });
     const fresh = makeQuest('b', { state: 'waiting-approval', attentionEnteredAt: now });
     expect(questUrgencyScore(future, now)).toBe(questUrgencyScore(fresh, now));
+  });
+});
+
+describe('rankQuestsByUrgency (Gen 49)', () => {
+  it('returns quests most urgent first with their scores', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('running', { state: 'running' }),
+      makeQuest('approval', { state: 'waiting-approval', attentionEnteredAt: now - 5_000 }),
+      makeQuest('failed', { state: 'failed', attentionEnteredAt: now }),
+    ];
+    const ranked = rankQuestsByUrgency(quests, now);
+    expect(ranked.map((r) => r.quest.id)).toEqual(['approval', 'failed', 'running']);
+    // Scores are attached and monotonically non-increasing.
+    expect(ranked[0]!.score).toBeGreaterThanOrEqual(ranked[1]!.score);
+    expect(ranked[1]!.score).toBeGreaterThanOrEqual(ranked[2]!.score);
+  });
+
+  it('is stable for equal scores (preserves input order)', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'running' }),
+      makeQuest('b', { state: 'running' }),
+      makeQuest('c', { state: 'running' }),
+    ];
+    const ranked = rankQuestsByUrgency(quests, now);
+    expect(ranked.map((r) => r.quest.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('returns an empty array for no quests', () => {
+    expect(rankQuestsByUrgency([], 100_000)).toEqual([]);
+  });
+
+  it('does not mutate the input array', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('running', { state: 'running' }),
+      makeQuest('approval', { state: 'waiting-approval', attentionEnteredAt: now }),
+    ];
+    rankQuestsByUrgency(quests, now);
+    expect(quests.map((q) => q.id)).toEqual(['running', 'approval']);
   });
 });

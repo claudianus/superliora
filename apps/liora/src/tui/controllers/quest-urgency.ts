@@ -43,3 +43,24 @@ export function questUrgencyScore(quest: Quest, now: number = Date.now()): numbe
 export function compareByUrgency(a: Quest, b: Quest, now: number = Date.now()): number {
   return questUrgencyScore(b, now) - questUrgencyScore(a, now);
 }
+
+/** Gen 49: a quest paired with its computed urgency score. */
+export interface RankedQuest {
+  readonly quest: Quest;
+  readonly score: number;
+}
+
+/**
+ * Gen 49: rank a list of quests by urgency, most urgent first, each paired
+ * with its score. Stable for equal scores (preserves input order). Useful for
+ * triage UIs that want to show the top-N most urgent quests with their scores.
+ */
+export function rankQuestsByUrgency(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): RankedQuest[] {
+  return quests
+    .map((quest, index) => ({ quest, score: questUrgencyScore(quest, now), index }))
+    .sort((a, b) => (a.score !== b.score ? b.score - a.score : a.index - b.index))
+    .map(({ quest, score }) => ({ quest, score }));
+}
