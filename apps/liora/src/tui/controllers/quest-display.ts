@@ -323,3 +323,23 @@ export function formatFleetContextSummary(quests: readonly Quest[]): string | nu
   const percent = Math.round((sum / count) * 100);
   return `avg ctx ${String(percent)}%`;
 }
+
+/**
+ * Gen 73: a fleet-wide model distribution summary, e.g. "3 claude · 1 gpt".
+ * Counts quests per model name (ignoring quests without one) and lists them
+ * most-used first, breaking ties alphabetically. Returns null when no quest
+ * reports a model so callers can hide the segment entirely.
+ */
+export function formatFleetModelSummary(quests: readonly Quest[]): string | null {
+  const counts = new Map<string, number>();
+  for (const quest of quests) {
+    if (quest.modelName !== undefined && quest.modelName.length > 0) {
+      counts.set(quest.modelName, (counts.get(quest.modelName) ?? 0) + 1);
+    }
+  }
+  if (counts.size === 0) return null;
+  const segments = [...counts.entries()]
+    .sort((a, b) => (a[1] !== b[1] ? b[1] - a[1] : a[0].localeCompare(b[0])))
+    .map(([model, count]) => `${String(count)} ${model}`);
+  return segments.join(' · ');
+}

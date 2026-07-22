@@ -11,6 +11,7 @@ import {
   formatFleetChangeSummary,
   formatFleetContextSummary,
   formatFleetHealthSummary,
+  formatFleetModelSummary,
   formatFleetStateSummary,
   formatFleetTodoSummary,
   formatHealthLabel,
@@ -499,5 +500,40 @@ describe('formatFleetContextSummary (Gen 72)', () => {
       makeQuest('c', { contextUsage: 0.8 }),
     ];
     expect(formatFleetContextSummary(quests)).toBe('avg ctx 80%');
+  });
+});
+
+describe('formatFleetModelSummary (Gen 73)', () => {
+  it('returns null when no quest reports a model', () => {
+    const quests = [makeQuest('a', { state: 'running' })];
+    expect(formatFleetModelSummary(quests)).toBeNull();
+    expect(formatFleetModelSummary([])).toBeNull();
+  });
+
+  it('counts quests per model, most-used first', () => {
+    const quests = [
+      makeQuest('a', { modelName: 'claude' }),
+      makeQuest('b', { modelName: 'claude' }),
+      makeQuest('c', { modelName: 'claude' }),
+      makeQuest('d', { modelName: 'gpt' }),
+    ];
+    expect(formatFleetModelSummary(quests)).toBe('3 claude · 1 gpt');
+  });
+
+  it('breaks ties alphabetically', () => {
+    const quests = [
+      makeQuest('a', { modelName: 'gpt' }),
+      makeQuest('b', { modelName: 'claude' }),
+    ];
+    expect(formatFleetModelSummary(quests)).toBe('1 claude · 1 gpt');
+  });
+
+  it('ignores quests without a model name', () => {
+    const quests = [
+      makeQuest('a', { modelName: 'claude' }),
+      makeQuest('b', { modelName: '' }),
+      makeQuest('c', { state: 'running' }),
+    ];
+    expect(formatFleetModelSummary(quests)).toBe('1 claude');
   });
 });
