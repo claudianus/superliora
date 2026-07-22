@@ -503,3 +503,32 @@ export function formatEscalatedFleetAttentionLoadLine(
   const base = `${icon} ${level} (${String(pending.length)} pending`;
   return criticalCount > 0 ? `${base}, ${String(criticalCount)} critical)` : `${base})`;
 }
+
+/**
+ * Gen 82: a one-line triage recommendation telling the operator which quest to
+ * handle first, e.g. "→ handle 'Fix login' first 🔥 15m". Picks the most
+ * urgent quest (Gen 57 escalation-aware ranking) and appends its escalation
+ * badge (Gen 54) so the neglect behind the recommendation is visible. Returns
+ * null when nothing needs attention, so callers can hide the segment. This
+ * turns the abstract "N pending" load into a concrete next action.
+ */
+export function formatTriageRecommendationLine(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): string | null {
+  // Only quests needing the operator's action are triage candidates; a happily
+  // running quest must never be recommended for handling.
+  const pending = quests.filter((quest) => ATTENTION_STATES.has(quest.state));
+  if (pending.length === 0) return null;
+  const ranked = rankQuestsByEscalatedUrgency(pending, now);
+  const top = ranked[0];
+  if (top === undefined) return null;
+  const level = escalationLevelFor(top.quest, now);
+  const dwellMs =
+    top.quest.attentionEnteredAt !== undefined
+      ? Math.max(0, now - top.quest.attentionEnteredAt)
+      : null;
+  const badge = formatEscalationBadge(level, dwellMs);
+  const base = `→ handle '${top.quest.name}' first`;
+  return badge === null ? base : `${base} ${badge}`;
+}

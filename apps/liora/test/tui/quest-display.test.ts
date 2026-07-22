@@ -27,6 +27,7 @@ import {
   formatAttentionLoadLabel,
   formatFleetAttentionLoadLine,
   formatEscalatedFleetAttentionLoadLine,
+  formatTriageRecommendationLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -836,5 +837,43 @@ describe('formatEscalatedFleetAttentionLoadLine (Gen 81)', () => {
     expect(formatEscalatedFleetAttentionLoadLine(quests, now)).toBe(
       '🔥 overloaded (8 pending, 8 critical)',
     );
+  });
+});
+
+describe('formatTriageRecommendationLine (Gen 82)', () => {
+  it('returns null when nothing needs attention', () => {
+    const now = 100_000;
+    const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
+    expect(formatTriageRecommendationLine(quests, now)).toBeNull();
+  });
+
+  it('returns null for an empty fleet', () => {
+    expect(formatTriageRecommendationLine([], 100_000)).toBeNull();
+  });
+
+  it('recommends the most urgent quest by name', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'Refactor', state: 'running', lastActivityAt: now }),
+      makeQuest('b', { name: 'Fix login', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 1_000 }),
+    ];
+    expect(formatTriageRecommendationLine(quests, now)).toBe("→ handle 'Fix login' first");
+  });
+
+  it('appends an escalation badge for a long-neglected quest', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'Fix login', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+    ];
+    expect(formatTriageRecommendationLine(quests, now)).toBe("→ handle 'Fix login' first 🔥 15m");
+  });
+
+  it('prefers a critically escalated quest over a fresher one', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'Fresh', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 1_000 }),
+      makeQuest('b', { name: 'Critical', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+    ];
+    expect(formatTriageRecommendationLine(quests, now)).toBe("→ handle 'Critical' first 🔥 15m");
   });
 });
