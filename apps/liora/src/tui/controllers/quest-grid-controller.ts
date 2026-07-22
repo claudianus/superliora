@@ -44,6 +44,11 @@ export interface QuestGridState {
 export interface QuestGridControllerOptions {
   readonly getViewport: () => RendererRect;
   readonly requestRender: () => void;
+  /**
+   * Gen 27: called when a quest transitions into an attention state
+   * (waiting-approval or failed). Used to auto-pin in the dashboard.
+   */
+  readonly onAttentionTransition?: (questId: string, state: QuestState) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,25 +273,15 @@ export class QuestGridController {
   // Gen 26: Attention-only toggle
   // -------------------------------------------------------------------------
 
-  /** Toggle whether the dashboard shows only attention quests. */
-  toggleAttentionOnly(): void {
-    this.attentionOnly = !this.attentionOnly;
-    this.recomputeLayout();
-  }
-
-  /** Whether attention-only mode is active. */
-  isAttentionOnly(): boolean {
-    return this.attentionOnly;
-  }
-
-  // -------------------------------------------------------------------------
-  // Gen 26: Attention-only toggle
-  // -------------------------------------------------------------------------
-
-  /** Toggle (or set) attention-only mode: show only quests needing attention. */
+  /** Set attention-only mode: show only quests needing attention. */
   setAttentionOnly(enabled: boolean): void {
     this.attentionOnly = enabled;
     this.recomputeLayout();
+  }
+
+  /** Toggle attention-only mode. */
+  toggleAttentionOnly(): void {
+    this.setAttentionOnly(!this.attentionOnly);
   }
 
   /** Whether attention-only mode is active. */
