@@ -894,6 +894,10 @@ export class LioraTUI {
             this.renderBottomStatusBar(frameRenderer, columns, rows, undefined);
             return;
           }
+          // Outer shell frame first — dock panel frames below paint on top of
+          // their portion, so this shows through only around/above/below the
+          // center stage, unifying the whole workspace into one composition.
+          this.workspaceController.paintShellChrome(frameRenderer, layout);
           const docks = this.workspaceController.renderDocks(layout);
           // Draw left dock panels (or maximized panel)
           const maximizedId = this.workspaceController.getMaximizedPanelId();

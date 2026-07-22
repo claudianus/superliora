@@ -216,6 +216,31 @@ New list components **must reuse `SearchableList`** and manually align to
 
 ---
 
+## 8.1 Workspace Shell
+
+The workspace (docks + center stage) reads as **one bordered composition**,
+not floating panels:
+
+- **One outer frame.** `workspace/shell-chrome.ts` → `workspaceShellChromeCells`
+  paints a single rounded (`╭─╮│╰─╯`) perimeter around `layout.shell`. Dock
+  panel frames render afterward and overwrite their own portion of that
+  perimeter, so the outer frame only shows through above/below and around the
+  center stage — never a second border stacked on a dock's own edge.
+- **Shared border family.** All dock `renderPanelFrame` calls use
+  `borderStyle: 'rounded'` (focused and unfocused alike) — never mix
+  `'rounded'`/`'single'` within the same workspace.
+- **Focus ring on the active column only.** Focused panel border uses
+  `primary` (+ ultrawork glow transition); unfocused panels dim to
+  `border`/`textMuted`. Never brighten more than one panel per dock at a time.
+- **1-col horizontal padding.** Panel content never sits flush against the
+  vertical border — reduce the width passed to `definition.render` by 2
+  (1 col each side) and prefix each returned line with a leading space; do
+  not change panel-internal rendering to achieve this.
+- All chrome colors resolve through `currentTheme` — no chalk named colors,
+  per §1.2.
+
+---
+
 ## 9. Architecture Discipline
 
 - `LioraTUI` (`liora-tui.ts`) is a **coordinator** — it wires state, layout,

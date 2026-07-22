@@ -1,4 +1,5 @@
 import type {
+  NativeFrameRenderer,
   NativeInputEvent,
   NativeInputRouter,
   RendererRect,
@@ -16,6 +17,7 @@ import type { DragOverlayInfo } from './drag-controller';
 import { PanelManager } from './panel-manager';
 import { LayoutPresetManager } from './layout-presets';
 import type { PanelDefinition } from './panel-definition';
+import { workspaceShellChromeCells } from './shell-chrome';
 import { currentTheme } from '#/tui/theme';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import {
@@ -243,12 +245,14 @@ export class WorkspaceController {
         const fullWidth = (layout.leftDock?.rect.width ?? 0) + (layout.rightDock?.rect.width ?? 0) + 40;
         const fullHeight = layout.leftDock?.rect.height ?? layout.rightDock?.rect.height ?? 30;
         const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
+        // 1 col horizontal padding inside the frame border on each side.
+        const contentWidth = Math.max(1, fullWidth - 2 - 2);
         const content = panel.definition.render(
-          Math.max(1, fullWidth - 2),
+          contentWidth,
           Math.max(1, fullHeight - 2),
           true,
           searchQuery,
-        );
+        ).map((line) => ` ${line}`);
         const framed = renderPanelFrame({
           width: fullWidth,
           height: fullHeight,
@@ -313,6 +317,20 @@ export class WorkspaceController {
     return this.maximizedPanelId;
   }
 
+  /**
+   * Paint the outer workspace shell frame around `layout.shell`. Call this
+   * before {@link renderDocks} is composited so dock panel frames (drawn on
+   * top) take precedence over their portion of the perimeter — the outer
+   * frame then only shows through above/below and around the center stage,
+   * unifying the whole workspace into one bordered composition.
+   */
+  paintShellChrome(frameRenderer: NativeFrameRenderer, layout: WorkspaceLayoutResult): void {
+    if (this.maximizedPanelId !== null) return;
+    for (const cell of workspaceShellChromeCells(layout.shell)) {
+      frameRenderer.frame.setCell(cell.x, cell.y, { char: cell.char, style: cell.style });
+    }
+  }
+
   private renderDock(
     dockId: 'left' | 'right',
     dockRect: RendererRect,
@@ -337,15 +355,17 @@ export class WorkspaceController {
       const isFocused = panel.instanceId === focusedId;
       const contentWidth = dockRect.width - 2; // minus frame borders
       const contentHeight = panelHeight - 2; // minus top/bottom frame
+      // 1 col horizontal padding inside the frame border on each side.
+      const innerWidth = Math.max(1, contentWidth - 2);
 
       // Get panel content (pass search query if focused and search is open)
       const searchQuery = isFocused && this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
       const content = panel.definition.render(
-        Math.max(1, contentWidth),
+        innerWidth,
         Math.max(1, contentHeight),
         isFocused,
         searchQuery,
-      );
+      ).map((line) => ` ${line}`);
 
       // Wrap in frame
       const framed = renderPanelFrame({
@@ -354,7 +374,7 @@ export class WorkspaceController {
         title: panel.definition.title,
         icon: panel.definition.icon,
         focused: isFocused,
-        borderStyle: isFocused ? 'rounded' : 'single',
+        borderStyle: 'rounded',
         borderColor: isFocused
           ? (text) => {
               const appearance = getActiveAppearancePreferences();
@@ -455,15 +475,17 @@ export class WorkspaceController {
     if (activePanel) {
       const contentWidth = dockRect.width - 2;
       const contentHeight = dockRect.height - 3; // tab bar + frame top/bottom
+      // 1 col horizontal padding inside the frame border on each side.
+      const innerWidth = Math.max(1, contentWidth - 2);
 
       // Pass search query if search is open
       const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
       const content = activePanel.definition.render(
-        Math.max(1, contentWidth),
+        innerWidth,
         Math.max(1, contentHeight),
         true,
         searchQuery,
-      );
+      ).map((line) => ` ${line}`);
       // Track panel activity for tab bar indicators
       this.panelActivity.set(activePanel.instanceId, Date.now());
       // Clear notifications when panel is viewed
