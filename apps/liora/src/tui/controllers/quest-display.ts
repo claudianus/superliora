@@ -94,3 +94,32 @@ export function formatEscalatedTriageLines(
       return badge === null ? base : `${base} ${badge}`;
     });
 }
+
+/**
+ * Gen 59: escalation-aware attention summary for the dashboard bar, e.g.
+ * "3 need attention (oldest 2m, 1 critical)". Composes the Gen 47 attention
+ * summary with the Gen 53 escalation levels so the operator sees both how
+ * long the oldest quest has waited and whether any quest has been ignored
+ * long enough to be critical. Returns null when nothing needs attention so
+ * callers can hide the segment entirely.
+ */
+export function formatEscalatedAttentionSummary(
+  summary: AttentionSummary,
+  levels: readonly EscalationLevel[],
+): string | null {
+  if (summary.count === 0) return null;
+  const criticalCount = levels.filter((level) => level === 2).length;
+  const escalatedCount = levels.filter((level) => level > 0).length;
+  const parts: string[] = [];
+  if (summary.oldestDwellMs !== null) {
+    parts.push(`oldest ${formatElapsed(summary.oldestDwellMs)}`);
+  }
+  if (criticalCount > 0) {
+    parts.push(`${String(criticalCount)} critical`);
+  } else if (escalatedCount > 0) {
+    parts.push(`${String(escalatedCount)} escalated`);
+  }
+  const base = `${String(summary.count)} need attention`;
+  if (parts.length === 0) return base;
+  return `${base} (${parts.join(', ')})`;
+}

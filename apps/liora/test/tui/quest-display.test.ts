@@ -4,6 +4,7 @@ import {
   formatAttentionSummary,
   formatEscalationBadge,
   formatEscalationSummary,
+  formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
   formatUrgencyRank,
 } from '#/tui/controllers/quest-display';
@@ -177,5 +178,48 @@ describe('formatEscalatedTriageLines (Gen 58)', () => {
     const quests = [makeQuest('a', { state: 'running' })];
     expect(formatEscalatedTriageLines([], 3, now)).toEqual([]);
     expect(formatEscalatedTriageLines(quests, 0, now)).toEqual([]);
+  });
+});
+
+describe('formatEscalatedAttentionSummary (Gen 59)', () => {
+  it('returns null when nothing needs attention', () => {
+    const summary: AttentionSummary = { count: 0, oldestQuestId: null, oldestDwellMs: null };
+    expect(formatEscalatedAttentionSummary(summary, [])).toBeNull();
+  });
+
+  it('reports the oldest dwell and the critical count', () => {
+    const summary: AttentionSummary = {
+      count: 3,
+      oldestQuestId: 'q1',
+      oldestDwellMs: 120_000,
+    };
+    expect(formatEscalatedAttentionSummary(summary, [1, 2, 0])).toBe(
+      '3 need attention (oldest 2m, 1 critical)',
+    );
+  });
+
+  it('reports the escalated count when none are critical', () => {
+    const summary: AttentionSummary = {
+      count: 2,
+      oldestQuestId: 'q1',
+      oldestDwellMs: 300_000,
+    };
+    expect(formatEscalatedAttentionSummary(summary, [1, 1])).toBe(
+      '2 need attention (oldest 5m, 2 escalated)',
+    );
+  });
+
+  it('reports the oldest dwell alone when nothing is escalated', () => {
+    const summary: AttentionSummary = {
+      count: 1,
+      oldestQuestId: 'q1',
+      oldestDwellMs: 45_000,
+    };
+    expect(formatEscalatedAttentionSummary(summary, [0])).toBe('1 need attention (oldest 45s)');
+  });
+
+  it('reports the count alone when dwell is unknown and nothing is escalated', () => {
+    const summary: AttentionSummary = { count: 1, oldestQuestId: 'q1', oldestDwellMs: null };
+    expect(formatEscalatedAttentionSummary(summary, [0])).toBe('1 need attention');
   });
 });
