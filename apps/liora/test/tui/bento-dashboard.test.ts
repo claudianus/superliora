@@ -348,6 +348,42 @@ describe('Gen 27: auto-pin on attention transition', () => {
   });
 });
 
+describe('Gen 33: attention dwell stamp on quests', () => {
+  it('stamps attentionEnteredAt when a quest enters an attention state', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    expect(ctrl.getQuest('a')?.attentionEnteredAt).toBeUndefined();
+
+    ctrl.updateQuestState('a', 'waiting-approval');
+    expect(ctrl.getQuest('a')?.attentionEnteredAt).toBeTypeOf('number');
+  });
+
+  it('keeps the original stamp across repeated same-state events', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.updateQuestState('a', 'waiting-approval');
+    const first = ctrl.getQuest('a')?.attentionEnteredAt;
+
+    ctrl.updateQuestState('a', 'waiting-approval');
+    expect(ctrl.getQuest('a')?.attentionEnteredAt).toBe(first);
+  });
+
+  it('clears the stamp when the quest leaves the attention state', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'waiting-approval' }));
+    expect(ctrl.getQuest('a')?.attentionEnteredAt).toBeTypeOf('number');
+
+    ctrl.updateQuestState('a', 'running');
+    expect(ctrl.getQuest('a')?.attentionEnteredAt).toBeUndefined();
+  });
+
+  it('stamps a quest born directly into an attention state', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'failed' }));
+    expect(ctrl.getQuest('a')?.attentionEnteredAt).toBeTypeOf('number');
+  });
+});
+
 describe('Gen 30: dashboard sort mode cycling', () => {
   it('cycles attention → cost → age → name → attention', () => {
     const ctrl = makeController();

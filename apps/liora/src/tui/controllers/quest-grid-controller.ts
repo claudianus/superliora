@@ -86,7 +86,13 @@ export class QuestGridController {
 
   /** Register a new quest. */
   addQuest(quest: Quest): void {
-    this.quests.set(quest.id, quest);
+    // Gen 33: if a quest is born directly into an attention state, stamp the
+    // dwell clock so the header shows how long it has been waiting.
+    const stamped =
+      ATTENTION_STATES.has(quest.state) && quest.attentionEnteredAt === undefined
+        ? { ...quest, attentionEnteredAt: Date.now() }
+        : quest;
+    this.quests.set(stamped.id, stamped);
     this.recomputeLayout();
   }
 
@@ -107,14 +113,22 @@ export class QuestGridController {
     const quest = this.quests.get(questId);
     if (!quest) return;
     const wasAttention = ATTENTION_STATES.has(quest.state);
+    const nowAttention = ATTENTION_STATES.has(state);
+    // Gen 33: stamp when the quest enters an attention state; clear on exit.
+    // Staying in an attention state keeps the original stamp so the dwell
+    // clock is not reset by repeated same-state events.
+    const attentionEnteredAt = nowAttention
+      ? (wasAttention ? quest.attentionEnteredAt : Date.now())
+      : undefined;
     this.quests.set(questId, {
       ...quest,
       state,
       lastActivityAt: Date.now(),
       approvalPending: state === 'waiting-approval',
+      attentionEnteredAt,
     });
     // Gen 27: notify on transition into an attention state (not when already there).
-    if (!wasAttention && ATTENTION_STATES.has(state)) {
+    if (!wasAttention && nowAttention) {
       this.onAttentionTransition?.(questId, state);
     }
     this.requestRender();

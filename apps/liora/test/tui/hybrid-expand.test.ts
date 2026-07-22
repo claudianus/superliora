@@ -124,6 +124,29 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[5]).toBe('line 2');
   });
 
+  it('Gen 33: expand view header shows dwell time for attention quests', () => {
+    // Entered the attention state 90s ago.
+    const quest = makeQuest('a', {
+      state: 'waiting-approval',
+      attentionEnteredAt: Date.now() - 90_000,
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 100);
+    // The dwell time appears on the second header line.
+    expect(lines[1]).toContain('⏳ waiting');
+  });
+
+  it('Gen 33: expand view header hides dwell time for healthy quests', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 100);
+    expect(lines[1]).not.toContain('⏳ waiting');
+  });
+
   it('expand view auto-scrolls when exceeding max visible lines', () => {
     const quest = makeQuest('a');
     const view = new QuestExpandView();
