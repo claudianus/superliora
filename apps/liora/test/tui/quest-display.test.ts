@@ -7,6 +7,7 @@ import {
   formatEscalationSummary,
   formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
+  formatFleetStateSummary,
   formatStripBlinkLabel,
   formatTotalCostUsd,
   formatUrgencyRank,
@@ -270,5 +271,37 @@ describe('formatTotalCostUsd (Gen 63)', () => {
   it('sums the costs and appends a total suffix', () => {
     expect(formatTotalCostUsd([1.234, 2.0, undefined])).toBe('$3.23 total');
     expect(formatTotalCostUsd([0.05, 0.05])).toBe('$0.10 total');
+  });
+});
+
+describe('formatFleetStateSummary (Gen 64)', () => {
+  it('returns null when there are no quests', () => {
+    expect(formatFleetStateSummary([])).toBeNull();
+  });
+
+  it('summarizes a single quest without pluralization', () => {
+    const quests = [makeQuest('a', { state: 'running' })];
+    expect(formatFleetStateSummary(quests)).toBe('1 quest (1 running)');
+  });
+
+  it('counts quests per state, most urgent first', () => {
+    const quests = [
+      makeQuest('a', { state: 'running' }),
+      makeQuest('b', { state: 'running' }),
+      makeQuest('c', { state: 'waiting-approval' }),
+      makeQuest('d', { state: 'done' }),
+      makeQuest('e', { state: 'idle' }),
+    ];
+    expect(formatFleetStateSummary(quests)).toBe(
+      '5 quests (1 approval · 2 running · 1 idle · 1 done)',
+    );
+  });
+
+  it('omits zero-count categories', () => {
+    const quests = [
+      makeQuest('a', { state: 'failed' }),
+      makeQuest('b', { state: 'failed' }),
+    ];
+    expect(formatFleetStateSummary(quests)).toBe('2 quests (2 failed)');
   });
 });

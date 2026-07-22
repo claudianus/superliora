@@ -7,7 +7,7 @@
  * unit-testable in isolation.
  */
 
-import { formatElapsed, type Quest } from './quest-types';
+import { formatElapsed, type Quest, type QuestState } from './quest-types';
 import type { AttentionSummary, EscalationLevel } from './attention-controller';
 import {
   rankQuestsByUrgency,
@@ -157,4 +157,44 @@ export function formatTotalCostUsd(costs: readonly (number | undefined)[]): stri
   const total = costs.reduce<number>((sum, cost) => sum + (cost ?? 0), 0);
   if (total <= 0) return null;
   return `$${total.toFixed(2)} total`;
+}
+
+/** Short labels for each quest state, used in the fleet summary. */
+const STATE_LABELS: Record<QuestState, string> = {
+  idle: 'idle',
+  running: 'running',
+  blocked: 'blocked',
+  'waiting-approval': 'approval',
+  done: 'done',
+  failed: 'failed',
+};
+
+/** Display order for state segments in the fleet summary. */
+const STATE_ORDER: readonly QuestState[] = [
+  'waiting-approval',
+  'failed',
+  'blocked',
+  'running',
+  'idle',
+  'done',
+];
+
+/**
+ * Gen 64: a compact fleet state summary for the dashboard bar, e.g.
+ * "5 quests (2 running · 1 approval)". Counts quests per state and lists only
+ * the non-zero categories, most urgent first. Returns null when there are no
+ * quests so callers can hide the segment entirely.
+ */
+export function formatFleetStateSummary(quests: readonly Quest[]): string | null {
+  if (quests.length === 0) return null;
+  const counts = new Map<QuestState, number>();
+  for (const quest of quests) {
+    counts.set(quest.state, (counts.get(quest.state) ?? 0) + 1);
+  }
+  const segments = STATE_ORDER.filter((state) => (counts.get(state) ?? 0) > 0).map(
+    (state) => `${String(counts.get(state))} ${STATE_LABELS[state]}`,
+  );
+  const total = `${String(quests.length)} quest${quests.length === 1 ? '' : 's'}`;
+  if (segments.length === 0) return total;
+  return `${total} (${segments.join(' · ')})`;
 }
