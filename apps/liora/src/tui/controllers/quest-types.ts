@@ -50,6 +50,33 @@ export function questStatePriority(state: QuestState): number {
   }
 }
 
+/**
+ * Gen 12 / Gen 35: map a quest state to its theme color token so the 6
+ * lifecycle states are scannable at a glance. Shared by the dashboard cells
+ * and the expand-view header.
+ */
+export function questStateColorToken(
+  state: QuestState,
+): 'textMuted' | 'accent' | 'warning' | 'success' | 'error' {
+  switch (state) {
+    case 'idle':
+      return 'textMuted';
+    case 'running':
+      return 'accent';
+    case 'blocked':
+    case 'waiting-approval':
+      return 'warning';
+    case 'done':
+      return 'success';
+    case 'failed':
+      return 'error';
+    default: {
+      const _exhaustive: never = state;
+      return _exhaustive;
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Gen 30: Dashboard Sort Modes
 // ---------------------------------------------------------------------------
@@ -141,6 +168,8 @@ export interface Quest {
   readonly sessionCostUsd?: number | undefined;
   /** Gen 21: last error message for the main session, shown when failed. */
   readonly lastErrorMessage?: string | undefined;
+  /** Gen 33: timestamp (ms epoch) when the quest entered its current attention state. */
+  readonly attentionEnteredAt?: number | undefined;
 }
 
 // ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ import {
   formatChangeCount,
   formatElapsed,
   questStateIcon,
+  questStateColorToken,
   sortModeLabel,
   type Quest,
   type QuestChangeCount,
@@ -499,7 +500,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
     // Gen 12: color-code the state icon + badge for at-a-glance scanning.
     // Gen 33: running quests get a live spinner instead of a static icon.
-    const stateToken = stateColorToken(quest.state);
+    const stateToken = questStateColorToken(quest.state);
     const icon = quest.state === 'running' ? spinnerFrame(now) : questStateIcon(quest.state);
     const badgeText = `${icon} [${quest.state}]`;
     const badge = currentTheme.fg(stateToken, badgeText);
@@ -597,30 +598,6 @@ export class BentoDashboardComponent extends Container implements Focusable {
 function clip(line: string, width: number): string {
   if (width <= 0) return '';
   return line.length > width ? line.slice(0, width) : line;
-}
-
-/**
- * Gen 12: map a quest state to its theme color token so the 6 lifecycle
- * states are scannable at a glance.
- */
-function stateColorToken(state: QuestState): 'textMuted' | 'accent' | 'warning' | 'success' | 'error' {
-  switch (state) {
-    case 'idle':
-      return 'textMuted';
-    case 'running':
-      return 'accent';
-    case 'blocked':
-    case 'waiting-approval':
-      return 'warning';
-    case 'done':
-      return 'success';
-    case 'failed':
-      return 'error';
-    default: {
-      const _exhaustive: never = state;
-      return _exhaustive;
-    }
-  }
 }
 
 function shorten(path: string, maxLen: number): string {

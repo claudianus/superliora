@@ -14,6 +14,7 @@ import {
   type Quest,
   formatChangeCount,
   formatElapsed,
+  questStateColorToken,
 } from '../../controllers/quest-types';
 
 // ---------------------------------------------------------------------------
@@ -225,8 +226,17 @@ export class QuestExpandView {
         : '';
 
     // Gen 11: rich header with quest metadata
-    const headerLine1 = `── ${quest.name} [${quest.state}]  ${scrollTag}${searchTag} ──`;
-    lines.push(headerLine1.length > width ? headerLine1.slice(0, width) : headerLine1);
+    // Gen 35: colorize the state badge so the expand view matches the cells.
+    const stateToken = questStateColorToken(quest.state);
+    const badgeText = `[${quest.state}]`;
+    const headerPrefix = `── ${quest.name} `;
+    const headerSuffix = `  ${scrollTag}${searchTag} ──`;
+    const plainHeader = `${headerPrefix}${badgeText}${headerSuffix}`;
+    const headerLine1 =
+      plainHeader.length > width
+        ? plainHeader.slice(0, width)
+        : `${currentTheme.dim(headerPrefix)}${currentTheme.fg(stateToken, badgeText)}${currentTheme.dim(headerSuffix)}`;
+    lines.push(headerLine1);
 
     // Second header line: worktree + change count + elapsed time (Gen 23)
     const changes = formatChangeCount(quest.changeCount);
@@ -236,7 +246,13 @@ export class QuestExpandView {
     const now = Date.now();
     const elapsed = `⏱ ${formatElapsed(Math.max(0, now - quest.createdAt))}`;
     const idle = `idle ${formatElapsed(Math.max(0, now - quest.lastActivityAt))}`;
-    const headerLine2 = `   ${worktree}  ${changes}  ${elapsed}  ${idle}`;
+    // Gen 33: show how long the quest has been left unattended when it is in
+    // an attention state, so the operator can triage by neglect duration.
+    const dwell =
+      quest.attentionEnteredAt !== undefined
+        ? `  ⏳ waiting ${formatElapsed(Math.max(0, now - quest.attentionEnteredAt))}`
+        : '';
+    const headerLine2 = `   ${worktree}  ${changes}  ${elapsed}  ${idle}${dwell}`;
     lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
 
     // Third header line: todo progress + context usage + plan step
