@@ -14,6 +14,7 @@ import {
   type Quest,
   formatChangeCount,
   formatElapsed,
+  questHealthScore,
   questStateColorToken,
   renderContextBar,
   renderTodoBar,
@@ -338,6 +339,8 @@ export class QuestExpandView {
     if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
       progressParts.push(renderContextBar(quest.contextUsage));
     }
+    // Gen 53: health mini-bar, matching the dashboard cells (Gen 52).
+    progressParts.push(renderHealthBar(questHealthScore(quest, Date.now())));
     // Gen 38: model name + session cost, matching the dashboard cells.
     if (quest.modelName !== undefined && quest.modelName.length > 0) {
       progressParts.push(quest.modelName);
@@ -447,4 +450,18 @@ function highlightStreamLine(line: string): string {
   if (ERROR_PATTERN.test(line)) return currentTheme.fg('error', line);
   if (WARNING_PATTERN.test(line)) return currentTheme.fg('warning', line);
   return line;
+}
+
+/**
+ * Gen 53: render a colorized health mini-bar, e.g. `♥ ▓▓▓░░ 82`.
+ * Mirrors the dashboard cell health bar (Gen 52). Local here because the
+ * shared quest-types helpers stay theme-free.
+ */
+function renderHealthBar(score: number): string {
+  const cells = 5;
+  const clamped = Math.max(0, Math.min(100, score));
+  const filled = Math.round((clamped / 100) * cells);
+  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
+  const token = score >= 60 ? 'success' : score >= 30 ? 'warning' : 'error';
+  return currentTheme.fg(token, `♥ ${bar} ${String(score)}`);
 }
