@@ -923,6 +923,40 @@ rename to docs/README.md
   for (const line of dashLines) console.log(`  ${line}`);
   console.log(`  Widgets: ${dashboard.getWidgets().length}`);
 
+  // ═══ Iteration 23 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 23 Modules ═══\x1b[0m');
+
+  // ─── 43. Network Monitor ─────────────────────────────────────────
+  console.log('\n\x1b[1;33m── NetworkMonitor ──\x1b[0m');
+  const { NetworkMonitor, createDemoMonitor } = await import('../apps/liora/src/tui/utils/network-monitor.ts');
+  const netMon = createDemoMonitor();
+  const netLines = netMon.render({ width: 55, height: 14, fg, boldFg, dimFg });
+  for (const line of netLines) console.log(`  ${line}`);
+  const throughput = netMon.getCurrentThroughput();
+  const percentiles = netMon.getLatencyPercentiles();
+  console.log(`  Throughput: ↓${Math.round(throughput.download / 1e6)}MB/s ↑${Math.round(throughput.upload / 1e6)}MB/s | p50=${Math.round(percentiles.p50)}ms p90=${Math.round(percentiles.p90)}ms`);
+
+  // ─── 44. Log Viewer ──────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── LogViewer ──\x1b[0m');
+  const { LogViewer, createDemoLogViewer } = await import('../apps/liora/src/tui/utils/log-viewer.ts');
+  const logView = createDemoLogViewer();
+  const logLines = logView.render({ width: 60, height: 12, fg, boldFg, dimFg });
+  for (const line of logLines) console.log(`  ${line}`);
+  logView.setFilter({ levels: ['error', 'fatal'] });
+  console.log(`  Filtered (ERROR+FATAL): ${logView.getFilteredEntries().length} entries`);
+  const logStats = logView.getStats();
+  console.log(`  Stats: ${logStats.total} total | errors=${logStats.byLevel.error} fatal=${logStats.byLevel.fatal}`);
+
+  // ─── 45. Settings Panel ──────────────────────────────────────────
+  console.log('\n\x1b[1;33m── SettingsPanel ──\x1b[0m');
+  const { SettingsPanel, createDemoSettings } = await import('../apps/liora/src/tui/utils/settings-panel.ts');
+  const settings = createDemoSettings();
+  settings.setValue('fontSize', 16);
+  settings.setValue('wordWrap', true);
+  const settingsLines = settings.render({ width: 55, height: 16, fg, boldFg, dimFg });
+  for (const line of settingsLines) console.log(`  ${line}`);
+  console.log(`  Modified: ${settings.modifiedCount} | fontSize=${settings.getValue<number>('fontSize')}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
