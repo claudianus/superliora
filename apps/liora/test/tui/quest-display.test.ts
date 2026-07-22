@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatAttentionSummary, formatEscalationBadge, formatEscalationSummary, formatUrgencyRank } from '#/tui/controllers/quest-display';
-import type { AttentionSummary } from '#/tui/controllers/attention-controller';
+import {
+  formatAttentionSummary,
+  formatEscalationBadge,
+  formatEscalationSummary,
+  formatEscalatedTriageLines,
+  formatUrgencyRank,
+} from '#/tui/controllers/quest-display';
+import {
+  type AttentionSummary,
+  ATTENTION_ESCALATION_MS,
+  ATTENTION_CRITICAL_MS,
+} from '#/tui/controllers/attention-controller';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -121,5 +131,51 @@ describe('formatEscalationSummary (Gen 55)', () => {
 
   it('reports a single critical quest', () => {
     expect(formatEscalationSummary([2])).toBe('1 escalated (1 critical)');
+  });
+});
+
+describe('formatEscalatedTriageLines (Gen 58)', () => {
+  it('ranks escalated quests first and appends their badge', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('fresh', { name: 'Fresh', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('critical', {
+        name: 'Critical',
+        state: 'waiting-approval',
+        attentionEnteredAt: now - ATTENTION_CRITICAL_MS,
+      }),
+    ];
+    const lines = formatEscalatedTriageLines(quests, 2, now);
+    expect(lines).toEqual([
+      '1. Critical [waiting-approval] 🔥 15m',
+      '2. Fresh [waiting-approval]',
+    ]);
+  });
+
+  it('omits the badge for quests below the escalation threshold', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'One', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+    ];
+    expect(formatEscalatedTriageLines(quests, 1, now)).toEqual(['1. One [waiting-approval]']);
+  });
+
+  it('shows a warning badge between the thresholds', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', {
+        name: 'Warn',
+        state: 'waiting-approval',
+        attentionEnteredAt: now - ATTENTION_ESCALATION_MS,
+      }),
+    ];
+    expect(formatEscalatedTriageLines(quests, 1, now)).toEqual(['1. Warn [waiting-approval] ⚠ 5m']);
+  });
+
+  it('returns an empty array for no quests or a non-positive topN', () => {
+    const now = 100_000;
+    const quests = [makeQuest('a', { state: 'running' })];
+    expect(formatEscalatedTriageLines([], 3, now)).toEqual([]);
+    expect(formatEscalatedTriageLines(quests, 0, now)).toEqual([]);
   });
 });

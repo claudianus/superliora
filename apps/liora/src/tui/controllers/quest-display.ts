@@ -9,7 +9,11 @@
 
 import { formatElapsed, type Quest } from './quest-types';
 import type { AttentionSummary, EscalationLevel } from './attention-controller';
-import { rankQuestsByUrgency } from './quest-urgency';
+import {
+  rankQuestsByUrgency,
+  rankQuestsByEscalatedUrgency,
+  escalationLevelFor,
+} from './quest-urgency';
 
 /**
  * Gen 50: one-line attention summary for the dashboard bar, e.g.
@@ -62,4 +66,31 @@ export function formatEscalationSummary(levels: readonly EscalationLevel[]): str
   const base = `${String(escalated.length)} escalated`;
   if (criticalCount === 0) return base;
   return `${base} (${String(criticalCount)} critical)`;
+}
+
+/**
+ * Gen 58: escalation-aware triage lines for the top-N most urgent quests, e.g.
+ * "1. Fix login bug [waiting-approval] 🔥 15m". Composes the Gen 57
+ * escalated ranking with the Gen 54 badge so long-neglected quests surface
+ * first and carry their escalation badge inline. The badge is omitted for
+ * quests that have not crossed an escalation threshold.
+ */
+export function formatEscalatedTriageLines(
+  quests: readonly Quest[],
+  topN: number,
+  now: number = Date.now(),
+): string[] {
+  const limit = Math.max(0, topN);
+  return rankQuestsByEscalatedUrgency(quests, now)
+    .slice(0, limit)
+    .map((ranked, index) => {
+      const base = `${String(index + 1)}. ${ranked.quest.name} [${ranked.quest.state}]`;
+      const level = escalationLevelFor(ranked.quest, now);
+      const dwellMs =
+        ranked.quest.attentionEnteredAt !== undefined
+          ? Math.max(0, now - ranked.quest.attentionEnteredAt)
+          : null;
+      const badge = formatEscalationBadge(level, dwellMs);
+      return badge === null ? base : `${base} ${badge}`;
+    });
 }
