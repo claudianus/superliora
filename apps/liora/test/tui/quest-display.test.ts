@@ -37,6 +37,7 @@ import {
   formatTriageCompactLineWithDistribution,
   formatResolvedThroughputLine,
   formatNetDemandLine,
+  formatNetDemandTrend,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -1214,5 +1215,31 @@ describe('formatNetDemandLine (Gen 98)', () => {
 
   it('shows the cleared count when nothing is pending', () => {
     expect(formatNetDemandLine(0, 4)).toBe('net -4 (0 pending · 4 cleared)');
+  });
+});
+
+describe('formatNetDemandTrend (Gen 99)', () => {
+  it('returns null when there is no activity', () => {
+    expect(formatNetDemandTrend(0, 0)).toBeNull();
+  });
+
+  it('labels a positive net as falling behind', () => {
+    expect(formatNetDemandTrend(4, 3)).toBe('falling behind');
+  });
+
+  it('labels a zero net as keeping up', () => {
+    expect(formatNetDemandTrend(3, 3)).toBe('keeping up');
+  });
+
+  it('labels a negative net as catching up', () => {
+    expect(formatNetDemandTrend(1, 5)).toBe('catching up');
+  });
+
+  it('labels pending-only activity as falling behind', () => {
+    expect(formatNetDemandTrend(2, 0)).toBe('falling behind');
+  });
+
+  it('labels cleared-only activity as catching up', () => {
+    expect(formatNetDemandTrend(0, 4)).toBe('catching up');
   });
 });

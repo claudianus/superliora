@@ -751,3 +751,18 @@ export function formatNetDemandLine(pendingCount: number, resolvedCount: number)
   const sign = net > 0 ? '+' : '';
   return `net ${sign}${String(net)} (${String(pendingCount)} pending · ${String(resolvedCount)} cleared)`;
 }
+
+/**
+ * Gen 99: a plain-language trend label for the net demand (Gen 98), so the
+ * operator reads the situation without parsing a signed number. Positive net
+ * (demand outpacing throughput) is "falling behind"; zero net is "keeping up";
+ * negative net (throughput outpacing demand) is "catching up". Returns null
+ * when there is no activity to characterize.
+ */
+export function formatNetDemandTrend(pendingCount: number, resolvedCount: number): string | null {
+  if (pendingCount <= 0 && resolvedCount <= 0) return null;
+  const net = pendingCount - resolvedCount;
+  if (net > 0) return 'falling behind';
+  if (net < 0) return 'catching up';
+  return 'keeping up';
+}
