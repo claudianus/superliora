@@ -256,6 +256,22 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[6]).not.toContain('▸');
   });
 
+  it('Gen 48: empty stream shows a waiting placeholder for running quests', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+
+    const lines = view.render(quest, 80);
+    expect(lines.join('\n')).toContain('Waiting for agent output');
+  });
+
+  it('Gen 48: empty stream shows a neutral placeholder for idle quests', () => {
+    const quest = makeQuest('a', { state: 'idle' });
+    const view = new QuestExpandView();
+
+    const lines = view.render(quest, 80);
+    expect(lines.join('\n')).toContain('No output yet');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {

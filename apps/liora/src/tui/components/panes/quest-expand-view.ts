@@ -334,6 +334,15 @@ export class QuestExpandView {
     // Separator
     lines.push('─'.repeat(Math.min(width, 60)));
 
+    // Gen 48: placeholder when the quest has no stream output yet.
+    if (this.streamLines.length === 0) {
+      const placeholder = quest.state === 'running'
+        ? '  ⠋ Waiting for agent output…'
+        : '  No output yet.';
+      lines.push(currentTheme.dim(placeholder.length > width ? placeholder.slice(0, width) : placeholder));
+      return lines;
+    }
+
     // Gen 46: line-number gutter so search matches (Gen 16) are locatable.
     const lineTotal = this.streamLines.length;
     const gutterWidth = Math.max(2, String(lineTotal).length);
