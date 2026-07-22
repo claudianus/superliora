@@ -1016,6 +1016,35 @@ rename to docs/README.md
   console.log(`  Active: ${cronSched.activeCount} | Jobs: ${cronSched.getJobs().length}`);
   console.log(`  Cron "0 9 * * 1-5" = ${cronSched.describeCron('0 9 * * 1-5')}`);
 
+  // ═══ Iteration 26 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 26 Modules ═══\x1b[0m');
+
+  // ─── 52. Git Graph ───────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── GitGraph ──\x1b[0m');
+  const { GitGraph, createDemoGitGraph } = await import('../apps/liora/src/tui/utils/git-graph.ts');
+  const gitGraph = createDemoGitGraph();
+  const gitGraphLines = gitGraph.render({ width: 55, height: 12, fg, boldFg, dimFg });
+  for (const line of gitGraphLines) console.log(`  ${line}`);
+  console.log(`  Commits: ${gitGraph.getCommits().length} | Branches: ${gitGraph.getBranches().length}`);
+
+  // ─── 53. System Monitor ──────────────────────────────────────────
+  console.log('\n\x1b[1;33m── SystemMonitor ──\x1b[0m');
+  const { SystemMonitor, createDemoSystemMonitor } = await import('../apps/liora/src/tui/utils/system-monitor.ts');
+  const sysMon = createDemoSystemMonitor();
+  const sysLines = sysMon.render({ width: 55, height: 14, fg, boldFg, dimFg });
+  for (const line of sysLines) console.log(`  ${line}`);
+  const cpu = sysMon.getCpu();
+  const mem = sysMon.getMemory();
+  console.log(`  CPU: ${Math.round(cpu.usage)}% | MEM: ${Math.round((mem.used / mem.total) * 100)}%`);
+
+  // ─── 54. Markdown Preview ────────────────────────────────────────
+  console.log('\n\x1b[1;33m── MarkdownPreview ──\x1b[0m');
+  const { MarkdownPreview, createDemoMarkdownPreview } = await import('../apps/liora/src/tui/utils/markdown-preview.ts');
+  const mdPreview = createDemoMarkdownPreview();
+  const mdPreviewLines = mdPreview.render({ width: 55, height: 16, fg, boldFg, dimFg });
+  for (const line of mdPreviewLines) console.log(`  ${line}`);
+  console.log(`  Words: ${mdPreview.wordCount} | Blocks: ${mdPreview.getBlocks().length}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
