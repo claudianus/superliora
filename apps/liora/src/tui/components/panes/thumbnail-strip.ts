@@ -15,6 +15,7 @@ import {
   type QuestState,
   questStateIcon,
   questStateColorToken,
+  questHealthScore,
   ATTENTION_STATES,
 } from '../../controllers/quest-types';
 
@@ -34,6 +35,8 @@ export interface ThumbnailEntry {
   readonly todoProgress?: { done: number; total: number } | undefined;
   /** Gen 60: context window usage (0–1), if known. */
   readonly contextUsage?: number | undefined;
+  /** Gen 62: composite health score (0–100). */
+  readonly healthScore: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +58,7 @@ export function buildThumbnailStrip(
   quests: readonly Quest[],
   pinnedQuestId: string | null,
   blinkPhase: boolean,
+  now: number = Date.now(),
 ): readonly ThumbnailEntry[] {
   return quests
     .filter((q) => q.id !== pinnedQuestId)
@@ -73,6 +77,8 @@ export function buildThumbnailStrip(
         state: q.state,
         todoProgress: q.todoProgress,
         contextUsage: q.contextUsage,
+        // Gen 62: composite health so the strip surfaces at-risk quests.
+        healthScore: questHealthScore(q, now),
       };
     });
 }
@@ -107,7 +113,10 @@ export function renderThumbnailStripLine(
       entry.contextUsage !== undefined && entry.contextUsage > 0
         ? ` ${String(Math.round(entry.contextUsage * 100))}%`
         : '';
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}]`;
+    // Gen 62: append a compact health score so at-risk quests stand out in
+    // the strip without unpinning.
+    const health = ` ♥${String(entry.healthScore)}`;
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);

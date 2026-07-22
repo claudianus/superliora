@@ -809,6 +809,31 @@ describe('Gen 60: thumbnail strip context usage', () => {
   });
 });
 
+describe('Gen 62: thumbnail strip health score', () => {
+  const NOW = 1_000_000;
+
+  it('carries the composite health score into entries', () => {
+    // running with fresh activity → health 90.
+    const quests = [makeQuest('a', { state: 'running', lastActivityAt: NOW })];
+    const entries = buildThumbnailStrip(quests, null, false, NOW);
+    expect(entries[0]!.healthScore).toBe(90);
+  });
+
+  it('renders the compact health score in the segment', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Work', lastActivityAt: NOW })];
+    const entries = buildThumbnailStrip(quests, null, false, NOW);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).toContain('♥90');
+  });
+
+  it('shows a low score for a failed quest', () => {
+    const quests = [makeQuest('a', { state: 'failed', name: 'Boom', lastActivityAt: NOW })];
+    const entries = buildThumbnailStrip(quests, null, false, NOW);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).toContain('♥10');
+  });
+});
+
 describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
   it('focuses the most urgent quest when nothing is focused', () => {
     const ctrl = makeController();
