@@ -66,7 +66,7 @@ export interface BentoDashboardOptions {
 const CELL_BLOCK_HEIGHT = 3;
 
 // ---------------------------------------------------------------------------
-// Gen 30: idle-duration thresholds for stalled-session detection
+// Gen 31: idle-duration thresholds for stalled-session detection
 // ---------------------------------------------------------------------------
 
 /** Idle longer than this → warning color on the metadata line. */
@@ -494,8 +494,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const nameBudget = Math.max(1, width - prefix.length - badgeText.length - 2);
     const name = quest.name.length > nameBudget ? quest.name.slice(0, nameBudget) : quest.name;
     const line1 = `${prefix}${badge} ${name}`;
-    const line2 = `${focusIndicator}  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
-    // Gen 30: color the metadata line by idle duration so stalled sessions
+    // Gen 32: colorize the change stats (+added green, -removed red) so the
+    // churn magnitude is scannable. Built as separate segments because the
+    // surrounding metadata stays dim.
+    const changeSegment = renderChangeCount(quest.changeCount);
+    const line2Prefix = `${focusIndicator}  ⏱ ${created}  idle ${idle}  `;
+    const line2Suffix = `${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
+    // Gen 31: color the metadata line by idle duration so stalled sessions
     // stand out — warning past 5 min, error past 15 min.
     const line2Token = idleSeverityToken(now - quest.lastActivityAt);
     // Gen 13: when awaiting approval, surface what needs a decision.
@@ -625,7 +630,7 @@ export function renderTodoBar(done: number, total: number): string {
 }
 
 /**
- * Gen 30: map an idle duration (ms) to a severity token so stalled sessions
+ * Gen 31: map an idle duration (ms) to a severity token so stalled sessions
  * stand out — muted when fresh, warning past 5 min, error past 15 min.
  */
 export function idleSeverityToken(idleMs: number): 'muted' | 'warning' | 'error' {
