@@ -554,3 +554,31 @@ export function formatTriageQueueLine(
     .map((ranked) => ranked.quest.name);
   return `queue: ${names.join(' · ')}`;
 }
+
+/**
+ * Gen 84: a structured snapshot of the whole triage panel — the load line
+ * (Gen 81), the recommendation (Gen 82), and the queue (Gen 83) — so a triage
+ * overlay can render everything from a single call. `lines` holds the non-null
+ * segments in display order, ready to print; the individual fields stay
+ * available for callers that want to style or place each line separately.
+ */
+export interface TriagePanelSnapshot {
+  readonly loadLine: string | null;
+  readonly recommendationLine: string | null;
+  readonly queueLine: string | null;
+  readonly lines: readonly string[];
+}
+
+export function buildTriagePanelSnapshot(
+  quests: readonly Quest[],
+  queueSize: number,
+  now: number = Date.now(),
+): TriagePanelSnapshot {
+  const loadLine = formatEscalatedFleetAttentionLoadLine(quests, now);
+  const recommendationLine = formatTriageRecommendationLine(quests, now);
+  const queueLine = formatTriageQueueLine(quests, queueSize, now);
+  const lines = [loadLine, recommendationLine, queueLine].filter(
+    (line): line is string => line !== null,
+  );
+  return { loadLine, recommendationLine, queueLine, lines };
+}
