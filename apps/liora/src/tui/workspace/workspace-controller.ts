@@ -499,7 +499,7 @@ export class WorkspaceController {
 
   /**
    * Render all bento grid cells directly onto the frame renderer.
-   * Each cell gets a box-drawing frame (bright for focused, dim for others)
+   * Each cell gets a rounded box-drawing frame (bright for focused, dim for others)
    * and the panel content is rendered inside.
    */
   renderBentoGrid(frameRenderer: NativeFrameRenderer, grid: BentoGridLayout): void {
@@ -518,32 +518,44 @@ export class WorkspaceController {
       const contentHeight = Math.max(1, height - 2);
       const contentLines = panel.definition.render(contentWidth, contentHeight, isFocused, searchQuery);
 
-      // Draw box frame
+      // Rounded box frame characters
       const borderChar = '─';
-      const cornerTL = '┌';
-      const cornerTR = '┐';
-      const cornerBL = '└';
-      const cornerBR = '┘';
+      const cornerTL = '╭';
+      const cornerTR = '╮';
+      const cornerBL = '╰';
+      const cornerBR = '╯';
       const vertChar = '│';
 
-      // Top border with title
-      const title = ` ${panel.definition.icon ?? ''} ${panel.definition.title} `;
+      // Title with icon emphasis
+      const icon = panel.definition.icon ?? '';
+      const titleText = panel.definition.title;
+      const title = icon ? ` ${icon} ${titleText} ` : ` ${titleText} `;
+
+      // Top border with centered title
       const topLine = this.buildBentoTopBorder(cornerTL, borderChar, cornerTR, title, width, isFocused);
       frameRenderer.writeAnsiText(x, y, topLine);
 
-      // Content rows
+      // Content rows with subtle side borders
+      const borderColor = isFocused ? 'primary' : 'border';
       for (let row = 0; row < contentHeight; row++) {
         const contentLine = contentLines[row] ?? '';
         const paddedContent = contentLine.padEnd(contentWidth).slice(0, contentWidth);
-        const leftBorder = currentTheme.fg(isFocused ? 'primary' : 'border', vertChar);
-        const rightBorder = currentTheme.fg(isFocused ? 'primary' : 'border', vertChar);
+        const leftBorder = currentTheme.fg(borderColor, vertChar);
+        const rightBorder = currentTheme.fg(borderColor, vertChar);
         frameRenderer.writeAnsiText(x, y + 1 + row, `${leftBorder}${paddedContent}${rightBorder}`);
       }
 
       // Bottom border
-      const bottomLine = currentTheme.fg(isFocused ? 'primary' : 'border',
+      const bottomLine = currentTheme.fg(borderColor,
         cornerBL + borderChar.repeat(Math.max(0, width - 2)) + cornerBR);
       frameRenderer.writeAnsiText(x, y + height - 1, bottomLine);
+
+      // Focus indicator: subtle top accent line inside the frame
+      if (isFocused && contentHeight > 0) {
+        const accentWidth = Math.min(contentWidth, 8);
+        const accent = currentTheme.fg('accent', '━'.repeat(accentWidth));
+        frameRenderer.writeAnsiText(x + 1, y + 1, accent);
+      }
     }
   }
 
