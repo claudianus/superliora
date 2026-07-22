@@ -649,6 +649,19 @@ export class QuestExpandView {
         plainLine3.length > width ? plainLine3.slice(0, width) : `   ${progress}${coloredStep}`;
       lines.push(headerLine3);
 
+      // Gen 88: last stream line preview in the header so the operator sees the
+      // freshest output without scrolling, matching the cell preview (Gen 66).
+      // Error/warning lines are colorized (Gen 69 pattern) and prefixed with the
+      // 1-based line number for quick :N jumps.
+      const lastLine = this.getLastStreamLine();
+      if (lastLine !== undefined) {
+        const lineNo = String(this.getLastStreamLineNumber());
+        const previewWidth = Math.max(1, width - lineNo.length - 5);
+        const clipped = lastLine.length > previewWidth ? lastLine.slice(0, previewWidth) : lastLine;
+        const previewBody = highlightStreamLine(clipped);
+        lines.push(`   ${currentTheme.dim(`⌁ ${lineNo}:`)} ${previewBody}`);
+      }
+
       // Separator
       lines.push('─'.repeat(Math.min(width, 60)));
     }

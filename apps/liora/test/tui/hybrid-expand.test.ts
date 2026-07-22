@@ -251,9 +251,10 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[0]).toContain('My Quest');
     expect(lines[0]).toContain('running');
     expect(lines[2]).toContain('Step 1');
+    // Gen 88: last stream line preview occupies index 3, separator index 4.
     // Gen 46: stream lines carry a line-number gutter prefix.
-    expect(lines[4]).toContain('line 1');
-    expect(lines[5]).toContain('line 2');
+    expect(lines[5]).toContain('line 1');
+    expect(lines[6]).toContain('line 2');
   });
 
   it('Gen 46: expand view stream shows line-number gutter', () => {
@@ -263,10 +264,10 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     view.appendLine('second');
 
     const lines = view.render(quest, 80);
-    // Stream starts after the 3 header lines + separator (index 4).
+    // Stream starts after the 3 header lines + Gen 88 preview + separator.
     // Gutter is right-aligned and 1-based.
-    expect(lines[4]).toMatch(/\b1\s+first/);
-    expect(lines[5]).toMatch(/\b2\s+second/);
+    expect(lines[5]).toMatch(/\b1\s+first/);
+    expect(lines[6]).toMatch(/\b2\s+second/);
   });
 
   it('Gen 47: active search match is marked in the gutter', () => {
@@ -278,11 +279,12 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
 
     view.startSearch('needle');
     const lines = view.render(quest, 80);
-    // The active match line (index 1 → stream line 5) carries the ▸ marker.
-    expect(lines[5]).toContain('▸');
+    // The active match line (stream index 1 → rendered line 6 after the Gen 88
+    // header preview) carries the ▸ marker.
+    expect(lines[6]).toContain('▸');
     // Non-match lines do not.
-    expect(lines[4]).not.toContain('▸');
-    expect(lines[6]).not.toContain('▸');
+    expect(lines[5]).not.toContain('▸');
+    expect(lines[7]).not.toContain('▸');
   });
 
   it('Gen 48: empty stream shows a waiting placeholder for running quests', () => {
@@ -299,6 +301,29 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
 
     const lines = view.render(quest, 80);
     expect(lines.join('\n')).toContain('No output yet');
+  });
+
+  it('Gen 88: header shows the last stream line preview with its line number', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('first line');
+    view.appendLine('latest output here');
+
+    const lines = view.render(quest, 80);
+    // The preview occupies header index 3 (after the 3 metadata lines).
+    expect(lines[3]).toContain('2:');
+    expect(lines[3]).toContain('latest output here');
+    // The preview reflects the freshest line, not the first.
+    expect(lines[3]).not.toContain('first line');
+  });
+
+  it('Gen 88: header omits the preview when the stream is empty', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+
+    const lines = view.render(quest, 80);
+    // No preview line between the metadata header and the separator.
+    expect(lines[3]).toMatch(/^─+$/);
   });
 
   it('Gen 50: diff-only view shows only the diff buffer', () => {
@@ -433,13 +458,13 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     // Off by default: no timestamp markers.
     expect(view.isShowingTimestamps()).toBe(false);
     const off = view.render(quest, 80);
-    expect(off[4]).not.toContain('+0s');
+    expect(off[5]).not.toContain('+0s');
 
     // Toggle on: gutter shows the relative delta.
     expect(view.toggleTimestamps()).toBe(true);
     const on = view.render(quest, 80);
-    // First line is the base (+0s).
-    expect(on[4]).toContain('+0s');
+    // First line is the base (+0s); index 5 after the Gen 88 header preview.
+    expect(on[5]).toContain('+0s');
   });
 
   it('Gen 62: e/E jump between error/warning lines', () => {
