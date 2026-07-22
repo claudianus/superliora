@@ -194,9 +194,15 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.gridController.setFilter('');
         return;
       }
-      // Gen 43: if a quest is pinned, unpin first instead of closing.
+      // Gen 56: if pinned and diff-only is active, exit diff-only first.
       const pinned = this.pinController.getPinnedQuest();
       if (pinned) {
+        const view = this.expandViews.get(pinned.id);
+        if (view?.isDiffOnly()) {
+          view.toggleDiffOnly();
+          return;
+        }
+        // Gen 43: otherwise unpin first instead of closing.
         this.pinController.unpin();
         return;
       }
@@ -336,6 +342,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 57: H/L → jump focus to the first/last quest (vim-style endpoints).
+    if (k === 'H') {
+      this.gridController.focusFirst();
+      return;
+    }
+    if (k === 'L') {
+      this.gridController.focusLast();
+      return;
+    }
+
     // Gen 25: Tab → jump to the next quest that needs attention.
     if (matchesKey(data, Key.tab)) {
       this.gridController.focusNextAttention();
@@ -459,6 +475,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
         ]
       : [
           ['j / k  ↓ ↑', 'Move focus between quests'],
+          ['H / L', 'Focus first / last quest'],
           ['Tab', 'Jump to the next quest needing attention'],
           ['g', 'Focus the least-healthy quest'],
           ['!', 'Toggle attention-only view'],

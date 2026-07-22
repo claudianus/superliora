@@ -5,6 +5,7 @@ import { PinController } from '#/tui/controllers/pin-controller';
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
 import type { Quest } from '#/tui/controllers/quest-types';
 import { BentoDashboardComponent } from '#/tui/components/panes/bento-dashboard';
+import { QuestExpandView } from '#/tui/components/panes/quest-expand-view';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
   return {
@@ -119,5 +120,52 @@ describe('Gen 43: Esc unpins before closing', () => {
 
     component.handleInput('\x1b');
     expect(isClosed()).toBe(true);
+  });
+});
+
+describe('Gen 56: Esc exits diff-only before unpinning', () => {
+  it('Esc in pinned diff-only mode exits diff-only first, then unpins', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const view = new QuestExpandView();
+    const expandViews = new Map([['a', view]]);
+    let closed = false;
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews,
+      blinkPhase: false,
+      onClose: () => {
+        closed = true;
+      },
+    });
+
+    pin.pin('a');
+    expect(grid.getPinnedQuestId()).toBe('a');
+
+    // Enable diff-only mode.
+    component.handleInput('d');
+    expect(view.isDiffOnly()).toBe(true);
+
+    // First Esc exits diff-only, stays pinned.
+    component.handleInput('\x1b');
+    expect(view.isDiffOnly()).toBe(false);
+    expect(grid.getPinnedQuestId()).toBe('a');
+    expect(closed).toBe(false);
+
+    // Second Esc unpins.
+    component.handleInput('\x1b');
+    expect(grid.getPinnedQuestId()).toBeNull();
+    expect(closed).toBe(false);
   });
 });
