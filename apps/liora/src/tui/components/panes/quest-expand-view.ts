@@ -494,6 +494,16 @@ export class QuestExpandView {
     return this.streamLines.length;
   }
 
+  /**
+   * Gen 81: the ratio of stream to diff lines (0.0–1.0), for the dashboard
+   * cell. Returns 0 when both buffers are empty.
+   */
+  getStreamDiffRatio(): number {
+    const total = this.streamLines.length + this.diffLines.length;
+    if (total === 0) return 0;
+    return this.streamLines.length / total;
+  }
+
   /** Render the expand view as a string array (one per visible row). */
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];
@@ -581,6 +591,16 @@ export class QuestExpandView {
       }
       // Gen 53: health mini-bar, matching the dashboard cells (Gen 52).
       progressParts.push(renderHealthBar(questHealthScore(quest, Date.now())));
+      // Gen 81: stream/diff ratio mini-bar so the operator sees the balance
+      // between output and code changes at a glance.
+      const ratio = this.getStreamDiffRatio();
+      const totalLines = this.streamLines.length + this.diffLines.length;
+      if (totalLines > 0) {
+        const cells = 5;
+        const streamCells = Math.round(ratio * cells);
+        const bar = '▓'.repeat(streamCells) + '░'.repeat(cells - streamCells);
+        progressParts.push(`${bar} ≣/≡`);
+      }
       // Gen 38: model name + session cost, matching the dashboard cells.
       if (quest.modelName !== undefined && quest.modelName.length > 0) {
         progressParts.push(quest.modelName);
