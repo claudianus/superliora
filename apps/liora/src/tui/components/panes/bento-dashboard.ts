@@ -211,9 +211,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
   private renderCellBlock(quest: Quest, width: number, now: number): string[] {
     const pulsing = this.attentionController.isPulsing(quest.id);
+    const focused = this.gridController.getFocusedQuestId() === quest.id;
     const marker = pulsing ? (this.blinkPhase ? '⚡' : '·') : ' ';
+    const focusIndicator = focused ? '▶ ' : '  ';
     const icon = questStateIcon(quest.state);
-    const safeWidth = Math.max(1, width - 2);
+    const safeWidth = Math.max(1, width - 4);
 
     const created = formatElapsed(Math.max(0, now - quest.createdAt));
     const idle = formatElapsed(Math.max(0, now - quest.lastActivityAt));
@@ -231,9 +233,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     const progress = progressParts.length > 0 ? `  ${progressParts.join('  ')}` : '';
 
-    const line1 = `${marker}${icon} ${quest.name}  [${quest.state}]`;
-    const line2 = `  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
-    const line3 = `  ▸ ${quest.planStep}`;
+    const line1 = `${focusIndicator}${marker}${icon} ${quest.name}  [${quest.state}]`;
+    const line2 = `${focusIndicator}  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
+    const line3 = `${focusIndicator}  ▸ ${quest.planStep}`;
 
     return [
       clip(line1, width),
