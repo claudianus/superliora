@@ -485,8 +485,13 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('homebrew');
     const { stdout, options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
-    expect(stdout.join('')).toContain('brew upgrade kimi-code');
+    const result = await runUpdatePreflight('0.4.0', options);
+    expect(result).toEqual({
+      action: 'continue',
+      updateNotice: expect.objectContaining({
+        installCommand: expect.stringContaining('brew upgrade kimi-code'),
+      }),
+    });
     expect(promptForInstallChoice).not.toHaveBeenCalled();
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
@@ -526,10 +531,15 @@ describe('runUpdatePreflight', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     try {
       const { stdout, options } = captureOutput();
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
-      expect(stdout.join('')).toContain(
-        'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex',
-      );
+      const result = await runUpdatePreflight('0.4.0', options);
+      expect(result).toEqual({
+        action: 'continue',
+        updateNotice: expect.objectContaining({
+          installCommand: expect.stringContaining(
+            'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex',
+          ),
+        }),
+      });
       expect(promptForInstallChoice).not.toHaveBeenCalled();
       expect(mocks.spawn).not.toHaveBeenCalled();
     } finally {
@@ -623,10 +633,13 @@ describe('runUpdatePreflight', () => {
     try {
       const { stdout, options } = captureOutput();
 
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
-
-      expect(stdout.join('')).toContain('Detected install source: GitHub checkout');
-      expect(stdout.join('')).toContain('git -C');
+      const result = await runUpdatePreflight('0.4.0', options);
+      expect(result).toEqual({
+        action: 'continue',
+        updateNotice: expect.objectContaining({
+          installCommand: expect.stringContaining('git -C'),
+        }),
+      });
       expect(mocks.spawn).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
@@ -638,8 +651,13 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('unsupported');
     const { stdout, options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
-    expect(stdout.join('')).toContain('npm install -g @superliora/liora@0.5.0');
+    const result = await runUpdatePreflight('0.4.0', options);
+    expect(result).toEqual({
+      action: 'continue',
+      updateNotice: expect.objectContaining({
+        installCommand: expect.stringContaining('npm install -g @superliora/liora@0.5.0'),
+      }),
+    });
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 

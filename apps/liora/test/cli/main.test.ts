@@ -231,7 +231,7 @@ describe('main entry command handling', () => {
     expect(mocks.runUpdatePreflight.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.runShell.mock.invocationCallOrder[0]!,
     );
-    expect(runShell).toHaveBeenCalledWith(opts, '0.0.1-alpha.2');
+    expect(runShell).toHaveBeenCalledWith(opts, '0.0.1-alpha.2', undefined);
   });
 
   it('runs prompt mode without interactive update preflight', async () => {
@@ -317,7 +317,7 @@ describe('main entry command handling', () => {
     expect(runUpdatePreflight).toHaveBeenCalledWith('0.0.1-alpha.2', {
       track: expect.any(Function),
     });
-    expect(runShell).toHaveBeenCalledWith(opts, '0.0.1-alpha.2');
+    expect(runShell).toHaveBeenCalledWith(opts, '0.0.1-alpha.2', undefined);
   });
 
   it('installs crash handlers before parsing CLI arguments', () => {
