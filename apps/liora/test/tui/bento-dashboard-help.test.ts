@@ -257,3 +257,45 @@ describe('Gen 66: dashboard fleet summary overlay', () => {
     expect(isClosed()).toBe(true);
   });
 });
+
+describe('Gen 68: dashboard fleet changes overlay', () => {
+  it('D opens the fleet changes overlay in dashboard mode', () => {
+    const { component } = makeComponent();
+
+    // Before: no fleet changes overlay.
+    expect(component.render(120).join('\n')).not.toContain('Fleet Changes');
+
+    // D opens the fleet changes overlay.
+    component.handleInput('D');
+    const changesLines = component.render(120).join('\n');
+    expect(changesLines).toContain('Fleet Changes');
+    expect(changesLines).toContain('Total');
+  });
+
+  it('any key dismisses the fleet changes overlay (consumed)', () => {
+    const { component } = makeComponent();
+
+    component.handleInput('D');
+    expect(component.render(120).join('\n')).toContain('Fleet Changes');
+
+    // j would normally move focus, but here it only dismisses the overlay.
+    component.handleInput('j');
+    expect(component.render(120).join('\n')).not.toContain('Fleet Changes');
+  });
+
+  it('Esc closes the fleet changes first, not the dashboard', () => {
+    const { component, isClosed } = makeComponent();
+
+    component.handleInput('D');
+    expect(component.render(120).join('\n')).toContain('Fleet Changes');
+
+    // Esc dismisses the overlay but keeps the dashboard open.
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(false);
+    expect(component.render(120).join('\n')).not.toContain('Fleet Changes');
+
+    // A second Esc now closes the dashboard.
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(true);
+  });
+});

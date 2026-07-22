@@ -108,6 +108,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
   // Gen 66: dashboard fleet summary overlay
   private fleetInfoVisible = false;
 
+  // Gen 68: dashboard fleet changes overlay
+  private fleetChangesVisible = false;
+
   // Gen 24: dashboard quest filter
   private filterMode = false;
   private filterBuffer = '';
@@ -204,6 +207,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.fleetInfoVisible = false;
         return;
       }
+      // Gen 68: if the fleet changes overlay is open, close it first.
+      if (this.fleetChangesVisible) {
+        this.fleetChangesVisible = false;
+        return;
+      }
       // Gen 24: if a filter is active, clear it first instead of closing.
       if (this.filterBuffer !== '') {
         this.filterBuffer = '';
@@ -244,6 +252,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 66: while the fleet summary overlay is shown, any key dismisses it.
     if (this.fleetInfoVisible) {
       this.fleetInfoVisible = false;
+      return;
+    }
+    // Gen 68: while the fleet changes overlay is shown, any key dismisses it.
+    if (this.fleetChangesVisible) {
+      this.fleetChangesVisible = false;
       return;
     }
 
@@ -441,6 +454,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 68: D → toggle the fleet changes overlay.
+    if (k === 'D') {
+      this.fleetChangesVisible = true;
+      return;
+    }
+
     // Gen 26: ! → toggle attention-only view.
     if (k === '!') {
       this.gridController.toggleAttentionOnly();
@@ -523,6 +542,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (this.fleetInfoVisible && !pinned) {
       return this.renderFleetInfo(quests, width);
     }
+    // Gen 68: fleet changes overlay replaces the dashboard while visible.
+    if (this.fleetChangesVisible && !pinned) {
+      return this.renderFleetChanges(quests, width);
+    }
     if (pinned) {
       return this.renderPinned(pinned, quests, width);
     }
@@ -572,6 +595,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['g', 'Focus the least-healthy quest'],
           ['m', 'Focus the most expensive quest'],
           ['c', 'Show fleet summary overlay'],
+          ['D', 'Show fleet changes overlay'],
           ['!', 'Toggle attention-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
@@ -677,6 +701,40 @@ export class BentoDashboardComponent extends Container implements Focusable {
     lines.push(`  ${currentTheme.dim('Cost'.padEnd(10))}$${totalCost.toFixed(2)}`);
     lines.push(`  ${currentTheme.dim('Changes'.padEnd(10))}${renderChangeCount({ added: totalAdded, removed: totalRemoved })}`);
     lines.push(`  ${currentTheme.dim('Avg health'.padEnd(10))}${renderHealthScore(avgHealth)}`);
+
+    lines.push('');
+    lines.push(currentTheme.dim('  Press any key to dismiss.'));
+    return lines.map((line) => clip(line, width));
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 68: dashboard fleet changes overlay
+  // -------------------------------------------------------------------------
+
+  private renderFleetChanges(quests: readonly Quest[], width: number): string[] {
+    const lines: string[] = [];
+    lines.push(currentTheme.fg('accent', '── Fleet Changes ──'));
+    lines.push('');
+
+    // Sort by total churn (added + removed), descending.
+    const sorted = [...quests].sort((a, b) => {
+      const churnA = a.changeCount.added + a.changeCount.removed;
+      const churnB = b.changeCount.added + b.changeCount.removed;
+      return churnB - churnA;
+    });
+
+    for (const q of sorted) {
+      const churn = q.changeCount.added + q.changeCount.removed;
+      if (churn === 0) continue;
+      const name = q.name.length > 20 ? q.name.slice(0, 19) + '…' : q.name;
+      lines.push(`  ${name.padEnd(22)}${renderChangeCount(q.changeCount)}`);
+    }
+
+    // Fleet total.
+    const totalAdded = quests.reduce((sum, q) => sum + q.changeCount.added, 0);
+    const totalRemoved = quests.reduce((sum, q) => sum + q.changeCount.removed, 0);
+    lines.push('');
+    lines.push(`  ${currentTheme.dim('Total'.padEnd(22))}${renderChangeCount({ added: totalAdded, removed: totalRemoved })}`);
 
     lines.push('');
     lines.push(currentTheme.dim('  Press any key to dismiss.'));
@@ -844,6 +902,15 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     const line3 = `${focusIndicator}  ▸ ${stepText}`;
 
+    // Gen 66: preview the most recent stream line so the cell shows what the
+    // quest is doing right now without pinning it. Falls back to nothing when
+    // the stream is empty.
+    const lastLine = this.expandViews.get(quest.id)?.getLastStreamLine();
+    const preview =
+      lastLine !== undefined && lastLine.length > 0
+        ? `${focusIndicator}  ${currentTheme.dim('│')} ${currentTheme.dim(clip(lastLine, Math.max(1, width - focusIndicator.length - 3)))}`
+        : undefined;
+
     // Gen 32: line2 is composed of dim metadata segments plus the colorized
     // change-count segment. Width is managed on plain text before coloring so
     // the ANSI escapes are never clipped mid-sequence.
@@ -872,6 +939,8 @@ export class BentoDashboardComponent extends Container implements Focusable {
         : line3Token === 'error'
           ? currentTheme.fg('error', clip(line3, width))
           : currentTheme.dim(clip(line3, width)),
+      // Gen 66: recent stream preview (only when the stream has content).
+      ...(preview !== undefined ? [preview] : []),
     ];
   }
 
