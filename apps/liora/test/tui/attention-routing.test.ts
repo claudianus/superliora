@@ -240,6 +240,62 @@ describe('attention escalation (Gen 51)', () => {
   });
 });
 
+describe('escalation polling (Gen 52)', () => {
+  it('reports a quest once when it crosses the threshold', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS);
+
+    expect(ctrl.pollNewlyEscalated()).toEqual(['q1']);
+    // A second poll must not report the same quest again.
+    expect(ctrl.pollNewlyEscalated()).toEqual([]);
+  });
+
+  it('reports nothing before the threshold', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS - 1);
+    expect(ctrl.pollNewlyEscalated()).toEqual([]);
+  });
+
+  it('reports multiple quests most-neglected first', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS + 1000);
+    ctrl.onQuestStateChanged('q2', 'failed');
+    advanceTime(ATTENTION_ESCALATION_MS + 1000);
+
+    expect(ctrl.pollNewlyEscalated()).toEqual(['q1', 'q2']);
+  });
+
+  it('can re-report a quest after it leaves and re-enters attention', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS);
+    expect(ctrl.pollNewlyEscalated()).toEqual(['q1']);
+
+    // Quest is handled, then needs attention again later.
+    ctrl.onQuestStateChanged('q1', 'running');
+    advanceTime(1000);
+    ctrl.onQuestStateChanged('q1', 'failed');
+    advanceTime(ATTENTION_ESCALATION_MS);
+    expect(ctrl.pollNewlyEscalated()).toEqual(['q1']);
+  });
+
+  it('clearAll resets escalation reporting', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS);
+    ctrl.pollNewlyEscalated();
+    ctrl.clearAll();
+
+    // Re-entering attention after clearAll can escalate and be reported again.
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS);
+    expect(ctrl.pollNewlyEscalated()).toEqual(['q1']);
+  });
+});
+
 describe('attention event idempotency (Gen 45)', () => {
   it('does not re-ring the bell on repeated same-state events', () => {
     const { ctrl, writeRaw } = makeController(5000);

@@ -77,6 +77,9 @@ export class AttentionController {
   // Gen 32: when each quest entered its current attention state (ms epoch),
   // used to surface how long a quest has been left unattended.
   private readonly attentionEnteredAt = new Map<string, number>();
+  // Gen 52: quests whose escalation has already been reported to the operator,
+  // so pollNewlyEscalated() only fires once per escalation episode.
+  private readonly escalatedReported = new Set<string>();
   private readonly writeRaw: (data: string) => void;
   private readonly requestRender: () => void;
   private readonly now: () => number;
@@ -100,6 +103,9 @@ export class AttentionController {
       // State no longer needs attention — stop pulsing
       this.pulsingQuestIds.delete(questId);
       this.attentionEnteredAt.delete(questId);
+      // Gen 52: allow a fresh escalation report if the quest re-enters
+      // attention later.
+      this.escalatedReported.delete(questId);
       this.requestRender();
       return;
     }
@@ -251,6 +257,27 @@ export class AttentionController {
   }
 
   // -------------------------------------------------------------------------
+  // Gen 52: Escalation Polling
+  // -------------------------------------------------------------------------
+
+  /**
+   * Gen 52: return the ids of quests that have crossed the escalation
+   * threshold since the last poll, marking them as reported so they are not
+   * returned again. Lets the TUI ring a distinct escalation bell exactly once
+   * per episode. A quest that leaves and re-enters an attention state can be
+   * reported again on its next escalation.
+   */
+  pollNewlyEscalated(): readonly string[] {
+    const newlyEscalated = this.getEscalatedQuestIds().filter(
+      (questId) => !this.escalatedReported.has(questId),
+    );
+    for (const questId of newlyEscalated) {
+      this.escalatedReported.add(questId);
+    }
+    return newlyEscalated;
+  }
+
+  // -------------------------------------------------------------------------
   // Regression Gate: Attention Latency
   // -------------------------------------------------------------------------
 
@@ -295,6 +322,7 @@ export class AttentionController {
   clearQuest(questId: string): void {
     const wasPulsing = this.pulsingQuestIds.delete(questId);
     const hadDwell = this.attentionEnteredAt.delete(questId);
+    this.escalatedReported.delete(questId);
     if (wasPulsing || hadDwell) {
       this.requestRender();
     }
@@ -304,6 +332,7 @@ export class AttentionController {
   clearAll(): void {
     this.pulsingQuestIds.clear();
     this.attentionEnteredAt.clear();
+    this.escalatedReported.clear();
     this.stripBlinkActive = false;
     this.requestRender();
   }
