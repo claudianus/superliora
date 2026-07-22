@@ -36,6 +36,7 @@ import {
   questStateIcon,
   sortModeLabel,
   type Quest,
+  type QuestChangeCount,
   type QuestState,
 } from '../../controllers/quest-types';
 
@@ -463,7 +464,6 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
     const created = formatElapsed(Math.max(0, now - quest.createdAt));
     const idle = formatElapsed(Math.max(0, now - quest.lastActivityAt));
-    const changes = formatChangeCount(quest.changeCount);
 
     // Gen 9: progress indicators (todo + context usage)
     const progressParts: string[] = [];
@@ -519,14 +519,25 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     const line3 = `${focusIndicator}  ▸ ${stepText}`;
 
+    // Gen 32: line2 is composed of dim metadata segments plus the colorized
+    // change-count segment. Width is managed on plain text before coloring so
+    // the ANSI escapes are never clipped mid-sequence.
+    const dimToken = (text: string): string =>
+      line2Token === 'warning'
+        ? currentTheme.fg('warning', text)
+        : line2Token === 'error'
+          ? currentTheme.fg('error', text)
+          : currentTheme.dim(text);
+    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${line2Suffix}`;
+    const line2 =
+      plainLine2.length > width
+        ? dimToken(clip(plainLine2, width))
+        : `${dimToken(line2Prefix)}${changeSegment}${dimToken(line2Suffix)}`;
+
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
       line1,
-      line2Token === 'warning'
-        ? currentTheme.fg('warning', clip(line2, width))
-        : line2Token === 'error'
-          ? currentTheme.fg('error', clip(line2, width))
-          : currentTheme.dim(clip(line2, width)),
+      line2,
       line3Token === 'warning'
         ? currentTheme.fg('warning', clip(line3, width))
         : line3Token === 'error'
@@ -627,6 +638,16 @@ export function renderTodoBar(done: number, total: number): string {
   const filled = Math.round(ratio * cells);
   const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
   return `☑ ${bar} ${String(done)}/${String(total)}`;
+}
+
+/**
+ * Gen 32: render the change-count stats with semantic colors — additions in
+ * green, removals in red — so churn magnitude is scannable at a glance.
+ */
+export function renderChangeCount(cc: QuestChangeCount): string {
+  const added = currentTheme.fg('success', `+${String(cc.added)}`);
+  const removed = currentTheme.fg('error', `-${String(cc.removed)}`);
+  return `${added} ${removed}`;
 }
 
 /**

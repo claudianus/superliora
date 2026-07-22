@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
-import { renderContextBar, renderTodoBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
+import { renderContextBar, renderTodoBar, renderChangeCount, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -441,6 +441,20 @@ describe('Gen 31: todo progress mini-bar', () => {
   it('rounds the fill to the nearest cell', () => {
     // 2/5 = 40% → 2 of 5 cells filled.
     expect(renderTodoBar(2, 5)).toBe('☑ ▓▓░░░ 2/5');
+  });
+});
+
+describe('Gen 32: colorized change-count stats', () => {
+  it('includes the added and removed counts', () => {
+    const out = renderChangeCount({ added: 3, removed: 1 });
+    expect(out).toContain('+3');
+    expect(out).toContain('-1');
+  });
+
+  it('renders zero changes', () => {
+    const out = renderChangeCount({ added: 0, removed: 0 });
+    expect(out).toContain('+0');
+    expect(out).toContain('-0');
   });
 });
 
