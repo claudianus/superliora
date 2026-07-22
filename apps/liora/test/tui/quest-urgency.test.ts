@@ -6,6 +6,7 @@ import {
   rankQuestsByUrgency,
   escalationLevelFor,
   escalatedUrgencyScore,
+  rankQuestsByEscalatedUrgency,
 } from '#/tui/controllers/quest-urgency';
 import {
   ATTENTION_ESCALATION_MS,
@@ -196,5 +197,63 @@ describe('escalation-aware urgency (Gen 56)', () => {
     const now = 100_000;
     const quest = makeQuest('a', { state: 'running' });
     expect(escalatedUrgencyScore(quest, now)).toBe(questUrgencyScore(quest, now));
+  });
+});
+
+describe('rankQuestsByEscalatedUrgency (Gen 57)', () => {
+  it('surfaces an escalated quest ahead of a near-equal same-state quest', () => {
+    const now = 100_000;
+    // Both waiting-approval; the escalated one has waited just past the
+    // threshold, the other slightly less — base urgency is close, but the
+    // escalation bonus pushes the escalated quest to the front.
+    const escalated = makeQuest('escalated', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - ATTENTION_ESCALATION_MS,
+    });
+    const nearEqual = makeQuest('near-equal', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - (ATTENTION_ESCALATION_MS - 10_000),
+    });
+    const ranked = rankQuestsByEscalatedUrgency([nearEqual, escalated], now);
+    expect(ranked.map((r) => r.quest.id)).toEqual(['escalated', 'near-equal']);
+  });
+
+  it('attaches escalated scores, monotonically non-increasing', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('running', { state: 'running' }),
+      makeQuest('critical', {
+        state: 'waiting-approval',
+        attentionEnteredAt: now - ATTENTION_CRITICAL_MS,
+      }),
+      makeQuest('warning', {
+        state: 'waiting-approval',
+        attentionEnteredAt: now - ATTENTION_ESCALATION_MS,
+      }),
+    ];
+    const ranked = rankQuestsByEscalatedUrgency(quests, now);
+    expect(ranked[0]!.score).toBeGreaterThanOrEqual(ranked[1]!.score);
+    expect(ranked[1]!.score).toBeGreaterThanOrEqual(ranked[2]!.score);
+  });
+
+  it('is stable for equal scores (preserves input order)', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'running' }),
+      makeQuest('b', { state: 'running' }),
+    ];
+    const ranked = rankQuestsByEscalatedUrgency(quests, now);
+    expect(ranked.map((r) => r.quest.id)).toEqual(['a', 'b']);
+  });
+
+  it('returns an empty array for no quests and does not mutate input', () => {
+    expect(rankQuestsByEscalatedUrgency([], 100_000)).toEqual([]);
+    const now = 100_000;
+    const quests = [
+      makeQuest('running', { state: 'running' }),
+      makeQuest('approval', { state: 'waiting-approval', attentionEnteredAt: now }),
+    ];
+    rankQuestsByEscalatedUrgency(quests, now);
+    expect(quests.map((q) => q.id)).toEqual(['running', 'approval']);
   });
 });

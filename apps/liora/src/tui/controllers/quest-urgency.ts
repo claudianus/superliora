@@ -103,3 +103,20 @@ export function escalationLevelFor(quest: Quest, now: number = Date.now()): Esca
 export function escalatedUrgencyScore(quest: Quest, now: number = Date.now()): number {
   return questUrgencyScore(quest, now) + escalationLevelFor(quest, now) * ESCALATION_BONUS;
 }
+
+/**
+ * Gen 57: rank a list of quests by escalation-aware urgency, most urgent
+ * first, each paired with its escalated score. Mirrors rankQuestsByUrgency()
+ * but uses escalatedUrgencyScore() so long-neglected quests surface ahead of
+ * same-state quests that have waited almost as long. Stable for equal scores
+ * (preserves input order).
+ */
+export function rankQuestsByEscalatedUrgency(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): RankedQuest[] {
+  return quests
+    .map((quest, index) => ({ quest, score: escalatedUrgencyScore(quest, now), index }))
+    .sort((a, b) => (a.score !== b.score ? b.score - a.score : a.index - b.index))
+    .map(({ quest, score }) => ({ quest, score }));
+}
