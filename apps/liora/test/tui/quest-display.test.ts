@@ -972,6 +972,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     expect(snapshot.recommendationLine).toBeNull();
     expect(snapshot.queueLine).toBeNull();
     expect(snapshot.guidanceLine).toBeNull();
+    expect(snapshot.throughputLine).toBeNull();
     expect(snapshot.lines).toEqual([]);
   });
 
@@ -1035,6 +1036,27 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     expect(snapshot.guidanceLine).toBe(
       "you're overloaded — clear the most critical quest first, defer the rest",
     );
+  });
+
+  it('includes the throughput line when a resolved count is given (Gen 97)', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'One', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+    ];
+    const snapshot = buildTriagePanelSnapshot(quests, 3, now, 3);
+    expect(snapshot.throughputLine).toBe('✓ 3 cleared');
+    // The throughput line is appended after the other segments.
+    expect(snapshot.lines[snapshot.lines.length - 1]).toBe('✓ 3 cleared');
+  });
+
+  it('hides the throughput line when the resolved count is zero (Gen 97)', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'One', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+    ];
+    const snapshot = buildTriagePanelSnapshot(quests, 3, now, 0);
+    expect(snapshot.throughputLine).toBeNull();
+    expect(snapshot.lines).not.toContain('✓ 0 cleared');
   });
 });
 

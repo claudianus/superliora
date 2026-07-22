@@ -604,6 +604,10 @@ export function formatTriageQueueLine(
  *
  * Gen 92: `guidanceLine` carries the operator coaching string (Gen 91) so the
  * panel can tell the operator how to respond, not just how bad things are.
+ *
+ * Gen 97: `throughputLine` carries the resolved-throughput label (Gen 96) so
+ * the panel can also report how much demand has been cleared, not just how
+ * much is pending.
  */
 export interface TriagePanelSnapshot {
   readonly loadLevel: AttentionLoadLevel;
@@ -613,6 +617,7 @@ export interface TriagePanelSnapshot {
   readonly recommendationLine: string | null;
   readonly queueLine: string | null;
   readonly guidanceLine: string | null;
+  readonly throughputLine: string | null;
   readonly lines: readonly string[];
 }
 
@@ -620,6 +625,7 @@ export function buildTriagePanelSnapshot(
   quests: readonly Quest[],
   queueSize: number,
   now: number = Date.now(),
+  resolvedCount = 0,
 ): TriagePanelSnapshot {
   const pendingCount = quests.filter((quest) => ATTENTION_STATES.has(quest.state)).length;
   const loadLevel = classifyAttentionLoad(pendingCount);
@@ -629,9 +635,15 @@ export function buildTriagePanelSnapshot(
   const recommendationLine = formatTriageRecommendationLine(quests, now);
   const queueLine = formatTriageQueueLine(quests, queueSize, now);
   const guidanceLine = formatAttentionLoadGuidance(loadLevel);
-  const lines = [loadLine, distributionLine, recommendationLine, queueLine, guidanceLine].filter(
-    (line): line is string => line !== null,
-  );
+  const throughputLine = formatResolvedThroughputLine(resolvedCount);
+  const lines = [
+    loadLine,
+    distributionLine,
+    recommendationLine,
+    queueLine,
+    guidanceLine,
+    throughputLine,
+  ].filter((line): line is string => line !== null);
   return {
     loadLevel,
     loadColorToken,
@@ -640,6 +652,7 @@ export function buildTriagePanelSnapshot(
     recommendationLine,
     queueLine,
     guidanceLine,
+    throughputLine,
     lines,
   };
 }
