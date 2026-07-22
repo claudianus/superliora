@@ -121,6 +121,18 @@ export class QuestGridController {
     this.requestRender();
   }
 
+  /** Update quest progress indicators (Gen 9: todo progress + context usage). */
+  updateQuestProgress(
+    questId: string,
+    todoProgress: { done: number; total: number } | undefined,
+    contextUsage: number,
+  ): void {
+    const quest = this.quests.get(questId);
+    if (!quest) return;
+    this.quests.set(questId, { ...quest, todoProgress, contextUsage });
+    this.requestRender();
+  }
+
   // -------------------------------------------------------------------------
   // Pin / Expand (Hybrid Model C)
   // -------------------------------------------------------------------------

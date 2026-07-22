@@ -4159,6 +4159,8 @@ export class LioraTUI {
       workDir: this.state.appState.workDir ?? process.cwd(),
       sessionChangeCount: this.sessionEventHandler.getSessionChangeCount(),
       currentActivity: this.sessionEventHandler.getCurrentActivity(),
+      todoProgress: computeTodoProgress(this.state.todoPanel.getTodos()),
+      contextUsage: this.state.appState.contextUsage,
     });
   }
 
@@ -4709,4 +4711,13 @@ function splitShellOutputLines(text: string): string[] {
   const lines = text.split('\n');
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   return lines;
+}
+
+/** Gen 9: compute todo progress ({ done, total }) from a todo list, or undefined if empty. */
+function computeTodoProgress(
+  todos: readonly { status: string }[],
+): { done: number; total: number } | undefined {
+  if (todos.length === 0) return undefined;
+  const done = todos.filter((t) => t.status === 'done').length;
+  return { done, total: todos.length };
 }

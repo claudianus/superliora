@@ -35,6 +35,8 @@ function makeSnapshot(overrides: Partial<QuestBridgeSnapshot> = {}): QuestBridge
     workDir: '/tmp/test',
     sessionChangeCount: { added: 0, removed: 0 },
     currentActivity: undefined,
+    todoProgress: undefined,
+    contextUsage: 0,
     ...overrides,
   };
 }

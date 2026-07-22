@@ -219,8 +219,20 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const idle = formatElapsed(Math.max(0, now - quest.lastActivityAt));
     const changes = formatChangeCount(quest.changeCount);
 
+    // Gen 9: progress indicators (todo + context usage)
+    const progressParts: string[] = [];
+    if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
+      const { done, total } = quest.todoProgress;
+      progressParts.push(`☑ ${String(done)}/${String(total)}`);
+    }
+    if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
+      const pct = Math.round(quest.contextUsage * 100);
+      progressParts.push(`ctx ${String(pct)}%`);
+    }
+    const progress = progressParts.length > 0 ? `  ${progressParts.join('  ')}` : '';
+
     const line1 = `${marker}${icon} ${quest.name}  [${quest.state}]`;
-    const line2 = `  ⏱ ${created}  idle ${idle}  ${changes}   ${shorten(quest.worktreePath, safeWidth)}`;
+    const line2 = `  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
     const line3 = `  ▸ ${quest.planStep}`;
 
     return [

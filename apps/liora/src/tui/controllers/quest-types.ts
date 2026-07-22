@@ -60,6 +60,10 @@ export interface Quest {
   readonly pinned: boolean;
   /** Whether approval is pending (pulse trigger). */
   readonly approvalPending: boolean;
+  /** Gen 9: todo progress for the main session ({ done, total }), if any. */
+  readonly todoProgress?: { done: number; total: number } | undefined;
+  /** Gen 9: context window usage ratio (0–1) for the main session. */
+  readonly contextUsage?: number | undefined;
 }
 
 // ---------------------------------------------------------------------------

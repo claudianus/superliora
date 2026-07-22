@@ -41,6 +41,10 @@ export interface QuestBridgeSnapshot {
   readonly sessionChangeCount: { added: number; removed: number };
   /** Live description of what the main session is doing now (Gen 7). */
   readonly currentActivity: string | undefined;
+  /** Gen 9: todo progress ({ done, total }) for the main session, if any. */
+  readonly todoProgress: { done: number; total: number } | undefined;
+  /** Gen 9: context window usage ratio (0–1) for the main session. */
+  readonly contextUsage: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +136,8 @@ export function syncQuestGridFromSnapshot(
       worktreePath: snapshot.workDir,
       pinned: false,
       approvalPending: snapshot.approvalPending,
+      todoProgress: snapshot.todoProgress,
+      contextUsage: snapshot.contextUsage,
     });
     attentionController.onQuestStateChanged(mainQuestId, mainState);
   } else {
@@ -148,6 +154,14 @@ export function syncQuestGridFromSnapshot(
     // Gen 7: keep the plan step live so the cell shows current activity.
     if (existingMain.planStep !== mainPlanStep) {
       gridController.updateQuestPlanStep(mainQuestId, mainPlanStep);
+    }
+    // Gen 9: keep progress indicators (todo + context usage) live.
+    const prevTodo = existingMain.todoProgress;
+    const nextTodo = snapshot.todoProgress;
+    const todoChanged =
+      prevTodo?.done !== nextTodo?.done || prevTodo?.total !== nextTodo?.total;
+    if (todoChanged || existingMain.contextUsage !== snapshot.contextUsage) {
+      gridController.updateQuestProgress(mainQuestId, nextTodo, snapshot.contextUsage);
     }
   }
 
