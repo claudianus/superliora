@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
-import { renderContextBar, renderTodoBar, renderChangeCount, spinnerFrame, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
+import { renderContextBar, renderTodoBar, renderChangeCount, spinnerFrame, actionHintBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -473,6 +473,37 @@ describe('Gen 33: running spinner animation', () => {
 
   it('cycles back to the first frame after 10 steps', () => {
     expect(spinnerFrame(0)).toBe(spinnerFrame(1000));
+  });
+});
+
+describe('Gen 34: context action-hint bar', () => {
+  it('shows general navigation hints when nothing is focused', () => {
+    const hint = actionHintBar(undefined);
+    expect(hint).toContain('j/k move');
+    expect(hint).toContain('Enter pin');
+    expect(hint).not.toContain('approve');
+  });
+
+  it('shows approval shortcuts for a focused waiting-approval quest', () => {
+    const quest = makeQuest('q1', { state: 'waiting-approval', name: 'Auth Fix' });
+    const hint = actionHintBar(quest);
+    expect(hint).toContain('Auth Fix');
+    expect(hint).toContain('a approve');
+    expect(hint).toContain('x reject');
+    expect(hint).toContain('r rewind');
+  });
+
+  it('shows approval shortcuts for a focused failed quest', () => {
+    const quest = makeQuest('q2', { state: 'failed' });
+    const hint = actionHintBar(quest);
+    expect(hint).toContain('approve');
+  });
+
+  it('does not show approval shortcuts for a healthy focused quest', () => {
+    const quest = makeQuest('q3', { state: 'running' });
+    const hint = actionHintBar(quest);
+    expect(hint).not.toContain('approve');
+    expect(hint).toContain('j/k move');
   });
 });
 

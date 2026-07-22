@@ -451,7 +451,20 @@ export class BentoDashboardComponent extends Container implements Focusable {
       const block = this.renderCellBlock(quest, width, now);
       lines.push(...block);
     }
+
+    // Gen 34: bottom action-hint bar — context-aware shortcuts for the
+    // focused quest so operators can act without opening the help overlay.
+    const focused = this.focusedQuest(quests);
+    lines.push('');
+    lines.push(currentTheme.dim(clip(actionHintBar(focused), width)));
     return lines;
+  }
+
+  /** Gen 34: resolve the currently focused quest, if any. */
+  private focusedQuest(quests: readonly Quest[]): Quest | undefined {
+    const id = this.gridController.getFocusedQuestId();
+    if (id === null) return undefined;
+    return quests.find((q) => q.id === id);
   }
 
   private renderCellBlock(quest: Quest, width: number, now: number): string[] {
@@ -653,6 +666,19 @@ export function renderChangeCount(cc: QuestChangeCount): string {
 
 /** Gen 33: braille spinner frames for the running state. */
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/**
+ * Gen 34: build the bottom action-hint bar. When a quest is focused and
+ * needs attention, surface the approval shortcuts prominently; otherwise
+ * show the general navigation hints.
+ */
+export function actionHintBar(focused: Quest | undefined): string {
+  const nav = 'j/k move · Enter pin · / filter · s sort · ! attn · ? help · q quit';
+  if (focused !== undefined && ATTENTION_STATES.has(focused.state)) {
+    return `⚡ ${focused.name}: a approve · x reject · r rewind · ${nav}`;
+  }
+  return nav;
+}
 
 /**
  * Gen 33: pick the spinner frame for a given timestamp. Time-based (not a
