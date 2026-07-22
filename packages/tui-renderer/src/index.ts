@@ -23,6 +23,7 @@ export * from './layout';
 export * from './layout-frame';
 export * from './line-cache';
 export * from './markdown';
+export * from './micro-interactions';
 export * from './motion';
 export * from './native-frame';
 export * from './native-renderer';

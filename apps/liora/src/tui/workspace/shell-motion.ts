@@ -1,4 +1,5 @@
 import type { AmbientEffectMode } from '#/tui/utils/appearance-effects';
+import { solveSpring, SPRING_PRESETS, type SpringState } from '@harness-kit/tui-renderer';
 
 // ---------------------------------------------------------------------------
 // Premium cinematic motion — shell settle, focus transfer, reflow lerp.
@@ -6,6 +7,10 @@ import type { AmbientEffectMode } from '#/tui/utils/appearance-effects';
 // Pure progress helpers only. Callers gate on `motionEffectsAllowed()` /
 // `resolveQualityAdjustedAmbientEffectMode()` and pass the result in here so
 // this module stays trivially unit-testable (no Date.now(), no theme).
+//
+// Spring physics integration: dock reveal/hide and reflow now use a damped
+// harmonic oscillator for organic, weight-feeling motion instead of linear
+// smoothstep. The spring solver is frame-rate independent.
 // ---------------------------------------------------------------------------
 
 /** Gate + quality tier shared by every progress helper below. */
@@ -74,6 +79,97 @@ export function reflowProgress(now: number, startedAt: number, options: ShellMot
 export function lerpDockWidth(fromWidth: number, toWidth: number, progress: number): number {
   const t = clampProgress(progress);
   return Math.round(fromWidth + (toWidth - fromWidth) * t);
+}
+
+// ---------------------------------------------------------------------------
+// Spring-based dock animation (frame-rate independent)
+// ---------------------------------------------------------------------------
+
+export interface SpringDockState {
+  readonly value: number;
+  readonly velocity: number;
+  readonly atRest: boolean;
+}
+
+/**
+ * Advance a spring-based dock width animation by one frame.
+ * Uses the 'smooth' preset for natural dock reveal/hide with slight overshoot.
+ *
+ * @param current - Current animated width value
+ * @param velocity - Current velocity (columns/second)
+ * @param target - Target dock width
+ * @param dtMs - Frame delta in milliseconds
+ * @param options - Motion gate options
+ * @returns Next spring state (value, velocity, atRest)
+ */
+export function springDockWidth(
+  current: number,
+  velocity: number,
+  target: number,
+  dtMs: number,
+  options: ShellMotionOptions,
+): SpringDockState {
+  // When motion is disabled or quality is off, snap instantly
+  if (!options.motion || options.quality === 'off') {
+    return { value: target, velocity: 0, atRest: true };
+  }
+
+  const config = options.quality === 'subtle'
+    ? SPRING_PRESETS['quick']!.config
+    : SPRING_PRESETS['smooth']!.config;
+
+  const state: SpringState = solveSpring(
+    current,
+    velocity,
+    target,
+    dtMs / 1000,
+    config,
+  );
+
+  return { value: state.value, velocity: state.velocity, atRest: state.atRest };
+}
+
+/**
+ * Spring-based shell inset animation for premium mode.
+ * The shell border "breathes" in with a slight bounce on first render.
+ */
+export function springShellInset(
+  current: number,
+  velocity: number,
+  target: number,
+  dtMs: number,
+  options: ShellMotionOptions,
+): SpringDockState {
+  if (!options.motion || options.quality === 'off') {
+    return { value: target, velocity: 0, atRest: true };
+  }
+
+  const config = options.quality === 'subtle'
+    ? SPRING_PRESETS['pulse']!.config
+    : SPRING_PRESETS['bouncy']!.config;
+
+  const state = solveSpring(current, velocity, target, dtMs / 1000, config);
+  return { value: state.value, velocity: state.velocity, atRest: state.atRest };
+}
+
+/**
+ * Spring-based focus glow intensity for panel focus transitions.
+ * Gives a quick "pop" when a panel gains focus.
+ */
+export function springFocusGlow(
+  current: number,
+  velocity: number,
+  target: number,
+  dtMs: number,
+  options: ShellMotionOptions,
+): SpringDockState {
+  if (!options.motion || options.quality === 'off') {
+    return { value: target, velocity: 0, atRest: true };
+  }
+
+  const config = SPRING_PRESETS['stiff']!.config;
+  const state = solveSpring(current, velocity, target, dtMs / 1000, config);
+  return { value: state.value, velocity: state.velocity, atRest: state.atRest };
 }
 
 // ---------------------------------------------------------------------------
