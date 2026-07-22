@@ -766,3 +766,21 @@ export function formatNetDemandTrend(pendingCount: number, resolvedCount: number
   if (net < 0) return 'catching up';
   return 'keeping up';
 }
+
+/**
+ * Gen 100: the theme color token for the net-demand trend (Gen 99), so the
+ * dashboard can tint the trend by direction — red when falling behind, amber
+ * when merely keeping up (demand still present), green when catching up.
+ * Returns null when there is no activity to characterize, so callers can hide
+ * the segment.
+ */
+export function netDemandTrendColorToken(
+  pendingCount: number,
+  resolvedCount: number,
+): ColorToken | null {
+  const trend = formatNetDemandTrend(pendingCount, resolvedCount);
+  if (trend === null) return null;
+  if (trend === 'falling behind') return 'error';
+  if (trend === 'keeping up') return 'warning';
+  return 'success';
+}

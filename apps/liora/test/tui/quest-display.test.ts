@@ -38,6 +38,7 @@ import {
   formatResolvedThroughputLine,
   formatNetDemandLine,
   formatNetDemandTrend,
+  netDemandTrendColorToken,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -1241,5 +1242,23 @@ describe('formatNetDemandTrend (Gen 99)', () => {
 
   it('labels cleared-only activity as catching up', () => {
     expect(formatNetDemandTrend(0, 4)).toBe('catching up');
+  });
+});
+
+describe('netDemandTrendColorToken (Gen 100)', () => {
+  it('returns null when there is no activity', () => {
+    expect(netDemandTrendColorToken(0, 0)).toBeNull();
+  });
+
+  it('maps falling behind to error (red)', () => {
+    expect(netDemandTrendColorToken(4, 3)).toBe('error');
+  });
+
+  it('maps keeping up to warning (amber)', () => {
+    expect(netDemandTrendColorToken(3, 3)).toBe('warning');
+  });
+
+  it('maps catching up to success (green)', () => {
+    expect(netDemandTrendColorToken(1, 5)).toBe('success');
   });
 });
