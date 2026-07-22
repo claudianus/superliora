@@ -38,6 +38,7 @@ import {
   questStateColorToken,
   questHealthScore,
   renderContextBar,
+  contextSeverityToken,
   renderTodoBar,
   sortModeLabel,
   type Quest,
@@ -682,7 +683,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
       lines.push(`  ${currentTheme.dim('Todo'.padEnd(10))}${renderTodoBar(quest.todoProgress.done, quest.todoProgress.total)}`);
     }
     if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
-      lines.push(`  ${currentTheme.dim('Context'.padEnd(10))}${renderContextBar(quest.contextUsage)}`);
+      // Gen 72: color the context bar by pressure threshold.
+      const ctxToken = contextSeverityToken(quest.contextUsage);
+      lines.push(`  ${currentTheme.dim('Context'.padEnd(10))}${currentTheme.fg(ctxToken, renderContextBar(quest.contextUsage))}`);
     }
     if (quest.planStep !== undefined && quest.planStep.length > 0) {
       lines.push(`  ${currentTheme.dim('Step'.padEnd(10))}${quest.planStep}`);
@@ -906,7 +909,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
       // Gen 29: visual mini-bar instead of plain percentage text.
-      progressParts.push(renderContextBar(quest.contextUsage));
+      // Gen 72: color by pressure so context exhaustion risk is obvious.
+      const ctxBar = renderContextBar(quest.contextUsage);
+      const ctxToken = contextSeverityToken(quest.contextUsage);
+      progressParts.push(currentTheme.fg(ctxToken, ctxBar));
     }
     // Gen 18: model name + session cost.
     if (quest.modelName !== undefined && quest.modelName.length > 0) {

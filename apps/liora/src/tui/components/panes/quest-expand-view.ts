@@ -17,6 +17,7 @@ import {
   questHealthScore,
   questStateColorToken,
   renderContextBar,
+  contextSeverityToken,
   renderTodoBar,
 } from '../../controllers/quest-types';
 
@@ -552,7 +553,9 @@ export class QuestExpandView {
         progressParts.push(renderTodoBar(done, total));
       }
       if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
-        progressParts.push(renderContextBar(quest.contextUsage));
+        // Gen 72: color the context bar by pressure threshold, matching cells.
+        const ctxToken = contextSeverityToken(quest.contextUsage);
+        progressParts.push(currentTheme.fg(ctxToken, renderContextBar(quest.contextUsage)));
       }
       // Gen 53: health mini-bar, matching the dashboard cells (Gen 52).
       progressParts.push(renderHealthBar(questHealthScore(quest, Date.now())));

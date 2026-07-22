@@ -312,6 +312,18 @@ export function renderContextBar(usage: number): string {
 }
 
 /**
+ * Gen 72: severity token for context-window usage so callers can color the
+ * bar by pressure — warning at 80%, error at 95%. Stays theme-free here; the
+ * caller applies the color (matching the quest-types helper convention).
+ */
+export function contextSeverityToken(usage: number): 'error' | 'warning' | 'success' {
+  const pct = usage * 100;
+  if (pct >= 95) return 'error';
+  if (pct >= 80) return 'warning';
+  return 'success';
+}
+
+/**
  * Gen 31 / Gen 36: render a compact todo-progress bar, e.g. `☑ ▓▓▓░░ 3/5`.
  * Mirrors the context bar so parallel quest progress is scannable at a glance.
  * Shared by the dashboard cells and the expand-view header.
