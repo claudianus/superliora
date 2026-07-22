@@ -986,6 +986,36 @@ rename to docs/README.md
   for (const line of notifHubLines) console.log(`  ${line}`);
   console.log(`  Unread: ${notifHub.unreadCount} | Groups: ${notifHub.getGroups().length}`);
 
+  // ═══ Iteration 25 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 25 Modules ═══\x1b[0m');
+
+  // ─── 49. API Client ──────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ApiClient ──\x1b[0m');
+  const { ApiClient, createDemoApiClient } = await import('../apps/liora/src/tui/utils/api-client.ts');
+  const apiClient = createDemoApiClient();
+  const apiLines = apiClient.render({ width: 55, height: 14, fg, boldFg, dimFg });
+  for (const line of apiLines) console.log(`  ${line}`);
+  const lastEntry = apiClient.getLastEntry();
+  console.log(`  Last: ${lastEntry?.request.method} ${lastEntry?.response?.status} (${lastEntry?.response?.timeMs}ms)`);
+
+  // ─── 50. Database Explorer ───────────────────────────────────────
+  console.log('\n\x1b[1;33m── DatabaseExplorer ──\x1b[0m');
+  const { DatabaseExplorer, createDemoDatabaseExplorer } = await import('../apps/liora/src/tui/utils/database-explorer.ts');
+  const dbExplorer = createDemoDatabaseExplorer();
+  const dbLines = dbExplorer.render({ width: 58, height: 16, fg, boldFg, dimFg });
+  for (const line of dbLines) console.log(`  ${line}`);
+  const query = dbExplorer.getLastQuery();
+  console.log(`  Query: ${query?.rowCount} rows in ${query?.executionTimeMs}ms`);
+
+  // ─── 51. Cron Scheduler ──────────────────────────────────────────
+  console.log('\n\x1b[1;33m── CronScheduler ──\x1b[0m');
+  const { CronScheduler, createDemoCronScheduler } = await import('../apps/liora/src/tui/utils/cron-scheduler.ts');
+  const cronSched = createDemoCronScheduler();
+  const cronLines = cronSched.render({ width: 55, height: 14, fg, boldFg, dimFg });
+  for (const line of cronLines) console.log(`  ${line}`);
+  console.log(`  Active: ${cronSched.activeCount} | Jobs: ${cronSched.getJobs().length}`);
+  console.log(`  Cron "0 9 * * 1-5" = ${cronSched.describeCron('0 9 * * 1-5')}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
