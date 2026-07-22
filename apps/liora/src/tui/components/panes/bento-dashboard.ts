@@ -109,6 +109,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
   // newly pinned expand view to the live tail.
   private lastPinnedId: string | null = null;
 
+  // Gen 45: hide the thumbnail strip for a full-height expand view.
+  private stripHidden = false;
+
   constructor(options: BentoDashboardOptions) {
     super();
     this.gridController = options.gridController;
@@ -241,6 +244,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
       // Gen 42: b → page up (pager-style), pairs with Space for less-like nav.
       if (k === 'b') {
         expandView?.scrollPageUp();
+        return;
+      }
+      // Gen 45: f → toggle the thumbnail strip for a full-height expand view.
+      if (k === 'f') {
+        this.stripHidden = !this.stripHidden;
         return;
       }
       if (k === 'G') {
@@ -412,6 +420,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['PgDn / PgUp', 'Scroll a page at a time'],
           ['Space', 'Page down (pager-style)'],
           ['b', 'Page up (pager-style)'],
+          ['f', 'Toggle thumbnail strip (full-height view)'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
@@ -456,6 +465,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 44: state breakdown for a fleet-status overview at a glance.
     const runningCount = quests.filter((q) => q.state === 'running').length;
     const doneCount = quests.filter((q) => q.state === 'done').length;
+    // Gen 45: fleet-wide change totals.
+    const totalAdded = quests.reduce((sum, q) => sum + q.changeCount.added, 0);
+    const totalRemoved = quests.reduce((sum, q) => sum + q.changeCount.removed, 0);
     const summaryParts = [`${String(quests.length)} quests`];
     if (runningCount > 0) {
       summaryParts.push(`● ${String(runningCount)} running`);
@@ -465,6 +477,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     if (attentionCount > 0) {
       summaryParts.push(`⚡ ${String(attentionCount)} need attention`);
+    }
+    if (totalAdded > 0 || totalRemoved > 0) {
+      summaryParts.push(`+${String(totalAdded)} -${String(totalRemoved)}`);
     }
     if (totalCost > 0) {
       summaryParts.push(`$${totalCost.toFixed(2)}`);
@@ -627,7 +642,8 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const lines: string[] = [];
 
     if (expandView) {
-      const visibleRows = Math.max(1, 24 - 2); // reserve strip + spacing
+      // Gen 45: when the strip is hidden, give the expand view the extra rows.
+      const visibleRows = this.stripHidden ? 24 : Math.max(1, 24 - 2); // reserve strip + spacing
       expandView.setMaxVisibleLines(visibleRows);
       const stream = expandView.render(pinned, width);
       for (const row of stream) {
@@ -638,10 +654,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
 
     // Thumbnail strip for the non-pinned quests (numbered for direct jump, Gen 6b)
-    const entries = buildThumbnailStrip(allQuests, pinned.id, this.blinkPhase);
-    if (entries.length > 0) {
-      const strip = renderThumbnailStripLine(entries, width, true);
-      lines.push(currentTheme.dim(clip(strip, width)));
+    // Gen 45: hidden when the operator toggles full-height mode with `f`.
+    if (!this.stripHidden) {
+      const entries = buildThumbnailStrip(allQuests, pinned.id, this.blinkPhase);
+      if (entries.length > 0) {
+        const strip = renderThumbnailStripLine(entries, width, true);
+        lines.push(currentTheme.dim(clip(strip, width)));
+      }
     }
 
     return lines;
