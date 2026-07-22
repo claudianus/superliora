@@ -503,6 +503,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 90: E → jump to the previous quest with error/warning lines.
+    if (k === 'E') {
+      this.gridController.focusPrevProblem();
+      return;
+    }
+
     // Gen 89: e → jump to the next quest with error/warning lines.
     if (k === 'e') {
       this.gridController.focusNextProblem();
@@ -680,6 +686,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['g', 'Focus the least-healthy quest'],
           ['m', 'Focus the most expensive quest'],
           ['e', 'Jump to next quest with problems'],
+          ['E', 'Jump to previous quest with problems'],
           ['c', 'Show fleet summary overlay'],
           ['D', 'Show fleet changes overlay'],
           ['1–9', 'Focus the Nth quest'],
@@ -1027,8 +1034,25 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return lines;
     }
 
+    // Gen 90: identify the single most troubled quest so its cell can carry a
+    // marker, matching the summary bar's '☢ worst' callout (Gen 89).
+    let worstQuestId: string | undefined;
+    let worstCount = 0;
+    if (quests.length > 1) {
+      for (const q of quests) {
+        const counts = this.expandViews.get(q.id)?.getProblemCounts();
+        if (counts !== undefined) {
+          const total = counts.errors + counts.warnings;
+          if (total > worstCount) {
+            worstCount = total;
+            worstQuestId = q.id;
+          }
+        }
+      }
+    }
+
     for (const quest of quests) {
-      const block = this.renderCellBlock(quest, width, now);
+      const block = this.renderCellBlock(quest, width, now, worstQuestId);
       lines.push(...block);
     }
 
@@ -1047,12 +1071,14 @@ export class BentoDashboardComponent extends Container implements Focusable {
     return quests.find((q) => q.id === id);
   }
 
-  private renderCellBlock(quest: Quest, width: number, now: number): string[] {
+  private renderCellBlock(quest: Quest, width: number, now: number, worstQuestId?: string): string[] {
     const pulsing = this.attentionController.isPulsing(quest.id);
     const focused = this.gridController.getFocusedQuestId() === quest.id;
     const marker = pulsing ? (this.blinkPhase ? '⚡' : '·') : ' ';
     const focusIndicator = focused ? '▶ ' : '  ';
     const safeWidth = Math.max(1, width - 4);
+    // Gen 90: mark the most troubled quest so it stands out in the grid.
+    const isWorst = quest.id === worstQuestId;
 
     const created = formatElapsed(Math.max(0, now - quest.createdAt));
     const idle = formatElapsed(Math.max(0, now - quest.lastActivityAt));
@@ -1088,9 +1114,14 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const badge = currentTheme.fg(stateToken, badgeText);
     const prefix = `${focusIndicator}${marker}`;
     // Use the plain-text badge length (not ANSI-inflated) for the name budget.
-    const nameBudget = Math.max(1, width - prefix.length - badgeText.length - 2);
+    // Gen 90: reserve room for the worst-quest marker so the line stays in width.
+    const worstReserve = isWorst ? 2 : 0;
+    const nameBudget = Math.max(1, width - prefix.length - badgeText.length - 2 - worstReserve);
     const name = quest.name.length > nameBudget ? quest.name.slice(0, nameBudget) : quest.name;
-    const line1 = `${prefix}${badge} ${name}`;
+    // Gen 90: worst-quest marker so the most troubled cell stands out, matching
+    // the summary bar's '☢ worst' callout (Gen 89).
+    const worstMarker = isWorst ? currentTheme.fg('error', ' ☢') : '';
+    const line1 = `${prefix}${badge} ${name}${worstMarker}`;
     // Gen 32: colorize the change stats (+added green, -removed red) so the
     // churn magnitude is scannable. Built as separate segments because the
     // surrounding metadata stays dim.
