@@ -478,6 +478,14 @@ export class QuestExpandView {
     return this.streamLines.length;
   }
 
+  /**
+   * Gen 76: the number of diff lines in the buffer, for the dashboard cell.
+   * Returns 0 when there are no diffs.
+   */
+  getDiffLineCount(): number {
+    return this.diffLines.length;
+  }
+
   /** Render the expand view as a string array (one per visible row). */
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];

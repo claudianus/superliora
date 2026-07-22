@@ -1015,11 +1015,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const health = questHealthScore(quest, now);
     const healthPlain = `  ${formatHealthBar(health)}`;
     const healthSegment = `  ${renderHealthBar(health)}`;
-    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${line2Suffix}`;
+    // Gen 76: diff line count segment so the cell shows how much code the
+    // quest has produced (pairs with the d-key diff view, Gen 50).
+    const diffCount = expandView?.getDiffLineCount() ?? 0;
+    const diffPlain = diffCount > 0 ? `  ≡${String(diffCount)}` : '';
+    const diffSegment = diffCount > 0 ? currentTheme.fg('textMuted', `  ≡${String(diffCount)}`) : '';
+    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${diffPlain}${line2Suffix}`;
     const line2 =
       plainLine2.length > width
         ? dimToken(clip(plainLine2, width))
-        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${dimToken(line2Suffix)}`;
+        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${diffSegment}${dimToken(line2Suffix)}`;
 
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
