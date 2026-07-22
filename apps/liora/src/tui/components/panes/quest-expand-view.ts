@@ -468,6 +468,15 @@ export class QuestExpandView {
       : undefined;
   }
 
+  /**
+   * Gen 71: the 1-based line number of the most recent stream line, matching
+   * the expand-view gutter so the operator can jump straight to it with `:N`.
+   * Returns 0 when the stream is empty.
+   */
+  getLastStreamLineNumber(): number {
+    return this.streamLines.length;
+  }
+
   /** Render the expand view as a string array (one per visible row). */
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];

@@ -958,13 +958,18 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // the stream is empty.
     // Gen 69: colorize error/warning preview lines so problems are spotted
     // straight from the grid, matching the expand-view emphasis (Gen 20).
-    const lastLine = this.expandViews.get(quest.id)?.getLastStreamLine();
+    // Gen 71: prefix the gutter line number so the operator can jump straight
+    // to it with `:N` after pinning.
+    const expandView = this.expandViews.get(quest.id);
+    const lastLine = expandView?.getLastStreamLine();
     let preview: string | undefined;
     if (lastLine !== undefined && lastLine.length > 0) {
-      const clipped = clip(lastLine, Math.max(1, width - focusIndicator.length - 3));
+      const lineNo = expandView?.getLastStreamLineNumber() ?? 0;
+      const lineNoTag = lineNo > 0 ? currentTheme.dim(`${String(lineNo)} `) : '';
+      const clipped = clip(lastLine, Math.max(1, width - focusIndicator.length - 3 - String(lineNo).length - 1));
       const highlighted = highlightStreamLine(clipped);
       const previewBody = highlighted === clipped ? currentTheme.dim(clipped) : highlighted;
-      preview = `${focusIndicator}  ${currentTheme.dim('│')} ${previewBody}`;
+      preview = `${focusIndicator}  ${currentTheme.dim('│')} ${lineNoTag}${previewBody}`;
     }
 
     // Gen 32: line2 is composed of dim metadata segments plus the colorized
