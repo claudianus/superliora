@@ -86,7 +86,7 @@ export function questStateColorToken(
  * priority order; the others let operators re-rank quests by cost, age, or
  * name. Attention states always win within `attention` mode only.
  */
-export type QuestSortMode = 'attention' | 'cost' | 'age' | 'name';
+export type QuestSortMode = 'attention' | 'cost' | 'age' | 'name' | 'health';
 
 /** Ordered cycle of sort modes for the `s` key. */
 export const QUEST_SORT_MODES: readonly QuestSortMode[] = [
@@ -94,6 +94,7 @@ export const QUEST_SORT_MODES: readonly QuestSortMode[] = [
   'cost',
   'age',
   'name',
+  'health',
 ];
 
 /** Gen 30: next sort mode in the cycle. */
@@ -113,6 +114,8 @@ export function sortModeLabel(mode: QuestSortMode): string {
       return 'age';
     case 'name':
       return 'name';
+    case 'health':
+      return 'health';
     default: {
       const _exhaustive: never = mode;
       return _exhaustive;

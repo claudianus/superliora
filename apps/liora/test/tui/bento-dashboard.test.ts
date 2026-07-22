@@ -386,7 +386,7 @@ describe('Gen 33: attention dwell stamp on quests', () => {
 });
 
 describe('Gen 30: dashboard sort mode cycling', () => {
-  it('cycles attention → cost → age → name → attention', () => {
+  it('cycles attention → cost → age → name → health → attention', () => {
     const ctrl = makeController();
     expect(ctrl.getSortMode()).toBe('attention');
     ctrl.cycleSortMode();
@@ -395,6 +395,9 @@ describe('Gen 30: dashboard sort mode cycling', () => {
     expect(ctrl.getSortMode()).toBe('age');
     ctrl.cycleSortMode();
     expect(ctrl.getSortMode()).toBe('name');
+    // Gen 51: health joins the cycle.
+    ctrl.cycleSortMode();
+    expect(ctrl.getSortMode()).toBe('health');
     ctrl.cycleSortMode();
     expect(ctrl.getSortMode()).toBe('attention');
   });
@@ -431,6 +434,20 @@ describe('Gen 30: dashboard sort mode cycling', () => {
     ctrl.cycleSortMode(); // → age
     ctrl.cycleSortMode(); // → name
     expect(ctrl.getQuests().map((q) => q.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('Gen 51: health mode sorts least-healthy first', () => {
+    const ctrl = makeController();
+    // failed (10) < blocked (45) < running (90) by health score.
+    ctrl.addQuest(makeQuest('healthy', { state: 'running' }));
+    ctrl.addQuest(makeQuest('critical', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('shaky', { state: 'blocked' }));
+
+    ctrl.cycleSortMode(); // → cost
+    ctrl.cycleSortMode(); // → age
+    ctrl.cycleSortMode(); // → name
+    ctrl.cycleSortMode(); // → health
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['critical', 'shaky', 'healthy']);
   });
 });
 

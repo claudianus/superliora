@@ -28,6 +28,7 @@ import {
   type QuestSortMode,
   ATTENTION_STATES,
   nextSortMode,
+  questHealthScore,
 } from './quest-types';
 import { compareByUrgency } from './quest-urgency';
 
@@ -297,8 +298,10 @@ export class QuestGridController {
     });
 
     const indexed = visible.map((q, index) => ({ quest: q, index }));
+    // Gen 51: capture the clock once so health sorting is stable within a pass.
+    const now = Date.now();
     indexed.sort((a, b) => {
-      const cmp = this.compareBySortMode(a.quest, b.quest);
+      const cmp = this.compareBySortMode(a.quest, b.quest, now);
       return cmp !== 0 ? cmp : a.index - b.index;
     });
     return indexed.map((entry) => entry.quest.id);
@@ -308,8 +311,9 @@ export class QuestGridController {
    * Gen 30: comparator for the active sort mode. Returns negative when
    * `a` should come before `b`. `attention` uses the Gen 38 urgency score so
    * the longest-neglected quest of equal priority sorts first.
+   * Gen 51: `health` sorts the least-healthy quest first.
    */
-  private compareBySortMode(a: Quest, b: Quest): number {
+  private compareBySortMode(a: Quest, b: Quest, now: number): number {
     switch (this.sortMode) {
       case 'attention':
         return compareByUrgency(a, b);
@@ -321,6 +325,9 @@ export class QuestGridController {
         return a.createdAt - b.createdAt;
       case 'name':
         return a.name.localeCompare(b.name);
+      case 'health':
+        // Lowest health first.
+        return questHealthScore(a, now) - questHealthScore(b, now);
       default: {
         const _exhaustive: never = this.sortMode;
         return _exhaustive;
