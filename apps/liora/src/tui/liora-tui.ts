@@ -4164,6 +4164,7 @@ export class LioraTUI {
       approvalSummary: describePendingApproval(this.state.livePane.pendingApproval),
       modelName: this.state.appState.model || undefined,
       sessionCostUsd: this.state.appState.sessionCostUsd ?? 0,
+      lastErrorMessage: this.sessionEventHandler.getLastErrorMessage(),
     });
   }
 

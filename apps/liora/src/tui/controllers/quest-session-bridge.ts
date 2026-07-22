@@ -51,6 +51,8 @@ export interface QuestBridgeSnapshot {
   readonly modelName: string | undefined;
   /** Gen 18: accumulated session cost in USD for the main session. */
   readonly sessionCostUsd: number;
+  /** Gen 21: last error message for the main session. */
+  readonly lastErrorMessage: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +149,7 @@ export function syncQuestGridFromSnapshot(
       pendingApprovalSummary: snapshot.approvalSummary,
       modelName: snapshot.modelName,
       sessionCostUsd: snapshot.sessionCostUsd,
+      lastErrorMessage: snapshot.lastErrorMessage,
     });
     attentionController.onQuestStateChanged(mainQuestId, mainState);
   } else {
@@ -163,6 +166,10 @@ export function syncQuestGridFromSnapshot(
     // Gen 7: keep the plan step live so the cell shows current activity.
     if (existingMain.planStep !== mainPlanStep) {
       gridController.updateQuestPlanStep(mainQuestId, mainPlanStep);
+    }
+    // Gen 21: keep the last error message live for failed quests.
+    if (existingMain.lastErrorMessage !== snapshot.lastErrorMessage) {
+      gridController.updateQuestError(mainQuestId, snapshot.lastErrorMessage);
     }
     // Gen 9 + Gen 13 + Gen 18: keep progress, approval, and cost live.
     const prevTodo = existingMain.todoProgress;

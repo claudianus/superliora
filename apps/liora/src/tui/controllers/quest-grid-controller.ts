@@ -144,6 +144,14 @@ export class QuestGridController {
     this.requestRender();
   }
 
+  /** Update the last error message shown in a failed quest's cell (Gen 21). */
+  updateQuestError(questId: string, lastErrorMessage: string | undefined): void {
+    const quest = this.quests.get(questId);
+    if (!quest) return;
+    this.quests.set(questId, { ...quest, lastErrorMessage });
+    this.requestRender();
+  }
+
   // -------------------------------------------------------------------------
   // Pin / Expand (Hybrid Model C)
   // -------------------------------------------------------------------------

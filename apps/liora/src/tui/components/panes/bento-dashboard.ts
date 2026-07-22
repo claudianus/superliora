@@ -326,19 +326,30 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const line1 = `${prefix}${badge} ${name}`;
     const line2 = `${focusIndicator}  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
     // Gen 13: when awaiting approval, surface what needs a decision.
-    const stepText =
-      quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined
-        ? quest.pendingApprovalSummary
-        : quest.planStep;
+    // Gen 21: when failed, surface why it failed.
+    let stepText: string;
+    let line3Token: 'warning' | 'error' | 'muted';
+    if (quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined) {
+      stepText = quest.pendingApprovalSummary;
+      line3Token = 'warning';
+    } else if (quest.state === 'failed' && quest.lastErrorMessage !== undefined) {
+      stepText = `✗ ${quest.lastErrorMessage}`;
+      line3Token = 'error';
+    } else {
+      stepText = quest.planStep;
+      line3Token = 'muted';
+    }
     const line3 = `${focusIndicator}  ▸ ${stepText}`;
 
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
       line1,
       currentTheme.dim(clip(line2, width)),
-      quest.state === 'waiting-approval'
+      line3Token === 'warning'
         ? currentTheme.fg('warning', clip(line3, width))
-        : currentTheme.dim(clip(line3, width)),
+        : line3Token === 'error'
+          ? currentTheme.fg('error', clip(line3, width))
+          : currentTheme.dim(clip(line3, width)),
     ];
   }
 

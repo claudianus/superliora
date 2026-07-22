@@ -96,6 +96,8 @@ export interface Quest {
   readonly modelName?: string | undefined;
   /** Gen 18: accumulated session cost in USD for the main session. */
   readonly sessionCostUsd?: number | undefined;
+  /** Gen 21: last error message for the main session, shown when failed. */
+  readonly lastErrorMessage?: string | undefined;
 }
 
 // ---------------------------------------------------------------------------

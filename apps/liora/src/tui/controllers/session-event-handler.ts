@@ -197,6 +197,13 @@ export class SessionEventHandler {
    */
   private currentActivity: string | undefined;
 
+  /**
+   * Gen 21: the most recent session error message. The quest dashboard shows
+   * this in the failed quest's cell so the user sees *why* it failed without
+   * opening the expand view.
+   */
+  private lastErrorMessage: string | undefined;
+
   renderedSkillActivationIds: Set<string> = new Set();
   renderedPluginCommandActivationIds: Set<string> = new Set();
   renderedMcpServerStatusKeys: Map<string, string> = new Map();
@@ -559,6 +566,8 @@ export class SessionEventHandler {
     }
     // Gen 7: clear the live activity now that the turn is done.
     this.currentActivity = undefined;
+    // Gen 21: a cleanly-ended turn clears the last error message.
+    this.lastErrorMessage = undefined;
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
     const todos = this.host.state.todoPanel.getTodos();
@@ -1238,6 +1247,8 @@ export class SessionEventHandler {
     this.host.streamingUI.flushNow();
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
+    // Gen 21: capture the error message for the quest dashboard cell.
+    this.lastErrorMessage = event.message ?? 'Session error';
     // Desktop notification on error
     notifyError(event.message ?? '세션 오류 발생');
     // Mark the last turn as failed so the user can re-send it with `/retry`
@@ -1489,6 +1500,11 @@ export class SessionEventHandler {
   /** Get the current activity description for the quest cell (Gen 7). */
   getCurrentActivity(): string | undefined {
     return this.currentActivity;
+  }
+
+  /** Get the last session error message for the quest cell (Gen 21). */
+  getLastErrorMessage(): string | undefined {
+    return this.lastErrorMessage;
   }
 
   // ---------------------------------------------------------------------------
