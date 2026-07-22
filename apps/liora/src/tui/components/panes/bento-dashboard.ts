@@ -223,6 +223,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.scrollPageUp();
         return;
       }
+      // Gen 41: Space → page down (pager-style), for fast stream skimming.
+      if (matchesKey(data, Key.space)) {
+        expandView?.scrollPageDown();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -383,6 +388,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
       ? [
           ['j / k  ↓ ↑', 'Scroll the live stream'],
           ['PgDn / PgUp', 'Scroll a page at a time'],
+          ['Space', 'Page down (pager-style)'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
