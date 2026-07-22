@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
 import { renderContextBar, renderTodoBar, renderChangeCount, renderHealthScore, spinnerFrame, actionHintBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
+import { highlightStreamLine } from '#/tui/components/panes/quest-expand-view';
 import { buildThumbnailStrip, renderThumbnailStripLine } from '#/tui/components/panes/thumbnail-strip';
 import type { Quest } from '#/tui/controllers/quest-types';
 
@@ -915,5 +916,28 @@ describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
 
     ctrl.ensureFocus();
     expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
+describe('Gen 69: cell stream preview colorization', () => {
+  it('highlightStreamLine preserves error line content', () => {
+    // In a colorless test theme fg() is a no-op, so assert content survives
+    // (the severity coloring itself is theme-dependent).
+    const out = highlightStreamLine('fatal: build failed');
+    expect(out).toContain('fatal: build failed');
+  });
+
+  it('highlightStreamLine preserves warning line content', () => {
+    const out = highlightStreamLine('warning: deprecated API');
+    expect(out).toContain('warning: deprecated API');
+  });
+
+  it('highlightStreamLine leaves ordinary lines untouched', () => {
+    expect(highlightStreamLine('all good here')).toBe('all good here');
+  });
+
+  it('highlightStreamLine does not double-color ANSI lines', () => {
+    const ansi = '\x1b[31malready red\x1b[0m';
+    expect(highlightStreamLine(ansi)).toBe(ansi);
   });
 });
