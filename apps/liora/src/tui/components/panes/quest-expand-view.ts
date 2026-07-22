@@ -328,9 +328,58 @@ export class QuestExpandView {
 
   /** Scroll so the given line index is visible (centered when possible). */
   private jumpToLine(lineIndex: number): void {
-    const maxOffset = Math.max(0, this.streamLines.length - this.maxVisibleLines);
+    // Gen 62: bound against the active buffer so jumps stay valid in diff-only
+    // mode too.
+    const maxOffset = Math.max(0, this.activeBuffer().length - this.maxVisibleLines);
     const target = Math.max(0, lineIndex - Math.floor(this.maxVisibleLines / 2));
     this.scrollOffset = Math.min(maxOffset, target);
+  }
+
+  /**
+   * Gen 62: jump to the next error/warning line after the current viewport.
+   * Returns true if a match was found. Wraps to the top when none is found
+   * below so repeated presses cycle through all problem lines.
+   */
+  jumpToNextError(): boolean {
+    const buffer = this.activeBuffer();
+    const start = this.scrollOffset + 1;
+    for (let i = start; i < buffer.length; i++) {
+      if (isProblemLine(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    // Wrap around from the top.
+    for (let i = 0; i < Math.min(start, buffer.length); i++) {
+      if (isProblemLine(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Gen 62: jump to the previous error/warning line before the current
+   * viewport. Returns true if a match was found. Wraps to the bottom.
+   */
+  jumpToPrevError(): boolean {
+    const buffer = this.activeBuffer();
+    const start = this.scrollOffset - 1;
+    for (let i = start; i >= 0; i--) {
+      if (isProblemLine(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    // Wrap around from the bottom.
+    for (let i = buffer.length - 1; i > start; i--) {
+      if (isProblemLine(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Get the currently visible lines. */
@@ -537,6 +586,15 @@ export class QuestExpandView {
 
 const ERROR_PATTERN = /\b(error|failed|exception|fatal|panic)\b/i;
 const WARNING_PATTERN = /\b(warning|warn|deprecated)\b/i;
+
+/**
+ * Gen 62: whether a line is an error/warning line (used by the e/E jump
+ * navigation). Mirrors the highlightStreamLine keywords so jumps land on the
+ * same lines that are visually emphasized.
+ */
+function isProblemLine(line: string): boolean {
+  return ERROR_PATTERN.test(line) || WARNING_PATTERN.test(line);
+}
 
 /**
  * Gen 20: highlight lines containing error/warning keywords so failures are
