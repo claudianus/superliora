@@ -105,6 +105,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
   private filterMode = false;
   private filterBuffer = '';
 
+  // Gen 44: track the pinned quest id to detect pin switches and jump the
+  // newly pinned expand view to the live tail.
+  private lastPinnedId: string | null = null;
+
   constructor(options: BentoDashboardOptions) {
     super();
     this.gridController = options.gridController;
@@ -375,6 +379,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
 
     const pinned = this.pinController.getPinnedQuest();
+    // Gen 44: when the pin switches to a different quest, jump its expand
+    // view to the live tail so the operator immediately sees current output.
+    const pinnedId = pinned?.id ?? null;
+    if (pinnedId !== null && pinnedId !== this.lastPinnedId) {
+      this.expandViews.get(pinnedId)?.scrollToBottom();
+    }
+    this.lastPinnedId = pinnedId;
     // Gen 22: help overlay replaces the normal view while visible.
     if (this.helpVisible) {
       return this.renderHelp(pinned !== null, width);
@@ -442,7 +453,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 19: summary bar — total quests, attention count, total cost.
     const attentionCount = quests.filter((q) => ATTENTION_STATES.has(q.state)).length;
     const totalCost = quests.reduce((sum, q) => sum + (q.sessionCostUsd ?? 0), 0);
+    // Gen 44: state breakdown for a fleet-status overview at a glance.
+    const runningCount = quests.filter((q) => q.state === 'running').length;
+    const doneCount = quests.filter((q) => q.state === 'done').length;
     const summaryParts = [`${String(quests.length)} quests`];
+    if (runningCount > 0) {
+      summaryParts.push(`● ${String(runningCount)} running`);
+    }
+    if (doneCount > 0) {
+      summaryParts.push(`✓ ${String(doneCount)} done`);
+    }
     if (attentionCount > 0) {
       summaryParts.push(`⚡ ${String(attentionCount)} need attention`);
     }
