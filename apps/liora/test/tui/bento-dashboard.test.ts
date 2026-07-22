@@ -214,3 +214,43 @@ describe('Gen 24: dashboard quest filtering', () => {
     expect(ctrl.getFilter()).toBe('fix');
   });
 });
+
+describe('Gen 25: jump to next attention quest (Tab)', () => {
+  it('cycles focus only through attention states', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'waiting-approval' }));
+    ctrl.addQuest(makeQuest('c', { state: 'running' }));
+    ctrl.addQuest(makeQuest('d', { state: 'failed' }));
+
+    // First Tab lands on the first attention quest (priority order).
+    ctrl.focusNextAttention();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+    ctrl.focusNextAttention();
+    expect(ctrl.getFocusedQuestId()).toBe('d');
+    // Wraps back to the first attention quest, skipping running ones.
+    ctrl.focusNextAttention();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+  });
+
+  it('is a no-op when no quest needs attention', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'idle' }));
+
+    ctrl.focusNextAttention();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+
+  it('resumes from the currently focused quest if it needs attention', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('b', { state: 'waiting-approval' }));
+    ctrl.addQuest(makeQuest('c', { state: 'failed' }));
+
+    // Priority order of attention quests: b (waiting-approval), a, c (failed).
+    ctrl.setFocusedQuest('a');
+    ctrl.focusNextAttention();
+    expect(ctrl.getFocusedQuestId()).toBe('c');
+  });
+});

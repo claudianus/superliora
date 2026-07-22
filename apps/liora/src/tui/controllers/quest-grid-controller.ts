@@ -204,6 +204,25 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 25: move focus to the next quest that needs attention
+   * (waiting-approval or failed), cycling within that subset only.
+   * No-op when no quest needs attention.
+   */
+  focusNextAttention(): void {
+    const attentionIds = this.sortedQuestIds().filter((id) => {
+      const quest = this.quests.get(id);
+      return quest !== undefined && ATTENTION_STATES.has(quest.state);
+    });
+    if (attentionIds.length === 0) return;
+    const currentIdx = this.focusedQuestId
+      ? attentionIds.indexOf(this.focusedQuestId)
+      : -1;
+    const nextIdx = (currentIdx + 1) % attentionIds.length;
+    this.focusedQuestId = attentionIds[nextIdx]!;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 17: quest ids ordered by display priority (attention states first),
    * stable within the same priority. Used for rendering, focus navigation,
    * and panel spec ordering so the grid and keyboard order agree.

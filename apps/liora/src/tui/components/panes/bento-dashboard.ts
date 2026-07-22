@@ -268,6 +268,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 25: Tab → jump to the next quest that needs attention.
+    if (matchesKey(data, Key.tab)) {
+      this.gridController.focusNextAttention();
+      return;
+    }
+
     // Enter or p → toggle pin on focused quest
     if (matchesKey(data, Key.enter) || k === 'p') {
       const focusedId = this.gridController.getFocusedQuestId();
@@ -340,6 +346,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
         ]
       : [
           ['j / k  ↓ ↑', 'Move focus between quests'],
+          ['Tab', 'Jump to the next quest needing attention'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
           ['a / x / r', 'Approve / reject / rewind focused quest'],
