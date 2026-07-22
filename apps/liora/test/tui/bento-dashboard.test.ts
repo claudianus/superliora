@@ -291,3 +291,58 @@ describe('Gen 26: attention-only toggle', () => {
     expect(ctrl.getQuests().map((q) => q.id)).toEqual(['auth-bug']);
   });
 });
+
+describe('Gen 27: auto-pin on attention transition', () => {
+  it('fires onAttentionTransition when a quest enters waiting-approval', () => {
+    const transitions: Array<[string, string]> = [];
+    const ctrl = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      onAttentionTransition: (id, state) => transitions.push([id, state]),
+    });
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+
+    ctrl.updateQuestState('a', 'waiting-approval');
+    expect(transitions).toEqual([['a', 'waiting-approval']]);
+  });
+
+  it('fires onAttentionTransition when a quest enters failed', () => {
+    const transitions: Array<[string, string]> = [];
+    const ctrl = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      onAttentionTransition: (id, state) => transitions.push([id, state]),
+    });
+    ctrl.addQuest(makeQuest('b', { state: 'running' }));
+
+    ctrl.updateQuestState('b', 'failed');
+    expect(transitions).toEqual([['b', 'failed']]);
+  });
+
+  it('does not fire when already in an attention state', () => {
+    const transitions: Array<[string, string]> = [];
+    const ctrl = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      onAttentionTransition: (id, state) => transitions.push([id, state]),
+    });
+    ctrl.addQuest(makeQuest('c', { state: 'waiting-approval' }));
+
+    // Already attention → no transition callback.
+    ctrl.updateQuestState('c', 'waiting-approval');
+    expect(transitions).toEqual([]);
+  });
+
+  it('does not fire for non-attention transitions', () => {
+    const transitions: Array<[string, string]> = [];
+    const ctrl = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      onAttentionTransition: (id, state) => transitions.push([id, state]),
+    });
+    ctrl.addQuest(makeQuest('d', { state: 'running' }));
+
+    ctrl.updateQuestState('d', 'done');
+    expect(transitions).toEqual([]);
+  });
+});

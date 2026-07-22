@@ -62,6 +62,9 @@ export class QuestGridController {
   private bentoLayout: BentoGridLayout | null = null;
   private readonly getViewport: () => RendererRect;
   private readonly requestRender: () => void;
+  private readonly onAttentionTransition:
+    | ((questId: string, state: QuestState) => void)
+    | undefined;
   // Gen 24: dashboard filter query (matches name or state).
   private filterQuery = '';
   // Gen 26: show only attention-needing quests.
@@ -70,6 +73,7 @@ export class QuestGridController {
   constructor(options: QuestGridControllerOptions) {
     this.getViewport = options.getViewport;
     this.requestRender = options.requestRender;
+    this.onAttentionTransition = options.onAttentionTransition;
   }
 
   // -------------------------------------------------------------------------
@@ -98,12 +102,17 @@ export class QuestGridController {
   updateQuestState(questId: string, state: QuestState): void {
     const quest = this.quests.get(questId);
     if (!quest) return;
+    const wasAttention = ATTENTION_STATES.has(quest.state);
     this.quests.set(questId, {
       ...quest,
       state,
       lastActivityAt: Date.now(),
       approvalPending: state === 'waiting-approval',
     });
+    // Gen 27: notify on transition into an attention state (not when already there).
+    if (!wasAttention && ATTENTION_STATES.has(state)) {
+      this.onAttentionTransition?.(questId, state);
+    }
     this.requestRender();
   }
 

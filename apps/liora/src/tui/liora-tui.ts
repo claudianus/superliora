@@ -4064,7 +4064,14 @@ export class LioraTUI {
         return rect ?? { x: 0, y: 0, width: 120, height: 40 };
       };
       const requestRender = () => requestTUIContentRender(this.state);
-      this.questGridController = new QuestGridController({ getViewport, requestRender });
+      this.questGridController = new QuestGridController({
+        getViewport,
+        requestRender,
+        // Gen 27: auto-pin quests that transition into an attention state.
+        onAttentionTransition: (questId) => {
+          this.questPinController?.pin(questId);
+        },
+      });
       this.questAttentionController = new AttentionController({
         writeRaw: (data) => { process.stdout.write(data); },
         requestRender,
