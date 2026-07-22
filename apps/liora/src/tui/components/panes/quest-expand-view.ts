@@ -31,6 +31,17 @@ export interface ExpandViewState {
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Gen 42: maximum lines retained in the live stream buffer. Long-running
+ * sessions can produce unbounded output; capping the buffer prevents memory
+ * growth while keeping ample scrollback for review.
+ */
+export const MAX_STREAM_LINES = 500;
+
+// ---------------------------------------------------------------------------
 // QuestExpandView
 // ---------------------------------------------------------------------------
 
@@ -63,6 +74,7 @@ export class QuestExpandView {
   appendLine(line: string): void {
     const followBottom = this.isAtBottom();
     this.streamLines.push(line);
+    this.trimToCap();
     if (followBottom) {
       // Auto-scroll to bottom only when already following the tail.
       this.scrollOffset = Math.max(
@@ -78,6 +90,7 @@ export class QuestExpandView {
     for (const line of lines) {
       this.streamLines.push(line);
     }
+    this.trimToCap();
     if (followBottom) {
       this.scrollOffset = Math.max(
         0,
@@ -86,10 +99,27 @@ export class QuestExpandView {
     }
   }
 
+  /**
+   * Gen 42: enforce the stream buffer cap. When the buffer overflows, drop
+   * the oldest lines and shift the scroll offset down by the same amount so
+   * the visible window stays put while reviewing history.
+   */
+  private trimToCap(): void {
+    const overflow = this.streamLines.length - MAX_STREAM_LINES;
+    if (overflow <= 0) return;
+    this.streamLines.splice(0, overflow);
+    this.scrollOffset = Math.max(0, this.scrollOffset - overflow);
+  }
+
   /** Clear the stream. */
   clear(): void {
     this.streamLines = [];
     this.scrollOffset = 0;
+  }
+
+  /** Gen 42: number of lines currently retained in the stream buffer. */
+  getLineCount(): number {
+    return this.streamLines.length;
   }
 
   /** Scroll up by n lines. */

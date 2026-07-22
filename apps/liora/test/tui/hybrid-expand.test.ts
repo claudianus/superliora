@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PinController } from '#/tui/controllers/pin-controller';
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
-import { QuestExpandView } from '#/tui/components/panes/quest-expand-view';
+import { QuestExpandView, MAX_STREAM_LINES } from '#/tui/components/panes/quest-expand-view';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -307,6 +307,39 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(visible).toHaveLength(3);
     expect(visible[0]).toBe('line 7');
     expect(visible[2]).toBe('line 9');
+  });
+
+  it('Gen 42: caps the stream buffer at MAX_STREAM_LINES', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    const total = MAX_STREAM_LINES + 50;
+    for (let i = 0; i < total; i++) {
+      view.appendLine(`line ${i}`);
+    }
+
+    // Buffer never exceeds the cap; oldest lines are dropped.
+    expect(view.getLineCount()).toBe(MAX_STREAM_LINES);
+    const visible = view.getVisibleLines();
+    // Still parked at the tail — the newest lines are visible.
+    expect(visible[visible.length - 1]).toBe(`line ${total - 1}`);
+  });
+
+  it('Gen 42: keeps the visible window stable when trimming while scrolled up', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < MAX_STREAM_LINES; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // Scroll to the very top.
+    view.scrollToTop();
+    const before = view.getVisibleLines();
+    expect(before[0]).toBe('line 0');
+
+    // Overflow the cap; the oldest line is dropped and the offset shifts so
+    // the window still shows the same relative position.
+    view.appendLine('overflow');
+    expect(view.getLineCount()).toBe(MAX_STREAM_LINES);
+    expect(view.getVisibleLines()[0]).toBe('line 1');
   });
 
   it('expand view scroll up/down works', () => {
