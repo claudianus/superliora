@@ -173,6 +173,68 @@ export interface Quest {
 }
 
 // ---------------------------------------------------------------------------
+// Gen 47: Quest Health Score
+// ---------------------------------------------------------------------------
+
+/**
+ * Gen 47: compute a 0–100 health score for a quest. Higher is healthier.
+ *
+ * The score blends three signals:
+ *  - State: attention states (waiting-approval, failed) anchor the score low;
+ *    running/idle are healthy; done is neutral-good.
+ *  - Idle duration: a long silence on a non-terminal quest erodes health.
+ *  - Context pressure: high context-window usage erodes health.
+ *
+ * Pure and deterministic (given `now`) so it is trivially unit-testable and
+ * reusable for future sorting / highlight heuristics.
+ */
+export function questHealthScore(quest: Quest, now: number): number {
+  // Base score from lifecycle state.
+  let score: number;
+  switch (quest.state) {
+    case 'waiting-approval':
+      score = 25;
+      break;
+    case 'failed':
+      score = 10;
+      break;
+    case 'blocked':
+      score = 45;
+      break;
+    case 'running':
+      score = 90;
+      break;
+    case 'idle':
+      score = 70;
+      break;
+    case 'done':
+      score = 80;
+      break;
+    default: {
+      const _exhaustive: never = quest.state;
+      score = _exhaustive;
+    }
+  }
+
+  // Idle penalty: only for live (non-terminal) quests. Lose up to 30 points
+  // over 15 minutes of silence.
+  const terminal = quest.state === 'done' || quest.state === 'failed';
+  if (!terminal) {
+    const idleMs = Math.max(0, now - quest.lastActivityAt);
+    const idlePenalty = Math.min(30, (idleMs / (15 * 60_000)) * 30);
+    score -= idlePenalty;
+  }
+
+  // Context penalty: lose up to 20 points as usage approaches 100%.
+  if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
+    const usage = Math.max(0, Math.min(1, quest.contextUsage));
+    score -= usage * 20;
+  }
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+// ---------------------------------------------------------------------------
 // Cell Bounds (bento grid position)
 // ---------------------------------------------------------------------------
 
