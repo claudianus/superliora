@@ -172,6 +172,12 @@ export class WorkspaceController {
   private reflowToWidth: { left: number; right: number } = { left: 0, right: 0 };
   private reflowWasDragging = false;
 
+  // Forced-dock overlay: the dock the user most recently toggled via a
+  // shortcut/command. When toggling that dock visible would otherwise be
+  // hidden by the current breakpoint (narrow hides both docks; medium hides
+  // the left dock), it is shown instead as an inset drawer inside the shell.
+  private lastToggledDock: 'left' | 'right' | null = null;
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -228,7 +234,7 @@ export class WorkspaceController {
       height: ctx.terminalRows,
     };
 
-    const layout = measureWorkspaceLayout({
+    let layout = measureWorkspaceLayout({
       viewport,
       leftDockWidth: layoutOptions.leftDockWidth,
       rightDockWidth: layoutOptions.rightDockWidth,
@@ -236,8 +242,30 @@ export class WorkspaceController {
       rightDockVisible: layoutOptions.rightDockVisible,
     });
 
+    // Forced-dock overlay: if the dock the user last toggled ended up
+    // visible but the current breakpoint would still hide it structurally
+    // (narrow hides both docks; medium hides the left dock), re-measure
+    // with that dock shown as an inset drawer instead.
+    const drawerDock = this.lastToggledDock;
+    const drawerWouldBeHidden =
+      layout.mode !== 'wide' &&
+      drawerDock !== null &&
+      (drawerDock === 'left'
+        ? layoutOptions.leftDockVisible && !layout.leftDock
+        : layoutOptions.rightDockVisible && !layout.rightDock);
+    if (drawerWouldBeHidden) {
+      layout = measureWorkspaceLayout({
+        viewport,
+        leftDockWidth: layoutOptions.leftDockWidth,
+        rightDockWidth: layoutOptions.rightDockWidth,
+        leftDockVisible: layoutOptions.leftDockVisible,
+        rightDockVisible: layoutOptions.rightDockVisible,
+        drawerDock: drawerDock ?? undefined,
+      });
+    }
+
     // Only return layout if it has side panels
-    if (layout.mode === 'narrow' || (!layout.leftDock && !layout.rightDock)) {
+    if (!layout.leftDock && !layout.rightDock) {
       this.currentLayout = null;
       // Force a fresh shell settle the next time the workspace reappears.
       this.lastShellSettleColumns = -1;
@@ -841,6 +869,7 @@ export class WorkspaceController {
     // Ctrl+B: toggle left dock
     if (event.key === 'character' && event.text === 'b') {
       this.panelManager.toggleDock('left');
+      this.lastToggledDock = 'left';
       this.requestRender();
       return true;
     }
@@ -848,6 +877,7 @@ export class WorkspaceController {
     // Ctrl+N: toggle right dock (using 'n' for "navigation panel")
     if (event.key === 'character' && event.text === 'n') {
       this.panelManager.toggleDock('right');
+      this.lastToggledDock = 'right';
       this.requestRender();
       return true;
     }
@@ -1287,9 +1317,11 @@ export class WorkspaceController {
     switch (id) {
       case 'toggle-left':
         this.panelManager.toggleDock('left');
+        this.lastToggledDock = 'left';
         break;
       case 'toggle-right':
         this.panelManager.toggleDock('right');
+        this.lastToggledDock = 'right';
         break;
       case 'toggle-dock-mode': {
         const focusedId = this.panelManager.getFocusedPanelId();

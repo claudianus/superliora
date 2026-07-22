@@ -56,3 +56,91 @@ describe('measureWorkspaceLayout shell', () => {
     expect(layout.rightDock!.width).toBe(DEFAULT_RIGHT_DOCK_WIDTH);
   });
 });
+
+describe('measureWorkspaceLayout forced drawer', () => {
+  it('narrow + drawerDock right + rightDockVisible shows an inset drawer rect', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 100, height: 40 },
+      drawerDock: 'right',
+    });
+    expect(layout.mode).toBe('narrow');
+    // center stays the full shell — the drawer floats over it, not beside it.
+    expect(layout.center).toEqual(layout.shell);
+    expect(layout.leftDock).toBeUndefined();
+    expect(layout.rightDock).toBeDefined();
+    const rect = layout.rightDock!.rect;
+    expect(rect.height).toBe(layout.shell.height);
+    expect(rect.y).toBe(layout.shell.y);
+    // flush to the shell's right edge (no gap for an overlay drawer).
+    expect(rect.x + rect.width).toBe(layout.shell.x + layout.shell.width);
+    expect(rect.width).toBe(Math.min(DEFAULT_RIGHT_DOCK_WIDTH, layout.shell.width - 4));
+  });
+
+  it('narrow + drawerDock left + leftDockVisible shows an inset drawer rect', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 100, height: 40 },
+      drawerDock: 'left',
+    });
+    expect(layout.mode).toBe('narrow');
+    expect(layout.leftDock).toBeDefined();
+    expect(layout.rightDock).toBeUndefined();
+    const rect = layout.leftDock!.rect;
+    // flush to the shell's left edge.
+    expect(rect.x).toBe(layout.shell.x);
+    expect(rect.width).toBe(Math.min(DEFAULT_LEFT_DOCK_WIDTH, layout.shell.width - 4));
+  });
+
+  it('narrow without drawerDock still shows no docks (unchanged default)', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 100, height: 40 },
+    });
+    expect(layout.leftDock).toBeUndefined();
+    expect(layout.rightDock).toBeUndefined();
+  });
+
+  it('narrow + drawerDock right but rightDockVisible false shows no drawer', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 100, height: 40 },
+      drawerDock: 'right',
+      rightDockVisible: false,
+    });
+    expect(layout.rightDock).toBeUndefined();
+    expect(layout.center).toEqual(layout.shell);
+  });
+
+  it('medium + drawerDock left + leftDockVisible overlays left drawer without disturbing the structural right dock', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 130, height: 40 },
+      drawerDock: 'left',
+    });
+    expect(layout.mode).toBe('medium');
+    // Right dock still shows structurally (rightDockVisible defaults true).
+    expect(layout.rightDock).toBeDefined();
+    expect(layout.leftDock).toBeDefined();
+    const rect = layout.leftDock!.rect;
+    expect(rect.x).toBe(layout.shell.x);
+    expect(rect.height).toBe(layout.shell.height);
+    expect(rect.width).toBe(Math.min(DEFAULT_LEFT_DOCK_WIDTH, layout.shell.width - 4));
+  });
+
+  it('medium without drawerDock keeps the existing left-hide behavior', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 130, height: 40 },
+    });
+    expect(layout.mode).toBe('medium');
+    expect(layout.leftDock).toBeUndefined();
+    expect(layout.rightDock).toBeDefined();
+  });
+
+  it('wide mode ignores drawerDock (docks are already structural)', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 200, height: 50 },
+      drawerDock: 'left',
+      leftDockVisible: false,
+    });
+    expect(layout.mode).toBe('wide');
+    // leftDockVisible: false means no left dock at all — drawer does not
+    // force it back on in wide mode.
+    expect(layout.leftDock).toBeUndefined();
+  });
+});

@@ -37,6 +37,14 @@ export interface WorkspaceLayoutOptions {
   readonly shellInsetX?: number;
   /** Vertical inset from viewport edges (rows). @default DEFAULT_SHELL_INSET_Y */
   readonly shellInsetY?: number;
+  /**
+   * Dock to show as an inset overlay drawer inside the shell when the
+   * current mode would otherwise hide it (narrow hides both docks; medium
+   * hides the left dock). Set by the caller after the user explicitly
+   * toggles that dock visible below the breakpoint that hides it. Has no
+   * effect in wide mode, or when the dock is already shown structurally.
+   */
+  readonly drawerDock?: WorkspaceDockId;
 }
 
 export interface WorkspaceDockLayout {
@@ -123,21 +131,19 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
   // Determine layout mode from viewport width (terminal size), not shell width
   const mode = resolveLayoutMode(cols, wideBreakpoint, mediumBreakpoint);
 
+  const visibility = { leftDockVisible, rightDockVisible };
+  const dockWidths = { left: leftDockWidth, right: rightDockWidth };
+
   if (mode === 'narrow') {
-    return { mode, ...layoutMeta, center: shell };
+    const result = { mode, ...layoutMeta, center: shell };
+    return applyDrawerOverlay(result, layoutMeta, options.drawerDock, visibility, dockWidths);
   }
 
   if (mode === 'medium') {
-    if (!rightDockVisible) {
-      return { mode, ...layoutMeta, center: shell };
-    }
-    return computeTwoColumnLayout(
-      layoutMeta,
-      rightDockWidth,
-      centerMinWidth,
-      dockGap,
-      'right',
-    );
+    const result = !rightDockVisible
+      ? { mode, ...layoutMeta, center: shell }
+      : computeTwoColumnLayout(layoutMeta, rightDockWidth, centerMinWidth, dockGap, 'right');
+    return applyDrawerOverlay(result, layoutMeta, options.drawerDock, visibility, dockWidths);
   }
 
   // Wide mode
@@ -164,6 +170,46 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
     centerMinWidth,
     dockGap,
   );
+}
+
+/**
+ * Overlays `drawerDock` onto `result` as an inset drawer inside the shell,
+ * when that side is visible but isn't already shown structurally (narrow
+ * shows no docks; medium shows only the right dock). The drawer floats over
+ * whatever `result.center`/other dock already occupy — it does not reflow
+ * them.
+ */
+function applyDrawerOverlay(
+  result: WorkspaceLayoutResult,
+  meta: WorkspaceLayoutMeta,
+  drawerDock: WorkspaceDockId | undefined,
+  visibility: { leftDockVisible: boolean; rightDockVisible: boolean },
+  dockWidths: { left: number; right: number },
+): WorkspaceLayoutResult {
+  if (!drawerDock) return result;
+
+  const alreadyShown = drawerDock === 'left' ? result.leftDock : result.rightDock;
+  if (alreadyShown) return result;
+
+  const visible = drawerDock === 'left' ? visibility.leftDockVisible : visibility.rightDockVisible;
+  if (!visible) return result;
+
+  const requestedWidth = drawerDock === 'left' ? dockWidths.left : dockWidths.right;
+  const rect = computeDrawerRect(meta.shell, requestedWidth, drawerDock);
+  const dock: WorkspaceDockLayout = { id: drawerDock, rect, width: rect.width };
+
+  return drawerDock === 'left' ? { ...result, leftDock: dock } : { ...result, rightDock: dock };
+}
+
+/** Inset drawer rect: flush to the shell edge on `side`, full shell height. */
+function computeDrawerRect(shell: RendererRect, requestedWidth: number, side: WorkspaceDockId): RendererRect {
+  const width = Math.max(1, Math.min(requestedWidth, shell.width - 4));
+  return {
+    x: side === 'left' ? shell.x : shell.x + shell.width - width,
+    y: shell.y,
+    width,
+    height: shell.height,
+  };
 }
 
 // ---------------------------------------------------------------------------
