@@ -27,6 +27,8 @@ export interface PinControllerOptions {
 export class PinController {
   private readonly gridController: QuestGridController;
   private readonly requestRender: () => void;
+  // Gen 37: stack of previously pinned quest ids for quick back-navigation.
+  private readonly pinHistory: string[] = [];
 
   constructor(options: PinControllerOptions) {
     this.gridController = options.gridController;
@@ -35,6 +37,7 @@ export class PinController {
 
   /** Toggle pin on a quest. If already pinned, unpin. */
   togglePin(questId: string): void {
+    this.recordHistory(this.gridController.getPinnedQuestId());
     this.gridController.togglePin(questId);
     this.requestRender();
   }
@@ -42,6 +45,7 @@ export class PinController {
   /** Pin a specific quest (no-op if already pinned). */
   pin(questId: string): void {
     if (this.gridController.getPinnedQuestId() !== questId) {
+      this.recordHistory(this.gridController.getPinnedQuestId());
       this.gridController.togglePin(questId);
       this.requestRender();
     }
@@ -54,6 +58,42 @@ export class PinController {
       this.gridController.togglePin(pinnedId);
       this.requestRender();
     }
+  }
+
+  /**
+   * Gen 37: push the outgoing pinned quest onto the history stack. Only
+   * records a real, different quest so the back-stack stays meaningful.
+   */
+  private recordHistory(outgoingPinnedId: string | null): void {
+    if (outgoingPinnedId === null) return;
+    const top = this.pinHistory[this.pinHistory.length - 1];
+    if (top === outgoingPinnedId) return;
+    this.pinHistory.push(outgoingPinnedId);
+  }
+
+  /**
+   * Gen 37: re-pin the most recently viewed quest (LIFO). Returns true when
+   * a previous quest was restored, false when the history is empty or the
+   * target no longer exists.
+   */
+  pinPrevious(): boolean {
+    while (this.pinHistory.length > 0) {
+      const prevId = this.pinHistory.pop()!;
+      // Skip ids that no longer resolve to a live quest.
+      if (this.gridController.getQuest(prevId) === undefined) continue;
+      if (this.gridController.getPinnedQuestId() === prevId) continue;
+      // Push the outgoing pin so the user can navigate forward again.
+      this.recordHistory(this.gridController.getPinnedQuestId());
+      this.gridController.togglePin(prevId);
+      this.requestRender();
+      return true;
+    }
+    return false;
+  }
+
+  /** Gen 37: whether there is a previous pin to go back to. */
+  get canPinPrevious(): boolean {
+    return this.pinHistory.length > 0;
   }
 
   /** Whether any quest is pinned. */

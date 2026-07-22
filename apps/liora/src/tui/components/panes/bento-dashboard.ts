@@ -250,6 +250,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.pinController.togglePin(pinned.id);
         return;
       }
+      // Gen 37: - → jump back to the previously pinned quest.
+      if (k === '-') {
+        this.pinController.pinPrevious();
+        return;
+      }
       // Gen 6b: 1–9 → jump directly to the Nth thumbnail quest (switch_context).
       if (k.length === 1 && k >= '1' && k <= '9') {
         const stripQuests = this.pinController.getStripQuests();
@@ -371,6 +376,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['Enter / p', 'Unpin back to the grid'],
+          ['-', 'Jump back to the previously pinned quest'],
           ['1–9', 'Jump to the Nth thumbnail quest'],
           ['a / x / r', 'Approve / reject / rewind approval'],
           ['? / Esc', 'Close this help'],

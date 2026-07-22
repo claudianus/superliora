@@ -96,6 +96,65 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(pin.getStripQuests()).toEqual([]);
   });
 
+  it('Gen 37: pinPrevious returns to the previously pinned quest', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pin('b');
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+    expect(pin.canPinPrevious).toBe(true);
+
+    expect(pin.pinPrevious()).toBe(true);
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 37: pinPrevious allows navigating forward again', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pin('b');
+    pin.pinPrevious(); // → a
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+
+    // The outgoing pin (b) was pushed, so we can go forward again.
+    expect(pin.pinPrevious()).toBe(true);
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+  });
+
+  it('Gen 37: pinPrevious returns false with empty history', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    expect(pin.canPinPrevious).toBe(false);
+    expect(pin.pinPrevious()).toBe(false);
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 37: pinPrevious skips quests that were removed', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pin('b');
+    pin.pin('c');
+    // Remove b so the back-stack must skip it and land on a.
+    grid.removeQuest('b');
+
+    expect(pin.pinPrevious()).toBe(true);
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
   it('pinned quest cell gets larger span in layout', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));
