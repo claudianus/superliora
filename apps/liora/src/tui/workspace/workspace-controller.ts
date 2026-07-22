@@ -537,8 +537,15 @@ export class WorkspaceController {
 
       // Content rows with subtle side borders
       const borderColor = isFocused ? 'primary' : 'border';
+      const hasContent = contentLines.some((line) => line.trim().length > 0);
       for (let row = 0; row < contentHeight; row++) {
-        const contentLine = contentLines[row] ?? '';
+        let contentLine = contentLines[row] ?? '';
+        // Empty state placeholder for focused panels
+        if (!hasContent && isFocused && row === Math.floor(contentHeight / 2)) {
+          const hint = currentTheme.dimFg('textMuted', '(empty)');
+          const pad = Math.max(0, Math.floor((contentWidth - 7) / 2));
+          contentLine = ' '.repeat(pad) + hint;
+        }
         const paddedContent = contentLine.padEnd(contentWidth).slice(0, contentWidth);
         const leftBorder = currentTheme.fg(borderColor, vertChar);
         const rightBorder = currentTheme.fg(borderColor, vertChar);
