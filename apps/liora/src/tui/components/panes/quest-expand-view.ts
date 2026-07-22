@@ -15,6 +15,8 @@ import {
   formatChangeCount,
   formatElapsed,
   questStateColorToken,
+  renderContextBar,
+  renderTodoBar,
 } from '../../controllers/quest-types';
 
 // ---------------------------------------------------------------------------
@@ -256,14 +258,14 @@ export class QuestExpandView {
     lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
 
     // Third header line: todo progress + context usage + plan step
+    // Gen 36: mini-bars match the dashboard cells for consistent scanning.
     const progressParts: string[] = [];
     if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
       const { done, total } = quest.todoProgress;
-      progressParts.push(`☑ ${String(done)}/${String(total)}`);
+      progressParts.push(renderTodoBar(done, total));
     }
     if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
-      const pct = Math.round(quest.contextUsage * 100);
-      progressParts.push(`ctx ${String(pct)}%`);
+      progressParts.push(renderContextBar(quest.contextUsage));
     }
     const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
     // Gen 13: surface the pending approval in the header when awaiting one.

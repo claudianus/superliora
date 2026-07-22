@@ -35,6 +35,8 @@ import {
   formatElapsed,
   questStateIcon,
   questStateColorToken,
+  renderContextBar,
+  renderTodoBar,
   sortModeLabel,
   type Quest,
   type QuestChangeCount,
@@ -607,29 +609,11 @@ function shorten(path: string, maxLen: number): string {
 }
 
 /**
- * Gen 29: render a compact context-usage bar, e.g. `ctx ▓▓▓░░ 62%`.
- * The bar fills proportionally so context pressure is scannable at a glance.
+ * Gen 29 / Gen 31 / Gen 36: mini-bar renderers live in quest-types so the
+ * dashboard cells and the expand-view header share one implementation.
+ * Re-exported here to keep the existing import path stable.
  */
-export function renderContextBar(usage: number): string {
-  const pct = Math.max(0, Math.min(100, Math.round(usage * 100)));
-  const cells = 5;
-  const filled = Math.round((pct / 100) * cells);
-  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
-  return `ctx ${bar} ${String(pct)}%`;
-}
-
-/**
- * Gen 31: render a compact todo-progress bar, e.g. `☑ ▓▓▓░░ 3/5`.
- * Mirrors the context bar so parallel quest progress is scannable at a glance.
- */
-export function renderTodoBar(done: number, total: number): string {
-  const safeTotal = Math.max(1, total);
-  const ratio = Math.max(0, Math.min(1, done / safeTotal));
-  const cells = 5;
-  const filled = Math.round(ratio * cells);
-  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
-  return `☑ ${bar} ${String(done)}/${String(total)}`;
-}
+export { renderContextBar, renderTodoBar } from '../../controllers/quest-types';
 
 /**
  * Gen 32: render the change-count stats with semantic colors — additions in
