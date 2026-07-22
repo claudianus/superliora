@@ -34,6 +34,7 @@ import {
   formatElapsed,
   questStateIcon,
   type Quest,
+  type QuestState,
 } from '../../controllers/quest-types';
 
 // ---------------------------------------------------------------------------
@@ -233,12 +234,21 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     const progress = progressParts.length > 0 ? `  ${progressParts.join('  ')}` : '';
 
-    const line1 = `${focusIndicator}${marker}${icon} ${quest.name}  [${quest.state}]`;
+    // Gen 12: color-code the state icon + badge for at-a-glance scanning.
+    const stateToken = stateColorToken(quest.state);
+    const badgeText = `${icon} [${quest.state}]`;
+    const badge = currentTheme.fg(stateToken, badgeText);
+    const prefix = `${focusIndicator}${marker}`;
+    // Use the plain-text badge length (not ANSI-inflated) for the name budget.
+    const nameBudget = Math.max(1, width - prefix.length - badgeText.length - 2);
+    const name = quest.name.length > nameBudget ? quest.name.slice(0, nameBudget) : quest.name;
+    const line1 = `${prefix}${badge} ${name}`;
     const line2 = `${focusIndicator}  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
     const line3 = `${focusIndicator}  ▸ ${quest.planStep}`;
 
     return [
-      clip(line1, width),
+      // line1 is width-managed manually (badge carries ANSI color), so skip clip.
+      line1,
       currentTheme.dim(clip(line2, width)),
       currentTheme.dim(clip(line3, width)),
     ];
@@ -281,6 +291,30 @@ export class BentoDashboardComponent extends Container implements Focusable {
 function clip(line: string, width: number): string {
   if (width <= 0) return '';
   return line.length > width ? line.slice(0, width) : line;
+}
+
+/**
+ * Gen 12: map a quest state to its theme color token so the 6 lifecycle
+ * states are scannable at a glance.
+ */
+function stateColorToken(state: QuestState): 'textMuted' | 'accent' | 'warning' | 'success' | 'error' {
+  switch (state) {
+    case 'idle':
+      return 'textMuted';
+    case 'running':
+      return 'accent';
+    case 'blocked':
+    case 'waiting-approval':
+      return 'warning';
+    case 'done':
+      return 'success';
+    case 'failed':
+      return 'error';
+    default: {
+      const _exhaustive: never = state;
+      return _exhaustive;
+    }
+  }
 }
 
 function shorten(path: string, maxLen: number): string {
