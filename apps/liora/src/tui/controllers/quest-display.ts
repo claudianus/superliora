@@ -209,3 +209,15 @@ export function formatTodoProgress(progress: { done: number; total: number } | u
   if (progress === undefined || progress.total <= 0) return null;
   return `${String(progress.done)}/${String(progress.total)}`;
 }
+
+/**
+ * Gen 66: a compact context-window usage label, e.g. "62%". The usage is a
+ * 0–1 fraction; it is clamped and rounded to a whole percent. Returns null
+ * when the usage is undefined or not positive so callers can hide the segment
+ * entirely.
+ */
+export function formatContextUsage(usage: number | undefined): string | null {
+  if (usage === undefined || usage <= 0) return null;
+  const percent = Math.round(Math.max(0, Math.min(1, usage)) * 100);
+  return `${String(percent)}%`;
+}

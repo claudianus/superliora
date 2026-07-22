@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatAttentionSummary,
+  formatContextUsage,
   formatCostUsd,
   formatEscalationBadge,
   formatEscalationSummary,
@@ -320,5 +321,27 @@ describe('formatTodoProgress (Gen 65)', () => {
     expect(formatTodoProgress({ done: 3, total: 5 })).toBe('3/5');
     expect(formatTodoProgress({ done: 0, total: 4 })).toBe('0/4');
     expect(formatTodoProgress({ done: 7, total: 7 })).toBe('7/7');
+  });
+});
+
+describe('formatContextUsage (Gen 66)', () => {
+  it('returns null when the usage is undefined', () => {
+    expect(formatContextUsage(undefined)).toBeNull();
+  });
+
+  it('returns null when the usage is zero or negative', () => {
+    expect(formatContextUsage(0)).toBeNull();
+    expect(formatContextUsage(-0.1)).toBeNull();
+  });
+
+  it('formats a fraction as a whole percent', () => {
+    expect(formatContextUsage(0.62)).toBe('62%');
+    expect(formatContextUsage(0.625)).toBe('63%');
+    expect(formatContextUsage(1)).toBe('100%');
+  });
+
+  it('clamps out-of-range values', () => {
+    expect(formatContextUsage(1.5)).toBe('100%');
+    expect(formatContextUsage(0.001)).toBe('0%');
   });
 });
