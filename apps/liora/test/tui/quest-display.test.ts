@@ -20,6 +20,7 @@ import {
   formatTotalCostUsd,
   formatUrgencyRank,
   classifyHealthSeverity,
+  buildFleetSummarySnapshot,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -535,5 +536,62 @@ describe('formatFleetModelSummary (Gen 73)', () => {
       makeQuest('c', { state: 'running' }),
     ];
     expect(formatFleetModelSummary(quests)).toBe('1 claude');
+  });
+});
+
+describe('buildFleetSummarySnapshot (Gen 74)', () => {
+  it('returns all-null segments and an empty list for no quests', () => {
+    const snapshot = buildFleetSummarySnapshot([], 100_000);
+    expect(snapshot.stateSummary).toBeNull();
+    expect(snapshot.healthSummary).toBeNull();
+    expect(snapshot.changeSummary).toBeNull();
+    expect(snapshot.todoSummary).toBeNull();
+    expect(snapshot.contextSummary).toBeNull();
+    expect(snapshot.modelSummary).toBeNull();
+    expect(snapshot.segments).toEqual([]);
+  });
+
+  it('collects only the non-null segments in display order', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', {
+        state: 'running',
+        lastActivityAt: now,
+        changeCount: { added: 10, removed: 2 },
+        modelName: 'claude',
+      }),
+    ];
+    const snapshot = buildFleetSummarySnapshot(quests, now);
+    // state, health, change, and model are present; todo and context are null.
+    expect(snapshot.stateSummary).toBe('1 quest (1 running)');
+    expect(snapshot.changeSummary).toBe('+10 −2');
+    expect(snapshot.modelSummary).toBe('1 claude');
+    expect(snapshot.todoSummary).toBeNull();
+    expect(snapshot.contextSummary).toBeNull();
+    // segments contains exactly the non-null ones, in display order.
+    expect(snapshot.segments).toEqual([
+      snapshot.stateSummary,
+      snapshot.healthSummary,
+      snapshot.changeSummary,
+      snapshot.modelSummary,
+    ]);
+    expect(snapshot.segments.every((segment) => segment !== null)).toBe(true);
+  });
+
+  it('includes todo and context segments when reported', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', {
+        state: 'running',
+        lastActivityAt: now,
+        todoProgress: { done: 2, total: 4 },
+        contextUsage: 0.5,
+      }),
+    ];
+    const snapshot = buildFleetSummarySnapshot(quests, now);
+    expect(snapshot.todoSummary).toBe('2/4 todos');
+    expect(snapshot.contextSummary).toBe('avg ctx 50%');
+    expect(snapshot.segments).toContain('2/4 todos');
+    expect(snapshot.segments).toContain('avg ctx 50%');
   });
 });

@@ -343,3 +343,57 @@ export function formatFleetModelSummary(quests: readonly Quest[]): string | null
     .map(([model, count]) => `${String(count)} ${model}`);
   return segments.join(' · ');
 }
+
+/** Gen 74: a structured snapshot of every non-null fleet summary segment. */
+export interface FleetSummarySnapshot {
+  /** Gen 64 state breakdown, e.g. "5 quests (2 running · 1 approval)". */
+  readonly stateSummary: string | null;
+  /** Gen 69 average health, e.g. "avg ♥ 78". */
+  readonly healthSummary: string | null;
+  /** Gen 70 total diff footprint, e.g. "+120 −34". */
+  readonly changeSummary: string | null;
+  /** Gen 71 total todo progress, e.g. "12/20 todos". */
+  readonly todoSummary: string | null;
+  /** Gen 72 average context usage, e.g. "avg ctx 45%". */
+  readonly contextSummary: string | null;
+  /** Gen 73 model distribution, e.g. "3 claude · 1 gpt". */
+  readonly modelSummary: string | null;
+  /** All non-null segments in display order, ready to join. */
+  readonly segments: readonly string[];
+}
+
+/**
+ * Gen 74: compose the individual fleet summary formatters (Gen 64–73) into a
+ * single structured snapshot the dashboard summary bar can render directly.
+ * Each segment is computed independently and dropped when null, so the bar
+ * shows only the segments that carry information. `segments` lists the
+ * non-null segments in display order for easy joining.
+ */
+export function buildFleetSummarySnapshot(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): FleetSummarySnapshot {
+  const stateSummary = formatFleetStateSummary(quests);
+  const healthSummary = formatFleetHealthSummary(quests, now);
+  const changeSummary = formatFleetChangeSummary(quests);
+  const todoSummary = formatFleetTodoSummary(quests);
+  const contextSummary = formatFleetContextSummary(quests);
+  const modelSummary = formatFleetModelSummary(quests);
+  const segments = [
+    stateSummary,
+    healthSummary,
+    changeSummary,
+    todoSummary,
+    contextSummary,
+    modelSummary,
+  ].filter((segment): segment is string => segment !== null);
+  return {
+    stateSummary,
+    healthSummary,
+    changeSummary,
+    todoSummary,
+    contextSummary,
+    modelSummary,
+    segments,
+  };
+}
