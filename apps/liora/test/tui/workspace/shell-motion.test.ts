@@ -6,6 +6,8 @@ import {
   SHELL_SETTLE_PREMIUM_MS,
   focusTransferProgress,
   lerpDockWidth,
+  nextReflowTrackingState,
+  reflowHitZoneShift,
   reflowProgress,
   shellSettleProgress,
 } from '#/tui/workspace/shell-motion';
@@ -125,5 +127,71 @@ describe('lerpDockWidth', () => {
 
   it('supports shrinking from a wider to a narrower width', () => {
     expect(lerpDockWidth(40, 0, 0.5)).toBe(20);
+  });
+});
+
+describe('nextReflowTrackingState', () => {
+  const idleState = {
+    wasDragging: false,
+    fromWidth: { left: 30, right: 30 },
+    toWidth: { left: 30, right: 30 },
+  };
+
+  it('freezes tracking and marks wasDragging while a divider drag is in progress', () => {
+    const result = nextReflowTrackingState(idleState, true, { left: 45, right: 30 });
+    expect(result).toEqual({ ...idleState, wasDragging: true, restarted: false });
+  });
+
+  it('does not restart the lerp while width changes mid-drag', () => {
+    const dragging = { ...idleState, wasDragging: true };
+    const result = nextReflowTrackingState(dragging, true, { left: 12, right: 30 });
+    expect(result.restarted).toBe(false);
+    // Mid-drag widths are never tracked into from/to — only the drag flag.
+    expect(result.fromWidth).toEqual(idleState.fromWidth);
+    expect(result.toWidth).toEqual(idleState.toWidth);
+  });
+
+  it('snaps from/to width to the post-drag width on release, without restarting the lerp', () => {
+    // Drag started from width 30, was frozen there the whole time (per the
+    // previous test), and the pointer released at width 45.
+    const justReleased = { wasDragging: true, fromWidth: { left: 30, right: 30 }, toWidth: { left: 30, right: 30 } };
+    const postDragWidth = { left: 45, right: 30 };
+
+    const result = nextReflowTrackingState(justReleased, false, postDragWidth);
+
+    expect(result.restarted).toBe(false);
+    expect(result.wasDragging).toBe(false);
+    expect(result.fromWidth).toEqual(postDragWidth);
+    expect(result.toWidth).toEqual(postDragWidth);
+  });
+
+  it('is a no-op when the committed width is unchanged and not dragging', () => {
+    const result = nextReflowTrackingState(idleState, false, { left: 30, right: 30 });
+    expect(result).toEqual({ ...idleState, restarted: false });
+  });
+
+  it('starts a new lerp when the committed width changes for a non-drag reason', () => {
+    const result = nextReflowTrackingState(idleState, false, { left: 0, right: 30 });
+    expect(result.restarted).toBe(true);
+    expect(result.fromWidth).toEqual(idleState.toWidth);
+    expect(result.toWidth).toEqual({ left: 0, right: 30 });
+  });
+});
+
+describe('reflowHitZoneShift', () => {
+  it('never shifts the left dock — its reflow pad is trailing', () => {
+    expect(reflowHitZoneShift('left', 20, 32)).toBe(0);
+  });
+
+  it('shifts the right dock by the leading-pad gap during a growing reflow', () => {
+    expect(reflowHitZoneShift('right', 20, 32)).toBe(12);
+  });
+
+  it('is zero once the right dock reflow has settled (paint width === final width)', () => {
+    expect(reflowHitZoneShift('right', 32, 32)).toBe(0);
+  });
+
+  it('never returns a negative shift if paint width overshoots final width', () => {
+    expect(reflowHitZoneShift('right', 40, 32)).toBe(0);
   });
 });

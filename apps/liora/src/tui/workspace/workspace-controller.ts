@@ -22,6 +22,8 @@ import { workspaceShellChromeCells } from './shell-chrome';
 import {
   focusTransferProgress,
   lerpDockWidth,
+  nextReflowTrackingState,
+  reflowHitZoneShift,
   reflowProgress,
   shellSettleProgress,
 } from './shell-motion';
@@ -168,6 +170,7 @@ export class WorkspaceController {
   private reflowStartedAt = 0;
   private reflowFromWidth: { left: number; right: number } = { left: 0, right: 0 };
   private reflowToWidth: { left: number; right: number } = { left: 0, right: 0 };
+  private reflowWasDragging = false;
 
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
@@ -253,6 +256,13 @@ export class WorkspaceController {
    * reason other than a live divider drag (maximize toggle, dock
    * visibility, breakpoint mode change). Never touches `currentLayout` —
    * hit-testing always sees the final, committed layout.
+   *
+   * Divider-drag release is handled explicitly via
+   * {@link nextReflowTrackingState}: mid-drag width changes settle
+   * instantly (committed width already tracks the pointer) and freeze the
+   * lerp tracking, but the *next* call after release must snap
+   * `reflowFromWidth`/`reflowToWidth` to the post-drag width — otherwise
+   * release would replay a lerp from the stale pre-drag width.
    */
   private trackShellMotionState(layout: WorkspaceLayoutResult, ctx: WorkspaceRenderContext): void {
     const now = appearanceAnimationNow();
@@ -263,15 +273,19 @@ export class WorkspaceController {
       this.lastShellSettleRows = ctx.terminalRows;
     }
 
-    // Mid-drag width changes settle instantly (committed width already
-    // tracks the pointer) — only discrete toggles get a reflow lerp.
-    if (this.dragController.isDragging) return;
-    const nextLeftWidth = this.maximizedPanelId !== null ? 0 : layout.leftDock?.rect.width ?? 0;
-    const nextRightWidth = this.maximizedPanelId !== null ? 0 : layout.rightDock?.rect.width ?? 0;
-    if (nextLeftWidth === this.reflowToWidth.left && nextRightWidth === this.reflowToWidth.right) return;
-    this.reflowFromWidth = { ...this.reflowToWidth };
-    this.reflowToWidth = { left: nextLeftWidth, right: nextRightWidth };
-    this.reflowStartedAt = now;
+    const nextWidth = {
+      left: this.maximizedPanelId !== null ? 0 : layout.leftDock?.rect.width ?? 0,
+      right: this.maximizedPanelId !== null ? 0 : layout.rightDock?.rect.width ?? 0,
+    };
+    const result = nextReflowTrackingState(
+      { wasDragging: this.reflowWasDragging, fromWidth: this.reflowFromWidth, toWidth: this.reflowToWidth },
+      this.dragController.isDragging,
+      nextWidth,
+    );
+    this.reflowWasDragging = result.wasDragging;
+    this.reflowFromWidth = result.fromWidth;
+    this.reflowToWidth = result.toWidth;
+    if (result.restarted) this.reflowStartedAt = now;
   }
 
   /**
@@ -550,8 +564,19 @@ export class WorkspaceController {
       this.layoutMemory.lastFocused = focusedId;
     }
 
-    // Tab bar (1 row)
-    const tabBar = this.padReflowLine(dockId, this.renderTabBar(dockId, paintWidth, panels, focusedId), paintWidth, dockRect.width);
+    // Tab bar (1 row). `renderTabBar` records `tabCloseZones` against the
+    // painted (pre-pad) string; the right dock's leading pad below shifts
+    // everything visually right during a growing/shrinking reflow, so the
+    // just-recorded zones for this dock need the same shift to stay under
+    // the painted × glyph (left dock pads trailing — no shift needed).
+    const rawTabBar = this.renderTabBar(dockId, paintWidth, panels, focusedId);
+    const hitZoneShift = reflowHitZoneShift(dockId, paintWidth, dockRect.width);
+    if (hitZoneShift > 0) {
+      this.tabCloseZones = this.tabCloseZones.map((zone) =>
+        zone.dock === dockId ? { ...zone, x: zone.x + hitZoneShift } : zone,
+      );
+    }
+    const tabBar = this.padReflowLine(dockId, rawTabBar, paintWidth, dockRect.width);
     allLines.push(tabBar);
 
     // Active panel content (remaining height)
