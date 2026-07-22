@@ -503,6 +503,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 89: e → jump to the next quest with error/warning lines.
+    if (k === 'e') {
+      this.gridController.focusNextProblem();
+      return;
+    }
+
     // Gen 66: c → toggle the fleet summary overlay.
     if (k === 'c') {
       this.fleetInfoVisible = true;
@@ -673,6 +679,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['Tab', 'Jump to the next quest needing attention'],
           ['g', 'Focus the least-healthy quest'],
           ['m', 'Focus the most expensive quest'],
+          ['e', 'Jump to next quest with problems'],
           ['c', 'Show fleet summary overlay'],
           ['D', 'Show fleet changes overlay'],
           ['1–9', 'Focus the Nth quest'],

@@ -286,6 +286,22 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 89: jump focus to the next quest with error/warning lines in its
+   * stream, cycling within that subset only. No-op when none have problems.
+   */
+  focusNextProblem(): void {
+    const ids = this.sortedQuestIds();
+    const problemIds = ids.filter(
+      (id) => (this.getProblemCount?.(id) ?? 0) > 0,
+    );
+    if (problemIds.length === 0) return;
+    const currentIdx = problemIds.indexOf(this.focusedQuestId ?? '');
+    const nextIdx = (currentIdx + 1) % problemIds.length;
+    this.focusedQuestId = problemIds[nextIdx]!;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 25: move focus to the next quest that needs attention
    * (waiting-approval or failed), cycling within that subset only.
    * No-op when no quest needs attention.

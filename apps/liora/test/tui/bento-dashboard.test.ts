@@ -417,6 +417,48 @@ describe('Gen 87: focus Nth quest', () => {
   });
 });
 
+describe('Gen 89: focus next problem quest', () => {
+  function makeControllerWithProblems(problemCounts: Record<string, number>) {
+    return new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      getProblemCount: (id) => problemCounts[id] ?? 0,
+    });
+  }
+
+  it('focusNextProblem cycles through quests with problems', () => {
+    const ctrl = makeControllerWithProblems({ a: 0, b: 3, c: 1, d: 0 });
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'running' }));
+    ctrl.addQuest(makeQuest('c', { state: 'running' }));
+    ctrl.addQuest(makeQuest('d', { state: 'running' }));
+
+    // Only b and c have problems. Cycling should alternate between them.
+    ctrl.focusNextProblem();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+    ctrl.focusNextProblem();
+    expect(ctrl.getFocusedQuestId()).toBe('c');
+    ctrl.focusNextProblem();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+  });
+
+  it('focusNextProblem is a no-op when no quest has problems', () => {
+    const ctrl = makeControllerWithProblems({ a: 0, b: 0 });
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'running' }));
+    ctrl.setFocusedQuest('a');
+
+    ctrl.focusNextProblem();
+    expect(ctrl.getFocusedQuestId()).toBe('a');
+  });
+
+  it('focusNextProblem is a no-op when nothing is visible', () => {
+    const ctrl = makeControllerWithProblems({});
+    ctrl.focusNextProblem();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 63: focus most expensive quest', () => {
   it('focuses the quest with the highest session cost', () => {
     const ctrl = makeController();
