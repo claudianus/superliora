@@ -397,3 +397,25 @@ export function buildFleetSummarySnapshot(
     segments,
   };
 }
+
+/**
+ * Gen 75: a single combined fleet summary line for the dashboard bar. Leads
+ * with the Gen 59 escalation-aware attention summary (when anything needs
+ * attention) and appends the Gen 74 fleet segments, so the operator sees both
+ * the attention situation and the fleet state in one line. Returns null when
+ * there are no quests and nothing needs attention.
+ */
+export function formatCombinedFleetSummary(
+  quests: readonly Quest[],
+  attentionSummary: AttentionSummary,
+  levels: readonly EscalationLevel[],
+  now: number = Date.now(),
+): string | null {
+  const attention = formatEscalatedAttentionSummary(attentionSummary, levels);
+  const snapshot = buildFleetSummarySnapshot(quests, now);
+  const parts = [attention, ...snapshot.segments].filter(
+    (part): part is string => part !== null,
+  );
+  if (parts.length === 0) return null;
+  return parts.join(' · ');
+}

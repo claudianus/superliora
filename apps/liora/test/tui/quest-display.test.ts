@@ -21,6 +21,7 @@ import {
   formatUrgencyRank,
   classifyHealthSeverity,
   buildFleetSummarySnapshot,
+  formatCombinedFleetSummary,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -593,5 +594,55 @@ describe('buildFleetSummarySnapshot (Gen 74)', () => {
     expect(snapshot.contextSummary).toBe('avg ctx 50%');
     expect(snapshot.segments).toContain('2/4 todos');
     expect(snapshot.segments).toContain('avg ctx 50%');
+  });
+});
+
+describe('formatCombinedFleetSummary (Gen 75)', () => {
+  it('returns null when there are no quests and nothing needs attention', () => {
+    const attention: AttentionSummary = { count: 0, oldestQuestId: null, oldestDwellMs: null };
+    expect(formatCombinedFleetSummary([], attention, [], 100_000)).toBeNull();
+  });
+
+  it('leads with the attention summary and appends fleet segments', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', {
+        state: 'running',
+        lastActivityAt: now,
+        changeCount: { added: 10, removed: 2 },
+      }),
+    ];
+    const attention: AttentionSummary = {
+      count: 1,
+      oldestQuestId: 'a',
+      oldestDwellMs: 120_000,
+    };
+    const combined = formatCombinedFleetSummary(quests, attention, [1], now);
+    expect(combined).not.toBeNull();
+    // The attention summary leads, followed by fleet segments.
+    expect(combined!.startsWith('1 need attention (oldest 2m, 1 escalated)')).toBe(true);
+    expect(combined).toContain('1 quest (1 running)');
+    expect(combined).toContain('+10 −2');
+  });
+
+  it('omits the attention segment when nothing needs attention', () => {
+    const now = 100_000;
+    const quests = [makeQuest('a', { state: 'running', lastActivityAt: now })];
+    const attention: AttentionSummary = { count: 0, oldestQuestId: null, oldestDwellMs: null };
+    const combined = formatCombinedFleetSummary(quests, attention, [], now);
+    // No attention segment leads; the fleet segments still appear.
+    expect(combined).not.toBeNull();
+    expect(combined!.startsWith('1 quest (1 running)')).toBe(true);
+    expect(combined).not.toContain('need attention');
+  });
+
+  it('shows only the attention summary when there are no quests but attention is pending', () => {
+    const attention: AttentionSummary = {
+      count: 2,
+      oldestQuestId: 'x',
+      oldestDwellMs: 300_000,
+    };
+    const combined = formatCombinedFleetSummary([], attention, [2], 100_000);
+    expect(combined).toBe('2 need attention (oldest 5m, 1 critical)');
   });
 });
