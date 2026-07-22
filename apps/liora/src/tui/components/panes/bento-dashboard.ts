@@ -299,6 +299,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.pinController.pinPrevInStrip();
         return;
       }
+      // Gen 52: w → cycle the pin to the next quest needing attention (triage).
+      if (k === 'w') {
+        this.pinController.pinNextAttention();
+        return;
+      }
       // Gen 6b: 1–9 → jump directly to the Nth thumbnail quest (switch_context).
       if (k.length === 1 && k >= '1' && k <= '9') {
         const stripQuests = this.pinController.getStripQuests();
@@ -431,6 +436,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
+          ['w', 'Next quest needing attention (triage)'],
           ['Enter / p', 'Unpin back to the grid'],
           ['-', 'Jump back to the previously pinned quest'],
           ['1–9', 'Jump to the Nth thumbnail quest'],
@@ -629,10 +635,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
         : line2Token === 'error'
           ? currentTheme.fg('error', text)
           : currentTheme.dim(text);
-    // Gen 48: health score segment (colorized by severity).
+    // Gen 48/52: health mini-bar segment (colorized by severity).
     const health = questHealthScore(quest, now);
-    const healthPlain = `  ♥ ${String(health)}`;
-    const healthSegment = `  ${renderHealthScore(health)}`;
+    const healthPlain = `  ${formatHealthBar(health)}`;
+    const healthSegment = `  ${renderHealthBar(health)}`;
     const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${line2Suffix}`;
     const line2 =
       plainLine2.length > width
@@ -724,6 +730,28 @@ export function renderChangeCount(cc: QuestChangeCount): string {
 export function renderHealthScore(score: number): string {
   const token = score >= 60 ? 'success' : score >= 30 ? 'warning' : 'error';
   return currentTheme.fg(token, `♥ ${String(score)}`);
+}
+
+/**
+ * Gen 52: render a colorized health mini-bar, e.g. `♥ ▓▓▓░░ 82`.
+ * Mirrors the todo/context mini-bars so fleet health is scannable at a glance.
+ */
+export function renderHealthBar(score: number): string {
+  const cells = 5;
+  const clamped = Math.max(0, Math.min(100, score));
+  const filled = Math.round((clamped / 100) * cells);
+  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
+  const token = score >= 60 ? 'success' : score >= 30 ? 'warning' : 'error';
+  return currentTheme.fg(token, `♥ ${bar} ${String(score)}`);
+}
+
+/** Gen 52: plain-text health mini-bar for width calculations. */
+export function formatHealthBar(score: number): string {
+  const cells = 5;
+  const clamped = Math.max(0, Math.min(100, score));
+  const filled = Math.round((clamped / 100) * cells);
+  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
+  return `♥ ${bar} ${String(score)}`;
 }
 
 /** Gen 33: braille spinner frames for the running state. */
