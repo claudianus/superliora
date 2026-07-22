@@ -101,3 +101,59 @@ describe('bento-dashboard bounds validation (AC-1)', () => {
     expect(ctrl.getQuestCellBounds('nonexistent')).toBeNull();
   });
 });
+
+describe('Gen 17: attention-first quest ordering', () => {
+  it('getQuests sorts attention states to the top, stable within priority', () => {
+    const ctrl = makeController();
+    // Insert in a mixed order.
+    ctrl.addQuest(makeQuest('running1', { state: 'running' }));
+    ctrl.addQuest(makeQuest('failed1', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('idle1', { state: 'idle' }));
+    ctrl.addQuest(makeQuest('approval1', { state: 'waiting-approval' }));
+    ctrl.addQuest(makeQuest('done1', { state: 'done' }));
+    ctrl.addQuest(makeQuest('approval2', { state: 'waiting-approval' }));
+
+    const ids = ctrl.getQuests().map((q) => q.id);
+    // waiting-approval first (insertion order), then failed, running, idle, done.
+    expect(ids).toEqual([
+      'approval1',
+      'approval2',
+      'failed1',
+      'running1',
+      'idle1',
+      'done1',
+    ]);
+  });
+
+  it('focus navigation follows the priority order', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('running1', { state: 'running' }));
+    ctrl.addQuest(makeQuest('approval1', { state: 'waiting-approval' }));
+    ctrl.addQuest(makeQuest('idle1', { state: 'idle' }));
+
+    // First focusNext lands on the top-priority quest.
+    ctrl.focusNext();
+    expect(ctrl.getFocusedQuestId()).toBe('approval1');
+    ctrl.focusNext();
+    expect(ctrl.getFocusedQuestId()).toBe('running1');
+    ctrl.focusNext();
+    expect(ctrl.getFocusedQuestId()).toBe('idle1');
+    // Wraps back to top.
+    ctrl.focusNext();
+    expect(ctrl.getFocusedQuestId()).toBe('approval1');
+  });
+
+  it('re-sorting happens when a quest changes into an attention state', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'running' }));
+    ctrl.addQuest(makeQuest('c', { state: 'running' }));
+
+    // Initially insertion order.
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['a', 'b', 'c']);
+
+    // c needs approval → jumps to the top.
+    ctrl.updateQuestState('c', 'waiting-approval');
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['c', 'a', 'b']);
+  });
+});

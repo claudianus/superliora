@@ -26,6 +26,7 @@ import {
   type QuestChangeCount,
   type DashboardViewMode,
   ATTENTION_STATES,
+  questStatePriority,
 } from './quest-types';
 
 // ---------------------------------------------------------------------------
@@ -165,7 +166,7 @@ export class QuestGridController {
 
   /** Move focus to the next quest in order. */
   focusNext(): void {
-    const ids = [...this.quests.keys()];
+    const ids = this.sortedQuestIds();
     if (ids.length === 0) return;
     const currentIdx = this.focusedQuestId ? ids.indexOf(this.focusedQuestId) : -1;
     const nextIdx = (currentIdx + 1) % ids.length;
@@ -175,12 +176,26 @@ export class QuestGridController {
 
   /** Move focus to the previous quest in order. */
   focusPrev(): void {
-    const ids = [...this.quests.keys()];
+    const ids = this.sortedQuestIds();
     if (ids.length === 0) return;
     const currentIdx = this.focusedQuestId ? ids.indexOf(this.focusedQuestId) : -1;
     const prevIdx = currentIdx <= 0 ? ids.length - 1 : currentIdx - 1;
     this.focusedQuestId = ids[prevIdx]!;
     this.recomputeLayout();
+  }
+
+  /**
+   * Gen 17: quest ids ordered by display priority (attention states first),
+   * stable within the same priority. Used for rendering, focus navigation,
+   * and panel spec ordering so the grid and keyboard order agree.
+   */
+  private sortedQuestIds(): string[] {
+    return [...this.quests.values()]
+      .map((q, index) => ({ id: q.id, priority: questStatePriority(q.state), index }))
+      .sort((a, b) =>
+        a.priority !== b.priority ? a.priority - b.priority : a.index - b.index,
+      )
+      .map((entry) => entry.id);
   }
 
   // -------------------------------------------------------------------------
@@ -197,7 +212,7 @@ export class QuestGridController {
 
   /** Build BentoPanelSpec array from current quests. */
   private buildPanelSpecs(): BentoPanelSpec[] {
-    const questList = [...this.quests.values()];
+    const questList = this.getQuests();
     if (questList.length === 0) return [];
 
     if (this.pinnedQuestId) {
@@ -223,9 +238,12 @@ export class QuestGridController {
   // Queries
   // -------------------------------------------------------------------------
 
-  /** Get all quests. */
+  /** Get all quests in display-priority order (Gen 17: attention states first). */
   getQuests(): readonly Quest[] {
-    return [...this.quests.values()];
+    const byId = this.quests;
+    return this.sortedQuestIds()
+      .map((id) => byId.get(id))
+      .filter((q): q is Quest => q !== undefined);
   }
 
   /** Get a single quest by id. */

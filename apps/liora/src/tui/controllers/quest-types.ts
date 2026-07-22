@@ -24,6 +24,32 @@ export const ATTENTION_STATES: ReadonlySet<QuestState> = new Set([
   'failed',
 ]);
 
+/**
+ * Gen 17: display priority for quest ordering — lower sorts first. Quests
+ * needing human intervention (waiting-approval, failed) surface at the top so
+ * they are acted on fastest; finished quests sink to the bottom.
+ */
+export function questStatePriority(state: QuestState): number {
+  switch (state) {
+    case 'waiting-approval':
+      return 0;
+    case 'failed':
+      return 1;
+    case 'blocked':
+      return 2;
+    case 'running':
+      return 3;
+    case 'idle':
+      return 4;
+    case 'done':
+      return 5;
+    default: {
+      const _exhaustive: never = state;
+      return _exhaustive;
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Change Counts
 // ---------------------------------------------------------------------------
