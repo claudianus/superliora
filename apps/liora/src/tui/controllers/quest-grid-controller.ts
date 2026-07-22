@@ -30,6 +30,7 @@ import {
   contextSeverityToken,
   nextSortMode,
   questHealthScore,
+  questStatePriority,
 } from './quest-types';
 import { compareByUrgency } from './quest-urgency';
 
@@ -53,6 +54,11 @@ export interface QuestGridControllerOptions {
    * (waiting-approval or failed). Used to auto-pin in the dashboard.
    */
   readonly onAttentionTransition?: (questId: string, state: QuestState) => void;
+  /**
+   * Gen 85: returns the error+warning line count for a quest's stream, used
+   * by the `problems` sort mode. Defaults to 0 when not provided.
+   */
+  readonly getProblemCount?: (questId: string) => number;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +75,8 @@ export class QuestGridController {
   private readonly onAttentionTransition:
     | ((questId: string, state: QuestState) => void)
     | undefined;
+  // Gen 85: problem-count provider for the `problems` sort mode.
+  private readonly getProblemCount: ((questId: string) => number) | undefined;
   // Gen 24: dashboard filter query (matches name or state).
   private filterQuery = '';
   // Gen 26: show only attention-needing quests.
@@ -82,6 +90,7 @@ export class QuestGridController {
     this.getViewport = options.getViewport;
     this.requestRender = options.requestRender;
     this.onAttentionTransition = options.onAttentionTransition;
+    this.getProblemCount = options.getProblemCount;
   }
 
   // -------------------------------------------------------------------------
@@ -265,6 +274,17 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 87: jump focus to the Nth quest (1-based) in the current sort order.
+   * No-op when the index is out of range.
+   */
+  focusNth(n: number): void {
+    const ids = this.sortedQuestIds();
+    if (n < 1 || n > ids.length) return;
+    this.focusedQuestId = ids[n - 1]!;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 25: move focus to the next quest that needs attention
    * (waiting-approval or failed), cycling within that subset only.
    * No-op when no quest needs attention.
@@ -413,6 +433,12 @@ export class QuestGridController {
         // Gen 74: highest context usage first, so the most at-risk quest of
         // context exhaustion surfaces at the top.
         return (b.contextUsage ?? 0) - (a.contextUsage ?? 0);
+      case 'problems':
+        // Gen 85: most error+warning lines first, so the most troubled quest
+        // surfaces at the top.
+        return (
+          (this.getProblemCount?.(b.id) ?? 0) - (this.getProblemCount?.(a.id) ?? 0)
+        );
       default: {
         const _exhaustive: never = this.sortMode;
         return _exhaustive;

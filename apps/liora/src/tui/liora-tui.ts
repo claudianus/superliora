@@ -4072,6 +4072,11 @@ export class LioraTUI {
         onAttentionTransition: (questId) => {
           this.questPinController?.pin(questId);
         },
+        // Gen 85: problem-count provider for the `problems` sort mode.
+        getProblemCount: (questId) => {
+          const counts = this.dashboardExpandViews.get(questId)?.getProblemCounts();
+          return counts !== undefined ? counts.errors + counts.warnings : 0;
+        },
       });
       this.questAttentionController = new AttentionController({
         writeRaw: (data) => { process.stdout.write(data); },
