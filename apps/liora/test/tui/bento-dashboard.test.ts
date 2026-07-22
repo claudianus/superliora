@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
-import { renderContextBar } from '#/tui/components/panes/bento-dashboard';
+import { renderContextBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -348,6 +348,55 @@ describe('Gen 27: auto-pin on attention transition', () => {
   });
 });
 
+describe('Gen 30: dashboard sort mode cycling', () => {
+  it('cycles attention → cost → age → name → attention', () => {
+    const ctrl = makeController();
+    expect(ctrl.getSortMode()).toBe('attention');
+    ctrl.cycleSortMode();
+    expect(ctrl.getSortMode()).toBe('cost');
+    ctrl.cycleSortMode();
+    expect(ctrl.getSortMode()).toBe('age');
+    ctrl.cycleSortMode();
+    expect(ctrl.getSortMode()).toBe('name');
+    ctrl.cycleSortMode();
+    expect(ctrl.getSortMode()).toBe('attention');
+  });
+
+  it('cost mode sorts highest cost first', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('cheap', { sessionCostUsd: 0.5 }));
+    ctrl.addQuest(makeQuest('pricey', { sessionCostUsd: 3.2 }));
+    ctrl.addQuest(makeQuest('mid', { sessionCostUsd: 1.1 }));
+
+    ctrl.cycleSortMode(); // → cost
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['pricey', 'mid', 'cheap']);
+  });
+
+  it('age mode sorts oldest first', () => {
+    const now = Date.now();
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('new', { createdAt: now - 1_000 }));
+    ctrl.addQuest(makeQuest('old', { createdAt: now - 100_000 }));
+    ctrl.addQuest(makeQuest('mid', { createdAt: now - 10_000 }));
+
+    ctrl.cycleSortMode(); // → cost
+    ctrl.cycleSortMode(); // → age
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['old', 'mid', 'new']);
+  });
+
+  it('name mode sorts alphabetically', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('c', { name: 'charlie' }));
+    ctrl.addQuest(makeQuest('a', { name: 'alpha' }));
+    ctrl.addQuest(makeQuest('b', { name: 'bravo' }));
+
+    ctrl.cycleSortMode(); // → cost
+    ctrl.cycleSortMode(); // → age
+    ctrl.cycleSortMode(); // → name
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
 describe('Gen 29: context usage mini-bar', () => {
   it('renders a proportional 5-cell bar with the percentage', () => {
     expect(renderContextBar(0.62)).toBe('ctx ▓▓▓░░ 62%');
@@ -369,5 +418,30 @@ describe('Gen 29: context usage mini-bar', () => {
   it('rounds the fill to the nearest cell', () => {
     // 40% → 2 of 5 cells filled.
     expect(renderContextBar(0.4)).toBe('ctx ▓▓░░░ 40%');
+  });
+});
+
+describe('Gen 30: idle-duration severity token', () => {
+  const MIN = 60_000;
+
+  it('returns muted for fresh sessions', () => {
+    expect(idleSeverityToken(0)).toBe('muted');
+    expect(idleSeverityToken(4 * MIN)).toBe('muted');
+    expect(idleSeverityToken(5 * MIN - 1)).toBe('muted');
+  });
+
+  it('returns warning at and past 5 minutes', () => {
+    expect(idleSeverityToken(5 * MIN)).toBe('warning');
+    expect(idleSeverityToken(10 * MIN)).toBe('warning');
+    expect(idleSeverityToken(15 * MIN - 1)).toBe('warning');
+  });
+
+  it('returns error at and past 15 minutes', () => {
+    expect(idleSeverityToken(15 * MIN)).toBe('error');
+    expect(idleSeverityToken(60 * MIN)).toBe('error');
+  });
+
+  it('clamps negative durations to muted', () => {
+    expect(idleSeverityToken(-1000)).toBe('muted');
   });
 });

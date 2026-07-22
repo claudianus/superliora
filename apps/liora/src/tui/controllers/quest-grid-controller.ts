@@ -25,8 +25,10 @@ import {
   type QuestCellBounds,
   type QuestChangeCount,
   type DashboardViewMode,
+  type QuestSortMode,
   ATTENTION_STATES,
   questStatePriority,
+  nextSortMode,
 } from './quest-types';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +71,8 @@ export class QuestGridController {
   private filterQuery = '';
   // Gen 26: show only attention-needing quests.
   private attentionOnly = false;
+  // Gen 30: active dashboard sort mode.
+  private sortMode: QuestSortMode = 'attention';
 
   constructor(options: QuestGridControllerOptions) {
     this.getViewport = options.getViewport;
@@ -243,24 +247,49 @@ export class QuestGridController {
    * stable within the same priority. Used for rendering, focus navigation,
    * and panel spec ordering so the grid and keyboard order agree.
    * Gen 24: applies the active filter query (matches name or state).
+   * Gen 30: applies the active sort mode (attention / cost / age / name).
    */
   private sortedQuestIds(): string[] {
     const query = this.filterQuery.trim().toLowerCase();
-    return [...this.quests.values()]
-      .filter((q) => {
-        // Gen 26: attention-only mode hides healthy quests.
-        if (this.attentionOnly && !ATTENTION_STATES.has(q.state)) return false;
-        if (query === '') return true;
-        return (
-          q.name.toLowerCase().includes(query) ||
-          q.state.toLowerCase().includes(query)
-        );
-      })
-      .map((q, index) => ({ id: q.id, priority: questStatePriority(q.state), index }))
-      .sort((a, b) =>
-        a.priority !== b.priority ? a.priority - b.priority : a.index - b.index,
-      )
-      .map((entry) => entry.id);
+    const visible = [...this.quests.values()].filter((q) => {
+      // Gen 26: attention-only mode hides healthy quests.
+      if (this.attentionOnly && !ATTENTION_STATES.has(q.state)) return false;
+      if (query === '') return true;
+      return (
+        q.name.toLowerCase().includes(query) ||
+        q.state.toLowerCase().includes(query)
+      );
+    });
+
+    const indexed = visible.map((q, index) => ({ quest: q, index }));
+    indexed.sort((a, b) => {
+      const cmp = this.compareBySortMode(a.quest, b.quest);
+      return cmp !== 0 ? cmp : a.index - b.index;
+    });
+    return indexed.map((entry) => entry.quest.id);
+  }
+
+  /**
+   * Gen 30: comparator for the active sort mode. Returns negative when
+   * `a` should come before `b`. `attention` keeps the Gen 17 priority order.
+   */
+  private compareBySortMode(a: Quest, b: Quest): number {
+    switch (this.sortMode) {
+      case 'attention':
+        return questStatePriority(a.state) - questStatePriority(b.state);
+      case 'cost':
+        // Highest cost first.
+        return (b.sessionCostUsd ?? 0) - (a.sessionCostUsd ?? 0);
+      case 'age':
+        // Oldest first.
+        return a.createdAt - b.createdAt;
+      case 'name':
+        return a.name.localeCompare(b.name);
+      default: {
+        const _exhaustive: never = this.sortMode;
+        return _exhaustive;
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -296,6 +325,21 @@ export class QuestGridController {
   /** Whether attention-only mode is active. */
   isAttentionOnly(): boolean {
     return this.attentionOnly;
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 30: Sort mode
+  // -------------------------------------------------------------------------
+
+  /** Cycle to the next sort mode (attention → cost → age → name). */
+  cycleSortMode(): void {
+    this.sortMode = nextSortMode(this.sortMode);
+    this.recomputeLayout();
+  }
+
+  /** Get the active sort mode. */
+  getSortMode(): QuestSortMode {
+    return this.sortMode;
   }
 
   // -------------------------------------------------------------------------

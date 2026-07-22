@@ -51,6 +51,49 @@ export function questStatePriority(state: QuestState): number {
 }
 
 // ---------------------------------------------------------------------------
+// Gen 30: Dashboard Sort Modes
+// ---------------------------------------------------------------------------
+
+/**
+ * Gen 30: sort criteria for the dashboard grid. `attention` keeps the Gen 17
+ * priority order; the others let operators re-rank quests by cost, age, or
+ * name. Attention states always win within `attention` mode only.
+ */
+export type QuestSortMode = 'attention' | 'cost' | 'age' | 'name';
+
+/** Ordered cycle of sort modes for the `s` key. */
+export const QUEST_SORT_MODES: readonly QuestSortMode[] = [
+  'attention',
+  'cost',
+  'age',
+  'name',
+];
+
+/** Gen 30: next sort mode in the cycle. */
+export function nextSortMode(mode: QuestSortMode): QuestSortMode {
+  const idx = QUEST_SORT_MODES.indexOf(mode);
+  return QUEST_SORT_MODES[(idx + 1) % QUEST_SORT_MODES.length]!;
+}
+
+/** Gen 30: short label shown in the dashboard summary bar. */
+export function sortModeLabel(mode: QuestSortMode): string {
+  switch (mode) {
+    case 'attention':
+      return 'attention';
+    case 'cost':
+      return 'cost';
+    case 'age':
+      return 'age';
+    case 'name':
+      return 'name';
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Change Counts
 // ---------------------------------------------------------------------------
 

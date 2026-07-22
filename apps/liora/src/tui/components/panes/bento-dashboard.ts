@@ -34,6 +34,7 @@ import {
   formatChangeCount,
   formatElapsed,
   questStateIcon,
+  sortModeLabel,
   type Quest,
   type QuestState,
 } from '../../controllers/quest-types';
@@ -63,6 +64,15 @@ export interface BentoDashboardOptions {
 
 /** Height (lines) of one dashboard cell block. */
 const CELL_BLOCK_HEIGHT = 3;
+
+// ---------------------------------------------------------------------------
+// Gen 30: idle-duration thresholds for stalled-session detection
+// ---------------------------------------------------------------------------
+
+/** Idle longer than this → warning color on the metadata line. */
+const IDLE_WARN_MS = 5 * 60 * 1000;
+/** Idle longer than this → error color on the metadata line. */
+const IDLE_ERROR_MS = 15 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // BentoDashboardComponent
@@ -286,6 +296,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 30: s → cycle the dashboard sort mode.
+    if (k === 's') {
+      this.gridController.cycleSortMode();
+      return;
+    }
+
     // Enter or p → toggle pin on focused quest
     if (matchesKey(data, Key.enter) || k === 'p') {
       const focusedId = this.gridController.getFocusedQuestId();
@@ -362,6 +378,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['!', 'Toggle attention-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
+          ['s', 'Cycle sort mode (attention/cost/age/name)'],
           ['a / x / r', 'Approve / reject / rewind focused quest'],
           ['?', 'Show this help'],
           ['Esc / q', 'Close the dashboard'],
@@ -396,6 +413,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 26: indicate when attention-only mode is active.
     if (this.gridController.isAttentionOnly()) {
       summaryParts.push('⚠ attention-only');
+    }
+    // Gen 30: show the active sort mode when not the default.
+    const sortMode = this.gridController.getSortMode();
+    if (sortMode !== 'attention') {
+      summaryParts.push(`↕ sort: ${sortModeLabel(sortMode)}`);
     }
     const summary = `  ${summaryParts.join('  ·  ')}`;
     lines.push(currentTheme.fg(attentionCount > 0 ? 'warning' : 'textMuted', clip(summary, width)));
@@ -472,6 +494,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const name = quest.name.length > nameBudget ? quest.name.slice(0, nameBudget) : quest.name;
     const line1 = `${prefix}${badge} ${name}`;
     const line2 = `${focusIndicator}  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
+    // Gen 30: color the metadata line by idle duration so stalled sessions
+    // stand out — warning past 5 min, error past 15 min.
+    const line2Token = idleSeverityToken(now - quest.lastActivityAt);
     // Gen 13: when awaiting approval, surface what needs a decision.
     // Gen 21: when failed, surface why it failed.
     let stepText: string;
@@ -491,7 +516,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
       line1,
-      currentTheme.dim(clip(line2, width)),
+      line2Token === 'warning'
+        ? currentTheme.fg('warning', clip(line2, width))
+        : line2Token === 'error'
+          ? currentTheme.fg('error', clip(line2, width))
+          : currentTheme.dim(clip(line2, width)),
       line3Token === 'warning'
         ? currentTheme.fg('warning', clip(line3, width))
         : line3Token === 'error'
@@ -579,6 +608,17 @@ export function renderContextBar(usage: number): string {
   const filled = Math.round((pct / 100) * cells);
   const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
   return `ctx ${bar} ${String(pct)}%`;
+}
+
+/**
+ * Gen 30: map an idle duration (ms) to a severity token so stalled sessions
+ * stand out — muted when fresh, warning past 5 min, error past 15 min.
+ */
+export function idleSeverityToken(idleMs: number): 'muted' | 'warning' | 'error' {
+  const safe = Math.max(0, idleMs);
+  if (safe >= IDLE_ERROR_MS) return 'error';
+  if (safe >= IDLE_WARN_MS) return 'warning';
+  return 'muted';
 }
 
 /** Height of a single dashboard cell block (for layout accounting). */
