@@ -601,6 +601,9 @@ export function formatTriageQueueLine(
  *
  * Gen 90: `loadColorToken` is the ready-to-use theme token for that level, so
  * a renderer can paint the panel without mapping the level itself.
+ *
+ * Gen 92: `guidanceLine` carries the operator coaching string (Gen 91) so the
+ * panel can tell the operator how to respond, not just how bad things are.
  */
 export interface TriagePanelSnapshot {
   readonly loadLevel: AttentionLoadLevel;
@@ -609,6 +612,7 @@ export interface TriagePanelSnapshot {
   readonly distributionLine: string | null;
   readonly recommendationLine: string | null;
   readonly queueLine: string | null;
+  readonly guidanceLine: string | null;
   readonly lines: readonly string[];
 }
 
@@ -624,7 +628,8 @@ export function buildTriagePanelSnapshot(
   const distributionLine = formatUrgencyDistributionLine(quests, now);
   const recommendationLine = formatTriageRecommendationLine(quests, now);
   const queueLine = formatTriageQueueLine(quests, queueSize, now);
-  const lines = [loadLine, distributionLine, recommendationLine, queueLine].filter(
+  const guidanceLine = formatAttentionLoadGuidance(loadLevel);
+  const lines = [loadLine, distributionLine, recommendationLine, queueLine, guidanceLine].filter(
     (line): line is string => line !== null,
   );
   return {
@@ -634,6 +639,7 @@ export function buildTriagePanelSnapshot(
     distributionLine,
     recommendationLine,
     queueLine,
+    guidanceLine,
     lines,
   };
 }

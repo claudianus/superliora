@@ -968,6 +968,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     expect(snapshot.distributionLine).toBeNull();
     expect(snapshot.recommendationLine).toBeNull();
     expect(snapshot.queueLine).toBeNull();
+    expect(snapshot.guidanceLine).toBeNull();
     expect(snapshot.lines).toEqual([]);
   });
 
@@ -988,11 +989,13 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     // waiting-approval (priority 0) outranks failed (priority 1) regardless of
     // dwell time, so the three waiting-approval quests fill the queue first.
     expect(snapshot.queueLine).toBe('queue: One · Three · Four');
+    expect(snapshot.guidanceLine).toBe('attention is piling up — triage the oldest quest next');
     expect(snapshot.lines).toEqual([
       '⚠ elevated (4 pending)',
       '4 fresh',
       "→ handle 'One' first",
       'queue: One · Three · Four',
+      'attention is piling up — triage the oldest quest next',
     ]);
   });
 
@@ -1008,6 +1011,8 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     expect(snapshot.distributionLine).toBe('1 fresh');
     expect(snapshot.recommendationLine).toBe("→ handle 'Fix login' first");
     expect(snapshot.queueLine).toBe('queue: Fix login');
+    // Normal load → no guidance line.
+    expect(snapshot.guidanceLine).toBeNull();
     expect(snapshot.lines).toEqual([
       '1 fresh',
       "→ handle 'Fix login' first",
@@ -1024,6 +1029,9 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     expect(snapshot.loadLevel).toBe('overloaded');
     expect(snapshot.loadColorToken).toBe('error');
     expect(snapshot.loadLine).toBe('🔥 overloaded (8 pending)');
+    expect(snapshot.guidanceLine).toBe(
+      "you're overloaded — clear the most critical quest first, defer the rest",
+    );
   });
 });
 
