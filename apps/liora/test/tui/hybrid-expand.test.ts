@@ -390,6 +390,22 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(full.some((l) => l.startsWith('─'))).toBe(false);
   });
 
+  it('Gen 59: clearStream empties the buffer and resets the viewport', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) view.appendLine(`line ${String(i)}`);
+    view.appendDiffLines(['+diff line']);
+    expect(view.totalLines).toBe(11);
+
+    view.clearStream();
+    expect(view.totalLines).toBe(0);
+    expect(view.currentScrollOffset).toBe(0);
+    // Diff buffer is cleared too.
+    view.toggleDiffOnly();
+    expect(view.render(quest, 80).join('\n')).toContain('No diffs captured yet');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {

@@ -269,6 +269,18 @@ export class QuestExpandView {
     this.currentMatchIndex = 0;
   }
 
+  /**
+   * Gen 59: clear the stream and diff buffers, resetting the viewport. Useful
+   * when a long session has filled the buffer and the operator wants a fresh
+   * view of only new output.
+   */
+  clearStream(): void {
+    this.streamLines = [];
+    this.diffLines = [];
+    this.scrollOffset = 0;
+    this.clearSearch();
+  }
+
   /** Gen 16: current search status for header display, or null if inactive. */
   getSearchStatus(): { query: string; current: number; total: number } | null {
     if (this.searchQuery === null) return null;

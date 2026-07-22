@@ -273,6 +273,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.toggleFullscreen();
         return;
       }
+      // Gen 59: R → clear the stream buffer for a fresh view.
+      if (k === 'R') {
+        expandView?.clearStream();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -474,6 +479,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['d', 'Toggle diff-only view (code changes)'],
           ['w', 'Toggle auto-follow (pause/resume live tail)'],
           ['F', 'Toggle fullscreen stream (hide header)'],
+          ['R', 'Clear the stream buffer'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
