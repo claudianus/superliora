@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { measureAnsiDisplayWidth, renderPanelFrame } from '../src';
+import { hitTestDockDivider, measureAnsiDisplayWidth, renderPanelFrame } from '../src';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -44,5 +44,22 @@ describe('renderPanelFrame ANSI safety', () => {
     expect(strip(top)).toContain('Files');
     // ESC-stripped SGR bodies (the dock garbage pattern) must not appear.
     expect(top).not.toMatch(/(?<!\u001B)\[[0-9;]*38;2/);
+  });
+});
+
+describe('hitTestDockDivider pad', () => {
+  const left = { x: 2, y: 1, width: 42, height: 40 };
+  const right = { x: 146, y: 1, width: 52, height: 40 };
+
+  it('hits left divider on the seam and one column inside the dock', () => {
+    expect(hitTestDockDivider(44, 10, left, right)).toBe('left-dock-divider'); // seam
+    expect(hitTestDockDivider(43, 10, left, right)).toBe('left-dock-divider'); // pad inside
+    expect(hitTestDockDivider(45, 10, left, right)).toBe('left-dock-divider'); // pad toward center
+  });
+
+  it('hits right divider with pad', () => {
+    expect(hitTestDockDivider(145, 10, left, right)).toBe('right-dock-divider');
+    expect(hitTestDockDivider(144, 10, left, right)).toBe('right-dock-divider');
+    expect(hitTestDockDivider(146, 10, left, right)).toBe('right-dock-divider');
   });
 });

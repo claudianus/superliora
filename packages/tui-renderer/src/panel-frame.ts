@@ -242,18 +242,18 @@ export function hitTestDockDivider(
   y: number,
   leftDockRect: RendererRect | undefined,
   rightDockRect: RendererRect | undefined,
+  padCols = 1,
 ): DockDividerZone {
+  const pad = Math.max(0, padCols);
   if (leftDockRect) {
-    const dividerX = leftDockRect.x + leftDockRect.width;
-    if (x === dividerX && y >= leftDockRect.y && y < leftDockRect.y + leftDockRect.height) {
-      return 'left-dock-divider';
-    }
+    const seam = leftDockRect.x + leftDockRect.width;
+    const inY = y >= leftDockRect.y && y < leftDockRect.y + leftDockRect.height;
+    if (inY && x >= seam - pad && x <= seam + pad) return 'left-dock-divider';
   }
   if (rightDockRect) {
-    const dividerX = rightDockRect.x - 1;
-    if (x === dividerX && y >= rightDockRect.y && y < rightDockRect.y + rightDockRect.height) {
-      return 'right-dock-divider';
-    }
+    const seam = rightDockRect.x - 1;
+    const inY = y >= rightDockRect.y && y < rightDockRect.y + rightDockRect.height;
+    if (inY && x >= seam - pad && x <= seam + pad) return 'right-dock-divider';
   }
   return 'none';
 }
