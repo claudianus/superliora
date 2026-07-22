@@ -8,7 +8,7 @@
  *       Diff view is Gen 2+ (out of scope for Gen 1).
  */
 
-import type { Quest } from '../controllers/quest-types';
+import type { Quest } from '../../controllers/quest-types';
 
 // ---------------------------------------------------------------------------
 // Types

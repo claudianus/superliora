@@ -12,7 +12,7 @@ import {
   type Quest,
   questStateIcon,
   ATTENTION_STATES,
-} from './quest-types';
+} from '../../controllers/quest-types';
 
 // ---------------------------------------------------------------------------
 // Types
