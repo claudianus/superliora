@@ -25,6 +25,7 @@ import {
   formatQuestCompactLine,
   formatEscalatedQuestCompactLine,
   formatAttentionLoadLabel,
+  formatFleetAttentionLoadLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -742,5 +743,49 @@ describe('formatAttentionLoadLabel (Gen 79)', () => {
 
   it('formats an overloaded load with a critical icon and the pending count', () => {
     expect(formatAttentionLoadLabel('overloaded', 9)).toBe('🔥 overloaded (9 pending)');
+  });
+});
+
+describe('formatFleetAttentionLoadLine (Gen 80)', () => {
+  it('returns null when the attention load is normal', () => {
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval' }),
+      makeQuest('b', { state: 'running' }),
+    ];
+    expect(formatFleetAttentionLoadLine(quests)).toBeNull();
+  });
+
+  it('counts only quests in an attention state', () => {
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval' }),
+      makeQuest('b', { state: 'failed' }),
+      makeQuest('c', { state: 'running' }),
+      makeQuest('d', { state: 'idle' }),
+      makeQuest('e', { state: 'done' }),
+    ];
+    // 2 attention quests → still normal, so null.
+    expect(formatFleetAttentionLoadLine(quests)).toBeNull();
+  });
+
+  it('renders an elevated label once four quests need attention', () => {
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval' }),
+      makeQuest('b', { state: 'failed' }),
+      makeQuest('c', { state: 'waiting-approval' }),
+      makeQuest('d', { state: 'failed' }),
+      makeQuest('e', { state: 'running' }),
+    ];
+    expect(formatFleetAttentionLoadLine(quests)).toBe('⚠ elevated (4 pending)');
+  });
+
+  it('renders an overloaded label once eight quests need attention', () => {
+    const quests = Array.from({ length: 8 }, (_, i) =>
+      makeQuest(`q${String(i)}`, { state: 'waiting-approval' }),
+    );
+    expect(formatFleetAttentionLoadLine(quests)).toBe('🔥 overloaded (8 pending)');
+  });
+
+  it('returns null for an empty fleet', () => {
+    expect(formatFleetAttentionLoadLine([])).toBeNull();
   });
 });

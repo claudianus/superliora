@@ -7,8 +7,9 @@
  * unit-testable in isolation.
  */
 
-import { formatElapsed, type Quest, type QuestState, questHealthScore, formatChangeCount } from './quest-types';
+import { formatElapsed, type Quest, type QuestState, questHealthScore, formatChangeCount, ATTENTION_STATES } from './quest-types';
 import type { AttentionSummary, EscalationLevel, AttentionLoadLevel } from './attention-controller';
+import { classifyAttentionLoad } from './attention-controller';
 import {
   rankQuestsByUrgency,
   rankQuestsByEscalatedUrgency,
@@ -468,4 +469,17 @@ export function formatAttentionLoadLabel(
   if (level === 'normal') return null;
   const icon = level === 'overloaded' ? '🔥' : '⚠';
   return `${icon} ${level} (${String(pendingCount)} pending)`;
+}
+
+/**
+ * Gen 80: compute the operator's attention load label directly from a quest
+ * list, without needing the live AttentionController. Counts quests currently
+ * in an attention state, classifies the load (Gen 78), and renders the label
+ * (Gen 79). Returns null when the load is normal so callers can hide the
+ * segment. Useful for the dashboard summary bar, which already holds the quest
+ * data and does not need to reach into the controller.
+ */
+export function formatFleetAttentionLoadLine(quests: readonly Quest[]): string | null {
+  const pendingCount = quests.filter((quest) => ATTENTION_STATES.has(quest.state)).length;
+  return formatAttentionLoadLabel(classifyAttentionLoad(pendingCount), pendingCount);
 }
