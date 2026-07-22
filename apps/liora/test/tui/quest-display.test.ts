@@ -6,6 +6,7 @@ import {
   formatEscalationSummary,
   formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
+  formatStripBlinkLabel,
   formatUrgencyRank,
 } from '#/tui/controllers/quest-display';
 import {
@@ -221,5 +222,19 @@ describe('formatEscalatedAttentionSummary (Gen 59)', () => {
   it('reports the count alone when dwell is unknown and nothing is escalated', () => {
     const summary: AttentionSummary = { count: 1, oldestQuestId: 'q1', oldestDwellMs: null };
     expect(formatEscalatedAttentionSummary(summary, [0])).toBe('1 need attention');
+  });
+});
+
+describe('formatStripBlinkLabel (Gen 61)', () => {
+  it('returns null for level 0', () => {
+    expect(formatStripBlinkLabel(0)).toBeNull();
+  });
+
+  it('formats a warning-level blink label', () => {
+    expect(formatStripBlinkLabel(1)).toBe('⚡ BLINK');
+  });
+
+  it('formats a critical-level blink label', () => {
+    expect(formatStripBlinkLabel(2)).toBe('🔥 BLINK');
   });
 });

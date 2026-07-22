@@ -123,3 +123,15 @@ export function formatEscalatedAttentionSummary(
   if (parts.length === 0) return base;
   return `${base} (${parts.join(', ')})`;
 }
+
+/**
+ * Gen 61: a strip-blink label for the thumbnail strip in pinned mode, scaled
+ * by the fleet-wide max escalation level (Gen 60). Returns "⚡ BLINK" for a
+ * warning-level fleet and "🔥 BLINK" for a critical one, so the strip blinks
+ * harder when any quest has been ignored long enough to be critical. Returns
+ * null for level 0 so callers can fall back to the plain blink.
+ */
+export function formatStripBlinkLabel(maxLevel: EscalationLevel): string | null {
+  if (maxLevel === 0) return null;
+  return maxLevel === 2 ? '🔥 BLINK' : '⚡ BLINK';
+}
