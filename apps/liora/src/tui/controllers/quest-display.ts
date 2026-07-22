@@ -487,6 +487,23 @@ export function attentionLoadColorToken(level: AttentionLoadLevel): ColorToken {
 }
 
 /**
+ * Gen 91: a one-line operator guidance string keyed to the cognitive load
+ * level, telling the operator how to respond rather than just how bad things
+ * are. Returns null for the 'normal' level — a comfortable operator needs no
+ * coaching. Elevated load nudges toward triage; overloaded load tells them to
+ * stop taking on new work and clear the most critical quest first.
+ */
+export function formatAttentionLoadGuidance(level: AttentionLoadLevel): string | null {
+  if (level === 'overloaded') {
+    return "you're overloaded — clear the most critical quest first, defer the rest";
+  }
+  if (level === 'elevated') {
+    return 'attention is piling up — triage the oldest quest next';
+  }
+  return null;
+}
+
+/**
  * Gen 80: compute the operator's attention load label directly from a quest
  * list, without needing the live AttentionController. Counts quests currently
  * in an attention state, classifies the load (Gen 78), and renders the label

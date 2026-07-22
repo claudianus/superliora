@@ -32,6 +32,7 @@ import {
   buildTriagePanelSnapshot,
   formatUrgencyDistributionLine,
   attentionLoadColorToken,
+  formatAttentionLoadGuidance,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -763,6 +764,24 @@ describe('attentionLoadColorToken (Gen 89)', () => {
 
   it('maps an overloaded load to error (red)', () => {
     expect(attentionLoadColorToken('overloaded')).toBe('error');
+  });
+});
+
+describe('formatAttentionLoadGuidance (Gen 91)', () => {
+  it('returns null for the normal level (no coaching needed)', () => {
+    expect(formatAttentionLoadGuidance('normal')).toBeNull();
+  });
+
+  it('nudges toward triage for an elevated load', () => {
+    expect(formatAttentionLoadGuidance('elevated')).toBe(
+      'attention is piling up — triage the oldest quest next',
+    );
+  });
+
+  it('tells the operator to clear the critical quest first when overloaded', () => {
+    expect(formatAttentionLoadGuidance('overloaded')).toBe(
+      "you're overloaded — clear the most critical quest first, defer the rest",
+    );
   });
 });
 
