@@ -45,6 +45,8 @@ export interface QuestBridgeSnapshot {
   readonly todoProgress: { done: number; total: number } | undefined;
   /** Gen 9: context window usage ratio (0–1) for the main session. */
   readonly contextUsage: number;
+  /** Gen 13: summary of the pending approval (tool + description), if any. */
+  readonly approvalSummary: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +140,7 @@ export function syncQuestGridFromSnapshot(
       approvalPending: snapshot.approvalPending,
       todoProgress: snapshot.todoProgress,
       contextUsage: snapshot.contextUsage,
+      pendingApprovalSummary: snapshot.approvalSummary,
     });
     attentionController.onQuestStateChanged(mainQuestId, mainState);
   } else {
@@ -155,13 +158,22 @@ export function syncQuestGridFromSnapshot(
     if (existingMain.planStep !== mainPlanStep) {
       gridController.updateQuestPlanStep(mainQuestId, mainPlanStep);
     }
-    // Gen 9: keep progress indicators (todo + context usage) live.
+    // Gen 9 + Gen 13: keep progress indicators and approval summary live.
     const prevTodo = existingMain.todoProgress;
     const nextTodo = snapshot.todoProgress;
     const todoChanged =
       prevTodo?.done !== nextTodo?.done || prevTodo?.total !== nextTodo?.total;
-    if (todoChanged || existingMain.contextUsage !== snapshot.contextUsage) {
-      gridController.updateQuestProgress(mainQuestId, nextTodo, snapshot.contextUsage);
+    if (
+      todoChanged ||
+      existingMain.contextUsage !== snapshot.contextUsage ||
+      existingMain.pendingApprovalSummary !== snapshot.approvalSummary
+    ) {
+      gridController.updateQuestProgress(
+        mainQuestId,
+        nextTodo,
+        snapshot.contextUsage,
+        snapshot.approvalSummary,
+      );
     }
   }
 

@@ -121,7 +121,12 @@ export class QuestExpandView {
       progressParts.push(`ctx ${String(pct)}%`);
     }
     const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
-    const headerLine3 = `   ${progress}▸ ${quest.planStep}`;
+    // Gen 13: surface the pending approval in the header when awaiting one.
+    const stepText =
+      quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined
+        ? `⚡ ${quest.pendingApprovalSummary}`
+        : `▸ ${quest.planStep}`;
+    const headerLine3 = `   ${progress}${stepText}`;
     lines.push(headerLine3.length > width ? headerLine3.slice(0, width) : headerLine3);
 
     // Separator

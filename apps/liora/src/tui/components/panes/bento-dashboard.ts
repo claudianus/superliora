@@ -244,13 +244,20 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const name = quest.name.length > nameBudget ? quest.name.slice(0, nameBudget) : quest.name;
     const line1 = `${prefix}${badge} ${name}`;
     const line2 = `${focusIndicator}  ⏱ ${created}  idle ${idle}  ${changes}${progress}   ${shorten(quest.worktreePath, safeWidth)}`;
-    const line3 = `${focusIndicator}  ▸ ${quest.planStep}`;
+    // Gen 13: when awaiting approval, surface what needs a decision.
+    const stepText =
+      quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined
+        ? quest.pendingApprovalSummary
+        : quest.planStep;
+    const line3 = `${focusIndicator}  ▸ ${stepText}`;
 
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
       line1,
       currentTheme.dim(clip(line2, width)),
-      currentTheme.dim(clip(line3, width)),
+      quest.state === 'waiting-approval'
+        ? currentTheme.fg('warning', clip(line3, width))
+        : currentTheme.dim(clip(line3, width)),
     ];
   }
 

@@ -4161,6 +4161,7 @@ export class LioraTUI {
       currentActivity: this.sessionEventHandler.getCurrentActivity(),
       todoProgress: computeTodoProgress(this.state.todoPanel.getTodos()),
       contextUsage: this.state.appState.contextUsage,
+      approvalSummary: describePendingApproval(this.state.livePane.pendingApproval),
     });
   }
 
@@ -4720,4 +4721,18 @@ function computeTodoProgress(
   if (todos.length === 0) return undefined;
   const done = todos.filter((t) => t.status === 'done').length;
   return { done, total: todos.length };
+}
+
+/**
+ * Gen 13: summarize a pending approval as "tool — description" so the quest
+ * cell can show what needs a decision. Returns undefined when nothing is
+ * pending.
+ */
+function describePendingApproval(
+  pending: { data: { tool_name: string; description: string } } | null,
+): string | undefined {
+  if (pending === null) return undefined;
+  const { tool_name: toolName, description } = pending.data;
+  const desc = description.length > 60 ? `${description.slice(0, 59)}…` : description;
+  return `${toolName} — ${desc}`;
 }

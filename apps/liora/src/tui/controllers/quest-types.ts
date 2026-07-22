@@ -64,6 +64,8 @@ export interface Quest {
   readonly todoProgress?: { done: number; total: number } | undefined;
   /** Gen 9: context window usage ratio (0–1) for the main session. */
   readonly contextUsage?: number | undefined;
+  /** Gen 13: summary of the pending approval (tool + description), if any. */
+  readonly pendingApprovalSummary?: string | undefined;
 }
 
 // ---------------------------------------------------------------------------

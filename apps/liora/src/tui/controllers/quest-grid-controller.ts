@@ -126,10 +126,11 @@ export class QuestGridController {
     questId: string,
     todoProgress: { done: number; total: number } | undefined,
     contextUsage: number,
+    pendingApprovalSummary: string | undefined,
   ): void {
     const quest = this.quests.get(questId);
     if (!quest) return;
-    this.quests.set(questId, { ...quest, todoProgress, contextUsage });
+    this.quests.set(questId, { ...quest, todoProgress, contextUsage, pendingApprovalSummary });
     this.requestRender();
   }
 

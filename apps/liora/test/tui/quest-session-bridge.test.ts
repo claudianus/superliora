@@ -37,6 +37,7 @@ function makeSnapshot(overrides: Partial<QuestBridgeSnapshot> = {}): QuestBridge
     currentActivity: undefined,
     todoProgress: undefined,
     contextUsage: 0,
+    approvalSummary: undefined,
     ...overrides,
   };
 }
