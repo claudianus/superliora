@@ -13,6 +13,7 @@ import { currentTheme } from '#/tui/theme';
 import {
   type Quest,
   formatChangeCount,
+  formatElapsed,
 } from '../../controllers/quest-types';
 
 // ---------------------------------------------------------------------------
@@ -227,12 +228,15 @@ export class QuestExpandView {
     const headerLine1 = `── ${quest.name} [${quest.state}]  ${scrollTag}${searchTag} ──`;
     lines.push(headerLine1.length > width ? headerLine1.slice(0, width) : headerLine1);
 
-    // Second header line: worktree + change count
+    // Second header line: worktree + change count + elapsed time (Gen 23)
     const changes = formatChangeCount(quest.changeCount);
     const worktree = quest.worktreePath.length > 40
       ? `…${quest.worktreePath.slice(-39)}`
       : quest.worktreePath;
-    const headerLine2 = `   ${worktree}  ${changes}`;
+    const now = Date.now();
+    const elapsed = `⏱ ${formatElapsed(Math.max(0, now - quest.createdAt))}`;
+    const idle = `idle ${formatElapsed(Math.max(0, now - quest.lastActivityAt))}`;
+    const headerLine2 = `   ${worktree}  ${changes}  ${elapsed}  ${idle}`;
     lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
 
     // Third header line: todo progress + context usage + plan step
