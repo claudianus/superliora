@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   AttentionController,
   ATTENTION_LATENCY_MAX_MS,
+  ATTENTION_ESCALATION_MS,
 } from '#/tui/controllers/attention-controller';
 
 function makeController(nowValue = 1000) {
@@ -195,6 +196,47 @@ describe('attention dwell time (Gen 32)', () => {
     ctrl.clearAll();
     expect(ctrl.getDwellTime('q1')).toBeNull();
     expect(ctrl.getMostNeglectedQuestId()).toBeNull();
+  });
+});
+
+describe('attention escalation (Gen 51)', () => {
+  it('is not escalated before the threshold', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS - 1);
+    expect(ctrl.isEscalated('q1')).toBe(false);
+  });
+
+  it('is escalated once dwell reaches the threshold', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS);
+    expect(ctrl.isEscalated('q1')).toBe(true);
+  });
+
+  it('is not escalated for a quest not in an attention state', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS + 1000);
+    ctrl.onQuestStateChanged('q1', 'running');
+    expect(ctrl.isEscalated('q1')).toBe(false);
+  });
+
+  it('getEscalatedQuestIds returns only escalated quests, most neglected first', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS + 1000);
+    ctrl.onQuestStateChanged('q2', 'failed');
+    advanceTime(ATTENTION_ESCALATION_MS + 1000);
+    ctrl.onQuestStateChanged('q3', 'waiting-approval'); // fresh, not escalated
+
+    expect(ctrl.getEscalatedQuestIds()).toEqual(['q1', 'q2']);
+  });
+
+  it('getEscalatedQuestIds is empty when nothing is escalated', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    expect(ctrl.getEscalatedQuestIds()).toEqual([]);
   });
 });
 

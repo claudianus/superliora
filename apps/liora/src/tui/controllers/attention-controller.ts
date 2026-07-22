@@ -56,6 +56,13 @@ export interface AttentionSummary {
 /** Maximum allowed latency from event receipt to pulse render (ms). */
 export const ATTENTION_LATENCY_MAX_MS = 2000;
 
+/**
+ * Gen 51: dwell time (ms) after which an unattended quest is considered
+ * escalated. A quest left in an attention state this long deserves stronger
+ * emphasis so the operator does not lose track of it.
+ */
+export const ATTENTION_ESCALATION_MS = 5 * 60 * 1000;
+
 /** Terminal bell character. */
 const BELL_CHAR = '\x07';
 
@@ -215,6 +222,32 @@ export class AttentionController {
       oldestQuestId,
       oldestDwellMs: oldestQuestId !== null ? this.getDwellTime(oldestQuestId) : null,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 51: Attention Escalation
+  // -------------------------------------------------------------------------
+
+  /**
+   * Gen 51: whether a quest has been left unattended long enough to be
+   * escalated (dwell time ≥ ATTENTION_ESCALATION_MS). Only quests currently
+   * in an attention state can be escalated.
+   */
+  isEscalated(questId: string): boolean {
+    const dwell = this.getDwellTime(questId);
+    return dwell !== null && dwell >= ATTENTION_ESCALATION_MS;
+  }
+
+  /**
+   * Gen 51: ids of all currently escalated quests, in the order they entered
+   * the attention state (most neglected first). Lets the dashboard apply
+   * stronger emphasis to quests that have been ignored the longest.
+   */
+  getEscalatedQuestIds(): readonly string[] {
+    return [...this.attentionEnteredAt.entries()]
+      .filter(([, enteredAt]) => Math.max(0, this.now() - enteredAt) >= ATTENTION_ESCALATION_MS)
+      .sort((a, b) => a[1] - b[1])
+      .map(([questId]) => questId);
   }
 
   // -------------------------------------------------------------------------
