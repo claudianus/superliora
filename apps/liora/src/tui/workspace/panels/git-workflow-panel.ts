@@ -76,6 +76,7 @@ function gitExec(cwd: string, args: string[], timeoutMs = 10_000): string {
       encoding: 'utf-8',
       timeout: timeoutMs,
       maxBuffer: 2 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
     }).trim();
   } catch {
     return '';

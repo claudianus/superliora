@@ -227,6 +227,7 @@ export class GitDiffPanel implements PanelDefinition {
           cwd: this.cwd,
           encoding: 'utf-8',
           timeout: 3000,
+          stdio: ['ignore', 'pipe', 'pipe'],
         }).trim();
         if (blameOutput.length > 0) {
           this.blameCache.set(file.path, blameOutput);
@@ -287,6 +288,7 @@ export class GitDiffPanel implements PanelDefinition {
         encoding: 'utf-8',
         timeout: 10000,
         maxBuffer: 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
       this.files = parseDiff(diffOutput);
       this.flatLines = this.buildFlatLines();
@@ -311,10 +313,11 @@ export class GitDiffPanel implements PanelDefinition {
     lines.push(bold(` ${this.files.length} file(s) changed`) + dim(` · ${String(totalLines)} lines`));
     // Show last commit message for context + convention check
     try {
-      const lastCommit = execSync('git log -1 --format="%s" 2>/dev/null', {
+      const lastCommit = execSync('git log -1 --format="%s"', {
         cwd: this.cwd,
         encoding: 'utf-8',
         timeout: 2000,
+        stdio: ['ignore', 'pipe', 'pipe'],
       }).trim();
       if (lastCommit.length > 0) {
         const truncatedMsg = lastCommit.length > width - 6 ? lastCommit.slice(0, width - 9) + '…' : lastCommit;

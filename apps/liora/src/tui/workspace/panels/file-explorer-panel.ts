@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -169,10 +170,11 @@ export class FileExplorerPanel implements PanelDefinition {
         const blameKey = selectedEntry.fullPath;
         if (!this.blameCache.has(blameKey)) {
           try {
-            const blameOutput = execSync(`git log -1 --format="%an" -- "${blameKey}" 2>/dev/null`, {
+            const blameOutput = execSync(`git log -1 --format="%an" -- "${blameKey}"`, {
               cwd: this.rootPath,
               encoding: 'utf-8',
               timeout: 2000,
+              stdio: ['ignore', 'pipe', 'pipe'],
             }).trim();
             this.blameCache.set(blameKey, blameOutput || '');
           } catch {
@@ -186,10 +188,11 @@ export class FileExplorerPanel implements PanelDefinition {
         // Git commit count for the selected file
         if (!this.fileCommitCache.has(blameKey)) {
           try {
-            const countOutput = execSync(`git rev-list --count HEAD -- "${blameKey}" 2>/dev/null`, {
+            const countOutput = execSync(`git rev-list --count HEAD -- "${blameKey}"`, {
               cwd: this.rootPath,
               encoding: 'utf-8',
               timeout: 2000,
+              stdio: ['ignore', 'pipe', 'pipe'],
             }).trim();
             this.fileCommitCache.set(blameKey, parseInt(countOutput, 10) || 0);
           } catch {
@@ -206,10 +209,11 @@ export class FileExplorerPanel implements PanelDefinition {
         stats += currentTheme.fg('accent', ` ≡${String(this.gitStashCount)}`);
         // Show latest stash message (truncated)
         try {
-          const stashMsg = execSync('git stash list -1 --format="%s" 2>/dev/null', {
+          const stashMsg = execSync('git stash list -1 --format="%s"', {
             cwd: this.rootPath,
             encoding: 'utf-8',
             timeout: 2000,
+            stdio: ['ignore', 'pipe', 'pipe'],
           }).trim();
           if (stashMsg.length > 0) {
             const shortMsg = stashMsg.length > 20 ? stashMsg.slice(0, 19) + '…' : stashMsg;
@@ -391,6 +395,14 @@ export class FileExplorerPanel implements PanelDefinition {
     this.gitStatusMap.clear();
   }
 
+  /** Pad a string to the given width with spaces (ANSI-aware). */
+  private pad(text: string, width: number): string {
+    // Strip ANSI to measure visible length
+    const visible = text.replace(/\x1b\[[0-9;]*m/g, '');
+    const padding = Math.max(0, width - visible.length);
+    return text + ' '.repeat(padding);
+  }
+
   // -------------------------------------------------------------------------
   // Tree operations
   // -------------------------------------------------------------------------
@@ -568,13 +580,14 @@ export class FileExplorerPanel implements PanelDefinition {
     this.gitCommitCount = 0;
     this.recentlyModified.clear();
     try {
-      const { execSync } = require('node:child_process') as typeof import('node:child_process');
+      const SAFE_STDIO: ['ignore', 'pipe', 'pipe'] = ['ignore', 'pipe', 'pipe'];
       // Get current branch
       try {
         const branch = execSync('git rev-parse --abbrev-ref HEAD', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 3000,
+          stdio: SAFE_STDIO,
         }).trim();
         if (branch && branch !== 'HEAD') this.gitBranch = branch;
       } catch {
@@ -586,6 +599,7 @@ export class FileExplorerPanel implements PanelDefinition {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 3000,
+          stdio: SAFE_STDIO,
         }).trim();
         this.gitCommitCount = parseInt(countStr, 10) || 0;
       } catch {
@@ -593,20 +607,22 @@ export class FileExplorerPanel implements PanelDefinition {
       }
       // Get latest tag
       try {
-        const tag = execSync('git describe --tags --abbrev=0 2>/dev/null', {
+        const tag = execSync('git describe --tags --abbrev=0', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 3000,
+          stdio: SAFE_STDIO,
         }).trim();
         this.gitTag = tag || null;
         // Fetch tag annotation if available
         this.gitTagAnnotation = null;
         if (tag) {
           try {
-            const annotation = execSync(`git tag -l --format='%(contents:subject)' "${tag}" 2>/dev/null`, {
+            const annotation = execSync(`git tag -l --format='%(contents:subject)' "${tag}"`, {
               cwd: this.rootPath,
               encoding: 'utf-8',
               timeout: 2000,
+              stdio: SAFE_STDIO,
             }).trim();
             if (annotation.length > 0) this.gitTagAnnotation = annotation;
           } catch {
@@ -618,11 +634,12 @@ export class FileExplorerPanel implements PanelDefinition {
       }
       // Get remote name
       try {
-        const remote = execSync('git remote 2>/dev/null | head -1', {
+        const remote = execSync('git remote', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 3000,
-        }).trim();
+          stdio: SAFE_STDIO,
+        }).trim().split('\n')[0] ?? '';
         this.gitRemote = remote || null;
       } catch {
         this.gitRemote = null;
@@ -631,10 +648,11 @@ export class FileExplorerPanel implements PanelDefinition {
       this.gitAhead = 0;
       this.gitBehind = 0;
       try {
-        const abOutput = execSync('git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null', {
+        const abOutput = execSync('git rev-list --left-right --count HEAD...@{upstream}', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 3000,
+          stdio: SAFE_STDIO,
         }).trim();
         const parts = abOutput.split(/\s+/);
         if (parts.length === 2) {
@@ -647,10 +665,11 @@ export class FileExplorerPanel implements PanelDefinition {
       // Detect git submodules
       this.submodulePaths.clear();
       try {
-        const submoduleOutput = execSync('git submodule status 2>/dev/null', {
+        const submoduleOutput = execSync('git submodule status', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 3000,
+          stdio: SAFE_STDIO,
         });
         for (const line of submoduleOutput.split('\n')) {
           const match = line.match(/^\s*[-+ ]?[0-9a-f]+\s+(\S+)/);
@@ -664,25 +683,24 @@ export class FileExplorerPanel implements PanelDefinition {
       // Load gitignore patterns
       this.gitignorePatterns = [];
       try {
-        const gitignoreContent = execSync('cat .gitignore 2>/dev/null || true', {
-          cwd: this.rootPath,
-          encoding: 'utf-8',
-          timeout: 2000,
-        });
+        const gitignoreContent = require('node:fs').readFileSync(
+          require('node:path').join(this.rootPath, '.gitignore'), 'utf-8'
+        );
         this.gitignorePatterns = gitignoreContent
           .split('\n')
-          .map((l) => l.trim())
-          .filter((l) => l.length > 0 && !l.startsWith('#'));
+          .map((l: string) => l.trim())
+          .filter((l: string) => l.length > 0 && !l.startsWith('#'));
       } catch {
         // No .gitignore
       }
       // Detect git worktree
       this.isWorktree = false;
       try {
-        const gitDir = execSync('git rev-parse --git-dir 2>/dev/null', {
+        const gitDir = execSync('git rev-parse --git-dir', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 2000,
+          stdio: SAFE_STDIO,
         }).trim();
         // In a worktree, .git is a file pointing to .git/worktrees/<name>
         this.isWorktree = gitDir.includes('worktrees');
@@ -692,16 +710,18 @@ export class FileExplorerPanel implements PanelDefinition {
       // Get branch divergence from main/master
       this.branchDivergence = null;
       try {
-        const baseBranch = execSync('git rev-parse --verify main 2>/dev/null || git rev-parse --verify master 2>/dev/null', {
+        const baseBranch = execSync('git rev-parse --verify main', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 2000,
+          stdio: SAFE_STDIO,
         }).trim();
         if (baseBranch) {
-          const divOutput = execSync('git rev-list --left-right --count HEAD...main 2>/dev/null || git rev-list --left-right --count HEAD...master 2>/dev/null', {
+          const divOutput = execSync('git rev-list --left-right --count HEAD...main', {
             cwd: this.rootPath,
             encoding: 'utf-8',
             timeout: 2000,
+            stdio: SAFE_STDIO,
           }).trim();
           const divParts = divOutput.split(/\s+/);
           if (divParts.length === 2) {
@@ -717,12 +737,13 @@ export class FileExplorerPanel implements PanelDefinition {
       // Get stash count
       this.gitStashCount = 0;
       try {
-        const stashOutput = execSync('git stash list 2>/dev/null | wc -l', {
+        const stashOutput = execSync('git stash list', {
           cwd: this.rootPath,
           encoding: 'utf-8',
           timeout: 3000,
+          stdio: SAFE_STDIO,
         }).trim();
-        this.gitStashCount = parseInt(stashOutput, 10) || 0;
+        this.gitStashCount = stashOutput.length > 0 ? stashOutput.split('\n').length : 0;
       } catch {
         // Not a git repo or no stashes
       }
@@ -730,6 +751,7 @@ export class FileExplorerPanel implements PanelDefinition {
         cwd: this.rootPath,
         encoding: 'utf-8',
         timeout: 5000,
+        stdio: SAFE_STDIO,
       });
       for (const line of output.split('\n')) {
         if (line.length < 4) continue;
@@ -809,7 +831,7 @@ export class FileExplorerPanel implements PanelDefinition {
     const gitBadge = entry.gitStatus ? ` ${gitStatusStyled(entry.gitStatus)}` : '';
     // Enhanced file type color coding based on extension category
     const ext = entry.name.includes('.') ? entry.name.slice(entry.name.lastIndexOf('.') + 1).toLowerCase() : '';
-    const FILE_TYPE_TOKENS: Record<string, ColorToken> = {
+    const FILE_TYPE_TOKENS: Record<string, string> = {
       // Source code
       ts: 'primary', tsx: 'primary', js: 'warning', jsx: 'warning',
       py: 'success', rs: 'error', go: 'accent', rb: 'error',
@@ -828,7 +850,7 @@ export class FileExplorerPanel implements PanelDefinition {
     const nameStyled = entry.isDirectory
       ? currentTheme.boldFg('textStrong', entry.name)
       : fileTypeToken
-        ? currentTheme.fg(fileTypeToken, entry.name)
+        ? currentTheme.fg(fileTypeToken as keyof import('#/tui/theme').ColorPalette, entry.name)
         : currentTheme.fg(getFileNameToken(entry.name), entry.name);
     // Symlink indicator
     const symlinkBadge = entry.isSymlink ? currentTheme.fg('accent', ' @') : '';
@@ -1064,6 +1086,11 @@ function gitStatusStyled(status: string): string {
 
 function dim(text: string): string {
   return currentTheme.dimFg('textDim', text);
+}
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, Math.max(0, max - 1)) + '…';
 }
 
 function inverse(text: string): string {
