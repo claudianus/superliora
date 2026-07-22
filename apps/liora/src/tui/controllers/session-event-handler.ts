@@ -794,24 +794,42 @@ export class SessionEventHandler {
           : `▸ ${event.name}`,
       );
     }
-    // Gen 3: render Edit tool diffs inline in the expand view so the user
-    // sees the actual code change, not just a "▸ Edit" line.
-    if (this.onQuestStreamLines !== undefined && event.name === 'Edit') {
-      const oldText = typeof toolCall.args['old_string'] === 'string'
-        ? toolCall.args['old_string']
-        : '';
-      const newText = typeof toolCall.args['new_string'] === 'string'
-        ? toolCall.args['new_string']
-        : '';
-      const path = typeof toolCall.args['path'] === 'string'
-        ? toolCall.args['path']
-        : 'unknown';
-      if (oldText.length > 0 || newText.length > 0) {
-        const diffLines = renderDiffLinesClustered(oldText, newText, path, {
-          contextLines: 2,
-          maxLines: 12,
-        });
-        if (diffLines.length > 0) this.onQuestStreamLines(diffLines);
+    // Gen 3/6: render Edit/Write tool diffs inline in the expand view so the
+    // user sees the actual code change, not just a "▸ Edit/Write" line.
+    if (this.onQuestStreamLines !== undefined) {
+      if (event.name === 'Edit') {
+        const oldText = typeof toolCall.args['old_string'] === 'string'
+          ? toolCall.args['old_string']
+          : '';
+        const newText = typeof toolCall.args['new_string'] === 'string'
+          ? toolCall.args['new_string']
+          : '';
+        const path = typeof toolCall.args['path'] === 'string'
+          ? toolCall.args['path']
+          : 'unknown';
+        if (oldText.length > 0 || newText.length > 0) {
+          const diffLines = renderDiffLinesClustered(oldText, newText, path, {
+            contextLines: 2,
+            maxLines: 12,
+          });
+          if (diffLines.length > 0) this.onQuestStreamLines(diffLines);
+        }
+      } else if (event.name === 'Write') {
+        // Gen 6: Write replaces the whole file — show the new content as
+        // additions against an empty old text.
+        const content = typeof toolCall.args['content'] === 'string'
+          ? toolCall.args['content']
+          : '';
+        const path = typeof toolCall.args['path'] === 'string'
+          ? toolCall.args['path']
+          : 'unknown';
+        if (content.length > 0) {
+          const diffLines = renderDiffLinesClustered('', content, path, {
+            contextLines: 0,
+            maxLines: 12,
+          });
+          if (diffLines.length > 0) this.onQuestStreamLines(diffLines);
+        }
       }
     }
     // Gen 5: accumulate change statistics (added/removed lines) for quest cells.
