@@ -33,6 +33,7 @@ import {
   formatUrgencyDistributionLine,
   attentionLoadColorToken,
   formatAttentionLoadGuidance,
+  formatTriageCompactLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -1073,5 +1074,40 @@ describe('formatUrgencyDistributionLine (Gen 86)', () => {
       makeQuest('crit', { state: 'failed', attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
     ];
     expect(formatUrgencyDistributionLine(quests, now)).toBe('1 fresh · 1 escalated · 1 critical');
+  });
+});
+
+describe('formatTriageCompactLine (Gen 93)', () => {
+  it('returns null when nothing needs attention', () => {
+    const now = 100_000;
+    const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
+    expect(formatTriageCompactLine(quests, now)).toBeNull();
+  });
+
+  it('returns null for an empty fleet', () => {
+    expect(formatTriageCompactLine([], 100_000)).toBeNull();
+  });
+
+  it('shows only the recommendation for a normal load', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'Fix login', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+    ];
+    // A single pending quest is a normal load, so the load line is hidden and
+    // only the recommendation remains.
+    expect(formatTriageCompactLine(quests, now)).toBe("→ handle 'Fix login' first");
+  });
+
+  it('joins the load line and the recommendation for an elevated load', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { name: 'One', state: 'waiting-approval', attentionEnteredAt: now - 3_000 }),
+      makeQuest('b', { name: 'Two', state: 'failed', attentionEnteredAt: now - 2_000 }),
+      makeQuest('c', { name: 'Three', state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('d', { name: 'Four', state: 'waiting-approval', attentionEnteredAt: now - 500 }),
+    ];
+    expect(formatTriageCompactLine(quests, now)).toBe(
+      "⚠ elevated (4 pending) → handle 'One' first",
+    );
   });
 });

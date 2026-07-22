@@ -663,3 +663,25 @@ export function formatUrgencyDistributionLine(
   if (segments.length === 0) return null;
   return segments.join(' · ');
 }
+
+/**
+ * Gen 93: a single-line triage summary for the dashboard summary bar, joining
+ * the load line (Gen 81) and the recommendation (Gen 82), e.g.
+ * "⚠ elevated (4 pending) → handle 'One' first". Where the full triage panel
+ * (Gen 84/92) spans several lines, this collapses the two most actionable
+ * signals into one so a narrow bar can still surface demand and the next
+ * action. Returns null when nothing needs attention so callers can hide the
+ * segment.
+ */
+export function formatTriageCompactLine(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): string | null {
+  const loadLine = formatEscalatedFleetAttentionLoadLine(quests, now);
+  const recommendationLine = formatTriageRecommendationLine(quests, now);
+  const parts = [loadLine, recommendationLine].filter(
+    (part): part is string => part !== null,
+  );
+  if (parts.length === 0) return null;
+  return parts.join(' ');
+}
