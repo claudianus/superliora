@@ -336,6 +336,43 @@ describe('escalation levels (Gen 53)', () => {
   });
 });
 
+describe('fleet-wide max escalation level (Gen 60)', () => {
+  it('is 0 when nothing is escalated', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    expect(ctrl.getMaxEscalationLevel()).toBe(0);
+  });
+
+  it('reflects the highest escalation level across quests', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS);
+    expect(ctrl.getMaxEscalationLevel()).toBe(1);
+
+    ctrl.onQuestStateChanged('q2', 'failed');
+    advanceTime(ATTENTION_CRITICAL_MS - ATTENTION_ESCALATION_MS);
+    expect(ctrl.getMaxEscalationLevel()).toBe(2);
+  });
+
+  it('drops back when the most-escalated quest leaves attention', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_CRITICAL_MS);
+    expect(ctrl.getMaxEscalationLevel()).toBe(2);
+
+    ctrl.onQuestStateChanged('q1', 'running');
+    expect(ctrl.getMaxEscalationLevel()).toBe(0);
+  });
+
+  it('is 0 after clearAll', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_CRITICAL_MS);
+    ctrl.clearAll();
+    expect(ctrl.getMaxEscalationLevel()).toBe(0);
+  });
+});
+
 describe('attention event idempotency (Gen 45)', () => {
   it('does not re-ring the bell on repeated same-state events', () => {
     const { ctrl, writeRaw } = makeController(5000);

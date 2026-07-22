@@ -289,6 +289,22 @@ export class AttentionController {
     return 1;
   }
 
+  /**
+   * Gen 60: the highest escalation level across all quests currently in an
+   * attention state. Lets the thumbnail strip blink harder (e.g. a different
+   * color) when any quest has been ignored long enough to be critical.
+   * Returns 0 when nothing is escalated.
+   */
+  getMaxEscalationLevel(): EscalationLevel {
+    let max: EscalationLevel = 0;
+    for (const questId of this.attentionEnteredAt.keys()) {
+      const level = this.getEscalationLevel(questId);
+      if (level > max) max = level;
+      if (max === 2) break; // cannot escalate further
+    }
+    return max;
+  }
+
   // -------------------------------------------------------------------------
   // Gen 52: Escalation Polling
   // -------------------------------------------------------------------------
