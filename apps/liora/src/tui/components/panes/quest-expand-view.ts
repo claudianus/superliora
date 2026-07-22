@@ -382,6 +382,46 @@ export class QuestExpandView {
     return false;
   }
 
+  /**
+   * Gen 65: count error and warning lines in the active buffer and format a
+   * compact badge, e.g. `  ✖2 ⚠1`. Returns an empty string when the stream
+   * is clean so the header stays uncluttered.
+   */
+  private formatProblemBadge(): string {
+    const buffer = this.activeBuffer();
+    let errors = 0;
+    let warnings = 0;
+    for (const line of buffer) {
+      if (ERROR_PATTERN.test(line)) errors++;
+      else if (WARNING_PATTERN.test(line)) warnings++;
+    }
+    if (errors === 0 && warnings === 0) return '';
+    const parts: string[] = [];
+    if (errors > 0) parts.push(`✖${String(errors)}`);
+    if (warnings > 0) parts.push(`⚠${String(warnings)}`);
+    return `  ${parts.join(' ')}`;
+  }
+
+  /**
+   * Gen 65: colored variant of the problem badge for the header display, so
+   * error counts render in the error color and warnings in the warning color.
+   */
+  private formatProblemBadgeColored(): string {
+    const buffer = this.activeBuffer();
+    let errors = 0;
+    let warnings = 0;
+    for (const line of buffer) {
+      if (ERROR_PATTERN.test(line)) errors++;
+      else if (WARNING_PATTERN.test(line)) warnings++;
+    }
+    if (errors === 0 && warnings === 0) return '';
+    let out = '  ';
+    if (errors > 0) out += currentTheme.fg('error', `✖${String(errors)}`);
+    if (errors > 0 && warnings > 0) out += ' ';
+    if (warnings > 0) out += currentTheme.fg('warning', `⚠${String(warnings)}`);
+    return out;
+  }
+
   /** Get the currently visible lines. */
   getVisibleLines(): readonly string[] {
     const source = this.activeBuffer();
@@ -428,6 +468,9 @@ export class QuestExpandView {
       const diffTag = this.diffOnly ? '  ≡ diff' : '';
       // Gen 57: flag when auto-follow is paused so the parked state is obvious.
       const followTag = this.followTail ? '' : '  ⏸ paused';
+      // Gen 65: surface how many error/warning lines the stream holds so the
+      // operator sees the problem scale at a glance (pairs with e/E jumps).
+      const problemTag = this.formatProblemBadge();
 
       // Gen 16: append search status to the header when a search is active.
       const searchStatus = this.getSearchStatus();
@@ -441,12 +484,16 @@ export class QuestExpandView {
       const stateToken = questStateColorToken(quest.state);
       const badgeText = `[${quest.state}]`;
       const headerPrefix = `── ${quest.name} `;
-      const headerSuffix = `  ${scrollTag}${searchTag}${diffTag}${followTag} ──`;
+      // Gen 65: plain suffix for width calculation; colored suffix for display
+      // so the error/warning counts stand out.
+      const headerSuffix = `  ${scrollTag}${searchTag}${diffTag}${followTag}${problemTag} ──`;
       const plainHeader = `${headerPrefix}${badgeText}${headerSuffix}`;
       const headerLine1 =
         plainHeader.length > width
           ? plainHeader.slice(0, width)
-          : `${currentTheme.dim(headerPrefix)}${currentTheme.fg(stateToken, badgeText)}${currentTheme.dim(headerSuffix)}`;
+          : `${currentTheme.dim(headerPrefix)}${currentTheme.fg(stateToken, badgeText)}` +
+            `${currentTheme.dim(`  ${scrollTag}${searchTag}${diffTag}${followTag}`)}` +
+            `${this.formatProblemBadgeColored()}${currentTheme.dim(' ──')}`;
       lines.push(headerLine1);
 
       // Second header line: worktree + change count + elapsed time (Gen 23)
