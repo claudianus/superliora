@@ -11,6 +11,7 @@ import {
   formatFleetChangeSummary,
   formatFleetHealthSummary,
   formatFleetStateSummary,
+  formatFleetTodoSummary,
   formatHealthLabel,
   formatStripBlinkLabel,
   formatTodoProgress,
@@ -437,5 +438,30 @@ describe('formatFleetChangeSummary (Gen 70)', () => {
       makeQuest('b', { changeCount: { added: 5, removed: 0 } }),
     ];
     expect(formatFleetChangeSummary(quests)).toBe('+5 −0');
+  });
+});
+
+describe('formatFleetTodoSummary (Gen 71)', () => {
+  it('returns null when no quest reports todo items', () => {
+    const quests = [makeQuest('a', { state: 'running' })];
+    expect(formatFleetTodoSummary(quests)).toBeNull();
+    expect(formatFleetTodoSummary([])).toBeNull();
+  });
+
+  it('sums done and total across quests with todo progress', () => {
+    const quests = [
+      makeQuest('a', { todoProgress: { done: 3, total: 5 } }),
+      makeQuest('b', { todoProgress: { done: 9, total: 15 } }),
+      makeQuest('c', { state: 'running' }), // no todo progress
+    ];
+    expect(formatFleetTodoSummary(quests)).toBe('12/20 todos');
+  });
+
+  it('ignores quests with an empty todo list', () => {
+    const quests = [
+      makeQuest('a', { todoProgress: { done: 0, total: 0 } }),
+      makeQuest('b', { todoProgress: { done: 2, total: 4 } }),
+    ];
+    expect(formatFleetTodoSummary(quests)).toBe('2/4 todos');
   });
 });

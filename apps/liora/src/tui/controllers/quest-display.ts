@@ -284,3 +284,22 @@ export function formatFleetChangeSummary(quests: readonly Quest[]): string | nul
   const removed = quests.reduce<number>((sum, quest) => sum + quest.changeCount.removed, 0);
   return `+${String(added)} −${String(removed)}`;
 }
+
+/**
+ * Gen 71: a fleet-wide todo progress summary, e.g. "12/20 todos". Sums the
+ * done and total counts across all quests that report todo progress so the
+ * summary bar can show overall plan completion at a glance. Returns null when
+ * no quest reports any todo items so callers can hide the segment entirely.
+ */
+export function formatFleetTodoSummary(quests: readonly Quest[]): string | null {
+  let done = 0;
+  let total = 0;
+  for (const quest of quests) {
+    if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
+      done += quest.todoProgress.done;
+      total += quest.todoProgress.total;
+    }
+  }
+  if (total === 0) return null;
+  return `${String(done)}/${String(total)} todos`;
+}
