@@ -513,6 +513,13 @@ export class LioraTUI {
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
     this.sessionEventHandler.activityFeed = this.activityFeed;
+    // Gen 2: event-driven dashboard refresh — sync immediately on quest-relevant
+    // events instead of waiting for the poll timer (improves AC-2 latency).
+    this.sessionEventHandler.onQuestRelevantEvent = () => {
+      if (this.state.activeDialog === 'dashboard') {
+        this.syncQuestDashboard();
+      }
+    };
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
     this.usageMonitor = new UsageMonitorController({
@@ -4049,12 +4056,40 @@ export class LioraTUI {
         requestRender,
       });
       this.questApprovalController = new QuestApprovalController({
-        sendStdin: () => {},
-        cancelQuest: () => {},
-        rejectStep: () => {},
-        openRewindPicker: async () => null,
+        // a (approve): resolve the pending reverse-rpc approval for the main
+        // session, mirroring the approval panel's "approved" response.
+        sendStdin: () => {
+          if (this.state.livePane.pendingApproval === null) {
+            this.showStatus('No pending approval for this quest.', 'warning');
+            return;
+          }
+          this.approvalController.respond({ decision: 'approved' });
+          this.patchLivePane({ pendingApproval: null });
+          this.syncQuestDashboard();
+        },
+        // x → cancel-all: cancel every pending approval (aborts the turn).
+        cancelQuest: () => {
+          this.approvalController.cancelAll('cancelled from quest dashboard');
+          this.patchLivePane({ pendingApproval: null });
+          this.syncQuestDashboard();
+        },
+        // x → reject-step: reject just the current tool call.
+        rejectStep: () => {
+          if (this.state.livePane.pendingApproval === null) return;
+          this.approvalController.respond({ decision: 'rejected' });
+          this.patchLivePane({ pendingApproval: null });
+          this.syncQuestDashboard();
+        },
+        // r (rewind): reuse the existing /undo selector. It owns the whole
+        // rewind flow, so we close the dashboard and return null to signal
+        // that no separate executeRewind step is needed.
+        openRewindPicker: async () => {
+          this.hideDashboard();
+          this.openUndoSelector();
+          return null;
+        },
         executeRewind: () => {},
-        presentRejectChoice: async () => null,
+        presentRejectChoice: async () => 'reject-step',
         requestRender,
       });
     }

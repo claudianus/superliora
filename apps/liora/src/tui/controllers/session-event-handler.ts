@@ -162,6 +162,13 @@ export class SessionEventHandler {
   backgroundTasks: Map<string, BackgroundTaskInfo> = new Map();
   backgroundTaskTranscriptedTerminal: Set<string> = new Set();
 
+  /**
+   * Optional hook fired after a quest-relevant event is processed, so the
+   * bento dashboard can sync immediately instead of waiting for its poll
+   * timer (Gen 2 event-driven refresh — improves AC-2 attention latency).
+   */
+  onQuestRelevantEvent: (() => void) | undefined;
+
   renderedSkillActivationIds: Set<string> = new Set();
   renderedPluginCommandActivationIds: Set<string> = new Set();
   renderedMcpServerStatusKeys: Map<string, string> = new Map();
@@ -366,6 +373,12 @@ export class SessionEventHandler {
       case 'mcp.server.status': this.renderMcpServerStatus(event.server); break;
       case 'tool.list.updated': break;
       default: break;
+    }
+
+    // Gen 2: notify the bento dashboard on quest-relevant lifecycle events so
+    // it can re-sync immediately rather than waiting for its poll timer.
+    if (this.onQuestRelevantEvent !== undefined && isQuestRelevantEvent(event.type)) {
+      this.onQuestRelevantEvent();
     }
   }
 
@@ -1499,4 +1512,23 @@ function summarizeArgs(args: Record<string, unknown>): string | undefined {
     }
   }
   return undefined;
+}
+
+/** Event types that change quest state and warrant an immediate dashboard sync. */
+const QUEST_RELEVANT_EVENTS: ReadonlySet<string> = new Set([
+  'turn.started',
+  'turn.ended',
+  'turn.step.started',
+  'turn.step.completed',
+  'turn.step.interrupted',
+  'background.task.started',
+  'background.task.terminated',
+  'agent.status.updated',
+  'error',
+  'compaction.started',
+  'compaction.completed',
+]);
+
+function isQuestRelevantEvent(eventType: string): boolean {
+  return QUEST_RELEVANT_EVENTS.has(eventType);
 }
