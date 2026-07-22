@@ -504,6 +504,20 @@ export class QuestExpandView {
     return this.streamLines.length / total;
   }
 
+  /**
+   * Gen 83: count error and warning lines in the stream buffer, for the
+   * dashboard cell badge. Mirrors the expand-view header badge (Gen 65).
+   */
+  getProblemCounts(): { errors: number; warnings: number } {
+    let errors = 0;
+    let warnings = 0;
+    for (const line of this.streamLines) {
+      if (ERROR_PATTERN.test(line)) errors++;
+      else if (WARNING_PATTERN.test(line)) warnings++;
+    }
+    return { errors, warnings };
+  }
+
   /** Render the expand view as a string array (one per visible row). */
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];

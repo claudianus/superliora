@@ -1102,11 +1102,22 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const ratioPlain = formatRatioBar(streamCount, diffCount);
     const ratioSegment = ratioPlain.length > 0 ? `  ${currentTheme.dim(ratioPlain)}` : '';
     const ratioPlainSeg = ratioPlain.length > 0 ? `  ${ratioPlain}` : '';
-    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${diffPlain}${streamPlain}${ratioPlainSeg}${line2Suffix}`;
+    // Gen 83: error/warning count badge so the cell shows the problem scale
+    // at a glance, mirroring the expand-view header badge (Gen 65).
+    const problems = expandView?.getProblemCounts();
+    const problemPlain =
+      problems !== undefined && (problems.errors > 0 || problems.warnings > 0)
+        ? `  ${problems.errors > 0 ? `✖${String(problems.errors)}` : ''}${problems.errors > 0 && problems.warnings > 0 ? ' ' : ''}${problems.warnings > 0 ? `⚠${String(problems.warnings)}` : ''}`
+        : '';
+    const problemSegment =
+      problems !== undefined && (problems.errors > 0 || problems.warnings > 0)
+        ? `  ${problems.errors > 0 ? currentTheme.fg('error', `✖${String(problems.errors)}`) : ''}${problems.errors > 0 && problems.warnings > 0 ? ' ' : ''}${problems.warnings > 0 ? currentTheme.fg('warning', `⚠${String(problems.warnings)}`) : ''}`
+        : '';
+    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${diffPlain}${streamPlain}${ratioPlainSeg}${problemPlain}${line2Suffix}`;
     const line2 =
       plainLine2.length > width
         ? dimToken(clip(plainLine2, width))
-        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${diffSegment}${streamSegment}${ratioSegment}${dimToken(line2Suffix)}`;
+        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${diffSegment}${streamSegment}${ratioSegment}${problemSegment}${dimToken(line2Suffix)}`;
 
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
