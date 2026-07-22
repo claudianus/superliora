@@ -399,6 +399,10 @@ export class QuestGridController {
       case 'health':
         // Lowest health first.
         return questHealthScore(a, now) - questHealthScore(b, now);
+      case 'ctx':
+        // Gen 74: highest context usage first, so the most at-risk quest of
+        // context exhaustion surfaces at the top.
+        return (b.contextUsage ?? 0) - (a.contextUsage ?? 0);
       default: {
         const _exhaustive: never = this.sortMode;
         return _exhaustive;
