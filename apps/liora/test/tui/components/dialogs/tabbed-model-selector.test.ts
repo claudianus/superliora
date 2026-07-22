@@ -2,6 +2,9 @@ import type { ModelAlias } from '@superliora/sdk';
 import chalk from 'chalk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+// Force CI mode to disable ambient effects for deterministic rendering.
+process.env['CI'] = '1';
+
 import { TabbedModelSelectorComponent } from '#/tui/components/dialogs/tabbed-model-selector';
 import { currentTheme } from '#/tui/theme';
 import { darkColors, lightColors } from '#/tui/theme/colors';

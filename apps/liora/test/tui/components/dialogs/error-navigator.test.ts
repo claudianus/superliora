@@ -1,6 +1,9 @@
 import chalk from 'chalk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+// Force CI mode to disable ambient effects for deterministic rendering.
+process.env['CI'] = '1';
+
 import { ErrorNavigatorComponent } from '#/tui/components/dialogs/error-navigator';
 import type { TranscriptErrorItem } from '#/tui/utils/transcript-errors';
 

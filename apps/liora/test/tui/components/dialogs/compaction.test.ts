@@ -11,6 +11,9 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 
+// Force CI mode to disable ambient effects for deterministic rendering.
+process.env['CI'] = '1';
+
 const previousEnv = {
   TERM: process.env['TERM'],
   CI: process.env['CI'],

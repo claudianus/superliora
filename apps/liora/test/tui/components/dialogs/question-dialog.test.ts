@@ -2,6 +2,9 @@ import { CURSOR_MARKER } from '#/tui/renderer';
 import chalk from 'chalk';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+// Force CI mode to disable ambient effects for deterministic rendering.
+process.env['CI'] = '1';
+
 import { QuestionDialogComponent } from '#/tui/components/dialogs/question-dialog';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import type { PendingQuestion } from '#/tui/reverse-rpc/types';

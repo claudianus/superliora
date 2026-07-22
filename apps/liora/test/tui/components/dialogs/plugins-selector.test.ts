@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import chalk from 'chalk';
 
+// Force CI mode to disable ambient effects for deterministic rendering.
+process.env['CI'] = '1';
+
 import {
   PluginInstallTrustConfirmComponent,
   PluginMcpSelectorComponent,
