@@ -165,10 +165,12 @@ export interface TUIStateNativeRenderCallbackOptions {
    */
   readonly growWithContent?: boolean;
   /**
-   * Workspace dock widths for multi-panel layout.
-   * When provided, the stage layout reserves space for side panels.
+   * Shell-aware workspace center band for multi-panel layout (e.g.
+   * `WorkspaceController.getCenterRect(...)`). When provided, the stage
+   * resolves inside this band instead of assuming docks are flush against
+   * the terminal edges.
    */
-  readonly workspaceDockWidths?: () => { leftDockWidth: number; rightDockWidth: number } | null;
+  readonly workspaceCenter?: (ctx: { columns: number; rows: number }) => RendererRect | null;
   /**
    * Called after the main frame is rendered. Use this to draw workspace
    * panels into the reserved dock areas via the frame renderer.
@@ -369,11 +371,13 @@ export function createTUIStateNativeRenderCallback(
       layoutShift.structuralShift,
       layoutShift.viewportScrolled,
     );
+    const workspaceCenter =
+      options.workspaceCenter?.({ columns: size.columns, rows: height }) ?? undefined;
     const stageProbe = resolveStageLayout({
       width: size.columns,
       height,
       hasRailContent: chromeCache?.stageMode === 'rail',
-      ...(options.workspaceDockWidths?.() ?? {}),
+      workspaceCenter,
     });
     // Chrome (header/footer/panels) only carries time-based content while the
     // agent is active — the activity pane's moon spinner and the footer's
@@ -424,6 +428,7 @@ export function createTUIStateNativeRenderCallback(
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
       reuseChrome,
+      workspaceCenter,
       // Skip Ultrawork perimeter repaint on pure-input frames; animation frames
       // still paint it so the border chase stays smooth while typing.
       skipDecorativeEditorEffects: pureInputFrame,
@@ -546,6 +551,7 @@ export function buildTUIStateNativeFrameRegions(
     readonly reuseChrome?: TUIStateNativeFrameChrome;
     readonly skipDecorativeEditorEffects?: boolean;
     readonly ambientDamageOnly?: boolean;
+    readonly workspaceCenter?: RendererRect;
   } = {},
 ): readonly RendererFrameRegion[] {
   return buildTUIStateNativeFrame(state, width, height, options).regions;
@@ -755,6 +761,11 @@ function buildTUIStateNativeFrame(
      * on pure-input frames.
      */
     readonly reuseTranscriptLines?: readonly RendererRegionLine[];
+    /**
+     * Shell-aware workspace center band (see `resolveStageLayout`'s
+     * `workspaceCenter`). When set, the stage resolves inside this band.
+     */
+    readonly workspaceCenter?: RendererRect;
   } = {},
 ): TUIStateNativeFrame {
   if (isNativeFullscreenTakeover(state)) {
@@ -763,6 +774,7 @@ function buildTUIStateNativeFrame(
   const plan = planTUINativeStage(state, width, height, {
     reuseChrome: options.reuseChrome,
     cachedHasRailContent: options.cachedHasRailContent,
+    workspaceCenter: options.workspaceCenter,
     resolveEditorFallbackLines: (contentWidth) =>
       nativeEditorFallbackRegionLines(state, contentWidth),
     resolveEditorRows: ({ editorLineCount, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>

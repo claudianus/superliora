@@ -43,6 +43,12 @@ export interface PlanTUINativeStageOptions {
    */
   readonly cachedHasRailContent?: boolean;
   /**
+   * Shell-aware workspace center band (see `resolveStageLayout`'s
+   * `workspaceCenter`). When set, the stage resolves inside this band instead
+   * of assuming the terminal is unoccupied by workspace docks.
+   */
+  readonly workspaceCenter?: RendererRect;
+  /**
    * Editor fallback lines / row budget resolved at the final stage width so
    * wrap math matches the painted editor region.
    */
@@ -90,6 +96,7 @@ export function planTUINativeStage(
     width: cols,
     height: rows,
     hasRailContent,
+    workspaceCenter: options.workspaceCenter,
   });
   const contentWidth = stage.stage.width;
   const reuse = options.reuseChrome;

@@ -58,6 +58,13 @@ export interface ResolveStageLayoutInput {
   readonly leftDockWidth?: number;
   /** Width of the right workspace dock (0 or undefined = no dock). */
   readonly rightDockWidth?: number;
+  /**
+   * Shell-aware workspace center band (e.g. `measureWorkspaceLayout(...).center`).
+   * Already excludes dock widths, dock gaps, and shell inset — when set, the
+   * stage resolves inside this band instead of subtracting
+   * `leftDockWidth`/`rightDockWidth` from the raw terminal edges.
+   */
+  readonly workspaceCenter?: { x: number; y: number; width: number; height: number };
 }
 
 /**
@@ -82,10 +89,19 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
     height: Number.isFinite(rows) ? rows : undefined,
   });
 
+  // A shell-aware workspace center band replaces the legacy edge-subtraction
+  // below: it already excludes dock widths, dock gaps, and shell inset, so
+  // docks are no longer assumed to sit flush against the terminal edges.
+  const workspaceCenter = input.workspaceCenter;
+  const originX = workspaceCenter ? Math.max(0, Math.floor(workspaceCenter.x)) : 0;
+  const originY = workspaceCenter ? Math.max(0, Math.floor(workspaceCenter.y)) : 0;
   // Workspace docks consume horizontal space from the edges inward.
-  const leftDockW = input.leftDockWidth ?? 0;
-  const rightDockW = input.rightDockWidth ?? 0;
-  const availableCols = Math.max(0, cols - leftDockW - rightDockW);
+  const leftDockW = workspaceCenter ? 0 : input.leftDockWidth ?? 0;
+  const rightDockW = workspaceCenter ? 0 : input.rightDockWidth ?? 0;
+  const availableCols = workspaceCenter
+    ? Math.max(0, Math.floor(workspaceCenter.width))
+    : Math.max(0, cols - leftDockW - rightDockW);
+  const bandRows = workspaceCenter ? Math.max(0, Math.floor(workspaceCenter.height)) : rows;
 
   // Only wide+ terminals get a capped, centered reading column. Narrower
   // profiles stay full-bleed so small windows do not lose horizontal space.
@@ -98,17 +114,20 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
     : railEligible
       ? Math.min(availableCols, STAGE_MAX_WIDTH)
       : availableCols;
-  const stageHeight = Number.isFinite(rows) ? Math.min(rows, STAGE_MAX_HEIGHT) : STAGE_MAX_HEIGHT;
+  const stageHeight = Number.isFinite(bandRows) ? Math.min(bandRows, STAGE_MAX_HEIGHT) : STAGE_MAX_HEIGHT;
   const railBundle = stageWidth + STAGE_RAIL_GAP + RAIL_WIDTH;
   const mode: StageLayoutMode = wantsRail && railBundle <= availableCols ? 'rail' : 'stack';
   const bundleWidth = mode === 'rail' ? railBundle : stageWidth;
   const bundleHeight = stageHeight;
-  // Center the bundle within the available space (between docks).
-  const xOffset = leftDockW + (availableCols > bundleWidth ? Math.floor((availableCols - bundleWidth) / 2) : 0);
+  // Center the bundle within the available band (between docks, or inside
+  // the workspace center rect).
+  const xOffset =
+    originX + leftDockW + (availableCols > bundleWidth ? Math.floor((availableCols - bundleWidth) / 2) : 0);
   const y =
-    Number.isFinite(rows) && rows > bundleHeight
-      ? Math.floor((rows - bundleHeight) / 2)
-      : 0;
+    originY +
+    (Number.isFinite(bandRows) && bandRows > bundleHeight
+      ? Math.floor((bandRows - bundleHeight) / 2)
+      : 0);
 
   // Build dock bands
   const leftDock: StageBand | undefined = leftDockW > 0

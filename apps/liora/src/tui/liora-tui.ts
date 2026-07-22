@@ -863,15 +863,12 @@ export class LioraTUI {
         onAuthoritativeFrame: () => {
           this.appearanceController.reapplyTerminalPalette();
         },
-        workspaceDockWidths: () => {
+        workspaceCenter: ({ columns, rows }) => {
           if (!this.workspaceController?.isEnabled()) return null;
-          const pm = this.workspaceController.panelManager;
-          const layoutOpts = pm.getLayoutOptions();
-          if (!layoutOpts.leftDockVisible && !layoutOpts.rightDockVisible) return null;
-          return {
-            leftDockWidth: layoutOpts.leftDockVisible ? layoutOpts.leftDockWidth : 0,
-            rightDockWidth: layoutOpts.rightDockVisible ? layoutOpts.rightDockWidth : 0,
-          };
+          return this.workspaceController.getCenterRect({
+            terminalColumns: columns,
+            terminalRows: rows,
+          });
         },
         postFrameRender: ({ frameRenderer, columns, rows }) => {
           // Activity ticker at the top row — always-on Bloomberg-style live band,

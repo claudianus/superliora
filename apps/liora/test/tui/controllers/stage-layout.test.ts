@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { measureWorkspaceLayout } from '@harness-kit/tui-renderer';
 
 import {
   RAIL_WIDTH,
@@ -134,5 +135,29 @@ describe('resolveStageLayout', () => {
       width: 80,
       height: STAGE_MAX_HEIGHT,
     });
+  });
+
+  it('places stage inside the workspace center band instead of assuming flush docks', () => {
+    const ws = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 200, height: 60 },
+    });
+    const stage = resolveStageLayout({
+      width: 200,
+      height: 60,
+      hasRailContent: false,
+      workspaceCenter: ws.center,
+    });
+    expect(stage.stage.x).toBeGreaterThanOrEqual(ws.center.x);
+    expect(stage.stage.x + stage.stage.width).toBeLessThanOrEqual(
+      ws.center.x + ws.center.width,
+    );
+    expect(stage.stage.y).toBeGreaterThanOrEqual(ws.center.y);
+    expect(stage.stage.y + stage.stage.height).toBeLessThanOrEqual(
+      ws.center.y + ws.center.height,
+    );
+    // The workspace center already excludes docks; resolveStageLayout must
+    // not additionally reserve leftDock/rightDock bands in this path.
+    expect(stage.leftDock).toBeUndefined();
+    expect(stage.rightDock).toBeUndefined();
   });
 });
