@@ -105,6 +105,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
   // Gen 65: pinned quest info overlay
   private infoVisible = false;
 
+  // Gen 66: dashboard fleet summary overlay
+  private fleetInfoVisible = false;
+
   // Gen 24: dashboard quest filter
   private filterMode = false;
   private filterBuffer = '';
@@ -196,6 +199,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.infoVisible = false;
         return;
       }
+      // Gen 66: if the fleet summary overlay is open, close it first.
+      if (this.fleetInfoVisible) {
+        this.fleetInfoVisible = false;
+        return;
+      }
       // Gen 24: if a filter is active, clear it first instead of closing.
       if (this.filterBuffer !== '') {
         this.filterBuffer = '';
@@ -231,6 +239,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 65: while the info overlay is shown, any other key dismisses it.
     if (this.infoVisible) {
       this.infoVisible = false;
+      return;
+    }
+    // Gen 66: while the fleet summary overlay is shown, any key dismisses it.
+    if (this.fleetInfoVisible) {
+      this.fleetInfoVisible = false;
       return;
     }
 
@@ -299,6 +312,20 @@ export class BentoDashboardComponent extends Container implements Focusable {
       // Gen 60: y → review from the top (jump to line 1, pause auto-follow).
       if (k === 'y') {
         expandView?.reviewFromTop();
+        return;
+      }
+      // Gen 61: t → toggle relative-timestamp display in the gutter.
+      if (k === 't') {
+        expandView?.toggleTimestamps();
+        return;
+      }
+      // Gen 62: e/E → jump to the next/previous error or warning line.
+      if (k === 'e') {
+        expandView?.jumpToNextError();
+        return;
+      }
+      if (k === 'E') {
+        expandView?.jumpToPrevError();
         return;
       }
       if (k === 'G') {
@@ -486,6 +513,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (this.infoVisible && pinned) {
       return this.renderQuestInfo(pinned, width);
     }
+    // Gen 66: fleet summary overlay replaces the dashboard while visible.
+    if (this.fleetInfoVisible && !pinned) {
+      return this.renderFleetInfo(quests, width);
+    }
     if (pinned) {
       return this.renderPinned(pinned, quests, width);
     }
@@ -515,6 +546,8 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['R', 'Clear the stream buffer'],
           ['y', 'Review from the top (pause auto-follow)'],
           ['i', 'Show quest info overlay'],
+          ['t', 'Toggle relative timestamps'],
+          ['e / E', 'Jump to next / previous error line'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
@@ -592,6 +625,51 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (quest.lastErrorMessage !== undefined && quest.lastErrorMessage.length > 0) {
       lines.push(`  ${currentTheme.fg('error', 'Error'.padEnd(10))}${quest.lastErrorMessage}`);
     }
+
+    lines.push('');
+    lines.push(currentTheme.dim('  Press any key to dismiss.'));
+    return lines.map((line) => clip(line, width));
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 66: dashboard fleet summary overlay
+  // -------------------------------------------------------------------------
+
+  private renderFleetInfo(quests: readonly Quest[], width: number): string[] {
+    const now = this.now();
+    const lines: string[] = [];
+    lines.push(currentTheme.fg('accent', '── Fleet Summary ──'));
+    lines.push('');
+
+    // State distribution.
+    const stateCounts = new Map<QuestState, number>();
+    for (const q of quests) {
+      stateCounts.set(q.state, (stateCounts.get(q.state) ?? 0) + 1);
+    }
+    const stateOrder: readonly QuestState[] = [
+      'waiting-approval', 'failed', 'blocked', 'running', 'idle', 'done',
+    ];
+    const stateParts: string[] = [];
+    for (const state of stateOrder) {
+      const count = stateCounts.get(state);
+      if (count === undefined || count === 0) continue;
+      const token = questStateColorToken(state);
+      stateParts.push(currentTheme.fg(token, `${questStateIcon(state)} ${state} ${String(count)}`));
+    }
+    lines.push(`  ${currentTheme.dim('States'.padEnd(10))}${stateParts.join('  ')}`);
+
+    // Totals.
+    const totalCost = quests.reduce((sum, q) => sum + (q.sessionCostUsd ?? 0), 0);
+    const totalAdded = quests.reduce((sum, q) => sum + q.changeCount.added, 0);
+    const totalRemoved = quests.reduce((sum, q) => sum + q.changeCount.removed, 0);
+    const avgHealth = quests.length > 0
+      ? Math.round(quests.reduce((sum, q) => sum + questHealthScore(q, now), 0) / quests.length)
+      : 0;
+
+    lines.push(`  ${currentTheme.dim('Quests'.padEnd(10))}${String(quests.length)}`);
+    lines.push(`  ${currentTheme.dim('Cost'.padEnd(10))}$${totalCost.toFixed(2)}`);
+    lines.push(`  ${currentTheme.dim('Changes'.padEnd(10))}${renderChangeCount({ added: totalAdded, removed: totalRemoved })}`);
+    lines.push(`  ${currentTheme.dim('Avg health'.padEnd(10))}${renderHealthScore(avgHealth)}`);
 
     lines.push('');
     lines.push(currentTheme.dim('  Press any key to dismiss.'));
