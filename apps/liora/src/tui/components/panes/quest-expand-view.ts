@@ -8,6 +8,8 @@
  *       Diff view is Gen 2+ (out of scope for Gen 1).
  */
 
+import { currentTheme } from '#/tui/theme';
+
 import {
   type Quest,
   formatChangeCount,
@@ -257,7 +259,8 @@ export class QuestExpandView {
 
     const visible = this.getVisibleLines();
     for (const line of visible) {
-      lines.push(line.length > width ? line.slice(0, width) : line);
+      const clipped = line.length > width ? line.slice(0, width) : line;
+      lines.push(highlightStreamLine(clipped));
     }
     // Pad to maxVisibleLines + 4 (3 header lines + separator)
     while (lines.length < this.maxVisibleLines + 4) {
@@ -265,4 +268,23 @@ export class QuestExpandView {
     }
     return lines;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Gen 20: error/warning line highlighting
+// ---------------------------------------------------------------------------
+
+const ERROR_PATTERN = /\b(error|failed|exception|fatal|panic)\b/i;
+const WARNING_PATTERN = /\b(warning|warn|deprecated)\b/i;
+
+/**
+ * Gen 20: highlight lines containing error/warning keywords so failures are
+ * spotted instantly while reviewing shell output. Lines that already carry
+ * ANSI color (e.g. diff output) are left untouched to avoid double-coloring.
+ */
+function highlightStreamLine(line: string): string {
+  if (line.includes('\x1b[')) return line;
+  if (ERROR_PATTERN.test(line)) return currentTheme.fg('error', line);
+  if (WARNING_PATTERN.test(line)) return currentTheme.fg('warning', line);
+  return line;
 }
