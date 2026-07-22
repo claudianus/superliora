@@ -707,6 +707,67 @@ rename to docs/README.md
   for (const line of launcherLines) console.log(`  ${line}`);
   console.log(`  Results: ${launcher.resultCount} | Query: "${launcher.query}"`);
 
+  // ═══ Iteration 19 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 19 Modules ═══\x1b[0m');
+
+  // ─── 31. Breadcrumb Navigation ────────────────────────────────────
+  console.log('\n\x1b[1;33m── BreadcrumbNav ──\x1b[0m');
+  const { BreadcrumbNav, createGitCrumbs } = await import('../apps/liora/src/tui/utils/breadcrumb-nav.ts');
+  const breadcrumb = new BreadcrumbNav();
+  breadcrumb.setFilePath('src/components/ui/Button.tsx');
+  console.log(`  Classic:  ${breadcrumb.render({ width: 60, style: 'classic', fg, boldFg, dimFg })}`);
+  console.log(`  Arrows:   ${breadcrumb.render({ width: 60, style: 'arrows', fg, boldFg, dimFg })}`);
+  console.log(`  Chevrons: ${breadcrumb.render({ width: 60, style: 'chevrons', fg, boldFg, dimFg })}`);
+  console.log(`  Pills:    ${breadcrumb.render({ width: 60, style: 'pills', fg, boldFg, dimFg })}`);
+  // Git crumbs
+  const gitCrumbs = createGitCrumbs('main', 'packages/agent-core/src/agent.ts');
+  const gitBreadcrumb = new BreadcrumbNav();
+  gitBreadcrumb.setPath(gitCrumbs);
+  console.log(`  Git path: ${gitBreadcrumb.render({ width: 60, style: 'arrows', fg, boldFg, dimFg })}`);
+  // Overflow
+  const longBreadcrumb = new BreadcrumbNav();
+  longBreadcrumb.setFilePath('a/b/c/d/e/f/g/h/i/j/file.ts');
+  console.log(`  Overflow: ${longBreadcrumb.render({ width: 50, maxSegments: 4, fg, boldFg, dimFg })}`);
+
+  // ─── 32. Data Table ───────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── DataTable ──\x1b[0m');
+  const { DataTable } = await import('../apps/liora/src/tui/utils/data-table.ts');
+  const table = new DataTable();
+  table.setColumns([
+    { id: 'name', header: 'File', type: 'string', width: 18 },
+    { id: 'size', header: 'Size', type: 'number', align: 'right', width: 10 },
+    { id: 'status', header: 'Status', type: 'string', width: 10 },
+    { id: 'modified', header: 'Modified', type: 'string', width: 12 },
+  ]);
+  table.setRows([
+    { id: '1', data: { name: 'main.ts', size: 2456, status: '✓', modified: '2h ago' } },
+    { id: '2', data: { name: 'utils.ts', size: 1123, status: '✓', modified: '1d ago' } },
+    { id: '3', data: { name: 'index.ts', size: 812, status: '◉', modified: '5m ago' } },
+    { id: '4', data: { name: 'types.ts', size: 3891, status: '✗', modified: '3d ago' } },
+    { id: '5', data: { name: 'config.ts', size: 567, status: '✓', modified: '1w ago' } },
+  ]);
+  table.toggleSelect('3');
+  const tableLines = table.render({ width: 60, height: 10, zebra: true, fg, boldFg, dimFg });
+  for (const line of tableLines) console.log(`  ${line}`);
+  table.sortBy('size');
+  console.log(`  Sorted by size: ${table.rowCount} rows`);
+
+  // ─── 33. Color Picker ─────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ColorPicker ──\x1b[0m');
+  const { ColorPicker, getNamedColors } = await import('../apps/liora/src/tui/utils/color-picker.ts');
+  const colorPicker = new ColorPicker('#FF6B6B');
+  const colorLines = colorPicker.render({ width: 48, showPalette: false, showRecent: false, showHarmony: true, fg, boldFg, dimFg });
+  for (const line of colorLines) console.log(`  ${line}`);
+  // Contrast check
+  const white = new ColorPicker('#FFFFFF');
+  const ratio = colorPicker.getContrastRatio(white.getCurrent());
+  console.log(`  Contrast with white: ${ratio.toFixed(2)}:1 (AA: ${colorPicker.passesAA(white.getCurrent())})`);
+  // Gradient
+  const blue = new ColorPicker('#4ECDC4');
+  console.log(`  Gradient: ${colorPicker.renderGradient(colorPicker.getCurrent(), blue.getCurrent(), 20)}`);
+  // Named colors count
+  console.log(`  Named colors: ${Object.keys(getNamedColors()).length}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
