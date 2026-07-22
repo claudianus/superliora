@@ -228,6 +228,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.scrollPageDown();
         return;
       }
+      // Gen 42: b → page up (pager-style), pairs with Space for less-like nav.
+      if (k === 'b') {
+        expandView?.scrollPageUp();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -389,6 +394,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['j / k  ↓ ↑', 'Scroll the live stream'],
           ['PgDn / PgUp', 'Scroll a page at a time'],
           ['Space', 'Page down (pager-style)'],
+          ['b', 'Page up (pager-style)'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
