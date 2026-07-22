@@ -1,3 +1,4 @@
+export * from './adaptive-frame';
 export * from './ambient-schedule';
 export * from './ansi-text';
 export * from './animation';
@@ -16,6 +17,7 @@ export * from './editor-text-input';
 export * from './frame-output-policy';
 export * from './frame-stats';
 export * from './fuzzy';
+export * from './image-manager';
 export * from './incremental-render';
 export * from './input-events';
 export * from './input-keys';
