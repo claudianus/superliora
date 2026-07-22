@@ -197,6 +197,32 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.render(quest, 80)[0]).toContain('↑');
   });
 
+  it('Gen 15: page scroll and top/bottom jumps', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    for (let i = 0; i < 30; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // Starts at bottom (offset 25).
+    expect(view.currentScrollOffset).toBe(25);
+
+    // Page up moves by viewport-1 (4).
+    view.scrollPageUp();
+    expect(view.currentScrollOffset).toBe(21);
+
+    // Jump to top.
+    view.scrollToTop();
+    expect(view.currentScrollOffset).toBe(0);
+
+    // Page down from top.
+    view.scrollPageDown();
+    expect(view.currentScrollOffset).toBe(4);
+
+    // Jump to bottom.
+    view.scrollToBottom();
+    expect(view.currentScrollOffset).toBe(25);
+  });
+
   it('removing pinned quest resets pin state', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));

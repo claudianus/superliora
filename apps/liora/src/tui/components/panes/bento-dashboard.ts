@@ -122,6 +122,23 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.scrollUp(1);
         return;
       }
+      // Gen 15: fast scrolling — page jumps and top/bottom.
+      if (matchesKey(data, Key.pageDown)) {
+        expandView?.scrollPageDown();
+        return;
+      }
+      if (matchesKey(data, Key.pageUp)) {
+        expandView?.scrollPageUp();
+        return;
+      }
+      if (k === 'G') {
+        expandView?.scrollToBottom();
+        return;
+      }
+      if (k === 'g') {
+        expandView?.scrollToTop();
+        return;
+      }
       // Enter or p → unpin back to the dashboard grid
       if (matchesKey(data, Key.enter) || k === 'p') {
         this.pinController.togglePin(pinned.id);

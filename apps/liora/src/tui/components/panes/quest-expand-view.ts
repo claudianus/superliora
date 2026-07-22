@@ -92,6 +92,26 @@ export class QuestExpandView {
     this.scrollOffset = Math.min(maxOffset, this.scrollOffset + n);
   }
 
+  /** Gen 15: scroll up by one viewport page. */
+  scrollPageUp(): void {
+    this.scrollUp(Math.max(1, this.maxVisibleLines - 1));
+  }
+
+  /** Gen 15: scroll down by one viewport page. */
+  scrollPageDown(): void {
+    this.scrollDown(Math.max(1, this.maxVisibleLines - 1));
+  }
+
+  /** Gen 15: jump to the very top of the stream. */
+  scrollToTop(): void {
+    this.scrollOffset = 0;
+  }
+
+  /** Gen 15: jump to the live tail (bottom) of the stream. */
+  scrollToBottom(): void {
+    this.scrollOffset = Math.max(0, this.streamLines.length - this.maxVisibleLines);
+  }
+
   /** Get the currently visible lines. */
   getVisibleLines(): readonly string[] {
     return this.streamLines.slice(
