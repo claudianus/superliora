@@ -276,10 +276,15 @@ export class QuestExpandView {
     }
     const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
     // Gen 13: surface the pending approval in the header when awaiting one.
-    const stepText =
-      quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined
-        ? `⚡ ${quest.pendingApprovalSummary}`
-        : `▸ ${quest.planStep}`;
+    // Gen 39: surface the last error message for failed quests.
+    let stepText: string;
+    if (quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined) {
+      stepText = `⚡ ${quest.pendingApprovalSummary}`;
+    } else if (quest.state === 'failed' && quest.lastErrorMessage !== undefined) {
+      stepText = `✗ ${quest.lastErrorMessage}`;
+    } else {
+      stepText = `▸ ${quest.planStep}`;
+    }
     const headerLine3 = `   ${progress}${stepText}`;
     lines.push(headerLine3.length > width ? headerLine3.slice(0, width) : headerLine3);
 

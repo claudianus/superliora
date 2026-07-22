@@ -230,6 +230,28 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[2]).not.toContain('$');
   });
 
+  it('Gen 39: expand view header shows last error for failed quests', () => {
+    const quest = makeQuest('a', {
+      state: 'failed',
+      lastErrorMessage: 'OAuth credentials rejected',
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[2]).toContain('✗ OAuth credentials rejected');
+  });
+
+  it('Gen 39: expand view header shows plan step for healthy quests', () => {
+    const quest = makeQuest('a', { state: 'running', planStep: 'Building feature' });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[2]).toContain('▸ Building feature');
+    expect(lines[2]).not.toContain('✗');
+  });
+
   it('expand view auto-scrolls when exceeding max visible lines', () => {
     const quest = makeQuest('a');
     const view = new QuestExpandView();
