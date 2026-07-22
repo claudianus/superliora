@@ -277,16 +277,29 @@ export class QuestExpandView {
     const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
     // Gen 13: surface the pending approval in the header when awaiting one.
     // Gen 39: surface the last error message for failed quests.
+    // Gen 40: colorize the step text by severity (warning/error/muted).
     let stepText: string;
+    let stepToken: 'warning' | 'error' | 'muted';
     if (quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined) {
       stepText = `⚡ ${quest.pendingApprovalSummary}`;
+      stepToken = 'warning';
     } else if (quest.state === 'failed' && quest.lastErrorMessage !== undefined) {
       stepText = `✗ ${quest.lastErrorMessage}`;
+      stepToken = 'error';
     } else {
       stepText = `▸ ${quest.planStep}`;
+      stepToken = 'muted';
     }
-    const headerLine3 = `   ${progress}${stepText}`;
-    lines.push(headerLine3.length > width ? headerLine3.slice(0, width) : headerLine3);
+    const plainLine3 = `   ${progress}${stepText}`;
+    const coloredStep =
+      stepToken === 'warning'
+        ? currentTheme.fg('warning', stepText)
+        : stepToken === 'error'
+          ? currentTheme.fg('error', stepText)
+          : currentTheme.dim(stepText);
+    const headerLine3 =
+      plainLine3.length > width ? plainLine3.slice(0, width) : `   ${progress}${coloredStep}`;
+    lines.push(headerLine3);
 
     // Separator
     lines.push('─'.repeat(Math.min(width, 60)));
