@@ -338,12 +338,25 @@ export class QuestExpandView {
     const lineTotal = this.streamLines.length;
     const gutterWidth = Math.max(2, String(lineTotal).length);
     const contentWidth = Math.max(1, width - gutterWidth - 1);
+    // Gen 47: mark search-matched lines, with the active match standing out.
+    const matchSet = new Set(this.searchMatches);
+    const activeMatch =
+      this.searchMatches.length > 0 ? this.searchMatches[this.currentMatchIndex] : undefined;
     const visible = this.getVisibleLines();
     visible.forEach((line, i) => {
-      const lineNo = String(this.scrollOffset + i + 1).padStart(gutterWidth);
-      const gutter = currentTheme.dim(`${lineNo} `);
+      const absIndex = this.scrollOffset + i;
+      const lineNo = String(absIndex + 1).padStart(gutterWidth);
+      const isActive = absIndex === activeMatch;
+      const isMatch = matchSet.has(absIndex);
       const clipped = line.length > contentWidth ? line.slice(0, contentWidth) : line;
-      lines.push(`${gutter}${highlightStreamLine(clipped)}`);
+      const body = highlightStreamLine(clipped);
+      if (isActive) {
+        lines.push(`${currentTheme.fg('warning', `${lineNo} ▸`)}${currentTheme.fg('warning', clipped)}`);
+      } else if (isMatch) {
+        lines.push(`${currentTheme.fg('textMuted', `${lineNo} ·`)}${body}`);
+      } else {
+        lines.push(`${currentTheme.dim(`${lineNo} `)}${body}`);
+      }
     });
 
     // Gen 28: inline approval prompt when the pinned quest awaits a decision.

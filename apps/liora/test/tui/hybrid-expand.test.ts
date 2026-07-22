@@ -240,6 +240,22 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[5]).toMatch(/\b2\s+second/);
   });
 
+  it('Gen 47: active search match is marked in the gutter', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('alpha');
+    view.appendLine('beta needle here');
+    view.appendLine('gamma');
+
+    view.startSearch('needle');
+    const lines = view.render(quest, 80);
+    // The active match line (index 1 → stream line 5) carries the ▸ marker.
+    expect(lines[5]).toContain('▸');
+    // Non-match lines do not.
+    expect(lines[4]).not.toContain('▸');
+    expect(lines[6]).not.toContain('▸');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {
