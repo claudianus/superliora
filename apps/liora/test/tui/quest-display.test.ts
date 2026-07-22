@@ -13,6 +13,7 @@ import {
   formatTodoProgress,
   formatTotalCostUsd,
   formatUrgencyRank,
+  classifyHealthSeverity,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -343,5 +344,22 @@ describe('formatContextUsage (Gen 66)', () => {
   it('clamps out-of-range values', () => {
     expect(formatContextUsage(1.5)).toBe('100%');
     expect(formatContextUsage(0.001)).toBe('0%');
+  });
+});
+
+describe('classifyHealthSeverity (Gen 67)', () => {
+  it('classifies scores >= 70 as healthy', () => {
+    expect(classifyHealthSeverity(100)).toBe('healthy');
+    expect(classifyHealthSeverity(70)).toBe('healthy');
+  });
+
+  it('classifies scores 40–69 as warning', () => {
+    expect(classifyHealthSeverity(69)).toBe('warning');
+    expect(classifyHealthSeverity(40)).toBe('warning');
+  });
+
+  it('classifies scores < 40 as critical', () => {
+    expect(classifyHealthSeverity(39)).toBe('critical');
+    expect(classifyHealthSeverity(0)).toBe('critical');
   });
 });

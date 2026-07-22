@@ -221,3 +221,15 @@ export function formatContextUsage(usage: number | undefined): string | null {
   const percent = Math.round(Math.max(0, Math.min(1, usage)) * 100);
   return `${String(percent)}%`;
 }
+
+/**
+ * Gen 67: severity classification for a quest's health score (0–100).
+ * Returns 'healthy' for scores ≥ 70, 'warning' for 40–69, and 'critical' for
+ * < 40. Lets callers apply consistent color coding without duplicating the
+ * threshold logic.
+ */
+export function classifyHealthSeverity(score: number): 'healthy' | 'warning' | 'critical' {
+  if (score >= 70) return 'healthy';
+  if (score >= 40) return 'warning';
+  return 'critical';
+}
