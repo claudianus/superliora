@@ -1,12 +1,13 @@
 import type {
+  KittyPointerShape,
   NativeInputMouseEvent,
   NativeInputRouter,
-  RendererRect,
   WorkspaceLayoutResult,
 } from '@harness-kit/tui-renderer';
 import { hitTestDockDivider, ansiPushPointerShape, ANSI_POP_POINTER_SHAPE } from '@harness-kit/tui-renderer';
 
 import type { PanelManager } from './panel-manager';
+import { getPanelIndexAtY, hitTestPanelAt, hitTestPanelTitleBarAt } from './pointer-routing';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +69,8 @@ export class DragController {
   /** Track last click time and target for double-click detection. */
   private lastClickAt = 0;
   private lastClickPanelId: string | null = null;
+  /** Pointer shape currently pushed for idle hover (null = no hover push active). */
+  private hoverShape: KittyPointerShape | null = null;
 
   constructor(panelManager: PanelManager, callbacks: DragControllerCallbacks) {
     this.panelManager = panelManager;
@@ -146,6 +149,11 @@ export class DragController {
   }
 
   private handleIdleMouse(event: NativeInputMouseEvent): boolean {
+    if (event.action === 'move') {
+      this.updateHoverPointerShape(event);
+      return false;
+    }
+
     if (event.action !== 'press' || event.button !== 'left') return false;
 
     const layout = this.callbacks.getLayout();
@@ -182,7 +190,7 @@ export class DragController {
     }
 
     // Check if pressing on a panel title bar (for drag/move)
-    const panelHit = this.hitTestPanelTitleBar(event.x, event.y, layout);
+    const panelHit = hitTestPanelTitleBarAt(layout, this.panelManager, event.x, event.y);
     if (panelHit) {
       // Double-click detection: toggle maximize
       const now = Date.now();
@@ -212,7 +220,7 @@ export class DragController {
     }
 
     // Check if clicking inside a panel body (for focus)
-    const bodyHit = this.hitTestPanelBody(event.x, event.y, layout);
+    const bodyHit = hitTestPanelAt(layout, this.panelManager, event.x, event.y);
     if (bodyHit) {
       this.panelManager.focusPanel(bodyHit);
       return false; // Don't consume - let the panel handle it
@@ -268,7 +276,7 @@ export class DragController {
           const dockRect = dropDock === 'left' ? layout.leftDock?.rect : layout.rightDock?.rect;
           if (dockRect) {
             const panels = this.panelManager.getPanelsInDock(dropDock);
-            const targetIndex = this.getPanelIndexAtY(event.y, dockRect, panels.length);
+            const targetIndex = getPanelIndexAtY(event.y, dockRect, panels.length);
             const assignments = this.panelManager.getDockAssignments(dropDock);
             const draggedId = this.state.panelInstanceId;
             const currentIndex = assignments.findIndex(
@@ -304,84 +312,55 @@ export class DragController {
   }
 
   // -------------------------------------------------------------------------
-  // Hit-testing helpers
+  // Idle hover pointer shapes
   // -------------------------------------------------------------------------
 
-  private hitTestPanelTitleBar(
-    x: number,
-    y: number,
-    layout: WorkspaceLayoutResult,
-  ): string | null {
-    // Check left dock panels
-    const leftPanels = this.panelManager.getPanelsInDock('left');
-    const leftResult = this.hitTestDockPanels(x, y, layout.leftDock?.rect, leftPanels.length);
-    if (leftResult !== null) {
-      const panels = this.panelManager.getPanelsInDock('left');
-      return panels[leftResult]?.instanceId ?? null;
+  /**
+   * On idle mouse move, set a pointer shape reflecting the hit zone under
+   * the cursor (dock divider, panel title bar, or panel body), and pop it
+   * once the cursor leaves that zone. Never pushes more than one hover
+   * shape at a time — only writes to the terminal when the shape changes.
+   */
+  private updateHoverPointerShape(event: NativeInputMouseEvent): void {
+    const layout = this.callbacks.getLayout();
+    if (!layout) {
+      this.setHoverShape(null);
+      return;
     }
 
-    // Check right dock panels
-    const rightPanels = this.panelManager.getPanelsInDock('right');
-    const rightResult = this.hitTestDockPanels(x, y, layout.rightDock?.rect, rightPanels.length);
-    if (rightResult !== null) {
-      const panels = this.panelManager.getPanelsInDock('right');
-      return panels[rightResult]?.instanceId ?? null;
+    const dividerZone = hitTestDockDivider(event.x, event.y, layout.leftDock?.rect, layout.rightDock?.rect);
+    if (dividerZone !== 'none') {
+      this.setHoverShape('ew-resize');
+      return;
     }
 
-    return null;
+    if (hitTestPanelTitleBarAt(layout, this.panelManager, event.x, event.y) !== null) {
+      this.setHoverShape('grab');
+      return;
+    }
+
+    if (hitTestPanelAt(layout, this.panelManager, event.x, event.y) !== null) {
+      this.setHoverShape('pointer');
+      return;
+    }
+
+    this.setHoverShape(null);
   }
 
-  private hitTestPanelBody(
-    x: number,
-    y: number,
-    layout: WorkspaceLayoutResult,
-  ): string | null {
-    // Check if point is inside left dock
-    if (layout.leftDock && isInsideRect(x, y, layout.leftDock.rect)) {
-      const panels = this.panelManager.getPanelsInDock('left');
-      const index = this.getPanelIndexAtY(y, layout.leftDock.rect, panels.length);
-      return panels[index]?.instanceId ?? null;
+  private setHoverShape(shape: KittyPointerShape | null): void {
+    if (shape === this.hoverShape) return;
+    if (this.hoverShape !== null) {
+      process.stdout.write(ANSI_POP_POINTER_SHAPE);
     }
-
-    // Check if point is inside right dock
-    if (layout.rightDock && isInsideRect(x, y, layout.rightDock.rect)) {
-      const panels = this.panelManager.getPanelsInDock('right');
-      const index = this.getPanelIndexAtY(y, layout.rightDock.rect, panels.length);
-      return panels[index]?.instanceId ?? null;
+    if (shape !== null) {
+      process.stdout.write(ansiPushPointerShape(shape));
     }
-
-    return null;
+    this.hoverShape = shape;
   }
 
-  private hitTestDockPanels(
-    x: number,
-    y: number,
-    dockRect: RendererRect | undefined,
-    panelCount: number,
-  ): number | null {
-    if (!dockRect || panelCount === 0) return null;
-    if (!isInsideRect(x, y, dockRect)) return null;
-
-    // Title bar is the first row of each panel's allocated space
-    const panelHeight = Math.floor(dockRect.height / panelCount);
-    const relY = y - dockRect.y;
-    const panelIndex = Math.floor(relY / panelHeight);
-    const withinPanel = relY - panelIndex * panelHeight;
-
-    // Title bar is row 0 of each panel
-    if (withinPanel === 0 && panelIndex < panelCount) {
-      return panelIndex;
-    }
-
-    return null;
-  }
-
-  private getPanelIndexAtY(y: number, dockRect: RendererRect, panelCount: number): number {
-    if (panelCount === 0) return 0;
-    const panelHeight = Math.floor(dockRect.height / panelCount);
-    const relY = y - dockRect.y;
-    return Math.min(Math.floor(relY / panelHeight), panelCount - 1);
-  }
+  // -------------------------------------------------------------------------
+  // Hit-testing helpers
+  // -------------------------------------------------------------------------
 
   private getDropTargetDock(
     x: number,
@@ -400,12 +379,4 @@ export class DragController {
     if (rightAssignments.some((a) => a.panelInstanceId === instanceId)) return 'right';
     return null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
-
-function isInsideRect(x: number, y: number, rect: RendererRect): boolean {
-  return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
 }

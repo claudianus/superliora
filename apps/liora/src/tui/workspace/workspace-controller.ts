@@ -15,6 +15,7 @@ import {
 import { DragController } from './drag-controller';
 import type { DragOverlayInfo } from './drag-controller';
 import { PanelManager } from './panel-manager';
+import { resolveWheelTargetPanel } from './pointer-routing';
 import { LayoutPresetManager } from './layout-presets';
 import type { PanelDefinition } from './panel-definition';
 import { workspaceShellChromeCells } from './shell-chrome';
@@ -617,27 +618,16 @@ export class WorkspaceController {
       }
     }
 
-    // Mouse wheel events: route to the panel under the cursor if possible,
-    // otherwise to the focused panel.
+    // Mouse wheel events: route to the panel under the pointer, not merely
+    // the focused one — lets the user scroll a background dock panel
+    // without first clicking to focus it.
     if (event.type === 'mouse' && event.action === 'wheel') {
       const layout = this.currentLayout;
-      if (layout) {
-        // Determine which dock the wheel event is over
-        const leftRect = layout.leftDock?.rect;
-        const rightRect = layout.rightDock?.rect;
-        const overLeft = leftRect && event.x >= leftRect.x && event.x < leftRect.x + leftRect.width && event.y >= leftRect.y && event.y < leftRect.y + leftRect.height;
-        const overRight = rightRect && event.x >= rightRect.x && event.x < rightRect.x + rightRect.width && event.y >= rightRect.y && event.y < rightRect.y + rightRect.height;
-        if (overLeft || overRight) {
-          const focusedId = this.panelManager.getFocusedPanelId();
-          if (focusedId) {
-            const panel = this.panelManager.getPanel(focusedId);
-            if (panel?.definition.onInput) {
-              return panel.definition.onInput(event) ?? false;
-            }
-          }
-        }
-      }
-      return false;
+      if (!layout) return false;
+      const targetId = resolveWheelTargetPanel(layout, this.panelManager, event.x, event.y);
+      if (!targetId) return false;
+      const panel = this.panelManager.getPanel(targetId);
+      return panel?.definition.onInput?.(event) ?? false;
     }
 
     const focusedId = this.panelManager.getFocusedPanelId();
