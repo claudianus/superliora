@@ -63,6 +63,20 @@ export const ATTENTION_LATENCY_MAX_MS = 2000;
  */
 export const ATTENTION_ESCALATION_MS = 5 * 60 * 1000;
 
+/**
+ * Gen 53: dwell time (ms) after which an unattended quest is considered
+ * critical. Mirrors the idle-error threshold so a quest ignored for a long
+ * time gets the strongest emphasis.
+ */
+export const ATTENTION_CRITICAL_MS = 15 * 60 * 1000;
+
+/**
+ * Gen 53: how urgently an unattended quest needs the operator.
+ * 0 = none (not in attention or fresh), 1 = warning (≥ escalation threshold),
+ * 2 = critical (≥ critical threshold).
+ */
+export type EscalationLevel = 0 | 1 | 2;
+
 /** Terminal bell character. */
 const BELL_CHAR = '\x07';
 
@@ -254,6 +268,25 @@ export class AttentionController {
       .filter(([, enteredAt]) => Math.max(0, this.now() - enteredAt) >= ATTENTION_ESCALATION_MS)
       .sort((a, b) => a[1] - b[1])
       .map(([questId]) => questId);
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 53: Escalation Levels
+  // -------------------------------------------------------------------------
+
+  /**
+   * Gen 53: the escalation level for a quest based on how long it has been
+   * left unattended. 0 when the quest is not in an attention state or has not
+   * reached the escalation threshold, 1 (warning) once it crosses the
+   * escalation threshold, 2 (critical) once it crosses the critical threshold.
+   * Lets the dashboard apply graduated emphasis instead of a single on/off
+   * escalated flag.
+   */
+  getEscalationLevel(questId: string): EscalationLevel {
+    const dwell = this.getDwellTime(questId);
+    if (dwell === null || dwell < ATTENTION_ESCALATION_MS) return 0;
+    if (dwell >= ATTENTION_CRITICAL_MS) return 2;
+    return 1;
   }
 
   // -------------------------------------------------------------------------

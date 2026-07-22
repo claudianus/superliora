@@ -4,6 +4,7 @@ import {
   AttentionController,
   ATTENTION_LATENCY_MAX_MS,
   ATTENTION_ESCALATION_MS,
+  ATTENTION_CRITICAL_MS,
 } from '#/tui/controllers/attention-controller';
 
 function makeController(nowValue = 1000) {
@@ -293,6 +294,45 @@ describe('escalation polling (Gen 52)', () => {
     ctrl.onQuestStateChanged('q1', 'waiting-approval');
     advanceTime(ATTENTION_ESCALATION_MS);
     expect(ctrl.pollNewlyEscalated()).toEqual(['q1']);
+  });
+});
+
+describe('escalation levels (Gen 53)', () => {
+  it('is level 0 before the escalation threshold', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS - 1);
+    expect(ctrl.getEscalationLevel('q1')).toBe(0);
+  });
+
+  it('is level 1 (warning) between the escalation and critical thresholds', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_ESCALATION_MS);
+    expect(ctrl.getEscalationLevel('q1')).toBe(1);
+
+    advanceTime(ATTENTION_CRITICAL_MS - ATTENTION_ESCALATION_MS - 1);
+    expect(ctrl.getEscalationLevel('q1')).toBe(1);
+  });
+
+  it('is level 2 (critical) once the critical threshold is reached', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_CRITICAL_MS);
+    expect(ctrl.getEscalationLevel('q1')).toBe(2);
+  });
+
+  it('is level 0 for a quest not in an attention state', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(ATTENTION_CRITICAL_MS);
+    ctrl.onQuestStateChanged('q1', 'running');
+    expect(ctrl.getEscalationLevel('q1')).toBe(0);
+  });
+
+  it('is level 0 for an unknown quest', () => {
+    const { ctrl } = makeController(5000);
+    expect(ctrl.getEscalationLevel('missing')).toBe(0);
   });
 });
 
