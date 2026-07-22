@@ -9,6 +9,7 @@ import {
   formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
   formatFleetChangeSummary,
+  formatFleetContextSummary,
   formatFleetHealthSummary,
   formatFleetStateSummary,
   formatFleetTodoSummary,
@@ -463,5 +464,40 @@ describe('formatFleetTodoSummary (Gen 71)', () => {
       makeQuest('b', { todoProgress: { done: 2, total: 4 } }),
     ];
     expect(formatFleetTodoSummary(quests)).toBe('2/4 todos');
+  });
+});
+
+describe('formatFleetContextSummary (Gen 72)', () => {
+  it('returns null when no quest reports context usage', () => {
+    const quests = [makeQuest('a', { state: 'running' })];
+    expect(formatFleetContextSummary(quests)).toBeNull();
+    expect(formatFleetContextSummary([])).toBeNull();
+  });
+
+  it('averages the context usage across reporting quests', () => {
+    const quests = [
+      makeQuest('a', { contextUsage: 0.4 }),
+      makeQuest('b', { contextUsage: 0.6 }),
+      makeQuest('c', { state: 'running' }), // no context usage
+    ];
+    expect(formatFleetContextSummary(quests)).toBe('avg ctx 50%');
+  });
+
+  it('clamps out-of-range usage before averaging', () => {
+    const quests = [
+      makeQuest('a', { contextUsage: 1.5 }),
+      makeQuest('b', { contextUsage: 0.5 }),
+    ];
+    // (1.0 + 0.5) / 2 = 0.75 -> 75%
+    expect(formatFleetContextSummary(quests)).toBe('avg ctx 75%');
+  });
+
+  it('ignores zero and negative usage', () => {
+    const quests = [
+      makeQuest('a', { contextUsage: 0 }),
+      makeQuest('b', { contextUsage: -0.1 }),
+      makeQuest('c', { contextUsage: 0.8 }),
+    ];
+    expect(formatFleetContextSummary(quests)).toBe('avg ctx 80%');
   });
 });

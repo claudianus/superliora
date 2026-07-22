@@ -303,3 +303,23 @@ export function formatFleetTodoSummary(quests: readonly Quest[]): string | null 
   if (total === 0) return null;
   return `${String(done)}/${String(total)} todos`;
 }
+
+/**
+ * Gen 72: a fleet-wide average context-window usage label, e.g. "avg ctx 45%".
+ * Averages the context usage across all quests that report it (each a 0–1
+ * fraction), rounded to a whole percent. Returns null when no quest reports
+ * context usage so callers can hide the segment entirely.
+ */
+export function formatFleetContextSummary(quests: readonly Quest[]): string | null {
+  let sum = 0;
+  let count = 0;
+  for (const quest of quests) {
+    if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
+      sum += Math.max(0, Math.min(1, quest.contextUsage));
+      count += 1;
+    }
+  }
+  if (count === 0) return null;
+  const percent = Math.round((sum / count) * 100);
+  return `avg ctx ${String(percent)}%`;
+}
