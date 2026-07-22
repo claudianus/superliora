@@ -155,6 +155,7 @@ import { QuestGridController } from './controllers/quest-grid-controller';
 import { AttentionController } from './controllers/attention-controller';
 import { PinController } from './controllers/pin-controller';
 import { ApprovalController as QuestApprovalController } from './controllers/approval-controller';
+import { syncQuestGridFromSnapshot } from './controllers/quest-session-bridge';
 import { setKittyGraphicsChannel } from './media/kitty-graphics-channel';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
@@ -4063,6 +4064,22 @@ export class LioraTUI {
       this.dashboardBlinkPhase = !this.dashboardBlinkPhase;
       requestTUIContentRender(this.state);
     }, 500);
+
+    // Sync quest grid from live session + background tasks
+    const grid = this.questGridController;
+    const attention = this.questAttentionController;
+    if (grid && attention) {
+      const session = this.session;
+      syncQuestGridFromSnapshot(grid, attention, {
+        sessionId: this.state.appState.sessionId ?? 'unknown',
+        sessionTitle: session?.title ?? 'Main Session',
+        streamingPhase: this.state.appState.streamingPhase,
+        isCompacting: this.state.appState.isCompacting,
+        approvalPending: this.state.livePane.pendingApproval !== null,
+        backgroundTasks: this.sessionEventHandler.backgroundTasks,
+        workDir: this.state.appState.workDir ?? process.cwd(),
+      });
+    }
 
     const panel = new BentoDashboardComponent({
       gridController: this.questGridController,
