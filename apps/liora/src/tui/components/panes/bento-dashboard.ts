@@ -460,10 +460,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       : [
           ['j / k  ↓ ↑', 'Move focus between quests'],
           ['Tab', 'Jump to the next quest needing attention'],
+          ['g', 'Focus the least-healthy quest'],
           ['!', 'Toggle attention-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
           ['s', 'Cycle sort mode (attention/cost/age/name)'],
+          ['0', 'Reset view (clear filter, sort, attention-only)'],
           ['a / x / r', 'Approve / reject / rewind focused quest'],
           ['?', 'Show this help'],
           ['Esc / q', 'Close the dashboard'],

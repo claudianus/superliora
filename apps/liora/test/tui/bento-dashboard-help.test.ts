@@ -61,6 +61,8 @@ describe('Gen 22: context-aware help overlay', () => {
     const helpLines = component.render(120).join('\n');
     expect(helpLines).toContain('Dashboard Help');
     expect(helpLines).toContain('Move focus between quests');
+    // Gen 55: the reset-view key is documented.
+    expect(helpLines).toContain('Reset view');
 
     // Any key dismisses help (consumed, not acted on).
     component.handleInput('j');
