@@ -27,9 +27,10 @@ import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 
 import type { CLIOptions } from './options';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
+import type { UpdateNoticeInfo } from './update/preflight';
 import { createLioraHostIdentity } from './version';
 
-export async function runShell(opts: CLIOptions, version: string): Promise<void> {
+export async function runShell(opts: CLIOptions, version: string, updateNotice?: UpdateNoticeInfo): Promise<void> {
   const startedAt = Date.now();
   const configStartedAt = startedAt;
   let tuiConfig: TuiConfig;
@@ -94,6 +95,7 @@ export async function runShell(opts: CLIOptions, version: string): Promise<void>
     version,
     workDir,
     startupNotice: configWarning,
+    updateNotice,
   });
 
   initializeCliTelemetry({

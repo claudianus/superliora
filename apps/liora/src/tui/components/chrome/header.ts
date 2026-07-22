@@ -96,18 +96,22 @@ export class HeaderComponent implements Component {
       : currentTheme.dimFg('textMuted', clockLabel);
 
     const densityText = this.buildDensityText(safeWidth);
+    const updateBadge = this.buildUpdateBadge();
     const brandWidth = visibleWidth(BRAND_MARK);
     const clockWidth = visibleWidth(clockLabel);
     const gap = visibleWidth(CLOCK_GAP);
 
-    // Build the right cluster (model · density · clock). The density segment is
-    // dropped first when the terminal is too narrow to keep brand + clock.
+    // Build the right cluster (model · density · update · clock). The density
+    // segment is dropped first when the terminal is too narrow to keep brand + clock.
     const rightSegments: { text: string; width: number }[] = [];
     if (modelLabel.length > 0) {
       rightSegments.push({ text: modelText, width: visibleWidth(modelLabel) });
     }
     if (densityText) {
       rightSegments.push({ text: densityText, width: visibleWidth(densityText) });
+    }
+    if (updateBadge) {
+      rightSegments.push({ text: updateBadge, width: visibleWidth(updateBadge) });
     }
     rightSegments.push({ text: clockText, width: clockWidth });
 
@@ -119,9 +123,10 @@ export class HeaderComponent implements Component {
 
     // Overflow: drop the density segment (middle) before dropping the model.
     const modelSeg = segments[0];
-    const clockSeg = segments[2];
-    if (available < 0 && densityText && segments.length === 3 && modelSeg && clockSeg) {
-      segments = [modelSeg, clockSeg];
+    const clockSeg = segments[segments.length - 1];
+    if (available < 0 && densityText && segments.length >= 3 && modelSeg && clockSeg) {
+      // Remove the density segment (index 1)
+      segments = [modelSeg, ...segments.slice(2)];
       available = safeWidth - brandWidth - clusterWidth(segments) - minDivider;
     }
 
@@ -178,6 +183,17 @@ export class HeaderComponent implements Component {
       );
     }
     return parts.join(currentTheme.dimFg('textMuted', ' · '));
+  }
+
+  /**
+   * Update available badge for the header. Shows a compact `⬆ vX.Y.Z` indicator
+   * when the preflight detected an available update. Returns null when there is
+   * no update notice.
+   */
+  private buildUpdateBadge(): string | null {
+    const notice = this.state.updateNotice;
+    if (!notice) return null;
+    return currentTheme.fg('warning', `⬆ v${notice.targetVersion}`);
   }
 
   private startClock(): void {

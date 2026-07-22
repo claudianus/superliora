@@ -51,7 +51,7 @@ import {
   type UpdateTarget,
 } from './types';
 
-export type { UpdatePreflightResult } from './types';
+export type { UpdatePreflightResult, UpdateNoticeInfo } from './types';
 export { parseUpgradeStageLine, type UpgradeInstallStage } from './install-stages';
 
 export interface RunUpdatePreflightOptions {
@@ -981,8 +981,7 @@ export async function runUpdatePreflight(
       const installCommand = installCommandFor(source, target.version, platform);
       trackUpdatePrompted(options.track, currentVersion, target, source, decision, rolloutTelemetry);
       if (decision === 'manual-command') {
-        stdout.write(renderManualUpdateMessage(currentVersion, target, source, installCommand));
-        return 'continue';
+        return { action: 'continue', updateNotice: { currentVersion, targetVersion: target.version, installCommand } };
       }
       const choice = await promptInstall(currentVersion, target, source, installCommand);
       if (choice === 'skip') return 'continue';
@@ -1087,13 +1086,7 @@ export async function runUpdatePreflight(
     trackUpdatePrompted(options.track, currentVersion, userVisibleTarget, source, decision, userVisibleRollout);
 
     if (decision === 'manual-command') {
-      stdout.write(renderManualUpdateMessage(
-        currentVersion,
-        userVisibleTarget,
-        source,
-        installCommand,
-      ));
-      return 'continue';
+      return { action: 'continue', updateNotice: { currentVersion, targetVersion: userVisibleTarget.version, installCommand } };
     }
 
     const choice = await promptInstall(currentVersion, userVisibleTarget, source, installCommand);

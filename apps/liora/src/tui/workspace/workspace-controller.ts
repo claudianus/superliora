@@ -8,6 +8,8 @@ import type {
 } from '@harness-kit/tui-renderer';
 import {
   measureWorkspaceLayout,
+  measureBentoGridLayout,
+  hitTestBentoGrid,
   renderPanelFrame,
   hitTestPanelBorder,
   mixHexColor,
@@ -112,6 +114,8 @@ export class WorkspaceController {
 
   // Tab close button hit zones (populated during renderTabBar)
   private tabCloseZones: Array<{ dock: 'left' | 'right'; instanceId: string; x: number; width: number }> = [];
+  // Tab label hit zones for switching tabs on click (populated during renderTabBar)
+  private tabSwitchZones: Array<{ dock: 'left' | 'right'; instanceId: string; x: number; width: number }> = [];
 
   // Panel focus flash animation
   private lastFocusedPanelId: string | null = null;
@@ -238,6 +242,28 @@ export class WorkspaceController {
       width: ctx.terminalColumns,
       height: ctx.terminalRows,
     };
+
+    // Bento grid mode: when grid cells are assigned, use the bento grid layout
+    const gridSpecs = this.panelManager.getBentoPanelSpecs();
+    if (gridSpecs.length > 0) {
+      const bentoGrid = measureBentoGridLayout(
+        viewport,
+        gridSpecs,
+        this.panelManager.getFocusedPanelId(),
+      );
+      const layout: WorkspaceLayoutResult = {
+        mode: 'wide',
+        viewport,
+        shell: viewport,
+        center: viewport,
+        dockGap: 0,
+        shellInsetX: 0,
+        shellInsetY: 0,
+        bentoGrid,
+      };
+      this.currentLayout = layout;
+      return layout;
+    }
 
     let layout = measureWorkspaceLayout({
       viewport,
@@ -405,7 +431,7 @@ export class WorkspaceController {
           borderColor: (text) => {
           // Flash glow effect on recent focus change
           const flashAge = Date.now() - this.focusFlashStart;
-          if (flashAge < WorkspaceController.FOCUS_FLASH_DURATION && activePanel.instanceId === this.lastFocusedPanelId) {
+          if (flashAge < WorkspaceController.FOCUS_FLASH_DURATION && panel.instanceId === this.lastFocusedPanelId) {
             const intensity = 1 - flashAge / WorkspaceController.FOCUS_FLASH_DURATION;
             const glowColor = mixHexColor(
               currentTheme.color('accent'),
@@ -415,9 +441,9 @@ export class WorkspaceController {
             return chalk.hex(glowColor)(text);
           }
           // Activity pulse: subtle glow for panels with recent activity
-          const lastActivity = this.panelActivity.get(activePanel.instanceId) ?? 0;
+          const lastActivity = this.panelActivity.get(panel.instanceId) ?? 0;
           const activityAge = Date.now() - lastActivity;
-          if (activityAge < WorkspaceController.ACTIVITY_PULSE_INTERVAL && activePanel.instanceId !== this.lastFocusedPanelId) {
+          if (activityAge < WorkspaceController.ACTIVITY_PULSE_INTERVAL && panel.instanceId !== this.lastFocusedPanelId) {
             const pulsePhase = (Date.now() % WorkspaceController.ACTIVITY_PULSE_DURATION) / WorkspaceController.ACTIVITY_PULSE_DURATION;
             const pulseIntensity = Math.sin(pulsePhase * Math.PI) * 0.3;
             if (pulseIntensity > 0.05) {
@@ -457,6 +483,76 @@ export class WorkspaceController {
   /** Get the currently maximized panel ID (null if none). */
   getMaximizedPanelId(): string | null {
     return this.maximizedPanelId;
+  }
+
+  /**
+   * Render all bento grid cells directly onto the frame renderer.
+   * Each cell gets a box-drawing frame (bright for focused, dim for others)
+   * and the panel content is rendered inside.
+   */
+  renderBentoGrid(frameRenderer: NativeFrameRenderer, layout: WorkspaceLayoutResult): void {
+    const grid = layout.bentoGrid;
+    if (!grid) return;
+
+    const focusedId = this.panelManager.getFocusedPanelId();
+    const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
+
+    for (const cell of grid.cells) {
+      const panel = this.panelManager.getPanel(cell.id);
+      if (!panel) continue;
+
+      const { x, y, width, height } = cell.rect;
+      const isFocused = cell.id === focusedId;
+
+      // Render panel content (inset by 1 for the frame border)
+      const contentWidth = Math.max(1, width - 2);
+      const contentHeight = Math.max(1, height - 2);
+      const contentLines = panel.definition.render(contentWidth, contentHeight, isFocused, searchQuery);
+
+      // Draw box frame
+      const borderChar = isFocused ? '─' : '─';
+      const cornerTL = isFocused ? '┌' : '┌';
+      const cornerTR = isFocused ? '┐' : '┐';
+      const cornerBL = isFocused ? '└' : '┘';
+      const cornerBR = isFocused ? '┘' : '┘';
+      const vertChar = '│';
+
+      const borderColor = isFocused
+        ? currentTheme.color('primary')
+        : currentTheme.color('border');
+
+      // Top border with title
+      const title = ` ${panel.definition.icon ?? ''} ${panel.definition.title} `;
+      const topLine = this.buildBentoTopBorder(cornerTL, borderChar, cornerTR, title, width, borderColor);
+      frameRenderer.writeAnsiText(x, y, topLine);
+
+      // Content rows
+      for (let row = 0; row < contentHeight; row++) {
+        const contentLine = contentLines[row] ?? '';
+        const paddedContent = contentLine.padEnd(contentWidth).slice(0, contentWidth);
+        const leftBorder = currentTheme.fg(isFocused ? 'primary' : 'border', vertChar);
+        const rightBorder = currentTheme.fg(isFocused ? 'primary' : 'border', vertChar);
+        frameRenderer.writeAnsiText(x, y + 1 + row, `${leftBorder}${paddedContent}${rightBorder}`);
+      }
+
+      // Bottom border
+      const bottomLine = currentTheme.fg(isFocused ? 'primary' : 'border',
+        cornerBL + borderChar.repeat(Math.max(0, width - 2)) + cornerBR);
+      frameRenderer.writeAnsiText(x, y + height - 1, bottomLine);
+    }
+  }
+
+  private buildBentoTopBorder(
+    tl: string, horizontal: string, tr: string,
+    title: string, width: number, borderColor: string,
+  ): string {
+    const innerWidth = Math.max(0, width - 2);
+    const titleTrunc = title.length > innerWidth ? title.slice(0, innerWidth) : title;
+    const remaining = innerWidth - titleTrunc.length;
+    const leftPad = Math.floor(remaining / 2);
+    const rightPad = remaining - leftPad;
+    const line = tl + horizontal.repeat(leftPad) + titleTrunc + horizontal.repeat(rightPad) + tr;
+    return currentTheme.fg('primary', line);
   }
 
   /**
@@ -756,8 +852,9 @@ export class WorkspaceController {
     const panelCountBadge = panels.length > 1
       ? currentTheme.dimFg('textMuted', ` ${String(panels.length)}`)
       : '';
-    // Reset close button hit zones for this dock
+    // Reset close button and switch hit zones for this dock
     this.tabCloseZones = this.tabCloseZones.filter((z) => z.dock !== dockId);
+    this.tabSwitchZones = this.tabSwitchZones.filter((z) => z.dock !== dockId);
     let cursorX = 1; // leading space
     for (const panel of panels) {
       const isActive = panel.instanceId === focusedId;
@@ -780,6 +877,9 @@ export class WorkspaceController {
           : '';
         tabs.push(currentTheme.dimFg('textMuted', ` ${label} `) + activityDot + notifBadge + currentTheme.dimFg('border', closeBtn));
       }
+      // Track tab label position for click-to-switch
+      const labelWidth = label.length + 2; // space + label + space
+      this.tabSwitchZones.push({ dock: dockId, instanceId: panel.instanceId, x: cursorX, width: labelWidth });
       // Track close button position (after label + space)
       const tabVisibleLen = label.length + 3; // space + label + space + ×
       const closeX = cursorX + tabVisibleLen - 1;
@@ -790,6 +890,28 @@ export class WorkspaceController {
     const visibleLen = bar.replace(/\x1b\[[0-9;]*m/g, '').length;
     const padding = Math.max(0, width - visibleLen);
     return ` ${bar}${' '.repeat(padding)}`;
+  }
+
+  /**
+   * Handle mouse click on tab labels to switch the active tab.
+   * @returns true if a tab was switched.
+   */
+  handleTabSwitchClick(x: number, y: number, layout: WorkspaceLayoutResult): boolean {
+    for (const zone of this.tabSwitchZones) {
+      const dockRect = zone.dock === 'left' ? layout.leftDock?.rect : layout.rightDock?.rect;
+      if (!dockRect) continue;
+      // Tab bar is the first row of the dock
+      if (y !== dockRect.y) continue;
+      const absX = dockRect.x + zone.x;
+      if (x >= absX && x < absX + zone.width) {
+        if (this.panelManager.getFocusedPanelId() !== zone.instanceId) {
+          this.panelManager.focusPanel(zone.instanceId);
+          this.requestRender();
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -832,11 +954,29 @@ export class WorkspaceController {
    * @returns true if the event was consumed by a panel.
    */
   routeInputToPanel(event: NativeInputEvent): boolean {
-    // Check tab close button clicks first
+    // Check tab label clicks first (switch tab), then close button clicks
     if (event.type === 'mouse' && event.action === 'press' && event.button === 'left') {
       const layout = this.currentLayout;
-      if (layout && this.handleTabCloseClick(event.x, event.y, layout)) {
-        return true;
+      if (layout) {
+        // Bento grid hit-test: focus the clicked cell
+        if (layout.bentoGrid) {
+          const hit = hitTestBentoGrid(layout.bentoGrid, event.x, event.y);
+          if (hit) {
+            if (this.panelManager.getFocusedPanelId() !== hit.cellId) {
+              this.panelManager.focusPanel(hit.cellId);
+              this.requestRender();
+            }
+            // Route the click to the panel
+            const panel = this.panelManager.getPanel(hit.cellId);
+            return panel?.definition.onInput?.(event) ?? true;
+          }
+        }
+        if (this.handleTabSwitchClick(event.x, event.y, layout)) {
+          return true;
+        }
+        if (this.handleTabCloseClick(event.x, event.y, layout)) {
+          return true;
+        }
       }
     }
 
@@ -846,6 +986,15 @@ export class WorkspaceController {
     if (event.type === 'mouse' && event.action === 'wheel') {
       const layout = this.currentLayout;
       if (!layout) return false;
+      // Bento grid wheel routing
+      if (layout.bentoGrid) {
+        const hit = hitTestBentoGrid(layout.bentoGrid, event.x, event.y);
+        if (hit) {
+          const panel = this.panelManager.getPanel(hit.cellId);
+          return panel?.definition.onInput?.(event) ?? false;
+        }
+        return false;
+      }
       const targetId = resolveWheelTargetPanel(layout, this.panelManager, event.x, event.y);
       if (!targetId) return false;
       const panel = this.panelManager.getPanel(targetId);

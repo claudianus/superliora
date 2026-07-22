@@ -79,12 +79,18 @@ export async function handleMainCommand(
     process.exit(0);
   }
 
+  // Extract update notice when the preflight wants to show a manual-command notice.
+  const updateNotice =
+    typeof preflightResult === 'object' && preflightResult !== null
+      ? preflightResult.updateNotice
+      : undefined;
+
   if (validated.uiMode === 'print') {
     await runPrompt(validated.options, version);
     return { headlessCompleted: true };
   }
 
-  await runShell(validated.options, version);
+  await runShell(validated.options, version, updateNotice);
   return { headlessCompleted: false };
 }
 

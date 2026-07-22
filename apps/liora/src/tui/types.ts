@@ -114,6 +114,8 @@ export interface AppState {
   banner?: BannerState | null;
   /** Live provider quota / usage snapshot for the footer badge and /usage panel. */
   providerQuota?: AllProvidersUsageSnapshot | null;
+  /** Update notice from preflight; shown as a header badge instead of stdout. */
+  updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string } | null;
 }
 
 export interface ToolCallBlockData {

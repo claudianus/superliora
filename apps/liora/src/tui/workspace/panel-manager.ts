@@ -1,4 +1,4 @@
-import type { WorkspaceDockId, WorkspaceLayoutResult } from '@harness-kit/tui-renderer';
+import type { WorkspaceDockId, WorkspaceLayoutResult, BentoPanelSpec } from '@harness-kit/tui-renderer';
 import {
   DEFAULT_LEFT_DOCK_WIDTH,
   DEFAULT_RIGHT_DOCK_WIDTH,
@@ -12,6 +12,13 @@ import type { DockAssignment, PanelDefinition, PanelInstance } from './panel-def
 // Types
 // ---------------------------------------------------------------------------
 
+export interface GridCellAssignment {
+  readonly panelInstanceId: string;
+  readonly colSpan: number;
+  readonly rowSpan: number;
+  readonly priority: number;
+}
+
 export interface PanelManagerState {
   readonly leftDock: DockAssignment[];
   readonly rightDock: DockAssignment[];
@@ -22,6 +29,7 @@ export interface PanelManagerState {
   readonly leftDockMode: DockMode;
   readonly rightDockMode: DockMode;
   readonly focusedPanelId: string | null;
+  readonly gridCells?: GridCellAssignment[];
 }
 
 export type DockMode = 'split' | 'tabbed';
@@ -45,6 +53,7 @@ export class PanelManager {
   private readonly panels = new Map<string, PanelInstance>();
   private leftDock: DockAssignment[] = [];
   private rightDock: DockAssignment[] = [];
+  private gridCells: GridCellAssignment[] = [];
   private leftDockWidth: number;
   private rightDockWidth: number;
   private leftDockVisible: boolean;
@@ -79,6 +88,7 @@ export class PanelManager {
       panel.definition.dispose?.();
       this.panels.delete(instanceId);
       this.removeFromDock(instanceId);
+      this.removeFromGrid(instanceId);
       if (this.focusedPanelId === instanceId) {
         this.focusedPanelId = null;
       }
@@ -91,6 +101,42 @@ export class PanelManager {
 
   getAllPanels(): PanelInstance[] {
     return [...this.panels.values()];
+  }
+
+  // -------------------------------------------------------------------------
+  // Bento grid cell management
+  // -------------------------------------------------------------------------
+
+  /**
+   * Add a panel to the bento grid with the given span and priority.
+   * If the panel is already in the grid, its assignment is updated.
+   */
+  addToGrid(instanceId: string, colSpan: number, rowSpan: number, priority: number): void {
+    this.removeFromGrid(instanceId);
+    this.gridCells.push({ panelInstanceId: instanceId, colSpan, rowSpan, priority });
+  }
+
+  removeFromGrid(instanceId: string): void {
+    this.gridCells = this.gridCells.filter((c) => c.panelInstanceId !== instanceId);
+  }
+
+  getGridCells(): GridCellAssignment[] {
+    return [...this.gridCells];
+  }
+
+  /**
+   * Returns BentoPanelSpec[] for the layout engine, derived from grid cell assignments.
+   * Only includes panels that are still registered.
+   */
+  getBentoPanelSpecs(): BentoPanelSpec[] {
+    return this.gridCells
+      .filter((c) => this.panels.has(c.panelInstanceId))
+      .map((c) => ({
+        id: c.panelInstanceId,
+        colSpan: c.colSpan,
+        rowSpan: c.rowSpan,
+        priority: c.priority,
+      }));
   }
 
   // -------------------------------------------------------------------------
@@ -241,6 +287,7 @@ export class PanelManager {
       leftDockMode: this.leftDockMode,
       rightDockMode: this.rightDockMode,
       focusedPanelId: this.focusedPanelId,
+      gridCells: [...this.gridCells],
     };
   }
 
@@ -256,6 +303,7 @@ export class PanelManager {
     this.leftDockMode = state.leftDockMode ?? 'split';
     this.rightDockMode = state.rightDockMode ?? 'tabbed';
     this.focusedPanelId = state.focusedPanelId;
+    this.gridCells = [...(state.gridCells ?? [])];
   }
 
   // -------------------------------------------------------------------------
@@ -286,6 +334,7 @@ export class PanelManager {
     this.panels.clear();
     this.leftDock = [];
     this.rightDock = [];
+    this.gridCells = [];
     this.focusedPanelId = null;
   }
 }

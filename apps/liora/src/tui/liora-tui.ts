@@ -254,6 +254,7 @@ export interface LioraTUIStartupInput {
   readonly version: string;
   readonly workDir: string;
   readonly startupNotice?: string;
+  readonly updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string };
 }
 
 type EffectiveActivityPaneMode = ActivityPaneMode | 'idle' | 'session';
@@ -314,6 +315,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     mcpServersSummary: null,
     providerQuota: null,
     banner: undefined,
+    updateNotice: input.updateNotice ?? null,
   };
 }
 
@@ -894,6 +896,14 @@ export class LioraTUI {
             this.renderBottomStatusBar(frameRenderer, columns, rows, undefined);
             return;
           }
+
+          // Bento grid mode: render all panels as grid tiles
+          if (layout.bentoGrid) {
+            this.workspaceController.renderBentoGrid(frameRenderer, layout);
+            this.renderBottomStatusBar(frameRenderer, columns, rows, layout);
+            return;
+          }
+
           // Outer shell frame first — dock panel frames below paint on top of
           // their portion, so this shows through only around/above/below the
           // center stage, unifying the whole workspace into one composition.

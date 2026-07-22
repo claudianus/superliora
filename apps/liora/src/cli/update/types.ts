@@ -67,7 +67,18 @@ export interface UpdateInstallState {
 }
 
 export type UpdateDecision = 'none' | 'prompt-install' | 'manual-command';
-export type UpdatePreflightResult = 'continue' | 'exit';
+
+/** Update info returned when the preflight decides to show a manual-command notice. */
+export interface UpdateNoticeInfo {
+  readonly currentVersion: string;
+  readonly targetVersion: string;
+  readonly installCommand: string;
+}
+
+export type UpdatePreflightResult =
+  | 'continue'
+  | 'exit'
+  | { readonly action: 'continue'; readonly updateNotice: UpdateNoticeInfo };
 
 /** Re-exported for callers that already import update types from this module. */
 export type { UpgradePlan, UpgradePlanReason } from './plan';
