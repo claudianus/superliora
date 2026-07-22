@@ -127,6 +127,7 @@ import { ToolCallComponent } from './components/messages/tool-call';
 import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
 import { BentoDashboardComponent } from './components/panes/bento-dashboard';
+import { QuestExpandView } from './components/panes/quest-expand-view';
 import {
   QueuePaneComponent,
   queuePaneSelectionIdentity,
@@ -412,6 +413,7 @@ export class LioraTUI {
   private questPinController: PinController | undefined;
   private questApprovalController: QuestApprovalController | undefined;
   private dashboardPanel: BentoDashboardComponent | undefined;
+  private dashboardExpandViews = new Map<string, QuestExpandView>();
   private dashboardBlinkTimer: ReturnType<typeof setInterval> | undefined;
   private dashboardBlinkPhase = false;
 
@@ -519,6 +521,19 @@ export class LioraTUI {
       if (this.state.activeDialog === 'dashboard') {
         this.syncQuestDashboard();
       }
+    };
+    // Gen 2: feed the pinned quest's expand view with live agent activity lines.
+    this.sessionEventHandler.onQuestStreamLine = (line) => {
+      if (this.state.activeDialog !== 'dashboard') return;
+      const targetId = this.questPinController?.getPinnedQuest()?.id
+        ?? `session:${this.state.appState.sessionId ?? 'unknown'}`;
+      let view = this.dashboardExpandViews.get(targetId);
+      if (view === undefined) {
+        view = new QuestExpandView();
+        this.dashboardExpandViews.set(targetId, view);
+      }
+      view.appendLine(line);
+      requestTUIContentRender(this.state);
     };
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
@@ -4113,7 +4128,7 @@ export class LioraTUI {
       attentionController: this.questAttentionController,
       pinController: this.questPinController,
       approvalController: this.questApprovalController,
-      expandViews: new Map(),
+      expandViews: this.dashboardExpandViews,
       blinkPhase: this.dashboardBlinkPhase,
       onClose: () => this.hideDashboard(),
     });

@@ -169,6 +169,13 @@ export class SessionEventHandler {
    */
   onQuestRelevantEvent: (() => void) | undefined;
 
+  /**
+   * Optional hook fired with a short human-readable line describing live agent
+   * activity (tool calls, turn end). The bento dashboard's pinned expand view
+   * appends these to show the agent's real-time stream (Gen 2 AC-3).
+   */
+  onQuestStreamLine: ((line: string) => void) | undefined;
+
   renderedSkillActivationIds: Set<string> = new Set();
   renderedPluginCommandActivationIds: Set<string> = new Set();
   renderedMcpServerStatusKeys: Map<string, string> = new Map();
@@ -524,6 +531,10 @@ export class SessionEventHandler {
     if (event.reason === 'filtered') {
       this.host.showStatus('Turn stopped: provider safety policy blocked the response.', 'error');
     }
+    // Gen 2: feed the dashboard expand view with the turn outcome.
+    if (this.onQuestStreamLine !== undefined) {
+      this.onQuestStreamLine(`✓ turn ended (${event.reason})`);
+    }
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
     const todos = this.host.state.todoPanel.getTodos();
@@ -757,6 +768,15 @@ export class SessionEventHandler {
         event.toolCallId,
         toolCall.args,
         event.name,
+      );
+    }
+    // Gen 2: feed the dashboard expand view with a live activity line.
+    if (this.onQuestStreamLine !== undefined) {
+      const detail = event.description ?? summarizeArgs(toolCall.args);
+      this.onQuestStreamLine(
+        detail !== undefined && detail.length > 0
+          ? `▸ ${event.name} — ${detail}`
+          : `▸ ${event.name}`,
       );
     }
     this.host.patchLivePane({
