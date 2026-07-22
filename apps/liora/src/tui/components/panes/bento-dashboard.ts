@@ -802,6 +802,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const avgHealth = quests.length > 0
       ? Math.round(quests.reduce((sum, q) => sum + questHealthScore(q, now), 0) / quests.length)
       : 0;
+    // Gen 73: count quests whose context window is under pressure (>=80%),
+    // reusing the Gen 72 threshold so the summary flags exhaustion risk.
+    const ctxRiskCount = quests.filter(
+      (q) => q.contextUsage !== undefined && contextSeverityToken(q.contextUsage) !== 'success',
+    ).length;
     const summaryParts = [`${String(quests.length)} quests`];
     if (runningCount > 0) {
       summaryParts.push(`● ${String(runningCount)} running`);
@@ -817,6 +822,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     if (avgHealth > 0) {
       summaryParts.push(`♥ ${String(avgHealth)}`);
+    }
+    // Gen 73: flag how many quests are near context exhaustion.
+    if (ctxRiskCount > 0) {
+      summaryParts.push(`⚠ ${String(ctxRiskCount)} ctx risk`);
     }
     // Gen 70: surface the longest-idle quest so the most neglected session is
     // obvious at a glance (only meaningful once there are several quests).
