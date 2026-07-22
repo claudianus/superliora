@@ -38,6 +38,8 @@ function makeSnapshot(overrides: Partial<QuestBridgeSnapshot> = {}): QuestBridge
     todoProgress: undefined,
     contextUsage: 0,
     approvalSummary: undefined,
+    modelName: undefined,
+    sessionCostUsd: 0,
     ...overrides,
   };
 }

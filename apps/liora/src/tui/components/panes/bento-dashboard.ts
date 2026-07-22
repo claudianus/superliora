@@ -290,6 +290,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
       const pct = Math.round(quest.contextUsage * 100);
       progressParts.push(`ctx ${String(pct)}%`);
     }
+    // Gen 18: model name + session cost.
+    if (quest.modelName !== undefined && quest.modelName.length > 0) {
+      progressParts.push(quest.modelName);
+    }
+    if (quest.sessionCostUsd !== undefined && quest.sessionCostUsd > 0) {
+      progressParts.push(`$${quest.sessionCostUsd.toFixed(2)}`);
+    }
     const progress = progressParts.length > 0 ? `  ${progressParts.join('  ')}` : '';
 
     // Gen 12: color-code the state icon + badge for at-a-glance scanning.

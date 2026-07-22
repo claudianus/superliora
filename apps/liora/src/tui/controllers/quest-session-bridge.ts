@@ -47,6 +47,10 @@ export interface QuestBridgeSnapshot {
   readonly contextUsage: number;
   /** Gen 13: summary of the pending approval (tool + description), if any. */
   readonly approvalSummary: string | undefined;
+  /** Gen 18: model name for the main session. */
+  readonly modelName: string | undefined;
+  /** Gen 18: accumulated session cost in USD for the main session. */
+  readonly sessionCostUsd: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +145,8 @@ export function syncQuestGridFromSnapshot(
       todoProgress: snapshot.todoProgress,
       contextUsage: snapshot.contextUsage,
       pendingApprovalSummary: snapshot.approvalSummary,
+      modelName: snapshot.modelName,
+      sessionCostUsd: snapshot.sessionCostUsd,
     });
     attentionController.onQuestStateChanged(mainQuestId, mainState);
   } else {
@@ -158,7 +164,7 @@ export function syncQuestGridFromSnapshot(
     if (existingMain.planStep !== mainPlanStep) {
       gridController.updateQuestPlanStep(mainQuestId, mainPlanStep);
     }
-    // Gen 9 + Gen 13: keep progress indicators and approval summary live.
+    // Gen 9 + Gen 13 + Gen 18: keep progress, approval, and cost live.
     const prevTodo = existingMain.todoProgress;
     const nextTodo = snapshot.todoProgress;
     const todoChanged =
@@ -166,13 +172,17 @@ export function syncQuestGridFromSnapshot(
     if (
       todoChanged ||
       existingMain.contextUsage !== snapshot.contextUsage ||
-      existingMain.pendingApprovalSummary !== snapshot.approvalSummary
+      existingMain.pendingApprovalSummary !== snapshot.approvalSummary ||
+      existingMain.modelName !== snapshot.modelName ||
+      existingMain.sessionCostUsd !== snapshot.sessionCostUsd
     ) {
       gridController.updateQuestProgress(
         mainQuestId,
         nextTodo,
         snapshot.contextUsage,
         snapshot.approvalSummary,
+        snapshot.modelName,
+        snapshot.sessionCostUsd,
       );
     }
   }

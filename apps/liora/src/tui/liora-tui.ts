@@ -4162,6 +4162,8 @@ export class LioraTUI {
       todoProgress: computeTodoProgress(this.state.todoPanel.getTodos()),
       contextUsage: this.state.appState.contextUsage,
       approvalSummary: describePendingApproval(this.state.livePane.pendingApproval),
+      modelName: this.state.appState.model || undefined,
+      sessionCostUsd: this.state.appState.sessionCostUsd ?? 0,
     });
   }
 

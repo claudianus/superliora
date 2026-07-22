@@ -92,6 +92,10 @@ export interface Quest {
   readonly contextUsage?: number | undefined;
   /** Gen 13: summary of the pending approval (tool + description), if any. */
   readonly pendingApprovalSummary?: string | undefined;
+  /** Gen 18: model name for the main session. */
+  readonly modelName?: string | undefined;
+  /** Gen 18: accumulated session cost in USD for the main session. */
+  readonly sessionCostUsd?: number | undefined;
 }
 
 // ---------------------------------------------------------------------------
