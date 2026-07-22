@@ -9,6 +9,7 @@ import {
   formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
   formatFleetStateSummary,
+  formatHealthLabel,
   formatStripBlinkLabel,
   formatTodoProgress,
   formatTotalCostUsd,
@@ -361,5 +362,27 @@ describe('classifyHealthSeverity (Gen 67)', () => {
   it('classifies scores < 40 as critical', () => {
     expect(classifyHealthSeverity(39)).toBe('critical');
     expect(classifyHealthSeverity(0)).toBe('critical');
+  });
+});
+
+describe('formatHealthLabel (Gen 68)', () => {
+  it('returns a structured label with score, severity, and text', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', { state: 'running', lastActivityAt: now });
+    const label = formatHealthLabel(quest, now);
+    expect(label.score).toBeGreaterThanOrEqual(0);
+    expect(label.score).toBeLessThanOrEqual(100);
+    expect(label.severity).toBe(classifyHealthSeverity(label.score));
+    expect(label.text).toBe(`♥ ${String(label.score)}`);
+  });
+
+  it('marks a long-idle quest as less healthy', () => {
+    const now = 100_000;
+    const fresh = makeQuest('fresh', { state: 'running', lastActivityAt: now });
+    const stale = makeQuest('stale', {
+      state: 'running',
+      lastActivityAt: now - 30 * 60 * 1000, // 30 minutes idle
+    });
+    expect(formatHealthLabel(stale, now).score).toBeLessThan(formatHealthLabel(fresh, now).score);
   });
 });

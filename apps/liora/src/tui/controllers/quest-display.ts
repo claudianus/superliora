@@ -7,7 +7,7 @@
  * unit-testable in isolation.
  */
 
-import { formatElapsed, type Quest, type QuestState } from './quest-types';
+import { formatElapsed, type Quest, type QuestState, questHealthScore } from './quest-types';
 import type { AttentionSummary, EscalationLevel } from './attention-controller';
 import {
   rankQuestsByUrgency,
@@ -232,4 +232,29 @@ export function classifyHealthSeverity(score: number): 'healthy' | 'warning' | '
   if (score >= 70) return 'healthy';
   if (score >= 40) return 'warning';
   return 'critical';
+}
+
+/** Gen 68: a structured health label for a quest, ready for colorized display. */
+export interface HealthLabel {
+  /** The 0–100 health score. */
+  readonly score: number;
+  /** The severity classification for color coding. */
+  readonly severity: 'healthy' | 'warning' | 'critical';
+  /** The display text, e.g. "♥ 82". */
+  readonly text: string;
+}
+
+/**
+ * Gen 68: a structured health label for a quest, e.g. { score: 82,
+ * severity: 'healthy', text: '♥ 82' }. Composes questHealthScore() with the
+ * Gen 67 severity classification so callers can render the score and apply
+ * consistent color coding from a single call.
+ */
+export function formatHealthLabel(quest: Quest, now: number = Date.now()): HealthLabel {
+  const score = questHealthScore(quest, now);
+  return {
+    score,
+    severity: classifyHealthSeverity(score),
+    text: `♥ ${String(score)}`,
+  };
 }
