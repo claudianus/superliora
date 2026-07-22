@@ -299,3 +299,76 @@ describe('Gen 68: dashboard fleet changes overlay', () => {
     expect(isClosed()).toBe(true);
   });
 });
+
+describe('Gen 70: pinned stream stats overlay', () => {
+  function makeComponentWithView() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const view = new QuestExpandView();
+    view.appendLine('hello world');
+    let closed = false;
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map([['a', view]]),
+      blinkPhase: false,
+      onClose: () => {
+        closed = true;
+      },
+    });
+    return { component, grid, pin, isClosed: () => closed };
+  }
+
+  it('T opens the stream stats overlay in pinned mode', () => {
+    const { component, pin } = makeComponentWithView();
+    pin.pin('a');
+
+    // Before: no stream stats overlay.
+    expect(component.render(120).join('\n')).not.toContain('Stream Stats');
+
+    // T opens the stream stats overlay.
+    component.handleInput('T');
+    const statsLines = component.render(120).join('\n');
+    expect(statsLines).toContain('Stream Stats');
+    expect(statsLines).toContain('Lines');
+    expect(statsLines).toContain('Auto-follow');
+  });
+
+  it('any key dismisses the stream stats overlay (consumed)', () => {
+    const { component, pin, grid } = makeComponentWithView();
+    pin.pin('a');
+
+    component.handleInput('T');
+    expect(component.render(120).join('\n')).toContain('Stream Stats');
+
+    // j would normally scroll, but here it only dismisses the overlay.
+    component.handleInput('j');
+    expect(component.render(120).join('\n')).not.toContain('Stream Stats');
+    // Still pinned — the key was consumed by the overlay.
+    expect(grid.getPinnedQuestId()).toBe('a');
+  });
+
+  it('Esc closes the stream stats first, not unpin', () => {
+    const { component, pin, grid, isClosed } = makeComponentWithView();
+    pin.pin('a');
+
+    component.handleInput('T');
+    expect(component.render(120).join('\n')).toContain('Stream Stats');
+
+    // Esc dismisses the overlay but stays pinned.
+    component.handleInput('\x1b');
+    expect(grid.getPinnedQuestId()).toBe('a');
+    expect(isClosed()).toBe(false);
+    expect(component.render(120).join('\n')).not.toContain('Stream Stats');
+  });
+});
