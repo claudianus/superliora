@@ -67,16 +67,21 @@ export function buildThumbnailStrip(
 /**
  * Render the thumbnail strip as a single-line string.
  * Format: [icon label] [icon label] ...
+ *
+ * When `showIndex` is true (pinned mode), each segment is prefixed with its
+ * 1-based hotkey so the user can jump directly to a quest with 1–9 (Gen 6b).
  */
 export function renderThumbnailStripLine(
   entries: readonly ThumbnailEntry[],
   maxWidth: number,
+  showIndex = false,
 ): string {
   const parts: string[] = [];
   let usedWidth = 0;
 
-  for (const entry of entries) {
-    const segment = `[${entry.icon} ${entry.label}]`;
+  for (const [i, entry] of entries.entries()) {
+    const prefix = showIndex && i < 9 ? `${String(i + 1)}:` : '';
+    const segment = `${prefix}[${entry.icon} ${entry.label}]`;
     const segmentWidth = segment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     parts.push(segment);

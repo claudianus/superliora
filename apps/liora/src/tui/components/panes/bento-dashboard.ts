@@ -126,6 +126,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.pinController.togglePin(pinned.id);
         return;
       }
+      // Gen 6b: 1–9 → jump directly to the Nth thumbnail quest (switch_context).
+      if (k.length === 1 && k >= '1' && k <= '9') {
+        const stripQuests = this.pinController.getStripQuests();
+        const target = stripQuests[Number(k) - 1];
+        if (target) {
+          this.pinController.unpin();
+          this.pinController.pin(target.id);
+        }
+        return;
+      }
       // a/x/r → approval actions on the pinned quest
       if (this.approvalController && (k === 'a' || k === 'x' || k === 'r')) {
         const action = k === 'a' ? 'approve' : k === 'x' ? 'reject' : 'rewind';
@@ -239,10 +249,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
       lines.push(clip(`── ${pinned.name} [${pinned.state}] (no stream) ──`, width));
     }
 
-    // Thumbnail strip for the non-pinned quests
+    // Thumbnail strip for the non-pinned quests (numbered for direct jump, Gen 6b)
     const entries = buildThumbnailStrip(allQuests, pinned.id, this.blinkPhase);
     if (entries.length > 0) {
-      const strip = renderThumbnailStripLine(entries, width);
+      const strip = renderThumbnailStripLine(entries, width, true);
       lines.push(currentTheme.dim(clip(strip, width)));
     }
 
