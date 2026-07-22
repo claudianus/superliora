@@ -524,16 +524,11 @@ export class LioraTUI {
     };
     // Gen 2: feed the pinned quest's expand view with live agent activity lines.
     this.sessionEventHandler.onQuestStreamLine = (line) => {
-      if (this.state.activeDialog !== 'dashboard') return;
-      const targetId = this.questPinController?.getPinnedQuest()?.id
-        ?? `session:${this.state.appState.sessionId ?? 'unknown'}`;
-      let view = this.dashboardExpandViews.get(targetId);
-      if (view === undefined) {
-        view = new QuestExpandView();
-        this.dashboardExpandViews.set(targetId, view);
-      }
-      view.appendLine(line);
-      requestTUIContentRender(this.state);
+      this.appendQuestStreamLines([line]);
+    };
+    // Gen 3: feed pre-rendered diff lines (Edit tool) into the expand view.
+    this.sessionEventHandler.onQuestStreamLines = (lines) => {
+      this.appendQuestStreamLines(lines);
     };
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
@@ -4153,6 +4148,23 @@ export class LioraTUI {
       backgroundTasks: this.sessionEventHandler.backgroundTasks,
       workDir: this.state.appState.workDir ?? process.cwd(),
     });
+  }
+
+  /**
+   * Append live stream lines (activity lines or pre-rendered diff lines) to
+   * the pinned quest's expand view. No-op when the dashboard is closed.
+   */
+  private appendQuestStreamLines(lines: readonly string[]): void {
+    if (this.state.activeDialog !== 'dashboard' || lines.length === 0) return;
+    const targetId = this.questPinController?.getPinnedQuest()?.id
+      ?? `session:${this.state.appState.sessionId ?? 'unknown'}`;
+    let view = this.dashboardExpandViews.get(targetId);
+    if (view === undefined) {
+      view = new QuestExpandView();
+      this.dashboardExpandViews.set(targetId, view);
+    }
+    view.appendLines(lines);
+    requestTUIContentRender(this.state);
   }
 
   private hideDashboard(): void {

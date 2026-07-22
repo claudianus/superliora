@@ -68,6 +68,7 @@ import {
   stringValue,
 } from '../utils/event-payload';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
+import { renderDiffLinesClustered } from '../components/media/diff-preview';
 import {
   readGoalQueue,
   removeGoalQueueItem,
@@ -175,6 +176,13 @@ export class SessionEventHandler {
    * appends these to show the agent's real-time stream (Gen 2 AC-3).
    */
   onQuestStreamLine: ((line: string) => void) | undefined;
+
+  /**
+   * Optional hook fired with pre-rendered diff lines when an Edit tool call
+   * starts. The bento dashboard's pinned expand view appends these so the
+   * user sees the actual code change inline (Gen 3 AC-3 diff rendering).
+   */
+  onQuestStreamLines: ((lines: readonly string[]) => void) | undefined;
 
   renderedSkillActivationIds: Set<string> = new Set();
   renderedPluginCommandActivationIds: Set<string> = new Set();
@@ -778,6 +786,26 @@ export class SessionEventHandler {
           ? `▸ ${event.name} — ${detail}`
           : `▸ ${event.name}`,
       );
+    }
+    // Gen 3: render Edit tool diffs inline in the expand view so the user
+    // sees the actual code change, not just a "▸ Edit" line.
+    if (this.onQuestStreamLines !== undefined && event.name === 'Edit') {
+      const oldText = typeof toolCall.args['old_string'] === 'string'
+        ? toolCall.args['old_string']
+        : '';
+      const newText = typeof toolCall.args['new_string'] === 'string'
+        ? toolCall.args['new_string']
+        : '';
+      const path = typeof toolCall.args['path'] === 'string'
+        ? toolCall.args['path']
+        : 'unknown';
+      if (oldText.length > 0 || newText.length > 0) {
+        const diffLines = renderDiffLinesClustered(oldText, newText, path, {
+          contextLines: 2,
+          maxLines: 12,
+        });
+        if (diffLines.length > 0) this.onQuestStreamLines(diffLines);
+      }
     }
     this.host.patchLivePane({
       mode: 'tool',
