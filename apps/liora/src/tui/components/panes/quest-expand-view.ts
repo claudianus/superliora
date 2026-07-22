@@ -505,7 +505,13 @@ export class QuestExpandView {
           : `${String(this.scrollOffset + 1)}–${String(Math.min(total, this.scrollOffset + this.maxVisibleLines))}/${String(total)}`;
       const scrollTag = atBottom ? scrollInfo : `${scrollInfo} ↑`;
       // Gen 50: flag the diff-only view in the header so the mode is obvious.
-      const diffTag = this.diffOnly ? '  ≡ diff' : '';
+      // Gen 77: when not in diff-only mode, show the diff line count so the
+      // operator sees how much code the quest produced without switching views.
+      const diffTag = this.diffOnly
+        ? '  ≡ diff'
+        : this.diffLines.length > 0
+          ? `  ≡${String(this.diffLines.length)}`
+          : '';
       // Gen 57: flag when auto-follow is paused so the parked state is obvious.
       const followTag = this.followTail ? '' : '  ⏸ paused';
       // Gen 65: surface how many error/warning lines the stream holds so the
