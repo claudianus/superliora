@@ -117,6 +117,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
   // Gen 68: dashboard fleet changes overlay
   private fleetChangesVisible = false;
 
+  // Gen 70: pinned stream stats overlay
+  private streamStatsVisible = false;
+
   // Gen 24: dashboard quest filter
   private filterMode = false;
   private filterBuffer = '';
@@ -243,6 +246,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.fleetChangesVisible = false;
         return;
       }
+      // Gen 70: if the stream stats overlay is open, close it first.
+      if (this.streamStatsVisible) {
+        this.streamStatsVisible = false;
+        return;
+      }
       // Gen 24: if a filter is active, clear it first instead of closing.
       if (this.filterBuffer !== '') {
         this.filterBuffer = '';
@@ -290,6 +298,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
       this.fleetChangesVisible = false;
       return;
     }
+    // Gen 70: while the stream stats overlay is shown, any key dismisses it.
+    if (this.streamStatsVisible) {
+      this.streamStatsVisible = false;
+      return;
+    }
 
     const pinned = this.pinController.getPinnedQuest();
 
@@ -299,6 +312,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
       // Gen 65: i → toggle the quest info overlay.
       if (k === 'i') {
         this.infoVisible = true;
+        return;
+      }
+      // Gen 70: T → toggle the stream stats overlay.
+      if (k === 'T') {
+        this.streamStatsVisible = true;
         return;
       }
       if (matchesKey(data, Key.down) || k === 'j') {
@@ -589,6 +607,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (this.fleetChangesVisible && !pinned) {
       return this.renderFleetChanges(quests, width);
     }
+    // Gen 70: stream stats overlay replaces the pinned view while visible.
+    if (this.streamStatsVisible && pinned) {
+      return this.renderStreamStats(pinned, width);
+    }
     if (pinned) {
       return this.renderPinned(pinned, quests, width);
     }
@@ -618,6 +640,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['R', 'Clear the stream buffer'],
           ['y', 'Review from the top (pause auto-follow)'],
           ['i', 'Show quest info overlay'],
+          ['T', 'Show stream stats overlay'],
           ['t', 'Toggle relative timestamps'],
           ['e / E', 'Jump to next / previous error line'],
           [':N', 'Jump to line number N'],
@@ -782,6 +805,37 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const totalRemoved = quests.reduce((sum, q) => sum + q.changeCount.removed, 0);
     lines.push('');
     lines.push(`  ${currentTheme.dim('Total'.padEnd(22))}${renderChangeCount({ added: totalAdded, removed: totalRemoved })}`);
+
+    lines.push('');
+    lines.push(currentTheme.dim('  Press any key to dismiss.'));
+    return lines.map((line) => clip(line, width));
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 70: pinned stream stats overlay
+  // -------------------------------------------------------------------------
+
+  private renderStreamStats(quest: Quest, width: number): string[] {
+    const lines: string[] = [];
+    lines.push(currentTheme.fg('accent', `── Stream Stats: ${quest.name} ──`));
+    lines.push('');
+
+    const view = this.expandViews.get(quest.id);
+    if (view === undefined) {
+      lines.push(currentTheme.dim('  No stream data for this quest.'));
+    } else {
+      const lineCount = view.getStreamLineCount();
+      const diffRatio = view.getStreamDiffRatio();
+      const following = view.isFollowingTail();
+      const search = view.getSearchStatus();
+
+      lines.push(`  ${currentTheme.dim('Lines'.padEnd(12))}${String(lineCount)}`);
+      lines.push(`  ${currentTheme.dim('Diff ratio'.padEnd(12))}${String(Math.round(diffRatio * 100))}%`);
+      lines.push(`  ${currentTheme.dim('Auto-follow'.padEnd(12))}${following ? currentTheme.fg('success', 'on') : currentTheme.fg('warning', 'paused')}`);
+      if (search !== null) {
+        lines.push(`  ${currentTheme.dim('Search'.padEnd(12))}${search.query} (${String(search.current + 1)}/${String(search.total)})`);
+      }
+    }
 
     lines.push('');
     lines.push(currentTheme.dim('  Press any key to dismiss.'));
@@ -1043,11 +1097,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const streamCount = expandView?.getStreamLineCount() ?? 0;
     const streamPlain = streamCount > 0 ? `  ≣${String(streamCount)}` : '';
     const streamSegment = streamCount > 0 ? currentTheme.fg('textMuted', `  ≣${String(streamCount)}`) : '';
-    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${diffPlain}${streamPlain}${line2Suffix}`;
+    // Gen 82: stream/diff ratio mini-bar so the cell shows the output/code
+    // balance at a glance, mirroring the expand-view header (Gen 81).
+    const ratioPlain = formatRatioBar(streamCount, diffCount);
+    const ratioSegment = ratioPlain.length > 0 ? `  ${currentTheme.dim(ratioPlain)}` : '';
+    const ratioPlainSeg = ratioPlain.length > 0 ? `  ${ratioPlain}` : '';
+    const plainLine2 = `${line2Prefix}${formatChangeCount(quest.changeCount)}${healthPlain}${diffPlain}${streamPlain}${ratioPlainSeg}${line2Suffix}`;
     const line2 =
       plainLine2.length > width
         ? dimToken(clip(plainLine2, width))
-        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${diffSegment}${streamSegment}${dimToken(line2Suffix)}`;
+        : `${dimToken(line2Prefix)}${changeSegment}${healthSegment}${diffSegment}${streamSegment}${ratioSegment}${dimToken(line2Suffix)}`;
 
     return [
       // line1 is width-managed manually (badge carries ANSI color), so skip clip.
@@ -1163,6 +1222,25 @@ export function formatHealthBar(score: number): string {
   const filled = Math.round((clamped / 100) * cells);
   const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
   return `♥ ${bar} ${String(score)}`;
+}
+
+/**
+ * Gen 82: render a stream/diff ratio mini-bar, e.g. `▓▓▓░░ ≣/≡`. Filled cells
+ * represent stream lines, empty cells represent diff lines. Mirrors the
+ * expand-view header ratio bar (Gen 81) so the balance is scannable in cells.
+ */
+export function renderRatioBar(streamLines: number, diffLines: number): string {
+  const total = streamLines + diffLines;
+  if (total === 0) return '';
+  const cells = 5;
+  const filled = Math.round((streamLines / total) * cells);
+  const bar = '▓'.repeat(filled) + '░'.repeat(cells - filled);
+  return `${bar} ≣/≡`;
+}
+
+/** Gen 82: plain-text ratio mini-bar for width calculations. */
+export function formatRatioBar(streamLines: number, diffLines: number): string {
+  return renderRatioBar(streamLines, diffLines);
 }
 
 /** Gen 33: braille spinner frames for the running state. */
