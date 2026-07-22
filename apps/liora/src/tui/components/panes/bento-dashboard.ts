@@ -891,16 +891,22 @@ export class BentoDashboardComponent extends Container implements Focusable {
       0,
     );
     // Gen 84: fleet-wide error/warning line counts across all expand views.
+    // Gen 89: also track the single most troubled quest for the summary bar.
     const totalProblems = quests.reduce(
       (acc, q) => {
         const counts = this.expandViews.get(q.id)?.getProblemCounts();
         if (counts !== undefined) {
           acc.errors += counts.errors;
           acc.warnings += counts.warnings;
+          const total = counts.errors + counts.warnings;
+          if (total > acc.worstCount) {
+            acc.worstCount = total;
+            acc.worst = q;
+          }
         }
         return acc;
       },
-      { errors: 0, warnings: 0 },
+      { errors: 0, warnings: 0, worstCount: 0, worst: undefined as Quest | undefined },
     );
     // Gen 51: fleet-wide average health score.
     const avgHealth = quests.length > 0
@@ -938,6 +944,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
       if (totalProblems.errors > 0) parts.push(`✖${String(totalProblems.errors)}`);
       if (totalProblems.warnings > 0) parts.push(`⚠${String(totalProblems.warnings)}`);
       summaryParts.push(parts.join(' '));
+    }
+    // Gen 89: surface the single most troubled quest so the operator knows
+    // where to focus triage (only meaningful once there are several quests).
+    if (quests.length > 1 && totalProblems.worst !== undefined && totalProblems.worstCount > 0) {
+      summaryParts.push(
+        `☢ worst: ${totalProblems.worst.name} ${String(totalProblems.worstCount)}`,
+      );
     }
     if (avgHealth > 0) {
       summaryParts.push(`♥ ${String(avgHealth)}`);
