@@ -126,6 +126,7 @@ import { StepSummaryComponent } from './components/messages/step-summary';
 import { ToolCallComponent } from './components/messages/tool-call';
 import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
+import { BentoDashboardComponent } from './components/panes/bento-dashboard';
 import {
   QueuePaneComponent,
   queuePaneSelectionIdentity,
@@ -150,6 +151,10 @@ import { SessionReplayRenderer, type SessionReplayHost } from './controllers/ses
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { UsageMonitorController } from './controllers/usage-monitor';
+import { QuestGridController } from './controllers/quest-grid-controller';
+import { AttentionController } from './controllers/attention-controller';
+import { PinController } from './controllers/pin-controller';
+import { ApprovalController as QuestApprovalController } from './controllers/approval-controller';
 import { setKittyGraphicsChannel } from './media/kitty-graphics-channel';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
@@ -399,6 +404,14 @@ export class LioraTUI {
   private kittyDndTrackingDispose: (() => void) | undefined;
   private readonly sessionStartTime = Date.now();
   private readonly activityFeed = new ActivityFeed();
+
+  // Quest Dashboard (bento grid) controllers — lazily created on first /dashboard.
+  private questGridController: QuestGridController | undefined;
+  private questAttentionController: AttentionController | undefined;
+  private questPinController: PinController | undefined;
+  private questApprovalController: QuestApprovalController | undefined;
+  private dashboardBlinkTimer: ReturnType<typeof setInterval> | undefined;
+  private dashboardBlinkPhase = false;
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -4006,6 +4019,70 @@ export class LioraTUI {
   }
 
   private hideErrorNavigator(): void {
+    this.state.activeDialog = null;
+    this.restoreEditor();
+  }
+
+  // -------------------------------------------------------------------------
+  // Quest Dashboard (bento grid) — Ctrl+G / /dashboard
+  // -------------------------------------------------------------------------
+
+  showDashboard(): void {
+    if (this.state.activeDialog !== null) return;
+
+    // Lazily create controllers on first open
+    if (this.questGridController === undefined) {
+      const getViewport = () => {
+        const rect = this.state.cachedEditorRect;
+        return rect ?? { x: 0, y: 0, width: 120, height: 40 };
+      };
+      const requestRender = () => requestTUIContentRender(this.state);
+      this.questGridController = new QuestGridController({ getViewport, requestRender });
+      this.questAttentionController = new AttentionController({
+        writeRaw: (data) => { process.stdout.write(data); },
+        requestRender,
+      });
+      this.questPinController = new PinController({
+        gridController: this.questGridController,
+        requestRender,
+      });
+      this.questApprovalController = new QuestApprovalController({
+        sendStdin: () => {},
+        cancelQuest: () => {},
+        rejectStep: () => {},
+        openRewindPicker: async () => null,
+        executeRewind: () => {},
+        presentRejectChoice: async () => null,
+        requestRender,
+      });
+    }
+
+    // Start blink timer (500ms toggle)
+    this.dashboardBlinkPhase = false;
+    this.dashboardBlinkTimer ??= setInterval(() => {
+      this.dashboardBlinkPhase = !this.dashboardBlinkPhase;
+      requestTUIContentRender(this.state);
+    }, 500);
+
+    const panel = new BentoDashboardComponent({
+      gridController: this.questGridController,
+      attentionController: this.questAttentionController,
+      pinController: this.questPinController,
+      approvalController: this.questApprovalController,
+      expandViews: new Map(),
+      blinkPhase: this.dashboardBlinkPhase,
+      onClose: () => this.hideDashboard(),
+    });
+
+    this.state.activeDialog = 'dashboard';
+    this.mountEditorReplacement(panel);
+  }
+
+  private hideDashboard(): void {
+    if (this.dashboardBlinkTimer !== undefined) {
+      clearInterval(this.dashboardBlinkTimer);
+      this.dashboardBlinkTimer = undefined;
+    }
     this.state.activeDialog = null;
     this.restoreEditor();
   }

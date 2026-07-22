@@ -16,8 +16,9 @@
  *       never displaces information.
  */
 
-import { Container } from '#/tui/renderer';
+import { Container, Key, matchesKey, type Focusable } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { printableChar } from '#/tui/utils/printable-key';
 
 import {
   buildThumbnailStrip,
@@ -25,6 +26,7 @@ import {
 } from './thumbnail-strip';
 import type { QuestExpandView } from './quest-expand-view';
 import type { AttentionController } from '../../controllers/attention-controller';
+import type { ApprovalController } from '../../controllers/approval-controller';
 import type { PinController } from '../../controllers/pin-controller';
 import type { QuestGridController } from '../../controllers/quest-grid-controller';
 import {
@@ -42,12 +44,15 @@ export interface BentoDashboardOptions {
   readonly gridController: QuestGridController;
   readonly attentionController: AttentionController;
   readonly pinController: PinController;
+  readonly approvalController?: ApprovalController;
   /** Per-quest expand views (live stream buffers), keyed by quest id. */
   readonly expandViews: ReadonlyMap<string, QuestExpandView>;
   /** Blink phase for strip/attention indicators (toggled by a timer). */
   readonly blinkPhase: boolean;
   /** Current time provider for elapsed computation (injectable for tests). */
   readonly now?: () => number;
+  /** Close the dashboard overlay (Esc / Ctrl+G). */
+  readonly onClose: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,22 +66,75 @@ const CELL_BLOCK_HEIGHT = 3;
 // BentoDashboardComponent
 // ---------------------------------------------------------------------------
 
-export class BentoDashboardComponent extends Container {
+export class BentoDashboardComponent extends Container implements Focusable {
+  focused = false;
+
   private readonly gridController: QuestGridController;
   private readonly attentionController: AttentionController;
   private readonly pinController: PinController;
+  private readonly approvalController: ApprovalController | undefined;
   private readonly expandViews: ReadonlyMap<string, QuestExpandView>;
   private readonly blinkPhase: boolean;
   private readonly now: () => number;
+  private readonly onClose: () => void;
 
   constructor(options: BentoDashboardOptions) {
     super();
     this.gridController = options.gridController;
     this.attentionController = options.attentionController;
     this.pinController = options.pinController;
+    this.approvalController = options.approvalController;
     this.expandViews = options.expandViews;
     this.blinkPhase = options.blinkPhase;
     this.now = options.now ?? (() => Date.now());
+    this.onClose = options.onClose;
+  }
+
+  // -------------------------------------------------------------------------
+  // Keyboard input (Focusable)
+  // -------------------------------------------------------------------------
+
+  handleInput(data: string): void {
+    const k = printableChar(data);
+
+    // Esc or Ctrl+G → close dashboard
+    if (matchesKey(data, Key.escape) || data === '\x07') {
+      this.onClose();
+      return;
+    }
+
+    // j/k or arrows → move focus
+    if (matchesKey(data, Key.down) || k === 'j') {
+      this.gridController.focusNext();
+      return;
+    }
+    if (matchesKey(data, Key.up) || k === 'k') {
+      this.gridController.focusPrev();
+      return;
+    }
+
+    // Enter or p → toggle pin on focused quest
+    if (matchesKey(data, Key.enter) || k === 'p') {
+      const focusedId = this.gridController.getFocusedQuestId();
+      if (focusedId) this.pinController.togglePin(focusedId);
+      return;
+    }
+
+    // a/x/r → approval actions on focused quest
+    if (this.approvalController && (k === 'a' || k === 'x' || k === 'r')) {
+      const focusedId = this.gridController.getFocusedQuestId();
+      const quest = focusedId ? this.gridController.getQuest(focusedId) : undefined;
+      if (quest) {
+        const action = k === 'a' ? 'approve' : k === 'x' ? 'reject' : 'rewind';
+        void this.approvalController.handleAction(quest, action);
+      }
+      return;
+    }
+
+    // q → close dashboard
+    if (k === 'q') {
+      this.onClose();
+    }
   }
 
   override render(width: number): string[] {
