@@ -442,6 +442,36 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(on[4]).toContain('+0s');
   });
 
+  it('Gen 62: e/E jump between error/warning lines', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    view.appendLine('ok line 0');
+    view.appendLine('ok line 1');
+    view.appendLine('ok line 2');
+    view.appendLine('fatal: something broke');
+    view.appendLine('ok line 4');
+    view.appendLine('warning: deprecation ahead');
+
+    // Next error jumps to the first problem line (index 3).
+    expect(view.jumpToNextError()).toBe(true);
+    expect(view.currentScrollOffset).toBeGreaterThan(0);
+
+    // Next again lands on the warning line (index 5).
+    expect(view.jumpToNextError()).toBe(true);
+
+    // Previous error returns to the earlier problem line.
+    expect(view.jumpToPrevError()).toBe(true);
+  });
+
+  it('Gen 62: jumpToNextError returns false when no problem lines exist', () => {
+    const view = new QuestExpandView();
+    view.appendLine('all good');
+    view.appendLine('still good');
+    expect(view.jumpToNextError()).toBe(false);
+    expect(view.jumpToPrevError()).toBe(false);
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {
