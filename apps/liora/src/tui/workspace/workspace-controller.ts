@@ -1347,8 +1347,8 @@ export class WorkspaceController {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
     const divider = animated
-      ? renderParticleDivider(30, 'switcher:divider', appearance)
-      : currentTheme.fg('primary', '─'.repeat(30));
+      ? renderParticleDivider(32, 'switcher:divider', appearance)
+      : currentTheme.fg('primary', '─'.repeat(32));
     lines.push(`${currentTheme.boldFg('primary', ' 패널 전환')}  ${currentTheme.dimFg('textMuted', this.switcherFilter || '입력하여 필터…')}`);
     lines.push(divider);
     if (panels.length === 0) {
@@ -1356,9 +1356,11 @@ export class WorkspaceController {
     } else {
       for (let i = 0; i < panels.length; i++) {
         const p = panels[i]!;
-        const marker = i === this.switcherSelectedIndex ? currentTheme.boldFg('primary', SELECT_POINTER) : ' ';
+        const isSel = i === this.switcherSelectedIndex;
+        const marker = isSel ? currentTheme.boldFg('primary', SELECT_POINTER) : ' ';
         const dock = p.dock === 'left' ? currentTheme.dimFg('textMuted', '[L]') : currentTheme.dimFg('textMuted', '[R]');
-        const title = i === this.switcherSelectedIndex ? currentTheme.boldFg('textStrong', p.title) : currentTheme.fg('text', p.title);
+        const icon = p.icon ? `${p.icon} ` : '';
+        const title = isSel ? currentTheme.boldFg('textStrong', `${icon}${p.title}`) : currentTheme.fg('text', `${icon}${p.title}`);
         lines.push(` ${marker} ${dock} ${title}`);
       }
     }
