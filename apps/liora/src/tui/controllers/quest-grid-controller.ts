@@ -30,7 +30,6 @@ import {
   contextSeverityToken,
   nextSortMode,
   questHealthScore,
-  questStatePriority,
 } from './quest-types';
 import { compareByUrgency } from './quest-urgency';
 
@@ -83,6 +82,8 @@ export class QuestGridController {
   private attentionOnly = false;
   // Gen 75: show only context-at-risk quests (>=80% usage).
   private ctxRiskOnly = false;
+  // Gen 86: show only quests with error/warning lines in the stream.
+  private problemsOnly = false;
   // Gen 30: active dashboard sort mode.
   private sortMode: QuestSortMode = 'attention';
 
@@ -391,6 +392,10 @@ export class QuestGridController {
       ) {
         return false;
       }
+      // Gen 86: problems-only mode hides quests with no error/warning lines.
+      if (this.problemsOnly && (this.getProblemCount?.(q.id) ?? 0) === 0) {
+        return false;
+      }
       if (query === '') return true;
       return (
         q.name.toLowerCase().includes(query) ||
@@ -502,6 +507,26 @@ export class QuestGridController {
   }
 
   // -------------------------------------------------------------------------
+  // Gen 86: Problems-only mode
+  // -------------------------------------------------------------------------
+
+  /** Set problems-only mode: show only quests with error/warning lines. */
+  setProblemsOnly(enabled: boolean): void {
+    this.problemsOnly = enabled;
+    this.recomputeLayout();
+  }
+
+  /** Toggle problems-only mode. */
+  toggleProblemsOnly(): void {
+    this.setProblemsOnly(!this.problemsOnly);
+  }
+
+  /** Whether problems-only mode is active. */
+  isProblemsOnly(): boolean {
+    return this.problemsOnly;
+  }
+
+  // -------------------------------------------------------------------------
   // Gen 30: Sort mode
   // -------------------------------------------------------------------------
 
@@ -525,6 +550,7 @@ export class QuestGridController {
     this.filterQuery = '';
     this.attentionOnly = false;
     this.ctxRiskOnly = false;
+    this.problemsOnly = false;
     this.sortMode = 'attention';
     this.recomputeLayout();
   }
