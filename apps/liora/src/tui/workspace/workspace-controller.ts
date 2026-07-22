@@ -526,10 +526,13 @@ export class WorkspaceController {
       const cornerBR = '╯';
       const vertChar = '│';
 
-      // Title with icon emphasis
+      // Title with icon emphasis and activity indicator
       const icon = panel.definition.icon ?? '';
       const titleText = panel.definition.title;
-      const title = icon ? ` ${icon} ${titleText} ` : ` ${titleText} `;
+      const lastActivity = this.panelActivity.get(cell.id) ?? 0;
+      const hasRecentActivity = Date.now() - lastActivity < 5000 && !isFocused;
+      const activityDot = hasRecentActivity ? currentTheme.fg('accent', ' •') : '';
+      const title = icon ? ` ${icon} ${titleText}${activityDot} ` : ` ${titleText}${activityDot} `;
 
       // Top border with centered title
       const topLine = this.buildBentoTopBorder(cornerTL, borderChar, cornerTR, title, width, isFocused);
