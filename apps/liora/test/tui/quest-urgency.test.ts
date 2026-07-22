@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { questUrgencyScore, compareByUrgency, rankQuestsByUrgency } from '#/tui/controllers/quest-urgency';
+import {
+  questUrgencyScore,
+  compareByUrgency,
+  rankQuestsByUrgency,
+  escalationLevelFor,
+  escalatedUrgencyScore,
+} from '#/tui/controllers/quest-urgency';
+import {
+  ATTENTION_ESCALATION_MS,
+  ATTENTION_CRITICAL_MS,
+} from '#/tui/controllers/attention-controller';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -117,5 +127,74 @@ describe('rankQuestsByUrgency (Gen 49)', () => {
     ];
     rankQuestsByUrgency(quests, now);
     expect(quests.map((q) => q.id)).toEqual(['running', 'approval']);
+  });
+});
+
+describe('escalation-aware urgency (Gen 56)', () => {
+  it('escalationLevelFor is 0 before the threshold', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - (ATTENTION_ESCALATION_MS - 1),
+    });
+    expect(escalationLevelFor(quest, now)).toBe(0);
+  });
+
+  it('escalationLevelFor is 1 between the escalation and critical thresholds', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - ATTENTION_ESCALATION_MS,
+    });
+    expect(escalationLevelFor(quest, now)).toBe(1);
+  });
+
+  it('escalationLevelFor is 2 once the critical threshold is reached', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - ATTENTION_CRITICAL_MS,
+    });
+    expect(escalationLevelFor(quest, now)).toBe(2);
+  });
+
+  it('escalationLevelFor is 0 for a quest not in an attention state', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', {
+      state: 'running',
+      attentionEnteredAt: now - ATTENTION_CRITICAL_MS,
+    });
+    expect(escalationLevelFor(quest, now)).toBe(0);
+  });
+
+  it('escalatedUrgencyScore adds a bonus per escalation level', () => {
+    const now = 100_000;
+    const escalated = makeQuest('a', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - ATTENTION_ESCALATION_MS,
+    });
+    const fresh = makeQuest('b', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - 1_000,
+    });
+    // The escalated quest gains a discrete bonus on top of its base score.
+    expect(escalatedUrgencyScore(escalated, now)).toBeGreaterThan(
+      escalatedUrgencyScore(fresh, now),
+    );
+    // A critical quest scores higher than a warning-level one with the same
+    // base urgency.
+    const critical = makeQuest('c', {
+      state: 'waiting-approval',
+      attentionEnteredAt: now - ATTENTION_CRITICAL_MS,
+    });
+    expect(escalatedUrgencyScore(critical, now)).toBeGreaterThan(
+      escalatedUrgencyScore(escalated, now),
+    );
+  });
+
+  it('escalatedUrgencyScore equals the base score when not escalated', () => {
+    const now = 100_000;
+    const quest = makeQuest('a', { state: 'running' });
+    expect(escalatedUrgencyScore(quest, now)).toBe(questUrgencyScore(quest, now));
   });
 });

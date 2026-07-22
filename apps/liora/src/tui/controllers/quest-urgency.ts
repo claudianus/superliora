@@ -15,9 +15,23 @@ import {
   questStatePriority,
   ATTENTION_STATES,
 } from './quest-types';
+import {
+  type EscalationLevel,
+  ATTENTION_ESCALATION_MS,
+  ATTENTION_CRITICAL_MS,
+} from './attention-controller';
 
 /** Weight per state-priority level — large enough to dominate dwell time. */
 const STATE_WEIGHT = 1_000_000;
+
+/**
+ * Gen 56: discrete urgency bonus added per escalation level. Large enough to
+ * create a visible step at each escalation threshold (so a just-escalated
+ * quest jumps ahead of a same-state quest that has waited almost as long),
+ * but small enough that it never crosses a state-priority boundary under
+ * normal dwell times.
+ */
+const ESCALATION_BONUS = 100_000;
 
 /**
  * Gen 38: urgency score for a quest. Higher means more urgent. The state
@@ -63,4 +77,29 @@ export function rankQuestsByUrgency(
     .map((quest, index) => ({ quest, score: questUrgencyScore(quest, now), index }))
     .sort((a, b) => (a.score !== b.score ? b.score - a.score : a.index - b.index))
     .map(({ quest, score }) => ({ quest, score }));
+}
+
+/**
+ * Gen 56: the escalation level for a quest derived purely from its dwell time
+ * in an attention state. Mirrors AttentionController.getEscalationLevel() but
+ * stays pure so it can be used in scoring without a controller instance.
+ * Returns 0 when the quest is not in an attention state or has not reached
+ * the escalation threshold.
+ */
+export function escalationLevelFor(quest: Quest, now: number = Date.now()): EscalationLevel {
+  if (quest.attentionEnteredAt === undefined || !ATTENTION_STATES.has(quest.state)) return 0;
+  const dwell = Math.max(0, now - quest.attentionEnteredAt);
+  if (dwell < ATTENTION_ESCALATION_MS) return 0;
+  if (dwell >= ATTENTION_CRITICAL_MS) return 2;
+  return 1;
+}
+
+/**
+ * Gen 56: urgency score that adds a discrete bonus per escalation level on top
+ * of the base Gen 38 score. A quest that has crossed an escalation threshold
+ * jumps ahead of a same-state quest that has waited almost as long, so the
+ * dashboard surfaces long-neglected quests more aggressively.
+ */
+export function escalatedUrgencyScore(quest: Quest, now: number = Date.now()): number {
+  return questUrgencyScore(quest, now) + escalationLevelFor(quest, now) * ESCALATION_BONUS;
 }
