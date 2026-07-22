@@ -515,6 +515,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 87: 1–9 → focus the Nth quest in the current sort order.
+    if (k.length === 1 && k >= '1' && k <= '9') {
+      this.gridController.focusNth(Number(k));
+      return;
+    }
+
     // Gen 26: ! → toggle attention-only view.
     if (k === '!') {
       this.gridController.toggleAttentionOnly();
@@ -530,6 +536,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 75: # → toggle context-risk-only view.
     if (k === '#') {
       this.gridController.toggleCtxRiskOnly();
+      return;
+    }
+
+    // Gen 86: % → toggle problems-only view.
+    if (k === '%') {
+      this.gridController.toggleProblemsOnly();
       return;
     }
 
@@ -663,8 +675,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['m', 'Focus the most expensive quest'],
           ['c', 'Show fleet summary overlay'],
           ['D', 'Show fleet changes overlay'],
+          ['1–9', 'Focus the Nth quest'],
           ['!', 'Toggle attention-only view'],
           ['#', 'Toggle context-risk-only view'],
+          ['%', 'Toggle problems-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
           ['s', 'Cycle sort mode (attention/cost/age/name)'],
@@ -950,6 +964,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (this.gridController.isCtxRiskOnly()) {
       summaryParts.push('# ctx-risk-only');
     }
+    // Gen 86: indicate when problems-only mode is active.
+    if (this.gridController.isProblemsOnly()) {
+      summaryParts.push('% problems-only');
+    }
     // Gen 30: show the active sort mode when not the default.
     const sortMode = this.gridController.getSortMode();
     if (sortMode !== 'attention') {
@@ -977,6 +995,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 75: context-risk-only chip.
     if (this.gridController.isCtxRiskOnly()) {
       lines.push(currentTheme.fg('warning', clip('  # context-risk-only view · # to show all', width)));
+    }
+    // Gen 86: problems-only chip.
+    if (this.gridController.isProblemsOnly()) {
+      lines.push(currentTheme.fg('error', clip('  % problems-only view · % to show all', width)));
     }
     lines.push('');
 
