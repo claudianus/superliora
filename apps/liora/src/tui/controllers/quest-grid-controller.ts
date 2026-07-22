@@ -57,6 +57,8 @@ export class QuestGridController {
   private bentoLayout: BentoGridLayout | null = null;
   private readonly getViewport: () => RendererRect;
   private readonly requestRender: () => void;
+  // Gen 24: dashboard filter query (matches name or state).
+  private filterQuery = '';
 
   constructor(options: QuestGridControllerOptions) {
     this.getViewport = options.getViewport;
@@ -205,14 +207,38 @@ export class QuestGridController {
    * Gen 17: quest ids ordered by display priority (attention states first),
    * stable within the same priority. Used for rendering, focus navigation,
    * and panel spec ordering so the grid and keyboard order agree.
+   * Gen 24: applies the active filter query (matches name or state).
    */
   private sortedQuestIds(): string[] {
+    const query = this.filterQuery.trim().toLowerCase();
     return [...this.quests.values()]
+      .filter((q) => {
+        if (query === '') return true;
+        return (
+          q.name.toLowerCase().includes(query) ||
+          q.state.toLowerCase().includes(query)
+        );
+      })
       .map((q, index) => ({ id: q.id, priority: questStatePriority(q.state), index }))
       .sort((a, b) =>
         a.priority !== b.priority ? a.priority - b.priority : a.index - b.index,
       )
       .map((entry) => entry.id);
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 24: Dashboard filter
+  // -------------------------------------------------------------------------
+
+  /** Set the dashboard filter query (matches quest name or state). */
+  setFilter(query: string): void {
+    this.filterQuery = query;
+    this.recomputeLayout();
+  }
+
+  /** Get the active filter query. */
+  getFilter(): string {
+    return this.filterQuery;
   }
 
   // -------------------------------------------------------------------------

@@ -157,3 +157,60 @@ describe('Gen 17: attention-first quest ordering', () => {
     expect(ctrl.getQuests().map((q) => q.id)).toEqual(['c', 'a', 'b']);
   });
 });
+
+describe('Gen 24: dashboard quest filtering', () => {
+  it('filters quests by name substring (case-insensitive)', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { name: 'Refactor auth' }));
+    ctrl.addQuest(makeQuest('b', { name: 'Fix login bug' }));
+    ctrl.addQuest(makeQuest('c', { name: 'AUTH tests' }));
+
+    ctrl.setFilter('auth');
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['a', 'c']);
+  });
+
+  it('filters quests by state', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('c', { state: 'running' }));
+
+    ctrl.setFilter('failed');
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['b']);
+  });
+
+  it('empty filter shows all quests', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a'));
+    ctrl.addQuest(makeQuest('b'));
+
+    ctrl.setFilter('zzz');
+    expect(ctrl.getQuests()).toHaveLength(0);
+
+    ctrl.setFilter('');
+    expect(ctrl.getQuests()).toHaveLength(2);
+  });
+
+  it('focus navigation stays within the filtered set', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { name: 'alpha' }));
+    ctrl.addQuest(makeQuest('b', { name: 'beta' }));
+    ctrl.addQuest(makeQuest('c', { name: 'alpha-two' }));
+
+    ctrl.setFilter('alpha');
+    ctrl.focusNext();
+    expect(ctrl.getFocusedQuestId()).toBe('a');
+    ctrl.focusNext();
+    expect(ctrl.getFocusedQuestId()).toBe('c');
+    // Wraps within the filtered set.
+    ctrl.focusNext();
+    expect(ctrl.getFocusedQuestId()).toBe('a');
+  });
+
+  it('getFilter returns the active query', () => {
+    const ctrl = makeController();
+    expect(ctrl.getFilter()).toBe('');
+    ctrl.setFilter('fix');
+    expect(ctrl.getFilter()).toBe('fix');
+  });
+});

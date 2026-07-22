@@ -87,6 +87,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
   // Gen 22: context-aware help overlay
   private helpVisible = false;
 
+  // Gen 24: dashboard quest filter
+  private filterMode = false;
+  private filterBuffer = '';
+
   constructor(options: BentoDashboardOptions) {
     super();
     this.gridController = options.gridController;
@@ -110,6 +114,27 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
   handleInput(data: string): void {
     const k = printableChar(data);
+
+    // Gen 24: dashboard filter mode — capture typing until Enter/Esc.
+    if (this.filterMode) {
+      if (matchesKey(data, Key.escape)) {
+        this.filterMode = false;
+        this.filterBuffer = '';
+        this.gridController.setFilter('');
+        return;
+      }
+      if (matchesKey(data, Key.enter)) {
+        this.filterMode = false;
+        return;
+      }
+      if (data === '\x7f' || data === '\b') {
+        this.filterBuffer = this.filterBuffer.slice(0, -1);
+      } else if (k.length === 1) {
+        this.filterBuffer += k;
+      }
+      this.gridController.setFilter(this.filterBuffer);
+      return;
+    }
 
     // Gen 16: inline search mode — capture typing until Enter/Esc.
     if (this.searchMode) {
@@ -139,6 +164,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       // Gen 22: if help is open, close it first instead of the whole dashboard.
       if (this.helpVisible) {
         this.helpVisible = false;
+        return;
+      }
+      // Gen 24: if a filter is active, clear it first instead of closing.
+      if (this.filterBuffer !== '') {
+        this.filterBuffer = '';
+        this.gridController.setFilter('');
         return;
       }
       this.onClose();
@@ -244,6 +275,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 24: / → start dashboard filter
+    if (k === '/') {
+      this.filterMode = true;
+      this.filterBuffer = '';
+      return;
+    }
+
     // a/x/r → approval actions on focused quest
     if (this.approvalController && (k === 'a' || k === 'x' || k === 'r')) {
       const focusedId = this.gridController.getFocusedQuestId();
@@ -303,6 +341,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
       : [
           ['j / k  ↓ ↑', 'Move focus between quests'],
           ['Enter / p', 'Pin (expand) the focused quest'],
+          ['/', 'Filter quests by name or state'],
           ['a / x / r', 'Approve / reject / rewind focused quest'],
           ['?', 'Show this help'],
           ['Esc / q', 'Close the dashboard'],
@@ -336,7 +375,25 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     const summary = `  ${summaryParts.join('  ·  ')}`;
     lines.push(currentTheme.fg(attentionCount > 0 ? 'warning' : 'textMuted', clip(summary, width)));
+
+    // Gen 24: filter prompt (while typing) or active filter chip.
+    if (this.filterMode) {
+      lines.push(currentTheme.fg('accent', clip(`  filter: ${this.filterBuffer}█`, width)));
+    } else if (this.filterBuffer !== '') {
+      const total = this.gridController.questCount;
+      lines.push(
+        currentTheme.fg(
+          'textMuted',
+          clip(`  filter: "${this.filterBuffer}" · ${String(quests.length)}/${String(total)} shown · / edit · Esc clear`, width),
+        ),
+      );
+    }
     lines.push('');
+
+    if (quests.length === 0) {
+      lines.push(currentTheme.dim('  No quests match the current filter.'));
+      return lines;
+    }
 
     const now = this.now();
     for (const quest of quests) {

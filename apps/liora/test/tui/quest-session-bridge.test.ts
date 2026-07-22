@@ -40,6 +40,7 @@ function makeSnapshot(overrides: Partial<QuestBridgeSnapshot> = {}): QuestBridge
     approvalSummary: undefined,
     modelName: undefined,
     sessionCostUsd: 0,
+    lastErrorMessage: undefined,
     ...overrides,
   };
 }

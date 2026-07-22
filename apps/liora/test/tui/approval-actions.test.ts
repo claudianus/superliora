@@ -20,7 +20,7 @@ function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
   };
 }
 
-function makeController(overrides: Partial<Parameters<typeof ApprovalController.prototype['handleAction']>[1]> = {}) {
+function makeController() {
   const sendStdin = vi.fn();
   const cancelQuest = vi.fn();
   const rejectStep = vi.fn();
