@@ -36,6 +36,7 @@ import {
   formatTriageCompactLine,
   formatTriageCompactLineWithDistribution,
   formatResolvedThroughputLine,
+  formatNetDemandLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -1187,5 +1188,31 @@ describe('formatResolvedThroughputLine (Gen 96)', () => {
 
   it('formats a single resolved quest', () => {
     expect(formatResolvedThroughputLine(1)).toBe('✓ 1 cleared');
+  });
+});
+
+describe('formatNetDemandLine (Gen 98)', () => {
+  it('returns null when nothing is pending and nothing is cleared', () => {
+    expect(formatNetDemandLine(0, 0)).toBeNull();
+  });
+
+  it('shows a positive net when demand outpaces throughput', () => {
+    expect(formatNetDemandLine(4, 3)).toBe('net +1 (4 pending · 3 cleared)');
+  });
+
+  it('shows a zero net when demand matches throughput', () => {
+    expect(formatNetDemandLine(3, 3)).toBe('net 0 (3 pending · 3 cleared)');
+  });
+
+  it('shows a negative net when throughput outpaces demand', () => {
+    expect(formatNetDemandLine(1, 5)).toBe('net -4 (1 pending · 5 cleared)');
+  });
+
+  it('shows the pending count when nothing has been cleared yet', () => {
+    expect(formatNetDemandLine(2, 0)).toBe('net +2 (2 pending · 0 cleared)');
+  });
+
+  it('shows the cleared count when nothing is pending', () => {
+    expect(formatNetDemandLine(0, 4)).toBe('net -4 (0 pending · 4 cleared)');
   });
 });

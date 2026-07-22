@@ -736,3 +736,18 @@ export function formatResolvedThroughputLine(resolvedCount: number): string | nu
   if (resolvedCount <= 0) return null;
   return `✓ ${String(resolvedCount)} cleared`;
 }
+
+/**
+ * Gen 98: a one-line net-demand read combining how much attention is pending
+ * now with how much has been cleared (Gen 95), e.g. "net +1 (4 pending · 3
+ * cleared)". The signed net tells the operator at a glance whether demand is
+ * outpacing their throughput (positive — falling behind) or their throughput
+ * is outpacing demand (negative — catching up). Returns null when nothing is
+ * pending and nothing has been cleared, so callers can hide the segment.
+ */
+export function formatNetDemandLine(pendingCount: number, resolvedCount: number): string | null {
+  if (pendingCount <= 0 && resolvedCount <= 0) return null;
+  const net = pendingCount - resolvedCount;
+  const sign = net > 0 ? '+' : '';
+  return `net ${sign}${String(net)} (${String(pendingCount)} pending · ${String(resolvedCount)} cleared)`;
+}
