@@ -169,3 +169,48 @@ describe('Gen 56: Esc exits diff-only before unpinning', () => {
     expect(closed).toBe(false);
   });
 });
+
+describe('Gen 65: pinned quest info overlay', () => {
+  it('i opens the info overlay with quest details in pinned mode', () => {
+    const { component, pin } = makeComponent();
+    pin.pin('a');
+
+    // Before: no info overlay.
+    expect(component.render(120).join('\n')).not.toContain('Worktree');
+
+    // i opens the info overlay.
+    component.handleInput('i');
+    const infoLines = component.render(120).join('\n');
+    expect(infoLines).toContain('Quest a');
+    expect(infoLines).toContain('Worktree');
+    expect(infoLines).toContain('Health');
+  });
+
+  it('any key dismisses the info overlay (consumed, not acted on)', () => {
+    const { component, pin, grid } = makeComponent();
+    pin.pin('a');
+
+    component.handleInput('i');
+    expect(component.render(120).join('\n')).toContain('Worktree');
+
+    // j would normally scroll, but here it only dismisses the overlay.
+    component.handleInput('j');
+    expect(component.render(120).join('\n')).not.toContain('Worktree');
+    // Still pinned — the key was consumed by the overlay.
+    expect(grid.getPinnedQuestId()).toBe('a');
+  });
+
+  it('Esc closes the info overlay first, not unpin', () => {
+    const { component, pin, grid, isClosed } = makeComponent();
+    pin.pin('a');
+
+    component.handleInput('i');
+    expect(component.render(120).join('\n')).toContain('Worktree');
+
+    // Esc dismisses the overlay but stays pinned.
+    component.handleInput('\x1b');
+    expect(grid.getPinnedQuestId()).toBe('a');
+    expect(isClosed()).toBe(false);
+    expect(component.render(120).join('\n')).not.toContain('Worktree');
+  });
+});

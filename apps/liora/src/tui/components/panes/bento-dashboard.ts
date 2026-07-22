@@ -102,6 +102,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
   // Gen 22: context-aware help overlay
   private helpVisible = false;
 
+  // Gen 65: pinned quest info overlay
+  private infoVisible = false;
+
   // Gen 24: dashboard quest filter
   private filterMode = false;
   private filterBuffer = '';
@@ -188,6 +191,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.helpVisible = false;
         return;
       }
+      // Gen 65: if the info overlay is open, close it first.
+      if (this.infoVisible) {
+        this.infoVisible = false;
+        return;
+      }
       // Gen 24: if a filter is active, clear it first instead of closing.
       if (this.filterBuffer !== '') {
         this.filterBuffer = '';
@@ -220,12 +228,22 @@ export class BentoDashboardComponent extends Container implements Focusable {
       this.helpVisible = false;
       return;
     }
+    // Gen 65: while the info overlay is shown, any other key dismisses it.
+    if (this.infoVisible) {
+      this.infoVisible = false;
+      return;
+    }
 
     const pinned = this.pinController.getPinnedQuest();
 
     // Pinned mode: j/k/arrows scroll the expand view; Enter/p unpins.
     if (pinned) {
       const expandView = this.expandViews.get(pinned.id);
+      // Gen 65: i → toggle the quest info overlay.
+      if (k === 'i') {
+        this.infoVisible = true;
+        return;
+      }
       if (matchesKey(data, Key.down) || k === 'j') {
         expandView?.scrollDown(1);
         return;
@@ -464,6 +482,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (this.helpVisible) {
       return this.renderHelp(pinned !== null, width);
     }
+    // Gen 65: quest info overlay replaces the pinned view while visible.
+    if (this.infoVisible && pinned) {
+      return this.renderQuestInfo(pinned, width);
+    }
     if (pinned) {
       return this.renderPinned(pinned, quests, width);
     }
@@ -492,6 +514,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['F', 'Toggle fullscreen stream (hide header)'],
           ['R', 'Clear the stream buffer'],
           ['y', 'Review from the top (pause auto-follow)'],
+          ['i', 'Show quest info overlay'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
@@ -523,6 +546,53 @@ export class BentoDashboardComponent extends Container implements Focusable {
       const keyCell = currentTheme.fg('warning', keys.padEnd(14));
       lines.push(`  ${keyCell}${desc}`);
     }
+    lines.push('');
+    lines.push(currentTheme.dim('  Press any key to dismiss.'));
+    return lines.map((line) => clip(line, width));
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 65: pinned quest info overlay
+  // -------------------------------------------------------------------------
+
+  private renderQuestInfo(quest: Quest, width: number): string[] {
+    const now = this.now();
+    const lines: string[] = [];
+    lines.push(currentTheme.fg('accent', `── ${quest.name} ──`));
+    lines.push('');
+
+    const stateToken = questStateColorToken(quest.state);
+    const rows: ReadonlyArray<readonly [string, string]> = [
+      ['State', currentTheme.fg(stateToken, `${questStateIcon(quest.state)} ${quest.state}`)],
+      ['Model', quest.modelName ?? '—'],
+      ['Cost', quest.sessionCostUsd !== undefined ? `$${quest.sessionCostUsd.toFixed(2)}` : '—'],
+      ['Changes', formatChangeCount(quest.changeCount)],
+      ['Health', renderHealthScore(questHealthScore(quest, now))],
+      ['Worktree', quest.worktreePath],
+      ['Elapsed', formatElapsed(now - quest.createdAt)],
+      ['Idle', formatElapsed(now - quest.lastActivityAt)],
+    ];
+    for (const [label, value] of rows) {
+      lines.push(`  ${currentTheme.dim(label.padEnd(10))}${value}`);
+    }
+
+    // Progress bars (only when there is something to show).
+    if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
+      lines.push(`  ${currentTheme.dim('Todo'.padEnd(10))}${renderTodoBar(quest.todoProgress.done, quest.todoProgress.total)}`);
+    }
+    if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
+      lines.push(`  ${currentTheme.dim('Context'.padEnd(10))}${renderContextBar(quest.contextUsage)}`);
+    }
+    if (quest.planStep !== undefined && quest.planStep.length > 0) {
+      lines.push(`  ${currentTheme.dim('Step'.padEnd(10))}${quest.planStep}`);
+    }
+    if (quest.pendingApprovalSummary !== undefined && quest.pendingApprovalSummary.length > 0) {
+      lines.push(`  ${currentTheme.fg('warning', 'Approval'.padEnd(10))}${quest.pendingApprovalSummary}`);
+    }
+    if (quest.lastErrorMessage !== undefined && quest.lastErrorMessage.length > 0) {
+      lines.push(`  ${currentTheme.fg('error', 'Error'.padEnd(10))}${quest.lastErrorMessage}`);
+    }
+
     lines.push('');
     lines.push(currentTheme.dim('  Press any key to dismiss.'));
     return lines.map((line) => clip(line, width));
