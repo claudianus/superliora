@@ -821,6 +821,70 @@ rename to docs/README.md
   for (const line of muxLines) console.log(`  ${line}`);
   console.log(`  Windows: ${mux.windowCount} | Panes: ${mux.paneCount}`);
 
+  // ═══ Iteration 21 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 21 Modules ═══\x1b[0m');
+
+  // ─── 37. Chat Interface ───────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ChatInterface ──\x1b[0m');
+  const { ChatInterface } = await import('../apps/liora/src/tui/utils/chat-interface.ts');
+  const chat = new ChatInterface();
+  chat.addUser({ id: 'alice', name: 'Alice', avatar: '👩' });
+  chat.addUser({ id: 'me', name: 'Me', isSelf: true });
+  chat.addMessage({
+    id: 'msg-1', user: { id: 'alice', name: 'Alice', avatar: '👩' },
+    content: "Hey! How's the TUI project going?", timestamp: Date.now() - 300000,
+    reactions: [], readStatus: 'read',
+  });
+  chat.addMessage({
+    id: 'msg-2', user: { id: 'me', name: 'Me', isSelf: true },
+    content: 'Great! Just finished iteration 20 with kanban and calendar.',
+    timestamp: Date.now() - 240000, reactions: [{ emoji: '🎉', count: 3 }, { emoji: '👍', count: 2 }],
+    readStatus: 'read',
+  });
+  chat.addMessage({
+    id: 'msg-3', user: { id: 'alice', name: 'Alice', avatar: '👩' },
+    content: 'Awesome! Can you show me the graph visualization?',
+    timestamp: Date.now() - 60000, reactions: [], readStatus: 'delivered',
+  });
+  chat.setTyping('alice', true);
+  const chatLines = chat.render({ width: 55, height: 14, density: 'comfortable', fg, boldFg, dimFg });
+  for (const line of chatLines) console.log(`  ${line}`);
+
+  // ─── 38. File Upload ──────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── FileUpload ──\x1b[0m');
+  const { FileUploadQueue } = await import('../apps/liora/src/tui/utils/file-upload.ts');
+  const uploadQueue = new FileUploadQueue({ maxSize: 50 * 1024 * 1024 });
+  uploadQueue.addFile({ name: 'report.pdf', size: 2.4 * 1024 * 1024, type: 'application/pdf' });
+  uploadQueue.addFile({ name: 'screenshot.png', size: 1.1 * 1024 * 1024, type: 'image/png' });
+  uploadQueue.addFile({ name: 'archive.zip', size: 15.2 * 1024 * 1024, type: 'application/zip' });
+  // Simulate progress
+  const files = uploadQueue.getFiles();
+  uploadQueue.startUpload(files[0]!.id);
+  uploadQueue.updateProgress(files[0]!.id, 0.78, 1024 * 512);
+  uploadQueue.startUpload(files[1]!.id);
+  uploadQueue.updateProgress(files[1]!.id, 0.45, 1024 * 256);
+  const uploadLines = uploadQueue.renderQueue({ width: 55, showSpeed: true, showEta: true, fg, boldFg, dimFg });
+  for (const line of uploadLines) console.log(`  ${line}`);
+  // Drop zone
+  const dropZone = uploadQueue.renderDropZone({ width: 40, height: 5, active: false, fg, boldFg, dimFg });
+  for (const line of dropZone) console.log(`  ${line}`);
+
+  // ─── 39. Graph Visualization ──────────────────────────────────────
+  console.log('\n\x1b[1;33m── GraphViz ──\x1b[0m');
+  const { GraphViz, createFlowchart } = await import('../apps/liora/src/tui/utils/graph-viz.ts');
+  const flowchart = createFlowchart([
+    { id: 'start', label: 'Start', type: 'start' },
+    { id: 'input', label: 'Get Input', type: 'process' },
+    { id: 'check', label: 'Valid?', type: 'decision' },
+    { id: 'process', label: 'Process', type: 'process' },
+    { id: 'end', label: 'End', type: 'end' },
+  ]);
+  const graphLines = flowchart.render({ width: 50, height: 20, fg, boldFg, dimFg });
+  for (const line of graphLines) console.log(`  ${line}`);
+  console.log(`  Nodes: ${flowchart.nodeCount} | Edges: ${flowchart.edgeCount}`);
+  const path = flowchart.findPath('start', 'end');
+  console.log(`  Path start→end: ${path?.join(' → ') ?? 'none'}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
