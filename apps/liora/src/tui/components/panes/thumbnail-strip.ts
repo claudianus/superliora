@@ -30,6 +30,8 @@ export interface ThumbnailEntry {
   readonly isPinned: boolean;
   /** Gen 37: quest state, used to color the thumbnail segment. */
   readonly state: QuestState;
+  /** Gen 38: todo progress ({ done, total }), if any. */
+  readonly todoProgress?: { done: number; total: number } | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,7 @@ export function buildThumbnailStrip(
         needsAttention,
         isPinned: false,
         state: q.state,
+        todoProgress: q.todoProgress,
       };
     });
 }
