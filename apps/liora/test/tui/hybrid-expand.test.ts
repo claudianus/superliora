@@ -489,6 +489,36 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.jumpToPrevError()).toBe(true);
   });
 
+  it('Gen 91: ]/[ jump between diff file headers', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    view.appendDiffLines([
+      'diff --git a/one.ts b/one.ts',
+      '+added in one',
+      'diff --git a/two.ts b/two.ts',
+      '+added in two',
+      'diff --git a/three.ts b/three.ts',
+      '+added in three',
+    ]);
+
+    // Next diff file jumps to the first header (index 0).
+    expect(view.jumpToNextDiffFile()).toBe(true);
+    // Next again advances to the second header (index 2).
+    expect(view.jumpToNextDiffFile()).toBe(true);
+    // Previous returns toward the earlier header.
+    expect(view.jumpToPrevDiffFile()).toBe(true);
+  });
+
+  it('Gen 91: diff file jump is a no-op when there are no headers', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendDiffLines(['+just a stray add line']);
+
+    expect(view.jumpToNextDiffFile()).toBe(false);
+    expect(view.jumpToPrevDiffFile()).toBe(false);
+  });
+
   it('Gen 62: jumpToNextError returns false when no problem lines exist', () => {
     const view = new QuestExpandView();
     view.appendLine('all good');

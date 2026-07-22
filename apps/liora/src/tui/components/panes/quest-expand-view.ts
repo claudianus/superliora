@@ -396,6 +396,53 @@ export class QuestExpandView {
   }
 
   /**
+   * Gen 91: jump to the next diff file header (`diff --git …`) after the
+   * current viewport, so the operator can hop between changed files. Returns
+   * true if a header was found. Wraps to the first file.
+   */
+  jumpToNextDiffFile(): boolean {
+    const buffer = this.activeBuffer();
+    const start = this.scrollOffset + 1;
+    for (let i = start; i < buffer.length; i++) {
+      if (isDiffFileHeader(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    // Wrap around from the top.
+    for (let i = 0; i < Math.min(start, buffer.length); i++) {
+      if (isDiffFileHeader(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Gen 91: jump to the previous diff file header before the current viewport.
+   * Returns true if a header was found. Wraps to the last file.
+   */
+  jumpToPrevDiffFile(): boolean {
+    const buffer = this.activeBuffer();
+    const start = this.scrollOffset - 1;
+    for (let i = start; i >= 0; i--) {
+      if (isDiffFileHeader(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    // Wrap around from the bottom.
+    for (let i = buffer.length - 1; i > start; i--) {
+      if (isDiffFileHeader(buffer[i]!)) {
+        this.jumpToLine(i);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Gen 65: count error and warning lines in the active buffer and format a
    * compact badge, e.g. `  ✖2 ⚠1`. Returns an empty string when the stream
    * is clean so the header stays uncluttered.
@@ -744,6 +791,14 @@ const WARNING_PATTERN = /\b(warning|warn|deprecated)\b/i;
  */
 function isProblemLine(line: string): boolean {
   return ERROR_PATTERN.test(line) || WARNING_PATTERN.test(line);
+}
+
+/**
+ * Gen 91: detect a unified-diff file header line (`diff --git a/… b/…`), used
+ * to hop between changed files in the diff buffer.
+ */
+function isDiffFileHeader(line: string): boolean {
+  return line.startsWith('diff --git ');
 }
 
 /**

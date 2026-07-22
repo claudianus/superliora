@@ -390,6 +390,15 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.jumpToPrevError();
         return;
       }
+      // Gen 91: ]/[ → jump to the next/previous diff file header.
+      if (k === ']') {
+        expandView?.jumpToNextDiffFile();
+        return;
+      }
+      if (k === '[') {
+        expandView?.jumpToPrevDiffFile();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -500,6 +509,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 63: m → focus the most expensive quest (cost-based triage).
     if (k === 'm') {
       this.gridController.focusMostExpensive();
+      return;
+    }
+
+    // Gen 94: C → jump to the next quest at risk of context exhaustion.
+    if (k === 'C') {
+      this.gridController.focusNextCtxRisk();
       return;
     }
 
@@ -667,6 +682,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['T', 'Show stream stats overlay'],
           ['t', 'Toggle relative timestamps'],
           ['e / E', 'Jump to next / previous error line'],
+          ['] / [', 'Jump to next / previous diff file'],
           [':N', 'Jump to line number N'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
@@ -687,6 +703,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['m', 'Focus the most expensive quest'],
           ['e', 'Jump to next quest with problems'],
           ['E', 'Jump to previous quest with problems'],
+          ['C', 'Jump to next context-risk quest'],
           ['c', 'Show fleet summary overlay'],
           ['D', 'Show fleet changes overlay'],
           ['1–9', 'Focus the Nth quest'],
