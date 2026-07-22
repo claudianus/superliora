@@ -25,6 +25,7 @@ import {
   renderThumbnailStripLine,
 } from './thumbnail-strip';
 import type { QuestExpandView } from './quest-expand-view';
+import { highlightStreamLine } from './quest-expand-view';
 import type { AttentionController } from '../../controllers/attention-controller';
 import type { ApprovalController } from '../../controllers/approval-controller';
 import type { PinController } from '../../controllers/pin-controller';
@@ -941,11 +942,16 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 66: preview the most recent stream line so the cell shows what the
     // quest is doing right now without pinning it. Falls back to nothing when
     // the stream is empty.
+    // Gen 69: colorize error/warning preview lines so problems are spotted
+    // straight from the grid, matching the expand-view emphasis (Gen 20).
     const lastLine = this.expandViews.get(quest.id)?.getLastStreamLine();
-    const preview =
-      lastLine !== undefined && lastLine.length > 0
-        ? `${focusIndicator}  ${currentTheme.dim('│')} ${currentTheme.dim(clip(lastLine, Math.max(1, width - focusIndicator.length - 3)))}`
-        : undefined;
+    let preview: string | undefined;
+    if (lastLine !== undefined && lastLine.length > 0) {
+      const clipped = clip(lastLine, Math.max(1, width - focusIndicator.length - 3));
+      const highlighted = highlightStreamLine(clipped);
+      const previewBody = highlighted === clipped ? currentTheme.dim(clipped) : highlighted;
+      preview = `${focusIndicator}  ${currentTheme.dim('│')} ${previewBody}`;
+    }
 
     // Gen 32: line2 is composed of dim metadata segments plus the colorized
     // change-count segment. Width is managed on plain text before coloring so

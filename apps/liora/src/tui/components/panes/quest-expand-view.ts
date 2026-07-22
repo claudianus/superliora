@@ -670,7 +670,7 @@ function isProblemLine(line: string): boolean {
  * spotted instantly while reviewing shell output. Lines that already carry
  * ANSI color (e.g. diff output) are left untouched to avoid double-coloring.
  */
-function highlightStreamLine(line: string): string {
+export function highlightStreamLine(line: string): string {
   if (line.includes('\x1b[')) return line;
   if (ERROR_PATTERN.test(line)) return currentTheme.fg('error', line);
   if (WARNING_PATTERN.test(line)) return currentTheme.fg('warning', line);
