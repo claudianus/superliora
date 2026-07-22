@@ -154,7 +154,7 @@ export function formatCostUsd(costUsd: number | undefined): string | null {
  * fleet total that the summary bar computes inline.
  */
 export function formatTotalCostUsd(costs: readonly (number | undefined)[]): string | null {
-  const total = costs.reduce((sum, cost) => sum + (cost ?? 0), 0);
+  const total = costs.reduce<number>((sum, cost) => sum + (cost ?? 0), 0);
   if (total <= 0) return null;
   return `$${total.toFixed(2)} total`;
 }

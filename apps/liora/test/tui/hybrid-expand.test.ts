@@ -406,6 +406,24 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.render(quest, 80).join('\n')).toContain('No diffs captured yet');
   });
 
+  it('Gen 60: reviewFromTop jumps to line 1 and pauses auto-follow', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) view.appendLine(`line ${String(i)}`);
+    expect(view.currentScrollOffset).toBe(7);
+    expect(view.isFollowingTail()).toBe(true);
+
+    view.reviewFromTop();
+    expect(view.currentScrollOffset).toBe(0);
+    expect(view.isFollowingTail()).toBe(false);
+
+    // New output must not move the viewport while reviewing.
+    view.appendLine('line 10');
+    expect(view.currentScrollOffset).toBe(0);
+    expect(view.render(quest, 80)[0]).toContain('⏸ paused');
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {

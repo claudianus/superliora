@@ -217,6 +217,16 @@ export class QuestExpandView {
     this.scrollOffset = 0;
   }
 
+  /**
+   * Gen 60: start reviewing from the top of the stream. Jumps to line 1 and
+   * pauses auto-follow so incoming output does not yank the viewport away
+   * while the operator reads from the beginning.
+   */
+  reviewFromTop(): void {
+    this.followTail = false;
+    this.scrollOffset = 0;
+  }
+
   /** Gen 15: jump to the live tail (bottom) of the stream. */
   scrollToBottom(): void {
     this.scrollOffset = Math.max(0, this.streamLines.length - this.maxVisibleLines);

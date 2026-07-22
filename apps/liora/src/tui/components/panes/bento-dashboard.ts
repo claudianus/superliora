@@ -278,6 +278,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.clearStream();
         return;
       }
+      // Gen 60: y → review from the top (jump to line 1, pause auto-follow).
+      if (k === 'y') {
+        expandView?.reviewFromTop();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -376,6 +381,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 55: g → focus the least-healthy quest (health-based triage).
     if (k === 'g') {
       this.gridController.focusWeakestHealth();
+      return;
+    }
+
+    // Gen 63: m → focus the most expensive quest (cost-based triage).
+    if (k === 'm') {
+      this.gridController.focusMostExpensive();
       return;
     }
 
@@ -480,6 +491,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['w', 'Toggle auto-follow (pause/resume live tail)'],
           ['F', 'Toggle fullscreen stream (hide header)'],
           ['R', 'Clear the stream buffer'],
+          ['y', 'Review from the top (pause auto-follow)'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
@@ -496,6 +508,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['H / L', 'Focus first / last quest'],
           ['Tab', 'Jump to the next quest needing attention'],
           ['g', 'Focus the least-healthy quest'],
+          ['m', 'Focus the most expensive quest'],
           ['!', 'Toggle attention-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
