@@ -563,8 +563,13 @@ export function formatTriageQueueLine(
  * single call. `lines` holds the non-null segments in display order, ready to
  * print; the individual fields stay available for callers that want to style
  * or place each line separately.
+ *
+ * Gen 88: `loadLevel` exposes the raw cognitive load classification so callers
+ * can color or branch on it (e.g. tint the whole panel red when overloaded)
+ * without re-deriving it from the quest list.
  */
 export interface TriagePanelSnapshot {
+  readonly loadLevel: AttentionLoadLevel;
   readonly loadLine: string | null;
   readonly distributionLine: string | null;
   readonly recommendationLine: string | null;
@@ -577,6 +582,8 @@ export function buildTriagePanelSnapshot(
   queueSize: number,
   now: number = Date.now(),
 ): TriagePanelSnapshot {
+  const pendingCount = quests.filter((quest) => ATTENTION_STATES.has(quest.state)).length;
+  const loadLevel = classifyAttentionLoad(pendingCount);
   const loadLine = formatEscalatedFleetAttentionLoadLine(quests, now);
   const distributionLine = formatUrgencyDistributionLine(quests, now);
   const recommendationLine = formatTriageRecommendationLine(quests, now);
@@ -584,7 +591,7 @@ export function buildTriagePanelSnapshot(
   const lines = [loadLine, distributionLine, recommendationLine, queueLine].filter(
     (line): line is string => line !== null,
   );
-  return { loadLine, distributionLine, recommendationLine, queueLine, lines };
+  return { loadLevel, loadLine, distributionLine, recommendationLine, queueLine, lines };
 }
 
 /**

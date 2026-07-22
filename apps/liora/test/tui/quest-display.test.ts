@@ -928,6 +928,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     const now = 100_000;
     const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
+    expect(snapshot.loadLevel).toBe('normal');
     expect(snapshot.loadLine).toBeNull();
     expect(snapshot.distributionLine).toBeNull();
     expect(snapshot.recommendationLine).toBeNull();
@@ -944,6 +945,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
       makeQuest('d', { name: 'Four', state: 'waiting-approval', lastActivityAt: now, attentionEnteredAt: now - 500 }),
     ];
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
+    expect(snapshot.loadLevel).toBe('elevated');
     expect(snapshot.loadLine).toBe('⚠ elevated (4 pending)');
     expect(snapshot.distributionLine).toBe('4 fresh');
     expect(snapshot.recommendationLine).toBe("→ handle 'One' first");
@@ -965,6 +967,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     ];
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
     // A single pending quest is a normal load, so the load line is hidden.
+    expect(snapshot.loadLevel).toBe('normal');
     expect(snapshot.loadLine).toBeNull();
     expect(snapshot.distributionLine).toBe('1 fresh');
     expect(snapshot.recommendationLine).toBe("→ handle 'Fix login' first");
@@ -974,6 +977,16 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
       "→ handle 'Fix login' first",
       'queue: Fix login',
     ]);
+  });
+
+  it('reports an overloaded level once eight quests need attention (Gen 88)', () => {
+    const now = 100_000;
+    const quests = Array.from({ length: 8 }, (_, i) =>
+      makeQuest(`q${String(i)}`, { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+    );
+    const snapshot = buildTriagePanelSnapshot(quests, 3, now);
+    expect(snapshot.loadLevel).toBe('overloaded');
+    expect(snapshot.loadLine).toBe('🔥 overloaded (8 pending)');
   });
 });
 
