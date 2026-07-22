@@ -88,7 +88,7 @@ export const DOCK_WIDTH_MAX = 80;
 // Implementation
 // ---------------------------------------------------------------------------
 
-export function insetRendererRect(
+function insetShellRect(
   rect: RendererRect,
   insetX: number,
   insetY: number,
@@ -124,7 +124,7 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
   const dockGap = options.dockGap ?? DEFAULT_DOCK_GAP;
   const shellInsetX = options.shellInsetX ?? DEFAULT_SHELL_INSET_X;
   const shellInsetY = options.shellInsetY ?? DEFAULT_SHELL_INSET_Y;
-  const shell = insetRendererRect(viewport, shellInsetX, shellInsetY);
+  const shell = insetShellRect(viewport, shellInsetX, shellInsetY);
 
   const layoutMeta = { viewport, shell, dockGap, shellInsetX, shellInsetY };
 
