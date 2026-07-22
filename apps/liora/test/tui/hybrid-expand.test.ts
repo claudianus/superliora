@@ -490,6 +490,17 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(header).toContain('⚠1');
   });
 
+  it('Gen 71: getLastStreamLineNumber matches the gutter count', () => {
+    const view = new QuestExpandView();
+    expect(view.getLastStreamLineNumber()).toBe(0);
+    view.appendLine('one');
+    view.appendLine('two');
+    view.appendLine('three');
+    // 1-based count of stream lines, matching the expand-view gutter.
+    expect(view.getLastStreamLineNumber()).toBe(3);
+    expect(view.getLastStreamLine()).toBe('three');
+  });
+
   it('Gen 67: jumpToLineNumber jumps to a 1-based line and clamps', () => {
     const view = new QuestExpandView();
     view.setMaxVisibleLines(3);
