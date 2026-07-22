@@ -19,6 +19,12 @@ import { resolveWheelTargetPanel } from './pointer-routing';
 import { LayoutPresetManager } from './layout-presets';
 import type { PanelDefinition } from './panel-definition';
 import { workspaceShellChromeCells } from './shell-chrome';
+import {
+  focusTransferProgress,
+  lerpDockWidth,
+  reflowProgress,
+  shellSettleProgress,
+} from './shell-motion';
 import { currentTheme } from '#/tui/theme';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import {
@@ -26,7 +32,9 @@ import {
   getActiveAppearancePreferences,
   shouldRenderAmbientEffects,
   resolveUltraworkBorderGlowHex,
+  resolveQualityAdjustedAmbientEffectMode,
   appearanceAnimationNow,
+  motionEffectsAllowed,
   renderParticleDivider,
 } from '#/tui/utils/appearance-effects';
 import chalk from 'chalk';
@@ -145,6 +153,22 @@ export class WorkspaceController {
   // Panel notification badges: track unread counts per panel
   private panelNotifications: Map<string, number> = new Map();
 
+  // Premium shell settle: shell chrome fades in on first layout / resize.
+  private shellSettleStartedAt = 0;
+  private lastShellSettleColumns = -1;
+  private lastShellSettleRows = -1;
+
+  // Premium focus transfer: column (dock) glow blend when focus crosses docks.
+  private lastFocusedDock: 'left' | 'right' | null = null;
+  private focusTransferStartedAt = 0;
+
+  // Premium reflow: paint-only dock width lerp on maximize/toggle/breakpoint
+  // changes. Hit-testing always uses the committed (final) layout — only the
+  // painted width animates.
+  private reflowStartedAt = 0;
+  private reflowFromWidth: { left: number; right: number } = { left: 0, right: 0 };
+  private reflowToWidth: { left: number; right: number } = { left: 0, right: 0 };
+
   constructor(options: WorkspaceControllerOptions) {
     this.panelManager = options.panelManager;
     this.requestRender = options.requestRender;
@@ -212,11 +236,42 @@ export class WorkspaceController {
     // Only return layout if it has side panels
     if (layout.mode === 'narrow' || (!layout.leftDock && !layout.rightDock)) {
       this.currentLayout = null;
+      // Force a fresh shell settle the next time the workspace reappears.
+      this.lastShellSettleColumns = -1;
+      this.lastShellSettleRows = -1;
       return null;
     }
 
+    this.trackShellMotionState(layout, ctx);
     this.currentLayout = layout;
     return layout;
+  }
+
+  /**
+   * Restart shell settle on first layout / terminal resize, and restart the
+   * paint-only dock reflow lerp whenever committed dock widths change for a
+   * reason other than a live divider drag (maximize toggle, dock
+   * visibility, breakpoint mode change). Never touches `currentLayout` —
+   * hit-testing always sees the final, committed layout.
+   */
+  private trackShellMotionState(layout: WorkspaceLayoutResult, ctx: WorkspaceRenderContext): void {
+    const now = appearanceAnimationNow();
+
+    if (ctx.terminalColumns !== this.lastShellSettleColumns || ctx.terminalRows !== this.lastShellSettleRows) {
+      this.shellSettleStartedAt = now;
+      this.lastShellSettleColumns = ctx.terminalColumns;
+      this.lastShellSettleRows = ctx.terminalRows;
+    }
+
+    // Mid-drag width changes settle instantly (committed width already
+    // tracks the pointer) — only discrete toggles get a reflow lerp.
+    if (this.dragController.isDragging) return;
+    const nextLeftWidth = this.maximizedPanelId !== null ? 0 : layout.leftDock?.rect.width ?? 0;
+    const nextRightWidth = this.maximizedPanelId !== null ? 0 : layout.rightDock?.rect.width ?? 0;
+    if (nextLeftWidth === this.reflowToWidth.left && nextRightWidth === this.reflowToWidth.right) return;
+    this.reflowFromWidth = { ...this.reflowToWidth };
+    this.reflowToWidth = { left: nextLeftWidth, right: nextRightWidth };
+    this.reflowStartedAt = now;
   }
 
   /**
@@ -327,9 +382,53 @@ export class WorkspaceController {
    */
   paintShellChrome(frameRenderer: NativeFrameRenderer, layout: WorkspaceLayoutResult): void {
     if (this.maximizedPanelId !== null) return;
+    const appearance = getActiveAppearancePreferences();
+    const quality = resolveQualityAdjustedAmbientEffectMode(appearance);
+    const settle = shellSettleProgress(appearanceAnimationNow(), this.shellSettleStartedAt, {
+      motion: motionEffectsAllowed(),
+      quality,
+    });
     for (const cell of workspaceShellChromeCells(layout.shell)) {
-      frameRenderer.frame.setCell(cell.x, cell.y, { char: cell.char, style: cell.style });
+      const style =
+        settle >= 1 || cell.style?.fg === undefined
+          ? cell.style
+          : { ...cell.style, fg: mixHexColor(currentTheme.color('background'), cell.style.fg, settle) };
+      frameRenderer.frame.setCell(cell.x, cell.y, { char: cell.char, style });
     }
+  }
+
+  /**
+   * Painted (visual-only) width for a dock during a reflow lerp window.
+   * Returns `finalWidth` once the lerp settles (or immediately outside
+   * `premium`) — callers must always fall back to `finalWidth` for
+   * hit-testing, this value is for content/frame sizing only.
+   */
+  private reflowPaintWidth(dockId: 'left' | 'right', finalWidth: number): number {
+    const appearance = getActiveAppearancePreferences();
+    const quality = resolveQualityAdjustedAmbientEffectMode(appearance);
+    const progress = reflowProgress(appearanceAnimationNow(), this.reflowStartedAt, {
+      motion: motionEffectsAllowed(),
+      quality,
+    });
+    if (progress >= 1) return finalWidth;
+    const from = dockId === 'left' ? this.reflowFromWidth.left : this.reflowFromWidth.right;
+    const to = dockId === 'left' ? this.reflowToWidth.left : this.reflowToWidth.right;
+    // Guard against stale tracking (e.g. dock width changed without going
+    // through `trackShellMotionState`, such as a live divider drag).
+    if (to !== finalWidth) return finalWidth;
+    return lerpDockWidth(from, to, progress);
+  }
+
+  /**
+   * Pad a rendered dock line from its animated `paintWidth` back out to the
+   * dock's committed `finalWidth`. Left dock grows from its left edge
+   * (trailing pad); right dock hugs the right edge (leading pad).
+   */
+  private padReflowLine(dockId: 'left' | 'right', line: string, paintWidth: number, finalWidth: number): string {
+    const gapWidth = finalWidth - paintWidth;
+    if (gapWidth <= 0) return line;
+    const gap = ' '.repeat(gapWidth);
+    return dockId === 'left' ? `${line}${gap}` : `${gap}${line}`;
   }
 
   private renderDock(
@@ -343,9 +442,19 @@ export class WorkspaceController {
 
     const mode = this.panelManager.getDockMode(dockId);
     const focusedId = this.panelManager.getFocusedPanelId();
+    // Column focus transfer: restart the glow blend when the focused panel
+    // moved into a *different* dock, not merely between panels of one dock.
+    if (focusedId !== null && panels.some((p) => p.instanceId === focusedId) && dockId !== this.lastFocusedDock) {
+      this.focusTransferStartedAt = appearanceAnimationNow();
+      this.lastFocusedDock = dockId;
+    }
+    // Paint-only reflow lerp: interpolate the *painted* dock width toward the
+    // committed width over the reflow window. `dockRect` itself (used for
+    // hit-testing/compositing x/y) is never touched.
+    const paintWidth = this.reflowPaintWidth(dockId, dockRect.width);
 
     if (mode === 'tabbed') {
-      return this.renderDockTabbed(dockId, dockRect, panels, focusedId);
+      return this.renderDockTabbed(dockId, dockRect, panels, focusedId, paintWidth);
     }
 
     // Split mode: all panels stacked vertically
@@ -370,7 +479,7 @@ export class WorkspaceController {
 
       // Wrap in frame
       const framed = renderPanelFrame({
-        width: dockRect.width,
+        width: paintWidth,
         height: panelHeight,
         title: panel.definition.title,
         icon: panel.definition.icon,
@@ -404,7 +513,7 @@ export class WorkspaceController {
         content,
       });
 
-      allLines.push(...framed);
+      allLines.push(...framed.map((line) => this.padReflowLine(dockId, line, paintWidth, dockRect.width)));
     }
 
     // Pad or trim to dock height
@@ -420,6 +529,7 @@ export class WorkspaceController {
     dockRect: RendererRect,
     panels: Array<{ instanceId: string; definition: { id: string; title: string; icon: string; render: (w: number, h: number, f: boolean, s?: string) => string[] } }>,
     focusedId: string | null,
+    paintWidth: number,
   ): string[] {
     const allLines: string[] = [];
 
@@ -441,7 +551,7 @@ export class WorkspaceController {
     }
 
     // Tab bar (1 row)
-    const tabBar = this.renderTabBar(dockId, dockRect.width, panels, focusedId);
+    const tabBar = this.padReflowLine(dockId, this.renderTabBar(dockId, paintWidth, panels, focusedId), paintWidth, dockRect.width);
     allLines.push(tabBar);
 
     // Active panel content (remaining height)
@@ -498,19 +608,34 @@ export class WorkspaceController {
       const isFading = fadeAge < FADE_DURATION && activePanel.instanceId === this.lastFocusedPanelId;
 
       const framed = renderPanelFrame({
-        width: dockRect.width,
+        width: paintWidth,
         height: dockRect.height - 1,
         title: activePanel.definition.title,
         icon: activePanel.definition.icon,
         focused: true,
         borderStyle: 'rounded',
-        borderColor: (text) => currentTheme.fg('primary', text),
+        borderColor: (text) => {
+          const appearance = getActiveAppearancePreferences();
+          if (shouldRenderAmbientEffects(appearance) && dockId === this.lastFocusedDock) {
+            const quality = resolveQualityAdjustedAmbientEffectMode(appearance);
+            const transfer = focusTransferProgress(appearanceAnimationNow(), this.focusTransferStartedAt, {
+              motion: motionEffectsAllowed(),
+              quality,
+            });
+            if (transfer < 1) {
+              const from = currentTheme.color('border');
+              const to = currentTheme.color('primary');
+              return chalk.hex(mixHexColor(from, to, transfer))(text);
+            }
+          }
+          return currentTheme.fg('primary', text);
+        },
         titleColor: (text) => currentTheme.boldFg('textStrong', text),
         iconColor: (text) => currentTheme.fg('accent', text),
         content,
       });
 
-      allLines.push(...framed);
+      allLines.push(...framed.map((line) => this.padReflowLine(dockId, line, paintWidth, dockRect.width)));
     }
 
     // Pad or trim
