@@ -1207,6 +1207,9 @@ export class WorkspaceController {
   addPanel(definition: PanelDefinition, dock: 'left' | 'right'): string {
     const instanceId = this.panelManager.registerPanel(definition);
     this.panelManager.assignToDock(instanceId, dock);
+    // Auto-assign to bento grid with default spans based on panel type
+    const gridSpec = resolveDefaultGridSpec(definition.id);
+    this.panelManager.addToGrid(instanceId, gridSpec.colSpan, gridSpec.rowSpan, gridSpec.priority);
     this.requestRender();
     return instanceId;
   }
@@ -2031,4 +2034,33 @@ function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
+}
+
+/**
+ * Default bento grid spec for each panel type.
+ * Chat gets 2x2 (largest), others are 1x1 with varying priority.
+ */
+function resolveDefaultGridSpec(panelId: string): { colSpan: number; rowSpan: number; priority: number } {
+  switch (panelId) {
+    case 'side-chat':
+      return { colSpan: 2, rowSpan: 2, priority: 10 };
+    case 'file-explorer':
+      return { colSpan: 1, rowSpan: 1, priority: 5 };
+    case 'git-diff':
+      return { colSpan: 1, rowSpan: 1, priority: 4 };
+    case 'session-manager':
+      return { colSpan: 1, rowSpan: 1, priority: 3 };
+    case 'web-browser':
+      return { colSpan: 1, rowSpan: 1, priority: 3 };
+    case 'terminal':
+      return { colSpan: 1, rowSpan: 1, priority: 2 };
+    case 'artifact-viewer':
+      return { colSpan: 1, rowSpan: 1, priority: 2 };
+    case 'activity-feed':
+      return { colSpan: 1, rowSpan: 1, priority: 1 };
+    case 'image-preview':
+      return { colSpan: 1, rowSpan: 1, priority: 1 };
+    default:
+      return { colSpan: 1, rowSpan: 1, priority: 1 };
+  }
 }
