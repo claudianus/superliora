@@ -414,6 +414,8 @@ export class LioraTUI {
   private questApprovalController: QuestApprovalController | undefined;
   private dashboardPanel: BentoDashboardComponent | undefined;
   private dashboardExpandViews = new Map<string, QuestExpandView>();
+  /** Last-seen tail output per background task, for incremental expand-view appends (Gen 4). */
+  private dashboardTaskTails = new Map<string, string>();
   private dashboardBlinkTimer: ReturnType<typeof setInterval> | undefined;
   private dashboardBlinkPhase = false;
 
@@ -4114,6 +4116,8 @@ export class LioraTUI {
     this.dashboardBlinkTimer ??= setInterval(() => {
       this.dashboardBlinkPhase = !this.dashboardBlinkPhase;
       this.syncQuestDashboard();
+      // Gen 4: stream the pinned background task's output into its expand view.
+      void this.pollPinnedTaskStream();
       this.dashboardPanel?.setBlinkPhase(this.dashboardBlinkPhase);
       requestTUIContentRender(this.state);
     }, 500);
@@ -4164,6 +4168,59 @@ export class LioraTUI {
       this.dashboardExpandViews.set(targetId, view);
     }
     view.appendLines(lines);
+    requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Gen 4: poll the pinned background task's output and stream the incremental
+   * delta into its expand view. Background tasks don't emit per-line events to
+   * the main session handler, so we tail their output on the refresh timer.
+   *
+   * The tail window slides as output grows, so the previous tail is not always
+   * a prefix of the new one. We append the delta when it is; otherwise we reset
+   * the view to the fresh tail so the user always sees current output.
+   */
+  private async pollPinnedTaskStream(): Promise<void> {
+    if (this.state.activeDialog !== 'dashboard') return;
+    const pinned = this.questPinController?.getPinnedQuest();
+    if (pinned === undefined || !pinned.id.startsWith('task:')) return;
+    const session = this.session;
+    if (session === undefined) return;
+
+    const taskId = pinned.id.slice('task:'.length);
+    let tail: string;
+    try {
+      tail = await session.getBackgroundTaskOutput(taskId, { tail: 4000 });
+    } catch {
+      return;
+    }
+    // The dashboard may have closed or the pin changed while awaiting.
+    if (this.state.activeDialog !== 'dashboard') return;
+    if (this.questPinController?.getPinnedQuest()?.id !== pinned.id) return;
+
+    const previous = this.dashboardTaskTails.get(taskId);
+    let view = this.dashboardExpandViews.get(pinned.id);
+    if (view === undefined) {
+      view = new QuestExpandView();
+      this.dashboardExpandViews.set(pinned.id, view);
+    }
+
+    if (previous === undefined) {
+      // First fetch: seed the view with the current tail.
+      view.clear();
+      view.appendLines(splitTailLines(tail));
+    } else if (tail === previous) {
+      // No change.
+    } else if (tail.startsWith(previous)) {
+      // Clean append: only the new delta.
+      const delta = tail.slice(previous.length);
+      view.appendLines(splitTailLines(delta));
+    } else {
+      // Tail window slid past the previous snapshot; reset to fresh output.
+      view.clear();
+      view.appendLines(splitTailLines(tail));
+    }
+    this.dashboardTaskTails.set(taskId, tail);
     requestTUIContentRender(this.state);
   }
 
@@ -4621,4 +4678,15 @@ function collectFooterModeBeats(
     }
   }
   return beats;
+}
+
+/**
+ * Split a background-task tail blob into display lines, dropping a single
+ * trailing empty line that results from a final newline.
+ */
+function splitTailLines(tail: string): string[] {
+  if (tail.length === 0) return [];
+  const lines = tail.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines;
 }
