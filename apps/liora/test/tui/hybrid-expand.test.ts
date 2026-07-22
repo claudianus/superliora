@@ -116,10 +116,12 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     view.appendLine('line 2');
 
     const lines = view.render(quest, 80);
+    // Gen 11: header is now 3 lines + separator before stream content
     expect(lines[0]).toContain('My Quest');
     expect(lines[0]).toContain('running');
-    expect(lines[1]).toBe('line 1');
-    expect(lines[2]).toBe('line 2');
+    expect(lines[2]).toContain('Step 1');
+    expect(lines[4]).toBe('line 1');
+    expect(lines[5]).toBe('line 2');
   });
 
   it('expand view auto-scrolls when exceeding max visible lines', () => {

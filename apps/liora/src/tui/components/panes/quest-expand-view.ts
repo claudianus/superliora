@@ -8,7 +8,10 @@
  *       Diff view is Gen 2+ (out of scope for Gen 1).
  */
 
-import type { Quest } from '../../controllers/quest-types';
+import {
+  type Quest,
+  formatChangeCount,
+} from '../../controllers/quest-types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,14 +96,43 @@ export class QuestExpandView {
 
   /** Render the expand view as a string array (one per visible row). */
   render(quest: Quest, width: number): string[] {
-    const header = `── ${quest.name} [${quest.state}] ${quest.planStep} ──`;
+    const lines: string[] = [];
+
+    // Gen 11: rich header with quest metadata
+    const headerLine1 = `── ${quest.name} [${quest.state}] ──`;
+    lines.push(headerLine1.length > width ? headerLine1.slice(0, width) : headerLine1);
+
+    // Second header line: worktree + change count
+    const changes = formatChangeCount(quest.changeCount);
+    const worktree = quest.worktreePath.length > 40
+      ? `…${quest.worktreePath.slice(-39)}`
+      : quest.worktreePath;
+    const headerLine2 = `   ${worktree}  ${changes}`;
+    lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
+
+    // Third header line: todo progress + context usage + plan step
+    const progressParts: string[] = [];
+    if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
+      const { done, total } = quest.todoProgress;
+      progressParts.push(`☑ ${String(done)}/${String(total)}`);
+    }
+    if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
+      const pct = Math.round(quest.contextUsage * 100);
+      progressParts.push(`ctx ${String(pct)}%`);
+    }
+    const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
+    const headerLine3 = `   ${progress}▸ ${quest.planStep}`;
+    lines.push(headerLine3.length > width ? headerLine3.slice(0, width) : headerLine3);
+
+    // Separator
+    lines.push('─'.repeat(Math.min(width, 60)));
+
     const visible = this.getVisibleLines();
-    const lines: string[] = [header];
     for (const line of visible) {
       lines.push(line.length > width ? line.slice(0, width) : line);
     }
-    // Pad to maxVisibleLines + 1 (header)
-    while (lines.length < this.maxVisibleLines + 1) {
+    // Pad to maxVisibleLines + 4 (3 header lines + separator)
+    while (lines.length < this.maxVisibleLines + 4) {
       lines.push('');
     }
     return lines;
