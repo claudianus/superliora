@@ -9,6 +9,7 @@ import {
   formatEscalatedTriageLines,
   formatFleetStateSummary,
   formatStripBlinkLabel,
+  formatTodoProgress,
   formatTotalCostUsd,
   formatUrgencyRank,
 } from '#/tui/controllers/quest-display';
@@ -303,5 +304,21 @@ describe('formatFleetStateSummary (Gen 64)', () => {
       makeQuest('b', { state: 'failed' }),
     ];
     expect(formatFleetStateSummary(quests)).toBe('2 quests (2 failed)');
+  });
+});
+
+describe('formatTodoProgress (Gen 65)', () => {
+  it('returns null when the progress is undefined', () => {
+    expect(formatTodoProgress(undefined)).toBeNull();
+  });
+
+  it('returns null when there are no items', () => {
+    expect(formatTodoProgress({ done: 0, total: 0 })).toBeNull();
+  });
+
+  it('formats done over total', () => {
+    expect(formatTodoProgress({ done: 3, total: 5 })).toBe('3/5');
+    expect(formatTodoProgress({ done: 0, total: 4 })).toBe('0/4');
+    expect(formatTodoProgress({ done: 7, total: 7 })).toBe('7/7');
   });
 });

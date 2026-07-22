@@ -198,3 +198,14 @@ export function formatFleetStateSummary(quests: readonly Quest[]): string | null
   if (segments.length === 0) return total;
   return `${total} (${segments.join(' · ')})`;
 }
+
+/**
+ * Gen 65: a compact todo progress label, e.g. "3/5". Returns null when the
+ * progress is undefined or has no items so callers can hide the segment
+ * entirely. Centralizes the "done/total" formatting previously inlined in the
+ * thumbnail strip.
+ */
+export function formatTodoProgress(progress: { done: number; total: number } | undefined): string | null {
+  if (progress === undefined || progress.total <= 0) return null;
+  return `${String(progress.done)}/${String(progress.total)}`;
+}
