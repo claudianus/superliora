@@ -263,6 +263,88 @@ async function main() {
   console.log('  Theme list:');
   for (const line of listLines) console.log(`    ${line}`);
 
+  // ─── 13. Split Pane Manager ───────────────────────────────────────
+  console.log('\n\x1b[1;33m── SplitPaneManager ──\x1b[0m');
+  const { SplitPaneManager } = await import('../apps/liora/src/tui/utils/split-pane-manager.ts');
+  const splitMgr = new SplitPaneManager();
+  const p1 = splitMgr.createInitialPane('Editor', 'sess-1');
+  splitMgr.splitPane(p1, 'vertical', 'Terminal', 'sess-2');
+  splitMgr.splitPane(p1, 'horizontal', 'Preview');
+  console.log(`  Panes: ${splitMgr.paneCount} | Layout: ${splitMgr.describeLayout()}`);
+  console.log(`  Focused: ${splitMgr.focusedId}`);
+  splitMgr.navigateFocus('right');
+  console.log(`  After nav right: ${splitMgr.focusedId}`);
+  const splitLines = splitMgr.render({ width: 50, height: 20, fg, boldFg, dimFg });
+  for (const line of splitLines) console.log(`  ${line}`);
+  // MiniMap
+  const miniLines = splitMgr.renderMiniMap({ width: 50, height: 20, fg, boldFg, dimFg });
+  for (const line of miniLines) console.log(`  ${line}`);
+  // Preset: quad
+  const quadMgr = new SplitPaneManager();
+  quadMgr.applyPreset('quad');
+  console.log(`  Quad preset: ${quadMgr.paneCount} panes — ${quadMgr.describeLayout()}`);
+
+  // ─── 14. Diff Viewer ──────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── DiffViewer ──\x1b[0m');
+  const { DiffViewer } = await import('../apps/liora/src/tui/utils/diff-viewer.ts');
+  const diffViewer = new DiffViewer();
+  const sampleDiff = `diff --git a/src/utils.ts b/src/utils.ts
+index abc1234..def5678 100644
+--- a/src/utils.ts
++++ b/src/utils.ts
+@@ -10,7 +10,8 @@ export function helper() {
+   const x = 1;
+-  const y = 2;
++  const y = 3;
++  const z = 4;
+   return x + y;
+ }
+diff --git a/README.md b/docs/README.md
+similarity index 90%
+rename from README.md
+rename to docs/README.md
+--- a/README.md
++++ b/docs/README.md
+@@ -1,3 +1,4 @@
+ # Project
++Updated description.
+ Some text.`;
+  const diffStats = diffViewer.parseDiff(sampleDiff);
+  console.log(`  Files: ${diffStats.filesChanged} | +${diffStats.totalAdditions} -${diffStats.totalDeletions}`);
+  // Unified view
+  const unifiedLines = diffViewer.render({ width: 60, mode: 'unified', fg, boldFg, dimFg });
+  for (const line of unifiedLines.slice(0, 16)) console.log(`  ${line}`);
+  // Stat view
+  console.log('  --- Stat view ---');
+  const statLines = diffViewer.render({ width: 60, mode: 'stat', fg, boldFg, dimFg });
+  for (const line of statLines) console.log(`  ${line}`);
+
+  // ─── 15. Autocomplete Engine ──────────────────────────────────────
+  console.log('\n\x1b[1;33m── AutocompleteEngine ──\x1b[0m');
+  const { AutocompleteEngine, createSlashCommandProvider, createCommandProvider, createHistoryProvider } = await import('../apps/liora/src/tui/utils/autocomplete-engine.ts');
+  const acEngine = new AutocompleteEngine();
+  acEngine.registerProvider(createSlashCommandProvider([
+    { name: 'help', description: 'Show help' },
+    { name: 'status', description: 'Show status' },
+    { name: 'compact', description: 'Compact context' },
+    { name: 'theme', description: 'Switch theme' },
+  ]));
+  acEngine.registerProvider(createCommandProvider(['git', 'grep', 'glob', 'build', 'test']));
+  acEngine.registerProvider(createHistoryProvider(() => ['git push origin main', 'git commit -m "fix"']));
+  // Slash completion
+  const slashState = acEngine.complete('/he', 3);
+  console.log(`  "/he" → ${slashState.items.length} items: ${slashState.items.map((i) => i.display).join(', ')}`);
+  const popupLines = acEngine.renderPopup({ maxWidth: 40, maxVisible: 6, fg, boldFg, dimFg });
+  for (const line of popupLines) console.log(`  ${line}`);
+  acEngine.dismiss();
+  // Command completion
+  const cmdState = acEngine.complete('g', 1);
+  console.log(`  "g" → ${cmdState.items.length} items: ${cmdState.items.map((i) => i.display).join(', ')}`);
+  // Inline preview
+  acEngine.dismiss();
+  const singleState = acEngine.complete('/stat', 5);
+  console.log(`  "/stat" → inline: "${singleState.inlinePreview ?? 'none'}"`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
