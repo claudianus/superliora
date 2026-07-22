@@ -214,3 +214,46 @@ describe('Gen 65: pinned quest info overlay', () => {
     expect(component.render(120).join('\n')).not.toContain('Worktree');
   });
 });
+
+describe('Gen 66: dashboard fleet summary overlay', () => {
+  it('c opens the fleet summary overlay in dashboard mode', () => {
+    const { component } = makeComponent();
+
+    // Before: no fleet summary.
+    expect(component.render(120).join('\n')).not.toContain('Fleet Summary');
+
+    // c opens the fleet summary overlay.
+    component.handleInput('c');
+    const fleetLines = component.render(120).join('\n');
+    expect(fleetLines).toContain('Fleet Summary');
+    expect(fleetLines).toContain('States');
+    expect(fleetLines).toContain('Avg health');
+  });
+
+  it('any key dismisses the fleet summary overlay (consumed)', () => {
+    const { component } = makeComponent();
+
+    component.handleInput('c');
+    expect(component.render(120).join('\n')).toContain('Fleet Summary');
+
+    // j would normally move focus, but here it only dismisses the overlay.
+    component.handleInput('j');
+    expect(component.render(120).join('\n')).not.toContain('Fleet Summary');
+  });
+
+  it('Esc closes the fleet summary first, not the dashboard', () => {
+    const { component, isClosed } = makeComponent();
+
+    component.handleInput('c');
+    expect(component.render(120).join('\n')).toContain('Fleet Summary');
+
+    // Esc dismisses the overlay but keeps the dashboard open.
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(false);
+    expect(component.render(120).join('\n')).not.toContain('Fleet Summary');
+
+    // A second Esc now closes the dashboard.
+    component.handleInput('\x1b');
+    expect(isClosed()).toBe(true);
+  });
+});

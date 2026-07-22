@@ -435,6 +435,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 66: c → toggle the fleet summary overlay.
+    if (k === 'c') {
+      this.fleetInfoVisible = true;
+      return;
+    }
+
     // Gen 26: ! → toggle attention-only view.
     if (k === '!') {
       this.gridController.toggleAttentionOnly();
@@ -565,6 +571,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['Tab', 'Jump to the next quest needing attention'],
           ['g', 'Focus the least-healthy quest'],
           ['m', 'Focus the most expensive quest'],
+          ['c', 'Show fleet summary overlay'],
           ['!', 'Toggle attention-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
