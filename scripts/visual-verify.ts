@@ -568,6 +568,81 @@ rename to docs/README.md
   // Mini stat
   console.log(`  Mini stat: ${renderMiniStat('FPS', '58', fpsData.slice(-12), { width: 12, fg, dimFg })}`);
 
+  // ─── 25. Kitty Graphics ───────────────────────────────────────────
+  console.log('\n\x1b[1;33m── KittyGraphics ──\x1b[0m');
+  const { KittyGraphics } = await import('../apps/liora/src/tui/utils/kitty-graphics.ts');
+  const kitty = new KittyGraphics({ protocol: 'kitty', cellSize: { width: 8, height: 16 } });
+  console.log(`  Protocol: ${kitty.describeProtocol()}`);
+  console.log(`  Supports sixel: ${kitty.supports('sixel')}`);
+  console.log(`  Supports halfblock: ${kitty.supports('halfblock')}`);
+  // Register and render
+  const imgId = kitty.registerImage(320, 240, 'png', 'iVBORw0KGgoAAAANSUhEUg...(base64)', 'screenshot.png');
+  console.log(`  Registered image ID: ${imgId}`);
+  const dims = kitty.calculateDimensions(320, 240, 40, 15);
+  console.log(`  Display size: ${dims.cols}x${dims.rows} cells`);
+  const renderResult = kitty.renderImage({ id: imgId, width: 320, height: 240, format: 'png', data: 'AAAA' }, { width: 20, height: 10 });
+  console.log(`  Render: protocol=${renderResult.protocol} rows=${renderResult.rowsUsed} cols=${renderResult.colsUsed}`);
+  // Kitty commands
+  console.log(`  Query cmd: ${JSON.stringify(kitty.generateQuery())}`);
+  console.log(`  Delete all: ${JSON.stringify(kitty.generateDelete('all'))}`);
+  // ASCII fallback
+  const asciiKitty = new KittyGraphics({ protocol: 'ascii' });
+  const asciiResult = asciiKitty.renderImage({ id: 1, width: 640, height: 480, format: 'png', data: '' }, { width: 20, height: 5 });
+  console.log('  ASCII fallback:');
+  for (const line of asciiResult.escapeSequence.split('\n')) console.log(`    ${line}`);
+
+  // ─── 26. Agent Timeline ───────────────────────────────────────────
+  console.log('\n\x1b[1;33m── AgentTimeline ──\x1b[0m');
+  const { AgentTimeline } = await import('../apps/liora/src/tui/utils/agent-timeline.ts');
+  const timeline = new AgentTimeline();
+  const e1 = timeline.addEvent({ type: 'think', title: 'Analyzing requirements', detail: 'Breaking down the task into subtasks' });
+  timeline.complete(e1, { tokensUsed: 2500 });
+  const e2 = timeline.addEvent({ type: 'tool-call', title: 'Read file: src/main.ts', tokensUsed: 800 });
+  timeline.complete(e2);
+  const e3 = timeline.addEvent({ type: 'file-edit', title: 'Edit: src/utils.ts', detail: '+15 -3 lines', tokensUsed: 1200 });
+  const e3a = timeline.addEvent({ type: 'bash', title: 'npx tsc --noEmit', parentId: e3 });
+  timeline.complete(e3a);
+  timeline.complete(e3, { tokensUsed: 1200 });
+  const e4 = timeline.addEvent({ type: 'bash', title: 'Running tests...', detail: 'vitest run' });
+  const e5 = timeline.addEvent({ type: 'error', title: 'Test failed: auth.spec.ts', detail: 'Expected 200, got 401' });
+  timeline.fail(e5, 'AssertionError: Expected 200, got 401');
+  timeline.complete(e4);
+  const e6 = timeline.addEvent({ type: 'approval', title: 'Deploy to staging', detail: 'Awaiting user confirmation' });
+  const tlLines = timeline.render({ width: 60, height: 16, mode: 'expanded', showTimestamps: true, showTokens: true, fg, boldFg, dimFg });
+  for (const line of tlLines) console.log(`  ${line}`);
+  console.log(`  Summary: ${timeline.renderSummary({ width: 60, height: 16, mode: 'expanded', fg, boldFg, dimFg })}`);
+  console.log(`  Total tokens: ${timeline.getTotalTokens()} | Events: ${timeline.getAllEvents().length}`);
+
+  // ─── 27. Context Menu ─────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ContextMenu ──\x1b[0m');
+  const { ContextMenu, MenuBar } = await import('../apps/liora/src/tui/utils/context-menu.ts');
+  const ctxMenu = new ContextMenu();
+  ctxMenu.open([
+    { id: 'cut', label: 'Cut', icon: '✂️', shortcut: '⌃X' },
+    { id: 'copy', label: 'Copy', icon: '📋', shortcut: '⌃C' },
+    { id: 'paste', label: 'Paste', icon: '📌', shortcut: '⌃V' },
+    { id: 'sep1', label: '', separator: true },
+    { id: 'rename', label: 'Rename', icon: '✏️', shortcut: 'F2' },
+    { id: 'delete', label: 'Delete', icon: '🗑️', shortcut: '⌫' },
+    { id: 'sep2', label: '', separator: true },
+    { id: 'git', label: 'Git Actions', icon: '🔀', submenu: [
+      { id: 'commit', label: 'Commit', shortcut: '⌃↵' },
+      { id: 'push', label: 'Push' },
+      { id: 'pull', label: 'Pull' },
+    ]},
+    { id: 'disabled', label: 'Admin (locked)', disabled: true },
+  ], 5, 3);
+  const menuLines = ctxMenu.render({ termWidth: 70, termHeight: 24, fg, boldFg, dimFg });
+  for (const line of menuLines) console.log(`  ${line}`);
+  // Menu bar
+  const menuBar = new MenuBar();
+  menuBar.setMenus([
+    { label: 'File', items: [{ id: 'new', label: 'New' }, { id: 'open', label: 'Open' }] },
+    { label: 'Edit', items: [{ id: 'undo', label: 'Undo' }] },
+    { label: 'View', items: [{ id: 'zoom', label: 'Zoom' }] },
+  ]);
+  console.log(`  MenuBar: ${menuBar.render({ termWidth: 70, termHeight: 24, fg, boldFg, dimFg })}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
