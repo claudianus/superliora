@@ -57,6 +57,9 @@ export class AttentionController {
   private readonly pulsingQuestIds = new Set<string>();
   private readonly eventLog: AttentionEvent[] = [];
   private stripBlinkActive = false;
+  // Gen 32: when each quest entered its current attention state (ms epoch),
+  // used to surface how long a quest has been left unattended.
+  private readonly attentionEnteredAt = new Map<string, number>();
   private readonly writeRaw: (data: string) => void;
   private readonly requestRender: () => void;
   private readonly now: () => number;
@@ -79,6 +82,7 @@ export class AttentionController {
     if (!ATTENTION_STATES.has(newState)) {
       // State no longer needs attention — stop pulsing
       this.pulsingQuestIds.delete(questId);
+      this.attentionEnteredAt.delete(questId);
       this.requestRender();
       return;
     }
@@ -87,6 +91,12 @@ export class AttentionController {
 
     // Trigger pulse (visual)
     this.pulsingQuestIds.add(questId);
+    // Gen 32: record when this quest entered an attention state so dwell time
+    // can be surfaced. Only set on first entry — repeated same-state events
+    // must not reset the clock.
+    if (!this.attentionEnteredAt.has(questId)) {
+      this.attentionEnteredAt.set(questId, receivedAt);
+    }
 
     // Trigger bell (auditory) — simultaneous with pulse
     this.writeRaw(BELL_CHAR);
@@ -141,6 +151,38 @@ export class AttentionController {
   }
 
   // -------------------------------------------------------------------------
+  // Gen 32: Attention Dwell Time
+  // -------------------------------------------------------------------------
+
+  /**
+   * How long (ms) a quest has been sitting in an attention state, measured
+   * from when it first entered the state. Returns null if the quest is not
+   * currently in an attention state.
+   */
+  getDwellTime(questId: string): number | null {
+    const enteredAt = this.attentionEnteredAt.get(questId);
+    if (enteredAt === undefined) return null;
+    return Math.max(0, this.now() - enteredAt);
+  }
+
+  /**
+   * The quest id that has been left unattended the longest, or null when no
+   * quest currently needs attention. Lets the dashboard surface the single
+   * most-neglected quest for immediate triage.
+   */
+  getMostNeglectedQuestId(): string | null {
+    let oldestId: string | null = null;
+    let oldestEnteredAt = Number.POSITIVE_INFINITY;
+    for (const [questId, enteredAt] of this.attentionEnteredAt) {
+      if (enteredAt < oldestEnteredAt) {
+        oldestEnteredAt = enteredAt;
+        oldestId = questId;
+      }
+    }
+    return oldestId;
+  }
+
+  // -------------------------------------------------------------------------
   // Regression Gate: Attention Latency
   // -------------------------------------------------------------------------
 
@@ -180,6 +222,7 @@ export class AttentionController {
   /** Clear all pulsing state (e.g. when leaving dashboard). */
   clearAll(): void {
     this.pulsingQuestIds.clear();
+    this.attentionEnteredAt.clear();
     this.stripBlinkActive = false;
     this.requestRender();
   }

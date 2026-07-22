@@ -134,3 +134,66 @@ describe('attention routing latency (AC-2)', () => {
     expect(ctrl.getPulsingQuestIds().size).toBe(2);
   });
 });
+
+describe('attention dwell time (Gen 32)', () => {
+  it('tracks how long a quest has been in an attention state', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+
+    expect(ctrl.getDwellTime('q1')).toBe(0);
+    advanceTime(3000);
+    expect(ctrl.getDwellTime('q1')).toBe(3000);
+  });
+
+  it('returns null for a quest not in an attention state', () => {
+    const { ctrl } = makeController(5000);
+    expect(ctrl.getDwellTime('q1')).toBeNull();
+
+    ctrl.onQuestStateChanged('q1', 'running');
+    expect(ctrl.getDwellTime('q1')).toBeNull();
+  });
+
+  it('does not reset the clock on repeated same-state events', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(4000);
+    // Re-asserting the same attention state must not restart the dwell timer.
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    expect(ctrl.getDwellTime('q1')).toBe(4000);
+  });
+
+  it('clears dwell time when the quest leaves the attention state', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(2000);
+    expect(ctrl.getDwellTime('q1')).toBe(2000);
+
+    ctrl.onQuestStateChanged('q1', 'running');
+    expect(ctrl.getDwellTime('q1')).toBeNull();
+  });
+
+  it('identifies the most-neglected quest', () => {
+    const { ctrl, advanceTime } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    advanceTime(1000);
+    ctrl.onQuestStateChanged('q2', 'failed');
+    advanceTime(1000);
+    ctrl.onQuestStateChanged('q3', 'waiting-approval');
+
+    // q1 entered first, so it has been neglected the longest.
+    expect(ctrl.getMostNeglectedQuestId()).toBe('q1');
+  });
+
+  it('returns null most-neglected quest when nothing needs attention', () => {
+    const { ctrl } = makeController(5000);
+    expect(ctrl.getMostNeglectedQuestId()).toBeNull();
+  });
+
+  it('clearAll resets dwell tracking', () => {
+    const { ctrl } = makeController(5000);
+    ctrl.onQuestStateChanged('q1', 'waiting-approval');
+    ctrl.clearAll();
+    expect(ctrl.getDwellTime('q1')).toBeNull();
+    expect(ctrl.getMostNeglectedQuestId()).toBeNull();
+  });
+});
