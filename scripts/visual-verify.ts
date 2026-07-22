@@ -885,6 +885,44 @@ rename to docs/README.md
   const path = flowchart.findPath('start', 'end');
   console.log(`  Path start→end: ${path?.join(' → ') ?? 'none'}`);
 
+  // ═══ Iteration 22 ═══════════════════════════════════════════════════
+  console.log('\n\x1b[1;36m═══ VISUAL VERIFICATION: Iteration 22 Modules ═══\x1b[0m');
+
+  // ─── 40. Code Editor ──────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── CodeEditor ──\x1b[0m');
+  const { CodeEditor } = await import('../apps/liora/src/tui/utils/code-editor.ts');
+  const editor = new CodeEditor();
+  editor.setFileName('main.ts');
+  editor.setContent(`import { Agent } from './agent';\n\nfunction main() {\n  const agent = new Agent();\n  agent.run();\n}`);
+  editor.moveDown(); editor.moveDown(); editor.moveDown();
+  editor.moveRight(); editor.moveRight();
+  const editorLines = editor.render({ width: 50, height: 10, fg, boldFg, dimFg });
+  for (const line of editorLines) console.log(`  ${line}`);
+
+  // ─── 41. Terminal Recorder ────────────────────────────────────────
+  console.log('\n\x1b[1;33m── TerminalRecorder ──\x1b[0m');
+  const { TerminalRecorder } = await import('../apps/liora/src/tui/utils/terminal-recorder.ts');
+  const recorder = new TerminalRecorder();
+  const recId = recorder.startRecording('Build Session');
+  recorder.recordOutput('$ npm run build');
+  recorder.recordOutput('> tsc && vite build');
+  recorder.recordOutput('✓ Built in 2.3s');
+  recorder.stopRecording();
+  recorder.play(recId);
+  recorder.seek(500);
+  const recorderLines = recorder.render({ width: 50, height: 8, fg, boldFg, dimFg });
+  for (const line of recorderLines) console.log(`  ${line}`);
+
+  // ─── 42. Widget Dashboard ─────────────────────────────────────────
+  console.log('\n\x1b[1;33m── WidgetDashboard ──\x1b[0m');
+  const { WidgetDashboard, createDefaultDashboard } = await import('../apps/liora/src/tui/utils/widget-dashboard.ts');
+  const dashboard = createDefaultDashboard();
+  dashboard.updateWidgetData('widget-1', { time: new Date(2026, 6, 22, 14, 32, 5), format: '24h', showDate: true });
+  dashboard.updateWidgetData('widget-2', { value: 0.78, label: '8 cores', thresholds: { warning: 0.7, critical: 0.9 } });
+  const dashLines = dashboard.render({ width: 55, height: 14, fg, boldFg, dimFg });
+  for (const line of dashLines) console.log(`  ${line}`);
+  console.log(`  Widgets: ${dashboard.getWidgets().length}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
