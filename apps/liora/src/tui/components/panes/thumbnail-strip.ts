@@ -8,9 +8,13 @@
  * AC-2: 12+ quests → thumbnail strip with status blink for attention states.
  */
 
+import { currentTheme } from '#/tui/theme';
+
 import {
   type Quest,
+  type QuestState,
   questStateIcon,
+  questStateColorToken,
   ATTENTION_STATES,
 } from '../../controllers/quest-types';
 
@@ -24,6 +28,8 @@ export interface ThumbnailEntry {
   readonly icon: string;
   readonly needsAttention: boolean;
   readonly isPinned: boolean;
+  /** Gen 37: quest state, used to color the thumbnail segment. */
+  readonly state: QuestState;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +66,7 @@ export function buildThumbnailStrip(
         icon,
         needsAttention,
         isPinned: false,
+        state: q.state,
       };
     });
 }
@@ -70,6 +77,7 @@ export function buildThumbnailStrip(
  *
  * When `showIndex` is true (pinned mode), each segment is prefixed with its
  * 1-based hotkey so the user can jump directly to a quest with 1–9 (Gen 6b).
+ * Gen 37: each segment is colorized by quest state for at-a-glance scanning.
  */
 export function renderThumbnailStripLine(
   entries: readonly ThumbnailEntry[],
@@ -81,10 +89,11 @@ export function renderThumbnailStripLine(
 
   for (const [i, entry] of entries.entries()) {
     const prefix = showIndex && i < 9 ? `${String(i + 1)}:` : '';
-    const segment = `${prefix}[${entry.icon} ${entry.label}]`;
-    const segmentWidth = segment.length + 1; // +1 for space separator
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}]`;
+    const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
-    parts.push(segment);
+    const token = questStateColorToken(entry.state);
+    parts.push(currentTheme.fg(token, plainSegment));
     usedWidth += segmentWidth;
   }
 

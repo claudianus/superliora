@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
 import { renderContextBar, renderTodoBar, renderChangeCount, spinnerFrame, actionHintBar, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
+import { buildThumbnailStrip, renderThumbnailStripLine } from '#/tui/components/panes/thumbnail-strip';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -565,5 +566,87 @@ describe('Gen 31: idle-duration severity token', () => {
 
   it('clamps negative durations to muted', () => {
     expect(idleSeverityToken(-1000)).toBe('muted');
+  });
+});
+
+describe('Gen 37: thumbnail strip state coloring', () => {
+  it('carries the quest state on each thumbnail entry', () => {
+    const quests = [
+      makeQuest('a', { state: 'running' }),
+      makeQuest('b', { state: 'failed' }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries.map((e) => e.state)).toEqual(['running', 'failed']);
+  });
+
+  it('excludes the pinned quest from the strip', () => {
+    const quests = [
+      makeQuest('a', { state: 'running' }),
+      makeQuest('b', { state: 'failed' }),
+    ];
+    const entries = buildThumbnailStrip(quests, 'a', false);
+    expect(entries.map((e) => e.questId)).toEqual(['b']);
+  });
+
+  it('renders the quest label and icon in each segment', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Alpha' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 80, false);
+    expect(line).toContain('Alpha');
+    expect(line).toContain('●');
+  });
+
+  it('prefixes numbered hotkeys when showIndex is set', () => {
+    const quests = [
+      makeQuest('a', { state: 'running', name: 'Alpha' }),
+      makeQuest('b', { state: 'idle', name: 'Beta' }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 80, true);
+    expect(line).toContain('1:');
+    expect(line).toContain('2:');
+  });
+});
+
+describe('Gen 37: thumbnail strip state coloring', () => {
+  it('builds entries carrying the quest state', () => {
+    const quests = [
+      makeQuest('a', { state: 'running', name: 'Alpha' }),
+      makeQuest('b', { state: 'failed', name: 'Beta' }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]!.state).toBe('running');
+    expect(entries[1]!.state).toBe('failed');
+  });
+
+  it('excludes the pinned quest from the strip', () => {
+    const quests = [
+      makeQuest('a', { state: 'running' }),
+      makeQuest('b', { state: 'failed' }),
+    ];
+    const entries = buildThumbnailStrip(quests, 'a', false);
+    expect(entries.map((e) => e.questId)).toEqual(['b']);
+  });
+
+  it('renders each segment with its label', () => {
+    const quests = [makeQuest('a', { state: 'failed', name: 'Boom' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 80, false);
+    // The segment text is preserved (color wraps it when the terminal supports it).
+    expect(line).toContain('Boom');
+    expect(line).toContain('[');
+    expect(line).toContain(']');
+  });
+
+  it('prefixes numbered hotkeys when showIndex is set', () => {
+    const quests = [
+      makeQuest('a', { state: 'running', name: 'One' }),
+      makeQuest('b', { state: 'idle', name: 'Two' }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, true);
+    expect(line).toContain('1:');
+    expect(line).toContain('2:');
   });
 });
