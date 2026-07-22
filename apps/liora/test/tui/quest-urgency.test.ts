@@ -7,6 +7,7 @@ import {
   escalationLevelFor,
   escalatedUrgencyScore,
   rankQuestsByEscalatedUrgency,
+  urgencyDistribution,
 } from '#/tui/controllers/quest-urgency';
 import {
   ATTENTION_ESCALATION_MS,
@@ -255,5 +256,61 @@ describe('rankQuestsByEscalatedUrgency (Gen 57)', () => {
     ];
     rankQuestsByEscalatedUrgency(quests, now);
     expect(quests.map((q) => q.id)).toEqual(['running', 'approval']);
+  });
+});
+
+describe('urgencyDistribution (Gen 85)', () => {
+  it('is all zeros for an empty fleet', () => {
+    expect(urgencyDistribution([], 100_000)).toEqual({ normal: 0, escalated: 0, critical: 0 });
+  });
+
+  it('ignores quests not in an attention state', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'running' }),
+      makeQuest('b', { state: 'idle' }),
+      makeQuest('c', { state: 'done' }),
+    ];
+    expect(urgencyDistribution(quests, now)).toEqual({ normal: 0, escalated: 0, critical: 0 });
+  });
+
+  it('counts fresh attention quests as normal', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('b', { state: 'failed', attentionEnteredAt: now - 1_000 }),
+    ];
+    expect(urgencyDistribution(quests, now)).toEqual({ normal: 2, escalated: 0, critical: 0 });
+  });
+
+  it('counts quests between the thresholds as escalated', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now - ATTENTION_ESCALATION_MS }),
+      makeQuest('b', {
+        state: 'failed',
+        attentionEnteredAt: now - (ATTENTION_CRITICAL_MS - 1_000),
+      }),
+    ];
+    expect(urgencyDistribution(quests, now)).toEqual({ normal: 0, escalated: 2, critical: 0 });
+  });
+
+  it('counts quests past the critical threshold as critical', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+    ];
+    expect(urgencyDistribution(quests, now)).toEqual({ normal: 0, escalated: 0, critical: 1 });
+  });
+
+  it('spreads a mixed fleet across all three buckets', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('fresh', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('warn', { state: 'waiting-approval', attentionEnteredAt: now - ATTENTION_ESCALATION_MS }),
+      makeQuest('crit', { state: 'failed', attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+      makeQuest('running', { state: 'running' }),
+    ];
+    expect(urgencyDistribution(quests, now)).toEqual({ normal: 1, escalated: 1, critical: 1 });
   });
 });

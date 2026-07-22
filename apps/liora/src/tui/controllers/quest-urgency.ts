@@ -120,3 +120,35 @@ export function rankQuestsByEscalatedUrgency(
     .sort((a, b) => (a.score !== b.score ? b.score - a.score : a.index - b.index))
     .map(({ quest, score }) => ({ quest, score }));
 }
+
+/**
+ * Gen 85: how the fleet's attention quests are spread across escalation
+ * levels. Only quests in an attention state are counted — a running quest is
+ * never 'normal' here, it is simply absent. Lets the dashboard show at a
+ * glance how much of the pending demand is fresh, escalating, or critical.
+ */
+export interface UrgencyDistribution {
+  /** Attention quests below the escalation threshold (fresh). */
+  readonly normal: number;
+  /** Attention quests between the escalation and critical thresholds. */
+  readonly escalated: number;
+  /** Attention quests past the critical threshold. */
+  readonly critical: number;
+}
+
+export function urgencyDistribution(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): UrgencyDistribution {
+  let normal = 0;
+  let escalated = 0;
+  let critical = 0;
+  for (const quest of quests) {
+    if (!ATTENTION_STATES.has(quest.state)) continue;
+    const level = escalationLevelFor(quest, now);
+    if (level === 2) critical += 1;
+    else if (level === 1) escalated += 1;
+    else normal += 1;
+  }
+  return { normal, escalated, critical };
+}
