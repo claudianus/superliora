@@ -944,6 +944,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     const quests = [makeQuest('a', { state: 'running' }), makeQuest('b', { state: 'idle' })];
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
     expect(snapshot.loadLevel).toBe('normal');
+    expect(snapshot.loadColorToken).toBe('success');
     expect(snapshot.loadLine).toBeNull();
     expect(snapshot.distributionLine).toBeNull();
     expect(snapshot.recommendationLine).toBeNull();
@@ -961,6 +962,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     ];
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
     expect(snapshot.loadLevel).toBe('elevated');
+    expect(snapshot.loadColorToken).toBe('warning');
     expect(snapshot.loadLine).toBe('⚠ elevated (4 pending)');
     expect(snapshot.distributionLine).toBe('4 fresh');
     expect(snapshot.recommendationLine).toBe("→ handle 'One' first");
@@ -1001,6 +1003,7 @@ describe('buildTriagePanelSnapshot (Gen 84)', () => {
     );
     const snapshot = buildTriagePanelSnapshot(quests, 3, now);
     expect(snapshot.loadLevel).toBe('overloaded');
+    expect(snapshot.loadColorToken).toBe('error');
     expect(snapshot.loadLine).toBe('🔥 overloaded (8 pending)');
   });
 });

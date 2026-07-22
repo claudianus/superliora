@@ -581,9 +581,13 @@ export function formatTriageQueueLine(
  * Gen 88: `loadLevel` exposes the raw cognitive load classification so callers
  * can color or branch on it (e.g. tint the whole panel red when overloaded)
  * without re-deriving it from the quest list.
+ *
+ * Gen 90: `loadColorToken` is the ready-to-use theme token for that level, so
+ * a renderer can paint the panel without mapping the level itself.
  */
 export interface TriagePanelSnapshot {
   readonly loadLevel: AttentionLoadLevel;
+  readonly loadColorToken: ColorToken;
   readonly loadLine: string | null;
   readonly distributionLine: string | null;
   readonly recommendationLine: string | null;
@@ -598,6 +602,7 @@ export function buildTriagePanelSnapshot(
 ): TriagePanelSnapshot {
   const pendingCount = quests.filter((quest) => ATTENTION_STATES.has(quest.state)).length;
   const loadLevel = classifyAttentionLoad(pendingCount);
+  const loadColorToken = attentionLoadColorToken(loadLevel);
   const loadLine = formatEscalatedFleetAttentionLoadLine(quests, now);
   const distributionLine = formatUrgencyDistributionLine(quests, now);
   const recommendationLine = formatTriageRecommendationLine(quests, now);
@@ -605,7 +610,15 @@ export function buildTriagePanelSnapshot(
   const lines = [loadLine, distributionLine, recommendationLine, queueLine].filter(
     (line): line is string => line !== null,
   );
-  return { loadLevel, loadLine, distributionLine, recommendationLine, queueLine, lines };
+  return {
+    loadLevel,
+    loadColorToken,
+    loadLine,
+    distributionLine,
+    recommendationLine,
+    queueLine,
+    lines,
+  };
 }
 
 /**
