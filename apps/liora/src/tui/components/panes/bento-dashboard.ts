@@ -459,7 +459,6 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const focused = this.gridController.getFocusedQuestId() === quest.id;
     const marker = pulsing ? (this.blinkPhase ? '⚡' : '·') : ' ';
     const focusIndicator = focused ? '▶ ' : '  ';
-    const icon = questStateIcon(quest.state);
     const safeWidth = Math.max(1, width - 4);
 
     const created = formatElapsed(Math.max(0, now - quest.createdAt));
@@ -486,7 +485,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const progress = progressParts.length > 0 ? `  ${progressParts.join('  ')}` : '';
 
     // Gen 12: color-code the state icon + badge for at-a-glance scanning.
+    // Gen 33: running quests get a live spinner instead of a static icon.
     const stateToken = stateColorToken(quest.state);
+    const icon = quest.state === 'running' ? spinnerFrame(now) : questStateIcon(quest.state);
     const badgeText = `${icon} [${quest.state}]`;
     const badge = currentTheme.fg(stateToken, badgeText);
     const prefix = `${focusIndicator}${marker}`;
@@ -648,6 +649,19 @@ export function renderChangeCount(cc: QuestChangeCount): string {
   const added = currentTheme.fg('success', `+${String(cc.added)}`);
   const removed = currentTheme.fg('error', `-${String(cc.removed)}`);
   return `${added} ${removed}`;
+}
+
+/** Gen 33: braille spinner frames for the running state. */
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/**
+ * Gen 33: pick the spinner frame for a given timestamp. Time-based (not a
+ * separate timer) so it animates whenever the dashboard re-renders on its
+ * refresh tick without extra state.
+ */
+export function spinnerFrame(nowMs: number): string {
+  const frame = Math.floor(nowMs / 100) % SPINNER_FRAMES.length;
+  return SPINNER_FRAMES[frame]!;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
-import { renderContextBar, renderTodoBar, renderChangeCount, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
+import { renderContextBar, renderTodoBar, renderChangeCount, spinnerFrame, idleSeverityToken } from '#/tui/components/panes/bento-dashboard';
 import type { Quest } from '#/tui/controllers/quest-types';
 
 function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
@@ -455,6 +455,24 @@ describe('Gen 32: colorized change-count stats', () => {
     const out = renderChangeCount({ added: 0, removed: 0 });
     expect(out).toContain('+0');
     expect(out).toContain('-0');
+  });
+});
+
+describe('Gen 33: running spinner animation', () => {
+  it('advances frames over time', () => {
+    const f0 = spinnerFrame(0);
+    const f1 = spinnerFrame(100);
+    const f2 = spinnerFrame(200);
+    expect(f0).not.toBe(f1);
+    expect(f1).not.toBe(f2);
+  });
+
+  it('stays on the same frame within a 100ms window', () => {
+    expect(spinnerFrame(1000)).toBe(spinnerFrame(1099));
+  });
+
+  it('cycles back to the first frame after 10 steps', () => {
+    expect(spinnerFrame(0)).toBe(spinnerFrame(1000));
   });
 });
 
