@@ -26,6 +26,7 @@ import {
   formatEscalatedQuestCompactLine,
   formatAttentionLoadLabel,
   formatFleetAttentionLoadLine,
+  formatEscalatedFleetAttentionLoadLine,
 } from '#/tui/controllers/quest-display';
 import {
   type AttentionSummary,
@@ -787,5 +788,53 @@ describe('formatFleetAttentionLoadLine (Gen 80)', () => {
 
   it('returns null for an empty fleet', () => {
     expect(formatFleetAttentionLoadLine([])).toBeNull();
+  });
+});
+
+describe('formatEscalatedFleetAttentionLoadLine (Gen 81)', () => {
+  it('returns null when the attention load is normal', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('b', { state: 'running' }),
+    ];
+    expect(formatEscalatedFleetAttentionLoadLine(quests, now)).toBeNull();
+  });
+
+  it('omits the critical count when no pending quest is critically escalated', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('b', { state: 'failed', attentionEnteredAt: now - 1_000 }),
+      makeQuest('c', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('d', { state: 'failed', attentionEnteredAt: now - 1_000 }),
+    ];
+    expect(formatEscalatedFleetAttentionLoadLine(quests, now)).toBe('⚠ elevated (4 pending)');
+  });
+
+  it('appends the critical count when some pending quests are critically escalated', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+      makeQuest('b', { state: 'failed', attentionEnteredAt: now - ATTENTION_CRITICAL_MS }),
+      makeQuest('c', { state: 'waiting-approval', attentionEnteredAt: now - 1_000 }),
+      makeQuest('d', { state: 'failed', attentionEnteredAt: now - 1_000 }),
+    ];
+    expect(formatEscalatedFleetAttentionLoadLine(quests, now)).toBe(
+      '⚠ elevated (4 pending, 2 critical)',
+    );
+  });
+
+  it('renders an overloaded label with the critical count', () => {
+    const now = 100_000;
+    const quests = Array.from({ length: 8 }, (_, i) =>
+      makeQuest(`q${String(i)}`, {
+        state: 'waiting-approval',
+        attentionEnteredAt: now - ATTENTION_CRITICAL_MS,
+      }),
+    );
+    expect(formatEscalatedFleetAttentionLoadLine(quests, now)).toBe(
+      '🔥 overloaded (8 pending, 8 critical)',
+    );
   });
 });

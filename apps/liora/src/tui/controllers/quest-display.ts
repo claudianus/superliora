@@ -483,3 +483,23 @@ export function formatFleetAttentionLoadLine(quests: readonly Quest[]): string |
   const pendingCount = quests.filter((quest) => ATTENTION_STATES.has(quest.state)).length;
   return formatAttentionLoadLabel(classifyAttentionLoad(pendingCount), pendingCount);
 }
+
+/**
+ * Gen 81: the Gen 80 attention load line enriched with how many of the pending
+ * quests are critically escalated, e.g. "🔥 overloaded (9 pending, 2
+ * critical)". The critical count tells the operator not just how much demand
+ * there is, but how much of it is about to time out. Returns null when the
+ * load is normal so callers can hide the segment.
+ */
+export function formatEscalatedFleetAttentionLoadLine(
+  quests: readonly Quest[],
+  now: number = Date.now(),
+): string | null {
+  const pending = quests.filter((quest) => ATTENTION_STATES.has(quest.state));
+  const level = classifyAttentionLoad(pending.length);
+  if (level === 'normal') return null;
+  const criticalCount = pending.filter((quest) => escalationLevelFor(quest, now) === 2).length;
+  const icon = level === 'overloaded' ? '🔥' : '⚠';
+  const base = `${icon} ${level} (${String(pending.length)} pending`;
+  return criticalCount > 0 ? `${base}, ${String(criticalCount)} critical)` : `${base})`;
+}
