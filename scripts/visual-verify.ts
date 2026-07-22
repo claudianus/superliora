@@ -419,6 +419,74 @@ rename to docs/README.md
   const sbInsert = statusBar.render({ width: 70, fg, boldFg, dimFg, bg });
   console.log(`  Insert mode: ${sbInsert}`);
 
+  // ─── 19. Modal Dialog ─────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ModalDialog ──\x1b[0m');
+  const { ModalDialog, DialogManager } = await import('../apps/liora/src/tui/utils/modal-dialog.ts');
+  // Confirm dialog
+  const confirmDlg = new ModalDialog({ type: 'confirm', title: 'Delete File', message: 'Are you sure you want to delete src/old-module.ts? This action cannot be undone.' });
+  const confirmLines = confirmDlg.render({ termWidth: 70, termHeight: 24, fg, boldFg, dimFg });
+  console.log('  [Confirm Dialog]');
+  for (const line of confirmLines) console.log(`  ${line}`);
+  // Select dialog
+  const selectDlg = new ModalDialog({
+    type: 'select', title: 'Choose Theme',
+    items: [
+      { id: 'dark', label: 'Dark', description: 'Default dark', icon: '🌙' },
+      { id: 'nord', label: 'Nord', description: 'Arctic blue', icon: '❄️' },
+      { id: 'tokyo', label: 'Tokyo Night', description: 'City lights', icon: '🌃' },
+      { id: 'cat', label: 'Catppuccin', description: 'Pastel', icon: '🐱' },
+    ],
+  });
+  const selectLines = selectDlg.render({ termWidth: 70, termHeight: 24, fg, boldFg, dimFg });
+  console.log('  [Select Dialog]');
+  for (const line of selectLines) console.log(`  ${line}`);
+  // Input dialog
+  const inputDlg = new ModalDialog({ type: 'input', title: 'Rename Branch', placeholder: 'feature/new-branch', initialValue: 'feature/' });
+  const inputLines = inputDlg.render({ termWidth: 70, termHeight: 24, fg, boldFg, dimFg });
+  console.log('  [Input Dialog]');
+  for (const line of inputLines) console.log(`  ${line}`);
+
+  // ─── 20. Syntax Highlighter ───────────────────────────────────────
+  console.log('\n\x1b[1;33m── SyntaxHighlighter ──\x1b[0m');
+  const { SyntaxHighlighter } = await import('../apps/liora/src/tui/utils/syntax-highlighter.ts');
+  const highlighter = new SyntaxHighlighter();
+  const tsCode = `// Theme engine\nconst theme: Theme = {\n  id: 'dark',\n  name: "Dark Mode",\n  palette: { primary: 0x61afef },\n};\nexport function apply(t: Theme): void {\n  console.log(\`Applying \${t.name}\`);\n}`;
+  const highlighted = highlighter.highlight(tsCode, { language: 'typescript', showLineNumbers: true, highlightLine: 3, fg, boldFg, dimFg });
+  console.log('  TypeScript:');
+  for (const line of highlighted) console.log(`  ${line}`);
+  // Python
+  const pyCode = `def fibonacci(n: int) -> list[int]:\n    """Generate Fibonacci sequence."""\n    fib = [0, 1]\n    for i in range(2, n):\n        fib.append(fib[i-1] + fib[i-2])\n    return fib[:n]`;
+  const pyHighlighted = highlighter.highlight(pyCode, { language: 'python', showLineNumbers: true, fg, boldFg, dimFg });
+  console.log('  Python:');
+  for (const line of pyHighlighted) console.log(`  ${line}`);
+  // Language detection
+  console.log(`  Detect "main.rs": ${highlighter.detectLanguage('main.rs')?.name ?? 'null'}`);
+  console.log(`  Detect "app.tsx": ${highlighter.detectLanguage('app.tsx')?.name ?? 'null'}`);
+
+  // ─── 21. Scroll Viewport ──────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ScrollViewport ──\x1b[0m');
+  const { ScrollViewport } = await import('../apps/liora/src/tui/utils/scroll-viewport.ts');
+  const viewport = new ScrollViewport();
+  viewport.setViewportSize(50, 8);
+  // Generate 30 lines of content
+  const content = Array.from({ length: 30 }, (_, i) => `Line ${String(i + 1).padStart(2)}: ${'█'.repeat((i * 7) % 30)}${'░'.repeat(30 - (i * 7) % 30)}`);
+  viewport.setContentHeight(content.length);
+  viewport.setRenderOpts({ fg, dimFg });
+  // Render at top
+  const topLines = viewport.render(content, { width: 50, height: 8, fg, dimFg });
+  console.log('  At top:');
+  for (const line of topLines) console.log(`  ${line}`);
+  // Scroll down
+  viewport.scrollTo(10);
+  viewport.tick();
+  viewport.tick();
+  viewport.tick();
+  const midLines = viewport.render(content, { width: 50, height: 8, fg, dimFg });
+  console.log('  Scrolled to ~10:');
+  for (const line of midLines) console.log(`  ${line}`);
+  console.log(`  Position: ${viewport.renderPositionIndicator({ width: 50, height: 8, fg, dimFg })}`);
+  console.log(`  State: scrollY=${viewport.getState().scrollY.toFixed(1)} max=${viewport.maxScroll} atBottom=${viewport.isAtBottom}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
