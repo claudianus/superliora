@@ -268,6 +268,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         expandView?.toggleFollowTail();
         return;
       }
+      // Gen 58: F → toggle fullscreen stream (hide the header).
+      if (k === 'F') {
+        expandView?.toggleFullscreen();
+        return;
+      }
       if (k === 'G') {
         expandView?.scrollToBottom();
         return;
@@ -468,6 +473,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['f', 'Toggle thumbnail strip (full-height view)'],
           ['d', 'Toggle diff-only view (code changes)'],
           ['w', 'Toggle auto-follow (pause/resume live tail)'],
+          ['F', 'Toggle fullscreen stream (hide header)'],
           ['G / g', 'Jump to bottom / top'],
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],

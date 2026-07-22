@@ -370,6 +370,26 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(view.render(quest, 80)[0]).not.toContain('⏸ paused');
   });
 
+  it('Gen 58: fullscreen hides the header and shows only the stream', () => {
+    const quest = makeQuest('a', { name: 'My Quest', state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('stream line 1');
+    view.appendLine('stream line 2');
+
+    // Normal: header present (name + separator before the stream).
+    const normal = view.render(quest, 80);
+    expect(normal[0]).toContain('My Quest');
+    expect(normal.some((l) => l.startsWith('─'))).toBe(true);
+
+    // Fullscreen: no header lines, stream starts immediately.
+    expect(view.toggleFullscreen()).toBe(true);
+    expect(view.isFullscreen()).toBe(true);
+    const full = view.render(quest, 80);
+    expect(full[0]).toContain('stream line 1');
+    expect(full[0]).not.toContain('My Quest');
+    expect(full.some((l) => l.startsWith('─'))).toBe(false);
+  });
+
   it('Gen 33: expand view header shows dwell time for attention quests', () => {
     // Entered the attention state 90s ago.
     const quest = makeQuest('a', {

@@ -65,6 +65,9 @@ export class QuestExpandView {
   // viewport down, so the operator can review history undisturbed.
   private followTail = true;
 
+  // Gen 58: fullscreen stream — hides the header so the output fills the view.
+  private fullscreen = false;
+
   /** Set the maximum visible lines (from cell height). */
   setMaxVisibleLines(lines: number): void {
     this.maxVisibleLines = Math.max(1, lines);
@@ -147,6 +150,17 @@ export class QuestExpandView {
   /** Gen 57: whether auto-follow of the live tail is enabled. */
   isFollowingTail(): boolean {
     return this.followTail;
+  }
+
+  /** Gen 58: toggle fullscreen stream (hides the header). Returns the new state. */
+  toggleFullscreen(): boolean {
+    this.fullscreen = !this.fullscreen;
+    return this.fullscreen;
+  }
+
+  /** Gen 58: whether fullscreen stream mode is active. */
+  isFullscreen(): boolean {
+    return this.fullscreen;
   }
 
   /** Gen 50: whether the diff-only view is active. */
@@ -300,107 +314,111 @@ export class QuestExpandView {
   render(quest: Quest, width: number): string[] {
     const lines: string[] = [];
 
-    // Gen 14: scroll position indicator — shows where the viewport sits in the
-    // stream, and flags when the user has scrolled away from the live tail.
-    // Gen 50: counts reflect the active buffer (diff-only or full stream).
-    const total = this.activeBuffer().length;
-    const maxOffset = Math.max(0, total - this.maxVisibleLines);
-    const atBottom = this.scrollOffset >= maxOffset;
-    const scrollInfo =
-      total <= this.maxVisibleLines
-        ? `${String(total)} lines`
-        : `${String(this.scrollOffset + 1)}–${String(Math.min(total, this.scrollOffset + this.maxVisibleLines))}/${String(total)}`;
-    const scrollTag = atBottom ? scrollInfo : `${scrollInfo} ↑`;
-    // Gen 50: flag the diff-only view in the header so the mode is obvious.
-    const diffTag = this.diffOnly ? '  ≡ diff' : '';
-    // Gen 57: flag when auto-follow is paused so the parked state is obvious.
-    const followTag = this.followTail ? '' : '  ⏸ paused';
+    // Gen 58: fullscreen mode skips the header entirely so the stream fills
+    // the whole view. Everything below the header is unchanged.
+    if (!this.fullscreen) {
+      // Gen 14: scroll position indicator — shows where the viewport sits in the
+      // stream, and flags when the user has scrolled away from the live tail.
+      // Gen 50: counts reflect the active buffer (diff-only or full stream).
+      const total = this.activeBuffer().length;
+      const maxOffset = Math.max(0, total - this.maxVisibleLines);
+      const atBottom = this.scrollOffset >= maxOffset;
+      const scrollInfo =
+        total <= this.maxVisibleLines
+          ? `${String(total)} lines`
+          : `${String(this.scrollOffset + 1)}–${String(Math.min(total, this.scrollOffset + this.maxVisibleLines))}/${String(total)}`;
+      const scrollTag = atBottom ? scrollInfo : `${scrollInfo} ↑`;
+      // Gen 50: flag the diff-only view in the header so the mode is obvious.
+      const diffTag = this.diffOnly ? '  ≡ diff' : '';
+      // Gen 57: flag when auto-follow is paused so the parked state is obvious.
+      const followTag = this.followTail ? '' : '  ⏸ paused';
 
-    // Gen 16: append search status to the header when a search is active.
-    const searchStatus = this.getSearchStatus();
-    const searchTag =
-      searchStatus !== null
-        ? `  /${searchStatus.query} ${String(searchStatus.current)}/${String(searchStatus.total)}`
-        : '';
+      // Gen 16: append search status to the header when a search is active.
+      const searchStatus = this.getSearchStatus();
+      const searchTag =
+        searchStatus !== null
+          ? `  /${searchStatus.query} ${String(searchStatus.current)}/${String(searchStatus.total)}`
+          : '';
 
-    // Gen 11: rich header with quest metadata
-    // Gen 35: colorize the state badge so the expand view matches the cells.
-    const stateToken = questStateColorToken(quest.state);
-    const badgeText = `[${quest.state}]`;
-    const headerPrefix = `── ${quest.name} `;
-    const headerSuffix = `  ${scrollTag}${searchTag}${diffTag}${followTag} ──`;
-    const plainHeader = `${headerPrefix}${badgeText}${headerSuffix}`;
-    const headerLine1 =
-      plainHeader.length > width
-        ? plainHeader.slice(0, width)
-        : `${currentTheme.dim(headerPrefix)}${currentTheme.fg(stateToken, badgeText)}${currentTheme.dim(headerSuffix)}`;
-    lines.push(headerLine1);
+      // Gen 11: rich header with quest metadata
+      // Gen 35: colorize the state badge so the expand view matches the cells.
+      const stateToken = questStateColorToken(quest.state);
+      const badgeText = `[${quest.state}]`;
+      const headerPrefix = `── ${quest.name} `;
+      const headerSuffix = `  ${scrollTag}${searchTag}${diffTag}${followTag} ──`;
+      const plainHeader = `${headerPrefix}${badgeText}${headerSuffix}`;
+      const headerLine1 =
+        plainHeader.length > width
+          ? plainHeader.slice(0, width)
+          : `${currentTheme.dim(headerPrefix)}${currentTheme.fg(stateToken, badgeText)}${currentTheme.dim(headerSuffix)}`;
+      lines.push(headerLine1);
 
-    // Second header line: worktree + change count + elapsed time (Gen 23)
-    const changes = formatChangeCount(quest.changeCount);
-    const worktree = quest.worktreePath.length > 40
-      ? `…${quest.worktreePath.slice(-39)}`
-      : quest.worktreePath;
-    const now = Date.now();
-    const elapsed = `⏱ ${formatElapsed(Math.max(0, now - quest.createdAt))}`;
-    const idle = `idle ${formatElapsed(Math.max(0, now - quest.lastActivityAt))}`;
-    // Gen 33: show how long the quest has been left unattended when it is in
-    // an attention state, so the operator can triage by neglect duration.
-    const dwell =
-      quest.attentionEnteredAt !== undefined
-        ? `  ⏳ waiting ${formatElapsed(Math.max(0, now - quest.attentionEnteredAt))}`
-        : '';
-    const headerLine2 = `   ${worktree}  ${changes}  ${elapsed}  ${idle}${dwell}`;
-    lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
+      // Second header line: worktree + change count + elapsed time (Gen 23)
+      const changes = formatChangeCount(quest.changeCount);
+      const worktree = quest.worktreePath.length > 40
+        ? `…${quest.worktreePath.slice(-39)}`
+        : quest.worktreePath;
+      const now = Date.now();
+      const elapsed = `⏱ ${formatElapsed(Math.max(0, now - quest.createdAt))}`;
+      const idle = `idle ${formatElapsed(Math.max(0, now - quest.lastActivityAt))}`;
+      // Gen 33: show how long the quest has been left unattended when it is in
+      // an attention state, so the operator can triage by neglect duration.
+      const dwell =
+        quest.attentionEnteredAt !== undefined
+          ? `  ⏳ waiting ${formatElapsed(Math.max(0, now - quest.attentionEnteredAt))}`
+          : '';
+      const headerLine2 = `   ${worktree}  ${changes}  ${elapsed}  ${idle}${dwell}`;
+      lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
 
-    // Third header line: todo progress + context usage + model/cost + plan step
-    // Gen 36: mini-bars match the dashboard cells for consistent scanning.
-    const progressParts: string[] = [];
-    if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
-      const { done, total } = quest.todoProgress;
-      progressParts.push(renderTodoBar(done, total));
-    }
-    if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
-      progressParts.push(renderContextBar(quest.contextUsage));
-    }
-    // Gen 53: health mini-bar, matching the dashboard cells (Gen 52).
-    progressParts.push(renderHealthBar(questHealthScore(quest, Date.now())));
-    // Gen 38: model name + session cost, matching the dashboard cells.
-    if (quest.modelName !== undefined && quest.modelName.length > 0) {
-      progressParts.push(quest.modelName);
-    }
-    if (quest.sessionCostUsd !== undefined && quest.sessionCostUsd > 0) {
-      progressParts.push(`$${quest.sessionCostUsd.toFixed(2)}`);
-    }
-    const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
-    // Gen 13: surface the pending approval in the header when awaiting one.
-    // Gen 39: surface the last error message for failed quests.
-    // Gen 40: colorize the step text by severity (warning/error/muted).
-    let stepText: string;
-    let stepToken: 'warning' | 'error' | 'muted';
-    if (quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined) {
-      stepText = `⚡ ${quest.pendingApprovalSummary}`;
-      stepToken = 'warning';
-    } else if (quest.state === 'failed' && quest.lastErrorMessage !== undefined) {
-      stepText = `✗ ${quest.lastErrorMessage}`;
-      stepToken = 'error';
-    } else {
-      stepText = `▸ ${quest.planStep}`;
-      stepToken = 'muted';
-    }
-    const plainLine3 = `   ${progress}${stepText}`;
-    const coloredStep =
-      stepToken === 'warning'
-        ? currentTheme.fg('warning', stepText)
-        : stepToken === 'error'
-          ? currentTheme.fg('error', stepText)
-          : currentTheme.dim(stepText);
-    const headerLine3 =
-      plainLine3.length > width ? plainLine3.slice(0, width) : `   ${progress}${coloredStep}`;
-    lines.push(headerLine3);
+      // Third header line: todo progress + context usage + model/cost + plan step
+      // Gen 36: mini-bars match the dashboard cells for consistent scanning.
+      const progressParts: string[] = [];
+      if (quest.todoProgress !== undefined && quest.todoProgress.total > 0) {
+        const { done, total } = quest.todoProgress;
+        progressParts.push(renderTodoBar(done, total));
+      }
+      if (quest.contextUsage !== undefined && quest.contextUsage > 0) {
+        progressParts.push(renderContextBar(quest.contextUsage));
+      }
+      // Gen 53: health mini-bar, matching the dashboard cells (Gen 52).
+      progressParts.push(renderHealthBar(questHealthScore(quest, Date.now())));
+      // Gen 38: model name + session cost, matching the dashboard cells.
+      if (quest.modelName !== undefined && quest.modelName.length > 0) {
+        progressParts.push(quest.modelName);
+      }
+      if (quest.sessionCostUsd !== undefined && quest.sessionCostUsd > 0) {
+        progressParts.push(`$${quest.sessionCostUsd.toFixed(2)}`);
+      }
+      const progress = progressParts.length > 0 ? progressParts.join('  ') + '  ' : '';
+      // Gen 13: surface the pending approval in the header when awaiting one.
+      // Gen 39: surface the last error message for failed quests.
+      // Gen 40: colorize the step text by severity (warning/error/muted).
+      let stepText: string;
+      let stepToken: 'warning' | 'error' | 'muted';
+      if (quest.state === 'waiting-approval' && quest.pendingApprovalSummary !== undefined) {
+        stepText = `⚡ ${quest.pendingApprovalSummary}`;
+        stepToken = 'warning';
+      } else if (quest.state === 'failed' && quest.lastErrorMessage !== undefined) {
+        stepText = `✗ ${quest.lastErrorMessage}`;
+        stepToken = 'error';
+      } else {
+        stepText = `▸ ${quest.planStep}`;
+        stepToken = 'muted';
+      }
+      const plainLine3 = `   ${progress}${stepText}`;
+      const coloredStep =
+        stepToken === 'warning'
+          ? currentTheme.fg('warning', stepText)
+          : stepToken === 'error'
+            ? currentTheme.fg('error', stepText)
+            : currentTheme.dim(stepText);
+      const headerLine3 =
+        plainLine3.length > width ? plainLine3.slice(0, width) : `   ${progress}${coloredStep}`;
+      lines.push(headerLine3);
 
-    // Separator
-    lines.push('─'.repeat(Math.min(width, 60)));
+      // Separator
+      lines.push('─'.repeat(Math.min(width, 60)));
+    }
 
     // Gen 48: placeholder when the active buffer has no output yet.
     const buffer = this.activeBuffer();
