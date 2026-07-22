@@ -345,6 +345,80 @@ rename to docs/README.md
   const singleState = acEngine.complete('/stat', 5);
   console.log(`  "/stat" → inline: "${singleState.inlinePreview ?? 'none'}"`);
 
+  // ─── 16. Keybinding Manager ───────────────────────────────────────
+  console.log('\n\x1b[1;33m── KeybindingManager ──\x1b[0m');
+  const { KeybindingManager, createDefaultKeybindings } = await import('../apps/liora/src/tui/utils/keybinding-manager.ts');
+  const keyMgr = new KeybindingManager();
+  keyMgr.registerDefaults(createDefaultKeybindings());
+  console.log(`  Registered: ${keyMgr.getAllBindings().length} bindings`);
+  // Parse test
+  const parsed = keyMgr.parseKey('Ctrl+Shift+P');
+  console.log(`  Parse "Ctrl+Shift+P": ctrl=${parsed.ctrl} shift=${parsed.shift} key=${parsed.key}`);
+  console.log(`  Symbol: ${keyMgr.formatSymbol(parsed)}`);
+  // Chord
+  const chord = keyMgr.parseSequence('Ctrl+K Ctrl+C');
+  console.log(`  Chord: ${chord.map((k) => keyMgr.formatSymbol(k)).join(' ')}`);
+  // Resolve
+  const result = keyMgr.resolve(keyMgr.parseKey('Ctrl+Shift+P'));
+  console.log(`  Resolve Ctrl+Shift+P → ${result.command}`);
+  // Conflict detection
+  const conflicts = keyMgr.detectConflicts();
+  console.log(`  Conflicts: ${conflicts.length}`);
+  // Render list (first 8 lines)
+  const kbLines = keyMgr.renderList({ fg, boldFg, dimFg, maxWidth: 60 });
+  for (const line of kbLines.slice(0, 10)) console.log(`  ${line}`);
+
+  // ─── 17. Animation Scheduler ──────────────────────────────────────
+  console.log('\n\x1b[1;33m── AnimationScheduler ──\x1b[0m');
+  const { AnimationScheduler, Easing } = await import('../apps/liora/src/tui/utils/animation-scheduler.ts');
+  const animSched = new AnimationScheduler();
+  // Easing demo
+  const easingNames = ['linear', 'easeOutCubic', 'easeOutElastic', 'easeOutBounce', 'spring'] as const;
+  console.log('  Easing curves (t=0.5):');
+  for (const name of easingNames) {
+    const val = Easing[name](0.5);
+    const bar = '█'.repeat(Math.round(val * 20));
+    console.log(`    ${name.padEnd(16)} ${bar} ${val.toFixed(3)}`);
+  }
+  // Tween demo
+  let tweenValue = 0;
+  animSched.tween({ from: 0, to: 100, duration: 1000, easing: Easing.easeOutCubic, onUpdate: (v) => { tweenValue = v; } });
+  animSched.tick();
+  console.log(`  Tween after tick: ${tweenValue.toFixed(1)}`);
+  // Particles
+  animSched.emitConfetti(40, 10);
+  animSched.tick();
+  console.log(`  Particles: ${animSched.particleCount} (after confetti)`);
+  const particleRenders = animSched.renderParticles();
+  console.log(`  Rendered: ${particleRenders.length} particles, first: (${particleRenders[0]?.x},${particleRenders[0]?.y}) ${particleRenders[0]?.char}`);
+  // Debug overlay
+  const animDebug = animSched.renderDebug({ fg, dimFg });
+  for (const line of animDebug) console.log(`  ${line}`);
+
+  // ─── 18. Dynamic Status Bar ───────────────────────────────────────
+  console.log('\n\x1b[1;33m── DynamicStatusBar ──\x1b[0m');
+  const { DynamicStatusBar } = await import('../apps/liora/src/tui/utils/dynamic-status-bar.ts');
+  const statusBar = new DynamicStatusBar();
+  statusBar.update({
+    mode: 'agent',
+    git: { branch: 'main', ahead: 2, behind: 0, modified: 3, staged: 1, conflicts: 0 },
+    agent: { state: 'working', task: 'Building TUI modules', progress: 0.65, elapsedMs: 185000 },
+    context: { usedTokens: 145000, budgetTokens: 200000, pressure: 'medium' },
+    sessionCount: 3,
+    errors: 0,
+    warnings: 2,
+    notifications: 4,
+    clock: '14:32',
+    keyHints: [{ keys: '⌃C', action: 'interrupt' }, { keys: '⌃↵', action: 'approve' }],
+  });
+  statusBar.tick();
+  const sbLines = statusBar.renderFull({ width: 70, fg, boldFg, dimFg, bg });
+  for (const line of sbLines) console.log(`  ${line}`);
+  // Mode change
+  statusBar.setMode('insert');
+  const sbInsert = statusBar.render({ width: 70, fg, boldFg, dimFg, bg });
+  console.log(`  Insert mode: ${sbInsert}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
