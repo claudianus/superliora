@@ -8,6 +8,7 @@ import {
   formatEscalationSummary,
   formatEscalatedAttentionSummary,
   formatEscalatedTriageLines,
+  formatFleetHealthSummary,
   formatFleetStateSummary,
   formatHealthLabel,
   formatStripBlinkLabel,
@@ -384,5 +385,34 @@ describe('formatHealthLabel (Gen 68)', () => {
       lastActivityAt: now - 30 * 60 * 1000, // 30 minutes idle
     });
     expect(formatHealthLabel(stale, now).score).toBeLessThan(formatHealthLabel(fresh, now).score);
+  });
+});
+
+describe('formatFleetHealthSummary (Gen 69)', () => {
+  it('returns null when there are no quests', () => {
+    expect(formatFleetHealthSummary([], 100_000)).toBeNull();
+  });
+
+  it('averages the per-quest health scores', () => {
+    const now = 100_000;
+    const quests = [
+      makeQuest('a', { state: 'running', lastActivityAt: now }),
+      makeQuest('b', { state: 'running', lastActivityAt: now }),
+    ];
+    const summary = formatFleetHealthSummary(quests, now);
+    expect(summary).not.toBeNull();
+    // Both quests are fresh and running, so the average should be high.
+    expect(summary).toMatch(/^avg ♥ \d+$/);
+  });
+
+  it('reflects a degraded fleet', () => {
+    const now = 100_000;
+    const fresh = [makeQuest('a', { state: 'running', lastActivityAt: now })];
+    const stale = [
+      makeQuest('a', { state: 'running', lastActivityAt: now - 30 * 60 * 1000 }),
+    ];
+    const freshAvg = Number(formatFleetHealthSummary(fresh, now)!.replace('avg ♥ ', ''));
+    const staleAvg = Number(formatFleetHealthSummary(stale, now)!.replace('avg ♥ ', ''));
+    expect(staleAvg).toBeLessThan(freshAvg);
   });
 });

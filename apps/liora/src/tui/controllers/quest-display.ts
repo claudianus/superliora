@@ -258,3 +258,16 @@ export function formatHealthLabel(quest: Quest, now: number = Date.now()): Healt
     text: `♥ ${String(score)}`,
   };
 }
+
+/**
+ * Gen 69: a fleet-wide average health label, e.g. "avg ♥ 78". Averages the
+ * per-quest health scores (rounded to a whole number) so the summary bar can
+ * show overall fleet health at a glance. Returns null when there are no
+ * quests so callers can hide the segment entirely.
+ */
+export function formatFleetHealthSummary(quests: readonly Quest[], now: number = Date.now()): string | null {
+  if (quests.length === 0) return null;
+  const total = quests.reduce<number>((sum, quest) => sum + questHealthScore(quest, now), 0);
+  const average = Math.round(total / quests.length);
+  return `avg ♥ ${String(average)}`;
+}
