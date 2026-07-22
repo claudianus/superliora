@@ -13,6 +13,18 @@ import { UpdatePreferenceSelectorComponent } from '#/tui/components/dialogs/upda
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 
+// Disable ambient effects for deterministic pointer/shimmer rendering.
+vi.mock('#/tui/utils/appearance-effects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/utils/appearance-effects')>();
+  return {
+    ...actual,
+    shouldRenderAmbientEffects: () => false,
+    renderShimmerPrefix: () => '',
+    renderAnimatedGradientText: (s: string) => s,
+    renderPulseText: (s: string) => s,
+  };
+});
+
 const ANSI_SGR = /\[[0-9;]*m/g;
 
 function strip(text: string): string {

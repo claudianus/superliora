@@ -46,6 +46,8 @@ describe('FooterComponent', () => {
 
   beforeEach(() => {
     chalk.level = 3;
+    // Disable ambient effects so ANSI animations don't split text tokens
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
   });
 
   afterEach(() => {
@@ -53,7 +55,11 @@ describe('FooterComponent', () => {
   });
 
   it('renders the premium badge when premium quality mode is on', () => {
-    const footer = new FooterComponent({ ...appState, premiumQualityMode: true });
+    const footer = new FooterComponent({
+      ...appState,
+      premiumQualityMode: true,
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
     const rendered = footer.render(120).join('\n');
     expect(rendered).toContain('premium');
   });
