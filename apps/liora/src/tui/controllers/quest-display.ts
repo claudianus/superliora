@@ -47,3 +47,19 @@ export function formatEscalationBadge(level: EscalationLevel, dwellMs: number | 
   const dwell = dwellMs === null ? '' : ` ${formatElapsed(dwellMs)}`;
   return `${icon}${dwell}`;
 }
+
+/**
+ * Gen 55: one-line escalation summary for the dashboard bar, e.g.
+ * "2 escalated (1 critical)". Returns null when nothing is escalated so
+ * callers can hide the segment entirely. The critical count is called out
+ * separately so the operator can tell at a glance whether any quest has been
+ * ignored long enough to be critical.
+ */
+export function formatEscalationSummary(levels: readonly EscalationLevel[]): string | null {
+  const escalated = levels.filter((level) => level > 0);
+  if (escalated.length === 0) return null;
+  const criticalCount = escalated.filter((level) => level === 2).length;
+  const base = `${String(escalated.length)} escalated`;
+  if (criticalCount === 0) return base;
+  return `${base} (${String(criticalCount)} critical)`;
+}

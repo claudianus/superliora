@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatAttentionSummary, formatEscalationBadge, formatUrgencyRank } from '#/tui/controllers/quest-display';
+import { formatAttentionSummary, formatEscalationBadge, formatEscalationSummary, formatUrgencyRank } from '#/tui/controllers/quest-display';
 import type { AttentionSummary } from '#/tui/controllers/attention-controller';
 import type { Quest } from '#/tui/controllers/quest-types';
 
@@ -102,5 +102,24 @@ describe('formatEscalationBadge (Gen 54)', () => {
 
   it('formats sub-minute dwell in seconds', () => {
     expect(formatEscalationBadge(1, 45_000)).toBe('⚠ 45s');
+  });
+});
+
+describe('formatEscalationSummary (Gen 55)', () => {
+  it('returns null when nothing is escalated', () => {
+    expect(formatEscalationSummary([])).toBeNull();
+    expect(formatEscalationSummary([0, 0, 0])).toBeNull();
+  });
+
+  it('reports the escalated count alone when none are critical', () => {
+    expect(formatEscalationSummary([1, 1, 0])).toBe('2 escalated');
+  });
+
+  it('calls out the critical count separately', () => {
+    expect(formatEscalationSummary([1, 2, 2, 0])).toBe('3 escalated (2 critical)');
+  });
+
+  it('reports a single critical quest', () => {
+    expect(formatEscalationSummary([2])).toBe('1 escalated (1 critical)');
   });
 });
