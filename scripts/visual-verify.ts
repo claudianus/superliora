@@ -202,6 +202,67 @@ async function main() {
   const perfLines = perfMon.render(opts);
   for (const line of perfLines) console.log(`  ${line}`);
 
+  // ─── 10. Markdown Renderer ────────────────────────────────────────
+  console.log('\n\x1b[1;33m── MarkdownRenderer ──\x1b[0m');
+  const { MarkdownRenderer } = await import('../apps/liora/src/tui/utils/markdown-renderer.ts');
+  const mdRenderer = new MarkdownRenderer();
+  const mdSample = `# SuperLiora TUI\n\n## Features\n\n- **Bold** and *italic* text\n- ~~Strikethrough~~ and \`inline code\`\n- [Links](https://example.com)\n\n> This is a blockquote\n> with multiple lines\n\n\`\`\`typescript\nconst x = 42;\nconsole.log(x);\n\`\`\`\n\n| Name | Status |\n|------|--------|\n| Build | ✓ Pass |\n| Test  | ✓ Pass |\n\n1. First item\n2. Second item\n3. Third item\n\n- [x] Done task\n- [ ] Pending task\n\n---\n\nFinal paragraph.`;
+  const mdLines = mdRenderer.render(mdSample, { width: 60, fg, boldFg, dimFg, bg, codeLineNumbers: true });
+  for (const line of mdLines) console.log(`  ${line}`);
+
+  // ─── 11. Input History ────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── InputHistory ──\x1b[0m');
+  const { InputHistory } = await import('../apps/liora/src/tui/utils/input-history.ts');
+  const history = new InputHistory();
+  history.push('git commit -m "feat: add theme engine"');
+  history.push('pnpm run build');
+  history.push('git push origin main');
+  history.push('npx tsc --noEmit');
+  history.push('git add -A');
+  history.push('pnpm test');
+  history.push('git commit -m "fix: resolve padding"');
+  history.push('pnpm run lint');
+  console.log(`  History size: ${history.size}`);
+  console.log(`  Recent(3): ${history.getRecent(3).map((e) => e.text).join(' | ')}`);
+  console.log(`  Frequent: ${history.getFrequent(2).map((e) => `${e.text}(${e.count})`).join(' | ')}`);
+  // Search demo
+  history.startSearch('incremental');
+  history.searchType('g');
+  history.searchType('i');
+  history.searchType('t');
+  const searchLines = history.renderSearch(fg, boldFg, dimFg, 60);
+  console.log('  Search "git":');
+  for (const line of searchLines) console.log(`    ${line}`);
+  history.endSearch();
+  // Navigation demo
+  const up1 = history.navigateUp();
+  const up2 = history.navigateUp();
+  console.log(`  Nav up: ${up1} → ${up2}`);
+
+  // ─── 12. Theme Engine ─────────────────────────────────────────────
+  console.log('\n\x1b[1;33m── ThemeEngine ──\x1b[0m');
+  const { ThemeEngine } = await import('../apps/liora/src/tui/utils/theme-engine.ts');
+  const themeEngine = new ThemeEngine('dark');
+  console.log(`  Current: ${themeEngine.getCurrent().name} (${themeEngine.currentId})`);
+  console.log(`  Available: ${themeEngine.getThemes().map((t) => t.id).join(', ')}`);
+  // Color utilities
+  const primary = themeEngine.getColor('primary');
+  const bgC = themeEngine.getColor('bg');
+  console.log(`  Primary: rgb(${primary.r},${primary.g},${primary.b}) → 256-color: ${themeEngine.to256Color(primary)}`);
+  console.log(`  Contrast primary/bg: ${themeEngine.contrastRatio(primary, bgC).toFixed(2)}:1`);
+  // Theme preview
+  const renderOpts = { fg, boldFg, dimFg, bg };
+  const previewLines = themeEngine.renderPreview(themeEngine.getCurrent(), renderOpts);
+  console.log('  Preview:');
+  for (const line of previewLines) console.log(`    ${line}`);
+  // Cycle theme
+  const next = themeEngine.cycleTheme();
+  console.log(`  After cycle: ${next.name}`);
+  // Theme list
+  const listLines = themeEngine.renderThemeList(renderOpts);
+  console.log('  Theme list:');
+  for (const line of listLines) console.log(`    ${line}`);
+
   console.log('\n\x1b[1;36m═══ VERIFICATION COMPLETE ═══\x1b[0m\n');
 }
 
