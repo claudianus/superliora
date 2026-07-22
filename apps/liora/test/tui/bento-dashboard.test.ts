@@ -502,6 +502,40 @@ describe('Gen 90: focus previous problem quest', () => {
   });
 });
 
+describe('Gen 94: focus next context-risk quest', () => {
+  it('focusNextCtxRisk cycles through quests at risk of context exhaustion', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { contextUsage: 0.3 }));
+    ctrl.addQuest(makeQuest('b', { contextUsage: 0.85 }));
+    ctrl.addQuest(makeQuest('c', { contextUsage: 0.96 }));
+    ctrl.addQuest(makeQuest('d', { contextUsage: 0.5 }));
+
+    // Only b (85%) and c (96%) are at risk (>=80%).
+    ctrl.focusNextCtxRisk();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+    ctrl.focusNextCtxRisk();
+    expect(ctrl.getFocusedQuestId()).toBe('c');
+    ctrl.focusNextCtxRisk();
+    expect(ctrl.getFocusedQuestId()).toBe('b');
+  });
+
+  it('focusNextCtxRisk is a no-op when no quest is at risk', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { contextUsage: 0.3 }));
+    ctrl.addQuest(makeQuest('b', { contextUsage: 0.5 }));
+    ctrl.setFocusedQuest('a');
+
+    ctrl.focusNextCtxRisk();
+    expect(ctrl.getFocusedQuestId()).toBe('a');
+  });
+
+  it('focusNextCtxRisk is a no-op when nothing is visible', () => {
+    const ctrl = makeController();
+    ctrl.focusNextCtxRisk();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 63: focus most expensive quest', () => {
   it('focuses the quest with the highest session cost', () => {
     const ctrl = makeController();

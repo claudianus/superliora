@@ -321,6 +321,24 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 94: jump focus to the next quest at risk of context exhaustion
+   * (>=80% usage), cycling within that subset only. No-op when none are at risk.
+   */
+  focusNextCtxRisk(): void {
+    const ids = this.sortedQuestIds();
+    const riskIds = ids.filter((id) => {
+      const quest = this.quests.get(id);
+      if (quest === undefined || quest.contextUsage === undefined) return false;
+      return contextSeverityToken(quest.contextUsage) !== 'success';
+    });
+    if (riskIds.length === 0) return;
+    const currentIdx = riskIds.indexOf(this.focusedQuestId ?? '');
+    const nextIdx = (currentIdx + 1) % riskIds.length;
+    this.focusedQuestId = riskIds[nextIdx]!;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 25: move focus to the next quest that needs attention
    * (waiting-approval or failed), cycling within that subset only.
    * No-op when no quest needs attention.
