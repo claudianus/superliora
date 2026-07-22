@@ -59,6 +59,8 @@ export class QuestGridController {
   private readonly requestRender: () => void;
   // Gen 24: dashboard filter query (matches name or state).
   private filterQuery = '';
+  // Gen 26: show only attention-needing quests.
+  private attentionOnly = false;
 
   constructor(options: QuestGridControllerOptions) {
     this.getViewport = options.getViewport;
@@ -232,6 +234,8 @@ export class QuestGridController {
     const query = this.filterQuery.trim().toLowerCase();
     return [...this.quests.values()]
       .filter((q) => {
+        // Gen 26: attention-only mode hides healthy quests.
+        if (this.attentionOnly && !ATTENTION_STATES.has(q.state)) return false;
         if (query === '') return true;
         return (
           q.name.toLowerCase().includes(query) ||
@@ -258,6 +262,36 @@ export class QuestGridController {
   /** Get the active filter query. */
   getFilter(): string {
     return this.filterQuery;
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 26: Attention-only toggle
+  // -------------------------------------------------------------------------
+
+  /** Toggle whether the dashboard shows only attention quests. */
+  toggleAttentionOnly(): void {
+    this.attentionOnly = !this.attentionOnly;
+    this.recomputeLayout();
+  }
+
+  /** Whether attention-only mode is active. */
+  isAttentionOnly(): boolean {
+    return this.attentionOnly;
+  }
+
+  // -------------------------------------------------------------------------
+  // Gen 26: Attention-only toggle
+  // -------------------------------------------------------------------------
+
+  /** Toggle (or set) attention-only mode: show only quests needing attention. */
+  setAttentionOnly(enabled: boolean): void {
+    this.attentionOnly = enabled;
+    this.recomputeLayout();
+  }
+
+  /** Whether attention-only mode is active. */
+  isAttentionOnly(): boolean {
+    return this.attentionOnly;
   }
 
   // -------------------------------------------------------------------------

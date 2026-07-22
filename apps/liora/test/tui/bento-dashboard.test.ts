@@ -254,3 +254,40 @@ describe('Gen 25: jump to next attention quest (Tab)', () => {
     expect(ctrl.getFocusedQuestId()).toBe('c');
   });
 });
+
+describe('Gen 26: attention-only toggle', () => {
+  it('shows only attention quests when enabled', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'waiting-approval' }));
+    ctrl.addQuest(makeQuest('c', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('d', { state: 'idle' }));
+
+    expect(ctrl.isAttentionOnly()).toBe(false);
+    ctrl.toggleAttentionOnly();
+    expect(ctrl.isAttentionOnly()).toBe(true);
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['b', 'c']);
+  });
+
+  it('toggles back to show all quests', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { state: 'running' }));
+    ctrl.addQuest(makeQuest('b', { state: 'failed' }));
+
+    ctrl.toggleAttentionOnly();
+    expect(ctrl.getQuests()).toHaveLength(1);
+    ctrl.toggleAttentionOnly();
+    expect(ctrl.getQuests()).toHaveLength(2);
+  });
+
+  it('combines with the text filter', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('auth-bug', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('login-fix', { state: 'failed' }));
+    ctrl.addQuest(makeQuest('auth-tests', { state: 'running' }));
+
+    ctrl.toggleAttentionOnly();
+    ctrl.setFilter('auth');
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['auth-bug']);
+  });
+});

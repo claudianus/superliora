@@ -274,6 +274,18 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 26: ! → toggle attention-only view.
+    if (k === '!') {
+      this.gridController.toggleAttentionOnly();
+      return;
+    }
+
+    // Gen 26: ! → toggle attention-only view.
+    if (k === '!') {
+      this.gridController.setAttentionOnly(!this.gridController.isAttentionOnly());
+      return;
+    }
+
     // Enter or p → toggle pin on focused quest
     if (matchesKey(data, Key.enter) || k === 'p') {
       const focusedId = this.gridController.getFocusedQuestId();
@@ -347,6 +359,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
       : [
           ['j / k  ↓ ↑', 'Move focus between quests'],
           ['Tab', 'Jump to the next quest needing attention'],
+          ['!', 'Toggle attention-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
           ['a / x / r', 'Approve / reject / rewind focused quest'],
@@ -380,6 +393,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (totalCost > 0) {
       summaryParts.push(`$${totalCost.toFixed(2)}`);
     }
+    // Gen 26: indicate when attention-only mode is active.
+    if (this.gridController.isAttentionOnly()) {
+      summaryParts.push('⚠ attention-only');
+    }
     const summary = `  ${summaryParts.join('  ·  ')}`;
     lines.push(currentTheme.fg(attentionCount > 0 ? 'warning' : 'textMuted', clip(summary, width)));
 
@@ -394,6 +411,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
           clip(`  filter: "${this.filterBuffer}" · ${String(quests.length)}/${String(total)} shown · / edit · Esc clear`, width),
         ),
       );
+    }
+    // Gen 26: attention-only chip.
+    if (this.gridController.isAttentionOnly()) {
+      lines.push(currentTheme.fg('warning', clip('  ⚡ attention-only view · ! to show all', width)));
     }
     lines.push('');
 
