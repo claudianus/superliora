@@ -190,6 +190,13 @@ export class SessionEventHandler {
    */
   private sessionChangeCounts = new Map<string, { added: number; removed: number }>();
 
+  /**
+   * Gen 7: A short description of what the main session is doing right now
+   * (e.g. "Edit — src/foo.ts"), surfaced in the quest cell's plan step so the
+   * dashboard shows live activity instead of a static "Working…".
+   */
+  private currentActivity: string | undefined;
+
   renderedSkillActivationIds: Set<string> = new Set();
   renderedPluginCommandActivationIds: Set<string> = new Set();
   renderedMcpServerStatusKeys: Map<string, string> = new Map();
@@ -550,6 +557,8 @@ export class SessionEventHandler {
     if (this.onQuestStreamLine !== undefined) {
       this.onQuestStreamLine(`✓ turn ended (${event.reason})`);
     }
+    // Gen 7: clear the live activity now that the turn is done.
+    this.currentActivity = undefined;
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
     const todos = this.host.state.todoPanel.getTodos();
@@ -793,6 +802,14 @@ export class SessionEventHandler {
           ? `▸ ${event.name} — ${detail}`
           : `▸ ${event.name}`,
       );
+    }
+    // Gen 7: record the current activity for the quest cell's plan step.
+    {
+      const detail = event.description ?? summarizeArgs(toolCall.args);
+      this.currentActivity =
+        detail !== undefined && detail.length > 0
+          ? `${event.name} — ${detail}`
+          : event.name;
     }
     // Gen 3/6: render Edit/Write tool diffs inline in the expand view so the
     // user sees the actual code change, not just a "▸ Edit/Write" line.
@@ -1467,6 +1484,11 @@ export class SessionEventHandler {
   getSessionChangeCount(): { added: number; removed: number } {
     const sessionId = this.host.state.appState.sessionId ?? 'unknown';
     return this.sessionChangeCounts.get(sessionId) ?? { added: 0, removed: 0 };
+  }
+
+  /** Get the current activity description for the quest cell (Gen 7). */
+  getCurrentActivity(): string | undefined {
+    return this.currentActivity;
   }
 
   // ---------------------------------------------------------------------------

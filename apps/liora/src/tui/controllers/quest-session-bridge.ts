@@ -39,6 +39,8 @@ export interface QuestBridgeSnapshot {
   readonly workDir: string;
   /** Accumulated file change count for the main session (Gen 5). */
   readonly sessionChangeCount: { added: number; removed: number };
+  /** Live description of what the main session is doing now (Gen 7). */
+  readonly currentActivity: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +118,7 @@ export function syncQuestGridFromSnapshot(
     snapshot.isCompacting,
   );
   const existingMain = gridController.getQuest(mainQuestId);
+  const mainPlanStep = describeMainPlanStep(snapshot);
   if (existingMain === undefined) {
     gridController.addQuest({
       id: mainQuestId,
@@ -125,7 +128,7 @@ export function syncQuestGridFromSnapshot(
       createdAt: now,
       lastActivityAt: now,
       changeCount: snapshot.sessionChangeCount,
-      planStep: snapshot.streamingPhase === 'idle' ? 'Waiting for input' : 'Working…',
+      planStep: mainPlanStep,
       worktreePath: snapshot.workDir,
       pinned: false,
       approvalPending: snapshot.approvalPending,
@@ -141,6 +144,10 @@ export function syncQuestGridFromSnapshot(
     const next = snapshot.sessionChangeCount;
     if (cc.added !== next.added || cc.removed !== next.removed) {
       gridController.updateQuestChanges(mainQuestId, next);
+    }
+    // Gen 7: keep the plan step live so the cell shows current activity.
+    if (existingMain.planStep !== mainPlanStep) {
+      gridController.updateQuestPlanStep(mainQuestId, mainPlanStep);
     }
   }
 
@@ -203,5 +210,30 @@ function describeTaskStep(info: BackgroundTaskInfo): string {
       const _exhaustive: never = info;
       return _exhaustive;
     }
+  }
+}
+
+/**
+ * Gen 7: describe the main session's current plan step. Prefers the live
+ * activity (current tool call) when running, falling back to a phase label.
+ */
+function describeMainPlanStep(snapshot: QuestBridgeSnapshot): string {
+  if (snapshot.approvalPending) return 'Awaiting approval';
+  if (snapshot.isCompacting) return 'Compacting context';
+  if (snapshot.streamingPhase === 'idle') return 'Waiting for input';
+  if (snapshot.currentActivity !== undefined && snapshot.currentActivity.length > 0) {
+    return snapshot.currentActivity;
+  }
+  switch (snapshot.streamingPhase) {
+    case 'thinking':
+      return 'Thinking…';
+    case 'composing':
+      return 'Composing response…';
+    case 'shell':
+      return 'Running command…';
+    case 'waiting':
+      return 'Working…';
+    default:
+      return 'Working…';
   }
 }

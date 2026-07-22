@@ -4152,6 +4152,7 @@ export class LioraTUI {
       backgroundTasks: this.sessionEventHandler.backgroundTasks,
       workDir: this.state.appState.workDir ?? process.cwd(),
       sessionChangeCount: this.sessionEventHandler.getSessionChangeCount(),
+      currentActivity: this.sessionEventHandler.getCurrentActivity(),
     });
   }
 
