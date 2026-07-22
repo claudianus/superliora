@@ -27,6 +27,7 @@ import {
   type DashboardViewMode,
   type QuestSortMode,
   ATTENTION_STATES,
+  contextSeverityToken,
   nextSortMode,
   questHealthScore,
 } from './quest-types';
@@ -72,6 +73,8 @@ export class QuestGridController {
   private filterQuery = '';
   // Gen 26: show only attention-needing quests.
   private attentionOnly = false;
+  // Gen 75: show only context-at-risk quests (>=80% usage).
+  private ctxRiskOnly = false;
   // Gen 30: active dashboard sort mode.
   private sortMode: QuestSortMode = 'attention';
 
@@ -361,6 +364,13 @@ export class QuestGridController {
     const visible = [...this.quests.values()].filter((q) => {
       // Gen 26: attention-only mode hides healthy quests.
       if (this.attentionOnly && !ATTENTION_STATES.has(q.state)) return false;
+      // Gen 75: context-risk-only mode hides quests below the 80% threshold.
+      if (
+        this.ctxRiskOnly &&
+        (q.contextUsage === undefined || contextSeverityToken(q.contextUsage) === 'success')
+      ) {
+        return false;
+      }
       if (query === '') return true;
       return (
         q.name.toLowerCase().includes(query) ||
@@ -446,6 +456,26 @@ export class QuestGridController {
   }
 
   // -------------------------------------------------------------------------
+  // Gen 75: Context-risk-only mode
+  // -------------------------------------------------------------------------
+
+  /** Set context-risk-only mode: show only quests at/above the 80% threshold. */
+  setCtxRiskOnly(enabled: boolean): void {
+    this.ctxRiskOnly = enabled;
+    this.recomputeLayout();
+  }
+
+  /** Toggle context-risk-only mode. */
+  toggleCtxRiskOnly(): void {
+    this.setCtxRiskOnly(!this.ctxRiskOnly);
+  }
+
+  /** Whether context-risk-only mode is active. */
+  isCtxRiskOnly(): boolean {
+    return this.ctxRiskOnly;
+  }
+
+  // -------------------------------------------------------------------------
   // Gen 30: Sort mode
   // -------------------------------------------------------------------------
 
@@ -468,6 +498,7 @@ export class QuestGridController {
   resetView(): void {
     this.filterQuery = '';
     this.attentionOnly = false;
+    this.ctxRiskOnly = false;
     this.sortMode = 'attention';
     this.recomputeLayout();
   }

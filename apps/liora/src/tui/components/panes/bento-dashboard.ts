@@ -509,6 +509,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 75: # → toggle context-risk-only view.
+    if (k === '#') {
+      this.gridController.toggleCtxRiskOnly();
+      return;
+    }
+
     // Gen 30: s → cycle the dashboard sort mode.
     if (k === 's') {
       this.gridController.cycleSortMode();
@@ -635,6 +641,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['c', 'Show fleet summary overlay'],
           ['D', 'Show fleet changes overlay'],
           ['!', 'Toggle attention-only view'],
+          ['#', 'Toggle context-risk-only view'],
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
           ['s', 'Cycle sort mode (attention/cost/age/name)'],
@@ -848,6 +855,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (this.gridController.isAttentionOnly()) {
       summaryParts.push('⚠ attention-only');
     }
+    // Gen 75: indicate when context-risk-only mode is active.
+    if (this.gridController.isCtxRiskOnly()) {
+      summaryParts.push('# ctx-risk-only');
+    }
     // Gen 30: show the active sort mode when not the default.
     const sortMode = this.gridController.getSortMode();
     if (sortMode !== 'attention') {
@@ -871,6 +882,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 26: attention-only chip.
     if (this.gridController.isAttentionOnly()) {
       lines.push(currentTheme.fg('warning', clip('  ⚡ attention-only view · ! to show all', width)));
+    }
+    // Gen 75: context-risk-only chip.
+    if (this.gridController.isCtxRiskOnly()) {
+      lines.push(currentTheme.fg('warning', clip('  # context-risk-only view · # to show all', width)));
     }
     lines.push('');
 
