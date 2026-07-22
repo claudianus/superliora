@@ -39,6 +39,8 @@ export * from './select-list-contracts';
 export * from './snapshot';
 export * from './stack-layout';
 export * from './styled-text';
+export * from './spring';
+export * from './terminal-advanced';
 export * from './terminal-output';
 export * from './terminal-features';
 export * from './terminal-graphics';

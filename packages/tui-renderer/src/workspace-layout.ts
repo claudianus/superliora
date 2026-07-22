@@ -12,7 +12,7 @@ import {
 
 export type WorkspaceDockId = 'left' | 'right';
 
-export type WorkspaceLayoutMode = 'wide' | 'medium' | 'narrow';
+export type WorkspaceLayoutMode = 'ultrawide' | 'wide' | 'medium' | 'narrow' | 'compact' | 'micro';
 
 export interface WorkspaceLayoutOptions {
   /** Full terminal viewport rect (typically { x: 0, y: 0, width: cols, height: rows }). */
@@ -23,10 +23,16 @@ export interface WorkspaceLayoutOptions {
   readonly rightDockWidth?: number;
   /** Minimum width for the center content area. @default DEFAULT_CENTER_MIN_WIDTH */
   readonly centerMinWidth?: number;
+  /** Column threshold for ultrawide mode (expanded 3-column + breathing room). @default DEFAULT_ULTRAWIDE_BREAKPOINT */
+  readonly ultrawideBreakpoint?: number;
   /** Column threshold for wide mode (3-column). @default DEFAULT_WIDE_BREAKPOINT */
   readonly wideBreakpoint?: number;
   /** Column threshold for medium mode (2-column). @default DEFAULT_MEDIUM_BREAKPOINT */
   readonly mediumBreakpoint?: number;
+  /** Column threshold for compact mode (minimal chrome). @default DEFAULT_COMPACT_BREAKPOINT */
+  readonly compactBreakpoint?: number;
+  /** Column threshold for micro mode (absolute minimum). @default DEFAULT_MICRO_BREAKPOINT */
+  readonly microBreakpoint?: number;
   /** Whether the left dock is visible. @default true */
   readonly leftDockVisible?: boolean;
   /** Whether the right dock is visible. @default true */
@@ -76,13 +82,22 @@ export interface WorkspaceLayoutResult {
 export const DEFAULT_LEFT_DOCK_WIDTH = 42;
 export const DEFAULT_RIGHT_DOCK_WIDTH = 52;
 export const DEFAULT_CENTER_MIN_WIDTH = 60;
+export const DEFAULT_ULTRAWIDE_BREAKPOINT = 220;
 export const DEFAULT_WIDE_BREAKPOINT = 160;
 export const DEFAULT_MEDIUM_BREAKPOINT = 120;
+export const DEFAULT_COMPACT_BREAKPOINT = 80;
+export const DEFAULT_MICRO_BREAKPOINT = 50;
 export const DEFAULT_DOCK_GAP = 2;
 export const DEFAULT_SHELL_INSET_X = 2;
 export const DEFAULT_SHELL_INSET_Y = 1;
 export const DOCK_WIDTH_MIN = 24;
 export const DOCK_WIDTH_MAX = 80;
+
+/** Ultrawide mode gets wider docks for multi-monitor setups. */
+export const ULTRAWIDE_LEFT_DOCK_WIDTH = 56;
+export const ULTRAWIDE_RIGHT_DOCK_WIDTH = 64;
+export const ULTRAWIDE_DOCK_GAP = 3;
+export const ULTRAWIDE_SHELL_INSET_X = 3;
 
 // ---------------------------------------------------------------------------
 // Implementation
@@ -106,33 +121,70 @@ function insetShellRect(
 /**
  * Computes the 2D workspace layout based on terminal width.
  *
+ * - **ultrawide** (>= ultrawideBreakpoint): expanded 3-column with wider docks and breathing room
  * - **wide** (>= wideBreakpoint): `[left-dock | center | right-dock]`
  * - **medium** (>= mediumBreakpoint): `[center | right-dock]`
- * - **narrow** (< mediumBreakpoint): `[center]` only (legacy vertical stack)
+ * - **narrow** (>= compactBreakpoint): `[center]` only (legacy vertical stack)
+ * - **compact** (>= microBreakpoint): minimal chrome, zero inset
+ * - **micro** (< microBreakpoint): absolute minimum viable layout
  */
 export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): WorkspaceLayoutResult {
   const viewport = options.viewport;
   const cols = viewport.width;
 
-  const leftDockWidth = options.leftDockWidth ?? DEFAULT_LEFT_DOCK_WIDTH;
-  const rightDockWidth = options.rightDockWidth ?? DEFAULT_RIGHT_DOCK_WIDTH;
-  const centerMinWidth = options.centerMinWidth ?? DEFAULT_CENTER_MIN_WIDTH;
   const wideBreakpoint = options.wideBreakpoint ?? DEFAULT_WIDE_BREAKPOINT;
   const mediumBreakpoint = options.mediumBreakpoint ?? DEFAULT_MEDIUM_BREAKPOINT;
+  const ultrawideBreakpoint = options.ultrawideBreakpoint ?? DEFAULT_ULTRAWIDE_BREAKPOINT;
+  const compactBreakpoint = options.compactBreakpoint ?? DEFAULT_COMPACT_BREAKPOINT;
+  const microBreakpoint = options.microBreakpoint ?? DEFAULT_MICRO_BREAKPOINT;
+
+  // Determine layout mode from viewport width (terminal size)
+  const mode = resolveLayoutMode(cols, ultrawideBreakpoint, wideBreakpoint, mediumBreakpoint, compactBreakpoint, microBreakpoint);
+
+  // Adaptive insets: zero for compact/micro, reduced for narrow
+  const shellInsetX = mode === 'compact' || mode === 'micro'
+    ? 0
+    : mode === 'narrow'
+      ? Math.min(1, options.shellInsetX ?? DEFAULT_SHELL_INSET_X)
+      : mode === 'ultrawide'
+        ? (options.shellInsetX ?? ULTRAWIDE_SHELL_INSET_X)
+        : (options.shellInsetX ?? DEFAULT_SHELL_INSET_X);
+  const shellInsetY = mode === 'micro' ? 0 : (options.shellInsetY ?? DEFAULT_SHELL_INSET_Y);
+
+  // Adaptive dock gap: wider for ultrawide
+  const dockGap = mode === 'ultrawide'
+    ? (options.dockGap ?? ULTRAWIDE_DOCK_GAP)
+    : mode === 'compact' || mode === 'micro'
+      ? 0
+      : (options.dockGap ?? DEFAULT_DOCK_GAP);
+
+  // Adaptive dock widths: wider for ultrawide
+  const leftDockWidth = mode === 'ultrawide'
+    ? (options.leftDockWidth ?? ULTRAWIDE_LEFT_DOCK_WIDTH)
+    : (options.leftDockWidth ?? DEFAULT_LEFT_DOCK_WIDTH);
+  const rightDockWidth = mode === 'ultrawide'
+    ? (options.rightDockWidth ?? ULTRAWIDE_RIGHT_DOCK_WIDTH)
+    : (options.rightDockWidth ?? DEFAULT_RIGHT_DOCK_WIDTH);
+
+  const centerMinWidth = mode === 'micro'
+    ? Math.max(20, Math.floor(cols * 0.9))
+    : mode === 'compact'
+      ? Math.max(40, options.centerMinWidth ?? DEFAULT_CENTER_MIN_WIDTH)
+      : (options.centerMinWidth ?? DEFAULT_CENTER_MIN_WIDTH);
+
   const leftDockVisible = options.leftDockVisible ?? true;
   const rightDockVisible = options.rightDockVisible ?? true;
-  const dockGap = options.dockGap ?? DEFAULT_DOCK_GAP;
-  const shellInsetX = options.shellInsetX ?? DEFAULT_SHELL_INSET_X;
-  const shellInsetY = options.shellInsetY ?? DEFAULT_SHELL_INSET_Y;
   const shell = insetShellRect(viewport, shellInsetX, shellInsetY);
 
   const layoutMeta = { viewport, shell, dockGap, shellInsetX, shellInsetY };
-
-  // Determine layout mode from viewport width (terminal size), not shell width
-  const mode = resolveLayoutMode(cols, wideBreakpoint, mediumBreakpoint);
-
   const visibility = { leftDockVisible, rightDockVisible };
   const dockWidths = { left: leftDockWidth, right: rightDockWidth };
+
+  // Micro and compact: center only, no docks
+  if (mode === 'micro' || mode === 'compact') {
+    const result = { mode, ...layoutMeta, center: shell };
+    return applyDrawerOverlay(result, layoutMeta, options.drawerDock, visibility, dockWidths);
+  }
 
   if (mode === 'narrow') {
     const result = { mode, ...layoutMeta, center: shell };
@@ -146,7 +198,7 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
     return applyDrawerOverlay(result, layoutMeta, options.drawerDock, visibility, dockWidths);
   }
 
-  // Wide mode
+  // Wide and ultrawide mode
   const showLeft = leftDockVisible;
   const showRight = rightDockVisible;
 
@@ -226,12 +278,18 @@ interface WorkspaceLayoutMeta {
 
 function resolveLayoutMode(
   cols: number,
+  ultrawideBreakpoint: number,
   wideBreakpoint: number,
   mediumBreakpoint: number,
+  compactBreakpoint: number,
+  microBreakpoint: number,
 ): WorkspaceLayoutMode {
+  if (cols >= ultrawideBreakpoint) return 'ultrawide';
   if (cols >= wideBreakpoint) return 'wide';
   if (cols >= mediumBreakpoint) return 'medium';
-  return 'narrow';
+  if (cols >= compactBreakpoint) return 'narrow';
+  if (cols >= microBreakpoint) return 'compact';
+  return 'micro';
 }
 
 function computeTwoColumnLayout(
@@ -266,8 +324,11 @@ function computeTwoColumnLayout(
 
   const mode = resolveLayoutMode(
     viewport.width,
+    DEFAULT_ULTRAWIDE_BREAKPOINT,
     DEFAULT_WIDE_BREAKPOINT,
     DEFAULT_MEDIUM_BREAKPOINT,
+    DEFAULT_COMPACT_BREAKPOINT,
+    DEFAULT_MICRO_BREAKPOINT,
   );
 
   if (dockSide === 'left') {
