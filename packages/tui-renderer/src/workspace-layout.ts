@@ -17,22 +17,26 @@ export type WorkspaceLayoutMode = 'wide' | 'medium' | 'narrow';
 export interface WorkspaceLayoutOptions {
   /** Full terminal viewport rect (typically { x: 0, y: 0, width: cols, height: rows }). */
   readonly viewport: RendererRect;
-  /** Width (columns) of the left dock. @default 30 */
+  /** Width (columns) of the left dock. @default DEFAULT_LEFT_DOCK_WIDTH */
   readonly leftDockWidth?: number;
-  /** Width (columns) of the right dock. @default 40 */
+  /** Width (columns) of the right dock. @default DEFAULT_RIGHT_DOCK_WIDTH */
   readonly rightDockWidth?: number;
-  /** Minimum width for the center content area. @default 60 */
+  /** Minimum width for the center content area. @default DEFAULT_CENTER_MIN_WIDTH */
   readonly centerMinWidth?: number;
-  /** Column threshold for wide mode (3-column). @default 160 */
+  /** Column threshold for wide mode (3-column). @default DEFAULT_WIDE_BREAKPOINT */
   readonly wideBreakpoint?: number;
-  /** Column threshold for medium mode (2-column). @default 120 */
+  /** Column threshold for medium mode (2-column). @default DEFAULT_MEDIUM_BREAKPOINT */
   readonly mediumBreakpoint?: number;
   /** Whether the left dock is visible. @default true */
   readonly leftDockVisible?: boolean;
   /** Whether the right dock is visible. @default true */
   readonly rightDockVisible?: boolean;
-  /** Gap between dock and center (columns). @default 0 */
+  /** Gap between dock and center (columns). @default DEFAULT_DOCK_GAP */
   readonly dockGap?: number;
+  /** Horizontal inset from viewport edges (columns). @default DEFAULT_SHELL_INSET_X */
+  readonly shellInsetX?: number;
+  /** Vertical inset from viewport edges (rows). @default DEFAULT_SHELL_INSET_Y */
+  readonly shellInsetY?: number;
 }
 
 export interface WorkspaceDockLayout {
@@ -44,28 +48,52 @@ export interface WorkspaceDockLayout {
 export interface WorkspaceLayoutResult {
   readonly mode: WorkspaceLayoutMode;
   readonly viewport: RendererRect;
+  /** Inset shell that owns all columns (equals viewport when inset collapses). */
+  readonly shell: RendererRect;
   /** Center content area (always present). */
   readonly center: RendererRect;
   /** Left dock (present in wide mode when visible). */
   readonly leftDock?: WorkspaceDockLayout;
   /** Right dock (present in wide/medium mode when visible). */
   readonly rightDock?: WorkspaceDockLayout;
+  readonly dockGap: number;
+  readonly shellInsetX: number;
+  readonly shellInsetY: number;
 }
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_LEFT_DOCK_WIDTH = 30;
-const DEFAULT_RIGHT_DOCK_WIDTH = 40;
-const DEFAULT_CENTER_MIN_WIDTH = 60;
-const DEFAULT_WIDE_BREAKPOINT = 160;
-const DEFAULT_MEDIUM_BREAKPOINT = 120;
-const DEFAULT_DOCK_GAP = 0;
+export const DEFAULT_LEFT_DOCK_WIDTH = 42;
+export const DEFAULT_RIGHT_DOCK_WIDTH = 52;
+export const DEFAULT_CENTER_MIN_WIDTH = 60;
+export const DEFAULT_WIDE_BREAKPOINT = 160;
+export const DEFAULT_MEDIUM_BREAKPOINT = 120;
+export const DEFAULT_DOCK_GAP = 2;
+export const DEFAULT_SHELL_INSET_X = 2;
+export const DEFAULT_SHELL_INSET_Y = 1;
+export const DOCK_WIDTH_MIN = 24;
+export const DOCK_WIDTH_MAX = 80;
 
 // ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
+
+export function insetRendererRect(
+  rect: RendererRect,
+  insetX: number,
+  insetY: number,
+): RendererRect {
+  const ix = Math.max(0, Math.min(insetX, Math.floor((rect.width - 1) / 2)));
+  const iy = Math.max(0, Math.min(insetY, Math.floor((rect.height - 1) / 2)));
+  return {
+    x: rect.x + ix,
+    y: rect.y + iy,
+    width: Math.max(1, rect.width - ix * 2),
+    height: Math.max(1, rect.height - iy * 2),
+  };
+}
 
 /**
  * Computes the 2D workspace layout based on terminal width.
@@ -86,19 +114,30 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
   const leftDockVisible = options.leftDockVisible ?? true;
   const rightDockVisible = options.rightDockVisible ?? true;
   const dockGap = options.dockGap ?? DEFAULT_DOCK_GAP;
+  const shellInsetX = options.shellInsetX ?? DEFAULT_SHELL_INSET_X;
+  const shellInsetY = options.shellInsetY ?? DEFAULT_SHELL_INSET_Y;
+  const shell = insetRendererRect(viewport, shellInsetX, shellInsetY);
 
-  // Determine layout mode
+  const layoutMeta = { viewport, shell, dockGap, shellInsetX, shellInsetY };
+
+  // Determine layout mode from viewport width (terminal size), not shell width
   const mode = resolveLayoutMode(cols, wideBreakpoint, mediumBreakpoint);
 
   if (mode === 'narrow') {
-    return { mode, viewport, center: viewport };
+    return { mode, ...layoutMeta, center: shell };
   }
 
   if (mode === 'medium') {
     if (!rightDockVisible) {
-      return { mode, viewport, center: viewport };
+      return { mode, ...layoutMeta, center: shell };
     }
-    return computeTwoColumnLayout(viewport, rightDockWidth, centerMinWidth, dockGap, 'right');
+    return computeTwoColumnLayout(
+      layoutMeta,
+      rightDockWidth,
+      centerMinWidth,
+      dockGap,
+      'right',
+    );
   }
 
   // Wide mode
@@ -106,24 +145,38 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
   const showRight = rightDockVisible;
 
   if (!showLeft && !showRight) {
-    return { mode, viewport, center: viewport };
+    return { mode, ...layoutMeta, center: shell };
   }
 
   if (showLeft && !showRight) {
-    return computeTwoColumnLayout(viewport, leftDockWidth, centerMinWidth, dockGap, 'left');
+    return computeTwoColumnLayout(layoutMeta, leftDockWidth, centerMinWidth, dockGap, 'left');
   }
 
   if (!showLeft && showRight) {
-    return computeTwoColumnLayout(viewport, rightDockWidth, centerMinWidth, dockGap, 'right');
+    return computeTwoColumnLayout(layoutMeta, rightDockWidth, centerMinWidth, dockGap, 'right');
   }
 
   // Full 3-column layout
-  return computeThreeColumnLayout(viewport, leftDockWidth, rightDockWidth, centerMinWidth, dockGap);
+  return computeThreeColumnLayout(
+    layoutMeta,
+    leftDockWidth,
+    rightDockWidth,
+    centerMinWidth,
+    dockGap,
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+interface WorkspaceLayoutMeta {
+  readonly viewport: RendererRect;
+  readonly shell: RendererRect;
+  readonly dockGap: number;
+  readonly shellInsetX: number;
+  readonly shellInsetY: number;
+}
 
 function resolveLayoutMode(
   cols: number,
@@ -136,16 +189,17 @@ function resolveLayoutMode(
 }
 
 function computeTwoColumnLayout(
-  viewport: RendererRect,
+  meta: WorkspaceLayoutMeta,
   dockWidth: number,
   centerMinWidth: number,
   gap: number,
   dockSide: WorkspaceDockId,
 ): WorkspaceLayoutResult {
-  const effectiveDockWidth = Math.min(dockWidth, Math.max(0, viewport.width - centerMinWidth - gap));
+  const { viewport, shell } = meta;
+  const effectiveDockWidth = Math.min(dockWidth, Math.max(0, shell.width - centerMinWidth - gap));
 
   if (effectiveDockWidth <= 0) {
-    return { mode: 'narrow', viewport, center: viewport };
+    return { mode: 'narrow', ...meta, center: shell };
   }
 
   const constraints =
@@ -154,14 +208,14 @@ function computeTwoColumnLayout(
       : [layoutFlex(1), layoutLength(effectiveDockWidth)];
 
   const rects = splitRendererRect({
-    rect: viewport,
+    rect: shell,
     direction: 'horizontal',
     constraints,
     gap,
   });
 
   if (rects.length < 2) {
-    return { mode: 'narrow', viewport, center: viewport };
+    return { mode: 'narrow', ...meta, center: shell };
   }
 
   const mode = resolveLayoutMode(
@@ -173,7 +227,7 @@ function computeTwoColumnLayout(
   if (dockSide === 'left') {
     return {
       mode,
-      viewport,
+      ...meta,
       center: rects[1]!,
       leftDock: { id: 'left', rect: rects[0]!, width: effectiveDockWidth },
     };
@@ -181,21 +235,22 @@ function computeTwoColumnLayout(
 
   return {
     mode,
-    viewport,
+    ...meta,
     center: rects[0]!,
     rightDock: { id: 'right', rect: rects[1]!, width: effectiveDockWidth },
   };
 }
 
 function computeThreeColumnLayout(
-  viewport: RendererRect,
+  meta: WorkspaceLayoutMeta,
   leftWidth: number,
   rightWidth: number,
   centerMinWidth: number,
   gap: number,
 ): WorkspaceLayoutResult {
+  const { shell } = meta;
   const totalGaps = gap * 2;
-  const availableForDocks = viewport.width - centerMinWidth - totalGaps;
+  const availableForDocks = shell.width - centerMinWidth - totalGaps;
 
   // Scale docks proportionally if they don't fit
   let effectiveLeft = leftWidth;
@@ -208,11 +263,11 @@ function computeThreeColumnLayout(
   }
 
   if (effectiveLeft + effectiveRight <= 0) {
-    return { mode: 'narrow', viewport, center: viewport };
+    return { mode: 'narrow', ...meta, center: shell };
   }
 
   const rects = splitRendererRect({
-    rect: viewport,
+    rect: shell,
     direction: 'horizontal',
     constraints: [
       layoutLength(effectiveLeft),
@@ -224,12 +279,12 @@ function computeThreeColumnLayout(
 
   if (rects.length < 3) {
     // Fallback: try without left dock
-    return computeTwoColumnLayout(viewport, rightWidth, centerMinWidth, gap, 'right');
+    return computeTwoColumnLayout(meta, rightWidth, centerMinWidth, gap, 'right');
   }
 
   return {
     mode: 'wide',
-    viewport,
+    ...meta,
     leftDock: { id: 'left', rect: rects[0]!, width: effectiveLeft },
     center: rects[1]!,
     rightDock: { id: 'right', rect: rects[2]!, width: effectiveRight },
