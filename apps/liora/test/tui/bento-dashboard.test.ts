@@ -295,6 +295,44 @@ describe('Gen 26: attention-only toggle', () => {
   });
 });
 
+describe('Gen 75: context-risk-only toggle', () => {
+  it('shows only quests at/above the 80% context threshold when enabled', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('low', { contextUsage: 0.2 }));
+    ctrl.addQuest(makeQuest('warn', { contextUsage: 0.85 }));
+    ctrl.addQuest(makeQuest('critical', { contextUsage: 0.97 }));
+    ctrl.addQuest(makeQuest('unknown', {}));
+
+    expect(ctrl.isCtxRiskOnly()).toBe(false);
+    ctrl.toggleCtxRiskOnly();
+    expect(ctrl.isCtxRiskOnly()).toBe(true);
+    // Only the two quests at/above 80% remain; unknown usage is hidden.
+    expect(ctrl.getQuests().map((q) => q.id).sort()).toEqual(['critical', 'warn']);
+  });
+
+  it('toggles back to show all quests', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('low', { contextUsage: 0.2 }));
+    ctrl.addQuest(makeQuest('warn', { contextUsage: 0.9 }));
+
+    ctrl.toggleCtxRiskOnly();
+    expect(ctrl.getQuests()).toHaveLength(1);
+    ctrl.toggleCtxRiskOnly();
+    expect(ctrl.getQuests()).toHaveLength(2);
+  });
+
+  it('combines with the text filter', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('auth-hot', { contextUsage: 0.9 }));
+    ctrl.addQuest(makeQuest('login-hot', { contextUsage: 0.95 }));
+    ctrl.addQuest(makeQuest('auth-cool', { contextUsage: 0.3 }));
+
+    ctrl.toggleCtxRiskOnly();
+    ctrl.setFilter('auth');
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['auth-hot']);
+  });
+});
+
 describe('Gen 55: focus weakest-health quest', () => {
   it('focuses the least-healthy quest', () => {
     const ctrl = makeController();
@@ -555,15 +593,18 @@ describe('Gen 54: resetView restores baseline view state', () => {
     // Mutate every piece of view state.
     ctrl.setFilter('zzz');
     ctrl.setAttentionOnly(true);
+    ctrl.setCtxRiskOnly(true);
     ctrl.cycleSortMode(); // → cost
     expect(ctrl.getFilter()).toBe('zzz');
     expect(ctrl.isAttentionOnly()).toBe(true);
+    expect(ctrl.isCtxRiskOnly()).toBe(true);
     expect(ctrl.getSortMode()).toBe('cost');
 
     // Reset returns everything to defaults.
     ctrl.resetView();
     expect(ctrl.getFilter()).toBe('');
     expect(ctrl.isAttentionOnly()).toBe(false);
+    expect(ctrl.isCtxRiskOnly()).toBe(false);
     expect(ctrl.getSortMode()).toBe('attention');
   });
 });
