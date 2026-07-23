@@ -437,6 +437,69 @@ describe('Gen 103: summary bar approval count', () => {
   });
 });
 
+describe('Gen 111: summary bar failed count', () => {
+  function makeComponentWithFailures() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { state: 'failed' }));
+    grid.addQuest(makeQuest('b', { state: 'failed' }));
+    grid.addQuest(makeQuest('c', { state: 'waiting-approval' }));
+    grid.addQuest(makeQuest('d', { state: 'running' }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    return { component };
+  }
+
+  it('shows failed count separately from approval count', () => {
+    const { component } = makeComponentWithFailures();
+    const output = component.render(120).join('\n');
+
+    // 3 need attention (2 failed + 1 waiting-approval).
+    expect(output).toContain('3 need attention');
+    // 1 awaiting approval specifically.
+    expect(output).toContain('1 awaiting approval');
+    // 2 failed specifically.
+    expect(output).toContain('2 failed');
+  });
+
+  it('omits failed count when none have failed', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'done' }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    const output = component.render(120).join('\n');
+    expect(output).not.toContain('failed');
+  });
+});
+
 describe('Gen 105: summary bar sort reversal indicator', () => {
   function makeComponentWithCosts() {
     const grid = new QuestGridController({

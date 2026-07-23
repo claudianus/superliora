@@ -914,6 +914,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 103: separate approval count so operators can see how many decisions
     // are pending, distinct from failures (which need investigation, not approval).
     const approvalCount = quests.filter((q) => q.state === 'waiting-approval').length;
+    // Gen 111: separate failed count so operators can see how many sessions
+    // need investigation, distinct from approvals (which need a decision).
+    const failedCount = quests.filter((q) => q.state === 'failed').length;
     const totalCost = quests.reduce((sum, q) => sum + (q.sessionCostUsd ?? 0), 0);
     // Gen 44: state breakdown for a fleet-status overview at a glance.
     const runningCount = quests.filter((q) => q.state === 'running').length;
@@ -971,6 +974,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // Gen 103: show approval count separately so pending decisions are obvious.
     if (approvalCount > 0) {
       summaryParts.push(`🔔 ${String(approvalCount)} awaiting approval`);
+    }
+    // Gen 111: show failed count separately so sessions needing investigation
+    // are obvious, distinct from approvals (which need a decision).
+    if (failedCount > 0) {
+      summaryParts.push(`✖ ${String(failedCount)} failed`);
     }
     if (totalAdded > 0 || totalRemoved > 0) {
       summaryParts.push(`+${String(totalAdded)} -${String(totalRemoved)}`);
