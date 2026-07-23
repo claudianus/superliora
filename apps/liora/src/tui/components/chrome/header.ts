@@ -139,7 +139,22 @@ export class HeaderComponent implements Component {
     }
 
     const dividerWidth = available + minDivider;
-    const divider = shouldRenderAmbientEffects(appearance)
+    const ambient = shouldRenderAmbientEffects(appearance);
+    // Soft (no particles): keep brand · model as one left cluster and park the
+    // clock on the right — a centered middot in a long flex void reads as noise
+    // on ultrawide bento headers.
+    if (!ambient && modelSeg && clockSeg && segments.length >= 2) {
+      const mid = segments.slice(0, -1);
+      const midText = mid.map((s) => s.text).join(CLOCK_GAP);
+      const midW = clusterWidth(mid);
+      const sep = softHeaderDivider(4);
+      const flex = Math.max(
+        0,
+        safeWidth - brandWidth - visibleWidth(sep) - midW - clockWidth,
+      );
+      return [`${brand}${sep}${midText}${' '.repeat(flex)}${clockText}`];
+    }
+    const divider = ambient
       ? renderParticleDivider(dividerWidth, 'header:divider', appearance)
       : softHeaderDivider(dividerWidth);
     const right = segments.map((s) => s.text).join(CLOCK_GAP);
