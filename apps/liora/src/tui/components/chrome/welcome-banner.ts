@@ -26,14 +26,6 @@ const BANNER_LARGE = [
   '/____/\\____/_/   /_____/_/ |_/_____/___/\\____/_/ |_/_/  |_|',
 ] as const;
 
-// figlet Small "SUPERLIORA"
-const BANNER_COMPACT = [
-  ' ___ _   _ ___ ___ ___ _    ___ ___  ___    _   ',
-  '/ __| | | | _ \\ __| _ \\ |  |_ _/ _ \\| _ \\  /_\\  ',
-  '\\__ \\ |_| |  _/ _||   / |__ | | (_) |   / / _ \\ ',
-  '|___/\\___/|_| |___|_|_\\____|___\\___/|_|_\\/_/ \\_\\',
-] as const;
-
 /** Trademark sparkles in figlet padding — monospace-safe only. */
 const BANNER_SPARKLES = ['·', '∙', '•', '◦', '*', '˚'] as const;
 
@@ -45,10 +37,14 @@ export function renderWelcomeBanner(
   if (layout === 'tiny' || width < 24) {
     return [paintBannerLine('SUPERLIORA', appearance, 0, 1, width)];
   }
-  const useLarge =
-    layout === 'standard' || layout === 'wide' || layout === 'ultrawide' || width >= 59;
-  const lines = useLarge ? BANNER_LARGE : BANNER_COMPACT;
-  return lines.map((line, index) => paintBannerLine(line, appearance, index, lines.length, width));
+  // Prefer a calm wordmark until the hero band is truly spacious. Compact
+  // figlet still fights Status/Context on medium terminals (~100 cols).
+  if (width < 110) {
+    return [paintBannerLine('SUPERLIORA', appearance, 0, 1, width)];
+  }
+  return BANNER_LARGE.map((line, index) =>
+    paintBannerLine(line, appearance, index, BANNER_LARGE.length, width),
+  );
 }
 
 /**

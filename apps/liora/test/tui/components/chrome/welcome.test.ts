@@ -48,9 +48,11 @@ function ansiSequenceCount(text: string): number {
   return (text.match(ANSI_SGR) ?? []).length;
 }
 
-/** Banner lines inside the welcome box. */
+/** Banner lines (frameless welcome — skip leading blank + optional particle rail). */
 function bannerOf(lines: string[]): string {
-  return lines.slice(2, 8).join('\n');
+  const start = lines.findIndex((line) => /[_/\\|A-Za-z]/.test(strip(line)) && strip(line).trim().length > 4);
+  const from = start >= 0 ? start : 0;
+  return lines.slice(from, from + 6).join('\n');
 }
 
 function strip(text: string): string {
@@ -100,7 +102,8 @@ describe('WelcomeComponent', () => {
     setCliLocale('en');
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
-    expect(output).toContain('____  ___');
+    expect(output).toContain('SUPERLIORA');
+    expect(output).not.toContain('____  ___');
     expect(output).toContain('Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork');
     expect(output).not.toContain('Welcome to SuperLiora!');
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
@@ -147,5 +150,11 @@ describe('WelcomeComponent', () => {
         expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
     }
+  });
+
+  it('stays frameless so bento chrome owns the borders', () => {
+    const joined = strip(new WelcomeComponent(appState).render(80).join('\n'));
+    expect(joined).not.toMatch(/[╭╮╰╯]/);
+    expect(joined).toContain('Directory:');
   });
 });

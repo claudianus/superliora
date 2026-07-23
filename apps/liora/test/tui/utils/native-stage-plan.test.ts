@@ -4,8 +4,6 @@ import { Text } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
 import {
   RAIL_WIDTH,
-  STAGE_MAX_HEIGHT,
-  STAGE_MAX_WIDTH,
   STAGE_RAIL_GAP,
 } from '#/tui/controllers/stage-layout';
 import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
@@ -44,7 +42,7 @@ function fakeInitialAppState(): AppState {
 }
 
 describe('native stage frame layout', () => {
-  it('centers the stage column on ultrawide terminals', () => {
+  it('full-bleeds the stage on ultrawide terminals (bento shell)', () => {
     const width = 200;
     const height = 80;
     const state = createTUIState({
@@ -58,23 +56,21 @@ describe('native stage frame layout', () => {
     const regions = buildTUIStateNativeFrameRegions(state, width, height);
     const transcript = regions.find((region) => region.id === 'transcript');
     const editor = regions.find((region) => region.id === 'editor');
-    const expectedX = Math.floor((width - STAGE_MAX_WIDTH) / 2);
-    const expectedY = Math.floor((height - STAGE_MAX_HEIGHT) / 2);
 
     expect(transcript?.rect).toMatchObject({
-      x: expectedX,
-      y: expectedY,
-      width: STAGE_MAX_WIDTH,
+      x: 0,
+      y: 0,
+      width,
     });
     expect(editor?.rect).toMatchObject({
-      x: expectedX,
-      width: STAGE_MAX_WIDTH,
+      x: 0,
+      width,
     });
-    expect(editor?.rect?.y).toBeGreaterThanOrEqual(expectedY);
+    expect(editor?.rect?.y).toBeGreaterThanOrEqual(0);
     expect(regions.some((region) => region.id === 'rail')).toBe(false);
   });
 
-  it('places situational panels in a rail beside the centered stage when they fit', () => {
+  it('places situational panels in a rail beside the full-bleed stage when they fit', () => {
     const width = 200;
     const height = 80;
     const state = createTUIState({
@@ -91,21 +87,25 @@ describe('native stage frame layout', () => {
 
     const regions = buildTUIStateNativeFrameRegions(state, width, height);
     const transcript = regions.find((region) => region.id === 'transcript');
+    const editor = regions.find((region) => region.id === 'editor');
     const rail = regions.find((region) => region.id === 'rail');
-    const bundle = STAGE_MAX_WIDTH + STAGE_RAIL_GAP + RAIL_WIDTH;
-    const expectedStageX = Math.floor((width - bundle) / 2);
-    const expectedStageY = Math.floor((height - STAGE_MAX_HEIGHT) / 2);
+    const stageWidth = width - STAGE_RAIL_GAP - RAIL_WIDTH;
 
     expect(transcript?.rect).toMatchObject({
-      x: expectedStageX,
-      y: expectedStageY,
-      width: STAGE_MAX_WIDTH,
+      x: 0,
+      y: 0,
+      width: stageWidth,
     });
+    expect(editor?.rect).toBeDefined();
+    const expectedRailHeight =
+      editor?.rect !== undefined && transcript?.rect !== undefined
+        ? editor.rect.y + editor.rect.height - transcript.rect.y
+        : transcript?.rect?.height;
     expect(rail?.rect).toMatchObject({
-      x: expectedStageX + STAGE_MAX_WIDTH + STAGE_RAIL_GAP,
+      x: stageWidth + STAGE_RAIL_GAP,
       width: RAIL_WIDTH,
       y: transcript?.rect?.y,
-      height: transcript?.rect?.height,
+      height: expectedRailHeight,
     });
     // Railed panels must not steal vertical stack rows under the transcript.
     expect(regions.some((region) => region.id === 'todo')).toBe(false);
@@ -197,6 +197,7 @@ describe('native stage frame layout', () => {
 
 describe('planTUINativeStage rail sections', () => {
   const planOptions = {
+    bentoTiles: false as const,
     resolveEditorFallbackLines: () => [],
     resolveEditorRows: () => 1,
   };
@@ -256,5 +257,55 @@ describe('planTUINativeStage rail sections', () => {
     expect(full.length).toBeGreaterThan(railHeight);
     expect(plan.railLines).toHaveLength(railHeight);
     expect(plan.railLines).toEqual(full.slice(0, railHeight));
+  });
+});
+
+describe('planTUINativeStage bento chrome', () => {
+  const planOptions = {
+    resolveEditorFallbackLines: () => ['> '],
+    resolveEditorRows: () => 1,
+  };
+
+  it('frames spacious footer with a Status title and leaves editor unframed', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 40 });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 120 });
+    state.editorContainer.addChild(state.editor);
+    state.footerContainer.addChild(new Text('yolo · next: review changes', 0, 0));
+
+    const plan = planTUINativeStage(state, 120, 40, planOptions);
+    const footerPlain = plan.chrome.footer
+      .map((line) => (typeof line === 'string' ? line : line.map((c) => c.char).join('')))
+      .join('\n')
+      .replaceAll(/\u001B\[[0-9;]*m/g, '');
+    expect(footerPlain).toMatch(/─+ Status ─+/);
+    expect(footerPlain).not.toMatch(/╭[^╮]*Status/);
+    // Editor keeps its own surface chrome — plan lines stay content-only.
+    expect(plan.editorLines.some((line) => {
+      const text = typeof line === 'string' ? line : line.map((c) => c.char).join('');
+      return text.includes('╭');
+    })).toBe(false);
+  });
+
+  it('skips chrome frames on short terminals to keep transcript rows', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 24 });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 80 });
+    state.editorContainer.addChild(state.editor);
+    state.footerContainer.addChild(new Text('yolo · next', 0, 0));
+
+    const plan = planTUINativeStage(state, 80, 24, planOptions);
+    const footerPlain = plan.chrome.footer
+      .map((line) => (typeof line === 'string' ? line : line.map((c) => c.char).join('')))
+      .join('\n')
+      .replaceAll(/\u001B\[[0-9;]*m/g, '');
+    expect(footerPlain).not.toMatch(/╭/);
+    expect(footerPlain).toContain('yolo');
   });
 });

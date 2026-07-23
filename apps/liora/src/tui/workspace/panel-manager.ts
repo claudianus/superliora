@@ -69,6 +69,9 @@ export class PanelManager {
     this.leftDockVisible = options.leftDockVisible ?? true;
     this.rightDockVisible = options.rightDockVisible ?? true;
     this.leftDockMode = options.leftDockMode ?? 'split';
+    // Left dock stays split (Files | Git) as a readable two/three-tile bento.
+    // Right dock defaults to tabbed — six tool panels in split become postage
+    // stamps with nested ││ chrome; Ctrl+T still toggles split per dock.
     this.rightDockMode = options.rightDockMode ?? 'tabbed';
   }
 

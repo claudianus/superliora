@@ -72,8 +72,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
     'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork',
+  'tui.welcome.prompt.loggedIn.compact': 'Type a task · /status · /help',
   'tui.welcome.prompt.loggedOut':
     'Run /login or paste an API key — media/web/office ready after that, no MCP.',
+  'tui.welcome.prompt.loggedOut.compact': 'Run /login or paste an API key',
   'tui.welcome.modelUnset': 'not set, run /login',
   'tui.welcome.label.directory': 'Directory: ',
   'tui.welcome.label.session': 'Session:   ',
@@ -95,7 +97,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.next.login': 'next: /login to add a provider, then /model',
   'tui.footer.next.compact': 'next: /compact before long work',
   'tui.footer.next.review': 'next: review changes',
-  'tui.footer.next.media': 'next: set OPENAI_API_KEY or GOOGLE_API_KEY for image/video, or /status',
+  'tui.footer.next.media': 'next: set OPENAI_API_KEY · /status',
   'tui.footer.next.history': 'next: ctrl-o toggles clean chat vs tool history',
   'tui.footer.next.default': 'next: Shift-Tab toggles Ultrawork/off · /bench for LioraBench',
   'tui.footer.compacting': 'compacting context',
@@ -435,8 +437,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
     '작업을 입력하세요 · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork',
+  'tui.welcome.prompt.loggedIn.compact': '작업 입력 · /status · /help',
   'tui.welcome.prompt.loggedOut':
     '/login 또는 API 키를 붙여넣으세요 — 이후 media/web/office 사용 가능, MCP 불필요.',
+  'tui.welcome.prompt.loggedOut.compact': '/login 또는 API 키를 붙여넣으세요',
   'tui.welcome.modelUnset': '미설정, /login 실행',
   'tui.welcome.label.directory': '디렉터리: ',
   'tui.welcome.label.session': '세션:     ',
@@ -458,7 +462,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.next.login': '다음: /login으로 프로바이더 추가, 그리고 /model',
   'tui.footer.next.compact': '다음: 긴 작업 전 /compact',
   'tui.footer.next.review': '다음: 변경사항 검토',
-  'tui.footer.next.media': '다음: OPENAI_API_KEY 또는 GOOGLE_API_KEY로 이미지/영상, 또는 /status',
+  'tui.footer.next.media': '다음: OPENAI_API_KEY · /status',
   'tui.footer.next.history': '다음: ctrl-o로 깔끔한 채팅 ↔ 전체 도구 기록',
   'tui.footer.next.default': '다음: Shift-Tab로 Ultrawork 켜기/끄기 · /bench로 LioraBench',
   'tui.footer.compacting': '컨텍스트 압축 중',

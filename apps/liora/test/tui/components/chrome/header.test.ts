@@ -101,6 +101,26 @@ describe('HeaderComponent', () => {
     }
   });
 
+  it('uses a soft middot divider when ambient particles are off', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    const fixedNow = new Date('2026-07-18T13:47:02+09:00').getTime();
+    const header = new HeaderComponent(baseState({ appearance: {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    }}), () => {}, () => fixedNow);
+    const out = strip(header.render(100).join('\n'));
+    expect(out).toContain('◆ SuperLiora');
+    expect(out).toContain(formatLocalClock(fixedNow));
+    expect(out).toMatch(/SuperLiora\s+(?:·\s*)+/);
+    expect(out).not.toMatch(/SuperLiora─/);
+    header.dispose();
+  });
+
   it('refreshes when the local clock second changes', () => {
     let now = new Date('2026-07-18T13:47:02+09:00').getTime();
     const onRefresh = vi.fn();
@@ -119,9 +139,10 @@ describe('HeaderComponent', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('hides on tiny terminals', () => {
+  it('hides when the content band is too narrow for brand + clock', () => {
     const header = new HeaderComponent(baseState());
-    expect(header.render(40)).toEqual([]);
+    expect(header.render(39)).toEqual([]);
+    expect(header.render(40).length).toBeGreaterThan(0);
     header.dispose();
   });
 

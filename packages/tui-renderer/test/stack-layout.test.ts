@@ -42,7 +42,7 @@ describe('measureRendererStackLayout', () => {
     ]);
   });
 
-  it('keeps a minimum primary region even when fixed regions overflow', () => {
+  it('drops overflowing trailing fixed regions to protect the primary minimum', () => {
     const layout = measureRendererStackLayout({
       terminalRows: 5,
       terminalColumns: 20,
@@ -51,13 +51,18 @@ describe('measureRendererStackLayout', () => {
       minPrimaryRows: 2,
     });
 
-    expect(layout.primaryRows).toBe(2);
-    expect(layout.reservedRows).toBe(7);
-    expect(layout.regions[1]).toMatchObject({
-      id: 'footer',
-      y: 2,
-      rect: { x: 0, y: 2, width: 20, height: 7 },
-    });
+    // A 7-row footer cannot coexist with minPrimaryRows=2 on a 5-row band —
+    // drop the trailing fixed region so the primary keeps the viewport.
+    expect(layout.primaryRows).toBe(5);
+    expect(layout.reservedRows).toBe(0);
+    expect(layout.regions).toEqual([
+      {
+        id: 'main',
+        rows: 5,
+        y: 0,
+        rect: { x: 0, y: 0, width: 20, height: 5 },
+      },
+    ]);
   });
 
   it('treats unknown terminal height as an unbounded primary region', () => {
@@ -169,6 +174,25 @@ describe('measureRendererStackLayout', () => {
         clear: undefined,
         background: undefined,
       },
+    ]);
+  });
+
+  it('inserts regionGap between stacked tiles and reserves it from primary', () => {
+    const layout = measureRendererStackLayout({
+      terminalRows: 12,
+      terminalColumns: 40,
+      primaryRegionId: 'main',
+      topFixedRegions: [{ id: 'header', rows: 2 }],
+      fixedRegions: [{ id: 'footer', rows: 2 }],
+      regionGap: 1,
+    });
+
+    // header(2) + gap(1) + main + gap(1) + footer(2) = 12 → main = 6
+    expect(layout.primaryRows).toBe(6);
+    expect(layout.regions.map((r) => ({ id: r.id, y: r.y, rows: r.rows }))).toEqual([
+      { id: 'header', y: 0, rows: 2 },
+      { id: 'main', y: 3, rows: 6 },
+      { id: 'footer', y: 10, rows: 2 },
     ]);
   });
 });

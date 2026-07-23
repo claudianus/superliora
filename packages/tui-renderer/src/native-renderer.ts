@@ -855,6 +855,7 @@ export class NativeTerminalRenderer {
       colorMode: this.options.colorMode,
       inlineImageProtocol: this.options.imageProtocol,
       outputPolicy: this.options.outputPolicy,
+      cursorMotion: this.options.cursorMotion,
       now: () => this.loop.now(),
     };
   }

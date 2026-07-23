@@ -25,7 +25,7 @@ interface PtyLike {
 export class TerminalPanel implements PanelDefinition {
   readonly id = 'terminal';
   readonly title = 'Terminal';
-  readonly icon = '>';
+  readonly icon = '$';
   readonly minWidth = 30;
   readonly minHeight = 5;
 
