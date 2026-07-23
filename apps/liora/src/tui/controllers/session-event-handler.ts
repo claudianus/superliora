@@ -892,20 +892,7 @@ export class SessionEventHandler {
     };
     const matchedCall = streamingUI.completeToolResult(event.toolCallId, resultData);
     // Push result to activity feed
-    if (this.activityFeed !== undefined && matchedCall !== undefined) {
-      const kind = event.isError === true ? 'tool-error' as const : 'tool-result' as const;
-      const outputPreview = resultData.output.slice(0, 80);
-      const entryId = this.activityFeed.push(kind, `${matchedCall.name} done`, outputPreview, event.isError === true);
-      // Complete the matching tool-start entry to record duration
-      const entries = this.activityFeed.getEntries();
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const e = entries[i]!;
-        if (e.label === matchedCall.name && e.durationMs === undefined && !e.isError) {
-          this.activityFeed.complete(e.id, Date.now() - e.timestamp, event.isError === true);
-          break;
-        }
-      }
-    }
+    
     this.subAgentEventHandler.handleAgentSwarmToolResult(
       event.toolCallId,
       resultData,

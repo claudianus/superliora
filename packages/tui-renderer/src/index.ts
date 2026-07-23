@@ -60,3 +60,5 @@ export * from './tool-activity';
 export * from './transcript';
 export * from './trace';
 export * from './viewport';
+export * from './panel-frame';
+export * from './workspace-layout';
