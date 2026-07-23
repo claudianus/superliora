@@ -1156,6 +1156,32 @@ describe('Gen 104: thumbnail strip approval marker', () => {
   });
 });
 
+describe('Gen 106: thumbnail strip context-risk marker', () => {
+  it('flags context-at-risk quests in entries', () => {
+    const quests = [
+      makeQuest('a', { contextUsage: 0.85 }),
+      makeQuest('b', { contextUsage: 0.3 }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.ctxRisk).toBe(true);
+    expect(entries[1]!.ctxRisk).toBe(false);
+  });
+
+  it('renders the context-risk marker for at-risk quests', () => {
+    const quests = [makeQuest('a', { contextUsage: 0.96 })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).toContain('⚠');
+  });
+
+  it('omits the context-risk marker for healthy quests', () => {
+    const quests = [makeQuest('a', { contextUsage: 0.3 })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).not.toContain('⚠');
+  });
+});
+
 describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
   it('focuses the most urgent quest when nothing is focused', () => {
     const ctrl = makeController();

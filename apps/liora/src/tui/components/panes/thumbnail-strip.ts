@@ -16,6 +16,7 @@ import {
   questStateIcon,
   questStateColorToken,
   questHealthScore,
+  contextSeverityToken,
   ATTENTION_STATES,
 } from '../../controllers/quest-types';
 
@@ -39,6 +40,8 @@ export interface ThumbnailEntry {
   readonly healthScore: number;
   /** Gen 104: true when the quest is awaiting an operator approval decision. */
   readonly awaitingApproval: boolean;
+  /** Gen 106: true when context usage is at risk (>=80%). */
+  readonly ctxRisk: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +86,10 @@ export function buildThumbnailStrip(
         healthScore: questHealthScore(q, now),
         // Gen 104: flag approval-pending quests so they stand out in the strip.
         awaitingApproval: q.state === 'waiting-approval',
+        // Gen 106: flag context-at-risk quests so exhaustion risk is scannable.
+        ctxRisk:
+          q.contextUsage !== undefined &&
+          contextSeverityToken(q.contextUsage) !== 'success',
       };
     });
 }
@@ -123,7 +130,10 @@ export function renderThumbnailStripLine(
     // Gen 104: mark approval-pending quests so the operator sees which siblings
     // need a decision, complementing the w-key attention cycle.
     const approval = entry.awaitingApproval ? ' ⏳' : '';
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}]`;
+    // Gen 106: mark context-at-risk quests so exhaustion risk stands out,
+    // complementing the C-key context-risk jump.
+    const ctxWarn = entry.ctxRisk ? ' ⚠' : '';
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}${ctxWarn}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);
