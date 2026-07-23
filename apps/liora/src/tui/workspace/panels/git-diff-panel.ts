@@ -443,27 +443,31 @@ export class GitDiffPanel implements PanelDefinition {
       });
       lines.push(` ${densitySegments.join('')}`);
     }
-    // Change impact score summary
-    const impactScores = this.files.map((f) => {
-      let score = 0;
-      if (f.hasBreakingChanges) score += 4;
-      if (f.hasSecurityChanges) score += 3;
-      if (f.hasApiChanges) score += 2;
-      if (f.hasDependencyChanges) score += 2;
-      if (f.hasPerfChanges) score += 1;
-      if (f.isLargeChange) score += 1;
-      if (f.hasImportChanges) score += 1;
-      return { path: f.path, score };
-    }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
-    if (impactScores.length > 0) {
-      const topImpact = impactScores[0]!;
-      const impactLevel = topImpact.score >= 6 ? 'CRITICAL' : topImpact.score >= 4 ? 'HIGH' : topImpact.score >= 2 ? 'MEDIUM' : 'LOW';
-      const impactToken = topImpact.score >= 6 ? 'error' : topImpact.score >= 4 ? 'warning' : topImpact.score >= 2 ? 'primary' : 'textMuted';
-      lines.push(` ${currentTheme.fg(impactToken as any, `impact: ${impactLevel}`)} ${currentTheme.dimFg('textMuted', `(${String(impactScores.length)} files flagged)`)}`);
+    // Change impact score summary — skip on stamp-sized docks (bento wide≈28).
+    if (width >= 36) {
+      const impactScores = this.files.map((f) => {
+        let score = 0;
+        if (f.hasBreakingChanges) score += 4;
+        if (f.hasSecurityChanges) score += 3;
+        if (f.hasApiChanges) score += 2;
+        if (f.hasDependencyChanges) score += 2;
+        if (f.hasPerfChanges) score += 1;
+        if (f.isLargeChange) score += 1;
+        if (f.hasImportChanges) score += 1;
+        return { path: f.path, score };
+      }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+      if (impactScores.length > 0) {
+        const topImpact = impactScores[0]!;
+        const impactLevel = topImpact.score >= 6 ? 'CRITICAL' : topImpact.score >= 4 ? 'HIGH' : topImpact.score >= 2 ? 'MEDIUM' : 'LOW';
+        const impactToken = topImpact.score >= 6 ? 'error' : topImpact.score >= 4 ? 'warning' : topImpact.score >= 2 ? 'primary' : 'textMuted';
+        lines.push(` ${currentTheme.fg(impactToken as any, `impact: ${impactLevel}`)} ${currentTheme.dimFg('textMuted', `(${String(impactScores.length)} files flagged)`)}`);
+      }
+      lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk  [b] blame  [r] refresh`));
+      // Color legend
+      lines.push(dim(` ${green('+')}added ${red('-')}deleted ${yellow('~')}modified ${currentTheme.fg('accent', '→')}renamed`));
+    } else {
+      lines.push(dim(` [v] cycle · [r] refresh`));
     }
-    lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk  [b] blame  [r] refresh`));
-    // Color legend
-    lines.push(dim(` ${green('+')}added ${red('-')}deleted ${yellow('~')}modified ${currentTheme.fg('accent', '→')}renamed`));
     return lines;
   }
 

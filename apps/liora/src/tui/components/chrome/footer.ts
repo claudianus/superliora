@@ -564,10 +564,12 @@ export class FooterComponent implements Component {
 
     const model = modelDisplayName(state);
     if (model) {
-      const thinkingLabel = state.thinking ? ' thinking' : '';
+      // Mode flag — quiet "· think", not bare "thinking" (reads as live activity).
+      const thinkingLabel = state.thinking ? ' · think' : '';
       const modelLabel = `${model}${thinkingLabel}`;
+      // Pulse only while the agent is streaming; think-mode alone stays static.
       left.push(
-        state.streamingPhase === 'idle' && !state.thinking
+        state.streamingPhase === 'idle'
           ? chalk.hex(colors.text)(modelLabel)
           : renderPulseText(modelLabel, 'footer:model', 'text', appearance),
       );

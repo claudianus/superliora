@@ -116,7 +116,7 @@ export interface BentoPanelSpec {
 
 export const DEFAULT_LEFT_DOCK_WIDTH = 42;
 export const DEFAULT_RIGHT_DOCK_WIDTH = 52;
-export const DEFAULT_CENTER_MIN_WIDTH = 60;
+export const DEFAULT_CENTER_MIN_WIDTH = 68;
 export const DEFAULT_ULTRAWIDE_BREAKPOINT = 220;
 export const DEFAULT_WIDE_BREAKPOINT = 140;
 export const DEFAULT_MEDIUM_BREAKPOINT = 120;

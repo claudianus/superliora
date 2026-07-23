@@ -194,7 +194,7 @@ export function measureShellBentoLayout(options: ShellBentoOptions): ShellBentoL
     rightPanels.length > 0;
 
   const minCenter =
-    options.mode === 'micro' ? 20 : options.mode === 'compact' ? 40 : 60;
+    options.mode === 'micro' ? 20 : options.mode === 'compact' ? 40 : 68;
 
   let leftW = wantsLeft
     ? clampDockWidth(options.leftDockWidth ?? 42, area.width, minCenter, gap)

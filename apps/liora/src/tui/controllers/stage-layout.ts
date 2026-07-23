@@ -19,7 +19,7 @@ export const RAIL_WIDTH = 36;
  * Narrower rail used in full-bleed docked layouts when the center band cannot
  * host {@link RAIL_WIDTH} without starving the transcript column.
  */
-export const COMPACT_RAIL_WIDTH = 28;
+export const COMPACT_RAIL_WIDTH = 26;
 
 /** Gap between stage and rail when both are shown (cols). */
 export const STAGE_RAIL_GAP = 2;
@@ -126,8 +126,9 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
   // is too tight for the full rail, fall back to a compact rail width.
   const standardRailBudget = STAGE_RAIL_GAP + RAIL_WIDTH + 40;
   // Shell-bento center is a few cols tighter than the raw workspace center —
-  // keep the compact floor at docked ~140×40 (≈58 cols) so Context still opens.
-  const compactRailBudget = STAGE_RAIL_GAP + COMPACT_RAIL_WIDTH + 28;
+  // keep the compact floor near docked ~140×40 so Context still opens, but
+  // reserve a wider transcript column than the rail itself.
+  const compactRailBudget = STAGE_RAIL_GAP + COMPACT_RAIL_WIDTH + 32;
   const railWidth =
     fullBleed && availableCols < standardRailBudget && availableCols >= compactRailBudget
       ? COMPACT_RAIL_WIDTH

@@ -1360,7 +1360,7 @@ export class LioraTUI {
     // Visual harness seed — keeps Context rail paintable without a live agent.
     if (process.env['SUPERLIORA_BENTO_VISUAL_SEED'] === '1') {
       this.streamingUI.setTodoList([
-        { title: 'Bento visual seed', status: 'in_progress' },
+        { title: 'Visual seed', status: 'in_progress' },
       ]);
     }
   }

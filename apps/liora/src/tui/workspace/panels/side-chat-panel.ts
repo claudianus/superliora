@@ -77,6 +77,9 @@ export class SideChatPanel implements PanelDefinition {
     if (this.messages.length === 0) {
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Type a quick question…')}`, width));
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '↵ sends to the active agent')}`, width));
+      if (width >= 28) {
+        lines.push(this.pad(`  ${currentTheme.dimFg('border', 'Ctrl+/ opens more panels')}`, width));
+      }
     } else {
       // Message count badge in first row
       if (lines.length === 0) {

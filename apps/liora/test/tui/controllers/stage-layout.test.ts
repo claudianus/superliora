@@ -209,7 +209,7 @@ describe('resolveStageLayout', () => {
       viewport: { x: 0, y: 0, width: 160, height: 48 },
     });
     expect(ws.center.width).toBeLessThan(STAGE_RAIL_GAP + RAIL_WIDTH + 40);
-    expect(ws.center.width).toBeGreaterThanOrEqual(STAGE_RAIL_GAP + COMPACT_RAIL_WIDTH + 28);
+    expect(ws.center.width).toBeGreaterThanOrEqual(STAGE_RAIL_GAP + COMPACT_RAIL_WIDTH + 32);
     const stage = resolveStageLayout({
       width: 160,
       height: 48,

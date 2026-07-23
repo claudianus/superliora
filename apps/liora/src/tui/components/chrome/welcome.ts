@@ -43,14 +43,22 @@ export class WelcomeComponent implements Component {
     // resolveResponsiveLayout here — it would classify as `tiny` and also
     // skew banner choice. Compact hero is a deliberate width budget.
     if (safeWidth < 64) {
+      const useCompactPrompt = safeWidth < 48;
+      const promptKey = isLoggedOut
+        ? useCompactPrompt
+          ? 'tui.welcome.prompt.loggedOut.compact'
+          : 'tui.welcome.prompt.loggedOut'
+        : useCompactPrompt
+          ? 'tui.welcome.prompt.loggedIn.compact'
+          : 'tui.welcome.prompt.loggedIn';
       const banner = renderWelcomeBanner('compact', appearance, safeWidth);
       const prompt = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)(loggedOutPrompt)
-        : chalk.hex(currentTheme.palette.textDim)(loggedInPrompt);
+        ? chalk.hex(currentTheme.palette.warning)(ttui(promptKey))
+        : chalk.hex(currentTheme.palette.textDim)(ttui(promptKey));
       const model = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)(modelUnset)
         : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
-      return ['', ...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`].map((line) =>
+      return [...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`].map((line) =>
         truncateToWidth(line, safeWidth, '…'),
       );
     }

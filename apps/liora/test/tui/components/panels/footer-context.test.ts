@@ -115,15 +115,16 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(out).toMatch(/context: █████░░░░░ 50\.0%/);
   });
 
-  it('shows "thinking" label when thinking is enabled, hides it when disabled', () => {
+  it('shows "· think" mode flag when thinking is enabled, hides it when disabled', () => {
     const on = new FooterComponent(baseState({ model: 'k2', thinking: true }));
     const off = new FooterComponent(baseState({ model: 'k2', thinking: false }));
 
     // Match the model badge phrase so rotating tips cannot false-positive.
     const onLine = strip(on.render(120)[0]!);
     const offLine = strip(off.render(120)[0]!);
-    expect(onLine).toContain('k2 thinking');
-    expect(offLine).not.toContain('k2 thinking');
+    expect(onLine).toContain('k2 · think');
+    expect(offLine).not.toContain('k2 · think');
+    expect(offLine).not.toContain('thinking');
   });
 
   it('labels Ultrawork mode separately from plain plan mode in the footer', () => {

@@ -226,13 +226,12 @@ function softHeaderDivider(width: number): string {
   if (safe === 0) return '';
   if (safe === 1) return currentTheme.dimFg('border', '·');
   if (safe === 2) return currentTheme.dimFg('border', ' ·');
-  // Calm: mostly blank with a single middot — never a dotted wall.
+  if (safe === 3) return currentTheme.dimFg('border', ' · ');
+  // Left-weighted separator next to the brand — a centered middot in a long
+  // flex gap reads as a floating speck, especially on ultrawide headers.
   const cells = Array.from({ length: safe }, () => ' ');
-  if (safe >= 6) {
-    cells[Math.floor(safe / 2)] = '·';
-  }
-  cells[0] = ' ';
-  cells[safe - 1] = ' ';
+  const lead = Math.min(2, Math.max(1, Math.floor((safe - 1) / 3)));
+  cells[lead] = '·';
   return currentTheme.dimFg('border', cells.join(''));
 }
 
