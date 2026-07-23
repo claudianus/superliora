@@ -416,13 +416,6 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
-    name: 'dashboard',
-    aliases: ['dash', 'grid'],
-    description: 'Open the bento quest dashboard (Ctrl+G)',
-    priority: 82,
-    availability: 'always',
-  },
-  {
     name: 'cron',
     aliases: [],
     description: 'Manage scheduled jobs (list / delete)',

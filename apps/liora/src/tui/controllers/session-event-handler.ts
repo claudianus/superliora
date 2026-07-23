@@ -68,7 +68,6 @@ import {
   stringValue,
 } from '../utils/event-payload';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
-import { renderDiffLinesClustered } from '../components/media/diff-preview';
 import {
   readGoalQueue,
   removeGoalQueueItem,
@@ -161,47 +160,6 @@ export class SessionEventHandler {
   backgroundTasks: Map<string, BackgroundTaskInfo> = new Map();
   backgroundTaskTranscriptedTerminal: Set<string> = new Set();
 
-  /**
-   * Optional hook fired after a quest-relevant event is processed, so the
-   * bento dashboard can sync immediately instead of waiting for its poll
-   * timer (Gen 2 event-driven refresh — improves AC-2 attention latency).
-   */
-  onQuestRelevantEvent: (() => void) | undefined;
-
-  /**
-   * Optional hook fired with a short human-readable line describing live agent
-   * activity (tool calls, turn end). The bento dashboard's pinned expand view
-   * appends these to show the agent's real-time stream (Gen 2 AC-3).
-   */
-  onQuestStreamLine: ((line: string) => void) | undefined;
-
-  /**
-   * Optional hook fired with pre-rendered diff lines when an Edit tool call
-   * starts. The bento dashboard's pinned expand view appends these so the
-   * user sees the actual code change inline (Gen 3 AC-3 diff rendering).
-   */
-  onQuestStreamLines: ((lines: readonly string[]) => void) | undefined;
-
-  /**
-   * Gen 5: Track file changes (added/removed lines) per session for quest
-   * change statistics. Keyed by session ID, value is { added, removed }.
-   */
-  private sessionChangeCounts = new Map<string, { added: number; removed: number }>();
-
-  /**
-   * Gen 7: A short description of what the main session is doing right now
-   * (e.g. "Edit — src/foo.ts"), surfaced in the quest cell's plan step so the
-   * dashboard shows live activity instead of a static "Working…".
-   */
-  private currentActivity: string | undefined;
-
-  /**
-   * Gen 21: the most recent session error message. The quest dashboard shows
-   * this in the failed quest's cell so the user sees *why* it failed without
-   * opening the expand view.
-   */
-  private lastErrorMessage: string | undefined;
-
   renderedSkillActivationIds: Set<string> = new Set();
   renderedPluginCommandActivationIds: Set<string> = new Set();
   renderedMcpServerStatusKeys: Map<string, string> = new Map();
@@ -221,7 +179,6 @@ export class SessionEventHandler {
   resetRuntimeState(): void {
     this.backgroundTasks.clear();
     this.backgroundTaskTranscriptedTerminal.clear();
-    this.sessionChangeCounts.clear();
     this.ultraworkTheatres.clear();
     this.ultraworkCompletionHandledRuns.clear();
     this.subAgentEventHandler.resetRuntimeState();
@@ -396,12 +353,6 @@ export class SessionEventHandler {
       case 'tool.list.updated': break;
       default: break;
     }
-
-    // Gen 2: notify the bento dashboard on quest-relevant lifecycle events so
-    // it can re-sync immediately rather than waiting for its poll timer.
-    if (this.onQuestRelevantEvent !== undefined && isQuestRelevantEvent(event.type)) {
-      this.onQuestRelevantEvent();
-    }
   }
 
   private handleUltraworkEvent(event: UltraworkTheatreEvent): void {
@@ -546,14 +497,6 @@ export class SessionEventHandler {
     if (event.reason === 'filtered') {
       this.host.showStatus('Turn stopped: provider safety policy blocked the response.', 'error');
     }
-    // Gen 2: feed the dashboard expand view with the turn outcome.
-    if (this.onQuestStreamLine !== undefined) {
-      this.onQuestStreamLine(`✓ turn ended (${event.reason})`);
-    }
-    // Gen 7: clear the live activity now that the turn is done.
-    this.currentActivity = undefined;
-    // Gen 21: a cleanly-ended turn clears the last error message.
-    this.lastErrorMessage = undefined;
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
     const todos = this.host.state.todoPanel.getTodos();
@@ -774,63 +717,6 @@ export class SessionEventHandler {
         event.name,
       );
     }
-    // Gen 2: feed the dashboard expand view with a live activity line.
-    if (this.onQuestStreamLine !== undefined) {
-      const detail = event.description ?? summarizeArgs(toolCall.args);
-      this.onQuestStreamLine(
-        detail !== undefined && detail.length > 0
-          ? `▸ ${event.name} — ${detail}`
-          : `▸ ${event.name}`,
-      );
-    }
-    // Gen 7: record the current activity for the quest cell's plan step.
-    {
-      const detail = event.description ?? summarizeArgs(toolCall.args);
-      this.currentActivity =
-        detail !== undefined && detail.length > 0
-          ? `${event.name} — ${detail}`
-          : event.name;
-    }
-    // Gen 3/6: render Edit/Write tool diffs inline in the expand view so the
-    // user sees the actual code change, not just a "▸ Edit/Write" line.
-    if (this.onQuestStreamLines !== undefined) {
-      if (event.name === 'Edit') {
-        const oldText = typeof toolCall.args['old_string'] === 'string'
-          ? toolCall.args['old_string']
-          : '';
-        const newText = typeof toolCall.args['new_string'] === 'string'
-          ? toolCall.args['new_string']
-          : '';
-        const path = typeof toolCall.args['path'] === 'string'
-          ? toolCall.args['path']
-          : 'unknown';
-        if (oldText.length > 0 || newText.length > 0) {
-          const diffLines = renderDiffLinesClustered(oldText, newText, path, {
-            contextLines: 2,
-            maxLines: 12,
-          });
-          if (diffLines.length > 0) this.onQuestStreamLines(diffLines);
-        }
-      } else if (event.name === 'Write') {
-        // Gen 6: Write replaces the whole file — show the new content as
-        // additions against an empty old text.
-        const content = typeof toolCall.args['content'] === 'string'
-          ? toolCall.args['content']
-          : '';
-        const path = typeof toolCall.args['path'] === 'string'
-          ? toolCall.args['path']
-          : 'unknown';
-        if (content.length > 0) {
-          const diffLines = renderDiffLinesClustered('', content, path, {
-            contextLines: 0,
-            maxLines: 12,
-          });
-          if (diffLines.length > 0) this.onQuestStreamLines(diffLines);
-        }
-      }
-    }
-    // Gen 5: accumulate change statistics (added/removed lines) for quest cells.
-    this.trackFileChange(event.name, toolCall.args);
     this.host.patchLivePane({
       mode: 'tool',
       pendingApproval: null,
@@ -1205,8 +1091,6 @@ export class SessionEventHandler {
     this.host.streamingUI.flushNow();
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
-    // Gen 21: capture the error message for the quest dashboard cell.
-    this.lastErrorMessage = event.message ?? 'Session error';
     // Desktop notification on error
     notifyError(event.message ?? '세션 오류 발생');
     // Mark the last turn as failed so the user can re-send it with `/retry`
@@ -1422,50 +1306,6 @@ export class SessionEventHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // Change tracking (Gen 5)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Accumulate added/removed line counts from file-mutating tool calls so the
-   * quest dashboard cell can show a real `+N -M` change statistic.
-   *
-   * Edit: removed = old_string lines, added = new_string lines.
-   * Write: added = content lines (full-file write counts as additions).
-   */
-  private trackFileChange(toolName: string, args: Record<string, unknown>): void {
-    if (toolName !== 'Edit' && toolName !== 'Write') return;
-    const sessionId = this.host.state.appState.sessionId ?? 'unknown';
-    const count = this.sessionChangeCounts.get(sessionId) ?? { added: 0, removed: 0 };
-
-    if (toolName === 'Edit') {
-      const oldText = typeof args['old_string'] === 'string' ? args['old_string'] : '';
-      const newText = typeof args['new_string'] === 'string' ? args['new_string'] : '';
-      count.removed += countLines(oldText);
-      count.added += countLines(newText);
-    } else {
-      const content = typeof args['content'] === 'string' ? args['content'] : '';
-      count.added += countLines(content);
-    }
-    this.sessionChangeCounts.set(sessionId, count);
-  }
-
-  /** Get the accumulated change count for the current session (Gen 5). */
-  getSessionChangeCount(): { added: number; removed: number } {
-    const sessionId = this.host.state.appState.sessionId ?? 'unknown';
-    return this.sessionChangeCounts.get(sessionId) ?? { added: 0, removed: 0 };
-  }
-
-  /** Get the current activity description for the quest cell (Gen 7). */
-  getCurrentActivity(): string | undefined {
-    return this.currentActivity;
-  }
-
-  /** Get the last session error message for the quest cell (Gen 21). */
-  getLastErrorMessage(): string | undefined {
-    return this.lastErrorMessage;
-  }
-
-  // ---------------------------------------------------------------------------
   // Background task lifecycle
   // ---------------------------------------------------------------------------
 
@@ -1617,32 +1457,4 @@ function summarizeArgs(args: Record<string, unknown>): string | undefined {
     }
   }
   return undefined;
-}
-
-/** Event types that change quest state and warrant an immediate dashboard sync. */
-const QUEST_RELEVANT_EVENTS: ReadonlySet<string> = new Set([
-  'turn.started',
-  'turn.ended',
-  'turn.step.started',
-  'turn.step.completed',
-  'turn.step.interrupted',
-  'background.task.started',
-  'background.task.terminated',
-  'agent.status.updated',
-  'error',
-  'compaction.started',
-  'compaction.completed',
-]);
-
-function isQuestRelevantEvent(eventType: string): boolean {
-  return QUEST_RELEVANT_EVENTS.has(eventType);
-}
-
-/** Count non-empty lines in a text blob (Gen 5 change statistics). */
-function countLines(text: string): number {
-  if (text.length === 0) return 0;
-  const lines = text.split('\n');
-  // A trailing newline produces an empty final element; don't count it.
-  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
-  return lines.length;
 }
