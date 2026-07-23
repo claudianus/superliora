@@ -108,7 +108,6 @@ import type {
 } from '../types';
 import type { TUIState } from '../tui-state';
 import { createGoal as startGoalCommand } from '../commands/goal';
-import type { ActivityFeed } from '../workspace/panels/activity-transparency-panel';
 import { notifyTurnComplete, notifyError } from '../utils/desktop-notification';
 
 export interface SessionEventHost {
@@ -147,7 +146,6 @@ export class SessionEventHandler {
   readonly subAgentEventHandler: SubAgentEventHandler;
 
   /** Optional activity feed for the workspace transparency panel. */
-  activityFeed: ActivityFeed | undefined;
 
   constructor(private readonly host: SessionEventHost) {
     this.subAgentEventHandler = new SubAgentEventHandler(host, {
@@ -385,19 +383,7 @@ export class SessionEventHandler {
       case 'subagent.failed':
         this.subAgentEventHandler.handleLifecycleEvent(event);
         // Track subagent lifecycle in activity feed
-        if (this.activityFeed !== undefined) {
-          const kind = event.type === 'subagent.completed' ? 'agent-done' as const
-            : event.type === 'subagent.failed' ? 'tool-error' as const
-            : event.type === 'subagent.spawned' ? 'agent-spawn' as const
-            : 'agent-progress' as const;
-          const label = event.type === 'subagent.completed' ? 'Agent 완료'
-            : event.type === 'subagent.failed' ? 'Agent 실패'
-            : event.type === 'subagent.spawned' ? 'Agent 시작'
-            : event.type === 'subagent.started' ? 'Agent 실행 중'
-            : 'Agent 일시정지';
-          this.activityFeed.push(kind, label, undefined, event.type === 'subagent.failed', Date.now());
-        }
-        break;
+                break;
       case 'subagent.todo.updated':
         this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
       case 'tools.update_store':
@@ -711,7 +697,6 @@ export class SessionEventHandler {
     this.host.patchLivePane({ mode: 'idle' });
     if (!wasThinking) {
       this.host.setAppState({ streamingPhase: 'thinking', streamingStartTime: Date.now() });
-      this.activityFeed?.push('thinking', '추론 중…', event.delta.slice(0, 60));
     }
     streamingUI.scheduleFlush();
   }
@@ -720,7 +705,6 @@ export class SessionEventHandler {
     const { state, streamingUI } = this.host;
     if (streamingUI.hasThinkingDraft()) {
       streamingUI.flushThinkingToTranscript('idle');
-      this.activityFeed?.push('thinking', '추론 완료', '응답 생성 시작');
     }
 
     if (event.delta.trim().length > 0) {
@@ -779,20 +763,7 @@ export class SessionEventHandler {
     };
     streamingUI.registerToolCall(toolCall);
     // Push to activity feed for transparency panel
-    if (this.activityFeed !== undefined) {
-      const kind = event.name === 'Read' || event.name === 'LioraRead'
-        ? 'file-read' as const
-        : event.name === 'Write' || event.name === 'Edit'
-          ? 'file-write' as const
-          : event.name === 'Bash'
-            ? 'command' as const
-            : event.name === 'Agent' || event.name === 'AgentSwarm'
-              ? 'agent-spawn' as const
-              : 'tool-start' as const;
-      const detail = event.description ?? summarizeArgs(toolCall.args);
-      this.activityFeed.push(kind, event.name, detail, false, Date.now());
-    }
-    if (event.name !== 'TodoList') {
+        if (event.name !== 'TodoList') {
       state.todoPanel.bumpActivity();
       requestTUILayoutRender(state);
     }
@@ -921,20 +892,7 @@ export class SessionEventHandler {
     };
     const matchedCall = streamingUI.completeToolResult(event.toolCallId, resultData);
     // Push result to activity feed
-    if (this.activityFeed !== undefined && matchedCall !== undefined) {
-      const kind = event.isError === true ? 'tool-error' as const : 'tool-result' as const;
-      const outputPreview = resultData.output.slice(0, 80);
-      const entryId = this.activityFeed.push(kind, `${matchedCall.name} done`, outputPreview, event.isError === true);
-      // Complete the matching tool-start entry to record duration
-      const entries = this.activityFeed.getEntries();
-      for (let i = entries.length - 1; i >= 0; i--) {
-        const e = entries[i]!;
-        if (e.label === matchedCall.name && e.durationMs === undefined && !e.isError) {
-          this.activityFeed.complete(e.id, Date.now() - e.timestamp, event.isError === true);
-          break;
-        }
-      }
-    }
+    
     this.subAgentEventHandler.handleAgentSwarmToolResult(
       event.toolCallId,
       resultData,

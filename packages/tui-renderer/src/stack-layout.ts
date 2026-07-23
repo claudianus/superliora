@@ -38,11 +38,6 @@ export interface RendererStackLayoutOptions<Id extends string = string> {
    */
   readonly topFixedRegions?: readonly RendererStackFixedRegion<Id>[];
   readonly minPrimaryRows?: number;
-  /**
-   * Vertical gap (rows) inserted between adjacent stacked regions.
-   * Reserved from the primary region's budget. @default 0
-   */
-  readonly regionGap?: number;
 }
 
 export interface RendererStackLayoutRegion<Id extends string = string> {
@@ -95,7 +90,6 @@ export function measureRendererStackLayout<Id extends string>(
   }
 
   const minPrimaryRows = normalizeMinPrimaryRows(options.minPrimaryRows);
-  const regionGap = Math.max(0, Math.floor(options.regionGap ?? 0));
   const topFixedRegions = (options.topFixedRegions ?? [])
     .map((region) => ({ id: region.id, rows: normalizeRegionRows(region.rows) }))
     .filter((region) => region.rows > 0);
@@ -103,27 +97,8 @@ export function measureRendererStackLayout<Id extends string>(
     .map((region) => ({ id: region.id, rows: normalizeRegionRows(region.rows) }))
     .filter((region) => region.rows > 0);
   const topReservedRows = topFixedRegions.reduce((sum, region) => sum + region.rows, 0);
-  let reservedRows = fixedRegions.reduce((sum, region) => sum + region.rows, 0);
-  // Gaps between every adjacent present region (top + primary + bottom).
-  let presentCount = topFixedRegions.length + 1 + fixedRegions.length;
-  let gapRows = regionGap > 0 ? regionGap * Math.max(0, presentCount - 1) : 0;
-
-  // If fixed chrome alone overflows the band, drop trailing fixed regions
-  // until primary can claim minPrimaryRows (keeps editor/footer usable).
-  while (
-    fixedRegions.length > 0 &&
-    topReservedRows + reservedRows + gapRows + minPrimaryRows > contentHeight
-  ) {
-    fixedRegions.pop();
-    reservedRows = fixedRegions.reduce((sum, region) => sum + region.rows, 0);
-    presentCount = topFixedRegions.length + 1 + fixedRegions.length;
-    gapRows = regionGap > 0 ? regionGap * Math.max(0, presentCount - 1) : 0;
-  }
-
-  const primaryRows = Math.max(
-    minPrimaryRows,
-    contentHeight - topReservedRows - reservedRows - gapRows,
-  );
+  const reservedRows = fixedRegions.reduce((sum, region) => sum + region.rows, 0);
+  const primaryRows = Math.max(minPrimaryRows, contentHeight - topReservedRows - reservedRows);
 
   const regions: RendererStackLayoutRegion<Id>[] = [];
 
@@ -137,7 +112,7 @@ export function measureRendererStackLayout<Id extends string>(
       rows: top.rows,
       columns: contentWidth,
     }));
-    y += top.rows + regionGap;
+    y += top.rows;
   }
 
   // Primary region follows the top regions.
@@ -148,11 +123,10 @@ export function measureRendererStackLayout<Id extends string>(
     rows: primaryRows,
     columns: contentWidth,
   }));
-  y += primaryRows + (fixedRegions.length > 0 ? regionGap : 0);
+  y += primaryRows;
 
   // Bottom-pinned fixed regions follow the primary region.
-  for (let i = 0; i < fixedRegions.length; i++) {
-    const fixed = fixedRegions[i]!;
+  for (const fixed of fixedRegions) {
     regions.push(createRegion({
       id: fixed.id,
       x: contentX,
@@ -160,14 +134,14 @@ export function measureRendererStackLayout<Id extends string>(
       rows: fixed.rows,
       columns: contentWidth,
     }));
-    y += fixed.rows + (i < fixedRegions.length - 1 ? regionGap : 0);
+    y += fixed.rows;
   }
 
   return {
     terminalRows,
     terminalColumns,
     primaryRows,
-    reservedRows: topReservedRows + reservedRows + gapRows,
+    reservedRows: topReservedRows + reservedRows,
     regions,
   };
 }

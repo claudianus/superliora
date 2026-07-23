@@ -15,12 +15,6 @@ export const STAGE_MAX_HEIGHT = 50;
 /** Default situational rail width (cols). */
 export const RAIL_WIDTH = 36;
 
-/**
- * Narrower rail used in full-bleed docked layouts when the center band cannot
- * host {@link RAIL_WIDTH} without starving the transcript column.
- */
-export const COMPACT_RAIL_WIDTH = 26;
-
 /** Gap between stage and rail when both are shown (cols). */
 export const STAGE_RAIL_GAP = 2;
 
@@ -71,11 +65,6 @@ export interface ResolveStageLayoutInput {
    * `leftDockWidth`/`rightDockWidth` from the raw terminal edges.
    */
   readonly workspaceCenter?: { x: number; y: number; width: number; height: number };
-  /**
-   * Full-bleed bento mode: skip the centered reading-column cap so the stage
-   * fills the workspace center band edge-to-edge (dashboard composition).
-   */
-  readonly fullBleed?: boolean;
 }
 
 /**
@@ -116,48 +105,17 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
 
   // Only wide+ terminals get a capped, centered reading column. Narrower
   // profiles stay full-bleed so small windows do not lose horizontal space.
-  // Bento shell mode always full-bleeds — the grid owns composition, not a
-  // floating reading column with letterbox sky.
-  const fullBleed = input.fullBleed === true || workspaceCenter !== undefined;
   const railEligible = profile === 'wide' || profile === 'ultrawide';
-  // Full-bleed / workspace-center bands are already dock-shrunk — require only
-  // enough room for a usable transcript column + rail, not the raw 120-col
-  // terminal threshold (which would never open beside docks). When the center
-  // is too tight for the full rail, fall back to a compact rail width.
-  const standardRailBudget = STAGE_RAIL_GAP + RAIL_WIDTH + 40;
-  // Shell-bento center is a few cols tighter than the raw workspace center —
-  // keep the compact floor near docked ~140×40 so Context still opens, but
-  // reserve a wider transcript column than the rail itself.
-  const compactRailBudget = STAGE_RAIL_GAP + COMPACT_RAIL_WIDTH + 32;
-  const railWidth =
-    fullBleed && availableCols < standardRailBudget && availableCols >= compactRailBudget
-      ? COMPACT_RAIL_WIDTH
-      : RAIL_WIDTH;
-  const railMinCols = fullBleed
-    ? railWidth === COMPACT_RAIL_WIDTH
-      ? compactRailBudget
-      : standardRailBudget
-    : RAIL_MIN_COLS;
-  const wantsRail = input.hasRailContent && railEligible && availableCols >= railMinCols;
+  const wantsRail = input.hasRailContent && railEligible && availableCols >= RAIL_MIN_COLS;
   // Once the rail opens, narrow the stage so the fixed-width rail always
-  // fits; stack mode keeps the capped reading column (unless full-bleed).
-  const stageWidth = fullBleed
-    ? wantsRail
-      ? Math.max(1, availableCols - (STAGE_RAIL_GAP + railWidth))
-      : availableCols
-    : wantsRail
-      ? Math.min(STAGE_MAX_WIDTH, availableCols - (STAGE_RAIL_GAP + railWidth))
-      : railEligible
-        ? Math.min(availableCols, STAGE_MAX_WIDTH)
-        : availableCols;
-  const stageHeight = fullBleed
-    ? Number.isFinite(bandRows)
-      ? bandRows
-      : STAGE_MAX_HEIGHT
-    : Number.isFinite(bandRows)
-      ? Math.min(bandRows, STAGE_MAX_HEIGHT)
-      : STAGE_MAX_HEIGHT;
-  const railBundle = stageWidth + STAGE_RAIL_GAP + railWidth;
+  // fits; stack mode keeps the capped reading column.
+  const stageWidth = wantsRail
+    ? Math.min(STAGE_MAX_WIDTH, availableCols - (STAGE_RAIL_GAP + RAIL_WIDTH))
+    : railEligible
+      ? Math.min(availableCols, STAGE_MAX_WIDTH)
+      : availableCols;
+  const stageHeight = Number.isFinite(bandRows) ? Math.min(bandRows, STAGE_MAX_HEIGHT) : STAGE_MAX_HEIGHT;
+  const railBundle = stageWidth + STAGE_RAIL_GAP + RAIL_WIDTH;
   const mode: StageLayoutMode = wantsRail && railBundle <= availableCols ? 'rail' : 'stack';
   const bundleWidth = mode === 'rail' ? railBundle : stageWidth;
   const bundleHeight = stageHeight;
@@ -187,7 +145,7 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
       rail: {
         x: xOffset + stageWidth + STAGE_RAIL_GAP,
         y,
-        width: railWidth,
+        width: RAIL_WIDTH,
         height: stageHeight,
       },
       leftDock,

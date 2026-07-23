@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { renderActivityTicker } from '#/tui/utils/activity-ticker';
-import type { ActivityEntry } from '#/tui/workspace/panels/activity-transparency-panel';
+import type { ActivityEntry } from '#/tui/utils/activity-ticker';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 const strip = (s: string): string => s.replaceAll(ANSI_SGR, '');

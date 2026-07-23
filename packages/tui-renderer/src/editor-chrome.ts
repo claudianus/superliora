@@ -45,8 +45,6 @@ export interface RendererEditorFrameOptions {
   readonly borderStyle?: RendererCellStyle;
   readonly promptStyle?: RendererCellStyle;
   readonly surfaceStyle?: RendererCellStyle;
-  /** Horizontal border glyph. @default '─' (use '━' for focused accent). */
-  readonly borderHorizontal?: string;
   readonly scrollbarLines?: readonly string[];
   readonly scrollbarTrackStyle?: RendererCellStyle;
   readonly scrollbarThumbStyle?: RendererCellStyle;
@@ -62,7 +60,6 @@ export interface RendererEditorOverlayLinesOptions {
   readonly surfaceStyle?: RendererCellStyle;
   readonly textStyle?: RendererCellStyle;
   readonly contentX?: number;
-  readonly borderHorizontal?: string;
 }
 
 export interface RendererEditorFrameResult {
@@ -317,12 +314,10 @@ export function renderRendererEditorFrame(
   const lines: RendererCell[][] = [];
   const topLeft = options.connectedAbove === true ? '├' : '╭';
   const topRight = options.connectedAbove === true ? '┤' : '╮';
-  const horizontal = normalizeEditorFrameGlyph(options.borderHorizontal, '─');
   lines.push(createRendererEditorBorderLine({
     width,
     left: topLeft,
     right: topRight,
-    horizontal,
     style: options.borderStyle,
     label: options.topLabel,
   }));
@@ -372,7 +367,6 @@ export function renderRendererEditorFrame(
       width,
       left: '╰',
       right: '╯',
-      horizontal,
       style: options.borderStyle,
     }));
   }
@@ -450,7 +444,6 @@ export function renderRendererEditorSurface(
         borderStyle: options.borderStyle,
         surfaceStyle: options.surfaceStyle,
         textStyle: options.textStyle,
-        borderHorizontal: options.borderHorizontal,
       })
     : [];
   const surface: {
@@ -599,7 +592,6 @@ export function renderRendererEditorOverlayLines(
     left: '╰',
     right: '╯',
     style: options.borderStyle,
-    horizontal: options.borderHorizontal,
   }));
   return lines;
 }
@@ -667,15 +659,13 @@ function createRendererEditorBorderLine(options: {
   readonly right: string;
   readonly style: RendererCellStyle | undefined;
   readonly label?: string;
-  readonly horizontal?: string;
 }): RendererCell[] {
   const width = normalizeEditorFrameSize(options.width);
-  const horizontal = normalizeEditorFrameGlyph(options.horizontal, '─');
   if (width <= 1) return [{ char: options.left, style: options.style }];
   const cells: RendererCell[] = [
     { char: options.left, style: options.style },
     ...Array.from({ length: Math.max(0, width - 2) }, () => ({
-      char: horizontal,
+      char: '─',
       style: options.style,
     })),
     { char: options.right, style: options.style },

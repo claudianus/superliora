@@ -5,8 +5,6 @@
  * maps are resolved at render time so theme switches apply within a frame.
  */
 
-import { visibleWidth } from '@harness-kit/tui-renderer';
-
 import { currentTheme } from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
@@ -14,7 +12,14 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
-import type { ActivityEntry } from '../workspace/panels/activity-transparency-panel';
+export interface ActivityEntry {
+  readonly id: string | number;
+  readonly kind: string;
+  readonly label: string;
+  readonly detail?: string;
+  readonly error?: boolean;
+  readonly timestamp: number;
+}
 
 type TickerToken = Parameters<typeof currentTheme.fg>[0];
 
@@ -70,8 +75,9 @@ export function renderActivityTicker(
 
   const content = ` ${parts.join(' ')}`;
 
-  // Pad to full width (emoji / CJK need display width, not string length).
-  const padding = Math.max(0, columns - visibleWidth(content));
+  // Pad to full width.
+  const visibleLen = content.replace(/\u001B\[[0-9;]*m/g, '').length;
+  const padding = Math.max(0, columns - visibleLen);
 
   return `${content}${' '.repeat(padding)}`;
 }
