@@ -126,6 +126,8 @@ import { StepSummaryComponent } from './components/messages/step-summary';
 import { ToolCallComponent } from './components/messages/tool-call';
 import { UserMessageComponent } from './components/messages/user-message';
 import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
+import { BentoDashboardComponent } from './components/panes/bento-dashboard';
+import { QuestExpandView } from './components/panes/quest-expand-view';
 import {
   QueuePaneComponent,
   queuePaneSelectionIdentity,
@@ -150,6 +152,11 @@ import { SessionReplayRenderer, type SessionReplayHost } from './controllers/ses
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { UsageMonitorController } from './controllers/usage-monitor';
+import { QuestGridController } from './controllers/quest-grid-controller';
+import { AttentionController } from './controllers/attention-controller';
+import { PinController } from './controllers/pin-controller';
+import { ApprovalController as QuestApprovalController } from './controllers/approval-controller';
+import { syncQuestGridFromSnapshot } from './controllers/quest-session-bridge';
 import { setKittyGraphicsChannel } from './media/kitty-graphics-channel';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
@@ -400,6 +407,18 @@ export class LioraTUI {
   private readonly sessionStartTime = Date.now();
   private readonly activityFeed = new ActivityFeed();
 
+  // Quest Dashboard (bento grid) controllers — lazily created on first /dashboard.
+  private questGridController: QuestGridController | undefined;
+  private questAttentionController: AttentionController | undefined;
+  private questPinController: PinController | undefined;
+  private questApprovalController: QuestApprovalController | undefined;
+  private dashboardPanel: BentoDashboardComponent | undefined;
+  private dashboardExpandViews = new Map<string, QuestExpandView>();
+  /** Last-seen tail output per background task, for incremental expand-view appends (Gen 4). */
+  private dashboardTaskTails = new Map<string, string>();
+  private dashboardBlinkTimer: ReturnType<typeof setInterval> | undefined;
+  private dashboardBlinkPhase = false;
+
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -498,6 +517,22 @@ export class LioraTUI {
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
     this.sessionEventHandler.activityFeed = this.activityFeed;
+    // Gen 2: event-driven dashboard refresh — sync immediately on quest-relevant
+    // events instead of waiting for the poll timer (improves AC-2 latency).
+    this.sessionEventHandler.onQuestRelevantEvent = () => {
+      if (this.state.activeDialog === 'dashboard') {
+        this.syncQuestDashboard();
+      }
+    };
+    // Gen 2: feed the pinned quest's expand view with live agent activity lines.
+    this.sessionEventHandler.onQuestStreamLine = (line) => {
+      this.appendQuestStreamLines([line]);
+    };
+    // Gen 3: feed pre-rendered diff lines (Edit tool) into the expand view.
+    // Gen 50: route them through the diff-only buffer so `d` can isolate them.
+    this.sessionEventHandler.onQuestStreamLines = (lines) => {
+      this.appendQuestDiffLines(lines);
+    };
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.tasksBrowserController = new TasksBrowserController(this);
     this.usageMonitor = new UsageMonitorController({
@@ -1824,9 +1859,15 @@ export class LioraTUI {
   }
 
   handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void {
+    const text = event.update.text ?? '';
+    // Gen 8: mirror live shell output into the pinned quest's expand view so
+    // the user can watch command verification run. No-op unless the dashboard
+    // is open (appendQuestStreamLines guards on activeDialog).
+    if (text.length > 0) {
+      this.appendQuestStreamLines(splitShellOutputLines(text));
+    }
     const stream = this.shellOutputStreams.get(event.commandId);
     if (stream === undefined) return;
-    const text = event.update.text ?? '';
     if (text.length === 0) return;
     stream.component.append(text);
   }
@@ -4040,6 +4081,236 @@ export class LioraTUI {
     this.restoreEditor();
   }
 
+  // -------------------------------------------------------------------------
+  // Quest Dashboard (bento grid) — Ctrl+G / /dashboard
+  // -------------------------------------------------------------------------
+
+  showDashboard(): void {
+    if (this.state.activeDialog !== null) return;
+
+    // Lazily create controllers on first open
+    if (this.questGridController === undefined) {
+      const getViewport = () => {
+        const rect = this.state.cachedEditorRect;
+        return rect ?? { x: 0, y: 0, width: 120, height: 40 };
+      };
+      const requestRender = () => requestTUIContentRender(this.state);
+      this.questGridController = new QuestGridController({
+        getViewport,
+        requestRender,
+        // Gen 27: auto-pin quests that transition into an attention state.
+        onAttentionTransition: (questId) => {
+          this.questPinController?.pin(questId);
+        },
+        // Gen 85: problem-count provider for the `problems` sort mode.
+        getProblemCount: (questId) => {
+          const counts = this.dashboardExpandViews.get(questId)?.getProblemCounts();
+          return counts !== undefined ? counts.errors + counts.warnings : 0;
+        },
+      });
+      this.questAttentionController = new AttentionController({
+        writeRaw: (data) => { process.stdout.write(data); },
+        requestRender,
+      });
+      this.questPinController = new PinController({
+        gridController: this.questGridController,
+        requestRender,
+      });
+      this.questApprovalController = new QuestApprovalController({
+        // a (approve): resolve the pending reverse-rpc approval for the main
+        // session, mirroring the approval panel's "approved" response.
+        sendStdin: () => {
+          if (this.state.livePane.pendingApproval === null) {
+            this.showStatus('No pending approval for this quest.', 'warning');
+            return;
+          }
+          this.approvalController.respond({ decision: 'approved' });
+          this.patchLivePane({ pendingApproval: null });
+          this.syncQuestDashboard();
+        },
+        // x → cancel-all: cancel every pending approval (aborts the turn).
+        cancelQuest: () => {
+          this.approvalController.cancelAll('cancelled from quest dashboard');
+          this.patchLivePane({ pendingApproval: null });
+          this.syncQuestDashboard();
+        },
+        // x → reject-step: reject just the current tool call.
+        rejectStep: () => {
+          if (this.state.livePane.pendingApproval === null) return;
+          this.approvalController.respond({ decision: 'rejected' });
+          this.patchLivePane({ pendingApproval: null });
+          this.syncQuestDashboard();
+        },
+        // r (rewind): reuse the existing /undo selector. It owns the whole
+        // rewind flow, so we close the dashboard and return null to signal
+        // that no separate executeRewind step is needed.
+        openRewindPicker: async () => {
+          this.hideDashboard();
+          this.openUndoSelector();
+          return null;
+        },
+        executeRewind: () => {},
+        presentRejectChoice: async () => 'reject-step',
+        requestRender,
+      });
+    }
+
+    // Initial sync from live session + background tasks
+    this.syncQuestDashboard();
+
+    // Gen 39: land focus on the most urgent quest when the dashboard opens.
+    this.questGridController?.ensureFocus();
+
+    // Refresh timer: re-sync quest state and toggle the blink phase so
+    // attention pulses animate and live status changes show up without
+    // needing to reopen the dashboard.
+    this.dashboardBlinkPhase = false;
+    this.dashboardBlinkTimer ??= setInterval(() => {
+      this.dashboardBlinkPhase = !this.dashboardBlinkPhase;
+      this.syncQuestDashboard();
+      // Gen 4: stream the pinned background task's output into its expand view.
+      void this.pollPinnedTaskStream();
+      this.dashboardPanel?.setBlinkPhase(this.dashboardBlinkPhase);
+      requestTUIContentRender(this.state);
+    }, 500);
+
+    const panel = new BentoDashboardComponent({
+      gridController: this.questGridController,
+      attentionController: this.questAttentionController,
+      pinController: this.questPinController,
+      approvalController: this.questApprovalController,
+      expandViews: this.dashboardExpandViews,
+      blinkPhase: this.dashboardBlinkPhase,
+      onClose: () => this.hideDashboard(),
+    });
+    this.dashboardPanel = panel;
+
+    this.state.activeDialog = 'dashboard';
+    this.mountEditorReplacement(panel);
+  }
+
+  /** Build a runtime snapshot and sync the quest grid + attention state. */
+  private syncQuestDashboard(): void {
+    const grid = this.questGridController;
+    const attention = this.questAttentionController;
+    if (grid === undefined || attention === undefined) return;
+    const session = this.session;
+    syncQuestGridFromSnapshot(grid, attention, {
+      sessionId: this.state.appState.sessionId ?? 'unknown',
+      sessionTitle: session?.title ?? 'Main Session',
+      streamingPhase: this.state.appState.streamingPhase,
+      isCompacting: this.state.appState.isCompacting,
+      approvalPending: this.state.livePane.pendingApproval !== null,
+      backgroundTasks: this.sessionEventHandler.backgroundTasks,
+      workDir: this.state.appState.workDir ?? process.cwd(),
+      sessionChangeCount: this.sessionEventHandler.getSessionChangeCount(),
+      currentActivity: this.sessionEventHandler.getCurrentActivity(),
+      todoProgress: computeTodoProgress(this.state.todoPanel.getTodos()),
+      contextUsage: this.state.appState.contextUsage,
+      approvalSummary: describePendingApproval(this.state.livePane.pendingApproval),
+      modelName: this.state.appState.model || undefined,
+      sessionCostUsd: this.state.appState.sessionCostUsd ?? 0,
+      lastErrorMessage: this.sessionEventHandler.getLastErrorMessage(),
+    });
+  }
+
+  /**
+   * Append live stream lines (activity lines or pre-rendered diff lines) to
+   * the pinned quest's expand view. No-op when the dashboard is closed.
+   */
+  private appendQuestStreamLines(lines: readonly string[]): void {
+    if (this.state.activeDialog !== 'dashboard' || lines.length === 0) return;
+    const targetId = this.questPinController?.getPinnedQuest()?.id
+      ?? `session:${this.state.appState.sessionId ?? 'unknown'}`;
+    let view = this.dashboardExpandViews.get(targetId);
+    if (view === undefined) {
+      view = new QuestExpandView();
+      this.dashboardExpandViews.set(targetId, view);
+    }
+    view.appendLines(lines);
+    requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Gen 50: feed pre-rendered diff lines into the pinned expand view's
+   * diff-only buffer (and the main stream) so `d` can isolate code changes.
+   */
+  private appendQuestDiffLines(lines: readonly string[]): void {
+    if (this.state.activeDialog !== 'dashboard' || lines.length === 0) return;
+    const targetId = this.questPinController?.getPinnedQuest()?.id
+      ?? `session:${this.state.appState.sessionId ?? 'unknown'}`;
+    let view = this.dashboardExpandViews.get(targetId);
+    if (view === undefined) {
+      view = new QuestExpandView();
+      this.dashboardExpandViews.set(targetId, view);
+    }
+    view.appendDiffLines(lines);
+    requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Gen 4: poll the pinned background task's output and stream the incremental
+   * delta into its expand view. Background tasks don't emit per-line events to
+   * the main session handler, so we tail their output on the refresh timer.
+   *
+   * The tail window slides as output grows, so the previous tail is not always
+   * a prefix of the new one. We append the delta when it is; otherwise we reset
+   * the view to the fresh tail so the user always sees current output.
+   */
+  private async pollPinnedTaskStream(): Promise<void> {
+    if (this.state.activeDialog !== 'dashboard') return;
+    const pinned = this.questPinController?.getPinnedQuest();
+    if (pinned === undefined || !pinned.id.startsWith('task:')) return;
+    const session = this.session;
+    if (session === undefined) return;
+
+    const taskId = pinned.id.slice('task:'.length);
+    let tail: string;
+    try {
+      tail = await session.getBackgroundTaskOutput(taskId, { tail: 4000 });
+    } catch {
+      return;
+    }
+    // The dashboard may have closed or the pin changed while awaiting.
+    if (this.state.activeDialog !== 'dashboard') return;
+    if (this.questPinController?.getPinnedQuest()?.id !== pinned.id) return;
+
+    const previous = this.dashboardTaskTails.get(taskId);
+    let view = this.dashboardExpandViews.get(pinned.id);
+    if (view === undefined) {
+      view = new QuestExpandView();
+      this.dashboardExpandViews.set(pinned.id, view);
+    }
+
+    if (previous === undefined) {
+      // First fetch: seed the view with the current tail.
+      view.clear();
+      view.appendLines(splitTailLines(tail));
+    } else if (tail === previous) {
+      // No change.
+    } else if (tail.startsWith(previous)) {
+      // Clean append: only the new delta.
+      const delta = tail.slice(previous.length);
+      view.appendLines(splitTailLines(delta));
+    } else {
+      // Tail window slid past the previous snapshot; reset to fresh output.
+      view.clear();
+      view.appendLines(splitTailLines(tail));
+    }
+    this.dashboardTaskTails.set(taskId, tail);
+    requestTUIContentRender(this.state);
+  }
+
+  private hideDashboard(): void {
+    if (this.dashboardBlinkTimer !== undefined) {
+      clearInterval(this.dashboardBlinkTimer);
+      this.dashboardBlinkTimer = undefined;
+    }
+    this.dashboardPanel = undefined;
+    this.state.activeDialog = null;
+    this.restoreEditor();
+  }
+
   showSearchResults(results: SearchResults): void {
     this.state.activeDialog = 'search';
     this.mountEditorReplacement(
@@ -4484,4 +4755,50 @@ function collectFooterModeBeats(
     }
   }
   return beats;
+}
+
+/**
+ * Split a background-task tail blob into display lines, dropping a single
+ * trailing empty line that results from a final newline.
+ */
+function splitTailLines(tail: string): string[] {
+  if (tail.length === 0) return [];
+  const lines = tail.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
+/**
+ * Gen 8: split a shell-output chunk into display lines for the expand view.
+ * Chunks may be partial lines; we split on newlines and drop a trailing empty
+ * element produced by a final newline.
+ */
+function splitShellOutputLines(text: string): string[] {
+  if (text.length === 0) return [];
+  const lines = text.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
+/** Gen 9: compute todo progress ({ done, total }) from a todo list, or undefined if empty. */
+function computeTodoProgress(
+  todos: readonly { status: string }[],
+): { done: number; total: number } | undefined {
+  if (todos.length === 0) return undefined;
+  const done = todos.filter((t) => t.status === 'done').length;
+  return { done, total: todos.length };
+}
+
+/**
+ * Gen 13: summarize a pending approval as "tool — description" so the quest
+ * cell can show what needs a decision. Returns undefined when nothing is
+ * pending.
+ */
+function describePendingApproval(
+  pending: { data: { tool_name: string; description: string } } | null,
+): string | undefined {
+  if (pending === null) return undefined;
+  const { tool_name: toolName, description } = pending.data;
+  const desc = description.length > 60 ? `${description.slice(0, 59)}…` : description;
+  return `${toolName} — ${desc}`;
 }
