@@ -487,3 +487,50 @@ describe('Gen 105: summary bar sort reversal indicator', () => {
     expect(output).toContain('sort: attention ↓');
   });
 });
+
+describe('Gen 110: live match count while filtering', () => {
+  function makeComponentWithNames() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { name: 'Refactor auth' }));
+    grid.addQuest(makeQuest('b', { name: 'Fix login bug' }));
+    grid.addQuest(makeQuest('c', { name: 'AUTH tests' }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    return { component };
+  }
+
+  it('shows the live match count while typing the filter', () => {
+    const { component } = makeComponentWithNames();
+    component.handleInput('/');
+    for (const ch of 'auth') component.handleInput(ch);
+
+    const output = component.render(120).join('\n');
+    // Two quests match "auth" out of three total.
+    expect(output).toContain('filter: auth');
+    expect(output).toContain('2/3 match');
+  });
+
+  it('updates the count as the query narrows', () => {
+    const { component } = makeComponentWithNames();
+    component.handleInput('/');
+    for (const ch of 'login') component.handleInput(ch);
+
+    const output = component.render(120).join('\n');
+    // Only one quest matches "login".
+    expect(output).toContain('1/3 match');
+  });
+});

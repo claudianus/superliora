@@ -1046,7 +1046,15 @@ export class BentoDashboardComponent extends Container implements Focusable {
 
     // Gen 24: filter prompt (while typing) or active filter chip.
     if (this.filterMode) {
-      lines.push(currentTheme.fg('accent', clip(`  filter: ${this.filterBuffer}█`, width)));
+      // Gen 110: show the live match count while typing so the operator sees
+      // the filter's effect before committing it.
+      const total = this.gridController.questCount;
+      lines.push(
+        currentTheme.fg(
+          'accent',
+          clip(`  filter: ${this.filterBuffer}█  ·  ${String(quests.length)}/${String(total)} match`, width),
+        ),
+      );
     } else if (this.filterBuffer !== '') {
       const total = this.gridController.questCount;
       lines.push(
