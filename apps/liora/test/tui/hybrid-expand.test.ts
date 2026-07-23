@@ -610,6 +610,20 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(lines[1]).not.toContain('⏳ waiting');
   });
 
+  it('Gen 108: header still shows the idle time on the second line', () => {
+    // Idle for 10 minutes → warning severity (colored when the terminal
+    // supports it); the text must remain present regardless of color.
+    const quest = makeQuest('a', {
+      state: 'running',
+      lastActivityAt: Date.now() - 10 * 60 * 1000,
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[1]).toContain('idle');
+  });
+
   it('Gen 38: expand view header shows model name and session cost', () => {
     const quest = makeQuest('a', {
       state: 'running',

@@ -43,6 +43,22 @@ export interface ExpandViewState {
  */
 export const MAX_STREAM_LINES = 500;
 
+/**
+ * Gen 108: idle thresholds for coloring the pinned header's idle time, matching
+ * the dashboard cells (Gen 31). Kept local to avoid a circular import with
+ * bento-dashboard, which owns idleSeverityToken for the cells.
+ */
+const IDLE_WARN_MS = 5 * 60 * 1000;
+const IDLE_ERROR_MS = 15 * 60 * 1000;
+
+/** Gen 108: map an idle duration to a severity color token. */
+function idleSeverityToken(idleMs: number): 'muted' | 'warning' | 'error' {
+  const safe = Math.max(0, idleMs);
+  if (safe >= IDLE_ERROR_MS) return 'error';
+  if (safe >= IDLE_WARN_MS) return 'warning';
+  return 'muted';
+}
+
 // ---------------------------------------------------------------------------
 // QuestExpandView
 // ---------------------------------------------------------------------------
@@ -638,15 +654,30 @@ export class QuestExpandView {
         : quest.worktreePath;
       const now = Date.now();
       const elapsed = `⏱ ${formatElapsed(Math.max(0, now - quest.createdAt))}`;
-      const idle = `idle ${formatElapsed(Math.max(0, now - quest.lastActivityAt))}`;
+      const idleMs = Math.max(0, now - quest.lastActivityAt);
+      const idle = `idle ${formatElapsed(idleMs)}`;
       // Gen 33: show how long the quest has been left unattended when it is in
       // an attention state, so the operator can triage by neglect duration.
       const dwell =
         quest.attentionEnteredAt !== undefined
           ? `  ⏳ waiting ${formatElapsed(Math.max(0, now - quest.attentionEnteredAt))}`
           : '';
-      const headerLine2 = `   ${worktree}  ${changes}  ${elapsed}  ${idle}${dwell}`;
-      lines.push(headerLine2.length > width ? headerLine2.slice(0, width) : headerLine2);
+      // Gen 108: color the idle time by severity, matching the dashboard cells
+      // (Gen 31), so a stalled pinned quest stands out without scanning cells.
+      const idleToken = idleSeverityToken(idleMs);
+      const coloredIdle =
+        idleToken === 'warning'
+          ? currentTheme.fg('warning', idle)
+          : idleToken === 'error'
+            ? currentTheme.fg('error', idle)
+            : currentTheme.dim(idle);
+      const headerLine2Plain = `   ${worktree}  ${changes}  ${elapsed}  ${idle}${dwell}`;
+      const headerLine2 =
+        headerLine2Plain.length > width
+          ? headerLine2Plain.slice(0, width)
+          : currentTheme.dim(`   ${worktree}  ${changes}  ${elapsed}  `) +
+            `${coloredIdle}${currentTheme.dim(dwell)}`;
+      lines.push(headerLine2);
 
       // Third header line: todo progress + context usage + model/cost + plan step
       // Gen 36: mini-bars match the dashboard cells for consistent scanning.
