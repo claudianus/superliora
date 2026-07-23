@@ -42,6 +42,8 @@ export interface ThumbnailEntry {
   readonly awaitingApproval: boolean;
   /** Gen 106: true when context usage is at risk (>=80%). */
   readonly ctxRisk: boolean;
+  /** Gen 112: true when the quest has failed and needs investigation. */
+  readonly failed: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +92,8 @@ export function buildThumbnailStrip(
         ctxRisk:
           q.contextUsage !== undefined &&
           contextSeverityToken(q.contextUsage) !== 'success',
+        // Gen 112: flag failed quests so sessions needing investigation stand out.
+        failed: q.state === 'failed',
       };
     });
 }
@@ -133,7 +137,10 @@ export function renderThumbnailStripLine(
     // Gen 106: mark context-at-risk quests so exhaustion risk stands out,
     // complementing the C-key context-risk jump.
     const ctxWarn = entry.ctxRisk ? ' ⚠' : '';
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}${ctxWarn}]`;
+    // Gen 112: mark failed quests so sessions needing investigation stand out,
+    // complementing the summary bar's failed count.
+    const failedMark = entry.failed ? ' ✖' : '';
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}${ctxWarn}${failedMark}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);

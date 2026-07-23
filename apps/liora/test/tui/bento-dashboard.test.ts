@@ -1220,6 +1220,32 @@ describe('Gen 106: thumbnail strip context-risk marker', () => {
   });
 });
 
+describe('Gen 112: thumbnail strip failed marker', () => {
+  it('flags failed quests in entries', () => {
+    const quests = [
+      makeQuest('a', { state: 'failed' }),
+      makeQuest('b', { state: 'running' }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.failed).toBe(true);
+    expect(entries[1]!.failed).toBe(false);
+  });
+
+  it('renders the failed marker for failed quests', () => {
+    const quests = [makeQuest('a', { state: 'failed' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).toContain('✖');
+  });
+
+  it('omits the failed marker for non-failed quests', () => {
+    const quests = [makeQuest('a', { state: 'running' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).not.toContain('✖');
+  });
+});
+
 describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
   it('focuses the most urgent quest when nothing is focused', () => {
     const ctrl = makeController();
