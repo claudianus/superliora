@@ -238,7 +238,13 @@ export class TodoPanelComponent implements Component {
     const c = currentTheme.palette;
     const contentWidth = this.interiorWidth(width, profile);
     const lines: string[] = [
-      renderBoardMeta(this.todos, c, this.currentChangeSummary(), this.callsSinceUpdate),
+      renderBoardMeta(
+        this.todos,
+        c,
+        this.currentChangeSummary(),
+        this.callsSinceUpdate,
+        contentWidth,
+      ),
     ];
 
     const highlights = this.currentHighlights();
@@ -381,6 +387,7 @@ function renderBoardMeta(
   colors: ColorPalette,
   summary: TodoPanelChangeSummary | undefined,
   callsSinceUpdate: number,
+  contentWidth = 80,
 ): string {
   const counts = countTodos(todos);
   const total = todos.length;
@@ -391,7 +398,7 @@ function renderBoardMeta(
       ? chalk.hex(colors.warning).bold(wipText)
       : chalk.hex(colors.textDim)(wipText);
   const progress =
-    total > 0
+    total > 0 && contentWidth >= 28
       ? `${renderRendererRatioProgressBar({
           ratio,
           width: 8,
@@ -413,6 +420,11 @@ function renderBoardMeta(
     parts.push(
       chalk.hex(colors.warning).bold(`stale · ${String(callsSinceUpdate)} calls since update`),
     );
+  }
+  // Compact Context rail: keep the live flow chip, drop the rest so the line
+  // does not end in a mid-bar `░…` clip.
+  if (contentWidth < 28 && flow !== undefined) {
+    return `  ${chalk.hex(colors.primary)(`${renderShimmerPrefix()}flow ${flow}`)} · ${wip}`;
   }
   return `  ${parts.join(chalk.hex(colors.textMuted)(' · '))}`;
 }
