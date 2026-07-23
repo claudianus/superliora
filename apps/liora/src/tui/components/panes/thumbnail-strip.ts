@@ -46,6 +46,8 @@ export interface ThumbnailEntry {
   readonly failed: boolean;
   /** Gen 119: true when the quest has the most code changes in the fleet. */
   readonly busiest: boolean;
+  /** Gen 120: true when the quest has the highest session cost in the fleet. */
+  readonly priciest: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,10 +74,15 @@ export function buildThumbnailStrip(
   // Gen 119: find the fleet's highest change count so the busiest quest can be
   // flagged in the strip (only meaningful when more than one quest exists).
   let maxChanges = 0;
+  // Gen 120: find the fleet's highest session cost so the priciest quest can be
+  // flagged in the strip (only meaningful when more than one quest exists).
+  let maxCost = 0;
   if (quests.length > 1) {
     for (const q of quests) {
       const changes = q.changeCount.added + q.changeCount.removed;
       if (changes > maxChanges) maxChanges = changes;
+      const cost = q.sessionCostUsd ?? 0;
+      if (cost > maxCost) maxCost = cost;
     }
   }
   return quests
@@ -87,6 +94,7 @@ export function buildThumbnailStrip(
         : questStateIcon(q.state);
       const label = truncateLabel(q.name, MAX_LABEL_WIDTH);
       const changes = q.changeCount.added + q.changeCount.removed;
+      const cost = q.sessionCostUsd ?? 0;
       return {
         questId: q.id,
         label,
@@ -109,6 +117,9 @@ export function buildThumbnailStrip(
         // Gen 119: flag the busiest quest so the most productive session is
         // scannable across the fleet without unpinning.
         busiest: maxChanges > 0 && changes === maxChanges,
+        // Gen 120: flag the priciest quest so runaway session cost is scannable
+        // across the fleet without unpinning.
+        priciest: maxCost > 0 && cost === maxCost,
       };
     });
 }
@@ -158,7 +169,10 @@ export function renderThumbnailStripLine(
     // Gen 119: mark the busiest quest so the most productive session stands out,
     // complementing the summary bar's busiest callout.
     const busiestMark = entry.busiest ? ' ⚒' : '';
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}${ctxWarn}${failedMark}${busiestMark}]`;
+    // Gen 120: mark the priciest quest so runaway session cost stands out,
+    // complementing the summary bar's priciest callout.
+    const priciestMark = entry.priciest ? ' 💸' : '';
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}${ctxWarn}${failedMark}${busiestMark}${priciestMark}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);

@@ -1296,6 +1296,38 @@ describe('Gen 119: thumbnail strip busiest marker', () => {
   });
 });
 
+describe('Gen 120: thumbnail strip priciest marker', () => {
+  it('flags the quest with the highest session cost in the fleet', () => {
+    const quests = [
+      makeQuest('a', { sessionCostUsd: 0.5 }),
+      makeQuest('b', { sessionCostUsd: 12.34 }),
+      makeQuest('c', { sessionCostUsd: 3 }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.priciest).toBe(false);
+    expect(entries[1]!.priciest).toBe(true);
+    expect(entries[2]!.priciest).toBe(false);
+  });
+
+  it('renders the priciest marker for the priciest quest', () => {
+    const quests = [
+      makeQuest('a', { sessionCostUsd: 0.5 }),
+      makeQuest('b', { sessionCostUsd: 12.34 }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 200, false);
+    expect(line).toContain('💸');
+  });
+
+  it('omits the priciest marker when there is only one quest', () => {
+    const quests = [makeQuest('a', { sessionCostUsd: 12.34 })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.priciest).toBe(false);
+    const line = renderThumbnailStripLine(entries, 200, false);
+    expect(line).not.toContain('💸');
+  });
+});
+
 describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
   it('focuses the most urgent quest when nothing is focused', () => {
     const ctrl = makeController();
