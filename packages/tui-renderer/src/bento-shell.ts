@@ -358,11 +358,11 @@ function placeDockPanels(
     return;
   }
 
-  // Two panels: balanced vertical split (file trees and diffs both need room).
-  // Zero gap so closed frames abut; omitBottom removes upper ╰.
+  // Two panels: Files-biased split — trees need more vertical room than a
+  // typically short Git summary. Zero gap; omitBottom removes upper ╰.
   if (panels.length === 2) {
     const splitGap = 0;
-    const h0 = Math.max(3, Math.floor((dockRect.height - splitGap) * 0.5));
+    const h0 = Math.max(3, Math.floor((dockRect.height - splitGap) * 0.58));
     const h1 = Math.max(3, dockRect.height - splitGap - h0);
     const [r0, r1] = splitVertical(dockRect, [h0, h1], splitGap);
     push(cell(`panel:${panels[0]!.id}`, r0!, focusedId, 0, 0, 1, 1, panels[0]!.priority));

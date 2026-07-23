@@ -538,10 +538,10 @@ export function measureBentoGridLayout(
     height: Math.max(1, viewport.height - BENTO_INSET_Y * 2),
   };
 
-  // Tall narrow docks with exactly two panels: balanced vertical stack in
+  // Tall narrow docks with exactly two panels: Files-biased vertical stack in
   // dock order (not priority-sorted), matching placeDockPanels.
   if (dockLike && panels.length === 2) {
-    const h0 = Math.max(3, Math.floor(area.height * 0.5));
+    const h0 = Math.max(3, Math.floor(area.height * 0.58));
     const h1 = Math.max(3, area.height - h0);
     const cells: BentoGridCell[] = [
       {
