@@ -71,6 +71,17 @@ export function frameBentoRegionLines(options: FrameBentoRegionOptions): string[
     while (rows.length + 1 < minHeight) {
       rows.push(empty);
     }
+    // Tall Context rails: pin a dim dock hint on the last body row so the
+    // padded tile does not read as an empty bordered shaft.
+    if (kind === 'rail' && rows.length > 3) {
+      const hint = truncateToWidth(
+        currentTheme.dimFg('textMuted', 'Ctrl+/ panels · F1 help'),
+        innerW,
+        '',
+        true,
+      );
+      rows[rows.length - 1] = `${border(V)}${hint}${border(V)}`;
+    }
   }
 
   rows.push(border(BL + H.repeat(innerW) + BR));

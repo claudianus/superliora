@@ -267,7 +267,6 @@ export function planTUINativeStage(
   const layoutWithChrome = { ...layout, regions };
 
   const transcriptRegion = layoutWithChrome.regions.find((region) => region.id === 'transcript');
-  const editorRegion = layoutWithChrome.regions.find((region) => region.id === 'editor');
   const railOuterWidth = stage.rail?.width ?? 0;
   const railRect =
     stage.mode === 'rail' && stage.rail !== undefined && transcriptRegion?.rect !== undefined
@@ -275,15 +274,9 @@ export function planTUINativeStage(
           x: stage.rail.x,
           y: transcriptRegion.rect.y,
           width: stage.rail.width,
-          // Stretch beside transcript + editor so Context is not a postage stamp
-          // above the input — Status/footer stay full-width below.
-          height:
-            editorRegion?.rect !== undefined
-              ? Math.max(
-                  1,
-                  editorRegion.rect.y + editorRegion.rect.height - transcriptRegion.rect.y,
-                )
-              : transcriptRegion.rect.height,
+          // Sit beside the transcript only. Stretching through the editor
+          // left a tall empty Context body when todo/activity were short.
+          height: Math.max(1, transcriptRegion.rect.height),
         }
       : undefined;
   const framedRail =

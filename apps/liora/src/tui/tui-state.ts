@@ -150,10 +150,13 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
         measureContainerRows(activityContainer, probeWidth) > 0 ||
         measureContainerRows(queueContainer, probeWidth) > 0 ||
         measureContainerRows(btwPanelContainer, probeWidth) > 0;
+      // Match the live native plan: full-bleed bento (no 90×50 reading
+      // column). Underestimating height left empty rows under Welcome+Idle.
       const stage = resolveStageLayout({
         width: terminal.columns,
         height: terminal.rows,
         hasRailContent,
+        fullBleed: true,
       });
       const contentWidth = stage.stage.width;
       const rail = stage.mode === 'rail';

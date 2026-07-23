@@ -97,15 +97,12 @@ describe('native stage frame layout', () => {
       width: stageWidth,
     });
     expect(editor?.rect).toBeDefined();
-    const expectedRailHeight =
-      editor?.rect !== undefined && transcript?.rect !== undefined
-        ? editor.rect.y + editor.rect.height - transcript.rect.y
-        : transcript?.rect?.height;
     expect(rail?.rect).toMatchObject({
       x: stageWidth + STAGE_RAIL_GAP,
       width: RAIL_WIDTH,
       y: transcript?.rect?.y,
-      height: expectedRailHeight,
+      // Context sits beside transcript only — not stretched through the editor.
+      height: transcript?.rect?.height,
     });
     // Railed panels must not steal vertical stack rows under the transcript.
     expect(regions.some((region) => region.id === 'todo')).toBe(false);

@@ -53,5 +53,7 @@ describe('frameBentoRegionLines', () => {
     expect(strip(lines[0]!)).toMatch(/^╭.*Context.*╮$/);
     expect(strip(lines[lines.length - 1]!)).toMatch(/^╰─+╯$/);
     expect(strip(lines[2]!)).toMatch(/^│\s+│$/);
+    // Last body row carries a dim dock hint instead of a blank shaft.
+    expect(strip(lines[lines.length - 2]!)).toMatch(/Ctrl\+\/ panels/);
   });
 });
