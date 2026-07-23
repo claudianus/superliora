@@ -570,6 +570,26 @@ describe('Gen 97: reverse sort direction', () => {
   });
 });
 
+describe('Gen 107: getSortRank', () => {
+  it('returns the 1-based rank and total in sort order', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { sessionCostUsd: 1 }));
+    ctrl.addQuest(makeQuest('b', { sessionCostUsd: 5 }));
+    ctrl.addQuest(makeQuest('c', { sessionCostUsd: 3 }));
+    ctrl.cycleSortMode(); // attention → cost: b, c, a
+
+    expect(ctrl.getSortRank('b')).toEqual({ rank: 1, total: 3 });
+    expect(ctrl.getSortRank('c')).toEqual({ rank: 2, total: 3 });
+    expect(ctrl.getSortRank('a')).toEqual({ rank: 3, total: 3 });
+  });
+
+  it('returns null for an unknown quest', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a'));
+    expect(ctrl.getSortRank('missing')).toBeNull();
+  });
+});
+
 describe('Gen 63: focus most expensive quest', () => {
   it('focuses the quest with the highest session cost', () => {
     const ctrl = makeController();

@@ -545,6 +545,20 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(header).toContain('⚠1');
   });
 
+  it('Gen 107: header shows the fleet rank when provided', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    // With a fleet rank: the header carries the position tag.
+    const withRank = view.render(quest, 120, { rank: 2, total: 8 });
+    expect(withRank[0]).toContain('#2/8');
+
+    // Without a fleet rank: no position tag.
+    const withoutRank = view.render(quest, 120);
+    expect(withoutRank[0]).not.toContain('#2/8');
+  });
+
   it('Gen 71: getLastStreamLineNumber matches the gutter count', () => {
     const view = new QuestExpandView();
     expect(view.getLastStreamLineNumber()).toBe(0);

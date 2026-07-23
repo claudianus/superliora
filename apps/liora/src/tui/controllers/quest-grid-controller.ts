@@ -681,6 +681,18 @@ export class QuestGridController {
     return this.quests.get(questId);
   }
 
+  /**
+   * Gen 107: return the 1-based rank of a quest in the current sort order, or
+   * null when the quest is not visible. Used by the pinned header to show the
+   * quest's position in the fleet (e.g. "#2/8").
+   */
+  getSortRank(questId: string): { rank: number; total: number } | null {
+    const ids = this.sortedQuestIds();
+    const idx = ids.indexOf(questId);
+    if (idx === -1) return null;
+    return { rank: idx + 1, total: ids.length };
+  }
+
   /** Get the current bento layout. */
   getBentoLayout(): BentoGridLayout | null {
     return this.bentoLayout;

@@ -1276,7 +1276,10 @@ export class BentoDashboardComponent extends Container implements Focusable {
       // Gen 45: when the strip is hidden, give the expand view the extra rows.
       const visibleRows = this.stripHidden ? 24 : Math.max(1, 24 - 2); // reserve strip + spacing
       expandView.setMaxVisibleLines(visibleRows);
-      const stream = expandView.render(pinned, width);
+      // Gen 107: pass the quest's rank in the fleet so the header shows its
+      // position in the current sort order (e.g. "#2/8").
+      const fleetRank = this.gridController.getSortRank(pinned.id) ?? undefined;
+      const stream = expandView.render(pinned, width, fleetRank);
       for (const row of stream) {
         lines.push(clip(row, width));
       }

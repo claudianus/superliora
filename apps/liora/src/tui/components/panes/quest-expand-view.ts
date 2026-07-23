@@ -566,7 +566,11 @@ export class QuestExpandView {
   }
 
   /** Render the expand view as a string array (one per visible row). */
-  render(quest: Quest, width: number): string[] {
+  render(
+    quest: Quest,
+    width: number,
+    fleetRank?: { rank: number; total: number },
+  ): string[] {
     const lines: string[] = [];
 
     // Gen 58: fullscreen mode skips the header entirely so the stream fills
@@ -603,6 +607,12 @@ export class QuestExpandView {
         searchStatus !== null
           ? `  /${searchStatus.query} ${String(searchStatus.current)}/${String(searchStatus.total)}`
           : '';
+      // Gen 107: show the quest's position in the fleet's current sort order so
+      // the operator knows where the pinned quest sits relative to its siblings.
+      const rankTag =
+        fleetRank !== undefined
+          ? `  #${String(fleetRank.rank)}/${String(fleetRank.total)}`
+          : '';
 
       // Gen 11: rich header with quest metadata
       // Gen 35: colorize the state badge so the expand view matches the cells.
@@ -611,13 +621,13 @@ export class QuestExpandView {
       const headerPrefix = `── ${quest.name} `;
       // Gen 65: plain suffix for width calculation; colored suffix for display
       // so the error/warning counts stand out.
-      const headerSuffix = `  ${scrollTag}${searchTag}${diffTag}${followTag}${problemTag} ──`;
+      const headerSuffix = `${rankTag}  ${scrollTag}${searchTag}${diffTag}${followTag}${problemTag} ──`;
       const plainHeader = `${headerPrefix}${badgeText}${headerSuffix}`;
       const headerLine1 =
         plainHeader.length > width
           ? plainHeader.slice(0, width)
           : `${currentTheme.dim(headerPrefix)}${currentTheme.fg(stateToken, badgeText)}` +
-            `${currentTheme.dim(`  ${scrollTag}${searchTag}${diffTag}${followTag}`)}` +
+            `${currentTheme.dim(`${rankTag}  ${scrollTag}${searchTag}${diffTag}${followTag}`)}` +
             `${this.formatProblemBadgeColored()}${currentTheme.dim(' ──')}`;
       lines.push(headerLine1);
 
