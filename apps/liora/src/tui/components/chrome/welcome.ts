@@ -59,15 +59,11 @@ export class WelcomeComponent implements Component {
         ? chalk.hex(currentTheme.palette.warning)(modelUnset)
         : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
       const shortcuts = chalk.hex(currentTheme.palette.textMuted)(
-        useCompactPrompt ? 'Ctrl+/ panels · Shift-Tab Ultrawork' : '',
+        'Ctrl+/ panels · Shift-Tab Ultrawork',
       );
-      const lines = [
-        ...banner,
-        prompt,
-        `${ttui('tui.welcome.modelPrefix')}${model}`,
-        ...(shortcuts ? [shortcuts] : []),
-      ];
-      return lines.map((line) => truncateToWidth(line, safeWidth, '…'));
+      return [...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`, shortcuts].map(
+        (line) => truncateToWidth(line, safeWidth, '…'),
+      );
     }
 
     const contentWidth = Math.max(1, safeWidth);
