@@ -210,7 +210,7 @@ describe('measureBentoGridLayout dock columns', () => {
     }
   });
 
-  it('gives the lower panel more height in a two-panel dock stack', () => {
+  it('splits two dock panels evenly and flush', () => {
     const dock = { x: 2, y: 1, width: 42, height: 40 };
     const grid = measureBentoGridLayout(
       dock,
@@ -225,7 +225,7 @@ describe('measureBentoGridLayout dock columns', () => {
     const [files, git] = grid.cells;
     expect(files!.id).toBe('files');
     expect(git!.id).toBe('git');
-    expect(git!.rect.height).toBeGreaterThan(files!.rect.height);
+    expect(Math.abs(files!.rect.height - git!.rect.height)).toBeLessThanOrEqual(1);
     expect(files!.rect.y + files!.rect.height).toBe(git!.rect.y);
     expect(git!.rect.y + git!.rect.height).toBe(dock.y + dock.height);
   });
