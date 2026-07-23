@@ -163,6 +163,24 @@ export class PinController {
     }
   }
 
+  /**
+   * Gen 114: cycle the pin to the next quest awaiting approval, so the operator
+   * can work through a batch of pending decisions without unpinning. Mirrors
+   * the dashboard's A-key jump (Gen 99). No-op when none are awaiting.
+   */
+  pinNextApproval(): void {
+    const quests = this.gridController.getQuests();
+    const approval = quests.filter((q) => q.state === 'waiting-approval');
+    if (approval.length === 0) return;
+    const pinnedId = this.gridController.getPinnedQuestId();
+    const currentIdx = approval.findIndex((q) => q.id === pinnedId);
+    const nextIdx = (currentIdx + 1) % approval.length;
+    const target = approval[nextIdx];
+    if (target && target.id !== pinnedId) {
+      this.pin(target.id);
+    }
+  }
+
   /** Whether any quest is pinned. */
   get isPinned(): boolean {
     return this.gridController.getPinnedQuestId() !== null;

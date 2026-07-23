@@ -265,6 +265,35 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(pin.getPinnedQuest()?.id).toBe('a');
   });
 
+  it('Gen 114: pinNextApproval cycles only through approval quests', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('ok', { state: 'running' }));
+    grid.addQuest(makeQuest('wait1', { state: 'waiting-approval' }));
+    grid.addQuest(makeQuest('wait2', { state: 'waiting-approval' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('ok');
+    // First approval quest in display order.
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('wait1');
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('wait2');
+    // Wraps back to the first approval quest, skipping the running one.
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('wait1');
+  });
+
+  it('Gen 114: pinNextApproval is a no-op when nothing is awaiting', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'idle' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
   it('pinned quest cell gets larger span in layout', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));
