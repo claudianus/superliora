@@ -101,10 +101,9 @@ describe('native stage frame layout', () => {
       x: stageWidth + STAGE_RAIL_GAP,
       width: RAIL_WIDTH,
       y: transcript?.rect?.y,
+      // Context sits beside transcript only — not stretched through the editor.
+      height: transcript?.rect?.height,
     });
-    // Short todo content → rail height caps near content (not full transcript).
-    expect(rail?.rect?.height).toBeGreaterThanOrEqual(8);
-    expect(rail?.rect?.height).toBeLessThan(transcript?.rect?.height ?? 0);
     // Railed panels must not steal vertical stack rows under the transcript.
     expect(regions.some((region) => region.id === 'todo')).toBe(false);
   });
