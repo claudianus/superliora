@@ -707,3 +707,69 @@ describe('Gen 110: live match count while filtering', () => {
     expect(output).toContain('1/3 match');
   });
 });
+
+describe('Gen 121: quest cell busiest/priciest markers', () => {
+  function makeComponentWithFleet() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { name: 'Small', changeCount: { added: 1, removed: 0 }, sessionCostUsd: 0.5 }));
+    grid.addQuest(makeQuest('b', { name: 'Big', changeCount: { added: 40, removed: 12 }, sessionCostUsd: 3 }));
+    grid.addQuest(makeQuest('c', { name: 'Pricey', changeCount: { added: 8, removed: 3 }, sessionCostUsd: 12.34 }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    return { component };
+  }
+
+  it('marks the busiest quest cell with a hammer', () => {
+    const { component } = makeComponentWithFleet();
+    const output = component.render(200).join('\n');
+    // 'Big' has the most changes (40+12=52) → busiest marker.
+    expect(output).toContain('Big');
+    expect(output).toContain('⚒');
+  });
+
+  it('marks the priciest quest cell with money', () => {
+    const { component } = makeComponentWithFleet();
+    const output = component.render(200).join('\n');
+    // 'Pricey' has the highest cost ($12.34) → priciest marker.
+    expect(output).toContain('Pricey');
+    expect(output).toContain('💸');
+  });
+
+  it('omits busiest/priciest markers when there is only one quest', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { changeCount: { added: 40, removed: 12 }, sessionCostUsd: 12.34 }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    const output = component.render(200).join('\n');
+    expect(output).not.toContain('⚒');
+    expect(output).not.toContain('💸');
+  });
+});

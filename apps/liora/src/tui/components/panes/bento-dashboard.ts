@@ -1152,6 +1152,13 @@ export class BentoDashboardComponent extends Container implements Focusable {
     // marker, matching the summary bar's '☢ worst' callout (Gen 89).
     let worstQuestId: string | undefined;
     let worstCount = 0;
+    // Gen 121: identify the busiest (most changes) and priciest (highest cost)
+    // quests so their cells can carry markers, matching the summary bar's
+    // '⚒ busiest' (Gen 117) and '💸 priciest' (Gen 118) callouts.
+    let busiestQuestId: string | undefined;
+    let busiestChanges = 0;
+    let priciestQuestId: string | undefined;
+    let priciestCost = 0;
     if (quests.length > 1) {
       for (const q of quests) {
         const counts = this.expandViews.get(q.id)?.getProblemCounts();
@@ -1162,11 +1169,24 @@ export class BentoDashboardComponent extends Container implements Focusable {
             worstQuestId = q.id;
           }
         }
+        const changes = q.changeCount.added + q.changeCount.removed;
+        if (changes > busiestChanges) {
+          busiestChanges = changes;
+          busiestQuestId = q.id;
+        }
+        const cost = q.sessionCostUsd ?? 0;
+        if (cost > priciestCost) {
+          priciestCost = cost;
+          priciestQuestId = q.id;
+        }
       }
     }
+    // Only surface the busiest/priciest markers when there is something to show.
+    if (busiestChanges === 0) busiestQuestId = undefined;
+    if (priciestCost === 0) priciestQuestId = undefined;
 
     for (const quest of quests) {
-      const block = this.renderCellBlock(quest, width, now, worstQuestId);
+      const block = this.renderCellBlock(quest, width, now, worstQuestId, busiestQuestId, priciestQuestId);
       lines.push(...block);
     }
 
@@ -1185,7 +1205,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
     return quests.find((q) => q.id === id);
   }
 
-  private renderCellBlock(quest: Quest, width: number, now: number, worstQuestId?: string): string[] {
+  private renderCellBlock(quest: Quest, width: number, now: number, worstQuestId?: string, busiestQuestId?: string, priciestQuestId?: string): string[] {
     const pulsing = this.attentionController.isPulsing(quest.id);
     const focused = this.gridController.getFocusedQuestId() === quest.id;
     const marker = pulsing ? (this.blinkPhase ? '⚡' : '·') : ' ';
@@ -1193,6 +1213,9 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const safeWidth = Math.max(1, width - 4);
     // Gen 90: mark the most troubled quest so it stands out in the grid.
     const isWorst = quest.id === worstQuestId;
+    // Gen 121: mark the busiest and priciest quests so they stand out in the grid.
+    const isBusiest = quest.id === busiestQuestId;
+    const isPriciest = quest.id === priciestQuestId;
 
     const created = formatElapsed(Math.max(0, now - quest.createdAt));
     const idle = formatElapsed(Math.max(0, now - quest.lastActivityAt));
@@ -1229,13 +1252,20 @@ export class BentoDashboardComponent extends Container implements Focusable {
     const prefix = `${focusIndicator}${marker}`;
     // Use the plain-text badge length (not ANSI-inflated) for the name budget.
     // Gen 90: reserve room for the worst-quest marker so the line stays in width.
+    // Gen 121: reserve room for the busiest/priciest markers too.
     const worstReserve = isWorst ? 2 : 0;
-    const nameBudget = Math.max(1, width - prefix.length - badgeText.length - 2 - worstReserve);
+    const busiestReserve = isBusiest ? 2 : 0;
+    const priciestReserve = isPriciest ? 2 : 0;
+    const nameBudget = Math.max(1, width - prefix.length - badgeText.length - 2 - worstReserve - busiestReserve - priciestReserve);
     const name = quest.name.length > nameBudget ? quest.name.slice(0, nameBudget) : quest.name;
     // Gen 90: worst-quest marker so the most troubled cell stands out, matching
     // the summary bar's '☢ worst' callout (Gen 89).
     const worstMarker = isWorst ? currentTheme.fg('error', ' ☢') : '';
-    const line1 = `${prefix}${badge} ${name}${worstMarker}`;
+    // Gen 121: busiest/priciest markers so the most productive and most
+    // expensive cells stand out, matching the summary bar callouts.
+    const busiestMarker = isBusiest ? currentTheme.fg('success', ' ⚒') : '';
+    const priciestMarker = isPriciest ? currentTheme.fg('warning', ' 💸') : '';
+    const line1 = `${prefix}${badge} ${name}${worstMarker}${busiestMarker}${priciestMarker}`;
     // Gen 32: colorize the change stats (+added green, -removed red) so the
     // churn magnitude is scannable. Built as separate segments because the
     // surrounding metadata stays dim.
