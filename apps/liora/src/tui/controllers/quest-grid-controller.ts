@@ -304,6 +304,17 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 113: return the ids of quests with error/warning lines, in the current
+   * sort order. Lets the pin controller cycle through problem quests without
+   * unpinning, mirroring the dashboard's e/E jumps.
+   */
+  getProblemQuestIds(): string[] {
+    return this.sortedQuestIds().filter(
+      (id) => (this.getProblemCount?.(id) ?? 0) > 0,
+    );
+  }
+
+  /**
    * Gen 90: jump focus to the previous quest with error/warning lines in its
    * stream, cycling within that subset only. No-op when none have problems.
    */

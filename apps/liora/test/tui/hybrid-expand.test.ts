@@ -227,6 +227,44 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(pin.getPinnedQuest()?.id).toBe('a');
   });
 
+  it('Gen 113: pinNextProblem cycles only through problem quests', () => {
+    const problemCounts: Record<string, number> = { clean: 0, err1: 2, err2: 1 };
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      getProblemCount: (id) => problemCounts[id] ?? 0,
+    });
+    grid.addQuest(makeQuest('clean', { state: 'running' }));
+    grid.addQuest(makeQuest('err1', { state: 'running' }));
+    grid.addQuest(makeQuest('err2', { state: 'running' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('clean');
+    // First problem quest in sort order.
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('err1');
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('err2');
+    // Wraps back to the first problem quest, skipping the clean one.
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('err1');
+  });
+
+  it('Gen 113: pinNextProblem is a no-op when nothing has problems', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      getProblemCount: () => 0,
+    });
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'running' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
   it('pinned quest cell gets larger span in layout', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));

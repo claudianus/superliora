@@ -146,6 +146,23 @@ export class PinController {
     }
   }
 
+  /**
+   * Gen 113: cycle the pin to the next quest with error/warning lines, so the
+   * operator can triage problem quests without unpinning. Mirrors the
+   * dashboard's e-key jump (Gen 89). No-op when none have problems.
+   */
+  pinNextProblem(): void {
+    const problemIds = this.gridController.getProblemQuestIds();
+    if (problemIds.length === 0) return;
+    const pinnedId = this.gridController.getPinnedQuestId();
+    const currentIdx = problemIds.indexOf(pinnedId ?? '');
+    const nextIdx = (currentIdx + 1) % problemIds.length;
+    const target = problemIds[nextIdx];
+    if (target !== undefined && target !== pinnedId) {
+      this.pin(target);
+    }
+  }
+
   /** Whether any quest is pinned. */
   get isPinned(): boolean {
     return this.gridController.getPinnedQuestId() !== null;

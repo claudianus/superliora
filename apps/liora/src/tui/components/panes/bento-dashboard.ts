@@ -452,6 +452,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
         this.pinController.pinNextAttention();
         return;
       }
+      // Gen 113: W → cycle the pin to the next quest with problems (triage).
+      if (k === 'W') {
+        this.pinController.pinNextProblem();
+        return;
+      }
       // Gen 6b: 1–9 → jump directly to the Nth thumbnail quest (switch_context).
       if (k.length === 1 && k >= '1' && k <= '9') {
         const stripQuests = this.pinController.getStripQuests();
@@ -700,6 +705,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['/  n  N', 'Search · next / previous match'],
           ['h / l', 'Previous / next quest (switch context)'],
           ['w', 'Next quest needing attention (triage)'],
+          ['W', 'Next quest with problems (triage)'],
           ['Enter / p', 'Unpin back to the grid'],
           ['-', 'Jump back to the previously pinned quest'],
           ['1–9', 'Jump to the Nth thumbnail quest'],
