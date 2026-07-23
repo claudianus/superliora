@@ -86,10 +86,15 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     if (this.files.length === 0) {
-      return [
+      const lines = [
         `  ${currentTheme.fg('success', '✓')} ${currentTheme.dimFg('textMuted', 'No changes detected')}`,
         `  ${currentTheme.dimFg('textMuted', '(working tree clean)')}`,
       ];
+      if (height >= 8 && width >= 24) {
+        lines.push('');
+        lines.push(`  ${currentTheme.dimFg('border', '[r] refresh · [v] cycle')}`);
+      }
+      return lines;
     }
 
     // Fast-path: return cached lines when content hasn't changed
