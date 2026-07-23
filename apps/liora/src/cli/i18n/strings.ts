@@ -89,7 +89,7 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.computerUse.description': '로컬 cua-driver computer-use 런타임을 관리합니다.',
   'cli.sub.acp.description': 'SuperLiora를 stdio 기반 Agent Client Protocol(ACP) 서버로 실행합니다.',
   'cli.sub.server.description': '로컬 SuperLiora 서버(REST + WebSocket API)를 실행합니다.',
-  'cli.sub.login.description': '디바이스 코드 흐름으로 SuperLiora CLI 인증을 수행합니다.',
+  'cli.sub.login.description': '디바이스 코드 흐름으로 SuperLiora CLI 인증을 합니다.',
   'cli.sub.doctor.description': 'SuperLiora 설정 파일을 검사합니다.',
   'cli.sub.vis.description': '세션 시각화 도구를 브라우저에서 엽니다.',
   ...SUBCOMMAND_STRINGS_KO,

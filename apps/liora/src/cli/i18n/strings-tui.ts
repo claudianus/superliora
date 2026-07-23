@@ -480,7 +480,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.permission.yolo.alreadyOn': 'YOLO 모드가 이미 켜져 있습니다',
   'tui.permission.yolo.alreadyOff': 'YOLO 모드가 이미 꺼져 있습니다',
   'tui.permission.auto.on.title': 'Auto 모드: ON',
-  'tui.permission.auto.on.detail': '도구 자동 승인. 구조화 질문은 자동 응답됩니다.',
+  'tui.permission.auto.on.detail': '도구 자동 승인. 구조화 질문은 자동 응답.',
   'tui.permission.auto.off.title': 'Auto 모드: OFF',
   'tui.permission.auto.alreadyOn': 'Auto 모드가 이미 켜져 있습니다',
   'tui.permission.auto.alreadyOff': 'Auto 모드가 이미 꺼져 있습니다',
@@ -492,7 +492,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     '명령·편집·위험 작업 전에 묻습니다. 읽기/검색 도구는 바로 실행되며 세션 승인 규칙을 따릅니다.',
   'tui.permission.auto.label': 'Auto',
   'tui.permission.auto.desc':
-    '완전 비대화형. 도구는 자동 승인되고 구조화 질문도 자동 응답되어 스스로 진행합니다.',
+    '완전 비대화형. 도구 승인·구조화 질문 응답을 자동으로 처리해 스스로 진행합니다.',
   'tui.permission.yolo.label': 'YOLO',
   'tui.permission.yolo.desc':
     '대부분 도구와 플랜 전환을 자동 승인. 구조화 질문은 자동 응답; 삭제/파괴적 작업·자격증명/시크릿은 여전히 묻습니다.',
@@ -526,7 +526,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.goal.start.title.yolo': 'YOLO 모드로 목표를 시작할까요?',
   'tui.goal.start.option.auto': 'Auto로 전환하고 시작',
   'tui.goal.start.option.auto.desc':
-    '자리를 비워도 계속 작업하게 하려면 최적. 도구는 자동 승인, 구조화 질문은 자동 응답.',
+    '자리를 비워도 SuperLiora가 계속 작업하길 원할 때 최적. 도구는 자동 승인, 구조화 질문은 자동 응답.',
   'tui.goal.start.option.yolo': 'YOLO로 전환하고 시작',
   'tui.goal.start.option.yolo.desc':
     '도구와 플랜 변경 자동 승인. 구조화 질문은 자동 응답; 삭제/파괴적 작업·자격증명/시크릿은 여전히 묻습니다.',
@@ -535,7 +535,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     '도구와 플랜 변경은 계속 자동 승인. 구조화 질문은 자동 응답; 삭제/파괴적 작업·자격증명/시크릿은 여전히 묻습니다.',
   'tui.goal.start.option.manual': 'Manual로 시작',
   'tui.goal.start.option.manual.desc':
-    '승인 확인 유지. 위험 작업 전에 물어 목표가 대기할 수 있습니다.',
+    '승인 확인 유지. 위험한 작업 전에 물어보고, 목표는 멈춰서 기다립니다.',
   'tui.goal.start.option.cancel': '시작하지 않음',
   'tui.goal.start.option.cancel.desc': '목표 명령을 유지한 채 입력창으로 돌아갑니다.',
   'tui.goal.start.notice.manual.1':
@@ -582,9 +582,9 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab으로 Ultrawork 켜기/끄기.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.\n일반 메시지는 Ultrawork가 꺼져 있으면 가볍게 유지됩니다.',
+    'Shift-Tab으로 Ultrawork 켜기/끄기.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.\nUltrawork가 꺼져 있으면 일반 메시지는 가볍게 유지됩니다.',
   'tui.help.intro.advanced':
-    'Ultrawork는 하나의 워크플로: UltraPlan, UltraGoal, Research, Swarm 결정, Integrate, Verify, Learn.\nShift-Tab으로 Ultrawork 켜기/끄기; /plan과 Ctrl-Shift-Tab은 아래 명시적 조향 컨트롤.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.',
+    'Ultrawork는 하나의 워크플로: UltraPlan, UltraGoal, Research, Swarm 결정, Integrate, Verify, Learn.\nShift-Tab으로 Ultrawork 켜기/끄기; /plan과 Ctrl-Shift-Tab은 아래의 명시적 조향 컨트롤입니다.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.',
   'tui.help.shortcut.shiftTab': 'Ultrawork 켜기/끄기',
   'tui.help.shortcut.ctrlG': '외부 에디터에서 편집 ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': '도구 출력 확장 토글 (최근 턴)',
@@ -645,7 +645,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.loginFailed': '로그인 실패: {message}',
   'tui.provider.loginFailedLabel': '로그인 실패.',
   'tui.provider.loginCancelled': '로그인 취소됨.',
-  'tui.provider.refreshFailed': '인증 성공, 하지만 설정 새로고침 실패: {message}',
+  'tui.provider.refreshFailed': '인증은 성공했으나 설정 새로고침 실패: {message}',
 
   // ── Sessions ─────────────────────────────────────────────────────────────
   'tui.sessions.fetchFailed': '세션 로드 실패. 서버 연결을 확인하세요.',
@@ -691,12 +691,12 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.research': 'research: Context7 + WebSearch/FetchURL — MCP 불필요',
   'tui.tip.office':
     'office: SearchSkill → docx / pptx / xlsx — Word, 슬라이드, 시트, MCP 설정 없음',
-  'tui.tip.websearch': 'WebSearch 기본 3건 — limit 올리기 전에 쿼리를 날카롭게',
+  'tui.tip.websearch': 'WebSearch 기본 3건 — limit 올리기 전에 쿼리를 구체적으로',
   'tui.tip.bench': '/bench: LioraBench 점수 · 루프 · 다음 재실행',
   'tui.tip.browser': 'browser/computer 도구는 스크린샷 증명용 내장 — MCP 불필요',
   'tui.tip.firstRun': '첫 실행: /login 후 작업 입력 — 복잡한 설정 불필요',
   'tui.tip.footerBadges':
-    'footer 배지는 높은 컨텍스트나 압축 후 누락된 증거에 경고합니다',
+    'footer 배지는 컨텍스트가 높거나 압축 후 증거가 누락되면 경고합니다',
   'tui.tip.contextLadder':
     'context ladder: micro40 · async55 · soft70 · hard90 · recompact5 · reserved16k · maxRecent12 · abs floor 없음',
   'tui.tip.toolTrim':

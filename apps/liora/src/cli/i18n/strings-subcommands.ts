@@ -314,7 +314,7 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
     '실행 중인 SuperLiora 서버에 연결된 클라이언트를 나열합니다.',
   'cli.sub.server.cmd.ps.option.json': '원본 연결 목록을 JSON으로 출력합니다.',
   'cli.sub.server.cmd.kill.desc':
-    '실행 중인 SuperLiora 서버를 중지합니다(우아한 API + 강제 PID 종료).',
+    '실행 중인 SuperLiora 서버를 중지합니다(정상 종료 API + PID 강제 종료).',
   'cli.sub.server.cmd.rotateToken.desc':
     '새 영구 서버 토큰을 생성합니다; 이전 토큰은 즉시 무효화됩니다.',
 

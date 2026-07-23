@@ -109,7 +109,7 @@ describe('createProgram localization', () => {
     const exportCmd = program.commands.find((c) => c.name() === 'export');
     expect(exportCmd?.description()).toBe('세션을 ZIP 아카이브로 내보냅니다.');
     const loginCmd = program.commands.find((c) => c.name() === 'login');
-    expect(loginCmd?.description()).toBe('디바이스 코드 흐름으로 SuperLiora CLI 인증을 수행합니다.');
+    expect(loginCmd?.description()).toBe('디바이스 코드 흐름으로 SuperLiora CLI 인증을 합니다.');
     const doctorCmd = program.commands.find((c) => c.name() === 'doctor');
     const doctorConfig = doctorCmd?.commands.find((c) => c.name() === 'config');
     expect(doctorConfig?.description()).toBe('config.toml을 검사합니다.');

@@ -487,7 +487,7 @@ export const STRINGS_RUNTIME_PROVIDER_KO: Readonly<Record<string, string>> = {
   'cli.runtime.provider.modelNotFoundThrow': '모델 "{modelAlias}"을(를) 찾을 수 없습니다.',
   'cli.runtime.provider.fallbackModelNotConfiguredThrow':
     '폴백 모델 "{modelAlias}"이(가) 구성되어 있지 않습니다.',
-  'cli.runtime.provider.modelMustDefineProvider': '모델 "{modelAlias}"에 프로바이더가 정의되어야 합니다.',
+  'cli.runtime.provider.modelMustDefineProvider': '모델 "{modelAlias}"에 프로바이더를 정의해야 합니다.',
   'cli.runtime.provider.providerNotConfiguredForModel':
     '모델 "{modelAlias}"의 프로바이더 "{providerName}"이(가) 구성되어 있지 않습니다.',
 
@@ -520,7 +520,7 @@ export const STRINGS_RUNTIME_PROVIDER_KO: Readonly<Record<string, string>> = {
   'cli.runtime.provider.doctor.duplicateOAuthLabel':
     'OAuth 계정 ref #{index} 레이블이 이전 OAuth 레이블과 중복됩니다.',
   'cli.runtime.provider.doctor.missingModelProvider':
-    '모델에 프로바이더가 정의되어 있지 않고 기본 프로바이더도 구성되어 있지 않습니다.',
+    '모델에 프로바이더가 없고 기본 프로바이더도 구성되어 있지 않습니다.',
   'cli.runtime.provider.doctor.missingModelProviderName':
     '모델이 누락된 프로바이더 "{providerName}"을(를) 가리킵니다.',
   'cli.runtime.provider.doctor.selfFallback': '모델이 자기 자신을 폴백으로 지정했습니다.',

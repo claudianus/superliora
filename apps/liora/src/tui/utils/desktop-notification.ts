@@ -53,7 +53,7 @@ export function notifyTurnComplete(summary?: string): void {
   ringBell();
   sendDesktopNotification({
     title: 'SuperLiora — 작업 완료',
-    body: summary ?? '에이전트 응답이 완료되었습니다.',
+    body: summary ?? '에이전트 응답이 완료됐어요.',
     urgency: 'normal',
   });
 }

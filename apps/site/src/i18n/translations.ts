@@ -246,7 +246,7 @@ export const translations: Record<Lang, Translation> = {
       ],
       steps: [
         { num: '01', title: 'Research', body: 'API, 릴리스 노트, 코드 사실을 먼저 확인합니다.' },
-        { num: '02', title: 'Plan', body: 'UltraPlan interview로 요구를 검증 가능하게 만듭니다.' },
+        { num: '02', title: 'Plan', body: 'UltraPlan interview로 요구를 검증 가능한 기준으로 다듬습니다.' },
         { num: '03', title: 'Goal', body: 'UltraGoal로 완료 기준과 예산을 잠급니다.' },
         { num: '04', title: 'Swarm', body: 'ENGAGE/DEFER 뒤 전문 에이전트를 배치합니다.' },
         { num: '05', title: 'Verify', body: '테스트, 런타임, 레드팀으로 닫습니다.' },
@@ -256,7 +256,7 @@ export const translations: Record<Lang, Translation> = {
     harness: {
       kicker: 'Full harness',
       title: '코드 밖 표면까지 같은 권한·기억 모델로',
-      body: 'Browser-use와 computer-use는 부가 기능이 아니라 하네스의 일부입니다. provider routing, Context OS, ACP, Premium Quality가 같은 세션 상태를 공유합니다.',
+      body: 'Browser-use와 computer-use도 하네스의 일부입니다. provider routing, Context OS, ACP, Premium Quality가 같은 세션 상태를 공유합니다.',
       copyTitle: '웹, 데스크톱, 에디터를 한 터미널에서',
       copyBody:
         'CloakBrowser + Playwright로 페이지를 관찰·조작하고, CUA/MCP로 네이티브 창을 캡처합니다. quota·cooldown·latency 기반 fallback으로 모델을 고르고, ACP로 IDE에 같은 워크플로를 노출합니다.',
@@ -270,7 +270,7 @@ export const translations: Record<Lang, Translation> = {
     memory: {
       kicker: 'Memory stack',
       title: '세션이 끝나도 맥락이 남습니다',
-      body: 'Context OS가 긴 대화를 압축·복구하고, Liora Recall이 장기 기억을 관리하며, LLM Wiki가 프로젝트 로컬 검토 문서를 만듭니다. 코드와 테스트가 최종 진실입니다.',
+      body: 'Context OS가 긴 대화를 압축·복구하고, Liora Recall이 장기 기억을 관리하며, LLM Wiki가 프로젝트 로컬 검토 문서를 만듭니다. 코드와 테스트가 최종 기준입니다.',
       cards: [
         {
           title: 'Context OS',

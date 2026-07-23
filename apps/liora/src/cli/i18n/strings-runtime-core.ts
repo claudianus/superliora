@@ -318,13 +318,13 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.computerUse.permissions.win32.line1':
     '- cua-driver는 추가 설정 없이 일반 데스크톱 앱을 제어할 수 있습니다.',
   'cli.runtime.computerUse.permissions.win32.line2':
-    '- 상승된 권한 앱은 SuperLiora를 상승된 터미널에서 실행해야 할 수 있습니다.',
+    '- 앱을 관리자 권한으로 실행 중이면 SuperLiora도 관리자 권한 터미널에서 실행해야 할 수 있습니다.',
   'cli.runtime.computerUse.permissions.win32.line3':
     '- 권한 변경 후 `liora computer-use doctor`를 다시 실행하세요.',
   'cli.runtime.computerUse.permissions.linux.title':
     'Linux computer-use 권한:',
   'cli.runtime.computerUse.permissions.linux.line1':
-    '- cua-driver가 요구하는 DISPLAY/컴positor가 있는 그래픽 세션에서 실행하세요.',
+    '- cua-driver가 요구하는 DISPLAY/컴포지터가 있는 그래픽 세션에서 실행하세요.',
   'cli.runtime.computerUse.permissions.linux.line2':
     '- doctor가 누락을 보고하면 cua-driver가 요청하는 접근성 스택을 설치하세요.',
   'cli.runtime.computerUse.permissions.linux.line3':
