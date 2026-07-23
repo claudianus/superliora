@@ -12,7 +12,14 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
-import type { ActivityEntry } from '../workspace/panels/activity-transparency-panel';
+export interface ActivityEntry {
+  readonly id: string | number;
+  readonly kind: string;
+  readonly label: string;
+  readonly detail?: string;
+  readonly error?: boolean;
+  readonly timestamp: number;
+}
 
 type TickerToken = Parameters<typeof currentTheme.fg>[0];
 

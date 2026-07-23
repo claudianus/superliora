@@ -44,8 +44,6 @@ import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
 import { quoteShellArg } from '#/utils/shell-quote';
 import { fetchWebContent } from '#/utils/web/web-content';
 import { ttui } from './utils/tui-i18n';
-import { renderStatusBar } from './utils/status-bar';
-import { renderActivityTicker } from './utils/activity-ticker';
 
 import { BannerProvider } from './banner/banner-provider';
 import { readBannerDisplayState, writeBannerDisplayState } from './banner/state';
@@ -180,16 +178,6 @@ import {
 import {
   createTUIStateNativeRenderCallback,
 } from './utils/native-layout-frame';
-import { WorkspaceController, PanelManager, WorkspaceLayoutPersistence, LayoutPresetManager } from './workspace';
-import { FileExplorerPanel } from './workspace/panels/file-explorer-panel';
-import { TerminalPanel } from './workspace/panels/terminal-panel';
-import { GitDiffPanel } from './workspace/panels/git-diff-panel';
-import { ArtifactViewerPanel } from './workspace/panels/artifact-viewer-panel';
-import { SessionManagerPanel } from './workspace/panels/session-manager-panel';
-import { ActivityTransparencyPanel, ActivityFeed } from './workspace/panels/activity-transparency-panel';
-import { SideChatPanel } from './workspace/panels/side-chat-panel';
-import { ImagePreviewPanel } from './workspace/panels/image-preview-panel';
-import { WebBrowserPanel } from './workspace/panels/web-browser-panel';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -222,7 +210,6 @@ import { sessionRowsForPicker } from './utils/session-picker-rows';
 import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
 import { notifyUserAttentionOnce } from './utils/terminal-notification';
-import { installKittyDndTracking } from './utils/kitty-dnd';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
@@ -401,11 +388,7 @@ export class LioraTUI {
   private nativeInputModalDispose: (() => void) | undefined;
   private nativeInputModalSequence = 0;
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
-  private workspaceController: WorkspaceController | undefined;
-  private workspaceLayoutPersistence: WorkspaceLayoutPersistence | undefined;
-  private kittyDndTrackingDispose: (() => void) | undefined;
   private readonly sessionStartTime = Date.now();
-  private readonly activityFeed = new ActivityFeed();
 
   // Quest Dashboard (bento grid) controllers — lazily created on first /dashboard.
   private questGridController: QuestGridController | undefined;
@@ -418,6 +401,7 @@ export class LioraTUI {
   private dashboardTaskTails = new Map<string, string>();
   private dashboardBlinkTimer: ReturnType<typeof setInterval> | undefined;
   private dashboardBlinkPhase = false;
+
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -516,7 +500,6 @@ export class LioraTUI {
     });
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
-    this.sessionEventHandler.activityFeed = this.activityFeed;
     // Gen 2: event-driven dashboard refresh — sync immediately on quest-relevant
     // events instead of waiting for the poll timer (improves AC-2 latency).
     this.sessionEventHandler.onQuestRelevantEvent = () => {
@@ -814,286 +797,12 @@ export class LioraTUI {
     if (this.nativeInputRouter !== undefined) {
       this.state.ui.setInputRouter(this.nativeInputRouter.router);
     }
-
-    // Initialize workspace controller for multi-panel layout
-    if (this.nativeInputRouter !== undefined && this.workspaceController === undefined) {
-      const panelManager = new PanelManager();
-      this.workspaceController = new WorkspaceController({
-        panelManager,
-        inputRouter: this.nativeInputRouter.router,
-        requestRender: () => this.state.ui.requestRender(),
-      });
-      // Register default panels
-      const cwd = this.state.appState.workDir ?? process.cwd();
-      this.workspaceController.addPanel(new FileExplorerPanel(cwd), 'left');
-      this.workspaceController.addPanel(new GitDiffPanel(cwd), 'left');
-      this.workspaceController.addPanel(
-        new SessionManagerPanel({
-          listSessions: async () => {
-            const sessions = await this.harness.listSessions({ workDir: cwd });
-            return sessions.map((s) => ({
-              id: s.id,
-              title: s.title ?? null,
-              lastPrompt: s.lastPrompt ?? null,
-              workDir: s.workDir,
-              updatedAt: s.updatedAt ?? s.createdAt ?? 0,
-            }));
-          },
-          switchSession: async (id: string) => this.resumeSession(id),
-          createSession: async () => {
-            const session = await this.createSessionFromCurrentState();
-            await this.switchToSession(session, 'New session created.');
-            return true;
-          },
-          currentSessionId: () => this.state.appState.sessionId ?? '',
-        }),
-        'left',
-      );
-      this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
-      this.workspaceController.addPanel(new ArtifactViewerPanel(cwd), 'right');
-      this.workspaceController.addPanel(new ActivityTransparencyPanel(this.activityFeed), 'right');
-      this.workspaceController.addPanel(
-        new SideChatPanel({
-          sendMessage: (text: string) => {
-            const session = this.session;
-            if (session === undefined) return false;
-            this.sendMessage(session, text);
-            return this.state.appState.streamingPhase === 'idle';
-          },
-          isBusy: () => this.state.appState.streamingPhase !== 'idle',
-        }),
-        'right',
-      );
-      this.workspaceController.addPanel(new ImagePreviewPanel(cwd), 'right');
-      this.workspaceController.addPanel(new WebBrowserPanel(cwd), 'right');
-      // Register keyboard shortcuts for panel management
-      const wc = this.workspaceController;
-      this.nativeInputRouter.router.registerGlobalHandler({
-        id: 'workspace-keyboard-shortcuts',
-        onInput: (event) => {
-          // Overlays + panel-management shortcuts. Also installed as the
-          // editor's pre-editor hook so they win while the editor is focused
-          // (the router runs focused targets before global handlers).
-          if (this.handleWorkspaceOverlaysAndShortcuts(event)) return true;
-          // Route to the focused panel (only reachable when a panel, not the
-          // editor, is the focused router target).
-          if (wc.routeInputToPanel(event)) return true;
-          return false;
-        },
-      });
-      // Load persisted workspace layout (dock widths, visibility, panel order)
-      this.workspaceLayoutPersistence = new WorkspaceLayoutPersistence(panelManager);
-      this.workspaceLayoutPersistence.load();
-      // Layout presets
-      const presetManager = new LayoutPresetManager(panelManager);
-      wc.setPresetManager(presetManager);
-      // Kitty DnD: file drop support
-      this.kittyDndTrackingDispose = installKittyDndTracking(this.state, (paths) => {
-        this.handleFileDrop(paths);
-      });
-    }
-
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
     this.state.ui.setRenderCallback(
       createTUIStateNativeRenderCallback(this.state, {
         diagnosticsOverlay,
         onAuthoritativeFrame: () => {
           this.appearanceController.reapplyTerminalPalette();
-        },
-        workspaceCenter: ({ columns, rows }) => {
-          if (!this.workspaceController?.isEnabled()) return null;
-          return this.workspaceController.getCenterRect({
-            terminalColumns: columns,
-            terminalRows: rows,
-          });
-        },
-        postFrameRender: ({ frameRenderer, columns, rows }) => {
-          // Activity ticker at the top row — always-on Bloomberg-style live band,
-          // rendered independently of workspace mode.
-          const entries = this.activityFeed.getEntries();
-          const latestEntry = entries.length > 0 ? entries[entries.length - 1] : undefined;
-          const agentActive = this.state.appState.streamingPhase !== 'idle';
-          const tickerLine = renderActivityTicker(latestEntry, agentActive, columns);
-          frameRenderer.writeAnsiText(0, 0, tickerLine);
-
-          // Workspace-only docks/overlays. The bottom status bar renders in every
-          // path below so the live band stays visible even without workspace mode.
-          if (!this.workspaceController?.isEnabled()) {
-            this.renderBottomStatusBar(frameRenderer, columns, rows, undefined);
-            return;
-          }
-
-          const layout = this.workspaceController.computeLayout({
-            terminalColumns: columns,
-            terminalRows: rows,
-          });
-          if (!layout) {
-            this.renderBottomStatusBar(frameRenderer, columns, rows, undefined);
-            return;
-          }
-
-          // Outer shell frame first — dock panel frames below paint on top of
-          // their portion, so this shows through only around/above/below the
-          // center stage, unifying the whole workspace into one composition.
-          this.workspaceController.paintShellChrome(frameRenderer, layout);
-
-          // Bento grid dock rendering: use bento tiles when available
-          const leftGrid = this.workspaceController.getDockBentoGrid('left');
-          const rightGrid = this.workspaceController.getDockBentoGrid('right');
-          if (leftGrid) {
-            this.workspaceController.renderBentoGrid(frameRenderer, leftGrid);
-          }
-          if (rightGrid) {
-            this.workspaceController.renderBentoGrid(frameRenderer, rightGrid);
-          }
-          if (leftGrid || rightGrid) {
-            // Bento dock mode: panels already rendered as bento tiles
-          } else {
-          // Fallback: old dock rendering
-          const docks = this.workspaceController.renderDocks(layout);
-          // Draw left dock panels (or maximized panel)
-          const maximizedId = this.workspaceController.getMaximizedPanelId();
-          if (maximizedId !== null && docks.left) {
-            // Maximized: render at full width from x=0
-            for (let row = 0; row < docks.left.length; row++) {
-              const line = docks.left[row] ?? '';
-              if (line.length > 0) {
-                frameRenderer.writeAnsiText(0, row, line);
-              }
-            }
-          } else if (docks.left && layout.leftDock) {
-            const { x, y } = layout.leftDock.rect;
-            for (let row = 0; row < docks.left.length; row++) {
-              const line = docks.left[row] ?? '';
-              if (line.length > 0) {
-                frameRenderer.writeAnsiText(x, y + row, line);
-              }
-            }
-          }
-          // Draw right dock panels
-          if (docks.right && layout.rightDock) {
-            const { x, y } = layout.rightDock.rect;
-            for (let row = 0; row < docks.right.length; row++) {
-              const line = docks.right[row] ?? '';
-              if (line.length > 0) {
-                frameRenderer.writeAnsiText(x, y + row, line);
-              }
-            }
-          }
-          } // end else (old dock rendering)
-          // Draw panel switcher overlay (centered)
-          const switcherLines = this.workspaceController.renderSwitcherOverlay();
-          if (switcherLines) {
-            const overlayWidth = 32;
-            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
-            const overlayY = Math.max(1, Math.floor((rows - switcherLines.length) / 2));
-            // Backdrop: dim the area behind the overlay
-            for (let row = overlayY - 1; row <= overlayY + switcherLines.length; row++) {
-              if (row >= 0 && row < rows) {
-                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
-              }
-            }
-            for (let row = 0; row < switcherLines.length; row++) {
-              frameRenderer.writeAnsiText(overlayX, overlayY + row, switcherLines[row] ?? '');
-            }
-          }
-          // Draw keyboard help overlay (centered)
-          const helpLines = this.workspaceController.renderHelpOverlay();
-          if (helpLines) {
-            const overlayWidth = 46;
-            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
-            const overlayY = Math.max(1, Math.floor((rows - helpLines.length) / 2));
-            for (let row = overlayY - 1; row <= overlayY + helpLines.length; row++) {
-              if (row >= 0 && row < rows) {
-                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
-              }
-            }
-            for (let row = 0; row < helpLines.length; row++) {
-              frameRenderer.writeAnsiText(overlayX, overlayY + row, helpLines[row] ?? '');
-            }
-          }
-          // Draw layout preset overlay (centered)
-          const presetLines = this.workspaceController.renderPresetOverlay();
-          if (presetLines) {
-            const overlayWidth = 34;
-            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
-            const overlayY = Math.max(1, Math.floor((rows - presetLines.length) / 2));
-            for (let row = overlayY - 1; row <= overlayY + presetLines.length; row++) {
-              if (row >= 0 && row < rows) {
-                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
-              }
-            }
-            for (let row = 0; row < presetLines.length; row++) {
-              frameRenderer.writeAnsiText(overlayX, overlayY + row, presetLines[row] ?? '');
-            }
-          }
-          // Draw command palette overlay (centered)
-          const paletteLines = this.workspaceController.renderPaletteOverlay();
-          if (paletteLines) {
-            const overlayWidth = 40;
-            const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
-            const overlayY = Math.max(1, Math.floor((rows - paletteLines.length) / 2));
-            for (let row = overlayY - 1; row <= overlayY + paletteLines.length; row++) {
-              if (row >= 0 && row < rows) {
-                frameRenderer.writeAnsiText(Math.max(0, overlayX - 2), row, currentTheme.dimFg('border', '░'.repeat(overlayWidth + 4)));
-              }
-            }
-            for (let row = 0; row < paletteLines.length; row++) {
-              frameRenderer.writeAnsiText(overlayX, overlayY + row, paletteLines[row] ?? '');
-            }
-          }
-          // Draw session stats overlay (centered)
-          if (this.workspaceController.isStatsOpen) {
-            const actEntries = this.activityFeed.getEntries();
-            const statsLines = this.workspaceController.renderStatsOverlay({
-              sessionDurationMs: Date.now() - this.sessionStartTime,
-              totalActivities: actEntries.length,
-              toolCalls: actEntries.filter((e) => e.kind === 'tool-start').length,
-              fileReads: actEntries.filter((e) => e.kind === 'file-read').length,
-              fileWrites: actEntries.filter((e) => e.kind === 'file-write').length,
-              commands: actEntries.filter((e) => e.kind === 'command').length,
-              thinkingEvents: actEntries.filter((e) => e.kind === 'thinking').length,
-              contextTokens: this.state.appState.contextTokens ?? 0,
-              maxContextTokens: this.state.appState.maxContextTokens ?? 0,
-            });
-            if (statsLines) {
-              const overlayWidth = 38;
-              const overlayX = Math.max(0, Math.floor((columns - overlayWidth) / 2));
-              const overlayY = Math.max(1, Math.floor((rows - statsLines.length) / 2));
-              for (let row = 0; row < statsLines.length; row++) {
-                frameRenderer.writeAnsiText(overlayX, overlayY + row, statsLines[row] ?? '');
-              }
-            }
-          }
-          // Draw search overlay (bottom-left)
-          if (this.workspaceController.isSearchOpen) {
-            const searchLines = this.workspaceController.renderSearchOverlay();
-            if (searchLines) {
-              const overlayY = rows - searchLines.length - 1;
-              for (let row = 0; row < searchLines.length; row++) {
-                frameRenderer.writeAnsiText(1, overlayY + row, searchLines[row] ?? '');
-              }
-            }
-          }
-          // Draw drag ghost overlay (follows cursor during panel drag)
-          const dragOverlay = this.workspaceController.renderDragOverlay();
-          if (dragOverlay) {
-            for (let row = 0; row < dragOverlay.lines.length; row++) {
-              frameRenderer.writeAnsiText(dragOverlay.x, dragOverlay.y + row, dragOverlay.lines[row] ?? '');
-            }
-          }
-          // Draw resize indicator (during dock divider drag)
-          const resizeOverlay = this.workspaceController.renderResizeIndicator();
-          if (resizeOverlay) {
-            for (let row = 0; row < resizeOverlay.lines.length; row++) {
-              frameRenderer.writeAnsiText(resizeOverlay.x, resizeOverlay.y + row, resizeOverlay.lines[row] ?? '');
-            }
-          }
-          // Status bar at the bottom row (always-on live band)
-          const pm = this.workspaceController.panelManager;
-          const focusedId = pm.getFocusedPanelId();
-          const focusedPanel = focusedId ? pm.getPanel(focusedId) : undefined;
-          this.renderBottomStatusBar(frameRenderer, columns, rows, focusedPanel?.definition.title);
         },
       }),
     );
@@ -1108,31 +817,6 @@ export class LioraTUI {
     // createTUIStateNativeRenderer({ growWithContent: true }).
   }
 
-  /**
-   * Render the always-on Bloomberg-style status bar at the bottom row.
-   * Called from every postFrameRender path so the live band stays visible
-   * regardless of workspace mode.
-   */
-  private renderBottomStatusBar(
-    frameRenderer: import('@harness-kit/tui-renderer').NativeFrameRenderer,
-    columns: number,
-    rows: number,
-    activePanel: string | undefined,
-  ): void {
-    const phase = this.state.appState.streamingPhase;
-    const agentStatus = phase === 'thinking' ? 'thinking' as const
-      : phase === 'idle' ? 'idle' as const : 'working' as const;
-    const statusLine = renderStatusBar({
-      agentStatus,
-      contextUsage: this.state.appState.contextUsage,
-      activePanel,
-      contextTokens: this.state.appState.contextTokens,
-      maxContextTokens: this.state.appState.maxContextTokens,
-      model: this.state.appState.model,
-      sessionCostUsd: this.state.appState.sessionCostUsd,
-    }, columns, process.cwd());
-    frameRenderer.writeAnsiText(0, rows - 1, statusLine);
-  }
 
   private startEventLoop(): void {
     this.state.renderer.start();
@@ -1263,33 +947,7 @@ export class LioraTUI {
   private ensureNativeInputRouter(): void {
     this.nativeInputRouter ??= createTUIStateNativeInputRouter(this.state, {
       scrollTranscriptViewport: (action) => this.scrollTranscriptViewport(action),
-      handlePreEditorInput: (event) => this.handleWorkspaceOverlaysAndShortcuts(event),
     });
-  }
-
-  /**
-   * Workspace overlays (stats/search/palette/preset/help/switcher) and
-   * panel-management shortcuts (F1/F2/F3, Ctrl+B/N, Ctrl+1-9, Tab cycle).
-   * Runs both as the editor's pre-editor hook (so it wins while the editor is
-   * focused) and from the global input handler (for panel-focused states).
-   * Deliberately excludes routeInputToPanel, which must not steal typing from
-   * the editor.
-   */
-  private handleWorkspaceOverlaysAndShortcuts(event: NativeInputEvent): boolean {
-    const wc = this.workspaceController;
-    if (wc === undefined) return false;
-    if (wc.handleStatsInput(event)) return true;
-    if (wc.handleSearchInput(event)) return true;
-    if (wc.handlePaletteInput(event)) return true;
-    if (wc.handlePresetInput(event)) return true;
-    if (wc.handleHelpInput(event)) return true;
-    if (wc.handleSwitcherInput(event)) return true;
-    if (wc.handlePanelShortcut(event)) {
-      this.workspaceLayoutPersistence?.scheduleSave();
-      return true;
-    }
-    if (wc.handleTabCycle(event)) return true;
-    return false;
   }
 
   private stopNativeRendererAdapters(): void {
@@ -1551,11 +1209,6 @@ export class LioraTUI {
     this.disposeTerminalTracking();
     this.disposeStartupSplash();
     this.appearanceController.dispose();
-    // Persist workspace layout before shutdown
-    this.workspaceLayoutPersistence?.saveNow();
-    this.workspaceLayoutPersistence?.dispose();
-    this.kittyDndTrackingDispose?.();
-    this.kittyDndTrackingDispose = undefined;
     // BUG-2: dispose the footer's goal-timer interval and the header clock.
     this.state.footer.dispose();
     this.state.header.dispose();
@@ -3935,23 +3588,8 @@ export class LioraTUI {
    * Handle files dropped onto the terminal via Kitty DnD protocol.
    * Opens the file explorer focused on the dropped file's directory.
    */
-  private handleFileDrop(paths: readonly string[]): void {
-    if (paths.length === 0) return;
-
-    // Log the drop event
-    this.activityFeed.push('file', `파일 드롭: ${paths.length}개 항목`, paths[0]);
-
-    // If workspace is enabled, focus the file explorer panel
-    if (this.workspaceController?.isEnabled()) {
-      const fileExplorer = this.workspaceController.panelManager.getPanels().find(
-        (p) => p.id === 'file-explorer',
-      );
-      if (fileExplorer) {
-        this.workspaceController.panelManager.focusPanel(fileExplorer.instanceId);
-        // Request render to show the focused panel
-        this.state.ui.requestRender();
-      }
-    }
+  private handleFileDrop(_paths: readonly string[]): void {
+    // Workspace docks removed — file drops are ignored in pure center TUI.
   }
 
   private lastDiffReport: GitDiffReport | undefined;
