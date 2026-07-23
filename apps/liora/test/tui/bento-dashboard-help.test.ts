@@ -372,3 +372,67 @@ describe('Gen 70: pinned stream stats overlay', () => {
     expect(component.render(120).join('\n')).not.toContain('Stream Stats');
   });
 });
+
+describe('Gen 103: summary bar approval count', () => {
+  function makeComponentWithApproval() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { state: 'waiting-approval' }));
+    grid.addQuest(makeQuest('b', { state: 'waiting-approval' }));
+    grid.addQuest(makeQuest('c', { state: 'failed' }));
+    grid.addQuest(makeQuest('d', { state: 'running' }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    let closed = false;
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {
+        closed = true;
+      },
+    });
+    return { component, grid, isClosed: () => closed };
+  }
+
+  it('shows approval count separately from attention count', () => {
+    const { component } = makeComponentWithApproval();
+    const output = component.render(120).join('\n');
+
+    // 3 need attention (2 waiting-approval + 1 failed).
+    expect(output).toContain('3 need attention');
+    // 2 awaiting approval specifically.
+    expect(output).toContain('2 awaiting approval');
+  });
+
+  it('omits approval count when none are awaiting', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'done' }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    const output = component.render(120).join('\n');
+    expect(output).not.toContain('awaiting approval');
+  });
+});
