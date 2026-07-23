@@ -617,6 +617,24 @@ describe('Gen 63: focus most expensive quest', () => {
   });
 });
 
+describe('Gen 109: focus stalest quest', () => {
+  it('focuses the quest with the oldest lastActivityAt', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('fresh', { lastActivityAt: 3_000 }));
+    ctrl.addQuest(makeQuest('stale', { lastActivityAt: 1_000 }));
+    ctrl.addQuest(makeQuest('mid', { lastActivityAt: 2_000 }));
+
+    ctrl.focusStalest();
+    expect(ctrl.getFocusedQuestId()).toBe('stale');
+  });
+
+  it('is a no-op when no quest is visible', () => {
+    const ctrl = makeController();
+    ctrl.focusStalest();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 27: auto-pin on attention transition', () => {
   it('fires onAttentionTransition when a quest enters waiting-approval', () => {
     const transitions: Array<[string, string]> = [];

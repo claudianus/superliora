@@ -408,6 +408,29 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 109: focus the stalest visible quest (lowest lastActivityAt). Pairs with
+   * the summary bar's "stalest" callout (Gen 70) so the operator can jump to the
+   * most neglected session without scanning the fleet. No-op when no quest is
+   * visible.
+   */
+  focusStalest(): void {
+    const visible = this.sortedQuestIds();
+    if (visible.length === 0) return;
+    let stalestId = visible[0]!;
+    let stalestAt = Infinity;
+    for (const id of visible) {
+      const quest = this.quests.get(id);
+      if (quest === undefined) continue;
+      if (quest.lastActivityAt < stalestAt) {
+        stalestAt = quest.lastActivityAt;
+        stalestId = id;
+      }
+    }
+    this.focusedQuestId = stalestId;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 39: guarantee a valid focus. When nothing is focused, or the focused
    * quest is no longer in the visible (filtered/sorted) set, focus snaps to
    * the most urgent quest — the first in the urgency-ordered list. This makes

@@ -512,6 +512,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 109: S → jump to the stalest (most neglected) quest.
+    if (k === 'S') {
+      this.gridController.focusStalest();
+      return;
+    }
+
     // Gen 94: C → jump to the next quest at risk of context exhaustion.
     if (k === 'C') {
       this.gridController.focusNextCtxRisk();
@@ -707,6 +713,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['Tab', 'Jump to the next quest needing attention'],
           ['g', 'Focus the least-healthy quest'],
           ['m', 'Focus the most expensive quest'],
+          ['S', 'Focus the stalest (most neglected) quest'],
           ['e', 'Jump to next quest with problems'],
           ['E', 'Jump to previous quest with problems'],
           ['C', 'Jump to next context-risk quest'],
