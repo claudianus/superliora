@@ -617,6 +617,24 @@ describe('Gen 63: focus most expensive quest', () => {
   });
 });
 
+describe('Gen 116: focus quest with most changes', () => {
+  it('focuses the quest with the highest added+removed change count', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('small', { changeCount: { added: 1, removed: 0 } }));
+    ctrl.addQuest(makeQuest('big', { changeCount: { added: 40, removed: 12 } }));
+    ctrl.addQuest(makeQuest('mid', { changeCount: { added: 8, removed: 3 } }));
+
+    ctrl.focusMostChanges();
+    expect(ctrl.getFocusedQuestId()).toBe('big');
+  });
+
+  it('is a no-op when no quest is visible', () => {
+    const ctrl = makeController();
+    ctrl.focusMostChanges();
+    expect(ctrl.getFocusedQuestId()).toBeNull();
+  });
+});
+
 describe('Gen 109: focus stalest quest', () => {
   it('focuses the quest with the oldest lastActivityAt', () => {
     const ctrl = makeController();

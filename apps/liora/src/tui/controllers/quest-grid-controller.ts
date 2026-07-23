@@ -432,6 +432,30 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 116: focus the visible quest with the most code changes (added +
+   * removed). Change-based triage so the operator can jump to the most
+   * productive session without scanning the fleet. No-op when no quest is
+   * visible.
+   */
+  focusMostChanges(): void {
+    const visible = this.sortedQuestIds();
+    if (visible.length === 0) return;
+    let busiestId = visible[0]!;
+    let busiestChanges = -Infinity;
+    for (const id of visible) {
+      const quest = this.quests.get(id);
+      if (quest === undefined) continue;
+      const changes = quest.changeCount.added + quest.changeCount.removed;
+      if (changes > busiestChanges) {
+        busiestChanges = changes;
+        busiestId = id;
+      }
+    }
+    this.focusedQuestId = busiestId;
+    this.recomputeLayout();
+  }
+
+  /**
    * Gen 109: focus the stalest visible quest (lowest lastActivityAt). Pairs with
    * the summary bar's "stalest" callout (Gen 70) so the operator can jump to the
    * most neglected session without scanning the fleet. No-op when no quest is
