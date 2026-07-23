@@ -181,6 +181,23 @@ export class PinController {
     }
   }
 
+  /**
+   * Gen 115: cycle the pin to the next quest at risk of context exhaustion, so
+   * the operator can triage near-full context windows without unpinning.
+   * Mirrors the dashboard's C-key jump (Gen 94). No-op when none are at risk.
+   */
+  pinNextCtxRisk(): void {
+    const riskIds = this.gridController.getCtxRiskQuestIds();
+    if (riskIds.length === 0) return;
+    const pinnedId = this.gridController.getPinnedQuestId();
+    const currentIdx = riskIds.indexOf(pinnedId ?? '');
+    const nextIdx = (currentIdx + 1) % riskIds.length;
+    const target = riskIds[nextIdx];
+    if (target !== undefined && target !== pinnedId) {
+      this.pin(target);
+    }
+  }
+
   /** Whether any quest is pinned. */
   get isPinned(): boolean {
     return this.gridController.getPinnedQuestId() !== null;

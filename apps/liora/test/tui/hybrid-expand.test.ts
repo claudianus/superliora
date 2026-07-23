@@ -294,6 +294,35 @@ describe('hybrid pin/expand toggle (AC-3)', () => {
     expect(pin.getPinnedQuest()?.id).toBe('a');
   });
 
+  it('Gen 115: pinNextCtxRisk cycles only through context-risk quests', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('cool', { contextUsage: 0.3 }));
+    grid.addQuest(makeQuest('hot1', { contextUsage: 0.9 }));
+    grid.addQuest(makeQuest('hot2', { contextUsage: 0.95 }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('cool');
+    // First context-risk quest in sort order.
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('hot1');
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('hot2');
+    // Wraps back to the first risk quest, skipping the cool one.
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('hot1');
+  });
+
+  it('Gen 115: pinNextCtxRisk is a no-op when nothing is at risk', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a', { contextUsage: 0.2 }));
+    grid.addQuest(makeQuest('b', { contextUsage: 0.4 }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
   it('pinned quest cell gets larger span in layout', () => {
     const grid = makeGrid();
     grid.addQuest(makeQuest('a'));

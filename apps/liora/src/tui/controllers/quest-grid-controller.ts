@@ -352,6 +352,19 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 115: return the ids of quests at risk of context exhaustion, in the
+   * current sort order. Lets the pin controller cycle through context-risk
+   * quests without unpinning, mirroring the dashboard's C-key jump (Gen 94).
+   */
+  getCtxRiskQuestIds(): string[] {
+    return this.sortedQuestIds().filter((id) => {
+      const quest = this.quests.get(id);
+      if (quest === undefined || quest.contextUsage === undefined) return false;
+      return contextSeverityToken(quest.contextUsage) !== 'success';
+    });
+  }
+
+  /**
    * Gen 25: move focus to the next quest that needs attention
    * (waiting-approval or failed), cycling within that subset only.
    * No-op when no quest needs attention.
