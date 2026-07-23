@@ -80,15 +80,6 @@ export class SideChatPanel implements PanelDefinition {
       if (width >= 28) {
         lines.push(this.pad(`  ${currentTheme.dimFg('border', 'Ctrl+/ opens more panels')}`, width));
       }
-      // Tall empty chat: pin a second hint near the middle so the dock body
-      // does not read as an unused shaft above the input.
-      if (msgAreaHeight >= 10 && width >= 24) {
-        while (lines.length < Math.min(msgAreaHeight - 3, 5)) {
-          lines.push(' '.repeat(width));
-        }
-        lines.push(this.pad(`  ${currentTheme.dimFg('border', '┄'.repeat(Math.min(width - 4, 18)))}`, width));
-        lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'F1 help · Ctrl+B/N docks')}`, width));
-      }
     } else {
       // Message count badge in first row
       if (lines.length === 0) {
