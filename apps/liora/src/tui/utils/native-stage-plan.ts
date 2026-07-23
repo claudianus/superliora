@@ -13,6 +13,7 @@ import {
 } from '../controllers/stage-layout';
 import type { TUIState } from '../tui-state';
 import {
+  BENTO_FRAME_ROW_OVERHEAD,
   bentoFrameContentWidth,
   frameBentoRegionLines,
 } from './bento-region-frame';
@@ -268,15 +269,20 @@ export function planTUINativeStage(
 
   const transcriptRegion = layoutWithChrome.regions.find((region) => region.id === 'transcript');
   const railOuterWidth = stage.rail?.width ?? 0;
+  const railContentOuter =
+    Math.max(rawRail.length, 1) + BENTO_FRAME_ROW_OVERHEAD + 2;
   const railRect =
     stage.mode === 'rail' && stage.rail !== undefined && transcriptRegion?.rect !== undefined
       ? {
           x: stage.rail.x,
           y: transcriptRegion.rect.y,
           width: stage.rail.width,
-          // Sit beside the transcript only. Stretching through the editor
-          // left a tall empty Context body when todo/activity were short.
-          height: Math.max(1, transcriptRegion.rect.height),
+          // Cap to content + breathing so a short todo list does not paint a
+          // full-height empty Context shaft beside the transcript.
+          height: Math.min(
+            Math.max(1, transcriptRegion.rect.height),
+            Math.max(8, railContentOuter),
+          ),
         }
       : undefined;
   const framedRail =
