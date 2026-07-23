@@ -13,7 +13,6 @@ import type { Component } from '#/tui/renderer';
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
 import {
@@ -60,10 +59,10 @@ export class HeaderComponent implements Component {
 
   render(width: number): string[] {
     const safeWidth = Math.max(0, Math.floor(width));
-    // The header only renders on standard+ widths; narrower terminals skip it
-    // (the caller passes header height 0 in that case, so render() is not even
-    // reached, but guard anyway).
-    if (safeWidth < 60 || resolveResponsiveLayout({ width: safeWidth }) === 'tiny') return [];
+    // Guard on content width only. Do not use resolveResponsiveLayout here —
+    // docked bento passes the center-band width (~50–80), which would wrongly
+    // classify as `tiny` (<60) and blank the header tile.
+    if (safeWidth < 40) return [];
 
     const appearance = this.state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
     const brand = shouldRenderAmbientEffects(appearance)
@@ -86,14 +85,9 @@ export class HeaderComponent implements Component {
             })
           : currentTheme.dimFg('textMuted', modelLabel)
         : '';
-    // Keep the clock seed stable across seconds. Seeding with the label made the
-    // hue base jump every tick, which read as random color flicker.
-    const clockText = shouldRenderAmbientEffects(appearance)
-      ? renderSpectacularText(clockLabel, 'header:clock', appearance, {
-          intense: false,
-          pace: 'slow',
-        })
-      : currentTheme.dimFg('textMuted', clockLabel);
+    // Keep the clock plain: spectacular per-glyph SGR + bento truncateToWidth
+    // can leave mid-sequence digits in the label (e.g. `8:37:309PM`).
+    const clockText = currentTheme.dimFg('textMuted', clockLabel);
 
     const densityText = this.buildDensityText(safeWidth);
     const updateBadge = this.buildUpdateBadge();
@@ -137,7 +131,7 @@ export class HeaderComponent implements Component {
         const dividerWidth = clockOnlyAvailable + minDivider;
         const divider = shouldRenderAmbientEffects(appearance)
           ? renderParticleDivider(dividerWidth, 'header:divider', appearance)
-          : currentTheme.fg('border', '─'.repeat(dividerWidth));
+          : softHeaderDivider(dividerWidth);
         return [`${brand}${divider}${clockText}`];
       }
       // Not enough room for brand + clock + divider: show brand only, truncated.
@@ -147,7 +141,7 @@ export class HeaderComponent implements Component {
     const dividerWidth = available + minDivider;
     const divider = shouldRenderAmbientEffects(appearance)
       ? renderParticleDivider(dividerWidth, 'header:divider', appearance)
-      : currentTheme.fg('border', '─'.repeat(dividerWidth));
+      : softHeaderDivider(dividerWidth);
     const right = segments.map((s) => s.text).join(CLOCK_GAP);
     return [`${brand}${divider}${right}`];
   }
@@ -224,6 +218,22 @@ export function formatLocalClock(nowMs: number = Date.now()): string {
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const seconds = date.getSeconds().toString().padStart(2, '0');
   return `${hours}:${minutes}:${seconds} ${period}`;
+}
+
+/** Soft gap inside the header tile — avoids a second ─── border fighting the frame. */
+function softHeaderDivider(width: number): string {
+  const safe = Math.max(0, Math.floor(width));
+  if (safe === 0) return '';
+  if (safe === 1) return currentTheme.dimFg('border', '·');
+  if (safe === 2) return currentTheme.dimFg('border', ' ·');
+  // Calm: mostly blank with a single middot — never a dotted wall.
+  const cells = Array.from({ length: safe }, () => ' ');
+  if (safe >= 6) {
+    cells[Math.floor(safe / 2)] = '·';
+  }
+  cells[0] = ' ';
+  cells[safe - 1] = ' ';
+  return currentTheme.dimFg('border', cells.join(''));
 }
 
 /** Compact token count for the header density segment (e.g. 12.3k, 1.2M). */

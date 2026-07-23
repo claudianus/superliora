@@ -1,5 +1,5 @@
 import type { RendererRect } from './compositor';
-import { truncateToWidth } from './text-component';
+import { truncateToWidth, visibleWidth } from './text-component';
 
 // ---------------------------------------------------------------------------
 // Panel border hit-test types
@@ -157,16 +157,15 @@ function renderTitleBar(
   const titleText = `${iconPart}${titleColor(title)}`;
   const focusPart = ` ${focusIndicator}`;
 
-  // Calculate visible length (approximation - ANSI codes make this tricky)
-  const visibleTitleLen = (icon ? icon.length + 1 : 0) + title.length;
+  // Prefer visible width so emoji icons (💬, 📁) don't under-count fill dashes.
+  const visibleTitleLen = visibleWidth(`${icon ? `${icon} ` : ''}${title}`);
   const visibleFocusLen = 2;
   const remainingDash = Math.max(0, innerWidth - visibleTitleLen - visibleFocusLen - 1);
 
-  const dashLeft = borderColor(chars.horizontal);
   const dashFill = borderColor(chars.horizontal.repeat(remainingDash));
 
   // Do not padEnd/slice by byte length — that truncates mid-ANSI on styled titles.
-  return `${dashLeft}${titleText}${dashFill}${focusPart}${dashLeft}`;
+  return `${borderColor(chars.topLeft)}${titleText}${dashFill}${focusPart}${borderColor(chars.topRight)}`;
 }
 
 // ---------------------------------------------------------------------------

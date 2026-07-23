@@ -7,3 +7,5 @@ export { WorkspaceController } from './workspace-controller';
 export type { WorkspaceControllerOptions, WorkspaceRenderContext, WorkspaceDockRender } from './workspace-controller';
 export { WorkspaceLayoutPersistence } from './layout-persistence';
 export { LayoutPresetManager } from './layout-presets';
+export { paintBentoTile, paintBentoTileFrame } from './bento-tiles';
+export type { BentoTileKind, BentoTilePaintOptions } from './bento-tiles';

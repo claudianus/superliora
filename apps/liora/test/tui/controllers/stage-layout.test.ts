@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { measureWorkspaceLayout } from '@harness-kit/tui-renderer';
 
 import {
+  COMPACT_RAIL_WIDTH,
   RAIL_WIDTH,
   resolveStageLayout,
   STAGE_MAX_HEIGHT,
@@ -159,5 +160,64 @@ describe('resolveStageLayout', () => {
     // not additionally reserve leftDock/rightDock bands in this path.
     expect(stage.leftDock).toBeUndefined();
     expect(stage.rightDock).toBeUndefined();
+  });
+
+  it('full-bleeds edge-to-edge inside the workspace center (bento shell)', () => {
+    const ws = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 200, height: 60 },
+    });
+    const stage = resolveStageLayout({
+      width: 200,
+      height: 60,
+      hasRailContent: false,
+      workspaceCenter: ws.center,
+      fullBleed: true,
+    });
+    expect(stage.stage).toEqual({
+      x: ws.center.x,
+      y: ws.center.y,
+      width: ws.center.width,
+      height: ws.center.height,
+    });
+    expect(stage.mode).toBe('stack');
+    expect(stage.rail).toBeUndefined();
+  });
+
+  it('opens a Context rail inside a dock-shrunk workspace center when content fits', () => {
+    const ws = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 220, height: 50 },
+    });
+    // Center band is dock-shrunk (~88 cols) — still enough for transcript+rail.
+    expect(ws.center.width).toBeGreaterThanOrEqual(STAGE_RAIL_GAP + RAIL_WIDTH + 40);
+    const stage = resolveStageLayout({
+      width: 220,
+      height: 50,
+      hasRailContent: true,
+      workspaceCenter: ws.center,
+      fullBleed: true,
+    });
+    expect(stage.mode).toBe('rail');
+    expect(stage.rail?.width).toBe(RAIL_WIDTH);
+    expect(stage.stage.x).toBeGreaterThanOrEqual(ws.center.x);
+    expect((stage.rail?.x ?? 0) + (stage.rail?.width ?? 0)).toBeLessThanOrEqual(
+      ws.center.x + ws.center.width,
+    );
+  });
+
+  it('opens a compact Context rail when the docked center is too tight for the full rail', () => {
+    const ws = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 160, height: 48 },
+    });
+    expect(ws.center.width).toBeLessThan(STAGE_RAIL_GAP + RAIL_WIDTH + 40);
+    expect(ws.center.width).toBeGreaterThanOrEqual(STAGE_RAIL_GAP + COMPACT_RAIL_WIDTH + 28);
+    const stage = resolveStageLayout({
+      width: 160,
+      height: 48,
+      hasRailContent: true,
+      workspaceCenter: ws.center,
+      fullBleed: true,
+    });
+    expect(stage.mode).toBe('rail');
+    expect(stage.rail?.width).toBe(COMPACT_RAIL_WIDTH);
   });
 });

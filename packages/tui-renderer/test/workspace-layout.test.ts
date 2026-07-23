@@ -5,6 +5,7 @@ import {
   DEFAULT_RIGHT_DOCK_WIDTH,
   DEFAULT_SHELL_INSET_X,
   DEFAULT_SHELL_INSET_Y,
+  measureBentoGridLayout,
   measureWorkspaceLayout,
 } from '../src/workspace-layout';
 
@@ -54,6 +55,37 @@ describe('measureWorkspaceLayout shell', () => {
     });
     expect(layout.leftDock!.width).toBe(DEFAULT_LEFT_DOCK_WIDTH);
     expect(layout.rightDock!.width).toBe(DEFAULT_RIGHT_DOCK_WIDTH);
+  });
+
+  it('preserves ultrawide mode (not collapsed to wide) at the ultrawide breakpoint', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 220, height: 50 },
+    });
+    expect(layout.mode).toBe('ultrawide');
+    expect(layout.dockGap).toBe(2);
+    expect(layout.leftDock!.width).toBe(48);
+    expect(layout.rightDock!.width).toBe(56);
+  });
+
+  it('promotes factory default dock widths on ultrawide', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 220, height: 50 },
+      leftDockWidth: DEFAULT_LEFT_DOCK_WIDTH,
+      rightDockWidth: DEFAULT_RIGHT_DOCK_WIDTH,
+    });
+    expect(layout.mode).toBe('ultrawide');
+    expect(layout.leftDock!.width).toBe(48);
+    expect(layout.rightDock!.width).toBe(56);
+  });
+
+  it('keeps custom dock widths on ultrawide', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 220, height: 50 },
+      leftDockWidth: 36,
+      rightDockWidth: 40,
+    });
+    expect(layout.leftDock!.width).toBe(36);
+    expect(layout.rightDock!.width).toBe(40);
   });
 });
 
@@ -108,6 +140,16 @@ describe('measureWorkspaceLayout forced drawer', () => {
     expect(layout.center).toEqual(layout.shell);
   });
 
+  it('wide mode starts at 140 cols so laptop widths get both docks', () => {
+    const layout = measureWorkspaceLayout({
+      viewport: { x: 0, y: 0, width: 140, height: 40 },
+    });
+    expect(layout.mode).toBe('wide');
+    expect(layout.leftDock).toBeDefined();
+    expect(layout.rightDock).toBeDefined();
+    expect(layout.center.width).toBeGreaterThanOrEqual(40);
+  });
+
   it('medium + drawerDock left + leftDockVisible overlays left drawer without disturbing the structural right dock', () => {
     const layout = measureWorkspaceLayout({
       viewport: { x: 0, y: 0, width: 130, height: 40 },
@@ -142,5 +184,49 @@ describe('measureWorkspaceLayout forced drawer', () => {
     // leftDockVisible: false means no left dock at all — drawer does not
     // force it back on in wide mode.
     expect(layout.leftDock).toBeUndefined();
+  });
+});
+
+describe('measureBentoGridLayout dock columns', () => {
+  it('stacks panels to fill a tall narrow dock instead of leaving empty rows', () => {
+    const dock = { x: 3, y: 1, width: 42, height: 48 };
+    const grid = measureBentoGridLayout(
+      dock,
+      [
+        { id: 'files', colSpan: 1, rowSpan: 1, priority: 10 },
+        { id: 'git', colSpan: 1, rowSpan: 1, priority: 5 },
+        { id: 'sessions', colSpan: 1, rowSpan: 1, priority: 1 },
+      ],
+      null,
+    );
+    expect(grid.columns).toBe(1);
+    expect(grid.rows).toBe(3);
+    expect(grid.cells).toHaveLength(3);
+    const bottom = Math.max(...grid.cells.map((c) => c.rect.y + c.rect.height));
+    // Nearly fill the dock (inset + last cell bottom ≈ dock bottom).
+    expect(bottom).toBeGreaterThanOrEqual(dock.y + dock.height - 3);
+    for (const cell of grid.cells) {
+      expect(cell.rect.height).toBeGreaterThanOrEqual(14);
+    }
+  });
+
+  it('gives the lower panel more height in a two-panel dock stack', () => {
+    const dock = { x: 2, y: 1, width: 42, height: 40 };
+    const grid = measureBentoGridLayout(
+      dock,
+      [
+        { id: 'files', colSpan: 1, rowSpan: 1, priority: 10 },
+        { id: 'git', colSpan: 1, rowSpan: 1, priority: 5 },
+      ],
+      null,
+    );
+    expect(grid.cells).toHaveLength(2);
+    expect(grid.gap).toBe(0);
+    const [files, git] = grid.cells;
+    expect(files!.id).toBe('files');
+    expect(git!.id).toBe('git');
+    expect(git!.rect.height).toBeGreaterThan(files!.rect.height);
+    expect(files!.rect.y + files!.rect.height).toBe(git!.rect.y);
+    expect(git!.rect.y + git!.rect.height).toBe(dock.y + dock.height);
   });
 });

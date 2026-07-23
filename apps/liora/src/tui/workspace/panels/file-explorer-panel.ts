@@ -891,11 +891,12 @@ export class FileExplorerPanel implements PanelDefinition {
       : '';
     const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${submoduleBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}${hotBadge}${ignoreBadge}`;
 
-    const truncated = label.slice(0, width);
+    const truncated = label.slice(0, Math.max(0, width - 1));
+    const line = ` ${truncated}`;
     if (isCursor) {
-      return inverse(truncated.padEnd(width));
+      return inverse(line.padEnd(width));
     }
-    return truncated;
+    return line.padEnd(width);
   }
 
   /**
@@ -912,7 +913,7 @@ export class FileExplorerPanel implements PanelDefinition {
       const ancestorPath = this.getAncestorPath(entry, d);
       const hasMoreSiblings = ancestorPath !== null && this.hasSiblingsBelow(ancestorPath, d);
       segments.push(hasMoreSiblings
-        ? currentTheme.dimFg('border', '│ ')
+        ? currentTheme.dimFg('border', '┊ ')
         : '  ');
     }
 

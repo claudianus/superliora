@@ -58,6 +58,8 @@ export function measureRendererRegions(options: {
   readonly contentHeight?: number;
   readonly heights: RendererRegionHeights;
   readonly minTranscriptRows?: number;
+  /** Gap between adjacent bento tiles. @default 0 */
+  readonly regionGap?: number;
 }): RendererRegionLayout {
   const topRegions: Array<RendererStackFixedRegion<RendererRegionId>> = TOP_FIXED_REGION_IDS.map((id) => ({
     id,
@@ -78,6 +80,7 @@ export function measureRendererRegions(options: {
     topFixedRegions: topRegions,
     fixedRegions,
     minPrimaryRows: options.minTranscriptRows,
+    regionGap: options.regionGap,
   });
 
   return {

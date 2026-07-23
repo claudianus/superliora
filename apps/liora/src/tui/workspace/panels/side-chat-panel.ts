@@ -76,7 +76,7 @@ export class SideChatPanel implements PanelDefinition {
 
     if (this.messages.length === 0) {
       lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Type a quick question…')}`, width));
-      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', 'Sent to the active agent.')}`, width));
+      lines.push(this.pad(`  ${currentTheme.dimFg('textMuted', '↵ sends to the active agent')}`, width));
     } else {
       // Message count badge in first row
       if (lines.length === 0) {
@@ -159,7 +159,7 @@ export class SideChatPanel implements PanelDefinition {
           ? renderPulseText(' ⏳ agent busy ', 'chat:busy', 'warning', appearance)
           : currentTheme.fg('warning', ' ⏳ agent busy '))
       : scrollLockIndicator;
-    lines.push(this.pad(`${currentTheme.dimFg('border', '─')}${statusText}${currentTheme.dimFg('border', '─'.repeat(Math.max(1, width - 4)))}`, width));
+    lines.push(this.pad(`${currentTheme.dimFg('border', '┄')}${statusText}${currentTheme.dimFg('border', '┄'.repeat(Math.max(1, width - 4)))}`, width));
 
     // Search bar (when active)
     if (this.searchActive) {

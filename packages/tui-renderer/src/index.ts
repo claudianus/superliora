@@ -62,3 +62,4 @@ export * from './transcript';
 export * from './trace';
 export * from './viewport';
 export * from './workspace-layout';
+export * from './bento-shell';

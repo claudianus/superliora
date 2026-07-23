@@ -502,6 +502,11 @@ export function createTUIStateNativeRenderer(
   let nativeRenderer: NativeTerminalRenderer;
   nativeRenderer = new NativeTerminalRenderer({
     ...options,
+    // Workspace docks share rows with stage chrome. Relative CUF skips across
+    // those rows drift when a prior run on the line had wide glyphs, then a
+    // later gap-space emit wipes a dock ╭ that the buffer still considers
+    // unchanged. Absolute CUP keeps dock edges pinned.
+    cursorMotion: options.cursorMotion ?? 'absolute',
     autoBeginFrame: false,
     autoFrameHold: options.autoFrameHold ?? (() => {
       // Fullscreen takeover (splash, tasks browser, approval preview) owns its
@@ -766,15 +771,19 @@ function buildTUIStateNativeFrame(
      * `workspaceCenter`). When set, the stage resolves inside this band.
      */
     readonly workspaceCenter?: RendererRect;
+    /** Frame chrome as bento tiles; skip letterbox stage frame. Default true. */
+    readonly bentoTiles?: boolean;
   } = {},
 ): TUIStateNativeFrame {
   if (isNativeFullscreenTakeover(state)) {
     return buildNativeFullscreenTakeoverFrame(state, width, height, options);
   }
+  const bentoTiles = options.bentoTiles !== false;
   const plan = planTUINativeStage(state, width, height, {
     reuseChrome: options.reuseChrome,
     cachedHasRailContent: options.cachedHasRailContent,
     workspaceCenter: options.workspaceCenter,
+    bentoTiles,
     resolveEditorFallbackLines: (contentWidth) =>
       nativeEditorFallbackRegionLines(state, contentWidth),
     resolveEditorRows: ({ editorLineCount, fixedRowsWithoutEditor, contentWidth, contentHeight }) =>
@@ -896,16 +905,19 @@ function buildTUIStateNativeFrame(
         ]
       : [...stackRegions];
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
-  // Keep letterbox sky + frame chase alive while typing; only editor VFX skips.
-  regions.push(
-    ...createStageFrameOverlayRegions({
-      bundle: stageFrameBundleRect(plan.stage),
-      cols: width,
-      rows: height,
-      nowMs: appearanceAnimationNow(),
-      appearance,
-    }),
-  );
+  // Bento tiles own composition — skip the legacy centered-stage letterbox
+  // frame/sky which fights the full-bleed grid.
+  if (!bentoTiles) {
+    regions.push(
+      ...createStageFrameOverlayRegions({
+        bundle: stageFrameBundleRect(plan.stage),
+        cols: width,
+        rows: height,
+        nowMs: appearanceAnimationNow(),
+        appearance,
+      }),
+    );
+  }
   const diagnosticsOverlay = skipDecorative
     ? undefined
     : createTUIStateDiagnosticsOverlayRegion(
@@ -1170,6 +1182,10 @@ function projectNativeEditorRegion(
     scrollbar: {},
     connectedAbove: state.editor.connectedAbove && !state.editor.borderHighlighted && !ultraworkGlow,
     borderStyle: ultraworkBorderStyle ?? editorStyles.borderStyle,
+    borderHorizontal:
+      state.editor.borderHighlighted || ultraworkGlow || state.editor.focused
+        ? '━'
+        : '─',
     promptStyle: editorStyles.promptStyle,
     surfaceStyle: editorStyles.surfaceStyle,
     scrollbarTrackStyle: editorStyles.scrollbarTrackStyle,
