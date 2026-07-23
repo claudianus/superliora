@@ -14,12 +14,6 @@ describe('PanelManager dock sizing', () => {
     expect(pm.getDockWidth('right')).toBe(DEFAULT_RIGHT_DOCK_WIDTH);
   });
 
-  it('defaults left split / right tabbed for bento readability', () => {
-    const pm = new PanelManager();
-    expect(pm.getDockMode('left')).toBe('split');
-    expect(pm.getDockMode('right')).toBe('tabbed');
-  });
-
   it('clamps below DOCK_WIDTH_MIN up to the minimum', () => {
     const pm = new PanelManager();
     pm.setDockWidth('left', 10);

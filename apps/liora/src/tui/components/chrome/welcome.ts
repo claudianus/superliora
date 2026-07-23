@@ -1,10 +1,10 @@
 /**
  * Welcome panel shown at the top of the TUI.
- * Frameless hero content (figlet + session meta) — bento chrome owns borders.
+ * Renders a round-bordered box with a figlet banner, session, model, and version.
  */
 
 import type { Component } from '#/tui/renderer';
-import { truncateToWidth } from '#/tui/renderer';
+import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
@@ -31,6 +31,7 @@ export class WelcomeComponent implements Component {
 
   render(width: number): string[] {
     const safeWidth = Math.max(0, width);
+    const primary = (s: string): string => chalk.hex(currentTheme.palette.primary)(s);
     const isLoggedOut = !this.state.model;
     const activeModel = this.state.availableModels[this.state.model];
     const layout = resolveResponsiveLayout({ width: safeWidth });
@@ -39,40 +40,26 @@ export class WelcomeComponent implements Component {
     const loggedOutPrompt = ttui('tui.welcome.prompt.loggedOut');
     const modelUnset = ttui('tui.welcome.modelUnset');
 
-    // Docked bento passes the center-band width (~50–80). Do not use
-    // resolveResponsiveLayout here — it would classify as `tiny` and also
-    // skew banner choice. Compact hero is a deliberate width budget.
-    if (safeWidth < 64) {
-      const useCompactPrompt = safeWidth < 48;
-      const promptKey = isLoggedOut
-        ? useCompactPrompt
-          ? 'tui.welcome.prompt.loggedOut.compact'
-          : 'tui.welcome.prompt.loggedOut'
-        : useCompactPrompt
-          ? 'tui.welcome.prompt.loggedIn.compact'
-          : 'tui.welcome.prompt.loggedIn';
-      const banner = renderWelcomeBanner('compact', appearance, safeWidth);
+    if (safeWidth < 24 || layout === 'tiny') {
+      const banner = renderWelcomeBanner(layout, appearance, safeWidth);
       const prompt = isLoggedOut
-        ? chalk.hex(currentTheme.palette.warning)(ttui(promptKey))
-        : chalk.hex(currentTheme.palette.textDim)(ttui(promptKey));
+        ? chalk.hex(currentTheme.palette.warning)(loggedOutPrompt)
+        : chalk.hex(currentTheme.palette.textDim)(loggedInPrompt);
       const model = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)(modelUnset)
         : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
-      const shortcuts = chalk.hex(currentTheme.palette.textMuted)(
-        'Ctrl+/ panels · Shift-Tab Ultrawork',
-      );
-      return [...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`, shortcuts].map(
-        (line) => truncateToWidth(line, safeWidth, '…'),
+      return ['', ...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`].map((line) =>
+        truncateToWidth(line, safeWidth, '…'),
       );
     }
 
-    const contentWidth = Math.max(1, safeWidth);
-    const bannerLines = renderWelcomeBanner(layout, appearance, contentWidth);
+    const innerWidth = Math.max(1, safeWidth - 4);
+    const bannerLines = renderWelcomeBanner(layout, appearance, innerWidth);
     const dim = chalk.hex(currentTheme.palette.textDim);
     const labelStyle = chalk.bold.hex(currentTheme.palette.textDim);
     const promptLine = truncateToWidth(
       dim(isLoggedOut ? loggedOutPrompt : loggedInPrompt),
-      contentWidth,
+      innerWidth,
       '…',
     );
 
@@ -81,8 +68,10 @@ export class WelcomeComponent implements Component {
       : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
 
     const infoLines = [
-      labelStyle(ttui('tui.welcome.label.directory')) + shortenWelcomeDir(this.state.workDir),
+      labelStyle(ttui('tui.welcome.label.directory')) + this.state.workDir,
+      labelStyle(ttui('tui.welcome.label.session')) + this.state.sessionId,
       labelStyle(ttui('tui.welcome.label.model')) + modelValue,
+      labelStyle(ttui('tui.welcome.label.version')) + this.state.version,
     ];
 
     if (this.state.mcpServersSummary) {
@@ -91,44 +80,41 @@ export class WelcomeComponent implements Component {
 
     const contentLines: string[] = [
       ...bannerLines,
+      '',
       promptLine,
+      '',
       ...infoLines,
     ];
 
     // Idle sky under the banner: a few diagonal meteors (premium/subtle only).
-    // Skip on docked center bands — empty meteor rows fight the Context rail.
     const showMeteors =
-      contentWidth >= 100 &&
       shouldRenderAmbientEffects(appearance) &&
       resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
     const meteorRows = showMeteors
-      ? Math.min(3, Math.max(1, Math.floor(contentWidth / 40)))
+      ? Math.min(4, Math.max(2, Math.floor(innerWidth / 28)))
       : 0;
     const meteorField =
       meteorRows > 0
-        ? renderMeteorField(contentWidth, meteorRows, 'welcome:meteors', appearance)
+        ? renderMeteorField(innerWidth, meteorRows, 'welcome:meteors', appearance).map(
+            (row) => `  ${row}`,
+          )
         : [];
 
     return [
-      ...(contentWidth >= 100 && shouldRenderAmbientEffects(appearance)
-        ? [renderParticleRail(contentWidth, appearance, 'welcome-top')]
-        : []),
-      ...contentLines.map((content) => truncateToWidth(content, contentWidth, '…')),
-      ...(meteorField.length > 0 ? meteorField : []),
+      '',
+      ...renderRendererFrameRows({
+        content: [
+          renderParticleRail(safeWidth - 2, appearance, 'welcome-top'),
+          ...contentLines.map((content) => `  ${truncateToWidth(content, innerWidth, '…')}`),
+          ...(meteorField.length > 0 ? ['', ...meteorField] : []),
+        ],
+        width: safeWidth,
+        height: contentLines.length + 4 + (meteorField.length > 0 ? meteorField.length + 1 : 0),
+        borderKind: 'rounded',
+        borderStyle: primary,
+        ellipsis: '…',
+      }),
+      '',
     ];
   }
-}
-
-/** Prefer `…/a/b/c` over a mid-path clip on docked center bands. */
-function shortenWelcomeDir(path: string): string {
-  if (!path) return path;
-  const home = process.env['HOME'] ?? '';
-  let work = path;
-  if (home && path === home) return '~';
-  if (home && path.startsWith(`${home}/`)) {
-    work = `~${path.slice(home.length)}`;
-  }
-  const segments = work.split('/').filter((s) => s.length > 0);
-  if (segments.length <= 3) return work;
-  return `…/${segments.slice(-3).join('/')}`;
 }

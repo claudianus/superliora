@@ -131,10 +131,10 @@ export class ImagePreviewPanel implements PanelDefinition {
         const extBadge = currentTheme.bg('selectionBg', currentTheme.fg('selectionText', ` ${selected.ext.slice(1).toUpperCase()} `));
         lines.push(this.pad(` ${currentTheme.boldFg('textStrong', selected.name)} ${extBadge}`, width));
         lines.push(this.pad(` ${currentTheme.dimFg('textMuted', `${formatSize(selected.sizeBytes)}`)}`, width));
-        // Visual preview placeholder — same rounded language as bento tiles.
-        lines.push(this.pad(` ${currentTheme.dimFg('border', '╭')}${currentTheme.dimFg('border', '─'.repeat(Math.min(width - 4, 24)))}${currentTheme.dimFg('border', '╮')}`, width));
+        // Visual preview placeholder with themed border
+        lines.push(this.pad(` ${currentTheme.dimFg('border', '┌')}${currentTheme.dimFg('border', '─'.repeat(Math.min(width - 4, 24)))}${currentTheme.dimFg('border', '┐')}`, width));
         lines.push(this.pad(` ${currentTheme.dimFg('border', '│')} ${currentTheme.fg('accent', '🖼')} ${currentTheme.dimFg('textMuted', 'Kitty inline preview')}${currentTheme.dimFg('border', ' │')}`, width));
-        lines.push(this.pad(` ${currentTheme.dimFg('border', '╰')}${currentTheme.dimFg('border', '─'.repeat(Math.min(width - 4, 24)))}${currentTheme.dimFg('border', '╯')}`, width));
+        lines.push(this.pad(` ${currentTheme.dimFg('border', '└')}${currentTheme.dimFg('border', '─'.repeat(Math.min(width - 4, 24)))}${currentTheme.dimFg('border', '┘')}`, width));
       }
     }
 

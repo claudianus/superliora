@@ -564,12 +564,10 @@ export class FooterComponent implements Component {
 
     const model = modelDisplayName(state);
     if (model) {
-      // Mode flag — quiet "· think", not bare "thinking" (reads as live activity).
-      const thinkingLabel = state.thinking ? ' · think' : '';
+      const thinkingLabel = state.thinking ? ' thinking' : '';
       const modelLabel = `${model}${thinkingLabel}`;
-      // Pulse only while the agent is streaming; think-mode alone stays static.
       left.push(
-        state.streamingPhase === 'idle'
+        state.streamingPhase === 'idle' && !state.thinking
           ? chalk.hex(colors.text)(modelLabel)
           : renderPulseText(modelLabel, 'footer:model', 'text', appearance),
       );
@@ -605,15 +603,11 @@ export class FooterComponent implements Component {
     if (cwd) left.push(chalk.hex(colors.textDim)(cwd));
 
     const git = this.gitCache.getStatus();
-    const gitBadge = git !== null ? formatFooterGitBadge(git, colors) : null;
-    if (gitBadge !== null) left.push(gitBadge);
-
-    // Prefer whole badges over a mid-glyph `f…` clip in the Status tile.
-    let leftLine = left.join('  ');
-    while (visibleWidth(leftLine) > width && left.length > 1) {
-      left.pop();
-      leftLine = left.join('  ');
+    if (git !== null) {
+      left.push(formatFooterGitBadge(git, colors));
     }
+
+    const leftLine = left.join('  ');
     const leftWidth = visibleWidth(leftLine);
 
     // Rotating hint tips, fill remaining space on line 1.

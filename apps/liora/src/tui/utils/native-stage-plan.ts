@@ -8,14 +8,9 @@ import {
 import {
   resolveStageLayout,
   STAGE_MAX_WIDTH,
-  STAGE_RAIL_GAP,
   type StageLayout,
 } from '../controllers/stage-layout';
 import type { TUIState } from '../tui-state';
-import {
-  bentoFrameContentWidth,
-  frameBentoRegionLines,
-} from './bento-region-frame';
 
 export interface TUINativeStageChrome {
   readonly header: readonly RendererRegionLine[];
@@ -54,12 +49,6 @@ export interface PlanTUINativeStageOptions {
    */
   readonly workspaceCenter?: RendererRect;
   /**
-   * Frame header / footer (and situational rail) as bento tiles.
-   * Transcript stays frameless (hero reading surface). Editor keeps its own
-   * surface chrome. Default true.
-   */
-  readonly bentoTiles?: boolean;
-  /**
    * Editor fallback lines / row budget resolved at the final stage width so
    * wrap math matches the painted editor region.
    */
@@ -72,34 +61,9 @@ export interface PlanTUINativeStageOptions {
   }) => number;
 }
 
-function lineToPlainText(line: RendererRegionLine): string {
-  if (typeof line === 'string') return line;
-  // Cell arrays: join characters only (framing is ANSI-string based).
-  return line.map((cell) => cell.char).join('');
-}
-
-function maybeFrame(
-  enabled: boolean,
-  lines: readonly RendererRegionLine[],
-  outerWidth: number,
-  title: string | undefined,
-  kind: 'chrome' | 'input' | 'rail' | 'panel',
-  minHeight?: number,
-): readonly RendererRegionLine[] {
-  if (!enabled || lines.length === 0) return lines;
-  return frameBentoRegionLines({
-    width: outerWidth,
-    title,
-    kind,
-    lines: lines.map(lineToPlainText),
-    minHeight,
-  });
-}
-
 /**
- * Probe whether situational panels have content, resolve the stage (full-bleed
- * bento or capped reading column) and optional rail, then measure the vertical
- * stack at the stage width.
+ * Probe whether situational panels have content, resolve the centered stage
+ * (and optional rail), then measure the vertical stack at the stage width.
  */
 export function planTUINativeStage(
   state: TUIState,
@@ -109,21 +73,12 @@ export function planTUINativeStage(
 ): TUINativeStagePlan {
   const cols = Math.max(1, Math.floor(terminalColumns));
   const rows = Math.max(1, Math.floor(terminalRows));
-  const bentoTiles = options.bentoTiles !== false;
-  // Narrow / short terminals: drop inter-tile gaps; skip chrome frames when
-  // the band is too short so transcript keeps reading room.
-  // Situational panels already draw their own chrome (or live in the rail
-  // tile) — never wrap them again.
-  const spacious = cols >= 100;
-  const tallEnough = rows >= 28;
-  const frameChrome = bentoTiles && tallEnough;
-  // Bento tiles already frame themselves — inter-region gaps become empty
-  // gutters (especially editor→Status). Keep the stack flush.
-  const regionGap = 0;
   const probeWidth = Math.min(cols, STAGE_MAX_WIDTH);
 
   let hasRailContent: boolean;
   if (options.cachedHasRailContent !== undefined) {
+    // Pure-input fast path: panel content has not changed, skip the four
+    // container renders that only exist to probe for rail content.
     hasRailContent = options.cachedHasRailContent;
   } else {
     const probeTodo = state.todoPanelContainer.render(probeWidth);
@@ -142,95 +97,61 @@ export function planTUINativeStage(
     height: rows,
     hasRailContent,
     workspaceCenter: options.workspaceCenter,
-    fullBleed: bentoTiles,
   });
   const contentWidth = stage.stage.width;
-  const bundleWidth =
-    stage.mode === 'rail' && stage.rail !== undefined
-      ? stage.stage.width + STAGE_RAIL_GAP + stage.rail.width
-      : contentWidth;
-  // Header/footer span the full stage+rail bundle in rail mode.
-  const chromeWidth = bundleWidth;
-  // Header/footer are open-sided chrome bands — full width, no │ overhead.
-  const chromeInner = bentoTiles ? bentoFrameContentWidth(chromeWidth, 'chrome') : chromeWidth;
-  // Stage-column content (editor + stack panels) uses the full stage width —
-  // only header/footer/rail shrink for their bento chrome.
-  const columnWidth = contentWidth;
   const reuse = options.reuseChrome;
 
-  // When chrome is reused from a prior frame it is already framed — do not
-  // wrap again (that produced nested ╭│╭ borders).
-  const rawHeader =
-    reuse?.header ?? state.headerContainer.render(chromeInner);
-  const rawFooter =
-    reuse?.footer ?? state.footerContainer.render(chromeInner);
+  const headerLines = reuse?.header ?? state.headerContainer.render(contentWidth);
+  const footerLines = reuse?.footer ?? state.footerContainer.render(contentWidth);
 
-  let rawActivity: readonly RendererRegionLine[];
-  let rawTodo: readonly RendererRegionLine[];
-  let rawQueue: readonly RendererRegionLine[];
-  let rawBtw: readonly RendererRegionLine[];
-  let rawRail: readonly RendererRegionLine[] = [];
+  let activityLines: readonly RendererRegionLine[];
+  let todoLines: readonly RendererRegionLine[];
+  let queueLines: readonly RendererRegionLine[];
+  let btwLines: readonly RendererRegionLine[];
+  let railLines: readonly RendererRegionLine[] = [];
 
   if (stage.mode === 'rail' && stage.rail !== undefined) {
-    const railOuter = stage.rail.width;
-    const railInner = bentoTiles ? bentoFrameContentWidth(railOuter) : railOuter;
-    const railTodo = state.todoPanelContainer.render(railInner);
-    const railActivity = state.activityContainer.render(railInner);
-    const railQueue = state.queueContainer.render(railInner);
-    const railBtw = state.btwPanelContainer.render(railInner);
+    const railWidth = stage.rail.width;
+    // Rail width differs from the stage — always re-render panels for the rail.
+    const railTodo = state.todoPanelContainer.render(railWidth);
+    const railActivity = state.activityContainer.render(railWidth);
+    const railQueue = state.queueContainer.render(railWidth);
+    const railBtw = state.btwPanelContainer.render(railWidth);
+    // Blank divider rows between non-empty sections keep the rail readable;
+    // empty sections are omitted so the top-first slice never starts or ends
+    // with a dangling separator.
     const railSections = [railTodo, railActivity, railQueue, railBtw].filter(
       (section) => section.length > 0,
     );
-    rawRail = railSections.flatMap((section, index) =>
+    railLines = railSections.flatMap((section, index) =>
       index === 0 ? section : ['', ...section],
     );
-    rawActivity = [];
-    rawTodo = [];
-    rawQueue = [];
-    rawBtw = [];
-  } else if (reuse) {
-    rawActivity = reuse.activity;
-    rawTodo = reuse.todo;
-    rawQueue = reuse.queue;
-    rawBtw = reuse.btw;
+    // Stack does not reserve vertical space for railed panels.
+    activityLines = [];
+    todoLines = [];
+    queueLines = [];
+    btwLines = [];
   } else {
-    rawActivity = state.activityContainer.render(columnWidth);
-    rawTodo = state.todoPanelContainer.render(columnWidth);
-    rawQueue = state.queueContainer.render(columnWidth);
-    rawBtw = state.btwPanelContainer.render(columnWidth);
+    activityLines = reuse?.activity ?? state.activityContainer.render(contentWidth);
+    todoLines = reuse?.todo ?? state.todoPanelContainer.render(contentWidth);
+    queueLines = reuse?.queue ?? state.queueContainer.render(contentWidth);
+    btwLines = reuse?.btw ?? state.btwPanelContainer.render(contentWidth);
   }
 
-  const rawEditor = options.resolveEditorFallbackLines(columnWidth);
-
-  const framedHeader = reuse
-    ? rawHeader
-    : maybeFrame(frameChrome, rawHeader, chromeWidth, undefined, 'chrome');
-  const framedFooter = reuse
-    ? rawFooter
-    : maybeFrame(frameChrome, rawFooter, chromeWidth, spacious ? 'Status' : undefined, 'chrome');
-  // Situational panels keep their own internal chrome (or the rail tile).
-  const framedActivity = rawActivity;
-  const framedTodo = rawTodo;
-  const framedQueue = rawQueue;
-  const framedBtw = rawBtw;
+  const editorLines = options.resolveEditorFallbackLines(contentWidth);
   const fixedRowsWithoutEditor =
-    framedHeader.length +
-    framedActivity.length +
-    framedTodo.length +
-    framedQueue.length +
-    framedBtw.length +
-    framedFooter.length;
-  // Editor paints its own rounded chrome via renderRendererEditorSurface —
-  // do not wrap again (that ate transcript rows for an invisible outer frame).
-  const editorInnerRows = options.resolveEditorRows({
-    editorLineCount: rawEditor.length,
+    headerLines.length +
+    activityLines.length +
+    todoLines.length +
+    queueLines.length +
+    btwLines.length +
+    footerLines.length;
+  const editorRows = options.resolveEditorRows({
+    editorLineCount: editorLines.length,
     fixedRowsWithoutEditor,
-    contentWidth: columnWidth,
+    contentWidth,
     contentHeight: stage.stage.height,
   });
-  const editorInnerLines = rawEditor.slice(0, Math.max(0, editorInnerRows));
-  const framedEditor = editorInnerLines;
-  const editorRows = framedEditor.length;
 
   const layout = measureRendererRegions({
     terminalRows: rows,
@@ -240,78 +161,41 @@ export function planTUINativeStage(
     contentY: stage.stage.y,
     contentHeight: stage.stage.height,
     heights: {
-      header: framedHeader.length,
-      activity: framedActivity.length,
-      todo: framedTodo.length,
-      queue: framedQueue.length,
-      btw: framedBtw.length,
+      header: headerLines.length,
+      activity: activityLines.length,
+      todo: todoLines.length,
+      queue: queueLines.length,
+      btw: btwLines.length,
       editor: editorRows,
-      footer: framedFooter.length,
+      footer: footerLines.length,
     },
-    regionGap,
   });
 
-  // Expand header/footer to the full stage+rail bundle so the top/bottom
-  // chrome reads as one continuous bento band above/below the split.
-  const regions =
-    bundleWidth > contentWidth
-      ? layout.regions.map((region) => {
-          if (region.id !== 'header' && region.id !== 'footer') return region;
-          if (region.rect === undefined) return region;
-          return {
-            ...region,
-            rect: { ...region.rect, width: bundleWidth },
-          };
-        })
-      : layout.regions;
-  const layoutWithChrome = { ...layout, regions };
-
-  const transcriptRegion = layoutWithChrome.regions.find((region) => region.id === 'transcript');
-  const editorRegion = layoutWithChrome.regions.find((region) => region.id === 'editor');
-  const railOuterWidth = stage.rail?.width ?? 0;
+  const transcriptRegion = layout.regions.find((region) => region.id === 'transcript');
   const railRect =
     stage.mode === 'rail' && stage.rail !== undefined && transcriptRegion?.rect !== undefined
       ? {
           x: stage.rail.x,
           y: transcriptRegion.rect.y,
           width: stage.rail.width,
-          // Stretch beside transcript + editor so Context is not a postage stamp
-          // above the input — Status/footer stay full-width below.
-          height:
-            editorRegion?.rect !== undefined
-              ? Math.max(
-                  1,
-                  editorRegion.rect.y + editorRegion.rect.height - transcriptRegion.rect.y,
-                )
-              : transcriptRegion.rect.height,
+          height: transcriptRegion.rect.height,
         }
       : undefined;
-  const framedRail =
-    stage.mode === 'rail' && stage.rail !== undefined
-      ? maybeFrame(
-          frameChrome,
-          rawRail,
-          railOuterWidth,
-          'Context',
-          'rail',
-          railRect?.height,
-        )
-      : [];
 
   return {
     stage,
-    layout: layoutWithChrome,
+    layout,
     chrome: {
-      header: framedHeader,
-      activity: stage.mode === 'rail' ? [] : framedActivity,
-      todo: stage.mode === 'rail' ? [] : framedTodo,
-      queue: stage.mode === 'rail' ? [] : framedQueue,
-      btw: stage.mode === 'rail' ? [] : framedBtw,
-      footer: framedFooter,
+      header: headerLines,
+      activity: stage.mode === 'rail' ? [] : activityLines,
+      todo: stage.mode === 'rail' ? [] : todoLines,
+      queue: stage.mode === 'rail' ? [] : queueLines,
+      btw: stage.mode === 'rail' ? [] : btwLines,
+      footer: footerLines,
     },
-    editorLines: framedEditor,
+    editorLines,
     editorRows,
-    railLines: railRect === undefined ? [] : framedRail.slice(0, railRect.height),
+    railLines: railRect === undefined ? [] : railLines.slice(0, railRect.height),
     railRect,
     hasRailContent,
   };

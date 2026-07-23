@@ -116,9 +116,9 @@ export interface BentoPanelSpec {
 
 export const DEFAULT_LEFT_DOCK_WIDTH = 42;
 export const DEFAULT_RIGHT_DOCK_WIDTH = 52;
-export const DEFAULT_CENTER_MIN_WIDTH = 68;
+export const DEFAULT_CENTER_MIN_WIDTH = 60;
 export const DEFAULT_ULTRAWIDE_BREAKPOINT = 220;
-export const DEFAULT_WIDE_BREAKPOINT = 140;
+export const DEFAULT_WIDE_BREAKPOINT = 160;
 export const DEFAULT_MEDIUM_BREAKPOINT = 120;
 export const DEFAULT_COMPACT_BREAKPOINT = 80;
 export const DEFAULT_MICRO_BREAKPOINT = 50;
@@ -128,11 +128,11 @@ export const DEFAULT_SHELL_INSET_Y = 1;
 export const DOCK_WIDTH_MIN = 24;
 export const DOCK_WIDTH_MAX = 80;
 
-/** Ultrawide mode: slightly wider docks, but keep the hero center dominant. */
-export const ULTRAWIDE_LEFT_DOCK_WIDTH = 48;
-export const ULTRAWIDE_RIGHT_DOCK_WIDTH = 56;
-export const ULTRAWIDE_DOCK_GAP = 2;
-export const ULTRAWIDE_SHELL_INSET_X = 2;
+/** Ultrawide mode gets wider docks for multi-monitor setups. */
+export const ULTRAWIDE_LEFT_DOCK_WIDTH = 56;
+export const ULTRAWIDE_RIGHT_DOCK_WIDTH = 64;
+export const ULTRAWIDE_DOCK_GAP = 3;
+export const ULTRAWIDE_SHELL_INSET_X = 3;
 
 // ---------------------------------------------------------------------------
 // Implementation
@@ -193,20 +193,13 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
       ? 0
       : (options.dockGap ?? DEFAULT_DOCK_GAP);
 
-  // Adaptive dock widths: wider for ultrawide. Panel managers always pass the
-  // factory defaults (42/52) — treat those as "unset" so ultrawide can breathe.
-  const leftDockWidth = resolveAdaptiveDockWidth(
-    mode,
-    options.leftDockWidth,
-    DEFAULT_LEFT_DOCK_WIDTH,
-    ULTRAWIDE_LEFT_DOCK_WIDTH,
-  );
-  const rightDockWidth = resolveAdaptiveDockWidth(
-    mode,
-    options.rightDockWidth,
-    DEFAULT_RIGHT_DOCK_WIDTH,
-    ULTRAWIDE_RIGHT_DOCK_WIDTH,
-  );
+  // Adaptive dock widths: wider for ultrawide
+  const leftDockWidth = mode === 'ultrawide'
+    ? (options.leftDockWidth ?? ULTRAWIDE_LEFT_DOCK_WIDTH)
+    : (options.leftDockWidth ?? DEFAULT_LEFT_DOCK_WIDTH);
+  const rightDockWidth = mode === 'ultrawide'
+    ? (options.rightDockWidth ?? ULTRAWIDE_RIGHT_DOCK_WIDTH)
+    : (options.rightDockWidth ?? DEFAULT_RIGHT_DOCK_WIDTH);
 
   const centerMinWidth = mode === 'micro'
     ? Math.max(20, Math.floor(cols * 0.9))
@@ -236,7 +229,7 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
   if (mode === 'medium') {
     const result = !rightDockVisible
       ? { mode, ...layoutMeta, center: shell }
-      : computeTwoColumnLayout(layoutMeta, rightDockWidth, centerMinWidth, dockGap, 'right', mode);
+      : computeTwoColumnLayout(layoutMeta, rightDockWidth, centerMinWidth, dockGap, 'right');
     return applyDrawerOverlay(result, layoutMeta, options.drawerDock, visibility, dockWidths);
   }
 
@@ -249,11 +242,11 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
   }
 
   if (showLeft && !showRight) {
-    return computeTwoColumnLayout(layoutMeta, leftDockWidth, centerMinWidth, dockGap, 'left', mode);
+    return computeTwoColumnLayout(layoutMeta, leftDockWidth, centerMinWidth, dockGap, 'left');
   }
 
   if (!showLeft && showRight) {
-    return computeTwoColumnLayout(layoutMeta, rightDockWidth, centerMinWidth, dockGap, 'right', mode);
+    return computeTwoColumnLayout(layoutMeta, rightDockWidth, centerMinWidth, dockGap, 'right');
   }
 
   // Full 3-column layout
@@ -263,7 +256,6 @@ export function measureWorkspaceLayout(options: WorkspaceLayoutOptions): Workspa
     rightDockWidth,
     centerMinWidth,
     dockGap,
-    mode,
   );
 }
 
@@ -319,21 +311,6 @@ interface WorkspaceLayoutMeta {
   readonly shellInsetY: number;
 }
 
-function resolveAdaptiveDockWidth(
-  mode: WorkspaceLayoutMode,
-  requested: number | undefined,
-  factoryDefault: number,
-  ultrawideDefault: number,
-): number {
-  if (mode === 'ultrawide') {
-    if (requested === undefined || requested === factoryDefault) {
-      return ultrawideDefault;
-    }
-    return requested;
-  }
-  return requested ?? factoryDefault;
-}
-
 function resolveLayoutMode(
   cols: number,
   ultrawideBreakpoint: number,
@@ -356,9 +333,8 @@ function computeTwoColumnLayout(
   centerMinWidth: number,
   gap: number,
   dockSide: WorkspaceDockId,
-  layoutMode: WorkspaceLayoutMode = 'wide',
 ): WorkspaceLayoutResult {
-  const { shell } = meta;
+  const { viewport, shell } = meta;
   const effectiveDockWidth = Math.min(dockWidth, Math.max(0, shell.width - centerMinWidth - gap));
 
   if (effectiveDockWidth <= 0) {
@@ -381,9 +357,18 @@ function computeTwoColumnLayout(
     return { mode: 'narrow', ...meta, center: shell };
   }
 
+  const mode = resolveLayoutMode(
+    viewport.width,
+    DEFAULT_ULTRAWIDE_BREAKPOINT,
+    DEFAULT_WIDE_BREAKPOINT,
+    DEFAULT_MEDIUM_BREAKPOINT,
+    DEFAULT_COMPACT_BREAKPOINT,
+    DEFAULT_MICRO_BREAKPOINT,
+  );
+
   if (dockSide === 'left') {
     return {
-      mode: layoutMode,
+      mode,
       ...meta,
       center: rects[1]!,
       leftDock: { id: 'left', rect: rects[0]!, width: effectiveDockWidth },
@@ -391,7 +376,7 @@ function computeTwoColumnLayout(
   }
 
   return {
-    mode: layoutMode,
+    mode,
     ...meta,
     center: rects[0]!,
     rightDock: { id: 'right', rect: rects[1]!, width: effectiveDockWidth },
@@ -404,7 +389,6 @@ function computeThreeColumnLayout(
   rightWidth: number,
   centerMinWidth: number,
   gap: number,
-  layoutMode: WorkspaceLayoutMode,
 ): WorkspaceLayoutResult {
   const { shell } = meta;
   const totalGaps = gap * 2;
@@ -437,11 +421,11 @@ function computeThreeColumnLayout(
 
   if (rects.length < 3) {
     // Fallback: try without left dock
-    return computeTwoColumnLayout(meta, rightWidth, centerMinWidth, gap, 'right', layoutMode);
+    return computeTwoColumnLayout(meta, rightWidth, centerMinWidth, gap, 'right');
   }
 
   return {
-    mode: layoutMode,
+    mode: 'wide',
     ...meta,
     leftDock: { id: 'left', rect: rects[0]!, width: effectiveLeft },
     center: rects[1]!,
@@ -508,11 +492,6 @@ export function resolveBentoGridSize(cols: number): { columns: number; rows: num
  * Panels are sorted by priority (descending) and placed into the grid using a
  * greedy first-fit algorithm. Larger panels (higher colSpan*rowSpan) are placed
  * first to avoid fragmentation.
- *
- * Dock columns are tall and narrow — using the terminal-wide breakpoints
- * (e.g. 1×6 for width < 60) leaves empty rows and postage-stamp tiles. When the
- * viewport looks like a side dock, stack panels in one column and size rows to
- * fill the dock height.
  */
 export function measureBentoGridLayout(
   viewport: RendererRect,
@@ -520,53 +499,16 @@ export function measureBentoGridLayout(
   focusedId: string | null,
 ): BentoGridLayout {
   const cols = viewport.width;
-  const dockLike =
-    panels.length > 0 &&
-    (cols < 60 || viewport.height >= Math.max(24, Math.floor(cols * 1.5)));
-  const { columns, rows } = dockLike
-    ? { columns: 1, rows: Math.max(1, panels.length) }
-    : resolveBentoGridSize(cols);
-  // Dock stacks abut closed frames; a 1-row gap reads as a hole between Files/Git.
-  const gap = dockLike ? 0 : BENTO_GAP;
+  const { columns, rows } = resolveBentoGridSize(cols);
+  const gap = BENTO_GAP;
 
-  // Inset the grid area — dock stacks sit flush in the dock rect (no extra pad).
-  const insetX = dockLike ? 0 : BENTO_INSET_X;
+  // Inset the grid area
   const area: RendererRect = {
-    x: viewport.x + insetX,
+    x: viewport.x + BENTO_INSET_X,
     y: viewport.y + BENTO_INSET_Y,
-    width: Math.max(1, viewport.width - insetX * 2),
+    width: Math.max(1, viewport.width - BENTO_INSET_X * 2),
     height: Math.max(1, viewport.height - BENTO_INSET_Y * 2),
   };
-
-  // Tall narrow docks with exactly two panels: balanced vertical stack in
-  // dock order (not priority-sorted), matching placeDockPanels.
-  if (dockLike && panels.length === 2) {
-    const h0 = Math.max(3, Math.floor(area.height * 0.5));
-    const h1 = Math.max(3, area.height - h0);
-    const cells: BentoGridCell[] = [
-      {
-        id: panels[0]!.id,
-        col: 0,
-        row: 0,
-        colSpan: 1,
-        rowSpan: 1,
-        rect: { x: area.x, y: area.y, width: area.width, height: h0 },
-        focused: panels[0]!.id === focusedId,
-        priority: panels[0]!.priority,
-      },
-      {
-        id: panels[1]!.id,
-        col: 0,
-        row: 1,
-        colSpan: 1,
-        rowSpan: 1,
-        rect: { x: area.x, y: area.y + h0, width: area.width, height: h1 },
-        focused: panels[1]!.id === focusedId,
-        priority: panels[1]!.priority,
-      },
-    ];
-    return { columns: 1, rows: 2, cells, gap: 0, area };
-  }
 
   // Sort panels: higher priority first, then larger area first
   const sorted = [...panels].sort((a, b) => {

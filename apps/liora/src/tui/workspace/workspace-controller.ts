@@ -6,17 +6,14 @@ import type {
   WorkspaceLayoutMode,
   WorkspaceLayoutResult,
   BentoGridLayout,
-  ShellBentoLayout,
 } from '@harness-kit/tui-renderer';
 import {
   measureWorkspaceLayout,
   measureBentoGridLayout,
-  measureShellBentoLayout,
   hitTestBentoGrid,
   renderPanelFrame,
   hitTestPanelBorder,
   mixHexColor,
-  visibleWidth,
 } from '@harness-kit/tui-renderer';
 
 import { DragController } from './drag-controller';
@@ -27,7 +24,6 @@ import { resolveWheelTargetPanel } from './pointer-routing';
 import { LayoutPresetManager } from './layout-presets';
 import type { PanelDefinition } from './panel-definition';
 import { workspaceShellChromeCells } from './shell-chrome';
-import { paintBentoTile } from './bento-tiles';
 import {
   focusTransferProgress,
   lerpDockWidth,
@@ -80,8 +76,6 @@ export class WorkspaceController {
   readonly dragController: DragController;
   private readonly requestRender: () => void;
   private currentLayout: WorkspaceLayoutResult | null = null;
-  /** Full-shell bento layout (chrome + docks) when workspace is enabled. */
-  private shellBento: ShellBentoLayout | null = null;
   /** Bento grids for dock areas (computed alongside the main layout). */
   private leftBentoGrid: BentoGridLayout | null = null;
   private rightBentoGrid: BentoGridLayout | null = null;
@@ -289,75 +283,45 @@ export class WorkspaceController {
       });
     }
 
-    // Prefer shell bento docks when available; otherwise fall back to the
-    // legacy 3-column measure. Always keep a layout so the center band can
-    // full-bleed even with zero side panels.
+    // Only return layout if it has side panels
+    if (!layout.leftDock && !layout.rightDock) {
+      this.currentLayout = null;
+      // Force a fresh shell settle the next time the workspace reappears.
+      this.lastShellSettleColumns = -1;
+      this.lastShellSettleRows = -1;
+      return null;
+    }
+
+    // Compute bento grids for dock areas (panels rendered as bento tiles
+    // within each dock rect, while center remains the main chat/editor).
     const gridSpecs = this.panelManager.getBentoPanelSpecs();
-    const focusedId = this.panelManager.getFocusedPanelId();
-    const leftPanelSpecs = layout.leftDock
-      ? this.panelManager.getPanelsInDock('left')
+    if (gridSpecs.length > 0) {
+      const focusedId = this.panelManager.getFocusedPanelId();
+      if (layout.leftDock) {
+        const leftPanels = this.panelManager.getPanelsInDock('left')
           .map((p) => gridSpecs.find((s) => s.id === p.instanceId))
-          .filter((s): s is NonNullable<typeof s> => s !== undefined)
-      : [];
-    const rightPanelSpecs = layout.rightDock
-      ? this.panelManager.getPanelsInDock('right')
+          .filter((s): s is NonNullable<typeof s> => s !== undefined);
+        this.leftBentoGrid = leftPanels.length > 0
+          ? measureBentoGridLayout(layout.leftDock.rect, leftPanels, focusedId)
+          : null;
+      } else {
+        this.leftBentoGrid = null;
+      }
+      if (layout.rightDock) {
+        const rightPanels = this.panelManager.getPanelsInDock('right')
           .map((p) => gridSpecs.find((s) => s.id === p.instanceId))
-          .filter((s): s is NonNullable<typeof s> => s !== undefined)
-      : [];
-
-    this.shellBento = measureShellBentoLayout({
-      viewport,
-      mode: layout.mode,
-      chrome: { header: 0, footer: 0, editor: 0 },
-      leftPanels: leftPanelSpecs,
-      rightPanels: rightPanelSpecs,
-      // Prefer widths already resolved by measureWorkspaceLayout (ultrawide
-      // promotion, clamps) over the raw panel-manager factory defaults.
-      leftDockWidth: layout.leftDock?.width ?? layoutOptions.leftDockWidth,
-      rightDockWidth: layout.rightDock?.width ?? layoutOptions.rightDockWidth,
-      insetX: layout.shellInsetX,
-      insetY: layout.shellInsetY,
-      gap: layout.dockGap,
-      focusedId,
-    });
-
-    // Overlay shell bento geometry onto the workspace layout so center /
-    // hit-testing stay coherent with the painted tiles.
-    layout = {
-      ...layout,
-      center: this.shellBento.center,
-      leftDock: this.shellBento.leftDock
-        ? { id: 'left', rect: this.shellBento.leftDock, width: this.shellBento.leftDock.width }
-        : layout.leftDock,
-      rightDock: this.shellBento.rightDock
-        ? { id: 'right', rect: this.shellBento.rightDock, width: this.shellBento.rightDock.width }
-        : layout.rightDock,
-      bentoGrid: this.shellBento.dockGrid ?? layout.bentoGrid,
-    };
-
-    // Dock-local grids for paint / hit-test (panel cells only).
-    // Tabbed docks keep the legacy tab-bar painter — a split bento grid would
-    // show every panel at once and skip the tab strip.
-    if (
-      leftPanelSpecs.length > 0 &&
-      layout.leftDock &&
-      this.panelManager.getDockMode('left') === 'split'
-    ) {
-      this.leftBentoGrid = measureBentoGridLayout(layout.leftDock.rect, leftPanelSpecs, focusedId);
+          .filter((s): s is NonNullable<typeof s> => s !== undefined);
+        this.rightBentoGrid = rightPanels.length > 0
+          ? measureBentoGridLayout(layout.rightDock.rect, rightPanels, focusedId)
+          : null;
+      } else {
+        this.rightBentoGrid = null;
+      }
     } else {
       this.leftBentoGrid = null;
-    }
-    if (
-      rightPanelSpecs.length > 0 &&
-      layout.rightDock &&
-      this.panelManager.getDockMode('right') === 'split'
-    ) {
-      this.rightBentoGrid = measureBentoGridLayout(layout.rightDock.rect, rightPanelSpecs, focusedId);
-    } else {
       this.rightBentoGrid = null;
     }
 
-    // Always publish layout when enabled — center-only still drives full-bleed.
     this.trackShellMotionState(layout, ctx);
     this.currentLayout = layout;
     return layout;
@@ -454,10 +418,67 @@ export class WorkspaceController {
   renderDocks(layout: WorkspaceLayoutResult): WorkspaceDockRender {
     const result: WorkspaceDockRender = {};
 
-    // Maximize is painted via {@link paintMaximizedPanel} (bento tile on the
-    // shell rect). renderDocks only covers split/tabbed dock columns.
+    // Maximize mode: render only the maximized panel
     if (this.maximizedPanelId !== null) {
-      return result;
+      const panel = this.panelManager.getPanel(this.maximizedPanelId);
+      if (panel) {
+        const fullWidth = (layout.leftDock?.rect.width ?? 0) + (layout.rightDock?.rect.width ?? 0) + 40;
+        const fullHeight = layout.leftDock?.rect.height ?? layout.rightDock?.rect.height ?? 30;
+        const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
+        // 1 col horizontal padding inside the frame border on each side.
+        const contentWidth = Math.max(1, fullWidth - 2 - 2);
+        const content = panel.definition.render(
+          contentWidth,
+          Math.max(1, fullHeight - 2),
+          true,
+          searchQuery,
+        ).map((line) => ` ${line}`);
+        const framed = renderPanelFrame({
+          width: fullWidth,
+          height: fullHeight,
+          title: `${panel.definition.title} (전체화면)`,
+          icon: panel.definition.icon,
+          focused: true,
+          borderStyle: 'rounded',
+          borderColor: (text) => {
+          // Flash glow effect on recent focus change
+          const flashAge = Date.now() - this.focusFlashStart;
+          if (flashAge < WorkspaceController.FOCUS_FLASH_DURATION && panel.instanceId === this.lastFocusedPanelId) {
+            const intensity = 1 - flashAge / WorkspaceController.FOCUS_FLASH_DURATION;
+            const glowColor = mixHexColor(
+              currentTheme.color('accent'),
+              currentTheme.color('primary'),
+              intensity,
+            );
+            return chalk.hex(glowColor)(text);
+          }
+          // Activity pulse: subtle glow for panels with recent activity
+          const lastActivity = this.panelActivity.get(panel.instanceId) ?? 0;
+          const activityAge = Date.now() - lastActivity;
+          if (activityAge < WorkspaceController.ACTIVITY_PULSE_INTERVAL && panel.instanceId !== this.lastFocusedPanelId) {
+            const pulsePhase = (Date.now() % WorkspaceController.ACTIVITY_PULSE_DURATION) / WorkspaceController.ACTIVITY_PULSE_DURATION;
+            const pulseIntensity = Math.sin(pulsePhase * Math.PI) * 0.3;
+            if (pulseIntensity > 0.05) {
+              const pulseColor = mixHexColor(
+                currentTheme.color('primary'),
+                currentTheme.color('accent'),
+                pulseIntensity,
+              );
+              return chalk.hex(pulseColor)(text);
+            }
+          }
+          return currentTheme.fg('primary', text);
+        },
+          titleColor: (text) => currentTheme.boldFg('textStrong', text),
+          iconColor: (text) => currentTheme.fg('accent', text),
+          content,
+        });
+        // Return as left dock spanning full width
+        result.left = framed;
+        return result;
+      }
+      // Panel not found, clear maximize
+      this.maximizedPanelId = null;
     }
 
     if (layout.leftDock) {
@@ -477,98 +498,6 @@ export class WorkspaceController {
   }
 
   /**
-   * Paint the maximized panel as a single full-shell bento tile.
-   * Returns true when maximize mode is active and painted.
-   */
-  paintMaximizedPanel(
-    frameRenderer: NativeFrameRenderer,
-    layout: WorkspaceLayoutResult,
-  ): boolean {
-    if (this.maximizedPanelId === null) return false;
-    const panel = this.panelManager.getPanel(this.maximizedPanelId);
-    if (!panel) {
-      this.maximizedPanelId = null;
-      return false;
-    }
-
-    const { x, y, width, height } = layout.shell;
-    if (width < 4 || height < 3) return false;
-
-    const searchQuery = this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
-    const contentWidth = Math.max(1, width - 2);
-    const contentHeight = Math.max(1, height - 2);
-    const content = panel.definition.render(contentWidth, contentHeight, true, searchQuery);
-
-    paintBentoTile(frameRenderer, {
-      x,
-      y,
-      width,
-      height,
-      title: `${panel.definition.title} (전체화면)`,
-      icon: panel.definition.icon,
-      focused: true,
-      kind: 'panel',
-      content,
-    });
-    return true;
-  }
-
-  /**
-   * Paint a tabbed dock as tab strip + one full-height bento tile.
-   * Returns true when the dock is tabbed and was painted.
-   */
-  paintTabbedDock(
-    frameRenderer: NativeFrameRenderer,
-    dockId: 'left' | 'right',
-    layout: WorkspaceLayoutResult,
-  ): boolean {
-    if (this.panelManager.getDockMode(dockId) !== 'tabbed') return false;
-    const dock = dockId === 'left' ? layout.leftDock : layout.rightDock;
-    if (!dock || dock.rect.width < 4 || dock.rect.height < 4) return false;
-
-    const panels = this.panelManager.getPanelsInDock(dockId);
-    if (panels.length === 0) return false;
-
-    const focusedId = this.panelManager.getFocusedPanelId();
-    const active =
-      panels.find((p) => p.instanceId === focusedId) ?? panels[0]!;
-    const { x, y, width, height } = dock.rect;
-
-    const tabBar = this.renderTabBar(dockId, width, panels, active.instanceId);
-    frameRenderer.writeAnsiText(x, y, tabBar);
-
-    const tileY = y + 1;
-    const tileH = height - 1;
-    if (tileH < 3) return true;
-
-    const searchQuery =
-      this.searchOpen && this.searchQuery.length > 0 ? this.searchQuery : undefined;
-    const contentWidth = Math.max(1, width - 2);
-    const contentHeight = Math.max(1, tileH - 2);
-    const content = active.definition.render(
-      contentWidth,
-      contentHeight,
-      true,
-      searchQuery,
-    );
-    this.panelActivity.set(active.instanceId, Date.now());
-    this.panelNotifications.delete(active.instanceId);
-
-    paintBentoTile(frameRenderer, {
-      x,
-      y: tileY,
-      width,
-      height: tileH,
-      title: active.definition.title,
-      icon: active.definition.icon,
-      focused: true,
-      kind: 'panel',
-      content,
-    });
-    return true;
-  }
-
-  /**
    * Render all bento grid cells directly onto the frame renderer.
    * Each cell gets a rounded box-drawing frame (bright for focused, dim for others)
    * and the panel content is rendered inside.
@@ -583,44 +512,66 @@ export class WorkspaceController {
 
       const { x, y, width, height } = cell.rect;
       const isFocused = cell.id === focusedId;
-      const abutsBelow = grid.cells.some(
-        (other) =>
-          other.id !== cell.id &&
-          other.rect.x === x &&
-          other.rect.width === width &&
-          other.rect.y === y + height,
-      );
-      const chromeRows = abutsBelow ? 1 : 2;
+
+      // Render panel content (inset by 1 for the frame border)
       const contentWidth = Math.max(1, width - 2);
-      const contentHeight = Math.max(1, height - chromeRows);
+      const contentHeight = Math.max(1, height - 2);
       const contentLines = panel.definition.render(contentWidth, contentHeight, isFocused, searchQuery);
+
+      // Rounded box frame characters
+      const borderChar = '─';
+      const cornerTL = '╭';
+      const cornerTR = '╮';
+      const cornerBL = '╰';
+      const cornerBR = '╯';
+      const vertChar = '│';
+
+      // Title with icon emphasis and activity indicator
+      const icon = panel.definition.icon ?? '';
+      const titleText = panel.definition.title;
       const lastActivity = this.panelActivity.get(cell.id) ?? 0;
       const hasRecentActivity = Date.now() - lastActivity < 5000 && !isFocused;
+      const activityDot = hasRecentActivity ? currentTheme.fg('accent', ' •') : '';
+      const title = icon ? ` ${icon} ${titleText}${activityDot} ` : ` ${titleText}${activityDot} `;
 
-      paintBentoTile(frameRenderer, {
-        x,
-        y,
-        width,
-        height,
-        title: panel.definition.title,
-        icon: panel.definition.icon,
-        focused: isFocused,
-        kind: 'panel',
-        content: contentLines,
-        activity: hasRecentActivity,
-        omitBottom: abutsBelow,
-      });
+      // Top border with centered title
+      const topLine = this.buildBentoTopBorder(cornerTL, borderChar, cornerTR, title, width, isFocused);
+      frameRenderer.writeAnsiText(x, y, topLine);
+
+      // Content rows with subtle side borders
+      const borderColor = isFocused ? 'primary' : 'border';
+      const hasContent = contentLines.some((line) => line.trim().length > 0);
+      for (let row = 0; row < contentHeight; row++) {
+        let contentLine = contentLines[row] ?? '';
+        // Empty state placeholder for focused panels
+        if (!hasContent && isFocused && row === Math.floor(contentHeight / 2)) {
+          const hint = currentTheme.dimFg('textMuted', '(empty)');
+          const pad = Math.max(0, Math.floor((contentWidth - 7) / 2));
+          contentLine = ' '.repeat(pad) + hint;
+        }
+        const paddedContent = contentLine.padEnd(contentWidth).slice(0, contentWidth);
+        const leftBorder = currentTheme.fg(borderColor, vertChar);
+        const rightBorder = currentTheme.fg(borderColor, vertChar);
+        frameRenderer.writeAnsiText(x, y + 1 + row, `${leftBorder}${paddedContent}${rightBorder}`);
+      }
+
+      // Bottom border
+      const bottomLine = currentTheme.fg(borderColor,
+        cornerBL + borderChar.repeat(Math.max(0, width - 2)) + cornerBR);
+      frameRenderer.writeAnsiText(x, y + height - 1, bottomLine);
+
+      // Focus indicator: subtle top accent line inside the frame
+      if (isFocused && contentHeight > 0) {
+        const accentWidth = Math.min(contentWidth, 8);
+        const accent = currentTheme.fg('accent', '━'.repeat(accentWidth));
+        frameRenderer.writeAnsiText(x + 1, y + 1, accent);
+      }
     }
   }
 
   /** Get the bento grid for a specific dock area (null if not computed). */
   getDockBentoGrid(dock: 'left' | 'right'): BentoGridLayout | null {
     return dock === 'left' ? this.leftBentoGrid : this.rightBentoGrid;
-  }
-
-  /** Full-shell bento layout (null when workspace disabled). */
-  getShellBento(): ShellBentoLayout | null {
-    return this.shellBento;
   }
 
   /** Hit-test both dock bento grids; returns the first cell hit or null. */
@@ -636,6 +587,19 @@ export class WorkspaceController {
     return null;
   }
 
+  private buildBentoTopBorder(
+    tl: string, horizontal: string, tr: string,
+    title: string, width: number, isFocused: boolean,
+  ): string {
+    const innerWidth = Math.max(0, width - 2);
+    const titleTrunc = title.length > innerWidth ? title.slice(0, innerWidth) : title;
+    const remaining = innerWidth - titleTrunc.length;
+    const leftPad = Math.floor(remaining / 2);
+    const rightPad = remaining - leftPad;
+    const line = tl + horizontal.repeat(leftPad) + titleTrunc + horizontal.repeat(rightPad) + tr;
+    return currentTheme.fg(isFocused ? 'primary' : 'border', line);
+  }
+
   /**
    * Paint the outer workspace shell frame around `layout.shell`. Call this
    * before {@link renderDocks} is composited so dock panel frames (drawn on
@@ -645,10 +609,6 @@ export class WorkspaceController {
    */
   paintShellChrome(frameRenderer: NativeFrameRenderer, layout: WorkspaceLayoutResult): void {
     if (this.maximizedPanelId !== null) return;
-    // Bento tiles own their own rounded frames — an outer shell perimeter
-    // doubles the corner glyphs (╭╭) where dock tiles meet the shell edge.
-    if (this.leftBentoGrid || this.rightBentoGrid || this.shellBento) return;
-    if (!layout.leftDock && !layout.rightDock) return;
     const appearance = getActiveAppearancePreferences();
     const quality = resolveQualityAdjustedAmbientEffectMode(appearance);
     const settle = shellSettleProgress(appearanceAnimationNow(), this.shellSettleStartedAt, {
@@ -932,112 +892,48 @@ export class WorkspaceController {
   ): string {
     const appearance = getActiveAppearancePreferences();
     const animate = shouldRenderAmbientEffects(appearance);
+    const tabs: string[] = [];
+    // Panel count badge (compact, shows total panels in this dock)
+    const panelCountBadge = panels.length > 1
+      ? currentTheme.dimFg('textMuted', ` ${String(panels.length)}`)
+      : '';
     // Reset close button and switch hit zones for this dock
     this.tabCloseZones = this.tabCloseZones.filter((z) => z.dock !== dockId);
     this.tabSwitchZones = this.tabSwitchZones.filter((z) => z.dock !== dockId);
-
-    const activeId =
-      panels.find((p) => p.instanceId === focusedId)?.instanceId ?? panels[0]?.instanceId ?? null;
-
-    type TabBuild = { instanceId: string; text: string; plainWidth: number; showClose: boolean };
-    const built: TabBuild[] = [];
-    // With the short default tab set (≤3), keep icon+title even on narrow docks.
-    const tight = width < 44 && panels.length > 3;
-    // Prefer whole short aliases over mid-word clips (`Termi`, `Sessi`).
-    const titleBudget = tight ? 3 : panels.length <= 3 ? 6 : 5;
-    // Hide inactive close affordances unless the dock is truly wide — at the
-    // ultrawide default (56) `×` on every tab turns the strip into noise.
-    const showInactiveClose = width >= 64;
+    let cursorX = 1; // leading space
     for (const panel of panels) {
-      const isActive = panel.instanceId === activeId;
-      const icon = panel.definition.icon;
-      const titleBit = tight && !isActive
-        ? icon
-        : `${icon} ${compactTabTitle(panel.definition.title, titleBudget)}`;
-      const label = titleBit;
-      const showClose = isActive || showInactiveClose;
-      const closeBtn = showClose ? '×' : '';
-      let text: string;
+      const isActive = panel.instanceId === focusedId;
+      const label = `${panel.definition.icon}${panel.definition.title.slice(0, 5)}`;
+      const closeBtn = '×';
       if (isActive) {
         const tabText = ` ${label} ${closeBtn}`;
-        text = animate
+        tabs.push(animate
           ? renderPulseText(tabText, `tab:${panel.instanceId}`, 'primary', appearance)
-          : currentTheme.bg('selectionBg', currentTheme.fg('selectionText', tabText));
+          : currentTheme.bg('selectionBg', currentTheme.fg('selectionText', tabText)));
       } else {
+        // Activity dot: show when panel had recent updates (within 5s)
         const lastActivity = this.panelActivity.get(panel.instanceId) ?? 0;
-        const hasRecentActivity = Date.now() - lastActivity < 5000;
+        const hasRecentActivity = Date.now() - lastActivity < 5000 && panel.instanceId !== focusedId;
         const activityDot = hasRecentActivity ? currentTheme.fg('success', '•') : '';
+        // Notification badge: show unread count
         const notifCount = this.panelNotifications.get(panel.instanceId) ?? 0;
-        const notifBadge =
-          notifCount > 0
-            ? currentTheme.bg('error', currentTheme.fg('textStrong', ` ${String(notifCount)} `))
-            : '';
-        text =
-          currentTheme.dimFg('textMuted', ` ${label} `) +
-          activityDot +
-          notifBadge +
-          (closeBtn ? currentTheme.dimFg('border', closeBtn) : '');
+        const notifBadge = notifCount > 0 && panel.instanceId !== focusedId
+          ? currentTheme.bg('error', currentTheme.fg('textStrong', ` ${String(notifCount)} `))
+          : '';
+        tabs.push(currentTheme.dimFg('textMuted', ` ${label} `) + activityDot + notifBadge + currentTheme.dimFg('border', closeBtn));
       }
-      // space + label + optional trailing × (active always keeps a trailing space+×)
-      const plainWidth = visibleWidth(showClose ? ` ${label} ${closeBtn}` : ` ${label} `);
-      built.push({ instanceId: panel.instanceId, text, plainWidth, showClose });
+      // Track tab label position for click-to-switch
+      const labelWidth = label.length + 2; // space + label + space
+      this.tabSwitchZones.push({ dock: dockId, instanceId: panel.instanceId, x: cursorX, width: labelWidth });
+      // Track close button position (after label + space)
+      const tabVisibleLen = label.length + 3; // space + label + space + ×
+      const closeX = cursorX + tabVisibleLen - 1;
+      this.tabCloseZones.push({ dock: dockId, instanceId: panel.instanceId, x: closeX, width: 1 });
+      cursorX += tabVisibleLen + 1; // +1 for separator
     }
-
-    // Fit tabs into the dock width: always keep the active tab, drop trailing
-    // inactive ones, and show ›N for overflow so the bar never wraps/clips.
-    const sepW = 1;
-    const overflowReserve = 4; // " ›9"
-    const budget = Math.max(4, width - 1);
-    const selected: TabBuild[] = [];
-    let used = 0;
-    const active = built.find((t) => t.instanceId === activeId);
-    if (active) {
-      selected.push(active);
-      used = active.plainWidth;
-    }
-    for (const tab of built) {
-      if (tab.instanceId === activeId) continue;
-      const next = used + (selected.length > 0 ? sepW : 0) + tab.plainWidth;
-      const hiddenAfter = built.length - selected.length - 1;
-      const needOverflow = hiddenAfter > 0 ? overflowReserve : 0;
-      if (next + needOverflow > budget) break;
-      selected.push(tab);
-      used = next;
-    }
-    // Preserve dock order among the selected set
-    const order = new Map(panels.map((p, i) => [p.instanceId, i]));
-    selected.sort((a, b) => (order.get(a.instanceId) ?? 0) - (order.get(b.instanceId) ?? 0));
-    const hidden = built.length - selected.length;
-
-    let cursorX = 1;
-    const parts: string[] = [];
-    for (const tab of selected) {
-      parts.push(tab.text);
-      const labelWidth = tab.showClose
-        ? Math.max(1, tab.plainWidth - 1) // exclude trailing × from switch hit
-        : Math.max(1, tab.plainWidth);
-      this.tabSwitchZones.push({
-        dock: dockId,
-        instanceId: tab.instanceId,
-        x: cursorX,
-        width: labelWidth,
-      });
-      if (tab.showClose) {
-        this.tabCloseZones.push({
-          dock: dockId,
-          instanceId: tab.instanceId,
-          x: cursorX + tab.plainWidth - 1,
-          width: 1,
-        });
-      }
-      cursorX += tab.plainWidth + sepW;
-    }
-    let bar = parts.join(currentTheme.dimFg('border', '┆'));
-    if (hidden > 0) {
-      bar += currentTheme.dimFg('textMuted', ` ›${String(hidden)}`);
-    }
-    const plainBar = bar.replace(/\x1b\[[0-9;]*m/g, '');
-    const padding = Math.max(0, width - 1 - visibleWidth(plainBar));
+    const bar = tabs.join(currentTheme.dimFg('border', '│'));
+    const visibleLen = bar.replace(/\x1b\[[0-9;]*m/g, '').length;
+    const padding = Math.max(0, width - visibleLen);
     return ` ${bar}${' '.repeat(padding)}`;
   }
 
@@ -1251,6 +1147,13 @@ export class WorkspaceController {
       return true;
     }
 
+    // Ctrl+G: toggle keyboard help overlay
+    if (event.key === 'character' && event.text === 'g') {
+      this.helpOpen = !this.helpOpen;
+      this.requestRender();
+      return true;
+    }
+
     // Ctrl+P: toggle layout preset overlay
     if (event.key === 'character' && event.text === 'p') {
       if (this.presetManager === null) return false;
@@ -1351,24 +1254,6 @@ export class WorkspaceController {
     return instanceId;
   }
 
-  /**
-   * Register a panel without docking it — available via the panel switcher
-   * so optional tools (Browser, Artifact, …) stay off the default tab strip.
-   */
-  offerPanel(definition: PanelDefinition): string {
-    const instanceId = this.panelManager.registerPanel(definition);
-    const gridSpec = resolveDefaultGridSpec(definition.id);
-    this.panelManager.addToGrid(instanceId, gridSpec.colSpan, gridSpec.rowSpan, gridSpec.priority);
-    return instanceId;
-  }
-
-  /** Dock an offered/closed panel and focus it. */
-  openPanelInDock(instanceId: string, dock: 'left' | 'right'): void {
-    this.panelManager.assignToDock(instanceId, dock);
-    this.panelManager.focusPanel(instanceId);
-    this.requestRender();
-  }
-
   removePanel(instanceId: string): void {
     this.panelManager.unregisterPanel(instanceId);
     this.requestRender();
@@ -1384,25 +1269,14 @@ export class WorkspaceController {
   }
 
   /** Get filtered panel list for the switcher. */
-  private getFilteredPanels(): Array<{
-    instanceId: string;
-    title: string;
-    icon?: string;
-    dock: 'left' | 'right' | null;
-  }> {
-    const docked = new Map<string, 'left' | 'right'>();
+  private getFilteredPanels(): Array<{ instanceId: string; title: string; dock: 'left' | 'right' }> {
+    const allPanels: Array<{ instanceId: string; title: string; dock: 'left' | 'right' }> = [];
     for (const p of this.panelManager.getPanelsInDock('left')) {
-      docked.set(p.instanceId, 'left');
+      allPanels.push({ instanceId: p.instanceId, title: p.definition.title, dock: 'left' });
     }
     for (const p of this.panelManager.getPanelsInDock('right')) {
-      docked.set(p.instanceId, 'right');
+      allPanels.push({ instanceId: p.instanceId, title: p.definition.title, dock: 'right' });
     }
-    const allPanels = this.panelManager.getAllPanels().map((p) => ({
-      instanceId: p.instanceId,
-      title: p.definition.title,
-      icon: p.definition.icon,
-      dock: docked.get(p.instanceId) ?? null,
-    }));
     if (!this.switcherFilter) return allPanels;
     const filter = this.switcherFilter.toLowerCase();
     return allPanels.filter((p) => p.title.toLowerCase().includes(filter));
@@ -1427,11 +1301,7 @@ export class WorkspaceController {
         const panels = this.getFilteredPanels();
         const selected = panels[this.switcherSelectedIndex];
         if (selected) {
-          if (selected.dock === null) {
-            this.openPanelInDock(selected.instanceId, 'right');
-          } else {
-            this.panelManager.focusPanel(selected.instanceId);
-          }
+          this.panelManager.focusPanel(selected.instanceId);
         }
         this.switcherOpen = false;
         this.requestRender();
@@ -1491,12 +1361,7 @@ export class WorkspaceController {
         const p = panels[i]!;
         const isSel = i === this.switcherSelectedIndex;
         const marker = isSel ? currentTheme.boldFg('primary', SELECT_POINTER) : ' ';
-        const dock =
-          p.dock === 'left'
-            ? currentTheme.dimFg('textMuted', '[L]')
-            : p.dock === 'right'
-              ? currentTheme.dimFg('textMuted', '[R]')
-              : currentTheme.dimFg('textMuted', '[+]');
+        const dock = p.dock === 'left' ? currentTheme.dimFg('textMuted', '[L]') : currentTheme.dimFg('textMuted', '[R]');
         const icon = p.icon ? `${p.icon} ` : '';
         const title = isSel ? currentTheme.boldFg('textStrong', `${icon}${p.title}`) : currentTheme.fg('text', `${icon}${p.title}`);
         lines.push(` ${marker} ${dock} ${title}`);
@@ -1604,7 +1469,7 @@ export class WorkspaceController {
       }
     }
     lines.push(divider);
-    lines.push(` ${currentTheme.dimFg('textMuted', 'F1: 도움말 · 아무 키: 닫기')}`);
+    lines.push(` ${currentTheme.dimFg('textMuted', 'F1/Ctrl+G: 도움말 · 아무 키: 닫기')}`);
     return lines;
   }
 
@@ -1620,7 +1485,7 @@ export class WorkspaceController {
     { id: 'panel-switcher', label: '패널 퀵 스위처', shortcut: 'Ctrl+/' },
     { id: 'search', label: '패널 콘텐츠 검색', shortcut: 'Ctrl+F' },
     { id: 'presets', label: '레이아웃 프리셋', shortcut: 'Ctrl+P' },
-    { id: 'help', label: '키보드 도움말', shortcut: 'F1' },
+    { id: 'help', label: '키보드 도움말', shortcut: 'Ctrl+G' },
     { id: 'refresh-files', label: '파일 탐색기 새로고침' },
     { id: 'refresh-git', label: 'Git Diff 새로고침' },
     { id: 'clear-activity', label: '활동 피드 지우기' },
@@ -2196,23 +2061,6 @@ export interface WorkspaceDockRender {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function compactTabTitle(title: string, maxChars: number): string {
-  const aliases: Record<string, string> = {
-    'Quick Chat': 'Chat',
-    Terminal: 'Term',
-    Sessions: 'Sess',
-    'Git Diff': 'Git',
-    Browser: 'Web',
-    Artifacts: 'Arts',
-    Artifact: 'Art',
-    Activity: 'Act',
-    Images: 'Img',
-  };
-  const base = aliases[title] ?? title;
-  if (base.length <= maxChars) return base;
-  return base.slice(0, Math.max(1, maxChars));
-}
 
 function formatDurationShort(ms: number): string {
   const secs = Math.floor(ms / 1000);

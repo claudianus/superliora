@@ -317,21 +317,21 @@ export class WebBrowserPanel implements PanelDefinition {
     return this.pad(` ${tabBar}${countBadge}`, width);
   }
 
-  private renderUrlBar(width: number, _focused: boolean): string {
+  private renderUrlBar(width: number, focused: boolean): string {
     const prefix = ` ${currentTheme.fg('accent', '🔗')} `;
     const suffix = this.editingUrl ? '▏' : '';
     const url = this.editingUrl ? this.urlInput : this.state.url;
-    const maxUrlWidth = Math.max(0, width - prefix.length - suffix.length);
+    const maxUrlWidth = width - prefix.length - suffix.length - 2;
     const displayUrl = url.length > maxUrlWidth
-      ? url.slice(0, Math.max(0, maxUrlWidth - 1)) + '…'
+      ? url.slice(0, maxUrlWidth - 1) + '…'
       : url;
 
     const urlStyled = this.editingUrl
       ? currentTheme.fg('text', displayUrl) + currentTheme.fg('primary', suffix)
       : currentTheme.dimFg('textMuted', displayUrl);
     const bar = `${prefix}${urlStyled}`;
-    // Bento tile already owns the side borders — keep the URL row content-only.
-    return this.pad(bar, width);
+    const border = focused ? currentTheme.fg('primary', '│') : currentTheme.dimFg('border', '│');
+    return `${border} ${this.pad(bar, width - 4)} ${border}`;
   }
 
   private renderStatusBar(width: number): string {
@@ -478,7 +478,7 @@ export class WebBrowserPanel implements PanelDefinition {
 
   private renderConsole(width: number, height: number): string[] {
     const lines: string[] = [];
-    lines.push(this.cyan('  ╭─ JavaScript Console ─────────────────────────────────'));
+    lines.push(this.cyan('  ┌─ JavaScript Console ─────────────────────────────────'));
 
     const outputHeight = height - 3;
     const output = this.consoleOutput.slice(-outputHeight);
@@ -488,7 +488,7 @@ export class WebBrowserPanel implements PanelDefinition {
 
     lines.push(this.cyan('  ├─────────────────────────────────────────────────────'));
     lines.push(this.pad(`  │ > ${this.consoleInput}▏`, width));
-    lines.push(this.cyan('  ╰─────────────────────────────────────────────────────'));
+    lines.push(this.cyan('  └─────────────────────────────────────────────────────'));
     lines.push(this.dim('  Press Escape to close console'));
 
     return lines;
@@ -880,7 +880,7 @@ export class WebBrowserPanel implements PanelDefinition {
 
   private renderFormMode(width: number, height: number): string[] {
     const lines: string[] = [];
-    lines.push(this.cyan('  ╭─ Form Input Mode ────────────────────────────────────'));
+    lines.push(this.cyan('  ┌─ Form Input Mode ────────────────────────────────────'));
 
     if (this.selectedRef !== null) {
       // Typing into a field
@@ -905,7 +905,7 @@ export class WebBrowserPanel implements PanelDefinition {
       lines.push(this.dim('  │ ↑/↓ to select, Enter to edit, Escape to exit'));
     }
 
-    lines.push(this.cyan('  ╰─────────────────────────────────────────────────────'));
+    lines.push(this.cyan('  └─────────────────────────────────────────────────────'));
     return lines;
   }
 

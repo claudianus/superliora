@@ -859,14 +859,12 @@ export class FileExplorerPanel implements PanelDefinition {
     const sizeBadge = entry.sizeBytes !== undefined && entry.sizeBytes > 0
       ? ` ${currentTheme.dimFg('textMuted', formatFileSize(entry.sizeBytes))}`
       : '';
-    // On stamp-sized docks, prefer the name over mode/age chrome.
-    const showMeta = width >= 36;
     // File permission badge (compact rwx)
-    const permBadge = showMeta && entry.mode !== undefined && !entry.isDirectory
+    const permBadge = entry.mode !== undefined && !entry.isDirectory
       ? ` ${currentTheme.dimFg('textMuted', formatPerms(entry.mode))}`
       : '';
     // File age badge (compact relative time)
-    const ageBadge = showMeta && entry.mtimeMs !== undefined
+    const ageBadge = entry.mtimeMs !== undefined
       ? ` ${currentTheme.dimFg('textMuted', formatAge(entry.mtimeMs))}`
       : '';
     // Duplicate file name badge
@@ -893,12 +891,11 @@ export class FileExplorerPanel implements PanelDefinition {
       : '';
     const label = `${connector}${styledIcon} ${nameStyled}${dirCountBadge}${submoduleBadge}${symlinkBadge}${execBadge}${gitBadge}${sizeBadge}${permBadge}${ageBadge}${dupBadge}${hotBadge}${ignoreBadge}`;
 
-    const truncated = label.slice(0, Math.max(0, width - 1));
-    const line = ` ${truncated}`;
+    const truncated = label.slice(0, width);
     if (isCursor) {
-      return inverse(line.padEnd(width));
+      return inverse(truncated.padEnd(width));
     }
-    return line.padEnd(width);
+    return truncated;
   }
 
   /**
@@ -915,7 +912,7 @@ export class FileExplorerPanel implements PanelDefinition {
       const ancestorPath = this.getAncestorPath(entry, d);
       const hasMoreSiblings = ancestorPath !== null && this.hasSiblingsBelow(ancestorPath, d);
       segments.push(hasMoreSiblings
-        ? currentTheme.dimFg('border', '┊ ')
+        ? currentTheme.dimFg('border', '│ ')
         : '  ');
     }
 

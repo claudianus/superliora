@@ -184,12 +184,12 @@ import { WorkspaceController, PanelManager, WorkspaceLayoutPersistence, LayoutPr
 import { FileExplorerPanel } from './workspace/panels/file-explorer-panel';
 import { TerminalPanel } from './workspace/panels/terminal-panel';
 import { GitDiffPanel } from './workspace/panels/git-diff-panel';
-import { SessionManagerPanel } from './workspace/panels/session-manager-panel';
-import { ActivityFeed, ActivityTransparencyPanel } from './workspace/panels/activity-transparency-panel';
-import { SideChatPanel } from './workspace/panels/side-chat-panel';
-import { WebBrowserPanel } from './workspace/panels/web-browser-panel';
 import { ArtifactViewerPanel } from './workspace/panels/artifact-viewer-panel';
+import { SessionManagerPanel } from './workspace/panels/session-manager-panel';
+import { ActivityTransparencyPanel, ActivityFeed } from './workspace/panels/activity-transparency-panel';
+import { SideChatPanel } from './workspace/panels/side-chat-panel';
 import { ImagePreviewPanel } from './workspace/panels/image-preview-panel';
+import { WebBrowserPanel } from './workspace/panels/web-browser-panel';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -796,14 +796,11 @@ export class LioraTUI {
         defaultThinking: config.defaultThinking,
       });
       await this.authFlow.refreshConfigAfterLogin();
-      // Visual harness keeps the center stage quiet — skip the long notice.
-      if (process.env['SUPERLIORA_BENTO_VISUAL_SEED'] !== '1') {
-        this.showStatus(
-          'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
-            'Text, image, video generation, harness tools, and visual understanding enabled.',
-          'success',
-        );
-      }
+      this.showStatus(
+        'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
+        'Text, image, video generation, harness tools, and visual understanding enabled.',
+        'success',
+      );
       return;
     }
 
@@ -830,21 +827,6 @@ export class LioraTUI {
       const cwd = this.state.appState.workDir ?? process.cwd();
       this.workspaceController.addPanel(new FileExplorerPanel(cwd), 'left');
       this.workspaceController.addPanel(new GitDiffPanel(cwd), 'left');
-      // Right dock is tabbed by default — first panel is the active tile.
-      // Keep the default tab set short so the strip stays readable (~52 cols).
-      this.workspaceController.addPanel(
-        new SideChatPanel({
-          sendMessage: (text: string) => {
-            const session = this.session;
-            if (session === undefined) return false;
-            this.sendMessage(session, text);
-            return this.state.appState.streamingPhase === 'idle';
-          },
-          isBusy: () => this.state.appState.streamingPhase !== 'idle',
-        }),
-        'right',
-      );
-      this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
       this.workspaceController.addPanel(
         new SessionManagerPanel({
           listSessions: async () => {
@@ -865,13 +847,25 @@ export class LioraTUI {
           },
           currentSessionId: () => this.state.appState.sessionId ?? '',
         }),
+        'left',
+      );
+      this.workspaceController.addPanel(new TerminalPanel(cwd), 'right');
+      this.workspaceController.addPanel(new ArtifactViewerPanel(cwd), 'right');
+      this.workspaceController.addPanel(new ActivityTransparencyPanel(this.activityFeed), 'right');
+      this.workspaceController.addPanel(
+        new SideChatPanel({
+          sendMessage: (text: string) => {
+            const session = this.session;
+            if (session === undefined) return false;
+            this.sendMessage(session, text);
+            return this.state.appState.streamingPhase === 'idle';
+          },
+          isBusy: () => this.state.appState.streamingPhase !== 'idle',
+        }),
         'right',
       );
-      // Optional tools — registered but not docked. Open via Ctrl+/ switcher ([+]).
-      this.workspaceController.offerPanel(new WebBrowserPanel(cwd));
-      this.workspaceController.offerPanel(new ArtifactViewerPanel(cwd));
-      this.workspaceController.offerPanel(new ActivityTransparencyPanel(this.activityFeed));
-      this.workspaceController.offerPanel(new ImagePreviewPanel(cwd));
+      this.workspaceController.addPanel(new ImagePreviewPanel(cwd), 'right');
+      this.workspaceController.addPanel(new WebBrowserPanel(cwd), 'right');
       // Register keyboard shortcuts for panel management
       const wc = this.workspaceController;
       this.nativeInputRouter.router.registerGlobalHandler({
@@ -914,19 +908,13 @@ export class LioraTUI {
           });
         },
         postFrameRender: ({ frameRenderer, columns, rows }) => {
-          // Activity ticker at the top inset row. Wide layouts already paint a
-          // Status tile — skip the idle "대기 중" band so it does not fight
-          // the bento header. Live activity still uses the ticker.
+          // Activity ticker at the top row — always-on Bloomberg-style live band,
+          // rendered independently of workspace mode.
           const entries = this.activityFeed.getEntries();
           const latestEntry = entries.length > 0 ? entries[entries.length - 1] : undefined;
           const agentActive = this.state.appState.streamingPhase !== 'idle';
-          const showIdleTicker = columns < 100 || agentActive || latestEntry !== undefined;
-          if (showIdleTicker) {
-            const tickerLine = renderActivityTicker(latestEntry, agentActive, columns);
-            frameRenderer.writeAnsiText(0, 0, tickerLine);
-          } else {
-            frameRenderer.writeAnsiText(0, 0, ' '.repeat(Math.max(0, columns)));
-          }
+          const tickerLine = renderActivityTicker(latestEntry, agentActive, columns);
+          frameRenderer.writeAnsiText(0, 0, tickerLine);
 
           // Workspace-only docks/overlays. The bottom status bar renders in every
           // path below so the live band stays visible even without workspace mode.
@@ -949,52 +937,50 @@ export class LioraTUI {
           // center stage, unifying the whole workspace into one composition.
           this.workspaceController.paintShellChrome(frameRenderer, layout);
 
-          // Maximize takes the full shell as one bento tile (bento grids would
-          // otherwise keep painting the split docks and ignore maximize).
-          if (this.workspaceController.paintMaximizedPanel(frameRenderer, layout)) {
-            // Maximized — skip dock grids / legacy dock paint.
-          } else {
-          // Split docks → bento grid tiles; tabbed docks → tab strip + one tile.
-          // Legacy renderDocks is only a fallback when neither path paints.
+          // Bento grid dock rendering: use bento tiles when available
           const leftGrid = this.workspaceController.getDockBentoGrid('left');
           const rightGrid = this.workspaceController.getDockBentoGrid('right');
-          let leftPainted = false;
-          let rightPainted = false;
           if (leftGrid) {
             this.workspaceController.renderBentoGrid(frameRenderer, leftGrid);
-            leftPainted = true;
-          } else {
-            leftPainted = this.workspaceController.paintTabbedDock(frameRenderer, 'left', layout);
           }
           if (rightGrid) {
             this.workspaceController.renderBentoGrid(frameRenderer, rightGrid);
-            rightPainted = true;
+          }
+          if (leftGrid || rightGrid) {
+            // Bento dock mode: panels already rendered as bento tiles
           } else {
-            rightPainted = this.workspaceController.paintTabbedDock(frameRenderer, 'right', layout);
-          }
-
-          if (!leftPainted || !rightPainted) {
-            const docks = this.workspaceController.renderDocks(layout);
-            if (!leftPainted && docks.left && layout.leftDock) {
-              const { x, y } = layout.leftDock.rect;
-              for (let row = 0; row < docks.left.length; row++) {
-                const line = docks.left[row] ?? '';
-                if (line.length > 0) {
-                  frameRenderer.writeAnsiText(x, y + row, line);
-                }
+          // Fallback: old dock rendering
+          const docks = this.workspaceController.renderDocks(layout);
+          // Draw left dock panels (or maximized panel)
+          const maximizedId = this.workspaceController.getMaximizedPanelId();
+          if (maximizedId !== null && docks.left) {
+            // Maximized: render at full width from x=0
+            for (let row = 0; row < docks.left.length; row++) {
+              const line = docks.left[row] ?? '';
+              if (line.length > 0) {
+                frameRenderer.writeAnsiText(0, row, line);
               }
             }
-            if (!rightPainted && docks.right && layout.rightDock) {
-              const { x, y } = layout.rightDock.rect;
-              for (let row = 0; row < docks.right.length; row++) {
-                const line = docks.right[row] ?? '';
-                if (line.length > 0) {
-                  frameRenderer.writeAnsiText(x, y + row, line);
-                }
+          } else if (docks.left && layout.leftDock) {
+            const { x, y } = layout.leftDock.rect;
+            for (let row = 0; row < docks.left.length; row++) {
+              const line = docks.left[row] ?? '';
+              if (line.length > 0) {
+                frameRenderer.writeAnsiText(x, y + row, line);
               }
             }
           }
-          } // end else (not maximized)
+          // Draw right dock panels
+          if (docks.right && layout.rightDock) {
+            const { x, y } = layout.rightDock.rect;
+            for (let row = 0; row < docks.right.length; row++) {
+              const line = docks.right[row] ?? '';
+              if (line.length > 0) {
+                frameRenderer.writeAnsiText(x, y + row, line);
+              }
+            }
+          }
+          } // end else (old dock rendering)
           // Draw panel switcher overlay (centered)
           const switcherLines = this.workspaceController.renderSwitcherOverlay();
           if (switcherLines) {
@@ -1103,16 +1089,11 @@ export class LioraTUI {
               frameRenderer.writeAnsiText(resizeOverlay.x, resizeOverlay.y + row, resizeOverlay.lines[row] ?? '');
             }
           }
-          // Bottom live band: skip when the stage already paints an open
-          // "Status" chrome tile (cols≥100) — two status strips fight the
-          // bento composition. Narrow layouts keep the always-on bar.
-          const showBottomStatus = columns < 100;
-          if (showBottomStatus) {
-            const pm = this.workspaceController.panelManager;
-            const focusedId = pm.getFocusedPanelId();
-            const focusedPanel = focusedId ? pm.getPanel(focusedId) : undefined;
-            this.renderBottomStatusBar(frameRenderer, columns, rows, focusedPanel?.definition.title);
-          }
+          // Status bar at the bottom row (always-on live band)
+          const pm = this.workspaceController.panelManager;
+          const focusedId = pm.getFocusedPanelId();
+          const focusedPanel = focusedId ? pm.getPanel(focusedId) : undefined;
+          this.renderBottomStatusBar(frameRenderer, columns, rows, focusedPanel?.definition.title);
         },
       }),
     );
@@ -1391,12 +1372,6 @@ export class LioraTUI {
     // Goal-driven boot protocol: automatically resume the first goal in the queue
     if (this.options.startup.resumeGoal === true) {
       void this.resumeGoalFromQueue();
-    }
-    // Visual harness seed — keeps Context rail paintable without a live agent.
-    if (process.env['SUPERLIORA_BENTO_VISUAL_SEED'] === '1') {
-      this.streamingUI.setTodoList([
-        { title: 'Visual seed', status: 'in_progress' },
-      ]);
     }
   }
 
@@ -2829,11 +2804,6 @@ export class LioraTUI {
     // preferredRows tracks the live transcript region so the night sky fills
     // the empty pane (no hard 14-row cap). Suppress while session history replays.
     if (this.state.appState.isReplaying) {
-      this.state.transcriptContainer.dismissIdleStage();
-      return;
-    }
-    // Visual harness: keep the hero transcript calm (no jewel-tank story).
-    if (process.env['SUPERLIORA_BENTO_VISUAL_SEED'] === '1') {
       this.state.transcriptContainer.dismissIdleStage();
       return;
     }

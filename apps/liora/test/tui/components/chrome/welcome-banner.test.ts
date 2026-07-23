@@ -43,7 +43,7 @@ describe('welcome banner gradient', () => {
       profile: 'premium' as const,
       particles: 'premium' as const,
     };
-    const lines = renderWelcomeBanner('standard', premium, 120);
+    const lines = renderWelcomeBanner('standard', premium, 80);
     expect(lines.length).toBeGreaterThan(2);
     const roleRgb = [
       parseInt(darkColors.roleUser.slice(1, 3), 16),
@@ -63,16 +63,9 @@ describe('welcome banner gradient', () => {
       particles: 'premium' as const,
     };
     advanceAppearanceAnimationClock(1_000);
-    const a = renderWelcomeBanner('standard', premium, 120).join('\n');
+    const a = renderWelcomeBanner('standard', premium, 80).join('\n');
     advanceAppearanceAnimationClock(1_000 + 700);
-    const b = renderWelcomeBanner('standard', premium, 120).join('\n');
+    const b = renderWelcomeBanner('standard', premium, 80).join('\n');
     expect(a).not.toBe(b);
-  });
-
-  it('keeps a calm wordmark in docked-width hero bands', () => {
-    const lines = renderWelcomeBanner('wide', DEFAULT_APPEARANCE_PREFERENCES, 80);
-    expect(lines).toHaveLength(1);
-    const plain = (lines[0] ?? '').replace(/\x1b\[[0-9;]*m/g, '');
-    expect(plain).toContain('SUPERLIORA');
   });
 });

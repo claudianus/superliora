@@ -86,15 +86,10 @@ export class GitDiffPanel implements PanelDefinition {
     }
 
     if (this.files.length === 0) {
-      const lines = [
+      return [
         `  ${currentTheme.fg('success', '✓')} ${currentTheme.dimFg('textMuted', 'No changes detected')}`,
         `  ${currentTheme.dimFg('textMuted', '(working tree clean)')}`,
       ];
-      if (height >= 8 && width >= 24) {
-        lines.push('');
-        lines.push(`  ${currentTheme.dimFg('border', '[r] refresh · [v] cycle')}`);
-      }
-      return lines;
     }
 
     // Fast-path: return cached lines when content hasn't changed
@@ -448,50 +443,27 @@ export class GitDiffPanel implements PanelDefinition {
       });
       lines.push(` ${densitySegments.join('')}`);
     }
-    // Change impact score summary — skip on stamp-sized docks (bento wide≈28).
-    if (width >= 36) {
-      const impactScores = this.files.map((f) => {
-        let score = 0;
-        if (f.hasBreakingChanges) score += 4;
-        if (f.hasSecurityChanges) score += 3;
-        if (f.hasApiChanges) score += 2;
-        if (f.hasDependencyChanges) score += 2;
-        if (f.hasPerfChanges) score += 1;
-        if (f.isLargeChange) score += 1;
-        if (f.hasImportChanges) score += 1;
-        return { path: f.path, score };
-      }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
-      if (impactScores.length > 0) {
-        const topImpact = impactScores[0]!;
-        const topFile = this.files.find((f) => f.path === topImpact.path);
-        // CRITICAL is reserved for breaking/security — import/perf stacks alone
-        // should not scream at a docked bento summary.
-        const criticalCapable =
-          topFile?.hasBreakingChanges === true || topFile?.hasSecurityChanges === true;
-        const impactLevel =
-          topImpact.score >= 6 && criticalCapable
-            ? 'CRITICAL'
-            : topImpact.score >= 4
-              ? 'HIGH'
-              : topImpact.score >= 2
-                ? 'MEDIUM'
-                : 'LOW';
-        const impactToken =
-          impactLevel === 'CRITICAL'
-            ? 'error'
-            : impactLevel === 'HIGH'
-              ? 'warning'
-              : impactLevel === 'MEDIUM'
-                ? 'primary'
-                : 'textMuted';
-        lines.push(` ${currentTheme.fg(impactToken as any, `impact: ${impactLevel}`)} ${currentTheme.dimFg('textMuted', `(${String(impactScores.length)} files flagged)`)}`);
-      }
-      lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk  [b] blame  [r] refresh`));
-      // Color legend
-      lines.push(dim(` ${green('+')}added ${red('-')}deleted ${yellow('~')}modified ${currentTheme.fg('accent', '→')}renamed`));
-    } else {
-      lines.push(dim(` [v] cycle · [r] refresh`));
+    // Change impact score summary
+    const impactScores = this.files.map((f) => {
+      let score = 0;
+      if (f.hasBreakingChanges) score += 4;
+      if (f.hasSecurityChanges) score += 3;
+      if (f.hasApiChanges) score += 2;
+      if (f.hasDependencyChanges) score += 2;
+      if (f.hasPerfChanges) score += 1;
+      if (f.isLargeChange) score += 1;
+      if (f.hasImportChanges) score += 1;
+      return { path: f.path, score };
+    }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+    if (impactScores.length > 0) {
+      const topImpact = impactScores[0]!;
+      const impactLevel = topImpact.score >= 6 ? 'CRITICAL' : topImpact.score >= 4 ? 'HIGH' : topImpact.score >= 2 ? 'MEDIUM' : 'LOW';
+      const impactToken = topImpact.score >= 6 ? 'error' : topImpact.score >= 4 ? 'warning' : topImpact.score >= 2 ? 'primary' : 'textMuted';
+      lines.push(` ${currentTheme.fg(impactToken as any, `impact: ${impactLevel}`)} ${currentTheme.dimFg('textMuted', `(${String(impactScores.length)} files flagged)`)}`);
     }
+    lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk  [b] blame  [r] refresh`));
+    // Color legend
+    lines.push(dim(` ${green('+')}added ${red('-')}deleted ${yellow('~')}modified ${currentTheme.fg('accent', '→')}renamed`));
     return lines;
   }
 

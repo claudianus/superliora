@@ -52,9 +52,6 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
     this.renderer = new NativeTerminalRenderer({
       ...options,
       adaptiveQuality: false,
-      // Dock tiles share rows with stage chrome; relative CUF skips across those
-      // rows can drift after wide glyphs and leave gap blanks wiping dock ╭.
-      cursorMotion: options.cursorMotion ?? 'absolute',
       outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
       onInput: (data) => {
         this.handleRawInput(data.toString('utf8'));
