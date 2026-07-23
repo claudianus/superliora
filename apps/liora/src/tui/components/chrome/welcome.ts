@@ -81,7 +81,7 @@ export class WelcomeComponent implements Component {
       : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
 
     const infoLines = [
-      labelStyle(ttui('tui.welcome.label.directory')) + this.state.workDir,
+      labelStyle(ttui('tui.welcome.label.directory')) + shortenWelcomeDir(this.state.workDir),
       labelStyle(ttui('tui.welcome.label.model')) + modelValue,
     ];
 
@@ -117,4 +117,18 @@ export class WelcomeComponent implements Component {
       ...(meteorField.length > 0 ? meteorField : []),
     ];
   }
+}
+
+/** Prefer `…/a/b/c` over a mid-path clip on docked center bands. */
+function shortenWelcomeDir(path: string): string {
+  if (!path) return path;
+  const home = process.env['HOME'] ?? '';
+  let work = path;
+  if (home && path === home) return '~';
+  if (home && path.startsWith(`${home}/`)) {
+    work = `~${path.slice(home.length)}`;
+  }
+  const segments = work.split('/').filter((s) => s.length > 0);
+  if (segments.length <= 3) return work;
+  return `…/${segments.slice(-3).join('/')}`;
 }
