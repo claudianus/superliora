@@ -458,8 +458,27 @@ export class GitDiffPanel implements PanelDefinition {
       }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
       if (impactScores.length > 0) {
         const topImpact = impactScores[0]!;
-        const impactLevel = topImpact.score >= 6 ? 'CRITICAL' : topImpact.score >= 4 ? 'HIGH' : topImpact.score >= 2 ? 'MEDIUM' : 'LOW';
-        const impactToken = topImpact.score >= 6 ? 'error' : topImpact.score >= 4 ? 'warning' : topImpact.score >= 2 ? 'primary' : 'textMuted';
+        const topFile = this.files.find((f) => f.path === topImpact.path);
+        // CRITICAL is reserved for breaking/security — import/perf stacks alone
+        // should not scream at a docked bento summary.
+        const criticalCapable =
+          topFile?.hasBreakingChanges === true || topFile?.hasSecurityChanges === true;
+        const impactLevel =
+          topImpact.score >= 6 && criticalCapable
+            ? 'CRITICAL'
+            : topImpact.score >= 4
+              ? 'HIGH'
+              : topImpact.score >= 2
+                ? 'MEDIUM'
+                : 'LOW';
+        const impactToken =
+          impactLevel === 'CRITICAL'
+            ? 'error'
+            : impactLevel === 'HIGH'
+              ? 'warning'
+              : impactLevel === 'MEDIUM'
+                ? 'primary'
+                : 'textMuted';
         lines.push(` ${currentTheme.fg(impactToken as any, `impact: ${impactLevel}`)} ${currentTheme.dimFg('textMuted', `(${String(impactScores.length)} files flagged)`)}`);
       }
       lines.push(dim(` [v] ${this.mode === 'summary' ? 'stat' : this.mode === 'stat' ? 'full' : 'summary'}  [n/p] hunk  [b] blame  [r] refresh`));
