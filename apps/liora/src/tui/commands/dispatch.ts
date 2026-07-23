@@ -181,6 +181,7 @@ export interface SlashCommandHost {
   showCommitBrowser(report: GitLogReport, filter: string): void;
   showErrors(): void;
   showSearchResults(results: SearchResults): void;
+  showDashboard(): void;
   showWebContent(url: string | undefined): void;
   showBlame(path: string | undefined): void;
   setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
@@ -330,6 +331,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'tasks':
       void host.tasksBrowserController.show();
+      return;
+    case 'dashboard':
+      host.showDashboard();
       return;
     case 'cron':
       handleCronCommand(host, args);

@@ -1,0 +1,1005 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { PinController } from '#/tui/controllers/pin-controller';
+import { QuestGridController } from '#/tui/controllers/quest-grid-controller';
+import { QuestExpandView, MAX_STREAM_LINES } from '#/tui/components/panes/quest-expand-view';
+import type { Quest } from '#/tui/controllers/quest-types';
+
+function makeQuest(id: string, overrides: Partial<Quest> = {}): Quest {
+  return {
+    id,
+    name: `Quest ${id}`,
+    sessionRef: `session-${id}`,
+    state: 'running',
+    createdAt: Date.now() - 60_000,
+    lastActivityAt: Date.now(),
+    changeCount: { added: 2, removed: 0 },
+    planStep: 'Working',
+    worktreePath: `/tmp/wt/${id}`,
+    pinned: false,
+    approvalPending: false,
+    ...overrides,
+  };
+}
+
+function makeGrid() {
+  return new QuestGridController({
+    getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+    requestRender: () => {},
+  });
+}
+
+describe('hybrid pin/expand toggle (AC-3)', () => {
+  it('togglePin pins a quest and switches view mode', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.togglePin('a');
+    expect(pin.isPinned).toBe(true);
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+    expect(grid.getViewMode()).toBe('pinned');
+  });
+
+  it('togglePin on already-pinned quest unpins it', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.togglePin('a');
+    expect(pin.isPinned).toBe(true);
+    pin.togglePin('a');
+    expect(pin.isPinned).toBe(false);
+    expect(grid.getViewMode()).toBe('dashboard');
+  });
+
+  it('pin() is idempotent for already-pinned quest', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    expect(pin.isPinned).toBe(true);
+    pin.pin('a'); // should not toggle off
+    expect(pin.isPinned).toBe(true);
+  });
+
+  it('unpin() returns to dashboard mode', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.unpin();
+    expect(pin.isPinned).toBe(false);
+    expect(grid.getViewMode()).toBe('dashboard');
+  });
+
+  it('getStripQuests excludes the pinned quest', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    const strip = pin.getStripQuests();
+    expect(strip.map((q) => q.id)).toEqual(['b', 'c']);
+  });
+
+  it('getStripQuests returns empty when nothing is pinned', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    expect(pin.getStripQuests()).toEqual([]);
+  });
+
+  it('Gen 37: pinPrevious returns to the previously pinned quest', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pin('b');
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+    expect(pin.canPinPrevious).toBe(true);
+
+    expect(pin.pinPrevious()).toBe(true);
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 37: pinPrevious allows navigating forward again', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pin('b');
+    pin.pinPrevious(); // → a
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+
+    // The outgoing pin (b) was pushed, so we can go forward again.
+    expect(pin.pinPrevious()).toBe(true);
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+  });
+
+  it('Gen 37: pinPrevious returns false with empty history', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    expect(pin.canPinPrevious).toBe(false);
+    expect(pin.pinPrevious()).toBe(false);
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 37: pinPrevious skips quests that were removed', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pin('b');
+    pin.pin('c');
+    // Remove b so the back-stack must skip it and land on a.
+    grid.removeQuest('b');
+
+    expect(pin.pinPrevious()).toBe(true);
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 39: pinNextInStrip cycles forward through display order', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('c');
+    // Wraps back to the first quest.
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 39: pinPrevInStrip cycles backward with wrap', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinPrevInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('c');
+    pin.pinPrevInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('b');
+  });
+
+  it('Gen 39: cycling is a no-op with a single quest', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+    pin.pinPrevInStrip();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 54: pinNextAttention cycles only through attention quests', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('ok', { state: 'running' }));
+    grid.addQuest(makeQuest('wait', { state: 'waiting-approval' }));
+    grid.addQuest(makeQuest('bad', { state: 'failed' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('ok');
+    // First attention quest in display order.
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('wait');
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('bad');
+    // Wraps back to the first attention quest, skipping the healthy one.
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('wait');
+  });
+
+  it('Gen 54: pinNextAttention is a no-op when nothing needs attention', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'idle' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextAttention();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 113: pinNextProblem cycles only through problem quests', () => {
+    const problemCounts: Record<string, number> = { clean: 0, err1: 2, err2: 1 };
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      getProblemCount: (id) => problemCounts[id] ?? 0,
+    });
+    grid.addQuest(makeQuest('clean', { state: 'running' }));
+    grid.addQuest(makeQuest('err1', { state: 'running' }));
+    grid.addQuest(makeQuest('err2', { state: 'running' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('clean');
+    // First problem quest in sort order.
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('err1');
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('err2');
+    // Wraps back to the first problem quest, skipping the clean one.
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('err1');
+  });
+
+  it('Gen 113: pinNextProblem is a no-op when nothing has problems', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+      getProblemCount: () => 0,
+    });
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'running' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextProblem();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 114: pinNextApproval cycles only through approval quests', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('ok', { state: 'running' }));
+    grid.addQuest(makeQuest('wait1', { state: 'waiting-approval' }));
+    grid.addQuest(makeQuest('wait2', { state: 'waiting-approval' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('ok');
+    // First approval quest in display order.
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('wait1');
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('wait2');
+    // Wraps back to the first approval quest, skipping the running one.
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('wait1');
+  });
+
+  it('Gen 114: pinNextApproval is a no-op when nothing is awaiting', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a', { state: 'running' }));
+    grid.addQuest(makeQuest('b', { state: 'idle' }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextApproval();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('Gen 115: pinNextCtxRisk cycles only through context-risk quests', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('cool', { contextUsage: 0.3 }));
+    grid.addQuest(makeQuest('hot1', { contextUsage: 0.9 }));
+    grid.addQuest(makeQuest('hot2', { contextUsage: 0.95 }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('cool');
+    // First context-risk quest in sort order.
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('hot1');
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('hot2');
+    // Wraps back to the first risk quest, skipping the cool one.
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('hot1');
+  });
+
+  it('Gen 115: pinNextCtxRisk is a no-op when nothing is at risk', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a', { contextUsage: 0.2 }));
+    grid.addQuest(makeQuest('b', { contextUsage: 0.4 }));
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+
+    pin.pin('a');
+    pin.pinNextCtxRisk();
+    expect(pin.getPinnedQuest()?.id).toBe('a');
+  });
+
+  it('pinned quest cell gets larger span in layout', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.addQuest(makeQuest('c'));
+    grid.togglePin('a');
+
+    const bounds = grid.getQuestCellBounds('a');
+    expect(bounds).not.toBeNull();
+    expect(bounds!.colSpan).toBeGreaterThanOrEqual(2);
+    expect(bounds!.rowSpan).toBeGreaterThanOrEqual(2);
+  });
+
+  it('expand view renders header with quest name and state', () => {
+    const quest = makeQuest('a', { name: 'My Quest', state: 'running', planStep: 'Step 1' });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+    view.appendLine('line 2');
+
+    const lines = view.render(quest, 80);
+    // Gen 11: header is now 3 lines + separator before stream content
+    expect(lines[0]).toContain('My Quest');
+    expect(lines[0]).toContain('running');
+    expect(lines[2]).toContain('Step 1');
+    // Gen 88: last stream line preview occupies index 3, separator index 4.
+    // Gen 46: stream lines carry a line-number gutter prefix.
+    expect(lines[5]).toContain('line 1');
+    expect(lines[6]).toContain('line 2');
+  });
+
+  it('Gen 46: expand view stream shows line-number gutter', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('first');
+    view.appendLine('second');
+
+    const lines = view.render(quest, 80);
+    // Stream starts after the 3 header lines + Gen 88 preview + separator.
+    // Gutter is right-aligned and 1-based.
+    expect(lines[5]).toMatch(/\b1\s+first/);
+    expect(lines[6]).toMatch(/\b2\s+second/);
+  });
+
+  it('Gen 47: active search match is marked in the gutter', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('alpha');
+    view.appendLine('beta needle here');
+    view.appendLine('gamma');
+
+    view.startSearch('needle');
+    const lines = view.render(quest, 80);
+    // The active match line (stream index 1 → rendered line 6 after the Gen 88
+    // header preview) carries the ▸ marker.
+    expect(lines[6]).toContain('▸');
+    // Non-match lines do not.
+    expect(lines[5]).not.toContain('▸');
+    expect(lines[7]).not.toContain('▸');
+  });
+
+  it('Gen 48: empty stream shows a waiting placeholder for running quests', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+
+    const lines = view.render(quest, 80);
+    expect(lines.join('\n')).toContain('Waiting for agent output');
+  });
+
+  it('Gen 48: empty stream shows a neutral placeholder for idle quests', () => {
+    const quest = makeQuest('a', { state: 'idle' });
+    const view = new QuestExpandView();
+
+    const lines = view.render(quest, 80);
+    expect(lines.join('\n')).toContain('No output yet');
+  });
+
+  it('Gen 88: header shows the last stream line preview with its line number', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('first line');
+    view.appendLine('latest output here');
+
+    const lines = view.render(quest, 80);
+    // The preview occupies header index 3 (after the 3 metadata lines).
+    expect(lines[3]).toContain('2:');
+    expect(lines[3]).toContain('latest output here');
+    // The preview reflects the freshest line, not the first.
+    expect(lines[3]).not.toContain('first line');
+  });
+
+  it('Gen 88: header omits the preview when the stream is empty', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+
+    const lines = view.render(quest, 80);
+    // No preview line between the metadata header and the separator.
+    expect(lines[3]).toMatch(/^─+$/);
+  });
+
+  it('Gen 50: diff-only view shows only the diff buffer', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('chatter line');
+    view.appendDiffLines(['+added code']);
+    view.appendLine('more chatter');
+
+    // Default: full stream includes chatter and diff.
+    const full = view.render(quest, 80).join('\n');
+    expect(full).toContain('chatter line');
+    expect(full).toContain('+added code');
+
+    // Toggle diff-only: only the diff buffer is shown.
+    expect(view.toggleDiffOnly()).toBe(true);
+    expect(view.isDiffOnly()).toBe(true);
+    const diffOnly = view.render(quest, 80).join('\n');
+    expect(diffOnly).toContain('+added code');
+    expect(diffOnly).not.toContain('chatter line');
+    expect(diffOnly).toContain('≡ diff');
+  });
+
+  it('Gen 50: diff-only view shows a placeholder when no diffs captured', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('chatter only');
+    view.toggleDiffOnly();
+
+    const lines = view.render(quest, 80);
+    expect(lines.join('\n')).toContain('No diffs captured yet');
+  });
+
+  it('Gen 57: toggling follow off stops the viewport from chasing new lines', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 5; i++) view.appendLine(`line ${String(i)}`);
+    // At the tail initially.
+    expect(view.currentScrollOffset).toBe(2);
+
+    // Pause auto-follow.
+    expect(view.toggleFollowTail()).toBe(false);
+    expect(view.isFollowingTail()).toBe(false);
+
+    // New output must not move the viewport.
+    view.appendLine('line 5');
+    view.appendLine('line 6');
+    expect(view.currentScrollOffset).toBe(2);
+
+    // Header shows the paused flag.
+    expect(view.render(quest, 80)[0]).toContain('⏸ paused');
+  });
+
+  it('Gen 57: re-enabling follow snaps back to the live tail', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 5; i++) view.appendLine(`line ${String(i)}`);
+
+    view.toggleFollowTail(); // off
+    view.appendLine('line 5');
+    view.appendLine('line 6');
+    expect(view.currentScrollOffset).toBe(2);
+
+    // Re-enable: snap to the new tail.
+    expect(view.toggleFollowTail()).toBe(true);
+    expect(view.currentScrollOffset).toBe(4);
+    expect(view.render(quest, 80)[0]).not.toContain('⏸ paused');
+  });
+
+  it('Gen 58: fullscreen hides the header and shows only the stream', () => {
+    const quest = makeQuest('a', { name: 'My Quest', state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('stream line 1');
+    view.appendLine('stream line 2');
+
+    // Normal: header present (name + separator before the stream).
+    const normal = view.render(quest, 80);
+    expect(normal[0]).toContain('My Quest');
+    expect(normal.some((l) => l.startsWith('─'))).toBe(true);
+
+    // Fullscreen: no header lines, stream starts immediately.
+    expect(view.toggleFullscreen()).toBe(true);
+    expect(view.isFullscreen()).toBe(true);
+    const full = view.render(quest, 80);
+    expect(full[0]).toContain('stream line 1');
+    expect(full[0]).not.toContain('My Quest');
+    expect(full.some((l) => l.startsWith('─'))).toBe(false);
+  });
+
+  it('Gen 59: clearStream empties the buffer and resets the viewport', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) view.appendLine(`line ${String(i)}`);
+    view.appendDiffLines(['+diff line']);
+    expect(view.totalLines).toBe(11);
+
+    view.clearStream();
+    expect(view.totalLines).toBe(0);
+    expect(view.currentScrollOffset).toBe(0);
+    // Diff buffer is cleared too.
+    view.toggleDiffOnly();
+    expect(view.render(quest, 80).join('\n')).toContain('No diffs captured yet');
+  });
+
+  it('Gen 60: reviewFromTop jumps to line 1 and pauses auto-follow', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) view.appendLine(`line ${String(i)}`);
+    expect(view.currentScrollOffset).toBe(7);
+    expect(view.isFollowingTail()).toBe(true);
+
+    view.reviewFromTop();
+    expect(view.currentScrollOffset).toBe(0);
+    expect(view.isFollowingTail()).toBe(false);
+
+    // New output must not move the viewport while reviewing.
+    view.appendLine('line 10');
+    expect(view.currentScrollOffset).toBe(0);
+    expect(view.render(quest, 80)[0]).toContain('⏸ paused');
+  });
+
+  it('Gen 61: toggling timestamps shows relative deltas in the gutter', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('first line');
+    view.appendLine('second line');
+
+    // Off by default: no timestamp markers.
+    expect(view.isShowingTimestamps()).toBe(false);
+    const off = view.render(quest, 80);
+    expect(off[5]).not.toContain('+0s');
+
+    // Toggle on: gutter shows the relative delta.
+    expect(view.toggleTimestamps()).toBe(true);
+    const on = view.render(quest, 80);
+    // First line is the base (+0s); index 5 after the Gen 88 header preview.
+    expect(on[5]).toContain('+0s');
+  });
+
+  it('Gen 62: e/E jump between error/warning lines', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    view.appendLine('ok line 0');
+    view.appendLine('ok line 1');
+    view.appendLine('ok line 2');
+    view.appendLine('fatal: something broke');
+    view.appendLine('ok line 4');
+    view.appendLine('warning: deprecation ahead');
+
+    // Next error jumps to the first problem line (index 3).
+    expect(view.jumpToNextError()).toBe(true);
+    expect(view.currentScrollOffset).toBeGreaterThan(0);
+
+    // Next again lands on the warning line (index 5).
+    expect(view.jumpToNextError()).toBe(true);
+
+    // Previous error returns to the earlier problem line.
+    expect(view.jumpToPrevError()).toBe(true);
+  });
+
+  it('Gen 91: ]/[ jump between diff file headers', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    view.appendDiffLines([
+      'diff --git a/one.ts b/one.ts',
+      '+added in one',
+      'diff --git a/two.ts b/two.ts',
+      '+added in two',
+      'diff --git a/three.ts b/three.ts',
+      '+added in three',
+    ]);
+
+    // Next diff file jumps to the first header (index 0).
+    expect(view.jumpToNextDiffFile()).toBe(true);
+    // Next again advances to the second header (index 2).
+    expect(view.jumpToNextDiffFile()).toBe(true);
+    // Previous returns toward the earlier header.
+    expect(view.jumpToPrevDiffFile()).toBe(true);
+  });
+
+  it('Gen 91: diff file jump is a no-op when there are no headers', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendDiffLines(['+just a stray add line']);
+
+    expect(view.jumpToNextDiffFile()).toBe(false);
+    expect(view.jumpToPrevDiffFile()).toBe(false);
+  });
+
+  it('Gen 62: jumpToNextError returns false when no problem lines exist', () => {
+    const view = new QuestExpandView();
+    view.appendLine('all good');
+    view.appendLine('still good');
+    expect(view.jumpToNextError()).toBe(false);
+    expect(view.jumpToPrevError()).toBe(false);
+  });
+
+  it('Gen 65: header shows an error/warning count badge', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('ok line');
+    view.appendLine('fatal: something broke');
+    view.appendLine('warning: deprecation ahead');
+
+    // Clean stream: no badge.
+    const cleanView = new QuestExpandView();
+    cleanView.appendLine('all good');
+    expect(cleanView.render(quest, 80)[0]).not.toContain('✖');
+
+    // Problem stream: badge shows error and warning counts.
+    const header = view.render(quest, 80)[0];
+    expect(header).toContain('✖1');
+    expect(header).toContain('⚠1');
+  });
+
+  it('Gen 107: header shows the fleet rank when provided', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    // With a fleet rank: the header carries the position tag.
+    const withRank = view.render(quest, 120, { rank: 2, total: 8 });
+    expect(withRank[0]).toContain('#2/8');
+
+    // Without a fleet rank: no position tag.
+    const withoutRank = view.render(quest, 120);
+    expect(withoutRank[0]).not.toContain('#2/8');
+  });
+
+  it('Gen 71: getLastStreamLineNumber matches the gutter count', () => {
+    const view = new QuestExpandView();
+    expect(view.getLastStreamLineNumber()).toBe(0);
+    view.appendLine('one');
+    view.appendLine('two');
+    view.appendLine('three');
+    // 1-based count of stream lines, matching the expand-view gutter.
+    expect(view.getLastStreamLineNumber()).toBe(3);
+    expect(view.getLastStreamLine()).toBe('three');
+  });
+
+  it('Gen 67: jumpToLineNumber jumps to a 1-based line and clamps', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) view.appendLine(`line ${String(i)}`);
+
+    // Jump to line 5 (1-based → index 4), centered.
+    expect(view.jumpToLineNumber(5)).toBe(true);
+    expect(view.currentScrollOffset).toBeGreaterThan(0);
+
+    // Out-of-range clamps to the last line rather than failing.
+    expect(view.jumpToLineNumber(999)).toBe(true);
+
+    // Empty buffer returns false.
+    const empty = new QuestExpandView();
+    expect(empty.jumpToLineNumber(1)).toBe(false);
+  });
+
+  it('Gen 33: expand view header shows dwell time for attention quests', () => {
+    // Entered the attention state 90s ago.
+    const quest = makeQuest('a', {
+      state: 'waiting-approval',
+      attentionEnteredAt: Date.now() - 90_000,
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 100);
+    // The dwell time appears on the second header line.
+    expect(lines[1]).toContain('⏳ waiting');
+  });
+
+  it('Gen 33: expand view header hides dwell time for healthy quests', () => {
+    const quest = makeQuest('a', { state: 'running' });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 100);
+    expect(lines[1]).not.toContain('⏳ waiting');
+  });
+
+  it('Gen 108: header still shows the idle time on the second line', () => {
+    // Idle for 10 minutes → warning severity (colored when the terminal
+    // supports it); the text must remain present regardless of color.
+    const quest = makeQuest('a', {
+      state: 'running',
+      lastActivityAt: Date.now() - 10 * 60 * 1000,
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[1]).toContain('idle');
+  });
+
+  it('Gen 38: expand view header shows model name and session cost', () => {
+    const quest = makeQuest('a', {
+      state: 'running',
+      modelName: 'kimi-k2',
+      sessionCostUsd: 1.23,
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    // Model + cost appear on the third header line (index 2).
+    expect(lines[2]).toContain('kimi-k2');
+    expect(lines[2]).toContain('$1.23');
+  });
+
+  it('Gen 38: expand view header omits cost when zero', () => {
+    const quest = makeQuest('a', { state: 'running', sessionCostUsd: 0 });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[2]).not.toContain('$');
+  });
+
+  it('Gen 39: expand view header shows last error for failed quests', () => {
+    const quest = makeQuest('a', {
+      state: 'failed',
+      lastErrorMessage: 'OAuth credentials rejected',
+    });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[2]).toContain('✗ OAuth credentials rejected');
+  });
+
+  it('Gen 39: expand view header shows plan step for healthy quests', () => {
+    const quest = makeQuest('a', { state: 'running', planStep: 'Building feature' });
+    const view = new QuestExpandView();
+    view.appendLine('line 1');
+
+    const lines = view.render(quest, 120);
+    expect(lines[2]).toContain('▸ Building feature');
+    expect(lines[2]).not.toContain('✗');
+  });
+
+  it('expand view auto-scrolls when exceeding max visible lines', () => {
+    const quest = makeQuest('a');
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+
+    const visible = view.getVisibleLines();
+    expect(visible).toHaveLength(3);
+    expect(visible[0]).toBe('line 7');
+    expect(visible[2]).toBe('line 9');
+  });
+
+  it('Gen 42: caps the stream buffer at MAX_STREAM_LINES', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    const total = MAX_STREAM_LINES + 50;
+    for (let i = 0; i < total; i++) {
+      view.appendLine(`line ${i}`);
+    }
+
+    // Buffer never exceeds the cap; oldest lines are dropped.
+    expect(view.getLineCount()).toBe(MAX_STREAM_LINES);
+    const visible = view.getVisibleLines();
+    // Still parked at the tail — the newest lines are visible.
+    expect(visible[visible.length - 1]).toBe(`line ${total - 1}`);
+  });
+
+  it('Gen 42: keeps the visible window stable when trimming while scrolled up', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < MAX_STREAM_LINES; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // Scroll to the very top.
+    view.scrollToTop();
+    const before = view.getVisibleLines();
+    expect(before[0]).toBe('line 0');
+
+    // Overflow the cap; the oldest line is dropped and the offset shifts so
+    // the window still shows the same relative position.
+    view.appendLine('overflow');
+    expect(view.getLineCount()).toBe(MAX_STREAM_LINES);
+    expect(view.getVisibleLines()[0]).toBe('line 1');
+  });
+
+  it('expand view scroll up/down works', () => {
+    const quest = makeQuest('a');
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+
+    view.scrollUp(2);
+    expect(view.currentScrollOffset).toBe(5);
+    view.scrollDown(1);
+    expect(view.currentScrollOffset).toBe(6);
+  });
+
+  it('Gen 14: scrolled-up view does not auto-follow new lines', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // Parked at bottom (offset 7). Scroll up to review history.
+    view.scrollUp(4);
+    expect(view.currentScrollOffset).toBe(3);
+
+    // New output arrives while reviewing — viewport must stay put.
+    view.appendLine('line 10');
+    view.appendLines(['line 11', 'line 12']);
+    expect(view.currentScrollOffset).toBe(3);
+    expect(view.getVisibleLines()[0]).toBe('line 3');
+  });
+
+  it('Gen 14: bottom-parked view follows new lines', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    expect(view.currentScrollOffset).toBe(7);
+
+    // At bottom — new output should be followed.
+    view.appendLine('line 10');
+    expect(view.currentScrollOffset).toBe(8);
+    expect(view.getVisibleLines()[2]).toBe('line 10');
+  });
+
+  it('Gen 14: header shows scroll position and ↑ when not at tail', () => {
+    const quest = makeQuest('a', { name: 'Q', state: 'running' });
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(3);
+    for (let i = 0; i < 10; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // At tail: no ↑ marker.
+    expect(view.render(quest, 80)[0]).not.toContain('↑');
+    // Scroll up: ↑ marker appears.
+    view.scrollUp(3);
+    expect(view.render(quest, 80)[0]).toContain('↑');
+  });
+
+  it('Gen 15: page scroll and top/bottom jumps', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    for (let i = 0; i < 30; i++) {
+      view.appendLine(`line ${i}`);
+    }
+    // Starts at bottom (offset 25).
+    expect(view.currentScrollOffset).toBe(25);
+
+    // Page up moves by viewport-1 (4).
+    view.scrollPageUp();
+    expect(view.currentScrollOffset).toBe(21);
+
+    // Jump to top.
+    view.scrollToTop();
+    expect(view.currentScrollOffset).toBe(0);
+
+    // Page down from top.
+    view.scrollPageDown();
+    expect(view.currentScrollOffset).toBe(4);
+
+    // Jump to bottom.
+    view.scrollToBottom();
+    expect(view.currentScrollOffset).toBe(25);
+  });
+
+  it('Gen 16: search finds matches and jumps to them', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines([
+      'apple pie',
+      'banana bread',
+      'apple sauce',
+      'cherry tart',
+      'apple crumble',
+      'date cake',
+      'elderberry jam',
+      'fig newton',
+      'grapefruit',
+      'honeydew',
+    ]);
+    // Search for "apple" — 3 matches, jumps to first (line 0).
+    const count = view.startSearch('apple');
+    expect(count).toBe(3);
+    expect(view.currentScrollOffset).toBe(0);
+
+    // Status reflects 1/3.
+    let status = view.getSearchStatus();
+    expect(status?.current).toBe(1);
+    expect(status?.total).toBe(3);
+
+    // Next → 2nd match (line 2).
+    view.searchNext();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(2);
+
+    // Next again → 3rd match (line 4).
+    view.searchNext();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(3);
+
+    // Next wraps to 1st match.
+    view.searchNext();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(1);
+
+    // Prev wraps back to 3rd match.
+    view.searchPrev();
+    status = view.getSearchStatus();
+    expect(status?.current).toBe(3);
+  });
+
+  it('Gen 16: search is case-insensitive and clearable', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['Hello World', 'hello there', 'HELLO AGAIN']);
+    expect(view.startSearch('hello')).toBe(3);
+    expect(view.getSearchStatus()).not.toBeNull();
+
+    view.clearSearch();
+    expect(view.getSearchStatus()).toBeNull();
+  });
+
+  it('Gen 16: no matches returns 0 and status shows 0/0', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['foo', 'bar', 'baz']);
+    expect(view.startSearch('xyz')).toBe(0);
+    const status = view.getSearchStatus();
+    expect(status?.current).toBe(0);
+    expect(status?.total).toBe(0);
+  });
+
+  it('removing pinned quest resets pin state', () => {
+    const grid = makeGrid();
+    grid.addQuest(makeQuest('a'));
+    grid.addQuest(makeQuest('b'));
+    grid.togglePin('a');
+    expect(grid.getViewMode()).toBe('pinned');
+
+    grid.removeQuest('a');
+    expect(grid.getPinnedQuestId()).toBeNull();
+    expect(grid.getViewMode()).toBe('dashboard');
+  });
+
+  it('Gen 28: shows inline approval prompt when waiting-approval', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['line 1', 'line 2']);
+    const quest = makeQuest('q1', {
+      state: 'waiting-approval',
+      pendingApprovalSummary: 'Edit src/app.ts',
+    });
+    const lines = view.render(quest, 80);
+    const joined = lines.join('\n');
+    expect(joined).toContain('Edit src/app.ts');
+    expect(joined).toContain('[a] approve');
+    expect(joined).toContain('[x] reject');
+    expect(joined).toContain('[r] rewind');
+  });
+
+  it('Gen 28: no approval prompt for non-approval states', () => {
+    const view = new QuestExpandView();
+    view.setMaxVisibleLines(5);
+    view.appendLines(['line 1']);
+    const quest = makeQuest('q2', { state: 'running' });
+    const lines = view.render(quest, 80);
+    const joined = lines.join('\n');
+    expect(joined).not.toContain('[a] approve');
+  });
+});
