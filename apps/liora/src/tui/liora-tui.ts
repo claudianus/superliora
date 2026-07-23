@@ -4230,7 +4230,7 @@ export class LioraTUI {
   private async pollPinnedTaskStream(): Promise<void> {
     if (this.state.activeDialog !== 'dashboard') return;
     const pinned = this.questPinController?.getPinnedQuest();
-    if (pinned === undefined || !pinned.id.startsWith('task:')) return;
+    if (pinned == null || !pinned.id.startsWith('task:')) return;
     const session = this.session;
     if (session === undefined) return;
 
