@@ -1051,6 +1051,22 @@ export class BentoDashboardComponent extends Container implements Focusable {
         summaryParts.push(`⌛ stalest: ${stalest.name} ${formatElapsed(idleFor)}`);
       }
     }
+    // Gen 117: surface the quest with the most code changes so the most
+    // productive session is obvious at a glance (pairs with the F-key jump).
+    if (quests.length > 1) {
+      let busiest: Quest | undefined;
+      let busiestChanges = 0;
+      for (const q of quests) {
+        const changes = q.changeCount.added + q.changeCount.removed;
+        if (changes > busiestChanges) {
+          busiestChanges = changes;
+          busiest = q;
+        }
+      }
+      if (busiest !== undefined && busiestChanges > 0) {
+        summaryParts.push(`⚒ busiest: ${busiest.name} ${String(busiestChanges)}`);
+      }
+    }
     if (totalCost > 0) {
       summaryParts.push(`$${totalCost.toFixed(2)}`);
     }

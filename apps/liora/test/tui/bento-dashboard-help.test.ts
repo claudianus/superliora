@@ -500,6 +500,61 @@ describe('Gen 111: summary bar failed count', () => {
   });
 });
 
+describe('Gen 117: summary bar busiest callout', () => {
+  function makeComponentWithChanges() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { name: 'Small', changeCount: { added: 1, removed: 0 } }));
+    grid.addQuest(makeQuest('b', { name: 'Big', changeCount: { added: 40, removed: 12 } }));
+    grid.addQuest(makeQuest('c', { name: 'Mid', changeCount: { added: 8, removed: 3 } }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    return { component };
+  }
+
+  it('shows the quest with the most code changes', () => {
+    const { component } = makeComponentWithChanges();
+    const output = component.render(120).join('\n');
+    expect(output).toContain('busiest: Big 52');
+  });
+
+  it('omits busiest when there is only one quest', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { changeCount: { added: 10, removed: 5 } }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    const output = component.render(120).join('\n');
+    expect(output).not.toContain('busiest');
+  });
+});
+
 describe('Gen 105: summary bar sort reversal indicator', () => {
   function makeComponentWithCosts() {
     const grid = new QuestGridController({
@@ -528,7 +583,7 @@ describe('Gen 105: summary bar sort reversal indicator', () => {
     const { component, grid } = makeComponentWithCosts();
     grid.cycleSortMode(); // attention → cost
 
-    const output = component.render(120).join('\n');
+    const output = component.render(200).join('\n');
     expect(output).toContain('sort: cost');
     expect(output).not.toContain('cost ↓');
   });
@@ -538,7 +593,7 @@ describe('Gen 105: summary bar sort reversal indicator', () => {
     grid.cycleSortMode(); // attention → cost
     grid.toggleSortReverse();
 
-    const output = component.render(120).join('\n');
+    const output = component.render(200).join('\n');
     expect(output).toContain('sort: cost ↓');
   });
 
@@ -546,7 +601,7 @@ describe('Gen 105: summary bar sort reversal indicator', () => {
     const { component, grid } = makeComponentWithCosts();
     grid.toggleSortReverse();
 
-    const output = component.render(120).join('\n');
+    const output = component.render(200).join('\n');
     expect(output).toContain('sort: attention ↓');
   });
 });
