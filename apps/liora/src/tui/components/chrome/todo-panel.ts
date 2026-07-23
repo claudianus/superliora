@@ -398,7 +398,7 @@ function renderBoardMeta(
       ? chalk.hex(colors.warning).bold(wipText)
       : chalk.hex(colors.textDim)(wipText);
   const progress =
-    total > 0 && contentWidth >= 28
+    total > 0 && contentWidth >= 40
       ? `${renderRendererRatioProgressBar({
           ratio,
           width: 8,
@@ -421,9 +421,9 @@ function renderBoardMeta(
       chalk.hex(colors.warning).bold(`stale · ${String(callsSinceUpdate)} calls since update`),
     );
   }
-  // Compact Context rail: keep the live flow chip, drop the rest so the line
-  // does not end in a mid-bar `░…` clip.
-  if (contentWidth < 28 && flow !== undefined) {
+  // Context rail (and other sub-40 bands): keep the live flow chip, drop the
+  // rest so the line does not end in a mid-bar / mid-word clip.
+  if (contentWidth < 40 && flow !== undefined) {
     return `  ${chalk.hex(colors.primary)(`${renderShimmerPrefix()}flow ${flow}`)} · ${wip}`;
   }
   return `  ${parts.join(chalk.hex(colors.textMuted)(' · '))}`;
