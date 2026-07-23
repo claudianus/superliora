@@ -37,6 +37,8 @@ export interface ThumbnailEntry {
   readonly contextUsage?: number | undefined;
   /** Gen 62: composite health score (0–100). */
   readonly healthScore: number;
+  /** Gen 104: true when the quest is awaiting an operator approval decision. */
+  readonly awaitingApproval: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +81,8 @@ export function buildThumbnailStrip(
         contextUsage: q.contextUsage,
         // Gen 62: composite health so the strip surfaces at-risk quests.
         healthScore: questHealthScore(q, now),
+        // Gen 104: flag approval-pending quests so they stand out in the strip.
+        awaitingApproval: q.state === 'waiting-approval',
       };
     });
 }
@@ -116,7 +120,10 @@ export function renderThumbnailStripLine(
     // Gen 62: append a compact health score so at-risk quests stand out in
     // the strip without unpinning.
     const health = ` ♥${String(entry.healthScore)}`;
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}]`;
+    // Gen 104: mark approval-pending quests so the operator sees which siblings
+    // need a decision, complementing the w-key attention cycle.
+    const approval = entry.awaitingApproval ? ' ⏳' : '';
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);

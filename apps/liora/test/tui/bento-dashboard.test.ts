@@ -1096,6 +1096,32 @@ describe('Gen 62: thumbnail strip health score', () => {
   });
 });
 
+describe('Gen 104: thumbnail strip approval marker', () => {
+  it('flags approval-pending quests in entries', () => {
+    const quests = [
+      makeQuest('a', { state: 'waiting-approval', name: 'Wait' }),
+      makeQuest('b', { state: 'running', name: 'Run' }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.awaitingApproval).toBe(true);
+    expect(entries[1]!.awaitingApproval).toBe(false);
+  });
+
+  it('renders the approval marker for waiting quests', () => {
+    const quests = [makeQuest('a', { state: 'waiting-approval', name: 'Wait' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).toContain('⏳');
+  });
+
+  it('omits the approval marker for non-waiting quests', () => {
+    const quests = [makeQuest('a', { state: 'running', name: 'Run' })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 120, false);
+    expect(line).not.toContain('⏳');
+  });
+});
+
 describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
   it('focuses the most urgent quest when nothing is focused', () => {
     const ctrl = makeController();
