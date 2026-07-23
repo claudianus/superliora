@@ -1251,13 +1251,6 @@ export class WorkspaceController {
       return true;
     }
 
-    // Ctrl+G: toggle keyboard help overlay
-    if (event.key === 'character' && event.text === 'g') {
-      this.helpOpen = !this.helpOpen;
-      this.requestRender();
-      return true;
-    }
-
     // Ctrl+P: toggle layout preset overlay
     if (event.key === 'character' && event.text === 'p') {
       if (this.presetManager === null) return false;
@@ -1611,7 +1604,7 @@ export class WorkspaceController {
       }
     }
     lines.push(divider);
-    lines.push(` ${currentTheme.dimFg('textMuted', 'F1/Ctrl+G: 도움말 · 아무 키: 닫기')}`);
+    lines.push(` ${currentTheme.dimFg('textMuted', 'F1: 도움말 · 아무 키: 닫기')}`);
     return lines;
   }
 
@@ -1627,7 +1620,7 @@ export class WorkspaceController {
     { id: 'panel-switcher', label: '패널 퀵 스위처', shortcut: 'Ctrl+/' },
     { id: 'search', label: '패널 콘텐츠 검색', shortcut: 'Ctrl+F' },
     { id: 'presets', label: '레이아웃 프리셋', shortcut: 'Ctrl+P' },
-    { id: 'help', label: '키보드 도움말', shortcut: 'Ctrl+G' },
+    { id: 'help', label: '키보드 도움말', shortcut: 'F1' },
     { id: 'refresh-files', label: '파일 탐색기 새로고침' },
     { id: 'refresh-git', label: 'Git Diff 새로고침' },
     { id: 'clear-activity', label: '활동 피드 지우기' },
