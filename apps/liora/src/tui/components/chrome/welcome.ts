@@ -58,9 +58,16 @@ export class WelcomeComponent implements Component {
       const model = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)(modelUnset)
         : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
-      return [...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`].map((line) =>
-        truncateToWidth(line, safeWidth, '…'),
+      const shortcuts = chalk.hex(currentTheme.palette.textMuted)(
+        useCompactPrompt ? 'Ctrl+/ panels · Shift-Tab Ultrawork' : '',
       );
+      const lines = [
+        ...banner,
+        prompt,
+        `${ttui('tui.welcome.modelPrefix')}${model}`,
+        ...(shortcuts ? [shortcuts] : []),
+      ];
+      return lines.map((line) => truncateToWidth(line, safeWidth, '…'));
     }
 
     const contentWidth = Math.max(1, safeWidth);
