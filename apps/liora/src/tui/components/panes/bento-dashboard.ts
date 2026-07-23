@@ -1070,6 +1070,22 @@ export class BentoDashboardComponent extends Container implements Focusable {
     if (totalCost > 0) {
       summaryParts.push(`$${totalCost.toFixed(2)}`);
     }
+    // Gen 118: surface the most expensive quest so runaway cost is obvious at
+    // a glance (pairs with the m-key jump to the priciest session).
+    if (quests.length > 1) {
+      let priciest: Quest | undefined;
+      let priciestCost = 0;
+      for (const q of quests) {
+        const cost = q.sessionCostUsd ?? 0;
+        if (cost > priciestCost) {
+          priciestCost = cost;
+          priciest = q;
+        }
+      }
+      if (priciest !== undefined && priciestCost > 0) {
+        summaryParts.push(`💸 priciest: ${priciest.name} $${priciestCost.toFixed(2)}`);
+      }
+    }
     // Gen 26: indicate when attention-only mode is active.
     if (this.gridController.isAttentionOnly()) {
       summaryParts.push('⚠ attention-only');

@@ -555,6 +555,61 @@ describe('Gen 117: summary bar busiest callout', () => {
   });
 });
 
+describe('Gen 118: summary bar priciest callout', () => {
+  function makeComponentWithCosts() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { name: 'Cheap', sessionCostUsd: 0.5 }));
+    grid.addQuest(makeQuest('b', { name: 'Pricey', sessionCostUsd: 12.34 }));
+    grid.addQuest(makeQuest('c', { name: 'Mid', sessionCostUsd: 3 }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    return { component };
+  }
+
+  it('shows the quest with the highest session cost', () => {
+    const { component } = makeComponentWithCosts();
+    const output = component.render(200).join('\n');
+    expect(output).toContain('priciest: Pricey $12.34');
+  });
+
+  it('omits priciest when there is only one quest', () => {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { sessionCostUsd: 10 }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    const output = component.render(200).join('\n');
+    expect(output).not.toContain('priciest');
+  });
+});
+
 describe('Gen 105: summary bar sort reversal indicator', () => {
   function makeComponentWithCosts() {
     const grid = new QuestGridController({
