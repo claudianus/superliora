@@ -44,6 +44,8 @@ export interface ThumbnailEntry {
   readonly ctxRisk: boolean;
   /** Gen 112: true when the quest has failed and needs investigation. */
   readonly failed: boolean;
+  /** Gen 119: true when the quest has the most code changes in the fleet. */
+  readonly busiest: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,15 @@ export function buildThumbnailStrip(
   blinkPhase: boolean,
   now: number = Date.now(),
 ): readonly ThumbnailEntry[] {
+  // Gen 119: find the fleet's highest change count so the busiest quest can be
+  // flagged in the strip (only meaningful when more than one quest exists).
+  let maxChanges = 0;
+  if (quests.length > 1) {
+    for (const q of quests) {
+      const changes = q.changeCount.added + q.changeCount.removed;
+      if (changes > maxChanges) maxChanges = changes;
+    }
+  }
   return quests
     .filter((q) => q.id !== pinnedQuestId)
     .map((q) => {
@@ -75,6 +86,7 @@ export function buildThumbnailStrip(
         ? '!'
         : questStateIcon(q.state);
       const label = truncateLabel(q.name, MAX_LABEL_WIDTH);
+      const changes = q.changeCount.added + q.changeCount.removed;
       return {
         questId: q.id,
         label,
@@ -94,6 +106,9 @@ export function buildThumbnailStrip(
           contextSeverityToken(q.contextUsage) !== 'success',
         // Gen 112: flag failed quests so sessions needing investigation stand out.
         failed: q.state === 'failed',
+        // Gen 119: flag the busiest quest so the most productive session is
+        // scannable across the fleet without unpinning.
+        busiest: maxChanges > 0 && changes === maxChanges,
       };
     });
 }
@@ -140,7 +155,10 @@ export function renderThumbnailStripLine(
     // Gen 112: mark failed quests so sessions needing investigation stand out,
     // complementing the summary bar's failed count.
     const failedMark = entry.failed ? ' ✖' : '';
-    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}${ctxWarn}${failedMark}]`;
+    // Gen 119: mark the busiest quest so the most productive session stands out,
+    // complementing the summary bar's busiest callout.
+    const busiestMark = entry.busiest ? ' ⚒' : '';
+    const plainSegment = `${prefix}[${entry.icon} ${entry.label}${todo}${ctx}${health}${approval}${ctxWarn}${failedMark}${busiestMark}]`;
     const segmentWidth = plainSegment.length + 1; // +1 for space separator
     if (usedWidth + segmentWidth > maxWidth) break;
     const token = questStateColorToken(entry.state);

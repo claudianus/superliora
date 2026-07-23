@@ -1264,6 +1264,38 @@ describe('Gen 112: thumbnail strip failed marker', () => {
   });
 });
 
+describe('Gen 119: thumbnail strip busiest marker', () => {
+  it('flags the quest with the most changes in the fleet', () => {
+    const quests = [
+      makeQuest('a', { changeCount: { added: 1, removed: 0 } }),
+      makeQuest('b', { changeCount: { added: 40, removed: 12 } }),
+      makeQuest('c', { changeCount: { added: 8, removed: 3 } }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.busiest).toBe(false);
+    expect(entries[1]!.busiest).toBe(true);
+    expect(entries[2]!.busiest).toBe(false);
+  });
+
+  it('renders the busiest marker for the busiest quest', () => {
+    const quests = [
+      makeQuest('a', { changeCount: { added: 1, removed: 0 } }),
+      makeQuest('b', { changeCount: { added: 40, removed: 12 } }),
+    ];
+    const entries = buildThumbnailStrip(quests, null, false);
+    const line = renderThumbnailStripLine(entries, 200, false);
+    expect(line).toContain('⚒');
+  });
+
+  it('omits the busiest marker when there is only one quest', () => {
+    const quests = [makeQuest('a', { changeCount: { added: 40, removed: 12 } })];
+    const entries = buildThumbnailStrip(quests, null, false);
+    expect(entries[0]!.busiest).toBe(false);
+    const line = renderThumbnailStripLine(entries, 200, false);
+    expect(line).not.toContain('⚒');
+  });
+});
+
 describe('Gen 39: ensureFocus lands on the most urgent quest', () => {
   it('focuses the most urgent quest when nothing is focused', () => {
     const ctrl = makeController();
