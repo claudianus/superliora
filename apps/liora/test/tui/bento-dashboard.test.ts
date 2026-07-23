@@ -536,6 +536,40 @@ describe('Gen 94: focus next context-risk quest', () => {
   });
 });
 
+describe('Gen 97: reverse sort direction', () => {
+  it('toggleSortReverse flips the sort order', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a', { sessionCostUsd: 1 }));
+    ctrl.addQuest(makeQuest('b', { sessionCostUsd: 5 }));
+    ctrl.addQuest(makeQuest('c', { sessionCostUsd: 3 }));
+
+    // Cost mode: highest first by default.
+    ctrl.cycleSortMode(); // attention → cost
+    expect(ctrl.getSortMode()).toBe('cost');
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['b', 'c', 'a']);
+
+    // Reverse: lowest first.
+    ctrl.toggleSortReverse();
+    expect(ctrl.isSortReversed()).toBe(true);
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['a', 'c', 'b']);
+
+    // Toggle back: highest first again.
+    ctrl.toggleSortReverse();
+    expect(ctrl.isSortReversed()).toBe(false);
+    expect(ctrl.getQuests().map((q) => q.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('resetView clears the reversal flag', () => {
+    const ctrl = makeController();
+    ctrl.addQuest(makeQuest('a'));
+    ctrl.toggleSortReverse();
+    expect(ctrl.isSortReversed()).toBe(true);
+
+    ctrl.resetView();
+    expect(ctrl.isSortReversed()).toBe(false);
+  });
+});
+
 describe('Gen 63: focus most expensive quest', () => {
   it('focuses the quest with the highest session cost', () => {
     const ctrl = makeController();

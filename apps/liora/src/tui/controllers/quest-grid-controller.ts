@@ -86,6 +86,8 @@ export class QuestGridController {
   private problemsOnly = false;
   // Gen 30: active dashboard sort mode.
   private sortMode: QuestSortMode = 'attention';
+  // Gen 97: when true, the active sort order is reversed (e.g. cheapest first).
+  private sortReversed = false;
 
   constructor(options: QuestGridControllerOptions) {
     this.getViewport = options.getViewport;
@@ -461,7 +463,10 @@ export class QuestGridController {
     const now = Date.now();
     indexed.sort((a, b) => {
       const cmp = this.compareBySortMode(a.quest, b.quest, now);
-      return cmp !== 0 ? cmp : a.index - b.index;
+      // Gen 97: apply the reversal flag to the primary comparison only; the
+      // insertion-order tiebreak stays stable so equal quests keep their order.
+      const directed = this.sortReversed ? -cmp : cmp;
+      return directed !== 0 ? directed : a.index - b.index;
     });
     return indexed.map((entry) => entry.quest.id);
   }
@@ -595,6 +600,20 @@ export class QuestGridController {
   }
 
   /**
+   * Gen 97: toggle the sort direction. When reversed, the active sort mode's
+   * order flips (e.g. cost goes highest→lowest to lowest→highest).
+   */
+  toggleSortReverse(): void {
+    this.sortReversed = !this.sortReversed;
+    this.recomputeLayout();
+  }
+
+  /** Whether the active sort order is reversed (Gen 97). */
+  isSortReversed(): boolean {
+    return this.sortReversed;
+  }
+
+  /**
    * Gen 54: reset all dashboard view state (filter, attention-only, sort mode)
    * back to defaults in one shot, so the operator can quickly return to the
    * baseline view after exploring.
@@ -605,6 +624,7 @@ export class QuestGridController {
     this.ctxRiskOnly = false;
     this.problemsOnly = false;
     this.sortMode = 'attention';
+    this.sortReversed = false;
     this.recomputeLayout();
   }
 

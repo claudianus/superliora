@@ -578,6 +578,12 @@ export class BentoDashboardComponent extends Container implements Focusable {
       return;
     }
 
+    // Gen 97: R → reverse the active sort direction.
+    if (k === 'R') {
+      this.gridController.toggleSortReverse();
+      return;
+    }
+
     // Gen 54: 0 → reset all view state (filter, attention-only, sort mode).
     if (k === '0') {
       this.filterBuffer = '';
@@ -713,6 +719,7 @@ export class BentoDashboardComponent extends Container implements Focusable {
           ['Enter / p', 'Pin (expand) the focused quest'],
           ['/', 'Filter quests by name or state'],
           ['s', 'Cycle sort mode (attention/cost/age/name)'],
+          ['R', 'Reverse the sort direction'],
           ['0', 'Reset view (clear filter, sort, attention-only)'],
           ['a / x / r', 'Approve / reject / rewind focused quest'],
           ['?', 'Show this help'],
@@ -1021,8 +1028,11 @@ export class BentoDashboardComponent extends Container implements Focusable {
     }
     // Gen 30: show the active sort mode when not the default.
     const sortMode = this.gridController.getSortMode();
-    if (sortMode !== 'attention') {
-      summaryParts.push(`↕ sort: ${sortModeLabel(sortMode)}`);
+    // Gen 105: also surface the reversal so the R-key direction is visible.
+    const sortReversed = this.gridController.isSortReversed();
+    if (sortMode !== 'attention' || sortReversed) {
+      const direction = sortReversed ? ' ↓' : '';
+      summaryParts.push(`↕ sort: ${sortModeLabel(sortMode)}${direction}`);
     }
     const summary = `  ${summaryParts.join('  ·  ')}`;
     lines.push(currentTheme.fg(attentionCount > 0 ? 'warning' : 'textMuted', clip(summary, width)));

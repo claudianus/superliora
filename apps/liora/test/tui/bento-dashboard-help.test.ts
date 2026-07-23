@@ -436,3 +436,54 @@ describe('Gen 103: summary bar approval count', () => {
     expect(output).not.toContain('awaiting approval');
   });
 });
+
+describe('Gen 105: summary bar sort reversal indicator', () => {
+  function makeComponentWithCosts() {
+    const grid = new QuestGridController({
+      getViewport: () => ({ x: 0, y: 0, width: 120, height: 40 }),
+      requestRender: () => {},
+    });
+    grid.addQuest(makeQuest('a', { sessionCostUsd: 1 }));
+    grid.addQuest(makeQuest('b', { sessionCostUsd: 5 }));
+    const attention = new AttentionController({
+      writeRaw: () => {},
+      requestRender: () => {},
+    });
+    const pin = new PinController({ gridController: grid, requestRender: () => {} });
+    const component = new BentoDashboardComponent({
+      gridController: grid,
+      attentionController: attention,
+      pinController: pin,
+      expandViews: new Map(),
+      blinkPhase: false,
+      onClose: () => {},
+    });
+    return { component, grid };
+  }
+
+  it('shows the sort mode without a direction arrow when not reversed', () => {
+    const { component, grid } = makeComponentWithCosts();
+    grid.cycleSortMode(); // attention → cost
+
+    const output = component.render(120).join('\n');
+    expect(output).toContain('sort: cost');
+    expect(output).not.toContain('cost ↓');
+  });
+
+  it('shows a direction arrow when the sort is reversed', () => {
+    const { component, grid } = makeComponentWithCosts();
+    grid.cycleSortMode(); // attention → cost
+    grid.toggleSortReverse();
+
+    const output = component.render(120).join('\n');
+    expect(output).toContain('sort: cost ↓');
+  });
+
+  it('shows the reversal even on the default attention mode', () => {
+    const { component, grid } = makeComponentWithCosts();
+    grid.toggleSortReverse();
+
+    const output = component.render(120).join('\n');
+    expect(output).toContain('sort: attention ↓');
+  });
+});
