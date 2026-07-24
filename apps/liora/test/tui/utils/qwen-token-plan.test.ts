@@ -7,6 +7,7 @@ import {
   isQwenTokenPlanAvailable,
   isQwenTokenPlanBaseUrl,
   QWEN_TOKEN_PLAN_BASE_URL,
+  QWEN_TOKEN_PLAN_IMAGE_MODELS,
   QWEN_TOKEN_PLAN_PROVIDER_ID,
   QWEN_TOKEN_PLAN_TEXT_MODELS,
   validateQwenTokenPlanKeyFormat,
@@ -89,17 +90,46 @@ describe('Qwen Token Plan utilities', () => {
       const tools = getQwenHarnessToolsForModel('qwen3.8-max-preview');
       expect(tools).toContain('web_search');
       expect(tools).toContain('code_interpreter');
-      expect(tools).toContain('reverse_image_search');
+      expect(tools).toContain('web_extractor');
+      expect(tools).toContain('i2i_search');
+      expect(tools).toContain('t2i_search');
     });
 
     it('returns core tools for qwen3.7-max', () => {
       const tools = getQwenHarnessToolsForModel('qwen3.7-max');
       expect(tools).toContain('web_search');
-      expect(tools).not.toContain('reverse_image_search');
+      expect(tools).toContain('web_extractor');
+      expect(tools).not.toContain('i2i_search');
+    });
+
+    it('returns no tools for non-harness models', () => {
+      expect(getQwenHarnessToolsForModel('qwen3.6-flash')).toEqual([]);
+      expect(getQwenHarnessToolsForModel('glm-5.2')).toEqual([]);
     });
 
     it('returns empty for unknown model', () => {
       expect(getQwenHarnessToolsForModel('unknown-model')).toEqual([]);
+    });
+  });
+
+  describe('model catalogs', () => {
+    it('lists every Personal plan text model', () => {
+      expect(QWEN_TOKEN_PLAN_TEXT_MODELS.map((m) => m.id)).toEqual([
+        'qwen3.8-max-preview',
+        'qwen3.7-max',
+        'qwen3.7-plus',
+        'qwen3.6-flash',
+        'glm-5.2',
+        'deepseek-v4-pro',
+      ]);
+    });
+
+    it('lists Personal plan image models', () => {
+      expect([...QWEN_TOKEN_PLAN_IMAGE_MODELS]).toEqual([
+        'wan2.7-image',
+        'wan2.7-image-pro',
+        'qwen-image-2.0',
+      ]);
     });
   });
 

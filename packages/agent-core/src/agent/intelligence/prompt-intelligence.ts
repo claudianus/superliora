@@ -158,10 +158,13 @@ export class PromptIntelligenceService {
     if (provider === undefined) return empty;
 
     const context = summarizeHistory(this.agent.context.messages, HISTORY_CONTEXT_CHARS);
+    const preference = this.agent.getResponseLanguagePreference();
+    const languageLine =
+      preference === undefined ? '' : ` Write each suggestion in ${preference.label}.`;
     const userPrompt =
       context.length > 0
-        ? `Recent conversation:\n${context}\n\nSuggest the next tasks.`
-        : 'The conversation just started. Suggest a few sensible first tasks.';
+        ? `Recent conversation:\n${context}\n\nSuggest the next tasks.${languageLine}`
+        : `The conversation just started. Suggest a few sensible first tasks.${languageLine}`;
     const messages: Message[] = [
       { role: 'user', content: [{ type: 'text', text: userPrompt }], toolCalls: [] },
     ];

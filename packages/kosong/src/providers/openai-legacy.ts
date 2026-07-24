@@ -62,9 +62,9 @@ const OPENAI_CHAT_TOOL_CALL_ID_POLICY: ToolCallIdPolicy = {
 };
 
 // ── Qwen Token Plan harness tools ─────────────────────────────────────
-// Server-side built-in tools that the model invokes automatically when
-// enabled. Activated by including tool entries with `type` set to the
-// harness tool identifier (no function schema needed).
+// Official server-side built-in tools (Responses API) that qwen3.7/3.8
+// models invoke automatically. The Chat Completions API cannot carry
+// these tool entries; web search is enabled via `enable_search` instead.
 
 const QWEN_TOKEN_PLAN_URL_MARKER = 'token-plan';
 const QWEN_TOKEN_PLAN_DOMAIN = 'maas.aliyuncs.com';
@@ -77,15 +77,15 @@ function isQwenTokenPlanEndpoint(baseUrl: string | undefined): boolean {
 const QWEN_HARNESS_TOOL_IDS = {
   webSearch: 'web_search',
   codeInterpreter: 'code_interpreter',
-  webScraping: 'web_scraping',
-  reverseImageSearch: 'reverse_image_search',
-  textToImageSearch: 'text_to_image_search',
+  webExtractor: 'web_extractor',
+  reverseImageSearch: 'i2i_search',
+  textToImageSearch: 't2i_search',
 } as const;
 
 const QWEN_ALL_HARNESS_TOOLS: readonly string[] = [
   QWEN_HARNESS_TOOL_IDS.webSearch,
   QWEN_HARNESS_TOOL_IDS.codeInterpreter,
-  QWEN_HARNESS_TOOL_IDS.webScraping,
+  QWEN_HARNESS_TOOL_IDS.webExtractor,
   QWEN_HARNESS_TOOL_IDS.reverseImageSearch,
   QWEN_HARNESS_TOOL_IDS.textToImageSearch,
 ];
@@ -93,7 +93,7 @@ const QWEN_ALL_HARNESS_TOOLS: readonly string[] = [
 const QWEN_CORE_HARNESS_TOOLS: readonly string[] = [
   QWEN_HARNESS_TOOL_IDS.webSearch,
   QWEN_HARNESS_TOOL_IDS.codeInterpreter,
-  QWEN_HARNESS_TOOL_IDS.webScraping,
+  QWEN_HARNESS_TOOL_IDS.webExtractor,
 ];
 
 function qwenHarnessToolsForModel(model: string): readonly string[] {
@@ -613,11 +613,12 @@ export class OpenAILegacyChatProvider implements ChatProvider {
       createParams['tools'] = tools.map((t) => toolToOpenAI(t));
     }
 
-    // Qwen Token Plan: enable server-side web search via `enable_search`
-    // parameter. The Chat Completions API does NOT accept harness tool entries
-    // (e.g. { type: 'web_search' }) in the tools array — that format is only
-    // valid for the Responses API. Injecting them causes a 400 error:
-    // "'function' is a required property".
+    // Qwen Token Plan: harness tools (web_search, code_interpreter, …) run
+    // server-side and are invoked automatically by qwen3.7/3.8 models — the
+    // Chat Completions API does NOT accept harness tool entries in the tools
+    // array (that format is Responses API only; injecting it yields a 400
+    // "'function' is a required property"). Web search is enabled here via
+    // `enable_search`; the harness tool list only gates capability.
     if (isQwenTokenPlanEndpoint(this._baseUrl)) {
       const harnessTools = qwenHarnessToolsForModel(this._model);
       if (harnessTools.length > 0) {

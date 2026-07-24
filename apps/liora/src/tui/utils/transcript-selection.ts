@@ -80,14 +80,11 @@ export function createTranscriptSelectionState(): TranscriptSelectionState {
 }
 
 export function shouldHoldTranscriptAnimation(options: {
-  readonly followOutput: boolean;
   readonly transcriptSelection: TranscriptSelectionState;
 }): boolean {
-  return (
-    !options.followOutput
-    || options.transcriptSelection.isDragging
-    || options.transcriptSelection.hasSelection
-  );
+  // Ambient animation keeps running while the transcript is scrolled back;
+  // only an active selection/drag holds frames so the highlight stays stable.
+  return options.transcriptSelection.isDragging || options.transcriptSelection.hasSelection;
 }
 
 export function regionLineVisibleLength(line: RendererRegionLine): number {
@@ -195,19 +192,24 @@ function sliceByVisibleColumns(text: string, startCol: number, endCol: number): 
   return sliceToVisibleColumn(sliceFromVisibleColumn(text, startCol), endCol - startCol);
 }
 
-export async function copyTranscriptSelectionToClipboard(state: TUIState): Promise<boolean> {
+export async function resolveTranscriptSelectionText(state: TUIState): Promise<string | undefined> {
   const range = state.transcriptSelection.normalizedRange();
-  if (range === undefined) return false;
+  if (range === undefined) return undefined;
   const { resolveTranscriptHitTestContext } = await import('./transcript-hit-test');
   const context = resolveTranscriptHitTestContext(state);
-  if (context === undefined) return false;
+  if (context === undefined) return undefined;
   const text = extractTranscriptSelectionPlainText(
     range,
     context.visibleLines,
     context.viewportStart,
     CHROME_GUTTER,
   );
-  if (text.length === 0) return false;
+  return text.length === 0 ? undefined : text;
+}
+
+export async function copyTranscriptSelectionToClipboard(state: TUIState): Promise<boolean> {
+  const text = await resolveTranscriptSelectionText(state);
+  if (text === undefined) return false;
   await copyTextToClipboard(text);
   state.transcriptSelection.clear();
   requestTUILayoutRender(state);

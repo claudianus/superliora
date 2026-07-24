@@ -152,8 +152,9 @@ Status: in progress. The TUI now owns a thin `TranscriptViewportState` adapter
 backed by the reusable `RendererViewport` primitive from `@harness-kit/tui-renderer`.
 It exposes `followOutput` and `offsetFromBottom`, and the transcript container
 slices its rendered rows through that shared viewport when terminal height is known.
-PageUp/PageDown/Home/End on an empty prompt move this viewport, and ambient
-animation frames are gated while `followOutput` is false. Full-screen output
+PageUp/PageDown/Home/End on an empty prompt move this viewport; ambient
+animation keeps running while the transcript is scrolled back and is only
+gated while a transcript selection is active. Full-screen output
 and approval-preview viewers now use renderer-owned scroll state, line, page,
 home, and end actions, visible line windows, and footer range/percentage state
 instead of recalculating those scroll affordances in each component. The task

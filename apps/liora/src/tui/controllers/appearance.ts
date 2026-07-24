@@ -154,17 +154,16 @@ export function shouldAnimate(appearance: AppearancePreferences): boolean {
 }
 
 export function shouldRenderAmbientAnimationFrame(
-  followOutput: boolean,
   terminalRows: number,
   transcriptSelectionActive = false,
   _options: { readonly nowMs?: number } = {},
 ): boolean {
   if (transcriptSelectionActive) return false;
-  if (!followOutput) return false;
   if (!Number.isFinite(terminalRows) || terminalRows <= 0) return false;
-  // Input frames now have priority (delay 0) and preempt animation frames in
-  // the render loop, so ambient ticks no longer fight the editor for latency.
-  // The old 200ms typing holdoff froze all ambient animation on every keystroke.
+  // Ambient animation keeps running while the transcript is scrolled back;
+  // only an active selection/drag suppresses it. Input frames have priority
+  // (delay 0) and preempt animation frames in the render loop, so ambient
+  // ticks no longer fight the editor for latency.
   return true;
 }
 

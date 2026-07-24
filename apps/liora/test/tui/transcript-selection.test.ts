@@ -165,6 +165,46 @@ describe('transcript selection mouse routing', () => {
     expect(handleTranscriptSelectionMouseInput(state, release)).toBe(true);
     expect(state.transcriptSelection.hasSelection).toBe(true);
   });
+
+  it('copies the selection on drag release, keeps it highlighted, and toasts', async () => {
+    copyTextToClipboardMock.mockClear();
+    const state = createTestTuiState();
+    vi.spyOn(transcriptHitTest, 'resolveTranscriptHitTestContext').mockReturnValue({
+      rect: { x: 0, y: 0, width: 40, height: 5 },
+      viewportStart: 0,
+      visibleRows: 5,
+      stageWidth: 40,
+      leftPad: CHROME_GUTTER,
+      rightPad: CHROME_GUTTER,
+      contentWidth: 38,
+      visibleLines: [' Hello transcript'],
+    });
+
+    const press = {
+      type: 'mouse' as const,
+      raw: '',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      action: 'press' as const,
+      button: 'left' as const,
+      x: CHROME_GUTTER,
+      y: 0,
+    };
+    const drag = { ...press, action: 'drag' as const, x: CHROME_GUTTER + 5 };
+    const release = { ...press, action: 'release' as const, x: CHROME_GUTTER + 5 };
+
+    expect(handleTranscriptSelectionMouseInput(state, press)).toBe(true);
+    expect(handleTranscriptSelectionMouseInput(state, drag)).toBe(true);
+    expect(handleTranscriptSelectionMouseInput(state, release)).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(copyTextToClipboardMock).toHaveBeenCalledWith('Hello');
+      expect(state.toast.visible?.message).toBe('Copied to clipboard');
+    });
+    // Drag-release copy keeps the highlight so the user can re-copy or Ctrl+C.
+    expect(state.transcriptSelection.hasSelection).toBe(true);
+  });
 });
 
 describe('copyTranscriptSelectionToClipboard', () => {
@@ -196,20 +236,18 @@ describe('copyTranscriptSelectionToClipboard', () => {
 });
 
 describe('animation gate', () => {
-  it('holds ambient animation while transcript selection is active', () => {
+  it('holds ambient animation only while transcript selection is active', () => {
     const selection = createTranscriptSelectionState();
-    expect(
-      shouldHoldTranscriptAnimation({ followOutput: true, transcriptSelection: selection }),
-    ).toBe(false);
+    // Scrolling back (followOutput=false) no longer freezes ambient animation;
+    // the predicate no longer knows about scroll state at all.
+    expect(shouldHoldTranscriptAnimation({ transcriptSelection: selection })).toBe(false);
 
     selection.beginPress({ globalLine: 0, col: 0 }, false);
     selection.updateDrag({ globalLine: 0, col: 3 });
     selection.endPress();
-    expect(
-      shouldHoldTranscriptAnimation({ followOutput: true, transcriptSelection: selection }),
-    ).toBe(true);
+    expect(shouldHoldTranscriptAnimation({ transcriptSelection: selection })).toBe(true);
     resetTUIInputInteractionForTests();
-    expect(shouldRenderAmbientAnimationFrame(true, 24, true)).toBe(false);
-    expect(shouldRenderAmbientAnimationFrame(true, 24, false)).toBe(true);
+    expect(shouldRenderAmbientAnimationFrame(24, true)).toBe(false);
+    expect(shouldRenderAmbientAnimationFrame(24, false)).toBe(true);
   });
 });

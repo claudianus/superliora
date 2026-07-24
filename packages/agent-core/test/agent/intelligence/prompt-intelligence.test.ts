@@ -181,6 +181,7 @@ function fakeAgent(overrides: Partial<Agent> = {}): Agent {
     modelProvider: undefined,
     context: { messages: [] },
     generate: vi.fn(),
+    getResponseLanguagePreference: () => undefined,
     ...overrides,
   } as unknown as Agent;
 }

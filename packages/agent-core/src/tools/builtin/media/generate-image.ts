@@ -6,7 +6,7 @@
  * skill catalog required.
  *
  * Qwen Cloud Token Plan support: uses the multimodal-generation API with
- * qwen-image-2.0 (default) or wan2.7-image models.
+ * wan2.7-image (default), wan2.7-image-pro, or qwen-image-2.0 models.
  */
 
 import type { Kaos } from '@superliora/kaos';
@@ -44,6 +44,10 @@ export const GenerateImageInputSchema = z.object({
     .enum(['auto', 'openai', 'google', 'qwen'])
     .optional()
     .describe('Force a provider. Default auto picks the first available key (qwen → openai → google).'),
+  model: z
+    .enum(['wan2.7-image', 'wan2.7-image-pro', 'qwen-image-2.0'])
+    .optional()
+    .describe('Qwen image model (qwen provider only). Defaults to wan2.7-image.'),
 });
 
 export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
@@ -210,7 +214,7 @@ async function generateWithQwen(
   const apiKey = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
   if (apiKey === undefined) throw new Error('QWEN_TOKEN_PLAN_API_KEY is not set.');
   const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
-  const model = 'qwen-image-2.0';
+  const model = args.model ?? 'wan2.7-image';
   const size = toQwenImageSize(args.size);
 
   const response = await fetchImpl(QWEN_IMAGE_API_URL, {

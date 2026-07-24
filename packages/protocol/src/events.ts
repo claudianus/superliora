@@ -794,6 +794,18 @@ export interface CompactionCompletedEvent {
   readonly result: CompactionResult;
 }
 
+/**
+ * Coarse in-flight phase of a full compaction round. Emitted via the volatile
+ * `compaction.progress` event so live clients can render phase-aware progress
+ * without journaling intermediate state.
+ */
+export type CompactionPhase = 'summarizing' | 'repairing' | 'finalizing';
+
+export interface CompactionProgressEvent {
+  readonly type: 'compaction.progress';
+  readonly phase: CompactionPhase;
+}
+
 export interface BackgroundTaskStartedEvent {
   readonly type: 'background.task.started';
   readonly info: BackgroundTaskInfo;
@@ -897,6 +909,7 @@ export type AgentEvent =
   | CompactionBlockedEvent
   | CompactionCancelledEvent
   | CompactionCompletedEvent
+  | CompactionProgressEvent
   | BackgroundTaskStartedEvent
   | BackgroundTaskTerminatedEvent
   | CronFiredEvent
@@ -1643,6 +1656,17 @@ export const compactionCompletedEventSchema = z.object({
   result: compactionResultSchema,
 }) satisfies z.ZodType<CompactionCompletedEvent>;
 
+export const compactionPhaseSchema = z.enum([
+  'summarizing',
+  'repairing',
+  'finalizing',
+]) satisfies z.ZodType<CompactionPhase>;
+
+export const compactionProgressEventSchema = z.object({
+  type: z.literal('compaction.progress'),
+  phase: compactionPhaseSchema,
+}) satisfies z.ZodType<CompactionProgressEvent>;
+
 export const backgroundTaskStartedEventSchema = z.object({
   type: z.literal('background.task.started'),
   info: backgroundTaskInfoSchema,
@@ -1749,6 +1773,7 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   compactionBlockedEventSchema,
   compactionCancelledEventSchema,
   compactionCompletedEventSchema,
+  compactionProgressEventSchema,
   backgroundTaskStartedEventSchema,
   backgroundTaskTerminatedEventSchema,
   cronFiredEventSchema,
@@ -1784,6 +1809,7 @@ export const VOLATILE_EVENT_TYPES = [
   'agent.status.updated',
   'subagent.todo.updated',
   'tools.update_store',
+  'compaction.progress',
 ] as const satisfies readonly AgentEvent['type'][];
 
 export type VolatileEventType = (typeof VOLATILE_EVENT_TYPES)[number];

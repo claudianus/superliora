@@ -25,7 +25,6 @@ export class ResponseLanguageInjector extends DynamicInjector {
   }
 
   protected override getInjection(): string | undefined {
-    if (this.agent.type !== 'main') return undefined;
     const preference = this.agent.getResponseLanguagePreference();
     if (preference === undefined) return undefined;
 

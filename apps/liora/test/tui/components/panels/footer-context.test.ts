@@ -288,7 +288,7 @@ describe('FooterComponent — context NaN resilience', () => {
   });
 });
 
-  it('shows Context OS evidence badge when durable IDs were dropped', () => {
+  it('keeps Context OS diagnostics out of the footer but retains the formatter', () => {
     const footer = new FooterComponent(
       baseState({
         contextUsage: 0.2,
@@ -307,7 +307,8 @@ describe('FooterComponent — context NaN resilience', () => {
     );
     const lines = footer.render(120).map(strip);
     const joined = lines.join('\n');
-    expect(joined).toContain('ctx-os:evidence↓0.50');
+    // Internal Context OS diagnostics are hidden from the footer.
+    expect(joined).not.toContain('ctx-os:');
     expect(formatContextOSFooterBadge({
       pageCount: 2,
       readyPageCount: 1,
@@ -320,7 +321,7 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(formatContextOSFooterBadge(null)).toBeNull();
   });
 
-  it('shows micro-clear badge when tool-result clearing has fired', () => {
+  it('keeps micro-compaction diagnostics out of the footer but retains the formatter', () => {
     const footer = new FooterComponent(
       baseState({
         contextUsage: 0.3,
@@ -335,7 +336,8 @@ describe('FooterComponent — context NaN resilience', () => {
       }),
     );
     const joined = footer.render(120).map(strip).join('\n');
-    expect(joined).toContain('μ:usage_pressure×3');
+    // Internal micro-compaction diagnostics are hidden from the footer.
+    expect(joined).not.toContain('μ:');
     expect(
       formatMicroCompactionFooterBadge({
         total: 3,

@@ -1,4 +1,5 @@
 import type { NativeInputEvent, NativeInputMouseEvent } from '#/tui/renderer';
+import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
 import type { TUIState } from '../tui-state';
 import { appearanceAnimationNow } from './appearance-effects';
@@ -9,6 +10,7 @@ import {
   resolveTranscriptHitTestContext,
   transcriptPointForMouse,
 } from './transcript-hit-test';
+import { resolveTranscriptSelectionText } from './transcript-selection';
 
 export function handleTranscriptSelectionMouseInput(
   state: TUIState,
@@ -67,8 +69,21 @@ function handleTranscriptSelectionMouseEvent(
   if (handleIdleFeedMouseInput(state, event, point)) {
     return true;
   }
+  const wasDragging = selection.isDragging;
   selection.endPress();
+  if (wasDragging) {
+    // Drag-release copies the selection without clearing it, and confirms
+    // with a transient toast overlay.
+    void copyTranscriptSelectionOnRelease(state);
+  }
   return true;
+}
+
+async function copyTranscriptSelectionOnRelease(state: TUIState): Promise<void> {
+  const text = await resolveTranscriptSelectionText(state);
+  if (text === undefined) return;
+  await copyTextToClipboard(text);
+  state.toast.show('Copied to clipboard');
 }
 
 export function clearTranscriptSelection(state: TUIState): void {

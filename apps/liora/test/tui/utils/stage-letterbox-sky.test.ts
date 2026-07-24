@@ -59,7 +59,7 @@ describe('stage letterbox night sky', () => {
   });
 
   function ultrawideBands() {
-    const layout = resolveStageLayout({ width: 200, height: 80, hasRailContent: false });
+    const layout = resolveStageLayout({ width: 200, height: 80 });
     const bundle = stageFrameBundleRect(layout);
     return stageFrameLetterboxBands(bundle, 200, 80);
   }

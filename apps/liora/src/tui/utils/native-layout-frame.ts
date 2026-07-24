@@ -255,7 +255,6 @@ export function detectTUIStateNativeLayoutShift(
   const stageWidth = resolveStageLayout({
     width: frameWidth,
     height: frameHeight,
-    hasRailContent: false,
   }).stage.width;
   const transcriptStart = state.transcriptViewport.start();
   const transcriptContentRows = state.transcriptContainer.contentRowCount(stageWidth);
@@ -292,7 +291,6 @@ export function detectTUIStateNativeLayoutShift(
 interface TUIStateNativeChromeCache extends TUINativeStageChrome {
   readonly width: number;
   readonly stageWidth: number;
-  readonly stageMode: 'stack' | 'rail';
   /**
    * Activity-state signature (streaming phase + thinking) the cached chrome was
    * built under. Chrome only carries time-based content (moon spinner, pulsing
@@ -301,8 +299,6 @@ interface TUIStateNativeChromeCache extends TUINativeStageChrome {
    * activity starts/stops so a stale spinner is never reused.
    */
   readonly chromeEpoch: string;
-  /** Whether any situational panel had content when the cache was built. */
-  readonly hasRailContent: boolean;
 }
 
 export function createTUIStateNativeRenderCallback(
@@ -333,7 +329,6 @@ export function createTUIStateNativeRenderCallback(
       shouldAnimate(state.appState.appearance ?? getActiveAppearancePreferences()) &&
       (isNativeFullscreenTakeover(state) ||
         shouldRenderAmbientAnimationFrame(
-          state.transcriptViewport.followOutput,
           size.rows,
           state.transcriptSelection.isDragging || state.transcriptSelection.hasSelection,
           { nowMs: frame.timestamp },
@@ -376,7 +371,6 @@ export function createTUIStateNativeRenderCallback(
     const stageProbe = resolveStageLayout({
       width: size.columns,
       height,
-      hasRailContent: chromeCache?.stageMode === 'rail',
       workspaceCenter,
     });
     // Chrome (header/footer/panels) only carries time-based content while the
@@ -434,9 +428,6 @@ export function createTUIStateNativeRenderCallback(
       skipDecorativeEditorEffects: pureInputFrame,
       // Damage-only stage paint on ambient ticks — see ambientDamageOnly.
       ambientDamageOnly,
-      // Skip the four panel probe renders on pure-input frames.
-      cachedHasRailContent:
-        reuseChrome !== undefined ? chromeCache?.hasRailContent : undefined,
       // Reuse transcript lines when the transcript has not changed.
       reuseTranscriptLines: canReuseTranscript ? transcriptLineCache : undefined,
     });
@@ -446,9 +437,7 @@ export function createTUIStateNativeRenderCallback(
       chromeCache = {
         width: size.columns,
         stageWidth: nativeFrame.stageWidth,
-        stageMode: nativeFrame.stageMode,
         chromeEpoch,
-        hasRailContent: nativeFrame.hasRailContent,
         header: nativeFrame.chrome.header,
         activity: nativeFrame.chrome.activity,
         todo: nativeFrame.chrome.todo,
@@ -508,7 +497,6 @@ export function createTUIStateNativeRenderer(
       // own animations — never hold frames based on transcript scroll state.
       if (isNativeFullscreenTakeover(state)) return false;
       return shouldHoldTranscriptAnimation({
-        followOutput: state.transcriptViewport.followOutput,
         transcriptSelection: state.transcriptSelection,
       });
     }),
@@ -523,6 +511,9 @@ export function createTUIStateNativeRenderer(
       options.onFrame?.(result, stats);
     },
   });
+  state.toast.onChanged = () => {
+    nativeRenderer.requestRender('manual');
+  };
   return nativeRenderer;
 }
 
@@ -643,9 +634,6 @@ interface TUIStateNativeFrame {
   readonly cursor: RendererCursorState;
   readonly chrome: TUIStateNativeFrameChrome;
   readonly stageWidth: number;
-  readonly stageMode: 'stack' | 'rail';
-  /** Whether any situational panel had content (drives rail vs stack mode). */
-  readonly hasRailContent: boolean;
   /** Rendered transcript region lines (cacheable across pure-input frames). */
   readonly transcriptLines: readonly RendererRegionLine[];
 }
@@ -729,8 +717,6 @@ function buildNativeFullscreenTakeoverFrame(
     cursor: projected.cursor ?? hiddenNativeCursor(),
     chrome: emptyNativeFrameChrome(),
     stageWidth: width,
-    stageMode: 'stack',
-    hasRailContent: false,
     transcriptLines: [],
   };
 }
@@ -751,11 +737,6 @@ function buildTUIStateNativeFrame(
      */
     readonly ambientDamageOnly?: boolean;
     /**
-     * Cached rail-content probe from a prior frame. When set, the four panel
-     * probe renders inside planTUINativeStage are skipped entirely.
-     */
-    readonly cachedHasRailContent?: boolean;
-    /**
      * Cached transcript region lines from a prior frame. When set,
      * nativeTranscriptRegionLines is skipped — the transcript has not changed
      * on pure-input frames.
@@ -773,7 +754,6 @@ function buildTUIStateNativeFrame(
   }
   const plan = planTUINativeStage(state, width, height, {
     reuseChrome: options.reuseChrome,
-    cachedHasRailContent: options.cachedHasRailContent,
     workspaceCenter: options.workspaceCenter,
     resolveEditorFallbackLines: (contentWidth) =>
       nativeEditorFallbackRegionLines(state, contentWidth),
@@ -875,26 +855,7 @@ function buildTUIStateNativeFrame(
       }];
     }),
   );
-  const regions: RendererFrameRegion[] =
-    plan.railRect !== undefined && plan.railLines.length > 0
-      ? [
-          ...stackRegions,
-          {
-            id: 'rail',
-            rect: plan.railRect,
-            content: promoteRendererRegionLinesToCells(
-              projectRendererCursorMarkerLines({
-                lines: plan.railLines,
-                rect: plan.railRect,
-                viewport: { x: 0, y: 0, width, height },
-              }).lines,
-            ),
-            clear: !ambientDamageOnly,
-            background: canvasBackground,
-            zIndex: 2,
-          },
-        ]
-      : [...stackRegions];
+  const regions: RendererFrameRegion[] = [...stackRegions];
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
   // Keep letterbox sky + frame chase alive while typing; only editor VFX skips.
   regions.push(
@@ -915,13 +876,15 @@ function buildTUIStateNativeFrame(
         width,
         height,
       );
+  if (diagnosticsOverlay !== undefined) regions.push(diagnosticsOverlay);
+  const editorTopY = layout?.regions?.find((region) => region.id === 'editor')?.rect?.y;
+  const toastOverlay = createTUIToastOverlayRegion(state, width, height, editorTopY);
+  if (toastOverlay !== undefined) regions.push(toastOverlay);
   return {
-    regions: diagnosticsOverlay === undefined ? regions : [...regions, diagnosticsOverlay],
+    regions,
     cursor,
     chrome,
     stageWidth,
-    stageMode: plan.stage.mode,
-    hasRailContent: plan.hasRailContent,
     transcriptLines,
   };
 }
@@ -978,6 +941,46 @@ function createTUIStateDiagnosticsOverlayRegion(
   };
 }
 
+/**
+ * Transient toast (e.g. "Copied to clipboard"). Drawn above all chrome
+ * (zIndex 9) while `state.toast.visible` has not expired. Floats two rows
+ * above the editor region when present, otherwise near the bottom edge.
+ */
+function createTUIToastOverlayRegion(
+  state: TUIState,
+  width: number,
+  height: number,
+  editorTopY: number | undefined,
+): RendererFrameRegion | undefined {
+  const toast = state.toast.visible;
+  if (toast === null || toast.expiresAtMs <= Date.now()) return undefined;
+  const palette = currentTheme.palette;
+  const accent = palette.success ?? palette.primary;
+  const background = palette.surfaceRaised ?? palette.surface;
+  const label = ` ✓ ${toast.message} `;
+  const labelWidth = Math.min(visibleWidth(label), width);
+  if (labelWidth <= 0 || height <= 0) return undefined;
+  const x = Math.max(0, Math.min(Math.floor((width - labelWidth) / 2), width - labelWidth));
+  const y = editorTopY === undefined ? Math.max(0, height - 3) : Math.max(0, editorTopY - 2);
+  const content =
+    `\u001B[1m\u001B[38;2;${hexToTruecolorSgr(accent)}m\u001B[48;2;${hexToTruecolorSgr(background)}m` +
+    `${label}\u001B[0m`;
+  return {
+    id: 'toast',
+    zIndex: 9,
+    rect: { x, y, width: labelWidth, height: 1 },
+    content: [content],
+  };
+}
+
+function hexToTruecolorSgr(hex: string): string {
+  const value = hex.replace('#', '');
+  const r = Number.parseInt(value.slice(0, 2), 16);
+  const g = Number.parseInt(value.slice(2, 4), 16);
+  const b = Number.parseInt(value.slice(4, 6), 16);
+  return `${r};${g};${b}`;
+}
+
 function createTUIStateNativeRegionVfx(
   state: TUIState,
   preset: RendererRegionVfxPreset,
@@ -992,7 +995,8 @@ function createTUIStateNativeRegionVfx(
     readonly width?: number;
   },
 ): ReturnType<typeof createRendererRegionVfx> {
-  if (!state.transcriptViewport.followOutput) return undefined;
+  // Region VFX keeps running while the transcript is scrolled back; ambient
+  // motion only pauses for an active transcript selection (frame hold).
   if (!motionEffectsAllowed()) return undefined;
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
   // Ultrawork / premium spectacle pins full quality so the glow does not freeze under load.

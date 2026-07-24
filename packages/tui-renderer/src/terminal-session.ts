@@ -68,7 +68,16 @@ export const ANSI_DISABLE_BRACKETED_PASTE = '\u001B[?2004l';
 export const ANSI_ENABLE_FOCUS_EVENTS = '\u001B[?1004h';
 export const ANSI_DISABLE_FOCUS_EVENTS = '\u001B[?1004l';
 export const ANSI_ENABLE_MOUSE_TRACKING = '\u001B[?1000h';
+/**
+ * Button-event tracking: reports press/release plus motion while a button is
+ * held. Plain 1000h only reports press/release, so drag gestures (transcript
+ * text selection) never receive move events. 1002 supersedes 1000 on
+ * xterm-compatible terminals; both are written so terminals that ignore 1002
+ * keep press/release tracking.
+ */
+export const ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING = '\u001B[?1002h';
 export const ANSI_DISABLE_MOUSE_TRACKING = '\u001B[?1000l';
+export const ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING = '\u001B[?1002l';
 export const ANSI_ENABLE_SGR_MOUSE_MODE = '\u001B[?1006h';
 export const ANSI_DISABLE_SGR_MOUSE_MODE = '\u001B[?1006l';
 // Flags: 0b1 disambiguate + 0b100 report alternate keys (base-layout-key).
@@ -165,6 +174,10 @@ export class NativeTerminalSession {
       this.cleanup.push(() => {
         output.write(ANSI_DISABLE_MOUSE_TRACKING);
       });
+      output.write(ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING);
+      this.cleanup.push(() => {
+        output.write(ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING);
+      });
       output.write(ANSI_ENABLE_SGR_MOUSE_MODE);
       this.cleanup.push(() => {
         output.write(ANSI_DISABLE_SGR_MOUSE_MODE);
@@ -201,6 +214,7 @@ export class NativeTerminalSession {
       ANSI_SHOW_CURSOR +
       ANSI_POP_KITTY_KEYBOARD_PROTOCOL +
       ANSI_DISABLE_SGR_MOUSE_MODE +
+      ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING +
       ANSI_DISABLE_MOUSE_TRACKING +
       ANSI_DISABLE_FOCUS_EVENTS +
       ANSI_DISABLE_BRACKETED_PASTE +

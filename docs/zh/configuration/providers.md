@@ -196,6 +196,25 @@ liora provider route status <sessionId>
 
 编辑配置或导入 provider 后，运行 `liora provider doctor`。它会检查缺失的环境变量引用、格式错误的 per-credential `base_url`、重复 label、损坏的 fallback alias，以及无效的 preferred credential label，并且不会打印 API key 或 OAuth storage key。
 
+## Qwen Cloud Token Plan
+
+Qwen Cloud Token Plan 是带专用 API key（`sk-sp-` 前缀）的订阅套餐，一个额度覆盖文本对话、图像生成、视频生成和视觉理解。
+
+设置专用 key 后，在 TUI 中连接（`/login` → Qwen Cloud (Token Plan)），或在启动时自动配置：
+
+```sh
+export QWEN_TOKEN_PLAN_API_KEY=sk-sp-xxxxxxxxxxxx
+```
+
+Provider 使用 OpenAI 兼容端点 `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`。
+
+- **文本模型** — `qwen3.8-max-preview`、`qwen3.7-max`、`qwen3.7-plus`、`qwen3.6-flash`、`glm-5.2`、`deepseek-v4-pro`。
+- **Harness 工具** — `web_search`、`code_interpreter`、`web_extractor`、`i2i_search`、`t2i_search` 在服务端运行，由 qwen3.7/3.8 模型自动调用，客户端无需配置。Chat Completions 请求通过 `enable_search` 启用网页搜索。
+- **图像生成** — `generate_image` 工具默认使用 `wan2.7-image`；可通过 `model` 参数选择 `wan2.7-image-pro` 或 `qwen-image-2.0`。
+- **视频生成** — `generate_video` 工具使用 `happyhorse-1.1`（720P/1080P，3–15 秒，24 fps MP4）：默认文生视频，`image_path` 为图生视频（首帧），`reference_image_paths`（1–9 张）为参考生视频。
+
+额度用量在 Qwen Cloud 控制台查看；CLI 尽力展示 rate-limit 响应头。参见 [Token Plan 概览](https://docs.qwencloud.com/token-plan/overview)。
+
 ## 下一步
 
 - [配置文件](./config-files.md) — `providers` 和 `models` 表的完整字段参考

@@ -18,6 +18,7 @@ import {
 } from '@superliora/kosong';
 
 import type { Agent } from '..';
+import { buildResponseLanguageDirective } from '../injection/response-language';
 import { isAbortError } from '../../loop/errors';
 import {
   retryBackoffDelays,
@@ -767,6 +768,8 @@ export class FullCompaction {
       const provider = this.createCompactionProvider(
         estimateTokensForMessages(messagesToCompact),
       );
+      // Volatile phase signal so live clients can render phase-aware progress.
+      this.agent.emitEvent({ type: 'compaction.progress', phase: 'summarizing' });
       const summarized = await this.summarizeCompactedPrefix({
         signal,
         provider,
@@ -794,6 +797,8 @@ export class FullCompaction {
         plan = { ...plan, rawRefs: archivedRawRefs as typeof plan.rawRefs };
       }
 
+      // Volatile phase signal: summary validation / repair begins.
+      this.agent.emitEvent({ type: 'compaction.progress', phase: 'repairing' });
       const initialQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
       let quality: CompactionQualityResult = initialQuality;
       if (initialQuality.critical.length > 0 && !usedEmergencyBackstop) {
@@ -939,6 +944,8 @@ export class FullCompaction {
         throw new CompactionQualityError(quality.critical);
       }
 
+      // Volatile phase signal: assembly / context rebuild begins.
+      this.agent.emitEvent({ type: 'compaction.progress', phase: 'finalizing' });
       const result = this.assembleCompactionResult({
         summary,
         contextSummary,
@@ -1972,12 +1979,19 @@ export class FullCompaction {
   ): string {
     if (plan === undefined) return instruction ?? '';
 
+    const preference = this.agent.getResponseLanguagePreference();
+    const languageDirective =
+      preference === undefined
+        ? undefined
+        : buildResponseLanguageDirective(preference, { wrapped: false });
+
     const lines = [
       instruction?.trim(),
       blockNote,
       'CONTEXT COMPACTION V2 OUTPUT CONTRACT:',
       'Preserve task continuity over compression ratio. Use the exact sections: current_goal, last_known_state, decisions, files_touched, failed_attempts, open_questions, next_actions, raw_refs.',
       'Mention uncertain facts as uncertain. Do not invent file paths, test results, or decisions.',
+      languageDirective,
       `Compacted tokens: ${String(plan.compactedTokens)}. Retained recent tokens: ${String(plan.retainedTokens)}.`,
       `Raw refs available after compaction: ${plan.rawRefs.map(formatRawRef).join('; ') || 'none'}.`,
     ];

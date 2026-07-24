@@ -655,8 +655,6 @@ export class FooterComponent implements Component {
       state.contextTokens,
       state.maxContextTokens,
     );
-    const contextOsBadge = formatContextOSFooterBadge(state.contextOS);
-    const microBadge = formatMicroCompactionFooterBadge(state.microCompaction);
     const quotaBadge = formatProviderQuotaFooterBadge(state.providerQuota);
     const usageSeverity = contextUsageSeverity(state.contextUsage);
     const contextParts: string[] = [
@@ -664,12 +662,6 @@ export class FooterComponent implements Component {
     ];
     if (quotaBadge !== null) {
       contextParts.push(styleFooterBadge(quotaBadge, colors, appearance));
-    }
-    if (contextOsBadge !== null) {
-      contextParts.push(styleFooterBadge(contextOsBadge, colors, appearance));
-    }
-    if (microBadge !== null) {
-      contextParts.push(styleFooterBadge(microBadge, colors, appearance));
     }
     const contextText = contextParts.join(chalk.hex(colors.textMuted)(' · '));
     const contextWidth = visibleWidth(contextText);

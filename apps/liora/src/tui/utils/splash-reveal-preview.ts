@@ -46,7 +46,6 @@ export function buildSplashMorphScene(options: {
   const layout = resolveStageLayout({
     width,
     height: rows,
-    hasRailContent: false,
   });
   const stage = layout.stage;
   const appearance: AppearancePreferences =

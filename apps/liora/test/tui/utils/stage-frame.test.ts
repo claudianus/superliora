@@ -18,12 +18,11 @@ import {
   stageFrameLetterboxBands,
   stageFrameStrokeCells,
   stageFrameVisible,
+  type StageFrameBand,
 } from '#/tui/utils/stage-frame';
 import {
-  RAIL_WIDTH,
   resolveStageLayout,
   STAGE_MAX_WIDTH,
-  STAGE_RAIL_GAP,
 } from '#/tui/controllers/stage-layout';
 import {
   setAppearanceRenderHealth,
@@ -43,14 +42,14 @@ describe('stageFrameVisible', () => {
   });
 
   it('shows on ultrawide tall centered stage', () => {
-    const layout = resolveStageLayout({ width: 200, height: 80, hasRailContent: false });
+    const layout = resolveStageLayout({ width: 200, height: 80 });
     const bundle = stageFrameBundleRect(layout);
     expect(bundle.x).toBeGreaterThanOrEqual(STAGE_FRAME_MARGIN);
     expect(stageFrameVisible(bundle, 200, 80)).toBe(true);
   });
 
   it('hides on compact full-bleed', () => {
-    const layout = resolveStageLayout({ width: 80, height: 24, hasRailContent: false });
+    const layout = resolveStageLayout({ width: 80, height: 24 });
     expect(stageFrameVisible(stageFrameBundleRect(layout), 80, 24)).toBe(false);
   });
 });
@@ -76,10 +75,10 @@ describe('stageFrameStrokeCells', () => {
     expect(cells).toHaveLength(2 * (width + height) - 4);
   });
 
-  it('tracks rail bundle width, not stage-only width', () => {
-    const layout = resolveStageLayout({ width: 200, height: 80, hasRailContent: true });
+  it('tracks the centered stage bundle width', () => {
+    const layout = resolveStageLayout({ width: 200, height: 80 });
     const bundle = stageFrameBundleRect(layout);
-    expect(bundle.width).toBe(STAGE_MAX_WIDTH + STAGE_RAIL_GAP + RAIL_WIDTH);
+    expect(bundle.width).toBe(STAGE_MAX_WIDTH);
     const cells = stageFrameStrokeCells(bundle);
     const maxX = Math.max(...cells.map((c) => c.x));
     expect(maxX).toBe(bundle.x + bundle.width + STAGE_FRAME_GAP - 1);
@@ -154,11 +153,63 @@ describe('stageFrame entrance + chase', () => {
     expect(stageFrameEntranceProgress(0, 50, true)).toBe(1);
   });
 
-  it('resets entrance when bundle key changes', () => {
+  it('keeps entrance progress while the visible bundle geometry drifts', () => {
     noteStageFrameBundle('a', 1000);
-    noteStageFrameBundle('b', 1500);
-    expect(stageFrameEntranceStartedAtMs()).toBe(1500);
-    expect(stageFrameEntranceProgress(stageFrameEntranceStartedAtMs(), 1500, false)).toBe(0);
+    noteStageFrameBundle('b', 1180);
+    expect(stageFrameEntranceStartedAtMs()).toBe(1000);
+    // 180ms into the 360ms ease-out cubic: 1 - (1 - 0.5)^3
+    expect(stageFrameEntranceProgress(stageFrameEntranceStartedAtMs(), 1180, false)).toBeCloseTo(
+      0.875,
+      3,
+    );
+  });
+
+  it('replays the entrance after the frame hides and reappears', () => {
+    noteStageFrameBundle('a', 1000);
+    expect(stageFrameEntranceStartedAtMs()).toBe(1000);
+    noteStageFrameBundle(null, 2000);
+    expect(stageFrameEntranceStartedAtMs()).toBe(0);
+    noteStageFrameBundle('a', 3000);
+    expect(stageFrameEntranceStartedAtMs()).toBe(3000);
+    expect(stageFrameEntranceProgress(stageFrameEntranceStartedAtMs(), 3000, false)).toBe(0);
+  });
+
+  it('keeps the rim settled and chase alive while the band drifts row by row', () => {
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'subtle' as const,
+      particles: 'ambient' as const,
+    };
+    const paint = (bundle: StageFrameBand, nowMs: number) =>
+      paintStageFrameCells({ bundle, cols: 200, rows: 120, nowMs, appearance });
+    // Simulate inline growth: the centered band shifts down one row every two
+    // ticks, changing the bundle key almost every frame.
+    let bundle: StageFrameBand = { x: 40, y: 12, width: 108, height: 56 };
+    let nowMs = 0;
+    for (let tick = 0; tick < 60; tick += 1) {
+      nowMs += 16;
+      bundle = { ...bundle, y: 12 + Math.floor(tick / 2) };
+      paint(bundle, nowMs);
+    }
+    // Entrance started once on the first visible tick and never restarted —
+    // the old code reset it on every drift tick, leaving the ring dim and
+    // the chase (progress >= 0.85) permanently off.
+    expect(stageFrameEntranceStartedAtMs()).toBe(16);
+    expect(stageFrameEntranceProgress(stageFrameEntranceStartedAtMs(), nowMs, false)).toBe(1);
+    // Rim stays fully drawn (stroke + halo) despite the geometry drift.
+    const painted = paint(bundle, nowMs).filter((c) => c.char !== ' ');
+    expect(painted.length).toBe(
+      stageFrameStrokeCells(bundle).length + stageFrameHaloCells(bundle).length,
+    );
+    // Chase highlight still moves after the entrance completed.
+    const sig = (cells: ReturnType<typeof paint>) =>
+      cells
+        .filter((c) => c.char !== ' ')
+        .map((c) => `${c.x},${c.y},${c.fg}`)
+        .join('|');
+    const a = paint(bundle, nowMs + 1000);
+    const b = paint(bundle, nowMs + 1000 + STAGE_FRAME_CHASE_MS_PER_CELL);
+    expect(sig(a)).not.toBe(sig(b));
   });
 
   it('paint keeps stroke and halo cells outside the bundle', () => {

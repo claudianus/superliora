@@ -646,6 +646,34 @@ describe('createTUIState', () => {
     expect(rowText(frame.renderer.frame, 7)).toContain('SPLASH-7');
   });
 
+  it('renders a bottom-center toast overlay region while a toast is visible', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+
+    expect(
+      buildTUIStateNativeFrameRegions(state, 40, 12).some((region) => region.id === 'toast'),
+    ).toBe(false);
+
+    state.toast.show('Copied to clipboard');
+    const regions = buildTUIStateNativeFrameRegions(state, 40, 12);
+    const toast = regions.find((region) => region.id === 'toast');
+    expect(toast).toBeDefined();
+    expect(toast?.zIndex).toBe(9);
+    // Floats two rows above the editor when present, else near the bottom.
+    const editorTopY = regions.find((region) => region.id === 'editor')?.rect.y;
+    const expectedY = editorTopY === undefined ? 9 : Math.max(0, editorTopY - 2);
+    expect(toast?.rect.y).toBe(expectedY);
+    const lines = toast?.content as readonly string[];
+    expect(lines[0]).toContain('Copied to clipboard');
+  });
+
   it('attaches adaptive renderer VFX to highlighted native editor regions', () => {
     withMotionEffectsAllowedEnv(() => {
       const state = createTUIState({
@@ -724,7 +752,7 @@ describe('createTUIState', () => {
     setAppearanceRenderHealth('healthy');
   });
 
-  it('suppresses native region VFX while transcript viewport is manually scrolled', () => {
+  it('keeps native region VFX alive while transcript viewport is manually scrolled', () => {
     withMotionEffectsAllowedEnv(() => {
       const state = createTUIState({
         initialAppState: fakeInitialAppState(),
@@ -746,7 +774,7 @@ describe('createTUIState', () => {
       const editor = regions.find((region) => region.id === 'editor');
 
       expect(state.transcriptViewport.followOutput).toBe(false);
-      expect(editor?.vfx).toBeUndefined();
+      expect(editor?.vfx).toBeDefined();
     });
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');
@@ -1065,7 +1093,7 @@ describe('createTUIState', () => {
     setAppearanceRenderHealth('healthy');
   });
 
-  it('keeps native region VFX idle while transcript viewport is manually scrolled', () => {
+  it('keeps rendering frames while transcript viewport is manually scrolled and holds only for selection', () => {
     withMotionEffectsAllowedEnv(() => {
       const state = createTUIState({
         initialAppState: fakeInitialAppState(),
@@ -1094,23 +1122,37 @@ describe('createTUIState', () => {
       scheduler.advance(0);
       const writesAfterStart = output.writes.length;
 
+      // Scrolled back (followOutput=false) but frames must not be held —
+      // stage rim/sky animation keeps running while reading scrollback.
       renderer.requestRender('request');
       scheduler.advance(17);
 
       expect(state.transcriptViewport.followOutput).toBe(false);
-      expect(renderer.areAutoFramesHeld).toBe(true);
-      expect(renderer.lastFrame?.frame.causes).toEqual(['start']);
-      expect(renderer.stats.frames).toBe(1);
-      expect(output.writes).toHaveLength(writesAfterStart);
+      expect(renderer.areAutoFramesHeld).toBe(false);
+      expect(renderer.stats.frames).toBeGreaterThan(1);
+      expect(output.writes.length).toBeGreaterThan(writesAfterStart);
 
-      state.transcriptViewport.scroll('bottom');
+      // An active transcript selection still holds auto frames so the
+      // highlight stays stable while dragging.
+      const writesBeforeHold = output.writes.length;
+      const framesBeforeHold = renderer.stats.frames;
+      state.transcriptSelection.beginPress({ globalLine: 0, col: 0 }, false);
+      state.transcriptSelection.updateDrag({ globalLine: 0, col: 3 });
+      renderer.requestRender('request');
+      scheduler.advance(17);
+
+      expect(renderer.areAutoFramesHeld).toBe(true);
+      expect(renderer.stats.frames).toBe(framesBeforeHold);
+      expect(output.writes).toHaveLength(writesBeforeHold);
+
+      // Clearing the selection releases the held frame.
+      state.transcriptSelection.clear();
       renderer.requestRender('manual');
       scheduler.advance(0);
 
-      expect(state.transcriptViewport.followOutput).toBe(true);
       expect(renderer.areAutoFramesHeld).toBe(false);
       expect(renderer.lastFrame?.frame.causes).toEqual(['request', 'manual']);
-      expect(output.writes.length).toBeGreaterThan(writesAfterStart);
+      expect(output.writes.length).toBeGreaterThan(writesBeforeHold);
       renderer.stop();
     });
     setAppearanceRenderQuality('full');

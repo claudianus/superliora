@@ -238,6 +238,7 @@ function logEvent(event: Event): void {
     case 'compaction.blocked':
     case 'compaction.cancelled':
     case 'compaction.completed':
+    case 'compaction.progress':
     case 'background.task.started':
     case 'background.task.terminated':
     case 'warning':

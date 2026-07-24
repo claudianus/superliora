@@ -44,10 +44,26 @@ export function stageFrameBundleKey(bundle: StageFrameBand): string {
   return `${bundle.x},${bundle.y},${bundle.width},${bundle.height}`;
 }
 
-export function noteStageFrameBundle(bundleKey: string, nowMs: number): void {
+/**
+ * Track the visible stage bundle that drives the entrance animation.
+ *
+ * - `null` marks a hidden frame — the next appearance replays the entrance.
+ * - The first appearance starts the entrance at `nowMs`.
+ * - Geometry changes while the frame stays visible (resize drags, inline
+ *   frame growth shifting the centered band) keep the running progress.
+ *   Restarting on every drift tick left the rim perpetually half-drawn and
+ *   kept the chase highlight from ever starting.
+ */
+export function noteStageFrameBundle(bundleKey: string | null, nowMs: number): void {
+  if (bundleKey === null) {
+    entranceBundleKey = undefined;
+    entranceStartedAtMs = 0;
+    return;
+  }
   if (bundleKey === entranceBundleKey) return;
+  const wasVisible = entranceBundleKey !== undefined;
   entranceBundleKey = bundleKey;
-  entranceStartedAtMs = nowMs;
+  if (!wasVisible) entranceStartedAtMs = nowMs;
 }
 
 export function stageFrameEntranceStartedAtMs(): number {
@@ -72,7 +88,7 @@ export function stageFrameEntranceProgress(
   return 1 - (1 - t) ** 3;
 }
 
-/** Outer centered bundle: stage alone, or stage+gap+rail. */
+/** Outer centered bundle rect for the stage frame. */
 export function stageFrameBundleRect(layout: {
   readonly stage: StageFrameBand;
   readonly bundleWidth: number;
@@ -228,16 +244,17 @@ export function paintStageFrameCells(input: {
   /** Freeze chase (ambient off / explicit freeze only — not typing holdoff). */
   readonly freezeChase?: boolean;
 }): readonly StageFramePaintCell[] {
-  if (!stageFrameVisible(input.bundle, input.cols, input.rows)) return [];
-
-  const key = stageFrameBundleKey(input.bundle);
+  const key = stageFrameVisible(input.bundle, input.cols, input.rows)
+    ? stageFrameBundleKey(input.bundle)
+    : null;
   noteStageFrameBundle(key, input.nowMs);
+  if (key === null) return [];
 
   const mode = resolveQualityAdjustedAmbientEffectMode(input.appearance);
   const ambientOff = !motionEffectsAllowed() || mode === 'off';
-  // First tick after noteStageFrameBundle has progress 0 (startedAt === nowMs).
-  // Still paint — snapping away made the ring missing for a frame and fought
-  // damage-only presents (underlay flashed through as black bands).
+  // First visible tick has progress 0 (startedAt === nowMs). Still paint —
+  // snapping away made the ring missing for a frame and fought damage-only
+  // presents (underlay flashed through as black bands).
   const progress = stageFrameEntranceProgress(
     stageFrameEntranceStartedAtMs(),
     input.nowMs,

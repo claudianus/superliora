@@ -1,4 +1,4 @@
-import type { Session } from '@superliora/sdk';
+import type { CompactionPhase, Session } from '@superliora/sdk';
 
 import { AgentGroupComponent } from '../components/messages/agent-group';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';
@@ -794,6 +794,13 @@ export class StreamingUIController {
     const block = this._activeCompactionBlock;
     if (block === undefined) return;
     block.promoteToBlocking();
+    requestTUILayoutRender(this.host.state);
+  }
+
+  updateCompactionProgress(phase: CompactionPhase): void {
+    const block = this._activeCompactionBlock;
+    if (block === undefined) return;
+    block.setPhase(phase);
     requestTUILayoutRender(this.host.state);
   }
 

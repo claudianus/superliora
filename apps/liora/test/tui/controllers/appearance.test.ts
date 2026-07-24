@@ -93,11 +93,11 @@ describe('AppearanceController', () => {
 
   it('keeps ambient animation gating independent of transcript message count', () => {
     resetTUIInputInteractionForTests();
-    expect(shouldRenderAmbientAnimationFrame(true, 24)).toBe(true);
-    expect(shouldRenderAmbientAnimationFrame(true, 1)).toBe(true);
-    expect(shouldRenderAmbientAnimationFrame(false, 24)).toBe(false);
-    expect(shouldRenderAmbientAnimationFrame(true, 0)).toBe(false);
-    expect(shouldRenderAmbientAnimationFrame(true, Number.NaN)).toBe(false);
+    expect(shouldRenderAmbientAnimationFrame(24)).toBe(true);
+    expect(shouldRenderAmbientAnimationFrame(1)).toBe(true);
+    expect(shouldRenderAmbientAnimationFrame(24, true)).toBe(false);
+    expect(shouldRenderAmbientAnimationFrame(0)).toBe(false);
+    expect(shouldRenderAmbientAnimationFrame(Number.NaN)).toBe(false);
   });
 
   it('allows ambient animation immediately after prompt input (no holdoff)', () => {
@@ -105,8 +105,8 @@ describe('AppearanceController', () => {
     noteTUIInputInteraction(1_000);
     // Input frames have priority (delay 0) and preempt animation frames, so
     // the old 200ms typing holdoff is no longer needed.
-    expect(shouldRenderAmbientAnimationFrame(true, 24, false, { nowMs: 1_050 })).toBe(true);
-    expect(shouldRenderAmbientAnimationFrame(true, 24, false, { nowMs: 1_250 })).toBe(true);
+    expect(shouldRenderAmbientAnimationFrame(24, false, { nowMs: 1_050 })).toBe(true);
+    expect(shouldRenderAmbientAnimationFrame(24, false, { nowMs: 1_250 })).toBe(true);
   });
 
   it('blocks terminal palette mutation in unsafe environments', () => {

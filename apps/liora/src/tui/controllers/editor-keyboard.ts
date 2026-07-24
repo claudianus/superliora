@@ -84,7 +84,9 @@ export class EditorKeyboardController {
 
     editor.onCtrlC = () => {
       if (host.state.transcriptSelection.hasSelection) {
-        void copyTranscriptSelectionToClipboard(host.state);
+        void copyTranscriptSelectionToClipboard(host.state).then((copied) => {
+          if (copied) host.state.toast.show('Copied to clipboard');
+        });
         return;
       }
 

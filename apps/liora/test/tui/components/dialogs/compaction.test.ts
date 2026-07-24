@@ -224,4 +224,79 @@ describe('CompactionComponent', () => {
       component.dispose();
     }
   });
+
+  it('renders a phase-driven progress bar while compacting', () => {
+    const component = new CompactionComponent();
+
+    try {
+      const text = component.render(120).map(strip).join('\n');
+
+      expect(text).toContain('12%');
+      expect(text).toContain('Preparing');
+      expect(text).toMatch(/█/);
+      expect(text).toMatch(/░/);
+    } finally {
+      component.dispose();
+    }
+  });
+
+  it('advances the progress bar as phases arrive', () => {
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      let text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('30%');
+      expect(text).toContain('Summarizing conversation');
+
+      component.setPhase('repairing');
+      text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('78%');
+      expect(text).toContain('Verifying summary');
+
+      component.setPhase('finalizing');
+      text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('92%');
+      expect(text).toContain('Rebuilding context');
+    } finally {
+      component.dispose();
+    }
+  });
+
+  it('hides the progress bar once compaction settles', () => {
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('finalizing');
+      component.markDone(1000, 500);
+      const text = component.render(120).map(strip).join('\n');
+
+      expect(text).toContain('Compaction complete');
+      expect(text).not.toContain('Rebuilding context');
+      expect(text).not.toMatch(/░/);
+    } finally {
+      component.dispose();
+    }
+  });
+
+  it('keeps the progress bar visible under the premium enter beat', () => {
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      // Mid enter-beat window: the particle rail and the bar coexist.
+      advanceAppearanceAnimationClock(Date.now() + 200);
+      const text = component.render(64).map(strip).join('\n');
+
+      expect(text).toContain('Summarizing conversation');
+      expect(text).toMatch(/█/);
+    } finally {
+      component.dispose();
+      vi.useRealTimers();
+    }
+  });
 });

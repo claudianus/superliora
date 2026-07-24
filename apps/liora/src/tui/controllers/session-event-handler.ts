@@ -8,6 +8,7 @@ import type {
   CompactionBlockedEvent,
   CompactionCancelledEvent,
   CompactionCompletedEvent,
+  CompactionProgressEvent,
   CompactionStartedEvent,
   CronFiredEvent,
   ErrorEvent,
@@ -333,6 +334,7 @@ export class SessionEventHandler {
       case 'compaction.completed': this.handleCompactionEnd(event, sendQueued); break;
       case 'compaction.blocked': this.handleCompactionBlocked(event); break;
       case 'compaction.cancelled': this.handleCompactionCancel(event, sendQueued); break;
+      case 'compaction.progress': this.handleCompactionProgress(event); break;
       case 'subagent.spawned':
       case 'subagent.started':
       case 'subagent.suspended':
@@ -1283,6 +1285,10 @@ export class SessionEventHandler {
   ): void {
     this.host.streamingUI.cancelCompaction();
     this.finishCompaction(sendQueued);
+  }
+
+  private handleCompactionProgress(event: CompactionProgressEvent): void {
+    this.host.streamingUI.updateCompactionProgress(event.phase);
   }
 
   private finishCompaction(sendQueued: (item: QueuedMessage) => void): void {

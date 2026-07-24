@@ -20,7 +20,7 @@ import { TranscriptViewportComponent } from './components/messages/transcript-vi
 import { CHROME_GUTTER } from './constant/rendering';
 import type { TasksBrowserState } from './controllers/tasks-browser';
 import { currentTheme, type Theme } from './theme';
-import { resolveStageLayout, STAGE_MAX_WIDTH } from './controllers/stage-layout';
+import { resolveStageLayout } from './controllers/stage-layout';
 import { NativeEditorTextInputController } from './utils/native-editor-text-input';
 import { createTerminalState, type TerminalState } from './utils/terminal-state';
 import {
@@ -28,6 +28,7 @@ import {
   shouldHoldTranscriptAnimation,
   type TranscriptSelectionState,
 } from './utils/transcript-selection';
+import { TUIToastState } from './utils/toast';
 import {
   createTranscriptViewportState,
   type TranscriptViewportState,
@@ -48,6 +49,7 @@ export interface TUIState {
   terminal: RendererTerminalHost;
   transcriptViewport: TranscriptViewportState;
   transcriptSelection: TranscriptSelectionState;
+  toast: TUIToastState;
   transcriptContainer: TranscriptViewportComponent;
   activityContainer: Container;
   todoPanelContainer: Container;
@@ -128,7 +130,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   const transcriptViewport = createTranscriptViewportState();
   const transcriptSelection = createTranscriptSelectionState();
   renderer.setAutoFrameHold(() =>
-    shouldHoldTranscriptAnimation({ followOutput: transcriptViewport.followOutput, transcriptSelection }),
+    shouldHoldTranscriptAnimation({ transcriptSelection }),
   );
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
@@ -143,19 +145,11 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     CHROME_GUTTER,
     transcriptViewport,
     (_width) => {
-      const probeWidth = Math.min(terminal.columns, STAGE_MAX_WIDTH);
-      const hasRailContent =
-        measureContainerRows(todoPanelContainer, probeWidth) > 0 ||
-        measureContainerRows(activityContainer, probeWidth) > 0 ||
-        measureContainerRows(queueContainer, probeWidth) > 0 ||
-        measureContainerRows(btwPanelContainer, probeWidth) > 0;
       const stage = resolveStageLayout({
         width: terminal.columns,
         height: terminal.rows,
-        hasRailContent,
       });
       const contentWidth = stage.stage.width;
-      const rail = stage.mode === 'rail';
       return measureRendererRegions({
         terminalRows: terminal.rows,
         terminalColumns: terminal.columns,
@@ -165,10 +159,10 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
         contentHeight: stage.stage.height,
         heights: {
           header: measureContainerRows(headerContainer, contentWidth),
-          activity: rail ? 0 : measureContainerRows(activityContainer, contentWidth),
-          todo: rail ? 0 : measureContainerRows(todoPanelContainer, contentWidth),
-          queue: rail ? 0 : measureContainerRows(queueContainer, contentWidth),
-          btw: rail ? 0 : measureContainerRows(btwPanelContainer, contentWidth),
+          activity: measureContainerRows(activityContainer, contentWidth),
+          todo: measureContainerRows(todoPanelContainer, contentWidth),
+          queue: measureContainerRows(queueContainer, contentWidth),
+          btw: measureContainerRows(btwPanelContainer, contentWidth),
           editor: measureContainerRows(editorContainer, contentWidth),
           footer: measureContainerRows(footerContainer, contentWidth),
         },
@@ -199,6 +193,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     terminal,
     transcriptViewport,
     transcriptSelection,
+    toast: new TUIToastState(),
     transcriptContainer,
     activityContainer,
     todoPanelContainer,

@@ -3,10 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { Text } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
 import {
-  RAIL_WIDTH,
   STAGE_MAX_HEIGHT,
   STAGE_MAX_WIDTH,
-  STAGE_RAIL_GAP,
 } from '#/tui/controllers/stage-layout';
 import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
 import { planTUINativeStage } from '#/tui/utils/native-stage-plan';
@@ -74,7 +72,7 @@ describe('native stage frame layout', () => {
     expect(regions.some((region) => region.id === 'rail')).toBe(false);
   });
 
-  it('places situational panels in a rail beside the centered stage when they fit', () => {
+  it('keeps situational panels in the vertical stack beside no rail on ultrawide', () => {
     const width = 200;
     const height = 80;
     const state = createTUIState({
@@ -91,27 +89,23 @@ describe('native stage frame layout', () => {
 
     const regions = buildTUIStateNativeFrameRegions(state, width, height);
     const transcript = regions.find((region) => region.id === 'transcript');
-    const rail = regions.find((region) => region.id === 'rail');
-    const bundle = STAGE_MAX_WIDTH + STAGE_RAIL_GAP + RAIL_WIDTH;
-    const expectedStageX = Math.floor((width - bundle) / 2);
-    const expectedStageY = Math.floor((height - STAGE_MAX_HEIGHT) / 2);
+    const todo = regions.find((region) => region.id === 'todo');
+    const expectedStageX = Math.floor((width - STAGE_MAX_WIDTH) / 2);
 
+    // No side rail — the stage keeps the centered reading column and the
+    // todo panel renders inside the vertical stack at the stage width.
+    expect(regions.some((region) => region.id === 'rail')).toBe(false);
     expect(transcript?.rect).toMatchObject({
       x: expectedStageX,
-      y: expectedStageY,
       width: STAGE_MAX_WIDTH,
     });
-    expect(rail?.rect).toMatchObject({
-      x: expectedStageX + STAGE_MAX_WIDTH + STAGE_RAIL_GAP,
-      width: RAIL_WIDTH,
-      y: transcript?.rect?.y,
-      height: transcript?.rect?.height,
+    expect(todo?.rect).toMatchObject({
+      x: expectedStageX,
+      width: STAGE_MAX_WIDTH,
     });
-    // Railed panels must not steal vertical stack rows under the transcript.
-    expect(regions.some((region) => region.id === 'todo')).toBe(false);
   });
 
-  it('opens a narrowed rail beside the stage at the 120-column threshold', () => {
+  it('keeps the centered reading column at the wide profile threshold', () => {
     const width = 120;
     const height = 64;
     const state = createTUIState({
@@ -128,16 +122,12 @@ describe('native stage frame layout', () => {
 
     const regions = buildTUIStateNativeFrameRegions(state, width, height);
     const transcript = regions.find((region) => region.id === 'transcript');
-    const rail = regions.find((region) => region.id === 'rail');
-    const stageWidth = width - STAGE_RAIL_GAP - RAIL_WIDTH;
+    const todo = regions.find((region) => region.id === 'todo');
+    const expectedStageX = Math.floor((width - STAGE_MAX_WIDTH) / 2);
 
-    expect(stageWidth).toBe(82);
-    expect(transcript?.rect).toMatchObject({ x: 0, width: stageWidth });
-    expect(rail?.rect).toMatchObject({
-      x: stageWidth + STAGE_RAIL_GAP,
-      width: RAIL_WIDTH,
-    });
-    expect(regions.some((region) => region.id === 'todo')).toBe(false);
+    expect(regions.some((region) => region.id === 'rail')).toBe(false);
+    expect(transcript?.rect).toMatchObject({ x: expectedStageX, width: STAGE_MAX_WIDTH });
+    expect(todo?.rect).toMatchObject({ x: expectedStageX, width: STAGE_MAX_WIDTH });
   });
 
   it('keeps compact terminals full-bleed with stacked panels', () => {
@@ -185,7 +175,7 @@ describe('native stage frame layout', () => {
       ambientDamageOnly: true,
     });
 
-    for (const id of ['transcript', 'editor', 'footer', 'rail'] as const) {
+    for (const id of ['transcript', 'editor', 'footer'] as const) {
       const clearedRegion = cleared.find((region) => region.id === id);
       const ambientRegion = ambient.find((region) => region.id === id);
       if (clearedRegion === undefined || ambientRegion === undefined) continue;
@@ -195,7 +185,7 @@ describe('native stage frame layout', () => {
   });
 });
 
-describe('planTUINativeStage rail sections', () => {
+describe('planTUINativeStage stack panels', () => {
   const planOptions = {
     resolveEditorFallbackLines: () => [],
     resolveEditorRows: () => 1,
@@ -212,49 +202,26 @@ describe('planTUINativeStage rail sections', () => {
     return state;
   }
 
-  it('separates non-empty rail sections with a blank line and preserves order', () => {
+  it('renders situational panels into the chrome at the stage width', () => {
     const state = createSizedState(200, 80);
     state.todoPanel.setTodos([{ title: 'Ship stage layout', status: 'in_progress' }]);
     state.todoPanelContainer.addChild(state.todoPanel);
     state.activityContainer.addChild(new Text('agent finished a task', 0, 0));
 
     const plan = planTUINativeStage(state, 200, 80, planOptions);
-    expect(plan.stage.mode).toBe('rail');
-
-    const todoLines = state.todoPanelContainer.render(RAIL_WIDTH);
-    const activityLines = state.activityContainer.render(RAIL_WIDTH);
-    expect(todoLines.length).toBeGreaterThan(0);
-    expect(activityLines.length).toBeGreaterThan(0);
-    // todo section, one blank divider, activity section — queue/btw omitted.
-    expect(plan.railLines).toEqual([...todoLines, '', ...activityLines]);
+    expect(plan.stage.stage.width).toBe(STAGE_MAX_WIDTH);
+    expect(plan.chrome.todo.length).toBeGreaterThan(0);
+    expect(plan.chrome.activity.length).toBeGreaterThan(0);
+    expect(plan.chrome.todo).toEqual(state.todoPanelContainer.render(STAGE_MAX_WIDTH));
+    expect(plan.chrome.activity).toEqual(state.activityContainer.render(STAGE_MAX_WIDTH));
   });
 
-  it('omits dividers when only one rail section has content', () => {
+  it('keeps panel chrome empty when no situational panel has content', () => {
     const state = createSizedState(200, 80);
-    state.todoPanel.setTodos([{ title: 'Only section', status: 'pending' }]);
-    state.todoPanelContainer.addChild(state.todoPanel);
-
     const plan = planTUINativeStage(state, 200, 80, planOptions);
-    expect(plan.stage.mode).toBe('rail');
-    // Identical to the raw section render: no divider inserted anywhere.
-    expect(plan.railLines).toEqual(state.todoPanelContainer.render(RAIL_WIDTH));
-  });
-
-  it('keeps the top-first slice when rail content exceeds the rail height', () => {
-    const state = createSizedState(200, 80);
-    const longBody = Array.from(
-      { length: 80 },
-      (_, index) => `btw note line ${index + 1}`,
-    ).join('\n');
-    state.btwPanelContainer.addChild(new Text(longBody, 0, 0));
-
-    const plan = planTUINativeStage(state, 200, 80, planOptions);
-    expect(plan.stage.mode).toBe('rail');
-    const railHeight = plan.railRect?.height ?? 0;
-    const full = state.btwPanelContainer.render(RAIL_WIDTH);
-    expect(railHeight).toBeGreaterThan(0);
-    expect(full.length).toBeGreaterThan(railHeight);
-    expect(plan.railLines).toHaveLength(railHeight);
-    expect(plan.railLines).toEqual(full.slice(0, railHeight));
+    expect(plan.chrome.todo).toEqual([]);
+    expect(plan.chrome.activity).toEqual([]);
+    expect(plan.chrome.queue).toEqual([]);
+    expect(plan.chrome.btw).toEqual([]);
   });
 });

@@ -103,7 +103,9 @@ describe('idle aquarium clear tear', () => {
 
   it('emits rim stageFrame bands outside the transcript rect', () => {
     const cols = 120;
-    const rows = 60;
+    // Rows above the reading cap leave vertical letterbox margin, which is
+    // what makes the stage frame visible (a full-height stage hides it).
+    const rows = 80;
     const state = createTUIState({
       initialAppState: appState(),
       startup: { continueLast: false, yolo: false, auto: false, plan: false },

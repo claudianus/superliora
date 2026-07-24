@@ -2,9 +2,10 @@
  * Qwen Cloud Token Plan — first-class provider integration.
  *
  * Zero-config: when `QWEN_TOKEN_PLAN_API_KEY` is set (or the user connects
- * via /provider), text generation, image generation, video generation,
- * harness tools (web search, code interpreter, etc.), and visual
- * understanding all activate automatically.
+ * via /provider), text generation, image generation, video generation, and
+ * visual understanding all activate automatically. Harness tools (web
+ * search, code interpreter, web extractor, image search) run server-side
+ * and are invoked automatically by qwen3.7/3.8 models — no client setup.
  */
 
 import type { LioraConfig } from '@superliora/sdk';
@@ -50,19 +51,23 @@ export interface QwenTokenPlanModelDef {
   readonly harnessTools: readonly string[];
 }
 
-/** Harness tool identifiers supported by Token Plan models. */
+/**
+ * Official harness tool identifiers for Token Plan models. These are
+ * server-side built-in tools (Responses API) that qwen3.7/3.8 models
+ * invoke automatically — the client never sends tool entries for them.
+ */
 export const QWEN_HARNESS_TOOLS = {
   webSearch: 'web_search',
   codeInterpreter: 'code_interpreter',
-  webScraping: 'web_scraping',
-  reverseImageSearch: 'reverse_image_search',
-  textToImageSearch: 'text_to_image_search',
+  webExtractor: 'web_extractor',
+  reverseImageSearch: 'i2i_search',
+  textToImageSearch: 't2i_search',
 } as const;
 
 const ALL_HARNESS_TOOLS: readonly string[] = [
   QWEN_HARNESS_TOOLS.webSearch,
   QWEN_HARNESS_TOOLS.codeInterpreter,
-  QWEN_HARNESS_TOOLS.webScraping,
+  QWEN_HARNESS_TOOLS.webExtractor,
   QWEN_HARNESS_TOOLS.reverseImageSearch,
   QWEN_HARNESS_TOOLS.textToImageSearch,
 ];
@@ -70,7 +75,7 @@ const ALL_HARNESS_TOOLS: readonly string[] = [
 const CORE_HARNESS_TOOLS: readonly string[] = [
   QWEN_HARNESS_TOOLS.webSearch,
   QWEN_HARNESS_TOOLS.codeInterpreter,
-  QWEN_HARNESS_TOOLS.webScraping,
+  QWEN_HARNESS_TOOLS.webExtractor,
 ];
 
 /** Text generation models available on Token Plan. */
@@ -78,39 +83,59 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
   {
     id: 'qwen3.8-max-preview',
     displayName: 'Qwen 3.8 Max Preview',
-    maxContextSize: 131_072,
-    maxOutputSize: 16_384,
+    maxContextSize: 1_000_000,
+    maxOutputSize: 131_072,
     capabilities: ['thinking', 'tool_use', 'image_in'],
     harnessTools: ALL_HARNESS_TOOLS,
   },
   {
     id: 'qwen3.7-max',
     displayName: 'Qwen 3.7 Max',
-    maxContextSize: 131_072,
-    maxOutputSize: 16_384,
+    maxContextSize: 1_000_000,
+    maxOutputSize: 65_536,
     capabilities: ['thinking', 'tool_use'],
     harnessTools: CORE_HARNESS_TOOLS,
   },
   {
     id: 'qwen3.7-plus',
     displayName: 'Qwen 3.7 Plus',
-    maxContextSize: 131_072,
-    maxOutputSize: 16_384,
+    maxContextSize: 1_000_000,
+    maxOutputSize: 64_000,
     capabilities: ['thinking', 'tool_use', 'image_in'],
     harnessTools: ALL_HARNESS_TOOLS,
   },
   {
+    id: 'qwen3.6-flash',
+    displayName: 'Qwen 3.6 Flash',
+    maxContextSize: 1_000_000,
+    maxOutputSize: 65_536,
+    capabilities: ['thinking', 'tool_use', 'image_in'],
+    harnessTools: [],
+  },
+  {
+    id: 'glm-5.2',
+    displayName: 'GLM 5.2',
+    maxContextSize: 1_000_000,
+    maxOutputSize: 131_072,
+    capabilities: ['thinking', 'tool_use'],
+    harnessTools: [],
+  },
+  {
     id: 'deepseek-v4-pro',
     displayName: 'DeepSeek V4 Pro',
-    maxContextSize: 131_072,
-    maxOutputSize: 16_384,
+    maxContextSize: 1_000_000,
+    maxOutputSize: 384_000,
     capabilities: ['thinking', 'tool_use'],
     harnessTools: [],
   },
 ];
 
-/** Image generation models available on Token Plan. */
-export const QWEN_TOKEN_PLAN_IMAGE_MODELS = ['qwen-image-2.0', 'wan2.7-image'] as const;
+/** Image generation models available on Token Plan (Personal plan). */
+export const QWEN_TOKEN_PLAN_IMAGE_MODELS = [
+  'wan2.7-image',
+  'wan2.7-image-pro',
+  'qwen-image-2.0',
+] as const;
 
 /** Video generation models available on Token Plan. */
 export const QWEN_TOKEN_PLAN_VIDEO_MODELS = {
@@ -226,7 +251,8 @@ export function applyQwenTokenPlanProvider(
 
 /**
  * Returns the harness tools supported by a given Qwen Token Plan model.
- * Used by the provider adapter to inject server-side tool activation.
+ * Informational only: harness tools run server-side and are invoked
+ * automatically — no client-side tool injection is required.
  */
 export function getQwenHarnessToolsForModel(modelId: string): readonly string[] {
   const def = QWEN_TOKEN_PLAN_TEXT_MODELS.find((m) => m.id === modelId);

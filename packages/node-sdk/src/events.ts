@@ -102,6 +102,8 @@ export type {
   CompactionBlockedEvent,
   CompactionCancelledEvent,
   CompactionCompletedEvent,
+  CompactionProgressEvent,
+  CompactionPhase,
   CompactionResult,
 } from '@superliora/agent-core';
 

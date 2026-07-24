@@ -745,7 +745,7 @@ export class LioraTUI {
       await this.authFlow.refreshConfigAfterLogin();
       this.showStatus(
         'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
-        'Text, image, video generation, harness tools, and visual understanding enabled.',
+        'Text, image, and video generation enabled; harness tools run server-side on qwen3.7/3.8 models.',
         'success',
       );
       return;
@@ -758,11 +758,12 @@ export class LioraTUI {
 
   private attachNativeRendererCallback(): void {
     if (!(this.state.ui instanceof LioraNativeRootUI)) return;
+    const nativeRootUI = this.state.ui;
     if (this.nativeInputRouter !== undefined) {
-      this.state.ui.setInputRouter(this.nativeInputRouter.router);
+      nativeRootUI.setInputRouter(this.nativeInputRouter.router);
     }
     const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
-    this.state.ui.setRenderCallback(
+    nativeRootUI.setRenderCallback(
       createTUIStateNativeRenderCallback(this.state, {
         diagnosticsOverlay,
         onAuthoritativeFrame: () => {
@@ -770,6 +771,11 @@ export class LioraTUI {
         },
       }),
     );
+    // Toasts must repaint on show/hide even while the transcript auto-frame
+    // hold is active; 'manual' is exempt from that hold.
+    this.state.toast.onChanged = () => {
+      nativeRootUI.renderer.requestRender('manual');
+    };
     // Occupy the full terminal viewport. The renderer is created with the
     // `fullscreen-app` feature profile (alternate screen + clearOnStart), so
     // the TUI owns the whole screen in its own buffer and the terminal's
@@ -1313,7 +1319,6 @@ export class LioraTUI {
   private shouldRenderAmbientAnimationFrame(): boolean {
     const selection = this.state.transcriptSelection;
     return shouldRenderAmbientAnimationFrame(
-      this.state.transcriptViewport.followOutput,
       this.state.terminal.rows,
       selection.isDragging || selection.hasSelection,
     );

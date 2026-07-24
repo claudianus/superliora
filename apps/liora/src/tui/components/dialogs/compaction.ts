@@ -13,6 +13,8 @@
  * short particle-rail theatre while preserving token-delta copy on complete.
  */
 
+import type { CompactionPhase } from '@superliora/sdk';
+
 import { Container, Text, Spacer } from '#/tui/renderer';
 import type { RendererRootUI } from '#/tui/renderer';
 
@@ -30,6 +32,35 @@ import {
 
 const BLINK_INTERVAL = 500;
 
+type CompactionUiPhase = 'preparing' | CompactionPhase;
+
+interface PhaseProgress {
+  readonly base: number;
+  readonly label: string;
+}
+
+/**
+ * Deterministic phase → progress mapping. Fractions are a presentation
+ * concern kept client-side; the wire only carries the phase. `summarizing`
+ * creeps asymptotically toward SUMMARY_CREEP_CEILING while the long LLM call
+ * is in flight so the bar stays alive without ever claiming completion.
+ */
+const PHASE_PROGRESS: Record<CompactionUiPhase, PhaseProgress> = {
+  preparing: { base: 0.12, label: 'Preparing' },
+  summarizing: { base: 0.3, label: 'Summarizing conversation' },
+  repairing: { base: 0.78, label: 'Verifying summary' },
+  finalizing: { base: 0.92, label: 'Rebuilding context' },
+};
+
+const SUMMARY_CREEP_CEILING = 0.7;
+const SUMMARY_CREEP_TAU_MS = 6000;
+const SHIMMER_PERIOD_MS = 1400;
+const BAR_MIN_WIDTH = 10;
+const BAR_MAX_WIDTH = 24;
+const BAR_FILL_CHAR = '█';
+const BAR_PULSE_CHAR = '▓';
+const BAR_EMPTY_CHAR = '░';
+
 export class CompactionComponent extends Container {
   private readonly ui: RendererRootUI | undefined;
   private readonly headerText: Text;
@@ -43,6 +74,10 @@ export class CompactionComponent extends Container {
   private detail: string | undefined;
   private readonly startedAtMs = appearanceAnimationNow();
   private doneAtMs: number | undefined;
+  private phase: CompactionUiPhase = 'preparing';
+  private phaseEnteredAt = this.startedAtMs;
+  private progressFloor = 0;
+  private readonly progressText: Text;
 
   constructor(
     ui?: RendererRootUI,
@@ -61,6 +96,10 @@ export class CompactionComponent extends Container {
     this.addChild(new Spacer(1));
     this.headerText = new Text(this.buildHeader(), 0, 0);
     this.addChild(this.headerText);
+    // Phase-driven progress bar. Empty text renders zero lines, so the bar
+    // disappears entirely once the block settles (done/cancelled).
+    this.progressText = new Text('', 0, 0);
+    this.addChild(this.progressText);
     this.addInstructionChild();
   }
 
@@ -97,7 +136,7 @@ export class CompactionComponent extends Container {
         tip.length > 0 && beat.length > 0
           ? [...beat.slice(0, -1), `${beat[beat.length - 1] ?? ''}${tip}`]
           : beat;
-      return this.composeBeatRender(headed);
+      return this.composeBeatRender(headed, width);
     }
 
     if (this.done && animated && this.doneAtMs !== undefined) {
@@ -113,6 +152,7 @@ export class CompactionComponent extends Container {
             this.doneAtMs,
             appearance,
           ),
+          width,
         );
       }
     }
@@ -120,6 +160,7 @@ export class CompactionComponent extends Container {
     // Recompute blink / settled header from the shared animation clock.
     // See PREMIUM.md §7.1 (single animation clock).
     this.headerText.setText(this.buildHeader());
+    this.progressText.setText(this.done || this.canceled ? '' : this.buildProgressLine(width));
     return super.render(width);
   }
 
@@ -127,6 +168,7 @@ export class CompactionComponent extends Container {
     if (this.done || this.canceled) return;
     this.done = true;
     this.doneAtMs = appearanceAnimationNow();
+    this.progressText.setText('');
     this.tokensBefore = tokensBefore;
     this.tokensAfter = tokensAfter;
     if (detail !== undefined && detail.length > 0) {
@@ -140,6 +182,7 @@ export class CompactionComponent extends Container {
   markCanceled(): void {
     if (this.done || this.canceled) return;
     this.canceled = true;
+    this.progressText.setText('');
     this.headerText.setText(this.buildHeader());
     this.ui?.requestRender();
   }
@@ -151,10 +194,22 @@ export class CompactionComponent extends Container {
     this.ui?.requestRender();
   }
 
+  /** Advance the phase-driven progress bar (wire `compaction.progress`). */
+  setPhase(phase: CompactionPhase): void {
+    if (this.done || this.canceled || this.phase === phase) return;
+    this.phase = phase;
+    this.phaseEnteredAt = appearanceAnimationNow();
+    this.progressFloor = Math.max(this.progressFloor, PHASE_PROGRESS[phase].base);
+    this.ui?.requestRender();
+  }
+
   dispose(): void {}
 
-  private composeBeatRender(beatLines: readonly string[]): string[] {
+  private composeBeatRender(beatLines: readonly string[], width: number): string[] {
     const lines: string[] = ['', ...beatLines];
+    if (!this.done && !this.canceled) {
+      lines.push(this.buildProgressLine(width));
+    }
     if (this.instruction !== undefined) {
       lines.push(currentTheme.dim(`  ${this.instruction}`));
     }
@@ -162,6 +217,43 @@ export class CompactionComponent extends Container {
       lines.push(currentTheme.dim(`  ${this.detail}`));
     }
     return lines;
+  }
+
+  private currentFraction(now: number, animated: boolean): number {
+    const cfg = PHASE_PROGRESS[this.phase];
+    let fraction = cfg.base;
+    if (animated && this.phase === 'summarizing') {
+      const elapsed = Math.max(0, now - this.phaseEnteredAt);
+      const creep = 1 - Math.exp(-elapsed / SUMMARY_CREEP_TAU_MS);
+      fraction = cfg.base + (SUMMARY_CREEP_CEILING - cfg.base) * creep;
+    }
+    // Never rewind within a session (multi-round compaction re-emits phases).
+    return Math.min(0.99, Math.max(fraction, this.progressFloor));
+  }
+
+  private buildProgressLine(width: number): string {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const now = appearanceAnimationNow();
+    const fraction = this.currentFraction(now, animated);
+    const { label } = PHASE_PROGRESS[this.phase];
+    const barWidth = Math.max(BAR_MIN_WIDTH, Math.min(BAR_MAX_WIDTH, width - 18));
+    const filled = Math.min(barWidth, Math.round(fraction * barWidth));
+    const shimmerIndex = animated
+      ? Math.floor(((now % SHIMMER_PERIOD_MS) / SHIMMER_PERIOD_MS) * (barWidth + 2)) - 1
+      : -1;
+    let bar = '';
+    for (let i = 0; i < barWidth; i += 1) {
+      if (i < filled) {
+        bar += currentTheme.fg(i === shimmerIndex ? 'primary' : 'accent', BAR_FILL_CHAR);
+      } else if (i === shimmerIndex) {
+        bar += currentTheme.fg('textDim', BAR_PULSE_CHAR);
+      } else {
+        bar += currentTheme.fg('textMuted', BAR_EMPTY_CHAR);
+      }
+    }
+    const pct = currentTheme.fg('textDim', `${String(Math.round(fraction * 100)).padStart(3)}%`);
+    return `  ${bar} ${pct} ${currentTheme.fg('textMuted', label)}`;
   }
 
   private buildCompletePlain(): string {

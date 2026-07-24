@@ -923,10 +923,8 @@ export class Session {
         agentType: type,
         workDir: cwd,
       }),
-      responseLanguagePreference:
-        type === 'main'
-          ? () => responseLanguagePreferenceFromUnknown(this.metadata.custom['responseLanguage'])
-          : undefined,
+      responseLanguagePreference: () =>
+        responseLanguagePreferenceFromUnknown(this.metadata.custom['responseLanguage']),
       dreamStore: type === 'main' ? this.options.dreamStore : undefined,
     });
   }

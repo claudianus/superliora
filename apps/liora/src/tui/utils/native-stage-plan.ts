@@ -7,7 +7,6 @@ import {
 
 import {
   resolveStageLayout,
-  STAGE_MAX_WIDTH,
   type StageLayout,
 } from '../controllers/stage-layout';
 import type { TUIState } from '../tui-state';
@@ -27,21 +26,10 @@ export interface TUINativeStagePlan {
   readonly chrome: TUINativeStageChrome;
   readonly editorLines: readonly RendererRegionLine[];
   readonly editorRows: number;
-  /** Panel lines for the situational rail (empty when mode is stack). */
-  readonly railLines: readonly RendererRegionLine[];
-  readonly railRect?: RendererRect;
-  /** Whether any situational panel had content (drives rail vs stack probe). */
-  readonly hasRailContent: boolean;
 }
 
 export interface PlanTUINativeStageOptions {
   readonly reuseChrome?: TUINativeStageChrome;
-  /**
-   * When provided, skip the four panel probe renders (todo / activity / queue /
-   * btw) and use this value directly. Pure-input frames reuse chrome, so panel
-   * content has not changed and the probes are pure overhead.
-   */
-  readonly cachedHasRailContent?: boolean;
   /**
    * Shell-aware workspace center band (see `resolveStageLayout`'s
    * `workspaceCenter`). When set, the stage resolves inside this band instead
@@ -62,8 +50,8 @@ export interface PlanTUINativeStageOptions {
 }
 
 /**
- * Probe whether situational panels have content, resolve the centered stage
- * (and optional rail), then measure the vertical stack at the stage width.
+ * Resolve the centered stage, then measure the vertical stack at the stage
+ * width. Situational panels always render inside the stage column.
  */
 export function planTUINativeStage(
   state: TUIState,
@@ -73,29 +61,10 @@ export function planTUINativeStage(
 ): TUINativeStagePlan {
   const cols = Math.max(1, Math.floor(terminalColumns));
   const rows = Math.max(1, Math.floor(terminalRows));
-  const probeWidth = Math.min(cols, STAGE_MAX_WIDTH);
-
-  let hasRailContent: boolean;
-  if (options.cachedHasRailContent !== undefined) {
-    // Pure-input fast path: panel content has not changed, skip the four
-    // container renders that only exist to probe for rail content.
-    hasRailContent = options.cachedHasRailContent;
-  } else {
-    const probeTodo = state.todoPanelContainer.render(probeWidth);
-    const probeActivity = state.activityContainer.render(probeWidth);
-    const probeQueue = state.queueContainer.render(probeWidth);
-    const probeBtw = state.btwPanelContainer.render(probeWidth);
-    hasRailContent =
-      probeTodo.length > 0 ||
-      probeActivity.length > 0 ||
-      probeQueue.length > 0 ||
-      probeBtw.length > 0;
-  }
 
   const stage = resolveStageLayout({
     width: cols,
     height: rows,
-    hasRailContent,
     workspaceCenter: options.workspaceCenter,
   });
   const contentWidth = stage.stage.width;
@@ -103,40 +72,10 @@ export function planTUINativeStage(
 
   const headerLines = reuse?.header ?? state.headerContainer.render(contentWidth);
   const footerLines = reuse?.footer ?? state.footerContainer.render(contentWidth);
-
-  let activityLines: readonly RendererRegionLine[];
-  let todoLines: readonly RendererRegionLine[];
-  let queueLines: readonly RendererRegionLine[];
-  let btwLines: readonly RendererRegionLine[];
-  let railLines: readonly RendererRegionLine[] = [];
-
-  if (stage.mode === 'rail' && stage.rail !== undefined) {
-    const railWidth = stage.rail.width;
-    // Rail width differs from the stage — always re-render panels for the rail.
-    const railTodo = state.todoPanelContainer.render(railWidth);
-    const railActivity = state.activityContainer.render(railWidth);
-    const railQueue = state.queueContainer.render(railWidth);
-    const railBtw = state.btwPanelContainer.render(railWidth);
-    // Blank divider rows between non-empty sections keep the rail readable;
-    // empty sections are omitted so the top-first slice never starts or ends
-    // with a dangling separator.
-    const railSections = [railTodo, railActivity, railQueue, railBtw].filter(
-      (section) => section.length > 0,
-    );
-    railLines = railSections.flatMap((section, index) =>
-      index === 0 ? section : ['', ...section],
-    );
-    // Stack does not reserve vertical space for railed panels.
-    activityLines = [];
-    todoLines = [];
-    queueLines = [];
-    btwLines = [];
-  } else {
-    activityLines = reuse?.activity ?? state.activityContainer.render(contentWidth);
-    todoLines = reuse?.todo ?? state.todoPanelContainer.render(contentWidth);
-    queueLines = reuse?.queue ?? state.queueContainer.render(contentWidth);
-    btwLines = reuse?.btw ?? state.btwPanelContainer.render(contentWidth);
-  }
+  const activityLines = reuse?.activity ?? state.activityContainer.render(contentWidth);
+  const todoLines = reuse?.todo ?? state.todoPanelContainer.render(contentWidth);
+  const queueLines = reuse?.queue ?? state.queueContainer.render(contentWidth);
+  const btwLines = reuse?.btw ?? state.btwPanelContainer.render(contentWidth);
 
   const editorLines = options.resolveEditorFallbackLines(contentWidth);
   const fixedRowsWithoutEditor =
@@ -171,32 +110,18 @@ export function planTUINativeStage(
     },
   });
 
-  const transcriptRegion = layout.regions.find((region) => region.id === 'transcript');
-  const railRect =
-    stage.mode === 'rail' && stage.rail !== undefined && transcriptRegion?.rect !== undefined
-      ? {
-          x: stage.rail.x,
-          y: transcriptRegion.rect.y,
-          width: stage.rail.width,
-          height: transcriptRegion.rect.height,
-        }
-      : undefined;
-
   return {
     stage,
     layout,
     chrome: {
       header: headerLines,
-      activity: stage.mode === 'rail' ? [] : activityLines,
-      todo: stage.mode === 'rail' ? [] : todoLines,
-      queue: stage.mode === 'rail' ? [] : queueLines,
-      btw: stage.mode === 'rail' ? [] : btwLines,
+      activity: activityLines,
+      todo: todoLines,
+      queue: queueLines,
+      btw: btwLines,
       footer: footerLines,
     },
     editorLines,
     editorRows,
-    railLines: railRect === undefined ? [] : railLines.slice(0, railRect.height),
-    railRect,
-    hasRailContent,
   };
 }

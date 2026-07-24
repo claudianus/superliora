@@ -7,25 +7,11 @@ import {
 export const STAGE_MAX_WIDTH = 90;
 
 /**
- * Max stage height on tall / fullscreen terminals (rows).
- * Paired with {@link STAGE_MAX_WIDTH} as a 90×50 reading stage (cell units).
+ * Max stage height on wide terminals (rows) — the reading cap.
+ * Tall / portrait terminals ignore the cap and use their full height so a
+ * vertically long window is not letterboxed into a small centered band.
  */
-export const STAGE_MAX_HEIGHT = 50;
-
-/** Default situational rail width (cols). */
-export const RAIL_WIDTH = 36;
-
-/** Gap between stage and rail when both are shown (cols). */
-export const STAGE_RAIL_GAP = 2;
-
-/**
- * Minimum terminal width (cols) at which the situational rail may open.
- * Below this threshold the panels stay in the vertical stack even when they
- * have content, so narrow windows keep the full width for the transcript.
- */
-export const RAIL_MIN_COLS = 120;
-
-export type StageLayoutMode = 'stack' | 'rail';
+export const STAGE_MAX_HEIGHT = 60;
 
 export interface StageBand {
   readonly x: number;
@@ -36,14 +22,12 @@ export interface StageBand {
 
 export interface StageLayout {
   readonly profile: ResponsiveLayoutProfile;
-  readonly mode: StageLayoutMode;
   readonly stage: StageBand;
-  readonly rail?: StageBand;
   /** Left workspace dock (file explorer, etc.). */
   readonly leftDock?: StageBand;
-  /** Right workspace dock (terminal, etc.). Overrides rail when present. */
+  /** Right workspace dock (terminal, etc.). */
   readonly rightDock?: StageBand;
-  /** Width of the centered bundle (stage, or stage+gap+rail). */
+  /** Width of the centered bundle (the stage column). */
   readonly bundleWidth: number;
   /** Height of the centered stage band. */
   readonly bundleHeight: number;
@@ -52,8 +36,6 @@ export interface StageLayout {
 export interface ResolveStageLayoutInput {
   readonly width: number;
   readonly height?: number;
-  /** True when todo/activity/queue/btw would paint at least one row. */
-  readonly hasRailContent: boolean;
   /** Width of the left workspace dock (0 or undefined = no dock). */
   readonly leftDockWidth?: number;
   /** Width of the right workspace dock (0 or undefined = no dock). */
@@ -68,15 +50,14 @@ export interface ResolveStageLayoutInput {
 }
 
 /**
- * Resolve the centered stage (and optional situational rail) for a terminal size.
+ * Resolve the centered stage for a terminal size.
  *
  * - Narrow / short profiles keep a full-bleed stack.
  * - Wider terminals cap the stage at {@link STAGE_MAX_WIDTH} and center it.
- * - Tall terminals cap the stage at {@link STAGE_MAX_HEIGHT} and center it.
- * - A right rail opens on `wide`/`ultrawide` terminals with at least
- *   {@link RAIL_MIN_COLS} columns when content exists; the stage narrows so
- *   the fixed-width rail always fits. Below that threshold, or without rail
- *   content, panels stay in the vertical stack.
+ * - Tall / portrait terminals (rows ≥ available cols) use the full terminal
+ *   height; wider terminals cap the stage at {@link STAGE_MAX_HEIGHT} and
+ *   center it vertically. Situational panels (todo / activity / queue / btw)
+ *   always render in the vertical stack inside the stage column.
  */
 export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout {
   const cols = Math.max(0, Math.floor(input.width));
@@ -105,19 +86,19 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
 
   // Only wide+ terminals get a capped, centered reading column. Narrower
   // profiles stay full-bleed so small windows do not lose horizontal space.
-  const railEligible = profile === 'wide' || profile === 'ultrawide';
-  const wantsRail = input.hasRailContent && railEligible && availableCols >= RAIL_MIN_COLS;
-  // Once the rail opens, narrow the stage so the fixed-width rail always
-  // fits; stack mode keeps the capped reading column.
-  const stageWidth = wantsRail
-    ? Math.min(STAGE_MAX_WIDTH, availableCols - (STAGE_RAIL_GAP + RAIL_WIDTH))
-    : railEligible
-      ? Math.min(availableCols, STAGE_MAX_WIDTH)
-      : availableCols;
-  const stageHeight = Number.isFinite(bandRows) ? Math.min(bandRows, STAGE_MAX_HEIGHT) : STAGE_MAX_HEIGHT;
-  const railBundle = stageWidth + STAGE_RAIL_GAP + RAIL_WIDTH;
-  const mode: StageLayoutMode = wantsRail && railBundle <= availableCols ? 'rail' : 'stack';
-  const bundleWidth = mode === 'rail' ? railBundle : stageWidth;
+  const cappedWidth = profile === 'wide' || profile === 'ultrawide';
+  const stageWidth = cappedWidth
+    ? Math.min(availableCols, STAGE_MAX_WIDTH)
+    : availableCols;
+  // Tall / portrait terminals use the full height — letterboxing a vertically
+  // long window wastes most of the screen. Wider terminals keep the reading
+  // cap so the transcript does not stretch into an overlong column.
+  const stageHeight = !Number.isFinite(bandRows)
+    ? STAGE_MAX_HEIGHT
+    : bandRows >= availableCols
+      ? bandRows
+      : Math.min(bandRows, STAGE_MAX_HEIGHT);
+  const bundleWidth = stageWidth;
   const bundleHeight = stageHeight;
   // Center the bundle within the available band (between docks, or inside
   // the workspace center rect).
@@ -137,27 +118,8 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
     ? { x: cols - rightDockW, y: 0, width: rightDockW, height: Number.isFinite(rows) ? rows : stageHeight }
     : undefined;
 
-  if (mode === 'rail') {
-    return {
-      profile,
-      mode,
-      stage: { x: xOffset, y, width: stageWidth, height: stageHeight },
-      rail: {
-        x: xOffset + stageWidth + STAGE_RAIL_GAP,
-        y,
-        width: RAIL_WIDTH,
-        height: stageHeight,
-      },
-      leftDock,
-      rightDock,
-      bundleWidth,
-      bundleHeight,
-    };
-  }
-
   return {
     profile,
-    mode,
     stage: { x: xOffset, y, width: stageWidth, height: stageHeight },
     leftDock,
     rightDock,

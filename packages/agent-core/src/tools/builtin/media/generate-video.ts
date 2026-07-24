@@ -39,18 +39,24 @@ export const GenerateVideoInputSchema = z.object({
   image_path: z
     .string()
     .optional()
-    .describe('Optional first-frame / reference image path (workspace-relative or absolute).'),
+    .describe('Optional first-frame image path for image-to-video (workspace-relative or absolute).'),
+  reference_image_paths: z
+    .array(z.string())
+    .min(1)
+    .max(9)
+    .optional()
+    .describe('Optional reference image paths (1–9) for reference-to-video (Qwen Cloud only).'),
   aspect_ratio: z
     .enum(['16:9', '9:16'])
     .optional()
-    .describe('Aspect ratio when supported. Defaults to 16:9.'),
+    .describe('Aspect ratio when supported (ignored for image-to-video). Defaults to 16:9.'),
   duration_seconds: z
     .number()
     .int()
     .min(3)
-    .max(10)
+    .max(15)
     .optional()
-    .describe('Clip length in seconds when the provider supports it (3–10). Defaults to 5.'),
+    .describe('Clip length in seconds when the provider supports it (3–15). Defaults to 5.'),
   resolution: z
     .enum(['720P', '1080P'])
     .optional()
@@ -214,23 +220,55 @@ async function generateWithQwenVideo(
   if (apiKey === undefined) throw new Error('QWEN_TOKEN_PLAN_API_KEY is not set.');
   const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
 
-  // Select model based on whether an image is provided.
-  const hasImage = args.image_path !== undefined && args.image_path.trim().length > 0;
-  const model = hasImage ? 'happyhorse-1.1-i2v' : 'happyhorse-1.1-t2v';
+  // Select mode: reference images → r2v, first frame → i2v, otherwise t2v.
+  const hasReferenceImages =
+    args.reference_image_paths !== undefined && args.reference_image_paths.length > 0;
+  const hasFirstFrame = args.image_path !== undefined && args.image_path.trim().length > 0;
+  const mode: 'r2v' | 'i2v' | 't2v' = hasReferenceImages ? 'r2v' : hasFirstFrame ? 'i2v' : 't2v';
+  const model =
+    mode === 'r2v'
+      ? 'happyhorse-1.1-r2v'
+      : mode === 'i2v'
+        ? 'happyhorse-1.1-i2v'
+        : 'happyhorse-1.1-t2v';
 
   // Build input payload.
   const input: Record<string, unknown> = { prompt: args.prompt };
-  if (hasImage) {
+  if (mode === 'r2v') {
+    // r2v accepts 1–9 reference images as media entries.
+    input['media'] = await Promise.all(
+      args.reference_image_paths!.map(async (rawPath) => {
+        const refPath = resolvePathAccessPath(rawPath.trim(), {
+          kaos,
+          workspace,
+          operation: 'read',
+        });
+        const bytes = await kaos.readBytes(refPath);
+        const mime = sniffImageMime(bytes);
+        const b64 = Buffer.from(bytes).toString('base64');
+        return { type: 'reference_image', url: `data:${mime};base64,${b64}` };
+      }),
+    );
+  } else if (mode === 'i2v') {
     const imagePath = resolvePathAccessPath(args.image_path!.trim(), {
       kaos,
       workspace,
       operation: 'read',
     });
     const bytes = await kaos.readBytes(imagePath);
-    // Qwen i2v expects an image URL or base64; use data URI.
+    // Qwen i2v expects the first frame as a media entry (URL or data URI).
     const mime = sniffImageMime(bytes);
     const b64 = Buffer.from(bytes).toString('base64');
-    input['img_url'] = `data:${mime};base64,${b64}`;
+    input['media'] = [{ type: 'first_frame', url: `data:${mime};base64,${b64}` }];
+  }
+
+  // `ratio` applies to t2v and r2v only; i2v derives it from the first frame.
+  const parameters: Record<string, unknown> = {
+    resolution: args.resolution ?? '720P',
+    duration: args.duration_seconds ?? 5,
+  };
+  if (mode !== 'i2v') {
+    parameters['ratio'] = args.aspect_ratio ?? '16:9';
   }
 
   // Submit async task.
@@ -244,11 +282,7 @@ async function generateWithQwenVideo(
     body: JSON.stringify({
       model,
       input,
-      parameters: {
-        resolution: args.resolution ?? '720P',
-        ratio: args.aspect_ratio ?? '16:9',
-        duration: args.duration_seconds ?? 5,
-      },
+      parameters,
     }),
   });
 

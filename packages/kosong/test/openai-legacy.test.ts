@@ -1742,4 +1742,54 @@ describe('OpenAILegacyChatProvider — non-indexed streaming tool_calls', () => 
 
     expect(parts).toEqual([]);
   });
+
+  describe('Qwen Token Plan enable_search injection', () => {
+    const TOKEN_PLAN_BASE_URL =
+      'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
+
+    function createQwenProvider(model: string, baseUrl: string): OpenAILegacyChatProvider {
+      return new OpenAILegacyChatProvider({
+        model,
+        apiKey: 'sk-sp-test-key',
+        stream: false,
+        baseUrl,
+      });
+    }
+
+    it.each(['qwen3.8-max-preview', 'qwen3.7-plus', 'qwen3.7-max'])(
+      'injects enable_search for harness-capable model %s',
+      async (model) => {
+        const body = await captureRequestBody(
+          createQwenProvider(model, TOKEN_PLAN_BASE_URL),
+          '',
+          [],
+          [],
+        );
+        expect(body['enable_search']).toBe(true);
+      },
+    );
+
+    it.each(['qwen3.6-flash', 'glm-5.2', 'deepseek-v4-pro'])(
+      'does not inject enable_search for non-harness model %s',
+      async (model) => {
+        const body = await captureRequestBody(
+          createQwenProvider(model, TOKEN_PLAN_BASE_URL),
+          '',
+          [],
+          [],
+        );
+        expect(body['enable_search']).toBeUndefined();
+      },
+    );
+
+    it('does not inject enable_search for non-Token Plan endpoints', async () => {
+      const body = await captureRequestBody(
+        createQwenProvider('qwen3.8-max-preview', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
+        '',
+        [],
+        [],
+      );
+      expect(body['enable_search']).toBeUndefined();
+    });
+  });
 });

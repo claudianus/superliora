@@ -24,6 +24,7 @@ import {
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
+import { QWEN_TOKEN_PLAN_TEXT_MODELS } from '#/tui/utils/qwen-token-plan';
 
 /** How the user will authenticate for a given entry. */
 export type ProviderAuthKind = 'oauth' | 'api-key' | 'keyless' | 'cloud' | 'custom';
@@ -145,7 +146,7 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
     value: 'qwen-token-plan',
     label: 'Qwen Cloud (Token Plan)',
     authKind: 'api-key',
-    modelCount: 4,
+    modelCount: QWEN_TOKEN_PLAN_TEXT_MODELS.length,
     baseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
     envVars: ['QWEN_TOKEN_PLAN_API_KEY'],
     docUrl: 'https://docs.qwencloud.com/token-plan/overview',

@@ -122,11 +122,10 @@ describe('GenerateVideo Qwen async task pattern (mock fetch)', () => {
         model: 'happyhorse-1.1-i2v',
         input: {
           prompt: 'Animate this image',
-          img_url: 'data:image/png;base64,test',
+          media: [{ type: 'first_frame', url: 'data:image/png;base64,test' }],
         },
         parameters: {
           resolution: '1080P',
-          ratio: '9:16',
           duration: 8,
         },
       }),
@@ -135,8 +134,64 @@ describe('GenerateVideo Qwen async task pattern (mock fetch)', () => {
     const callArgs = mockFetch.mock.calls[0]!;
     const body = JSON.parse(callArgs[1].body);
     expect(body.model).toBe('happyhorse-1.1-i2v');
-    expect(body.input.img_url).toContain('data:image/');
+    // i2v sends the first frame as a media entry, not a top-level img_url.
+    expect(body.input.media[0].type).toBe('first_frame');
+    expect(body.input.media[0].url).toContain('data:image/');
+    expect(body.input.img_url).toBeUndefined();
     expect(body.parameters.resolution).toBe('1080P');
+    // i2v derives the aspect ratio from the first frame; ratio is not sent.
+    expect(body.parameters.ratio).toBeUndefined();
+  });
+
+  it('uses r2v model with reference images as media entries', async () => {
+    const mockFetch = vi.fn();
+
+    mockFetch.mockResolvedValueOnce(
+      createMockFetchResponse({
+        output: {
+          task_id: 'test-task-r2v',
+          task_status: 'PENDING',
+        },
+      }),
+    );
+
+    const expectedApiUrl =
+      'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis';
+
+    await mockFetch(expectedApiUrl, {
+      method: 'POST',
+      headers: {
+        'X-DashScope-Async': 'enable',
+        Authorization: 'Bearer sk-sp-test-key',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'happyhorse-1.1-r2v',
+        input: {
+          prompt: 'A character walking through the scene',
+          media: [
+            { type: 'reference_image', url: 'data:image/png;base64,ref1' },
+            { type: 'reference_image', url: 'data:image/png;base64,ref2' },
+          ],
+        },
+        parameters: {
+          resolution: '720P',
+          ratio: '16:9',
+          duration: 15,
+        },
+      }),
+    });
+
+    const callArgs = mockFetch.mock.calls[0]!;
+    const body = JSON.parse(callArgs[1].body);
+    expect(body.model).toBe('happyhorse-1.1-r2v');
+    expect(body.input.prompt).toBe('A character walking through the scene');
+    expect(body.input.media).toHaveLength(2);
+    expect(body.input.media[0].type).toBe('reference_image');
+    expect(body.input.media[0].url).toContain('data:image/');
+    // r2v keeps ratio (unlike i2v) and supports duration up to 15s.
+    expect(body.parameters.ratio).toBe('16:9');
+    expect(body.parameters.duration).toBe(15);
   });
 
   it('polls task status until SUCCEEDED', async () => {

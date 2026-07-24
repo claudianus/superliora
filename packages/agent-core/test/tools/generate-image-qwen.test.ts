@@ -105,7 +105,7 @@ describe('GenerateImage Qwen API integration (mock fetch)', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'qwen-image-2.0',
+        model: 'wan2.7-image',
         input: {
           messages: [{ role: 'user', content: [{ text: prompt }] }],
         },
@@ -127,7 +127,7 @@ describe('GenerateImage Qwen API integration (mock fetch)', () => {
     // Verify the body contains correct model and prompt
     const callArgs = mockFetch.mock.calls[0]!;
     const body = JSON.parse(callArgs[1].body);
-    expect(body.model).toBe('qwen-image-2.0');
+    expect(body.model).toBe('wan2.7-image');
     expect(body.input.messages[0].content[0].text).toBe(prompt);
     expect(body.parameters.size).toBe('1024*1024');
   });

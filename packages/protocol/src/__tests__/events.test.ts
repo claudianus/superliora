@@ -92,6 +92,17 @@ describe('events / display re-exports', () => {
     ).toBe(false);
   });
 
+  it('parses compaction progress phase events through the full agent event union', () => {
+    const parsed = agentEventSchema.safeParse({
+      type: 'compaction.progress',
+      phase: 'summarizing',
+    });
+    expect(parsed.success).toBe(true);
+    expect(
+      agentEventSchema.safeParse({ type: 'compaction.progress', phase: 'bogus' }).success,
+    ).toBe(false);
+  });
+
   it('validates session-scoped daemon events with agentId and sessionId', () => {
     const parsed = eventSchema.parse({
       type: 'turn.started',

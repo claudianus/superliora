@@ -60,6 +60,7 @@ import { applyCustomEndpointProvider, lookupModelCapability, probeModelsEndpoint
 import {
   applyQwenTokenPlanProvider,
   QWEN_TOKEN_PLAN_PROVIDER_ID,
+  QWEN_TOKEN_PLAN_TEXT_MODELS,
   validateQwenTokenPlanKeyFormat,
 } from '#/tui/utils/qwen-token-plan';
 import {
@@ -788,17 +789,17 @@ async function connectCloudProvider(
 
 /**
  * Connects Qwen Cloud Token Plan — a first-class multimodal subscription
- * supporting text generation, image generation (qwen-image-2.0), video
- * generation (happyhorse-1.1), harness tools (web search, code interpreter,
- * etc.), and visual understanding. The user only needs to provide their
- * dedicated API key (sk-sp-xxxxx format).
+ * supporting text generation, image generation (wan2.7-image), video
+ * generation (happyhorse-1.1), server-side harness tools (web_search,
+ * code_interpreter, …), and visual understanding. The user only needs to
+ * provide their dedicated API key (sk-sp-xxxxx format).
  */
 async function connectQwenTokenPlan(host: SlashCommandHost): Promise<void> {
   const option: ProviderCatalogOption = {
     value: 'qwen-token-plan',
     label: 'Qwen Cloud (Token Plan)',
     authKind: 'api-key',
-    modelCount: 4,
+    modelCount: QWEN_TOKEN_PLAN_TEXT_MODELS.length,
     baseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
     envVars: ['QWEN_TOKEN_PLAN_API_KEY'],
     docUrl: 'https://docs.qwencloud.com/token-plan/overview',
