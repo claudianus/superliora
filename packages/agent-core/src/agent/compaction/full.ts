@@ -52,9 +52,10 @@ import type {
   CompactionSource,
 } from './types';
 import {
-  DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
+  defaultAsyncTriggerRatioForWindow,
+  defaultTriggerRatioForWindow,
   PipelineStrategy,
   ToolCollapseStrategy,
   resolveCompactionBlockRatio,
@@ -203,21 +204,30 @@ export class FullCompaction {
     strategy?: CompactionStrategy,
   ) {
     const loopControl = agent.kimiConfig?.loopControl;
-    const compactionTriggerRatio =
-      loopControl?.compactionTriggerRatio ??
-      DEFAULT_COMPACTION_CONFIG.triggerRatio;
+    const userTriggerRatio = loopControl?.compactionTriggerRatio;
+    const userAsyncTriggerRatio = loopControl?.compactionAsyncTriggerRatio;
+    // The context window is only known once the agent finishes constructing
+    // (`agent.config` is still undefined here), so the window-aware defaults are
+    // resolved lazily through the config getters below. They apply only when the
+    // user has not set an explicit ratio: on large windows this raises the default
+    // trigger so compaction starts later and fires less often. Explicit config
+    // always wins. The hard block ratio is derived from the explicit ratio (or the
+    // small-window default) so the safety ceiling never moves.
+    const maxContextTokens = () => this.getEffectiveMaxContextTokens();
     const compactionBlockRatio = resolveCompactionBlockRatio(
-      compactionTriggerRatio,
+      userTriggerRatio ?? DEFAULT_COMPACTION_CONFIG.triggerRatio,
       loopControl?.compactionBlockRatio,
     );
     const defaultTrigger = new DefaultCompactionStrategy(
-      () => this.getEffectiveMaxContextTokens(),
+      maxContextTokens,
       {
         ...DEFAULT_COMPACTION_CONFIG,
-        triggerRatio: compactionTriggerRatio,
-        asyncTriggerRatio:
-          loopControl?.compactionAsyncTriggerRatio ??
-          DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
+        get triggerRatio() {
+          return userTriggerRatio ?? defaultTriggerRatioForWindow(maxContextTokens());
+        },
+        get asyncTriggerRatio() {
+          return userAsyncTriggerRatio ?? defaultAsyncTriggerRatioForWindow(maxContextTokens());
+        },
         blockRatio: compactionBlockRatio,
         reservedContextSize:
           loopControl?.reservedContextSize ??

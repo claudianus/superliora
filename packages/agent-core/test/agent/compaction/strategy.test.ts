@@ -3,8 +3,13 @@ import type { Message } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
+  DEFAULT_COMPACTION_BLOCK_RATIO,
   DEFAULT_COMPACTION_CONFIG,
+  DEFAULT_COMPACTION_TRIGGER_RATIO,
   DefaultCompactionStrategy,
+  defaultAsyncTriggerRatioForWindow,
+  defaultTriggerRatioForWindow,
   PipelineStrategy,
   ToolCollapseStrategy,
   resolveCompactionBlockRatio,
@@ -199,6 +204,52 @@ describe('DefaultCompactionStrategy', () => {
     // Once the soft trigger fires, async path yields to blocking compact.
     expect(strategy.shouldAsyncCompact(70_000)).toBe(false);
     expect(strategy.shouldCompact(70_000)).toBe(true);
+  });
+
+  describe('window-aware default trigger ratios', () => {
+    it('keeps the original defaults for small windows', () => {
+      expect(defaultTriggerRatioForWindow(100_000)).toBe(DEFAULT_COMPACTION_TRIGGER_RATIO);
+      expect(defaultAsyncTriggerRatioForWindow(100_000)).toBe(DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO);
+      // Just below the 128k threshold still uses the small-window defaults.
+      expect(defaultTriggerRatioForWindow(127_999)).toBe(DEFAULT_COMPACTION_TRIGGER_RATIO);
+      expect(defaultAsyncTriggerRatioForWindow(127_999)).toBe(DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO);
+    });
+
+    it('raises the defaults on large windows (>= 128k)', () => {
+      expect(defaultTriggerRatioForWindow(128_000)).toBe(0.8);
+      expect(defaultAsyncTriggerRatioForWindow(128_000)).toBe(0.7);
+      expect(defaultTriggerRatioForWindow(131_072)).toBe(0.8);
+      expect(defaultAsyncTriggerRatioForWindow(131_072)).toBe(0.7);
+    });
+
+    it('lets explicit user config override the window-aware default', () => {
+      const windowSize = 131_072;
+      // Mirrors the full.ts call site: explicit config wins over the default.
+      const userConfigured: number | undefined = 0.6;
+      const resolved = userConfigured ?? defaultTriggerRatioForWindow(windowSize);
+      expect(resolved).toBe(0.6);
+
+      const strategy = new DefaultCompactionStrategy(() => windowSize, {
+        ...DEFAULT_COMPACTION_CONFIG,
+        triggerRatio: resolved,
+      });
+      expect(strategy.effectiveTriggerRatio).toBeCloseTo(0.6, 5);
+      // Fires at the explicit 0.60 ratio (~78.6k), well before the 0.80
+      // large-window default (~104.8k): proof the explicit value is used.
+      expect(strategy.shouldCompact(Math.floor(windowSize * 0.6) - 1)).toBe(false);
+      expect(strategy.shouldCompact(Math.floor(windowSize * 0.6))).toBe(true);
+    });
+
+    it('never lets the window-aware default reach the block ratio ceiling', () => {
+      for (const windowSize of [100_000, 128_000, 131_072, 1_000_000]) {
+        const trigger = defaultTriggerRatioForWindow(windowSize);
+        const async = defaultAsyncTriggerRatioForWindow(windowSize);
+        const block = resolveCompactionBlockRatio(trigger);
+        expect(trigger).toBeLessThan(DEFAULT_COMPACTION_BLOCK_RATIO);
+        expect(trigger).toBeLessThan(block);
+        expect(async).toBeLessThan(trigger);
+      }
+    });
   });
 
   it('ignores reserved context when the reserve is not smaller than the model window', () => {

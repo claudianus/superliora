@@ -75,6 +75,19 @@ export const SWARM_HANDOFF_COMPACTION_RATIO = 0.65;
 export const SWARM_MICRO_PRESSURE_RATIO = 0.40;
 /** Default ratio at which async background compaction may start (pre-rot). */
 export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.55;
+/**
+ * Context-window size at/above which the window-aware default trigger ratios
+ * apply. On large windows (e.g. 131k) the fixed 0.70 soft trigger fires
+ * relatively early (~92k), so auto-compaction feels too frequent; past this
+ * threshold we raise the *default* ratios so compaction starts later and less
+ * often. Explicit user config (`loopControl.compactionTriggerRatio` /
+ * `compactionAsyncTriggerRatio`) always wins over these defaults.
+ */
+const LARGE_CONTEXT_WINDOW_THRESHOLD = 128_000;
+/** Soft-trigger default on large windows; kept below the hard block ceiling (0.90). */
+const LARGE_WINDOW_COMPACTION_TRIGGER_RATIO = 0.8;
+/** Async pre-rot default on large windows; kept below the large-window soft trigger. */
+const LARGE_WINDOW_ASYNC_COMPACTION_TRIGGER_RATIO = 0.7;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
 /**
@@ -83,6 +96,40 @@ export const DEFAULT_FROZEN_ZONE_SIZE = 2;
  * ratchet compaction into a hair-trigger loop.
  */
 const MAX_QUALITY_TRIGGER_BIAS = 0.02;
+
+/**
+ * Window-aware default soft-trigger ratio.
+ *
+ * Returns the higher large-window default once `maxContextTokens` reaches
+ * `LARGE_CONTEXT_WINDOW_THRESHOLD`, otherwise the small-window default. The
+ * result is clamped so the default can never reach the hard block ceiling
+ * (`DEFAULT_COMPACTION_BLOCK_RATIO`), preserving headroom for the compaction
+ * summary call. Only used as a fallback — explicit user config always wins.
+ */
+export function defaultTriggerRatioForWindow(maxContextTokens: number): number {
+  const ratio =
+    maxContextTokens >= LARGE_CONTEXT_WINDOW_THRESHOLD
+      ? LARGE_WINDOW_COMPACTION_TRIGGER_RATIO
+      : DEFAULT_COMPACTION_TRIGGER_RATIO;
+  // Never let the default reach the hard block ceiling.
+  return Math.min(ratio, DEFAULT_COMPACTION_BLOCK_RATIO - 0.05);
+}
+
+/**
+ * Window-aware default async (pre-rot) trigger ratio.
+ *
+ * Mirrors `defaultTriggerRatioForWindow`, clamped to stay below the
+ * window-aware soft trigger so the blocking path can still take over once the
+ * sync trigger fires. Only used as a fallback — explicit user config always wins.
+ */
+export function defaultAsyncTriggerRatioForWindow(maxContextTokens: number): number {
+  const ratio =
+    maxContextTokens >= LARGE_CONTEXT_WINDOW_THRESHOLD
+      ? LARGE_WINDOW_ASYNC_COMPACTION_TRIGGER_RATIO
+      : DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO;
+  // Async must stay below the sync trigger for the same window.
+  return Math.min(ratio, defaultTriggerRatioForWindow(maxContextTokens) - 0.05);
+}
 
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
