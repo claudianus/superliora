@@ -100,6 +100,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@types/js-yaml": "^4.0.9",
     "@types/nunjucks": "^3.2.6",
     "@types/picomatch": "^4.0.3",
