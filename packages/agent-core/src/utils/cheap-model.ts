@@ -54,10 +54,13 @@ export function resolveSubagentModelAlias(
   profileBaseName: string | undefined,
   parentModelAlias: string | undefined,
   models: Record<string, { model: string }> | undefined,
+  explorationModel?: string | undefined,
 ): string | undefined {
   if (parentModelAlias === undefined) return undefined;
   if (!isExploreSubagentProfile(profileName, profileBaseName)) return parentModelAlias;
-  return inferCheapModelAliasSync(models) ?? parentModelAlias;
+  // Explicit explorationModel wins, then an auto-inferred cheap model, then the
+  // parent model — mirrors the compactionModel/completionModel override pattern.
+  return explorationModel ?? inferCheapModelAliasSync(models) ?? parentModelAlias;
 }
 
 /**

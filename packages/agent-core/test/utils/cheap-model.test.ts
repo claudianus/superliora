@@ -45,4 +45,14 @@ describe('resolveSubagentModelAlias', () => {
       'main-model',
     );
   });
+
+  it('prefers an explicit explorationModel over the inferred cheap model', () => {
+    expect(
+      resolveSubagentModelAlias('explore', undefined, 'main-model', modelsWithCheap, 'my-explorer'),
+    ).toBe('my-explorer');
+    // An explicit explorationModel only applies to explore profiles.
+    expect(
+      resolveSubagentModelAlias('coder', undefined, 'main-model', modelsWithCheap, 'my-explorer'),
+    ).toBe('main-model');
+  });
 });

@@ -226,6 +226,7 @@ export class SessionSubagentHost {
             undefined,
             parent.config.modelAlias,
             parent.kimiConfig?.models,
+            parent.kimiConfig?.loopControl?.explorationModel,
           ),
         });
         this.attachUltraSwarmChannelIfNeeded(parent, child, agentId, runOptions, profileName);
@@ -252,6 +253,7 @@ export class SessionSubagentHost {
             undefined,
             parent.config.modelAlias,
             parent.kimiConfig?.models,
+            parent.kimiConfig?.loopControl?.explorationModel,
           ),
         });
         this.emitSubagentStarted(parent, agentId, runOptions);
@@ -489,6 +491,7 @@ export class SessionSubagentHost {
         profileBaseName,
         parent.config.modelAlias,
         parent.kimiConfig?.models,
+        parent.kimiConfig?.loopControl?.explorationModel,
       ),
       thinkingLevel: parent.config.thinkingLevel,
     });

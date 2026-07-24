@@ -162,6 +162,7 @@ export const LoopControlSchema = z.object({
   compactionMaxRecentMessages: z.number().int().min(1).optional(),
   compactionModel: z.string().min(1).optional(),
   completionModel: z.string().min(1).optional(),
+  explorationModel: z.string().min(1).optional(),
 });
 
 export type LoopControl = z.infer<typeof LoopControlSchema>;
