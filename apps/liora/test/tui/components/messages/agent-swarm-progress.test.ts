@@ -771,6 +771,51 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('…');
   });
 
+  it('shows per-child activity lines for running subagents and settles when they finish', () => {
+    const component = createComponent();
+
+    registerSubagents(component, 2);
+    startSubagents(component, 2);
+    component.appendModelDelta({ agentId: 'agent-1', delta: 'Reading auth routes\n' });
+    component.recordToolCall({ agentId: 'agent-2', toolCallId: 'call-grep', toolName: 'Grep' });
+
+    const output = renderText(component, 100);
+    expect(output).toContain('001: Reading auth routes');
+    expect(output).toContain('002: using Grep');
+
+    component.recordToolResult({ agentId: 'agent-2', toolCallId: 'call-grep' });
+    expect(renderText(component, 100)).not.toContain('using Grep');
+
+    component.markCompleted('agent-1');
+    component.markCompleted('agent-2');
+    const settled = renderText(component, 100);
+    expect(settled).not.toContain('001: Reading auth routes');
+    expect(settled).not.toContain(': using');
+  });
+
+  it('labels UltraSwarm child activity with expert names and in-flight tools', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+    component.registerSubagent({ agentId: 'sub-1', swarmIndex: 1 });
+    component.markStarted('sub-1');
+    component.recordToolCall({ agentId: 'sub-1', toolCallId: 'call-read', toolName: 'Read' });
+
+    const output = renderText(component, 120);
+    expect(output).toContain('🔧 Impl Engineer: using Read');
+
+    component.appendModelDelta({ agentId: 'sub-1', delta: 'Patching the login route' });
+    expect(renderText(component, 120)).toContain('🔧 Impl Engineer: Patching the login route');
+  });
+
   it('uses natural status label width for prompting text', () => {
     const prompting = createComponent({
       description: '',

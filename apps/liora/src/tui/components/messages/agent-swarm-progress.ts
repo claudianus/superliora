@@ -53,6 +53,8 @@ export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 10;
 const SWARM_OPS_FEED_MAX_ENTRIES = 48;
 const SWARM_OPS_FEED_RENDER_LINES = 8;
 const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
+/** Max per-child activity lines shown under the swarm grid before collapsing. */
+const MAX_CHILD_ACTIVITY_LINES = 6;
 const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block', 'council']);
 const SWARM_FEED_BODY_MIN_WIDTH = 24;
 const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
@@ -93,7 +95,8 @@ type ClearableMemberKey =
   | 'cancelledLabelColor'
   | 'cancelledMarkColor'
   | 'cancelledBarColor'
-  | 'suspendedReason';
+  | 'suspendedReason'
+  | 'activeToolName';
 
 const COMPLETED_CLEAR_KEYS = [
   'failedAtMs',
@@ -103,6 +106,7 @@ const COMPLETED_CLEAR_KEYS = [
   'cancelledMarkColor',
   'cancelledBarColor',
   'suspendedReason',
+  'activeToolName',
 ] as const satisfies readonly ClearableMemberKey[];
 const FAILED_CLEAR_KEYS = [
   'completedAtMs',
@@ -112,6 +116,7 @@ const FAILED_CLEAR_KEYS = [
   'cancelledMarkColor',
   'cancelledBarColor',
   'suspendedReason',
+  'activeToolName',
 ] as const satisfies readonly ClearableMemberKey[];
 const TERMINAL_CLEAR_KEYS = [
   'completedAtMs',
@@ -123,6 +128,7 @@ const TERMINAL_CLEAR_KEYS = [
   'cancelledMarkColor',
   'cancelledBarColor',
   'suspendedReason',
+  'activeToolName',
 ] as const satisfies readonly ClearableMemberKey[];
 const CANCELLED_CLEAR_KEYS = [
   'completedAtMs',
@@ -130,6 +136,7 @@ const CANCELLED_CLEAR_KEYS = [
   'failedAtMs',
   'failureText',
   'suspendedReason',
+  'activeToolName',
 ] as const satisfies readonly ClearableMemberKey[];
 
 export interface UltraSwarmMemberMetadata {
@@ -184,6 +191,7 @@ interface AgentSwarmMember {
   ticks: number;
   itemText: string;
   latestModelText: string;
+  activeToolName?: string;
   ultraSwarm?: UltraSwarmMemberMetadata;
   verdict?: string;
   evidenceIds?: readonly string[];
@@ -518,6 +526,9 @@ export class AgentSwarmProgressComponent implements Component {
     });
     if (!result.accepted) return;
     member.ticks = result.rawTicks;
+    if (input.toolName !== undefined && input.toolName.length > 0) {
+      member.activeToolName = input.toolName;
+    }
     this.promoteToRunning(member);
     this.startAnimationIfNeeded();
   }
@@ -537,6 +548,7 @@ export class AgentSwarmProgressComponent implements Component {
   }): void {
     const member = this.findMemberByAgentId(input.agentId);
     if (member === undefined) return;
+    delete member.activeToolName;
     member.ticks += 1;
     if (input.summary !== undefined && input.summary.length > 0) {
       const prefix = input.isError === true ? '⚠ ' : '';
@@ -553,6 +565,7 @@ export class AgentSwarmProgressComponent implements Component {
   }): void {
     const member = this.findMemberByAgentId(input.agentId);
     if (member === undefined || input.delta.length === 0) return;
+    delete member.activeToolName;
     member.latestModelText = `${member.latestModelText}${input.delta}`.slice(
       -MAX_LATEST_MODEL_CHARS,
     );
@@ -700,6 +713,7 @@ export class AgentSwarmProgressComponent implements Component {
               sortedSnapshots,
               nowMs,
             ),
+            ...this.renderChildActivitySection(innerWidth),
             ...this.renderMemberTodoSection(innerWidth),
             ...this.renderOpsFeed(innerWidth),
             '',
@@ -740,11 +754,13 @@ export class AgentSwarmProgressComponent implements Component {
     const teamBody = teamContent.length > 0
       ? teamContent
       : [chalk.hex(this.colors.textDim)('awaiting agents…')];
+    const activityContent = this.renderChildActivitySection(width);
     const feedHeader = chalk.hex(this.colors.textDim)('live feed · team messages');
     const panelContent = [
       ...missionContent,
       '',
       ...teamBody,
+      ...(activityContent.length > 0 ? ['', ...activityContent] : []),
       ...(reportContent.length > 0 ? ['', ...reportContent] : []),
       '',
       feedHeader,
@@ -1258,6 +1274,34 @@ export class AgentSwarmProgressComponent implements Component {
       cancelledProgressColor(member, snapshot.phase, this.colors),
     );
     return `${id} ${bar}${compactTerminalMark(member, snapshot.phase, this.colors)}`;
+  }
+
+  /**
+   * One dim line per running child with its latest observable activity: the
+   * in-flight tool call while one is pending, otherwise the most recent
+   * assistant text snippet. Only running members with something to show are
+   * listed, so the section settles to nothing once the swarm finishes.
+   */
+  private renderChildActivitySection(width: number): string[] {
+    const entries: string[] = [];
+    for (const member of this.members) {
+      if (member.phase !== 'running') continue;
+      const activity = member.activeToolName !== undefined
+        ? `using ${member.activeToolName}`
+        : collapseWhitespace(latestNonEmptyLine(member.latestModelText));
+      if (activity.length === 0) continue;
+      entries.push(`${swarmMemberDisplayName(member)}: ${activity}`);
+    }
+    if (entries.length === 0) return [];
+    const dim = this.colors.textDim;
+    const lines = entries
+      .slice(0, MAX_CHILD_ACTIVITY_LINES)
+      .map((entry) => truncateWithColor(entry, width, dim));
+    if (entries.length > MAX_CHILD_ACTIVITY_LINES) {
+      const hidden = entries.length - MAX_CHILD_ACTIVITY_LINES;
+      lines.push(truncateWithColor(`… +${String(hidden)} more`, width, dim));
+    }
+    return lines;
   }
 
   private findMemberForSubagent(
