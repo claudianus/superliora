@@ -18,6 +18,7 @@ import {
 } from '@superliora/kosong';
 
 import type { Agent } from '..';
+import type { ResolvedRuntimeProvider } from '../../session/provider-manager';
 import { buildResponseLanguageDirective } from '../injection/response-language';
 import { isAbortError } from '../../loop/errors';
 import {
@@ -35,6 +36,7 @@ import {
   computeCompletionBudgetCap,
   resolveCompletionBudget,
 } from '../../utils/completion-budget';
+import { inferCheapModelAliasSync } from '../../utils/cheap-model';
 import compactionInstructionTemplate from './compaction-instruction.md?raw';
 import { archiveContent } from '../../tools/builtin/context/context-archive';
 import { renderMessagesToText } from './render-messages';
@@ -1089,13 +1091,26 @@ export class FullCompaction {
 
   private createCompactionProvider(usedContextTokens: number): ChatProvider {
     // When a dedicated compaction model is configured, summarize with it
-    // instead of the (usually more expensive) main model. The alias is
-    // resolved through the same ModelProvider so auth/routing stays consistent.
-    const compactionModelAlias = this.agent.kimiConfig?.loopControl?.compactionModel;
-    const resolvedCompaction =
-      compactionModelAlias !== undefined
-        ? this.agent.modelProvider?.resolveProviderConfig(compactionModelAlias)
-        : undefined;
+    // instead of the (usually more expensive) main model. Without an explicit
+    // alias, infer a cheap/fast model from the configured aliases so routine
+    // compaction does not spend main-model tokens. The alias is resolved
+    // through the same ModelProvider so auth/routing stays consistent.
+    const configuredCompactionModel = this.agent.kimiConfig?.loopControl?.compactionModel;
+    const compactionModelAlias =
+      configuredCompactionModel ?? inferCheapModelAliasSync(this.agent.kimiConfig?.models);
+    let resolvedCompaction: ResolvedRuntimeProvider | undefined;
+    if (compactionModelAlias !== undefined) {
+      try {
+        resolvedCompaction = this.agent.modelProvider?.resolveProviderConfig(compactionModelAlias);
+      } catch (error) {
+        // A misconfigured explicit compactionModel keeps surfacing; a merely
+        // inferred alias falls back to the main model instead of failing
+        // compaction.
+        if (configuredCompactionModel !== undefined) throw error;
+        this.agent.log.warn('inferred cheap compaction model did not resolve', error);
+        resolvedCompaction = undefined;
+      }
+    }
     const capability: ModelCapability = resolvedCompaction?.modelCapabilities
       ?? this.agent.config.modelCapabilities;
     const maxContextTokens = capability.max_context_tokens;

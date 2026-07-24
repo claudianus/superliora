@@ -49,6 +49,7 @@ import type { LioraConfig } from '../../../src/config';
 import { FLAG_DEFINITIONS, FlagResolver, MASTER_ENV } from '../../../src/flags';
 import type { AgentMemoryRuntime, MemoryCreateInput, MemoryRecord } from '../../../src/memory';
 import { HookEngine, type HookEngineTriggerArgs } from '../../../src/session/hooks';
+import { inferCheapModelAliasSync } from '../../../src/utils/cheap-model';
 import { estimateTokensForMessages } from '../../../src/utils/tokens';
 import { expandArchivedContent } from '../../../src/tools/builtin/context/context-archive';
 import { recordingTelemetry, type TelemetryRecord } from '../../fixtures/telemetry';
@@ -72,6 +73,24 @@ const CATALOGUED_MODEL_CAPABILITIES = {
   max_context_tokens: 256_000,
 } as const;
 const MICRO_COMPACTION_FLAG_ENV = getMicroCompactionFlagEnv();
+
+/**
+ * Runtime config whose models catalogue contains one cheap-looking alias
+ * (`cheap-fast` → a haiku model) next to the main `kimi-code` alias, used to
+ * exercise automatic cheap-model routing in createCompactionProvider.
+ */
+function configWithCheapModelCatalogue(loopControl?: LioraConfig['loopControl']): LioraConfig {
+  return {
+    providers: {
+      'test-provider': { type: 'kimi', apiKey: 'test-key' },
+    },
+    models: {
+      'kimi-code': { provider: 'test-provider', model: 'kimi-code', maxContextSize: 256_000 },
+      'cheap-fast': { provider: 'test-provider', model: 'claude-3-5-haiku', maxContextSize: 200_000 },
+    },
+    ...(loopControl === undefined ? {} : { loopControl }),
+  };
+}
 
 describe('FullCompaction', () => {
   it('archives compacted tool exchanges so they are recoverable via liora-expand', async () => {
@@ -260,6 +279,74 @@ describe('FullCompaction', () => {
     expect(
       ctx.compactHistory().some((entry) => entry.text.includes('Compacted with dedicated model')),
     ).toBe(true);
+  });
+
+  describe('cheap compaction model routing', () => {
+    it('infers the cheapest configured alias from name patterns alone', () => {
+      expect(
+        inferCheapModelAliasSync({
+          main: { model: 'kimi-k2-thinking' },
+          quick: { model: 'gemini-2.5-flash' },
+          tiny: { model: 'claude-3-5-haiku-latest' },
+        }),
+      ).toBe('tiny');
+      expect(
+        inferCheapModelAliasSync({
+          main: { model: 'kimi-k2-thinking' },
+          quick: { model: 'gemini-2.5-flash' },
+        }),
+      ).toBe('quick');
+    });
+
+    it('returns undefined when no configured alias looks cheap', () => {
+      expect(inferCheapModelAliasSync(undefined)).toBeUndefined();
+      expect(inferCheapModelAliasSync({ main: { model: 'kimi-k2-thinking' } })).toBeUndefined();
+    });
+
+    it('routes compaction through the inferred cheap model when compactionModel is unset', async () => {
+      const ctx = testAgent({ initialConfig: configWithCheapModelCatalogue() });
+      ctx.configure({
+        provider: CATALOGUED_PROVIDER,
+        modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+      });
+      ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+      ctx.appendExchange(2, 'old user two', 'old assistant two', 40);
+
+      const resolveSpy = vi.spyOn(ctx.agent.modelProvider!, 'resolveProviderConfig');
+      const completed = ctx.once('compaction.completed');
+      ctx.mockNextResponse({ type: 'text', text: 'Compacted with inferred cheap model.' });
+      await ctx.rpc.beginCompaction({});
+      await completed;
+
+      expect(resolveSpy.mock.calls.some(([alias]) => alias === 'cheap-fast')).toBe(true);
+      expect(
+        ctx.compactHistory().some((entry) =>
+          entry.text.includes('Compacted with inferred cheap model'),
+        ),
+      ).toBe(true);
+    });
+
+    it('prefers an explicit loopControl.compactionModel over cheap inference', async () => {
+      const ctx = testAgent({
+        initialConfig: configWithCheapModelCatalogue({ compactionModel: 'kimi-code' }),
+      });
+      ctx.configure({
+        provider: CATALOGUED_PROVIDER,
+        modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+      });
+      ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+      ctx.appendExchange(2, 'old user two', 'old assistant two', 40);
+
+      const resolveSpy = vi.spyOn(ctx.agent.modelProvider!, 'resolveProviderConfig');
+      const completed = ctx.once('compaction.completed');
+      ctx.mockNextResponse({ type: 'text', text: 'Compacted with explicit model.' });
+      await ctx.rpc.beginCompaction({});
+      await completed;
+
+      const resolvedAliases = resolveSpy.mock.calls.map(([alias]) => alias);
+      expect(resolvedAliases).toContain('kimi-code');
+      expect(resolvedAliases).not.toContain('cheap-fast');
+    });
   });
 
   it('compacts history with orphan tool results without provider repair errors', async () => {

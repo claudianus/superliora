@@ -1,5 +1,6 @@
 import { createProvider, type ChatProvider, type GenerateResult, type Message } from '@superliora/kosong';
 
+import { inferCheapModelAliasSync } from '../../utils/cheap-model';
 import type { GenerateOptionsWithRequestLogFields } from '../llm-request-logger';
 import type { Agent } from '../index';
 
@@ -224,28 +225,7 @@ export class PromptIntelligenceService {
     }
 
     // 2. Fallback: name-pattern heuristic (lower score = cheaper / faster).
-    const CHEAP_PATTERNS: ReadonlyArray<{ pattern: string; score: number }> = [
-      { pattern: 'haiku', score: 1 },
-      { pattern: 'flash', score: 2 },
-      { pattern: 'nano', score: 3 },
-      { pattern: 'mini', score: 4 },
-      { pattern: 'lite', score: 5 },
-      { pattern: 'turbo', score: 6 },
-    ];
-
-    let bestAlias: string | undefined;
-    let bestScore = Number.POSITIVE_INFINITY;
-
-    for (const [alias, config] of Object.entries(models)) {
-      const haystack = `${alias} ${config.model}`.toLowerCase();
-      for (const { pattern, score } of CHEAP_PATTERNS) {
-        if (haystack.includes(pattern) && score < bestScore) {
-          bestScore = score;
-          bestAlias = alias;
-        }
-      }
-    }
-    return bestAlias;
+    return inferCheapModelAliasSync(models);
   }
 
   private async resolveProvider(maxTokens: number): Promise<ChatProvider | undefined> {
