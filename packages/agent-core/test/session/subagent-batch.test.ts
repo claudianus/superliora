@@ -899,3 +899,111 @@ function queuedTask(index: number): QueuedSubagentTask<number> {
     runInBackground: false,
   };
 }
+
+describe('SubagentBatch transient provider retry', () => {
+  it('retries a transient provider error in place and succeeds on the second attempt', async () => {
+    vi.useFakeTimers();
+    try {
+      const { runBatch, attempts } = createMockBatchRunner();
+      const running = runBatch([queuedTask(1)]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(1);
+
+      attempts[0]!.outcome.reject(new Error('[provider.connection_error] Connection reset.'));
+      await vi.advanceTimersByTimeAsync(0);
+      // The retry waits out its backoff; nothing relaunches immediately.
+      expect(attempts).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(attempts).toHaveLength(2);
+      // In-place turn retry of the same agent, not a fresh spawn.
+      expect(attempts[1]!.retryAgentId).toBeDefined();
+
+      attempts[1]!.outcome.resolve({
+        task: attempts[1]!.task,
+        agentId: 'agent-1-retry',
+        status: 'completed',
+        result: 'recovered',
+      });
+      const results = await running;
+      expect(results).toHaveLength(1);
+      expect(results[0]!.status).toBe('completed');
+      expect(results[0]!.result).toBe('recovered');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fails the task once the bounded transient retry budget is exhausted', async () => {
+    vi.useFakeTimers();
+    try {
+      const { runBatch, attempts } = createMockBatchRunner();
+      const running = runBatch([queuedTask(1)]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(1);
+
+      attempts[0]!.outcome.reject(new Error('[provider.api_error] 503 Service Unavailable'));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(attempts).toHaveLength(2);
+
+      attempts[1]!.outcome.reject(new Error('[provider.api_error] 503 Service Unavailable'));
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(attempts).toHaveLength(3);
+
+      // Budget exhausted (2 extra attempts): no fourth attempt ever happens.
+      attempts[2]!.outcome.reject(new Error('[provider.api_error] 503 Service Unavailable'));
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(attempts).toHaveLength(3);
+
+      const results = await running;
+      expect(results).toHaveLength(1);
+      expect(results[0]!.status).toBe('failed');
+      expect(results[0]!.error).toBe('[provider.api_error] 503 Service Unavailable');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not retry a task timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const { runBatch, attempts } = createMockBatchRunner();
+      const running = runBatch([{ ...queuedTask(1), timeout: 5000 }]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      // Plenty of time passes; a timeout still never retries.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(attempts).toHaveLength(1);
+
+      const results = await running;
+      expect(results).toHaveLength(1);
+      expect(results[0]!.status).toBe('failed');
+      expect(results[0]!.error).toBe('Subagent timed out.');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not retry a permanent 4xx provider error', async () => {
+    vi.useFakeTimers();
+    try {
+      const { runBatch, attempts } = createMockBatchRunner();
+      const running = runBatch([queuedTask(1)]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(1);
+
+      attempts[0]!.outcome.reject(new Error('[provider.api_error] 400 Bad Request'));
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(attempts).toHaveLength(1);
+
+      const results = await running;
+      expect(results).toHaveLength(1);
+      expect(results[0]!.status).toBe('failed');
+      expect(results[0]!.error).toBe('[provider.api_error] 400 Bad Request');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

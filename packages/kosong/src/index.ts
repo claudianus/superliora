@@ -71,6 +71,7 @@ export {
   isRecoverableRequestStructureError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,
+  isTransientProviderError,
 } from './errors';
 
 /**

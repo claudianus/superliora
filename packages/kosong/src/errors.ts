@@ -212,6 +212,62 @@ export function isProviderRateLimitError(error: unknown): boolean {
   return PROVIDER_RATE_LIMIT_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
 }
 
+/**
+ * Connection-level errno codes Node/undici report when the transport fails
+ * before any HTTP response (reset socket, connect-level timeout, DNS blip).
+ */
+const TRANSIENT_NETWORK_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ENETDOWN',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'EPIPE',
+]);
+
+const TRANSIENT_PROVIDER_MESSAGE_PATTERNS = [
+  /overloaded/,
+  /\bserver_error\b/,
+  /internal server error/,
+  /bad gateway/,
+  /service unavailable/,
+  /socket hang up/,
+  /fetch failed/,
+  /failed to fetch/,
+  /terminated/,
+  /network/,
+  /connection/,
+  /econnreset|etimedout|econnrefused|econnaborted|enotfound|eai_again|epipe/,
+] as const;
+
+/**
+ * True only for clearly transient provider failures: HTTP 5xx responses,
+ * provider overload / server_error signals, and connection-level network
+ * failures (ECONNRESET, connection-level ETIMEDOUT, socket hang up, fetch
+ * failed). Rate limits (429) are excluded — callers schedule those through a
+ * dedicated capacity-aware path — as are request timeouts, aborts, 4xx, and
+ * any other permanent error.
+ */
+export function isTransientProviderError(error: unknown): boolean {
+  if (isProviderRateLimitError(error)) return false;
+  if (error instanceof APIConnectionError) return true;
+
+  const statusCode = getStatusCode(error);
+  if (statusCode !== undefined) return statusCode >= 500 && statusCode <= 599;
+
+  const errorCode = getErrorCode(error);
+  if (errorCode !== undefined) return TRANSIENT_NETWORK_ERROR_CODES.has(errorCode);
+
+  const lowerMessage = errorMessage(error).toLowerCase();
+  if (/\b5\d{2}\b/.test(lowerMessage)) return true;
+  if (TIMEOUT_RE.test(lowerMessage)) return false;
+  return TRANSIENT_PROVIDER_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
+}
+
 function getStatusCode(error: unknown): number | undefined {
   if (typeof error !== 'object' || error === null) return undefined;
 
@@ -228,6 +284,21 @@ function getStatusCode(error: unknown): number | undefined {
   if (typeof responseStatusCode === 'number') return responseStatusCode;
   const responseStatus = responseRecord['status'];
   return typeof responseStatus === 'number' ? responseStatus : undefined;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  const record = error as Record<string, unknown>;
+  const code = record['code'];
+  if (typeof code === 'string') return code.toUpperCase();
+
+  // Node fetch failures wrap the real transport error in `cause`
+  // (e.g. TypeError: fetch failed -> Error [ECONNRESET] { code: 'ECONNRESET' }).
+  const cause = record['cause'];
+  if (typeof cause !== 'object' || cause === null) return undefined;
+  const causeCode = (cause as Record<string, unknown>)['code'];
+  return typeof causeCode === 'string' ? causeCode.toUpperCase() : undefined;
 }
 
 function errorMessage(error: unknown): string {

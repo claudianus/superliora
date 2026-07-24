@@ -1,4 +1,8 @@
-import { isProviderRateLimitError, type TokenUsage } from '@superliora/kosong';
+import {
+  isProviderRateLimitError,
+  isTransientProviderError,
+  type TokenUsage,
+} from '@superliora/kosong';
 import * as retry from 'retry';
 
 import type {
@@ -26,6 +30,7 @@ Rate-limit phase:
 
 Results and cancellation:
 - Completed, failed, aborted, and timed-out attempts occupy their input slots; when all slots have results, return the ordered list. A task timeout fails only that task and does not enter rate-limit phase or stop others.
+- A transient provider failure (HTTP 5xx, provider overloaded/server_error, connection-level network error) retries the same task in place up to 2 extra attempts with 1000 ms / 2000 ms backoff before failing it; this budget is separate from the rate-limit phase. Timeouts, rate limits, aborts, and permanent errors never use this path.
 - The first task signal is the batch signal. User cancellation preserves existing results, marks ready or agent-known unfinished tasks aborted/started, and marks never-started tasks aborted/not_started. Non-user cancellation rejects.
 */
 
@@ -36,6 +41,11 @@ const RATE_LIMIT_RETRY_FACTOR = 2;
 const RATE_LIMIT_CAPACITY_SHRINK_INTERVAL_MS = 2000;
 const RATE_LIMIT_CAPACITY_RECOVERY_INTERVAL_MS = 3 * 60 * 1000;
 const RATE_LIMIT_SUSPENDED_REASON = 'Provider rate limit; subagent requeued for retry.';
+
+/** Extra in-place attempts granted for transient provider failures. */
+const TRANSIENT_RETRY_MAX_ATTEMPTS = 2;
+/** Exponential backoff base for transient retries: 1000 ms, then 2000 ms. */
+const TRANSIENT_RETRY_BASE_DELAY_MS = 1000;
 
 const AGENT_SWARM_MAX_CONCURRENCY_ENV = 'SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY';
 
@@ -107,6 +117,8 @@ type TaskState<T> = {
   retryCount: number;
   retryReadyAt: number;
   started: boolean;
+  /** In-place retries spent on transient provider failures (bounded). */
+  transientRetryCount: number;
 };
 
 type ActiveAttempt<T> = {
@@ -163,6 +175,7 @@ export class SubagentBatch<T> {
       retryCount: 0,
       retryReadyAt: 0,
       started: false,
+      transientRetryCount: 0,
     }));
     this.pending = [...this.states];
     this.results = Array.from({ length: tasks.length });
@@ -314,47 +327,101 @@ export class SubagentBatch<T> {
       suppressRateLimitFailureEvent: true,
     };
 
-    let handle: SubagentHandle;
-    try {
-      attempt.controller.signal.throwIfAborted();
-      if (attempt.state.retryAgentId !== undefined) {
-        handle = await this.launcher.retry(attempt.state.retryAgentId, runOptions);
-      } else if (task.kind === 'resume') {
-        handle = await this.launcher.resume(task.resumeAgentId, runOptions);
-      } else {
-        const spawnOptions: SpawnSubagentOptions = {
-          profileName: task.profileName,
-          profileBaseName: task.profileBaseName,
-          swarmItem: task.swarmItem,
-          ...runOptions,
-        };
-        handle = await this.launcher.spawn(spawnOptions);
+    for (;;) {
+      let handle: SubagentHandle;
+      try {
+        attempt.controller.signal.throwIfAborted();
+        if (attempt.state.retryAgentId !== undefined) {
+          handle = await this.launcher.retry(attempt.state.retryAgentId, runOptions);
+        } else if (attempt.state.agentId !== undefined) {
+          // Transient retry after a failed completion: the agent instance still
+          // exists, so retry its failed turn in place instead of spawning anew.
+          handle = await this.launcher.retry(attempt.state.agentId, runOptions);
+        } else if (task.kind === 'resume') {
+          handle = await this.launcher.resume(task.resumeAgentId, runOptions);
+        } else {
+          const spawnOptions: SpawnSubagentOptions = {
+            profileName: task.profileName,
+            profileBaseName: task.profileBaseName,
+            swarmItem: task.swarmItem,
+            ...runOptions,
+          };
+          handle = await this.launcher.spawn(spawnOptions);
+        }
+      } catch (error) {
+        if (!this.shouldRetryTransient(attempt, error)) {
+          return this.failedAttemptOutcome(attempt, error);
+        }
+        attempt.state.transientRetryCount += 1;
+        if (!(await this.waitTransientBackoff(attempt))) {
+          return this.failedAttemptOutcome(attempt, error);
+        }
+        continue;
       }
-    } catch (error) {
-      return this.failedAttemptOutcome(attempt, error);
-    }
 
-    attempt.state.agentId = handle.agentId;
-    try {
-      const completion = await handle.completion;
-      return {
-        task,
-        agentId: handle.agentId,
-        status: 'completed',
-        result: completion.result,
-        usage: completion.usage,
-      };
-    } catch (error) {
-      if (isProviderRateLimitError(error)) {
+      attempt.state.agentId = handle.agentId;
+      try {
+        const completion = await handle.completion;
         return {
-          type: 'rate_limited',
+          task,
           agentId: handle.agentId,
-          error: this.attemptErrorMessage(attempt, error, 'failed'),
+          status: 'completed',
+          result: completion.result,
+          usage: completion.usage,
         };
-      }
+      } catch (error) {
+        if (isProviderRateLimitError(error)) {
+          return {
+            type: 'rate_limited',
+            agentId: handle.agentId,
+            error: this.attemptErrorMessage(attempt, error, 'failed'),
+          };
+        }
 
-      return this.failedAttemptOutcome(attempt, error);
+        if (!this.shouldRetryTransient(attempt, error)) {
+          return this.failedAttemptOutcome(attempt, error);
+        }
+        attempt.state.transientRetryCount += 1;
+        if (!(await this.waitTransientBackoff(attempt))) {
+          return this.failedAttemptOutcome(attempt, error);
+        }
+      }
     }
+  }
+
+  /**
+   * Transient provider failures (5xx / overloaded / connection errors) earn a
+   * small bounded in-place retry, kept strictly separate from the rate-limit
+   * capacity scheduler. Timeouts, aborts, rate limits, and permanent errors
+   * never retry here.
+   */
+  private shouldRetryTransient(attempt: ActiveAttempt<T>, error: unknown): boolean {
+    if (this.finished) return false;
+    if (attempt.timedOut || attempt.controller.signal.aborted) return false;
+    if (attempt.state.transientRetryCount >= TRANSIENT_RETRY_MAX_ATTEMPTS) return false;
+    return isTransientProviderError(error);
+  }
+
+  /** Resolves true once the backoff elapses, false if the attempt is aborted. */
+  private waitTransientBackoff(attempt: ActiveAttempt<T>): Promise<boolean> {
+    const delay =
+      TRANSIENT_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attempt.state.transientRetryCount - 1);
+    return new Promise((resolve) => {
+      const abortSignal = attempt.controller.signal;
+      if (abortSignal.aborted) {
+        resolve(false);
+        return;
+      }
+      const onAbort = () => {
+        clearTimeout(timer);
+        resolve(false);
+      };
+      const timer = setTimeout(() => {
+        abortSignal.removeEventListener('abort', onAbort);
+        resolve(true);
+      }, delay);
+      abortSignal.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   private failedAttemptOutcome(attempt: ActiveAttempt<T>, error: unknown): SubagentResult<T> {

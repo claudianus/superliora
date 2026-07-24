@@ -10,6 +10,7 @@ import {
   isRecoverableRequestStructureError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,
+  isTransientProviderError,
   normalizeAPIStatusError,
 } from '#/errors';
 import { describe, expect, it } from 'vitest';
@@ -310,5 +311,73 @@ describe('isProviderRateLimitError', () => {
     expect(isProviderRateLimitError(new APIStatusError(401, 'unauthorized'))).toBe(false);
     expect(isProviderRateLimitError('APIStatusError: 401 unauthorized')).toBe(false);
     expect(isProviderRateLimitError(new Error('context length exceeded'))).toBe(false);
+  });
+});
+
+describe('isTransientProviderError', () => {
+  it('treats HTTP 5xx status errors as transient', () => {
+    expect(isTransientProviderError(new APIStatusError(500, 'internal error'))).toBe(true);
+    expect(isTransientProviderError(new APIStatusError(502, 'bad gateway'))).toBe(true);
+    expect(isTransientProviderError(new APIStatusError(503, 'service unavailable'))).toBe(true);
+    expect(isTransientProviderError(new APIStatusError(529, 'overloaded_error'))).toBe(true);
+    expect(isTransientProviderError({ statusCode: 503, message: 'unavailable' })).toBe(true);
+    expect(isTransientProviderError({ status: 500, message: 'error' })).toBe(true);
+  });
+
+  it('never treats rate limits as transient (dedicated scheduler owns them)', () => {
+    expect(isTransientProviderError(new APIProviderRateLimitError('slow down'))).toBe(false);
+    expect(isTransientProviderError(new APIStatusError(429, 'too many requests'))).toBe(false);
+    expect(isTransientProviderError(new Error('[provider.rate_limit] slow down'))).toBe(false);
+  });
+
+  it('never treats permanent 4xx errors as transient', () => {
+    expect(isTransientProviderError(new APIStatusError(400, 'bad request'))).toBe(false);
+    expect(isTransientProviderError(new APIStatusError(401, 'unauthorized'))).toBe(false);
+    expect(isTransientProviderError(new APIStatusError(404, 'not found'))).toBe(false);
+    expect(isTransientProviderError(new APIContextOverflowError(400, 'context length'))).toBe(
+      false,
+    );
+    expect(isTransientProviderError(new Error('[provider.auth_error] Invalid API key.'))).toBe(
+      false,
+    );
+    expect(isTransientProviderError(new Error('[provider.api_error] 400 Bad Request'))).toBe(
+      false,
+    );
+  });
+
+  it('treats connection-level network failures as transient', () => {
+    expect(isTransientProviderError(new APIConnectionError('connection reset'))).toBe(true);
+    expect(
+      isTransientProviderError(Object.assign(new Error('reset'), { code: 'ECONNRESET' })),
+    ).toBe(true);
+    expect(
+      isTransientProviderError(
+        Object.assign(new TypeError('fetch failed'), {
+          cause: Object.assign(new Error('reset'), { code: 'ECONNRESET' }),
+        }),
+      ),
+    ).toBe(true);
+    expect(isTransientProviderError(new Error('socket hang up'))).toBe(true);
+    expect(isTransientProviderError(new Error('fetch failed'))).toBe(true);
+    expect(
+      isTransientProviderError(new Error('[provider.connection_error] Connection reset.')),
+    ).toBe(true);
+    expect(
+      isTransientProviderError(new Error('[provider.api_error] 503 Service Unavailable')),
+    ).toBe(true);
+    expect(isTransientProviderError(new Error('[provider.api_error] Overloaded'))).toBe(true);
+  });
+
+  it('does not treat timeouts or aborts as transient', () => {
+    expect(isTransientProviderError(new APITimeoutError('Request timed out.'))).toBe(false);
+    expect(
+      isTransientProviderError(new Error('[provider.connection_error] Request timed out.')),
+    ).toBe(false);
+    expect(isTransientProviderError(new Error('Aborted'))).toBe(false);
+    expect(
+      isTransientProviderError(Object.assign(new Error('aborted'), { code: 'ABORT_ERR' })),
+    ).toBe(false);
+    expect(isTransientProviderError(new APIEmptyResponseError('empty response'))).toBe(false);
+    expect(isTransientProviderError(new Error('Subagent profile "x" was not found'))).toBe(false);
   });
 });

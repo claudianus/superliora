@@ -633,11 +633,18 @@ async function runChildTurnToCompletion(child: Agent, signal: AbortSignal): Prom
     if (turnEnded.error?.code === ErrorCodes.PROVIDER_RATE_LIMIT) {
       throw providerRateLimitErrorFromPayload(turnEnded.error);
     }
-    throw new Error(
+    const failure = new Error(
       turnEnded.error === undefined
         ? `Subagent turn ${turnEnded.reason}`
         : `[${turnEnded.error.code}] ${turnEnded.error.message}`,
     );
+    // Preserve the provider HTTP status so downstream classifiers can tell
+    // transient 5xx failures apart from permanent 4xx after payload flattening.
+    const failureStatusCode = turnEnded.error?.details?.['statusCode'];
+    if (typeof failureStatusCode === 'number') {
+      (failure as Error & { statusCode?: number }).statusCode = failureStatusCode;
+    }
+    throw failure;
   }
   if (completion.stopReason === 'max_tokens') {
     throw new Error(`${SUBAGENT_MAX_TOKENS_ERROR}.`);
