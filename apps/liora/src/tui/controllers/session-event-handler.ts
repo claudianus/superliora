@@ -360,7 +360,13 @@ export class SessionEventHandler {
   }
 
   private handleUltraworkEvent(event: UltraworkTheatreEvent): void {
-    if (event.type === 'ultrawork.stage.changed' && event.to === 'done') {
+    if (
+      event.type === 'ultrawork.stage.changed' &&
+      // to='done' is the normal completion path; run.status='failed' covers
+      // the terminal event cancel() now emits (stage is unchanged, so only
+      // the run status marks it terminal). Both must restore prior state.
+      (event.to === 'done' || event.run.status === 'failed')
+    ) {
       this.finishUltraworkRun(event);
     }
     if (event.type === 'ultrawork.team.staffed') {
@@ -412,6 +418,7 @@ export class SessionEventHandler {
     }
     void session.setPremiumQuality(restorePremiumQuality).catch(() => {});
 
+    const failed = event.run.status === 'failed';
     const reason = event.reason?.trim();
     const objective = event.run.objective.trim();
     this.host.state.transcriptContainer.addChild(
@@ -421,10 +428,14 @@ export class SessionEventHandler {
       }),
     );
     this.host.showNotice(
-      'Ultrawork completed',
+      failed ? 'Ultrawork ended' : 'Ultrawork completed',
       [
         objective,
-        reason !== undefined && reason.length > 0 ? reason : 'All stages finished successfully.',
+        reason !== undefined && reason.length > 0
+          ? reason
+          : failed
+            ? 'Run cancelled or failed.'
+            : 'All stages finished successfully.',
         'Ultrawork mode is off. Use Shift-Tab or /ultrawork to start another run.',
       ].join('\n'),
       { coalesceKey: `ultrawork-completed:${runId}` },

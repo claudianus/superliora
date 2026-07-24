@@ -28,6 +28,24 @@ describe('default agent profiles', () => {
     expect(prompt!.length).toBeLessThan(16_000);
   });
 
+  it('keeps the cached system prefix byte-stable across clock changes (no volatile KIMI_NOW)', () => {
+    // The system prompt is the first prompt-cache block. A per-process timestamp
+    // (KIMI_NOW) used to be interpolated here, which invalidated the system+tools
+    // cache on every process start. Authoritative time now comes from the tail
+    // <current_time> injector / GetCurrentTime tool, so the cached prefix must be
+    // byte-identical no matter what `now` the context carries.
+    const earlier = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext) ?? '';
+    const later =
+      DEFAULT_AGENT_PROFILES['agent']?.systemPrompt({
+        ...promptContext,
+        now: '2031-12-31T23:59:59.999Z',
+      }) ?? '';
+
+    expect(later).toBe(earlier);
+    expect(earlier).not.toContain('2026-05-09T00:00:00.000Z');
+    expect(later).not.toContain('2031-12-31T23:59:59.999Z');
+  });
+
   it('keeps static instructions before dynamic prompt context', () => {
     const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext) ?? '';
 

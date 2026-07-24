@@ -329,6 +329,57 @@ describe('DefaultCompactionStrategy', () => {
     // 0.70 - 0.02 bias = 0.68 → 68k
     expect(strategy.shouldCompact(68_000)).toBe(true);
   });
+
+  it('moves the async compaction threshold with asyncTriggerRatio', () => {
+    const defaultAsync = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+    });
+    // Default async ratio 0.55 → ~55k threshold; the sync trigger owns ≥70k.
+    expect(defaultAsync.shouldAsyncCompact(54_000)).toBe(false);
+    expect(defaultAsync.shouldAsyncCompact(56_000)).toBe(true);
+    expect(defaultAsync.shouldAsyncCompact(70_000)).toBe(false);
+
+    const earlyAsync = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+      asyncTriggerRatio: 0.3,
+    });
+    // Lowering the ratio moves the async threshold down with it.
+    expect(earlyAsync.shouldAsyncCompact(28_000)).toBe(false);
+    expect(earlyAsync.shouldAsyncCompact(31_000)).toBe(true);
+    expect(defaultAsync.shouldAsyncCompact(40_000)).toBe(false);
+    expect(earlyAsync.shouldAsyncCompact(40_000)).toBe(true);
+  });
+
+  it('caps the quality trigger bias at a small delta below the configured ratio', () => {
+    const strategy = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+    });
+    for (let i = 0; i < 6; i++) {
+      strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
+    }
+    // Repeated backstops saturate at the 0.02 cap instead of stacking.
+    expect(strategy.applyQualityFeedback({ usedEmergencyBackstop: true })).toBe(0.02);
+    expect(strategy.effectiveTriggerRatio).toBeCloseTo(0.68, 10);
+    expect(strategy.effectiveTriggerRatio).toBeGreaterThan(0.67);
+  });
+
+  it('decays the quality trigger bias after clean compactions without a high recall score', () => {
+    const strategy = new DefaultCompactionStrategy(() => 100_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      reservedContextSize: 0,
+    });
+    strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
+    strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
+    // A clean (non-backstop) compaction decays the bias even with no recall score...
+    expect(strategy.applyQualityFeedback({ usedEmergencyBackstop: false })).toBeCloseTo(0.01);
+    // ...and a low recall score no longer blocks the decay.
+    expect(
+      strategy.applyQualityFeedback({ recallEvalScore: 0.3, usedEmergencyBackstop: false }),
+    ).toBeCloseTo(0);
+  });
 });
 
 describe('CompactionQualityTracker', () => {

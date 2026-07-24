@@ -60,6 +60,13 @@ export interface UsageStatus {
   readonly byModel?: Record<string, TokenUsage>;
   readonly currentTurn?: TokenUsage;
   readonly total?: TokenUsage;
+  /**
+   * Session prompt-cache hit rate in 0..1: cache-read input tokens over total
+   * input tokens across the session. Undefined before any usage is recorded.
+   * A byte-stable cached prefix approaches 1 at steady state; a volatile
+   * segment inside the prefix keeps this near 0.
+   */
+  readonly cacheHitRate?: number;
 }
 
 export type PermissionMode = 'manual' | 'yolo' | 'auto';
@@ -937,6 +944,7 @@ export const usageStatusSchema = z.object({
   byModel: z.record(z.string(), tokenUsageSchema).optional(),
   currentTurn: tokenUsageSchema.optional(),
   total: tokenUsageSchema.optional(),
+  cacheHitRate: z.number().optional(),
 }) satisfies z.ZodType<UsageStatus>;
 
 export const permissionModeSchema = z.enum(['manual', 'yolo', 'auto']) satisfies z.ZodType<PermissionMode>;

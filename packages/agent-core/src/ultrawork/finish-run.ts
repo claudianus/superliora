@@ -11,12 +11,25 @@ export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined
   const ultrawork = agent.ultrawork;
   if (ultrawork === undefined) return undefined;
   const run = ultrawork.getRun();
-  if (run === null || run.status !== 'running') return undefined;
+  if (run === null) return undefined;
+
+  // Terminal runs (done/failed — e.g. cancelled before a WorkGraph was
+  // seeded) must still finish even with an empty WorkGraph: release any Ultra
+  // Plan the run forced and close an active goal. Returning early here would
+  // strand the session with modes stuck on.
+  if (run.status === 'done' || run.status === 'failed') {
+    if (agent.planMode.isActive && agent.planMode.isUltraMode) {
+      agent.planMode.exit();
+    }
+    return completeUltraGoalForFinishedRun(agent);
+  }
+  if (run.status !== 'running') return undefined;
+
   const graph = run.workGraph;
-  // Only auto-finish when a WorkGraph exists with at least one node and every
-  // node is done. Without a graph (or with an empty one) the run has not yet
-  // been seeded with work — finishing here would prematurely close runs still
-  // in plan/research stages.
+  // Only auto-finish a running run when a WorkGraph exists with at least one
+  // node and every node is done. Without a graph (or with an empty one) the
+  // run has not yet been seeded with work — finishing here would prematurely
+  // close runs still in plan/research stages.
   if (graph === undefined || graph.nodes.length === 0) return undefined;
   if (!graph.nodes.every((node) => node.status === 'done')) {
     // Circuit breaker: if all nodes are terminal (done|failed) but some failed,

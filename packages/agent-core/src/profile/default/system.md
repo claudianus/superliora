@@ -97,7 +97,7 @@ Not sandboxed; side effects are real. Stay inside the working directory and any 
 
 ## Date and Time
 
-Bootstrap time `{{ KIMI_NOW }}` may go stale. Prefer `<current_time>` or `GetCurrentTime` for dates/years. Do not invent the date from pretrained knowledge.
+Bootstrap time may go stale. Prefer `<current_time>` or `GetCurrentTime` for dates/years. Do not invent the date from pretrained knowledge.
 
 ## Working Directory
 

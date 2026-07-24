@@ -52,3 +52,18 @@ export function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
     inputCacheCreation: a.inputCacheCreation + b.inputCacheCreation,
   };
 }
+
+/**
+ * Prompt-cache hit rate for a generation: the share of input tokens served
+ * from the provider's cache (`inputCacheRead / inputTotal`). Returns 0 when
+ * there were no input tokens.
+ *
+ * Used to verify cache-prefix stability: a volatile segment inside the cached
+ * prefix (e.g. a per-process timestamp) drives this toward 0 on every request,
+ * while a byte-stable prefix approaches 1 at steady state within a session.
+ */
+export function cacheHitRate(usage: TokenUsage): number {
+  const input = inputTotal(usage);
+  if (input <= 0) return 0;
+  return usage.inputCacheRead / input;
+}

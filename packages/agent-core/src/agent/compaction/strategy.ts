@@ -77,7 +77,12 @@ export const SWARM_MICRO_PRESSURE_RATIO = 0.40;
 export const DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO = 0.55;
 /** Default number of leading messages (system + initial user) kept frozen. */
 export const DEFAULT_FROZEN_ZONE_SIZE = 2;
-const MAX_QUALITY_TRIGGER_BIAS = 0.05;
+/**
+ * Cap for the quality trigger bias: the effective trigger ratio may move only
+ * a small delta below the configured ratio, so backstop-heavy sessions cannot
+ * ratchet compaction into a hair-trigger loop.
+ */
+const MAX_QUALITY_TRIGGER_BIAS = 0.02;
 
 export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   triggerRatio: DEFAULT_COMPACTION_TRIGGER_RATIO,
@@ -147,10 +152,11 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   }): number {
     if (input.usedEmergencyBackstop) {
       this.qualityTriggerBias = Math.min(MAX_QUALITY_TRIGGER_BIAS, this.qualityTriggerBias + 0.02);
-    } else if (
-      input.recallEvalScore !== undefined &&
-      input.recallEvalScore >= 0.9
-    ) {
+    } else {
+      // A clean (non-backstop) compaction shows the trigger is workable, so
+      // always decay the bias. Decoupling decay from the recall score keeps
+      // backstop-heavy sessions from permanently ratcheting the effective
+      // trigger ratio downward.
       this.qualityTriggerBias = Math.max(0, this.qualityTriggerBias - 0.01);
     }
     return this.qualityTriggerBias;

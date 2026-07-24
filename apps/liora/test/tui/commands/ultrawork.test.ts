@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { seedUltraworkWorkflowReport } from '../../../../../packages/agent-core/src/ultrawork/workflow-report';
 import {
+  autoResumeUltraworkFromSession,
   buildUltraworkCoverageMatrix,
   buildUltraworkPrompt,
   handleUltraworkCommand,
@@ -887,5 +888,59 @@ describe('isActiveUltraworkRun', () => {
       }),
     ).toBe(false);
     expect(isActiveUltraworkRun(null)).toBe(false);
+  });
+});
+
+describe('autoResumeUltraworkFromSession terminal-run guard', () => {
+  it('does not re-force plan mode for a terminal resumed run', async () => {
+    const { host, session } = makeHost();
+    (session.tryAutoResumeUltrawork as ReturnType<typeof vi.fn>).mockResolvedValue({
+      resumed: {
+        run: {
+          id: 'uw_terminal',
+          objective: 'Ship feature',
+          status: 'failed',
+          stage: 'plan',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:01:00.000Z',
+        },
+        recoveryPrompt: 'Resume Ultrawork',
+      },
+      setupChanged: false,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const resumed = await autoResumeUltraworkFromSession(host, session as any);
+
+    expect(resumed).toBe(false);
+    expect(host.setAppState).not.toHaveBeenCalled();
+    expect(host.sendNormalUserInput).not.toHaveBeenCalled();
+  });
+
+  it('still re-prepares a non-terminal resumed run', async () => {
+    const { host, session } = makeHost();
+    (session.tryAutoResumeUltrawork as ReturnType<typeof vi.fn>).mockResolvedValue({
+      resumed: {
+        run: {
+          id: 'uw_blocked',
+          objective: 'Ship feature',
+          status: 'blocked',
+          stage: 'research',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:01:00.000Z',
+        },
+        recoveryPrompt: 'Resume Ultrawork',
+      },
+      setupChanged: false,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const resumed = await autoResumeUltraworkFromSession(host, session as any);
+
+    expect(resumed).toBe(true);
+    expect(host.setAppState).toHaveBeenCalledWith(
+      expect.objectContaining({ ultraworkMode: true, planMode: true }),
+    );
+    expect(host.sendNormalUserInput).toHaveBeenCalled();
   });
 });

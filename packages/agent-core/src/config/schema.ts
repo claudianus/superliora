@@ -156,6 +156,7 @@ export const LoopControlSchema = z.object({
   maxRalphIterations: z.number().int().min(-1).optional(),
   reservedContextSize: z.number().int().min(0).optional(),
   compactionTriggerRatio: z.number().min(0.5).max(0.99).optional(),
+  compactionAsyncTriggerRatio: z.number().min(0.05).max(0.99).optional(),
   compactionBlockRatio: z.number().min(0.5).max(0.99).optional(),
   compactionTriggerTokens: z.number().int().min(1000).optional(),
   compactionMaxRecentMessages: z.number().int().min(1).optional(),

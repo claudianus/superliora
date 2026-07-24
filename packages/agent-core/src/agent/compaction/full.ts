@@ -50,6 +50,7 @@ import type {
   CompactionSource,
 } from './types';
 import {
+  DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
   PipelineStrategy,
@@ -212,6 +213,9 @@ export class FullCompaction {
       {
         ...DEFAULT_COMPACTION_CONFIG,
         triggerRatio: compactionTriggerRatio,
+        asyncTriggerRatio:
+          loopControl?.compactionAsyncTriggerRatio ??
+          DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
         blockRatio: compactionBlockRatio,
         reservedContextSize:
           loopControl?.reservedContextSize ??
@@ -854,7 +858,13 @@ export class FullCompaction {
             isMissingEvidenceQualityFailure(repairedQuality) &&
             repairedQuality.critical.every((item) => item.includes('durable evidence'));
           if (!evidenceOnly) {
-            throw new CompactionQualityError(repairedQuality.critical);
+            // Surviving non-evidence criticals are deliberately NOT thrown here:
+            // throwing would hard-stall the turn. They propagate to the final
+            // quality gate below, which swaps in the deterministic backstop and
+            // lets the turn resume on a well-formed summary.
+            this.agent.telemetry.track('compaction_qc_repair_unresolved', {
+              critical_count: repairedQuality.critical.length,
+            });
           }
           // Evidence-id gaps are recovered deterministically after enrichment.
         }
@@ -964,7 +974,17 @@ export class FullCompaction {
       }
 
       if (quality.critical.length > 0 && !usedEmergencyBackstop) {
-        throw new CompactionQualityError(quality.critical);
+        // Criticals that survive every repair pass must not hard-stall the turn:
+        // swap in the deterministic extractive backstop and continue assembling so
+        // the session keeps a well-formed summary instead of freezing.
+        summary = buildEmergencyBackstopSummary(messagesToCompact, plan, data.instruction);
+        usedEmergencyBackstop = true;
+        contextSummary = buildCompactionSummaryText(summary);
+        summaryTokens = estimateTokens(contextSummary);
+        tokensAfter = summaryTokens + retainedTokens;
+        this.agent.telemetry.track('compaction_qc_fallback_backstop', {
+          critical_count: quality.critical.length,
+        });
       }
 
       // Volatile phase signal: assembly / context rebuild begins.

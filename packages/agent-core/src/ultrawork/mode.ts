@@ -318,6 +318,15 @@ export class UltraworkMode {
     await this.agent.goal.cancelGoal();
     this.modeEnabled = false;
     this.agent.records.logRecord({ type: 'ultrawork.mode', enabled: false });
+    // Authoritative release of the Ultra Plan this run forced — a cancelled
+    // run must never leave plan mode engaged (resume would re-force it).
+    if (this.agent.planMode.isActive && this.agent.planMode.isUltraMode) {
+      this.agent.planMode.exit();
+    }
+    // Terminal stage-changed event (run.status === 'failed') so the TUI can
+    // run finishUltraworkRun recovery. Previously cancel emitted nothing and
+    // only to='done' triggered the restore, stranding prior-state cleanup.
+    this.emitStageChanged(failed, run.stage, failed.stage, reason);
     this.agent.telemetry.track('ultrawork_cancel', {
       run_id: run.id,
       stage: run.stage,
@@ -358,6 +367,13 @@ export class UltraworkMode {
     });
     if (this.agent.swarmMode.isActive) {
       this.agent.swarmMode.exit();
+    }
+    // Authoritative release of the Ultra Plan this run forced. The TUI also
+    // restores prior state on the 'done' stage event, but the engine must not
+    // depend on that follower: headless runs (and any path where the event is
+    // missed) would otherwise strand the session in plan mode.
+    if (this.agent.planMode.isActive && this.agent.planMode.isUltraMode) {
+      this.agent.planMode.exit();
     }
     this.writeCheckpoint({ flush: true });
     return run;

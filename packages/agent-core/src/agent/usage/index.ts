@@ -1,5 +1,5 @@
 import type { UsageStatus } from '#/rpc';
-import { addUsage, type TokenUsage } from '@superliora/kosong';
+import { addUsage, cacheHitRate as computeCacheHitRate, type TokenUsage } from '@superliora/kosong';
 
 import type { Agent } from '..';
 
@@ -60,7 +60,13 @@ export class UsageRecorder {
     ) {
       return undefined;
     }
-    return status;
+    return {
+      ...status,
+      // Session prompt-cache hit rate (0..1) derived from cumulative input
+      // tokens. A byte-stable cached prefix approaches 1 at steady state; a
+      // volatile segment in the prefix keeps this near 0.
+      cacheHitRate: status.total === undefined ? undefined : computeCacheHitRate(status.total),
+    };
   }
 
   private byModelSnapshot(): Record<string, TokenUsage> {

@@ -1,5 +1,5 @@
 import type { TokenUsage } from '#/usage';
-import { addUsage, emptyUsage, grandTotal, inputTotal } from '#/usage';
+import { addUsage, cacheHitRate, emptyUsage, grandTotal, inputTotal } from '#/usage';
 import { describe, expect, it } from 'vitest';
 
 describe('emptyUsage', () => {
@@ -74,5 +74,38 @@ describe('addUsage', () => {
     };
     const result = addUsage(usage, emptyUsage());
     expect(result).toEqual(usage);
+  });
+});
+
+describe('cacheHitRate', () => {
+  it('returns the cache-read share of input tokens', () => {
+    const usage: TokenUsage = {
+      inputOther: 10,
+      output: 999,
+      inputCacheRead: 190,
+      inputCacheCreation: 0,
+    };
+    // input total = 200, cache read = 190 -> 0.95
+    expect(cacheHitRate(usage)).toBeCloseTo(0.95, 10);
+  });
+
+  it('returns 0 when there are no input tokens', () => {
+    const usage: TokenUsage = {
+      inputOther: 0,
+      output: 50,
+      inputCacheRead: 0,
+      inputCacheCreation: 0,
+    };
+    expect(cacheHitRate(usage)).toBe(0);
+  });
+
+  it('counts cache-creation tokens as a miss', () => {
+    const usage: TokenUsage = {
+      inputOther: 0,
+      output: 0,
+      inputCacheRead: 50,
+      inputCacheCreation: 50,
+    };
+    expect(cacheHitRate(usage)).toBeCloseTo(0.5, 10);
   });
 });

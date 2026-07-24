@@ -518,6 +518,11 @@ export async function autoResumeUltraworkFromSession(
     const result = await session.tryAutoResumeUltrawork();
     if (result === null) return false;
     const run = result.resumed.run;
+    if (run.status === 'done' || run.status === 'failed') {
+      // Never re-prepare a terminal run: forcing Ultra Plan here would
+      // re-lock a finished/cancelled run that the engine already released.
+      return false;
+    }
     host.setAppState({
       activityTip: ULTRAWORK_ACTIVITY_TIP,
       ultraworkMode: true,

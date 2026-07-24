@@ -262,6 +262,52 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(markerText).toContain('Ultrawork completed');
   });
 
+  it('restores prior state when a cancelled run emits the terminal failed stage event', () => {
+    const host = makeHost();
+    host.state.appState.planMode = true;
+    host.state.appState.swarmMode = true;
+    host.state.appState.ultraworkMode = true;
+    host.state.swarmModeEntry = 'ultrawork';
+    const handler = new SessionEventHandler(host);
+
+    // cancel() emits stage-changed with an unchanged stage but
+    // run.status === 'failed'; that terminal marker must trigger the same
+    // finishUltraworkRun restore as to='done'.
+    handler.handleEvent({
+      type: 'ultrawork.stage.changed',
+      agentId: 'main',
+      sessionId: 's1',
+      from: 'plan',
+      to: 'plan',
+      reason: 'Cancelled by user',
+      run: {
+        id: 'uw_cancel',
+        objective: 'Ship feature X',
+        status: 'failed',
+        stage: 'plan',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        updatedAt: '2026-07-01T00:00:04.000Z',
+      },
+    } satisfies Event, vi.fn());
+
+    expect(host.setAppState).toHaveBeenCalledWith({
+      ultraworkMode: false,
+      planMode: false,
+      swarmMode: false,
+      premiumQualityMode: false,
+      activityTip: null,
+      ultraworkPriorState: null,
+    });
+    expect(host.session.setPlanMode).toHaveBeenCalledWith(false, false);
+    expect(host.session.setSwarmMode).toHaveBeenCalledWith(false, 'task');
+    expect(host.session.setPremiumQuality).toHaveBeenCalledWith(false);
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Ultrawork ended',
+      expect.stringContaining('Cancelled by user'),
+      expect.objectContaining({ coalesceKey: 'ultrawork-completed:uw_cancel' }),
+    );
+  });
+
   it('does not render Swarm ended when Ultrawork-owned swarm mode turns off', () => {
     const host = makeHost();
     host.state.appState.swarmMode = true;

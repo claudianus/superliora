@@ -138,3 +138,41 @@ describe('Agent usage', () => {
     });
   });
 });
+
+describe('UsageRecorder cache hit rate (status surface)', () => {
+  it('reports a session cache hit rate >= 0.95 at steady state', () => {
+    const usage = new UsageRecorder();
+    // Warm-up turn: cold prefix, mostly cache-creation (low hit rate).
+    usage.record('model-a', {
+      inputOther: 200,
+      output: 50,
+      inputCacheRead: 0,
+      inputCacheCreation: 8000,
+    });
+    // Steady-state turns: a byte-stable prefix served from cache.
+    for (let i = 0; i < 20; i += 1) {
+      usage.record('model-a', {
+        inputOther: 50,
+        output: 80,
+        inputCacheRead: 9500,
+        inputCacheCreation: 0,
+      });
+    }
+    // cumulative cache read 190000 / input total 199200 ~= 0.9538
+    const status = usage.status();
+    expect(status?.cacheHitRate).toBeDefined();
+    expect(status!.cacheHitRate!).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it('keeps data() snapshots unchanged; cacheHitRate lives on status()', () => {
+    const usage = new UsageRecorder();
+    usage.record('model-a', {
+      inputOther: 1,
+      output: 2,
+      inputCacheRead: 3,
+      inputCacheCreation: 4,
+    });
+    expect(usage.data()).not.toHaveProperty('cacheHitRate');
+    expect(usage.status()?.cacheHitRate).toBeCloseTo(3 / (1 + 3 + 4), 10);
+  });
+});
