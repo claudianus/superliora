@@ -738,7 +738,10 @@ export class ToolManager {
     // Mutation goal tools are only offered to the model while a goal exists.
     const hideGoalMutationTools = this.agent.goal.getGoal().goal === null;
     return uniq([...this.enabledTools, ...mcpNames])
-      .toSorted((a, b) => a.localeCompare(b))
+      // Byte-wise (locale-independent) sort so the serialized tool order is
+      // identical across environments/ICU versions, keeping the prompt-cache
+      // tools block stable instead of varying with the host locale.
+      .toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0))
       .filter(
         (name) =>
           !(hideGoalMutationTools && (name === 'SetGoalBudget' || name === 'UpdateGoal')),
