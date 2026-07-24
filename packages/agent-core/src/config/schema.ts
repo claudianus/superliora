@@ -179,6 +179,7 @@ export const MemoryConfigSchema = z.object({
   enabled: z.boolean().optional(),
   storePath: z.string().min(1).optional(),
   maxRetrieved: z.number().int().min(0).max(20).optional(),
+  minInjectionScore: z.number().min(0).max(1).optional(),
   autoCapture: z.boolean().optional(),
   captureEpisodic: z.boolean().optional(),
   autoConsolidate: z.boolean().optional(),

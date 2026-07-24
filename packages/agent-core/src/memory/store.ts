@@ -99,6 +99,7 @@ export interface LioraRecallStoreOptions {
 const SCHEMA_VERSION = 1;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_INJECTION_LIMIT = 6;
+const DEFAULT_INJECTION_MIN_SCORE = 0.2;
 const MAX_LIMIT = 100;
 const STORE_RELATIVE_PATH = 'memory/kimi-recall.sqlite';
 const RECORDS_DIR_NAME = 'records';
@@ -276,9 +277,13 @@ export class LioraRecallStore {
       }))
       .filter(({ memory }) => hasAllTags(memory, request.tags));
     const scored = filtered.map(({ memory, ftsRank }) => scoreMemory(memory, query, ftsRank, this.now()));
-    const sorted = scored
-      .toSorted((a, b) => b.score - a.score || b.memory.updatedAt - a.memory.updatedAt)
-      .slice(0, limit(request.limit));
+    const minScore =
+      typeof request.minScore === 'number' && Number.isFinite(request.minScore) ? request.minScore : undefined;
+    const ranked = scored.toSorted((a, b) => b.score - a.score || b.memory.updatedAt - a.memory.updatedAt);
+    const sorted = (minScore === undefined ? ranked : ranked.filter((result) => result.score >= minScore)).slice(
+      0,
+      limit(request.limit),
+    );
     if (sorted.length > 0) {
       this.touch(sorted.map((result) => result.memory.id));
     }
@@ -387,12 +392,14 @@ export class LioraRecallStore {
   async injection(context: MemoryRuntimeAgentContext, query?: string): Promise<string | undefined> {
     if (!this.isEnabled()) return undefined;
     if (context.agentType !== 'main') return undefined;
+    const hasQuery = query !== undefined && query.trim().length > 0;
     const results = await this.search({
       query,
       workspaceKey: context.workDir,
       sessionId: context.sessionId,
       limit: this.config?.()?.maxRetrieved ?? DEFAULT_INJECTION_LIMIT,
       includeArchived: false,
+      minScore: hasQuery ? (this.config?.()?.minInjectionScore ?? DEFAULT_INJECTION_MIN_SCORE) : undefined,
     });
     return renderMemoryInjection(results);
   }

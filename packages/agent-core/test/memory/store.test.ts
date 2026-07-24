@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { LioraRecallStore, type AgentMemoryRuntime } from '../../src/memory';
+import { LioraRecallStore, type AgentMemoryRuntime, type MemoryRecord } from '../../src/memory';
 
 const roots: string[] = [];
 
@@ -137,6 +137,92 @@ describe('LioraRecallStore', () => {
     expect(injection).not.toContain('x'.repeat(600));
   });
 
+  it('search minScore excludes low-relevance memories and keeps matching ones', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    const { strong, weak, query } = await rememberScoredPair(runtime);
+
+    const baseline = await runtime.search({ query, limit: 10 });
+    const strongScore = baseline.find((result) => result.memory.id === strong.id)?.score;
+    const weakScore = baseline.find((result) => result.memory.id === weak.id)?.score;
+    expect(strongScore).toBeDefined();
+    expect(weakScore).toBeDefined();
+    expect(strongScore).toBeGreaterThan(weakScore ?? 1);
+
+    const filtered = await runtime.search({
+      query,
+      minScore: ((strongScore ?? 0) + (weakScore ?? 0)) / 2,
+      limit: 10,
+    });
+    expect(filtered.map((result) => result.memory.id)).toEqual([strong.id]);
+  });
+
+  it('search without minScore keeps low-relevance results unchanged', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    const { strong, weak, query } = await rememberScoredPair(runtime);
+
+    const results = await runtime.search({ query, limit: 10 });
+
+    expect(results.map((result) => result.memory.id).toSorted()).toEqual([strong.id, weak.id].toSorted());
+  });
+
+  it('injection applies the default score floor when a query is present', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kimi-recall-test-'));
+    roots.push(root);
+    let now = 1_700_000_000_000;
+    const store = new LioraRecallStore({ homeDir: root, now: () => now });
+    const runtime = runtimeFrom(store, 's1', '/repo');
+    await runtime.remember({
+      kind: 'semantic',
+      subject: 'stale note',
+      content: 'Ancient irrelevant note !! about cobol tooling',
+      importance: 0,
+      confidence: 0.01,
+    });
+    await runtime.remember({
+      kind: 'semantic',
+      subject: 'keeper note',
+      content: 'Important keeper !! preference',
+      importance: 0.9,
+    });
+    now += 300 * 86_400_000;
+
+    const injection = await runtime.getInjection('!!');
+
+    expect(injection).toContain('keeper');
+    expect(injection).not.toContain('cobol');
+  });
+
+  it('injection respects configured minInjectionScore and leaves query-less injection untouched', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kimi-recall-test-'));
+    roots.push(root);
+    let now = 1_700_000_000_000;
+    const store = new LioraRecallStore({
+      homeDir: root,
+      now: () => now,
+      config: () => ({ minInjectionScore: 0.45 }),
+    });
+    const runtime = runtimeFrom(store, 's1', '/repo');
+    await runtime.remember({
+      kind: 'semantic',
+      subject: 'stale note',
+      content: 'Ancient irrelevant note !! about cobol tooling',
+      importance: 0,
+      confidence: 0.01,
+    });
+    await runtime.remember({
+      kind: 'semantic',
+      subject: 'keeper note',
+      content: 'Important keeper !! preference',
+      importance: 0.9,
+    });
+    now += 300 * 86_400_000;
+
+    expect(await runtime.getInjection('!!')).toBeUndefined();
+
+    const queryLess = await runtime.getInjection();
+    expect(queryLess).toContain('keeper');
+    expect(queryLess).toContain('cobol');
+  });
 
   it('writes readable markdown records for saved memories', async () => {
     const { root, runtime } = makeRuntime('s1', '/repo');
@@ -317,4 +403,25 @@ function runtimeFrom(store: LioraRecallStore, sessionId: string, workDir: string
     agentType: 'main',
     workDir,
   });
+}
+
+async function rememberScoredPair(runtime: AgentMemoryRuntime): Promise<{
+  readonly strong: MemoryRecord;
+  readonly weak: MemoryRecord;
+  readonly query: string;
+}> {
+  const strong = await runtime.remember({
+    kind: 'procedural',
+    subject: 'pnpm build validation',
+    content: 'Run pnpm build and validation checks before finishing work.',
+    importance: 1,
+  });
+  const weak = await runtime.remember({
+    kind: 'semantic',
+    subject: 'unrelated note',
+    content: 'Oslo weather is rainy in autumn workflow.',
+    importance: 0,
+    confidence: 0.01,
+  });
+  return { strong, weak, query: 'pnpm build validation workflow' };
 }

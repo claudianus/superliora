@@ -77,6 +77,8 @@ export interface MemorySearchRequest {
   readonly sessionId?: string;
   readonly tags?: readonly string[];
   readonly limit?: number;
+  /** When set, results with `score < minScore` are excluded. */
+  readonly minScore?: number;
   readonly includeArchived?: boolean;
   readonly includeDeleted?: boolean;
 }
@@ -130,6 +132,8 @@ export interface LioraRecallConfig {
   readonly enabled?: boolean;
   readonly storePath?: string;
   readonly maxRetrieved?: number;
+  /** Minimum score floor for query-based injection; defaults to 0.2 when unset. */
+  readonly minInjectionScore?: number;
   readonly autoCapture?: boolean;
   readonly captureEpisodic?: boolean;
   readonly autoConsolidate?: boolean;
