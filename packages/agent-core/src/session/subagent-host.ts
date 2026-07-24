@@ -1,6 +1,7 @@
 import {
   APIProviderRateLimitError,
   isProviderRateLimitError,
+  type ContentPart,
   type TokenUsage,
 } from '@superliora/kosong';
 
@@ -138,6 +139,25 @@ export class SessionSubagentHost {
 
   hasActiveForegroundChildren(): boolean {
     return Array.from(this.activeChildren.values()).some((child) => !child.runInBackground);
+  }
+
+  /**
+   * Forward a mid-run steer to every child that is running a turn right now,
+   * so it can adjust before the next UltraSwarm phase checkpoint. Mirrors the
+   * main agent's `turn.steer`: an active child buffers the input and flushes it
+   * at its own next step boundary. Children without an active turn are skipped
+   * — they receive the steer via the phase-checkpoint handoff instead. Returns
+   * the number of children the steer was forwarded to.
+   */
+  steerRunningChildren(input: readonly ContentPart[]): number {
+    let forwarded = 0;
+    for (const agentId of this.activeChildren.keys()) {
+      const child = this.session.getReadyAgent(agentId);
+      if (child === undefined || !child.turn.hasActiveTurn) continue;
+      child.turn.steer(input);
+      forwarded += 1;
+    }
+    return forwarded;
   }
 
   startSwarmStandupTimer(

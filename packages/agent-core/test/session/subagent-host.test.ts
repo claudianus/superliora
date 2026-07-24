@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent, AgentOptions } from '../../src/agent';
 import { FLAG_DEFINITIONS, FlagResolver } from '../../src/flags';
-import { AGENT_WIRE_PROTOCOL_VERSION } from '../../src/agent/records';
+import { AGENT_WIRE_PROTOCOL_VERSION, InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
@@ -94,6 +94,50 @@ describe('SessionSubagentHost', () => {
         }),
       }),
     );
+  });
+
+  it('steerRunningChildren forwards a steer into a running child turn', async () => {
+    const parent = testAgent();
+    parent.configure();
+
+    const controller = new AbortController();
+    const childPersistence = new InMemoryAgentRecordPersistence();
+    const child = testAgent({ persistence: childPersistence });
+    child.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const running = host.runQueued([{ ...queuedTask(1), signal: controller.signal }]);
+    void running.catch(() => {});
+
+    // The child is now mid-turn, blocked on the Bash approval request.
+    await child.untilApprovalRequest();
+    expect(child.agent.turn.hasActiveTurn).toBe(true);
+
+    const forwarded = host.steerRunningChildren([{ type: 'text', text: 'redirect left' }]);
+    expect(forwarded).toBe(1);
+
+    // The steer reached the child's turn (buffered for its next step boundary).
+    expect(
+      childPersistence.records.some(
+        (record) => record.type === 'turn.steer' && JSON.stringify(record).includes('redirect left'),
+      ),
+    ).toBe(true);
+
+    controller.abort(abortError());
+    await expect(running).rejects.toThrow('Aborted');
+    await child.untilTurnEnd();
+  });
+
+  it('steerRunningChildren skips children that are not running a turn', () => {
+    const parent = testAgent();
+    parent.configure();
+    const child = testAgent();
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    // No active children registered, so nothing receives the steer.
+    expect(host.steerRunningChildren([{ type: 'text', text: 'redirect left' }])).toBe(0);
   });
 
   it('fires subagent lifecycle hooks around the child turn', async () => {
@@ -401,7 +445,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.systemPrompt).toContain('<persona_spec>');
     expect(child.llmCalls[0]?.systemPrompt).toContain('<role_declaration>');
     expect(child.llmCalls[0]?.systemPrompt).toContain('Anthropologist');
-    expect(child.llmCalls[0]?.systemPrompt).toContain('principal-level Anthropology specialist');
+    expect(child.llmCalls[0]?.systemPrompt).toContain('cultural anthropologist');
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'AskUserQuestion',

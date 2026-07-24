@@ -415,15 +415,31 @@ export class Agent {
   
   /**
    * Mid-run UltraSwarm steering. Queues a redirect at the next phase/wave
-   * checkpoint instead of buffering until the entire tool returns.
+   * checkpoint (fallback for children spawned later) and also forwards it to
+   * the children that are running right now so they adjust mid-flight.
    */
   swarmSteer(input: string): boolean {
     const accepted = requestUltraSwarmSteer(this.ultraSwarmRun, input);
     if (accepted) {
       this.records.logRecord({ type: 'swarm.steer', input });
+      this.forwardSteerToRunningChildren(input);
       void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
     }
     return accepted;
+  }
+
+  /**
+   * Forward an accepted swarm steer to the currently-running child subagents in
+   * real time (each active child buffers it and flushes at its next step
+   * boundary). The phase-checkpoint queue stays as the fallback for children
+   * spawned after the steer.
+   */
+  private forwardSteerToRunningChildren(input: string): void {
+    if (this.subagentHost === undefined) return;
+    const forwarded = this.subagentHost.steerRunningChildren([{ type: 'text', text: input }]);
+    if (forwarded > 0) {
+      this.telemetry.track('swarm_steer_forwarded', { children: forwarded });
+    }
   }
 
   get rpcMethods(): PromisableMethods<AgentAPI> {
@@ -443,6 +459,7 @@ export class Agent {
             .trim();
           if (requestUltraSwarmSteer(this.ultraSwarmRun, text)) {
             this.records.logRecord({ type: 'swarm.steer', input: text });
+            this.forwardSteerToRunningChildren(text);
             void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
             this.emitEvent({
               type: 'ultrawork.swarm.paused',
