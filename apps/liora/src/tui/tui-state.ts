@@ -112,6 +112,18 @@ export interface TUIState {
   cachedTranscriptRows?: number;
   cachedTranscriptLineCount?: number;
   /**
+   * User-chosen stage size from a corner/edge drag-resize. When set, the stage
+   * holds this size (clamped to the terminal) instead of the responsive reading
+   * cap. `undefined` = follow the default cap.
+   */
+  userStageSize?: { width: number; height: number };
+  /**
+   * Stage bundle rect (userStageSize applied, workspace-dock aware) from the
+   * most recent render. The corner/edge resize hit-test reads this so the grab
+   * zone matches exactly what is painted.
+   */
+  cachedStageBand?: RendererRect;
+  /**
    * Set true when the startup splash morph finishes and the real UI tree is
    * restored. The next frame suppresses its full-clear so the last morph frame
    * cross-fades into the real layout without a black flash. Consumed (reset to
@@ -126,6 +138,12 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
 
   const renderer = options.renderer ?? createTerminalRenderer();
   const { terminal, ui } = renderer;
+
+  // Late-bound self-reference: the render-time closures below are created
+  // before the state object exists, but run later (during render) when fields
+  // such as the drag-resize `userStageSize` may have changed. They read through
+  // `self` so wrap math always matches the painted stage.
+  let self: TUIState | undefined;
 
   const transcriptViewport = createTranscriptViewportState();
   const transcriptSelection = createTranscriptSelectionState();
@@ -148,6 +166,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
       const stage = resolveStageLayout({
         width: terminal.columns,
         height: terminal.rows,
+        userStageSize: self?.userStageSize,
       });
       const contentWidth = stage.stage.width;
       return measureRendererRegions({
@@ -187,7 +206,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     renderer.invalidateFrame('content');
   });
 
-  return {
+  const state: TUIState = {
     renderer,
     ui,
     terminal,
@@ -224,6 +243,8 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     queuedMessages: [],
     swarmModeEntry: undefined,
   };
+  self = state;
+  return state;
 }
 
 function measureContainerRows(container: Container, width: number): number {

@@ -4,14 +4,21 @@ import {
 } from './responsive-layout';
 
 /** Max reading-column width for the centered stage (cols). */
-export const STAGE_MAX_WIDTH = 90;
+export const STAGE_MAX_WIDTH = 105;
 
 /**
  * Max stage height on wide terminals (rows) — the reading cap.
  * Tall / portrait terminals ignore the cap and use their full height so a
  * vertically long window is not letterboxed into a small centered band.
  */
-export const STAGE_MAX_HEIGHT = 60;
+export const STAGE_MAX_HEIGHT = 55;
+
+/**
+ * Smallest stage the corner/edge drag-resize can shrink to (cols/rows). Keeps
+ * the centered box from collapsing into an unusable sliver mid-drag.
+ */
+export const STAGE_MIN_WIDTH = 24;
+export const STAGE_MIN_HEIGHT = 8;
 
 export interface StageBand {
   readonly x: number;
@@ -47,6 +54,13 @@ export interface ResolveStageLayoutInput {
    * `leftDockWidth`/`rightDockWidth` from the raw terminal edges.
    */
   readonly workspaceCenter?: { x: number; y: number; width: number; height: number };
+  /**
+   * User-chosen stage size from a corner/edge drag-resize. When set, it
+   * replaces the responsive reading cap so the stage holds this exact size —
+   * clamped to the available band — and stays centered. `undefined` restores
+   * the default responsive cap ({@link STAGE_MAX_WIDTH}/{@link STAGE_MAX_HEIGHT}).
+   */
+  readonly userStageSize?: { readonly width: number; readonly height: number };
 }
 
 /**
@@ -87,17 +101,30 @@ export function resolveStageLayout(input: ResolveStageLayoutInput): StageLayout 
   // Only wide+ terminals get a capped, centered reading column. Narrower
   // profiles stay full-bleed so small windows do not lose horizontal space.
   const cappedWidth = profile === 'wide' || profile === 'ultrawide';
-  const stageWidth = cappedWidth
-    ? Math.min(availableCols, STAGE_MAX_WIDTH)
-    : availableCols;
+  const userWidth = input.userStageSize?.width;
+  const userHeight = input.userStageSize?.height;
+  // A drag-resized stage holds its chosen size (clamped to the available band)
+  // regardless of responsive profile, so the centered box the user shaped does
+  // not snap back to the reading cap on the next frame.
+  const stageWidth =
+    userWidth !== undefined
+      ? Math.min(availableCols, Math.max(1, Math.floor(userWidth)))
+      : cappedWidth
+        ? Math.min(availableCols, STAGE_MAX_WIDTH)
+        : availableCols;
   // Tall / portrait terminals use the full height — letterboxing a vertically
   // long window wastes most of the screen. Wider terminals keep the reading
   // cap so the transcript does not stretch into an overlong column.
-  const stageHeight = !Number.isFinite(bandRows)
-    ? STAGE_MAX_HEIGHT
-    : bandRows >= availableCols
-      ? bandRows
-      : Math.min(bandRows, STAGE_MAX_HEIGHT);
+  const stageHeight =
+    userHeight !== undefined
+      ? Number.isFinite(bandRows)
+        ? Math.min(bandRows, Math.max(1, Math.floor(userHeight)))
+        : Math.max(1, Math.floor(userHeight))
+      : !Number.isFinite(bandRows)
+        ? STAGE_MAX_HEIGHT
+        : bandRows >= availableCols
+          ? bandRows
+          : Math.min(bandRows, STAGE_MAX_HEIGHT);
   const bundleWidth = stageWidth;
   const bundleHeight = stageHeight;
   // Center the bundle within the available band (between docks, or inside

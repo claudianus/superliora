@@ -66,6 +66,7 @@ export function planTUINativeStage(
     width: cols,
     height: rows,
     workspaceCenter: options.workspaceCenter,
+    userStageSize: state.userStageSize,
   });
   const contentWidth = stage.stage.width;
   const reuse = options.reuseChrome;

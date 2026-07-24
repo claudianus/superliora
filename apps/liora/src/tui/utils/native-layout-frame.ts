@@ -255,6 +255,7 @@ export function detectTUIStateNativeLayoutShift(
   const stageWidth = resolveStageLayout({
     width: frameWidth,
     height: frameHeight,
+    userStageSize: state.userStageSize,
   }).stage.width;
   const transcriptStart = state.transcriptViewport.start();
   const transcriptContentRows = state.transcriptContainer.contentRowCount(stageWidth);
@@ -372,7 +373,12 @@ export function createTUIStateNativeRenderCallback(
       width: size.columns,
       height,
       workspaceCenter,
+      userStageSize: state.userStageSize,
     });
+    // Cache the rendered stage band so mouse hit-testing (resize grab zones)
+    // matches the on-screen geometry exactly, dock and workspace centering
+    // included.
+    state.cachedStageBand = stageProbe.stage;
     // Chrome (header/footer/panels) only carries time-based content while the
     // agent is active — the activity pane's moon spinner and the footer's
     // pulsing model label both gate on `streamingPhase !== 'idle' || thinking`.

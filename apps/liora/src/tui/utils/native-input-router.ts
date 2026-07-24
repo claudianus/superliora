@@ -14,10 +14,12 @@ import {
 } from './native-editor-text-input';
 import { noteTUIInputInteraction } from './input-interaction';
 import { getTUIStateNativeEditorRect } from './native-layout-frame';
+import { handleStageResizeMouseInput } from './stage-resize-mouse';
 import { handleTranscriptSelectionMouseInput } from './transcript-selection-mouse';
 import type { TranscriptScrollAction } from './transcript-viewport';
 
 export const TUI_NATIVE_EDITOR_INPUT_TARGET_ID = 'editor';
+const TUI_NATIVE_STAGE_RESIZE_HANDLER_ID = 'stage-resize';
 const TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID = 'transcript-selection';
 const TUI_NATIVE_TRANSCRIPT_SCROLL_HANDLER_ID = 'transcript-scroll';
 
@@ -64,6 +66,19 @@ export class TUIStateNativeInputRouter {
             options.handleNativeEditorInput ??
             ((e) => handleTUIStateNativeEditorInput(state, e));
           return handler(event);
+        },
+      }),
+    );
+    // Registered before transcript selection: global handlers dispatch in
+    // registration order and the first one that handles wins. A press on the
+    // stage frame border starts a resize drag instead of a text selection.
+    this.disposers.push(
+      this.router.registerGlobalHandler({
+        id: TUI_NATIVE_STAGE_RESIZE_HANDLER_ID,
+        onInput: (event) => {
+          const handled = handleStageResizeMouseInput(state, event);
+          if (handled) this.requestRenderAfterInput();
+          return handled;
         },
       }),
     );

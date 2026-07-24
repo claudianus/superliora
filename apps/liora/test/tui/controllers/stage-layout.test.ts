@@ -103,4 +103,40 @@ describe('resolveStageLayout', () => {
     expect(stage.leftDock).toBeUndefined();
     expect(stage.rightDock).toBeUndefined();
   });
+
+  it('holds a user-chosen stage size and keeps it centered', () => {
+    const layout = resolveStageLayout({
+      width: 200,
+      height: 80,
+      userStageSize: { width: 130, height: 40 },
+    });
+    expect(layout.stage.width).toBe(130);
+    expect(layout.stage.height).toBe(40);
+    expect(layout.stage.x).toBe(Math.floor((200 - 130) / 2));
+    expect(layout.stage.y).toBe(Math.floor((80 - 40) / 2));
+  });
+
+  it('applies the user size regardless of responsive profile', () => {
+    // A "standard" terminal would normally stay full-bleed; an explicit user
+    // size still wins (clamped to the available band) and centers.
+    const layout = resolveStageLayout({
+      width: 119,
+      height: 64,
+      userStageSize: { width: 70, height: 30 },
+    });
+    expect(layout.profile).toBe('standard');
+    expect(layout.stage.width).toBe(70);
+    expect(layout.stage.height).toBe(30);
+    expect(layout.stage.x).toBe(Math.floor((119 - 70) / 2));
+  });
+
+  it('clamps an oversized user size to the available band', () => {
+    const layout = resolveStageLayout({
+      width: 80,
+      height: 24,
+      userStageSize: { width: 500, height: 500 },
+    });
+    expect(layout.stage.width).toBe(80);
+    expect(layout.stage.height).toBe(24);
+  });
 });
