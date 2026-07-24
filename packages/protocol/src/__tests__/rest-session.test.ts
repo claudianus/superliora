@@ -364,6 +364,37 @@ describe('sessionStatusResponseSchema', () => {
     expect(parsed.model).toBeUndefined();
   });
 
+  it('accepts optional cache_hit_rate within bounds', () => {
+    const parsed = sessionStatusResponseSchema.parse({
+      status: 'idle',
+      thinking_level: 'off',
+      permission: 'auto',
+      plan_mode: false,
+      swarm_mode: false,
+      context_tokens: 0,
+      max_context_tokens: 0,
+      context_usage: 0,
+      cache_hit_rate: 0.42,
+    });
+    expect(parsed.cache_hit_rate).toBe(0.42);
+  });
+
+  it('rejects cache_hit_rate outside 0..1', () => {
+    expect(
+      sessionStatusResponseSchema.safeParse({
+        status: 'idle',
+        thinking_level: 'off',
+        permission: 'auto',
+        plan_mode: false,
+        swarm_mode: false,
+        context_tokens: 0,
+        max_context_tokens: 0,
+        context_usage: 0,
+        cache_hit_rate: 1.5,
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects missing status', () => {
     expect(
       sessionStatusResponseSchema.safeParse({

@@ -449,12 +449,13 @@ export class SessionService extends Disposable implements ISessionService {
       throw new SessionNotFoundError(id);
     }
 
-    const [config, context, permission, plan, providerRoute] = await Promise.all([
+    const [config, context, permission, plan, providerRoute, usage] = await Promise.all([
       this.core.rpc.getConfig({ sessionId: id, agentId: 'main' }),
       this.core.rpc.getContext({ sessionId: id, agentId: 'main' }),
       this.core.rpc.getPermission({ sessionId: id, agentId: 'main' }),
       this.core.rpc.getPlan({ sessionId: id, agentId: 'main' }),
       this.core.rpc.getProviderRouteStatus({ sessionId: id, agentId: 'main' }),
+      this.core.rpc.getUsage({ sessionId: id, agentId: 'main' }).catch(() => undefined),
     ]);
 
     const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
@@ -474,6 +475,7 @@ export class SessionService extends Disposable implements ISessionService {
       context_tokens: contextTokens,
       max_context_tokens: maxContextTokens,
       context_usage: contextUsage,
+      cache_hit_rate: usage?.cacheHitRate,
       provider_route: providerRoute,
       context_os:
         contextOS === undefined

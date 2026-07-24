@@ -764,4 +764,41 @@ describe('status panel report lines', () => {
       expect(settledDir).not.toContain('/tmp/old');
     });
   });
+
+  it('shows a Cache hit row when status.cacheHitRate is defined and omits it otherwise', () => {
+    const base = {
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null as string | null,
+      thinking: false,
+      permissionMode: 'manual' as const,
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      availableModels: {},
+    };
+    const status = {
+      model: 'k2',
+      thinkingLevel: 'high',
+      permission: 'auto' as const,
+      planMode: false,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      contextUsage: 0.1,
+    };
+
+    const withRate = buildStatusReportLines({
+      ...base,
+      status: { ...status, cacheHitRate: 0.42 },
+    }).map(strip);
+    const withRateOutput = withRate.join('\n');
+    expect(withRateOutput).toContain('Cache hit');
+    expect(withRateOutput).toContain('42%');
+
+    const withoutRate = buildStatusReportLines({ ...base, status }).map(strip);
+    expect(withoutRate.join('\n')).not.toContain('Cache hit');
+  });
 });

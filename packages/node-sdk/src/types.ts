@@ -290,6 +290,8 @@ export interface SessionStatus {
   readonly contextTokens: number;
   readonly maxContextTokens: number;
   readonly contextUsage: number;
+  /** Prompt-cache hit rate (0..1) from session usage accounting, when recorded. */
+  readonly cacheHitRate?: number;
   readonly usage?: SessionUsage;
   readonly providerRouteStatus?: ProviderRouteStatus | null;
   /** Context OS continuity/evidence health when compacted pages exist. */

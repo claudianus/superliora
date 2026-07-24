@@ -677,6 +677,7 @@ export abstract class SDKRpcClientBase {
       contextTokens,
       maxContextTokens,
       contextUsage,
+      cacheHitRate: usage?.cacheHitRate,
       usage: hasUsage ? usage : undefined,
       providerRouteStatus,
       contextOS: context.contextOS,

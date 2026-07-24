@@ -830,6 +830,19 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     lines.push(`  ${muted('No context window data available.')}`);
   }
 
+  const cacheHitRate = options.status?.cacheHitRate;
+  if (cacheHitRate !== undefined && Number.isFinite(cacheHitRate)) {
+    addFieldRows(
+      lines,
+      [{ label: 'Cache hit', value: `${(cacheHitRate * 100).toFixed(0)}%` }],
+      muted,
+      value,
+      errorStyle,
+      warningStyle,
+      options.fieldMotion,
+    );
+  }
+
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
     lines.push('');
     lines.push(accent('Provider route'));

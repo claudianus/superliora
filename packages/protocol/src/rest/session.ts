@@ -125,6 +125,7 @@ export const sessionStatusResponseSchema = z.object({
   context_tokens: z.number().int().nonnegative(),
   max_context_tokens: z.number().int().nonnegative(),
   context_usage: z.number().min(0).max(1),
+  cache_hit_rate: z.number().min(0).max(1).optional(),
   provider_route: providerRouteStatusSchema.nullable().optional(),
   context_os: contextOsHealthSchema.optional(),
   micro_compaction: microCompactionDashboardSchema.optional(),
