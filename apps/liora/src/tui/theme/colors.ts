@@ -11,6 +11,8 @@
  * WCAG AA.
  */
 
+import { mixHexColor } from '#/tui/renderer';
+
 // Each token below documents where it is actually consumed, so theme authors
 // know what changing it affects. "Widely" means the token is read across most
 // dialogs/messages rather than in one specific place.
@@ -104,6 +106,8 @@ export interface ColorPalette {
   particle: string;
   /** Start of premium gradient treatments. */
   gradientStart: string;
+  /** Middle stop of brand gradients — aurora blends use start → mid → end. */
+  gradientMid: string;
   /** End of premium gradient treatments. */
   gradientEnd: string;
 
@@ -166,6 +170,7 @@ export const darkColors: ColorPalette = {
   glow: '#67E8F9',
   particle: '#A78BFA',
   gradientStart: '#06B6D4',
+  gradientMid: '#6366F1',
   gradientEnd: '#8B5CF6',
 
   syntaxText: '#E0E0E0',
@@ -216,6 +221,7 @@ export const lightColors: ColorPalette = {
   glow: '#075985',
   particle: '#6D28D9',
   gradientStart: '#0E7490',
+  gradientMid: '#4338CA',
   gradientEnd: '#6D28D9',
 
   syntaxText: '#1A1A1A',
@@ -235,4 +241,29 @@ export type ResolvedTheme = 'dark' | 'light';
 /** Synchronous palette lookup for built-in themes only. */
 export function getBuiltInPalette(resolved: ResolvedTheme): ColorPalette {
   return resolved === 'dark' ? darkColors : lightColors;
+}
+
+/**
+ * Multi-stop gradient blend built on the renderer's `mixHexColor` primitive.
+ *
+ * Stops are evenly spaced over `t ∈ [0, 1]` (out-of-range values clamp), so a
+ * three-stop ramp lands exactly on the middle stop at `t = 0.5`. Used for the
+ * aurora brand gradients (gradientStart → gradientMid → gradientEnd).
+ */
+export function mixHexColorStops(stops: readonly string[], t: number): string {
+  if (stops.length === 0) return '#000000';
+  if (stops.length === 1) return stops[0]!;
+  const clamped = Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 0;
+  const segments = stops.length - 1;
+  const scaled = clamped * segments;
+  const index = Math.min(Math.floor(scaled), segments - 1);
+  return mixHexColor(stops[index]!, stops[index + 1]!, scaled - index);
+}
+
+/** Brand aurora gradient for a palette: gradientStart → gradientMid → gradientEnd. */
+export function brandAuroraHex(palette: ColorPalette, t: number): string {
+  return mixHexColorStops(
+    [palette.gradientStart, palette.gradientMid, palette.gradientEnd],
+    t,
+  );
 }

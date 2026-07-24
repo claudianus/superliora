@@ -369,6 +369,8 @@ export interface AquariumPalette {
   readonly fishSky: string;
   readonly fishTeal: string;
   readonly fishSoft: string;
+  /** Brand Blood-Moon rose variant (#FF6B7A) — a rare coral-pink companion. */
+  readonly fishRose: string;
   readonly bubble: string;
   /** Warm surface shaft / caustic light. */
   readonly shaft: string;
@@ -413,6 +415,7 @@ export const JEWEL_TANK_DARK = {
   fishSky: '#3B6CFF',
   fishTeal: '#00E5A8',
   fishSoft: '#FF5EC8',
+  fishRose: '#FF6B7A',
   bubble: '#8AB8C8',
   shaft: '#C4B87A',
   highlight: '#FFFFFF',
@@ -437,6 +440,7 @@ export const JEWEL_TANK_LIGHT = {
   fishSky: '#2563EB',
   fishTeal: '#0D9488',
   fishSoft: '#DB2777',
+  fishRose: '#E63946',
   bubble: '#67A8B8',
   shaft: '#C4B06A',
   highlight: '#FFFFFF',
@@ -478,6 +482,7 @@ export function resolveAquariumPalette(
     fishSky: mixHexColor(jewel.fishSky, colors.primary, 0.5),
     fishTeal: mixHexColor(jewel.fishTeal, cool, 0.48),
     fishSoft: mixHexColor(jewel.fishSoft, colors.accent, 0.42),
+    fishRose: mixHexColor(jewel.fishRose, colors.primary, 0.45),
     bubble: mixHexColor(jewel.bubble, colors.particle, 0.55),
     shaft: mixHexColor(jewel.shaft, gEnd, 0.4),
     dim: mixHexColor(jewel.dim, colors.textDim, 0.55),
@@ -596,7 +601,7 @@ export function applyFishTail(
 export function colorizeFishLine(
   line: string,
   kind: 'large' | 'compact' | 'tiny',
-  color: 'gold' | 'sky' | 'teal' | 'soft',
+  color: 'gold' | 'sky' | 'teal' | 'soft' | 'rose',
   facingRight: boolean,
   palette: AquariumPalette,
   paint: (hex: string, text: string) => string,
@@ -612,13 +617,17 @@ export function colorizeFishLine(
         ? palette.fishSky
         : color === 'teal'
           ? palette.fishTeal
-          : palette.fishSoft;
+          : color === 'rose'
+            ? palette.fishRose
+            : palette.fishSoft;
   const hot =
     color === 'gold'
       ? mixHexColor(body, '#FFE08A', 0.55)
       : color === 'sky'
         ? mixHexColor(body, '#A5F3FC', 0.45)
-        : mixHexColor(body, '#FFFFFF', 0.4);
+        : color === 'rose'
+          ? mixHexColor(body, '#FF8E98', 0.5)
+          : mixHexColor(body, '#FFFFFF', 0.4);
   const stripe = color === 'gold' || color === 'teal' ? '#FFFFFF' : mixHexColor(body, '#FFFFFF', 0.85);
   const shade = mixHexColor(body, '#1A0A08', 0.42);
   const ink = '#0A0E14';
@@ -627,7 +636,9 @@ export function colorizeFishLine(
       ? mixHexColor(body, '#FF2E9A', 0.25)
       : color === 'sky'
         ? '#FF2E9A'
-        : mixHexColor(palette.plantAccent, '#FFFFFF', 0.2);
+        : color === 'rose'
+          ? mixHexColor(body, '#FF8E98', 0.35)
+          : mixHexColor(palette.plantAccent, '#FFFFFF', 0.2);
   const nose = mixHexColor(body, ink, 0.35);
   const rim = mixHexColor(hot, '#FFFFFF', 0.35);
 
@@ -1000,7 +1011,7 @@ export function paintFireflies(
 }
 
 
-type FishColor = 'gold' | 'sky' | 'teal' | 'soft';
+type FishColor = 'gold' | 'sky' | 'teal' | 'soft' | 'rose';
 
 interface FishActor {
   readonly kind: 'large' | 'compact' | 'tiny';
@@ -1015,7 +1026,7 @@ interface FishActor {
 function buildSchool(width: number, storyRows: number, premium: boolean): FishActor[] {
   // Curated cast — lead + companions, never a crowd.
   const count = premium ? (width >= 72 ? 3 : 2) : width >= 50 ? 2 : 1;
-  const colors: FishColor[] = ['gold', 'sky', 'teal', 'soft'];
+  const colors: FishColor[] = ['gold', 'rose', 'sky', 'teal', 'soft'];
   // Staggered depth bands so the lead lane stays readable.
   const bands = [0.22, 0.38, 0.3, 0.48] as const;
   const school: FishActor[] = [];

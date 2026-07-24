@@ -16,13 +16,16 @@ import {
 import { shouldAnimate } from '#/tui/controllers/appearance';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { Component } from '#/tui/renderer';
-import { mixHexColor, visibleWidth } from '#/tui/renderer';
+import { hashRendererEffectSeed, mixHexColor, visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { mixHexColorStops } from '#/tui/theme/colors';
 import {
   advanceAppearanceAnimationClock,
+  motionEffectsAllowed,
   renderMeteorField,
   renderParticleRail,
   renderSpectacularText,
+  resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/utils/appearance-effects';
 import {
   blitCentered,
@@ -183,6 +186,89 @@ export function resolveFadeAlpha(
   // Keep a readable backdrop when morph follows.
   const floor = morphMs > 0 ? 0.55 : 0;
   return Math.max(floor, 1 - local);
+}
+
+/** Texture skin for the rising Liora mark — monospace-safe block family only. */
+export type MarkTextureSkin = 'solid' | 'halfBlock' | 'braille' | 'line';
+
+const MARK_TEXTURE_SKINS: readonly MarkTextureSkin[] = [
+  'solid',
+  'halfBlock',
+  'braille',
+  'line',
+];
+
+const MARK_TEXTURE_BRUSHES: Readonly<
+  Record<Exclude<MarkTextureSkin, 'solid'>, readonly string[]>
+> = {
+  halfBlock: ['▀', '▄'],
+  braille: ['⣿', '⣶', '⣤', '⣀'],
+  line: ['─', '│'],
+};
+
+export function selectMarkTextureSkin(seed: number): MarkTextureSkin {
+  const index =
+    ((seed % MARK_TEXTURE_SKINS.length) + MARK_TEXTURE_SKINS.length) %
+    MARK_TEXTURE_SKINS.length;
+  return MARK_TEXTURE_SKINS[index] ?? 'solid';
+}
+
+/**
+ * Theme-seeded mark texture pick. Reduced-motion / low-color profiles
+ * (effect mode `'off'`) keep the solid mark — the static fallback.
+ *
+ * The live splash render passes no explicit seed and paints the canonical
+ * solid brand mark, so the rising mark is stable and deterministic across
+ * launches. Texture variants stay addressable through an explicit seed
+ * (captures, golden output, demos) via `selectMarkTextureSkin`.
+ */
+export function resolveMarkTextureSkin(
+  appearance: AppearancePreferences,
+  seed?: number,
+): MarkTextureSkin {
+  if (!motionEffectsAllowed() || resolveQualityAdjustedAmbientEffectMode(appearance) === 'off') {
+    return 'solid';
+  }
+  if (seed === undefined) {
+    return 'solid';
+  }
+  const palette = currentTheme.palette;
+  const themeSeed = hashRendererEffectSeed(
+    `splash:mark-texture:${palette.gradientStart}:${palette.gradientMid}:${palette.gradientEnd}`,
+  );
+  return selectMarkTextureSkin(themeSeed + seed);
+}
+
+/**
+ * Re-skin solid '█' cells of the mark with a texture brush. Only '█' is
+ * replaced and every brush glyph is one cell wide, so row widths and the
+ * downstream centering / blit math stay untouched.
+ */
+export function applyMarkTexture(
+  rows: readonly string[],
+  skin: MarkTextureSkin,
+): readonly string[] {
+  if (skin === 'solid') return rows;
+  const brush = MARK_TEXTURE_BRUSHES[skin];
+  return rows.map((row, rowIndex) => {
+    let out = '';
+    let col = 0;
+    for (const char of row) {
+      out += char === '█' ? brush[(rowIndex + col) % brush.length]! : char;
+      col += 1;
+    }
+    return out;
+  });
+}
+
+/** Deterministic capture of the textured splash mark (tests / golden output). */
+export function captureSplashMarkRows(
+  appearance: AppearancePreferences,
+  width: number,
+  seed?: number,
+): readonly string[] {
+  const base = width >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
+  return applyMarkTexture(base, resolveMarkTextureSkin(appearance, seed));
 }
 
 export class SplashComponent implements Component {
@@ -393,12 +479,14 @@ export class SplashComponent implements Component {
     // --- Layer 3: rising Liora monogram ---
     const markProgress = resolveMarkRiseProgress(elapsed, this.durationMs);
     if (markProgress > 0 && phase !== 'done') {
-      const mark = safeWidth >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
-      const gStart = palette.gradientStart ?? primaryHex;
-      const gEnd = palette.gradientEnd ?? glowHex;
+      const markBase = safeWidth >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
+      const mark = applyMarkTexture(markBase, resolveMarkTextureSkin(appearance));
       const markLines = mark.map((line, rowIndex) => {
         const t = mark.length <= 1 ? 0.5 : rowIndex / (mark.length - 1);
-        const rowHex = mixHexColor(mixHexColor(gStart, primaryHex, 0.45), mixHexColor(glowHex, gEnd, 0.4), t);
+        const rowHex = mixHexColorStops(
+          [palette.gradientStart, palette.gradientMid, palette.gradientEnd],
+          t,
+        );
         if (fade < 0.25) return paint(mutedHex, line);
         if (phase === 'bloom' || phase === 'brand' || phase === 'hold') {
           return paint(mixHexColor(rowHex, glowHex, 0.35), line);
@@ -439,7 +527,11 @@ export class SplashComponent implements Component {
 
     // --- Layer 5: SUPERLIORA brand ---
     if (phase === 'brand' || phase === 'hold' || phase === 'fade') {
-      const bannerAll = renderWelcomeBanner(layout, appearance, safeWidth);
+      const bannerAll = renderWelcomeBanner(layout, appearance, safeWidth, {
+        // Brand phase starts at 48% of the clamped duration; cascade plays
+        // from that point and finishes before the hold phase.
+        cascadeElapsedMs: elapsed - 0.48 * this.durationMs,
+      });
       const reveal = resolveBannerRevealCount(
         elapsed,
         this.durationMs,

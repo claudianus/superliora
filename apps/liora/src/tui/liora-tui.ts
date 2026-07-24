@@ -164,6 +164,7 @@ import {
   appearanceAnimationNow,
   resolveUltraworkBorderGlowHex,
 } from './utils/appearance-effects';
+import { noteErrorFeedback } from './utils/feedback-vfx';
 import {
   createTUIStateNativeInputRouter,
   type TUIStateNativeInputRouter,
@@ -2770,6 +2771,7 @@ export class LioraTUI {
   }
 
   showError(message: string): void {
+    noteErrorFeedback();
     this.showStatus(`Error: ${message}`, 'error');
   }
 

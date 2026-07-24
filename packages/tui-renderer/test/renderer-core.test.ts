@@ -848,10 +848,10 @@ describe('renderer effect policy', () => {
   it('compares effect levels and provides default frame intervals', () => {
     expect(rendererEffectAllows('premium', 'subtle')).toBe(true);
     expect(rendererEffectAllows('subtle', 'premium')).toBe(false);
-    expect(rendererEffectFrameIntervalMs('premium')).toBe(160);
+    expect(rendererEffectFrameIntervalMs('premium')).toBe(100);
     expect(rendererEffectFrameIntervalMs('subtle')).toBe(420);
     expect(rendererEffectFrameIntervalMs('off')).toBe(Number.POSITIVE_INFINITY);
-    expect(rendererAnimationFrameIntervalMs({ fps: 30, requested: 'premium' })).toBe(160);
+    expect(rendererAnimationFrameIntervalMs({ fps: 30, requested: 'premium' })).toBe(100);
     expect(rendererAnimationFrameIntervalMs({ fps: 30, requested: 'premium', health: 'watch' })).toBe(420);
     expect(
       rendererAnimationFrameIntervalMs({

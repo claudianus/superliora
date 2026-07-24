@@ -19,6 +19,8 @@
  * - Cost breakdown (model, requests, input/output tokens, cost)
  */
 
+import { noteSelectionFeedback } from './feedback-vfx';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -128,7 +130,11 @@ export class TableRenderer<T extends Record<string, unknown>> {
 
   setSelectedIndex(index: number): void {
     const processed = this.getProcessedRows();
-    this.selectedIndex = Math.max(-1, Math.min(index, processed.length - 1));
+    const next = Math.max(-1, Math.min(index, processed.length - 1));
+    if (next !== this.selectedIndex) {
+      this.selectedIndex = next;
+      noteSelectionFeedback();
+    }
   }
 
   moveUp(): void {

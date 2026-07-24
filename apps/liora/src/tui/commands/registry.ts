@@ -620,6 +620,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'feed',
+    aliases: ['food'],
+    description: 'Drop food into the visible Jewel Tank',
+    priority: 70,
+    availability: 'always',
+  },
+  {
     name: 'upgrade',
     aliases: ['update'],
     description: 'Check for SuperLiora updates and install',

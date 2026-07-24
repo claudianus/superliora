@@ -211,8 +211,11 @@ describe('FooterComponent tip crossfade', () => {
     expect(strip(lines.join('\n'))).toMatch(/Resuming/i);
   });
 
-  it('crossfades rotating tips instead of hard-swapping under premium', () => {
+  it('types rotating tips in left-to-right instead of hard-swapping under premium', () => {
     const strip = (text: string): string => text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+    // The footer line is padded to full width, so compare the tip portion only
+    // by trimming the trailing fill spaces.
+    const tipLen = (text: string): number => strip(text).trimEnd().length;
     const footer = new FooterComponent({
       ...appState,
       appearance: {
@@ -221,20 +224,25 @@ describe('FooterComponent tip crossfade', () => {
         particles: 'premium',
       },
     });
-    const first = footer.render(200)[0] ?? '';
-    // Advance past tip rotation interval (10s) so the tip index changes.
+    // Establish the first tip and its typewriter start time.
+    footer.render(200);
+    // Let the first tip finish typing.
+    vi.setSystemTime(new Date('2026-07-01T00:00:02Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const settledFirst = footer.render(200)[0] ?? '';
+    // Advance past tip rotation interval (10s) so the tip index changes; the
+    // new tip begins typing from a short prefix rather than hard-swapping in.
     vi.setSystemTime(new Date('2026-07-01T00:00:12Z'));
     advanceAppearanceAnimationClock(Date.now());
     const early = footer.render(200)[0] ?? '';
     expect(early.length).toBeGreaterThan(0);
-    expect(first).not.toBe(early);
-    // Early crossfade (p < 0.45) keeps the previous tip visible — not a hard swap.
-    expect(strip(early)).toBe(strip(first));
-
-    // After CROSSFADE_MS the new tip settles in.
-    vi.setSystemTime(new Date('2026-07-01T00:00:12.500Z'));
+    expect(strip(early)).not.toBe(strip(settledFirst));
+    expect(tipLen(early)).toBeLessThan(tipLen(settledFirst));
+    // After the TYPEWRITER window the new tip settles in full.
+    vi.setSystemTime(new Date('2026-07-01T00:00:14Z'));
     advanceAppearanceAnimationClock(Date.now());
     const settled = footer.render(200)[0] ?? '';
-    expect(strip(settled)).not.toBe(strip(first));
+    expect(tipLen(settled)).toBeGreaterThan(tipLen(early));
+    expect(strip(settled)).not.toBe(strip(settledFirst));
   });
 });

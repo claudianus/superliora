@@ -42,6 +42,7 @@ export const ALL_TIPS: readonly ToolbarTip[] = [
   { key: 'tui.tip.ctrlC' },
   { key: 'tui.tip.theme' },
   { key: 'tui.tip.aquarium', priority: 2 },
+  { key: 'tui.tip.feed', priority: 2 },
   { key: 'tui.tip.auto' },
   { key: 'tui.tip.yolo' },
   { key: 'tui.tip.help' },

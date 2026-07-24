@@ -16,12 +16,31 @@
  * - Tab count badge
  *
  * Visual style:
- * - Active: bold + accent underline
+ * - Active: brand-wave title framed by ╭╮ notches + head→tail gradient underline
+ *   (static bold label + solid accent underline when effects are off)
  * - Inactive: dim text
  * - Modified: ● dot before title
  * - Pinned: icon only (compact)
  * - Overflow: ◂ ▸ scroll arrows or … dropdown
  */
+
+import { DEFAULT_APPEARANCE_PREFERENCES, type AppearancePreferences } from '#/tui/config';
+import {
+  mixHexColor,
+  renderRendererStyledTextRunsAnsi,
+  truncateToWidth,
+  type RendererStyledTextRun,
+} from '#/tui/renderer';
+import { currentTheme } from '#/tui/theme';
+import {
+  appearanceAnimationNow,
+  enterBeatDurationMs,
+  renderEnterBeat,
+  renderExitBeat,
+  renderSpectacularText,
+  resolveAmbientEffectMode,
+  type AmbientEffectMode,
+} from '#/tui/utils/appearance-effects';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,6 +71,25 @@ export interface TabBarRenderOptions {
   readonly fg: (token: string, text: string) => string;
   readonly boldFg: (token: string, text: string) => string;
   readonly dimFg: (token: string, text: string) => string;
+  /** Appearance preferences gating brand-wave / gradient / slide effects ('off' → static legacy render). */
+  readonly appearance?: AppearancePreferences;
+  /** Deterministic animation clock override; defaults to the shared appearance clock. */
+  readonly nowMs?: number;
+}
+
+/** In-flight underline slide between two active-tab segments (B2). */
+interface UnderlineSlide {
+  readonly fromStart: number;
+  readonly fromWidth: number;
+  readonly fromTabId: string;
+  readonly toTabId: string;
+  readonly startedAtMs: number;
+}
+
+interface ResolvedUnderlineSlide extends UnderlineSlide {
+  readonly progress: number;
+  readonly currentStart: number;
+  readonly currentWidth: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,14 +100,20 @@ const MAX_TAB_WIDTH = 24;
 const MIN_TAB_WIDTH = 8;
 const PINNED_TAB_WIDTH = 5;
 const TAB_PADDING = 2; // Space on each side of title
-const CLOSE_BUTTON = '✕';
-const NEW_TAB_BUTTON = '+';
-const STATUS_ICONS: Record<string, string> = {
+/** Monospace-safe close glyph — dingbats like ✕ break under Nerd Font + kitty symbol_map. */
+export const CLOSE_BUTTON = 'x';
+export const NEW_TAB_BUTTON = '+';
+export const STATUS_ICONS: Record<string, string> = {
   active: '●',
   idle: '○',
-  error: '✗',
+  error: '×', // U+00D7: monospace-safe stand-in for dingbat ✗
   working: '◌',
 };
+/** Browser-style rounded notches framing the active tab (box-drawing, monospace-safe). */
+export const NOTCH_LEFT = '╭';
+export const NOTCH_RIGHT = '╮';
+/** How far the gradient underline tail fades toward textDim (0 = accent, 1 = textDim). */
+const UNDERLINE_TAIL_FADE = 0.72;
 
 // ---------------------------------------------------------------------------
 // TabBar
@@ -81,6 +125,11 @@ export class TabBar {
   private scrollOffset = 0;
   private dragTabId: string | null = null;
   private dragTargetIndex: number | null = null;
+
+  // Underline slide tracking (B2): geometry of the previously rendered active segment.
+  private lastActiveTabId: string | null = null;
+  private lastActiveGeometry: { start: number; width: number } | null = null;
+  private underlineSlide: UnderlineSlide | null = null;
 
   // ─── Tab Management ──────────────────────────────────────────────
 
@@ -254,10 +303,15 @@ export class TabBar {
 
   /** Render the tab bar. */
   render(options: TabBarRenderOptions): string[] {
-    const { width, fg, boldFg, dimFg } = options;
+    const { width, fg, dimFg } = options;
+    const appearance = options.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+    const nowMs = options.nowMs ?? appearanceAnimationNow();
+    // 'off' (reduced motion / low-color env / minimal profile) → fully static legacy render.
+    const effectMode = resolveAmbientEffectMode(appearance);
     const lines: string[] = [];
 
     if (this.tabs.length === 0) {
+      this.updateUnderlineSlide(null, -1, 0, effectMode, nowMs);
       lines.push(dimFg('textMuted', ` ${NEW_TAB_BUTTON} No tabs`));
       lines.push(dimFg('textDim', '─'.repeat(width)));
       return lines;
@@ -275,7 +329,7 @@ export class TabBar {
     for (let i = 0; i < this.tabs.length; i++) {
       const tab = this.tabs[i]!;
       const isActive = tab.id === this.activeTabId;
-      const tabStr = this.renderTab(tab, isActive, options);
+      const tabStr = this.renderTab(tab, isActive, options, effectMode);
       const tabLen = stripAnsiLen(tabStr);
 
       if (usedWidth + tabLen + 1 > availableWidth) {
@@ -296,7 +350,6 @@ export class TabBar {
     lines.push(tabLine);
 
     // Underline bar with active indicator
-    let underline = '';
     let activeStart = 0;
     let activeWidth = 0;
 
@@ -304,7 +357,7 @@ export class TabBar {
     let pos = 1;
     for (let i = 0; i < this.tabs.length; i++) {
       const tab = this.tabs[i]!;
-      const tabStr = this.renderTab(tab, tab.id === this.activeTabId, options);
+      const tabStr = this.renderTab(tab, tab.id === this.activeTabId, options, effectMode);
       const tabLen = stripAnsiLen(tabStr) + 1;
 
       if (tab.id === this.activeTabId) {
@@ -315,6 +368,90 @@ export class TabBar {
       if (pos > availableWidth) break;
     }
 
+    this.updateUnderlineSlide(this.activeId, activeStart, activeWidth, effectMode, nowMs);
+
+    lines.push(
+      effectMode === 'off'
+        ? this.renderStaticUnderline(width, activeStart, activeWidth, options)
+        : this.renderEffectUnderline(width, activeStart, activeWidth, appearance, nowMs),
+    );
+
+    return lines;
+  }
+
+  /**
+   * Track the active-tab segment geometry so the gradient underline can slide
+   * between tabs (B2). When the active tab changes while effects are enabled,
+   * record an in-flight slide from the previous segment to the new one; the
+   * render path interpolates it until it settles. With effects 'off' (or no
+   * prior geometry) the slide is skipped and only the geometry is refreshed.
+   */
+  private updateUnderlineSlide(
+    activeTabId: string | null,
+    activeStart: number,
+    activeWidth: number,
+    effectMode: AmbientEffectMode,
+    nowMs: number,
+  ): void {
+    const geometry =
+      activeTabId !== null && activeWidth > 0 ? { start: activeStart, width: activeWidth } : null;
+    const tabChanged = activeTabId !== this.lastActiveTabId;
+
+    if (tabChanged) {
+      if (
+        effectMode !== 'off' &&
+        geometry &&
+        this.lastActiveGeometry &&
+        activeTabId !== null &&
+        this.lastActiveTabId !== null
+      ) {
+        this.underlineSlide = {
+          fromStart: this.lastActiveGeometry.start,
+          fromWidth: this.lastActiveGeometry.width,
+          fromTabId: this.lastActiveTabId,
+          toTabId: activeTabId,
+          startedAtMs: nowMs,
+        };
+      } else {
+        this.underlineSlide = null;
+      }
+    }
+
+    this.lastActiveTabId = activeTabId;
+    this.lastActiveGeometry = geometry;
+  }
+
+  /** Resolve the in-flight underline slide into concrete segment geometry. */
+  private resolveUnderlineSlide(
+    activeStart: number,
+    activeWidth: number,
+    appearance: AppearancePreferences,
+    nowMs: number,
+  ): ResolvedUnderlineSlide | null {
+    const slide = this.underlineSlide;
+    if (!slide) return null;
+    const duration = Math.max(1, enterBeatDurationMs(appearance));
+    const raw = (nowMs - slide.startedAtMs) / duration;
+    const progress = raw <= 0 ? 0 : raw >= 1 ? 1 : raw;
+    // Smoothstep easing so the segment settles instead of snapping.
+    const eased = progress * progress * (3 - 2 * progress);
+    const currentStart = Math.round(slide.fromStart + (activeStart - slide.fromStart) * eased);
+    const currentWidth = Math.max(
+      1,
+      Math.round(slide.fromWidth + (activeWidth - slide.fromWidth) * eased),
+    );
+    return { ...slide, progress, currentStart, currentWidth };
+  }
+
+  /** Static underline for reduced-motion / low-color / 'off' mode (legacy look). */
+  private renderStaticUnderline(
+    width: number,
+    activeStart: number,
+    activeWidth: number,
+    options: TabBarRenderOptions,
+  ): string {
+    const { fg, dimFg } = options;
+    let underline = '';
     for (let i = 0; i < width; i++) {
       if (i >= activeStart && i < activeStart + activeWidth) {
         underline += fg('accent', '━');
@@ -322,12 +459,49 @@ export class TabBar {
         underline += dimFg('textDim', '─');
       }
     }
-    lines.push(underline);
-
-    return lines;
+    return underline;
   }
 
-  private renderTab(tab: Tab, isActive: boolean, options: TabBarRenderOptions): string {
+  /** Head→tail brand gradient underline with slide-between-tabs animation (B1/B2). */
+  private renderEffectUnderline(
+    width: number,
+    activeStart: number,
+    activeWidth: number,
+    appearance: AppearancePreferences,
+    nowMs: number,
+  ): string {
+    const palette = currentTheme.palette;
+    const headHex = palette.accent;
+    const tailHex = mixHexColor(palette.accent, palette.textDim, UNDERLINE_TAIL_FADE);
+    const dimHex = palette.textDim;
+
+    const resolved = this.resolveUnderlineSlide(activeStart, activeWidth, appearance, nowMs);
+    const rawStart = resolved ? resolved.currentStart : activeStart;
+    const rawWidth = resolved ? resolved.currentWidth : activeWidth;
+    const segStart = Math.min(Math.max(0, rawStart), width);
+    const segEnd = Math.min(width, segStart + Math.max(0, rawWidth));
+
+    const runs: RendererStyledTextRun[] = [];
+    if (segStart > 0) {
+      runs.push({ text: '─'.repeat(segStart), style: { fg: dimHex, dim: true } });
+    }
+    const span = segEnd - segStart;
+    for (let i = segStart; i < segEnd; i++) {
+      const t = span <= 1 ? 0 : (i - segStart) / (span - 1);
+      runs.push({ text: '━', style: { fg: mixHexColor(headHex, tailHex, t) } });
+    }
+    if (segEnd < width) {
+      runs.push({ text: '─'.repeat(width - segEnd), style: { fg: dimHex, dim: true } });
+    }
+    return renderRendererStyledTextRunsAnsi(runs);
+  }
+
+  private renderTab(
+    tab: Tab,
+    isActive: boolean,
+    options: TabBarRenderOptions,
+    effectMode: AmbientEffectMode,
+  ): string {
     const { fg, boldFg, dimFg } = options;
 
     // Pinned tabs: icon only
@@ -344,9 +518,11 @@ export class TabBar {
     // Modified indicator
     const modDot = tab.modified ? fg('warning', '● ') : '';
 
-    // Title (truncated)
-    const maxTitleLen = MAX_TAB_WIDTH - TAB_PADDING * 2 - (statusIcon ? 2 : 0) - (tab.modified ? 2 : 0);
-    const title = truncate(tab.title, maxTitleLen);
+    // Title (truncated). The active tab reserves cells for the ╭╮ notches (B3).
+    const notchCells = isActive ? NOTCH_LEFT.length + NOTCH_RIGHT.length : 0;
+    const maxTitleLen =
+      MAX_TAB_WIDTH - TAB_PADDING * 2 - (statusIcon ? 2 : 0) - (tab.modified ? 2 : 0) - notchCells;
+    const rawTitle = truncate(tab.title, maxTitleLen);
 
     // Close button
     const closable = tab.closable !== false;
@@ -357,11 +533,16 @@ export class TabBar {
 
     // Compose
     const status = statusIcon ? fg(statusColor, `${statusIcon} `) : '';
-    const label = isActive
-      ? boldFg('text', `${icon}${modDot}${status}${title}${closeBtn}`)
-      : dimFg('textMuted', `${icon}${modDot}${status}${title}`);
-
-    return label;
+    if (!isActive) {
+      return dimFg('textMuted', `${icon}${modDot}${status}${rawTitle}`);
+    }
+    // B1: brand wave on the active title; 'off' keeps the legacy bold label.
+    const title =
+      effectMode === 'off'
+        ? boldFg('text', rawTitle)
+        : renderSpectacularText(rawTitle, `tab:${tab.id}`, options.appearance, { intense: false });
+    // B3: browser-style rounded notches frame the active tab (width-neutral vs. padding).
+    return `${NOTCH_LEFT}${boldFg('text', `${icon}${modDot}${status}`)}${title}${boldFg('text', closeBtn)}${NOTCH_RIGHT}`;
   }
 
   /** Render a compact tab count indicator. */

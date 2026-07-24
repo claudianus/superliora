@@ -23,10 +23,10 @@ import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 import {
   appearanceAnimationNow,
   renderAnimatedGradientText,
-  renderCrossfadeLine,
   renderEnterBeat,
   renderPulseText,
   renderShimmerPrefix,
+  renderTypewriterLine,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
@@ -144,11 +144,21 @@ function formatGoalBadge(
     ? renderPulseText('●', 'footer:goal:dot', statusToken, appearance)
     : chalk.hex(colors[statusToken])('●');
   if (isSotaGoal) {
+    // Easter egg: goals matching SOTA_GOAL_OBJECTIVE_PATTERN light the whole
+    // badge label up with the brand gradient wave (static bold primary when
+    // ambient motion is off).
+    const sotaLabel = shouldRenderAmbientEffects(appearance)
+      ? renderAnimatedGradientText(
+          'SuperLiora SOTA',
+          `footer:sota:${goal.objective}`,
+          appearance,
+        )
+      : chalk.hex(colors.primary).bold('SuperLiora SOTA');
     return (
       chalk.hex(colors.textMuted)('[goal ') +
       dot +
       chalk.hex(colors.textMuted)(' ') +
-      chalk.hex(colors.primary).bold('SuperLiora SOTA') +
+      sotaLabel +
       chalk.hex(colors.textMuted)(' / ') +
       label +
       chalk.hex(colors.textMuted)(']')
@@ -430,7 +440,6 @@ export class FooterComponent implements Component {
   private backgroundBashTaskCount = 0;
   private backgroundAgentCount = 0;
   private tipDisplay = '';
-  private prevTipDisplay = '';
   private tipChangedAtMs = 0;
   private getActiveMotionBeat: (() => MotionBeatSnapshot | undefined) | undefined;
 
@@ -621,7 +630,6 @@ export class FooterComponent implements Component {
       tipText = primary;
     }
     if (tipText !== this.tipDisplay) {
-      this.prevTipDisplay = this.tipDisplay;
       this.tipDisplay = tipText;
       this.tipChangedAtMs = appearanceAnimationNow();
     }
@@ -629,20 +637,20 @@ export class FooterComponent implements Component {
     const tipStyled =
       tipText.length === 0
         ? ''
-        : ambientTips && this.prevTipDisplay.length > 0
-          ? renderCrossfadeLine(
-              this.prevTipDisplay,
-              tipText,
-              'footer:tip',
-              this.tipChangedAtMs,
-              appearance,
-            )
+        : ambientTips
+          ? renderTypewriterLine(tipText, this.tipChangedAtMs, appearance)
           : chalk.hex(colors.textMuted)(tipText);
 
     let line1: string;
     if (tipStyled) {
-      const pad = width - leftWidth - visibleWidth(tipStyled);
-      line1 = leftLine + ' '.repeat(Math.max(0, pad)) + tipStyled;
+      // Reserve the full tip slot so the typewriter reveals in place — the slot
+      // is right-anchored and the text grows left→right instead of sliding as
+      // its visible width changes mid-animation.
+      const slotWidth = visibleWidth(tipText);
+      const pad = width - leftWidth - slotWidth;
+      const fill = Math.max(0, slotWidth - visibleWidth(tipStyled));
+      line1 =
+        leftLine + ' '.repeat(Math.max(0, pad)) + tipStyled + ' '.repeat(fill);
     } else if (leftWidth <= width) {
       line1 = leftLine;
     } else {

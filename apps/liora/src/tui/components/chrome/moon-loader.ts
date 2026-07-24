@@ -8,7 +8,14 @@ import {
   MOON_SPINNER_INTERVAL_MS,
 } from '#/tui/constant/rendering';
 import { currentTheme } from '#/tui/theme';
-import { appearanceAnimationNow, renderPulseText } from '#/tui/utils/appearance-effects';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  motionEffectsAllowed,
+  renderPulseText,
+  renderSpectacularText,
+  resolveQualityAdjustedAmbientEffectMode,
+} from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 
 export type SpinnerStyle = 'moon' | 'braille' | 'comet';
@@ -94,10 +101,29 @@ export class MoonLoader extends Text {
   /** Spinner glyph only — for dense embeds such as the swarm status line. */
   renderGlyph(): string {
     if (this.style === 'comet') return this.renderCometGlyph();
+    if (this.style === 'moon') return this.renderMoonGlyph();
     const frameIndex =
       Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
     const frame = this.frames[frameIndex]!;
     return this.colorFn ? this.colorFn(frame) : frame;
+  }
+
+  /** Brand moon phases (◐◓◑◒) with a theme-color gradient pulse.
+   *  Glyph rotation rides the shared animation clock (structural, like
+   *  braille); the color wave is ambient decoration and downgrades through
+   *  the renderer effect level. */
+  private renderMoonGlyph(): string {
+    const frameIndex =
+      Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
+    const frame = this.frames[frameIndex]!;
+    const appearance = getActiveAppearancePreferences();
+    const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+    // mode === 'off' (reduced-motion / low-color terminals): static themed
+    // glyph — rotation continues, no gradient pulse.
+    if (!motionEffectsAllowed() || mode === 'off') {
+      return this.colorFn ? this.colorFn(frame) : currentTheme.fg('primary', frame);
+    }
+    return renderSpectacularText(frame, 'moon-loader:moon', appearance, { pace: 'slow' });
   }
 
   override render(width: number): string[] {
@@ -116,12 +142,14 @@ export class MoonLoader extends Text {
     const coloredFrame =
       this.style === 'comet'
         ? this.renderCometGlyph()
-        : (() => {
-            const frameIndex =
-              Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
-            const frame = this.frames[frameIndex]!;
-            return this.colorFn ? this.colorFn(frame) : frame;
-          })();
+        : this.style === 'moon'
+          ? this.renderMoonGlyph()
+          : (() => {
+              const frameIndex =
+                Math.floor(appearanceAnimationNow() / this.interval) % this.frames.length;
+              const frame = this.frames[frameIndex]!;
+              return this.colorFn ? this.colorFn(frame) : frame;
+            })();
     const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt)}`);
     const label = this.label.length > 0
       ? renderPulseText(this.label, `loader:${this.label}`, 'text')

@@ -17,5 +17,8 @@ export const COMMAND_PREVIEW_LINES = 4;
 export const BRAILLE_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 export const BRAILLE_SPINNER_INTERVAL_MS = 80;
 
-export const MOON_SPINNER_FRAMES = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
+// Brand moon-phase spinner. Monospace-safe geometric glyphs (one cell each)
+// replace the old emoji moons (🌑–🌘), which rendered double-width with
+// VS16 on many fonts and broke alignment in dense status lines.
+export const MOON_SPINNER_FRAMES = ['◐', '◓', '◑', '◒'];
 export const MOON_SPINNER_INTERVAL_MS = 120;

@@ -58,6 +58,8 @@ import {
   notifyGoalCompletedAttention,
 } from '../utils/attention-notifications';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
+import { feedbackEffectsActive, noteSuccessFeedback } from '../utils/feedback-vfx';
+import { noteGoalCompletionMeteorBurst } from '../utils/stage-letterbox-sky';
 import { buildGoalCompletionMessage } from '../utils/goal-completion';
 import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import {
@@ -881,6 +883,10 @@ export class SessionEventHandler {
       this.goalCompletionAwaitingClear = true;
       this.goalCompletionTurnEnded = false;
       notifyGoalCompletedAttention(state, event.snapshot);
+      noteSuccessFeedback();
+      if (feedbackEffectsActive()) {
+        noteGoalCompletionMeteorBurst(appearanceAnimationNow());
+      }
       this.host.motionBeats.play({
         name: 'goal_complete',
         seed: `goal:${event.snapshot.goalId}`,

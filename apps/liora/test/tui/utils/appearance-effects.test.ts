@@ -20,10 +20,12 @@ import {
   renderPhaseChip,
   renderSettleFlash,
   renderSpectacularText,
+  renderTypewriterLine,
   resolveUltraworkBorderGlowHex,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  TYPEWRITER_MS,
 } from '#/tui/utils/appearance-effects';
 import { darkColors } from '#/tui/theme/colors';
 
@@ -380,6 +382,30 @@ describe('premium motion vocabulary', () => {
     vi.setSystemTime(start + 800);
     advanceAppearanceAnimationClock(Date.now());
     expect(strip(renderCrossfadeLine('old tip', 'new tip', 'tip', start, premium))).toBe('new tip');
+  });
+
+  it('renderTypewriterLine is static full text when motion is off', () => {
+    const off = { ...premium, profile: 'off' as const, particles: 'off' as const };
+    const plain = 'Use /feed to drop food into the idle aquarium';
+    expect(strip(renderTypewriterLine(plain, Date.now(), off))).toBe(plain);
+  });
+
+  it('renderTypewriterLine reveals the full text after the TYPEWRITER window', () => {
+    const plain = 'Use /feed to drop food into the idle aquarium';
+    const start = Date.now();
+    vi.setSystemTime(start + TYPEWRITER_MS + 100);
+    advanceAppearanceAnimationClock(Date.now());
+    expect(strip(renderTypewriterLine(plain, start, premium))).toBe(plain);
+  });
+
+  it('renderTypewriterLine shows a partial prefix while typing', () => {
+    const plain = 'Use /feed to drop food into the idle aquarium';
+    const start = Date.now();
+    vi.setSystemTime(start + 300);
+    advanceAppearanceAnimationClock(Date.now());
+    const out = strip(renderTypewriterLine(plain, start, premium));
+    expect(out.startsWith(plain[0] ?? '')).toBe(true);
+    expect(visibleWidth(out)).toBeLessThan(plain.length);
   });
 
   it('keeps brand motion tokens off shared success/warning/error hues', () => {

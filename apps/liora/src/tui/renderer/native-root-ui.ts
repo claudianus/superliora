@@ -14,6 +14,7 @@ import {
   type RendererRootUI,
   type RendererTerminalHost,
 } from '@harness-kit/tui-renderer';
+import { noteFocusFeedback } from '../utils/feedback-vfx';
 
 export interface LioraNativeRootUIOptions
   extends Omit<NativeRootUIOptions, 'render'> {}
@@ -106,7 +107,10 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
       this.focusedComponent.focused = false;
     }
     this.focusedComponent = component;
-    if (isFocusable(component)) component.focused = true;
+    if (isFocusable(component)) {
+      component.focused = true;
+      noteFocusFeedback();
+    }
     this.requestRender();
   }
 

@@ -3,7 +3,7 @@ export type IdleFishMode = 'wander' | 'seek';
 export interface IdleFish {
   id: number;
   kind: 'large' | 'compact' | 'tiny';
-  color: 'gold' | 'sky' | 'teal' | 'soft';
+  color: 'gold' | 'sky' | 'teal' | 'soft' | 'rose';
   x: number;
   y: number;
   vx: number;
@@ -106,7 +106,7 @@ function buildInitialFish(
   nextFishId: number,
 ): { fish: IdleFish[]; nextFishId: number } {
   const count = fishCount(width, premium);
-  const colors: FishColor[] = ['gold', 'sky', 'teal', 'soft'];
+  const colors: FishColor[] = ['gold', 'rose', 'sky', 'teal', 'soft'];
   const bands = [0.22, 0.38, 0.3, 0.48] as const;
   const floor = floorY(storyRows);
   const fish: IdleFish[] = [];

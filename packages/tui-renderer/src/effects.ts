@@ -68,7 +68,7 @@ export function rendererEffectFrameIntervalMs(
 ): number {
   switch (effect) {
     case 'premium':
-      return normalizeIntervalMs(options.premiumMs, 160);
+      return normalizeIntervalMs(options.premiumMs, 100);
     case 'subtle':
       return normalizeIntervalMs(options.subtleMs, 420);
     case 'off':

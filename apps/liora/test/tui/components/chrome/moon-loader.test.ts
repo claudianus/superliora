@@ -1,7 +1,15 @@
 import type { RendererRootUI } from '#/tui/renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { visibleWidth } from '#/tui/renderer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MoonLoader } from '#/tui/components/chrome/moon-loader';
+import { MOON_SPINNER_FRAMES } from '#/tui/constant/rendering';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { currentTheme } from '#/tui/theme';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+} from '#/tui/utils/appearance-effects';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -93,5 +101,111 @@ describe('MoonLoader', () => {
     expect(glyph).toMatch(/[·•◦○●]/);
     expect(inline).toContain('working...');
     expect(inline).toMatch(/[·•◦○●]/);
+  });
+});
+
+
+describe('MoonLoader brand moon spinner', () => {
+  // Pictographic emoji (incl. the old 🌑–🌘 moons) and dingbats (✦✧✺)
+  // are banned — only monospace-safe glyphs may reach the grid.
+  const EMOJI_OR_DINGBAT = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
+  const ENV_KEYS = ['TERM', 'NO_COLOR', 'CI', 'SSH_CLIENT', 'SSH_CONNECTION', 'SSH_TTY'] as const;
+  const savedEnv: Record<string, string | undefined> = {};
+
+  function setMotionEnv(motionOn: boolean): void {
+    for (const key of ENV_KEYS) delete process.env[key];
+    process.env['TERM'] = 'xterm-256color';
+    if (!motionOn) process.env['CI'] = '1';
+  }
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) savedEnv[key] = process.env[key];
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 0, 0, 0, 0));
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
+    }
+    vi.useRealTimers();
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
+  it('replaces emoji moon phases with monospace-safe brand glyphs', () => {
+    expect(MOON_SPINNER_FRAMES).toEqual(['◐', '◓', '◑', '◒']);
+    for (const frame of MOON_SPINNER_FRAMES) {
+      expect(frame).not.toMatch(EMOJI_OR_DINGBAT);
+      expect(visibleWidth(frame)).toBe(1);
+    }
+  });
+
+  it('rotates through all four brand phases on the shared clock', () => {
+    setMotionEnv(true);
+    const loader = createLoader('moon');
+    for (let tick = 0; tick < 4; tick++) {
+      advanceAppearanceAnimationClock(tick * 120);
+      expect(strip(loader.renderGlyph())).toBe(MOON_SPINNER_FRAMES[tick]);
+    }
+  });
+
+  it('keeps a single safe glyph inline through every animation phase', () => {
+    setMotionEnv(true);
+    const loader = createLoader('moon');
+    for (let tick = 0; tick < 4; tick++) {
+      advanceAppearanceAnimationClock(tick * 120);
+      const inline = strip(loader.renderInline());
+      // Inline form is "<glyph> <elapsed>" — the glyph must stay a single
+      // monospace-safe phase, never a double-width emoji.
+      expect(inline).toMatch(/^[◐◓◑◒] /);
+      expect(inline.charAt(0)).toBe(MOON_SPINNER_FRAMES[tick]);
+    }
+  });
+
+  it('falls back to a static themed glyph when motion effects are off', () => {
+    setMotionEnv(false); // CI=1 → motionEffectsAllowed() === false
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    advanceAppearanceAnimationClock(0);
+    const loader = createLoader('moon');
+    const glyph = loader.renderGlyph();
+    // Static fallback: flat theme color, no gradient wave.
+    expect(glyph).toBe(currentTheme.fg('primary', '◐'));
+    expect(strip(glyph)).toBe('◐');
+  });
+
+  it('falls back to a static themed glyph when the appearance profile is off', () => {
+    setMotionEnv(true);
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+    });
+    advanceAppearanceAnimationClock(0);
+    const loader = createLoader('moon');
+    expect(loader.renderGlyph()).toBe(currentTheme.fg('primary', '◐'));
+  });
+
+  it('applies the brand gradient pulse when motion and premium are active', () => {
+    setMotionEnv(true);
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+    advanceAppearanceAnimationClock(0);
+    const loader = createLoader('moon');
+    const glyph = loader.renderGlyph();
+    expect(strip(glyph)).toBe('◐');
+    const plain = currentTheme.fg('primary', '◐');
+    // With color support the gradient must differ from a flat theme color;
+    // on colorless terminals both collapse to the same plain glyph.
+    if (plain !== '◐') {
+      expect(glyph).not.toBe(plain);
+    }
   });
 });

@@ -680,6 +680,8 @@ export const SETTLE_FLASH_MS = 420;
 export const CROSSFADE_MS = 480;
 export const ENTER_BEAT_MS = 720;
 export const EXIT_BEAT_MS = 640;
+export const TYPEWRITER_MS = 900;
+export const TYPEWRITER_CURSOR = '▌';
 
 /** Enter-beat TTL matching `renderEnterBeat` (subtle stretches ×1.2). */
 export function enterBeatDurationMs(
@@ -763,6 +765,36 @@ export function renderCrossfadeLine(
   if (p < 0.45) return currentTheme.dimFg('textMuted', from);
   if (p < 0.7) return renderShimmerPrefix(appearance) + currentTheme.fg('textMuted', to);
   return currentTheme.fg('textMuted', to);
+}
+
+/**
+ * Reveal `text` left-to-right like a typewriter with a blinking brand cursor
+ * while typing, settling to the full muted line once complete. Returns the
+ * static full text when ambient motion is off (reduced-motion / low-color /
+ * `profile: 'off'`), so callers never need a separate fallback branch.
+ */
+export function renderTypewriterLine(
+  text: string,
+  startedAtMs: number,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const plain = stripAnsiControls(text);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off' || plain.length === 0) {
+    return currentTheme.fg('textMuted', plain);
+  }
+  const chars = Array.from(plain);
+  const duration = mode === 'subtle' ? TYPEWRITER_MS * 1.3 : TYPEWRITER_MS;
+  const p = motionProgress(startedAtMs, duration);
+  const revealed = Math.max(1, Math.round(chars.length * p));
+  if (p >= 1 || revealed >= chars.length) {
+    return currentTheme.fg('textMuted', plain);
+  }
+  const body = chars.slice(0, revealed).join('');
+  // Blink the cursor roughly twice per second while typing.
+  const blinkOn = Math.floor(appearanceAnimationNow() / 260) % 2 === 0;
+  const cursor = blinkOn ? currentTheme.fg('accent', TYPEWRITER_CURSOR) : '';
+  return currentTheme.fg('textMuted', body) + cursor;
 }
 
 export function renderEnterBeat(

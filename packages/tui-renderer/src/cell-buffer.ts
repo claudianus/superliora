@@ -746,8 +746,13 @@ function cellPositionHash(x: number, cell: RendererCell): number {
   // Width and continuation flags.
   h ^= (cell.width ?? 1) << 16;
   if (cell.continuation === true) h ^= 0x40000000;
-  // Style content hash (field-based, not reference-based).
-  h ^= normalizedStyleHash(cell.style);
+  // Style content hash (field-based, not reference-based). Mixed with position
+  // so a style-only change at different columns yields different XOR deltas —
+  // otherwise an even number of identical style edits in one row cancels out of
+  // the row checksum and the diff skips the row (cell VFX such as pulse/shimmer
+  // would not re-encode). The character term above already guards char changes.
+  const styleHash = normalizedStyleHash(cell.style);
+  if (styleHash !== 0) h ^= Math.imul(styleHash, pos | 1);
   // Link presence hash.
   if (cell.link !== undefined) {
     h ^= Math.imul(cell.link.length + 1, 0xc2b2ae35);

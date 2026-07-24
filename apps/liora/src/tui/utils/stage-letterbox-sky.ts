@@ -317,7 +317,13 @@ export function noteMeteorEasterEggClick(nowMs: number): boolean {
   easterClickMs = easterClickMs.filter((t) => now - t <= EASTER_CLICK_WINDOW_MS);
   if (easterClickMs.length < 3) return false;
   easterClickMs = [];
+  return armApocalypseMeteor(nowMs);
+}
+
+/** Arm one planet-collision meteor; returns false if a strike is already active. */
+function armApocalypseMeteor(nowMs: number): boolean {
   if (apocalypse !== undefined) return false;
+  const now = Math.floor(nowMs);
   const seed = hash2(now ^ 0x5f3759df, 9091);
   apocalypse = {
     seed,
@@ -325,6 +331,15 @@ export function noteMeteorEasterEggClick(nowMs: number): boolean {
     sector: SECTORS[seed % SECTORS.length]!,
   };
   return true;
+}
+
+/**
+ * Arm one planet-collision meteor as a goal-completion celebration. Driven by a
+ * success event rather than the triple-click easter egg; the strike fires the
+ * next time the letterbox stage sky paints. Returns false if already in flight.
+ */
+export function noteGoalCompletionMeteorBurst(nowMs: number): boolean {
+  return armApocalypseMeteor(nowMs);
 }
 
 export function facingRimSide(sector: SpawnSector): 0 | 1 | 2 | 3 {

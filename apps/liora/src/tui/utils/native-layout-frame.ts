@@ -40,6 +40,7 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { feedbackBorderGlowHex } from '#/tui/utils/feedback-vfx';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationNow,
@@ -1124,7 +1125,11 @@ function projectNativeEditorRegion(
       // paintUltraworkEditorBorderGlow then adds the perimeter chase on top.
       borderFocus: ultraworkGlow
         ? resolveUltraworkBorderGlowHex(appearanceAnimationNow())
-        : palette.primary,
+        : feedbackBorderGlowHex(
+            palette.primary,
+            palette.accent,
+            appearanceAnimationNow(),
+          ),
       command: palette.shellMode,
       surfaceSunken: palette.surfaceSunken,
       background: palette.background,

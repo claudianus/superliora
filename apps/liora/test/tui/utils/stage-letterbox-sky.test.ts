@@ -8,6 +8,7 @@ import {
   applySkyToLetterboxRegions,
   letterboxArea,
   facingRimSide,
+  noteGoalCompletionMeteorBurst,
   noteMeteorEasterEggClick,
   paintStageLetterboxSky,
   pointInLetterboxBands,
@@ -473,6 +474,30 @@ describe('stage letterbox night sky', () => {
       freeze: true,
     });
     expect(maxCells).toBeGreaterThan(quiet.length + 40);
+  });
+
+  it('arms an apocalypse meteor on goal completion and blocks duplicate arming', () => {
+    const bands = ultrawideBands();
+    // First completion arms the burst.
+    expect(noteGoalCompletionMeteorBurst(1_000)).toBe(true);
+    // A second completion while the apocalypse is still armed is a no-op.
+    expect(noteGoalCompletionMeteorBurst(1_120)).toBe(false);
+    let sawBigHead = false;
+    for (let t = 0; t < 4_000; t += 40) {
+      const cells = paintStageLetterboxSky({
+        bands,
+        cols: 200,
+        rows: 80,
+        nowMs: 100_000 + t,
+        appearance: premiumAmbient,
+        freeze: false,
+      });
+      if (cells.some((c) => c.char === '⬤')) sawBigHead = true;
+    }
+    expect(sawBigHead).toBe(true);
+    // After the burst resolves and state resets, a later completion re-arms.
+    resetMeteorEasterEggForTests();
+    expect(noteGoalCompletionMeteorBurst(200_000)).toBe(true);
   });
 
   it('builds dense letterbox regions without clear so ambient ticks do not wipe bands', () => {

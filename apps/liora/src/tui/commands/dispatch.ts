@@ -50,6 +50,7 @@ import { showLog } from './log';
 import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
 import { handleAquariumCommand } from './aquarium';
+import { handleFeedCommand } from './feed';
 import { handleBenchCommand } from './bench';
 import { handleMemoryCommand } from './memory';
 import { handlePersonaCommand } from './persona';
@@ -402,6 +403,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'aquarium':
       handleAquariumCommand(host);
+      return;
+    case 'feed':
+      handleFeedCommand(host);
       return;
     case 'upgrade':
       await handleUpgradeCommand(host);

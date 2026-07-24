@@ -11,6 +11,7 @@ import {
   type RendererStyledTextRun,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { mixHexColorStops } from '#/tui/theme/colors';
 import {
   appearanceAnimationNow,
   motionEffectsAllowed,
@@ -37,24 +38,162 @@ const BANNER_COMPACT = [
 /** Trademark sparkles in figlet padding — monospace-safe only. */
 const BANNER_SPARKLES = ['·', '∙', '•', '◦', '*', '˚'] as const;
 
+const BANNER_WORD = 'SUPERLIORA';
+
+/**
+ * Block figlet set for the banner word — hand-built from monospace-safe block
+ * elements (█ ▀ ▄) so every terminal font keeps the rows aligned.
+ */
+const BLOCK_LETTERS_LARGE: Readonly<Record<string, readonly string[]>> = {
+  S: ['█████', '█    ', '█████', '    █', '█████'],
+  U: ['█   █', '█   █', '█   █', '█   █', ' ███ '],
+  P: ['████ ', '█   █', '████ ', '█    ', '█    '],
+  E: ['█████', '█    ', '████ ', '█    ', '█████'],
+  R: ['████ ', '█   █', '████ ', '█  █ ', '█   █'],
+  L: ['█    ', '█    ', '█    ', '█    ', '█████'],
+  I: ['███', ' █ ', ' █ ', ' █ ', '███'],
+  O: [' ███ ', '█   █', '█   █', '█   █', ' ███ '],
+  A: [' ███ ', '█   █', '█████', '█   █', '█   █'],
+};
+
+const BLOCK_LETTERS_COMPACT: Readonly<Record<string, readonly string[]>> = {
+  S: ['█▀▀', '▀█▀', '▄▄█'],
+  U: ['█ █', '█ █', '▄█▄'],
+  P: ['█▀█', '█▀▀', '█  '],
+  E: ['█▀▀', '██ ', '█▄▄'],
+  R: ['█▀█', '██ ', '█ █'],
+  L: ['█  ', '█  ', '█▄▄'],
+  I: ['▀█▀', ' █ ', '▄█▄'],
+  O: ['█▀█', '█ █', '▄█▄'],
+  A: ['█▀█', '███', '█ █'],
+};
+
+function composeBlockBanner(
+  letterRows: Readonly<Record<string, readonly string[]>>,
+): readonly string[] {
+  const rowCount = letterRows[BANNER_WORD[0]!]!.length;
+  const rows: string[] = [];
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    rows.push(
+      BANNER_WORD.split('')
+        .map((letter) => letterRows[letter]?.[rowIndex] ?? '   ')
+        .join(' '),
+    );
+  }
+  return rows;
+}
+
+const BANNER_LARGE_BLOCK = composeBlockBanner(BLOCK_LETTERS_LARGE);
+const BANNER_COMPACT_BLOCK = composeBlockBanner(BLOCK_LETTERS_COMPACT);
+
+export type BannerFontId = 'slant' | 'block';
+
+interface BannerFontSet {
+  readonly id: BannerFontId;
+  readonly large: readonly string[];
+  readonly compact: readonly string[];
+}
+
+const BANNER_FONT_SETS: readonly BannerFontSet[] = [
+  { id: 'slant', large: BANNER_LARGE, compact: BANNER_COMPACT },
+  { id: 'block', large: BANNER_LARGE_BLOCK, compact: BANNER_COMPACT_BLOCK },
+];
+
+/** Per-process salt: the font pick is random once per session, stable per frame. */
+const BANNER_FONT_SESSION_SALT = Math.floor(Math.random() * 0xffff);
+
+export function selectBannerFontId(seed: number): BannerFontId {
+  const index = rendererPositiveModulo(seed, BANNER_FONT_SETS.length);
+  return BANNER_FONT_SETS[index]?.id ?? 'slant';
+}
+
+/**
+ * Theme-seeded banner font pick. Reduced-motion / low-color profiles
+ * (effect mode `'off'`) keep the default slant font — the static fallback.
+ */
+export function resolveBannerFontId(
+  appearance: AppearancePreferences,
+  seed: number = BANNER_FONT_SESSION_SALT,
+): BannerFontId {
+  if (!motionEffectsAllowed() || resolveQualityAdjustedAmbientEffectMode(appearance) === 'off') {
+    return 'slant';
+  }
+  const palette = currentTheme.palette;
+  const themeSeed = hashRendererEffectSeed(
+    `welcome-banner:font:${palette.gradientStart}:${palette.gradientMid}:${palette.gradientEnd}`,
+  );
+  return selectBannerFontId(themeSeed + seed);
+}
+
+/** Left-to-right cascade reveal duration for the banner entrance. */
+export const BANNER_CASCADE_MS = 900;
+
+export function resolveBannerCascadeProgress(elapsedMs: number): number {
+  if (elapsedMs >= BANNER_CASCADE_MS) return 1;
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return 0;
+  const t = elapsedMs / BANNER_CASCADE_MS;
+  return 1 - (1 - t) * (1 - t);
+}
+
+function applyBannerCascade(rows: readonly string[], progress: number): readonly string[] {
+  if (progress >= 1) return rows;
+  const fullWidth = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  const revealWidth = Math.ceil(fullWidth * progress);
+  return rows.map((row) => {
+    let x = 0;
+    let masked = '';
+    for (const cluster of splitDisplayClusters(row)) {
+      masked += x < revealWidth ? cluster.text : ' '.repeat(cluster.width);
+      x += cluster.width;
+    }
+    return masked;
+  });
+}
+
+export interface WelcomeBannerRenderOptions {
+  /** Force a font for deterministic captures; defaults to the theme-seeded pick. */
+  readonly fontId?: BannerFontId;
+  /**
+   * Milliseconds since the banner entrance started. Omit for the static,
+   * fully revealed banner; the splash passes its banner-phase elapsed time
+   * so the cascade plays while the banner rises.
+   */
+  readonly cascadeElapsedMs?: number;
+}
+
 export function renderWelcomeBanner(
   layout: ResponsiveLayoutProfile,
   appearance: AppearancePreferences,
   width: number,
+  options: WelcomeBannerRenderOptions = {},
 ): string[] {
+  const fontId = options.fontId ?? resolveBannerFontId(appearance);
+  const font = BANNER_FONT_SETS.find((entry) => entry.id === fontId) ?? BANNER_FONT_SETS[0]!;
+  const animated =
+    motionEffectsAllowed() && resolveQualityAdjustedAmbientEffectMode(appearance) !== 'off';
+  const cascadeProgress =
+    animated && options.cascadeElapsedMs !== undefined
+      ? resolveBannerCascadeProgress(options.cascadeElapsedMs)
+      : 1;
+  const sparkles = cascadeProgress >= 1;
+
   if (layout === 'tiny' || width < 24) {
-    return [paintBannerLine('SUPERLIORA', appearance, 0, 1, width)];
+    const row = applyBannerCascade([BANNER_WORD], cascadeProgress)[0]!;
+    return [paintBannerLine(row, appearance, 0, 1, width, sparkles)];
   }
   const useLarge =
     layout === 'standard' || layout === 'wide' || layout === 'ultrawide' || width >= 59;
-  const lines = useLarge ? BANNER_LARGE : BANNER_COMPACT;
-  return lines.map((line, index) => paintBannerLine(line, appearance, index, lines.length, width));
+  const lines = applyBannerCascade(useLarge ? font.large : font.compact, cascadeProgress);
+  return lines.map((line, index) =>
+    paintBannerLine(line, appearance, index, lines.length, width, sparkles),
+  );
 }
 
 /**
- * Trademark SUPERLIORA hero: vertical brand gradient across figlet rows,
- * plus a slow in-row brand-wave, soft crest, and sparse space sparkles.
- * Stays on gradientStart / primary / glow / gradientEnd — never roleUser gold.
+ * Trademark SUPERLIORA hero: vertical brand aurora (gradientStart →
+ * gradientMid → gradientEnd) across figlet rows, plus a slow in-row
+ * brand-wave, soft crest, and sparse space sparkles.
+ * Stays on brand aurora roles — never roleUser gold.
  */
 function paintBannerLine(
   line: string,
@@ -62,6 +201,7 @@ function paintBannerLine(
   rowIndex: number,
   rowCount: number,
   maxWidth: number,
+  sparklesEnabled = true,
 ): string {
   const plain = truncateToWidth(line, maxWidth, '…');
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
@@ -72,17 +212,20 @@ function paintBannerLine(
   const t = rowCount <= 1 ? 0.5 : rowIndex / (rowCount - 1);
   const s = t * t * (3 - 2 * t);
   const start = currentTheme.color('gradientStart');
+  const mid = currentTheme.color('gradientMid');
   const end = currentTheme.color('gradientEnd');
   const primary = currentTheme.color('primary');
   const glow = currentTheme.color('glow');
   const particle = currentTheme.color('particle');
   const accent = currentTheme.color('accent');
-  // Row base on vertical brand gradient.
-  const rowBase = mixHexColor(start, end, s);
+  // Row base on the three-stop brand aurora.
+  const rowBase = mixHexColorStops([start, mid, end], s);
   // Brand-only chain for the traveling wave (no opposite-hue roles).
   const brandChain = [
     start,
-    mixHexColor(start, primary, 0.55),
+    mixHexColor(start, mid, 0.5),
+    mid,
+    mixHexColor(mid, primary, 0.5),
     primary,
     mixHexColor(primary, glow, 0.5),
     glow,
@@ -106,7 +249,10 @@ function paintBannerLine(
   for (const cluster of splitDisplayClusters(plain)) {
     const char = cluster.text;
     if (char === ' ') {
-      if (rendererPositiveModulo(seed + clusterIndex + tick * 2, sparkleEvery) === 0) {
+      if (
+        sparklesEnabled &&
+        rendererPositiveModulo(seed + clusterIndex + tick * 2, sparkleEvery) === 0
+      ) {
         const glyph =
           BANNER_SPARKLES[
             rendererPositiveModulo(seed + tick + clusterIndex, BANNER_SPARKLES.length)

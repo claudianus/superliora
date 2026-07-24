@@ -22,6 +22,13 @@
  * - bounce: ⠁⠂⠄⠂
  * - arrow: ←↖↑↗→↘↓↙
  * - pulse: █▓▒░
+ * - moon: ◐◓◑◒ (brand phases — monospace-safe, no emoji)
+ * - earth: ●◐○◑
+ *
+ * Task-aware spinners (spinnerStyleForTask):
+ * - thinking → circle (star-like quadrant twirl)
+ * - tool → arrow (gear-like rotation)
+ * - waiting → pulse (breathing density)
  *
  * Bar styles:
  * - classic: [████████░░░░░░░░] 50%
@@ -92,8 +99,10 @@ const SPINNER_FRAMES: Record<SpinnerStyle, string[]> = {
   bounce: ['⠁', '⠂', '⠄', '⠂'],
   arrow: ['←', '↖', '↑', '↗', '→', '↘', '↓', '↙'],
   pulse: ['█', '▓', '▒', '░', '▒', '▓'],
-  moon: ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'],
-  earth: ['🌍', '🌎', '🌏'],
+  // Monospace-safe geometric phases. The old emoji moons/globes rendered
+  // double-width with VS16 on many fonts and broke bar alignment.
+  moon: ['◐', '◓', '◑', '◒'],
+  earth: ['●', '◐', '○', '◑'],
 };
 
 const BAR_CHARS: Record<BarStyle, { filled: string; empty: string; head?: string }> = {
@@ -144,6 +153,44 @@ export class Spinner {
   getFrames(): readonly string[] {
     return SPINNER_FRAMES[this.style];
   }
+}
+
+// ---------------------------------------------------------------------------
+// Task-aware spinner mapping
+// ---------------------------------------------------------------------------
+
+/** Kinds of in-flight agent work that get a distinct spinner motion. */
+export type SpinnerTaskKind = 'thinking' | 'tool' | 'waiting';
+
+/**
+ * Maps task kinds onto the frame sets that previously went unused:
+ * - thinking → circle (◐◓◑◒): star-like quadrant twirl
+ * - tool     → arrow (←↖↑↗→↘↓↙): gear-like rotation for mechanical work
+ * - waiting  → pulse (█▓▒░▒▓): breathing density cycle
+ */
+export const TASK_SPINNER_STYLES: Readonly<Record<SpinnerTaskKind, SpinnerStyle>> = {
+  thinking: 'circle',
+  tool: 'arrow',
+  waiting: 'pulse',
+};
+
+/**
+ * Resolve the spinner style for a task kind. Pass `motionAllowed=false`
+ * (derived from `resolveRendererEffectLevel` / motion preferences) to
+ * downgrade to the minimal line style, keeping the spinner a
+ * static-friendly single-cell toggle.
+ */
+export function spinnerStyleForTask(kind: SpinnerTaskKind, motionAllowed = true): SpinnerStyle {
+  return motionAllowed ? TASK_SPINNER_STYLES[kind] : 'line';
+}
+
+/** Create a spinner whose animation matches the task kind. */
+export function createTaskSpinner(
+  label: string,
+  kind: SpinnerTaskKind,
+  motionAllowed = true,
+): Spinner {
+  return new Spinner(label, spinnerStyleForTask(kind, motionAllowed));
 }
 
 // ---------------------------------------------------------------------------

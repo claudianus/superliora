@@ -8,6 +8,10 @@ import {
   type RendererRunOptimizationInput,
 } from './cell-buffer';
 import {
+  applyRendererCellVfxToBuffer,
+  type RendererCellVfxBufferOptions,
+} from './cell-vfx';
+import {
   resolveRendererFrameOutputPolicy,
   type RendererFrameOutputDecision,
   type RendererFrameOutputPolicyInput,
@@ -92,6 +96,17 @@ export class NativeFrameRenderer {
   /** Parse chalk/ANSI escapes into styled cells. See {@link CellBuffer.writeAnsiText}. */
   writeAnsiText(x: number, y: number, text: string): void {
     this.frame.writeAnsiText(x, y, text);
+  }
+
+  /**
+   * Apply a cell-level VFX (pulse/shimmer/reveal) to the pending frame buffer.
+   *
+   * Changed cells go through `RendererCellBuffer.setCell`, which marks
+   * per-cell damage, so the next `present()` diff re-encodes only the union
+   * of changed cells. Returns the changed rect, or null when nothing changed.
+   */
+  applyCellVfx(options: RendererCellVfxBufferOptions): RendererDamageRect | null {
+    return applyRendererCellVfxToBuffer(this.frame, options);
   }
 
   setCursor(cursor: RendererCursorState): void {

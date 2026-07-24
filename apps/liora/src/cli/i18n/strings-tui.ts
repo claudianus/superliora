@@ -153,6 +153,9 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.aquarium.restored':
     'Jewel Tank overlay on — click to feed; send a message to return to your chat.',
   'tui.aquarium.replaying': 'Cannot show the aquarium while session history is replaying.',
+  'tui.feed.noTank': 'No Jewel Tank is visible — open /aquarium or wait for the idle tank.',
+  'tui.feed.full': 'The tank is full of food already.',
+  'tui.feed.dropped': 'Food dropped — watch the fish go.',
   'tui.ultrawork.on.title': 'Ultrawork mode: ON',
   'tui.ultrawork.off.title': 'Ultrawork mode: OFF',
   'tui.ultrawork.on.detail':
@@ -323,6 +326,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.ctrlC': 'ctrl+c: cancel',
   'tui.tip.theme': '/theme to switch the terminal UI theme',
   'tui.tip.aquarium': '/aquarium overlays a Welcome-sized Jewel Tank; send a message to leave',
+  'tui.tip.feed': '/feed drops food into the visible Jewel Tank (or click it)',
   'tui.tip.auto': '/auto lets Liora handle approvals and keep going unattended',
   'tui.tip.yolo': '/yolo skips most approvals for trusted batch work — only in repos you trust',
   'tui.tip.help': '/help: show commands',
@@ -514,6 +518,9 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.aquarium.restored':
     'Jewel Tank 오버레이 — 클릭으로 밥 주기, 메시지를 보내면 채팅으로 돌아갑니다.',
   'tui.aquarium.replaying': '세션 기록 재생 중에는 어항을 표시할 수 없습니다.',
+  'tui.feed.noTank': '보이는 Jewel Tank가 없습니다 — /aquarium을 열거나 대기 화면을 기다리세요.',
+  'tui.feed.full': '이미 먹이가 가득합니다.',
+  'tui.feed.dropped': '먹이를 넣었습니다 — 물고기를 지켜보세요.',
   'tui.ultrawork.on.title': 'Ultrawork 모드: ON',
   'tui.ultrawork.off.title': 'Ultrawork 모드: OFF',
   'tui.ultrawork.on.detail':
@@ -681,6 +688,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.ctrlC': 'ctrl+c: 취소',
   'tui.tip.theme': '/theme으로 터미널 UI 테마 전환',
   'tui.tip.aquarium': '/aquarium은 Welcome 크기 Jewel Tank 오버레이 — 메시지 보내면 복귀',
+  'tui.tip.feed': '/feed로 보이는 Jewel Tank에 먹이 투하 (클릭도 가능)',
   'tui.tip.auto': '/auto로 승인을 맡기고 무인 진행',
   'tui.tip.yolo': '/yolo는 신뢰하는 저장소에서 대부분 승인을 건너뜁니다',
   'tui.tip.help': '/help: 명령 목록',
