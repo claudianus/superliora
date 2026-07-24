@@ -811,6 +811,8 @@ export type CompactionPhase = 'summarizing' | 'repairing' | 'finalizing';
 export interface CompactionProgressEvent {
   readonly type: 'compaction.progress';
   readonly phase: CompactionPhase;
+  /** Incremental summary text streamed while the phase is `summarizing`. */
+  readonly delta?: string;
 }
 
 export interface BackgroundTaskStartedEvent {
@@ -1673,6 +1675,7 @@ export const compactionPhaseSchema = z.enum([
 export const compactionProgressEventSchema = z.object({
   type: z.literal('compaction.progress'),
   phase: compactionPhaseSchema,
+  delta: z.string().optional(),
 }) satisfies z.ZodType<CompactionProgressEvent>;
 
 export const backgroundTaskStartedEventSchema = z.object({

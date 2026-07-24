@@ -60,6 +60,8 @@ const BAR_MAX_WIDTH = 24;
 const BAR_FILL_CHAR = '█';
 const BAR_PULSE_CHAR = '▓';
 const BAR_EMPTY_CHAR = '░';
+const SUMMARY_PREVIEW_LINES = 3;
+const SUMMARY_PREVIEW_MAX_WIDTH = 80;
 
 export class CompactionComponent extends Container {
   private readonly ui: RendererRootUI | undefined;
@@ -78,6 +80,8 @@ export class CompactionComponent extends Container {
   private phaseEnteredAt = this.startedAtMs;
   private progressFloor = 0;
   private readonly progressText: Text;
+  private summaryBuffer = '';
+  private readonly summaryPreviewText: Text;
 
   constructor(
     ui?: RendererRootUI,
@@ -100,6 +104,10 @@ export class CompactionComponent extends Container {
     // disappears entirely once the block settles (done/cancelled).
     this.progressText = new Text('', 0, 0);
     this.addChild(this.progressText);
+    // Live tail preview of the streamed summary. Empty text renders zero
+    // lines, so the preview disappears once the block settles.
+    this.summaryPreviewText = new Text('', 0, 0);
+    this.addChild(this.summaryPreviewText);
     this.addInstructionChild();
   }
 
@@ -120,6 +128,10 @@ export class CompactionComponent extends Container {
         this.children.pop();
       }
       this.addInstructionChild();
+    }
+    // Repaint the streamed summary preview with fresh theme colours.
+    if (this.summaryBuffer.length > 0) {
+      this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
     }
     super.invalidate();
   }
@@ -169,6 +181,8 @@ export class CompactionComponent extends Container {
     this.done = true;
     this.doneAtMs = appearanceAnimationNow();
     this.progressText.setText('');
+    this.summaryBuffer = '';
+    this.summaryPreviewText.setText('');
     this.tokensBefore = tokensBefore;
     this.tokensAfter = tokensAfter;
     if (detail !== undefined && detail.length > 0) {
@@ -183,6 +197,8 @@ export class CompactionComponent extends Container {
     if (this.done || this.canceled) return;
     this.canceled = true;
     this.progressText.setText('');
+    this.summaryBuffer = '';
+    this.summaryPreviewText.setText('');
     this.headerText.setText(this.buildHeader());
     this.ui?.requestRender();
   }
@@ -203,12 +219,21 @@ export class CompactionComponent extends Container {
     this.ui?.requestRender();
   }
 
+  /** Append streamed summarizer output and show a dimmed tail preview. */
+  appendSummaryDelta(delta: string): void {
+    if (this.done || this.canceled || delta.length === 0) return;
+    this.summaryBuffer += delta;
+    this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
+    this.ui?.requestRender();
+  }
+
   dispose(): void {}
 
   private composeBeatRender(beatLines: readonly string[], width: number): string[] {
     const lines: string[] = ['', ...beatLines];
     if (!this.done && !this.canceled) {
       lines.push(this.buildProgressLine(width));
+      lines.push(...this.buildSummaryPreviewLines());
     }
     if (this.instruction !== undefined) {
       lines.push(currentTheme.dim(`  ${this.instruction}`));
@@ -254,6 +279,21 @@ export class CompactionComponent extends Container {
     }
     const pct = currentTheme.fg('textDim', `${String(Math.round(fraction * 100)).padStart(3)}%`);
     return `  ${bar} ${pct} ${currentTheme.fg('textMuted', label)}`;
+  }
+
+  private buildSummaryPreviewLines(): string[] {
+    return this.summaryBuffer
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => line.trim().length > 0)
+      .slice(-SUMMARY_PREVIEW_LINES)
+      .map((line) => {
+        const clipped =
+          line.length > SUMMARY_PREVIEW_MAX_WIDTH
+            ? `${line.slice(0, SUMMARY_PREVIEW_MAX_WIDTH - 1)}…`
+            : line;
+        return currentTheme.dim(`  ${clipped}`);
+      });
   }
 
   private buildCompletePlain(): string {

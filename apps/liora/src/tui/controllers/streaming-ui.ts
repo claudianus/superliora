@@ -797,10 +797,13 @@ export class StreamingUIController {
     requestTUILayoutRender(this.host.state);
   }
 
-  updateCompactionProgress(phase: CompactionPhase): void {
+  updateCompactionProgress(phase: CompactionPhase, delta?: string): void {
     const block = this._activeCompactionBlock;
     if (block === undefined) return;
     block.setPhase(phase);
+    if (delta !== undefined && delta.length > 0) {
+      block.appendSummaryDelta(delta);
+    }
     requestTUILayoutRender(this.host.state);
   }
 

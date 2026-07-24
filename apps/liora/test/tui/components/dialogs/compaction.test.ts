@@ -299,4 +299,27 @@ describe('CompactionComponent', () => {
       vi.useRealTimers();
     }
   });
+
+  it('streams a dimmed tail preview of the summary and clears it on settle', () => {
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      component.appendSummaryDelta('first line\nsecond line\n');
+      component.appendSummaryDelta('third line\nfourth line\n');
+      const text = component.render(120).map(strip).join('\n');
+
+      // Only the last non-empty lines are previewed, indented by two spaces.
+      expect(text).toContain('  second line');
+      expect(text).toContain('  third line');
+      expect(text).toContain('  fourth line');
+      expect(text).not.toContain('first line');
+
+      component.markDone(1000, 500);
+      const settled = component.render(120).map(strip).join('\n');
+      expect(settled).not.toContain('fourth line');
+    } finally {
+      component.dispose();
+    }
+  });
 });

@@ -1562,7 +1562,17 @@ export class FullCompaction {
           this.agent.config.systemPrompt,
           [...this.agent.tools.loopTools],
           messages,
-          undefined,
+          {
+            onMessagePart: (part) => {
+              if (part.type === 'text' && part.text.length > 0) {
+                this.agent.emitEvent({
+                  type: 'compaction.progress',
+                  phase: 'summarizing',
+                  delta: part.text,
+                });
+              }
+            },
+          },
           { signal },
         );
         if (response.finishReason === 'truncated') {

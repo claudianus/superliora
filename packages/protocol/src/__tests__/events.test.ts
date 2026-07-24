@@ -103,6 +103,23 @@ describe('events / display re-exports', () => {
     ).toBe(false);
   });
 
+  it('parses compaction progress events carrying a streamed summary delta', () => {
+    expect(
+      agentEventSchema.safeParse({
+        type: 'compaction.progress',
+        phase: 'summarizing',
+        delta: 'hello',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentEventSchema.safeParse({
+        type: 'compaction.progress',
+        phase: 'bogus',
+        delta: 'hello',
+      }).success,
+    ).toBe(false);
+  });
+
   it('validates session-scoped daemon events with agentId and sessionId', () => {
     const parsed = eventSchema.parse({
       type: 'turn.started',

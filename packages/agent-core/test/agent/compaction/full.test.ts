@@ -2783,6 +2783,7 @@ describe('FullCompaction', () => {
       [emit] compaction.started         { "trigger": "manual", "mode": "blocking" }
       [wire] context.append_message     { "message": { "role": "user", "content": [ { "type": "text", "text": "new user while compacting" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
       [emit] compaction.progress        { "phase": "summarizing" }
+      [emit] compaction.progress        { "phase": "summarizing", "delta": "Compacted prefix." }
       [emit] compaction.progress        { "phase": "repairing" }
       [wire] usage.record               { "model": "kimi-code", "usage": { "inputOther": 762, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
       [emit] agent.status.updated       { "model": "kimi-code", "contextTokens": 80, "maxContextTokens": 256000, "contextUsage": 0.0003125, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "kimi-code": { "inputOther": 762, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 762, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
@@ -2992,6 +2993,7 @@ describe('FullCompaction', () => {
       [wire] context.clear            { "time": "<time>" }
       [emit] agent.status.updated     { "model": "kimi-code", "contextTokens": 0, "maxContextTokens": 256000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] compaction.progress      { "phase": "summarizing" }
+      [emit] compaction.progress      { "phase": "summarizing", "delta": "Stale summary." }
       [emit] compaction.progress      { "phase": "repairing" }
       [wire] usage.record             { "model": "kimi-code", "usage": { "inputOther": 762, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
       [emit] agent.status.updated     { "model": "kimi-code", "contextTokens": 0, "maxContextTokens": 256000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "kimi-code": { "inputOther": 762, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 762, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
@@ -3040,6 +3042,7 @@ describe('FullCompaction', () => {
       [emit] compaction.started          { "trigger": "auto", "mode": "background" }
       [emit] compaction.blocked          { "turnId": 0 }
       [emit] compaction.progress         { "phase": "summarizing" }
+      [emit] compaction.progress         { "phase": "summarizing", "delta": "Auto compacted summary." }
       [emit] compaction.progress         { "phase": "repairing" }
       [wire] usage.record                { "model": "kimi-code", "usage": { "inputOther": 738, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "session", "time": "<time>" }
       [emit] agent.status.updated        { "model": "kimi-code", "contextTokens": 950000, "maxContextTokens": 256000, "contextUsage": 3.7109375, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "kimi-code": { "inputOther": 738, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 738, "output": 9, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "microCompaction": { "total": 1, "lastTrigger": "usage_pressure", "lastContextUsageRatio": 3.71096484375, "byTrigger": { "usage_pressure": 1 } }, "autoDream": null }
