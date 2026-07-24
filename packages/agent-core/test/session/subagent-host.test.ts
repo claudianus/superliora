@@ -1280,6 +1280,100 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.config.modelAlias).toBe(parent.agent.config.modelAlias);
     expect(child.agent.config.modelAlias).not.toBe('stale-model-from-initial-spawn');
   });
+
+  it('routes spawned explore subagents to a cheap model when one is configured', async () => {
+    const models = {
+      'cheap-haiku': {
+        provider: 'test-provider',
+        model: 'cheap-haiku',
+        maxContextSize: 1_000_000,
+      },
+    };
+    const parent = testAgent({ initialConfig: { providers: {}, models } });
+    parent.configure();
+
+    const summary =
+      'Explored the repository on the cheap model and reported the findings in a complete and detailed summary that gives the parent agent everything it needs to continue the work without redoing the investigation all over again.';
+    const child = testAgent({ initialConfig: { providers: {}, models } });
+    child.configure();
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn({
+      profileName: 'explore',
+      parentToolCallId: 'call_agent',
+      prompt: 'Find the cause',
+      description: 'Find cause',
+      runInBackground: false,
+      signal,
+    });
+    await handle.completion;
+
+    // Exploration is read-only grunt work: the explore child runs on the
+    // cheap configured model while the parent keeps its own model.
+    expect(child.agent.config.modelAlias).toBe('cheap-haiku');
+    expect(parent.agent.config.modelAlias).toBe('mock-model');
+  });
+
+  it('keeps the parent model for explore subagents when no cheap model is configured', async () => {
+    const parent = testAgent();
+    parent.configure();
+
+    const summary =
+      'Explored the repository thoroughly and reported the findings in a complete and detailed summary that gives the parent agent everything it needs to continue the work without redoing the investigation all over again.';
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn({
+      profileName: 'explore',
+      parentToolCallId: 'call_agent',
+      prompt: 'Find the cause',
+      description: 'Find cause',
+      runInBackground: false,
+      signal,
+    });
+    await handle.completion;
+
+    // No cheap alias can be inferred, so the explore child must fall back to
+    // the parent model rather than end up without a model alias.
+    expect(child.agent.config.modelAlias).toBe(parent.agent.config.modelAlias);
+  });
+
+  it('keeps the parent model for coder subagents even when a cheap model exists', async () => {
+    const models = {
+      'cheap-haiku': {
+        provider: 'test-provider',
+        model: 'cheap-haiku',
+        maxContextSize: 1_000_000,
+      },
+    };
+    const parent = testAgent({ initialConfig: { providers: {}, models } });
+    parent.configure();
+
+    const summary =
+      'Implemented the requested change in full and verified it against the existing test suite, leaving a thorough and complete summary so the parent agent can proceed without repeating any of the finished investigation work.';
+    const child = testAgent({ initialConfig: { providers: {}, models } });
+    child.configure();
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn({
+      profileName: 'coder',
+      parentToolCallId: 'call_agent',
+      prompt: 'Implement the fix',
+      description: 'Fix bug',
+      runInBackground: false,
+      signal,
+    });
+    await handle.completion;
+
+    expect(child.agent.config.modelAlias).toBe(parent.agent.config.modelAlias);
+    expect(child.agent.config.modelAlias).not.toBe('cheap-haiku');
+  });
 });
 
 describe('Session resume permission parent chain', () => {

@@ -37,3 +37,39 @@ export function inferCheapModelAliasSync(
   }
   return bestAlias;
 }
+
+/**
+ * Resolve the model alias a subagent should run on.
+ *
+ * Read-only "explore" subagents do codebase exploration that a small, fast
+ * model handles well, so route them to the cheapest configured alias when one
+ * can be inferred. Every other profile (coder/plan/agent/...) keeps the
+ * parent's model, and explore falls back to the parent's model when no cheap
+ * alias exists — a subagent must never end up without a usable model alias.
+ * When the parent itself has no alias yet, `undefined` is returned so the
+ * child config update stays a no-op, exactly like plain inheritance.
+ */
+export function resolveSubagentModelAlias(
+  profileName: string | undefined,
+  profileBaseName: string | undefined,
+  parentModelAlias: string | undefined,
+  models: Record<string, { model: string }> | undefined,
+): string | undefined {
+  if (parentModelAlias === undefined) return undefined;
+  if (!isExploreSubagentProfile(profileName, profileBaseName)) return parentModelAlias;
+  return inferCheapModelAliasSync(models) ?? parentModelAlias;
+}
+
+/**
+ * Whether a subagent profile is the read-only exploration type. Expert
+ * profiles built on top of "explore" carry it as their base name, while
+ * forked profiles typically keep "explore" in the profile name itself.
+ */
+function isExploreSubagentProfile(
+  profileName: string | undefined,
+  profileBaseName: string | undefined,
+): boolean {
+  if (profileBaseName?.toLowerCase() === 'explore') return true;
+  const name = profileName?.toLowerCase();
+  return name !== undefined && name.includes('explore');
+}

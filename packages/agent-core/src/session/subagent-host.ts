@@ -45,6 +45,7 @@ import {
   linkAbortSignal,
   userCancellationReason,
 } from '../utils/abort';
+import { resolveSubagentModelAlias } from '../utils/cheap-model';
 import { collectGitContext } from './git-context';
 import type { Session } from './index';
 import {
@@ -176,7 +177,7 @@ export class SessionSubagentHost {
     const completion = this.runWithActiveChild(id, options, async (runOptions) => {
       this.emitSubagentSpawned(parent, id, profile.name, runOptions);
       try {
-        await this.configureChild(parent, agent, profile, id, runOptions);
+        await this.configureChild(parent, agent, profile, id, runOptions, options.profileBaseName);
         return await this.runPromptTurn(parent, id, agent, profile.name, runOptions);
       } catch (error) {
         this.emitSubagentFailed(parent, id, runOptions, error);
@@ -197,7 +198,16 @@ export class SessionSubagentHost {
     const completion = this.runWithActiveChild(agentId, options, async (runOptions) => {
       this.emitSubagentSpawned(parent, agentId, profileName, runOptions);
       try {
-        child.config.update({ modelAlias: parent.config.modelAlias });
+        // Read-only explore subagents run on a cheap configured model when one
+        // exists; every other profile keeps the parent agent's current model.
+        child.config.update({
+          modelAlias: resolveSubagentModelAlias(
+            profileName,
+            undefined,
+            parent.config.modelAlias,
+            parent.kimiConfig?.models,
+          ),
+        });
         this.attachUltraSwarmChannelIfNeeded(parent, child, agentId, runOptions, profileName);
         return await this.runPromptTurn(parent, agentId, child, profileName, runOptions);
       } catch (error) {
@@ -214,7 +224,16 @@ export class SessionSubagentHost {
     const completion = this.runWithActiveChild(agentId, options, async (runOptions) => {
       try {
         runOptions.signal.throwIfAborted();
-        child.config.update({ modelAlias: parent.config.modelAlias });
+        // Read-only explore subagents run on a cheap configured model when one
+        // exists; every other profile keeps the parent agent's current model.
+        child.config.update({
+          modelAlias: resolveSubagentModelAlias(
+            profileName,
+            undefined,
+            parent.config.modelAlias,
+            parent.kimiConfig?.models,
+          ),
+        });
         this.emitSubagentStarted(parent, agentId, runOptions);
         const turnId = child.turn.retry('agent-host');
         if (turnId === null) {
@@ -438,11 +457,19 @@ export class SessionSubagentHost {
     profile: ResolvedAgentProfile,
     childId: string,
     options: RunSubagentOptions,
+    profileBaseName?: string,
   ): Promise<void> {
-    // A subagent always inherits the parent agent's model.
+    // A subagent inherits the parent agent's model, except read-only explore
+    // subagents, which route to a cheap configured model when one exists so
+    // codebase exploration stays fast and cheap.
     child.config.update({
       cwd: parent.config.cwd,
-      modelAlias: parent.config.modelAlias,
+      modelAlias: resolveSubagentModelAlias(
+        profile.name,
+        profileBaseName,
+        parent.config.modelAlias,
+        parent.kimiConfig?.models,
+      ),
       thinkingLevel: parent.config.thinkingLevel,
     });
 
