@@ -98,57 +98,16 @@ export const EXPERT_DIVISIONS = ${JSON.stringify(DIVISION_META, null, 2)} as con
 export const EXPERT_CATALOG_SOURCE_COUNTS = ${JSON.stringify(counts, null, 2)} as const;
 `;
 
-  const facadeTs = `// Compatibility facade over split expert catalog modules.
-// Search/orchestration import catalog-meta only.
-// Persona bodies live in catalog-personas.json and load only when an expert is hydrated.
-
-import type { ExpertCatalogEntry } from './types';
-import {
-  EXPERT_CATALOG_META,
-  EXPERT_CATALOG_META_BY_ID,
-  EXPERT_CATALOG_SOURCE_COUNTS,
-  EXPERT_DIVISIONS,
-} from './catalog-meta';
-import { loadExpertPersonaText } from './catalog-persona-loader';
-
-export {
-  EXPERT_CATALOG_META,
-  EXPERT_CATALOG_META_BY_ID,
-  EXPERT_CATALOG_SOURCE_COUNTS,
-  EXPERT_DIVISIONS,
-};
-
-/** Meta-only catalog for search/indexing (personaText empty). */
-export const EXPERT_CATALOG: readonly ExpertCatalogEntry[] = EXPERT_CATALOG_META;
-
-export function hydrateExpertCatalogEntry(
-  entry: ExpertCatalogEntry | undefined,
-): ExpertCatalogEntry | undefined {
-  if (entry === undefined) return undefined;
-  if (entry.personaText.length > 0) return entry;
-  const personaText = loadExpertPersonaText(entry.id);
-  if (personaText === undefined || personaText.length === 0) return entry;
-  return { ...entry, personaText };
-}
-
-/** Lazy-hydrating lookup used by spawn/resolution paths. */
-export const EXPERT_CATALOG_BY_ID: Readonly<Record<string, ExpertCatalogEntry>> = new Proxy(
-  EXPERT_CATALOG_META_BY_ID as Record<string, ExpertCatalogEntry>,
-  {
-    get(target, prop, receiver) {
-      if (typeof prop !== 'string') return Reflect.get(target, prop, receiver);
-      return hydrateExpertCatalogEntry(target[prop]);
-    },
-  },
-);
-`;
-
+  // The catalog.ts compatibility facade is hand-maintained and committed: it
+  // only re-exports catalog-meta and defines the persona helpers (including
+  // fallbackExpertPersonaText), carrying no per-expert data. Regenerate only
+  // the data modules here and never overwrite the facade, or that fallback
+  // helper would be silently deleted on the next catalog build.
   const outDir = join(repoRoot, 'packages', 'agent-core', 'src', 'expert-agents');
   await mkdir(outDir, { recursive: true });
   await writeFile(join(outDir, 'catalog-meta.ts'), metaTs, 'utf-8');
   await writeFile(join(outDir, 'catalog-personas.json'), JSON.stringify(personas), 'utf-8');
-  await writeFile(join(outDir, 'catalog.ts'), facadeTs, 'utf-8');
-  console.log(`Wrote catalog-meta.ts (${metaTs.length} bytes), catalog-personas.json (${JSON.stringify(personas).length} bytes), catalog.ts facade`);
+  console.log(`Wrote catalog-meta.ts (${metaTs.length} bytes), catalog-personas.json (${JSON.stringify(personas).length} bytes)`);
 }
 
 buildCatalog().catch((error) => {
