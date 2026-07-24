@@ -801,4 +801,49 @@ describe('status panel report lines', () => {
     const withoutRate = buildStatusReportLines({ ...base, status }).map(strip);
     expect(withoutRate.join('\n')).not.toContain('Cache hit');
   });
+
+  it('shows Role models rows with auto fallback for unset roles', () => {
+    const base = {
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null as string | null,
+      thinking: false,
+      permissionMode: 'manual' as const,
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      availableModels: {},
+    };
+    const status = {
+      model: 'k2',
+      thinkingLevel: 'high',
+      permission: 'auto' as const,
+      planMode: false,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      contextUsage: 0.1,
+    };
+
+    const configured = buildStatusReportLines({
+      ...base,
+      status: {
+        ...status,
+        roleModels: { compaction: 'kimi-turbo', exploration: 'kimi-research' },
+      },
+    }).map(strip);
+    const configuredOutput = configured.join('\n');
+    expect(configuredOutput).toContain('Role models');
+    const compactionRow = configured.find((line) => line.includes('Compaction'));
+    expect(compactionRow).toContain('kimi-turbo');
+    const completionRow = configured.find((line) => line.includes('Completion'));
+    expect(completionRow).toContain('auto');
+    const explorationRow = configured.find((line) => line.includes('Exploration'));
+    expect(explorationRow).toContain('kimi-research');
+
+    const withoutRoles = buildStatusReportLines({ ...base, status }).map(strip);
+    expect(withoutRoles.join('\n')).not.toContain('Role models');
+  });
 });

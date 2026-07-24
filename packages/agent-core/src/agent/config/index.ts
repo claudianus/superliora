@@ -77,6 +77,11 @@ export class ConfigState {
 
   data(): AgentConfigData {
     const resolved = this.tryResolvedProviderConfig();
+    const loopControl = this.agent.kimiConfig?.loopControl;
+    const hasRoleModels =
+      loopControl?.compactionModel !== undefined ||
+      loopControl?.completionModel !== undefined ||
+      loopControl?.explorationModel !== undefined;
     return {
       cwd: this.cwd,
       provider: resolved?.provider,
@@ -85,6 +90,13 @@ export class ConfigState {
       profileName: this.profileName,
       thinkingLevel: this.thinkingLevel,
       systemPrompt: this.systemPrompt,
+      roleModels: hasRoleModels
+        ? {
+            compaction: loopControl?.compactionModel,
+            completion: loopControl?.completionModel,
+            exploration: loopControl?.explorationModel,
+          }
+        : undefined,
     };
   }
 

@@ -395,6 +395,42 @@ describe('sessionStatusResponseSchema', () => {
     ).toBe(false);
   });
 
+  it('accepts optional role_models with nullable role entries', () => {
+    const parsed = sessionStatusResponseSchema.parse({
+      status: 'idle',
+      thinking_level: 'off',
+      permission: 'auto',
+      plan_mode: false,
+      swarm_mode: false,
+      context_tokens: 0,
+      max_context_tokens: 0,
+      context_usage: 0,
+      role_models: {
+        compaction: 'kimi-turbo',
+        completion: null,
+      },
+    });
+    expect(parsed.role_models?.compaction).toBe('kimi-turbo');
+    expect(parsed.role_models?.completion).toBeNull();
+    expect(parsed.role_models?.exploration).toBeUndefined();
+  });
+
+  it('rejects empty role_models aliases', () => {
+    expect(
+      sessionStatusResponseSchema.safeParse({
+        status: 'idle',
+        thinking_level: 'off',
+        permission: 'auto',
+        plan_mode: false,
+        swarm_mode: false,
+        context_tokens: 0,
+        max_context_tokens: 0,
+        context_usage: 0,
+        role_models: { compaction: '' },
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects missing status', () => {
     expect(
       sessionStatusResponseSchema.safeParse({

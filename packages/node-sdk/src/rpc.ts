@@ -678,6 +678,7 @@ export abstract class SDKRpcClientBase {
       maxContextTokens,
       contextUsage,
       cacheHitRate: usage?.cacheHitRate,
+      roleModels: config.roleModels,
       usage: hasUsage ? usage : undefined,
       providerRouteStatus,
       contextOS: context.contextOS,

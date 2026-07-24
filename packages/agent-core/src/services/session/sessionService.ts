@@ -476,6 +476,14 @@ export class SessionService extends Disposable implements ISessionService {
       max_context_tokens: maxContextTokens,
       context_usage: contextUsage,
       cache_hit_rate: usage?.cacheHitRate,
+      role_models:
+        config.roleModels === undefined
+          ? undefined
+          : {
+              compaction: config.roleModels.compaction ?? null,
+              completion: config.roleModels.completion ?? null,
+              exploration: config.roleModels.exploration ?? null,
+            },
       provider_route: providerRoute,
       context_os:
         contextOS === undefined

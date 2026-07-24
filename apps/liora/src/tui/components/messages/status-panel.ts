@@ -843,6 +843,25 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     );
   }
 
+  const roleModels = options.status?.roleModels;
+  if (roleModels !== undefined) {
+    lines.push('');
+    lines.push(accent('Role models'));
+    addFieldRows(
+      lines,
+      [
+        { label: 'Compaction', value: roleModels.compaction ?? 'auto' },
+        { label: 'Completion', value: roleModels.completion ?? 'auto' },
+        { label: 'Exploration', value: roleModels.exploration ?? 'auto' },
+      ],
+      muted,
+      value,
+      errorStyle,
+      warningStyle,
+      options.fieldMotion,
+    );
+  }
+
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
     lines.push('');
     lines.push(accent('Provider route'));

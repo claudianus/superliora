@@ -292,6 +292,12 @@ export interface SessionStatus {
   readonly contextUsage: number;
   /** Prompt-cache hit rate (0..1) from session usage accounting, when recorded. */
   readonly cacheHitRate?: number;
+  /** Loop-control role → model alias assignments; unset entries mean auto-inferred. */
+  readonly roleModels?: {
+    readonly compaction?: string;
+    readonly completion?: string;
+    readonly exploration?: string;
+  };
   readonly usage?: SessionUsage;
   readonly providerRouteStatus?: ProviderRouteStatus | null;
   /** Context OS continuity/evidence health when compacted pages exist. */
