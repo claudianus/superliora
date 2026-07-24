@@ -2170,6 +2170,44 @@ describe('FullCompaction', () => {
     expect(ctx.llmCalls).toHaveLength(0);
   });
 
+  it('releases the compaction lock when a round is aborted without cancel()', async () => {
+    let abortNext = true;
+    const generate: GenerateFn = async () => {
+      if (abortNext) {
+        const abortError = new Error('The operation was aborted');
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
+      return textResult('Recovered compacted summary.');
+    };
+    const ctx = testAgent({ generate });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: CATALOGUED_MODEL_CAPABILITIES,
+    });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 20);
+    ctx.appendExchange(2, 'recent user two', 'recent assistant two', 80);
+
+    // Orphaned abort: the summarize call aborts without cancel() ever running
+    // (a provider timeout or a linked signal). Before the fix this leaked the
+    // `compacting` lock forever — checkAutoCompaction() then short-circuited on
+    // `if (this.compacting) return true` and every new prompt buffered in the
+    // turn, deadlocking the agent at the trigger threshold.
+    const cancelled = ctx.once('compaction.cancelled');
+    ctx.agent.fullCompaction.begin({ source: 'manual', instruction: undefined });
+    await cancelled;
+
+    // The lock is released so the agent can compact again.
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
+
+    // The agent recovers: a subsequent compaction completes normally.
+    abortNext = false;
+    const completed = ctx.once('compaction.completed');
+    ctx.agent.fullCompaction.begin({ source: 'manual', instruction: undefined });
+    await completed;
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
+  });
+
   it('reports compaction retry_count after a retryable generation failure recovers', async () => {
     const records: TelemetryRecord[] = [];
     let attempts = 0;

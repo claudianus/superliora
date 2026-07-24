@@ -312,6 +312,25 @@ export class FullCompaction {
     this.agent.turn.onCompactionFinished();
   }
 
+  /**
+   * Release the compaction lock and finish the turn if this worker still owns
+   * the lock. `cancel()` clears `compacting` synchronously before an abort it
+   * initiated can reach the worker, and `markCompleted()` clears it on success,
+   * so a non-null `compacting` at a worker exit means the run was aborted by
+   * some other path — a provider timeout, a linked signal, or a pre/post-compact
+   * hook — without any cleanup. Without this release the lock stays set forever:
+   * `checkAutoCompaction()` then short-circuits on `if (this.compacting) return
+   * true`, every new prompt/steer buffers in the turn, and the agent deadlocks
+   * at the trigger threshold. Safe to call unconditionally from a `finally`:
+   * it is a no-op once the lock is already cleared, and re-aborting an
+   * already-aborted controller does nothing.
+   */
+  private releaseLockIfOwned(): void {
+    if (this.compacting) {
+      this.cancel();
+    }
+  }
+
   markCompleted() {
     this.agent.records.logRecord({
       type: 'full_compaction.complete',
@@ -727,6 +746,8 @@ export class FullCompaction {
       this.agent.emitEvent({ type: 'compaction.completed', result: finalResult });
       this.agent.turn.onCompactionFinished();
     } catch (error) {
+      // Abort errors are settled by the `finally` below, which releases the
+      // lock if this worker still owns it.
       if (isAbortError(error)) return;
       const blockedByTurn = this.compacting?.blockedByTurn === true;
       this.cancel();
@@ -738,6 +759,8 @@ export class FullCompaction {
         type: 'error',
         ...toKimiErrorPayload(error),
       });
+    } finally {
+      this.releaseLockIfOwned();
     }
   }
 

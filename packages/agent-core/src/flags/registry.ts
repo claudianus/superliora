@@ -1,11 +1,13 @@
 import type { FlagDefinitionInput } from './types';
 
 /**
- * Experimental feature flags.
+ * Feature flags.
  *
- * To add one, append an entry and gate runtime behavior through the scoped
- * resolver available on `LioraCore`, `Session`, or `Agent`:
- *   { id: 'my_feature', title: 'My feature', description: '...', env: 'SUPERLIORA_EXPERIMENTAL_MY_FEATURE', default: false, surface: 'both' }
+ * Every feature below ships enabled by default; each flag stays as a per-environment
+ * kill switch so a misbehaving feature can be turned off without a release. New work
+ * should not be gated behind a flag — reach for the scoped resolver on `LioraCore`,
+ * `Session`, or `Agent` only when a genuine off switch is needed:
+ *   { id: 'my_feature', title: 'My feature', description: '...', env: 'SUPERLIORA_EXPERIMENTAL_MY_FEATURE', default: true, surface: 'both' }
  *
  * Keep the `as const satisfies` — it derives the literal `FlagId` union that gives `enabled()`
  * autocomplete and typo-checking. `env` must start with 'SUPERLIORA_EXPERIMENTAL_', be unique, and
@@ -33,9 +35,9 @@ export const FLAG_DEFINITIONS = [
     id: 'anthropic_oauth',
     title: 'Anthropic OAuth login',
     description:
-      'Show an Anthropic OAuth login option in the provider picker. Disabled by default because Anthropic does not currently authorize third-party CLIs to use its subscription OAuth. Implemented ahead of time so it can be enabled by flipping this flag if the policy changes.',
+      'Show an Anthropic OAuth login option in the provider picker. Note: Anthropic does not currently authorize third-party CLIs to reuse its subscription OAuth, so tokens may be rejected after the callback. Disable with SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH=false.',
     env: 'SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH',
-    default: false,
+    default: true,
     surface: 'core',
   },
   {
@@ -58,9 +60,9 @@ export const FLAG_DEFINITIONS = [
   {
     id: 'auto_pilot',
     title: 'Autopilot issue-to-PR pipeline',
-    description: 'Queue-based autonomous repo loop: ingest issues, run agent in a worktree, verify, open PR, poll CI, auto-merge on label, with a repair loop.',
+    description: 'Queue-based autonomous repo loop: ingest issues, run agent in a worktree, verify, open PR, poll CI, auto-merge on label, with a repair loop. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_PILOT=false.',
     env: 'SUPERLIORA_EXPERIMENTAL_AUTO_PILOT',
-    default: false,
+    default: true,
     surface: 'core',
   },
   {

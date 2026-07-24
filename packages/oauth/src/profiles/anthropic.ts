@@ -2,12 +2,11 @@
  * Anthropic (Claude) OAuth profile — PKCE browser flow against
  * `console.anthropic.com`.
  *
- * **Disabled by default.** Anthropic does not currently authorize third-party
+ * **Enabled by default.** Anthropic does not currently authorize third-party
  * CLIs to reuse its Claude-Code subscription OAuth (tokens minted by non-Claude
- * Code clients are rejected after the callback). This profile is implemented
- * ahead of time and gated behind the `anthropic_oauth` experimental flag
- * (`SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH=1`) so it can be enabled instantly
- * if Anthropic's policy changes.
+ * Code clients may be rejected after the callback). The login option is surfaced
+ * through the `anthropic_oauth` feature flag (`SUPERLIORA_EXPERIMENTAL_ANTHROPIC_OAUTH=0`
+ * to disable) so it can be turned off without a release if the policy makes it unusable.
  *
  * Endpoints and the client id are the values reverse-engineered from the
  * Claude Code client. The resulting token is a Bearer token against the
