@@ -1,3 +1,11 @@
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+} from '#/tui/utils/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 import type { Component } from '#/tui/renderer';
 import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 
@@ -25,6 +33,7 @@ export interface ShellExecutionOptions {
 }
 
 export class ShellExecutionComponent extends Container {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
   constructor(options: ShellExecutionOptions) {
     super();
 
@@ -73,6 +82,17 @@ export class ShellExecutionComponent extends Container {
       }),
     );
   }
+
+  override render(width: number): string[] {
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      streaming: true,
+      appearance: getActiveAppearancePreferences(),
+    });
+  }
 }
 
 export const shellExecutionResultRenderer: ResultRenderer = (
@@ -91,3 +111,4 @@ export const shellExecutionResultRenderer: ResultRenderer = (
     commandPreviewLines: undefined,
   }),
 ];
+

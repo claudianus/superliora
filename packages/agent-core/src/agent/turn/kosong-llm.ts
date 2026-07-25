@@ -1115,7 +1115,7 @@ function normalizeLatencyMs(value: number | undefined): number | undefined {
   return Math.round(value);
 }
 
-function classifyProviderRouteFailure(
+export function classifyProviderRouteFailure(
   error: unknown,
   configuredCooldownMs: number | undefined,
 ): ProviderRouteFailure | undefined {

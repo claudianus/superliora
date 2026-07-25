@@ -677,7 +677,9 @@ export class UltraPlanModeEngine {
 
   /**
    * Generate Seed Spec from interview results.
-   * Extracts Goal, Constraints, AC, and Ontology from Q&A.
+   * Prefers LLM extraction; on LLM unavailability / invalid JSON falls back to a
+   * deterministic heuristic from interview evidence so interview→design is not
+   * hard-blocked by a transient model failure.
    */
   async autoGenerateSeedSpecFromInterview(
     ontologyName: string,
@@ -693,12 +695,91 @@ export class UltraPlanModeEngine {
         llmResult,
         ontologyName,
         true,
-        this._interviewState.initialContext,
+        this._interviewState?.initialContext ?? '',
         this.buildSeedSpec.bind(this),
       );
     }
-    throw new Error(
-      'LLM-based Seed Spec extraction failed: the LLM is unavailable or returned invalid JSON.',
+
+    // Heuristic fallback — mirrors ambiguity scoring's usedHeuristicFallback path.
+    this.emitProgress(
+      onProgress,
+      'Seed Spec LLM unavailable; using heuristic Seed Spec from interview evidence...',
+    );
+    return this._buildHeuristicSeedSpecFromInterview(ontologyName);
+  }
+
+  /**
+   * Deterministic Seed Spec when the scoring LLM cannot extract structured JSON.
+   * Keeps NextPhase(interview→design) unblocked on model flakes.
+   */
+  private _buildHeuristicSeedSpecFromInterview(ontologyName: string): SeedSpec {
+    if (this._interviewState === null) {
+      throw new Error('Interview has not started');
+    }
+
+    const goal =
+      this._interviewState.initialContext.trim() ||
+      'Complete the planned work with the agreed completion criterion.';
+
+    const constraints: string[] = [];
+    const acceptanceCriteria: string[] = [];
+    const answerBlob: string[] = [];
+
+    for (const round of this._interviewState.rounds) {
+      const q = round.question.toLowerCase();
+      const a = round.userResponse.trim();
+      if (a.length === 0) continue;
+      answerBlob.push(a);
+      if (
+        q.includes('완료') ||
+        q.includes('completion') ||
+        q.includes('criterion') ||
+        q.includes('acceptance') ||
+        q.includes('성공') ||
+        q.includes('done when') ||
+        q.includes('ultragoal')
+      ) {
+        acceptanceCriteria.push(a);
+      } else if (
+        q.includes('비범위') ||
+        q.includes('non-goal') ||
+        q.includes('constraint') ||
+        q.includes('범위') ||
+        q.includes('scope') ||
+        q.includes('구조')
+      ) {
+        constraints.push(a);
+      }
+    }
+
+    if (acceptanceCriteria.length === 0 && answerBlob.length > 0) {
+      acceptanceCriteria.push(
+        `Interview decisions are implemented and verified: ${answerBlob.join(' | ').slice(0, 240)}`,
+      );
+    }
+    if (acceptanceCriteria.length === 0) {
+      acceptanceCriteria.push(
+        'The stated goal is met and verification commands/tests for the work pass.',
+      );
+    }
+    if (constraints.length === 0) {
+      constraints.push('Stay within the agreed scope; do not expand into deferred non-goals.');
+    }
+
+    return this.buildSeedSpec(
+      goal,
+      constraints,
+      acceptanceCriteria,
+      ontologyName.trim().length > 0 ? `${ontologyName}-heuristic` : 'HeuristicPlan',
+      [
+        {
+          name: 'heuristic_note',
+          type: 'string',
+          description: 'Heuristic Seed Spec (LLM extraction unavailable)',
+          required: false,
+        },
+      ],
+      true,
     );
   }
 

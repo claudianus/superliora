@@ -21,11 +21,16 @@ import { Container, Spacer, Text } from '#/tui/renderer';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 
 import type { ToolCallComponent, ToolCallSubagentSnapshot } from './tool-call';
 
@@ -49,6 +54,7 @@ interface PhaseCounts {
 }
 
 export class AgentGroupComponent extends Container {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
   private readonly entries: AgentEntry[] = [];
   private readonly headerText: Text;
   private readonly bodyContainer: Container;
@@ -98,6 +104,16 @@ export class AgentGroupComponent extends Container {
    * Schedules a repaint. Real phase transitions force an immediate refresh;
    * other changes such as latestActivity, tokens, or toolCount are throttled.
    */
+  override render(width: number): string[] {
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'tool',
+      streaming: true,
+    });
+  }
+
   private scheduleRender(): void {
     if (this.detectPhaseTransition()) {
       this.flushRender();
