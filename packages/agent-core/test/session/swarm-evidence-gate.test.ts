@@ -5,7 +5,9 @@ import type { WorkGraphNode } from '@superliora/protocol';
 import {
   applyEvidenceHardGate,
   evaluateEvidenceHardGate,
+  evidenceMatchesToken,
   findEvidenceHardGateViolation,
+  isCheckLikeEvidenceToken,
 } from '../../src/session/swarm-evidence-gate';
 
 function node(overrides: Partial<WorkGraphNode> = {}): WorkGraphNode {
@@ -56,16 +58,92 @@ describe('swarm-evidence-gate', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('allows done when requiredEvidence is set and evidenceIds present', () => {
+  it('allows done when requiredEvidence is set and evidenceIds present (non-check token)', () => {
     expect(
       evaluateEvidenceHardGate(
         node({
           status: 'done',
-          requiredEvidence: ['unit test'],
+          requiredEvidence: ['design-doc'],
           evidenceIds: ['ev-1'],
         }),
       ),
     ).toEqual({ ok: true });
+  });
+
+  it('blocks done when check-like token has no matching evidence id/title', () => {
+    const result = evaluateEvidenceHardGate(
+      node({
+        status: 'done',
+        requiredEvidence: ['RunProjectChecks'],
+        evidenceIds: ['ev-unrelated-42'],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.unmatchedCheckTokens).toContain('RunProjectChecks');
+    expect(result.reason).toContain('RunProjectChecks');
+  });
+
+  it('allows done when evidenceIds best-effort match RunProjectChecks', () => {
+    expect(
+      evaluateEvidenceHardGate(
+        node({
+          status: 'done',
+          requiredEvidence: ['RunProjectChecks'],
+          evidenceIds: ['tool:RunProjectChecks:pass'],
+        }),
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it('allows done when verificationSummary mentions VerifySurface', () => {
+    expect(
+      evaluateEvidenceHardGate(
+        node({
+          status: 'done',
+          requiredEvidence: ['VerifySurface'],
+          evidenceIds: [],
+          verificationSummary: 'VerifySurface ran on /dashboard — ok',
+        }),
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it('allows done when screenshot token matches evidence title', () => {
+    expect(
+      evaluateEvidenceHardGate(
+        node({
+          status: 'done',
+          requiredEvidence: ['screenshot'],
+          evidenceIds: ['browser-screenshot-home.png'],
+        }),
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it('allows done when test token matches unit-test evidence', () => {
+    expect(
+      evaluateEvidenceHardGate(
+        node({
+          status: 'done',
+          requiredEvidence: ['test'],
+          evidenceIds: ['unit-test-report'],
+        }),
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it('classifies check-like tokens', () => {
+    expect(isCheckLikeEvidenceToken('RunProjectChecks')).toBe(true);
+    expect(isCheckLikeEvidenceToken('VerifySurface')).toBe(true);
+    expect(isCheckLikeEvidenceToken('screenshot')).toBe(true);
+    expect(isCheckLikeEvidenceToken('unit test')).toBe(true);
+    expect(isCheckLikeEvidenceToken('design-doc')).toBe(false);
+  });
+
+  it('evidenceMatchesToken is best-effort substring', () => {
+    expect(evidenceMatchesToken('screenshot', ['BrowserScreenshot-1'])).toBe(true);
+    expect(evidenceMatchesToken('RunProjectChecks', ['ev-1'])).toBe(false);
   });
 
   it('finds the first violation in a list', () => {

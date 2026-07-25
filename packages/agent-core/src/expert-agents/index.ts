@@ -7,5 +7,7 @@ export * from './orchestrator';
 export * from './expert-persona';
 export * from './task-profile';
 export * from './staffing-diversity';
+export * from './staffing-outcome';
+export * from './staffing-gold';
 export * from './synthetic-expert-registry';
 export * from './synthetic-expert-llm';

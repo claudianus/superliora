@@ -62,6 +62,18 @@ const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
 const SWARM_FEED_NARROW_WIDTH = 72;
 const SWARM_FEED_SHORT_NAME_MAX = 6;
 const SWARM_FEED_SHORT_ID_MAX = 6;
+/** War room debate reel: last N turns (tiny terminals show fewer). */
+const WAR_ROOM_DEBATE_REEL_MAX = 4;
+const WAR_ROOM_DEBATE_REEL_MAX_TINY = 2;
+/** War room evidence wall chips. */
+const WAR_ROOM_EVIDENCE_WALL_MAX = 6;
+/** War room file map lease rows. */
+const WAR_ROOM_FILE_MAP_MAX = 6;
+/** Soft path-like tokens scraped from humanized feed bodies for evidence wall. */
+const WAR_ROOM_PATH_TOKEN =
+  /(?:^|[\s`"'(])((?:\.?\.?\/)?[\w.-]+(?:\/[\w.-]+)+\.[A-Za-z][\w.-]{0,12}|[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|json|md|yml|yaml|py|go|rs|toml|css|scss|html|vue|svelte))(?=$|[\s`"'),:;])/g;
+/** Evidence id tokens (ev_… / evidence-…) found in feed text. */
+const WAR_ROOM_EVIDENCE_ID_TOKEN = /\b(?:ev[_-][\w.-]+|evidence[_-][\w.-]+)\b/gi;
 const COMPACT_TERMINAL_MARK_WIDTH = 1;
 const ORCHESTRATING_LABEL = 'Orchestrating...';
 const PROMPTING_LABEL = 'Prompting...';
@@ -185,6 +197,22 @@ interface SwarmOpsFeedEntry {
   readonly fromEmoji?: string;
   readonly toExpertId?: string;
   readonly body: string;
+}
+
+type WarRoomDebatePhase = 'critic' | 'rebuttal' | 'counter-critique' | 'consensus' | 'steer';
+
+interface WarRoomDebateTurn {
+  readonly atMs: number;
+  readonly phase: WarRoomDebatePhase;
+  readonly expertName?: string;
+  readonly headline: string;
+  readonly debateId?: string;
+}
+
+interface WarRoomFileLease {
+  readonly path: string;
+  readonly owner: string;
+  readonly atMs: number;
 }
 
 interface AgentSwarmMember {
@@ -315,6 +343,14 @@ export class AgentSwarmProgressComponent implements Component {
   private readonly seenCollaborationMessageIds = new Set<string>();
   private readonly expertSlotById = new Map<string, string>();
   private integrationReport: UltraSwarmIntegrationReport | undefined;
+  /** Debate / steer turns for the war-room debate reel. */
+  private readonly debateReel: WarRoomDebateTurn[] = [];
+  /** Soft file-lease claims reported by workers or lease events. */
+  private readonly fileLeases = new Map<string, WarRoomFileLease>();
+  /** Evidence ids scraped from humanized collaboration bodies. */
+  private readonly feedEvidenceIds = new Set<string>();
+  /** Path-like tokens scraped from humanized collaboration bodies. */
+  private readonly feedPathHints = new Set<string>();
 
   constructor(options: AgentSwarmProgressOptions) {
     this.description = options.description;
@@ -460,6 +496,7 @@ export class AgentSwarmProgressComponent implements Component {
       fromExpertId: message.from.expertId,
       toExpertId: message.to?.expertId,
     });
+    this.collectWarRoomHintsFromText(body);
     this.appendConversationFeed({
       tag: swarmCollaborationFeedTag(message.channel),
       messageId: message.id,
@@ -480,6 +517,7 @@ export class AgentSwarmProgressComponent implements Component {
       fromExpertId: message.from.expertId,
       toExpertId: message.to?.expertId,
     });
+    this.collectWarRoomHintsFromText(body);
     this.appendConversationFeed({
       tag: 'mention',
       messageId: message.id,
@@ -489,6 +527,77 @@ export class AgentSwarmProgressComponent implements Component {
       toExpertId: message.to?.expertId,
       body,
     });
+  }
+
+  /**
+   * Record a collaboration debate turn for the war-room debate reel.
+   * Headline is a short single-line scan of the turn text.
+   */
+  applySwarmCollaborationDebate(input: {
+    readonly debateId?: string;
+    readonly phase: 'critic' | 'rebuttal' | 'counter-critique' | 'consensus';
+    readonly expertId?: string;
+    readonly expertName?: string;
+    readonly text: string;
+    readonly stance?: 'support' | 'oppose' | 'neutral';
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const headline = collapseWhitespace(input.text);
+    if (headline.length === 0) return;
+    this.collectWarRoomHintsFromText(headline);
+    this.pushDebateReelTurn({
+      atMs: Date.now(),
+      phase: input.phase,
+      expertName: input.expertName ?? input.expertId,
+      headline,
+      debateId: input.debateId,
+    });
+    this.requestRender?.();
+  }
+
+  /**
+   * Record a user/system steer event as a debate-reel turn (phase = steer).
+   */
+  applySwarmCollaborationSteer(input: {
+    readonly debateId?: string;
+    readonly text: string;
+    readonly fromUser?: boolean;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const headline = collapseWhitespace(input.text);
+    if (headline.length === 0) return;
+    this.collectWarRoomHintsFromText(headline);
+    this.pushDebateReelTurn({
+      atMs: Date.now(),
+      phase: 'steer',
+      expertName: input.fromUser === false ? 'system' : 'user',
+      headline,
+      debateId: input.debateId,
+    });
+    this.requestRender?.();
+  }
+
+  /**
+   * Soft file-lease claim for the war-room file map.
+   * Workers / lease events report path ownership; release drops the claim.
+   */
+  applyFileLeaseClaim(input: {
+    readonly path: string;
+    readonly owner: string;
+    readonly released?: boolean;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const path = collapseWhitespace(input.path);
+    const owner = collapseWhitespace(input.owner);
+    if (path.length === 0) return;
+    if (input.released === true) {
+      this.fileLeases.delete(path);
+      this.requestRender?.();
+      return;
+    }
+    if (owner.length === 0) return;
+    this.fileLeases.set(path, { path, owner, atMs: Date.now() });
+    this.requestRender?.();
   }
 
   markInputComplete(): void {
@@ -769,6 +878,10 @@ export class AgentSwarmProgressComponent implements Component {
     const feedLimit = profile === 'tiny' ? SWARM_OPS_FEED_RENDER_LINES_TINY : SWARM_OPS_FEED_RENDER_LINES;
     const feedContent = this.renderOpsFeedContent(width, feedLimit);
     const reportContent = this.renderIntegrationReportContent(width);
+    const debateContent = this.renderDebateReelContent(width, profile);
+    const evidenceContent = this.renderEvidenceWallContent(width);
+    const fileMapContent = this.renderFileMapContent(width);
+    const actionDock = this.renderActionDockHint(width);
     const statusFooter = ['', this.renderStatusLine(width), ''];
 
     const teamBody = teamContent.length > 0
@@ -782,9 +895,13 @@ export class AgentSwarmProgressComponent implements Component {
       ...teamBody,
       ...(activityContent.length > 0 ? ['', ...activityContent] : []),
       ...(reportContent.length > 0 ? ['', ...reportContent] : []),
+      ...(debateContent.length > 0 ? ['', ...debateContent] : []),
+      ...(evidenceContent.length > 0 ? ['', ...evidenceContent] : []),
+      ...(fileMapContent.length > 0 ? ['', ...fileMapContent] : []),
       '',
       feedHeader,
       ...feedContent,
+      ...(actionDock.length > 0 ? ['', ...actionDock] : []),
     ];
 
     if (profile === 'tiny') {
@@ -865,6 +982,112 @@ export class AgentSwarmProgressComponent implements Component {
     }
 
     return lines;
+  }
+
+  private renderDebateReelContent(
+    width: number,
+    profile: ReturnType<typeof resolveResponsiveLayout>,
+  ): string[] {
+    if (this.debateReel.length === 0) return [];
+    const limit = profile === 'tiny' ? WAR_ROOM_DEBATE_REEL_MAX_TINY : WAR_ROOM_DEBATE_REEL_MAX;
+    const turns = this.debateReel.slice(-limit);
+    const lines: string[] = [chalk.hex(this.colors.textDim)('debate reel')];
+    for (const turn of turns) {
+      const phaseLabel = formatDebatePhaseLabel(turn.phase);
+      const line = `debate · ${phaseLabel}: ${turn.headline}`;
+      lines.push(chalk.hex(this.colors.text)(truncateToWidth(line, width)));
+    }
+    return lines;
+  }
+
+  private renderEvidenceWallContent(width: number): string[] {
+    const ids = this.collectEvidenceWallIds();
+    if (ids.length === 0) return [];
+    const lines: string[] = [chalk.hex(this.colors.textDim)('evidence wall')];
+    for (const id of ids) {
+      lines.push(chalk.hex(this.colors.text)(truncateToWidth(`evidence · ${id}`, width)));
+    }
+    return lines;
+  }
+
+  private renderFileMapContent(width: number): string[] {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return [];
+    const leases = Array.from(this.fileLeases.values())
+      .sort((a, b) => a.atMs - b.atMs)
+      .slice(-WAR_ROOM_FILE_MAP_MAX);
+    if (leases.length === 0) {
+      // Empty state only when swarm is active (team staffed or feed/ops live).
+      if (!this.isWarRoomActive()) return [];
+      return [
+        chalk.hex(this.colors.textDim)(
+          truncateToWidth('file map · no leases yet', width),
+        ),
+      ];
+    }
+    const lines: string[] = [chalk.hex(this.colors.textDim)('file map')];
+    for (const lease of leases) {
+      const owner = shortExpertName(lease.owner);
+      const line = `file · ${lease.path} @ ${owner}`;
+      lines.push(chalk.hex(this.colors.text)(truncateToWidth(line, width)));
+    }
+    return lines;
+  }
+
+  private renderActionDockHint(width: number): string[] {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return [];
+    return [
+      chalk.hex(this.colors.textDim)(
+        truncateToWidth('actions · pause · restaff · raw (coming)', width),
+      ),
+    ];
+  }
+
+  private isWarRoomActive(): boolean {
+    if (this.members.some((member) => member.ultraSwarm !== undefined)) return true;
+    if (this.opsFeed.length > 0) return true;
+    if (this.debateReel.length > 0) return true;
+    if (this.fileLeases.size > 0) return true;
+    if (this.itemsStarted) return true;
+    return false;
+  }
+
+  private collectEvidenceWallIds(): string[] {
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    const push = (raw: string): void => {
+      const id = collapseWhitespace(raw);
+      if (id.length === 0 || seen.has(id)) return;
+      seen.add(id);
+      ordered.push(id);
+    };
+    for (const member of this.members) {
+      for (const id of member.evidenceIds ?? []) push(id);
+    }
+    for (const id of this.feedEvidenceIds) push(id);
+    // Path hints from humanized feed bodies surface as soft evidence chips.
+    for (const path of this.feedPathHints) push(path);
+    return ordered.slice(0, WAR_ROOM_EVIDENCE_WALL_MAX);
+  }
+
+  private collectWarRoomHintsFromText(text: string): void {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return;
+    for (const match of trimmed.matchAll(WAR_ROOM_EVIDENCE_ID_TOKEN)) {
+      const id = match[0]?.trim();
+      if (id !== undefined && id.length > 0) this.feedEvidenceIds.add(id);
+    }
+    for (const match of trimmed.matchAll(WAR_ROOM_PATH_TOKEN)) {
+      const path = match[1]?.trim();
+      if (path !== undefined && path.length > 0) this.feedPathHints.add(path);
+    }
+  }
+
+  private pushDebateReelTurn(turn: WarRoomDebateTurn): void {
+    this.debateReel.push(turn);
+    const maxStored = WAR_ROOM_DEBATE_REEL_MAX * 4;
+    if (this.debateReel.length > maxStored) {
+      this.debateReel.splice(0, this.debateReel.length - maxStored);
+    }
   }
 
   private indentLines(lines: readonly string[], width: number): string[] {
@@ -2285,6 +2508,18 @@ function shortExpertName(name: string): string {
   const firstToken = collapsed.split(' ')[0] ?? collapsed;
   if (visibleWidth(firstToken) <= SWARM_FEED_SHORT_NAME_MAX) return firstToken;
   return truncateToWidth(firstToken, SWARM_FEED_SHORT_NAME_MAX, '…');
+}
+
+function formatDebatePhaseLabel(phase: WarRoomDebatePhase): string {
+  switch (phase) {
+    case 'counter-critique':
+      return 'counter-critique';
+    case 'critic':
+    case 'rebuttal':
+    case 'consensus':
+    case 'steer':
+      return phase;
+  }
 }
 
 function shortExpertId(expertId: string): string {

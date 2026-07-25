@@ -8,6 +8,7 @@ import {
   applyStaffingDiversity,
   rewriteExpertSearchQuery,
 } from './staffing-diversity';
+import { scoreBoost as staffingOutcomeScoreBoost } from './staffing-outcome';
 
 const ALL_EXPERTS: readonly ExpertCatalogEntry[] = [...EXPERT_CATALOG_META, ...EXPERT_CATALOG_EXTENSIONS];
 
@@ -272,6 +273,8 @@ function applyTaskProfileScore(
   if (taskProfile.preferredDivisions.includes(division)) score *= 1.35;
   if (taskProfile.excludedDivisions.includes(division)) score *= 0.12;
   if (options.division !== undefined && division === options.division) score *= 1.2;
+  // Staffing outcome prior (MVP): light multiplicative boost from hire history.
+  score *= staffingOutcomeScoreBoost(result.expert.id);
   return score;
 }
 

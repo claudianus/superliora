@@ -43,6 +43,50 @@ export {
   type SwarmBudgetSuggestion,
 } from './session/swarm-budget';
 export {
+  SWARM_DAG_DONE_STATUSES,
+  SWARM_DAG_TERMINAL_STATUSES,
+  areDependenciesSatisfied,
+  readyNodeIds,
+  type SwarmDagNode,
+  type SwarmDagNodeStatus,
+} from './session/swarm-dag-scheduler';
+export {
+  CHECK_LIKE_EVIDENCE_TOKENS,
+  applyEvidenceHardGate,
+  evaluateEvidenceHardGate,
+  evidenceMatchesToken,
+  findEvidenceHardGateViolation,
+  isCheckLikeEvidenceToken,
+  normalizeEvidenceToken,
+  type EvidenceGateNode,
+  type EvidenceGateResult,
+} from './session/swarm-evidence-gate';
+export {
+  attachDraftToDebate,
+  buildDebateContext,
+  createDebate,
+  type BuildDebateContextOptions,
+  type DebateConfig,
+  type DebateState,
+} from './session/ultra-swarm-debate';
+export {
+  clearStaffingOutcomes,
+  getOutcome,
+  listStaffingOutcomes,
+  recordOutcome,
+  scoreBoost,
+  type StaffingOutcomeInput,
+  type StaffingOutcomeRecord,
+} from './expert-agents/staffing-outcome';
+export {
+  STAFFING_GOLD_SEED,
+  dcgAtK,
+  meanNdcgAtK,
+  ndcgAtK,
+  type StaffingGoldCase,
+} from './expert-agents/staffing-gold';
+export { visualDiff, type VisualDiffResult } from './tools/visual-diff';
+export {
   DEFAULT_MAX_PER_DIVISION,
   applyStaffingDiversity,
   containsHangul,

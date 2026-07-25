@@ -273,7 +273,9 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('integration report');
     expect(output).toContain('AppSec Engineer · review · PASS');
     expect(output).toContain('Reviewed auth middleware');
-    expect(output).not.toContain('ev_1');
+    expect(output).toContain('evidence wall');
+    expect(output).toContain('evidence · ev_1');
+    expect(output).toContain('evidence · ev_2');
     expect(output).not.toContain('DONE');
   });
 
@@ -484,6 +486,87 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('Dashboard attach');
     expect(output).not.toContain('<handoff');
     expect(output).not.toContain('</handoff>');
+  });
+
+  it('renders war room debate reel, evidence wall, file map, and action dock', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        coverageLane: 'security_privacy',
+        focus: 'review',
+      },
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+
+    // Active swarm with no leases yet → empty file map state.
+    let output = renderText(component, 120);
+    expect(output).toContain('file map · no leases yet');
+    expect(output).toContain('actions · pause · restaff · raw (coming)');
+    expect(output).not.toContain('debate reel');
+    expect(output).not.toContain('evidence wall');
+
+    component.applySwarmCollaborationDebate({
+      debateId: 'db_1',
+      phase: 'critic',
+      expertId: 'security-appsec-engineer',
+      expertName: 'AppSec Engineer',
+      text: 'Missing auth tests on callback path',
+      stance: 'oppose',
+    });
+    component.applySwarmCollaborationDebate({
+      debateId: 'db_1',
+      phase: 'rebuttal',
+      expertId: 'impl-engineer',
+      expertName: 'Impl Engineer',
+      text: 'Tests land in packages/agent-core/src/auth.ts with ev_auth_1',
+      stance: 'support',
+    });
+    component.applySwarmCollaborationSteer({
+      debateId: 'db_1',
+      text: 'Prefer integration tests over unit stubs',
+      fromUser: true,
+    });
+    component.applySwarmCollaborationDebate({
+      debateId: 'db_1',
+      phase: 'consensus',
+      expertName: 'Council',
+      text: 'Ship with integration coverage',
+    });
+    component.applyFileLeaseClaim({
+      path: 'packages/agent-core/src/auth.ts',
+      owner: 'Impl Engineer',
+    });
+
+    output = renderText(component, 120);
+    expect(output).toContain('debate reel');
+    expect(output).toContain('debate · critic: Missing auth tests on callback path');
+    expect(output).toContain('debate · rebuttal:');
+    expect(output).toContain('debate · steer: Prefer integration tests over unit stubs');
+    expect(output).toContain('debate · consensus: Ship with integration coverage');
+    expect(output).toContain('evidence wall');
+    expect(output).toContain('evidence · ev_auth_1');
+    expect(output).toContain('evidence · packages/agent-core/src/auth.ts');
+    expect(output).toContain('file map');
+    expect(output).toContain('file · packages/agent-core/src/auth.ts @ Impl');
+    expect(output).not.toContain('file map · no leases yet');
+    expect(output).toContain('actions · pause · restaff · raw (coming)');
+
+    component.applyFileLeaseClaim({
+      path: 'packages/agent-core/src/auth.ts',
+      owner: 'Impl Engineer',
+      released: true,
+    });
+    output = renderText(component, 120);
+    expect(output).toContain('file map · no leases yet');
+    expect(output).not.toContain('file · packages/agent-core/src/auth.ts @ Impl');
   });
 
   it('does not render the ops feed for plain Agent Swarm runs', () => {

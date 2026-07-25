@@ -5,6 +5,7 @@ import {
   addDebateTurn,
   allDebatesFinished,
   assessRisk,
+  attachDraftToDebate,
   buildDebateContext,
   createDebate,
   debatePhasesForRisk,
@@ -360,6 +361,21 @@ describe('ultra-swarm-debate — runDebateCycle', () => {
     assert.ok(context.includes('<draft_excerpt>'));
     assert.ok(context.includes('export function foo()'));
     assert.ok(context.includes('draft_excerpt') || context.includes('Cite specific'));
+  });
+
+  test('attachDraftToDebate puts draft into buildDebateContext', () => {
+    const draft = 'diff --git a/bar.ts\n+export function foo() { return 42 }';
+    const state = attachDraftToDebate(createDebate(makeConfig()), draft);
+    const context = buildDebateContext(state, 'critic-1');
+    assert.ok(context.includes('<draft_excerpt>'));
+    assert.ok(context.includes('export function foo() { return 42 }'));
+    assert.ok(context.includes('Cite specific'), 'prompt must require citing the draft');
+  });
+
+  test('attachDraftToDebate ignores empty draft', () => {
+    const base = createDebate(makeConfig());
+    const next = attachDraftToDebate(base, '   ');
+    assert.equal(next.draftExcerpt, undefined);
   });
 
   test('runs a complete complex debate cycle (4 phases)', async () => {

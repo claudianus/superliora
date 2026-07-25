@@ -126,6 +126,16 @@ export {
   expertIdPrefix,
   formatSelectionReason,
   rewriteExpertSearchQuery,
+  readyNodeIds,
+  areDependenciesSatisfied,
+  SWARM_DAG_DONE_STATUSES,
+  SWARM_DAG_TERMINAL_STATUSES,
+  recordOutcome as recordStaffingOutcome,
+  scoreBoost as staffingOutcomeScoreBoost,
+  ndcgAtK,
+  meanNdcgAtK,
+  STAFFING_GOLD_SEED,
+  visualDiff,
 } from '@superliora/agent-core';
 export type {
   HumanizeCollaborationEventInput,
@@ -138,6 +148,12 @@ export type {
   SwarmBudgetSuggestion,
   RewriteExpertSearchQueryOptions,
   StaffingDiversityOptions,
+  SwarmDagNode,
+  SwarmDagNodeStatus,
+  StaffingGoldCase,
+  StaffingOutcomeInput,
+  StaffingOutcomeRecord,
+  VisualDiffResult,
 } from '@superliora/agent-core';
 
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';

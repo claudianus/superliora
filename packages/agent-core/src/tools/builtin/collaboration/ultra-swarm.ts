@@ -50,6 +50,7 @@ import {
 import {
   buildDependencyWaves,
 } from '../../../session/subagent-wave-scheduler';
+import { readyNodeIds } from '../../../session/swarm-dag-scheduler';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
@@ -270,6 +271,23 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const maxExperts = resolveMaxExperts(args.intensity, routing, args.max_experts);
     const runId = normalizeOptionalString(args.run_id) ?? `ultra-swarm-${randomUUID()}`;
     const workNodeContext = this.resolveWorkNodeContext(args);
+    // Pure DAG ready-set: which bound work nodes can run now (deps done).
+    // Used for telemetry + selection hints; phase runners still own scheduling.
+    if (workNodeContext !== undefined && workNodeContext.nodes.length > 0) {
+      const ready = readyNodeIds(
+        workNodeContext.nodes.map((node) => ({
+          id: node.id,
+          dependsOn: node.dependsOn,
+          status: node.status,
+        })),
+      );
+      this.agent.telemetry.track('ultra_swarm_dag_ready', {
+        run_id: runId,
+        ready_count: ready.length,
+        bound_count: workNodeContext.nodes.length,
+        ready_ids: ready.slice(0, 32).join(','),
+      });
+    }
     const requestedExperts = uniqueStrings([
       ...(autoSelect ? [] : (args.experts ?? [])),
       ...(args.required_experts ?? []),
@@ -566,7 +584,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           kill_threshold: budgetSuggestion.killThreshold,
           reason: budgetSuggestion.reason,
         });
-        // Soft kill: stop further phases; keep completed work for handoff.
+        // Hard kill: break the phase loop immediately. Completed phase work
+        // stays in phaseResults for handoff; no further phases are scheduled.
         break;
       }
 

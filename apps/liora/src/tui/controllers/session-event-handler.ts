@@ -374,7 +374,8 @@ export class SessionEventHandler {
     }
 
     // Collaboration chat feed owns a single sink: AgentSwarmProgress when active.
-    // Theatre keeps stage/debate/steer surfaces and must not echo the same body.
+    // Debate/steer also paint the war-room reel when a swarm is live; theatre remains
+    // the fallback surface only when no swarm progress owns the event.
     let collaborationFeedOwnedBySwarm = false;
     if (event.type === 'ultrawork.collaboration.message') {
       collaborationFeedOwnedBySwarm =
@@ -385,10 +386,22 @@ export class SessionEventHandler {
         this.subAgentEventHandler.handleUltraworkCollaborationMention(event) ||
         collaborationFeedOwnedBySwarm;
     }
+    if (event.type === 'ultrawork.collaboration.debate') {
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationDebate(event) ||
+        collaborationFeedOwnedBySwarm;
+    }
+    if (event.type === 'ultrawork.collaboration.steer') {
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationSteer(event) ||
+        collaborationFeedOwnedBySwarm;
+    }
     if (
       collaborationFeedOwnedBySwarm &&
       (event.type === 'ultrawork.collaboration.message' ||
-        event.type === 'ultrawork.collaboration.mention')
+        event.type === 'ultrawork.collaboration.mention' ||
+        event.type === 'ultrawork.collaboration.debate' ||
+        event.type === 'ultrawork.collaboration.steer')
     ) {
       requestTUILayoutRender(this.host.state);
       return;

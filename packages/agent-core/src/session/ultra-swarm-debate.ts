@@ -53,6 +53,11 @@ export interface DebateState {
   readonly finished: boolean;
   readonly consensusVerdict?: string;
   readonly steeringMessages: readonly string[];
+  /**
+   * Optional attached draft body (diff / design / failure log).
+   * Prefer this over artifactSummary when building citation context.
+   */
+  readonly draftExcerpt?: string;
 }
 
 const PHASE_ORDER: readonly DebatePhase[] = ['critic', 'rebuttal', 'counter-critique', 'consensus'];
@@ -154,10 +159,25 @@ export function injectSteering(state: DebateState, message: string): DebateState
   };
 }
 
+/**
+ * Attach a draft excerpt to the debate state so later `buildDebateContext`
+ * calls cite it (participants must reference the draft, not only stance).
+ * Empty / whitespace drafts are ignored (state unchanged).
+ */
+export function attachDraftToDebate(state: DebateState, draft: string): DebateState {
+  const trimmed = draft.trim();
+  if (trimmed.length === 0) return state;
+  return {
+    ...state,
+    draftExcerpt: trimmed,
+  };
+}
+
 export interface BuildDebateContextOptions {
   /**
    * Optional excerpt of the attached draft (diff, design paragraph, failure log).
    * Multiagent-debate style: participants must cite this text, not only stance.
+   * Prefer `attachDraftToDebate(state, draft)` when the draft is known up front.
    */
   readonly draftExcerpt?: string;
 }
@@ -209,8 +229,11 @@ function resolveDraftExcerpt(
   state: DebateState,
   explicit?: string,
 ): string | undefined {
+  // Priority: explicit option → state.draftExcerpt (attachDraftToDebate) → artifact.
   const fromOption = explicit?.trim();
   if (fromOption !== undefined && fromOption.length > 0) return fromOption;
+  const fromState = state.draftExcerpt?.trim();
+  if (fromState !== undefined && fromState.length > 0) return fromState;
   const fromArtifact = state.config.artifactSummary.trim();
   return fromArtifact.length > 0 ? fromArtifact : undefined;
 }
