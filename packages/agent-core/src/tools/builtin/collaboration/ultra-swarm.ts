@@ -15,9 +15,9 @@ import {
   buildRestaffReflectionPrompt,
   collectRestaffGaps,
   filterRestaffPlan,
-  needsRestaffing,
   restaffPhaseForGaps,
   restaffSlotsAvailable,
+  shouldPlanRestaffWave,
 } from '../../../session/ultra-swarm-restaff';
 import {
   consumeUltraSwarmRestaffRequests,
@@ -1169,12 +1169,18 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     readonly restaffReasons?: readonly string[];
   }): Promise<ExpertSwarmPlan | undefined> {
     const gaps = collectRestaffGaps(input.rendered);
-    const slots = restaffSlotsAvailable(input.specs.length, input.maxExperts);
-    if (slots === 0) return undefined;
     const force = input.forceRestaff === true;
-    if (!force && !needsRestaffing(gaps, input.specs.length, input.maxExperts)) {
+    if (
+      !shouldPlanRestaffWave({
+        forceRestaff: force,
+        gaps,
+        staffedCount: input.specs.length,
+        maxExperts: input.maxExperts,
+      })
+    ) {
       return undefined;
     }
+    const slots = restaffSlotsAvailable(input.specs.length, input.maxExperts);
     const reasonNote =
       force && (input.restaffReasons?.length ?? 0) > 0
         ? `\n\nUser/war-room restaff directive:\n${(input.restaffReasons ?? []).map((r) => `- ${r}`).join('\n')}`

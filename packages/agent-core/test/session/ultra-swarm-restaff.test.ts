@@ -7,6 +7,7 @@ import {
   needsRestaffing,
   restaffPhaseForGaps,
   restaffSlotsAvailable,
+  shouldPlanRestaffWave,
 } from '../../src/session/ultra-swarm-restaff';
 
 describe('ultra-swarm restaff helpers', () => {
@@ -61,6 +62,34 @@ describe('ultra-swarm restaff helpers', () => {
     expect(needsRestaffing(gaps, 3, 5)).toBe(true);
     expect(needsRestaffing(gaps, 5, 5)).toBe(false);
     expect(restaffSlotsAvailable(3, 5)).toBe(2);
+  });
+
+  it('shouldPlanRestaffWave forces war-room restaff when slots remain', () => {
+    const emptyGaps: ReturnType<typeof collectRestaffGaps> = [];
+    expect(
+      shouldPlanRestaffWave({
+        forceRestaff: true,
+        gaps: emptyGaps,
+        staffedCount: 3,
+        maxExperts: 5,
+      }),
+    ).toBe(true);
+    expect(
+      shouldPlanRestaffWave({
+        forceRestaff: true,
+        gaps: emptyGaps,
+        staffedCount: 5,
+        maxExperts: 5,
+      }),
+    ).toBe(false);
+    expect(
+      shouldPlanRestaffWave({
+        forceRestaff: false,
+        gaps: emptyGaps,
+        staffedCount: 3,
+        maxExperts: 5,
+      }),
+    ).toBe(false);
   });
 
   it('filters duplicate experts and caps restaff slots', () => {
