@@ -76,26 +76,34 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
   }
 
   if (error instanceof APIStatusError) {
-    const code: LioraErrorCode =
-      error.statusCode === 429
-        ? ErrorCodes.PROVIDER_RATE_LIMIT
-        : error.statusCode === 401
-          ? ErrorCodes.PROVIDER_AUTH_ERROR
-          : ErrorCodes.PROVIDER_API_ERROR;
     const message = sanitizeStatusErrorMessage(error.message);
-    // Quota-style 4xx bodies (insufficient_quota, credit balance, etc.) should
-    // recover like rate limits so Ultrawork can wait or switch models.
-    const looksLikeQuota =
-      code === ErrorCodes.PROVIDER_API_ERROR && isQuotaOrRateLimitMessage(message);
-    const resolvedCode: LioraErrorCode = looksLikeQuota
-      ? ErrorCodes.PROVIDER_RATE_LIMIT
-      : code;
+    const permanentQuota = isPermanentQuotaOrBillingMessage(message);
+    const looksLikeRateLimit =
+      !permanentQuota &&
+      (error.statusCode === 429 || isQuotaOrRateLimitMessage(message));
+
+    let resolvedCode: LioraErrorCode;
+    if (error.statusCode === 401) {
+      resolvedCode = ErrorCodes.PROVIDER_AUTH_ERROR;
+    } else if (permanentQuota) {
+      // Exhausted plan/credits/payment — surface as API error, never auto-retry.
+      resolvedCode = ErrorCodes.PROVIDER_API_ERROR;
+    } else if (looksLikeRateLimit) {
+      resolvedCode = ErrorCodes.PROVIDER_RATE_LIMIT;
+    } else if (error.statusCode === 429) {
+      resolvedCode = ErrorCodes.PROVIDER_RATE_LIMIT;
+    } else {
+      resolvedCode = ErrorCodes.PROVIDER_API_ERROR;
+    }
+
     const retryable =
-      resolvedCode === ErrorCodes.PROVIDER_RATE_LIMIT
-        ? true
-        : resolvedCode === ErrorCodes.PROVIDER_API_ERROR && error.statusCode >= 500
+      permanentQuota
+        ? false
+        : resolvedCode === ErrorCodes.PROVIDER_RATE_LIMIT
           ? true
-          : KIMI_ERROR_INFO[resolvedCode].retryable;
+          : resolvedCode === ErrorCodes.PROVIDER_API_ERROR && error.statusCode >= 500
+            ? true
+            : KIMI_ERROR_INFO[resolvedCode].retryable;
     return {
       code: resolvedCode,
       message,
@@ -103,6 +111,7 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
       details: {
         statusCode: error.statusCode,
         requestId: error.requestId,
+        ...(permanentQuota ? { permanentQuota: true } : {}),
       },
       retryable,
     };
@@ -133,14 +142,22 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
 
   if (error instanceof ChatProviderError) {
     const message = error.message;
-    const looksLikeRateLimit = isQuotaOrRateLimitMessage(message);
+    const permanentQuota = isPermanentQuotaOrBillingMessage(message);
+    const looksLikeRateLimit = !permanentQuota && isQuotaOrRateLimitMessage(message);
     return {
-      code: looksLikeRateLimit ? ErrorCodes.PROVIDER_RATE_LIMIT : ErrorCodes.PROVIDER_API_ERROR,
+      code: permanentQuota
+        ? ErrorCodes.PROVIDER_API_ERROR
+        : looksLikeRateLimit
+          ? ErrorCodes.PROVIDER_RATE_LIMIT
+          : ErrorCodes.PROVIDER_API_ERROR,
       message,
       name: error.name,
-      retryable: looksLikeRateLimit
-        ? true
-        : KIMI_ERROR_INFO[ErrorCodes.PROVIDER_API_ERROR].retryable,
+      details: permanentQuota ? { permanentQuota: true } : undefined,
+      retryable: permanentQuota
+        ? false
+        : looksLikeRateLimit
+          ? true
+          : KIMI_ERROR_INFO[ErrorCodes.PROVIDER_API_ERROR].retryable,
     };
   }
 
@@ -160,7 +177,11 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
   };
 }
 
-const QUOTA_OR_RATE_LIMIT_MESSAGE_PATTERNS = [
+/**
+ * Permanent quota / billing exhaustion. Waiting will not help until the user
+ * tops up, changes plan, or the billing window resets — never auto-retry these.
+ */
+const PERMANENT_QUOTA_OR_BILLING_MESSAGE_PATTERNS = [
   /insufficient[_\s-]?quota/i,
   /quota\s+exceed/i,
   /exceed(?:ed|s|ing)?\s+(?:your\s+)?(?:current\s+)?quota/i,
@@ -174,13 +195,29 @@ const QUOTA_OR_RATE_LIMIT_MESSAGE_PATTERNS = [
   /billing.*(?:limit|quota|credit|payment)/i,
   /monthly.*(?:budget|spend).*limit/i,
   /hard[_\s-]?limit/i,
+  /no\s+payment\s+method/i,
+  /add\s+a\s+payment\s+method/i,
+  /payment\s+required/i,
+  /payment\s+method/i,
+] as const;
+
+/** Transient throttling — short waits / failover can recover. */
+const TRANSIENT_RATE_LIMIT_MESSAGE_PATTERNS = [
   /rate[_\s-]?limit/i,
   /too many requests/i,
   /provider\.rate_limit/i,
 ] as const;
 
-function isQuotaOrRateLimitMessage(message: string): boolean {
-  return QUOTA_OR_RATE_LIMIT_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+export function isPermanentQuotaOrBillingMessage(message: string | undefined): boolean {
+  if (message === undefined || message.trim().length === 0) return false;
+  return PERMANENT_QUOTA_OR_BILLING_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+export function isQuotaOrRateLimitMessage(message: string): boolean {
+  return (
+    isPermanentQuotaOrBillingMessage(message) ||
+    TRANSIENT_RATE_LIMIT_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))
+  );
 }
 
 /**

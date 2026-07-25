@@ -69,6 +69,7 @@ export {
   isContextOverflowStatusError,
   isProviderRateLimitError,
   isRecoverableRequestStructureError,
+  isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,
   isTransientProviderError,

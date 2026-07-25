@@ -494,12 +494,26 @@ export class TurnFlow {
     let recoveryState: ProviderRecoveryState = { autoRetryCount: 0, userPrompted: false };
 
     while (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
-      const outcome = await resolveProviderRecovery(this.agent, {
-        error: end.event.error!,
-        turnId,
-        signal,
-        state: recoveryState,
-      });
+      if (signal.aborted) {
+        return cancelledTurnEndResult(turnId, signal);
+      }
+
+      let outcome;
+      try {
+        outcome = await resolveProviderRecovery(this.agent, {
+          error: end.event.error!,
+          turnId,
+          signal,
+          state: recoveryState,
+        });
+      } catch (error) {
+        // Esc/Ctrl+C during sleepForRetry rejects with AbortError — surface as
+        // a cancelled turn instead of leaving the UI stuck on a recovery wait.
+        if (isAbortError(error) || signal.aborted) {
+          return cancelledTurnEndResult(turnId, signal);
+        }
+        throw error;
+      }
 
       if (outcome.type === 'pause') {
         return end;
@@ -685,10 +699,14 @@ export class TurnFlow {
     // goal. Keep the active turn alive (as the already-active goal path does) so
     // those autonomous continuations stay cancelable and exclude concurrent
     // turns; turnWorker releases it after the drive.
+    // Keep the launch AbortController alive when provider recovery will run
+    // after this turn.ended. Clearing it here made Esc/Ctrl+C no-ops during
+    // the recovery sleep (activeTurn was null so abortTurn could not abort).
     if (
       standalone &&
       this.currentId === turnId &&
-      this.agent.goal.getGoal().goal?.status !== 'active'
+      this.agent.goal.getGoal().goal?.status !== 'active' &&
+      !(ended.reason === 'failed' && isRetryableProviderFailure(ended.error))
     ) {
       this.activeTurn = null;
     }
@@ -935,6 +953,7 @@ export class TurnFlow {
                 toolName: ctx.toolCall.name,
                 toolCallId: ctx.toolCall.id,
                 result: finalResult,
+                contextWindowTokens: this.agent.config.modelCapabilities.max_context_tokens,
               });
               budgeted = await postprocessLeanToolResult({
                 agent: this.agent,
@@ -1329,6 +1348,19 @@ function toolOutputText(output: ExecutableToolResult['output']): string {
     })
     .map((part) => part.text)
     .join('');
+}
+
+
+function cancelledTurnEndResult(turnId: number, signal: AbortSignal): TurnEndResult {
+  return {
+    event: {
+      type: 'turn.ended',
+      turnId,
+      reason: 'cancelled',
+      durationMs: 0,
+      cancelledByUser: isUserCancellation(signal.reason),
+    },
+  };
 }
 
 function interruptedStep(event: LoopTurnInterruptedEvent): number {

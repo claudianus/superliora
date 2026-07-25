@@ -8,6 +8,7 @@ import {
   ChatProviderError,
   isProviderRateLimitError,
   isRecoverableRequestStructureError,
+  isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,
   isTransientProviderError,
@@ -110,6 +111,31 @@ describe('APIProviderRateLimitError', () => {
     expect(err.name).toBe('APIProviderRateLimitError');
     expect(err.statusCode).toBe(429);
     expect(err.requestId).toBe('req-rate');
+  });
+});
+
+describe('isPermanentQuotaOrBillingError / permanent quota retryability', () => {
+  it('detects permanent quota and payment messages', () => {
+    expect(
+      isPermanentQuotaOrBillingError(
+        new APIStatusError(400, 'insufficient_quota: billing hard limit reached'),
+      ),
+    ).toBe(true);
+    expect(
+      isPermanentQuotaOrBillingError(
+        new APIStatusError(401, 'No payment method. Add a payment method here: https://example.com'),
+      ),
+    ).toBe(true);
+    expect(isPermanentQuotaOrBillingError(new APIStatusError(429, 'Too Many Requests'))).toBe(
+      false,
+    );
+  });
+
+  it('does not treat permanent quota 429 as retryable', () => {
+    expect(
+      isRetryableGenerateError(new APIStatusError(429, 'You exceeded your current quota')),
+    ).toBe(false);
+    expect(isRetryableGenerateError(new APIStatusError(429, 'Too Many Requests'))).toBe(true);
   });
 });
 
