@@ -23,6 +23,36 @@ export {
 } from './session/file-snapshot';
 export { SessionStore } from './session/store';
 export {
+  humanizeCollaborationEvent,
+  looksLikeProtocolMessage,
+  type HumanizeCollaborationEventInput,
+  type HumanizeSeverity,
+  type HumanizedCollaborationEvent,
+} from './session/swarm-humanize';
+export {
+  DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD,
+  createSwarmBudgetState,
+  evaluateSwarmBudget,
+  isWastedBudgetRound,
+  recordSwarmBudgetRound,
+  suggestSwarmBudgetKill,
+  type CreateSwarmBudgetStateOptions,
+  type SwarmBudgetRoundInput,
+  type SwarmBudgetRoundRecord,
+  type SwarmBudgetState,
+  type SwarmBudgetSuggestion,
+} from './session/swarm-budget';
+export {
+  DEFAULT_MAX_PER_DIVISION,
+  applyStaffingDiversity,
+  containsHangul,
+  expertIdPrefix,
+  formatSelectionReason,
+  rewriteExpertSearchQuery,
+  type RewriteExpertSearchQueryOptions,
+  type StaffingDiversityOptions,
+} from './expert-agents/staffing-diversity';
+export {
   SESSION_WORKTREE_CUSTOM_KEY,
   buildWorktreeMetadata,
   createSessionWorktree,

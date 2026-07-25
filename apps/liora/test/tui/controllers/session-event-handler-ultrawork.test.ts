@@ -328,4 +328,110 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(host.state.transcriptContainer.addChild).not.toHaveBeenCalled();
     expect(host.state.swarmModeEntry).toBeUndefined();
   });
+
+  it('routes collaboration message/mention only to active swarm progress feed', () => {
+    const host = makeHost();
+    const children: Array<{ render(width: number): string[] }> = [];
+    host.state.transcriptContainer.addChild = vi.fn((child: { render(width: number): string[] }) => {
+      children.push(child);
+    });
+    host.state.transcriptContainer.children = children;
+    host.state.transcriptContainer.invalidate = vi.fn();
+    host.state.ui = {
+      ...host.state.ui,
+      children,
+      terminal: { rows: 40, columns: 120 },
+      requestRender: vi.fn(),
+    };
+    host.state.todoPanel.bumpActivity = vi.fn();
+    host.streamingUI.getTurnContext = vi.fn(() => ({ turnId: 1, step: 0 }));
+    host.streamingUI.registerToolCall = vi.fn();
+    host.streamingUI.finalizeLiveTextBuffers = vi.fn();
+    const handler = new SessionEventHandler(host);
+
+    // Seed a theatre panel first (swarm stage hides its body).
+    handler.handleEvent(
+      {
+        type: 'ultrawork.stage.changed',
+        agentId: 'main',
+        sessionId: 's1',
+        from: 'staff',
+        to: 'swarm',
+        reason: 'team ready',
+        run: {
+          id: 'uw_feed',
+          objective: 'Ship auth middleware',
+          status: 'running',
+          stage: 'swarm',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:00:01.000Z',
+        },
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    // Mount UltraSwarm progress via tool call start so collaboration has a sink.
+    handler.handleEvent(
+      {
+        type: 'tool.call.started',
+        agentId: 'main',
+        sessionId: 's1',
+        turnId: 1,
+        toolCallId: 'call_ultra_swarm',
+        name: 'UltraSwarm',
+        args: {
+          description: 'Ship auth middleware',
+          items: [{ description: 'review auth', agent_type: 'coder' }],
+        },
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    const collaborationMessage = {
+      id: 'msg_shared_1',
+      runId: 'uw_feed',
+      parentToolCallId: 'call_ultra_swarm',
+      at: '2026-07-01T00:00:02.000Z',
+      from: {
+        expertId: 'security-appsec-engineer',
+        agentId: 'agent_sec',
+        name: 'AppSec Engineer',
+        emoji: '🔒',
+      },
+      to: { expertId: 'impl-engineer' },
+      channel: 'direct' as const,
+      kind: 'mention' as const,
+      body: 'Need auth review before merge',
+    };
+
+    handler.handleEvent(
+      {
+        type: 'ultrawork.collaboration.message',
+        agentId: 'main',
+        sessionId: 's1',
+        runId: 'uw_feed',
+        message: collaborationMessage,
+      } satisfies Event,
+      vi.fn(),
+    );
+    handler.handleEvent(
+      {
+        type: 'ultrawork.collaboration.mention',
+        agentId: 'main',
+        sessionId: 's1',
+        runId: 'uw_feed',
+        message: collaborationMessage,
+        mentionExpertIds: ['impl-engineer'],
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    const transcript = children
+      .map((child) => stripAnsi(child.render(120).join('\n')))
+      .join('\n');
+    const bodyHits = transcript.match(/Need auth review before merge/g) ?? [];
+    expect(bodyHits).toHaveLength(1);
+    // Swarm stage hides theatre; only swarm progress should show the body.
+    expect(transcript).toContain('live feed');
+  });
 });

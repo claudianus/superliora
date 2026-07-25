@@ -177,6 +177,11 @@ export class Agent {
   readonly planMode: PlanMode;
   readonly ultraSwarmEngageGate: UltraSwarmEngageGate;
   ultraSwarmRun: UltraSwarmRunContext | undefined;
+  /**
+   * Optional UltraSwarm file-lease identity for Edit/Write conflict checks.
+   * Set on subagent workers when an UltraSwarm run is active; undefined otherwise.
+   */
+  swarmFileLease: { ownerId?: string; runId?: string } | undefined;
   readonly swarmMode: SwarmMode;
   readonly usage: UsageRecorder;
   readonly skills: SkillManager | null;
@@ -257,6 +262,7 @@ export class Agent {
     this.planMode = new PlanMode(this);
     this.ultraSwarmEngageGate = new UltraSwarmEngageGate(this);
     this.ultraSwarmRun = undefined;
+    this.swarmFileLease = undefined;
     this.swarmMode = new SwarmMode(this);
     this.usage = new UsageRecorder(this);
     this.skills = options.skills ? new SkillManager(this, options.skills) : null;

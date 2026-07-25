@@ -281,22 +281,30 @@ export class SubAgentEventHandler {
     });
   }
 
+  /**
+   * Routes a collaboration message into the live UltraSwarm feed.
+   * @returns true when an active swarm progress component owned the feed line
+   */
   handleUltraworkCollaborationMessage(
     event: Extract<Event, { type: 'ultrawork.collaboration.message' }>,
-  ): void {
+  ): boolean {
     const toolCallId = event.message.parentToolCallId;
-    if (toolCallId.length === 0) return;
-    this.updateAgentSwarmProgress(toolCallId, (progress) => {
+    if (toolCallId.length === 0) return false;
+    return this.updateAgentSwarmProgress(toolCallId, (progress) => {
       progress.applySwarmCollaborationMessage(event.message);
     });
   }
 
+  /**
+   * Routes a collaboration mention into the live UltraSwarm feed.
+   * @returns true when an active swarm progress component owned the feed line
+   */
   handleUltraworkCollaborationMention(
     event: Extract<Event, { type: 'ultrawork.collaboration.mention' }>,
-  ): void {
+  ): boolean {
     const toolCallId = event.message.parentToolCallId;
-    if (toolCallId.length === 0) return;
-    this.updateAgentSwarmProgress(toolCallId, (progress) => {
+    if (toolCallId.length === 0) return false;
+    return this.updateAgentSwarmProgress(toolCallId, (progress) => {
       progress.applySwarmCollaborationMention(event.message);
     });
   }

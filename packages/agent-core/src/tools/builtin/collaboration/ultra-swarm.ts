@@ -35,6 +35,19 @@ import {
   type SwarmStandupTimerHandle,
 } from '../../../session/swarm-bus-coordination';
 import {
+  buildSwarmRunLedgerFromResults,
+  writeSwarmRunLedgerArtifact,
+} from '../../../session/swarm-run-ledger';
+import {
+  getDefaultSwarmFileLeaseRegistry,
+} from '../../../session/swarm-file-lease';
+import {
+  createSwarmBudgetState,
+  recordSwarmBudgetRound,
+  suggestSwarmBudgetKill,
+  type SwarmBudgetState,
+} from '../../../session/swarm-budget';
+import {
   buildDependencyWaves,
 } from '../../../session/subagent-wave-scheduler';
 import { ToolAccesses } from '../../../loop/tool-access';
@@ -312,6 +325,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     this.emitTeamStaffedEvent(runId, toolCallId, team);
 
     const busEnabled = true;
+    const runStartedAt = new Date().toISOString();
     let standupTimer: SwarmStandupTimerHandle | undefined;
     initSwarmRunBus(this.store, { runId, parentToolCallId: toolCallId, team });
     this.agent.ultraSwarmRun = createUltraSwarmRunContext({
@@ -355,12 +369,13 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       if (workNodeContext !== undefined) {
         this.failWorkNodes(workNodeContext.nodes.map((node) => node.id), error);
       }
+      getDefaultSwarmFileLeaseRegistry().releaseAll(runId);
+      this.agent.ultraSwarmRun = undefined;
       throw error;
     } finally {
       if (busEnabled) {
         standupTimer?.stop();
         clearSwarmRunBus(this.store);
-        this.agent.ultraSwarmRun = undefined;
       }
     }
     const rendered = phaseResults.map(withRenderedMetadata);
@@ -393,10 +408,43 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         this.finishWorkNodes(unclaimed, rendered);
       }
     }
+
+    // Phase 0 run ledger: pure snapshot + optional workdir JSON artifact.
+    // Snapshot open leases before releaseAll so conflicts are still visible.
+    const openLeases = getDefaultSwarmFileLeaseRegistry().listClaims(runId);
+    const pausedForSteer = this.agent.ultraSwarmRun?.pausedForSteer === true;
+    try {
+      const leaseConflicts = openLeases.map((claim) => ({
+        kind: 'file_lease',
+        path: claim.path,
+        holderId: claim.ownerId,
+      }));
+      const ledger = buildSwarmRunLedgerFromResults({
+        runId,
+        startedAt: runStartedAt,
+        results: rendered,
+        conflicts: leaseConflicts,
+      });
+      const ledgerPath = await writeSwarmRunLedgerArtifact(this.agent.kaos, ledger);
+      this.agent.telemetry.track('ultra_swarm_run_ledger', {
+        run_id: runId,
+        expert_count: ledger.experts.length,
+        evidence_count: ledger.evidenceIds.length,
+        wasted_workers: ledger.wastedWorkerFlags.length,
+        conflict_count: ledger.conflicts.length,
+        ledger_path: ledgerPath,
+      });
+    } catch {
+      // Ledger is observational — never fail the swarm on write errors.
+    } finally {
+      getDefaultSwarmFileLeaseRegistry().releaseAll(runId);
+      this.agent.ultraSwarmRun = undefined;
+    }
+
     this.agent.ultraSwarmEngageGate?.clear('ultra-swarm-completed');
     maybeAdvanceUltraworkStage(this.agent, 'integrate', 'UltraSwarm completed');
     injectUltraworkPostSwarmContinuation(this.agent);
-    const steerSuffix = this.agent.ultraSwarmRun?.pausedForSteer === true
+    const steerSuffix = pausedForSteer
       ? '\n\n<user_steering_applied>UltraSwarm paused after user steering. Incorporate the steering note in the phase handoff and continue from the remaining work.</user_steering_applied>'
       : '';
     const rawResult = renderUltraSwarmResults(rendered, plan, runId) + steerSuffix;
@@ -431,6 +479,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     let phaseHandoff = '';
     let blockedBy: UltraSwarmRenderedResult | undefined;
     let team = input.team;
+    let budgetState: SwarmBudgetState = createSwarmBudgetState();
 
     for (const phase of ULTRA_SWARM_PHASES) {
       const phaseSpecs = input.specs.filter((spec) => spec.phase === phase);
@@ -493,6 +542,33 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       }
 
       phaseResults.push(...renderedPhaseResults);
+
+      // Budget governor: count rounds without evidence; suggest kill after N wastes.
+      const phaseEvidenceIds = uniqueStrings(
+        renderedPhaseResults.flatMap((result) => result.evidenceIds ?? []),
+      );
+      budgetState = recordSwarmBudgetRound(budgetState, {
+        label: phase,
+        evidenceIds: phaseEvidenceIds,
+        wasted: renderedPhaseResults.every(
+          (result) =>
+            result.status !== 'completed' ||
+            (result.evidenceIds ?? []).length === 0,
+        ),
+        productive: phaseEvidenceIds.length > 0,
+      });
+      const budgetSuggestion = suggestSwarmBudgetKill(budgetState);
+      if (budgetSuggestion.shouldKill) {
+        this.agent.telemetry.track('ultra_swarm_budget_kill', {
+          run_id: input.runId,
+          phase,
+          wasted_rounds: budgetSuggestion.wastedRounds,
+          kill_threshold: budgetSuggestion.killThreshold,
+          reason: budgetSuggestion.reason,
+        });
+        // Soft kill: stop further phases; keep completed work for handoff.
+        break;
+      }
 
       // ── Debate checkpoint: structured adversarial critique after each phase ──
       // Each phase result gets a risk assessment. Low-risk results skip debate;

@@ -11,6 +11,10 @@ import type { Agent } from '../../../agent';
 import { maybeFinishUltraworkRun } from '../../../ultrawork/finish-run';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import {
+  applyEvidenceHardGate,
+  findEvidenceHardGateViolation,
+} from '../../../session/swarm-evidence-gate';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
 import {
@@ -124,15 +128,26 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
       return { isError: true, output: validation };
     }
 
+    // Evidence hard gate: reject pure done-without-evidence when the client
+    // claims done with requiredEvidence. Soft path still auto-blocks via apply.
+    const gateViolation = findEvidenceHardGateViolation(args.nodes);
+    if (gateViolation !== undefined) {
+      return {
+        isError: true,
+        output: gateViolation.reason,
+      };
+    }
+
     const previous = this.getGraph();
     const now = new Date().toISOString();
+    const gated = applyEvidenceHardGate(args.nodes);
     const graph = cloneWorkGraph({
       id: args.graph_id ?? previous?.id ?? `${args.run_id}:work_graph`,
       runId: args.run_id,
       rootGoal: args.root_goal ?? previous?.rootGoal,
       createdAt: previous?.createdAt ?? now,
       updatedAt: now,
-      nodes: args.nodes,
+      nodes: gated.nodes,
     });
 
     this.store.set(ULTRAWORK_GRAPH_STORE_KEY, graph);
@@ -151,6 +166,7 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
       changed_nodes: changedCount,
       done_nodes: graph.nodes.filter((n) => n.status === 'done').length,
       failed_nodes: graph.nodes.filter((n) => n.status === 'failed').length,
+      evidence_gate_violations: gated.violations.length,
     });
     const todoLine = syncTodos ? `\n${renderTodoList(todosFromWorkGraph(graph), 'Synced TodoList:')}` : '';
     return {

@@ -111,6 +111,35 @@ export type {
   ContextOSRetrievalDiagnostics,
 } from '@superliora/agent-core';
 
+export {
+  humanizeCollaborationEvent,
+  looksLikeProtocolMessage,
+  DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD,
+  createSwarmBudgetState,
+  evaluateSwarmBudget,
+  isWastedBudgetRound,
+  recordSwarmBudgetRound,
+  suggestSwarmBudgetKill,
+  DEFAULT_MAX_PER_DIVISION,
+  applyStaffingDiversity,
+  containsHangul,
+  expertIdPrefix,
+  formatSelectionReason,
+  rewriteExpertSearchQuery,
+} from '@superliora/agent-core';
+export type {
+  HumanizeCollaborationEventInput,
+  HumanizeSeverity,
+  HumanizedCollaborationEvent,
+  CreateSwarmBudgetStateOptions,
+  SwarmBudgetRoundInput,
+  SwarmBudgetRoundRecord,
+  SwarmBudgetState,
+  SwarmBudgetSuggestion,
+  RewriteExpertSearchQueryOptions,
+  StaffingDiversityOptions,
+} from '@superliora/agent-core';
+
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';
 
 export type {

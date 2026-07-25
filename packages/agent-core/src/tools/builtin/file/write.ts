@@ -14,6 +14,7 @@ import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { FileSnapshotStore } from '../../../session/file-snapshot';
+import { checkSwarmFileLease } from '../../../session/swarm-file-lease';
 import {
   policyForSandboxProfile,
   resolvePathAccessPath,
@@ -68,6 +69,14 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       readonly turnId?: string | undefined;
       /** Resolved at execution time so the active turn id is current. */
       readonly getTurnId?: (() => string | undefined) | undefined;
+      /**
+       * Optional UltraSwarm file-lease identity. When owner/run are present,
+       * claims the path before mutation; conflicts return an error tool result.
+       * When absent, Write behaves as before (no-op lease).
+       */
+      readonly getSwarmLease?:
+        | (() => { readonly ownerId?: string; readonly runId?: string } | undefined)
+        | undefined;
     },
   ) {}
 
@@ -97,6 +106,12 @@ export class WriteTool implements BuiltinTool<WriteInput> {
   }
 
   private async execution(args: WriteInput, safePath: string): Promise<ExecutableToolResult> {
+    const lease = this.options?.getSwarmLease?.();
+    const leaseError = checkSwarmFileLease(safePath, lease?.ownerId, lease?.runId);
+    if (leaseError !== undefined) {
+      return { isError: true, output: leaseError };
+    }
+
     const parentError = await this.ensureParentDirectory(safePath);
     if (parentError !== undefined) {
       return { isError: true, output: parentError };

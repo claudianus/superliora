@@ -396,6 +396,49 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output.match(/001→impl/g)?.length).toBe(1);
   });
 
+  it('paints the same collaboration message_id only once even when message and mention both fire', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        emoji: '🔒',
+        coverageLane: 'security_privacy',
+        focus: 'review',
+      },
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+
+    const shared = {
+      id: 'msg_dedupe_1',
+      from: { expertId: 'security-appsec-engineer', name: 'AppSec Engineer', emoji: '🔒' },
+      to: { expertId: 'impl-engineer' },
+      channel: 'direct' as const,
+      body: 'Need auth review before merge',
+    };
+
+    // Same SwarmBus message is emitted as both collaboration.message and
+    // collaboration.mention (subagent-host onMessagePosted). Feed must paint once.
+    component.applySwarmCollaborationMessage(shared);
+    component.applySwarmCollaborationMention(shared);
+    component.applySwarmCollaborationMessage(shared);
+    component.applySwarmCollaborationMention(shared);
+
+    const output = renderText(component, 120);
+    const bodyHits = output.match(/Need auth review before merge/g) ?? [];
+    expect(bodyHits).toHaveLength(1);
+    // First writer wins: message path uses the direct/lane header (not mention @).
+    expect(output).toContain('001→002');
+    expect(output).not.toMatch(/Need auth review before merge[\s\S]*Need auth review before merge/);
+  });
+
   it('uses a two-line feed layout on narrow terminals to preserve message bodies', () => {
     const component = createComponent({ title: 'UltraSwarm' });
     component.applyUltraSwarmTeam([
@@ -418,6 +461,29 @@ describe('AgentSwarmProgressComponent', () => {
     expect(feedHeaderIndex).toBeGreaterThan(-1);
     expect(lines[feedHeaderIndex + 1]).toContain('auth middleware missing tests for OAuth callback path');
     expect(lines[feedHeaderIndex]).not.toContain('auth middleware');
+  });
+
+  it('humanizes protocol XML collaboration bodies in the live feed', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+      },
+    ]);
+    component.markInputComplete();
+    component.applySwarmCollaborationMessage({
+      from: { expertId: 'impl-engineer', name: 'Impl Engineer', emoji: '🔧' },
+      channel: 'lane',
+      body: '<handoff expert_id="impl-engineer" phase="implement" verdict="PASS">Dashboard attach scenario green</handoff>',
+    });
+
+    const output = renderText(component, 120);
+    expect(output).toContain('Dashboard attach');
+    expect(output).not.toContain('<handoff');
+    expect(output).not.toContain('</handoff>');
   });
 
   it('does not render the ops feed for plain Agent Swarm runs', () => {

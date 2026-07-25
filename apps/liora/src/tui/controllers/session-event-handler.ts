@@ -372,12 +372,28 @@ export class SessionEventHandler {
     if (event.type === 'ultrawork.team.staffed') {
       this.subAgentEventHandler.handleUltraworkTeamStaffed(event);
     }
+
+    // Collaboration chat feed owns a single sink: AgentSwarmProgress when active.
+    // Theatre keeps stage/debate/steer surfaces and must not echo the same body.
+    let collaborationFeedOwnedBySwarm = false;
     if (event.type === 'ultrawork.collaboration.message') {
-      this.subAgentEventHandler.handleUltraworkCollaborationMessage(event);
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationMessage(event);
     }
     if (event.type === 'ultrawork.collaboration.mention') {
-      this.subAgentEventHandler.handleUltraworkCollaborationMention(event);
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationMention(event) ||
+        collaborationFeedOwnedBySwarm;
     }
+    if (
+      collaborationFeedOwnedBySwarm &&
+      (event.type === 'ultrawork.collaboration.message' ||
+        event.type === 'ultrawork.collaboration.mention')
+    ) {
+      requestTUILayoutRender(this.host.state);
+      return;
+    }
+
     const runId = ultraworkTheatreRunId(event);
     const existing = this.ultraworkTheatres.get(runId);
     if (existing === undefined) {

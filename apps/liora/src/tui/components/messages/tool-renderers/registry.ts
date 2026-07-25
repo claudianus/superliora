@@ -48,6 +48,7 @@ import {
   nextPhaseSummary,
   readSummary,
   recordInterviewFindingSummary,
+  runProjectChecksSummary,
   searchExpertSummary,
   searchSkillSummary,
   skillSummary,
@@ -59,6 +60,7 @@ import {
   todoListSummary,
   ultraSwarmSummary,
   ultraworkGraphSummary,
+  verifySurfaceSummary,
   webSearchSummary,
   writeSummary,
 } from './summary';
@@ -149,6 +151,10 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return ultraSwarmSummary;
     case 'BrowserStatus':
       return browserStatusSummary;
+    case 'RunProjectChecks':
+      return runProjectChecksSummary;
+    case 'VerifySurface':
+      return verifySurfaceSummary;
     case 'BrowserObserve':
       return browserObserveSummary;
     case 'BrowserScreenshot':

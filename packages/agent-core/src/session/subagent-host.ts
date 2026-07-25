@@ -569,13 +569,12 @@ export class SessionSubagentHost {
     profileName: string,
   ): void {
     const run = parent.ultraSwarmRun;
-    if (
-      run === undefined ||
-      !run.busEnabled ||
-      options.parentToolCallId !== run.parentToolCallId
-    ) {
+    if (run === undefined || options.parentToolCallId !== run.parentToolCallId) {
       return;
     }
+    // Wire Edit/Write file-lease identity for this UltraSwarm worker (bus optional).
+    child.swarmFileLease = { ownerId: childAgentId, runId: run.runId };
+    if (!run.busEnabled) return;
     const expert = run.team.experts.find((entry) => entry.id === profileName);
     if (expert === undefined) return;
     child.tools.attachEphemeralBuiltin(

@@ -12,6 +12,7 @@ import {
   type RendererSteppedProgressBarCellProjection,
 } from '#/tui/renderer';
 import chalk from 'chalk';
+import { humanizeCollaborationEvent, looksLikeProtocolMessage } from '@superliora/sdk';
 
 import {
   AgentSwarmProgressEstimator,
@@ -168,6 +169,7 @@ type SwarmOpsFeedTag =
   | 'council';
 
 interface SwarmCollaborationFeedMessage {
+  readonly id?: string;
   readonly from: { readonly expertId?: string; readonly name: string; readonly emoji?: string };
   readonly to?: { readonly expertId: string };
   readonly channel: 'standup' | 'lane' | 'direct' | 'blocker' | 'council';
@@ -177,6 +179,7 @@ interface SwarmCollaborationFeedMessage {
 interface SwarmOpsFeedEntry {
   readonly atMs: number;
   readonly tag: SwarmOpsFeedTag;
+  readonly messageId?: string;
   readonly fromExpertId?: string;
   readonly fromName?: string;
   readonly fromEmoji?: string;
@@ -308,6 +311,8 @@ export class AgentSwarmProgressComponent implements Component {
   private swarmStartedAtMs: number | undefined;
   private lastFrameTickMs = 0;
   private readonly opsFeed: SwarmOpsFeedEntry[] = [];
+  /** Dedupe collaboration feed lines even when message + mention both fire. */
+  private readonly seenCollaborationMessageIds = new Set<string>();
   private readonly expertSlotById = new Map<string, string>();
   private integrationReport: UltraSwarmIntegrationReport | undefined;
 
@@ -449,25 +454,40 @@ export class AgentSwarmProgressComponent implements Component {
   applySwarmCollaborationMessage(message: SwarmCollaborationFeedMessage): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
     if (!isAgentConversationChannel(message.channel)) return;
+    const body = humanizeFeedBody(message.body, {
+      channel: message.channel,
+      fromName: message.from.name,
+      fromExpertId: message.from.expertId,
+      toExpertId: message.to?.expertId,
+    });
     this.appendConversationFeed({
       tag: swarmCollaborationFeedTag(message.channel),
+      messageId: message.id,
       fromExpertId: message.from.expertId,
       fromName: message.from.name,
       fromEmoji: message.from.emoji,
       toExpertId: message.to?.expertId,
-      body: message.body,
+      body,
     });
   }
 
   applySwarmCollaborationMention(message: SwarmCollaborationFeedMessage): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const body = humanizeFeedBody(message.body, {
+      channel: message.channel,
+      tag: 'mention',
+      fromName: message.from.name,
+      fromExpertId: message.from.expertId,
+      toExpertId: message.to?.expertId,
+    });
     this.appendConversationFeed({
       tag: 'mention',
+      messageId: message.id,
       fromExpertId: message.from.expertId,
       fromName: message.from.name,
       fromEmoji: message.from.emoji,
       toExpertId: message.to?.expertId,
-      body: message.body,
+      body,
     });
   }
 
@@ -802,10 +822,16 @@ export class AgentSwarmProgressComponent implements Component {
   private renderMissionStats(summary: AgentSwarmSummary): string {
     const total = summary.active + summary.completed + summary.failed + summary.cancelled;
     const running = this.members.filter((member) => member.phase === 'running').length;
+    const evidenceCount = this.members.reduce(
+      (count, member) => count + (member.evidenceIds?.length ?? 0),
+      0,
+    );
     const segments = [
+      total > 0 ? `${String(total)} experts` : undefined,
       running > 0 ? `${String(running)} working` : undefined,
       summary.completed > 0 ? `${String(summary.completed)}/${String(total)} done` : undefined,
       summary.failed > 0 ? `${String(summary.failed)} failed` : undefined,
+      evidenceCount > 0 ? `${String(evidenceCount)} evidence` : undefined,
     ].filter((segment): segment is string => segment !== undefined);
     return segments.length > 0 ? segments.join(' · ') : `${String(total)} agents`;
   }
@@ -1063,6 +1089,7 @@ export class AgentSwarmProgressComponent implements Component {
 
   private appendConversationFeed(input: {
     readonly tag: SwarmOpsFeedTag;
+    readonly messageId?: string;
     readonly fromExpertId?: string;
     readonly fromName?: string;
     readonly fromEmoji?: string;
@@ -1072,6 +1099,21 @@ export class AgentSwarmProgressComponent implements Component {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
     const body = collapseWhitespace(input.body);
     if (body.length === 0) return;
+    const messageId = input.messageId?.trim();
+    if (messageId !== undefined && messageId.length > 0) {
+      if (this.seenCollaborationMessageIds.has(messageId)) return;
+      this.seenCollaborationMessageIds.add(messageId);
+      if (this.seenCollaborationMessageIds.size > SWARM_OPS_FEED_MAX_ENTRIES * 2) {
+        // Bound memory; oldest ids drop first via recreation from recent feed.
+        this.seenCollaborationMessageIds.clear();
+        for (const entry of this.opsFeed) {
+          if (entry.messageId !== undefined) {
+            this.seenCollaborationMessageIds.add(entry.messageId);
+          }
+        }
+        this.seenCollaborationMessageIds.add(messageId);
+      }
+    }
     const last = this.opsFeed.at(-1);
     if (
       last !== undefined &&
@@ -1086,6 +1128,7 @@ export class AgentSwarmProgressComponent implements Component {
     this.opsFeed.push({
       atMs: Date.now(),
       tag: input.tag,
+      messageId,
       fromExpertId: input.fromExpertId,
       fromName: input.fromName,
       fromEmoji: input.fromEmoji,
@@ -2374,6 +2417,42 @@ function truncateStartToWidth(text: string, width: number): string {
 
 function collapseWhitespace(text: string): string {
   return text.replaceAll(/\s+/g, ' ').trim();
+}
+
+/**
+ * Protocol/XML collaboration payloads become a short human-readable feed line.
+ * Plain language messages pass through unchanged.
+ */
+function humanizeFeedBody(
+  body: string,
+  meta: {
+    readonly channel?: string;
+    readonly tag?: string;
+    readonly fromName?: string;
+    readonly fromExpertId?: string;
+    readonly toExpertId?: string;
+  },
+): string {
+  const trimmed = body.trim();
+  if (trimmed.length === 0) return trimmed;
+  if (!looksLikeProtocolMessage(trimmed)) return collapseWhitespace(trimmed);
+
+  const humanized = humanizeCollaborationEvent({
+    body: trimmed,
+    channel: meta.channel,
+    tag: meta.tag,
+    fromName: meta.fromName,
+    fromExpertId: meta.fromExpertId,
+    toExpertId: meta.toExpertId,
+  });
+  if (!humanized.humanized) return collapseWhitespace(trimmed);
+
+  const headline = humanized.headline.trim();
+  const text = humanized.body.trim();
+  if (headline.length === 0) return text;
+  if (text.length === 0) return headline;
+  if (text.startsWith(headline)) return text;
+  return collapseWhitespace(`${headline}: ${text}`);
 }
 
 function normalizeFailureText(text: string | undefined): string | undefined {
