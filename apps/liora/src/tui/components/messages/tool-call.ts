@@ -48,6 +48,10 @@ import {
 } from '#/tui/utils/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 
 import {
   agentSwarmResultSummaryFromOutput,
@@ -635,6 +639,9 @@ export class ToolCallComponent extends Container {
    */
   private onSnapshotChange: (() => void) | undefined;
 
+  /** Entrance fade clock — tool cards wash in when they first mount. */
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   constructor(
     toolCall: ToolCallBlockData,
     result: ToolResultBlockData | undefined,
@@ -673,11 +680,21 @@ export class ToolCallComponent extends Container {
     // private setInterval timers. See PREMIUM.md §7.1.
     this.tickClockDrivenRefresh();
     this.syncAnimatedHeader();
-    return this.renderCache.render({
+    const lines = this.renderCache.render({
       width,
       cacheEpoch: renderCacheEpoch(),
       children: this.children,
       isCacheEnabled: isRenderCacheEnabled,
+    });
+    // Entrance wash only while active — skip the cell pass once settled.
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs) && this.result !== undefined) {
+      return lines;
+    }
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'tool',
+      streaming: this.result === undefined,
+      appearance: getActiveAppearancePreferences(),
     });
   }
 
