@@ -154,6 +154,11 @@ export {
   rebindPhaseWorkNodeIds,
   attachDraftToDebate,
   buildDebateDraftHandoffPack,
+  shouldSkipAdaptiveRestaff,
+  shouldStopPhaseLoopAtCheckpoint,
+  hasPendingUltraSwarmRestaff,
+  requestUltraSwarmRestaff,
+  createUltraSwarmRunContext,
 } from '@superliora/agent-core';
 export type {
   HumanizeCollaborationEventInput,
