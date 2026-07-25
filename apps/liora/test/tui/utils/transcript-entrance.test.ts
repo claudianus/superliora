@@ -92,4 +92,16 @@ describe('transcript-entrance', () => {
     const faded = applyTranscriptEntrance([line], 1000, 'status', undefined, 1010);
     expect(faded[0]).toBe(line);
   });
+
+  it('does not insert spaces for CJK/emoji wide-char continuation pads', () => {
+    const line = currentTheme.fg('text', '한a👍b');
+    const faded = applyTranscriptEntrance([line], 1000, 'assistant', undefined, 1080);
+    const visible = visibleTranscriptPayload(faded[0]!);
+    // No space between wide cluster and next ASCII/emoji cluster.
+    expect(visible).toContain('한a');
+    expect(visible).toContain('👍b');
+    expect(visible.includes('한 a')).toBe(false);
+    expect(visible.includes('👍 b') || visible.includes('a 👍')).toBe(false);
+  });
+
 });

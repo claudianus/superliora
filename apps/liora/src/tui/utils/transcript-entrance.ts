@@ -137,6 +137,11 @@ function cellsToAnsi(cells: readonly RendererCell[]): string {
   let active: RendererCellStyle | undefined;
   let hasStyle = false;
   for (const cell of cells) {
+    // Wide-glyph continuation pads are empty width-0 markers. Emitting them as
+    // spaces doubles CJK/emoji spacing mid-entrance (then "fixes" when polish ends).
+    if (cell.continuation === true || cell.width === 0 || cell.char.length === 0) {
+      continue;
+    }
     if (!stylesEqual(active, cell.style)) {
       active = cell.style;
       out.push(styleToAnsi(active));
@@ -144,7 +149,7 @@ function cellsToAnsi(cells: readonly RendererCell[]): string {
     }
     // Cell glyphs are already single display clusters from ansiTextToCells —
     // do not re-run escapeTerminalText (it is for raw user strings).
-    out.push(cell.char.length > 0 ? cell.char : ' ');
+    out.push(cell.char);
   }
   if (hasStyle) out.push(ANSI_RESET_STYLE);
   return out.join('');

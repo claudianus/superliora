@@ -7,6 +7,10 @@ import {
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 
 import { formatBashOutputForDisplay, sanitizeShellOutput } from '#/tui/utils/shell-output';
 
@@ -32,6 +36,7 @@ const KEEP_COMBINED_CHARS = 64 * 1024;
  * — no private setInterval. See PREMIUM.md §7.1.
  */
 export class ShellRunComponent extends Container {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
   private readonly textComponent: Text;
   private combined = '';
   private running = true;
@@ -82,7 +87,14 @@ export class ShellRunComponent extends Container {
     // the `(Xs)` counter advances with the render loop's ticker instead of a
     // private setInterval. See PREMIUM.md §7.1.
     if (this.running) this.flush();
-    return super.render(width);
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      streaming: true,
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   private flush(): void {

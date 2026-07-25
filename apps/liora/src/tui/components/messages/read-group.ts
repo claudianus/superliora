@@ -26,11 +26,16 @@ import { Container, Spacer, Text } from '#/tui/renderer';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 
 import type { ToolCallComponent, ToolCallReadSnapshot } from './tool-call';
 
@@ -42,6 +47,7 @@ interface ReadEntry {
 }
 
 export class ReadGroupComponent extends Container {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
   private readonly entries: ReadEntry[] = [];
   private readonly headerText: Text;
   private readonly bodyContainer: Container;
@@ -98,6 +104,16 @@ export class ReadGroupComponent extends Container {
       if (this.lastFlushPhases.get(e.toolCallId) !== phase) return true;
     }
     return false;
+  }
+
+  override render(width: number): string[] {
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'tool',
+      streaming: true,
+    });
   }
 
   private flushRender(): void {
