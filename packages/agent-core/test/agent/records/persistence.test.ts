@@ -294,6 +294,54 @@ describe('FileSystemAgentRecordPersistence', () => {
     expect((await readFile(join(blobsDir, blobFiles[0]!))).toString('base64')).toBe(payload);
   });
 
+  it('rewrites thousands of records without joining one giant string', async () => {
+    // Regression for RangeError: Invalid string length — drain used to
+    // `JSON.stringify` every pending record and `.join('')` them into one
+    // write payload. Large post-compaction rewrites could exceed V8's max
+    // string length and crash the process. Chunked write must land all rows.
+    const wirePath = await makeWirePath();
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+
+    const count = 2_500;
+    const records: AgentRecord[] = [];
+    for (let i = 0; i < count; i += 1) {
+      records.push({
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: `row-${i}-${'x'.repeat(64)}` }],
+        origin: { kind: 'user' },
+      });
+    }
+    persistence.rewrite(records);
+    await persistence.flush();
+
+    const lines = await readLines(wirePath);
+    expect(lines).toHaveLength(count);
+    expect(JSON.parse(lines[0]!)['input'][0]['text']).toContain('row-0-');
+    expect(JSON.parse(lines[count - 1]!)['input'][0]['text']).toContain(`row-${count - 1}-`);
+    expect(persistence.recordCount()).toBe(count);
+  });
+
+  it('appends many records across size-capped drain batches', async () => {
+    const wirePath = await makeWirePath();
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+
+    const count = 600;
+    for (let i = 0; i < count; i += 1) {
+      persistence.append({
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: `append-${i}` }],
+        origin: { kind: 'user' },
+      });
+    }
+    await persistence.flush();
+
+    const lines = await readLines(wirePath);
+    expect(lines).toHaveLength(count);
+    expect(JSON.parse(lines[0]!)['input'][0]['text']).toBe('append-0');
+    expect(JSON.parse(lines[count - 1]!)['input'][0]['text']).toBe(`append-${count - 1}`);
+    expect(persistence.recordCount()).toBe(count);
+  });
+
   it('flushSync drains pending records with a synchronous fsync', async () => {
     const wirePath = await makeWirePath();
     const persistence = new FileSystemAgentRecordPersistence(wirePath);

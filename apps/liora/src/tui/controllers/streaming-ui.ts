@@ -985,6 +985,8 @@ export class StreamingUIController {
       readonly streamKind?: 'summary' | 'block' | 'merge' | 'repair';
       readonly blockIndex?: number;
       readonly blockCount?: number;
+      readonly blocksCompleted?: number;
+      readonly fraction?: number;
     },
   ): void {
     const block = this._activeCompactionBlock;

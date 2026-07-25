@@ -1346,6 +1346,8 @@ export class SessionEventHandler {
       streamKind: event.streamKind,
       blockIndex: event.blockIndex,
       blockCount: event.blockCount,
+      blocksCompleted: event.blocksCompleted,
+      fraction: event.fraction,
     });
   }
 

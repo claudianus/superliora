@@ -68,6 +68,9 @@ type CompactionStreamMeta = {
   readonly streamKind?: 'summary' | 'block' | 'merge' | 'repair';
   readonly blockIndex?: number;
   readonly blockCount?: number;
+  readonly blocksCompleted?: number;
+  /** Engine-computed overall fraction in [0, 1); preferred over phase creep. */
+  readonly fraction?: number;
 };
 
 export class CompactionComponent extends Container {
@@ -235,11 +238,30 @@ export class CompactionComponent extends Container {
       streamKind: meta.streamKind ?? this.streamMeta.streamKind,
       blockIndex: meta.blockIndex ?? this.streamMeta.blockIndex,
       blockCount: meta.blockCount ?? this.streamMeta.blockCount,
+      blocksCompleted: meta.blocksCompleted ?? this.streamMeta.blocksCompleted,
+      fraction: meta.fraction ?? this.streamMeta.fraction,
     };
+    // Engine fraction is monotonic within a session — never rewind the floor.
+    if (next.fraction !== undefined && Number.isFinite(next.fraction)) {
+      this.progressFloor = Math.max(this.progressFloor, Math.min(0.99, next.fraction));
+    } else if (
+      next.blocksCompleted !== undefined &&
+      next.blockCount !== undefined &&
+      next.blockCount > 0
+    ) {
+      // Block completion alone: map into the summarizing band (0.30 → 0.70).
+      const blockFrac =
+        PHASE_PROGRESS.summarizing.base +
+        (SUMMARY_CREEP_CEILING - PHASE_PROGRESS.summarizing.base) *
+          Math.min(1, Math.max(0, next.blocksCompleted / next.blockCount));
+      this.progressFloor = Math.max(this.progressFloor, blockFrac);
+    }
     if (
       next.streamKind === this.streamMeta.streamKind &&
       next.blockIndex === this.streamMeta.blockIndex &&
-      next.blockCount === this.streamMeta.blockCount
+      next.blockCount === this.streamMeta.blockCount &&
+      next.blocksCompleted === this.streamMeta.blocksCompleted &&
+      next.fraction === this.streamMeta.fraction
     ) {
       return;
     }
@@ -277,6 +299,26 @@ export class CompactionComponent extends Container {
   }
 
   private currentFraction(now: number, animated: boolean): number {
+    // Prefer engine-reported fraction (block % / merge / repair) when present.
+    const engine = this.streamMeta.fraction;
+    if (engine !== undefined && Number.isFinite(engine)) {
+      return Math.min(0.99, Math.max(engine, this.progressFloor));
+    }
+    // Block completion without explicit fraction still drives the bar.
+    const completed = this.streamMeta.blocksCompleted;
+    const count = this.streamMeta.blockCount;
+    if (
+      this.phase === 'summarizing' &&
+      completed !== undefined &&
+      count !== undefined &&
+      count > 0
+    ) {
+      const blockFrac =
+        PHASE_PROGRESS.summarizing.base +
+        (SUMMARY_CREEP_CEILING - PHASE_PROGRESS.summarizing.base) *
+          Math.min(1, Math.max(0, completed / count));
+      return Math.min(0.99, Math.max(blockFrac, this.progressFloor));
+    }
     const cfg = PHASE_PROGRESS[this.phase];
     let fraction = cfg.base;
     if (animated && this.phase === 'summarizing') {
@@ -296,12 +338,17 @@ export class CompactionComponent extends Container {
     let label: string;
     switch (kind) {
       case 'block': {
+        const completed = this.streamMeta.blocksCompleted;
         const index = this.streamMeta.blockIndex;
         const count = this.streamMeta.blockCount;
-        label =
-          index !== undefined && count !== undefined
-            ? `block ${String(index)}/${String(count)}`
-            : 'blocks';
+        if (completed !== undefined && count !== undefined) {
+          // Prefer completed/total — more accurate than "currently streaming" index.
+          label = `block ${String(completed)}/${String(count)}`;
+        } else if (index !== undefined && count !== undefined) {
+          label = `block ${String(index)}/${String(count)}`;
+        } else {
+          label = 'blocks';
+        }
         break;
       }
       case 'merge':

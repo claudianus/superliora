@@ -154,7 +154,18 @@ const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 12_000;
 const DEFAULT_PARALLEL_BLOCK_TARGET = 6_000;
 /** Cap concurrent block LLM calls so parallel compaction cannot exhaust RPS (e.g. xAI 18/s). */
 const DEFAULT_PARALLEL_BLOCK_CONCURRENCY = 2;
+/** Hard ceiling for adaptive concurrency — providers rarely sustain more than this. */
+const MAX_PARALLEL_BLOCK_CONCURRENCY = 8;
 const PARALLEL_BLOCK_RATE_LIMIT_RETRIES = 4;
+/** Env override for initial parallel block concurrency (clamped 1..MAX). */
+const PARALLEL_CONCURRENCY_ENV = 'SUPERLIORA_COMPACTION_PARALLEL_CONCURRENCY';
+
+/** Progress weights within one compaction round (sum ≈ 1). */
+const PROGRESS_WEIGHT_PLAN = 0.05;
+const PROGRESS_WEIGHT_BLOCKS = 0.55;
+const PROGRESS_WEIGHT_MERGE = 0.15;
+const PROGRESS_WEIGHT_REPAIR = 0.15;
+const PROGRESS_WEIGHT_FINALIZE = 0.1;
 const OVERFLOW_CONTEXT_SAFETY_RATIO = 0.85;
 const OVERFLOW_STATUS_RECOVERY_RATIO = 0.5;
 /**
@@ -834,7 +845,11 @@ export class FullCompaction {
         estimateTokensForMessages(messagesToCompact),
       );
       // Volatile phase signal so live clients can render phase-aware progress.
-      this.agent.emitEvent({ type: 'compaction.progress', phase: 'summarizing' });
+      this.emitCompactionProgress({
+        phase: 'summarizing',
+        streamKind: 'summary',
+        fraction: PROGRESS_WEIGHT_PLAN,
+      });
       const summarized = await this.summarizeCompactedPrefix({
         signal,
         provider,
@@ -863,7 +878,11 @@ export class FullCompaction {
       }
 
       // Volatile phase signal: summary validation / repair begins.
-      this.agent.emitEvent({ type: 'compaction.progress', phase: 'repairing' });
+      this.emitCompactionProgress({
+        phase: 'repairing',
+        streamKind: 'repair',
+        fraction: this.fractionForMergeDone(),
+      });
       const initialQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
       let quality: CompactionQualityResult = initialQuality;
       if (initialQuality.critical.length > 0 && !usedEmergencyBackstop) {
@@ -1026,7 +1045,10 @@ export class FullCompaction {
       }
 
       // Volatile phase signal: assembly / context rebuild begins.
-      this.agent.emitEvent({ type: 'compaction.progress', phase: 'finalizing' });
+      this.emitCompactionProgress({
+        phase: 'finalizing',
+        fraction: this.fractionForFinalizing(),
+      });
       const result = this.assembleCompactionResult({
         summary,
         contextSummary,
@@ -1224,6 +1246,8 @@ export class FullCompaction {
     readonly streamKind: 'summary' | 'block' | 'merge' | 'repair';
     readonly blockIndex?: number;
     readonly blockCount?: number;
+    readonly blocksCompleted?: number;
+    readonly fraction?: number;
   }): {
     readonly onMessagePart: (part: {
       readonly type: string;
@@ -1241,10 +1265,77 @@ export class FullCompaction {
           streamKind: meta.streamKind,
           blockIndex: meta.blockIndex,
           blockCount: meta.blockCount,
+          blocksCompleted: meta.blocksCompleted,
+          fraction: meta.fraction,
           delta: text,
         });
       },
     };
+  }
+
+  /** Emit a non-stream progress tick (phase / block completion / fraction). */
+  private emitCompactionProgress(meta: {
+    readonly phase: 'summarizing' | 'repairing' | 'finalizing';
+    readonly streamKind?: 'summary' | 'block' | 'merge' | 'repair';
+    readonly blockIndex?: number;
+    readonly blockCount?: number;
+    readonly blocksCompleted?: number;
+    readonly fraction?: number;
+  }): void {
+    this.agent.emitEvent({
+      type: 'compaction.progress',
+      phase: meta.phase,
+      streamKind: meta.streamKind,
+      blockIndex: meta.blockIndex,
+      blockCount: meta.blockCount,
+      blocksCompleted: meta.blocksCompleted,
+      fraction: meta.fraction,
+    });
+  }
+
+  /**
+   * Map parallel-block completion into the summarizing band of overall progress.
+   * plan(5%) + blocks(55% * done/N) — merge/repair/finalize advance later.
+   */
+  private fractionForBlocksCompleted(blocksCompleted: number, blockCount: number): number {
+    if (blockCount <= 0) return PROGRESS_WEIGHT_PLAN;
+    const done = Math.max(0, Math.min(blocksCompleted, blockCount));
+    return PROGRESS_WEIGHT_PLAN + PROGRESS_WEIGHT_BLOCKS * (done / blockCount);
+  }
+
+  private fractionForMergeStart(blockCount: number): number {
+    return this.fractionForBlocksCompleted(blockCount, blockCount);
+  }
+
+  private fractionForMergeDone(): number {
+    return PROGRESS_WEIGHT_PLAN + PROGRESS_WEIGHT_BLOCKS + PROGRESS_WEIGHT_MERGE;
+  }
+
+  private fractionForRepairDone(): number {
+    return this.fractionForMergeDone() + PROGRESS_WEIGHT_REPAIR;
+  }
+
+  private fractionForFinalizing(): number {
+    return this.fractionForRepairDone() + PROGRESS_WEIGHT_FINALIZE * 0.5;
+  }
+
+  /**
+   * Resolve initial parallel concurrency: config > env > default(2), clamped.
+   * Adaptive controller may raise toward MAX on clean successes and drop on 429.
+   */
+  private resolveParallelBlockConcurrency(blockCount: number): number {
+    const fromConfig = this.strategy.parallelBlockConcurrency ?? 0;
+    const fromEnv = parseEnvConcurrency(process.env[PARALLEL_CONCURRENCY_ENV]);
+    const requested =
+      fromConfig > 0 ? fromConfig : fromEnv > 0 ? fromEnv : DEFAULT_PARALLEL_BLOCK_CONCURRENCY;
+    // Scale slightly with block count: 2 blocks → 2; many blocks → up to max.
+    const scaled =
+      blockCount <= 2
+        ? Math.min(requested, 2)
+        : blockCount <= 4
+          ? Math.min(requested, 3)
+          : Math.min(requested, MAX_PARALLEL_BLOCK_CONCURRENCY);
+    return Math.max(1, Math.min(MAX_PARALLEL_BLOCK_CONCURRENCY, scaled, blockCount));
   }
 
 
@@ -1725,6 +1816,7 @@ export class FullCompaction {
     readonly messages: Message[];
     readonly streamCallbacks: ReturnType<FullCompaction['compactionStreamCallbacks']>;
     readonly retryCountRef: { value: number };
+    readonly onRateLimit?: () => void;
   }): Promise<Awaited<ReturnType<Agent['generate']>>> {
     const delays = retryBackoffDelays(PARALLEL_BLOCK_RATE_LIMIT_RETRIES);
     let attempt = 0;
@@ -1739,6 +1831,9 @@ export class FullCompaction {
           this.compactionGenerateOptions(input.signal),
         );
       } catch (error) {
+        if (isRateLimitLikeError(error)) {
+          input.onRateLimit?.();
+        }
         if (!isRetryableGenerateError(error) || attempt + 1 >= PARALLEL_BLOCK_RATE_LIMIT_RETRIES) {
           throw error;
         }
@@ -1776,33 +1871,68 @@ export class FullCompaction {
       ),
     });
     const blockCount = orderedBlocks.length;
+    const initialConcurrency = this.resolveParallelBlockConcurrency(blockCount);
+    const limiter = new AdaptiveConcurrencyLimiter(initialConcurrency);
+    let blocksCompleted = 0;
+
+    this.emitCompactionProgress({
+      phase: 'summarizing',
+      streamKind: 'block',
+      blockIndex: 0,
+      blockCount,
+      blocksCompleted: 0,
+      fraction: this.fractionForBlocksCompleted(0, blockCount),
+    });
+
     const blockResults = await mapWithConcurrency(
       orderedBlocks,
-      DEFAULT_PARALLEL_BLOCK_CONCURRENCY,
+      limiter,
       async (block, index) => {
         const messages = [
           ...this.agent.context.projectForCompaction(block),
           createUserMessage(blockPrompt),
         ];
-        const response = await this.generateCompactionBlockWithRetry({
-          signal,
-          provider,
-          messages,
-          streamCallbacks: this.compactionStreamCallbacks({
+        try {
+          const response = await this.generateCompactionBlockWithRetry({
+            signal,
+            provider,
+            messages,
+            streamCallbacks: this.compactionStreamCallbacks({
+              phase: 'summarizing',
+              streamKind: 'block',
+              blockIndex: index + 1,
+              blockCount,
+              blocksCompleted,
+              fraction: this.fractionForBlocksCompleted(blocksCompleted, blockCount),
+            }),
+            retryCountRef,
+            onRateLimit: () => {
+              limiter.noteRateLimit();
+            },
+          });
+          if (response.finishReason === 'truncated') {
+            throw new CompactionTruncatedError();
+          }
+          limiter.noteSuccess();
+          blocksCompleted += 1;
+          this.emitCompactionProgress({
             phase: 'summarizing',
             streamKind: 'block',
             blockIndex: index + 1,
             blockCount,
-          }),
-          retryCountRef,
-        });
-        if (response.finishReason === 'truncated') {
-          throw new CompactionTruncatedError();
+            blocksCompleted,
+            fraction: this.fractionForBlocksCompleted(blocksCompleted, blockCount),
+          });
+          return {
+            summary: extractCompactionSummary(response),
+            usage: response.usage,
+          };
+        } catch (error) {
+          if (isRateLimitLikeError(error)) {
+            limiter.noteRateLimit();
+          }
+          throw error;
         }
-        return {
-          summary: extractCompactionSummary(response),
-          usage: response.usage,
-        };
       },
     );
     const usage = blockResults.reduce<TokenUsage | null>(
@@ -1810,6 +1940,13 @@ export class FullCompaction {
         result.usage === null ? current : mergeTokenUsage(current, result.usage),
       null,
     );
+    this.emitCompactionProgress({
+      phase: 'summarizing',
+      streamKind: 'merge',
+      blockCount,
+      blocksCompleted: blockCount,
+      fraction: this.fractionForMergeStart(blockCount),
+    });
     const mergeResult = await this.mergeBlockSummaries(
       signal,
       provider,
@@ -1818,6 +1955,13 @@ export class FullCompaction {
       instruction,
       retryCountRef,
     );
+    this.emitCompactionProgress({
+      phase: 'summarizing',
+      streamKind: 'merge',
+      blockCount,
+      blocksCompleted: blockCount,
+      fraction: this.fractionForMergeDone(),
+    });
     return {
       summary: mergeResult.summary,
       usage: mergeTokenUsageOrNull(usage, mergeResult.usage),
@@ -2258,32 +2402,127 @@ export class FullCompaction {
 }
 
 /**
- * Run async work over items with a fixed concurrency limit.
- * Used so parallel compaction cannot open N simultaneous LLM calls (rate-limit storms).
+ * Run async work with a fixed or adaptive concurrency limit.
+ * Adaptive path polls the limiter so 429s can shrink in-flight fan-out without
+ * restarting the whole parallel summarize pass.
  */
 async function mapWithConcurrency<T, R>(
   items: readonly T[],
-  concurrency: number,
+  concurrency: number | AdaptiveConcurrencyLimiter,
   worker: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
-  const limit = Math.max(1, Math.min(concurrency, items.length || 1));
+  if (items.length === 0) return [];
   const results: R[] = new Array(items.length);
   let nextIndex = 0;
+  let active = 0;
+  let settled = 0;
+  let fatal: unknown;
+  let wake: (() => void) | undefined;
 
-  async function runWorker(): Promise<void> {
-    while (true) {
+  const notify = (): void => {
+    wake?.();
+    wake = undefined;
+  };
+
+  const waitSlot = async (): Promise<void> => {
+    await new Promise<void>((resolve) => {
+      wake = resolve;
+    });
+  };
+
+  const currentLimit = (): number => {
+    if (typeof concurrency === 'number') {
+      return Math.max(1, Math.min(concurrency, items.length));
+    }
+    return Math.max(1, Math.min(concurrency.limit, items.length));
+  };
+
+  const runners: Promise<void>[] = [];
+
+  const launch = (index: number, item: T): void => {
+    active += 1;
+    const run = (async () => {
+      try {
+        if (fatal !== undefined) return;
+        results[index] = await worker(item, index);
+      } catch (error) {
+        if (fatal === undefined) fatal = error;
+      } finally {
+        active -= 1;
+        settled += 1;
+        notify();
+      }
+    })();
+    runners.push(run);
+  };
+
+  while (settled < items.length) {
+    if (fatal !== undefined) break;
+    while (active < currentLimit() && nextIndex < items.length && fatal === undefined) {
       const index = nextIndex;
       nextIndex += 1;
-      if (index >= items.length) return;
       const item = items[index];
-      if (item === undefined) return;
-      results[index] = await worker(item, index);
+      if (item === undefined) break;
+      launch(index, item);
+    }
+    if (settled >= items.length || fatal !== undefined) break;
+    if (active >= currentLimit() || nextIndex >= items.length) {
+      await waitSlot();
     }
   }
 
-  const runners = Array.from({ length: Math.min(limit, items.length) }, () => runWorker());
   await Promise.all(runners);
+  if (fatal !== undefined) {
+    // oxlint-disable-next-line typescript-eslint/only-throw-error
+    throw fatal;
+  }
   return results;
+}
+
+/**
+ * Adaptive concurrency controller for parallel block summarize.
+ * Starts at `initial`, drops on rate-limit, gently climbs after clean successes.
+ */
+class AdaptiveConcurrencyLimiter {
+  private current: number;
+  private successesSinceRaise = 0;
+
+  constructor(initial: number) {
+    this.current = Math.max(1, Math.min(MAX_PARALLEL_BLOCK_CONCURRENCY, initial));
+  }
+
+  get limit(): number {
+    return this.current;
+  }
+
+  noteSuccess(): void {
+    this.successesSinceRaise += 1;
+    // Raise only after a short clean streak so we do not thrash the limit.
+    if (this.successesSinceRaise >= 2 && this.current < MAX_PARALLEL_BLOCK_CONCURRENCY) {
+      this.current += 1;
+      this.successesSinceRaise = 0;
+    }
+  }
+
+  noteRateLimit(): void {
+    this.successesSinceRaise = 0;
+    this.current = Math.max(1, Math.floor(this.current / 2));
+  }
+}
+
+function parseEnvConcurrency(raw: string | undefined): number {
+  if (raw === undefined || raw.trim().length === 0) return 0;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(MAX_PARALLEL_BLOCK_CONCURRENCY, n);
+}
+
+function isRateLimitLikeError(error: unknown): boolean {
+  if (error instanceof APIStatusError && error.statusCode === 429) return true;
+  if (error instanceof Error && /rate.?limit|too many requests|429/i.test(error.message)) {
+    return true;
+  }
+  return false;
 }
 
 function isCompactionSummarizerError(error: unknown): boolean {
