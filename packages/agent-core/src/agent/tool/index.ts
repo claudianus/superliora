@@ -568,12 +568,23 @@ export class ToolManager {
         (modelCapabilities.image_in || modelCapabilities.video_in) &&
         new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
       this.shouldCreateBuiltin('GenerateImage') &&
-        b.isGenerateImageAvailable() &&
-        new b.GenerateImageTool(kaos, workspace),
+        b.isGenerateImageAvailable(this.resolveMediaProviderEnv()) &&
+        new b.GenerateImageTool(kaos, workspace, this.resolveMediaProviderEnv()),
       this.shouldCreateBuiltin('GenerateVideo') &&
-        b.isGenerateVideoAvailable() &&
-        new b.GenerateVideoTool(kaos, workspace),
+        b.isGenerateVideoAvailable(this.resolveMediaProviderEnv()) &&
+        new b.GenerateVideoTool(kaos, workspace, this.resolveMediaProviderEnv()),
     ];
+  }
+
+  private resolveMediaProviderEnv(): b.GenerateImageProviderEnv & b.GenerateVideoProviderEnv {
+    const services = this.agent.toolServices;
+    return {
+      xaiGrokBuild: services?.xaiGrokBuild,
+      xaiApiKey: nonEmptyEnv('XAI_API_KEY'),
+      openaiApiKey: nonEmptyEnv('OPENAI_API_KEY'),
+      googleApiKey: nonEmptyEnv('GOOGLE_API_KEY') ?? nonEmptyEnv('GEMINI_API_KEY'),
+      qwenTokenPlanApiKey: nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY'),
+    };
   }
 
   private createPlanningGoalAndStateTools(
@@ -755,4 +766,9 @@ export class ToolManager {
       )
       .filter((tool) => !!tool);
   }
+}
+
+function nonEmptyEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value !== undefined && value.length > 0 ? value : undefined;
 }

@@ -33,6 +33,7 @@ import {
   type StreamedMessagePart,
   type TokenUsage,
 } from '@superliora/kosong';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
 
 import type { ModelRoutingStrategy } from '../../config';
 import { ErrorCodes, LioraError, isKimiError } from '../../errors';
@@ -264,7 +265,33 @@ export class KosongLLM implements LLM {
         if (index === orderedCandidates.length - 1) {
           throw error;
         }
-        const next = orderedCandidates[index + 1]!;
+                const next = orderedCandidates[index + 1]!;
+        if (failure.kind === 'auth') {
+          sharedCredentialHealthStore.markAuthRejected(candidate.providerName, {
+            credentialKey: candidate.credentialLabel,
+            failureReason:
+              error instanceof Error ? error.message : 'provider auth failure',
+            cooldownMs: failure.cooldownMs,
+          });
+        }
+        this.log?.warn('provider_route_switch', {
+          event: 'provider_route_switch',
+          route: route.key,
+          from: {
+            model: candidate.modelAlias,
+            provider: candidate.providerName,
+            credential: candidate.credentialLabel,
+          },
+          to: {
+            model: next.modelAlias,
+            provider: next.providerName,
+            credential: next.credentialLabel,
+          },
+          reason: failure.kind,
+          cooldownMs: failure.cooldownMs,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          statusCode: maybeStatusCode(error),
+        });
         this.log?.warn('llm route candidate failed; trying fallback', {
           route: route.key,
           failedModel: candidate.modelAlias,

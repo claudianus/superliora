@@ -1,8 +1,10 @@
 import { strict as assert } from 'node:assert';
+import { CredentialHealthStore } from '@superliora/oauth';
 import { describe, test } from 'node:test';
 
 import {
   autoAssignRoleModels,
+  autoAssignRoleModelsWithHealth,
   buildFallbackChain,
   classifyModelTier,
   isAuthOrCreditFailure,
@@ -265,5 +267,27 @@ describe('model-presets — assignment includes cost info', () => {
     ];
     const assignments = autoAssignRoleModels(models);
     assert.ok(assignments.compaction!.reason.includes('$0.25'));
+  });
+});
+
+describe('model-presets — autoAssignRoleModelsWithHealth', () => {
+  test('skips auth-rejected providers when annotating availability', () => {
+    const store = new CredentialHealthStore(new Map());
+    store.markAuthRejected('xai-grok', { failureReason: 'rejected' });
+    const assignments = autoAssignRoleModelsWithHealth(
+      [
+        { id: 'grok-4.5', alias: 'grok', provider: 'xai-grok', tier: 'high' },
+        { id: 'gpt-4.1', alias: 'gpt', provider: 'openai', tier: 'balanced' },
+      ],
+      {
+        hasCredential: (id) => id === 'openai' || id === 'xai-grok',
+        store,
+      },
+    );
+    for (const assignment of Object.values(assignments)) {
+      if (assignment === undefined) continue;
+      assert.notEqual(assignment.modelAlias ?? assignment.modelId, 'grok');
+      assert.notEqual(assignment.modelId, 'grok-4.5');
+    }
   });
 });

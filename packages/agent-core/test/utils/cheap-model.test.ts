@@ -1,58 +1,80 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveSubagentModelAlias } from '../../src/utils/cheap-model';
-
-const modelsWithCheap = {
-  'main-model': { model: 'main-model' },
-  'cheap-haiku': { model: 'cheap-haiku' },
-};
-
-const modelsWithoutCheap = {
-  'main-model': { model: 'main-model' },
-  'large-model': { model: 'large-model' },
-};
+import {
+  inferCheapModelAliasSync,
+  resolveSubagentModelAlias,
+} from '../../src/utils/cheap-model';
 
 describe('resolveSubagentModelAlias', () => {
-  it('routes explore subagents to the cheap model when one is configured', () => {
-    expect(resolveSubagentModelAlias('explore', undefined, 'main-model', modelsWithCheap)).toBe(
-      'cheap-haiku',
-    );
-  });
+  const models = {
+    'kimi-k2.5': { model: 'kimi-k2.5', provider: 'kimi' },
+    'gemini-2.5-flash-lite': { model: 'gemini-2.5-flash-lite', provider: 'google' },
+  };
 
-  it('routes expert profiles based on explore by their base name', () => {
+  it('returns parent model for non-explore profiles', () => {
     expect(
-      resolveSubagentModelAlias('code-reviewer', 'explore', 'main-model', modelsWithCheap),
-    ).toBe('cheap-haiku');
+      resolveSubagentModelAlias('coder', undefined, 'kimi-k2.5', models, 'gemini-2.5-flash-lite'),
+    ).toBe('kimi-k2.5');
   });
 
-  it('falls back to the parent model when no cheap model is configured', () => {
-    expect(resolveSubagentModelAlias('explore', undefined, 'main-model', modelsWithoutCheap)).toBe(
-      'main-model',
-    );
-    expect(resolveSubagentModelAlias('explore', undefined, 'main-model', undefined)).toBe(
-      'main-model',
-    );
-  });
-
-  it('keeps the parent model for non-explore profiles even when a cheap model exists', () => {
-    expect(resolveSubagentModelAlias('coder', undefined, 'main-model', modelsWithCheap)).toBe(
-      'main-model',
-    );
-    expect(resolveSubagentModelAlias('plan', undefined, 'main-model', modelsWithCheap)).toBe(
-      'main-model',
-    );
-    expect(resolveSubagentModelAlias('agent', undefined, 'main-model', modelsWithCheap)).toBe(
-      'main-model',
-    );
-  });
-
-  it('prefers an explicit explorationModel over the inferred cheap model', () => {
+  it('prefers explicit explorationModel for explore profiles', () => {
     expect(
-      resolveSubagentModelAlias('explore', undefined, 'main-model', modelsWithCheap, 'my-explorer'),
-    ).toBe('my-explorer');
-    // An explicit explorationModel only applies to explore profiles.
+      resolveSubagentModelAlias(
+        'explore',
+        undefined,
+        'kimi-k2.5',
+        models,
+        'gemini-2.5-flash-lite',
+      ),
+    ).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('falls back to inferred cheap model when explorationModel is unset', () => {
+    expect(resolveSubagentModelAlias('explore', undefined, 'kimi-k2.5', models)).toBe(
+      'gemini-2.5-flash-lite',
+    );
+  });
+
+  it('falls back to parent model when no cheap model can be inferred', () => {
     expect(
-      resolveSubagentModelAlias('coder', undefined, 'main-model', modelsWithCheap, 'my-explorer'),
-    ).toBe('main-model');
+      resolveSubagentModelAlias('explore', undefined, 'kimi-k2.5', {
+        'kimi-k2.5': { model: 'kimi-k2.5' },
+      }),
+    ).toBe('kimi-k2.5');
+  });
+
+  it('treats profileBaseName explore as explore even when name differs', () => {
+    expect(
+      resolveSubagentModelAlias(
+        'custom-scout',
+        'explore',
+        'kimi-k2.5',
+        models,
+        'gemini-2.5-flash-lite',
+      ),
+    ).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('skips unhealthy explorationModel and cheap aliases', () => {
+    const unhealthy = new Set(['gemini-2.5-flash-lite']);
+    expect(
+      resolveSubagentModelAlias(
+        'explore',
+        undefined,
+        'kimi-k2.5',
+        models,
+        'gemini-2.5-flash-lite',
+        {
+          isAliasHealthy: (alias) => !unhealthy.has(alias),
+        },
+      ),
+    ).toBe('kimi-k2.5');
+  });
+
+  it('inferCheapModelAliasSync skips unhealthy aliases', () => {
+    expect(
+      inferCheapModelAliasSync(models, (alias) => alias !== 'gemini-2.5-flash-lite'),
+    ).toBeUndefined();
+    expect(inferCheapModelAliasSync(models)).toBe('gemini-2.5-flash-lite');
   });
 });

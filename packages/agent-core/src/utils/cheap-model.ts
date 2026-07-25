@@ -19,7 +19,8 @@ const CHEAP_MODEL_PATTERNS: ReadonlyArray<{ pattern: string; score: number }> = 
  * their default (usually the main) model.
  */
 export function inferCheapModelAliasSync(
-  models: Record<string, { model: string }> | undefined,
+  models: Record<string, { model: string; provider?: string }> | undefined,
+  isAliasHealthy?: (alias: string) => boolean,
 ): string | undefined {
   if (models === undefined) return undefined;
 
@@ -27,6 +28,7 @@ export function inferCheapModelAliasSync(
   let bestScore = Number.POSITIVE_INFINITY;
 
   for (const [alias, config] of Object.entries(models)) {
+    if (isAliasHealthy !== undefined && !isAliasHealthy(alias)) continue;
     const haystack = `${alias} ${config.model}`.toLowerCase();
     for (const { pattern, score } of CHEAP_MODEL_PATTERNS) {
       if (haystack.includes(pattern) && score < bestScore) {
@@ -53,14 +55,30 @@ export function resolveSubagentModelAlias(
   profileName: string | undefined,
   profileBaseName: string | undefined,
   parentModelAlias: string | undefined,
-  models: Record<string, { model: string }> | undefined,
+  models: Record<string, { model: string; provider?: string }> | undefined,
   explorationModel?: string | undefined,
+  options?: {
+    /** Return false when the alias's provider credential is known-unhealthy. */
+    readonly isAliasHealthy?: (alias: string) => boolean;
+  },
 ): string | undefined {
   if (parentModelAlias === undefined) return undefined;
   if (!isExploreSubagentProfile(profileName, profileBaseName)) return parentModelAlias;
+
+  const healthy = options?.isAliasHealthy;
+  const pickIfHealthy = (alias: string | undefined): string | undefined => {
+    if (alias === undefined) return undefined;
+    if (healthy === undefined) return alias;
+    return healthy(alias) ? alias : undefined;
+  };
+
   // Explicit explorationModel wins, then an auto-inferred cheap model, then the
-  // parent model — mirrors the compactionModel/completionModel override pattern.
-  return explorationModel ?? inferCheapModelAliasSync(models) ?? parentModelAlias;
+  // parent model — skip aliases whose credentials are marked unhealthy.
+  return (
+    pickIfHealthy(explorationModel) ??
+    pickIfHealthy(inferCheapModelAliasSync(models, healthy)) ??
+    parentModelAlias
+  );
 }
 
 /**

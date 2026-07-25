@@ -62,9 +62,11 @@ export const GenerateVideoInputSchema = z.object({
     .optional()
     .describe('Output resolution (Qwen Cloud only). Defaults to 720P.'),
   provider: z
-    .enum(['auto', 'google', 'qwen'])
+    .enum(['auto', 'xai', 'google', 'qwen'])
     .optional()
-    .describe('Force a provider. Default auto picks the first available key (qwen → google).'),
+    .describe(
+      'Force a provider. Default auto picks the first available (xai Grok Build → qwen → google).',
+    ),
 });
 
 export type GenerateVideoInput = z.infer<typeof GenerateVideoInputSchema>;
@@ -72,24 +74,33 @@ export type GenerateVideoInput = z.infer<typeof GenerateVideoInputSchema>;
 export interface GenerateVideoProviderEnv {
   readonly googleApiKey?: string;
   readonly qwenTokenPlanApiKey?: string;
+  readonly xaiApiKey?: string;
+  readonly xaiGrokBuild?: import('../../providers/xai-grok-build').XaiGrokBuildClient;
   readonly fetchImpl?: typeof fetch;
 }
 
+export type VideoGenerationProvider = 'xai' | 'google' | 'qwen';
+
 export function isGenerateVideoAvailable(env: GenerateVideoProviderEnv = {}): boolean {
-  const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
-  const google = nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']);
-  return qwen !== undefined || google !== undefined;
+  return resolveVideoProvider('auto', env) !== undefined;
 }
 
 function resolveVideoProvider(
-  preferred: 'auto' | 'google' | 'qwen' | undefined,
+  preferred: 'auto' | VideoGenerationProvider | undefined,
   env: GenerateVideoProviderEnv = {},
-): 'google' | 'qwen' | undefined {
+): VideoGenerationProvider | undefined {
+  const xaiReady =
+    env.xaiGrokBuild !== undefined ||
+    nonEmpty(env.xaiApiKey ?? process.env['XAI_API_KEY']) !== undefined;
   const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
-  const google = nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']);
+  const google = nonEmpty(
+    env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
+  );
+  if (preferred === 'xai') return xaiReady ? 'xai' : undefined;
   if (preferred === 'qwen') return qwen !== undefined ? 'qwen' : undefined;
   if (preferred === 'google') return google !== undefined ? 'google' : undefined;
-  // Auto priority: qwen (Token Plan credits) → google
+  // Auto priority: xAI Grok Build subscription → qwen → google
+  if (xaiReady) return 'xai';
   if (qwen !== undefined) return 'qwen';
   if (google !== undefined) return 'google';
   return undefined;
@@ -138,7 +149,7 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
       return {
         isError: true,
         output:
-          'No video-generation provider key found. Set QWEN_TOKEN_PLAN_API_KEY or GOOGLE_API_KEY / GEMINI_API_KEY (no MCP setup), then retry. Check readiness with /status.',
+          'No video-generation provider found. Sign in with xAI Grok (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.',
       };
     }
 
@@ -149,9 +160,11 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
 
     try {
       const generated =
-        provider === 'qwen'
-          ? await generateWithQwenVideo(args, this.kaos, this.workspace, this.env)
-          : await generateWithGeminiOmni(args, this.kaos, this.workspace, this.env);
+        provider === 'xai'
+          ? await generateWithXaiVideo(args, this.kaos, this.workspace, this.env)
+          : provider === 'qwen'
+            ? await generateWithQwenVideo(args, this.kaos, this.workspace, this.env)
+            : await generateWithGeminiOmni(args, this.kaos, this.workspace, this.env);
       await this.kaos.writeBytes(safePath, generated.bytes);
       return {
         output: [
@@ -209,6 +222,73 @@ const QWEN_TASK_URL =
   'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/tasks';
 const QWEN_VIDEO_POLL_INTERVAL_MS = 15_000;
 const QWEN_VIDEO_MAX_POLL_ATTEMPTS = 40; // 10 minutes max
+
+async function generateWithXaiVideo(
+  args: GenerateVideoInput,
+  kaos: Kaos,
+  workspace: WorkspaceConfig,
+  env: GenerateVideoProviderEnv,
+): Promise<GeneratedVideo> {
+  const { createXaiGrokBuildClientFromEnv } = await import('../../providers/xai-grok-build');
+  const client =
+    env.xaiGrokBuild ??
+    createXaiGrokBuildClientFromEnv({
+      apiKey: env.xaiApiKey,
+      fetchImpl: env.fetchImpl,
+    });
+  if (client === undefined) {
+    throw new Error('xAI Grok credentials are not available for video generation.');
+  }
+
+  let imageUrl: string | undefined;
+  if (args.image_path !== undefined && args.image_path.trim().length > 0) {
+    imageUrl = await readWorkspaceImageAsDataUrl(args.image_path, kaos, workspace);
+  }
+  const referenceImageUrls: string[] = [];
+  if (args.reference_image_paths !== undefined) {
+    for (const ref of args.reference_image_paths.slice(0, 7)) {
+      referenceImageUrls.push(await readWorkspaceImageAsDataUrl(ref, kaos, workspace));
+    }
+  }
+
+  const result = await client.generateVideo({
+    prompt: args.prompt,
+    durationSeconds: args.duration_seconds,
+    aspectRatio: args.aspect_ratio,
+    resolution: args.resolution === '1080P' ? '720p' : args.resolution === '720P' ? '720p' : '480p',
+    imageUrl,
+    referenceImageUrls: referenceImageUrls.length > 0 ? referenceImageUrls : undefined,
+    quality: false,
+  });
+  return {
+    bytes: result.bytes,
+    mimeType: result.mimeType,
+    model: result.model,
+  };
+}
+
+async function readWorkspaceImageAsDataUrl(
+  imagePath: string,
+  kaos: Kaos,
+  workspace: WorkspaceConfig,
+): Promise<string> {
+  const resolved = resolvePathAccessPath(imagePath, {
+    kaos,
+    workspace,
+    operation: 'read',
+  });
+  const bytes = await kaos.readBytes(resolved);
+  const lower = imagePath.toLowerCase();
+  const mime =
+    lower.endsWith('.png')
+      ? 'image/png'
+      : lower.endsWith('.webp')
+        ? 'image/webp'
+        : lower.endsWith('.gif')
+          ? 'image/gif'
+          : 'image/jpeg';
+  return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`;
+}
 
 async function generateWithQwenVideo(
   args: GenerateVideoInput,

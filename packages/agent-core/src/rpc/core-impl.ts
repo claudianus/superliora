@@ -11,6 +11,12 @@ import { LocalWebSearchProvider } from '#/tools/providers/local-web-search';
 import { MoonshotFetchURLProvider } from '#/tools/providers/moonshot-fetch-url';
 import { ResearchSearchEngine } from '#/tools/providers/research-search';
 import {
+  PreferXaiGrokWebSearchProvider,
+  XaiGrokBuildClient,
+  XaiGrokWebSearchProvider,
+  createXaiGrokBuildClientFromEnv,
+} from '#/tools/providers/xai-grok-build';
+import {
   createContext7Provider,
   isContext7Enabled,
   readContext7ApiKeyFromConfig,
@@ -155,7 +161,15 @@ import type {
 } from './core-api';
 import type { ResumedAgentState, ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
-import { SUPERLIORA_PROVIDER_NAME } from '@superliora/oauth';
+import {
+  SUPERLIORA_PROVIDER_NAME,
+  XAI_PROFILE,
+  XAI_GROK_BUILD_BASE_URL,
+  isXaiGrokBuildBaseUrl,
+  resolveXaiGrokRoute,
+  xaiGrokBuildRequestHeaders,
+  xaiGrokRouteConfig,
+} from '@superliora/oauth';
 import type { SessionWarning } from '@superliora/protocol';
 import { proxyWithExtraPayload } from './types';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
@@ -1403,6 +1417,20 @@ async function createRuntimeConfig(input: {
                 },
         });
 
+  const xaiGrokBuild = resolveXaiGrokBuildClient(
+    input.config,
+    input.resolveOAuthTokenProvider,
+  );
+  const xaiWebSearcher =
+    xaiGrokBuild === undefined ? undefined : new XaiGrokWebSearchProvider(xaiGrokBuild);
+  const fallbackSearcher = researchSearcher ?? localSearcher;
+  const webSearcher =
+    xaiWebSearcher === undefined
+      ? fallbackSearcher
+      : fallbackSearcher === undefined
+        ? xaiWebSearcher
+        : new PreferXaiGrokWebSearchProvider(xaiWebSearcher, fallbackSearcher);
+
   return {
     urlFetcher:
       fetchService?.baseUrl === undefined
@@ -1413,7 +1441,8 @@ async function createRuntimeConfig(input: {
             defaultHeaders: input.kimiRequestHeaders,
             ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
           }),
-    webSearcher: researchSearcher ?? localSearcher,
+    webSearcher,
+    xaiGrokBuild,
     browserUse:
       input.config.browserUse?.enabled === false
         ? undefined
@@ -1444,6 +1473,55 @@ async function createRuntimeConfig(input: {
 
 function hasStatefulGuiRuntime(config: LioraConfig): boolean {
   return config.browserUse?.enabled !== false || config.computerUse?.enabled !== false;
+}
+
+
+function resolveXaiGrokBuildClient(
+  config: LioraConfig,
+  resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
+): XaiGrokBuildClient | undefined {
+  const provider =
+    config.providers['xai-grok'] ??
+    config.providers[XAI_PROFILE.id] ??
+    undefined;
+
+  const envKey = nonEmptyString(process.env['XAI_API_KEY']);
+  const configKey = provider === undefined ? undefined : nonEmptyString(provider.apiKey);
+  const apiKey = configKey ?? envKey;
+
+  const oauthRef =
+    provider?.oauth ??
+    (provider?.oauths !== undefined && provider.oauths.length > 0
+      ? provider.oauths[0]
+      : undefined);
+  const tokenProvider =
+    oauthRef === undefined
+      ? undefined
+      : resolveOAuthTokenProvider?.('xai-grok', oauthRef) ??
+        resolveOAuthTokenProvider?.(XAI_PROFILE.id, oauthRef);
+
+  if (apiKey === undefined && tokenProvider === undefined) {
+    // Still allow env-only client construction for CI/scripts.
+    return createXaiGrokBuildClientFromEnv();
+  }
+
+  const configuredBaseUrl =
+    nonEmptyString(provider?.baseUrl) ?? nonEmptyString(process.env['XAI_BASE_URL']);
+  const routeKind = resolveXaiGrokRoute(configuredBaseUrl);
+  const route = xaiGrokRouteConfig(routeKind);
+  const baseUrl = configuredBaseUrl ?? route.baseUrl;
+  const customHeaders = {
+    ...(provider?.customHeaders ?? {}),
+    ...(route.customHeaders ?? {}),
+    ...(isXaiGrokBuildBaseUrl(baseUrl) ? xaiGrokBuildRequestHeaders() : {}),
+  };
+
+  return new XaiGrokBuildClient({
+    baseUrl,
+    apiKey,
+    tokenProvider,
+    customHeaders,
+  });
 }
 
 function serviceCredentials(

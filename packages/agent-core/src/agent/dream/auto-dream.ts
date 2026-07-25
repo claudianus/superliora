@@ -3,6 +3,7 @@ import { createProvider, type ChatProvider, type GenerateResult, type Message } 
 import type { Agent } from '../index';
 import type { LioraRecallStore } from '../../memory/store';
 import type { MemoryRecord } from '../../memory/types';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
 
 const DEFAULT_MIN_HOURS_SINCE_LAST_DREAM = 4;
 const DEFAULT_MIN_ACTIVE_RECORDS = 8;
@@ -107,8 +108,22 @@ export class AutoDreamService {
   }
   private resolveProvider(): ChatProvider {
     const alias = this.agent.kimiConfig?.loopControl?.compactionModel;
-    const resolved = alias ? this.agent.modelProvider?.resolveProviderConfig(alias) : undefined;
-    return (resolved ? createProvider(resolved.provider) : this.agent.config.provider).withThinking('off');
+    if (alias !== undefined && this.agent.modelProvider !== undefined) {
+      try {
+        const resolved = this.agent.modelProvider.resolveProviderConfig(alias);
+        if (
+          sharedCredentialHealthStore.isAvailable(
+            resolved.providerName,
+            resolved.credentialLabel,
+          )
+        ) {
+          return createProvider(resolved.provider).withThinking('off');
+        }
+      } catch {
+        // fall through to main provider
+      }
+    }
+    return this.agent.config.provider.withThinking('off');
   }
   private backupStore(): string { const p = this.store.getStorePath(); const b = `${p}.dream-bak-${Date.now()}`; copyFileSync(p, b); return b; }
   private restoreBackup(b: string): void { const p = this.store.getStorePath(); if (existsSync(b)) try { renameSync(b, p); } catch { /* best-effort */ } }

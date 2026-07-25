@@ -4,6 +4,7 @@ import type { ProviderConfig as KosongProviderConfig, ModelCapability, ProviderR
 import { APIStatusError, getModelCapability } from '@superliora/kosong';
 import {
   isXaiGrokBuildBaseUrl,
+  sharedCredentialHealthStore,
   xaiGrokBuildRequestHeaders,
 } from '@superliora/oauth';
 import {
@@ -111,28 +112,117 @@ export class ProviderManager implements ModelProvider {
 
     const candidateAliases = uniqueModelAliases([model, ...fallbackModels]);
     const routingWeights = alias.routing?.weights;
-    const candidates = candidateAliases.flatMap((candidateAlias) =>
+    let candidates = candidateAliases.flatMap((candidateAlias) =>
       this.resolveModelAliasCandidates(
         candidateAlias,
         routeWeightForAlias(candidateAlias, routingWeights),
       ),
     );
+
+    // Same-capability cross-provider expansion (Upgrade+).
+    candidates = this.expandSameCapabilityCandidates(model, candidates);
+    candidates = this.filterHealthyCandidates(candidates);
+
+    if (candidates.length === 0) {
+      return undefined;
+    }
     if (
       fallbackModels.length === 0 &&
       alias.routing === undefined &&
       candidates.length <= 1 &&
-      !candidates.some((candidate) => candidate.localLimits !== undefined)
+      !candidates.some((candidate) => candidate.localLimits !== undefined) &&
+      // Still expose a single expanded candidate when health filtering applied
+      // so kosong-llm can record failures consistently — only skip when truly
+      // a plain single-provider non-routed alias with no expansion.
+      this.expandSameCapabilityCandidates(model, [
+        this.resolveModelAlias(model),
+      ]).length <= 1
     ) {
-      return undefined;
+      // Keep legacy: no multi-candidate routing → undefined (use resolveProviderConfig)
+      // unless we actually expanded or filtered multi-cred.
+      const baseline = candidateAliases.flatMap((candidateAlias) =>
+        this.resolveModelAliasCandidates(
+          candidateAlias,
+          routeWeightForAlias(candidateAlias, routingWeights),
+        ),
+      );
+      if (baseline.length <= 1 && !baseline.some((c) => c.localLimits !== undefined)) {
+        // Prefer multi-candidate route when expansion found alternatives
+        if (candidates.length <= 1) return undefined;
+      }
     }
     return {
       modelAlias: model,
       strategy: alias.routing?.strategy ?? 'auto',
-      cooldownMs: alias.routing?.cooldownMs,
+      cooldownMs: alias.routing?.cooldownMs ?? 5 * 60_000,
       sessionAffinity: alias.routing?.sessionAffinity,
       preferredCredential: alias.routing?.preferredCredential,
       candidates,
     };
+  }
+
+  /**
+   * Drop candidates whose OAuth/API credential is marked unhealthy.
+   */
+  private filterHealthyCandidates(
+    candidates: readonly ResolvedRuntimeProvider[],
+  ): ResolvedRuntimeProvider[] {
+    return candidates.filter((candidate) =>
+      sharedCredentialHealthStore.isAvailable(
+        candidate.providerName,
+        candidate.credentialLabel,
+      ),
+    );
+  }
+
+  /**
+   * Append logged-in providers' default models that match capability footprint.
+   * Same provider first (already in list); other providers after.
+   */
+  private expandSameCapabilityCandidates(
+    primaryModel: string,
+    candidates: readonly ResolvedRuntimeProvider[],
+  ): ResolvedRuntimeProvider[] {
+    const primary = candidates[0] ?? this.resolveModelAlias(primaryModel);
+    const primaryCaps = primary.modelCapabilities;
+    const seen = new Set(
+      candidates.map(
+        (c) =>
+          `${c.providerName}::${c.modelAlias}::${c.credentialLabel ?? ''}::${c.oauthRef?.key ?? ''}`,
+      ),
+    );
+    const expanded: ResolvedRuntimeProvider[] = [...candidates];
+
+    for (const [providerName, providerConfig] of Object.entries(this.config.providers)) {
+      if (providerConfig === undefined) continue;
+      if (!providerHasAnyCredential(providerConfig)) continue;
+      if (!sharedCredentialHealthStore.isAvailable(providerName)) continue;
+
+      for (const aliasName of Object.keys(this.config.models ?? {})) {
+        let resolved: ResolvedRuntimeProvider;
+        try {
+          resolved = this.resolveModelAlias(aliasName);
+        } catch {
+          continue;
+        }
+        if (resolved.providerName !== providerName) continue;
+        if (resolved.providerName === primary.providerName) continue;
+        if (!sameCapability(primaryCaps, resolved.modelCapabilities)) continue;
+        const key = `${resolved.providerName}::${resolved.modelAlias}::${resolved.credentialLabel ?? ''}::${resolved.oauthRef?.key ?? ''}`;
+        if (seen.has(key)) continue;
+        if (
+          !sharedCredentialHealthStore.isAvailable(
+            resolved.providerName,
+            resolved.credentialLabel,
+          )
+        ) {
+          continue;
+        }
+        seen.add(key);
+        expanded.push(resolved);
+      }
+    }
+    return expanded;
   }
 
   private resolveModelAliasCandidates(
@@ -291,10 +381,17 @@ export class ProviderManager implements ModelProvider {
       let auth = await fetchAuth(false);
       for (let refreshed = false; ; refreshed = true) {
         try {
-          return await request(auth);
+          const result = await request(auth);
+          sharedCredentialHealthStore.markHealthy(providerName, options?.credentialLabel);
+          return result;
         } catch (error) {
           if (!(error instanceof APIStatusError) || error.statusCode !== 401) throw error;
           if (refreshed) {
+            sharedCredentialHealthStore.markAuthRejected(providerName, {
+              credentialKey: options?.credentialLabel,
+              failureReason:
+                'OAuth provider credentials were rejected. Send /login to login.',
+            });
             throw new LioraError(
               ErrorCodes.AUTH_LOGIN_REQUIRED,
               'OAuth provider credentials were rejected. Send /login to login.',
@@ -885,3 +982,24 @@ function locationFromVertexAIBaseUrl(baseUrl: string | undefined): string | unde
     return undefined;
   }
 }
+
+function providerHasAnyCredential(provider: ProviderConfig): boolean {
+  if (typeof provider.apiKey === 'string' && provider.apiKey.trim().length > 0) return true;
+  if (Array.isArray(provider.apiKeys) && provider.apiKeys.some((k) => typeof k === 'string' && k.trim().length > 0))
+    return true;
+  if (Array.isArray(provider.credentials) && provider.credentials.length > 0) return true;
+  if (provider.oauth !== undefined) return true;
+  if (Array.isArray(provider.oauths) && provider.oauths.length > 0) return true;
+  return false;
+}
+
+function sameCapability(
+  primary: ModelCapability | undefined,
+  other: ModelCapability | undefined,
+): boolean {
+  if (primary === undefined || other === undefined) return true;
+  // Vision parity when primary accepts images
+  if (primary.image_in === true && other.image_in !== true) return false;
+  return true;
+}
+
