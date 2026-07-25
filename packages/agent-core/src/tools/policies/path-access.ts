@@ -20,9 +20,30 @@ import type { WorkspaceConfig } from '../support/workspace';
 import { isSensitiveFile } from './sensitive';
 
 export type PathClass = 'posix' | 'win32';
-export type PathSecurityCode = 'PATH_OUTSIDE_WORKSPACE' | 'PATH_SENSITIVE' | 'PATH_INVALID';
+export type PathSecurityCode =
+  | 'PATH_OUTSIDE_WORKSPACE'
+  | 'PATH_SENSITIVE'
+  | 'PATH_INVALID'
+  | 'PATH_READ_ONLY';
 export type PathAccessOperation = 'read' | 'write' | 'search';
-export type WorkspaceGuardMode = 'absolute-outside-allowed' | 'disabled';
+/**
+ * Path guard modes (sandbox profile, orthogonal to permission ask/auto/yolo):
+ * - `absolute-outside-allowed` — legacy default: absolute outside paths OK; relative escape denied
+ * - `disabled` — no workspace bound (still may check sensitive)
+ * - `workspace` — deny read/write/search outside workspace roots (absolute or relative)
+ * - `read-only` — deny all write/edit operations; reads follow workspace rules
+ *
+ * Product settings map: off → absolute-outside-allowed | disabled;
+ * workspace → workspace; read-only → read-only.
+ */
+export type WorkspaceGuardMode =
+  | 'absolute-outside-allowed'
+  | 'disabled'
+  | 'workspace'
+  | 'read-only';
+
+/** Product-facing sandbox profile (1st-party path policy; not OS Landlock). */
+export type SandboxProfile = 'off' | 'workspace' | 'read-only';
 
 export interface WorkspaceAccessPolicy {
   readonly guardMode: WorkspaceGuardMode;
@@ -33,6 +54,28 @@ export const DEFAULT_WORKSPACE_ACCESS_POLICY: WorkspaceAccessPolicy = {
   guardMode: 'absolute-outside-allowed',
   checkSensitive: true,
 };
+
+/** Map product sandbox profile → WorkspaceAccessPolicy guard mode. */
+export function sandboxProfileToGuardMode(profile: SandboxProfile): WorkspaceGuardMode {
+  switch (profile) {
+    case 'off':
+      return 'absolute-outside-allowed';
+    case 'workspace':
+      return 'workspace';
+    case 'read-only':
+      return 'read-only';
+  }
+}
+
+export function policyForSandboxProfile(
+  profile: SandboxProfile,
+  checkSensitive = true,
+): WorkspaceAccessPolicy {
+  return {
+    guardMode: sandboxProfileToGuardMode(profile),
+    checkSensitive,
+  };
+}
 
 export interface PathAccess {
   readonly path: string;
@@ -222,6 +265,16 @@ export function resolvePathAccess(
     );
   }
 
+  // read-only profile: block all write/edit operations regardless of location.
+  if (policy.guardMode === 'read-only' && options.operation === 'write') {
+    throw new PathSecurityError(
+      'PATH_READ_ONLY',
+      path,
+      canonical,
+      `Sandbox is read-only: write/edit is blocked for "${path}".`,
+    );
+  }
+
   if (outsideWorkspace) {
     switch (policy.guardMode) {
       case 'absolute-outside-allowed':
@@ -236,6 +289,23 @@ export function resolvePathAccess(
         break;
       case 'disabled':
         break;
+      case 'workspace':
+      case 'read-only': {
+        // workspace mode: deny any path outside roots (absolute or relative).
+        // read-only uses the same outside bound for non-write ops.
+        const verb =
+          options.operation === 'write'
+            ? 'write or edit'
+            : options.operation === 'search'
+              ? 'search'
+              : 'read';
+        throw new PathSecurityError(
+          'PATH_OUTSIDE_WORKSPACE',
+          path,
+          canonical,
+          `"${path}" is outside the workspace. Sandbox profile denies ${verb} outside workspace roots.`,
+        );
+      }
     }
   }
 

@@ -98,6 +98,8 @@ import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { SearchResultsComponent } from './components/dialogs/search-results';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
+import { AgentDashboardComponent } from './components/dialogs/agent-dashboard';
+import { ExtensionsModalComponent } from './components/dialogs/extensions-modal';
 import {
   FileMentionProvider,
   type SlashAutocompleteCommand,
@@ -202,6 +204,23 @@ import { resolveImageProtocol } from './utils/image-protocol-detect';
 import { hasPatchChanges } from './utils/object-patch';
 import { PromptStash } from './utils/prompt-stash';
 import { sessionRowsForPicker } from './utils/session-picker-rows';
+import {
+  dashboardRowsFromSessions,
+  type DashboardSessionRow,
+  type DashboardSessionStatus,
+  type DashboardStatusHints,
+} from './utils/agent-dashboard-rows';
+import {
+  resolveExtensionsTab,
+  type ExtensionsSnapshot,
+  type ExtensionsTabId,
+} from './utils/extensions-rows';
+import {
+  buildClaudeImportPlan,
+  formatClaudeImportSummary,
+  resolveClaudeImportRoots,
+  type ClaudeImportScanEntry,
+} from './utils/claude-import';
 import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
 import { notifyUserAttentionOnce } from './utils/terminal-notification';
@@ -244,6 +263,8 @@ export interface LioraTUIStartupInput {
   readonly workDir: string;
   readonly startupNotice?: string;
   readonly updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string };
+  /** Optional session metadata (e.g. worktree) stamped on createSession. */
+  readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
 }
 
 type EffectiveActivityPaneMode = ActivityPaneMode | 'idle' | 'session';
@@ -442,6 +463,7 @@ export class LioraTUI {
         startupNotice: startupInput.startupNotice,
         resumeGoal: startupInput.cliOptions.resumeGoal,
       },
+      sessionMetadata: startupInput.sessionMetadata,
     };
     this.options = tuiOptions;
     this.startupNotice = startupInput.startupNotice;
@@ -1021,7 +1043,7 @@ export class LioraTUI {
       const queue = await readGoalQueue(session);
       const firstGoal = queue.goals[0];
       if (firstGoal === undefined) {
-        this.showStatus('No goals in queue to resume.', 'info');
+        this.showStatus('No goals in queue to resume.', 'textMuted');
         return;
       }
 
@@ -1029,7 +1051,7 @@ export class LioraTUI {
       await removeGoalQueueItem(session, { goalId: firstGoal.id });
 
       // Start the goal using the goal command handler
-      this.showStatus(`🎯 Resuming goal: ${firstGoal.objective.slice(0, 100)}...`, 'info');
+      this.showStatus(`🎯 Resuming goal: ${firstGoal.objective.slice(0, 100)}...`, 'textMuted');
 
       // Send the goal objective as a user input to start the goal
       this.sendNormalUserInput(`/goal ${firstGoal.objective}`, {
@@ -1083,6 +1105,9 @@ export class LioraTUI {
           : this.state.appState.permissionMode,
       planMode: startup.plan,
     };
+    if (this.options.sessionMetadata !== undefined) {
+      createSessionOptions.metadata = this.options.sessionMetadata;
+    }
     if (this.state.appState.additionalDirs.length > 0) {
       createSessionOptions.additionalDirs = [...this.state.appState.additionalDirs];
     }
@@ -1955,6 +1980,10 @@ export class LioraTUI {
     const previous = this.unloadCurrentSession('switching session');
     await previous?.close();
     this.session = session;
+    // Keep TUI workspace aligned when forking into a worktree (different workDir).
+    if (resolve(session.workDir) !== resolve(this.state.appState.workDir)) {
+      this.state.appState.workDir = session.workDir;
+    }
     this.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);
     this.syncAdditionalDirs(session);
@@ -2964,6 +2993,8 @@ export class LioraTUI {
 
   private resolveActivityPaneMode(): EffectiveActivityPaneMode {
     if (this.state.activeDialog === 'session-picker') return 'hidden';
+    if (this.state.activeDialog === 'agent-dashboard') return 'hidden';
+    if (this.state.activeDialog === 'extensions') return 'hidden';
     if (this.state.livePane.pendingApproval !== null) return 'hidden';
     if (this.state.appState.isCompacting) return 'hidden';
     if (this.state.livePane.pendingQuestion !== null) return 'hidden';
@@ -3303,8 +3334,9 @@ export class LioraTUI {
     this.nativeInputModalDispose?.();
     this.nativeInputModalDispose = undefined;
     this.nativeInputRouter?.focusEditor();
-    // Only clear a generic command-dialog marker. Help/session-picker manage
-    // their own `activeDialog` lifecycle and may already be null here.
+    // Only clear a generic command-dialog marker. Help/session-picker/
+    // agent-dashboard manage their own `activeDialog` lifecycle and may
+    // already be null here.
     if (this.state.activeDialog === 'command') this.state.activeDialog = null;
     requestTUIContentRender(this.state);
     // Flush any reverse-RPC panel that was deferred while a command dialog was
@@ -3838,6 +3870,253 @@ export class LioraTUI {
     });
   }
 
+  /**
+   * Agent Dashboard MVP — groups sessions into 입력 필요 / 작업 중 / 대기.
+   * Enter attaches (resume) the selected session. last_prompt is masked.
+   */
+  async showAgentDashboard(): Promise<void> {
+    this.state.loadingSessions = true;
+    let summaries: Awaited<ReturnType<LioraHarness['listSessions']>> = [];
+    try {
+      summaries = await this.harness.listSessions({ workDir: this.state.appState.workDir });
+      // Keep session-picker cache in sync for other dialogs.
+      this.state.sessions = sessionRowsForPicker(
+        summaries,
+        this.state.appState.sessionId,
+        this.hasSessionContent(),
+      );
+    } catch {
+      this.state.sessions = [];
+      this.showStatus(ttui('tui.sessions.fetchFailed'), 'warning');
+    } finally {
+      this.state.loadingSessions = false;
+    }
+
+    const statusHints = this.buildDashboardStatusHints(summaries.map((s) => s.id));
+    const rows = dashboardRowsFromSessions(summaries, {
+      currentSessionId: this.state.appState.sessionId,
+      currentSessionHasContent: this.hasSessionContent(),
+      statusHints,
+    });
+
+    this.state.activeDialog = 'agent-dashboard';
+    this.mountEditorReplacement(
+      new AgentDashboardComponent({
+        sessions: rows,
+        loading: false,
+        currentSessionId: this.state.appState.sessionId,
+        onSelect: (session: DashboardSessionRow) => {
+          void this.handleAgentDashboardSelect(session).catch((error) => {
+            this.showError(`세션 연결 실패: ${formatErrorMessage(error)}`);
+          });
+        },
+        onCancel: () => {
+          this.hideAgentDashboard();
+        },
+      }),
+    );
+  }
+
+  hideAgentDashboard(): void {
+    if (this.state.activeDialog === 'agent-dashboard') {
+      this.state.activeDialog = null;
+    }
+    this.editorKeyboard.clearPendingExit();
+    this.restoreEditor();
+  }
+
+  /**
+   * AC6 Extensions modal — plugins / hooks / skills / MCP tabs + Claude import.
+   * Claude import is allowlist-only (.claude / ~/.claude); no permission bypass.
+   */
+  async showExtensionsModal(args?: string): Promise<void> {
+    const raw = (args ?? '').trim().toLowerCase();
+    if (raw === 'claude' || raw === 'import-claude' || raw === 'import') {
+      await this.runClaudeImportInventory();
+      return;
+    }
+
+    const initialTab: ExtensionsTabId = resolveExtensionsTab(raw);
+    this.state.activeDialog = 'extensions';
+
+    let snapshot: ExtensionsSnapshot = { plugins: [], skills: [], mcpServers: [] };
+    try {
+      const session = this.requireSession();
+      const [plugins, skills, mcpServers] = await Promise.all([
+        session.listPlugins().catch(() => []),
+        session.listSkills().catch(() => []),
+        session.listMcpServers().catch(() => []),
+      ]);
+      snapshot = { plugins, skills, mcpServers };
+    } catch (error) {
+      this.showError(`확장 목록 불러오기 실패: ${formatErrorMessage(error)}`);
+      // Still open empty modal so operators can reach Claude import (i).
+    }
+
+    this.mountEditorReplacement(
+      new ExtensionsModalComponent({
+        snapshot,
+        initialTab,
+        onAction: (action) => {
+          void this.handleExtensionsAction(action).catch((error) => {
+            this.showError(`확장 동작 실패: ${formatErrorMessage(error)}`);
+          });
+        },
+        onCancel: () => {
+          this.hideExtensionsModal();
+        },
+      }),
+    );
+  }
+
+  hideExtensionsModal(): void {
+    if (this.state.activeDialog === 'extensions') {
+      this.state.activeDialog = null;
+    }
+    this.editorKeyboard.clearPendingExit();
+    this.restoreEditor();
+  }
+
+  private async handleExtensionsAction(
+    action:
+      | { readonly kind: 'open-plugins' }
+      | { readonly kind: 'open-mcp' }
+      | { readonly kind: 'import-claude' }
+      | { readonly kind: 'activate-skill'; readonly skillName: string }
+      | { readonly kind: 'noop' },
+  ): Promise<void> {
+    switch (action.kind) {
+      case 'open-plugins':
+        this.hideExtensionsModal();
+        await slashCommands.handlePluginsCommand(this, '');
+        return;
+      case 'open-mcp':
+        this.hideExtensionsModal();
+        // MCP management lives under plugins panel today.
+        await slashCommands.handlePluginsCommand(this, '');
+        return;
+      case 'import-claude':
+        this.hideExtensionsModal();
+        await this.runClaudeImportInventory();
+        return;
+      case 'activate-skill': {
+        this.hideExtensionsModal();
+        const name = action.skillName.trim();
+        if (name.length === 0) return;
+        // Invoke skill via slash path without elevating permissions.
+        this.sendNormalUserInput(`/${name}`, { displayText: `/${name}` });
+        return;
+      }
+      case 'noop':
+        return;
+    }
+  }
+
+  /**
+   * Scan allowlisted Claude roots and print inventory only.
+   * Does not apply settings or bypass deny chains (FedRAMP AC6).
+   */
+  private async runClaudeImportInventory(): Promise<void> {
+    const workDir = this.state.appState.workDir;
+    const roots = resolveClaudeImportRoots(workDir);
+    const entries: ClaudeImportScanEntry[] = [];
+
+    const { readdirSync, statSync } = await import('node:fs');
+    const { join, relative } = await import('node:path');
+
+    const walk = (
+      rootPath: string,
+      rootKind: 'project' | 'global',
+      maxDepth: number,
+      depth = 0,
+    ): void => {
+      if (depth > maxDepth) return;
+      let dirents: import('node:fs').Dirent[];
+      try {
+        dirents = readdirSync(rootPath, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const dirent of dirents) {
+        if (dirent.name === '.' || dirent.name === '..') continue;
+        // Skip obvious secret / env files during inventory.
+        if (
+          /^\.env/i.test(dirent.name) ||
+          /\.(pem|key|p12|pfx)$/i.test(dirent.name)
+        ) {
+          continue;
+        }
+        const absolutePath = join(rootPath, dirent.name);
+        let isDir = dirent.isDirectory();
+        if (!isDir && !dirent.isFile()) {
+          try {
+            isDir = statSync(absolutePath).isDirectory();
+          } catch {
+            continue;
+          }
+        }
+        if (isDir) {
+          walk(absolutePath, rootKind, maxDepth, depth + 1);
+          continue;
+        }
+        entries.push({
+          absolutePath,
+          // Classify against root-relative path so global ~/.claude entries work.
+          relativePath: relative(rootPath, absolutePath),
+          rootKind,
+        });
+      }
+    };
+
+    for (const root of roots) {
+      walk(root.path, root.kind, 3);
+    }
+
+    const plan = buildClaudeImportPlan(workDir, entries);
+    const summary = formatClaudeImportSummary(plan);
+    // Multi-line detail in transcript-friendly status path (paths/counts only).
+    for (const line of summary.split('\n')) {
+      if (line.trim().length > 0) this.showStatus(line, 'textMuted');
+    }
+  }
+
+  private buildDashboardStatusHints(
+    sessionIds: readonly string[],
+  ): DashboardStatusHints {
+    const hints: Record<string, DashboardSessionStatus> = {};
+    const currentId = this.state.appState.sessionId;
+    for (const id of sessionIds) {
+      if (id !== currentId) continue;
+      if (this.state.livePane.pendingApproval !== null) {
+        hints[id] = 'needs_input';
+      } else if (this.state.appState.streamingPhase !== 'idle') {
+        hints[id] = 'working';
+      } else {
+        hints[id] = 'idle';
+      }
+    }
+    return hints;
+  }
+
+  private async handleAgentDashboardSelect(session: DashboardSessionRow): Promise<void> {
+    // Reuse session-picker attach path: workdir check + resume.
+    const asRow: SessionRow = {
+      id: session.id,
+      title: session.title,
+      last_prompt: session.last_prompt,
+      work_dir: session.work_dir,
+      updated_at: session.updated_at,
+      metadata: session.metadata,
+    };
+    if (resolve(session.work_dir) !== resolve(this.state.appState.workDir)) {
+      await this.showResumeOtherWorkDirHint(asRow);
+      return;
+    }
+    const switched = await this.resumeSession(session.id);
+    if (!switched) return;
+    this.hideAgentDashboard();
+  }
+
   private async bootstrapFromPicker(): Promise<void> {
     await this.openSessionPicker({
       applyStartupModes: true,
@@ -3980,7 +4259,16 @@ export class LioraTUI {
     const panel = new ApprovalPanelComponent(
       { data: payload },
       (response: ApprovalPanelResponse) => {
-        this.approvalController.respond(adaptPanelResponse(response));
+        // Recover plan text from numbered brief when present so L12: comments enrich.
+        const planFromDisplay = payload.display
+          .filter((block): block is { type: 'brief'; text: string } => block.type === 'brief')
+          .map((block) => block.text)
+          .join('\n');
+        this.approvalController.respond(
+          adaptPanelResponse(response, {
+            plan: planFromDisplay.length > 0 ? planFromDisplay : undefined,
+          }),
+        );
       },
       () => {
         this.toggleToolOutputExpansion();

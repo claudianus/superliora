@@ -198,7 +198,23 @@ describe('approval adapter', () => {
     ]);
   });
 
-  it('omits plan review content from the approval panel while keeping Python-style choices', () => {
+  it('enriches L-line feedback as revise comment without approving', () => {
+    const plan = '# Plan\n1. Inspect\n2. Change';
+    const adapted = adaptPanelResponse(
+      {
+        response: 'rejected',
+        selected_label: 'line_comment',
+        feedback: 'L2: keep inspect first',
+      },
+      { plan },
+    );
+    expect(adapted.decision).toBe('rejected');
+    expect(adapted.feedback).toContain('라인 2');
+    expect(adapted.feedback).toContain('keep inspect first');
+    expect(String(adapted.feedback).toLowerCase()).not.toContain('approve');
+  });
+
+  it('shows numbered plan preview and line-comment choice for plan review (AC6)', () => {
     const adapted = adaptApprovalRequest({
       toolCallId: 'tc-plan',
       toolName: 'ExitPlanMode',
@@ -210,10 +226,23 @@ describe('approval adapter', () => {
       },
     });
 
-    expect(adapted.display).toEqual([]);
+    expect(adapted.display).toHaveLength(1);
+    expect(adapted.display[0]).toMatchObject({ type: 'brief' });
+    if (adapted.display[0]?.type === 'brief') {
+      expect(adapted.display[0].text).toContain('1│');
+      expect(adapted.display[0].text).toContain('# Plan');
+      expect(adapted.display[0].text).toContain('라인 코멘트');
+    }
     expect(adapted.choices).toEqual([
       { label: 'Approve', response: 'approved', selected_label: 'Approve' },
       { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
+      {
+        label: '라인 코멘트',
+        response: 'rejected',
+        selected_label: 'line_comment',
+        requires_feedback: true,
+        description: '계획 특정 줄에 대한 수정 요청을 남깁니다',
+      },
       {
         label: 'Revise',
         response: 'rejected',
@@ -243,6 +272,13 @@ describe('approval adapter', () => {
       { label: 'Approach A', response: 'approved', selected_label: 'Approach A' },
       { label: 'Approach B', response: 'approved', selected_label: 'Approach B' },
       { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
+      {
+        label: '라인 코멘트',
+        response: 'rejected',
+        selected_label: 'line_comment',
+        requires_feedback: true,
+        description: '계획 특정 줄에 대한 수정 요청을 남깁니다',
+      },
       {
         label: 'Revise',
         response: 'rejected',

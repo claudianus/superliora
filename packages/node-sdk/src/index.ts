@@ -67,8 +67,39 @@ export {
   redact,
   resolveGlobalLogPath,
   resolveLioraHome,
+  SESSION_WORKTREE_CUSTOM_KEY,
+  buildWorktreeMetadata,
+  createSessionWorktree,
+  createSessionWorktreeAuto,
+  defaultWorktreePath,
+  gcSessionWorktrees,
+  gcSessionWorktreesAuto,
+  generateWorktreeName,
+  isSessionWorktreeMeta,
+  listSessionWorktrees,
+  normalizeWorktreeName,
+  removeSessionWorktree,
+  removeSessionWorktreeAuto,
+  resolveGitRepoRoot,
+  resolveGitRepoRootAuto,
+  sessionWorktreeFromCustom,
+  touchWorktreeAccess,
+  worktreeRegistryPath,
+  worktreesRoot,
 } from '@superliora/agent-core';
-export type { LogContext, LogLevel, LogPayload, Logger } from '@superliora/agent-core';
+export type {
+  LogContext,
+  LogLevel,
+  LogPayload,
+  Logger,
+  CreateSessionWorktreeInput,
+  CreateSessionWorktreeResult,
+  GcWorktreesOptions,
+  ListWorktreesOptions,
+  RemoveWorktreeOptions,
+  SessionWorktreeMeta,
+  WorktreeRecord,
+} from '@superliora/agent-core';
 
 export { loadRuntimeConfigSafe, resolveConfigPath } from '@superliora/agent-core';
 export {

@@ -256,6 +256,7 @@ export abstract class SDKRpcClientBase {
       id: input.forkId,
       title: input.title,
       metadata: input.metadata,
+      worktree: input.worktree,
     });
   }
 
@@ -571,6 +572,95 @@ export abstract class SDKRpcClientBase {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       count: input.count,
+    });
+  }
+
+  async rewindFiles(
+    input: SessionIdRpcInput & { turnId?: string | undefined },
+  ): Promise<{
+    readonly turnId: string;
+    readonly restored: readonly string[];
+    readonly deleted: readonly string[];
+    readonly skippedSensitive: readonly string[];
+    readonly errors: readonly { path: string; message: string }[];
+  }> {
+    const rpc = await this.getRpc();
+    return rpc.rewindFiles({
+      sessionId: input.sessionId,
+      ...(input.turnId !== undefined ? { turnId: input.turnId } : {}),
+    });
+  }
+
+  async startConversationLoop(
+    input: SessionIdRpcInput & {
+      prompt: string;
+      intervalMs?: number | undefined;
+      maxIterations?: number | undefined;
+      expiresAt?: number | undefined;
+    },
+  ): Promise<{
+    readonly id: string;
+    readonly prompt: string;
+    readonly intervalMs: number;
+    readonly maxIterations: number;
+    readonly expiresAt?: number | undefined;
+    readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
+    readonly iterations: number;
+    readonly createdAt: number;
+    readonly lastFiredAt: number | null;
+    readonly stopReason?: string | undefined;
+  }> {
+    const rpc = await this.getRpc();
+    return rpc.startConversationLoop({
+      sessionId: input.sessionId,
+      prompt: input.prompt,
+      intervalMs: input.intervalMs,
+      maxIterations: input.maxIterations,
+      expiresAt: input.expiresAt,
+    });
+  }
+
+  async stopConversationLoop(
+    input: SessionIdRpcInput & { loopId?: string | undefined },
+  ): Promise<
+    | {
+        readonly id: string;
+        readonly prompt: string;
+        readonly intervalMs: number;
+        readonly maxIterations: number;
+        readonly expiresAt?: number | undefined;
+        readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
+        readonly iterations: number;
+        readonly createdAt: number;
+        readonly lastFiredAt: number | null;
+        readonly stopReason?: string | undefined;
+      }
+    | undefined
+  > {
+    const rpc = await this.getRpc();
+    return rpc.stopConversationLoop({
+      sessionId: input.sessionId,
+      ...(input.loopId !== undefined ? { loopId: input.loopId } : {}),
+    });
+  }
+
+  async listConversationLoops(input: SessionIdRpcInput): Promise<
+    readonly {
+      readonly id: string;
+      readonly prompt: string;
+      readonly intervalMs: number;
+      readonly maxIterations: number;
+      readonly expiresAt?: number | undefined;
+      readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
+      readonly iterations: number;
+      readonly createdAt: number;
+      readonly lastFiredAt: number | null;
+      readonly stopReason?: string | undefined;
+    }[]
+  > {
+    const rpc = await this.getRpc();
+    return rpc.listConversationLoops({
+      sessionId: input.sessionId,
     });
   }
 

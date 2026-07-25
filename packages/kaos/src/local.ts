@@ -825,15 +825,39 @@ export class LocalKaos implements Kaos {
 
   private _buildExecEnv(invocationEnv?: Record<string, string>): Record<string, string> | undefined {
     if (this._envLayers.length === 0) return invocationEnv;
-    const merged: Record<string, string> = {
-      ...(process.env as Record<string, string>),
-      ...invocationEnv,
-    };
+    // Prefer the caller-provided env (BashTool already secret-filters ambient).
+    // Only fall back to a filtered ambient copy when invocationEnv is omitted —
+    // never re-spread raw process.env after the tool-layer filter.
+    const merged: Record<string, string> =
+      invocationEnv !== undefined
+        ? { ...invocationEnv }
+        : filterAmbientProcessEnv(process.env as Record<string, string | undefined>);
     for (const layer of this._envLayers) {
-      Object.assign(merged, layer);
+      for (const [key, value] of Object.entries(layer)) {
+        if (isSecretEnvKeyName(key)) continue;
+        merged[key] = value;
+      }
     }
     return merged;
   }
+}
+
+/** Case-insensitive KEY/SECRET/TOKEN substring match (kaos-side belt-and-braces). */
+function isSecretEnvKeyName(key: string): boolean {
+  const upper = key.toUpperCase();
+  return upper.includes('KEY') || upper.includes('SECRET') || upper.includes('TOKEN');
+}
+
+function filterAmbientProcessEnv(
+  ambient: Record<string, string | undefined>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(ambient)) {
+    if (value === undefined) continue;
+    if (isSecretEnvKeyName(key)) continue;
+    out[key] = value;
+  }
+  return out;
 }
 
 function isUtf8Encoding(encoding: BufferEncoding): boolean {

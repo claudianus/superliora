@@ -18,6 +18,8 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
     'Cannot use --session without an id in prompt mode.',
   'cli.runtime.options.continueWithSession': 'Cannot combine --continue, --session.',
   'cli.runtime.options.yoloWithAuto': 'Cannot combine --yolo with --auto.',
+  'cli.runtime.options.worktreeWithResume':
+    'Cannot combine --worktree with --session/--continue (use a new session).',
 
   // main / startup
   'cli.runtime.main.errorPrefix': 'error: {message}',
@@ -238,6 +240,8 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.options.continueWithSession':
     '--continue와 --session은 함께 사용할 수 없습니다.',
   'cli.runtime.options.yoloWithAuto': '--yolo와 --auto는 함께 사용할 수 없습니다.',
+  'cli.runtime.options.worktreeWithResume':
+    '--worktree는 --session/--continue와 함께 사용할 수 없습니다(새 세션에서 사용하세요).',
 
   'cli.runtime.main.errorPrefix': '오류: {message}',
   'cli.runtime.main.seeLog': '로그: {path}',

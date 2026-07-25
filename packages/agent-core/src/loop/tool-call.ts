@@ -271,6 +271,8 @@ export function resetIdempotencyTracker(): void {
  * patterns and output consistency" (Jeong & Shin, 2026).
  */
 const REPETITION_WARN_THRESHOLD = 4;
+/** Intra-turn identical (tool,args) hard-stop (doom_loop), separate from circuit breaker. */
+const REPETITION_HARD_STOP_THRESHOLD = 8;
 
 /**
  * Tracks recent tool call signatures (name + args hash) within a turn.
@@ -278,18 +280,45 @@ const REPETITION_WARN_THRESHOLD = 4;
  */
 const recentToolCalls = new Map<string, number>();
 
-function trackToolCallPattern(toolName: string, args: unknown, log?: Logger): void {
-  // Create a simple signature from tool name and args.
+export type ToolCallPatternVerdict =
+  | { readonly action: 'allow' }
+  | { readonly action: 'warn'; readonly count: number }
+  | { readonly action: 'hard_stop'; readonly count: number; readonly code: 'DOOM_LOOP_HARD_STOP' };
+
+/**
+ * Record a tool call signature. Returns hard_stop when the same tool+args
+ * repeats past the doom threshold within a turn (execution must be blocked).
+ */
+export function trackToolCallPattern(
+  toolName: string,
+  args: unknown,
+  log?: Logger,
+): ToolCallPatternVerdict {
   const argsKey = safeStringifyArgs(args);
   const signature = `${toolName}:${argsKey}`;
   const count = (recentToolCalls.get(signature) ?? 0) + 1;
   recentToolCalls.set(signature, count);
+  if (count >= REPETITION_HARD_STOP_THRESHOLD) {
+    log?.warn('doom_loop hard stop: repetitive tool call pattern', {
+      toolName,
+      repetitionCount: count,
+      code: 'DOOM_LOOP_HARD_STOP',
+    });
+    return { action: 'hard_stop', count, code: 'DOOM_LOOP_HARD_STOP' };
+  }
   if (count === REPETITION_WARN_THRESHOLD) {
     log?.warn('repetitive tool call pattern detected; possible loop stagnation', {
       toolName,
       repetitionCount: count,
     });
+    return { action: 'warn', count };
   }
+  return { action: 'allow' };
+}
+
+export function getToolCallPatternCount(toolName: string, args: unknown): number {
+  const signature = `${toolName}:${safeStringifyArgs(args)}`;
+  return recentToolCalls.get(signature) ?? 0;
 }
 
 function safeStringifyArgs(args: unknown): string {
@@ -805,6 +834,24 @@ async function runRunnableToolCall(
       effectiveArgs,
       `Tool "${toolName}" is temporarily unavailable due to repeated failures. Circuit breaker open — will retry after cooldown.`,
     );
+  }
+
+  // Doom-loop hard stop: identical tool+args repeated past threshold in this turn.
+  // trackToolCallPattern is also called from dispatchToolCall; use count check here
+  // so execution is blocked even if dispatch already recorded the signature.
+  const patternCount = getToolCallPatternCount(toolName, effectiveArgs);
+  if (patternCount >= REPETITION_HARD_STOP_THRESHOLD) {
+    step.log?.warn('doom_loop hard stop; blocking tool execution', {
+      toolName,
+      toolCallId: toolCall.id,
+      repetitionCount: patternCount,
+      code: 'DOOM_LOOP_HARD_STOP',
+    });
+    return makeToolResult(call, effectiveArgs, {
+      output: `doom_loop_hard_stop: 동일 도구·인자 반복(${String(patternCount)}회)으로 실행을 차단했습니다. code=DOOM_LOOP_HARD_STOP. 다른 접근을 시도하거나 사용자에게 막힘 요약을 보고하세요.`,
+      isError: true,
+      stopTurn: true,
+    });
   }
 
   const startMs = Date.now();

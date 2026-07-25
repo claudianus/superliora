@@ -32,6 +32,13 @@ export const ErrorCodes = {
   SESSION_CREDENTIAL_HANDLER_ERROR: 'session.credential_handler_error',
   SESSION_INIT_FAILED: 'session.init_failed',
 
+  WORKTREE_NOT_A_GIT_REPO: 'worktree.not_a_git_repo',
+  WORKTREE_NAME_INVALID: 'worktree.name_invalid',
+  WORKTREE_NAME_AMBIGUOUS: 'worktree.name_ambiguous',
+  WORKTREE_ALREADY_EXISTS: 'worktree.already_exists',
+  WORKTREE_CREATE_FAILED: 'worktree.create_failed',
+  WORKTREE_NOT_FOUND: 'worktree.not_found',
+
   AGENT_NOT_FOUND: 'agent.not_found',
   TURN_AGENT_BUSY: 'turn.agent_busy',
 
@@ -173,6 +180,43 @@ export const KIMI_ERROR_INFO = {
     retryable: false,
     public: true,
     action: 'Create a new session.',
+  },
+
+  'worktree.not_a_git_repo': {
+    title: 'Not a git repository',
+    retryable: false,
+    public: true,
+    action: 'Run from inside a git checkout, or pass a path that is a git repository.',
+  },
+  'worktree.name_invalid': {
+    title: 'Invalid worktree name',
+    retryable: false,
+    public: true,
+    action: 'Use a short name without path separators (e.g. fix-auth).',
+  },
+  'worktree.name_ambiguous': {
+    title: 'Ambiguous worktree name',
+    retryable: false,
+    public: true,
+    action: 'Pass the full worktree path, or filter by repository root.',
+  },
+  'worktree.already_exists': {
+    title: 'Worktree already exists',
+    retryable: false,
+    public: true,
+    action: 'Choose a different name or remove the existing worktree first.',
+  },
+  'worktree.create_failed': {
+    title: 'Failed to create worktree',
+    retryable: true,
+    public: true,
+    action: 'Check git status, branch name conflicts, and disk permissions.',
+  },
+  'worktree.not_found': {
+    title: 'Worktree not found',
+    retryable: false,
+    public: true,
+    action: 'List worktrees with `liora worktree list` and use a known name or path.',
   },
   'session.permission_mode_invalid': {
     title: 'Invalid permission mode',

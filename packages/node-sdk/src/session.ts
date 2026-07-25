@@ -332,6 +332,91 @@ export class Session {
     await this.rpc.undoHistory({ sessionId: this.id, count });
   }
 
+  /**
+   * Restore disk files from a sealed turn snapshot (`/rewind`).
+   * Does not rewrite conversation history — pair with `undoHistory` when needed.
+   */
+  async rewindFiles(options: { turnId?: string | undefined } = {}): Promise<{
+    readonly turnId: string;
+    readonly restored: readonly string[];
+    readonly deleted: readonly string[];
+    readonly skippedSensitive: readonly string[];
+    readonly errors: readonly { path: string; message: string }[];
+  }> {
+    this.ensureOpen();
+    return this.rpc.rewindFiles({
+      sessionId: this.id,
+      ...(options.turnId !== undefined ? { turnId: options.turnId } : {}),
+    });
+  }
+
+  async startConversationLoop(options: {
+    prompt: string;
+    intervalMs?: number | undefined;
+    maxIterations?: number | undefined;
+    expiresAt?: number | undefined;
+  }): Promise<{
+    readonly id: string;
+    readonly prompt: string;
+    readonly intervalMs: number;
+    readonly maxIterations: number;
+    readonly expiresAt?: number | undefined;
+    readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
+    readonly iterations: number;
+    readonly createdAt: number;
+    readonly lastFiredAt: number | null;
+    readonly stopReason?: string | undefined;
+  }> {
+    this.ensureOpen();
+    return this.rpc.startConversationLoop({
+      sessionId: this.id,
+      prompt: options.prompt,
+      intervalMs: options.intervalMs,
+      maxIterations: options.maxIterations,
+      expiresAt: options.expiresAt,
+    });
+  }
+
+  async stopConversationLoop(loopId?: string): Promise<
+    | {
+        readonly id: string;
+        readonly prompt: string;
+        readonly intervalMs: number;
+        readonly maxIterations: number;
+        readonly expiresAt?: number | undefined;
+        readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
+        readonly iterations: number;
+        readonly createdAt: number;
+        readonly lastFiredAt: number | null;
+        readonly stopReason?: string | undefined;
+      }
+    | undefined
+  > {
+    this.ensureOpen();
+    return this.rpc.stopConversationLoop({
+      sessionId: this.id,
+      ...(loopId !== undefined ? { loopId } : {}),
+    });
+  }
+
+  async listConversationLoops(): Promise<
+    readonly {
+      readonly id: string;
+      readonly prompt: string;
+      readonly intervalMs: number;
+      readonly maxIterations: number;
+      readonly expiresAt?: number | undefined;
+      readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
+      readonly iterations: number;
+      readonly createdAt: number;
+      readonly lastFiredAt: number | null;
+      readonly stopReason?: string | undefined;
+    }[]
+  > {
+    this.ensureOpen();
+    return this.rpc.listConversationLoops({ sessionId: this.id });
+  }
+
   async getContext(): Promise<AgentContextData> {
     this.ensureOpen();
     return this.rpc.getContext({ sessionId: this.id });

@@ -41,6 +41,8 @@ export interface EditorKeyboardHost {
   detachCurrentForegroundTask(): void;
   cancelRunningShellCommand(): void;
   hideSessionPicker(): void;
+  hideAgentDashboard(): void;
+  hideExtensionsModal(): void;
   openUndoSelector(): void;
   stop(exitCode?: number): Promise<void>;
   handlePlanToggle(next: boolean, ultra?: boolean): void;
@@ -159,6 +161,16 @@ export class EditorKeyboardController {
       }
       if (host.state.activeDialog === 'session-picker') {
         host.hideSessionPicker();
+        this.clearPendingUndoEsc();
+        return;
+      }
+      if (host.state.activeDialog === 'agent-dashboard') {
+        host.hideAgentDashboard();
+        this.clearPendingUndoEsc();
+        return;
+      }
+      if (host.state.activeDialog === 'extensions') {
+        host.hideExtensionsModal();
         this.clearPendingUndoEsc();
         return;
       }

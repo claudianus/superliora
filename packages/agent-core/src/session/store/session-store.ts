@@ -34,6 +34,8 @@ export interface ForkSessionRecordInput {
   readonly targetId: string;
   readonly title?: string;
   readonly metadata?: JsonObject;
+  /** When set, the forked session is keyed under this workDir (e.g. a new git worktree). */
+  readonly workDir?: string;
 }
 
 export type SessionStoreOptions = Record<string, never>;
@@ -83,7 +85,9 @@ export class SessionStore {
       throw new LioraError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
     }
 
-    const targetDir = this.sessionDirFor({ id: input.targetId, workDir: source.workDir });
+    const workDir =
+      input.workDir !== undefined ? normalizeWorkDir(input.workDir) : source.workDir;
+    const targetDir = this.sessionDirFor({ id: input.targetId, workDir });
     if (await isDirectory(targetDir)) {
       throw new LioraError(ErrorCodes.SESSION_ALREADY_EXISTS, `Session "${input.targetId}" already exists`);
     }
@@ -96,13 +100,13 @@ export class SessionStore {
         errorOnExist: true,
       });
       await dropForkedSessionFiles(targetDir);
-      const forkedState = await this.writeForkedState(input, source.sessionDir, source.workDir, targetDir);
+      const forkedState = await this.writeForkedState(input, source.sessionDir, workDir, targetDir);
       await appendForkedMarkers(forkedState);
-      const summary = await this.summaryFromDir(input.targetId, targetDir, source.workDir);
+      const summary = await this.summaryFromDir(input.targetId, targetDir, workDir);
       await appendSessionIndexEntry(this.homeDir, {
         sessionId: input.targetId,
         sessionDir: targetDir,
-        workDir: source.workDir,
+        workDir,
       });
       return summary;
     } catch (error) {

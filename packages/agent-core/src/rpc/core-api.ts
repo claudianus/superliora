@@ -181,6 +181,11 @@ export interface ForkSessionPayload {
   readonly id?: string;
   readonly title?: string;
   readonly metadata?: JsonObject;
+  /**
+   * When true, create a git worktree for the forked session and use that path
+   * as the new session workDir. Optional `name` becomes the worktree slug.
+   */
+  readonly worktree?: boolean | { readonly name?: string; readonly baseRef?: string };
 }
 
 export interface ShellEnvironment {
@@ -326,6 +331,44 @@ export interface BeginCompactionPayload {
 }
 export interface UndoHistoryPayload {
   readonly count: number;
+}
+
+/** Restore disk files from a sealed turn snapshot (`/rewind`). */
+export interface RewindFilesPayload {
+  /** Turn id to restore; omit to use the latest sealed turn. */
+  readonly turnId?: string | undefined;
+}
+
+export interface RewindFilesResult {
+  readonly turnId: string;
+  readonly restored: readonly string[];
+  readonly deleted: readonly string[];
+  readonly skippedSensitive: readonly string[];
+  readonly errors: readonly { path: string; message: string }[];
+}
+
+export interface StartConversationLoopPayload {
+  readonly prompt: string;
+  readonly intervalMs?: number | undefined;
+  readonly maxIterations?: number | undefined;
+  readonly expiresAt?: number | undefined;
+}
+
+export interface StopConversationLoopPayload {
+  readonly loopId?: string | undefined;
+}
+
+export interface ConversationLoopStateData {
+  readonly id: string;
+  readonly prompt: string;
+  readonly intervalMs: number;
+  readonly maxIterations: number;
+  readonly expiresAt?: number | undefined;
+  readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
+  readonly iterations: number;
+  readonly createdAt: number;
+  readonly lastFiredAt: number | null;
+  readonly stopReason?: string | undefined;
 }
 export interface RegisterToolPayload {
   readonly name: string;
@@ -674,6 +717,14 @@ export interface SessionAPI extends AgentAPIWithId {
   getSessionWarnings: (payload: EmptyPayload) => readonly SessionWarning[];
   addAdditionalDir: (payload: AddAdditionalDirPayload) => AddAdditionalDirResult;
   getSessionTrace: (payload: EmptyPayload & { readonly agentId: string }) => Promise<SessionTrace>;
+  /**
+   * Restore files mutated during a sealed turn. Does not rewrite conversation
+   * history — pair with `undoHistory` when the transcript should also roll back.
+   */
+  rewindFiles: (payload: RewindFilesPayload) => RewindFilesResult;
+  startConversationLoop: (payload: StartConversationLoopPayload) => ConversationLoopStateData;
+  stopConversationLoop: (payload: StopConversationLoopPayload) => ConversationLoopStateData | undefined;
+  listConversationLoops: (payload: EmptyPayload) => readonly ConversationLoopStateData[];
 }
 
 type SessionAPIWithId = WithSessionId<SessionAPI>;

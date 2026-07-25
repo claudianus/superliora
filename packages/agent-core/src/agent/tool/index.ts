@@ -511,6 +511,7 @@ export class ToolManager {
       {
         workspaceDir: cwd,
         additionalDirs: this.agent.getAdditionalDirs(),
+        sandboxProfile: this.agent.sandboxProfile,
       },
       this.agent.skills?.registry.getSkillRoots() ?? [],
     );
@@ -541,7 +542,11 @@ export class ToolManager {
 
   private createFileAndContextTools(
     kaos: Agent['kaos'],
-    workspace: { workspaceDir: string; additionalDirs: readonly string[] },
+    workspace: {
+      workspaceDir: string;
+      additionalDirs: readonly string[];
+      sandboxProfile?: Agent['sandboxProfile'];
+    },
     cwd: string,
     background: Agent['background'],
     allowBackground: boolean,
@@ -550,8 +555,18 @@ export class ToolManager {
   ): Array<BuiltinTool | false | undefined> {
     return [
       this.shouldCreateBuiltin('Read') && new b.ReadTool(kaos, workspace),
-      this.shouldCreateBuiltin('Write') && new b.WriteTool(kaos, workspace),
-      this.shouldCreateBuiltin('Edit') && new b.EditTool(kaos, workspace),
+      this.shouldCreateBuiltin('Write') &&
+        new b.WriteTool(kaos, workspace, {
+          fileSnapshots: this.agent.fileSnapshots,
+          getTurnId: () =>
+            this.agent.turn.currentId !== undefined ? String(this.agent.turn.currentId) : undefined,
+        }),
+      this.shouldCreateBuiltin('Edit') &&
+        new b.EditTool(kaos, workspace, {
+          fileSnapshots: this.agent.fileSnapshots,
+          getTurnId: () =>
+            this.agent.turn.currentId !== undefined ? String(this.agent.turn.currentId) : undefined,
+        }),
       this.shouldCreateBuiltin('Grep') && new b.GrepTool(kaos, workspace, this.agent.telemetry),
       this.shouldCreateBuiltin('Glob') && new b.GlobTool(kaos, workspace, this.agent.telemetry),
       this.shouldCreateBuiltin('LioraRead') && new b.LioraReadTool(kaos, workspace, this.toolStore),

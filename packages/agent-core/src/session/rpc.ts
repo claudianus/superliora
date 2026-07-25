@@ -47,6 +47,11 @@ import type {
   PluginCommandDef,
   SteerPayload,
   StopBackgroundPayload,
+  StartConversationLoopPayload,
+  StopConversationLoopPayload,
+  ConversationLoopStateData,
+  RewindFilesPayload,
+  RewindFilesResult,
   UndoHistoryPayload,
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
@@ -54,6 +59,7 @@ import type {
 import type { PromisableMethods } from '#/utils/types';
 
 import type { Session, SessionMeta } from '.';
+import type { ConversationLoopState } from '../agent/conversation-loop';
 import { buildSessionTrace } from './trace';
 import {
   promptMetadataTextFromPayload,
@@ -135,6 +141,30 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   addAdditionalDir(payload: AddAdditionalDirPayload): Promise<AddAdditionalDirResult> {
     return this.session.addAdditionalDir(payload.path, payload.persist);
+  }
+
+  rewindFiles(payload: RewindFilesPayload): Promise<RewindFilesResult> {
+    return this.session.rewindFiles({ turnId: payload.turnId });
+  }
+
+  startConversationLoop(payload: StartConversationLoopPayload): ConversationLoopStateData {
+    return toConversationLoopStateData(
+      this.session.startConversationLoop({
+        prompt: payload.prompt,
+        intervalMs: payload.intervalMs,
+        maxIterations: payload.maxIterations,
+        expiresAt: payload.expiresAt,
+      }),
+    );
+  }
+
+  stopConversationLoop(payload: StopConversationLoopPayload): ConversationLoopStateData | undefined {
+    const state = this.session.stopConversationLoop(payload.loopId);
+    return state === undefined ? undefined : toConversationLoopStateData(state);
+  }
+
+  listConversationLoops(_payload: EmptyPayload): readonly ConversationLoopStateData[] {
+    return this.session.listConversationLoops().map(toConversationLoopStateData);
   }
 
   async prompt({ agentId, ...payload }: AgentScopedPayload<PromptPayload>) {
@@ -529,4 +559,19 @@ function isUntitled(title: unknown): boolean {
 function hasCustomTitle(metadata: SessionMeta): boolean {
   if (metadata.isCustomTitle) return true;
   return typeof (metadata as SessionMeta & { customTitle?: unknown }).customTitle === 'string';
+}
+
+function toConversationLoopStateData(state: ConversationLoopState): ConversationLoopStateData {
+  return {
+    id: state.id,
+    prompt: state.config.prompt,
+    intervalMs: state.config.intervalMs,
+    maxIterations: state.config.maxIterations,
+    expiresAt: state.config.expiresAt,
+    status: state.status,
+    iterations: state.iterations,
+    createdAt: state.createdAt,
+    lastFiredAt: state.lastFiredAt,
+    stopReason: state.stopReason,
+  };
 }

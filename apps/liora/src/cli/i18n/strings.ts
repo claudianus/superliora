@@ -37,6 +37,8 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
     'Add an additional workspace directory for this session. Can be repeated.',
   'cli.option.plan': 'Start with Ultrawork plan steering.',
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
+  'cli.option.worktree':
+    'Create a git worktree for this session (optional name). Isolates file edits from the main checkout.',
   'cli.sub.upgrade.description': 'Upgrade SuperLiora to the latest version.',
   'cli.error.unknownCommand': "unknown command '{arg}'. See '{cmd} --help'.",
 
@@ -80,6 +82,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.addDir': '이 세션에 추가 작업 디렉터리를 등록합니다. 여러 번 지정할 수 있습니다.',
   'cli.option.plan': 'Ultrawork 플랜 조향으로 시작합니다.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
+  'cli.option.worktree':
+    '이 세션용 git worktree를 만듭니다(이름 선택). 메인 checkout과 파일 편집을 격리합니다.',
   'cli.sub.upgrade.description': 'SuperLiora를 최신 버전으로 업그레이드합니다.',
   'cli.error.unknownCommand': "알 수 없는 명령 '{arg}'. '{cmd} --help'를 참고하세요.",
 

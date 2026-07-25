@@ -12,6 +12,7 @@ import { registerLoginCommand } from './sub/login';
 import { registerProviderCommand } from './sub/provider';
 import { registerServerCommand } from './sub/server';
 import { registerVisCommand } from './sub/vis';
+import { registerWorktreeCommand } from './sub/worktree';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
 export type PluginNodeRunnerHandler = (entry: string, args: readonly string[]) => void;
@@ -86,7 +87,12 @@ export function createProgram(
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false))
     .option('--plan', t('cli.option.plan'), false)
-    .option('--resume-goal', t('cli.option.resumeGoal'), false);
+    .option('--resume-goal', t('cli.option.resumeGoal'), false)
+    .addOption(
+      new Option('--worktree [name]', t('cli.option.worktree')).argParser(
+        (val: string | boolean) => (val === true ? true : (val as string)),
+      ),
+    );
 
   registerExportCommand(program);
   registerProviderCommand(program);
@@ -97,6 +103,7 @@ export function createProgram(
   registerLoginCommand(program);
   registerDoctorCommand(program);
   registerVisCommand(program);
+  registerWorktreeCommand(program);
   program
     .command('upgrade')
     .alias('update')
@@ -139,6 +146,7 @@ export function createProgram(
       skillsDirs: raw['skillsDir'] as string[],
       addDirs: raw['addDir'] as string[],
       resumeGoal: raw['resumeGoal'] as boolean,
+      worktree: raw['worktree'] as boolean | string | undefined,
     };
 
     onMain(opts);

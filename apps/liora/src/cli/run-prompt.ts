@@ -29,6 +29,7 @@ import {
 } from '#/tui/commands/ultrawork-lifecycle';
 import { tln } from '#/cli/i18n';
 import type { CLIOptions, PromptOutputFormat } from './options';
+import { resolveSessionWorkDir } from './resolve-worktree';
 import {
   formatGoalSummaryText,
   goalExitCode,
@@ -96,7 +97,8 @@ export async function runPrompt(
   const stdout = io.stdout ?? process.stdout;
   const stderr = io.stderr ?? process.stderr;
   const promptProcess = io.process ?? process;
-  const workDir = process.cwd();
+  const resolvedWork = await resolveSessionWorkDir({ worktree: opts.worktree });
+  const workDir = resolvedWork.workDir;
   const telemetryBootstrap = createCliTelemetryBootstrap();
   const telemetryClient: TelemetryClient = {
     track,
@@ -405,6 +407,7 @@ async function resolvePromptSession(
     permission: 'auto',
     additionalDirs: opts.addDirs?.length ? opts.addDirs : undefined,
     drainAgentTasksOnStop: true,
+    metadata: resolvedWork.metadata,
   });
   installHeadlessHandlers(session);
   return {

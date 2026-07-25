@@ -222,6 +222,11 @@ export interface ForkSessionInput {
   readonly forkId?: string;
   readonly title?: string;
   readonly metadata?: JsonObject;
+  /**
+   * When true (or an options object), create a git worktree for the forked
+   * session and use that path as the new session workDir.
+   */
+  readonly worktree?: boolean | { readonly name?: string; readonly baseRef?: string };
 }
 
 export interface ExportSessionInput {

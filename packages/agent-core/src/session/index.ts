@@ -10,9 +10,18 @@ import type { LioraConfig, SDKSessionRPC } from '#/rpc';
 import { proxyWithExtraPayload } from '#/rpc/types';
 
 import { Agent, type AgentOptions, type AgentType } from '../agent';
+import {
+  createConversationLoop,
+  type ConversationLoopController,
+  type ConversationLoopState,
+  DEFAULT_LOOP_INTERVAL_MS,
+  DEFAULT_LOOP_MAX_ITERATIONS,
+} from '../agent/conversation-loop';
 import { renderPluginSessionStartReminder } from '../agent/injection/plugin-session-start';
 import { HookEngine, type HookDef } from './hooks';
 import type { PermissionManagerOptions, PermissionRule } from '../agent/permission';
+import type { SandboxProfile } from '../tools/policies/path-access';
+import { FileSnapshotStore } from './file-snapshot';
 import {
   appendWorkspaceAdditionalDir,
   normalizeAdditionalDirs,
@@ -170,6 +179,8 @@ export class Session {
   readonly agents: Map<string, AgentEntry> = new Map();
   readonly mcp: McpConnectionManager;
   readonly log: Logger;
+  /** Session-scoped write/edit snapshots shared by all agents for `/rewind`. */
+  readonly fileSnapshots: FileSnapshotStore;
   private readonly logHandle: SessionLogHandle | undefined;
   readonly hookEngine: HookEngine;
   readonly experimentalFlags: ExperimentalFlagResolver;
@@ -178,6 +189,8 @@ export class Session {
   private additionalDirs: readonly string[];
   private agentIdCounter = 0;
   private readonly skillsReady: Promise<void>;
+  private readonly conversationLoops = new Map<string, ConversationLoopController>();
+  private conversationLoopSeq = 0;
   metadata: SessionMeta = {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -213,6 +226,10 @@ export class Session {
     this.toolKaos = options.kaos;
     this.persistenceKaos = options.persistenceKaos ?? options.kaos;
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
+    this.fileSnapshots = new FileSnapshotStore({
+      kaos: this.toolKaos,
+      snapshotDir: FileSnapshotStore.snapshotDirForSession(options.homedir),
+    });
     this.skills = new SessionSkillRegistry({
       sessionId: options.id,
       defaultSearchLimit: options.config?.skillSearchLimit,
@@ -888,6 +905,96 @@ export class Session {
     }
   }
 
+  private resolveSandboxProfile(): SandboxProfile {
+    const raw = this.metadata.custom['sandboxProfile'];
+    if (raw === 'off' || raw === 'workspace' || raw === 'read-only') {
+      return raw;
+    }
+    // Default workspace sandbox for safer file tools / AC4 tests.
+    return 'workspace';
+  }
+
+  /**
+   * Restore disk files from a sealed turn snapshot.
+   * When `turnId` is omitted, restores the latest sealed turn.
+   * Does not rewrite conversation history — pair with `undoHistory` when needed.
+   */
+  async rewindFiles(options: { turnId?: string | undefined } = {}): Promise<{
+    readonly turnId: string;
+    readonly restored: readonly string[];
+    readonly deleted: readonly string[];
+    readonly skippedSensitive: readonly string[];
+    readonly errors: readonly { path: string; message: string }[];
+  }> {
+    let turnId = options.turnId;
+    if (turnId === undefined) {
+      const turns = this.fileSnapshots.listTurns();
+      const latest = turns[turns.length - 1];
+      if (latest === undefined) {
+        throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'No file snapshots available to rewind');
+      }
+      turnId = latest.turnId;
+    }
+    const result = await this.fileSnapshots.restoreTurn(turnId);
+    this.fileSnapshots.discardFrom(turnId);
+    return { turnId, ...result };
+  }
+
+  startConversationLoop(options: {
+    prompt: string;
+    intervalMs?: number | undefined;
+    maxIterations?: number | undefined;
+    expiresAt?: number | undefined;
+  }): ConversationLoopState {
+    const prompt = options.prompt.trim();
+    if (prompt.length === 0) {
+      throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'Conversation loop prompt cannot be empty');
+    }
+    const id = `loop-${++this.conversationLoopSeq}`;
+    const controller = createConversationLoop(id, {
+      prompt,
+      intervalMs: options.intervalMs ?? DEFAULT_LOOP_INTERVAL_MS,
+      maxIterations: options.maxIterations ?? DEFAULT_LOOP_MAX_ITERATIONS,
+      expiresAt: options.expiresAt,
+    });
+    this.conversationLoops.set(id, controller);
+    return controller.getState();
+  }
+
+  stopConversationLoop(loopId?: string): ConversationLoopState | undefined {
+    if (loopId !== undefined) {
+      const controller = this.conversationLoops.get(loopId);
+      if (controller === undefined) return undefined;
+      return controller.stop('user_stop');
+    }
+    // Stop the most recently created still-active/paused loop.
+    let last: ConversationLoopController | undefined;
+    for (const controller of this.conversationLoops.values()) {
+      const status = controller.getState().status;
+      if (status === 'active' || status === 'paused') last = controller;
+    }
+    return last?.stop('user_stop');
+  }
+
+  listConversationLoops(): readonly ConversationLoopState[] {
+    return Array.from(this.conversationLoops.values()).map((c) => c.getState());
+  }
+
+  /** Evaluate and fire due conversation loops by prompting the main agent. */
+  tickConversationLoops(): readonly ConversationLoopState[] {
+    const fired: ConversationLoopState[] = [];
+    for (const controller of this.conversationLoops.values()) {
+      const result = controller.tick();
+      if (!result.shouldFire) continue;
+      const agent = this.getReadyAgent('main');
+      if (agent !== undefined) {
+        agent.turn.prompt([{ type: 'text', text: result.state.config.prompt }]);
+      }
+      fired.push(result.state);
+    }
+    return fired;
+  }
+
   private instantiateAgent(
     id: string,
     homedir: string,
@@ -926,6 +1033,8 @@ export class Session {
       responseLanguagePreference: () =>
         responseLanguagePreferenceFromUnknown(this.metadata.custom['responseLanguage']),
       dreamStore: type === 'main' ? this.options.dreamStore : undefined,
+      fileSnapshots: config.fileSnapshots ?? this.fileSnapshots,
+      sandboxProfile: config.sandboxProfile ?? this.resolveSandboxProfile(),
     });
   }
 
@@ -1043,6 +1152,12 @@ export class Session {
 }
 
 export * from './subagent-host';
+export {
+  FileSnapshotStore,
+  type FileSnapshotEntry,
+  type FileSnapshotStoreOptions,
+  type TurnFileSnapshot,
+} from './file-snapshot';
 
 function initCompletionReminder(agentsMd: string): string {
   const latest =

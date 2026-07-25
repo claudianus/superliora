@@ -39,6 +39,10 @@ import { appendTextToolMeta } from '../../support/text-result-meta';
 import type { ToolStore } from '../../store';
 import { archiveContent } from '../context/context-archive';
 import { compressShellOutput } from '../context/context-terse';
+import {
+  buildShellChildEnv,
+  type ShellEnvFilterPolicy,
+} from '../../policies/shell-env';
 import bashDescriptionTemplate from './bash.md?raw';
 
 const MS_PER_SECOND = 1000;
@@ -179,6 +183,8 @@ export class BashTool implements BuiltinTool<BashInput> {
 
   private readonly store: ToolStore | undefined;
 
+  private readonly shellEnvPolicy: ShellEnvFilterPolicy;
+
   constructor(
     private readonly kaos: Kaos,
     private readonly cwd: string,
@@ -186,11 +192,14 @@ export class BashTool implements BuiltinTool<BashInput> {
     options?: {
       allowBackground?: boolean | undefined;
       store?: ToolStore | undefined;
+      /** Shell env secret filter; default strips KEY/SECRET/TOKEN name patterns. */
+      shellEnvPolicy?: ShellEnvFilterPolicy | undefined;
     },
   ) {
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
     this.allowBackground = options?.allowBackground ?? true;
     this.store = options?.store;
+    this.shellEnvPolicy = options?.shellEnvPolicy ?? {};
     const rendered = renderBashDescription(this.kaos.osEnv.shellName);
     this.description = this.allowBackground ? rendered : withoutBackgroundDescription(rendered);
   }
@@ -228,17 +237,14 @@ export class BashTool implements BuiltinTool<BashInput> {
       TERM: 'dumb',
       // Default to '0' so git fails fast on private remotes if a TTY happens
       // to be inherited; honour an explicit ambient value when the user has
-      // set one.
+      // set one. Re-applied after secret filtering so it always wins.
       GIT_TERMINAL_PROMPT: process.env['GIT_TERMINAL_PROMPT'] ?? '0',
       SHELL: this.kaos.osEnv.shellPath,
     };
 
-    // Merge ambient env + noninteractive knobs so tools like git / node
-    // don't open a pager and paints don't colour the stream.
-    const mergedEnv: Record<string, string> = {
-      ...(process.env as Record<string, string>),
-      ...noninteractiveEnv,
-    };
+    // Ambient env is secret-filtered before noninteractive knobs so child
+    // shells never inherit *KEY*/*SECRET*/*TOKEN* names (values never logged).
+    const mergedEnv = buildShellChildEnv(process.env, noninteractiveEnv, this.shellEnvPolicy);
     return this.kaos.execWithEnv(shellArgs, mergedEnv);
   }
 

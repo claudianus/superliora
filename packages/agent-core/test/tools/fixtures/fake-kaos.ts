@@ -77,6 +77,11 @@ export function createFakeKaos(
   } as Kaos;
 }
 
+function isSecretEnvKeyName(key: string): boolean {
+  const upper = key.toUpperCase();
+  return upper.includes('KEY') || upper.includes('SECRET') || upper.includes('TOKEN');
+}
+
 function mergeEnvLayers(
   invocationEnv: Record<string, string> | undefined,
   envLayers: readonly Record<string, string>[],
@@ -84,7 +89,11 @@ function mergeEnvLayers(
   if (envLayers.length === 0) return invocationEnv;
   const merged: Record<string, string> = { ...invocationEnv };
   for (const layer of envLayers) {
-    Object.assign(merged, layer);
+    for (const [key, value] of Object.entries(layer)) {
+      // Mirror LocalKaos: withEnv layers must not reintroduce secret-named keys.
+      if (isSecretEnvKeyName(key)) continue;
+      merged[key] = value;
+    }
   }
   return merged;
 }

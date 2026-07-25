@@ -239,6 +239,18 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
     'Mark the imported model as default_model after import.',
   'cli.sub.provider.cmd.catalogAdd.option.url':
     'Override catalog URL. Defaults to {url}.',
+  'cli.sub.worktree.description': 'Manage SuperLiora git worktrees for session isolation',
+  'cli.sub.worktree.cmd.list.desc': 'List registered session worktrees',
+  'cli.sub.worktree.cmd.rm.desc': 'Remove a session worktree by name or path',
+  'cli.sub.worktree.cmd.gc.desc': 'Garbage-collect stale session worktrees',
+  'cli.sub.worktree.opt.repoOnly': 'Limit to worktrees for the current git repository',
+  'cli.sub.worktree.opt.maxAgeDays': 'Maximum age in days for GC (default 14)',
+  'cli.sub.worktree.opt.dryRun': 'Show what would be removed without deleting',
+  'cli.sub.worktree.arg.nameOrPath': 'Worktree name or absolute path',
+  'cli.sub.worktree.list.empty': 'No session worktrees registered.',
+  'cli.sub.worktree.rm.ok': 'Removed worktree {{name}} ({{path}})',
+  'cli.sub.worktree.gc.ok': 'GC removed {{removed}} worktree(s); {{kept}} kept',
+  'cli.sub.worktree.gc.invalidAge': 'Invalid --max-age-days value',
 };
 
 export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
@@ -482,4 +494,16 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
     '가져온 후 imported 모델을 default_model로 표시합니다.',
   'cli.sub.provider.cmd.catalogAdd.option.url':
     '카탈로그 URL 재정의. 기본값 {url}.',
+  'cli.sub.worktree.description': '세션 격리용 SuperLiora git worktree 관리',
+  'cli.sub.worktree.cmd.list.desc': '등록된 세션 worktree 목록',
+  'cli.sub.worktree.cmd.rm.desc': '이름 또는 경로로 세션 worktree 삭제',
+  'cli.sub.worktree.cmd.gc.desc': '오래된 세션 worktree 정리',
+  'cli.sub.worktree.opt.repoOnly': '현재 git 저장소의 worktree만',
+  'cli.sub.worktree.opt.maxAgeDays': 'GC 최대 보관 일수 (기본 14)',
+  'cli.sub.worktree.opt.dryRun': '삭제 없이 대상만 표시',
+  'cli.sub.worktree.arg.nameOrPath': 'worktree 이름 또는 절대 경로',
+  'cli.sub.worktree.list.empty': '등록된 세션 worktree가 없습니다.',
+  'cli.sub.worktree.rm.ok': 'worktree {{name}} 삭제됨 ({{path}})',
+  'cli.sub.worktree.gc.ok': 'GC로 {{removed}}개 삭제, {{kept}}개 유지',
+  'cli.sub.worktree.gc.invalidAge': '잘못된 --max-age-days 값',
 };

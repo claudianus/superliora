@@ -42,6 +42,34 @@ export function isBackgroundTaskTerminal(status: BackgroundTaskStatus): boolean 
   return TERMINAL_STATUSES.has(status);
 }
 
+/** Hard cap for wait_any / wait_all batch size (Grok-aligned DoS bound). */
+export const MAX_MULTI_WAIT_TASKS = 20;
+
+export class MultiWaitLimitError extends Error {
+  readonly code = 'MULTI_WAIT_LIMIT' as const;
+  constructor(count: number) {
+    super(
+      `Too many task ids for multi-wait (${String(count)}). Maximum is ${String(MAX_MULTI_WAIT_TASKS)}.`,
+    );
+    this.name = 'MultiWaitLimitError';
+  }
+}
+
+function normalizeMultiWaitIds(taskIds: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const raw of taskIds) {
+    const id = raw.trim();
+    if (id === '' || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  if (ids.length > MAX_MULTI_WAIT_TASKS) {
+    throw new MultiWaitLimitError(ids.length);
+  }
+  return ids;
+}
+
 export { AgentBackgroundTask } from './agent-task';
 export type { AgentBackgroundTaskInfo } from './agent-task';
 export { ProcessBackgroundTask } from './process-task';
@@ -527,6 +555,58 @@ export class BackgroundManager {
       await entry.persistWriteQueue;
     }
     return this.toInfo(entry);
+  }
+
+  /**
+   * Wait until every listed task is terminal (or timeout). Cap: {@link MAX_MULTI_WAIT_TASKS}.
+   */
+  async waitAll(
+    taskIds: readonly string[],
+    timeoutMs = 30_000,
+  ): Promise<readonly (BackgroundTaskInfo | undefined)[]> {
+    const ids = normalizeMultiWaitIds(taskIds);
+    return Promise.all(ids.map((id) => this.wait(id, timeoutMs)));
+  }
+
+  /**
+   * Wait until the first listed task becomes terminal (or timeout). Cap: {@link MAX_MULTI_WAIT_TASKS}.
+   */
+  async waitAny(
+    taskIds: readonly string[],
+    timeoutMs = 30_000,
+  ): Promise<BackgroundTaskInfo | undefined> {
+    const ids = normalizeMultiWaitIds(taskIds);
+    if (ids.length === 0) return undefined;
+
+    for (const id of ids) {
+      const info = this.getTask(id);
+      if (info !== undefined && isBackgroundTaskTerminal(info.status)) {
+        return info;
+      }
+    }
+
+    if (timeoutMs <= 0) {
+      return undefined;
+    }
+
+    type RaceResult = { readonly kind: 'task'; readonly info: BackgroundTaskInfo } | { readonly kind: 'timeout' };
+    const timeout = timeoutOutcome(timeoutMs, { kind: 'timeout' } as RaceResult);
+    try {
+      const raced = await Promise.race<RaceResult>([
+        ...ids.map(async (id): Promise<RaceResult> => {
+          const info = await this.wait(id, timeoutMs);
+          if (info !== undefined && isBackgroundTaskTerminal(info.status)) {
+            return { kind: 'task', info };
+          }
+          // Non-terminal after per-id wait: hang until overall timeout clears the race.
+          return timeout;
+        }),
+        timeout,
+      ]);
+      return raced.kind === 'task' ? raced.info : undefined;
+    } finally {
+      timeout.clear();
+    }
   }
 
   /**

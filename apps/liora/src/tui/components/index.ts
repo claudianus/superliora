@@ -14,6 +14,8 @@ export * from './dialogs/model-selector';
 export * from './dialogs/permission-selector';
 export * from './dialogs/question-dialog';
 export * from './dialogs/session-picker';
+export * from './dialogs/agent-dashboard';
+export * from './dialogs/extensions-modal';
 export * from './dialogs/settings-selector';
 export * from './dialogs/theme-selector';
 export * from './editor/file-mention-provider';
