@@ -13,6 +13,7 @@ import type { ToolExecution } from '../loop/types';
 import { toInputJsonSchema } from './support/input-schema';
 import { literalRulePattern } from './support/rule-match';
 import { visualDiff } from './visual-diff';
+import VISUAL_DIFF_DESCRIPTION from './visual-diff.md?raw';
 
 const inputSchema = z.object({
   left_path: z.string().min(1).describe('Path to the left/baseline image file.'),
@@ -23,8 +24,7 @@ type VisualDiffToolInput = z.infer<typeof inputSchema>;
 
 export class VisualDiffTool implements BuiltinTool<VisualDiffToolInput> {
   readonly name = 'VisualDiff' as const;
-  readonly description =
-    'Compare two image files by byte length and sha256 (MVP, not pixel SSIM). Returns JSON with identical, hashes, and lengthDelta.';
+  readonly description = VISUAL_DIFF_DESCRIPTION.trim();
   readonly parameters = toInputJsonSchema(inputSchema);
 
   constructor(private readonly kaos: Kaos) {}
