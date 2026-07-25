@@ -165,6 +165,7 @@ export async function runPrompt(
         (restorePermission) => {
           restorePromptSessionPermission = restorePermission;
         },
+        resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined,
       );
     restorePromptSessionPermission = restorePermission;
 
@@ -330,6 +331,7 @@ async function resolvePromptSession(
   defaultModel: string | undefined,
   stderr: PromptOutput,
   setRestorePermission: (restorePermission: () => Promise<void>) => void,
+  sessionMetadata?: import('@superliora/sdk').JsonObject,
 ): Promise<ResolvedPromptSession> {
   if (opts.session !== undefined) {
     const sessions = await harness.listSessions({ sessionId: opts.session, workDir });
@@ -407,7 +409,7 @@ async function resolvePromptSession(
     permission: 'auto',
     additionalDirs: opts.addDirs?.length ? opts.addDirs : undefined,
     drainAgentTasksOnStop: true,
-    metadata: resolvedWork.metadata,
+    metadata: sessionMetadata,
   });
   installHeadlessHandlers(session);
   return {

@@ -84,6 +84,11 @@ function stripOsc52Dnd(data: string, onFileDrop: (paths: readonly string[]) => v
     if (match === null) return remaining;
 
     const base64Data = match[1];
+    if (base64Data === undefined) {
+      remaining = `${remaining.slice(0, match.index)}${remaining.slice(match.index + match[0].length)}`;
+      OSC52_DND_PATTERN.lastIndex = 0;
+      continue;
+    }
     const paths = decodeDndPaths(base64Data);
     if (paths.length > 0) {
       onFileDrop(paths);

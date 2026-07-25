@@ -104,7 +104,7 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
     workDir,
     startupNotice: configWarning,
     updateNotice,
-    sessionMetadata: resolvedWork.metadata,
+    sessionMetadata: resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined,
   });
 
   initializeCliTelemetry({

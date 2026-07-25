@@ -25,17 +25,21 @@ export function parseImproveHarnessCommand(rawArgs: string): ImproveHarnessOptio
   if (args.length === 0) return {};
 
   const tokens = args.split(/\s+/);
-  const options: ImproveHarnessOptions = {};
+  let auto = false;
+  let area: string | undefined;
 
   for (const token of tokens) {
     if (token === '--auto') {
-      options.auto = true;
+      auto = true;
     } else if (!token.startsWith('-')) {
-      options.area = token;
+      area = token;
     }
   }
 
-  return options;
+  return {
+    ...(auto ? { auto: true } : {}),
+    ...(area !== undefined ? { area } : {}),
+  };
 }
 
 const IMPROVEMENT_AREAS = [
