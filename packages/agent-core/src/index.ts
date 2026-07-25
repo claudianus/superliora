@@ -49,6 +49,8 @@ export {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
   readyNodeIds,
+  rebindPhaseWorkNodeIds,
+  type PhaseWorkNodeBinding,
   type SwarmDagNode,
   type SwarmDagNodeStatus,
 } from './session/swarm-dag-scheduler';

@@ -140,6 +140,7 @@ export {
   createLioraReviewTool,
   preferReadyWorkNodeIds,
   partitionReadyWorkNodeIds,
+  rebindPhaseWorkNodeIds,
   attachDraftToDebate,
   buildDebateDraftHandoffPack,
 } from '@superliora/agent-core';
@@ -156,6 +157,7 @@ export type {
   StaffingDiversityOptions,
   SwarmDagNode,
   SwarmDagNodeStatus,
+  PhaseWorkNodeBinding,
   StaffingGoldCase,
   StaffingOutcomeInput,
   StaffingOutcomeRecord,

@@ -55,6 +55,7 @@ import {
 import {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
+  rebindPhaseWorkNodeIds,
   SWARM_DAG_DONE_STATUSES,
 } from '../../../session/swarm-dag-scheduler';
 import { ToolAccesses } from '../../../loop/tool-access';
@@ -845,6 +846,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
    * Rebind phase specs to currently ready WorkGraph nodes (live store).
    * Specs that already hold ready/running ids keep them; empty/blocked specs
    * pick up newly unlocked ready nodes so phase runners do not starve.
+   * Pure assignment lives in `rebindPhaseWorkNodeIds`; this method adds
+   * telemetry and mark-running side effects.
    */
   private rebindPhaseSpecsToLiveReadyNodes(
     phaseSpecs: readonly UltraSwarmSpec[],
@@ -862,8 +865,6 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       dependsOn: node.dependsOn,
       status: node.status,
     }));
-    const readyIds = preferReadyWorkNodeIds(boundWorkNodeIds, dagNodes);
-    const readySet = new Set(readyIds);
     const partition = partitionReadyWorkNodeIds(
       dagNodes.filter((node) => boundWorkNodeIds.includes(node.id)),
     );
@@ -874,62 +875,18 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       ready_ids: partition.readyIds.slice(0, 32).join(','),
     });
 
-    if (readyIds.length === 0) return [...phaseSpecs];
-
-    // Keep specs whose current workNodeIds are still ready/running.
-    const stillHeld = new Set<string>();
-    for (const spec of phaseSpecs) {
-      for (const id of spec.workNodeIds) {
-        if (readySet.has(id)) stillHeld.add(id);
-      }
-    }
-    const freeReady = readyIds.filter((id) => !stillHeld.has(id));
-    if (freeReady.length === 0) {
-      // Still mark any newly ready free nodes as running if already held.
-      this.markWorkNodesRunning(
-        readyIds.filter((id) => {
-          const node = graph.nodes.find((n) => n.id === id);
-          return node !== undefined && node.status !== 'running';
-        }),
-        ownerExpertIdForWorkNodes(phaseSpecs),
-      );
-      return [...phaseSpecs];
-    }
-
-    let freeIndex = 0;
-    const rebound = phaseSpecs.map((spec) => {
-      const kept = spec.workNodeIds.filter((id) => readySet.has(id));
-      if (kept.length > 0) {
-        return kept.length === spec.workNodeIds.length
-          ? spec
-          : { ...spec, workNodeIds: kept };
-      }
-      // Assign one free ready node (or more if many free and few specs).
-      if (freeIndex >= freeReady.length) return { ...spec, workNodeIds: [] as string[] };
-      const assigned = [freeReady[freeIndex]!];
-      freeIndex += 1;
-      // If leftover free nodes and this is the last spec, give the rest.
-      if (freeIndex === phaseSpecs.length && freeIndex < freeReady.length) {
-        assigned.push(...freeReady.slice(freeIndex));
-        freeIndex = freeReady.length;
-      }
-      return { ...spec, workNodeIds: assigned };
-    });
-
-    // Round-robin leftover free ready nodes onto specs that already have some.
-    while (freeIndex < freeReady.length) {
-      const target = rebound[freeIndex % rebound.length]!;
-      rebound[freeIndex % rebound.length] = {
-        ...target,
-        workNodeIds: [...target.workNodeIds, freeReady[freeIndex]!],
-      };
-      freeIndex += 1;
-    }
+    const rebound = rebindPhaseWorkNodeIds(phaseSpecs, boundWorkNodeIds, dagNodes);
+    const readyIds = preferReadyWorkNodeIds(boundWorkNodeIds, dagNodes);
+    if (readyIds.length === 0) return rebound;
 
     const newlyRunning = uniqueStrings(rebound.flatMap((spec) => spec.workNodeIds)).filter(
       (id) => {
         const node = graph.nodes.find((n) => n.id === id);
-        return node !== undefined && node.status !== 'running' && !SWARM_DAG_DONE_STATUSES.has(node.status);
+        return (
+          node !== undefined &&
+          node.status !== 'running' &&
+          !SWARM_DAG_DONE_STATUSES.has(node.status)
+        );
       },
     );
     if (newlyRunning.length > 0) {
