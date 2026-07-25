@@ -260,8 +260,9 @@ describe('UltraworkGraphTool', () => {
         nodes: [
           node({
             status: 'done',
+            // check-like token "unit test" must match evidence id/summary (not just any id)
             requiredEvidence: ['unit test'],
-            evidenceIds: ['ev-1'],
+            evidenceIds: ['unit-test-pass', 'ev-1'],
           }),
         ],
       },
