@@ -1,9 +1,11 @@
 import { copyFileSync, existsSync, renameSync, unlinkSync } from 'node:fs';
 import { createProvider, type ChatProvider, type GenerateResult, type Message } from '@superliora/kosong';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
+
 import type { Agent } from '../index';
 import type { LioraRecallStore } from '../../memory/store';
 import type { MemoryRecord } from '../../memory/types';
-import { sharedCredentialHealthStore } from '@superliora/oauth';
+import { resolveCompactionModelAlias } from '../../utils/cheap-model';
 
 const DEFAULT_MIN_HOURS_SINCE_LAST_DREAM = 4;
 const DEFAULT_MIN_ACTIVE_RECORDS = 8;
@@ -107,7 +109,22 @@ export class AutoDreamService {
     return merged;
   }
   private resolveProvider(): ChatProvider {
-    const alias = this.agent.kimiConfig?.loopControl?.compactionModel;
+    const alias = resolveCompactionModelAlias({
+      explicit: this.agent.kimiConfig?.loopControl?.compactionModel,
+      models: this.agent.kimiConfig?.models,
+      isAliasHealthy: (modelAlias) => {
+        if (this.agent.modelProvider === undefined) return true;
+        try {
+          const resolved = this.agent.modelProvider.resolveProviderConfig(modelAlias);
+          return sharedCredentialHealthStore.isAvailable(
+            resolved.providerName,
+            resolved.credentialLabel,
+          );
+        } catch {
+          return false;
+        }
+      },
+    });
     if (alias !== undefined && this.agent.modelProvider !== undefined) {
       try {
         const resolved = this.agent.modelProvider.resolveProviderConfig(alias);

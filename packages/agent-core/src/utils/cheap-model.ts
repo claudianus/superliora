@@ -11,6 +11,20 @@ const CHEAP_MODEL_PATTERNS: ReadonlyArray<{ pattern: string; score: number }> = 
   { pattern: 'turbo', score: 6 },
 ];
 
+/** Local model alias shape used for cheap/compaction routing (sync, no network). */
+export type CheapModelConfig = {
+  readonly model: string;
+  readonly provider?: string;
+  readonly maxContextSize?: number;
+  /** Per-million-token pricing in USD (models.dev / config.toml). */
+  readonly cost?: {
+    readonly input?: number;
+    readonly output?: number;
+    readonly cache_read?: number;
+    readonly cache_write?: number;
+  };
+};
+
 /**
  * Pick the cheapest-looking alias from a configured models record using only
  * well-known name patterns — no pricing lookup, safe to call from synchronous
@@ -19,7 +33,7 @@ const CHEAP_MODEL_PATTERNS: ReadonlyArray<{ pattern: string; score: number }> = 
  * their default (usually the main) model.
  */
 export function inferCheapModelAliasSync(
-  models: Record<string, { model: string; provider?: string }> | undefined,
+  models: Record<string, CheapModelConfig | { model: string; provider?: string }> | undefined,
   isAliasHealthy?: (alias: string) => boolean,
 ): string | undefined {
   if (models === undefined) return undefined;
@@ -38,6 +52,76 @@ export function inferCheapModelAliasSync(
     }
   }
   return bestAlias;
+}
+
+/**
+ * Pick the lowest-priced configured alias using local `cost.input` (USD / 1M
+ * tokens), optionally requiring a minimum context window. Aliases without an
+ * input cost are skipped so free/unknown entries do not always win. Safe for
+ * synchronous compaction hot paths — no models.dev network fetch.
+ */
+export function inferCheapestModelAliasByCostSync(
+  models: Record<string, CheapModelConfig> | undefined,
+  isAliasHealthy?: (alias: string) => boolean,
+  options?: {
+    readonly minContextTokens?: number;
+  },
+): string | undefined {
+  if (models === undefined) return undefined;
+
+  let bestAlias: string | undefined;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const [alias, config] of Object.entries(models)) {
+    if (isAliasHealthy !== undefined && !isAliasHealthy(alias)) continue;
+    const inputCost = config.cost?.input;
+    if (inputCost === undefined || !Number.isFinite(inputCost) || inputCost < 0) continue;
+    const maxContext = config.maxContextSize;
+    if (
+      options?.minContextTokens !== undefined &&
+      maxContext !== undefined &&
+      maxContext > 0 &&
+      maxContext < options.minContextTokens
+    ) {
+      continue;
+    }
+    const outputCost =
+      config.cost?.output !== undefined && Number.isFinite(config.cost.output)
+        ? Math.max(0, config.cost.output)
+        : 0;
+    // Prefer input price; small output weight breaks ties toward cheaper completions.
+    const score = inputCost + outputCost * 0.25;
+    if (score < bestScore) {
+      bestScore = score;
+      bestAlias = alias;
+    }
+  }
+  return bestAlias;
+}
+
+/**
+ * Resolve which model alias full compaction / dream should use.
+ *
+ * Priority:
+ * 1. Explicit `loopControl.compactionModel` (caller validates resolve; may throw)
+ * 2. Lowest local `models.*.cost` among healthy aliases (optional min context)
+ * 3. Name-heuristic cheap tier (`flash` / `haiku` / …)
+ * 4. `undefined` → caller falls back to the main session model
+ */
+export function resolveCompactionModelAlias(params: {
+  readonly explicit?: string | undefined;
+  readonly models?: Record<string, CheapModelConfig> | undefined;
+  readonly isAliasHealthy?: (alias: string) => boolean;
+  readonly minContextTokens?: number;
+}): string | undefined {
+  const explicit = params.explicit?.trim();
+  if (explicit !== undefined && explicit.length > 0) return explicit;
+
+  return (
+    inferCheapestModelAliasByCostSync(params.models, params.isAliasHealthy, {
+      minContextTokens: params.minContextTokens,
+    }) ?? inferCheapModelAliasSync(params.models, params.isAliasHealthy)
+  );
 }
 
 /**

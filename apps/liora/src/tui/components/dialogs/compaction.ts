@@ -60,8 +60,15 @@ const BAR_MAX_WIDTH = 24;
 const BAR_FILL_CHAR = '█';
 const BAR_PULSE_CHAR = '▓';
 const BAR_EMPTY_CHAR = '░';
-const SUMMARY_PREVIEW_LINES = 3;
-const SUMMARY_PREVIEW_MAX_WIDTH = 80;
+const SUMMARY_PREVIEW_LINES = 5;
+const SUMMARY_PREVIEW_MAX_WIDTH = 96;
+const SUMMARY_BUFFER_MAX_CHARS = 12_000;
+
+type CompactionStreamMeta = {
+  readonly streamKind?: 'summary' | 'block' | 'merge' | 'repair';
+  readonly blockIndex?: number;
+  readonly blockCount?: number;
+};
 
 export class CompactionComponent extends Container {
   private readonly ui: RendererRootUI | undefined;
@@ -79,6 +86,8 @@ export class CompactionComponent extends Container {
   private phase: CompactionUiPhase = 'preparing';
   private phaseEnteredAt = this.startedAtMs;
   private progressFloor = 0;
+  private streamMeta: CompactionStreamMeta = {};
+  private streamedChars = 0;
   private readonly progressText: Text;
   private summaryBuffer = '';
   private readonly summaryPreviewText: Text;
@@ -219,10 +228,33 @@ export class CompactionComponent extends Container {
     this.ui?.requestRender();
   }
 
+  /** Live stream source (summary / block N / merge / repair) for progress label. */
+  setStreamMeta(meta: CompactionStreamMeta): void {
+    if (this.done || this.canceled) return;
+    const next: CompactionStreamMeta = {
+      streamKind: meta.streamKind ?? this.streamMeta.streamKind,
+      blockIndex: meta.blockIndex ?? this.streamMeta.blockIndex,
+      blockCount: meta.blockCount ?? this.streamMeta.blockCount,
+    };
+    if (
+      next.streamKind === this.streamMeta.streamKind &&
+      next.blockIndex === this.streamMeta.blockIndex &&
+      next.blockCount === this.streamMeta.blockCount
+    ) {
+      return;
+    }
+    this.streamMeta = next;
+    this.ui?.requestRender();
+  }
+
   /** Append streamed summarizer output and show a dimmed tail preview. */
   appendSummaryDelta(delta: string): void {
     if (this.done || this.canceled || delta.length === 0) return;
     this.summaryBuffer += delta;
+    this.streamedChars += delta.length;
+    if (this.summaryBuffer.length > SUMMARY_BUFFER_MAX_CHARS) {
+      this.summaryBuffer = this.summaryBuffer.slice(-SUMMARY_BUFFER_MAX_CHARS);
+    }
     this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
     this.ui?.requestRender();
   }
@@ -256,12 +288,44 @@ export class CompactionComponent extends Container {
     return Math.min(0.99, Math.max(fraction, this.progressFloor));
   }
 
+  private streamStatusSuffix(): string {
+    const kind = this.streamMeta.streamKind;
+    if (kind === undefined) {
+      return this.streamedChars > 0 ? ` · ${String(this.streamedChars)} chars` : '';
+    }
+    let label: string;
+    switch (kind) {
+      case 'block': {
+        const index = this.streamMeta.blockIndex;
+        const count = this.streamMeta.blockCount;
+        label =
+          index !== undefined && count !== undefined
+            ? `block ${String(index)}/${String(count)}`
+            : 'blocks';
+        break;
+      }
+      case 'merge':
+        label = 'merging blocks';
+        break;
+      case 'repair':
+        label = 'repairing summary';
+        break;
+      default:
+        label = 'streaming summary';
+        break;
+    }
+    const chars =
+      this.streamedChars > 0 ? ` · ${String(this.streamedChars)} chars` : '';
+    return ` · ${label}${chars}`;
+  }
+
   private buildProgressLine(width: number): string {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
     const now = appearanceAnimationNow();
     const fraction = this.currentFraction(now, animated);
     const { label } = PHASE_PROGRESS[this.phase];
+    const status = `${label}${this.streamStatusSuffix()}`;
     const barWidth = Math.max(BAR_MIN_WIDTH, Math.min(BAR_MAX_WIDTH, width - 18));
     const filled = Math.min(barWidth, Math.round(fraction * barWidth));
     const shimmerIndex = animated
@@ -278,11 +342,11 @@ export class CompactionComponent extends Container {
       }
     }
     const pct = currentTheme.fg('textDim', `${String(Math.round(fraction * 100)).padStart(3)}%`);
-    return `  ${bar} ${pct} ${currentTheme.fg('textMuted', label)}`;
+    return `  ${bar} ${pct} ${currentTheme.fg('textMuted', status)}`;
   }
 
   private buildSummaryPreviewLines(): string[] {
-    return this.summaryBuffer
+    const lines = this.summaryBuffer
       .split('\n')
       .map((line) => line.trimEnd())
       .filter((line) => line.trim().length > 0)
@@ -294,6 +358,13 @@ export class CompactionComponent extends Container {
             : line;
         return currentTheme.dim(`  ${clipped}`);
       });
+    if (lines.length === 0) return lines;
+    // Live cursor on the last preview line while summarizing / repairing.
+    if (!this.done && !this.canceled && (this.phase === 'summarizing' || this.phase === 'repairing')) {
+      const last = lines[lines.length - 1] ?? '';
+      lines[lines.length - 1] = `${last}${currentTheme.fg('accent', '▌')}`;
+    }
+    return lines;
   }
 
   private buildCompletePlain(): string {

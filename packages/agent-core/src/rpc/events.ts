@@ -11,6 +11,7 @@ export type {
   CompactionCompletedEvent,
   CompactionPhase,
   CompactionProgressEvent,
+  CompactionStreamKind,
   CompactionResult,
   CompactionStartedEvent,
   CronFiredEvent,

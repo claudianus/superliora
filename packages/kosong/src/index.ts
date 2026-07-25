@@ -67,6 +67,7 @@ export {
   APITimeoutError,
   ChatProviderError,
   isContextOverflowStatusError,
+  isProviderCapacityError,
   isProviderRateLimitError,
   isRecoverableRequestStructureError,
   isPermanentQuotaOrBillingError,

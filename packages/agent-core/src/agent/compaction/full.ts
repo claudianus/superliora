@@ -12,6 +12,7 @@ import {
   type Message,
   type ModelCapability,
   type TokenUsage,
+  type Tool,
   APIContextOverflowError,
   APIStatusError,
   createUserMessage,
@@ -36,7 +37,7 @@ import {
   computeCompletionBudgetCap,
   resolveCompletionBudget,
 } from '../../utils/completion-budget';
-import { inferCheapModelAliasSync } from '../../utils/cheap-model';
+import { resolveCompactionModelAlias } from '../../utils/cheap-model';
 import compactionInstructionTemplate from './compaction-instruction.md?raw';
 import { archiveContent } from '../../tools/builtin/context/context-archive';
 import { renderMessagesToText } from './render-messages';
@@ -1121,15 +1122,31 @@ export class FullCompaction {
     }
   }
 
+  /**
+   * Compaction is a logic-only summarizer slice (not a Subagent): no tools,
+   * thinking off, cost-aware model when configured.
+   */
+  /** Summaries never need tool schemas — empty list keeps capacity pressure down. */
+  private static readonly COMPACTION_GENERATE_TOOLS: Tool[] = [];
+
+  private compactionModelAlias: string | undefined;
+
   private createCompactionProvider(usedContextTokens: number): ChatProvider {
     // When a dedicated compaction model is configured, summarize with it
     // instead of the (usually more expensive) main model. Without an explicit
-    // alias, infer a cheap/fast model from the configured aliases so routine
-    // compaction does not spend main-model tokens. The alias is resolved
-    // through the same ModelProvider so auth/routing stays consistent.
+    // alias, pick the lowest local models.*.cost (then name-heuristic cheap
+    // tier) so routine compaction does not spend main-model tokens. The alias
+    // is resolved through the same ModelProvider so auth/routing stays consistent.
     const configuredCompactionModel = this.agent.kimiConfig?.loopControl?.compactionModel;
-    const compactionModelAlias =
-      configuredCompactionModel ?? inferCheapModelAliasSync(this.agent.kimiConfig?.models);
+    const compactionModelAlias = resolveCompactionModelAlias({
+      explicit: configuredCompactionModel,
+      models: this.agent.kimiConfig?.models,
+      minContextTokens: usedContextTokens > 0 ? usedContextTokens : undefined,
+    });
+    this.compactionModelAlias =
+      compactionModelAlias !== undefined && compactionModelAlias.length > 0
+        ? compactionModelAlias
+        : this.agent.config.modelAlias;
     let resolvedCompaction: ResolvedRuntimeProvider | undefined;
     if (compactionModelAlias !== undefined) {
       try {
@@ -1141,6 +1158,7 @@ export class FullCompaction {
         if (configuredCompactionModel !== undefined) throw error;
         this.agent.log.warn('inferred cheap compaction model did not resolve', error);
         resolvedCompaction = undefined;
+        this.compactionModelAlias = this.agent.config.modelAlias;
       }
     }
     const capability: ModelCapability = resolvedCompaction?.modelCapabilities
@@ -1182,6 +1200,48 @@ export class FullCompaction {
       );
     }
     return provider;
+  }
+
+  private compactionGenerateOptions(signal: AbortSignal): {
+    readonly signal: AbortSignal;
+    readonly runtimeModelAlias?: string;
+  } {
+    return {
+      signal,
+      runtimeModelAlias: this.compactionModelAlias,
+    };
+  }
+
+  /**
+   * Stream every compaction LLM call into `compaction.progress` so TUI can
+   * show live summary text (main, parallel blocks, merge, and repair).
+   */
+  private compactionStreamCallbacks(meta: {
+    readonly phase: 'summarizing' | 'repairing' | 'finalizing';
+    readonly streamKind: 'summary' | 'block' | 'merge' | 'repair';
+    readonly blockIndex?: number;
+    readonly blockCount?: number;
+  }): {
+    readonly onMessagePart: (part: {
+      readonly type: string;
+      readonly text?: string;
+    }) => void;
+  } {
+    return {
+      onMessagePart: (part) => {
+        if (part.type !== 'text') return;
+        const text = part.text ?? '';
+        if (text.length === 0) return;
+        this.agent.emitEvent({
+          type: 'compaction.progress',
+          phase: meta.phase,
+          streamKind: meta.streamKind,
+          blockIndex: meta.blockIndex,
+          blockCount: meta.blockCount,
+          delta: text,
+        });
+      },
+    };
   }
 
 
@@ -1607,20 +1667,13 @@ export class FullCompaction {
         const response = await this.agent.generate(
           provider,
           this.agent.config.systemPrompt,
-          [...this.agent.tools.loopTools],
+          FullCompaction.COMPACTION_GENERATE_TOOLS,
           messages,
-          {
-            onMessagePart: (part) => {
-              if (part.type === 'text' && part.text.length > 0) {
-                this.agent.emitEvent({
-                  type: 'compaction.progress',
-                  phase: 'summarizing',
-                  delta: part.text,
-                });
-              }
-            },
-          },
-          { signal },
+          this.compactionStreamCallbacks({
+            phase: 'summarizing',
+            streamKind: 'summary',
+          }),
+          this.compactionGenerateOptions(signal),
         );
         if (response.finishReason === 'truncated') {
           throw new CompactionTruncatedError();
@@ -1685,8 +1738,9 @@ export class FullCompaction {
         'This is one block of a larger conversation. Summarize only the events in this block.',
       ),
     });
+    const blockCount = orderedBlocks.length;
     const blockResults = await Promise.all(
-      orderedBlocks.map(async (block) => {
+      orderedBlocks.map(async (block, index) => {
         const messages = [
           ...this.agent.context.projectForCompaction(block),
           createUserMessage(blockPrompt),
@@ -1694,10 +1748,15 @@ export class FullCompaction {
         const response = await this.agent.generate(
           provider,
           this.agent.config.systemPrompt,
-          [...this.agent.tools.loopTools],
+          FullCompaction.COMPACTION_GENERATE_TOOLS,
           messages,
-          undefined,
-          { signal },
+          this.compactionStreamCallbacks({
+            phase: 'summarizing',
+            streamKind: 'block',
+            blockIndex: index + 1,
+            blockCount,
+          }),
+          this.compactionGenerateOptions(signal),
         );
         if (response.finishReason === 'truncated') {
           throw new CompactionTruncatedError();
@@ -1761,10 +1820,13 @@ export class FullCompaction {
         const response = await this.agent.generate(
           provider,
           this.agent.config.systemPrompt,
-          [...this.agent.tools.loopTools],
+          FullCompaction.COMPACTION_GENERATE_TOOLS,
           messages,
-          undefined,
-          { signal },
+          this.compactionStreamCallbacks({
+            phase: 'summarizing',
+            streamKind: 'merge',
+          }),
+          this.compactionGenerateOptions(signal),
         );
         if (response.finishReason === 'truncated') {
           throw new CompactionTruncatedError();
@@ -1823,10 +1885,13 @@ export class FullCompaction {
     const response = await this.agent.generate(
       provider,
       this.agent.config.systemPrompt,
-      [...this.agent.tools.loopTools],
+      FullCompaction.COMPACTION_GENERATE_TOOLS,
       messages,
-      undefined,
-      { signal },
+      this.compactionStreamCallbacks({
+        phase: 'repairing',
+        streamKind: 'repair',
+      }),
+      this.compactionGenerateOptions(signal),
     );
     if (response.finishReason === 'truncated') {
       throw new CompactionTruncatedError();
