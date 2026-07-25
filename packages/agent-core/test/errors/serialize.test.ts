@@ -34,3 +34,29 @@ describe('toKimiErrorPayload APIStatusError message sanitization', () => {
     );
   });
 });
+
+describe('toKimiErrorPayload permanent quota vs rate limit', () => {
+  it('marks permanent quota/billing as non-retryable api errors', () => {
+    const payload = toKimiErrorPayload(
+      new APIStatusError(400, 'insufficient_quota: billing hard limit reached', 'req-q'),
+    );
+    expect(payload.code).toBe('provider.api_error');
+    expect(payload.retryable).toBe(false);
+    expect(payload.details).toMatchObject({ permanentQuota: true, statusCode: 400 });
+  });
+
+  it('keeps pure 429 rate limits retryable', () => {
+    const payload = toKimiErrorPayload(new APIStatusError(429, 'Too Many Requests', 'req-r'));
+    expect(payload.code).toBe('provider.rate_limit');
+    expect(payload.retryable).toBe(true);
+  });
+
+  it('treats quota-exceeded 429 as permanent, not a retryable rate limit', () => {
+    const payload = toKimiErrorPayload(
+      new APIStatusError(429, 'You exceeded your current quota', 'req-q429'),
+    );
+    expect(payload.code).toBe('provider.api_error');
+    expect(payload.retryable).toBe(false);
+  });
+});
+

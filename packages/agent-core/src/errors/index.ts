@@ -11,6 +11,8 @@ export {
 export {
   fromKimiErrorPayload,
   isKimiError,
+  isPermanentQuotaOrBillingMessage,
+  isQuotaOrRateLimitMessage,
   makeErrorPayload,
   toKimiErrorPayload,
   type LioraErrorPayload,

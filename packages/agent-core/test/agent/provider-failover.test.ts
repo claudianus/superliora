@@ -24,20 +24,64 @@ describe('provider failover', () => {
     const auth = toKimiErrorPayload(new APIStatusError(401, 'unauthorized', 'req-401'));
     expect(isRetryableProviderFailure(auth)).toBe(false);
 
-    const quota = toKimiErrorPayload(
-      new APIStatusError(429, 'You exceeded your current quota', 'req-429'),
+    const throttled = toKimiErrorPayload(
+      new APIStatusError(429, 'Too Many Requests', 'req-429'),
     );
-    expect(isRetryableProviderFailure(quota)).toBe(true);
-    expect(isRateLimitOrQuotaFailure(quota)).toBe(true);
+    expect(isRetryableProviderFailure(throttled)).toBe(true);
+    expect(isRateLimitOrQuotaFailure(throttled)).toBe(true);
+
+    // Permanent account/plan exhaustion must not enter the recovery loop.
+    const exhausted = toKimiErrorPayload(
+      new APIStatusError(429, 'You exceeded your current quota', 'req-quota'),
+    );
+    expect(isRetryableProviderFailure(exhausted)).toBe(false);
+    expect(isRateLimitOrQuotaFailure(exhausted)).toBe(false);
   });
 
-  it('classifies insufficient_quota style API errors as rate-limit failures', () => {
+  it('classifies insufficient_quota style API errors as permanent non-retryable failures', () => {
     const quota = toKimiErrorPayload(
       new APIStatusError(400, 'insufficient_quota: billing hard limit reached', 'req-400'),
     );
-    expect(quota.code).toBe(ErrorCodes.PROVIDER_RATE_LIMIT);
-    expect(quota.retryable).toBe(true);
-    expect(isRateLimitOrQuotaFailure(quota)).toBe(true);
+    expect(quota.code).toBe(ErrorCodes.PROVIDER_API_ERROR);
+    expect(quota.retryable).toBe(false);
+    expect(quota.details).toMatchObject({ permanentQuota: true });
+    expect(isRateLimitOrQuotaFailure(quota)).toBe(false);
+    expect(isRetryableProviderFailure(quota)).toBe(false);
+  });
+
+  it('does not auto-retry permanent quota / payment exhaustion', async () => {
+    const sleepSpy = vi.spyOn(retry, 'sleepForRetry').mockResolvedValue(undefined);
+    const agent = new Agent({
+      kaos: testKaos,
+      config: {
+        providers: {
+          primary: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' },
+        },
+        models: {
+          primary: {
+            provider: 'primary',
+            model: 'gpt-test',
+            maxContextSize: 128_000,
+          },
+        },
+      },
+    });
+    agent.config.update({ modelAlias: 'primary' });
+
+    const payment = toKimiErrorPayload(
+      new APIStatusError(402, 'No payment method. Add a payment method here: https://example.com/billing', 'req-pay'),
+    );
+    expect(isRetryableProviderFailure(payment)).toBe(false);
+
+    const outcome = await resolveProviderRecovery(agent, {
+      error: payment,
+      turnId: 1,
+      signal: new AbortController().signal,
+      state: { autoRetryCount: 0, userPrompted: false },
+    });
+    expect(outcome).toEqual({ type: 'pause' });
+    expect(sleepSpy).not.toHaveBeenCalled();
+    sleepSpy.mockRestore();
   });
 
   it('honors retryAfterMs from error details', () => {

@@ -1,5 +1,9 @@
 import type { Agent } from '.';
-import { ErrorCodes, type LioraErrorPayload } from '../errors';
+import {
+  ErrorCodes,
+  isPermanentQuotaOrBillingMessage,
+  type LioraErrorPayload,
+} from '../errors';
 import { isAbortError } from '../loop/errors';
 import { retryBackoffDelays, sleepForRetry } from '../loop/retry';
 import { normalizeQuestionAnswers } from '../rpc/question-result';
@@ -8,14 +12,16 @@ import type { QuestionOption, QuestionResult } from '../rpc/sdk-api';
 /** Auto-retries for ordinary transient provider failures (5xx, empty, etc.). */
 export const GOAL_PROVIDER_AUTO_RETRIES = 3;
 /**
- * Rate-limit / quota bursts need more patience — providers often recover after
- * a short window, and Ultrawork runs should wait instead of pausing the goal.
+ * Rate-limit bursts need more patience — providers often recover after a short
+ * window, and Ultrawork runs should wait instead of pausing the goal.
+ * Permanent quota/billing exhaustion is NOT retried here (see
+ * {@link isPermanentQuotaOrBillingFailure}).
  */
 export const GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES = 5;
 /** Cap how long we honor a provider Retry-After before falling back. */
 const MAX_PROVIDER_RETRY_AFTER_MS = 120_000;
 const MIN_PROVIDER_RETRY_AFTER_MS = 500;
-/** Default wait for rate-limit / quota when no Retry-After is present. */
+/** Default wait for rate-limit when no Retry-After is present. */
 const DEFAULT_RATE_LIMIT_RETRY_MS = 15_000;
 
 export type ProviderRecoveryOutcome =
@@ -39,20 +45,41 @@ export interface FailoverModelOption {
 const FAILOVER_QUESTION =
   'The model provider returned a temporary error. How should we continue?';
 
+/**
+ * Permanent plan/credit/payment exhaustion. Auto-retrying these only keeps the
+ * spinner spinning until the user tops up — fail fast and surface the error.
+ */
+export function isPermanentQuotaOrBillingFailure(
+  error: LioraErrorPayload | undefined,
+): boolean {
+  if (error === undefined) return false;
+  if (error.details?.['permanentQuota'] === true) return true;
+  return isPermanentQuotaOrBillingMessage(error.message);
+}
+
 export function isRetryableProviderFailure(error: LioraErrorPayload | undefined): boolean {
   if (error === undefined) return false;
+  // Permanent quota/billing must never enter the recovery loop, even when a
+  // provider mislabels the error as retryable or rate_limit.
+  if (isPermanentQuotaOrBillingFailure(error)) return false;
+  // Honor explicit non-retryable payloads (auth, permanent 4xx, etc.).
+  if (error.retryable === false) return false;
   if (error.retryable === true) return true;
   return (
     error.code === ErrorCodes.PROVIDER_RATE_LIMIT ||
-    error.code === ErrorCodes.PROVIDER_CONNECTION_ERROR ||
-    error.code === ErrorCodes.PROVIDER_API_ERROR
+    error.code === ErrorCodes.PROVIDER_CONNECTION_ERROR
   );
 }
 
+/**
+ * Transient throttling only. Permanent quota/billing is intentionally excluded
+ * so recovery waits/failover prompts do not treat "account empty" as a blip.
+ */
 export function isRateLimitOrQuotaFailure(error: LioraErrorPayload | undefined): boolean {
   if (error === undefined) return false;
+  if (isPermanentQuotaOrBillingFailure(error)) return false;
   if (error.code === ErrorCodes.PROVIDER_RATE_LIMIT) return true;
-  return isQuotaMessage(error.message);
+  return isTransientRateLimitMessage(error.message);
 }
 
 export function listSwitchableFailoverModels(agent: Agent): readonly FailoverModelOption[] {
@@ -89,6 +116,13 @@ export async function resolveProviderRecovery(
     readonly state: ProviderRecoveryState;
   },
 ): Promise<ProviderRecoveryOutcome> {
+  // Belt-and-suspenders: callers should filter permanent quota first, but if
+  // one slips through, never sleep/retry — fail immediately so Esc/Ctrl+C are
+  // not needed to unstick a dead billing account.
+  if (isPermanentQuotaOrBillingFailure(input.error)) {
+    return { type: 'pause' };
+  }
+
   const rateLimited = isRateLimitOrQuotaFailure(input.error);
   const maxAutoRetries = rateLimited
     ? GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES
@@ -184,27 +218,15 @@ function clampRetryDelayMs(delayMs: number): number {
   return Math.min(Math.max(Math.ceil(delayMs), MIN_PROVIDER_RETRY_AFTER_MS), MAX_PROVIDER_RETRY_AFTER_MS);
 }
 
-const QUOTA_MESSAGE_PATTERNS = [
-  /insufficient[_\s-]?quota/i,
-  /quota\s+exceed/i,
-  /exceed(?:ed|s|ing)?\s+(?:your\s+)?(?:current\s+)?quota/i,
-  /credit[_\s-]?balance[_\s-]?too[_\s-]?low/i,
-  /credit balance is too low/i,
-  /insufficient.*(?:credit|balance|funds|quota)/i,
-  /(?:credit|credits).*(?:exhausted|depleted|expired|limit|spent)/i,
-  /(?:no|zero)\s+(?:credit|credits)\s+(?:remaining|left|available)/i,
-  /usage.*limit.*(?:reached|exceed)/i,
-  /spend.*limit.*(?:reached|exceed)/i,
-  /billing.*(?:limit|quota|credit|payment)/i,
-  /monthly.*(?:budget|spend).*limit/i,
-  /hard[_\s-]?limit/i,
+const TRANSIENT_RATE_LIMIT_MESSAGE_PATTERNS = [
   /rate[_\s-]?limit/i,
   /too many requests/i,
+  /provider\.rate_limit/i,
 ] as const;
 
-function isQuotaMessage(message: string | undefined): boolean {
-  if (message === undefined || message.length === 0) return false;
-  return QUOTA_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+function isTransientRateLimitMessage(message: string | undefined): boolean {
+  if (message === undefined || message.trim().length === 0) return false;
+  return TRANSIENT_RATE_LIMIT_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
 }
 
 async function requestProviderFailoverChoice(
@@ -286,4 +308,3 @@ function parseFailoverAnswer(
   if (typeof selected !== 'string') return { type: 'pause' };
   return choiceByLabel.get(selected) ?? { type: 'pause' };
 }
-

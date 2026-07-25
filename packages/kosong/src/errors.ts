@@ -88,12 +88,41 @@ export class APIEmptyResponseError extends ChatProviderError {
   }
 }
 
+const PERMANENT_QUOTA_OR_BILLING_MESSAGE = [
+  /insufficient[_\s-]?quota/i,
+  /quota\s+exceed/i,
+  /exceed(?:ed|s|ing)?\s+(?:your\s+)?(?:current\s+)?quota/i,
+  /credit[_\s-]?balance[_\s-]?too[_\s-]?low/i,
+  /credit balance is too low/i,
+  /insufficient.*(?:credit|balance|funds|quota)/i,
+  /(?:credit|credits).*(?:exhausted|depleted|expired|limit|spent)/i,
+  /(?:no|zero)\s+(?:credit|credits)\s+(?:remaining|left|available)/i,
+  /usage.*limit.*(?:reached|exceed)/i,
+  /spend.*limit.*(?:reached|exceed)/i,
+  /billing.*(?:limit|quota|credit|payment)/i,
+  /monthly.*(?:budget|spend).*limit/i,
+  /hard[_\s-]?limit/i,
+  /no\s+payment\s+method/i,
+  /add\s+a\s+payment\s+method/i,
+  /payment\s+required/i,
+  /payment\s+method/i,
+] as const;
+
+export function isPermanentQuotaOrBillingError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return PERMANENT_QUOTA_OR_BILLING_MESSAGE.some((pattern) => pattern.test(error.message));
+}
+
 export function isRetryableGenerateError(error: unknown): boolean {
   if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
     return true;
   }
   if (error instanceof APIEmptyResponseError) {
     return true;
+  }
+  // Account/plan exhaustion is not a transient blip — do not burn retries.
+  if (isPermanentQuotaOrBillingError(error)) {
+    return false;
   }
   return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);
 }
