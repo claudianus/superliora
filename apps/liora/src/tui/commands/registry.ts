@@ -658,8 +658,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
-    name: 'context',
-    aliases: ['context-os', 'ctx'],
+    name: 'context-os',
+    aliases: ['ctx'],
     description: 'Diagnose Context OS continuity/evidence + privacy (ZDR) posture',
     priority: 85,
     argumentHint: '[query]',

@@ -426,7 +426,7 @@ async function handleBuiltInSlashCommand(
     case 'upgrade':
       await handleUpgradeCommand(host);
       return;
-    case 'context':
+    case 'context-os':
       void showContextOsReport(host, args);
       return;
     case 'btw':

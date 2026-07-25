@@ -424,6 +424,7 @@ describe('CLI options parsing', () => {
         'login',
         'doctor',
         'vis',
+        'worktree',
         'upgrade',
       ]);
     });

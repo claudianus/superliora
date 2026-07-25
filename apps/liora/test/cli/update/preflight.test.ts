@@ -65,17 +65,21 @@ vi.mock('../../../src/cli/update/install-state', () => ({
   writeUpdateInstallState: mocks.writeUpdateInstallState,
 }));
 
-vi.mock('../../../src/tui/config', () => ({
-  loadTuiConfig: mocks.loadTuiConfig,
-  TuiConfigParseError: class TuiConfigParseError extends Error {
-    readonly fallback: TuiConfig;
+vi.mock('../../../src/tui/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/tui/config')>();
+  return {
+    ...actual,
+    loadTuiConfig: mocks.loadTuiConfig,
+    TuiConfigParseError: class TuiConfigParseError extends Error {
+      readonly fallback: TuiConfig;
 
-    constructor(fallback: TuiConfig) {
-      super('Invalid client preferences in ~/.superliora/tui.toml; using defaults.');
-      this.fallback = fallback;
-    }
-  },
-}));
+      constructor(fallback: TuiConfig) {
+        super('Invalid client preferences in ~/.superliora/tui.toml; using defaults.');
+        this.fallback = fallback;
+      }
+    },
+  };
+});
 
 vi.mock('../../../src/cli/update/source', () => ({
   detectInstallSource: mocks.detectInstallSource,
