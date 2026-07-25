@@ -25,6 +25,9 @@ const GOAL_NEXT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 const SWARM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'on', description: 'Turn team mode on' },
   { value: 'off', description: 'Turn team mode off' },
+  { value: 'pause', description: 'Pause the active UltraSwarm war room' },
+  { value: 'restaff', description: 'Request restaff on the active UltraSwarm' },
+  { value: 'raw', description: 'Toggle raw vs humanized team feed' },
 ];
 
 const THINKING_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [

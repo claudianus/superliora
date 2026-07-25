@@ -136,6 +136,11 @@ export {
   meanNdcgAtK,
   STAFFING_GOLD_SEED,
   visualDiff,
+  createVisualDiffTool,
+  createLioraReviewTool,
+  preferReadyWorkNodeIds,
+  partitionReadyWorkNodeIds,
+  attachDraftToDebate,
 } from '@superliora/agent-core';
 export type {
   HumanizeCollaborationEventInput,

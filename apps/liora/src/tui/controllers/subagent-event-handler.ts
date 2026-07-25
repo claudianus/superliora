@@ -209,6 +209,30 @@ export class SubAgentEventHandler {
     return this.agentSwarmProgress.has(toolCallId);
   }
 
+  /**
+   * Invoke War Room action dock on every live UltraSwarm/AgentSwarm progress card.
+   * Returns how many components accepted the action (0 if none active).
+   */
+  invokeWarRoomAction(
+    action: 'pause' | 'restaff' | 'raw',
+    options: { readonly reason?: string } = {},
+  ): number {
+    let count = 0;
+    for (const progress of this.agentSwarmProgress.values()) {
+      if (!progress.isToolCallActive()) continue;
+      if (action === 'pause') {
+        progress.requestPause({ reason: options.reason ?? 'Paused from /swarm pause' });
+      } else if (action === 'restaff') {
+        progress.requestRestaff({ reason: options.reason ?? 'Restaff from /swarm restaff' });
+      } else {
+        progress.toggleRawFeed();
+      }
+      count += 1;
+    }
+    if (count > 0) this.requestRender();
+    return count;
+  }
+
   hasActiveAgentSwarmToolCall(): boolean {
     return Array.from(this.agentSwarmProgress.values()).some((progress) =>
       progress.isToolCallActive()

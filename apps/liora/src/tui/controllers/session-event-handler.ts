@@ -208,6 +208,14 @@ export class SessionEventHandler {
     return this.subAgentEventHandler.hasActiveAgentSwarmToolCall();
   }
 
+  /** Forward War Room dock actions (pause / restaff / raw) to live swarm cards. */
+  invokeWarRoomAction(
+    action: 'pause' | 'restaff' | 'raw',
+    options: { readonly reason?: string } = {},
+  ): number {
+    return this.subAgentEventHandler.invokeWarRoomAction(action, options);
+  }
+
   syncAgentSwarmActivitySpinner(spinner: MoonLoader | undefined): void {
     this.subAgentEventHandler.syncAgentSwarmActivitySpinner(spinner);
   }

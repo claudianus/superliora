@@ -89,6 +89,7 @@ export {
 } from './expert-agents/staffing-gold';
 export { visualDiff, type VisualDiffResult } from './tools/visual-diff';
 export { VisualDiffTool, createVisualDiffTool } from './tools/visual-diff-tool';
+export { createLioraReviewTool } from './tools/builtin/review/code-review';
 export {
   DEFAULT_MAX_PER_DIVISION,
   applyStaffingDiversity,

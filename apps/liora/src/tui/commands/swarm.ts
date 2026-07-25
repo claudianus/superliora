@@ -20,6 +20,12 @@ export async function handleSwarmCommand(host: SlashCommandHost, args: string): 
   }
 
   const prompt = args.trim();
+  const warRoom = warRoomDockSubcommand(prompt);
+  if (warRoom !== undefined) {
+    invokeWarRoomDockAction(host, warRoom.action, warRoom.reason);
+    return;
+  }
+
   const mode = swarmModeSubcommand(prompt);
   if (mode !== undefined) {
     await applySwarmMode(host, mode, `/swarm ${prompt}`);
@@ -147,6 +153,50 @@ function swarmModeSubcommand(input: string): boolean | undefined {
   if (command === 'on') return true;
   if (command === 'off') return false;
   return undefined;
+}
+
+function warRoomDockSubcommand(
+  input: string,
+): { readonly action: 'pause' | 'restaff' | 'raw'; readonly reason: string } | undefined {
+  const [head, ...rest] = input.split(/\s+/);
+  const command = (head ?? '').toLowerCase();
+  if (command !== 'pause' && command !== 'restaff' && command !== 'raw') return undefined;
+  return { action: command, reason: rest.join(' ').trim() };
+}
+
+function invokeWarRoomDockAction(
+  host: SlashCommandHost,
+  action: 'pause' | 'restaff' | 'raw',
+  reason: string,
+): void {
+  // LioraTUI is the slash host and owns sessionEventHandler.
+  const hostWithHandler = host as SlashCommandHost & {
+    readonly sessionEventHandler?: {
+      invokeWarRoomAction?: (
+        action: 'pause' | 'restaff' | 'raw',
+        options?: { readonly reason?: string },
+      ) => number;
+    };
+  };
+  const invoke = hostWithHandler.sessionEventHandler?.invokeWarRoomAction;
+  if (invoke === undefined) {
+    host.showError('War Room actions are unavailable in this host.');
+    return;
+  }
+  const count = invoke(action, reason.length > 0 ? { reason } : {});
+  if (count === 0) {
+    host.showError('No active UltraSwarm / AgentSwarm war room to control.');
+    return;
+  }
+  if (action === 'pause') {
+    host.showStatus(`Paused ${String(count)} active swarm war room(s).`);
+    return;
+  }
+  if (action === 'restaff') {
+    host.showStatus(`Requested restaff on ${String(count)} active swarm war room(s).`);
+    return;
+  }
+  host.showStatus(`Toggled raw feed on ${String(count)} active swarm war room(s).`);
 }
 
 function renderSwarmModeMarker(host: SlashCommandHost, state: SwarmModeMarkerState): void {
