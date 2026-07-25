@@ -26,6 +26,7 @@ import { combineStartupNotice } from '#/tui/utils/startup';
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 
 import type { CLIOptions } from './options';
+import { resolveSessionWorkDir } from './resolve-worktree';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import type { UpdateNoticeInfo } from './update/preflight';
 import { createLioraHostIdentity } from './version';
@@ -51,7 +52,8 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
   // once the TUI owns stdin the probe reply would be eaten by the input loop.
   await initImageProtocolProbe();
 
-  const workDir = process.cwd();
+  const resolvedWork = await resolveSessionWorkDir({ worktree: opts.worktree });
+  const workDir = resolvedWork.workDir;
   const telemetryBootstrap = createCliTelemetryBootstrap();
   const telemetryClient: TelemetryClient = {
     track,
@@ -87,6 +89,12 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
   for (const warning of (await harness.getConfigDiagnostics()).warnings) {
     configWarning = combineStartupNotice(configWarning, warning);
   }
+  if (resolvedWork.worktreeMeta !== undefined) {
+    configWarning = combineStartupNotice(
+      configWarning,
+      `Worktree session: ${resolvedWork.worktreeMeta.name} → ${resolvedWork.workDir}`,
+    );
+  }
   const configMs = Date.now() - configStartedAt;
   const tui = new LioraTUI(harness, {
     cliOptions: opts,
@@ -96,6 +104,7 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
     workDir,
     startupNotice: configWarning,
     updateNotice,
+    sessionMetadata: resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined,
   });
 
   initializeCliTelemetry({

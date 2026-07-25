@@ -17,6 +17,12 @@ export interface CLIOptions {
   addDirs?: string[];
   /** Automatically resume the first goal in the queue on startup. */
   resumeGoal?: boolean;
+  /**
+   * Create a git worktree for this session.
+   * - `true`: auto-generated name
+   * - `string`: explicit worktree name/slug
+   */
+  worktree?: boolean | string;
 }
 
 export interface ValidatedOptions {
@@ -63,6 +69,11 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   }
   if (opts.yolo && opts.auto) {
     throw new OptionConflictError(t('cli.runtime.options.yoloWithAuto'));
+  }
+  if (opts.worktree !== undefined && opts.worktree !== false) {
+    if (opts.session !== undefined || opts.continue) {
+      throw new OptionConflictError(t('cli.runtime.options.worktreeWithResume'));
+    }
   }
   return { options: opts, uiMode: promptMode ? 'print' : 'shell' };
 }

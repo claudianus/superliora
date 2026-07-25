@@ -26,9 +26,11 @@ import { estimateTokens } from '../utils/tokens';
 import type { McpConnectionManager } from '../mcp';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
 import type { PreparedSystemPromptContext, ResolvedAgentProfile } from '../profile';
+import type { FileSnapshotStore } from '../session/file-snapshot';
 import type { ModelProvider } from '../session/provider-manager';
 import type { SessionSubagentHost } from '../session/subagent-host';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import type { SandboxProfile } from '../tools/policies/path-access';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
 import {
@@ -129,6 +131,10 @@ export interface AgentOptions {
   readonly memory?: AgentMemoryRuntime;
   readonly responseLanguagePreference?: (() => ResponseLanguagePreference | undefined) | undefined;
   readonly dreamStore?: LioraRecallStore;
+  /** Shared session file-snapshot store for `/rewind` (optional; agent-standalone safe). */
+  readonly fileSnapshots?: FileSnapshotStore | undefined;
+  /** Path sandbox profile for file tools (`off` | `workspace` | `read-only`). */
+  readonly sandboxProfile?: SandboxProfile | undefined;
 }
 
 export class Agent {
@@ -186,6 +192,10 @@ export class Agent {
   readonly ultraworkObjectiveProfile: UltraworkObjectiveProfileCache;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
+  /** Session-shared file snapshots for write/edit capture + `/rewind`. */
+  readonly fileSnapshots: FileSnapshotStore | undefined;
+  /** Sandbox profile applied when constructing file-tool workspaces. */
+  readonly sandboxProfile: SandboxProfile | undefined;
 
   /**
    * Print-mode (`liora -p`) only: when true and the agent ends a turn while
@@ -217,6 +227,8 @@ export class Agent {
     this.memory = options.memory;
     this.responseLanguagePreference = options.responseLanguagePreference;
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
+    this.fileSnapshots = options.fileSnapshots;
+    this.sandboxProfile = options.sandboxProfile;
 
     this.llmRequestLogger = new LlmRequestLogger(this.log);
     this.blobStore = options.homedir

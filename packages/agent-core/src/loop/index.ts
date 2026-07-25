@@ -78,6 +78,7 @@ export type { RunTurnInput } from './run-turn';
 export {
   checkToolCallIdempotency,
   getCircuitBreakerState,
+  getToolCallPatternCount,
   isToolCircuitOpen,
   recordToolCallExecution,
   recordToolFailureForCircuitBreaker,
@@ -86,5 +87,6 @@ export {
   resetIdempotencyTracker,
   resetToolFailureTracker,
   toolCallIdempotencyKey,
+  trackToolCallPattern,
 } from './tool-call';
-export type { CircuitBreakerState } from './tool-call';
+export type { CircuitBreakerState, ToolCallPatternVerdict } from './tool-call';

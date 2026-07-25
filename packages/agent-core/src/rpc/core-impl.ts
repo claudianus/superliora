@@ -54,6 +54,7 @@ import {
   responseLanguagePreferenceFromUnknown,
 } from '../session/response-language';
 import { exportSessionDirectory } from '../session/export';
+import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktree';
 import {
   ProviderManager, type BearerTokenProvider,
   type OAuthTokenProviderResolver
@@ -104,6 +105,7 @@ import type {
   ExportSessionPayload,
   ExportSessionResult,
   ForkSessionPayload,
+  JsonObject,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
   InlineCompletePayload,
@@ -155,6 +157,11 @@ import type {
   SkillSummary,
   SteerPayload,
   StopBackgroundPayload,
+  StartConversationLoopPayload,
+  StopConversationLoopPayload,
+  ConversationLoopStateData,
+  RewindFilesPayload,
+  RewindFilesResult,
   UndoHistoryPayload,
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
@@ -648,11 +655,37 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     }
 
     const id = input.id ?? createSessionId();
+    let forkWorkDir: string | undefined;
+    let worktreeMetadata: JsonObject | undefined;
+
+    if (input.worktree === true || (typeof input.worktree === 'object' && input.worktree !== null)) {
+      const worktreeOpts = typeof input.worktree === 'object' ? input.worktree : {};
+      const kaos = await this.getKaos();
+      const created = await createSessionWorktree(kaos, {
+        repoPath: source.workDir,
+        name: worktreeOpts.name,
+        baseRef: worktreeOpts.baseRef,
+        homeDir: this.homeDir,
+        sessionId: id,
+      });
+      forkWorkDir = created.workDir;
+      worktreeMetadata = buildWorktreeMetadata(created.meta) as JsonObject;
+    }
+
+    const mergedMetadata: JsonObject | undefined =
+      worktreeMetadata === undefined
+        ? input.metadata
+        : {
+            ...(input.metadata ?? {}),
+            ...worktreeMetadata,
+          };
+
     await this.sessionStore.fork({
       sourceId: source.id,
       targetId: id,
       title: input.title,
-      metadata: input.metadata,
+      metadata: mergedMetadata,
+      workDir: forkWorkDir,
     });
     return this.resumeSession({ sessionId: id });
   }
@@ -1003,6 +1036,34 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     ...payload
   }: SessionScopedPayload<AddAdditionalDirPayload>): Promise<AddAdditionalDirResult> {
     return this.requireSession(sessionId).addAdditionalDir(payload.path, payload.persist);
+  }
+
+  rewindFiles({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<RewindFilesPayload>): Promise<RewindFilesResult> {
+    return this.sessionApi(sessionId).rewindFiles(payload);
+  }
+
+  startConversationLoop({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<StartConversationLoopPayload>): Promise<ConversationLoopStateData> {
+    return Promise.resolve(this.sessionApi(sessionId).startConversationLoop(payload));
+  }
+
+  stopConversationLoop({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<StopConversationLoopPayload>): Promise<ConversationLoopStateData | undefined> {
+    return Promise.resolve(this.sessionApi(sessionId).stopConversationLoop(payload));
+  }
+
+  listConversationLoops({
+    sessionId,
+    ...payload
+  }: SessionScopedPayload<EmptyPayload>): Promise<readonly ConversationLoopStateData[]> {
+    return Promise.resolve(this.sessionApi(sessionId).listConversationLoops(payload));
   }
 
   startBtw({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>): Promise<string> {

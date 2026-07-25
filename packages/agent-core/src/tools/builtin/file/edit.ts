@@ -14,7 +14,11 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import type { FileSnapshotStore } from '../../../session/file-snapshot';
+import {
+  policyForSandboxProfile,
+  resolvePathAccessPath,
+} from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -63,6 +67,12 @@ export class EditTool implements BuiltinTool<EditInput> {
   constructor(
     private readonly kaos: Kaos,
     private readonly workspace: WorkspaceConfig,
+    private readonly options?: {
+      readonly fileSnapshots?: FileSnapshotStore | undefined;
+      readonly turnId?: string | undefined;
+      /** Resolved at execution time so the active turn id is current. */
+      readonly getTurnId?: (() => string | undefined) | undefined;
+    },
   ) {}
 
   resolveExecution(args: EditInput): ToolExecution {
@@ -70,6 +80,10 @@ export class EditTool implements BuiltinTool<EditInput> {
       kaos: this.kaos,
       workspace: this.workspace,
       operation: 'write',
+      policy:
+        this.workspace.sandboxProfile !== undefined
+          ? policyForSandboxProfile(this.workspace.sandboxProfile)
+          : undefined,
     });
     return {
       accesses: ToolAccesses.readWriteFile(path),
@@ -98,6 +112,12 @@ export class EditTool implements BuiltinTool<EditInput> {
         isError: true,
         output: 'No changes to make: old_string and new_string are exactly the same.',
       };
+    }
+
+    const snapshots = this.options?.fileSnapshots;
+    const turnId = this.options?.getTurnId?.() ?? this.options?.turnId;
+    if (snapshots !== undefined && turnId !== undefined) {
+      await snapshots.captureBeforeWrite(turnId, safePath);
     }
 
     try {

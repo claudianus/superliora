@@ -63,6 +63,8 @@ export { handleGoalCommand, parseGoalCommand } from './goal';
 export { goalArgumentCompletions } from './registry';
 export { handleForkCommand, handleInitCommand, handleTitleCommand } from './session';
 export { handleUndoCommand } from './undo';
+export { handleRewindCommand } from './rewind';
+export { handleLoopCommand } from './loop';
 export {
   promptApiKey,
   promptApiKeyForCatalogProvider,

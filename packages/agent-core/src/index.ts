@@ -1,8 +1,57 @@
 export { Agent } from './agent';
 export type { SwarmModeTrigger, ToolInfo } from './agent';
+export {
+  ConversationLoopController,
+  createConversationLoop,
+  DEFAULT_LOOP_INTERVAL_MS,
+  DEFAULT_LOOP_MAX_ITERATIONS,
+  MIN_LOOP_INTERVAL_MS,
+} from './agent/conversation-loop';
+export type {
+  ConversationLoopConfig,
+  ConversationLoopState,
+  ConversationLoopStatus,
+  ConversationLoopTickResult,
+} from './agent/conversation-loop';
 
 export type { SessionMeta } from './session';
+export {
+  FileSnapshotStore,
+  type FileSnapshotEntry,
+  type FileSnapshotStoreOptions,
+  type TurnFileSnapshot,
+} from './session/file-snapshot';
 export { SessionStore } from './session/store';
+export {
+  SESSION_WORKTREE_CUSTOM_KEY,
+  buildWorktreeMetadata,
+  createSessionWorktree,
+  createSessionWorktreeAuto,
+  defaultWorktreePath,
+  gcSessionWorktrees,
+  gcSessionWorktreesAuto,
+  generateWorktreeName,
+  isSessionWorktreeMeta,
+  listSessionWorktrees,
+  normalizeWorktreeName,
+  removeSessionWorktree,
+  removeSessionWorktreeAuto,
+  resolveGitRepoRoot,
+  resolveGitRepoRootAuto,
+  sessionWorktreeFromCustom,
+  touchWorktreeAccess,
+  worktreeRegistryPath,
+  worktreesRoot,
+} from './session/worktree';
+export type {
+  CreateSessionWorktreeInput,
+  CreateSessionWorktreeResult,
+  GcWorktreesOptions,
+  ListWorktreesOptions,
+  RemoveWorktreeOptions,
+  SessionWorktreeMeta,
+  WorktreeRecord,
+} from './session/worktree';
 export * from './rpc';
 export type {
   BackgroundConfig,

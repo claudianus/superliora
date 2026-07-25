@@ -211,6 +211,7 @@ export class LioraHarness {
       forkId: input.forkId,
       title: input.title,
       metadata: input.metadata,
+      worktree: input.worktree,
     });
     const session = new Session({
       id: summary.id,

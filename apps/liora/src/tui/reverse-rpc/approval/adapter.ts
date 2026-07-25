@@ -4,6 +4,10 @@ import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval-pa
 import { goalStartOptions } from '#/tui/components/dialogs/goal-start-permission-prompt';
 import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui/reverse-rpc/types';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
+import {
+  enrichReviseFeedbackWithLineComment,
+  formatNumberedPlanPreview,
+} from '#/tui/utils/plan-line-comments';
 
 const DEFAULT_APPROVAL_CHOICES: ApprovalPanelChoice[] = [
   { label: 'Approve once', response: 'approved' },
@@ -14,6 +18,13 @@ const DEFAULT_APPROVAL_CHOICES: ApprovalPanelChoice[] = [
 
 const PLAN_REJECT_CHOICES: ApprovalPanelChoice[] = [
   { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
+  {
+    label: '라인 코멘트',
+    response: 'rejected',
+    selected_label: 'line_comment',
+    requires_feedback: true,
+    description: '계획 특정 줄에 대한 수정 요청을 남깁니다',
+  },
   { label: 'Revise', response: 'rejected', selected_label: 'Revise', requires_feedback: true },
 ];
 
@@ -203,12 +214,16 @@ function inferFileOp(toolName: string): 'read' | 'write' | 'edit' | 'glob' | 'gr
   return 'read';
 }
 
-export function adaptPanelResponse(response: ApprovalPanelResponse): ApprovalResponse {
+export function adaptPanelResponse(
+  response: ApprovalPanelResponse,
+  context: { readonly plan?: string } = {},
+): ApprovalResponse {
+  const feedback = enrichPlanLineCommentFeedback(response, context.plan);
   if (response.response === 'approved_for_session') {
     return {
       decision: 'approved',
       scope: 'session',
-      feedback: response.feedback,
+      feedback,
       selectedLabel: response.selected_label,
     };
   }
@@ -219,9 +234,28 @@ export function adaptPanelResponse(response: ApprovalPanelResponse): ApprovalRes
         : response.response === 'rejected'
           ? 'rejected'
           : 'cancelled',
-    feedback: response.feedback,
+    feedback,
     selectedLabel: response.selected_label,
   };
+}
+
+/**
+ * Line comments are always revise-style rejected feedback — never approve.
+ * Accepts "L12: …" free text even when the operator picked generic Revise.
+ */
+function enrichPlanLineCommentFeedback(
+  response: ApprovalPanelResponse,
+  plan: string | undefined,
+): string | undefined {
+  const raw = response.feedback;
+  if (raw === undefined || raw.trim().length === 0) return raw;
+  if (plan === undefined || plan.length === 0) return raw;
+  const isLinePath =
+    response.selected_label === 'line_comment' ||
+    response.selected_label === 'Revise' ||
+    response.response === 'rejected';
+  if (!isLinePath) return raw;
+  return enrichReviseFeedbackWithLineComment(raw, plan);
 }
 
 function describeApproval(display: ToolInputDisplay, action: string): string {
@@ -372,8 +406,22 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
           text: `Stop task ${display.task_id ?? ''}: ${display.task_description ?? ''}`,
         },
       ];
-    case 'plan_review':
-      return [];
+    case 'plan_review': {
+      // Numbered plan so operators can leave "L12: …" line comments (AC6).
+      // Content is operator-authored plan markdown, not shell env secrets.
+      const plan = typeof display.plan === 'string' ? display.plan : '';
+      const preview = formatNumberedPlanPreview(plan);
+      const pathLine =
+        typeof display.path === 'string' && display.path.length > 0
+          ? `경로: ${display.path}\n`
+          : '';
+      return [
+        {
+          type: 'brief',
+          text: `${pathLine}${preview}\n\n라인 코멘트: L12: 수정 요청 형식`,
+        },
+      ];
+    }
     case 'goal_start': {
       const lines = [`Start goal: ${display.objective}`];
       if (typeof display.completionCriterion === 'string' && display.completionCriterion.length > 0) {

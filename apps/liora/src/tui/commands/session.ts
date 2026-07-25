@@ -47,19 +47,20 @@ export async function handleTitleCommand(host: SlashCommandHost, args: string): 
 }
 
 export async function handleForkCommand(host: SlashCommandHost, args: string): Promise<void> {
-  void args;
   const session = host.session;
   if (session === undefined) {
     host.showError(NO_ACTIVE_SESSION_MESSAGE);
     return;
   }
 
+  const parsed = parseForkArgs(args);
   const sourceTitle = forkSourceTitle(host, session);
   let forked: Session;
   try {
     forked = await host.harness.forkSession({
       id: session.id,
       title: `Fork: ${sourceTitle}`,
+      worktree: parsed.worktree,
     });
   } catch (error) {
     const msg = formatErrorMessage(error);
@@ -67,15 +68,48 @@ export async function handleForkCommand(host: SlashCommandHost, args: string): P
     return;
   }
 
+  const worktreeNote =
+    parsed.worktree === undefined
+      ? ''
+      : ` Worktree: ${forked.workDir}`;
+
   try {
     await host.switchToSession(
       forked,
-      `Session forked (${forked.id}). To return to the original session: liora -r ${session.id}`,
+      `Session forked (${forked.id}).${worktreeNote} To return to the original session: liora -r ${session.id}`,
     );
   } catch (error) {
     const msg = formatErrorMessage(error);
     host.showError(`Failed to switch to forked session: ${msg}`);
   }
+}
+
+/** Parse `/fork --worktree [name]` style args. */
+export function parseForkArgs(args: string): {
+  readonly worktree?: boolean | { readonly name?: string };
+} {
+  const tokens = args.trim().split(/\s+/).filter((t) => t.length > 0);
+  if (tokens.length === 0) return {};
+
+  let worktree: boolean | { readonly name?: string } | undefined;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i]!;
+    if (token === '--worktree' || token === '-w') {
+      const next = tokens[i + 1];
+      if (next !== undefined && !next.startsWith('-')) {
+        worktree = { name: next };
+        i += 1;
+      } else {
+        worktree = true;
+      }
+      continue;
+    }
+    if (token.startsWith('--worktree=')) {
+      const name = token.slice('--worktree='.length);
+      worktree = name.length > 0 ? { name } : true;
+    }
+  }
+  return worktree === undefined ? {} : { worktree };
 }
 
 function forkSourceTitle(host: SlashCommandHost, session: Session): string {

@@ -304,6 +304,8 @@ export interface LioraTUIOptions {
   initialAppState: AppState;
   startup: TUIStartupOptions;
   renderer?: TerminalRenderer;
+  /** Optional session metadata (e.g. worktree) stamped on createSession. */
+  readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
 }
 
 export interface PendingExit {

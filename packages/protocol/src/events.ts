@@ -249,6 +249,12 @@ export type LioraErrorCode =
   | 'session.question_handler_error'
   | 'session.credential_handler_error'
   | 'session.init_failed'
+  | 'worktree.not_a_git_repo'
+  | 'worktree.name_invalid'
+  | 'worktree.name_ambiguous'
+  | 'worktree.already_exists'
+  | 'worktree.create_failed'
+  | 'worktree.not_found'
   | 'agent.not_found'
   | 'turn.agent_busy'
   | 'goal.already_exists'
@@ -1165,6 +1171,12 @@ export const kimiErrorCodeSchema = z.enum([
   'session.question_handler_error',
   'session.credential_handler_error',
   'session.init_failed',
+  'worktree.not_a_git_repo',
+  'worktree.name_invalid',
+  'worktree.name_ambiguous',
+  'worktree.already_exists',
+  'worktree.create_failed',
+  'worktree.not_found',
   'agent.not_found',
   'turn.agent_busy',
   'goal.already_exists',

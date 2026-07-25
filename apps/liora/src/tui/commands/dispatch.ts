@@ -83,6 +83,8 @@ import {
   handleUltraSwarmCommand,
 } from './ultra-standalone';
 import { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
+import { handleLoopCommand } from './loop';
+import { handleRewindCommand } from './rewind';
 import { handleUndoCommand } from './undo';
 import { handleUpgradeCommand } from './upgrade';
 
@@ -126,6 +128,8 @@ export {
   handleTitleCommand,
 } from './session';
 export { handleUndoCommand } from './undo';
+export { handleRewindCommand } from './rewind';
+export { handleLoopCommand } from './loop';
 
 // ---------------------------------------------------------------------------
 // Host interface
@@ -189,6 +193,8 @@ export interface SlashCommandHost {
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
   showSessionPicker(): Promise<void>;
+  showAgentDashboard(): Promise<void>;
+  showExtensionsModal(args?: string): Promise<void>;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
   sendSkillActivation(session: Session, skillName: string, skillArgs: string): void;
   activatePluginCommand(
@@ -330,6 +336,12 @@ async function handleBuiltInSlashCommand(
     case 'sessions':
       void host.showSessionPicker();
       return;
+    case 'dashboard':
+      void host.showAgentDashboard();
+      return;
+    case 'extensions':
+      void host.showExtensionsModal(args);
+      return;
     case 'tasks':
       void host.tasksBrowserController.show();
       return;
@@ -414,7 +426,7 @@ async function handleBuiltInSlashCommand(
     case 'upgrade':
       await handleUpgradeCommand(host);
       return;
-    case 'context':
+    case 'context-os':
       void showContextOsReport(host, args);
       return;
     case 'btw':
@@ -491,6 +503,12 @@ async function handleBuiltInSlashCommand(
       return;
     case 'undo':
       await handleUndoCommand(host, args);
+      return;
+    case 'rewind':
+      await handleRewindCommand(host, args);
+      return;
+    case 'loop':
+      await handleLoopCommand(host, args);
       return;
     case 'retry':
       await host.retryLastTurn();

@@ -575,6 +575,7 @@ export class TurnFlow {
       durationMs: Date.now() - startedAt,
     };
     this.agent.usage.endTurn();
+    this.agent.fileSnapshots?.commitTurn(String(turnId));
     this.agent.emitEvent(ended);
     return ended;
   }
@@ -680,6 +681,9 @@ export class TurnFlow {
     if (this.currentId === turnId) {
       this.agent.usage.endTurn();
     }
+    // Seal any pending write/edit captures for this turn so `/rewind` can restore.
+    // Commit even on cancelled/failed turns — partial mutations still need a snapshot.
+    this.agent.fileSnapshots?.commitTurn(String(turnId));
     // A user interrupt (e.g. Esc) aborts the turn without the normal Stop hook
     // firing, so external tooling that tracks status from hooks would otherwise
     // never see the turn stop. Emit an observation-only Interrupt event for it.

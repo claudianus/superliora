@@ -418,6 +418,21 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 80,
   },
   {
+    name: 'dashboard',
+    aliases: ['dash', 'agents'],
+    description: '에이전트 대시보드 — 입력 필요 / 작업 중 / 대기',
+    priority: 85,
+    availability: 'always',
+  },
+  {
+    name: 'extensions',
+    aliases: ['ext', 'import-claude'],
+    description: '확장 기능 — 플러그인/훅/스킬/MCP · Claude 가져오기',
+    priority: 70,
+    availability: 'always',
+    argumentHint: '[claude]',
+  },
+  {
     name: 'tasks',
     aliases: ['task'],
     description: 'Browse background tasks',
@@ -535,7 +550,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'fork',
     aliases: [],
-    description: 'Fork the current session',
+    description: 'Fork the current session (`/fork --worktree [name]` for git isolation)',
     priority: 80,
   },
   {
@@ -643,8 +658,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
-    name: 'context',
-    aliases: ['context-os', 'ctx'],
+    name: 'context-os',
+    aliases: ['ctx'],
     description: 'Diagnose Context OS continuity/evidence + privacy (ZDR) posture',
     priority: 85,
     argumentHint: '[query]',
@@ -656,6 +671,22 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Withdraw the last prompt from the transcript',
     priority: 80,
     availability: 'idle-only',
+  },
+  {
+    name: 'rewind',
+    aliases: [],
+    description: 'Restore files from the last agent write/edit turn snapshot',
+    priority: 80,
+    argumentHint: '[turnId]',
+    availability: 'idle-only',
+  },
+  {
+    name: 'loop',
+    aliases: [],
+    description: 'Repeat a prompt on an interval inside this conversation',
+    priority: 75,
+    argumentHint: '[interval] <prompt> | stop [id] | list',
+    availability: 'always',
   },
   {
     name: 'retry',

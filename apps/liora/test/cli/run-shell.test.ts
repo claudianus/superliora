@@ -110,10 +110,14 @@ vi.mock('@superliora/telemetry', () => ({
   withTelemetryContext: mocks.withTelemetryContext,
 }));
 
-vi.mock('../../src/tui/config', () => ({
-  loadTuiConfig: mocks.loadTuiConfig,
-  TuiConfigParseError: mocks.TuiConfigParseError,
-}));
+vi.mock('../../src/tui/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/tui/config')>();
+  return {
+    ...actual,
+    loadTuiConfig: mocks.loadTuiConfig,
+    TuiConfigParseError: mocks.TuiConfigParseError,
+  };
+});
 
 vi.mock('../../src/tui/index', () => ({
   LioraTUI: class {
