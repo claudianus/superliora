@@ -62,30 +62,38 @@ export function recordOutcome(expertId: string, outcome: StaffingOutcomeInput): 
 /**
  * Multiplicative score boost for ranking (default 1.0 when no samples).
  *
- * - Accepted rate pulls toward [0.85, 1.25]
- * - Conflicts pull down
+ * - Accepted rate pulls toward [0.55, 1.55] (wider than the original 0.85–1.25
+ *   band so repeated FAIL/PASS verdicts can actually reorder close candidates)
+ * - Conflicts pull down harder as they accumulate
  * - Large wastedTokens pull down gently
+ * - Confidence scales with sample count (1 sample ≈ half effect, 4+ ≈ full)
  */
 export function scoreBoost(expertId: string): number {
   const record = outcomeStore.get(expertId.trim());
   if (record === undefined || record.samples === 0) return 1;
 
   const acceptRate = record.accepted / record.samples;
-  // Map accept rate 0..1 → 0.85..1.25
-  let boost = 0.85 + acceptRate * 0.4;
+  // Map accept rate 0..1 → 0.55..1.55 (full effect before confidence shrink)
+  const rawBoost = 0.55 + acceptRate * 1.0;
+
+  let boost = rawBoost;
 
   if (record.conflicts > 0) {
-    boost *= Math.max(0.7, 1 - record.conflicts * 0.08);
+    boost *= Math.max(0.55, 1 - record.conflicts * 0.12);
   }
 
   if (record.wastedTokens > 0) {
-    // Soft penalty: every 10k wasted tokens ≈ -2%, floor 0.75
-    const wastePenalty = Math.min(0.25, (record.wastedTokens / 10_000) * 0.02);
+    // Soft penalty: every 10k wasted tokens ≈ -3%, floor 0.7
+    const wastePenalty = Math.min(0.3, (record.wastedTokens / 10_000) * 0.03);
     boost *= 1 - wastePenalty;
   }
 
-  // Clamp to a sane band so ranking stays stable.
-  return Math.min(1.35, Math.max(0.65, boost));
+  // Shrink toward 1.0 when samples are sparse so one-off noise does not dominate.
+  const confidence = Math.min(1, record.samples / 4);
+  boost = 1 + (boost - 1) * confidence;
+
+  // Clamp to a sane band so ranking stays stable but still movable.
+  return Math.min(1.6, Math.max(0.5, boost));
 }
 
 /** Read current prior for tests / diagnostics. */
