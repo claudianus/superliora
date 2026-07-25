@@ -101,7 +101,15 @@ export {
   ndcgAtK,
   type StaffingGoldCase,
 } from './expert-agents/staffing-gold';
-export { visualDiff, type VisualDiffResult } from './tools/visual-diff';
+export {
+  isPngBuffer,
+  readPngDimensions,
+  sharedPrefixLength,
+  visualDiff,
+  type VisualDiffImageMeta,
+  type VisualDiffResult,
+  type VisualDiffStatus,
+} from './tools/visual-diff';
 export { VisualDiffTool, createVisualDiffTool } from './tools/visual-diff-tool';
 export { createLioraReviewTool } from './tools/builtin/review/code-review';
 export {

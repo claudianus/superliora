@@ -520,10 +520,18 @@ const visualDiffGlance: GlanceFn = (_toolCall, result) => {
   if (start >= 0) {
     try {
       const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
+      const summary = typeof json['summary'] === 'string' ? json['summary'].trim() : '';
+      if (summary.length > 0) return summary.slice(0, 96);
+      const status = typeof json['status'] === 'string' ? json['status'].replaceAll('_', ' ') : '';
       const identical = json['identical'] === true;
       const delta = typeof json['lengthDelta'] === 'number' ? json['lengthDelta'] : undefined;
-      const parts: string[] = [identical ? 'identical' : 'differ'];
+      const prefix =
+        typeof json['sharedPrefixRatio'] === 'number'
+          ? Math.round(json['sharedPrefixRatio'] * 100)
+          : undefined;
+      const parts: string[] = [status.length > 0 ? status : identical ? 'identical' : 'differ'];
       if (delta !== undefined && delta > 0) parts.push(`Δ${String(delta)}B`);
+      if (prefix !== undefined && !identical) parts.push(`prefix ${String(prefix)}%`);
       return parts.join(' · ');
     } catch {
       // fall through
