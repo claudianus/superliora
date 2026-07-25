@@ -29,6 +29,7 @@ import type { ColorPalette } from '#/tui/theme/colors';
 import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
 
 const TEXT_CELL_PREFERRED_WIDTH = 30;
 const CELL_GAP = '  ';
@@ -588,10 +589,10 @@ export class AgentSwarmProgressComponent implements Component {
    */
   requestPause(input: AgentSwarmPauseRequest = {}): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const reason =
-      input.reason === undefined || collapseWhitespace(input.reason).length === 0
-        ? 'Paused from war room'
-        : collapseWhitespace(input.reason);
+    const reason = resolveWarRoomReason(
+      'pause',
+      input.reason === undefined ? undefined : collapseWhitespace(input.reason),
+    );
     this.onRequestPause?.({ reason, phase: input.phase });
     // Reflect immediately so the dock updates even if the host only wires the callback.
     if (!this.swarmPaused) {
@@ -607,10 +608,10 @@ export class AgentSwarmProgressComponent implements Component {
    */
   requestRestaff(input: AgentSwarmRestaffRequest = {}): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const reason =
-      input.reason === undefined || collapseWhitespace(input.reason).length === 0
-        ? 'User requested restaff'
-        : collapseWhitespace(input.reason);
+    const reason = resolveWarRoomReason(
+      'restaff',
+      input.reason === undefined ? undefined : collapseWhitespace(input.reason),
+    );
     this.onRequestRestaff?.({ reason, phase: input.phase });
     this.applySwarmRestaffing({ active: true, reason });
   }
