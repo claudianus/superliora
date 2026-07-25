@@ -22,6 +22,29 @@ function fakePng(width: number, height: number, payload = new Uint8Array([1, 2, 
   return out;
 }
 
+function fakeJpeg(width: number, height: number, payload = new Uint8Array([9])): Uint8Array {
+  const sofDataLen = 2 + 1 + 2 + 2 + 1;
+  const out = new Uint8Array(2 + 2 + sofDataLen + payload.length + 2);
+  let o = 0;
+  out[o++] = 0xff;
+  out[o++] = 0xd8;
+  out[o++] = 0xff;
+  out[o++] = 0xc0;
+  out[o++] = (sofDataLen >> 8) & 0xff;
+  out[o++] = sofDataLen & 0xff;
+  out[o++] = 8;
+  out[o++] = (height >> 8) & 0xff;
+  out[o++] = height & 0xff;
+  out[o++] = (width >> 8) & 0xff;
+  out[o++] = width & 0xff;
+  out[o++] = 1;
+  out.set(payload, o);
+  o += payload.length;
+  out[o++] = 0xff;
+  out[o++] = 0xd9;
+  return out;
+}
+
 describe('VisualDiffTool factory', () => {
   it('registers name VisualDiff', () => {
     const kaos = {
@@ -61,5 +84,25 @@ describe('VisualDiffTool factory', () => {
     expect(output).toContain('"summary"');
     // First line is the human summary.
     expect(output.split('\n')[0]).toContain('dimension mismatch');
+  });
+
+  it('execute surfaces JPEG SOF dimension mismatch via kaos bytes', async () => {
+    const left = fakeJpeg(320, 240);
+    const right = fakeJpeg(640, 240);
+    const kaos = {
+      readBytes: async (path: string) => (path.includes('left') ? left : right),
+    } as unknown as Kaos;
+    const tool = createVisualDiffTool(kaos);
+    const execution = tool.resolveExecution({
+      left_path: 'left.jpg',
+      right_path: 'right.jpg',
+    });
+    expect(execution.isError).toBeFalsy();
+    const result = await execution.execute!();
+    expect(result.isError).toBeFalsy();
+    const output = result.output as string;
+    expect(output.split('\n')[0]).toContain('320x240');
+    expect(output).toContain('"format": "jpeg"');
+    expect(output).toContain('"status": "dimension_mismatch"');
   });
 });
