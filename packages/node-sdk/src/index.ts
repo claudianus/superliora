@@ -141,6 +141,7 @@ export {
   preferReadyWorkNodeIds,
   partitionReadyWorkNodeIds,
   attachDraftToDebate,
+  buildDebateDraftHandoffPack,
 } from '@superliora/agent-core';
 export type {
   HumanizeCollaborationEventInput,
@@ -159,6 +160,7 @@ export type {
   StaffingOutcomeInput,
   StaffingOutcomeRecord,
   VisualDiffResult,
+  DebateDraftHandoffEntry,
 } from '@superliora/agent-core';
 
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';

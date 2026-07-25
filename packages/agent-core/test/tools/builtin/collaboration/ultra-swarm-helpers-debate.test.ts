@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDebateDraftHandoffPack } from '../../../../src/tools/builtin/collaboration/ultra-swarm-helpers';
+import { buildDebateDraftHandoffPack } from '../../../../src/index';
 
 describe('buildDebateDraftHandoffPack', () => {
   it('returns empty string when no drafts match the phase', () => {

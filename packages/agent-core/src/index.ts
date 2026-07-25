@@ -76,6 +76,10 @@ export {
   type DebateState,
 } from './session/ultra-swarm-debate';
 export {
+  buildDebateDraftHandoffPack,
+  type DebateDraftHandoffEntry,
+} from './tools/builtin/collaboration/ultra-swarm-helpers';
+export {
   clearStaffingOutcomes,
   getOutcome,
   listStaffingOutcomes,
