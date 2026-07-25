@@ -182,13 +182,51 @@ const KNOWN_SEQUENCES: ReadonlyArray<readonly [sequence: string, event: KnownInp
   ['\u001B[O', { type: 'focus', focused: false }],
 ];
 
+/**
+ * How long to wait after a lone ESC before treating it as Escape (not the
+ * start of a split CSI/SGR/SS3 sequence). Terminals often deliver mouse-wheel
+ * SGR as `\u001B` then `[<64;…M` across TCP/PTY chunks; emitting Escape on the
+ * first byte cancels in-flight agent turns (Ultrawork false interrupt).
+ */
+export const DEFAULT_ESCAPE_RESOLVE_MS = 35;
+
+export interface NativeInputDecoderOptions {
+  /**
+   * Called when a previously buffered incomplete control resolves asynchronously
+   * (bare-ESC timeout). The host should dispatch these like normal decode output.
+   */
+  readonly onResolvedEvents?: (events: readonly NativeInputEvent[]) => void;
+  /** Override bare-ESC resolve delay (tests). Default {@link DEFAULT_ESCAPE_RESOLVE_MS}. */
+  readonly escapeResolveMs?: number;
+  readonly setTimer?: typeof setTimeout;
+  readonly clearTimer?: typeof clearTimeout;
+}
+
 export class NativeInputDecoder {
   private pasteText: string | undefined;
   private pasteRaw = '';
   private pendingControl = '';
   private pendingUtf8: Buffer = Buffer.alloc(0);
+  private escapeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly onResolvedEvents: NativeInputDecoderOptions['onResolvedEvents'];
+  private readonly escapeResolveMs: number;
+  private readonly setTimer: typeof setTimeout;
+  private readonly clearTimer: typeof clearTimeout;
+
+  constructor(options: NativeInputDecoderOptions = {}) {
+    this.onResolvedEvents = options.onResolvedEvents;
+    this.escapeResolveMs = options.escapeResolveMs ?? DEFAULT_ESCAPE_RESOLVE_MS;
+    this.setTimer = options.setTimer ?? setTimeout;
+    this.clearTimer = options.clearTimer ?? clearTimeout;
+  }
+
+  /** True when an incomplete ESC/CSI/SS3/X10 prefix is waiting for more bytes. */
+  get hasPendingControl(): boolean {
+    return this.pendingControl.length > 0;
+  }
 
   decode(data: string | Buffer): readonly NativeInputEvent[] {
+    this.clearEscapeTimer();
     const chunk = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
     const combined = Buffer.concat([this.pendingUtf8, chunk]);
     const decoded = splitDecodableUtf8(combined);
@@ -215,6 +253,17 @@ export class NativeInputDecoder {
       if (sgrMouse !== undefined) {
         events.push(sgrMouse.event);
         index += sgrMouse.raw.length;
+        continue;
+      }
+
+      const x10Mouse = matchX10Mouse(input, index);
+      if (x10Mouse === 'incomplete') {
+        this.pendingControl = input.slice(index);
+        break;
+      }
+      if (x10Mouse !== undefined) {
+        events.push(x10Mouse.event);
+        index += x10Mouse.raw.length;
         continue;
       }
 
@@ -249,6 +298,11 @@ export class NativeInputDecoder {
       const char = codePointAt(input, index);
       if (char === '\u001B') {
         const next = index + 1 < input.length ? codePointAt(input, index + 1) : undefined;
+        if (next === undefined) {
+          // Bare ESC at end of chunk — wait for more bytes (SGR/CSI/SS3) or timeout.
+          this.pendingControl = input.slice(index);
+          break;
+        }
         if (next === '[') {
           const raw = consumeUnknownControlSequence(input, index);
           if (raw === undefined) {
@@ -257,10 +311,25 @@ export class NativeInputDecoder {
           }
           events.push({ type: 'unknown', raw });
           index += raw.length;
-        } else if (next !== undefined && isPrintable(next)) {
+        } else if (next === 'O') {
+          // Incomplete SS3 (ESC O … for F1–F4 / application keypad). Do not treat
+          // as Alt+O until the third byte arrives or the resolve timeout fires.
+          if (index + 2 >= input.length) {
+            this.pendingControl = input.slice(index);
+            break;
+          }
+          // Known SS3 sequences are handled by matchKnownSequence above; leftover
+          // ESC O x is unknown (not Escape — avoids false cancel).
+          const third = codePointAt(input, index + 2);
+          const raw = char + next + third;
+          events.push({ type: 'unknown', raw });
+          index += raw.length;
+        } else if (isPrintable(next)) {
           events.push(keyEvent('character', { raw: char + next, text: next, alt: true }));
           index += char.length + next.length;
         } else {
+          // ESC + non-printable non-CSI (rare) — keep as escape only when next is
+          // clearly not a sequence introducer.
           events.push(keyEvent('escape', { raw: char }));
           index += char.length;
         }
@@ -271,7 +340,29 @@ export class NativeInputDecoder {
       index += char.length;
     }
 
+    this.scheduleEscapeResolveIfNeeded();
     return events;
+  }
+
+  /**
+   * Resolve buffered incomplete control immediately.
+   * - bare ESC → Escape key
+   * - incomplete CSI / SS3 / X10 → dropped as `unknown` (never Escape)
+   */
+  flushPendingControl(): readonly NativeInputEvent[] {
+    this.clearEscapeTimer();
+    if (this.pendingControl.length === 0) return [];
+    const pending = this.pendingControl;
+    this.pendingControl = '';
+    if (pending === '\u001B') {
+      return [keyEvent('escape', { raw: pending })];
+    }
+    // Timed-out incomplete SS3 prefix: treat as Alt+O (not Escape).
+    if (pending === '\u001BO') {
+      return [keyEvent('character', { raw: pending, text: 'O', alt: true })];
+    }
+    // Incomplete multi-byte CSI/SGR/X10 — do not synthesize Escape (false interrupt).
+    return [{ type: 'unknown', raw: pending }];
   }
 
   flush(): NativeInputPasteEvent | undefined {
@@ -284,6 +375,43 @@ export class NativeInputDecoder {
     this.pasteText = undefined;
     this.pasteRaw = '';
     return event;
+  }
+
+  dispose(): void {
+    this.clearEscapeTimer();
+    this.pendingControl = '';
+    this.pendingUtf8 = Buffer.alloc(0);
+    this.pasteText = undefined;
+    this.pasteRaw = '';
+  }
+
+  private scheduleEscapeResolveIfNeeded(): void {
+    // Only bare ESC / incomplete SS3 use a short resolve timer. Incomplete
+    // CSI/SGR/X10 wait for more bytes indefinitely (next stdin chunk).
+    if (this.pendingControl !== '\u001B' && this.pendingControl !== '\u001BO') {
+      return;
+    }
+    // Without onResolvedEvents there is no async delivery path — leave pending
+    // for the next decode() or an explicit flushPendingControl() (see
+    // decodeNativeInput). Arming a timer here would flush-and-drop Escape.
+    if (this.onResolvedEvents === undefined || this.escapeResolveMs < 0) {
+      return;
+    }
+    this.clearEscapeTimer();
+    const delay = Math.max(0, this.escapeResolveMs);
+    this.escapeTimer = this.setTimer(() => {
+      this.escapeTimer = null;
+      const resolved = this.flushPendingControl();
+      if (resolved.length > 0) {
+        this.onResolvedEvents?.(resolved);
+      }
+    }, delay);
+  }
+
+  private clearEscapeTimer(): void {
+    if (this.escapeTimer === null) return;
+    this.clearTimer(this.escapeTimer);
+    this.escapeTimer = null;
   }
 
   private decodePaste(input: string, index: number, events: NativeInputEvent[]): number {
@@ -308,8 +436,16 @@ export class NativeInputDecoder {
   }
 }
 
+/**
+ * One-shot decode. Flushes a trailing bare ESC as Escape (no async timer in
+ * this helper). Streaming callers should use {@link NativeInputDecoder} with
+ * `onResolvedEvents` so split SGR/CSI prefixes are not false Escapes.
+ */
 export function decodeNativeInput(data: string | Buffer): readonly NativeInputEvent[] {
-  return new NativeInputDecoder().decode(data);
+  const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
+  const events = decoder.decode(data);
+  const pending = decoder.flushPendingControl();
+  return pending.length === 0 ? events : [...events, ...pending];
 }
 
 export function encodeNativeInputAsLegacySequence(event: NativeInputEvent): string | undefined {
@@ -498,6 +634,60 @@ function matchSgrMouse(
       raw,
       button,
       action: decodeSgrMouseAction(encodedButton, final, button),
+      x: Math.max(0, terminalX - 1),
+      y: Math.max(0, terminalY - 1),
+      ...decodeSgrMouseModifiers(encodedButton),
+    },
+  };
+}
+
+/**
+ * X10 / classic mouse reporting (`CSI M Cb Cx Cy`, 3 bytes after `ESC [ M`).
+ * Enabled alongside SGR (`1006`) via `1000`/`1002`; some terminals or mid-stream
+ * mode flips still emit X10. Incomplete prefixes return `'incomplete'` so the
+ * decoder buffers instead of treating `ESC` as Escape.
+ */
+function matchX10Mouse(
+  input: string,
+  index: number,
+):
+  | { readonly raw: string; readonly event: NativeInputMouseEvent }
+  | 'incomplete'
+  | undefined {
+  if (!input.startsWith('\u001B[M', index)) return undefined;
+  const payloadStart = index + 3;
+  if (input.length < payloadStart + 3) return 'incomplete';
+  const cb = input.charCodeAt(payloadStart);
+  const cx = input.charCodeAt(payloadStart + 1);
+  const cy = input.charCodeAt(payloadStart + 2);
+  if (!Number.isFinite(cb) || !Number.isFinite(cx) || !Number.isFinite(cy)) {
+    return 'incomplete';
+  }
+  // X10 encodes button/modifiers in Cb - 32; coordinates are 1-based (Cx/Cy - 32).
+  const encodedButton = cb - 32;
+  const terminalX = cx - 32;
+  const terminalY = cy - 32;
+  const raw = input.slice(index, payloadStart + 3);
+  const button = decodeSgrMouseButton(encodedButton);
+  // X10 has no separate release final byte; button=3 ('none') is release.
+  // Motion bit (32) marks drag; wheel uses bit 64 same as SGR.
+  let action: NativeInputMouseAction;
+  if (button.startsWith('wheel-')) {
+    action = 'wheel';
+  } else if (button === 'none') {
+    action = 'release';
+  } else if ((encodedButton & 32) !== 0) {
+    action = 'drag';
+  } else {
+    action = 'press';
+  }
+  return {
+    raw,
+    event: {
+      type: 'mouse',
+      raw,
+      button,
+      action,
       x: Math.max(0, terminalX - 1),
       y: Math.max(0, terminalY - 1),
       ...decodeSgrMouseModifiers(encodedButton),

@@ -2086,6 +2086,47 @@ describe('createTUIState', () => {
     expect(scrollActions).toEqual(['line-up']);
   });
 
+  it('consumes wheel input even when transcript is already at scroll bound', () => {
+    // At top/bottom scroll() returns false; still must handle so the event does
+    // not fall through and re-enter the editor as a false key/Esc path.
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    const scrollActions: string[] = [];
+    const nativeInput = createTUIStateNativeInputRouter(state, {
+      requestRender: false,
+      scrollTranscriptViewport: (action) => {
+        scrollActions.push(action);
+        return false;
+      },
+    });
+    const event: NativeInputEvent = {
+      type: 'mouse',
+      raw: '\u001B[<65;1;1M',
+      button: 'wheel-down',
+      action: 'wheel',
+      x: 0,
+      y: 0,
+      ctrl: false,
+      alt: false,
+      shift: false,
+    };
+
+    expect(nativeInput.dispatch(event)).toEqual({
+      event,
+      route: 'global',
+      handled: true,
+      targetId: 'transcript-scroll',
+    });
+    expect(scrollActions).toEqual(['line-down']);
+  });
+
 });
 
 function fixedLines(lines: readonly string[]): Component {
