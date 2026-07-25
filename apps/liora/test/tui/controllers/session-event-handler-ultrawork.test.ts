@@ -432,6 +432,6 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     const bodyHits = transcript.match(/Need auth review before merge/g) ?? [];
     expect(bodyHits).toHaveLength(1);
     // Swarm stage hides theatre; only swarm progress should show the body.
-    expect(transcript).toContain('live feed');
+    expect(transcript).toContain('war room');
   });
 });

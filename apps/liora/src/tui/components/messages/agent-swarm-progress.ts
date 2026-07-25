@@ -775,7 +775,7 @@ export class AgentSwarmProgressComponent implements Component {
       ? teamContent
       : [chalk.hex(this.colors.textDim)('awaiting agents…')];
     const activityContent = this.renderChildActivitySection(width);
-    const feedHeader = chalk.hex(this.colors.textDim)('live feed · team messages');
+    const feedHeader = chalk.hex(this.colors.textDim)('war room · team feed');
     const panelContent = [
       ...missionContent,
       '',

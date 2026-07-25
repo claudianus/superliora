@@ -251,7 +251,7 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('╭');
     expect(output).toContain('UltraSwarm');
     expect(output).toContain('AppSec Engineer');
-    expect(output).toContain('live feed');
+    expect(output).toContain('war room');
     expect(output).toContain('awaiting team messages');
     expect(output).not.toContain('STAFF');
     expect(output).not.toContain('lanes:');
@@ -302,7 +302,7 @@ describe('AgentSwarmProgressComponent', () => {
     });
 
     const output = renderText(component, 120);
-    expect(output).toContain('live feed');
+    expect(output).toContain('war room');
     expect(output).not.toContain('JOIN');
     expect(output).not.toContain('LIVE');
     expect(output).not.toContain('TOOL');
@@ -356,7 +356,7 @@ describe('AgentSwarmProgressComponent', () => {
 
     const output = renderText(component, 120);
     const feedSection = output.split('feed')[1]?.split('╰')[0] ?? '';
-    expect(output).toContain('live feed');
+    expect(output).toContain('war room');
     expect(feedSection).toContain('001→002: auth middleware missing tests');
     expect(feedSection).toContain('002: patch ready for review');
     expect(feedSection).toContain('001→@002: Need auth review @impl-engineer');
@@ -463,7 +463,7 @@ describe('AgentSwarmProgressComponent', () => {
     expect(lines[feedHeaderIndex]).not.toContain('auth middleware');
   });
 
-  it('humanizes protocol XML collaboration bodies in the live feed', () => {
+  it('humanizes protocol XML collaboration bodies in the war room feed', () => {
     const component = createComponent({ title: 'UltraSwarm' });
     component.applyUltraSwarmTeam([
       {
@@ -493,7 +493,7 @@ describe('AgentSwarmProgressComponent', () => {
 
     const output = renderText(component);
     expect(output).not.toContain('LIVE FEED');
-    expect(output).not.toContain('live feed');
+    expect(output).not.toContain('war room');
   });
 
   it('fits three queued columns with the narrower gap and minimum cell width', () => {

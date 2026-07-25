@@ -2,8 +2,9 @@
  * Swarm file lease registry — prevent concurrent Edit/Write on the same path
  * across UltraSwarm workers.
  *
- * Pure in-memory claims keyed by normalized path. Optional wire points:
- * claim before worker file mutation; release on finish; listClaims(runId).
+ * Pure in-memory claims keyed by normalized path. On conflict, claimants are
+ * enqueued (FIFO) so ownership order is explicit; workers must retry claim
+ * after the holder releases (no async wait inside Edit/Write).
  */
 
 import { normalize, resolve } from 'pathe';
@@ -15,6 +16,13 @@ export interface SwarmFileLeaseClaim {
   readonly claimedAt: string;
 }
 
+export interface SwarmFileLeaseWaiter {
+  readonly path: string;
+  readonly ownerId: string;
+  readonly runId: string;
+  readonly enqueuedAt: string;
+}
+
 export type SwarmFileLeaseClaimResult =
   | { readonly ok: true; readonly claim: SwarmFileLeaseClaim }
   | {
@@ -22,6 +30,9 @@ export type SwarmFileLeaseClaimResult =
       readonly conflict: {
         readonly path: string;
         readonly holder: SwarmFileLeaseClaim;
+        /** 1-based position in the wait queue after this claim attempt. */
+        readonly queuePosition: number;
+        readonly queued: boolean;
       };
     };
 
@@ -29,6 +40,7 @@ export interface SwarmFileLeaseRegistry {
   claim(path: string, ownerId: string, runId: string): SwarmFileLeaseClaimResult;
   release(path: string, ownerId: string): boolean;
   listClaims(runId?: string): readonly SwarmFileLeaseClaim[];
+  listQueue(path?: string): readonly SwarmFileLeaseWaiter[];
   releaseAll(runId: string): number;
   holder(path: string): SwarmFileLeaseClaim | undefined;
   clear(): void;
@@ -52,8 +64,39 @@ export function createSwarmFileLeaseRegistry(options?: {
   readonly now?: () => string;
 }): SwarmFileLeaseRegistry {
   const claims = new Map<string, SwarmFileLeaseClaim>();
+  const queues = new Map<string, SwarmFileLeaseWaiter[]>();
   const baseDir = options?.baseDir;
   const now = options?.now ?? (() => new Date().toISOString());
+
+  const enqueue = (path: string, ownerId: string, runId: string): number => {
+    const list = queues.get(path) ?? [];
+    const existingIndex = list.findIndex(
+      (waiter) => waiter.ownerId === ownerId && waiter.runId === runId,
+    );
+    if (existingIndex >= 0) {
+      return existingIndex + 1;
+    }
+    const waiter: SwarmFileLeaseWaiter = {
+      path,
+      ownerId,
+      runId,
+      enqueuedAt: now(),
+    };
+    const next = [...list, waiter];
+    queues.set(path, next);
+    return next.length;
+  };
+
+  const dequeueOwner = (path: string, ownerId: string): void => {
+    const list = queues.get(path);
+    if (list === undefined) return;
+    const next = list.filter((waiter) => waiter.ownerId !== ownerId);
+    if (next.length === 0) {
+      queues.delete(path);
+    } else {
+      queues.set(path, next);
+    }
+  };
 
   return {
     claim(path: string, ownerId: string, runId: string): SwarmFileLeaseClaimResult {
@@ -69,6 +112,8 @@ export function createSwarmFileLeaseRegistry(options?: {
               runId: '',
               claimedAt: now(),
             },
+            queuePosition: 0,
+            queued: false,
           },
         };
       }
@@ -76,16 +121,45 @@ export function createSwarmFileLeaseRegistry(options?: {
       if (existing !== undefined) {
         // Idempotent re-claim by same owner within same run.
         if (existing.ownerId === ownerId && existing.runId === runId) {
+          dequeueOwner(normalized, ownerId);
           return { ok: true, claim: existing };
         }
+        const queuePosition = enqueue(normalized, ownerId, runId);
         return {
           ok: false,
           conflict: {
             path: normalized,
             holder: existing,
+            queuePosition,
+            queued: true,
           },
         };
       }
+
+      // Free path: only the head waiter (if any) may claim; others stay queued.
+      const waiters = queues.get(normalized) ?? [];
+      if (waiters.length > 0) {
+        const head = waiters[0];
+        if (head === undefined || head.ownerId !== ownerId || head.runId !== runId) {
+          const queuePosition = enqueue(normalized, ownerId, runId);
+          // Synthetic holder: path free but queue discipline blocks non-head.
+          return {
+            ok: false,
+            conflict: {
+              path: normalized,
+              holder: {
+                path: normalized,
+                ownerId: head?.ownerId ?? '',
+                runId: head?.runId ?? '',
+                claimedAt: head?.enqueuedAt ?? now(),
+              },
+              queuePosition,
+              queued: true,
+            },
+          };
+        }
+      }
+
       const claim: SwarmFileLeaseClaim = {
         path: normalized,
         ownerId,
@@ -93,6 +167,7 @@ export function createSwarmFileLeaseRegistry(options?: {
         claimedAt: now(),
       };
       claims.set(normalized, claim);
+      dequeueOwner(normalized, ownerId);
       return { ok: true, claim };
     },
 
@@ -111,12 +186,28 @@ export function createSwarmFileLeaseRegistry(options?: {
       return all.filter((claim) => claim.runId === runId);
     },
 
+    listQueue(path?: string): readonly SwarmFileLeaseWaiter[] {
+      if (path !== undefined) {
+        const normalized = normalizeLeasePath(path, baseDir);
+        return queues.get(normalized) ?? [];
+      }
+      return [...queues.values()].flat();
+    },
+
     releaseAll(runId: string): number {
       let released = 0;
       for (const [key, claim] of claims) {
         if (claim.runId !== runId) continue;
         claims.delete(key);
         released += 1;
+      }
+      for (const [key, waiters] of queues) {
+        const next = waiters.filter((waiter) => waiter.runId !== runId);
+        if (next.length === 0) {
+          queues.delete(key);
+        } else {
+          queues.set(key, next);
+        }
       }
       return released;
     },
@@ -127,6 +218,7 @@ export function createSwarmFileLeaseRegistry(options?: {
 
     clear(): void {
       claims.clear();
+      queues.clear();
     },
   };
 }
@@ -146,7 +238,8 @@ export function resetDefaultSwarmFileLeaseRegistry(): void {
 
 /**
  * Optional pre-mutation check for Edit/Write tools.
- * Returns an error message when another owner holds the path; undefined when ok.
+ * Returns an error message when another owner holds the path (or queue order
+ * blocks this owner); undefined when ok. Conflicting claimants are enqueued.
  */
 export function checkSwarmFileLease(
   path: string,
@@ -158,8 +251,12 @@ export function checkSwarmFileLease(
   const result = registry.claim(path, ownerId, runId);
   if (result.ok) return undefined;
   const holder = result.conflict.holder;
+  const queueHint =
+    result.conflict.queued && result.conflict.queuePosition > 0
+      ? ` Queued at position ${String(result.conflict.queuePosition)} — retry after the holder releases.`
+      : '';
   return (
     `File lease conflict on ${result.conflict.path}: held by owner=${holder.ownerId} run=${holder.runId}. ` +
-    `Claimant owner=${ownerId} run=${runId} must wait or pick another path.`
+    `Claimant owner=${ownerId} run=${runId} must wait or pick another path.${queueHint}`
   );
 }
