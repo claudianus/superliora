@@ -55,6 +55,9 @@ export {
   type SwarmDagNodeStatus,
 } from './session/swarm-dag-scheduler';
 export {
+  buildRestaffSpecs,
+  canAttemptRestaff,
+  selectRestaffPhaseSpecs,
   shouldSkipAdaptiveRestaff,
   shouldStopPhaseLoopAtCheckpoint,
 } from './tools/builtin/collaboration/ultra-swarm-phase';
