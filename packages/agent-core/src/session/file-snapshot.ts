@@ -116,7 +116,7 @@ export class FileSnapshotStore {
   }
 
   listTurns(): readonly TurnFileSnapshot[] {
-    return Array.from(this.turns.values()).sort((a, b) => a.createdAt - b.createdAt);
+    return Array.from(this.turns.values()).toSorted((a, b) => a.createdAt - b.createdAt);
   }
 
   /**

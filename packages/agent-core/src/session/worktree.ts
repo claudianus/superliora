@@ -188,7 +188,7 @@ export async function createSessionWorktree(
 ): Promise<CreateSessionWorktreeResult> {
   const repoRoot = await resolveGitRepoRoot(kaos, input.repoPath);
   const name = generateWorktreeName(input.name);
-  const baseRef = (input.baseRef?.trim() || 'HEAD').trim();
+  const baseRef = (input.baseRef?.trim() ?? 'HEAD').trim();
   const target = defaultWorktreePath({ homeDir: input.homeDir, repoRoot, name });
   const branch = `liora/${name}`;
 
@@ -257,7 +257,7 @@ export async function listSessionWorktrees(
     if (rootFilter === undefined) return true;
     return pathEquals(entry.repoRoot, rootFilter);
   });
-  return entries.sort((a, b) => b.lastAccessedAt.localeCompare(a.lastAccessedAt));
+  return entries.toSorted((a, b) => b.lastAccessedAt.localeCompare(a.lastAccessedAt));
 }
 
 export async function removeSessionWorktree(
