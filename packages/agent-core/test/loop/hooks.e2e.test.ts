@@ -229,7 +229,8 @@ describe('runTurn — prepareToolExecution hook', () => {
   it('revalidates updatedArgs before execute', async () => {
     const echo = new EchoTool();
     const hooks: LoopHooks = {
-      prepareToolExecution: async () => ({ updatedArgs: { text: 123 } }),
+      // Ajv coerceTypes accepts number→string; use a non-coercible value.
+      prepareToolExecution: async () => ({ updatedArgs: { text: { nested: true } } }),
     };
     const { sink, context } = await runTurn({
       hooks,
