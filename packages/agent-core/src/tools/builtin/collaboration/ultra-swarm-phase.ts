@@ -580,6 +580,19 @@ export function shouldSkipAdaptiveRestaff(input: {
   );
 }
 
+/**
+ * Whether the phased UltraSwarm loop should stop after a phase checkpoint.
+ * - Steer texts always pause (Pause-Redirect-Resume).
+ * - War-room pauseUltrawork sets `pausedForSteer` without steer text.
+ */
+export function shouldStopPhaseLoopAtCheckpoint(input: {
+  readonly steerTexts: readonly string[];
+  readonly pausedForSteer: boolean | undefined;
+}): boolean {
+  if (input.steerTexts.length > 0) return true;
+  return input.pausedForSteer === true;
+}
+
 export type UltraSwarmWavePlanEntry = {
   readonly spec: UltraSwarmSpec;
   readonly swarmItem: string;

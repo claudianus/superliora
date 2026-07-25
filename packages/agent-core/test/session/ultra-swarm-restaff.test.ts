@@ -143,6 +143,7 @@ import {
   buildRestaffSpecs,
   buildInitialSpecs,
   shouldSkipAdaptiveRestaff,
+  shouldStopPhaseLoopAtCheckpoint,
   planPhaseWaveEntries,
   shouldPostImplementWaveStandup,
   selectRestaffPhaseSpecs,
@@ -404,6 +405,33 @@ describe('ultra-swarm restaff/prompt pure builders', () => {
         decision: 'strong-approve',
         intensity: 'light',
         forceRestaff: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('shouldStopPhaseLoopAtCheckpoint honors steer text and war-room pause', () => {
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: ['go left'],
+        pausedForSteer: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: [],
+        pausedForSteer: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: [],
+        pausedForSteer: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: [],
+        pausedForSteer: undefined,
       }),
     ).toBe(false);
   });

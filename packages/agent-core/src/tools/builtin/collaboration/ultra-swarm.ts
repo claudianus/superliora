@@ -121,6 +121,7 @@ import {
   buildRestaffSpecs,
   buildInitialSpecs,
   shouldSkipAdaptiveRestaff,
+  shouldStopPhaseLoopAtCheckpoint,
   planPhaseWaveEntries,
   shouldPostImplementWaveStandup,
   selectRestaffPhaseSpecs,
@@ -723,7 +724,12 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         break;
       }
       // War-room pauseUltrawork sets pausedForSteer without steer text — stop here.
-      if (this.agent.ultraSwarmRun?.pausedForSteer === true) {
+      if (
+        shouldStopPhaseLoopAtCheckpoint({
+          steerTexts: [],
+          pausedForSteer: this.agent.ultraSwarmRun?.pausedForSteer,
+        })
+      ) {
         this.agent.emitEvent({
           type: 'ultrawork.swarm.paused',
           runId: input.runId,
