@@ -226,9 +226,13 @@ export class SubAgentEventHandler {
     for (const progress of this.agentSwarmProgress.values()) {
       if (!progress.isToolCallActive()) continue;
       if (action === 'pause') {
-        progress.requestPause({ reason: options.reason ?? 'Paused from /swarm pause' });
+        progress.requestPause({
+          reason: resolveWarRoomReason('pause', options.reason),
+        });
       } else if (action === 'restaff') {
-        progress.requestRestaff({ reason: options.reason ?? 'Restaff from /swarm restaff' });
+        progress.requestRestaff({
+          reason: resolveWarRoomReason('restaff', options.reason),
+        });
       } else {
         progress.toggleRawFeed();
       }
