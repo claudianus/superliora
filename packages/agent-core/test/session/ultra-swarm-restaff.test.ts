@@ -142,6 +142,7 @@ describe('ultra-swarm restaff helpers', () => {
 import {
   buildRestaffSpecs,
   buildInitialSpecs,
+  canAttemptRestaff,
   shouldSkipAdaptiveRestaff,
   shouldStopPhaseLoopAtCheckpoint,
   planPhaseWaveEntries,
@@ -507,5 +508,32 @@ describe('ultra-swarm restaff/prompt pure builders', () => {
     });
     expect(review).toHaveLength(1);
     expect(review[0]?.expertId).toBe('rev-2');
+  });
+
+  it('canAttemptRestaff requires open gaps and free expert slots', () => {
+    expect(
+      canAttemptRestaff({
+        renderedCount: 2,
+        specsCount: 2,
+        maxExperts: 4,
+        gapCount: 0,
+      }),
+    ).toBe(false);
+    expect(
+      canAttemptRestaff({
+        renderedCount: 4,
+        specsCount: 4,
+        maxExperts: 4,
+        gapCount: 1,
+      }),
+    ).toBe(false);
+    expect(
+      canAttemptRestaff({
+        renderedCount: 2,
+        specsCount: 2,
+        maxExperts: 4,
+        gapCount: 1,
+      }),
+    ).toBe(true);
   });
 });
