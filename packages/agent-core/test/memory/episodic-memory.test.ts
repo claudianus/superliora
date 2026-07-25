@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { promises as fs } from 'node:fs';
 import path from 'pathe';
 import { tmpdir } from 'node:os';
-import { afterEach, beforeEach, describe, test } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 
 import {
   createEpisode,
@@ -12,7 +12,7 @@ import {
 } from '../../src/memory/episodic-memory';
 
 describe('episodic-memory — createEpisode', () => {
-  test('creates an episode with content hash as id', () => {
+  it('creates an episode with content hash as id', () => {
     const episode = createEpisode({
       workDir: '/tmp/project',
       goal: 'Fix the compaction bug',
@@ -25,7 +25,7 @@ describe('episodic-memory — createEpisode', () => {
     assert.equal(episode.insights.length, 1);
   });
 
-  test('same content produces same id', () => {
+  it('same content produces same id', () => {
     const input = {
       workDir: '/tmp/project',
       goal: 'Fix the compaction bug',
@@ -37,7 +37,7 @@ describe('episodic-memory — createEpisode', () => {
     assert.equal(e1.id, e2.id);
   });
 
-  test('different content produces different id', () => {
+  it('different content produces different id', () => {
     const e1 = createEpisode({ workDir: '/a', goal: 'Goal A', outcome: 'success' });
     const e2 = createEpisode({ workDir: '/b', goal: 'Goal B', outcome: 'success' });
     assert.notEqual(e1.id, e2.id);
@@ -55,7 +55,7 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   });
 
-  test('add and retrieve episodes', async () => {
+  it('add and retrieve episodes', async () => {
     const store = new FileEpisodicMemoryStore({ storageDir: tmpDir });
     const episode = createEpisode({
       workDir: '/tmp/project',
@@ -69,7 +69,7 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
     assert.equal(store.episodes[0]!.goal, 'Fix compaction bug');
   });
 
-  test('search finds episodes by goal keywords', async () => {
+  it('search finds episodes by goal keywords', async () => {
     const store = new FileEpisodicMemoryStore({ storageDir: tmpDir });
     await store.add(createEpisode({
       workDir: '/tmp/a', goal: 'Fix compaction bug', outcome: 'success',
@@ -85,7 +85,7 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
     assert.ok(results[0]!.goal.includes('compaction'));
   });
 
-  test('search finds episodes by insight keywords', async () => {
+  it('search finds episodes by insight keywords', async () => {
     const store = new FileEpisodicMemoryStore({ storageDir: tmpDir });
     await store.add(createEpisode({
       workDir: '/tmp/a', goal: 'Fix bug', outcome: 'success',
@@ -96,7 +96,7 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
     assert.equal(results.length, 1);
   });
 
-  test('getByTag filters by tag', async () => {
+  it('getByTag filters by tag', async () => {
     const store = new FileEpisodicMemoryStore({ storageDir: tmpDir });
     await store.add(createEpisode({
       workDir: '/tmp/a', goal: 'Goal 1', outcome: 'success', tags: ['bugfix'],
@@ -110,7 +110,7 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
     assert.equal(results[0]!.goal, 'Goal 1');
   });
 
-  test('getByWorkDir filters by work directory', async () => {
+  it('getByWorkDir filters by work directory', async () => {
     const store = new FileEpisodicMemoryStore({ storageDir: tmpDir });
     await store.add(createEpisode({ workDir: '/tmp/a', goal: 'Goal 1', outcome: 'success' }));
     await store.add(createEpisode({ workDir: '/tmp/b', goal: 'Goal 2', outcome: 'success' }));
@@ -120,7 +120,7 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
     assert.equal(results[0]!.goal, 'Goal 1');
   });
 
-  test('persists episodes to disk and reloads', async () => {
+  it('persists episodes to disk and reloads', async () => {
     const episode = createEpisode({
       workDir: '/tmp/project',
       goal: 'Persistent episode',
@@ -137,7 +137,7 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
     assert.equal(store2.episodes[0]!.goal, 'Persistent episode');
   });
 
-  test('does not duplicate episodes with same content hash', async () => {
+  it('does not duplicate episodes with same content hash', async () => {
     const store = new FileEpisodicMemoryStore({ storageDir: tmpDir });
     const input = {
       workDir: '/tmp/project',
@@ -152,11 +152,11 @@ describe('episodic-memory — FileEpisodicMemoryStore', () => {
 });
 
 describe('episodic-memory — renderEpisodicMemorySection', () => {
-  test('renders empty string for no episodes', () => {
+  it('renders empty string for no episodes', () => {
     assert.equal(renderEpisodicMemorySection([]), '');
   });
 
-  test('renders episode details', () => {
+  it('renders episode details', () => {
     const episode: Episode = {
       id: 'abc123',
       createdAt: '2026-07-25T00:00:00.000Z',
