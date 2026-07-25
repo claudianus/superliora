@@ -437,14 +437,15 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
 
   it('skips theatre applyEvent when swarm owns collaboration message/mention (single-sink)', () => {
     const host = makeHost();
-    const children: Array<{
+    type TranscriptChild = {
       render(width: number): string[];
-      applyEvent?: ReturnType<typeof vi.fn>;
-    }> = [];
-    host.state.transcriptContainer.addChild = vi.fn(
-      (child: { render(width: number): string[]; applyEvent?: ReturnType<typeof vi.fn> }) => {
+      applyEvent?: (...args: unknown[]) => unknown;
+    };
+    const children: TranscriptChild[] = [];
+    host.state.transcriptContainer.addChild = vi.fn((child: TranscriptChild) => {
         if (typeof child.applyEvent === 'function') {
-          child.applyEvent = vi.fn(child.applyEvent.bind(child));
+          const original = child.applyEvent;
+          child.applyEvent = vi.fn((...args: unknown[]) => original.apply(child, args));
         }
         children.push(child);
       },
@@ -562,14 +563,15 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
 
   it('keeps debate/steer on swarm sink only while live UltraSwarm owns the feed', () => {
     const host = makeHost();
-    const children: Array<{
+    type TranscriptChild = {
       render(width: number): string[];
-      applyEvent?: ReturnType<typeof vi.fn>;
-    }> = [];
-    host.state.transcriptContainer.addChild = vi.fn(
-      (child: { render(width: number): string[]; applyEvent?: ReturnType<typeof vi.fn> }) => {
+      applyEvent?: (...args: unknown[]) => unknown;
+    };
+    const children: TranscriptChild[] = [];
+    host.state.transcriptContainer.addChild = vi.fn((child: TranscriptChild) => {
         if (typeof child.applyEvent === 'function') {
-          child.applyEvent = vi.fn(child.applyEvent.bind(child));
+          const original = child.applyEvent;
+          child.applyEvent = vi.fn((...args: unknown[]) => original.apply(child, args));
         }
         children.push(child);
       },
@@ -641,7 +643,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
         runId: 'uw_debate_sink',
         debateId: 'deb_1',
         workNodeId: 'node_auth',
-        phase: 'critique',
+        phase: 'critic',
         expertId: 'security-appsec-engineer',
         expertName: 'AppSec Engineer',
         text: debateText,
