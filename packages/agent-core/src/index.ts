@@ -109,8 +109,11 @@ export {
   type UltraSwarmSteerRequest,
 } from './agent/ultra-swarm-run';
 export {
+  buildRestaffReflectionPrompt,
   collectRestaffGaps,
+  filterRestaffPlan,
   needsRestaffing,
+  restaffPhaseForGaps,
   restaffSlotsAvailable,
   shouldPlanRestaffWave,
   type RestaffGapResult,

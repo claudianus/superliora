@@ -172,6 +172,9 @@ export {
   needsRestaffing,
   restaffSlotsAvailable,
   shouldPlanRestaffWave,
+  buildRestaffReflectionPrompt,
+  filterRestaffPlan,
+  restaffPhaseForGaps,
 } from '@superliora/agent-core';
 export type {
   HumanizeCollaborationEventInput,
