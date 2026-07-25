@@ -1,11 +1,19 @@
 import type { Agent } from '../agent';
 
+import {
+  auditUltraworkCompletion,
+  formatCompletionAuditRejection,
+} from './completion-audit';
+
 /**
  * Close a finished Ultrawork run (and its UltraGoal) without pulling resume/plan graph deps.
  * Lives in a leaf module so UltraworkGraph can call it without import cycles.
  * Returns a Promise when goal completion is triggered; callers in async contexts
  * should await to avoid a race where the goal driver issues another continuation
  * turn before the goal is marked complete.
+ *
+ * False-complete guard: running runs only finish when {@link auditUltraworkCompletion}
+ * passes (seeded WorkGraph, evidence hard gate, verificationStatus for requiredEvidence).
  */
 export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined {
   const ultrawork = agent.ultrawork;
@@ -25,16 +33,31 @@ export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined
   }
   if (run.status !== 'running') return undefined;
 
+  const audit = auditUltraworkCompletion({ run, requireWorkGraph: true });
+  if (!audit.ok) {
+    agent.log.warn('ultrawork finish rejected by completion audit', {
+      runId: run.id,
+      code: audit.code,
+      reasons: audit.reasons,
+    });
+    agent.telemetry.track('ultrawork_finish_audit_rejected', {
+      run_id: run.id,
+      code: audit.code,
+      open_nodes: audit.openNodeIds?.length ?? 0,
+    });
+    // Soft verify path (AC-C2): surface the audit as a system reminder so the
+    // model keeps implementing without a silent no-op finish.
+    injectCompletionAuditRejectionReminder(agent, audit);
+    return undefined;
+  }
+
   const graph = run.workGraph;
-  // Only auto-finish a running run when a WorkGraph exists with at least one
-  // node and every node is done. Without a graph (or with an empty one) the
-  // run has not yet been seeded with work — finishing here would prematurely
-  // close runs still in plan/research stages.
+  // Audit already requires a non-empty graph; keep defensive early returns.
   if (graph === undefined || graph.nodes.length === 0) return undefined;
+
+  // Circuit breaker: all terminal with some failed — finish so harness does not
+  // loop forever, but only when audit passed (verification_failed would block).
   if (!graph.nodes.every((node) => node.status === 'done')) {
-    // Circuit breaker: if all nodes are terminal (done|failed) but some failed,
-    // the run would otherwise stay stuck in 'running' forever. Log and finish
-    // so the harness does not loop indefinitely on unrecoverable failures.
     const allTerminal = graph.nodes.every(
       (node) => node.status === 'done' || node.status === 'failed',
     );
@@ -58,6 +81,20 @@ export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined
   }
   ultrawork.completeLearnStage();
   return completeUltraGoalForFinishedRun(agent);
+}
+
+/**
+ * Inject a system reminder so the model keeps the autonomous loop after a
+ * rejected complete attempt (does not stop the turn by itself).
+ */
+export function injectCompletionAuditRejectionReminder(
+  agent: Agent,
+  rejection: ReturnType<typeof auditUltraworkCompletion> & { ok: false },
+): void {
+  agent.context.appendSystemReminder(formatCompletionAuditRejection(rejection), {
+    kind: 'injection',
+    variant: 'ultrawork_completion_rejected',
+  });
 }
 
 /**

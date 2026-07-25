@@ -1,6 +1,7 @@
 import type { UltraworkRun } from '@superliora/protocol';
 import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
 import type { Agent } from '../agent';
+import { applyEvidenceHardGate } from '../session/swarm-evidence-gate';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
 import { resolveApprovedUltraworkPlanPath } from './approved-plan';
 import { inferUltraPlanPhaseFromPlanContent } from './plan-phase';
@@ -98,7 +99,24 @@ function reconcileUltraworkRunFromMirror(agent: Agent, mirror: UltraworkRunMirro
 
   const graph = mirror.run.workGraph;
   if (graph !== undefined) {
-    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, graph);
+    // Mirror is a restore path, not a privileged done mutator — re-run the
+    // evidence hard gate so done-without-evidence cannot re-enter via disk.
+    const gated = applyEvidenceHardGate(graph.nodes);
+    const nextGraph =
+      gated.violations.length === 0
+        ? graph
+        : {
+            ...graph,
+            updatedAt: new Date().toISOString(),
+            nodes: gated.nodes,
+          };
+    if (gated.violations.length > 0) {
+      agent.telemetry.track('evidence_gate_mirror_violations', {
+        run_id: nextGraph.runId,
+        violations: gated.violations.length,
+      });
+    }
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, nextGraph);
   }
 }
 

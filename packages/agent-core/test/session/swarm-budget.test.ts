@@ -47,4 +47,20 @@ describe('swarm-budget', () => {
     expect(suggestion.shouldKill).toBe(true);
     expect(suggestion.killThreshold).toBe(3);
   });
+
+  it('exposes a stable kill reason for visible handoff / telemetry', () => {
+    const { suggestion } = evaluateSwarmBudget(
+      [
+        { label: 'plan', evidenceIds: [] },
+        { label: 'implement', evidenceIds: [] },
+      ],
+      { killThreshold: 2 },
+    );
+    expect(suggestion.shouldKill).toBe(true);
+    expect(suggestion.reason).toMatch(/Budget governor/i);
+    expect(suggestion.reason).toMatch(/without evidence/i);
+    expect(suggestion.reason).toMatch(/implement|threshold/i);
+    expect(suggestion.wastedRounds).toBe(2);
+    expect(suggestion.killThreshold).toBe(2);
+  });
 });

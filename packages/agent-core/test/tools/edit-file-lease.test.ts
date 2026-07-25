@@ -64,6 +64,33 @@ describe('Edit/Write swarm file lease integration', () => {
     expect(String(result.output)).toContain('owner-a');
   });
 
+  it('Write returns error when another owner holds the path lease', async () => {
+    const registry = getDefaultSwarmFileLeaseRegistry();
+    registry.claim('/tmp/write-conflict.ts', 'owner-a', 'run-1');
+
+    const kaos = createFakeKaos({
+      stat: async () => ({ stMode: 0o040000 } as never),
+      writeAtomic: async () => {
+        throw new Error('should not write on lease conflict');
+      },
+    });
+    const tool = new WriteTool(kaos, PERMISSIVE_WORKSPACE, {
+      getSwarmLease: () => ({ ownerId: 'owner-b', runId: 'run-1' }),
+    });
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_write_conflict',
+      signal,
+      args: {
+        path: '/tmp/write-conflict.ts',
+        content: 'new body',
+      },
+    });
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toContain('File lease conflict');
+    expect(String(result.output)).toContain('owner-a');
+  });
+
   it('allows claim by the same owner and proceeds with Write', async () => {
     const registry = getDefaultSwarmFileLeaseRegistry();
     registry.claim('/tmp/owned.ts', 'owner-a', 'run-1');

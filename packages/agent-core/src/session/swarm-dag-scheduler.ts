@@ -36,6 +36,8 @@ export const SWARM_DAG_TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'failed',
   'blocked',
   'cancelled',
+  // Swarm success lands here until main-agent integrate/verify promotes to done.
+  'needs_integration',
 ]);
 
 /**
