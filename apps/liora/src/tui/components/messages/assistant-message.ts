@@ -31,6 +31,10 @@ import {
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 
 type AssistantMarkdownOptions = {
   transient?: boolean;
@@ -43,6 +47,8 @@ export class AssistantMessageComponent implements Component {
   private lastText = '';
   private lastTransient = false;
   private showBullet: boolean;
+  /** Wall-clock mount time — drives the entrance fade wash. */
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   private readonly renderCache = new RendererWidthRenderCache();
 
@@ -115,13 +121,14 @@ export class AssistantMessageComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
-    // While streaming (transient), the caret pulses on the animation clock, so
-    // the cache must repaint each ambient tick. When finalized, drop the epoch
-    // so an unchanged message returns to O(1) cached renders.
+    // While streaming (transient) or still washing in, repaint every ambient tick.
+    // When finalized and entrance is done, drop the epoch for O(1) cached renders.
     const streaming = this.lastTransient && caretActive();
+    const entranceActive = isTranscriptEntranceActive(this.entranceStartedAtMs);
+    const animated = streaming || entranceActive;
     return this.renderCache.render({
       width: safeWidth,
-      cacheEpoch: streaming ? renderCacheEpoch() : undefined,
+      cacheEpoch: animated ? renderCacheEpoch() : undefined,
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
         const appearance = getActiveAppearancePreferences();
@@ -148,13 +155,20 @@ export class AssistantMessageComponent implements Component {
           ? appendStreamingCaret(contentLines, contentWidth)
           : contentLines;
 
-        return renderRendererTranscriptLineBlock({
+        const blocked = renderRendererTranscriptLineBlock({
           width: safeWidth,
           prefix,
           continuationPrefix: MESSAGE_INDENT,
           lines,
           leadingBlank: true,
           truncateMark: '…',
+        });
+
+        return polishTranscriptLines(blocked, {
+          startedAtMs: this.entranceStartedAtMs,
+          kind: 'assistant',
+          streaming: this.lastTransient,
+          appearance,
         });
       },
     });

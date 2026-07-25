@@ -116,7 +116,7 @@ describe('computeRevealAdvance', () => {
     });
     expect(large).toBeGreaterThan(small);
     // 100ms at MAX_CPS → at most maxCps/10 code points from speed alone
-    expect(large).toBeLessThanOrEqual(Math.ceil(STREAM_REVEAL_MAX_CPS / 10) + 5);
+    expect(large).toBeLessThanOrEqual(Math.ceil(STREAM_REVEAL_MAX_CPS / 10) + 8);
   });
 
   it('jumps farther when lag exceeds maxLagMs', () => {

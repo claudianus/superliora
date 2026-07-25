@@ -3,6 +3,7 @@ import { Container, Spacer, Text } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderShimmerPrefix,
@@ -10,12 +11,17 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 
 export class StatusMessageComponent extends Container {
   private textComponent: Text;
   private content: string;
   private color?: ColorToken;
   ambientAnimationEpoch = -1;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(content: string, color?: ColorToken) {
     super();
@@ -40,7 +46,13 @@ export class StatusMessageComponent extends Container {
 
   override render(width: number): string[] {
     syncAmbientAnimatedText(this.textComponent, () => this.renderText(), this);
-    return super.render(width);
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   // Indent every line, not just the first. The `content` may be multi-line
@@ -74,6 +86,7 @@ export class NoticeMessageComponent extends Container {
   private title: string;
   private detail?: string;
   ambientAnimationEpoch = -1;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(title: string, detail: string | undefined, coalesceKey?: string) {
     super();
@@ -107,7 +120,13 @@ export class NoticeMessageComponent extends Container {
         this,
       );
     }
-    return super.render(width);
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 }
 

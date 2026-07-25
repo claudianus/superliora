@@ -31,6 +31,10 @@ import {
 } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/utils/transcript-entrance';
 
 export type ThinkingRenderMode = 'live' | 'finalized';
 
@@ -42,6 +46,8 @@ export class ThinkingComponent implements Component {
   private readonly ui: RendererRootUI | undefined;
   private readonly startedAt: number | undefined;
   private finishedAt: number | undefined;
+  /** Entrance fade clock — independent of elapsed-time tracking. */
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
   // Hold a single Text instance so the renderer's (text, width) -> lines cache
   // actually survives across renders. Re-constructing per render destroys
   // the cache and forces full re-wrap on every frame, which dominates CPU
@@ -102,7 +108,10 @@ export class ThinkingComponent implements Component {
 
   render(width: number): string[] {
     // Live mode advances spinner and elapsed-time suffixes from wall clock.
-    if (this.mode === 'live') this.markRenderDirty();
+    // Entrance wash also needs per-frame repaint while active.
+    if (this.mode === 'live' || isTranscriptEntranceActive(this.entranceStartedAtMs)) {
+      this.markRenderDirty();
+    }
     return this.renderCache.render({
       width,
       cacheEpoch: renderCacheEpoch(),
@@ -110,6 +119,7 @@ export class ThinkingComponent implements Component {
       render: () => {
         const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);
         const contentLines = this.text.length > 0 ? this.textComponent.render(contentWidth) : [''];
+        const appearance = getActiveAppearancePreferences();
 
         if (this.mode === 'live') {
           // Live thinking always shows a short tail glance so work is transparent
@@ -123,7 +133,6 @@ export class ThinkingComponent implements Component {
             Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
             BRAILLE_SPINNER_FRAMES.length;
           const spinnerGlyph = BRAILLE_SPINNER_FRAMES[spinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0];
-          const appearance = getActiveAppearancePreferences();
           const spinner = shouldRenderAmbientEffects(appearance)
             ? renderSpectacularText(`${spinnerGlyph} `, `thinking:spin:${spinnerGlyph}`, appearance, {
                 intense: true,
@@ -136,11 +145,17 @@ export class ThinkingComponent implements Component {
           // Pre-styling here used to leak SGR bodies as `[0;1;38;2…` after escape.
           const density = charCount > 0 ? ` · ${String(charCount)}c` : '';
           const thinkingLabel = renderThinkingStatusLabel(`thinking...${elapsed}${density}`);
-          return [
+          const liveLines = [
             '',
             spinner + thinkingLabel,
             ...visibleLines.map((line) => MESSAGE_INDENT + line),
           ];
+          return polishTranscriptLines(liveLines, {
+            startedAtMs: this.entranceStartedAtMs,
+            kind: 'thinking',
+            streaming: true,
+            appearance,
+          });
         }
 
         const lines: string[] = [''];
@@ -150,10 +165,13 @@ export class ThinkingComponent implements Component {
         }
 
         if (this.expanded) {
-          return lines;
+          return polishTranscriptLines(lines, {
+            startedAtMs: this.entranceStartedAtMs,
+            kind: 'thinking',
+            appearance,
+          });
         }
 
-        const appearance = getActiveAppearancePreferences();
         const marker = !this.showMarker
           ? MESSAGE_INDENT
           : shouldRenderAmbientEffects(appearance)
@@ -164,11 +182,16 @@ export class ThinkingComponent implements Component {
         const hint = `... (${String(contentLines.length)} lines hidden, ctrl+o to expand)`;
         const indentWidth = Math.min(MESSAGE_INDENT.length, Math.max(0, width));
         const hintWidth = Math.max(0, width - indentWidth);
-        return [
+        const collapsed = [
           '',
           summary,
           ' '.repeat(indentWidth) + currentTheme.dim(truncateToWidth(hint, hintWidth, '…')),
         ];
+        return polishTranscriptLines(collapsed, {
+          startedAtMs: this.entranceStartedAtMs,
+          kind: 'thinking',
+          appearance,
+        });
       },
     });
   }
