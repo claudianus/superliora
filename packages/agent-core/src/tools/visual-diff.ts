@@ -24,8 +24,8 @@ export interface VisualDiffImageMeta {
   readonly width?: number;
   /** PNG IHDR height when buffer is a valid PNG; otherwise undefined. */
   readonly height?: number;
-  /** Detected format tag for display (`png` | `unknown`). */
-  readonly format: 'png' | 'unknown';
+  /** Detected format tag for display (`png` | `jpeg` | `unknown`). */
+  readonly format: 'png' | 'jpeg' | 'unknown';
 }
 
 export interface VisualDiffResult {
@@ -60,6 +60,8 @@ function sha256Hex(buf: Uint8Array): string {
 }
 
 const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_SOI0 = 0xff;
+const JPEG_SOI1 = 0xd8;
 
 /** True when buffer starts with the PNG signature. */
 export function isPngBuffer(buf: Uint8Array): boolean {
@@ -68,6 +70,11 @@ export function isPngBuffer(buf: Uint8Array): boolean {
     if (buf[i] !== PNG_SIGNATURE[i]) return false;
   }
   return true;
+}
+
+/** True when buffer starts with JPEG SOI (FF D8). */
+export function isJpegBuffer(buf: Uint8Array): boolean {
+  return buf.byteLength >= 2 && buf[0] === JPEG_SOI0 && buf[1] === JPEG_SOI1;
 }
 
 /**
@@ -95,6 +102,53 @@ export function readPngDimensions(
   return { width, height };
 }
 
+/**
+ * Read JPEG SOF0/1/2 width/height by scanning markers. Dependency-free MVP —
+ * skips non-SOF segments via their length fields.
+ */
+export function readJpegDimensions(
+  buf: Uint8Array,
+): { readonly width: number; readonly height: number } | undefined {
+  if (!isJpegBuffer(buf) || buf.byteLength < 4) return undefined;
+  let i = 2;
+  while (i + 9 < buf.byteLength) {
+    if (buf[i] !== 0xff) {
+      i += 1;
+      continue;
+    }
+    // Skip fill bytes (FF FF ...)
+    while (i < buf.byteLength && buf[i] === 0xff) i += 1;
+    if (i >= buf.byteLength) return undefined;
+    const marker = buf[i]!;
+    i += 1;
+    // Standalone markers without length
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) continue;
+    if (i + 1 >= buf.byteLength) return undefined;
+    const segLen = (buf[i]! << 8) | buf[i + 1]!;
+    if (segLen < 2) return undefined;
+    // SOF0 baseline, SOF1 extended sequential, SOF2 progressive
+    if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+      // length(2) + precision(1) + height(2) + width(2)
+      if (i + 6 >= buf.byteLength) return undefined;
+      const height = (buf[i + 3]! << 8) | buf[i + 4]!;
+      const width = (buf[i + 5]! << 8) | buf[i + 6]!;
+      if (width === 0 || height === 0) return undefined;
+      return { width, height };
+    }
+    i += segLen;
+  }
+  return undefined;
+}
+
+/** PNG IHDR or JPEG SOF dimensions when the buffer matches a known format. */
+export function readImageDimensions(
+  buf: Uint8Array,
+): { readonly width: number; readonly height: number } | undefined {
+  if (isPngBuffer(buf)) return readPngDimensions(buf);
+  if (isJpegBuffer(buf)) return readJpegDimensions(buf);
+  return undefined;
+}
+
 /** Count leading equal bytes between two buffers (capped for large files). */
 export function sharedPrefixLength(left: Uint8Array, right: Uint8Array, maxScan = 1_048_576): number {
   const limit = Math.min(left.byteLength, right.byteLength, maxScan);
@@ -105,13 +159,14 @@ export function sharedPrefixLength(left: Uint8Array, right: Uint8Array, maxScan 
 
 function imageMeta(buf: Uint8Array): VisualDiffImageMeta {
   const png = isPngBuffer(buf);
-  const dims = png ? readPngDimensions(buf) : undefined;
+  const jpeg = !png && isJpegBuffer(buf);
+  const dims = png ? readPngDimensions(buf) : jpeg ? readJpegDimensions(buf) : undefined;
   return {
     bytes: buf.byteLength,
     sha256: sha256Hex(buf),
     width: dims?.width,
     height: dims?.height,
-    format: png ? 'png' : 'unknown',
+    format: png ? 'png' : jpeg ? 'jpeg' : 'unknown',
   };
 }
 

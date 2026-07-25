@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isJpegBuffer,
   isPngBuffer,
+  readImageDimensions,
+  readJpegDimensions,
   readPngDimensions,
   sharedPrefixLength,
   visualDiff,
@@ -24,6 +27,34 @@ function fakePng(width: number, height: number, payload = new Uint8Array([1, 2, 
   view.setUint32(16, width, false);
   view.setUint32(20, height, false);
   out.set(payload, 24);
+  return out;
+}
+
+/**
+ * Minimal JPEG: SOI + SOF0 (baseline) with width/height + EOI.
+ * SOF0 payload: precision(1) + height(2) + width(2) + components(1) = 6 bytes min.
+ */
+function fakeJpeg(width: number, height: number, payload = new Uint8Array([9])): Uint8Array {
+  // SOI(2) + FF C0 + len(2)=8 + precision + H + W + comps(1) + payload + EOI(2)
+  const sofDataLen = 2 + 1 + 2 + 2 + 1; // length field includes itself
+  const out = new Uint8Array(2 + 2 + sofDataLen + payload.length + 2);
+  let o = 0;
+  out[o++] = 0xff;
+  out[o++] = 0xd8; // SOI
+  out[o++] = 0xff;
+  out[o++] = 0xc0; // SOF0
+  out[o++] = (sofDataLen >> 8) & 0xff;
+  out[o++] = sofDataLen & 0xff;
+  out[o++] = 8; // precision
+  out[o++] = (height >> 8) & 0xff;
+  out[o++] = height & 0xff;
+  out[o++] = (width >> 8) & 0xff;
+  out[o++] = width & 0xff;
+  out[o++] = 1; // components
+  out.set(payload, o);
+  o += payload.length;
+  out[o++] = 0xff;
+  out[o++] = 0xd9; // EOI
   return out;
 }
 
@@ -71,8 +102,25 @@ describe('visualDiff', () => {
     expect(result.status).toBe('dimension_mismatch');
     expect(result.left.width).toBe(100);
     expect(result.right.width).toBe(200);
+    expect(result.left.format).toBe('png');
     expect(result.summary).toContain('100x50');
     expect(result.summary).toContain('200x50');
+  });
+
+  it('parses JPEG SOF0 dimensions and flags dimension mismatch', () => {
+    const left = fakeJpeg(320, 240);
+    const right = fakeJpeg(640, 240);
+    expect(isJpegBuffer(left)).toBe(true);
+    expect(readJpegDimensions(left)).toEqual({ width: 320, height: 240 });
+    expect(readImageDimensions(left)).toEqual({ width: 320, height: 240 });
+    const result = visualDiff(left, right);
+    expect(result.identical).toBe(false);
+    expect(result.status).toBe('dimension_mismatch');
+    expect(result.left.format).toBe('jpeg');
+    expect(result.left.width).toBe(320);
+    expect(result.right.width).toBe(640);
+    expect(result.summary).toContain('320x240');
+    expect(result.summary).toContain('640x240');
   });
 
   it('sharedPrefixLength stops at first mismatch', () => {

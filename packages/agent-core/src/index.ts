@@ -112,7 +112,10 @@ export {
   type StaffingGoldCase,
 } from './expert-agents/staffing-gold';
 export {
+  isJpegBuffer,
   isPngBuffer,
+  readImageDimensions,
+  readJpegDimensions,
   readPngDimensions,
   sharedPrefixLength,
   visualDiff,
