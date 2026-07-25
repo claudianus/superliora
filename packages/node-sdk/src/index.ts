@@ -167,6 +167,10 @@ export {
   consumeUltraSwarmRestaffRequests,
   isRestaffSteerText,
   createUltraSwarmRunContext,
+  collectRestaffGaps,
+  needsRestaffing,
+  restaffSlotsAvailable,
+  shouldPlanRestaffWave,
 } from '@superliora/agent-core';
 export type {
   HumanizeCollaborationEventInput,
@@ -193,6 +197,7 @@ export type {
   ReviewHeuristicComment,
   ReviewHeuristicFile,
   ReviewSeverity,
+  RestaffGapResult,
 } from '@superliora/agent-core';
 
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';

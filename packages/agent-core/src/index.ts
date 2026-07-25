@@ -108,6 +108,13 @@ export {
   type UltraSwarmSteerRequest,
 } from './agent/ultra-swarm-run';
 export {
+  collectRestaffGaps,
+  needsRestaffing,
+  restaffSlotsAvailable,
+  shouldPlanRestaffWave,
+  type RestaffGapResult,
+} from './session/ultra-swarm-restaff';
+export {
   STAFFING_GOLD_SEED,
   collectStaffingGoldLabels,
   dcgAtK,
