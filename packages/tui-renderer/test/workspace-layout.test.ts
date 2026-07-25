@@ -210,7 +210,7 @@ describe('measureBentoGridLayout dock columns', () => {
     }
   });
 
-  it('splits two dock panels evenly and flush', () => {
+  it('splits two dock panels with Files-biased heights and flush abutment', () => {
     const dock = { x: 2, y: 1, width: 42, height: 40 };
     const grid = measureBentoGridLayout(
       dock,
@@ -225,7 +225,10 @@ describe('measureBentoGridLayout dock columns', () => {
     const [files, git] = grid.cells;
     expect(files!.id).toBe('files');
     expect(git!.id).toBe('git');
-    expect(Math.abs(files!.rect.height - git!.rect.height)).toBeLessThanOrEqual(1);
+    // Dock stacks prefer ~58% height for the first panel (Files), remainder for Git.
+    expect(files!.rect.height).toBe(Math.max(3, Math.floor(dock.height * 0.58)));
+    expect(git!.rect.height).toBe(dock.height - files!.rect.height);
+    expect(files!.rect.height).toBeGreaterThan(git!.rect.height);
     expect(files!.rect.y + files!.rect.height).toBe(git!.rect.y);
     expect(git!.rect.y + git!.rect.height).toBe(dock.y + dock.height);
   });

@@ -172,7 +172,6 @@ import type { SDKRPC } from './sdk-api';
 import {
   SUPERLIORA_PROVIDER_NAME,
   XAI_PROFILE,
-  XAI_GROK_BUILD_BASE_URL,
   isXaiGrokBuildBaseUrl,
   resolveXaiGrokRoute,
   xaiGrokBuildRequestHeaders,
@@ -677,7 +676,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       worktreeMetadata === undefined
         ? input.metadata
         : {
-            ...(input.metadata ?? {}),
+            ...input.metadata,
             ...worktreeMetadata,
           };
 
@@ -1580,8 +1579,8 @@ function resolveXaiGrokBuildClient(
   const route = xaiGrokRouteConfig(routeKind);
   const baseUrl = configuredBaseUrl ?? route.baseUrl;
   const customHeaders = {
-    ...(provider?.customHeaders ?? {}),
-    ...(route.customHeaders ?? {}),
+    ...provider?.customHeaders,
+    ...route.customHeaders,
     ...(isXaiGrokBuildBaseUrl(baseUrl) ? xaiGrokBuildRequestHeaders() : {}),
   };
 
