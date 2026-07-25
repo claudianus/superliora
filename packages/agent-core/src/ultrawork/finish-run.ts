@@ -91,7 +91,7 @@ export function injectCompletionAuditRejectionReminder(
   agent: Agent,
   rejection: ReturnType<typeof auditUltraworkCompletion> & { ok: false },
 ): void {
-  agent.context.appendSystemReminder(formatCompletionAuditRejection(rejection), {
+  agent.context?.appendSystemReminder?.(formatCompletionAuditRejection(rejection), {
     kind: 'injection',
     variant: 'ultrawork_completion_rejected',
   });
