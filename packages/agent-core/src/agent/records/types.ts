@@ -81,6 +81,9 @@ export interface AgentRecordEvents {
   'swarm.steer': {
     input: string;
   };
+  'swarm.restaff': {
+    input: string;
+  };
   'tools.register_user_tool': UserToolRegistration;
   'tools.unregister_user_tool': {
     name: string;

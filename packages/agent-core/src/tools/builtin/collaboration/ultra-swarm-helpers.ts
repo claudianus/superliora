@@ -332,3 +332,50 @@ export function buildIntraPhaseDependencyHandoff(
   lines.push('</dependency_handoff>');
   return lines.join('\n');
 }
+
+export interface DebateDraftHandoffEntry {
+  readonly debateId: string;
+  readonly workNodeId: string;
+  readonly phase: string;
+  readonly riskLevel: string;
+  readonly authorExpertId: string;
+  readonly criticExpertId: string;
+  readonly draftExcerpt: string;
+}
+
+/**
+ * Serialize debate drafts into a handoff block for the next phase.
+ * `sourcePhase` may be a single phase or several (e.g. implement + plan) so
+ * review can still cite implementer drafts after multi-phase loops.
+ * Caps drafts for prompt size.
+ */
+export function buildDebateDraftHandoffPack(
+  debates: readonly DebateDraftHandoffEntry[],
+  sourcePhase: string | readonly string[],
+): string {
+  const phases = typeof sourcePhase === 'string' ? [sourcePhase] : sourcePhase;
+  const phaseSet = new Set(phases);
+  const drafts = debates.filter(
+    (debate) => phaseSet.has(debate.phase) && debate.draftExcerpt.trim().length > 0,
+  );
+  if (drafts.length === 0) return '';
+  const lines = ['<debate_draft_pack>'];
+  for (const debate of drafts.slice(-8)) {
+    const excerpt = collapseForHandoff(debate.draftExcerpt).slice(0, 1_500);
+    lines.push(
+      `<debate_draft debate_id="${escapeXml(debate.debateId)}" work_node="${escapeXml(debate.workNodeId)}" author="${escapeXml(debate.authorExpertId)}" critic="${escapeXml(debate.criticExpertId)}" risk="${escapeXml(debate.riskLevel)}" phase="${escapeXml(debate.phase)}">${escapeXml(excerpt)}</debate_draft>`,
+    );
+  }
+  lines.push('</debate_draft_pack>');
+  lines.push(
+    'Reviewers: cite claims from <debate_draft> / <draft_excerpt> when challenging implementer output; do not argue from stance alone.',
+  );
+  return lines.join('\n');
+}
+
+/** Phases whose debate drafts should feed the given completed phase handoff. */
+export function debateDraftPhasesForHandoff(completedPhase: string): readonly string[] {
+  if (completedPhase === 'implement') return ['implement', 'plan'];
+  if (completedPhase === 'review') return ['implement', 'review'];
+  return [completedPhase];
+}

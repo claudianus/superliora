@@ -569,12 +569,28 @@ export function shouldSkipAdaptiveRestaff(input: {
   readonly pausedForSteer: boolean | undefined;
   readonly decision: CouncilDecision;
   readonly intensity: SwarmRoutingIntensity | undefined;
+  /** War-room / user restaff always wins over cost-control skip. */
+  readonly forceRestaff?: boolean;
 }): boolean {
+  if (input.forceRestaff === true) return false;
   return (
     input.pausedForSteer === true ||
     input.decision === 'strong-approve' ||
     (input.decision === 'approve' && input.intensity === 'light')
   );
+}
+
+/**
+ * Whether the phased UltraSwarm loop should stop after a phase checkpoint.
+ * - Steer texts always pause (Pause-Redirect-Resume).
+ * - War-room pauseUltrawork sets `pausedForSteer` without steer text.
+ */
+export function shouldStopPhaseLoopAtCheckpoint(input: {
+  readonly steerTexts: readonly string[];
+  readonly pausedForSteer: boolean | undefined;
+}): boolean {
+  if (input.steerTexts.length > 0) return true;
+  return input.pausedForSteer === true;
 }
 
 export type UltraSwarmWavePlanEntry = {

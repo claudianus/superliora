@@ -7,6 +7,7 @@ import {
   needsRestaffing,
   restaffPhaseForGaps,
   restaffSlotsAvailable,
+  shouldPlanRestaffWave,
 } from '../../src/session/ultra-swarm-restaff';
 
 describe('ultra-swarm restaff helpers', () => {
@@ -61,6 +62,34 @@ describe('ultra-swarm restaff helpers', () => {
     expect(needsRestaffing(gaps, 3, 5)).toBe(true);
     expect(needsRestaffing(gaps, 5, 5)).toBe(false);
     expect(restaffSlotsAvailable(3, 5)).toBe(2);
+  });
+
+  it('shouldPlanRestaffWave forces war-room restaff when slots remain', () => {
+    const emptyGaps: ReturnType<typeof collectRestaffGaps> = [];
+    expect(
+      shouldPlanRestaffWave({
+        forceRestaff: true,
+        gaps: emptyGaps,
+        staffedCount: 3,
+        maxExperts: 5,
+      }),
+    ).toBe(true);
+    expect(
+      shouldPlanRestaffWave({
+        forceRestaff: true,
+        gaps: emptyGaps,
+        staffedCount: 5,
+        maxExperts: 5,
+      }),
+    ).toBe(false);
+    expect(
+      shouldPlanRestaffWave({
+        forceRestaff: false,
+        gaps: emptyGaps,
+        staffedCount: 3,
+        maxExperts: 5,
+      }),
+    ).toBe(false);
   });
 
   it('filters duplicate experts and caps restaff slots', () => {
@@ -142,7 +171,9 @@ describe('ultra-swarm restaff helpers', () => {
 import {
   buildRestaffSpecs,
   buildInitialSpecs,
+  canAttemptRestaff,
   shouldSkipAdaptiveRestaff,
+  shouldStopPhaseLoopAtCheckpoint,
   planPhaseWaveEntries,
   shouldPostImplementWaveStandup,
   selectRestaffPhaseSpecs,
@@ -397,6 +428,44 @@ describe('ultra-swarm restaff/prompt pure builders', () => {
     ).toBe(false);
   });
 
+  it('shouldSkipAdaptiveRestaff yields to forceRestaff from war room', () => {
+    expect(
+      shouldSkipAdaptiveRestaff({
+        pausedForSteer: true,
+        decision: 'strong-approve',
+        intensity: 'light',
+        forceRestaff: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('shouldStopPhaseLoopAtCheckpoint honors steer text and war-room pause', () => {
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: ['go left'],
+        pausedForSteer: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: [],
+        pausedForSteer: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: [],
+        pausedForSteer: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStopPhaseLoopAtCheckpoint({
+        steerTexts: [],
+        pausedForSteer: undefined,
+      }),
+    ).toBe(false);
+  });
+
   it('planPhaseWaveEntries stamps swarm items and implement standup gate', () => {
     const specs = [
       {
@@ -468,5 +537,32 @@ describe('ultra-swarm restaff/prompt pure builders', () => {
     });
     expect(review).toHaveLength(1);
     expect(review[0]?.expertId).toBe('rev-2');
+  });
+
+  it('canAttemptRestaff requires open gaps and free expert slots', () => {
+    expect(
+      canAttemptRestaff({
+        renderedCount: 2,
+        specsCount: 2,
+        maxExperts: 4,
+        gapCount: 0,
+      }),
+    ).toBe(false);
+    expect(
+      canAttemptRestaff({
+        renderedCount: 4,
+        specsCount: 4,
+        maxExperts: 4,
+        gapCount: 1,
+      }),
+    ).toBe(false);
+    expect(
+      canAttemptRestaff({
+        renderedCount: 2,
+        specsCount: 2,
+        maxExperts: 4,
+        gapCount: 1,
+      }),
+    ).toBe(true);
   });
 });

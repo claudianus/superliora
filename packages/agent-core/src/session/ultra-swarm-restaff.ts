@@ -19,6 +19,22 @@ export function needsRestaffing(
   return gaps.some((gap) => gap.verdict !== 'PASS');
 }
 
+/**
+ * Whether planRestaffExperts should attempt an LLM restaff wave.
+ * Force (war-room) still requires free slots; soft mode requires open gaps.
+ */
+export function shouldPlanRestaffWave(input: {
+  readonly forceRestaff: boolean;
+  readonly gaps: readonly RestaffGapResult[];
+  readonly staffedCount: number;
+  readonly maxExperts: number;
+}): boolean {
+  const slots = restaffSlotsAvailable(input.staffedCount, input.maxExperts);
+  if (slots === 0) return false;
+  if (input.forceRestaff) return true;
+  return needsRestaffing(input.gaps, input.staffedCount, input.maxExperts);
+}
+
 export function collectRestaffGaps(
   results: readonly {
     readonly spec: {

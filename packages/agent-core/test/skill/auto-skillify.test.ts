@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { promises as fs } from 'node:fs';
 import path from 'pathe';
 import { tmpdir } from 'node:os';
-import { afterEach, beforeEach, describe, it, mock, test } from 'node:test';
+import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
 import {
   batchSkillify,
@@ -18,7 +18,7 @@ import {
 } from '../../src/skill/auto-skillify';
 
 describe('auto-skillify — detectSkillifiableEvents', () => {
-  test('detects retry recovery when a tool succeeds after retries', () => {
+  it('detects retry recovery when a tool succeeds after retries', () => {
     const events: ToolCallEvent[] = [
       { toolName: 'Bash', success: true, retryCount: 2, error: 'timeout', inputSummary: 'ls', outputSummary: 'file.txt' },
     ];
@@ -28,7 +28,7 @@ describe('auto-skillify — detectSkillifiableEvents', () => {
     assert.ok(candidates[0]!.qualityScore > 0);
   });
 
-  test('detects recoverable errors from failed tool calls', () => {
+  it('detects recoverable errors from failed tool calls', () => {
     const events: ToolCallEvent[] = [
       { toolName: 'Read', success: false, retryCount: 0, error: 'ENOENT: no such file' },
     ];
@@ -37,7 +37,7 @@ describe('auto-skillify — detectSkillifiableEvents', () => {
     assert.ok(candidates[0]!.name.startsWith('debug-read-'));
   });
 
-  test('ignores successful first-try tool calls', () => {
+  it('ignores successful first-try tool calls', () => {
     const events: ToolCallEvent[] = [
       { toolName: 'Grep', success: true, retryCount: 0 },
     ];
@@ -45,7 +45,7 @@ describe('auto-skillify — detectSkillifiableEvents', () => {
     assert.equal(candidates.length, 0);
   });
 
-  test('ignores non-recoverable errors', () => {
+  it('ignores non-recoverable errors', () => {
     const events: ToolCallEvent[] = [
       { toolName: 'Write', success: false, retryCount: 0, error: 'permission denied by policy' },
     ];
@@ -55,7 +55,7 @@ describe('auto-skillify — detectSkillifiableEvents', () => {
 });
 
 describe('auto-skillify — detectInsightCandidates', () => {
-  test('converts insight events to candidates', () => {
+  it('converts insight events to candidates', () => {
     const candidates = detectInsightCandidates([
       { type: 'insight', description: 'Using LioraRead before Read saves context budget significantly', context: 'Large file exploration' },
     ]);
@@ -63,7 +63,7 @@ describe('auto-skillify — detectInsightCandidates', () => {
     assert.ok(candidates[0]!.qualityScore > DEFAULT_MIN_QUALITY_SCORE);
   });
 
-  test('converts mistake events to candidates', () => {
+  it('converts mistake events to candidates', () => {
     const candidates = detectInsightCandidates([
       { type: 'mistake', description: 'Forgot to re-read file before editing after a compaction', toolName: 'Edit' },
     ]);
@@ -72,13 +72,13 @@ describe('auto-skillify — detectInsightCandidates', () => {
 });
 
 describe('auto-skillify — scoreCandidate', () => {
-  test('insight type scores higher than mistake', () => {
+  it('insight type scores higher than mistake', () => {
     const insightScore = scoreCandidate('insight', 'A sufficiently detailed insight description for testing purposes here');
     const mistakeScore = scoreCandidate('mistake', 'A sufficiently detailed mistake description for testing purposes here');
     assert.ok(insightScore > mistakeScore);
   });
 
-  test('longer description with context scores higher', () => {
+  it('longer description with context scores higher', () => {
     // Use a low-base type so the cap doesn't mask the context bonus
     const withContext = scoreCandidate('mistake', 'Short', 'extra context about the situation that adds value');
     const withoutContext = scoreCandidate('mistake', 'Short');
@@ -87,7 +87,7 @@ describe('auto-skillify — scoreCandidate', () => {
 });
 
 describe('auto-skillify — deduplicateAndFilter', () => {
-  test('filters out candidates below quality threshold', () => {
+  it('filters out candidates below quality threshold', () => {
     const candidates: SkillCandidate[] = [
       { name: 'a', description: 'd', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd' }, qualityScore: 0.2 },
       { name: 'b', description: 'd', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd' }, qualityScore: 0.8 },
@@ -97,7 +97,7 @@ describe('auto-skillify — deduplicateAndFilter', () => {
     assert.equal(filtered[0]!.name, 'b');
   });
 
-  test('filters out duplicates against existing skill names', () => {
+  it('filters out duplicates against existing skill names', () => {
     const candidates: SkillCandidate[] = [
       { name: 'existing-skill', description: 'd', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd' }, qualityScore: 0.9 },
       { name: 'new-skill', description: 'd', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd' }, qualityScore: 0.9 },
@@ -107,7 +107,7 @@ describe('auto-skillify — deduplicateAndFilter', () => {
     assert.equal(filtered[0]!.name, 'new-skill');
   });
 
-  test('filters out duplicate names within the same batch', () => {
+  it('filters out duplicate names within the same batch', () => {
     const candidates: SkillCandidate[] = [
       { name: 'dup', description: 'd', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd' }, qualityScore: 0.9 },
       { name: 'dup', description: 'd2', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd2' }, qualityScore: 0.9 },
@@ -128,7 +128,7 @@ describe('auto-skillify — skillify', () => {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   });
 
-  test('writes SKILL.md with front-matter and body', async () => {
+  it('writes SKILL.md with front-matter and body', async () => {
     const candidate: SkillCandidate = {
       name: 'test-skill',
       description: 'A test skill for unit testing',
@@ -150,7 +150,7 @@ describe('auto-skillify — skillify', () => {
     assert.ok(content.includes('When testing'));
   });
 
-  test('creates the auto/ subdirectory structure', async () => {
+  it('creates the auto/ subdirectory structure', async () => {
     const candidate: SkillCandidate = {
       name: 'nested-test',
       description: 'Tests directory creation',
@@ -170,7 +170,7 @@ describe('auto-skillify — skillify', () => {
     assert.ok(stat.isFile());
   });
 
-  test('throws on below-threshold candidate', async () => {
+  it('throws on below-threshold candidate', async () => {
     const candidate: SkillCandidate = {
       name: 'low-quality',
       description: 'low',
@@ -186,7 +186,7 @@ describe('auto-skillify — skillify', () => {
     );
   });
 
-  test('skips writing if file content is unchanged', async () => {
+  it('skips writing if file content is unchanged', async () => {
     const candidate: SkillCandidate = {
       name: 'idempotent',
       description: 'Should not rewrite identical content',
@@ -214,7 +214,7 @@ describe('auto-skillify — batchSkillify', () => {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   });
 
-  test('writes all passing candidates and returns paths', async () => {
+  it('writes all passing candidates and returns paths', async () => {
     const candidates: SkillCandidate[] = [
       { name: 'batch-1', description: 'First skill', whenToUse: 'When 1', body: '# 1', sourceEvent: { type: 'insight', description: 'First skill' }, qualityScore: 0.8 },
       { name: 'batch-2', description: 'Second skill', whenToUse: 'When 2', body: '# 2', sourceEvent: { type: 'insight', description: 'Second skill' }, qualityScore: 0.7 },
@@ -232,7 +232,7 @@ describe('auto-skillify — batchSkillify', () => {
     }
   });
 
-  test('filters out candidates that duplicate existing skills', async () => {
+  it('filters out candidates that duplicate existing skills', async () => {
     const candidates: SkillCandidate[] = [
       { name: 'existing', description: 'Already exists', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd' }, qualityScore: 0.9 },
       { name: 'new-one', description: 'New skill', whenToUse: 'w', body: 'b', sourceEvent: { type: 'insight', description: 'd' }, qualityScore: 0.9 },
@@ -249,13 +249,13 @@ describe('auto-skillify — batchSkillify', () => {
 });
 
 describe('auto-skillify — skillContentHash', () => {
-  test('returns a 16-char hex string', () => {
+  it('returns a 16-char hex string', () => {
     const hash = skillContentHash('test body content');
     assert.equal(hash.length, 16);
     assert.match(hash, /^[a-f0-9]+$/);
   });
 
-  test('different content produces different hashes', () => {
+  it('different content produces different hashes', () => {
     const hash1 = skillContentHash('content a');
     const hash2 = skillContentHash('content b');
     assert.notEqual(hash1, hash2);

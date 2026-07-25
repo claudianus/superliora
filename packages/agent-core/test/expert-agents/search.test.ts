@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { globalExpertSearchEngine } from '../../src/expert-agents/search';
 import { globalUltraSwarmOrchestrator } from '../../src/expert-agents/orchestrator';
@@ -10,8 +10,16 @@ import {
   resolveExpertWhenToUse,
 } from '../../src/expert-agents/expert-persona';
 import { EXPERT_CATALOG_BY_ID, EXPERT_CATALOG_META_BY_ID, hydrateExpertCatalogEntry } from '../../src/expert-agents/catalog';
+import {
+  clearStaffingOutcomes,
+  recordOutcomesFromSwarmResults,
+} from '../../src/expert-agents/staffing-outcome';
 
 describe('ExpertSearchEngine', () => {
+  afterEach(() => {
+    clearStaffingOutcomes();
+  });
+
   it('ranks terminal UI work ahead of sales coaches for technical TUI queries', async () => {
     await globalExpertSearchEngine.initialize();
     const query = 'Improve terminal dashboard renderer TypeScript components';
@@ -21,6 +29,42 @@ describe('ExpertSearchEngine', () => {
     expect(results.some((result) => result.expert.id === 'engineering-terminal-ui-engineer')).toBe(true);
     expect(results[0]?.expert.division).not.toBe('sales');
     expect(results.some((result) => result.expert.id === 'sales-coach')).toBe(false);
+  });
+
+  it('applies staffing outcome priors to search ranking scores', async () => {
+    await globalExpertSearchEngine.initialize();
+    const query = 'Improve terminal dashboard renderer TypeScript components';
+    const baseline = globalExpertSearchEngine.search({ query, topK: 20, taskDescription: query });
+    expect(baseline.length).toBeGreaterThan(1);
+
+    const topId = baseline[0]!.expert.id;
+    const peerId = baseline[1]!.expert.id;
+    const topBase = baseline[0]!.score;
+    const peerBase = baseline[1]!.score;
+
+    // Full-confidence verdicts: penalize former top, reward peer.
+    recordOutcomesFromSwarmResults([
+      { expertId: topId, verdict: 'FAIL' },
+      { expertId: topId, verdict: 'FAIL' },
+      { expertId: topId, verdict: 'FAIL' },
+      { expertId: topId, verdict: 'BLOCKED' },
+      { expertId: peerId, verdict: 'PASS' },
+      { expertId: peerId, verdict: 'PASS' },
+      { expertId: peerId, verdict: 'PASS' },
+      { expertId: peerId, verdict: 'PASS_WITH_ADVICE' },
+    ]);
+
+    const reranked = globalExpertSearchEngine.search({ query, topK: 20, taskDescription: query });
+    const topAfter = reranked.find((result) => result.expert.id === topId);
+    const peerAfter = reranked.find((result) => result.expert.id === peerId);
+    expect(topAfter).toBeDefined();
+    expect(peerAfter).toBeDefined();
+
+    // Prior multiplies MiniSearch score — FAIL shrinks, PASS grows.
+    expect(topAfter!.score).toBeLessThan(topBase);
+    expect(peerAfter!.score).toBeGreaterThan(peerBase);
+    // Relative gap must shrink (peer/top ratio improves after priors).
+    expect(peerAfter!.score / topAfter!.score).toBeGreaterThan(peerBase / topBase);
   });
 
   it('still returns sales coaches for explicit coaching queries', async () => {

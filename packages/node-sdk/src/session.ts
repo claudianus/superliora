@@ -25,6 +25,7 @@ import type {
   CreateGoalInput,
   CreateUltraworkRunInput,
   PauseUltraworkInput,
+  SwarmRestaffInput,
   CancelUltraworkInput,
   UltraworkAutoActivationDecision,
   UltraworkObjectiveProfileDecision,
@@ -660,6 +661,15 @@ export class Session {
   async pauseUltrawork(input: PauseUltraworkInput = {}): Promise<UltraworkRun | null> {
     this.ensureOpen();
     return this.rpc.pauseUltrawork({ sessionId: this.id, ...input });
+  }
+
+  /**
+   * Force an UltraSwarm adaptive restaff wave without pausing the run.
+   * Returns false when no UltraSwarm run is active.
+   */
+  async swarmRestaff(input: SwarmRestaffInput = {}): Promise<boolean> {
+    this.ensureOpen();
+    return this.rpc.swarmRestaff({ sessionId: this.id, ...input });
   }
 
   async resumeUltrawork(): Promise<ResumeUltraworkPayloadResult | null> {

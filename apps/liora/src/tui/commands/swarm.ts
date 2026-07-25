@@ -11,6 +11,10 @@ import {
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
+import {
+  resolveWarRoomReason,
+  type WarRoomDockAction,
+} from '../utils/war-room-action';
 import type { SlashCommandHost } from './dispatch';
 
 export async function handleSwarmCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -157,23 +161,30 @@ function swarmModeSubcommand(input: string): boolean | undefined {
 
 function warRoomDockSubcommand(
   input: string,
-): { readonly action: 'pause' | 'restaff' | 'raw'; readonly reason: string } | undefined {
+): { readonly action: WarRoomDockAction; readonly reason: string } | undefined {
   const [head, ...rest] = input.split(/\s+/);
   const command = (head ?? '').toLowerCase();
   if (command !== 'pause' && command !== 'restaff' && command !== 'raw') return undefined;
-  return { action: command, reason: rest.join(' ').trim() };
+  const freeText = rest.join(' ').trim();
+  if (command === 'raw') {
+    return { action: 'raw', reason: freeText };
+  }
+  return {
+    action: command,
+    reason: resolveWarRoomReason(command, freeText.length > 0 ? freeText : undefined),
+  };
 }
 
 function invokeWarRoomDockAction(
   host: SlashCommandHost,
-  action: 'pause' | 'restaff' | 'raw',
+  action: WarRoomDockAction,
   reason: string,
 ): void {
   // LioraTUI is the slash host and owns sessionEventHandler.
   const hostWithHandler = host as SlashCommandHost & {
     readonly sessionEventHandler?: {
       invokeWarRoomAction?: (
-        action: 'pause' | 'restaff' | 'raw',
+        action: WarRoomDockAction,
         options?: { readonly reason?: string },
       ) => number;
     };

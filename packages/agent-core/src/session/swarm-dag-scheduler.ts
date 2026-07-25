@@ -113,3 +113,75 @@ export function preferReadyWorkNodeIds(
   const ready = readyNodeIds(nodes).filter((id) => boundSet.has(id));
   return ready.length > 0 ? ready : boundIds;
 }
+
+/** Minimal phase-spec shape used by pure ready-set rebind. */
+export interface PhaseWorkNodeBinding {
+  readonly workNodeIds: readonly string[];
+}
+
+/**
+ * Rebind phase specs to currently ready WorkGraph nodes (pure).
+ *
+ * Specs that already hold ready ids keep them; empty/blocked specs pick up
+ * newly unlocked ready nodes so phase runners do not starve. Leftover free
+ * ready nodes are round-robined onto rebound specs.
+ *
+ * Side effects (telemetry, mark-running) stay in the UltraSwarm tool layer.
+ */
+export function rebindPhaseWorkNodeIds<T extends PhaseWorkNodeBinding>(
+  phaseSpecs: readonly T[],
+  boundWorkNodeIds: readonly string[],
+  nodes: readonly SwarmDagNode[],
+): T[] {
+  if (phaseSpecs.length === 0 || boundWorkNodeIds.length === 0) {
+    return [...phaseSpecs];
+  }
+
+  const readyIds = preferReadyWorkNodeIds(boundWorkNodeIds, nodes);
+  if (readyIds.length === 0) return [...phaseSpecs];
+  const readySet = new Set(readyIds);
+
+  const stillHeld = new Set<string>();
+  for (const spec of phaseSpecs) {
+    for (const id of spec.workNodeIds) {
+      if (readySet.has(id)) stillHeld.add(id);
+    }
+  }
+  const freeReady = readyIds.filter((id) => !stillHeld.has(id));
+  if (freeReady.length === 0) {
+    return [...phaseSpecs];
+  }
+
+  let freeIndex = 0;
+  const rebound = phaseSpecs.map((spec) => {
+    const kept = spec.workNodeIds.filter((id) => readySet.has(id));
+    if (kept.length > 0) {
+      return kept.length === spec.workNodeIds.length
+        ? spec
+        : { ...spec, workNodeIds: kept };
+    }
+    if (freeIndex >= freeReady.length) {
+      return { ...spec, workNodeIds: [] as string[] };
+    }
+    const assigned = [freeReady[freeIndex]!];
+    freeIndex += 1;
+    // If leftover free nodes and this is the last assignment slot, give the rest.
+    if (freeIndex === phaseSpecs.length && freeIndex < freeReady.length) {
+      assigned.push(...freeReady.slice(freeIndex));
+      freeIndex = freeReady.length;
+    }
+    return { ...spec, workNodeIds: assigned };
+  });
+
+  while (freeIndex < freeReady.length) {
+    const slot = freeIndex % rebound.length;
+    const target = rebound[slot]!;
+    rebound[slot] = {
+      ...target,
+      workNodeIds: [...target.workNodeIds, freeReady[freeIndex]!],
+    };
+    freeIndex += 1;
+  }
+
+  return rebound;
+}

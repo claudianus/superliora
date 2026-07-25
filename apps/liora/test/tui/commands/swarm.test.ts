@@ -353,7 +353,9 @@ describe('handleSwarmCommand', () => {
 
     await handleSwarmCommand(host, 'pause');
 
-    expect(warRoomInvoke).toHaveBeenCalledWith('pause', {});
+    expect(warRoomInvoke).toHaveBeenCalledWith('pause', {
+      reason: 'Paused from war room',
+    });
     expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Paused'));
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
   });
@@ -364,10 +366,24 @@ describe('handleSwarmCommand', () => {
 
     await handleSwarmCommand(host, 'restaff');
 
-    expect(warRoomInvoke).toHaveBeenCalledWith('restaff', {});
+    expect(warRoomInvoke).toHaveBeenCalledWith('restaff', {
+      reason: 'User requested restaff',
+    });
     expect(host.showError).toHaveBeenCalledWith(
       expect.stringContaining('No active UltraSwarm'),
     );
+  });
+
+  it('passes custom restaff reason through war room dock', async () => {
+    const warRoomInvoke = vi.fn(() => 1);
+    const { host } = makeHost({ warRoomInvoke });
+
+    await handleSwarmCommand(host, 'restaff Close QA gaps');
+
+    expect(warRoomInvoke).toHaveBeenCalledWith('restaff', {
+      reason: 'Close QA gaps',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('restaff'));
   });
 
   it('toggles raw feed via /swarm raw', async () => {

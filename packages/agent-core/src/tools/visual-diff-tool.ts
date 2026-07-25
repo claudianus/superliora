@@ -1,7 +1,8 @@
 /**
  * VisualDiff builtin — thin kaos wrapper around pure `visualDiff`.
  *
- * Reads two image paths as bytes and returns JSON byte/hash equality (MVP, not SSIM).
+ * Reads two image paths as bytes and returns JSON with status/summary
+ * (MVP byte/hash + optional PNG IHDR — not SSIM).
  */
 
 import type { Kaos } from '@superliora/kaos';
@@ -53,7 +54,9 @@ export class VisualDiffTool implements BuiltinTool<VisualDiffToolInput> {
             this.kaos.readBytes(input.right_path),
           ]);
           const result = visualDiff(left, right);
-          return { output: JSON.stringify(result, null, 2) };
+          // Lead with one-line summary so TUI glance / logs stay scannable.
+          const body = JSON.stringify(result, null, 2);
+          return { output: `${result.summary}\n${body}` };
         } catch (error) {
           return {
             isError: true as const,

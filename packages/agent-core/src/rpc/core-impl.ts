@@ -91,6 +91,7 @@ import type {
   UltraworkObjectiveProfileDecision,
   CancelUltraworkPayload,
   PauseUltraworkPayload,
+  SwarmRestaffPayload,
   ResumeUltraworkPayloadResult,
   UltraworkRunSnapshot,
   CreateSessionPayload,
@@ -171,7 +172,6 @@ import type { SDKRPC } from './sdk-api';
 import {
   SUPERLIORA_PROVIDER_NAME,
   XAI_PROFILE,
-  XAI_GROK_BUILD_BASE_URL,
   isXaiGrokBuildBaseUrl,
   resolveXaiGrokRoute,
   xaiGrokBuildRequestHeaders,
@@ -676,7 +676,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       worktreeMetadata === undefined
         ? input.metadata
         : {
-            ...(input.metadata ?? {}),
+            ...input.metadata,
             ...worktreeMetadata,
           };
 
@@ -1121,6 +1121,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     ...payload
   }: SessionAgentPayload<PauseUltraworkPayload>): Promise<UltraworkRunSnapshot | null> {
     return Promise.resolve(this.sessionApi(sessionId).pauseUltrawork(payload));
+  }
+
+  swarmRestaff({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<SwarmRestaffPayload>): Promise<boolean> {
+    return Promise.resolve(this.sessionApi(sessionId).swarmRestaff(payload));
   }
 
   resumeUltrawork({
@@ -1572,8 +1579,8 @@ function resolveXaiGrokBuildClient(
   const route = xaiGrokRouteConfig(routeKind);
   const baseUrl = configuredBaseUrl ?? route.baseUrl;
   const customHeaders = {
-    ...(provider?.customHeaders ?? {}),
-    ...(route.customHeaders ?? {}),
+    ...provider?.customHeaders,
+    ...route.customHeaders,
     ...(isXaiGrokBuildBaseUrl(baseUrl) ? xaiGrokBuildRequestHeaders() : {}),
   };
 

@@ -124,6 +124,20 @@ describe('default agent profiles', () => {
     }
   });
 
+  it('exposes LioraReview and VisualDiff on main coding profiles', () => {
+    for (const name of ['agent', 'coder', 'superliora-full']) {
+      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
+      expect(tools, name).toContain('LioraReview');
+      expect(tools, name).toContain('VisualDiff');
+    }
+    // Read-only / plan profiles stay lean — no review/visual surface by default.
+    for (const name of ['explore', 'plan']) {
+      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
+      expect(tools).not.toContain('LioraReview');
+      expect(tools).not.toContain('VisualDiff');
+    }
+  });
+
   it('exposes Liora Recall only to writable coding profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toContain('Memory');

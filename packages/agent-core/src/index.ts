@@ -49,9 +49,18 @@ export {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
   readyNodeIds,
+  rebindPhaseWorkNodeIds,
+  type PhaseWorkNodeBinding,
   type SwarmDagNode,
   type SwarmDagNodeStatus,
 } from './session/swarm-dag-scheduler';
+export {
+  buildRestaffSpecs,
+  canAttemptRestaff,
+  selectRestaffPhaseSpecs,
+  shouldSkipAdaptiveRestaff,
+  shouldStopPhaseLoopAtCheckpoint,
+} from './tools/builtin/collaboration/ultra-swarm-phase';
 export {
   CHECK_LIKE_EVIDENCE_TOKENS,
   applyEvidenceHardGate,
@@ -72,24 +81,77 @@ export {
   type DebateState,
 } from './session/ultra-swarm-debate';
 export {
+  buildDebateDraftHandoffPack,
+  debateDraftPhasesForHandoff,
+  type DebateDraftHandoffEntry,
+} from './tools/builtin/collaboration/ultra-swarm-helpers';
+export {
   clearStaffingOutcomes,
   getOutcome,
   listStaffingOutcomes,
   recordOutcome,
+  recordOutcomesFromSwarmResults,
   scoreBoost,
   type StaffingOutcomeInput,
   type StaffingOutcomeRecord,
+  type SwarmVerdictOutcomeInput,
 } from './expert-agents/staffing-outcome';
 export {
+  consumeUltraSwarmRestaffRequests,
+  consumeUltraSwarmSteerRequests,
+  createUltraSwarmRunContext,
+  hasPendingUltraSwarmRestaff,
+  isRestaffSteerText,
+  requestUltraSwarmRestaff,
+  requestUltraSwarmSteer,
+  type UltraSwarmRestaffRequest,
+  type UltraSwarmRunContext,
+  type UltraSwarmSteerRequest,
+} from './agent/ultra-swarm-run';
+export {
+  buildRestaffReflectionPrompt,
+  collectRestaffGaps,
+  filterRestaffPlan,
+  needsRestaffing,
+  restaffPhaseForGaps,
+  restaffSlotsAvailable,
+  shouldPlanRestaffWave,
+  type RestaffGapResult,
+} from './session/ultra-swarm-restaff';
+export {
   STAFFING_GOLD_SEED,
+  collectStaffingGoldLabels,
   dcgAtK,
   meanNdcgAtK,
   ndcgAtK,
+  staffingGoldCasesForLabel,
+  staffingGoldLabelCoverage,
   type StaffingGoldCase,
 } from './expert-agents/staffing-gold';
-export { visualDiff, type VisualDiffResult } from './tools/visual-diff';
+export {
+  isJpegBuffer,
+  isPngBuffer,
+  readImageDimensions,
+  readJpegDimensions,
+  readPngDimensions,
+  sharedPrefixLength,
+  visualDiff,
+  type VisualDiffImageMeta,
+  type VisualDiffResult,
+  type VisualDiffStatus,
+} from './tools/visual-diff';
 export { VisualDiffTool, createVisualDiffTool } from './tools/visual-diff-tool';
 export { createLioraReviewTool } from './tools/builtin/review/code-review';
+export {
+  scanAddedLine,
+  scanDiffFile,
+  scanDiffFiles,
+  type ReviewHeuristicComment,
+  type ReviewHeuristicFile,
+  type ReviewHeuristicHunk,
+  type ReviewHeuristicLine,
+  type ReviewSeverity,
+} from './tools/builtin/review/review-heuristics';
 export {
   DEFAULT_MAX_PER_DIVISION,
   applyStaffingDiversity,

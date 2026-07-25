@@ -277,9 +277,13 @@ describe('UltraSwarmEngageGate emits routing event', () => {
 
 import { buildResumeWithSteering } from '../../src/ultrawork/interrupted-work-resume';
 import {
+  consumeUltraSwarmRestaffRequests,
   createUltraSwarmRunContext,
+  requestUltraSwarmRestaff,
   requestUltraSwarmSteer,
   consumeUltraSwarmSteerRequests,
+  hasPendingUltraSwarmRestaff,
+  isRestaffSteerText,
 } from '../../src/agent/ultra-swarm-run';
 import type { TeamPlan } from '@superliora/protocol';
 
@@ -315,5 +319,35 @@ describe('UltraSwarm steer request queue', () => {
 
   it('returns false when no run is active', () => {
     expect(requestUltraSwarmSteer(undefined, 'x')).toBe(false);
+  });
+
+  it('routes war-room restaff steers without pausing for steer', () => {
+    const run = createUltraSwarmRunContext({
+      runId: 'r2',
+      parentToolCallId: 't2',
+      team,
+      busEnabled: true,
+    });
+    const text =
+      'UltraSwarm restaff requested from war room. Close QA gaps. Close unresolved required gaps by staffing additional specialists when slots allow.';
+    expect(isRestaffSteerText(text)).toBe(true);
+    expect(requestUltraSwarmSteer(run, text)).toBe(true);
+    expect(run.pausedForSteer).toBe(false);
+    expect(hasPendingUltraSwarmRestaff(run)).toBe(true);
+    expect(consumeUltraSwarmRestaffRequests(run)[0]).toMatch(/Close QA gaps/);
+    expect(hasPendingUltraSwarmRestaff(run)).toBe(false);
+  });
+
+  it('requestUltraSwarmRestaff sets force flag only', () => {
+    const run = createUltraSwarmRunContext({
+      runId: 'r3',
+      parentToolCallId: 't3',
+      team,
+      busEnabled: false,
+    });
+    expect(requestUltraSwarmRestaff(run, 'dock restaff')).toBe(true);
+    expect(run.pausedForSteer).toBe(false);
+    expect(run.restaffRequested).toBe(true);
+    expect(consumeUltraSwarmRestaffRequests(run)).toEqual(['dock restaff']);
   });
 });

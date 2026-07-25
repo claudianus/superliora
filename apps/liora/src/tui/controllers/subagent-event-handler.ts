@@ -24,6 +24,11 @@ import { formatBackgroundAgentTranscript } from '../utils/background-agent-statu
 import { argsRecord, serializeToolResultOutput } from '../utils/event-payload';
 import { formatHookResultPlain } from '../utils/hook-result-format';
 import { nextTranscriptId } from '../utils/transcript-id';
+import {
+  buildWarRoomRestaffSteerDirective,
+  formatWarRoomRestaffReason,
+  resolveWarRoomReason,
+} from '../utils/war-room-action';
 import type { SessionEventHost } from './session-event-handler';
 import { requestTUILayoutRender } from '../utils/frame-render';
 
@@ -221,9 +226,13 @@ export class SubAgentEventHandler {
     for (const progress of this.agentSwarmProgress.values()) {
       if (!progress.isToolCallActive()) continue;
       if (action === 'pause') {
-        progress.requestPause({ reason: options.reason ?? 'Paused from /swarm pause' });
+        progress.requestPause({
+          reason: resolveWarRoomReason('pause', options.reason),
+        });
       } else if (action === 'restaff') {
-        progress.requestRestaff({ reason: options.reason ?? 'Restaff from /swarm restaff' });
+        progress.requestRestaff({
+          reason: resolveWarRoomReason('restaff', options.reason),
+        });
       } else {
         progress.toggleRawFeed();
       }
@@ -745,10 +754,7 @@ export class SubAgentEventHandler {
   }): void {
     const session = this.host.session;
     if (session === undefined) return;
-    const reason =
-      request.reason === undefined || request.reason.trim().length === 0
-        ? 'Paused from war room'
-        : request.reason;
+    const reason = resolveWarRoomReason('pause', request.reason);
     void session.pauseUltrawork({ reason }).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       this.host.showError(`Failed to pause UltraSwarm: ${message}`);
@@ -756,8 +762,9 @@ export class SubAgentEventHandler {
   }
 
   /**
-   * War-room action dock restaff: steer the session with a restaff directive so the
-   * orchestrator / UltraSwarm restaff path can pick it up (see ultra-swarm-restaff).
+   * War-room action dock restaff: force an UltraSwarm adaptive restaff wave via
+   * session.swarmRestaff (Agent.swarmRestaff). Falls back to steer text when the
+   * RPC rejects or no UltraSwarm run is active.
    */
   private handleWarRoomRestaffRequest(request: {
     readonly reason?: string;
@@ -765,26 +772,18 @@ export class SubAgentEventHandler {
   }): void {
     const session = this.host.session;
     if (session === undefined) return;
-    const reason =
-      request.reason === undefined || request.reason.trim().length === 0
-        ? 'User requested restaff'
-        : request.reason;
-    const phase =
-      request.phase === undefined || request.phase.trim().length === 0
-        ? ''
-        : ` (phase: ${request.phase})`;
-    const directive = [
-      'UltraSwarm restaff requested from war room.',
-      reason,
-      phase.length > 0 ? phase : undefined,
-      'Close unresolved required gaps by staffing additional specialists when slots allow.',
-    ]
-      .filter((part): part is string => part !== undefined && part.length > 0)
-      .join(' ');
-    void session.steer(directive).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      this.host.showError(`Failed to request UltraSwarm restaff: ${message}`);
-    });
+    const reasonWithPhase = formatWarRoomRestaffReason(request);
+    void session
+      .swarmRestaff({ reason: reasonWithPhase })
+      .then((accepted) => {
+        if (accepted) return;
+        // No active UltraSwarm run context — keep steer fallback for older paths.
+        return session.steer(buildWarRoomRestaffSteerDirective(request));
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.host.showError(`Failed to request UltraSwarm restaff: ${message}`);
+      });
   }
 
   private ensureAgentSwarmProgress(

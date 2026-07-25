@@ -548,6 +548,11 @@ export interface PauseUltraworkPayload {
   readonly reason?: string;
 }
 
+/** War-room / /swarm restaff: force adaptive restaff without pausing. */
+export interface SwarmRestaffPayload {
+  readonly reason?: string;
+}
+
 export interface CancelUltraworkPayload {
   readonly reason?: string;
 }
@@ -673,6 +678,8 @@ export interface AgentAPI {
   pauseUltrawork: (payload: PauseUltraworkPayload) => UltraworkRunSnapshot | null;
   resumeUltrawork: (payload: EmptyPayload) => ResumeUltraworkPayloadResult | null;
   cancelUltrawork: (payload: CancelUltraworkPayload) => UltraworkRunSnapshot | null;
+  /** Force UltraSwarm restaff wave; returns false when no active run. */
+  swarmRestaff: (payload: SwarmRestaffPayload) => boolean;
   classifyUltraworkAutoActivation: (
     payload: ClassifyUltraworkAutoActivationPayload,
   ) => Promise<UltraworkAutoActivationDecision>;
