@@ -3,4 +3,4 @@
 '@superliora/liora': minor
 ---
 
-Force War Room restaff waves without pausing UltraSwarm, rebind DAG ready-set between phases, record staffing outcomes from verdicts, and expand staffing gold seed labels.
+Force War Room restaff waves without pausing UltraSwarm, rebind DAG ready-set between phases, record staffing outcomes from verdicts, expand staffing gold seed labels, pipe debate drafts into review handoff, and enrich VisualDiff with PNG dimensions/status/summary.
