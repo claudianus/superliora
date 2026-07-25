@@ -69,7 +69,7 @@ export function collectStaffingGoldLabels(
       if (trimmed.length > 0) labels.add(trimmed);
     }
   }
-  return [...labels].sort((a, b) => a.localeCompare(b));
+  return [...labels].toSorted((a, b) => a.localeCompare(b));
 }
 
 /**
