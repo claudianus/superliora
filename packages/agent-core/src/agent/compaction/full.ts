@@ -152,6 +152,9 @@ const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
 const COMPACTION_MIN_OUTPUT_TOKENS = 8_192;
 const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 12_000;
 const DEFAULT_PARALLEL_BLOCK_TARGET = 6_000;
+/** Cap concurrent block LLM calls so parallel compaction cannot exhaust RPS (e.g. xAI 18/s). */
+const DEFAULT_PARALLEL_BLOCK_CONCURRENCY = 2;
+const PARALLEL_BLOCK_RATE_LIMIT_RETRIES = 4;
 const OVERFLOW_CONTEXT_SAFETY_RATIO = 0.85;
 const OVERFLOW_STATUS_RECOVERY_RATIO = 0.5;
 /**
@@ -1712,6 +1715,40 @@ export class FullCompaction {
     }
   }
 
+  /**
+   * Single block generate with dedicated rate-limit / transient retries.
+   * Parallel blocks share retryCountRef only for telemetry; each block has its own attempt budget.
+   */
+  private async generateCompactionBlockWithRetry(input: {
+    readonly signal: AbortSignal;
+    readonly provider: ChatProvider;
+    readonly messages: Message[];
+    readonly streamCallbacks: ReturnType<FullCompaction['compactionStreamCallbacks']>;
+    readonly retryCountRef: { value: number };
+  }): Promise<Awaited<ReturnType<Agent['generate']>>> {
+    const delays = retryBackoffDelays(PARALLEL_BLOCK_RATE_LIMIT_RETRIES);
+    let attempt = 0;
+    while (true) {
+      try {
+        return await this.agent.generate(
+          input.provider,
+          this.agent.config.systemPrompt,
+          FullCompaction.COMPACTION_GENERATE_TOOLS,
+          input.messages,
+          input.streamCallbacks,
+          this.compactionGenerateOptions(input.signal),
+        );
+      } catch (error) {
+        if (!isRetryableGenerateError(error) || attempt + 1 >= PARALLEL_BLOCK_RATE_LIMIT_RETRIES) {
+          throw error;
+        }
+        input.retryCountRef.value += 1;
+        await sleepForRetry(delays[attempt] ?? delays[delays.length - 1]!, input.signal);
+        attempt += 1;
+      }
+    }
+  }
+
   private async parallelSummarize(
     signal: AbortSignal,
     provider: ChatProvider,
@@ -1739,25 +1776,26 @@ export class FullCompaction {
       ),
     });
     const blockCount = orderedBlocks.length;
-    const blockResults = await Promise.all(
-      orderedBlocks.map(async (block, index) => {
+    const blockResults = await mapWithConcurrency(
+      orderedBlocks,
+      DEFAULT_PARALLEL_BLOCK_CONCURRENCY,
+      async (block, index) => {
         const messages = [
           ...this.agent.context.projectForCompaction(block),
           createUserMessage(blockPrompt),
         ];
-        const response = await this.agent.generate(
+        const response = await this.generateCompactionBlockWithRetry({
+          signal,
           provider,
-          this.agent.config.systemPrompt,
-          FullCompaction.COMPACTION_GENERATE_TOOLS,
           messages,
-          this.compactionStreamCallbacks({
+          streamCallbacks: this.compactionStreamCallbacks({
             phase: 'summarizing',
             streamKind: 'block',
             blockIndex: index + 1,
             blockCount,
           }),
-          this.compactionGenerateOptions(signal),
-        );
+          retryCountRef,
+        });
         if (response.finishReason === 'truncated') {
           throw new CompactionTruncatedError();
         }
@@ -1765,7 +1803,7 @@ export class FullCompaction {
           summary: extractCompactionSummary(response),
           usage: response.usage,
         };
-      })
+      },
     );
     const usage = blockResults.reduce<TokenUsage | null>(
       (current, result) =>
@@ -2217,6 +2255,35 @@ export class FullCompaction {
       summary.trim(),
     ].join('\n');
   }
+}
+
+/**
+ * Run async work over items with a fixed concurrency limit.
+ * Used so parallel compaction cannot open N simultaneous LLM calls (rate-limit storms).
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const limit = Math.max(1, Math.min(concurrency, items.length || 1));
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function runWorker(): Promise<void> {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      const item = items[index];
+      if (item === undefined) return;
+      results[index] = await worker(item, index);
+    }
+  }
+
+  const runners = Array.from({ length: Math.min(limit, items.length) }, () => runWorker());
+  await Promise.all(runners);
+  return results;
 }
 
 function isCompactionSummarizerError(error: unknown): boolean {
