@@ -22,6 +22,7 @@ function makeHost(
     hasSession?: boolean;
     permissionMode?: 'manual' | 'auto' | 'yolo';
     swarmMode?: boolean;
+    warRoomInvoke?: ReturnType<typeof vi.fn>;
   } = {},
 ) {
   const session = {
@@ -29,6 +30,7 @@ function makeHost(
     setSwarmMode: vi.fn(async () => {}),
   };
   const hasSession = overrides.hasSession ?? true;
+  const warRoomInvoke = overrides.warRoomInvoke;
   const host = {
     state: {
       appState: {
@@ -50,8 +52,15 @@ function makeHost(
     restoreEditor: vi.fn(),
     restoreInputText: vi.fn(),
     sendNormalUserInput: vi.fn(),
+    ...(warRoomInvoke === undefined
+      ? {}
+      : {
+          sessionEventHandler: {
+            invokeWarRoomAction: warRoomInvoke,
+          },
+        }),
   } as unknown as SlashCommandHost;
-  return { host, session };
+  return { host, session, warRoomInvoke };
 }
 
 interface TestPicker {
@@ -336,5 +345,38 @@ describe('handleSwarmCommand', () => {
     );
     expect(markerAddChild(host)).not.toHaveBeenCalled();
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
+  });
+
+  it('routes /swarm pause to war room dock when a swarm card is active', async () => {
+    const warRoomInvoke = vi.fn(() => 1);
+    const { host } = makeHost({ warRoomInvoke });
+
+    await handleSwarmCommand(host, 'pause');
+
+    expect(warRoomInvoke).toHaveBeenCalledWith('pause', {});
+    expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Paused'));
+    expect(host.sendNormalUserInput).not.toHaveBeenCalled();
+  });
+
+  it('errors when /swarm restaff has no active war room', async () => {
+    const warRoomInvoke = vi.fn(() => 0);
+    const { host } = makeHost({ warRoomInvoke });
+
+    await handleSwarmCommand(host, 'restaff');
+
+    expect(warRoomInvoke).toHaveBeenCalledWith('restaff', {});
+    expect(host.showError).toHaveBeenCalledWith(
+      expect.stringContaining('No active UltraSwarm'),
+    );
+  });
+
+  it('toggles raw feed via /swarm raw', async () => {
+    const warRoomInvoke = vi.fn(() => 2);
+    const { host } = makeHost({ warRoomInvoke });
+
+    await handleSwarmCommand(host, 'raw');
+
+    expect(warRoomInvoke).toHaveBeenCalledWith('raw', {});
+    expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('raw feed'));
   });
 });

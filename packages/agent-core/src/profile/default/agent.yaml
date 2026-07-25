@@ -48,6 +48,8 @@ tools:
   - GenerateImage
   - GenerateVideo
   - VerifySurface
+  - LioraReview
+  - VisualDiff
   # MCP tools are gated separately by the profile.
   - mcp__*
 

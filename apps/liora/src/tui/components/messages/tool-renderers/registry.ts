@@ -61,6 +61,7 @@ import {
   ultraSwarmSummary,
   ultraworkGraphSummary,
   verifySurfaceSummary,
+  visualDiffSummary,
   webSearchSummary,
   writeSummary,
 } from './summary';
@@ -155,6 +156,8 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return runProjectChecksSummary;
     case 'VerifySurface':
       return verifySurfaceSummary;
+    case 'VisualDiff':
+      return visualDiffSummary;
     case 'BrowserObserve':
       return browserObserveSummary;
     case 'BrowserScreenshot':

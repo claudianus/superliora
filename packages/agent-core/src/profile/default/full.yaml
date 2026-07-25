@@ -41,6 +41,8 @@ tools:
   - BrowserAct
   - BrowserConsole
   - VerifySurface
+  - LioraReview
+  - VisualDiff
   - ComputerCapture
   - ComputerAct
   - ComputerStatus

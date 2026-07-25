@@ -13,6 +13,7 @@ import type { MCPClient } from '../../mcp/types';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
 import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
 import * as b from '../../tools/builtin';
+import { createVisualDiffTool } from '../../tools/visual-diff-tool';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
 import type {
   BuiltinTool,
@@ -592,6 +593,8 @@ export class ToolManager {
       this.shouldCreateBuiltin('GenerateVideo') &&
         b.isGenerateVideoAvailable(this.resolveMediaProviderEnv()) &&
         new b.GenerateVideoTool(kaos, workspace, this.resolveMediaProviderEnv()),
+      this.shouldCreateBuiltin('LioraReview') && b.createLioraReviewTool(kaos, this.agent),
+      this.shouldCreateBuiltin('VisualDiff') && createVisualDiffTool(kaos),
     ];
   }
 

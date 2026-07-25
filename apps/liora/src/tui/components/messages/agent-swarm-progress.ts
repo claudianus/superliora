@@ -56,7 +56,15 @@ const SWARM_OPS_FEED_RENDER_LINES = 8;
 const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
 /** Max per-child activity lines shown under the swarm grid before collapsing. */
 const MAX_CHILD_ACTIVITY_LINES = 6;
-const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>(['msg', 'mention', 'block', 'council']);
+const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>([
+  'msg',
+  'mention',
+  'block',
+  'council',
+  // War-room dock / orchestrator signals (pause, restaff).
+  'stop',
+  'staff',
+]);
 const SWARM_FEED_BODY_MIN_WIDTH = 24;
 const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
 const SWARM_FEED_NARROW_WIDTH = 72;
@@ -196,7 +204,23 @@ interface SwarmOpsFeedEntry {
   readonly fromName?: string;
   readonly fromEmoji?: string;
   readonly toExpertId?: string;
+  /** Humanized (or plain) body shown by default. */
   readonly body: string;
+  /** Original protocol/raw body when humanization rewrote the message. */
+  readonly rawBody?: string;
+}
+
+/** Host-facing action dock request kinds. */
+export type AgentSwarmActionDockRequest = 'pause' | 'restaff' | 'raw';
+
+export interface AgentSwarmRestaffRequest {
+  readonly reason?: string;
+  readonly phase?: string;
+}
+
+export interface AgentSwarmPauseRequest {
+  readonly reason?: string;
+  readonly phase?: string;
 }
 
 type WarRoomDebatePhase = 'critic' | 'rebuttal' | 'counter-critique' | 'consensus' | 'steer';
@@ -309,6 +333,16 @@ export interface AgentSwarmProgressOptions {
   readonly title?: string | undefined;
   readonly requestRender?: () => void;
   readonly availableGridHeight?: () => number | undefined;
+  /**
+   * Host callback when the war-room action dock requests a pause.
+   * Wire to session `pauseUltrawork` / `swarmSteer` as available.
+   */
+  readonly onRequestPause?: (request: AgentSwarmPauseRequest) => void;
+  /**
+   * Host callback when the war-room action dock requests restaff.
+   * Parent may emit collaboration/steer or invoke UltraSwarm restaff path.
+   */
+  readonly onRequestRestaff?: (request: AgentSwarmRestaffRequest) => void;
 }
 
 const PHASE_LABELS: Record<AgentSwarmPhase, string> = {
@@ -329,6 +363,8 @@ export class AgentSwarmProgressComponent implements Component {
   private routingBadge: string | undefined;
   private readonly requestRender: (() => void) | undefined;
   private readonly availableGridHeight: (() => number | undefined) | undefined;
+  private readonly onRequestPause: ((request: AgentSwarmPauseRequest) => void) | undefined;
+  private readonly onRequestRestaff: ((request: AgentSwarmRestaffRequest) => void) | undefined;
   private inputComplete = false;
   private failed = false;
   private aborted = false;
@@ -351,12 +387,23 @@ export class AgentSwarmProgressComponent implements Component {
   private readonly feedEvidenceIds = new Set<string>();
   /** Path-like tokens scraped from humanized collaboration bodies. */
   private readonly feedPathHints = new Set<string>();
+  /** War-room action dock: swarm is paused for steering. */
+  private swarmPaused = false;
+  private swarmPausedReason: string | undefined;
+  private swarmPausedPhase: string | undefined;
+  /** War-room action dock: restaff in flight. */
+  private restaffing = false;
+  private restaffingReason: string | undefined;
+  /** When true, feed shows raw protocol bodies for entries that have them. */
+  private showRawFeed = false;
 
   constructor(options: AgentSwarmProgressOptions) {
     this.description = options.description;
     this.title = options.title ?? 'Agent Swarm';
     this.requestRender = options.requestRender;
     this.availableGridHeight = options.availableGridHeight;
+    this.onRequestPause = options.onRequestPause;
+    this.onRequestRestaff = options.onRequestRestaff;
     this.members = [];
   }
 
@@ -476,21 +523,126 @@ export class AgentSwarmProgressComponent implements Component {
 
   applySwarmPaused(input: { readonly reason: string; readonly phase?: string }): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const phase = input.phase === undefined ? '' : ` @ ${input.phase}`;
+    this.swarmPaused = true;
+    this.swarmPausedReason = collapseWhitespace(input.reason);
+    this.swarmPausedPhase = input.phase === undefined ? undefined : collapseWhitespace(input.phase);
+    const phase = this.swarmPausedPhase === undefined || this.swarmPausedPhase.length === 0
+      ? ''
+      : ` @ ${this.swarmPausedPhase}`;
+    const reason =
+      this.swarmPausedReason === undefined || this.swarmPausedReason.length === 0
+        ? 'steering'
+        : this.swarmPausedReason;
     this.appendConversationFeed({
       tag: 'stop',
       fromExpertId: 'orchestrator',
       fromName: 'Orchestrator',
       fromEmoji: '⏸',
-      body: `paused for steering${phase} · ${input.reason}`,
+      body: `paused for steering${phase} · ${reason}`,
     });
     this.requestRender?.();
+  }
+
+  /**
+   * Clear paused dock state after resume / redirect continues the run.
+   */
+  applySwarmResumed(): void {
+    if (!this.swarmPaused) return;
+    this.swarmPaused = false;
+    this.swarmPausedReason = undefined;
+    this.swarmPausedPhase = undefined;
+    this.requestRender?.();
+  }
+
+  /**
+   * Mark restaff as in-flight or finished so the action dock reflects status.
+   * Host / UltraSwarm restaff path can call this around adaptive restaff.
+   */
+  applySwarmRestaffing(input: {
+    readonly active: boolean;
+    readonly reason?: string;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    this.restaffing = input.active;
+    this.restaffingReason =
+      input.reason === undefined ? undefined : collapseWhitespace(input.reason);
+    if (input.active) {
+      const reason =
+        this.restaffingReason === undefined || this.restaffingReason.length === 0
+          ? 'closing gaps'
+          : this.restaffingReason;
+      this.appendConversationFeed({
+        tag: 'staff',
+        fromExpertId: 'orchestrator',
+        fromName: 'Orchestrator',
+        fromEmoji: '↻',
+        body: `restaffing · ${reason}`,
+      });
+    }
+    this.requestRender?.();
+  }
+
+  /**
+   * Host-callable: request pause via optional callback and mark local paused state.
+   * Keyboard/click wiring can call this without going through events first.
+   */
+  requestPause(input: AgentSwarmPauseRequest = {}): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const reason =
+      input.reason === undefined || collapseWhitespace(input.reason).length === 0
+        ? 'Paused from war room'
+        : collapseWhitespace(input.reason);
+    this.onRequestPause?.({ reason, phase: input.phase });
+    // Reflect immediately so the dock updates even if the host only wires the callback.
+    if (!this.swarmPaused) {
+      this.applySwarmPaused({ reason, phase: input.phase });
+    } else {
+      this.requestRender?.();
+    }
+  }
+
+  /**
+   * Host-callable: request restaff. Invokes onRequestRestaff when wired, then
+   * marks restaffing status for the action dock.
+   */
+  requestRestaff(input: AgentSwarmRestaffRequest = {}): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const reason =
+      input.reason === undefined || collapseWhitespace(input.reason).length === 0
+        ? 'User requested restaff'
+        : collapseWhitespace(input.reason);
+    this.onRequestRestaff?.({ reason, phase: input.phase });
+    this.applySwarmRestaffing({ active: true, reason });
+  }
+
+  /**
+   * Toggle feed display between humanized and raw protocol bodies.
+   * Returns the new showRawFeed value.
+   */
+  toggleRawFeed(force?: boolean): boolean {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return false;
+    this.showRawFeed = force === undefined ? !this.showRawFeed : force;
+    this.requestRender?.();
+    return this.showRawFeed;
+  }
+
+  isShowRawFeed(): boolean {
+    return this.showRawFeed;
+  }
+
+  isSwarmPaused(): boolean {
+    return this.swarmPaused;
+  }
+
+  isRestaffing(): boolean {
+    return this.restaffing;
   }
 
   applySwarmCollaborationMessage(message: SwarmCollaborationFeedMessage): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
     if (!isAgentConversationChannel(message.channel)) return;
-    const body = humanizeFeedBody(message.body, {
+    const rawBody = message.body;
+    const body = humanizeFeedBody(rawBody, {
       channel: message.channel,
       fromName: message.from.name,
       fromExpertId: message.from.expertId,
@@ -505,12 +657,14 @@ export class AgentSwarmProgressComponent implements Component {
       fromEmoji: message.from.emoji,
       toExpertId: message.to?.expertId,
       body,
+      rawBody,
     });
   }
 
   applySwarmCollaborationMention(message: SwarmCollaborationFeedMessage): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const body = humanizeFeedBody(message.body, {
+    const rawBody = message.body;
+    const body = humanizeFeedBody(rawBody, {
       channel: message.channel,
       tag: 'mention',
       fromName: message.from.name,
@@ -526,6 +680,7 @@ export class AgentSwarmProgressComponent implements Component {
       fromEmoji: message.from.emoji,
       toExpertId: message.to?.expertId,
       body,
+      rawBody,
     });
   }
 
@@ -1035,11 +1190,50 @@ export class AgentSwarmProgressComponent implements Component {
 
   private renderActionDockHint(width: number): string[] {
     if (!this.isUltraSwarmOpsFeedEnabled()) return [];
-    return [
+    const lines: string[] = [
       chalk.hex(this.colors.textDim)(
-        truncateToWidth('actions · pause · restaff · raw (coming)', width),
+        truncateToWidth(this.formatActionDockLine(), width),
       ),
     ];
+    const status = this.formatActionDockStatusLine();
+    if (status !== undefined) {
+      lines.push(chalk.hex(this.colors.warning)(truncateToWidth(status, width)));
+    }
+    return lines;
+  }
+
+  private formatActionDockLine(): string {
+    const pauseLabel = this.swarmPaused ? 'resume' : 'pause';
+    const restaffLabel = this.restaffing ? 'restaff…' : 'restaff';
+    const rawLabel = this.showRawFeed ? 'raw · on' : 'raw';
+    return `actions · ${pauseLabel} · ${restaffLabel} · ${rawLabel}`;
+  }
+
+  private formatActionDockStatusLine(): string | undefined {
+    const parts: string[] = [];
+    if (this.swarmPaused) {
+      const reason =
+        this.swarmPausedReason === undefined || this.swarmPausedReason.length === 0
+          ? 'steering'
+          : this.swarmPausedReason;
+      const phase =
+        this.swarmPausedPhase === undefined || this.swarmPausedPhase.length === 0
+          ? ''
+          : ` @ ${this.swarmPausedPhase}`;
+      parts.push(`paused${phase} · ${reason}`);
+    }
+    if (this.restaffing) {
+      const reason =
+        this.restaffingReason === undefined || this.restaffingReason.length === 0
+          ? 'closing gaps'
+          : this.restaffingReason;
+      parts.push(`restaffing · ${reason}`);
+    }
+    if (this.showRawFeed) {
+      parts.push('feed · raw protocol');
+    }
+    if (parts.length === 0) return undefined;
+    return `status · ${parts.join(' · ')}`;
   }
 
   private isWarRoomActive(): boolean {
@@ -1209,7 +1403,7 @@ export class AgentSwarmProgressComponent implements Component {
   ): string[] {
     const pad = indent ? '  ' : '';
     const innerWidth = Math.max(1, width - visibleWidth(pad));
-    const bodyText = entry.body;
+    const bodyText = this.resolveFeedEntryBody(entry);
     const bodyStyled = chalk.hex(this.colors.text)(bodyText);
 
     if (!showHeader) {
@@ -1310,6 +1504,17 @@ export class AgentSwarmProgressComponent implements Component {
     return this.title === 'UltraSwarm';
   }
 
+  private resolveFeedEntryBody(entry: SwarmOpsFeedEntry): string {
+    if (
+      this.showRawFeed &&
+      entry.rawBody !== undefined &&
+      collapseWhitespace(entry.rawBody).length > 0
+    ) {
+      return collapseWhitespace(entry.rawBody);
+    }
+    return entry.body;
+  }
+
   private appendConversationFeed(input: {
     readonly tag: SwarmOpsFeedTag;
     readonly messageId?: string;
@@ -1318,10 +1523,15 @@ export class AgentSwarmProgressComponent implements Component {
     readonly fromEmoji?: string;
     readonly toExpertId?: string;
     readonly body: string;
+    readonly rawBody?: string;
   }): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
     const body = collapseWhitespace(input.body);
     if (body.length === 0) return;
+    const rawBody =
+      input.rawBody === undefined ? undefined : collapseWhitespace(input.rawBody);
+    const storedRawBody =
+      rawBody !== undefined && rawBody.length > 0 && rawBody !== body ? rawBody : undefined;
     const messageId = input.messageId?.trim();
     if (messageId !== undefined && messageId.length > 0) {
       if (this.seenCollaborationMessageIds.has(messageId)) return;
@@ -1344,7 +1554,8 @@ export class AgentSwarmProgressComponent implements Component {
       last.fromExpertId === input.fromExpertId &&
       last.fromName === input.fromName &&
       last.toExpertId === input.toExpertId &&
-      last.body === body
+      last.body === body &&
+      last.rawBody === storedRawBody
     ) {
       return;
     }
@@ -1357,6 +1568,7 @@ export class AgentSwarmProgressComponent implements Component {
       fromEmoji: input.fromEmoji,
       toExpertId: input.toExpertId,
       body,
+      rawBody: storedRawBody,
     });
     if (this.opsFeed.length > SWARM_OPS_FEED_MAX_ENTRIES) {
       this.opsFeed.splice(0, this.opsFeed.length - SWARM_OPS_FEED_MAX_ENTRIES);

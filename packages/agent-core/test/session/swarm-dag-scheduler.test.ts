@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   areDependenciesSatisfied,
+  partitionReadyWorkNodeIds,
+  preferReadyWorkNodeIds,
   readyNodeIds,
   type SwarmDagNode,
 } from '../../src/session/swarm-dag-scheduler';
@@ -98,5 +100,27 @@ describe('swarm-dag-scheduler', () => {
     ]);
     expect(areDependenciesSatisfied(byId.get('b')!, byId)).toBe(true);
     expect(areDependenciesSatisfied(n('c', 'queued', ['missing']), byId)).toBe(false);
+  });
+
+  it('partitionReadyWorkNodeIds splits ready vs blocked', () => {
+    const nodes = [
+      n('a', 'queued'),
+      n('b', 'queued', ['a']),
+      n('c', 'done'),
+    ];
+    expect(partitionReadyWorkNodeIds(nodes)).toEqual({
+      readyIds: ['a'],
+      blockedIds: ['b'],
+    });
+  });
+
+  it('preferReadyWorkNodeIds keeps only ready bound ids when any are ready', () => {
+    const nodes = [n('a', 'queued'), n('b', 'queued', ['a']), n('c', 'queued')];
+    expect(preferReadyWorkNodeIds(['a', 'b', 'c'], nodes)).toEqual(['a', 'c']);
+  });
+
+  it('preferReadyWorkNodeIds falls back to bound ids when none are ready', () => {
+    const nodes = [n('a', 'running'), n('b', 'queued', ['a'])];
+    expect(preferReadyWorkNodeIds(['b'], nodes)).toEqual(['b']);
   });
 });

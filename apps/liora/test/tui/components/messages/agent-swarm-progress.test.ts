@@ -29,6 +29,8 @@ function createComponent(
     title: options.title,
     requestRender: options.requestRender,
     availableGridHeight: options.availableGridHeight,
+    onRequestPause: options.onRequestPause,
+    onRequestRestaff: options.onRequestRestaff,
   });
 }
 
@@ -509,7 +511,8 @@ describe('AgentSwarmProgressComponent', () => {
     // Active swarm with no leases yet → empty file map state.
     let output = renderText(component, 120);
     expect(output).toContain('file map · no leases yet');
-    expect(output).toContain('actions · pause · restaff · raw (coming)');
+    expect(output).toContain('actions · pause · restaff · raw');
+    expect(output).not.toContain('raw (coming)');
     expect(output).not.toContain('debate reel');
     expect(output).not.toContain('evidence wall');
 
@@ -557,7 +560,8 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('file map');
     expect(output).toContain('file · packages/agent-core/src/auth.ts @ Impl');
     expect(output).not.toContain('file map · no leases yet');
-    expect(output).toContain('actions · pause · restaff · raw (coming)');
+    expect(output).toContain('actions · pause · restaff · raw');
+    expect(output).not.toContain('raw (coming)');
 
     component.applyFileLeaseClaim({
       path: 'packages/agent-core/src/auth.ts',
@@ -567,6 +571,128 @@ describe('AgentSwarmProgressComponent', () => {
     output = renderText(component, 120);
     expect(output).toContain('file map · no leases yet');
     expect(output).not.toContain('file · packages/agent-core/src/auth.ts @ Impl');
+  });
+
+  it('shows paused status on the war room action dock', () => {
+    const onRequestPause = vi.fn();
+    const component = createComponent({
+      title: 'UltraSwarm',
+      onRequestPause,
+    });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+
+    let output = renderText(component, 120);
+    expect(output).toContain('actions · pause · restaff · raw');
+    expect(output).not.toContain('status · paused');
+
+    component.applySwarmPaused({ reason: 'User steering requested', phase: 'review' });
+    output = renderText(component, 120);
+    expect(component.isSwarmPaused()).toBe(true);
+    expect(output).toContain('actions · resume · restaff · raw');
+    expect(output).toContain('status · paused @ review · User steering requested');
+    expect(output).toContain('paused for steering @ review · User steering requested');
+
+    component.applySwarmResumed();
+    output = renderText(component, 120);
+    expect(component.isSwarmPaused()).toBe(false);
+    expect(output).toContain('actions · pause · restaff · raw');
+    expect(output).not.toContain('status · paused');
+
+    component.requestPause({ reason: 'Dock pause', phase: 'implement' });
+    expect(onRequestPause).toHaveBeenCalledWith({
+      reason: 'Dock pause',
+      phase: 'implement',
+    });
+    expect(component.isSwarmPaused()).toBe(true);
+    output = renderText(component, 120);
+    expect(output).toContain('status · paused @ implement · Dock pause');
+  });
+
+  it('shows restaffing status on the war room action dock', () => {
+    const onRequestRestaff = vi.fn();
+    const component = createComponent({
+      title: 'UltraSwarm',
+      onRequestRestaff,
+    });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+
+    component.requestRestaff({ reason: 'Close QA gaps', phase: 'review' });
+    expect(onRequestRestaff).toHaveBeenCalledWith({
+      reason: 'Close QA gaps',
+      phase: 'review',
+    });
+    expect(component.isRestaffing()).toBe(true);
+
+    let output = renderText(component, 120);
+    expect(output).toContain('actions · pause · restaff… · raw');
+    expect(output).toContain('status · restaffing · Close QA gaps');
+    expect(output).toContain('restaffing · Close QA gaps');
+
+    component.applySwarmRestaffing({ active: false });
+    expect(component.isRestaffing()).toBe(false);
+    output = renderText(component, 120);
+    expect(output).toContain('actions · pause · restaff · raw');
+    expect(output).not.toContain('status · restaffing');
+  });
+
+  it('toggles war room feed between humanized and raw protocol bodies', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+
+    const rawBody =
+      '<handoff expert_id="impl-engineer" phase="implement" verdict="PASS">Dashboard attach scenario green</handoff>';
+    component.applySwarmCollaborationMessage({
+      id: 'msg-raw-1',
+      from: { expertId: 'impl-engineer', name: 'Impl Engineer', emoji: '🔧' },
+      channel: 'lane',
+      body: rawBody,
+    });
+
+    let output = renderText(component, 120);
+    expect(output).toContain('Dashboard attach');
+    expect(output).not.toContain('<handoff');
+    expect(output).toContain('actions · pause · restaff · raw');
+    expect(output).not.toContain('raw · on');
+
+    expect(component.toggleRawFeed()).toBe(true);
+    expect(component.isShowRawFeed()).toBe(true);
+    output = renderText(component, 120);
+    expect(output).toContain('actions · pause · restaff · raw · on');
+    expect(output).toContain('status · feed · raw protocol');
+    expect(output).toContain('<handoff');
+    expect(output).toContain('expert_id="impl-engineer"');
+
+    expect(component.toggleRawFeed()).toBe(false);
+    expect(component.isShowRawFeed()).toBe(false);
+    output = renderText(component, 120);
+    expect(output).toContain('Dashboard attach');
+    expect(output).not.toContain('<handoff');
+    expect(output).toContain('actions · pause · restaff · raw');
+    expect(output).not.toContain('raw · on');
   });
 
   it('does not render the ops feed for plain Agent Swarm runs', () => {

@@ -515,6 +515,23 @@ const verifySurfaceGlance: GlanceFn = (_toolCall, result) => {
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
 
+const visualDiffGlance: GlanceFn = (_toolCall, result) => {
+  const start = result.output.indexOf('{');
+  if (start >= 0) {
+    try {
+      const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
+      const identical = json['identical'] === true;
+      const delta = typeof json['lengthDelta'] === 'number' ? json['lengthDelta'] : undefined;
+      const parts: string[] = [identical ? 'identical' : 'differ'];
+      if (delta !== undefined && delta > 0) parts.push(`Δ${String(delta)}B`);
+      return parts.join(' · ');
+    } catch {
+      // fall through
+    }
+  }
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 const browserStatusGlance: GlanceFn = (_toolCall, result) => {
   const json = (() => {
     const start = result.output.indexOf('{');
@@ -688,6 +705,7 @@ export const agentSwarmSummary: ResultRenderer = withGlance(agentSwarmGlance);
 export const ultraSwarmSummary: ResultRenderer = withGlance(ultraSwarmGlance);
 export const runProjectChecksSummary: ResultRenderer = withGlance(runProjectChecksGlance);
 export const verifySurfaceSummary: ResultRenderer = withGlance(verifySurfaceGlance);
+export const visualDiffSummary: ResultRenderer = withGlance(visualDiffGlance);
 export const browserStatusSummary: ResultRenderer = withGlance(browserStatusGlance);
 export const browserObserveSummary: ResultRenderer = withGlance(browserObserveGlance);
 export const browserScreenshotSummary: ResultRenderer = withGlance(null);
