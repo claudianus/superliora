@@ -41,13 +41,19 @@ export const GenerateImageInputSchema = z.object({
     .optional()
     .describe('Output size when the selected provider supports it. Defaults to 1024x1024.'),
   provider: z
-    .enum(['auto', 'openai', 'google', 'qwen'])
+    .enum(['auto', 'xai', 'openai', 'google', 'qwen'])
     .optional()
-    .describe('Force a provider. Default auto picks the first available key (qwen → openai → google).'),
+    .describe(
+      'Force a provider. Default auto picks the first available (xai Grok Build → qwen → openai → google).',
+    ),
   model: z
     .enum(['wan2.7-image', 'wan2.7-image-pro', 'qwen-image-2.0'])
     .optional()
     .describe('Qwen image model (qwen provider only). Defaults to wan2.7-image.'),
+  aspect_ratio: z
+    .enum(['1:1', '16:9', '9:16', '3:2', '2:3', '4:3', '3:4', 'auto'])
+    .optional()
+    .describe('Aspect ratio for xAI Imagine (xai provider). Defaults to auto.'),
 });
 
 export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
@@ -56,20 +62,31 @@ export interface GenerateImageProviderEnv {
   readonly openaiApiKey?: string;
   readonly googleApiKey?: string;
   readonly qwenTokenPlanApiKey?: string;
+  readonly xaiApiKey?: string;
+  readonly xaiGrokBuild?: import('../../providers/xai-grok-build').XaiGrokBuildClient;
   readonly fetchImpl?: typeof fetch;
 }
 
+export type ImageGenerationProvider = 'xai' | 'openai' | 'google' | 'qwen';
+
 export function resolveImageGenerationProvider(
-  preferred: 'auto' | 'openai' | 'google' | 'qwen' | undefined,
+  preferred: 'auto' | ImageGenerationProvider | undefined,
   env: GenerateImageProviderEnv = {},
-): 'openai' | 'google' | 'qwen' | undefined {
+): ImageGenerationProvider | undefined {
+  const xaiReady =
+    env.xaiGrokBuild !== undefined ||
+    nonEmpty(env.xaiApiKey ?? process.env['XAI_API_KEY']) !== undefined;
   const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
   const openai = nonEmpty(env.openaiApiKey ?? process.env['OPENAI_API_KEY']);
-  const google = nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']);
+  const google = nonEmpty(
+    env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
+  );
+  if (preferred === 'xai') return xaiReady ? 'xai' : undefined;
   if (preferred === 'qwen') return qwen !== undefined ? 'qwen' : undefined;
   if (preferred === 'openai') return openai !== undefined ? 'openai' : undefined;
   if (preferred === 'google') return google !== undefined ? 'google' : undefined;
-  // Auto priority: qwen (Token Plan credits) → openai → google
+  // Auto priority: xAI Grok Build subscription → qwen → openai → google
+  if (xaiReady) return 'xai';
   if (qwen !== undefined) return 'qwen';
   if (openai !== undefined) return 'openai';
   if (google !== undefined) return 'google';
@@ -125,7 +142,7 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
       return {
         isError: true,
         output:
-          'No image-generation provider key found. Set OPENAI_API_KEY, or GOOGLE_API_KEY / GEMINI_API_KEY (no MCP setup), then retry. Check readiness with /status.',
+          'No image-generation provider found. Sign in with xAI Grok (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.',
       };
     }
 
@@ -136,11 +153,13 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
 
     try {
       const generated =
-        provider === 'qwen'
-          ? await generateWithQwen(args, this.env)
-          : provider === 'openai'
-            ? await generateWithOpenAI(args, this.env)
-            : await generateWithGoogle(args, this.env);
+        provider === 'xai'
+          ? await generateWithXai(args, this.env)
+          : provider === 'qwen'
+            ? await generateWithQwen(args, this.env)
+            : provider === 'openai'
+              ? await generateWithOpenAI(args, this.env)
+              : await generateWithGoogle(args, this.env);
       await this.kaos.writeBytes(safePath, generated.bytes);
       return {
         output: [
@@ -205,6 +224,38 @@ function toQwenImageSize(size: string | undefined): string {
     case '1024x1792': return '1024*1792';
     default: return '1024*1024';
   }
+}
+
+async function generateWithXai(
+  args: GenerateImageInput,
+  env: GenerateImageProviderEnv,
+): Promise<GeneratedImage> {
+  const { createXaiGrokBuildClientFromEnv } = await import('../../providers/xai-grok-build');
+  const client =
+    env.xaiGrokBuild ??
+    createXaiGrokBuildClientFromEnv({
+      apiKey: env.xaiApiKey,
+      fetchImpl: env.fetchImpl,
+    });
+  if (client === undefined) {
+    throw new Error('xAI Grok credentials are not available for image generation.');
+  }
+  const aspect =
+    args.aspect_ratio ??
+    (args.size === '1536x1024' || args.size === '1792x1024'
+      ? '16:9'
+      : args.size === '1024x1536' || args.size === '1024x1792'
+        ? '9:16'
+        : '1:1');
+  const result = await client.generateImage({
+    prompt: args.prompt,
+    aspectRatio: aspect,
+  });
+  return {
+    bytes: result.bytes,
+    mimeType: result.mimeType,
+    model: result.model,
+  };
 }
 
 async function generateWithQwen(

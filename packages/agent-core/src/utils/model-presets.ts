@@ -1,3 +1,5 @@
+import { annotateModelsWithCredentialHealth, type CredentialHealthStore } from '@superliora/oauth';
+
 /**
  * Role-based model presets: automatically assign the best model for each task
  * role based on cost, speed, intelligence, and capability data from models.dev.
@@ -453,6 +455,54 @@ export function isAuthOrCreditFailure(error: string): boolean {
     /expired/i,
     /invalid.*key/i,
     /no.*payment.*method/i,
+    /credentials were rejected/i,
+    /send \/login/i,
+    /auth_rejected/i,
+    /oauth.*reject/i,
   ];
   return patterns.some((p) => p.test(error));
 }
+
+/**
+ * Apply credential-health annotations then run role assignment.
+ * Prefer this when callers know provider credentials but not `available` flags.
+ */
+export function autoAssignRoleModelsWithHealth(
+  models: readonly {
+    readonly id: string;
+    readonly alias?: string;
+    readonly provider: string;
+    readonly tier?: ModelTier;
+  }[],
+  options: {
+    readonly hasCredential: (providerId: string) => boolean;
+    readonly credentialKey?: (providerId: string) => string | undefined;
+    readonly userOverrides?: Partial<Record<ModelRole, string>>;
+    readonly store?: CredentialHealthStore;
+  },
+): Record<ModelRole, RoleModelAssignment | undefined> {
+  const annotated = annotateModelsWithCredentialHealth(
+    models.map((m) => ({
+      id: m.id,
+      alias: m.alias,
+      provider: m.provider,
+    })),
+    {
+      hasCredential: (providerId) => options.hasCredential(providerId),
+      credentialKey: options.credentialKey
+        ? (providerId) => options.credentialKey!(providerId)
+        : undefined,
+      store: options.store,
+    },
+  );
+  const withTier: ModelMetadata[] = annotated.map((m, index) => ({
+    id: m.id,
+    alias: m.alias,
+    provider: m.provider,
+    available: m.available,
+    failureReason: m.failureReason,
+    tier: models[index]?.tier,
+  })) as ModelMetadata[];
+  return autoAssignRoleModels(withTier, options.userOverrides);
+}
+

@@ -278,3 +278,15 @@ export type {
   ProviderLoginCallbacks,
   ProviderLoginOptions,
 } from './oauth-provider-manager';
+
+export {
+  CredentialHealthStore,
+  annotateModelsWithCredentialHealth,
+  credentialHealthCacheKey,
+  sharedCredentialHealthStore,
+} from './credential-health';
+export type {
+  CredentialHealthKey,
+  CredentialHealthRecord,
+  CredentialHealthStatus,
+} from './credential-health';

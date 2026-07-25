@@ -47,6 +47,7 @@ import {
   userCancellationReason,
 } from '../utils/abort';
 import { resolveSubagentModelAlias } from '../utils/cheap-model';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { collectGitContext } from './git-context';
 import type { Session } from './index';
 import {
@@ -118,6 +119,19 @@ export type SubagentHandle = {
   readonly resumed: boolean;
   readonly completion: Promise<SubagentCompletion>;
 };
+
+
+function isModelAliasHealthy(
+  alias: string | undefined,
+  models: Record<string, { provider?: string }> | undefined,
+): boolean {
+  if (alias === undefined || models === undefined) return true;
+  const entry = models[alias];
+  if (entry === undefined) return true;
+  const provider = entry.provider;
+  if (provider === undefined || provider.length === 0) return true;
+  return sharedCredentialHealthStore.isAvailable(provider);
+}
 
 export class SessionSubagentHost {
   private readonly activeChildren = new Map<
@@ -227,6 +241,10 @@ export class SessionSubagentHost {
             parent.config.modelAlias,
             parent.kimiConfig?.models,
             parent.kimiConfig?.loopControl?.explorationModel,
+            {
+              isAliasHealthy: (alias) =>
+                isModelAliasHealthy(alias, parent.kimiConfig?.models),
+            },
           ),
         });
         this.attachUltraSwarmChannelIfNeeded(parent, child, agentId, runOptions, profileName);
@@ -254,6 +272,10 @@ export class SessionSubagentHost {
             parent.config.modelAlias,
             parent.kimiConfig?.models,
             parent.kimiConfig?.loopControl?.explorationModel,
+            {
+              isAliasHealthy: (alias) =>
+                isModelAliasHealthy(alias, parent.kimiConfig?.models),
+            },
           ),
         });
         this.emitSubagentStarted(parent, agentId, runOptions);
@@ -492,6 +514,10 @@ export class SessionSubagentHost {
         parent.config.modelAlias,
         parent.kimiConfig?.models,
         parent.kimiConfig?.loopControl?.explorationModel,
+      {
+        isAliasHealthy: (alias) =>
+          isModelAliasHealthy(alias, parent.kimiConfig?.models),
+      },
       ),
       thinkingLevel: parent.config.thinkingLevel,
     });
