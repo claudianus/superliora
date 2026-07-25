@@ -814,8 +814,36 @@ export class Agent {
           },
         }),
       getUltraworkRun: () => this.ultrawork.getRun(),
-      pauseUltrawork: (payload) => this.ultrawork.pause(payload),
-      resumeUltrawork: () => this.ultrawork.resume(),
+      pauseUltrawork: (payload) => {
+        // War-room / action-dock pause must also stop UltraSwarm phase advancement.
+        if (this.ultraSwarmRun !== undefined) {
+          this.ultraSwarmRun.pausedForSteer = true;
+          this.telemetry.track('ultra_swarm_pause_requested', {
+            run_id: this.ultraSwarmRun.runId,
+            source: 'pause_ultrawork',
+            reason:
+              typeof payload.reason === 'string' && payload.reason.trim().length > 0
+                ? payload.reason.trim().slice(0, 240)
+                : undefined,
+          });
+          this.emitEvent({
+            type: 'ultrawork.swarm.paused',
+            runId: this.ultraSwarmRun.runId,
+            reason:
+              typeof payload.reason === 'string' && payload.reason.trim().length > 0
+                ? payload.reason
+                : 'Paused from Ultrawork pause',
+          } as any);
+        }
+        return this.ultrawork.pause(payload);
+      },
+      resumeUltrawork: () => {
+        // Clear UltraSwarm phase pause when Ultrawork resumes so the next wave can run.
+        if (this.ultraSwarmRun !== undefined) {
+          this.ultraSwarmRun.pausedForSteer = false;
+        }
+        return this.ultrawork.resume();
+      },
       cancelUltrawork: (payload) => this.ultrawork.cancel(payload.reason),
       swarmRestaff: (payload) =>
         this.swarmRestaff(
