@@ -50,6 +50,9 @@ describe('LioraReview execute baseline scan', () => {
     expect(output).toContain('debugger');
     expect(output).toContain('console.log');
     expect(output).toContain('src/x.ts');
+    // error-severity heuristics map to CRITICAL in the report
+    expect(output).toContain('**CRITICAL**');
+    expect(output).toContain('**SUGGESTION**');
   });
 
   it('reports empty when the diff has no changes', async () => {
