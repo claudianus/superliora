@@ -50,16 +50,78 @@ export function meanNdcgAtK(
   return sum / cases.length;
 }
 
-/** Tiny seed gold set for regression (expand later). */
+/**
+ * Seed gold set for regression. `relevantIds` are real catalog persona keys
+ * from `catalog-personas.json` (ExpertSearchResult uses `.expert.id`).
+ */
 export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'tui-terminal',
     query: 'terminal TUI renderer component typescript',
-    relevantIds: ['engineering-terminal-ui-engineer'],
+    relevantIds: ['terminal-integration-specialist'],
   },
   {
     id: 'security-auth',
     query: 'oauth auth security threat model credentials',
-    relevantIds: [], // fill when catalog ids known; empty → nDCG 0 baseline
+    relevantIds: [
+      'security-appsec-engineer',
+      'security-architect',
+      'security-secrets-credential-engineer',
+      'ericgrill-general-security-sentinel',
+    ],
+  },
+  {
+    id: 'code-review',
+    query: 'code review pull request quality findings',
+    relevantIds: ['engineering-code-reviewer', 'agentcrow-compose-meta-reviewer'],
+  },
+  {
+    id: 'frontend-ui',
+    query: 'frontend react typescript UI component developer',
+    relevantIds: [
+      'engineering-frontend-developer',
+      'agentcrow-frontend-developer',
+      'ericgrill-general-frontend-alchemist',
+    ],
+  },
+  {
+    id: 'backend-api',
+    query: 'backend API platform service architecture',
+    relevantIds: [
+      'engineering-backend-architect',
+      'engineering-api-platform-engineer',
+      'agentcrow-backend-architect',
+    ],
+  },
+  {
+    id: 'database-perf',
+    query: 'database optimizer query performance reliability',
+    relevantIds: [
+      'engineering-database-optimizer',
+      'engineering-database-reliability-engineer',
+      'ericgrill-general-database-sage',
+    ],
+  },
+  {
+    id: 'devops-ci',
+    query: 'devops automation CI CD pipeline infrastructure',
+    relevantIds: ['engineering-devops-automator', 'agentcrow-devops-automator'],
+  },
+  {
+    id: 'testing-qa',
+    query: 'test driven development QA engineer automated tests',
+    relevantIds: [
+      'ericgrill-general-test-driven-craftsman',
+      'agentcrow-qa-engineer',
+      'ericgrill-general-test-driven-maniac',
+    ],
+  },
+  {
+    id: 'performance',
+    query: 'performance reliability latency tuning',
+    relevantIds: [
+      'ericgrill-general-performance-tuner',
+      'engineering-wordpress-performance',
+    ],
   },
 ];

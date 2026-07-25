@@ -278,6 +278,10 @@ export class SubAgentEventHandler {
     this.ultraSwarmTeamsByToolCallId.set(event.toolCallId, event.team);
     this.updateAgentSwarmProgress(event.toolCallId, (progress) => {
       progress.applyUltraSwarmTeam(ultraSwarmMembersFromTeam(event.team));
+      // Adaptive restaff / second staffing wave ends the dock restaffing state.
+      if (progress.isRestaffing()) {
+        progress.applySwarmRestaffing({ active: false });
+      }
     });
   }
 
@@ -708,6 +712,57 @@ export class SubAgentEventHandler {
     return true;
   }
 
+  /**
+   * War-room action dock pause: pause active Ultrawork/UltraSwarm run when a session exists.
+   */
+  private handleWarRoomPauseRequest(request: {
+    readonly reason?: string;
+    readonly phase?: string;
+  }): void {
+    const session = this.host.session;
+    if (session === undefined) return;
+    const reason =
+      request.reason === undefined || request.reason.trim().length === 0
+        ? 'Paused from war room'
+        : request.reason;
+    void session.pauseUltrawork({ reason }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.host.showError(`Failed to pause UltraSwarm: ${message}`);
+    });
+  }
+
+  /**
+   * War-room action dock restaff: steer the session with a restaff directive so the
+   * orchestrator / UltraSwarm restaff path can pick it up (see ultra-swarm-restaff).
+   */
+  private handleWarRoomRestaffRequest(request: {
+    readonly reason?: string;
+    readonly phase?: string;
+  }): void {
+    const session = this.host.session;
+    if (session === undefined) return;
+    const reason =
+      request.reason === undefined || request.reason.trim().length === 0
+        ? 'User requested restaff'
+        : request.reason;
+    const phase =
+      request.phase === undefined || request.phase.trim().length === 0
+        ? ''
+        : ` (phase: ${request.phase})`;
+    const directive = [
+      'UltraSwarm restaff requested from war room.',
+      reason,
+      phase.length > 0 ? phase : undefined,
+      'Close unresolved required gaps by staffing additional specialists when slots allow.',
+    ]
+      .filter((part): part is string => part !== undefined && part.length > 0)
+      .join(' ');
+    void session.steer(directive).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.host.showError(`Failed to request UltraSwarm restaff: ${message}`);
+    });
+  }
+
   private ensureAgentSwarmProgress(
     toolCallId: string,
     args: Record<string, unknown>,
@@ -722,14 +777,24 @@ export class SubAgentEventHandler {
       return existing;
     }
 
+    const isUltraSwarm = (options.toolName ?? 'AgentSwarm') === 'UltraSwarm';
     const progress = new AgentSwarmProgressComponent({
       description: agentSwarmDescriptionFromArgs(args),
       title: swarmProgressTitleForToolName(options.toolName ?? 'AgentSwarm'),
-      availableGridHeight: () =>
-        this.agentSwarmGridHeight((options.toolName ?? 'AgentSwarm') === 'UltraSwarm'),
+      availableGridHeight: () => this.agentSwarmGridHeight(isUltraSwarm),
       requestRender: () => {
         this.requestRender();
       },
+      onRequestPause: isUltraSwarm
+        ? (request) => {
+            this.handleWarRoomPauseRequest(request);
+          }
+        : undefined,
+      onRequestRestaff: isUltraSwarm
+        ? (request) => {
+            this.handleWarRoomRestaffRequest(request);
+          }
+        : undefined,
     });
     progress.updateArgs(args, options);
     const team = this.ultraSwarmTeamsByToolCallId.get(toolCallId);

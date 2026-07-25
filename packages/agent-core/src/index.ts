@@ -46,6 +46,8 @@ export {
   SWARM_DAG_DONE_STATUSES,
   SWARM_DAG_TERMINAL_STATUSES,
   areDependenciesSatisfied,
+  partitionReadyWorkNodeIds,
+  preferReadyWorkNodeIds,
   readyNodeIds,
   type SwarmDagNode,
   type SwarmDagNodeStatus,
@@ -86,6 +88,7 @@ export {
   type StaffingGoldCase,
 } from './expert-agents/staffing-gold';
 export { visualDiff, type VisualDiffResult } from './tools/visual-diff';
+export { VisualDiffTool, createVisualDiffTool } from './tools/visual-diff-tool';
 export {
   DEFAULT_MAX_PER_DIVISION,
   applyStaffingDiversity,

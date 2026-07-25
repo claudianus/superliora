@@ -26,6 +26,8 @@ tools:
   - FetchURL
   - ReadMediaFile
   - VerifySurface
+  - LioraReview
+  - VisualDiff
   - AskUserQuestion
   - Memory
   - TodoList

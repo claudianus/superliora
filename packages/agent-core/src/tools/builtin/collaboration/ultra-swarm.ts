@@ -50,7 +50,10 @@ import {
 import {
   buildDependencyWaves,
 } from '../../../session/subagent-wave-scheduler';
-import { readyNodeIds } from '../../../session/swarm-dag-scheduler';
+import {
+  partitionReadyWorkNodeIds,
+  preferReadyWorkNodeIds,
+} from '../../../session/swarm-dag-scheduler';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
@@ -119,6 +122,7 @@ import {
 } from './ultra-swarm-phase';
 import { buildUltraSwarmExpertPrompt } from './ultra-swarm-prompt';
 import {
+  attachDraftToDebate,
   createDebate,
   debatePhasesForRisk,
   emitDebateTurn,
@@ -271,21 +275,35 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const maxExperts = resolveMaxExperts(args.intensity, routing, args.max_experts);
     const runId = normalizeOptionalString(args.run_id) ?? `ultra-swarm-${randomUUID()}`;
     const workNodeContext = this.resolveWorkNodeContext(args);
-    // Pure DAG ready-set: which bound work nodes can run now (deps done).
-    // Used for telemetry + selection hints; phase runners still own scheduling.
+    // Pure DAG ready-set: prefer nodes whose deps are done so blocked nodes are
+    // not claimed early. Full graph still used for dep resolution.
+    const dagNodes =
+      workNodeContext?.nodes.map((node) => ({
+        id: node.id,
+        dependsOn: node.dependsOn,
+        status: node.status,
+      })) ?? [];
+    const readyPartition =
+      dagNodes.length > 0 ? partitionReadyWorkNodeIds(dagNodes) : { readyIds: [], blockedIds: [] };
+    const schedulableWorkNodeIds =
+      workNodeContext === undefined
+        ? []
+        : preferReadyWorkNodeIds(
+            workNodeContext.nodes.map((node) => node.id),
+            dagNodes,
+          );
+    const schedulableWorkNodes =
+      workNodeContext === undefined
+        ? []
+        : workNodeContext.nodes.filter((node) => schedulableWorkNodeIds.includes(node.id));
     if (workNodeContext !== undefined && workNodeContext.nodes.length > 0) {
-      const ready = readyNodeIds(
-        workNodeContext.nodes.map((node) => ({
-          id: node.id,
-          dependsOn: node.dependsOn,
-          status: node.status,
-        })),
-      );
       this.agent.telemetry.track('ultra_swarm_dag_ready', {
         run_id: runId,
-        ready_count: ready.length,
+        ready_count: readyPartition.readyIds.length,
+        blocked_count: readyPartition.blockedIds.length,
         bound_count: workNodeContext.nodes.length,
-        ready_ids: ready.slice(0, 32).join(','),
+        ready_ids: readyPartition.readyIds.slice(0, 32).join(','),
+        blocked_ids: readyPartition.blockedIds.slice(0, 32).join(','),
       });
     }
     const requestedExperts = uniqueStrings([
@@ -299,9 +317,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       );
     }
 
-    // Build the swarm plan
+    // Build the swarm plan — selection hint prefers ready work nodes.
     let plan = await this.buildPlan(
-      withWorkNodeSelectionHint(args.description, workNodeContext?.nodes ?? []),
+      withWorkNodeSelectionHint(args.description, schedulableWorkNodes),
       autoSelect,
       requestedExperts,
       maxExperts,
@@ -334,8 +352,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       experts: plan.experts,
       focus: args.focus,
       runId,
-      workNodeIds: workNodeContext?.nodes.map((node) => node.id) ?? [],
-      workNodes: workNodeContext?.nodes,
+      // Bind experts only to ready nodes when the DAG can distinguish them.
+      workNodeIds: schedulableWorkNodeIds,
+      workNodes: schedulableWorkNodes,
       requiredExpertIds,
     });
 
@@ -358,11 +377,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       parentToolCallId: toolCallId,
     });
 
-    if (workNodeContext !== undefined) {
-      this.markWorkNodesRunning(
-        workNodeContext.nodes.map((node) => node.id),
-        ownerExpertIdForWorkNodes(specs),
-      );
+    // Only mark ready nodes running; blocked deps stay queued.
+    if (workNodeContext !== undefined && schedulableWorkNodeIds.length > 0) {
+      this.markWorkNodesRunning(schedulableWorkNodeIds, ownerExpertIdForWorkNodes(specs));
     }
 
     let phaseResults: UltraSwarmRunResult[] = [];
@@ -384,8 +401,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       phaseResults = [...loop.phaseResults];
       team = loop.team;
     } catch (error) {
-      if (workNodeContext !== undefined) {
-        this.failWorkNodes(workNodeContext.nodes.map((node) => node.id), error);
+      // Only fail nodes we actually marked running; blocked deps stay queued.
+      if (schedulableWorkNodeIds.length > 0) {
+        this.failWorkNodes(schedulableWorkNodeIds, error);
       }
       getDefaultSwarmFileLeaseRegistry().releaseAll(runId);
       this.agent.ultraSwarmRun = undefined;
@@ -419,9 +437,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         this.finishWorkNodes(result.spec.workNodeIds, [result]);
         for (const id of result.spec.workNodeIds) claimed.add(id);
       }
-      const unclaimed = workNodeContext.nodes
-        .map((node) => node.id)
-        .filter((id) => !claimed.has(id));
+      // Do not finish blocked (not-ready) nodes just because the run ended.
+      const unclaimed = schedulableWorkNodeIds.filter((id) => !claimed.has(id));
       if (unclaimed.length > 0) {
         this.finishWorkNodes(unclaimed, rendered);
       }
@@ -610,7 +627,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           const artifactSummary =
             result.status === 'completed' ? (result.result ?? '') : (result.error ?? '');
 
-          const debate = createDebate({
+          let debate = createDebate({
             workNodeId,
             criticExpertId: criticExpert.id,
             criticExpertName: criticExpert.role,
@@ -618,6 +635,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
             authorExpertName: result.spec.expertName,
             artifactSummary,
           });
+          // Attach implementer handoff / phase output as the debate draft so
+          // critics cite the concrete artifact rather than stance alone.
+          debate = attachDraftToDebate(debate, artifactSummary);
 
           // Emit debate start event
           emitDebateTurn(this.agent, input.runId, {

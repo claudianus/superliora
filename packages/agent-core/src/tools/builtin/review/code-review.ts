@@ -165,3 +165,8 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
     return lines.join('\n');
   }
 }
+
+/** Factory alias used by ToolManager registration. */
+export function createLioraReviewTool(kaos: Kaos, agent: Agent): CodeReviewTool {
+  return new CodeReviewTool(kaos, agent);
+}
