@@ -39,10 +39,10 @@ describe('staffing-gold nDCG', () => {
   });
 
   it('exports seed cases with catalog-backed relevantIds', () => {
-    expect(STAFFING_GOLD_SEED.length).toBeGreaterThanOrEqual(16);
+    expect(STAFFING_GOLD_SEED.length).toBeGreaterThanOrEqual(28);
     const catalog = JSON.parse(readFileSync(catalogPath, 'utf8')) as Record<string, unknown>;
     const nonEmpty = STAFFING_GOLD_SEED.filter((c) => c.relevantIds.length > 0);
-    expect(nonEmpty.length).toBeGreaterThanOrEqual(16);
+    expect(nonEmpty.length).toBeGreaterThanOrEqual(28);
     for (const gold of nonEmpty) {
       for (const id of gold.relevantIds) {
         expect(catalog[id], `missing catalog id ${id} in case ${gold.id}`).toBeDefined();
@@ -52,5 +52,29 @@ describe('staffing-gold nDCG', () => {
     expect(ids.has('product-pm')).toBe(true);
     expect(ids.has('sre-observability')).toBe(true);
     expect(ids.has('ml-llm')).toBe(true);
+    expect(ids.has('finance-fpa')).toBe(true);
+    expect(ids.has('cloud-infra')).toBe(true);
+    expect(ids.has('accessibility')).toBe(true);
+    expect(ids.has('multi-agent-systems')).toBe(true);
+  });
+
+  it('labels domain cases for offline catalog coverage benches', () => {
+    const labeled = STAFFING_GOLD_SEED.filter(
+      (c) => c.labels !== undefined && c.labels.length > 0,
+    );
+    expect(labeled.length).toBe(STAFFING_GOLD_SEED.length);
+    const allLabels = new Set(labeled.flatMap((c) => c.labels ?? []));
+    for (const required of [
+      'Finance',
+      'Marketing',
+      'Sales',
+      'Support',
+      'Game Dev',
+      'Privacy',
+      'Cloud',
+      'Accessibility',
+    ]) {
+      expect(allLabels.has(required), `missing label ${required}`).toBe(true);
+    }
   });
 });

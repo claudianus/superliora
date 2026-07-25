@@ -10,6 +10,11 @@ export interface StaffingGoldCase {
   readonly query: string;
   /** Ordered preferred expert ids (rank 1 first). */
   readonly relevantIds: readonly string[];
+  /**
+   * Optional catalog / division labels for this case (e.g. `Finance`, `Security`).
+   * Used by offline benches to assert search covers labeled domains, not only ids.
+   */
+  readonly labels?: readonly string[];
 }
 
 export function dcgAtK(rankedIds: readonly string[], relevant: ReadonlySet<string>, k: number): number {
@@ -59,6 +64,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     id: 'tui-terminal',
     query: 'terminal TUI renderer component typescript',
     relevantIds: ['terminal-integration-specialist'],
+    labels: ['Engineering', 'TUI'],
   },
   {
     id: 'security-auth',
@@ -69,11 +75,13 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'security-secrets-credential-engineer',
       'ericgrill-general-security-sentinel',
     ],
+    labels: ['Security'],
   },
   {
     id: 'code-review',
     query: 'code review pull request quality findings',
     relevantIds: ['engineering-code-reviewer', 'agentcrow-compose-meta-reviewer'],
+    labels: ['Engineering', 'Review'],
   },
   {
     id: 'frontend-ui',
@@ -83,6 +91,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'agentcrow-frontend-developer',
       'ericgrill-general-frontend-alchemist',
     ],
+    labels: ['Engineering', 'Frontend'],
   },
   {
     id: 'backend-api',
@@ -92,6 +101,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-api-platform-engineer',
       'agentcrow-backend-architect',
     ],
+    labels: ['Engineering', 'Backend'],
   },
   {
     id: 'database-perf',
@@ -101,11 +111,13 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-database-reliability-engineer',
       'ericgrill-general-database-sage',
     ],
+    labels: ['Engineering', 'Database'],
   },
   {
     id: 'devops-ci',
     query: 'devops automation CI CD pipeline infrastructure',
     relevantIds: ['engineering-devops-automator', 'agentcrow-devops-automator'],
+    labels: ['Engineering', 'DevOps'],
   },
   {
     id: 'testing-qa',
@@ -115,6 +127,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'agentcrow-qa-engineer',
       'ericgrill-general-test-driven-maniac',
     ],
+    labels: ['Testing', 'QA'],
   },
   {
     id: 'performance',
@@ -123,16 +136,19 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'ericgrill-general-performance-tuner',
       'engineering-wordpress-performance',
     ],
+    labels: ['Engineering', 'Performance'],
   },
   {
     id: 'product-pm',
     query: 'product manager roadmap prioritization sprint feedback',
     relevantIds: ['product-manager', 'product-sprint-prioritizer', 'product-feedback-synthesizer'],
+    labels: ['Product'],
   },
   {
     id: 'design-ui-ux',
     query: 'UI UX design visual system inclusive designer',
     relevantIds: ['design-ui-designer', 'agentcrow-ui-designer', 'design-brand-guardian'],
+    labels: ['Design'],
   },
   {
     id: 'sre-observability',
@@ -142,21 +158,25 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'ericgrill-general-observability-oracle',
       'engineering-incident-response-commander',
     ],
+    labels: ['Engineering', 'SRE'],
   },
   {
     id: 'mobile-apps',
     query: 'mobile app builder iOS Android release engineer',
     relevantIds: ['engineering-mobile-app-builder', 'ericgrill-general-mobile-nomad'],
+    labels: ['Engineering', 'Mobile'],
   },
   {
     id: 'docs-writer',
     query: 'technical writer API documentation developer experience docs',
     relevantIds: ['engineering-technical-writer', 'agentcrow-technical-writer'],
+    labels: ['Engineering', 'Docs'],
   },
   {
     id: 'data-pipelines',
     query: 'data engineer pipeline analytics ETL warehouse',
     relevantIds: ['engineering-data-engineer', 'agentcrow-data-pipeline-engineer'],
+    labels: ['Engineering', 'Data'],
   },
   {
     id: 'ml-llm',
@@ -166,10 +186,136 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'ericgrill-general-ml-model-whisperer',
       'engineering-llm-post-training-engineer',
     ],
+    labels: ['Engineering', 'ML'],
   },
   {
     id: 'complexity-critic',
     query: 'complexity critic meta reviewer code quality adversarial review',
     relevantIds: ['agentcrow-complexity-critic', 'engineering-code-reviewer', 'agentcrow-compose-meta-reviewer'],
+    labels: ['Engineering', 'Review'],
+  },
+  {
+    id: 'finance-fpa',
+    query: 'financial analyst FP&A bookkeeping controller payments billing',
+    relevantIds: [
+      'finance-financial-analyst',
+      'finance-fpa-analyst',
+      'finance-bookkeeper-controller',
+      'engineering-payments-billing-engineer',
+    ],
+    labels: ['Finance'],
+  },
+  {
+    id: 'cloud-infra',
+    query: 'cloud architect azure devops infrastructure cost optimizer',
+    relevantIds: [
+      'volt-03-infrastructure-cloud-architect',
+      'volt-03-infrastructure-devops-engineer',
+      'security-cloud-security-architect',
+      'ericgrill-general-cloud-cost-optimizer',
+    ],
+    labels: ['Infrastructure', 'Cloud'],
+  },
+  {
+    id: 'accessibility',
+    query: 'accessibility auditor a11y inclusive visuals WCAG tester',
+    relevantIds: [
+      'testing-accessibility-auditor',
+      'volt-04-quality-security-accessibility-tester',
+      'design-inclusive-visuals-specialist',
+    ],
+    labels: ['Testing', 'Design', 'Accessibility'],
+  },
+  {
+    id: 'game-dev',
+    query: 'game designer Unreal GAS audio engineer gameplay developer',
+    relevantIds: [
+      'game-designer',
+      'agentcrow-unreal-gas-specialist',
+      'game-audio-engineer',
+      'volt-07-specialized-domains-game-developer',
+    ],
+    labels: ['Game Dev'],
+  },
+  {
+    id: 'legal-compliance',
+    query: 'legal document review privacy officer compliance auditor GDPR',
+    relevantIds: [
+      'legal-document-review',
+      'data-privacy-officer',
+      'security-compliance-auditor',
+      'support-legal-compliance-checker',
+    ],
+    labels: ['Legal', 'Compliance'],
+  },
+  {
+    id: 'blockchain-web3',
+    query: 'blockchain security auditor web3 smart contract developer',
+    relevantIds: [
+      'security-blockchain-security-auditor',
+      'volt-07-specialized-domains-blockchain-developer',
+    ],
+    labels: ['Security', 'Blockchain'],
+  },
+  {
+    id: 'marketing-growth',
+    query: 'marketing SEO growth carousel app store optimizer campaigns',
+    relevantIds: [
+      'marketing-agentic-search-optimizer',
+      'marketing-carousel-growth-engine',
+      'marketing-app-store-optimizer',
+    ],
+    labels: ['Marketing'],
+  },
+  {
+    id: 'sales-revenue',
+    query: 'sales deal strategist engineer account outbound lead gen',
+    relevantIds: [
+      'sales-deal-strategist',
+      'sales-engineer',
+      'sales-account-strategist',
+      'sales-offer-lead-gen-strategist',
+    ],
+    labels: ['Sales'],
+  },
+  {
+    id: 'customer-support',
+    query: 'customer success manager support responder service desk',
+    relevantIds: [
+      'customer-success-manager',
+      'support-support-responder',
+      'customer-service',
+    ],
+    labels: ['Support'],
+  },
+  {
+    id: 'rust-systems',
+    query: 'rust engineer systems embedded firmware refactoring',
+    relevantIds: [
+      'volt-02-language-specialists-rust-engineer',
+      'engineering-rust-refactoring-specialist',
+      'engineering-embedded-firmware-engineer',
+    ],
+    labels: ['Engineering', 'Rust'],
+  },
+  {
+    id: 'multi-agent-systems',
+    query: 'multi-agent systems architect RAG pipeline AI engineer orchestration',
+    relevantIds: [
+      'engineering-multi-agent-systems-architect',
+      'engineering-rag-pipeline-engineer',
+      'agentcrow-ai-engineer',
+    ],
+    labels: ['Engineering', 'Agents'],
+  },
+  {
+    id: 'privacy-gdpr',
+    query: 'privacy engineer data protection GDPR CCPA compliance',
+    relevantIds: [
+      'engineering-privacy-engineer',
+      'data-privacy-officer',
+      'volt-04-quality-security-gdpr-ccpa-compliance',
+    ],
+    labels: ['Privacy', 'Compliance'],
   },
 ];
