@@ -434,4 +434,246 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     // Swarm stage hides theatre; only swarm progress should show the body.
     expect(transcript).toContain('war room');
   });
+
+  it('skips theatre applyEvent when swarm owns collaboration message/mention (single-sink)', () => {
+    const host = makeHost();
+    type TranscriptChild = {
+      render(width: number): string[];
+      applyEvent?: (...args: unknown[]) => unknown;
+    };
+    const children: TranscriptChild[] = [];
+    host.state.transcriptContainer.addChild = vi.fn((child: TranscriptChild) => {
+        if (typeof child.applyEvent === 'function') {
+          const original = child.applyEvent;
+          child.applyEvent = vi.fn((...args: unknown[]) => original.apply(child, args));
+        }
+        children.push(child);
+      },
+    );
+    host.state.transcriptContainer.children = children;
+    host.state.transcriptContainer.invalidate = vi.fn();
+    host.state.ui = {
+      ...host.state.ui,
+      children,
+      terminal: { rows: 40, columns: 120 },
+      requestRender: vi.fn(),
+    };
+    host.state.todoPanel.bumpActivity = vi.fn();
+    host.streamingUI.getTurnContext = vi.fn(() => ({ turnId: 1, step: 0 }));
+    host.streamingUI.registerToolCall = vi.fn();
+    host.streamingUI.finalizeLiveTextBuffers = vi.fn();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(
+      {
+        type: 'ultrawork.stage.changed',
+        agentId: 'main',
+        sessionId: 's1',
+        from: 'staff',
+        to: 'research',
+        reason: 'single-sink regression',
+        run: {
+          id: 'uw_single_sink',
+          objective: 'Prove collaboration single-sink',
+          status: 'running',
+          stage: 'research',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:00:01.000Z',
+        },
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    const theatre = children.find((child) => typeof child.applyEvent === 'function');
+    expect(theatre).toBeDefined();
+    const theatreApply = theatre!.applyEvent as ReturnType<typeof vi.fn>;
+    // Stage seed already applied once in the constructor path; clear for collaboration asserts.
+    theatreApply.mockClear();
+
+    handler.handleEvent(
+      {
+        type: 'tool.call.started',
+        agentId: 'main',
+        sessionId: 's1',
+        turnId: 1,
+        toolCallId: 'call_ultra_swarm_sink',
+        name: 'UltraSwarm',
+        args: {
+          description: 'Single sink swarm',
+          items: [{ description: 'route collab', agent_type: 'coder' }],
+        },
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    const collaborationMessage = {
+      id: 'msg_single_sink_1',
+      runId: 'uw_single_sink',
+      parentToolCallId: 'call_ultra_swarm_sink',
+      at: '2026-07-01T00:00:02.000Z',
+      from: {
+        expertId: 'security-appsec-engineer',
+        agentId: 'agent_sec',
+        name: 'AppSec Engineer',
+        emoji: '🔒',
+      },
+      to: { expertId: 'impl-engineer' },
+      channel: 'direct' as const,
+      kind: 'status' as const,
+      body: 'Single-sink body must not dual-paint',
+    };
+
+    handler.handleEvent(
+      {
+        type: 'ultrawork.collaboration.message',
+        agentId: 'main',
+        sessionId: 's1',
+        runId: 'uw_single_sink',
+        message: collaborationMessage,
+      } satisfies Event,
+      vi.fn(),
+    );
+    handler.handleEvent(
+      {
+        type: 'ultrawork.collaboration.mention',
+        agentId: 'main',
+        sessionId: 's1',
+        runId: 'uw_single_sink',
+        message: {
+          ...collaborationMessage,
+          id: 'msg_single_sink_2',
+          kind: 'mention' as const,
+          body: 'Single-sink mention body',
+        },
+        mentionExpertIds: ['impl-engineer'],
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    // Regression: when swarm owns the collab feed, theatre must not receive applyEvent.
+    expect(theatreApply).not.toHaveBeenCalled();
+
+    const transcript = children
+      .map((child) => stripAnsi(child.render(120).join('\n')))
+      .join('\n');
+    expect(transcript).toContain('Single-sink body must not dual-paint');
+    expect(transcript).toContain('Single-sink mention body');
+    expect(transcript).toContain('war room');
+  });
+
+  it('keeps debate/steer on swarm sink only while live UltraSwarm owns the feed', () => {
+    const host = makeHost();
+    type TranscriptChild = {
+      render(width: number): string[];
+      applyEvent?: (...args: unknown[]) => unknown;
+    };
+    const children: TranscriptChild[] = [];
+    host.state.transcriptContainer.addChild = vi.fn((child: TranscriptChild) => {
+        if (typeof child.applyEvent === 'function') {
+          const original = child.applyEvent;
+          child.applyEvent = vi.fn((...args: unknown[]) => original.apply(child, args));
+        }
+        children.push(child);
+      },
+    );
+    host.state.transcriptContainer.children = children;
+    host.state.transcriptContainer.invalidate = vi.fn();
+    host.state.ui = {
+      ...host.state.ui,
+      children,
+      terminal: { rows: 40, columns: 120 },
+      requestRender: vi.fn(),
+    };
+    host.state.todoPanel.bumpActivity = vi.fn();
+    host.streamingUI.getTurnContext = vi.fn(() => ({ turnId: 1, step: 0 }));
+    host.streamingUI.registerToolCall = vi.fn();
+    host.streamingUI.finalizeLiveTextBuffers = vi.fn();
+    const handler = new SessionEventHandler(host);
+
+    // Non-swarm stage so theatre would paint debate if applyEvent were called.
+    handler.handleEvent(
+      {
+        type: 'ultrawork.stage.changed',
+        agentId: 'main',
+        sessionId: 's1',
+        from: 'staff',
+        to: 'verify',
+        reason: 'debate single-sink',
+        run: {
+          id: 'uw_debate_sink',
+          objective: 'Debate single-sink',
+          status: 'running',
+          stage: 'verify',
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-07-01T00:00:01.000Z',
+        },
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    const theatre = children.find((child) => typeof child.applyEvent === 'function');
+    expect(theatre).toBeDefined();
+    const theatreApply = theatre!.applyEvent as ReturnType<typeof vi.fn>;
+    theatreApply.mockClear();
+
+    handler.handleEvent(
+      {
+        type: 'tool.call.started',
+        agentId: 'main',
+        sessionId: 's1',
+        turnId: 1,
+        toolCallId: 'call_ultra_swarm_debate',
+        name: 'UltraSwarm',
+        args: {
+          description: 'Debate sink swarm',
+          items: [{ description: 'argue path', agent_type: 'reviewer' }],
+        },
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    const debateText = 'Reject untested auth middleware merge';
+    const steerText = 'Focus on OAuth callback edge cases';
+
+    handler.handleEvent(
+      {
+        type: 'ultrawork.collaboration.debate',
+        agentId: 'main',
+        sessionId: 's1',
+        runId: 'uw_debate_sink',
+        debateId: 'deb_1',
+        workNodeId: 'node_auth',
+        phase: 'critic',
+        expertId: 'security-appsec-engineer',
+        expertName: 'AppSec Engineer',
+        text: debateText,
+        stance: 'oppose',
+      } satisfies Event,
+      vi.fn(),
+    );
+    handler.handleEvent(
+      {
+        type: 'ultrawork.collaboration.steer',
+        agentId: 'main',
+        sessionId: 's1',
+        runId: 'uw_debate_sink',
+        debateId: 'deb_1',
+        text: steerText,
+        fromUser: true,
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    expect(theatreApply).not.toHaveBeenCalled();
+
+    const transcript = children
+      .map((child) => stripAnsi(child.render(120).join('\n')))
+      .join('\n');
+    expect(transcript).toContain(debateText);
+    expect(transcript).toContain(steerText);
+    // Theatre must not paint debate while swarm owns the sink (non-swarm stage would show it).
+    const theatreOnly = stripAnsi(theatre!.render(120).join('\n'));
+    expect(theatreOnly).not.toContain(debateText);
+    expect(theatreOnly).not.toContain(steerText);
+  });
 });

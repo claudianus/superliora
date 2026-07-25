@@ -8,6 +8,7 @@ import {
   evidenceMatchesToken,
   findEvidenceHardGateViolation,
   isCheckLikeEvidenceToken,
+  isPathLikeEvidenceToken,
 } from '../../src/session/swarm-evidence-gate';
 
 function node(overrides: Partial<WorkGraphNode> = {}): WorkGraphNode {
@@ -176,5 +177,66 @@ describe('swarm-evidence-gate', () => {
     });
     expect(nodes[0]?.verificationSummary).toContain('cannot be done');
     expect(nodes[1]?.status).toBe('done');
+  });
+
+  it('blocks done mutators that claim check-like evidence without match (bypass regression)', () => {
+    // Simulates UltraSwarm / mirror writing done without going through UltraworkGraph tool.
+    const mapped = [
+      node({
+        id: 'ac_bypass',
+        status: 'done',
+        requiredEvidence: ['RunProjectChecks', 'test'],
+        evidenceIds: ['handoff-only'],
+        verificationSummary: 'UltraSwarm completed 1 expert result(s)',
+      }),
+    ];
+    const gated = applyEvidenceHardGate(mapped);
+    expect(gated.violations.length).toBeGreaterThan(0);
+    expect(gated.nodes[0]?.status).toBe('blocked');
+    expect(gated.nodes[0]?.verificationStatus).toBe('blocked');
+    expect(gated.nodes[0]?.verificationSummary).toMatch(/cannot be done|RunProjectChecks|test/i);
+  });
+
+  it('allows needs_integration without requiredEvidence (swarm intermediate state)', () => {
+    expect(
+      evaluateEvidenceHardGate(
+        node({
+          status: 'needs_integration',
+          requiredEvidence: ['RunProjectChecks'],
+          evidenceIds: [],
+        }),
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it('treats path-like requiredEvidence as check-like and requires a match (AC-A4)', () => {
+    const pathToken = 'packages/agent-core/test/agent/goal-predicate.test.ts';
+    expect(isCheckLikeEvidenceToken(pathToken)).toBe(true);
+    expect(isPathLikeEvidenceToken(pathToken)).toBe(true);
+
+    const blocked = evaluateEvidenceHardGate(
+      node({
+        id: 'ac_path',
+        status: 'done',
+        requiredEvidence: [pathToken],
+        evidenceIds: ['handoff-only'],
+        verificationSummary: 'looks done',
+      }),
+    );
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.unmatchedCheckTokens).toContain(pathToken);
+    }
+
+    const ok = evaluateEvidenceHardGate(
+      node({
+        id: 'ac_path_ok',
+        status: 'done',
+        requiredEvidence: [pathToken],
+        evidenceIds: [pathToken],
+        verificationSummary: 'vitest green',
+      }),
+    );
+    expect(ok).toEqual({ ok: true });
   });
 });

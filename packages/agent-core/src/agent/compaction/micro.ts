@@ -34,8 +34,16 @@ export interface MicroCompactionPolicyDecision {
     | 'known_mutating_tool'
     | 'content_below_threshold'
     | 'marker_not_smaller'
-    | 'replayable_tool_result';
+    | 'replayable_tool_result'
+    /** Older than the per-tool-name family keep budget (AC-B2). */
+    | 'family_budget_overflow';
 }
+
+/**
+ * Keep at most this many non-mutating tool results per tool name inside the
+ * micro-clearable window; older same-family results clear first (AC-B2).
+ */
+export const MICRO_TOOL_RESULT_FAMILY_KEEP = 3;
 
 /** Defaults favor tool-result clearing as the primary context mechanism (cheap, reversible). */
 const DEFAULT_CONFIG: MicroCompactionConfig = {
@@ -248,6 +256,11 @@ export class MicroCompaction {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return messages;
 
     const latestSwarmToolCallId = findLatestSwarmToolCallId(messages);
+    const familyOverflowIds = computeFamilyBudgetOverflowToolCallIds(
+      messages,
+      this.cutoff,
+      MICRO_TOOL_RESULT_FAMILY_KEEP,
+    );
     const result: ContextMessage[] = [];
     let i = 0;
     for (const msg of messages) {
@@ -267,14 +280,14 @@ export class MicroCompaction {
         i < this.cutoff &&
         msg.role === 'tool' &&
         msg.toolCallId !== undefined &&
-        this.decideToolResultPolicy(msg, messages).action === 'clear'
+        this.decideToolResultPolicy(msg, messages, familyOverflowIds).action === 'clear'
       ) {
         result.push({
           ...msg,
           content: [
             {
               type: 'text',
-              text: this.markerFor(msg, messages),
+              text: this.markerFor(msg, messages, familyOverflowIds),
             } satisfies ContentPart,
           ],
         });
@@ -294,11 +307,16 @@ export class MicroCompaction {
     let truncatedToolResultTokensBefore = 0;
     let truncatedToolResultTokensAfter = 0;
     const clearedPolicyReasons = new Set<MicroCompactionPolicyDecision['reason']>();
+    const familyOverflowIds = computeFamilyBudgetOverflowToolCallIds(
+      messages,
+      cutoff,
+      MICRO_TOOL_RESULT_FAMILY_KEEP,
+    );
     for (let i = 0; i < messages.length && i < cutoff; i++) {
       const message = messages[i];
       if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
 
-      const decision = this.decideToolResultPolicy(message, messages);
+      const decision = this.decideToolResultPolicy(message, messages, familyOverflowIds);
       if (decision.action !== 'clear') continue;
 
       const contentTokens = estimateTokensForContentParts(message.content);
@@ -319,10 +337,11 @@ export class MicroCompaction {
   private markerFor(
     message: ContextMessage,
     messages: readonly ContextMessage[],
+    familyOverflowIds: ReadonlySet<string> = new Set(),
   ): string {
     const tokenCount = estimateTokensForContentParts(message.content);
     const preview = contentPreview(message.content);
-    const policyReason = this.decideToolResultPolicy(message, messages).reason;
+    const policyReason = this.decideToolResultPolicy(message, messages, familyOverflowIds).reason;
     return this.renderMarker(message, messages, policyReason, tokenCount, preview);
   }
 
@@ -360,6 +379,7 @@ export class MicroCompaction {
   private decideToolResultPolicy(
     message: ContextMessage,
     messages: readonly ContextMessage[],
+    familyOverflowIds: ReadonlySet<string> = new Set(),
   ): MicroCompactionPolicyDecision {
     if (message.isError === true) {
       return { action: 'preserve', reason: 'error_result' };
@@ -375,8 +395,13 @@ export class MicroCompaction {
       return { action: 'preserve', reason: 'content_below_threshold' };
     }
 
-    if (this.markerTokenCount(message, messages) >= contentTokens) {
+    if (this.markerTokenCount(message, messages, familyOverflowIds) >= contentTokens) {
       return { action: 'preserve', reason: 'marker_not_smaller' };
+    }
+
+    const toolCallId = message.toolCallId;
+    if (toolCallId !== undefined && familyOverflowIds.has(toolCallId)) {
+      return { action: 'clear', reason: 'family_budget_overflow' };
     }
 
     return { action: 'clear', reason: 'replayable_tool_result' };
@@ -385,11 +410,16 @@ export class MicroCompaction {
   private markerTokenCount(
     message: ContextMessage,
     messages: readonly ContextMessage[],
+    familyOverflowIds: ReadonlySet<string> = new Set(),
   ): number {
+    const reason =
+      message.toolCallId !== undefined && familyOverflowIds.has(message.toolCallId)
+        ? 'family_budget_overflow'
+        : 'replayable_tool_result';
     return estimateTokensForContentParts([
       {
         type: 'text',
-        text: this.renderMarker(message, messages, 'replayable_tool_result'),
+        text: this.renderMarker(message, messages, reason),
       },
     ]);
   }
@@ -463,6 +493,42 @@ const KNOWN_MUTATING_TOOLS = new Set([
   'Write',
 ]);
 
+
+/**
+ * Within the micro-clearable prefix [0, cutoff), keep the newest `keep` tool
+ * results per tool name; older same-family toolCallIds are overflow (AC-B2).
+ * Mutating tools are excluded (never family-cleared via this path alone).
+ */
+export function computeFamilyBudgetOverflowToolCallIds(
+  messages: readonly ContextMessage[],
+  cutoff: number,
+  keep: number = MICRO_TOOL_RESULT_FAMILY_KEEP,
+): ReadonlySet<string> {
+  const keepN = Math.max(0, Math.floor(keep));
+  // toolName -> toolCallIds in chronological order within the clearable window
+  const byFamily = new Map<string, string[]>();
+  const limit = Math.min(messages.length, Math.max(0, cutoff));
+  for (let i = 0; i < limit; i++) {
+    const msg = messages[i];
+    if (msg?.role !== 'tool' || msg.toolCallId === undefined) continue;
+    const toolName = toolNameForMessage(msg.toolCallId, messages);
+    if (toolName === undefined) continue;
+    if (isStatefulOrMutatingTool(toolName)) continue;
+    const list = byFamily.get(toolName) ?? [];
+    list.push(msg.toolCallId);
+    byFamily.set(toolName, list);
+  }
+  const overflow = new Set<string>();
+  for (const ids of byFamily.values()) {
+    if (ids.length <= keepN) continue;
+    // Keep the newest `keepN` (tail); older prefix overflows.
+    for (const id of ids.slice(0, ids.length - keepN)) {
+      overflow.add(id);
+    }
+  }
+  return overflow;
+}
+
 export function isStatefulOrMutatingTool(toolName: string): boolean {
   return KNOWN_MUTATING_TOOLS.has(toolName);
 }
@@ -488,7 +554,7 @@ function toolNameForMessage(
   messages: readonly ContextMessage[],
 ): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const match = messages[i]?.toolCalls.find((toolCall) => toolCall.id === toolCallId);
+    const match = messages[i]?.toolCalls?.find((toolCall) => toolCall.id === toolCallId);
     if (match !== undefined) return match.name;
   }
   return undefined;

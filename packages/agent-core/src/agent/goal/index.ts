@@ -2,13 +2,39 @@ import { randomUUID } from 'node:crypto';
 
 import { ErrorCodes, LioraError } from '#/errors';
 import type { Agent } from '..';
-import { maybeAdvanceUltraworkOnGoalComplete, maybeAdvanceUltraworkStage } from '../../ultrawork';
+import {
+  maybeAdvanceUltraworkOnGoalComplete,
+  maybeAdvanceUltraworkStage,
+} from '../../ultrawork';
+import {
+  auditUltraworkCompletion,
+  formatCompletionAuditRejection,
+  type CompletionAuditRejection,
+} from '../../ultrawork/completion-audit';
 import type { ModeActivationSource } from '../mode-activation';
 import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import type { AgentRecordOf } from '../records/types';
 import {
   type TelemetryProperties,
 } from '../../telemetry';
+import { parseGoalPredicateCriterion } from './predicate';
+import {
+  countEvidenceIds,
+  evaluateGoalPredicate,
+  formatPredicateFailures,
+} from './predicate-runner';
+
+/**
+ * After a false-complete rejection, further `markComplete` attempts are rejected
+ * with `reject_cooldown` until this many goal turns have elapsed (AC-A3).
+ */
+export const GOAL_COMPLETE_REJECT_COOLDOWN_TURNS = 3;
+
+/**
+ * Consecutive goal turns with an unchanged progress signature before the
+ * driver injects a no-progress reminder (AC-C1).
+ */
+export const GOAL_NO_PROGRESS_STREAK_K = 6;
 
 /**
  * Durable goal-mode state owned by {@link GoalMode}.
@@ -223,6 +249,13 @@ interface GoalReasonInput {
 export class GoalMode {
   private state: GoalState | undefined;
   private activationSource: ModeActivationSource = DEFAULT_MODE_ACTIVATION_SOURCE;
+  /** Consecutive false-complete rejections (cleared on successful complete). */
+  private completionRejectStreak = 0;
+  /** `turnsUsed` when the last completion rejection was recorded. */
+  private lastRejectAtTurn: number | undefined;
+  /** Progress fingerprint from the previous goal turn (no-progress detector). */
+  private lastProgressSignature: string | undefined;
+  private noProgressStreak = 0;
 
   constructor(private readonly agent: Agent) {
   }
@@ -531,6 +564,14 @@ export class GoalMode {
    * final stats (so the UI/caller can render the outcome), then clears the goal
    * so the box disappears. Returns the final snapshot (status `complete`). No-ops
    * for a goal that is missing or not active.
+   *
+   * Guards (keep goal `active` on failure — AC-A2/A3):
+   * 1. Reject cooldown N={@link GOAL_COMPLETE_REJECT_COOLDOWN_TURNS} after a
+   *    false complete (model actor only — runtime finish may close verified runs).
+   * 2. Ultrawork completion audit when a live run is bound.
+   * 3. Structured {@link parseGoalPredicateCriterion} evaluation when present.
+   *
+   * Caller (UpdateGoal) should surface {@link getLastCompletionRejection}.
    */
   async markComplete(
     input: GoalReasonInput = {},
@@ -538,6 +579,24 @@ export class GoalMode {
   ): Promise<GoalSnapshot | null> {
     const state = this.state;
     if (state === undefined || state.status !== 'active') return null;
+
+    const rejection =
+      this.checkCompleteRejectCooldown(state, actor) ??
+      this.auditUltraworkBoundCompletion(actor) ??
+      (await this.evaluateStructuredCompletionPredicate(state));
+
+    if (rejection !== null) {
+      this.recordCompletionRejection(state, rejection, actor);
+      // Keep goal active so the autonomous loop continues.
+      return null;
+    }
+
+    this.lastCompletionRejection = undefined;
+    this.completionRejectStreak = 0;
+    this.lastRejectAtTurn = undefined;
+    this.noProgressStreak = 0;
+    this.lastProgressSignature = undefined;
+
     this.applyStatus(state, 'complete');
     state.terminalReason = input.reason;
     const snapshot = this.toSnapshot(state);
@@ -556,6 +615,166 @@ export class GoalMode {
     // ...then clear the durable record (emits onGoalUpdated(null) → box clears).
     this.clearInternal(actor);
     return snapshot;
+  }
+
+  /**
+   * Last rejection from {@link markComplete} (ultrawork / predicate / cooldown).
+   * Cleared on a successful complete. UpdateGoal reads this for tool output.
+   */
+  getLastCompletionRejection(): CompletionAuditRejection | undefined {
+    return this.lastCompletionRejection;
+  }
+
+  /** Consecutive false-complete rejections since last success (tests / dashboards). */
+  getCompletionRejectStreak(): number {
+    return this.completionRejectStreak;
+  }
+
+  /**
+   * Record end-of-turn progress for the no-progress detector (AC-C1).
+   * Call from the goal driver after each completed goal turn while still active.
+   * Returns the current streak after update.
+   */
+  noteGoalTurnProgress(signature: string): number {
+    const sig = signature.trim();
+    if (sig.length === 0) return this.noProgressStreak;
+    if (this.lastProgressSignature !== undefined && this.lastProgressSignature === sig) {
+      this.noProgressStreak += 1;
+    } else {
+      this.noProgressStreak = 0;
+      this.lastProgressSignature = sig;
+    }
+    return this.noProgressStreak;
+  }
+
+  getNoProgressStreak(): number {
+    return this.noProgressStreak;
+  }
+
+  private lastCompletionRejection: CompletionAuditRejection | undefined;
+
+  private checkCompleteRejectCooldown(
+    state: GoalState,
+    actor: GoalActor,
+  ): CompletionAuditRejection | null {
+    // Runtime finish paths may close a verified run without waiting for cooldown.
+    if (actor === 'runtime' || actor === 'system') return null;
+    if (this.lastRejectAtTurn === undefined || this.completionRejectStreak === 0) {
+      return null;
+    }
+    const elapsed = state.turnsUsed - this.lastRejectAtTurn;
+    if (elapsed >= GOAL_COMPLETE_REJECT_COOLDOWN_TURNS) return null;
+    const remaining = GOAL_COMPLETE_REJECT_COOLDOWN_TURNS - elapsed;
+    return {
+      ok: false,
+      code: 'reject_cooldown',
+      reasons: [
+        `Completion rejected: cooldown active (${elapsed}/${GOAL_COMPLETE_REJECT_COOLDOWN_TURNS} turns since last false complete).`,
+        `Reject streak: ${this.completionRejectStreak}. Wait ~${remaining} more goal turn(s) and make real progress before UpdateGoal(complete).`,
+      ],
+      nextActions: [
+        'Implement or verify open work (tests, evidence, WorkGraph nodes).',
+        `Do not spam UpdateGoal(complete); wait at least ${GOAL_COMPLETE_REJECT_COOLDOWN_TURNS} goal turns after a rejection.`,
+      ],
+    };
+  }
+
+  private recordCompletionRejection(
+    state: GoalState,
+    rejection: CompletionAuditRejection,
+    actor: GoalActor,
+  ): void {
+    this.lastCompletionRejection = rejection;
+    // Cooldown rejections do not inflate the streak further.
+    if (rejection.code !== 'reject_cooldown') {
+      this.completionRejectStreak += 1;
+      this.lastRejectAtTurn = state.turnsUsed;
+    }
+    this.agent.context.appendSystemReminder(formatCompletionAuditRejection(rejection), {
+      kind: 'injection',
+      variant: 'ultrawork_completion_rejected',
+    });
+    this.agent.log?.warn?.('goal markComplete rejected', {
+      code: rejection.code,
+      actor,
+      reasons: rejection.reasons,
+      streak: this.completionRejectStreak,
+    });
+    this.agent.telemetry.track('goal_complete_audit_rejected', {
+      code: rejection.code,
+      actor,
+      open_nodes: rejection.openNodeIds?.length ?? 0,
+      reject_streak: this.completionRejectStreak,
+    });
+  }
+
+  /**
+   * When the goal was activated by Ultrawork (or an Ultrawork run is live),
+   * require a passing completion audit. Plain standalone goals are unrestricted
+   * unless a structured GoalPredicate is set (see evaluateStructured…).
+   * Runtime actor still requires audit so empty graphs cannot close via finish.
+   */
+  private auditUltraworkBoundCompletion(
+    _actor: GoalActor,
+  ): CompletionAuditRejection | null {
+    const run = this.agent.ultrawork?.getRun() ?? null;
+    // No live ultrawork run: plain goal mode may complete freely (predicate still applies).
+    if (run === null) return null;
+    // Already terminal: allow markComplete to clear the goal box.
+    if (run.status === 'done' || run.status === 'failed') return null;
+    const audit = auditUltraworkCompletion({ run, requireWorkGraph: true });
+    if (audit.ok) return null;
+    return audit;
+  }
+
+  /**
+   * Evaluate structured GoalPredicate embedded in completionCriterion.
+   * Legacy free-text criteria are not machine-checked here (model + UW audit).
+   */
+  private async evaluateStructuredCompletionPredicate(
+    state: GoalState,
+  ): Promise<CompletionAuditRejection | null> {
+    const parsed = parseGoalPredicateCriterion(state.completionCriterion);
+    if (parsed.kind !== 'structured') return null;
+
+    const run = this.agent.ultrawork?.getRun() ?? null;
+    const workspaceRoot =
+      (this.agent as { config?: { cwd?: string } }).config?.cwd ?? process.cwd();
+
+    try {
+      const result = await evaluateGoalPredicate({
+        spec: parsed.spec,
+        workspaceRoot,
+        ultraworkRun: run,
+        evidenceIdCount: countEvidenceIds(run),
+      });
+      if (result.ok) return null;
+      return {
+        ok: false,
+        code: 'predicate_failed',
+        reasons: [
+          'Structured GoalPredicate evaluation failed.',
+          ...result.failures.map((f) => `[${f.code}] ${f.message}`),
+        ],
+        nextActions: [
+          'Create missing requiredPaths or fix requiredTestFiles.',
+          'Attach evidenceIds / pass Ultrawork audit when requireUltraworkGraph is set.',
+          'Only then call UpdateGoal(complete).',
+        ],
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        code: 'predicate_failed',
+        reasons: [
+          `GoalPredicate runner error: ${error instanceof Error ? error.message : String(error)}`,
+          formatPredicateFailures([]),
+        ],
+        nextActions: [
+          'Fix the predicate runner environment (workspace cwd, vitest) and retry.',
+        ],
+      };
+    }
   }
 
   // --- User-interrupt transition ----------------------------------------

@@ -50,6 +50,7 @@ import {
   resolveProviderRecovery,
   type ProviderRecoveryState,
 } from '../provider-failover';
+import { GOAL_NO_PROGRESS_STREAK_K } from '../goal';
 
 interface ActiveTurn {
   readonly turnId: number;
@@ -475,6 +476,28 @@ export class TurnFlow {
       if (goal.budget.overBudget) {
         await this.agent.goal.markBlocked({ reason: 'A configured budget was reached' });
         return end;
+      }
+
+      // No-progress detector (AC-C1): same WorkGraph/goal progress signature for K turns
+      // → inject a reminder so the model changes approach instead of spinning.
+      const progressSignature = buildGoalProgressSignature(this.agent);
+      const streak = this.agent.goal.noteGoalTurnProgress(progressSignature);
+      if (streak >= GOAL_NO_PROGRESS_STREAK_K) {
+        this.agent.context.appendSystemReminder(
+          [
+            '<goal_no_progress>',
+            `No material progress for ${streak} consecutive goal turns (threshold K=${GOAL_NO_PROGRESS_STREAK_K}).`,
+            `Progress signature: ${progressSignature}`,
+            'Change approach: re-read open WorkGraph nodes, run real verification, avoid repeating the same failing tool path.',
+            'If truly blocked on external input, call UpdateGoal with `blocked`.',
+            '</goal_no_progress>',
+          ].join('\n'),
+          { kind: 'injection', variant: 'goal_no_progress' },
+        );
+        this.agent.telemetry.track('goal_no_progress', {
+          streak,
+          threshold: GOAL_NO_PROGRESS_STREAK_K,
+        });
       }
 
       turnId = this.allocateTurnId();
@@ -1472,3 +1495,22 @@ function abandonedToolResultOutput(ended: TurnEndedEvent): string {
         : 'the turn ended';
   return `Tool call did not complete: ${cause} before its result was recorded. Do not assume the tool completed successfully.`;
 }
+
+function buildGoalProgressSignature(agent: Agent): string {
+  const goal = agent.goal.getGoal().goal;
+  const run = agent.ultrawork?.getRun() ?? null;
+  const parts: string[] = [
+    `goal:${goal?.goalId ?? 'none'}:${goal?.status ?? 'none'}:${goal?.turnsUsed ?? 0}`,
+  ];
+  if (run === null || run.workGraph === undefined) {
+    parts.push('uw:none');
+    return parts.join('|');
+  }
+  const nodes = run.workGraph.nodes;
+  const open = nodes.filter((n) => n.status !== 'done' && n.status !== 'failed').map((n) => n.id);
+  const done = nodes.filter((n) => n.status === 'done').length;
+  const evidence = nodes.reduce((acc, n) => acc + (n.evidenceIds?.length ?? 0), 0);
+  parts.push(`uw:${run.id}:${run.status}:done=${done}:open=${open.slice(0, 12).join(',')}:ev=${evidence}`);
+  return parts.join('|');
+}
+

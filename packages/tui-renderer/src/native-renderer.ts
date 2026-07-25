@@ -235,7 +235,11 @@ export class NativeTerminalRenderer {
   readonly trace: RendererTraceRecorder;
 
   private started = false;
-  private readonly inputDecoder = new NativeInputDecoder();
+  private readonly inputDecoder = new NativeInputDecoder({
+    onResolvedEvents: (events) => {
+      this.dispatchDecodedInputEvents(events);
+    },
+  });
   private lastRenderResult: NativeTerminalRendererRenderResult | undefined;
   private readonly options: NativeTerminalRendererOptions;
   private readonly adaptiveQualityEnabled: boolean;
@@ -295,14 +299,7 @@ export class NativeTerminalRenderer {
           this.options.onInputEvent !== undefined ||
           this.options.inputRouter !== undefined
         ) {
-          for (const event of this.inputDecoder.decode(data)) {
-            this.trace.recordInput({
-              timestampMs: this.loop.now(),
-              input: nativeInputTraceData(event),
-            });
-            this.options.onInputEvent?.(event);
-            this.options.inputRouter?.dispatch(event);
-          }
+          this.dispatchDecodedInputEvents(this.inputDecoder.decode(data));
         }
       },
       onResize: (size) => {
@@ -361,6 +358,17 @@ export class NativeTerminalRenderer {
     return this.synchronizedOutputProbeResultValue;
   }
 
+  private dispatchDecodedInputEvents(events: readonly NativeInputEvent[]): void {
+    for (const event of events) {
+      this.trace.recordInput({
+        timestampMs: this.loop.now(),
+        input: nativeInputTraceData(event),
+      });
+      this.options.onInputEvent?.(event);
+      this.options.inputRouter?.dispatch(event);
+    }
+  }
+
   get isOutputBackpressured(): boolean {
     return this.outputBackpressured;
   }
@@ -404,6 +412,8 @@ export class NativeTerminalRenderer {
     this.abortSynchronizedOutputProbe();
     this.clearOutputBackpressure();
     this.clearAutoFrameHold();
+    // Drop any bare-ESC timer so a stopped renderer cannot emit late Escape.
+    this.inputDecoder.dispose();
     this.loop.stop();
     this.session.stop();
   }

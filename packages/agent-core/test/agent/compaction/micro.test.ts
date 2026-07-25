@@ -1,7 +1,11 @@
 import type { ContentPart, Message } from '@superliora/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MicroTriggerTracker } from '../../../src/agent/compaction/micro';
+import {
+  computeFamilyBudgetOverflowToolCallIds,
+  MicroTriggerTracker,
+  MICRO_TOOL_RESULT_FAMILY_KEEP,
+} from '../../../src/agent/compaction/micro';
 
 import type { AgentRecord } from '../../../src/agent';
 import {
@@ -1188,3 +1192,35 @@ describe('MicroTriggerTracker', () => {
     });
   });
 });
+
+
+describe('computeFamilyBudgetOverflowToolCallIds', () => {
+  it('marks older same-family tool results beyond keep N as overflow', () => {
+    const messages = [
+      {
+        role: 'assistant' as const,
+        content: [],
+        toolCalls: [
+          { id: 'r1', name: 'Read', arguments: {} },
+          { id: 'r2', name: 'Read', arguments: {} },
+          { id: 'r3', name: 'Read', arguments: {} },
+          { id: 'r4', name: 'Read', arguments: {} },
+          { id: 'g1', name: 'Grep', arguments: {} },
+        ],
+      },
+      { role: 'tool' as const, toolCallId: 'r1', content: [{ type: 'text' as const, text: 'a'.repeat(200) }] },
+      { role: 'tool' as const, toolCallId: 'r2', content: [{ type: 'text' as const, text: 'b'.repeat(200) }] },
+      { role: 'tool' as const, toolCallId: 'r3', content: [{ type: 'text' as const, text: 'c'.repeat(200) }] },
+      { role: 'tool' as const, toolCallId: 'r4', content: [{ type: 'text' as const, text: 'd'.repeat(200) }] },
+      { role: 'tool' as const, toolCallId: 'g1', content: [{ type: 'text' as const, text: 'e'.repeat(200) }] },
+    ] as any;
+    const overflow = computeFamilyBudgetOverflowToolCallIds(messages, messages.length, 3);
+    expect(overflow.has('r1')).toBe(true);
+    expect(overflow.has('r2')).toBe(false);
+    expect(overflow.has('r3')).toBe(false);
+    expect(overflow.has('r4')).toBe(false);
+    expect(overflow.has('g1')).toBe(false);
+    expect(MICRO_TOOL_RESULT_FAMILY_KEEP).toBe(3);
+  });
+});
+

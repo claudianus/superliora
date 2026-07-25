@@ -17,6 +17,19 @@ export {
   applyUltraworkResumeSkipInterview,
 } from './recovery';
 export {
+  auditUltraworkCompletion,
+  formatCompletionAuditRejection,
+  gateWorkGraphNodes,
+} from './completion-audit';
+export type {
+  AuditUltraworkCompletionInput,
+  CompletionAuditCode,
+  CompletionAuditPass,
+  CompletionAuditRejection,
+  CompletionAuditResult,
+} from './completion-audit';
+export { injectCompletionAuditRejectionReminder } from './finish-run';
+export {
   CONTINUE_GOAL_INPUT,
   detectInterruptedWorkResumeIntentWithLlm,
   hasInterruptedWorkResumeContext,

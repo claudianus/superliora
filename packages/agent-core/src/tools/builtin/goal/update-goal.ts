@@ -67,8 +67,28 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
               kind: 'system_trigger',
               name: GOAL_COMPLETION_REMINDER_NAME,
             });
+            return { output: 'Goal marked complete.', stopTurn: true };
           }
-          return { output: 'Goal marked complete.', stopTurn: true };
+          // Ultrawork completion audit rejected a false complete — keep the
+          // loop running (do not stopTurn) so the model continues work.
+          const rejection = goal.getLastCompletionRejection();
+          if (rejection !== undefined) {
+            return {
+              output: [
+                'Goal completion rejected (false-complete guard).',
+                `code: ${rejection.code}`,
+                ...rejection.reasons.map((r) => `- ${r}`),
+                'Next:',
+                ...rejection.nextActions.map((a) => `- ${a}`),
+                'Keep implementing and verifying; do not claim done without WorkGraph evidence.',
+              ].join('\n'),
+              isError: true,
+            };
+          }
+          return {
+            output: 'Goal could not be marked complete (missing or inactive).',
+            isError: true,
+          };
         }
         if (args.status === 'blocked') {
           const blocked = await goal.markBlocked({}, 'model');

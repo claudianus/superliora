@@ -47,6 +47,12 @@ export const CHECK_LIKE_EVIDENCE_TOKENS = [
   'VerifySurface',
   'screenshot',
   'test',
+  /** Vitest / package test file paths as requiredEvidence tokens. */
+  '.test.ts',
+  '.test.tsx',
+  '.spec.ts',
+  'vitest',
+  'smoke',
 ] as const;
 
 /**
@@ -115,15 +121,46 @@ export function evaluateEvidenceHardGate(node: EvidenceGateNode): EvidenceGateRe
 /**
  * True when a requiredEvidence token is a check/tool signal that must be
  * matched, not only accompanied by arbitrary evidenceIds.
+ *
+ * Path-like tokens (`packages/.../foo.test.ts`, `src/x.ts`, absolute paths) are
+ * treated as check-like so done nodes cannot claim file evidence without a
+ * matching evidenceId / verificationSummary (AC-A4).
  */
 export function isCheckLikeEvidenceToken(token: string): boolean {
-  const normalized = normalizeEvidenceToken(token);
+  const trimmed = token.trim();
+  if (trimmed.length === 0) return false;
+  if (isPathLikeEvidenceToken(trimmed)) return true;
+  const normalized = normalizeEvidenceToken(trimmed);
   if (normalized.length === 0) return false;
   return CHECK_LIKE_EVIDENCE_TOKENS.some((known) => {
     const nKnown = normalizeEvidenceToken(known);
     // Bidirectional substring so "unit-test" / "RunProjectChecksTool" still hit.
     return normalized.includes(nKnown) || nKnown.includes(normalized);
   });
+}
+
+/**
+ * Workspace-relative / absolute path tokens that should require a match, not
+ * mere non-empty evidenceIds. Conservative heuristics — avoids treating free
+ * prose as a path.
+ */
+export function isPathLikeEvidenceToken(token: string): boolean {
+  const t = token.trim();
+  if (t.length < 3) return false;
+  if (t.includes('://')) return false;
+  // Absolute or home-relative path
+  if (t.startsWith('/') || t.startsWith('~/') || /^[A-Za-z]:[\\/]/.test(t)) return true;
+  // Explicit relative path
+  if (t.startsWith('./') || t.startsWith('../')) return true;
+  // Contains a path separator and a file-ish suffix or known package root
+  if ((t.includes('/') || t.includes('\\')) && (
+    /\.(ts|tsx|js|mjs|cjs|json|md|png|jpg|webp|log|txt)$/i.test(t) ||
+    /(?:^|\/)(?:packages|apps|src|test|tests|scripts|docs)\//i.test(t) ||
+    /\.(test|spec)\./i.test(t)
+  )) {
+    return true;
+  }
+  return false;
 }
 
 /**

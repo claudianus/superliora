@@ -115,6 +115,20 @@ describe('swarm-dag-scheduler', () => {
     });
   });
 
+  it('treats needs_integration as unschedulable (not ready)', () => {
+    const nodes = [
+      n('a', 'needs_integration'),
+      n('b', 'queued', ['a']),
+      n('c', 'queued'),
+    ];
+    // a is terminal-for-schedule; b still blocked because deps require done/succeeded
+    expect(readyNodeIds(nodes)).toEqual(['c']);
+    expect(partitionReadyWorkNodeIds(nodes)).toEqual({
+      readyIds: ['c'],
+      blockedIds: ['b'],
+    });
+  });
+
   it('preferReadyWorkNodeIds keeps only ready bound ids when any are ready', () => {
     const nodes = [n('a', 'queued'), n('b', 'queued', ['a']), n('c', 'queued')];
     expect(preferReadyWorkNodeIds(['a', 'b', 'c'], nodes)).toEqual(['a', 'c']);

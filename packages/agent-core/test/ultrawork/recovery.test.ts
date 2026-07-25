@@ -79,26 +79,45 @@ describe('Ultrawork goal completion', () => {
     expect(agent.ultrawork.isModeEnabled()).toBe(false);
   });
 
-  it('markComplete with ultrawork at plan clears goal and finishes run', async () => {
+  it('markComplete with empty WorkGraph is rejected (false-complete guard)', async () => {
     const agent = new Agent({ kaos: testKaos });
     createUltraworkAtPlan(agent, 'run-mark-complete-plan');
     await agent.goal.createGoal({ objective: 'Ship docs', source: 'ultrawork' });
 
     const snapshot = await agent.goal.markComplete({}, 'model');
+    expect(snapshot).toBeNull();
+    expect(agent.goal.getGoal().goal).not.toBeNull();
+    expect(agent.goal.getGoal().goal?.status).toBe('active');
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+    expect(agent.goal.getLastCompletionRejection()?.code).toBe('empty_work_graph');
+  });
+
+  it('markComplete succeeds after WorkGraph is fully done', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    createUltraworkAtPlan(agent, 'run-mark-complete-with-graph');
+    await agent.goal.createGoal({ objective: 'Ship docs', source: 'ultrawork' });
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
+      id: 'run-mark-complete-with-graph:work_graph',
+      runId: 'run-mark-complete-with-graph',
+      nodes: [{ id: 'node-1', title: 'Implement', stage: 'integrate', status: 'done' }],
+    });
+    agent.ultrawork.syncWorkGraphFromStore();
+
+    const snapshot = await agent.goal.markComplete({}, 'model');
     expect(snapshot?.status).toBe('complete');
     expect(agent.goal.getGoal().goal).toBeNull();
     expect(agent.ultrawork.getRun()?.status).toBe('done');
-    expect(agent.ultrawork.getRun()?.stage).toBe('done');
   });
 
-  it('maybeAdvanceUltraworkOnGoalComplete from plan finishes run without throwing', async () => {
+  it('maybeAdvanceUltraworkOnGoalComplete from plan does not force-finish empty graph', async () => {
     const agent = new Agent({ kaos: testKaos });
     createUltraworkAtPlan(agent, 'run-advance-on-goal-complete');
     await agent.goal.createGoal({ objective: 'Ship docs' });
 
     maybeAdvanceUltraworkOnGoalComplete(agent);
-    expect(agent.ultrawork.getRun()?.status).toBe('done');
-    expect(agent.ultrawork.getRun()?.stage).toBe('done');
+    // False-complete guard: empty WorkGraph must keep the run open.
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+    expect(agent.ultrawork.getRun()?.stage).toBe('plan');
   });
 
   it('finishing the run when the work graph completes also closes the active goal', async () => {
@@ -149,7 +168,7 @@ describe('Ultrawork goal completion', () => {
     });
   });
 
-  it('maybeAdvanceUltraworkOnGoalComplete finishes a blocked run', async () => {
+  it('maybeAdvanceUltraworkOnGoalComplete does not force-finish blocked run without WorkGraph', async () => {
     const agent = new Agent({ kaos: testKaos });
     createUltraworkAtPlan(agent, 'run-blocked-on-goal-complete');
     await agent.goal.createGoal({ objective: 'Ship docs' });
@@ -157,8 +176,8 @@ describe('Ultrawork goal completion', () => {
     expect(agent.ultrawork.getRun()?.status).toBe('blocked');
 
     maybeAdvanceUltraworkOnGoalComplete(agent);
-    expect(agent.ultrawork.getRun()?.status).toBe('done');
-    expect(agent.ultrawork.getRun()?.stage).toBe('done');
+    // Blocked + empty WorkGraph must not force completeLearnStage.
+    expect(agent.ultrawork.getRun()?.status).toBe('blocked');
   });
 
   it('completeLearnStage from learn transitions to done', () => {
@@ -489,6 +508,56 @@ describe('Ultrawork recovery', () => {
     expect(result.teamPlan?.experts[0]?.status).toBe('queued');
     expect(result.orphanedWorkNodes).toEqual(['node-1']);
     expect(result.orphanedExperts).toEqual(['expert-1']);
+  });
+
+  it('interrupt → resume reconciles running nodes and preserves interrupt reason', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-interrupt-reconcile',
+      objective: 'Resume after interrupt',
+      activation: ultraworkActivation('run-interrupt-reconcile'),
+    });
+    const graph: WorkGraph = {
+      id: 'run-interrupt-reconcile:work_graph',
+      runId: 'run-interrupt-reconcile',
+      nodes: [
+        {
+          id: 'node-running',
+          title: 'In flight implement',
+          stage: 'swarm',
+          status: 'running',
+        },
+        {
+          id: 'node-queued',
+          title: 'Waiting',
+          stage: 'swarm',
+          status: 'queued',
+          dependsOn: ['node-running'],
+        },
+      ],
+    };
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, graph);
+    agent.ultrawork.syncWorkGraphFromStore();
+
+    await agent.ultrawork.markInterrupted({
+      reason: 'Provider aborted mid-swarm phase',
+    });
+
+    const resumed = await agent.ultrawork.resume();
+    expect(resumed).toBeTruthy();
+    expect(resumed?.recoveryPrompt).toContain('Provider aborted mid-swarm phase');
+
+    const run = agent.ultrawork.getRun();
+    expect(run?.status).toBe('running');
+    const nodes = run?.workGraph?.nodes ?? [];
+    const runningNode = nodes.find((n) => n.id === 'node-running');
+    // running → blocked with recovery summary (reconcile path)
+    expect(runningNode?.status).toBe('blocked');
+    expect(runningNode?.verificationSummary ?? '').toMatch(/Recovered after interruption|interrupt/i);
+
+    const queuedNode = nodes.find((n) => n.id === 'node-queued');
+    // queued stays queued — only running is orphaned
+    expect(queuedNode?.status).toBe('queued');
   });
 
   it('builds a recovery prompt with next actions', () => {

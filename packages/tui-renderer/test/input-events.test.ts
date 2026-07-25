@@ -253,7 +253,7 @@ describe('NativeInputDecoder', () => {
   });
 
   it('buffers an incomplete SGR mouse sequence until the next chunk', () => {
-    const decoder = new NativeInputDecoder();
+    const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
 
     expect(decoder.decode('\u001B[<64;10')).toEqual([]);
     expect(decoder.decode(';5M')).toEqual([
@@ -268,6 +268,83 @@ describe('NativeInputDecoder', () => {
         alt: false,
         shift: false,
       },
+    ]);
+  });
+
+  it('does not emit Escape when a bare ESC is followed by a split SGR wheel sequence', () => {
+    // Root cause of transcript-scroll false Ultrawork interrupt: PTY delivers
+    // `\u001B` then `[<64;…M` across chunks. Emitting Escape on the first byte
+    // cancelled the in-flight turn.
+    const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
+
+    expect(decoder.decode('\u001B')).toEqual([]);
+    expect(decoder.hasPendingControl).toBe(true);
+    expect(decoder.decode('[<64;10;5M')).toEqual([
+      {
+        type: 'mouse',
+        raw: '\u001B[<64;10;5M',
+        button: 'wheel-up',
+        action: 'wheel',
+        x: 9,
+        y: 4,
+        ctrl: false,
+        alt: false,
+        shift: false,
+      },
+    ]);
+    expect(decoder.hasPendingControl).toBe(false);
+  });
+
+  it('resolves a true bare ESC only after the resolve timeout', () => {
+    let resolved: readonly import('../src').NativeInputEvent[] = [];
+    let timerCb: (() => void) | undefined;
+    const decoder = new NativeInputDecoder({
+      escapeResolveMs: 35,
+      setTimer: ((cb: () => void) => {
+        timerCb = cb;
+        return 1 as unknown as ReturnType<typeof setTimeout>;
+      }) as typeof setTimeout,
+      clearTimer: (() => {
+        timerCb = undefined;
+      }) as typeof clearTimeout,
+      onResolvedEvents: (events) => {
+        resolved = events;
+      },
+    });
+
+    expect(decoder.decode('\u001B')).toEqual([]);
+    expect(timerCb).toBeTypeOf('function');
+    timerCb?.();
+    expect(resolved).toEqual([
+      { type: 'key', key: 'escape', raw: '\u001B', ctrl: false, alt: false, shift: false },
+    ]);
+  });
+
+  it('buffers incomplete X10 mouse and does not emit Escape mid-sequence', () => {
+    const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
+    // X10: ESC [ M Cb Cx Cy with values = field + 32.
+    // left press @ 1-based (10,5) → Cb=' ', Cx='*', Cy='%'.
+    expect(decoder.decode('\u001B')).toEqual([]);
+    expect(decoder.decode('[M *%')).toEqual([
+      {
+        type: 'mouse',
+        raw: '\u001B[M *%',
+        button: 'left',
+        action: 'press',
+        x: 9,
+        y: 4,
+        ctrl: false,
+        alt: false,
+        shift: false,
+      },
+    ]);
+  });
+
+  it('buffers incomplete SS3 (ESC O) without treating it as Escape', () => {
+    const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
+    expect(decoder.decode('\u001BO')).toEqual([]);
+    expect(decoder.decode('P')).toEqual([
+      { type: 'key', key: 'f1', raw: '\u001BOP', ctrl: false, alt: false, shift: false },
     ]);
   });
 

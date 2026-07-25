@@ -56,8 +56,9 @@ import {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
   rebindPhaseWorkNodeIds,
-  SWARM_DAG_DONE_STATUSES,
+  SWARM_DAG_TERMINAL_STATUSES,
 } from '../../../session/swarm-dag-scheduler';
+import { applyEvidenceHardGate } from '../../../session/swarm-evidence-gate';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
@@ -537,6 +538,11 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     let blockedBy: UltraSwarmRenderedResult | undefined;
     let team = input.team;
     let budgetState: SwarmBudgetState = createSwarmBudgetState();
+    let budgetKilled = false;
+    // Child controller so budget kill can abort in-flight/remaining phase work
+    // without requiring the parent tool signal to be re-abortable.
+    const phaseController = createLinkedAbortController(input.signal);
+    const phaseSignal = phaseController.signal;
 
     for (const phase of ULTRA_SWARM_PHASES) {
       const phaseSpecs = input.specs.filter((spec) => spec.phase === phase);
@@ -544,6 +550,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       if (blockedBy !== undefined) {
         phaseResults.push(...blockedResultsForPhase(phaseSpecs, blockedBy));
         continue;
+      }
+      if (budgetKilled || phaseSignal.aborted) {
+        break;
       }
 
       if (input.busEnabled) {
@@ -586,7 +595,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         profileBaseName: input.profileBaseName,
         toolCallId: input.toolCallId,
         runId: input.runId,
-        signal: input.signal,
+        signal: phaseSignal,
       });
 
       if (phase === 'review') {
@@ -600,7 +609,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           profileBaseName: input.profileBaseName,
           toolCallId: input.toolCallId,
           runId: input.runId,
-          signal: input.signal,
+          signal: phaseSignal,
         });
       }
 
@@ -631,8 +640,23 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           kill_threshold: budgetSuggestion.killThreshold,
           reason: budgetSuggestion.reason,
         });
-        // Hard kill: break the phase loop immediately. Completed phase work
-        // stays in phaseResults for handoff; no further phases are scheduled.
+        // Hard kill: abort linked phase controller (in-flight/remaining work),
+        // cancel open non-terminal work nodes, and surface a visible reason.
+        // Completed phase work stays in phaseResults; no further phases run.
+        budgetKilled = true;
+        this.applyBudgetKill({
+          phaseController,
+          runId: input.runId,
+          phase,
+          reason: budgetSuggestion.reason,
+          boundWorkNodeIds: input.args.work_node_ids ?? [],
+        });
+        phaseHandoff = `${phaseHandoff}\n\n${formatBudgetKillHandoff({
+          reason: budgetSuggestion.reason,
+          phase,
+          wastedRounds: budgetSuggestion.wastedRounds,
+          killThreshold: budgetSuggestion.killThreshold,
+        })}`;
         break;
       }
 
@@ -748,19 +772,23 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
 
     // Cost control: skip adaptive restaff when review consensus is already solid.
     // War-room / /swarm restaff forces a restaff wave even when council is green.
-    const forceRestaff = hasPendingUltraSwarmRestaff(this.agent.ultraSwarmRun);
+    // Budget kill also skips restaff — no more spend after governor abort.
+    const forceRestaff =
+      !budgetKilled && hasPendingUltraSwarmRestaff(this.agent.ultraSwarmRun);
     const restaffReasons = forceRestaff
       ? consumeUltraSwarmRestaffRequests(this.agent.ultraSwarmRun)
       : [];
     const preRestaffDecision = councilDecisionFromReview(
       phaseResults.map(withRenderedMetadata),
     );
-    const skipRestaff = shouldSkipAdaptiveRestaff({
-      pausedForSteer: this.agent.ultraSwarmRun?.pausedForSteer,
-      decision: preRestaffDecision,
-      intensity: input.routingIntensity,
-      forceRestaff,
-    });
+    const skipRestaff =
+      budgetKilled ||
+      shouldSkipAdaptiveRestaff({
+        pausedForSteer: this.agent.ultraSwarmRun?.pausedForSteer,
+        decision: preRestaffDecision,
+        intensity: input.routingIntensity,
+        forceRestaff,
+      });
     if (forceRestaff && restaffReasons.length > 0) {
       this.agent.telemetry.track('ultra_swarm_restaff_forced', {
         run_id: input.runId,
@@ -890,7 +918,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         return (
           node !== undefined &&
           node.status !== 'running' &&
-          !SWARM_DAG_DONE_STATUSES.has(node.status)
+          !SWARM_DAG_TERMINAL_STATUSES.has(node.status)
         );
       },
     );
@@ -907,8 +935,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const outcome = workNodeOutcome(results);
     const owner = ownerResultForWorkNodes(results);
     // Skip already-terminal nodes so multi-phase finish is idempotent.
+    // needs_integration / cancelled / failed / blocked count as terminal too.
     this.updateWorkNodes(nodeIds, (node) => {
-      if (SWARM_DAG_DONE_STATUSES.has(node.status)) return node;
+      if (SWARM_DAG_TERMINAL_STATUSES.has(node.status)) return node;
       return {
         ...node,
         ownerExpertId: node.ownerExpertId ?? owner?.spec.expertId,
@@ -931,6 +960,54 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     }));
   }
 
+  /**
+   * Budget governor hard kill: abort the linked phase controller (cancels
+   * in-flight/remaining subagents that share its signal) and mark non-terminal
+   * bound work nodes cancelled with a visible verificationSummary reason.
+   */
+  private applyBudgetKill(input: {
+    readonly phaseController: AbortController;
+    readonly runId: string;
+    readonly phase: UltraSwarmPhase;
+    readonly reason: string;
+    readonly boundWorkNodeIds: readonly string[];
+  }): void {
+    if (!input.phaseController.signal.aborted) {
+      input.phaseController.abort(new Error(input.reason));
+    }
+
+    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
+    const candidateIds =
+      input.boundWorkNodeIds.length > 0
+        ? input.boundWorkNodeIds
+        : (graph?.nodes.map((node) => node.id) ?? []);
+    const openIds = candidateIds.filter((id) => {
+      const node = graph?.nodes.find((entry) => entry.id === id);
+      if (node === undefined) return false;
+      // running is never terminal; also cancel queued/ready open work.
+      return node.status === 'running' || !SWARM_DAG_TERMINAL_STATUSES.has(node.status);
+    });
+    if (openIds.length > 0) {
+      this.updateWorkNodes(openIds, (node) => {
+        if (node.status !== 'running' && SWARM_DAG_TERMINAL_STATUSES.has(node.status)) {
+          return node;
+        }
+        return {
+          ...node,
+          status: 'cancelled',
+          verificationStatus: 'failed',
+          verificationSummary: `Budget kill (${input.phase}): ${input.reason}`,
+        };
+      });
+    }
+    this.agent.emitEvent({
+      type: 'ultrawork.swarm.paused',
+      runId: input.runId,
+      reason: `Budget kill: ${input.reason}`,
+      phase: input.phase,
+    } as any);
+  }
+
   private updateWorkNodes(
     nodeIds: readonly string[],
     update: (node: WorkGraphNode) => WorkGraphNode,
@@ -938,10 +1015,24 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
     if (graph === undefined) return;
     const targetIds = new Set(nodeIds);
+    const mapped = graph.nodes.map((node) =>
+      targetIds.has(node.id) ? update(cloneWorkGraphNode(node)) : node,
+    );
+    // Same hard gate as UltraworkGraph tool path — UltraSwarm must not be a
+    // privileged done mutator that bypasses requiredEvidence checks.
+    const gated = applyEvidenceHardGate(mapped);
+    if (gated.violations.length > 0) {
+      this.agent.telemetry.track('evidence_gate_violations', {
+        run_id: graph.runId,
+        source: 'ultra_swarm_update_work_nodes',
+        violations: gated.violations.length,
+        node_ids: gated.violations.map((v) => v.nodeId).slice(0, 32).join(','),
+      });
+    }
     const next = cloneWorkGraph({
       ...graph,
       updatedAt: new Date().toISOString(),
-      nodes: graph.nodes.map((node) => (targetIds.has(node.id) ? update(cloneWorkGraphNode(node)) : node)),
+      nodes: gated.nodes,
     });
     this.store.set(ULTRAWORK_GRAPH_STORE_KEY, next);
     this.store.set(TODO_STORE_KEY, todosFromWorkGraph(next));
@@ -1365,6 +1456,50 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       team,
     });
   }
+}
+
+// ── Budget kill + AbortSignal helpers ────────────────────────────────
+
+/**
+ * Link a child AbortController to a parent signal so budget kill can abort
+ * phase work without mutating the parent tool signal.
+ */
+export function createLinkedAbortController(parent: AbortSignal): AbortController {
+  const child = new AbortController();
+  if (parent.aborted) {
+    child.abort(parent.reason);
+    return child;
+  }
+  const onAbort = (): void => {
+    if (!child.signal.aborted) {
+      child.abort(parent.reason);
+    }
+  };
+  parent.addEventListener('abort', onAbort, { once: true });
+  // Drop listener when child aborts first (budget kill) so we do not leak.
+  child.signal.addEventListener(
+    'abort',
+    () => {
+      parent.removeEventListener('abort', onAbort);
+    },
+    { once: true },
+  );
+  return child;
+}
+
+/** Visible handoff fragment for budget governor kill (parent + TUI). */
+export function formatBudgetKillHandoff(input: {
+  readonly reason: string;
+  readonly phase: string;
+  readonly wastedRounds: number;
+  readonly killThreshold: number;
+}): string {
+  const reason = input.reason.replace(/"/g, "'");
+  return (
+    `<budget_kill reason="${reason}" phase="${input.phase}" ` +
+    `wasted_rounds="${String(input.wastedRounds)}" ` +
+    `threshold="${String(input.killThreshold)}" />`
+  );
 }
 
 // ── Debate risk assessment helpers ────────────────────────────────────

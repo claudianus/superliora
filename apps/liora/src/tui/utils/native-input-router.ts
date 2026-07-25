@@ -99,9 +99,12 @@ export class TUIStateNativeInputRouter {
           onInput: (event) => {
             const action = transcriptScrollActionForNativeInput(event);
             if (action === undefined) return false;
+            // Always consume wheel / viewport scroll keys. Returning false when
+            // already at top/bottom used to leave the event unhandled and risk
+            // fallthrough into other handlers (and, historically, false Esc paths).
             const changed = options.scrollTranscriptViewport?.(action) === true;
             if (changed) state.transcriptSelection.clear();
-            return changed;
+            return true;
           },
         }),
       );

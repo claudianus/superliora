@@ -45,17 +45,10 @@ export function maybeAdvanceUltraworkOnGoalComplete(agent: Agent): void {
   if (ultrawork === undefined) return;
   const run = ultrawork.getRun();
   if (run === null || run.status === 'done' || run.status === 'failed') return;
-  // Fire-and-forget: called from goal completion which is already async;
-  // markComplete applies status synchronously so the race window is minimal.
+  // Only finish when the completion audit + WorkGraph allow it.
+  // Never force completeLearnStage on empty/incomplete graphs — that was a
+  // false-complete path (model UpdateGoal(complete) while still in plan).
   void maybeFinishUltraworkRun(agent);
-  const updated = ultrawork.getRun();
-  if (updated !== null && updated.status !== 'done' && updated.status !== 'failed') {
-    try {
-      ultrawork.completeLearnStage('UltraGoal completed');
-    } catch (error) {
-      agent.log.warn('ultrawork goal-complete finish failed', { error });
-    }
-  }
 }
 
 export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
@@ -70,6 +63,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
       '2. Verify — mechanical + real-surface checks for acceptance criteria.',
       '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
       'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
+      'False-complete guard: UpdateGoal(complete) is rejected while WorkGraph is empty/incomplete or requiredEvidence lacks verificationStatus=passed. Keep working until audit passes — do not wait for the user to re-prompt.',
       '</ultrawork_post_swarm>',
     ].join('\n'),
     { kind: 'injection', variant: 'ultrawork_post_swarm' },
@@ -112,6 +106,9 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
       lines.push(`- ${action}`);
     }
   }
+  lines.push(
+    'False-complete guard: do not mark the goal complete without a seeded WorkGraph, evidence, and verification. Continue the loop autonomously.',
+  );
   lines.push('</ultrawork_post_compaction>');
 
   agent.context.appendSystemReminder(lines.join('\n'), {
