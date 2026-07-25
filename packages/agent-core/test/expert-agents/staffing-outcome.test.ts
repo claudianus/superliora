@@ -4,6 +4,7 @@ import {
   clearStaffingOutcomes,
   getOutcome,
   recordOutcome,
+  recordOutcomesFromSwarmResults,
   scoreBoost,
 } from '../../src/expert-agents/staffing-outcome';
 
@@ -42,5 +43,17 @@ describe('staffing-outcome', () => {
 
   it('rejects empty expertId', () => {
     expect(() => recordOutcome('  ', { accepted: true })).toThrow(/non-empty/);
+  });
+
+  it('recordOutcomesFromSwarmResults maps verdicts into priors', () => {
+    recordOutcomesFromSwarmResults([
+      { expertId: 'e-pass', verdict: 'PASS' },
+      { expertId: 'e-fail', verdict: 'FAIL', status: 'completed' },
+      { expertId: 'e-abort', verdict: 'ABORTED', status: 'aborted' },
+    ]);
+    expect(getOutcome('e-pass')).toMatchObject({ accepted: 1, rejected: 0 });
+    expect(getOutcome('e-fail')).toMatchObject({ accepted: 0, rejected: 1, conflicts: 1 });
+    expect(getOutcome('e-abort')?.samples).toBe(1);
+    expect(scoreBoost('e-pass')).toBeGreaterThan(scoreBoost('e-fail'));
   });
 });

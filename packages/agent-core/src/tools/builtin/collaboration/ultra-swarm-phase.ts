@@ -569,7 +569,10 @@ export function shouldSkipAdaptiveRestaff(input: {
   readonly pausedForSteer: boolean | undefined;
   readonly decision: CouncilDecision;
   readonly intensity: SwarmRoutingIntensity | undefined;
+  /** War-room / user restaff always wins over cost-control skip. */
+  readonly forceRestaff?: boolean;
 }): boolean {
+  if (input.forceRestaff === true) return false;
   return (
     input.pausedForSteer === true ||
     input.decision === 'strong-approve' ||

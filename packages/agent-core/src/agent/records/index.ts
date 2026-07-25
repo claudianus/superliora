@@ -98,6 +98,9 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       // Steering during an UltraSwarm run is queued in the swarm checkpoint,
       // not replayed as a turn-level steer. No per-agent state to restore.
       return;
+    case 'swarm.restaff':
+      // Restaff is mid-run only; restore does not re-queue restaff waves.
+      return;
     case 'context.append_message':
       agent.context.appendMessage(input.message);
       return;

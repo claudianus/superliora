@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { requestUltraSwarmSteer } from './ultra-swarm-run';
+import {
+  hasPendingUltraSwarmRestaff,
+  requestUltraSwarmRestaff,
+  requestUltraSwarmSteer,
+} from './ultra-swarm-run';
 import { join } from 'pathe';
 
 import { normalizeAdditionalDirs } from '../config';
@@ -557,10 +561,40 @@ export class Agent {
    */
   swarmSteer(input: string): boolean {
     const accepted = requestUltraSwarmSteer(this.ultraSwarmRun, input);
+    if (!accepted) return false;
+    this.records.logRecord({ type: 'swarm.steer', input });
+    // War-room restaff must not pause the run — it forces an adaptive restaff wave.
+    if (hasPendingUltraSwarmRestaff(this.ultraSwarmRun)) {
+      this.telemetry.track('ultra_swarm_restaff_requested', {
+        run_id: this.ultraSwarmRun?.runId,
+        source: 'swarm_steer',
+      });
+      return true;
+    }
+    this.forwardSteerToRunningChildren(input);
+    void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
+    return true;
+  }
+
+  /**
+   * War-room / /swarm restaff: force an adaptive restaff wave after the current phase.
+   * Does not pause Ultrawork or break the phase loop.
+   */
+  swarmRestaff(reason = 'User requested restaff'): boolean {
+    const accepted = requestUltraSwarmRestaff(this.ultraSwarmRun, reason);
     if (accepted) {
-      this.records.logRecord({ type: 'swarm.steer', input });
-      this.forwardSteerToRunningChildren(input);
-      void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
+      this.records.logRecord({ type: 'swarm.restaff', input: reason });
+      this.telemetry.track('ultra_swarm_restaff_requested', {
+        run_id: this.ultraSwarmRun?.runId,
+        source: 'swarm_restaff',
+      });
+      if (this.ultraSwarmRun !== undefined) {
+        this.emitEvent({
+          type: 'ultrawork.swarm.restaff_requested',
+          runId: this.ultraSwarmRun.runId,
+          reason,
+        } as any);
+      }
     }
     return accepted;
   }
@@ -596,6 +630,19 @@ export class Agent {
             .trim();
           if (requestUltraSwarmSteer(this.ultraSwarmRun, text)) {
             this.records.logRecord({ type: 'swarm.steer', input: text });
+            // Restaff steers force a restaff wave — do not pause the phase loop.
+            if (hasPendingUltraSwarmRestaff(this.ultraSwarmRun)) {
+              this.telemetry.track('ultra_swarm_restaff_requested', {
+                run_id: this.ultraSwarmRun.runId,
+                source: 'steer',
+              });
+              this.emitEvent({
+                type: 'ultrawork.swarm.restaff_requested',
+                runId: this.ultraSwarmRun.runId,
+                reason: text,
+              } as any);
+              return;
+            }
             this.forwardSteerToRunningChildren(text);
             void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
             this.emitEvent({

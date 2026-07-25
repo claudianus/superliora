@@ -20,8 +20,10 @@ import {
   restaffSlotsAvailable,
 } from '../../../session/ultra-swarm-restaff';
 import {
+  consumeUltraSwarmRestaffRequests,
   consumeUltraSwarmSteerRequests,
   createUltraSwarmRunContext,
+  hasPendingUltraSwarmRestaff,
 } from '../../../agent/ultra-swarm-run';
 import {
   injectUltraworkPostSwarmContinuation,
@@ -53,12 +55,14 @@ import {
 import {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
+  SWARM_DAG_DONE_STATUSES,
 } from '../../../session/swarm-dag-scheduler';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
+import { recordOutcomesFromSwarmResults } from '../../../expert-agents/staffing-outcome';
 import { synthesizeExpertsWithLlm } from '../../../expert-agents/synthetic-expert-llm';
 import type { ExpertSwarmPlan } from '../../../expert-agents/types';
 import type { SwarmRoutingIntensity } from '../../../agent/plan/ultra-swarm-routing';
@@ -415,6 +419,18 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       }
     }
     const rendered = phaseResults.map(withRenderedMetadata);
+    // Feed staffing priors from phase verdicts so future selection can re-rank.
+    try {
+      recordOutcomesFromSwarmResults(
+        rendered.map((result) => ({
+          expertId: result.spec.expertId,
+          verdict: result.verdict,
+          status: result.status,
+        })),
+      );
+    } catch {
+      // Outcome store is best-effort — never fail the swarm on prior write errors.
+    }
     if (busEnabled) {
       const reviewResults = rendered.filter((result) => result.spec.phase === 'review');
       const decision = councilDecisionFromReview(rendered);
@@ -538,10 +554,16 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         );
       }
 
-      let phaseSpecsForRun = phaseSpecs;
+      // Rebind this phase's specs to the live DAG ready-set so nodes unlocked
+      // by prior phases become schedulable (not stuck on the initial ready set).
+      let phaseSpecsForRun = this.rebindPhaseSpecsToLiveReadyNodes(
+        phaseSpecs,
+        input.args.work_node_ids ?? [],
+        input.runId,
+      );
       if (phase === 'review') {
         phaseSpecsForRun = attachCriticAssignments(
-          phaseSpecs,
+          phaseSpecsForRun,
           phaseResults.map(withRenderedMetadata),
           input.routingIntensity,
         );
@@ -577,6 +599,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       }
 
       phaseResults.push(...renderedPhaseResults);
+      // Close work nodes finished in this phase so dependents become ready next.
+      this.finishPhaseClaimedWorkNodes(renderedPhaseResults);
 
       // Budget governor: count rounds without evidence; suggest kill after N wastes.
       const phaseEvidenceIds = uniqueStrings(
@@ -691,6 +715,11 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     }
 
     // Cost control: skip adaptive restaff when review consensus is already solid.
+    // War-room / /swarm restaff forces a restaff wave even when council is green.
+    const forceRestaff = hasPendingUltraSwarmRestaff(this.agent.ultraSwarmRun);
+    const restaffReasons = forceRestaff
+      ? consumeUltraSwarmRestaffRequests(this.agent.ultraSwarmRun)
+      : [];
     const preRestaffDecision = councilDecisionFromReview(
       phaseResults.map(withRenderedMetadata),
     );
@@ -698,7 +727,15 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       pausedForSteer: this.agent.ultraSwarmRun?.pausedForSteer,
       decision: preRestaffDecision,
       intensity: input.routingIntensity,
+      forceRestaff,
     });
+    if (forceRestaff && restaffReasons.length > 0) {
+      this.agent.telemetry.track('ultra_swarm_restaff_forced', {
+        run_id: input.runId,
+        reason: restaffReasons.join(' | ').slice(0, 240),
+        decision: preRestaffDecision,
+      });
+    }
     const restaffed = skipRestaff
       ? []
       : await this.maybeRestaffForRevision({
@@ -714,6 +751,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           signal: input.signal,
           maxExperts: input.maxExperts,
           requiredExpertIds: input.requiredExpertIds,
+          forceRestaff,
+          restaffReasons,
           onTeamUpdated: (nextTeam) => {
             team = nextTeam;
           },
@@ -755,21 +794,143 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     }));
   }
 
+  /**
+   * After a phase completes, mark claimed work nodes done/failed so the DAG
+   * ready-set advances for subsequent phases.
+   */
+  private finishPhaseClaimedWorkNodes(
+    results: readonly UltraSwarmRenderedResult[],
+  ): void {
+    const claimed = new Set<string>();
+    for (const result of results) {
+      if (result.spec.workNodeIds.length === 0) continue;
+      this.finishWorkNodes(result.spec.workNodeIds, [result]);
+      for (const id of result.spec.workNodeIds) claimed.add(id);
+    }
+    if (claimed.size > 0) {
+      this.agent.telemetry.track('ultra_swarm_dag_phase_finish', {
+        finished_count: claimed.size,
+        finished_ids: [...claimed].slice(0, 32).join(','),
+      });
+    }
+  }
+
+  /**
+   * Rebind phase specs to currently ready WorkGraph nodes (live store).
+   * Specs that already hold ready/running ids keep them; empty/blocked specs
+   * pick up newly unlocked ready nodes so phase runners do not starve.
+   */
+  private rebindPhaseSpecsToLiveReadyNodes(
+    phaseSpecs: readonly UltraSwarmSpec[],
+    boundWorkNodeIds: readonly string[],
+    runId: string,
+  ): UltraSwarmSpec[] {
+    if (phaseSpecs.length === 0 || boundWorkNodeIds.length === 0) {
+      return [...phaseSpecs];
+    }
+    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
+    if (graph === undefined) return [...phaseSpecs];
+
+    const dagNodes = graph.nodes.map((node) => ({
+      id: node.id,
+      dependsOn: node.dependsOn,
+      status: node.status,
+    }));
+    const readyIds = preferReadyWorkNodeIds(boundWorkNodeIds, dagNodes);
+    const readySet = new Set(readyIds);
+    const partition = partitionReadyWorkNodeIds(
+      dagNodes.filter((node) => boundWorkNodeIds.includes(node.id)),
+    );
+    this.agent.telemetry.track('ultra_swarm_dag_phase_ready', {
+      run_id: runId,
+      ready_count: partition.readyIds.length,
+      blocked_count: partition.blockedIds.length,
+      ready_ids: partition.readyIds.slice(0, 32).join(','),
+    });
+
+    if (readyIds.length === 0) return [...phaseSpecs];
+
+    // Keep specs whose current workNodeIds are still ready/running.
+    const stillHeld = new Set<string>();
+    for (const spec of phaseSpecs) {
+      for (const id of spec.workNodeIds) {
+        if (readySet.has(id)) stillHeld.add(id);
+      }
+    }
+    const freeReady = readyIds.filter((id) => !stillHeld.has(id));
+    if (freeReady.length === 0) {
+      // Still mark any newly ready free nodes as running if already held.
+      this.markWorkNodesRunning(
+        readyIds.filter((id) => {
+          const node = graph.nodes.find((n) => n.id === id);
+          return node !== undefined && node.status !== 'running';
+        }),
+        ownerExpertIdForWorkNodes(phaseSpecs),
+      );
+      return [...phaseSpecs];
+    }
+
+    let freeIndex = 0;
+    const rebound = phaseSpecs.map((spec) => {
+      const kept = spec.workNodeIds.filter((id) => readySet.has(id));
+      if (kept.length > 0) {
+        return kept.length === spec.workNodeIds.length
+          ? spec
+          : { ...spec, workNodeIds: kept };
+      }
+      // Assign one free ready node (or more if many free and few specs).
+      if (freeIndex >= freeReady.length) return { ...spec, workNodeIds: [] as string[] };
+      const assigned = [freeReady[freeIndex]!];
+      freeIndex += 1;
+      // If leftover free nodes and this is the last spec, give the rest.
+      if (freeIndex === phaseSpecs.length && freeIndex < freeReady.length) {
+        assigned.push(...freeReady.slice(freeIndex));
+        freeIndex = freeReady.length;
+      }
+      return { ...spec, workNodeIds: assigned };
+    });
+
+    // Round-robin leftover free ready nodes onto specs that already have some.
+    while (freeIndex < freeReady.length) {
+      const target = rebound[freeIndex % rebound.length]!;
+      rebound[freeIndex % rebound.length] = {
+        ...target,
+        workNodeIds: [...target.workNodeIds, freeReady[freeIndex]!],
+      };
+      freeIndex += 1;
+    }
+
+    const newlyRunning = uniqueStrings(rebound.flatMap((spec) => spec.workNodeIds)).filter(
+      (id) => {
+        const node = graph.nodes.find((n) => n.id === id);
+        return node !== undefined && node.status !== 'running' && !SWARM_DAG_DONE_STATUSES.has(node.status);
+      },
+    );
+    if (newlyRunning.length > 0) {
+      this.markWorkNodesRunning(newlyRunning, ownerExpertIdForWorkNodes(rebound));
+    }
+    return rebound;
+  }
+
   private finishWorkNodes(
     nodeIds: readonly string[],
     results: readonly UltraSwarmRenderedResult[],
   ): void {
     const outcome = workNodeOutcome(results);
     const owner = ownerResultForWorkNodes(results);
-    this.updateWorkNodes(nodeIds, (node) => ({
-      ...node,
-      ownerExpertId: node.ownerExpertId ?? owner?.spec.expertId,
-      ownerAgentId: node.ownerAgentId ?? owner?.agentId,
-      status: outcome.status,
-      evidenceIds: uniqueStrings([...(node.evidenceIds ?? []), ...outcome.evidenceIds]),
-      verificationStatus: outcome.verificationStatus,
-      verificationSummary: outcome.summary,
-    }));
+    // Skip already-terminal nodes so multi-phase finish is idempotent.
+    this.updateWorkNodes(nodeIds, (node) => {
+      if (SWARM_DAG_DONE_STATUSES.has(node.status)) return node;
+      return {
+        ...node,
+        ownerExpertId: node.ownerExpertId ?? owner?.spec.expertId,
+        ownerAgentId: node.ownerAgentId ?? owner?.agentId,
+        status: outcome.status,
+        evidenceIds: uniqueStrings([...(node.evidenceIds ?? []), ...outcome.evidenceIds]),
+        verificationStatus: outcome.verificationStatus,
+        verificationSummary: outcome.summary,
+      };
+    });
   }
 
   private failWorkNodes(nodeIds: readonly string[], error: unknown): void {
@@ -1021,17 +1182,28 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     readonly maxExperts: number;
     readonly args: UltraSwarmToolInput;
     readonly busEnabled: boolean;
+    readonly forceRestaff?: boolean;
+    readonly restaffReasons?: readonly string[];
   }): Promise<ExpertSwarmPlan | undefined> {
     const gaps = collectRestaffGaps(input.rendered);
     const slots = restaffSlotsAvailable(input.specs.length, input.maxExperts);
-    if (!needsRestaffing(gaps, input.specs.length, input.maxExperts) || slots === 0) {
+    if (slots === 0) return undefined;
+    const force = input.forceRestaff === true;
+    if (!force && !needsRestaffing(gaps, input.specs.length, input.maxExperts)) {
       return undefined;
     }
-    const reflection = buildRestaffReflectionPrompt(
-      input.args.description,
-      gaps,
-      input.busEnabled ? renderSwarmBusDigest(this.store) : undefined,
-    );
+    const reasonNote =
+      force && (input.restaffReasons?.length ?? 0) > 0
+        ? `\n\nUser/war-room restaff directive:\n${(input.restaffReasons ?? []).map((r) => `- ${r}`).join('\n')}`
+        : force
+          ? '\n\nUser/war-room restaff directive: restaff additional specialists even if gaps are soft.'
+          : '';
+    const reflection =
+      buildRestaffReflectionPrompt(
+        input.args.description,
+        gaps,
+        input.busEnabled ? renderSwarmBusDigest(this.store) : undefined,
+      ) + reasonNote;
     const restaffPlan = filterRestaffPlan(
       await globalUltraSwarmOrchestrator.buildSwarmPlan(reflection, undefined, {
         intensity: input.args.intensity,
@@ -1057,6 +1229,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     readonly signal: AbortSignal;
     readonly maxExperts: number;
     readonly requiredExpertIds: ReadonlySet<string>;
+    readonly forceRestaff?: boolean;
+    readonly restaffReasons?: readonly string[];
     readonly onTeamUpdated: (team: TeamPlan) => void;
   }): Promise<readonly UltraSwarmRunResult[]> {
     const restaffPlan = await this.planRestaffExperts({
@@ -1065,6 +1239,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       maxExperts: input.maxExperts,
       args: input.args,
       busEnabled: input.busEnabled,
+      forceRestaff: input.forceRestaff === true,
+      restaffReasons: input.restaffReasons ?? [],
     });
     if (restaffPlan === undefined) return [];
     const gaps = collectRestaffGaps(input.rendered);

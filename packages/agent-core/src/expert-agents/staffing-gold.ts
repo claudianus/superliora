@@ -124,4 +124,52 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-wordpress-performance',
     ],
   },
+  {
+    id: 'product-pm',
+    query: 'product manager roadmap prioritization sprint feedback',
+    relevantIds: ['product-manager', 'product-sprint-prioritizer', 'product-feedback-synthesizer'],
+  },
+  {
+    id: 'design-ui-ux',
+    query: 'UI UX design visual system inclusive designer',
+    relevantIds: ['design-ui-designer', 'agentcrow-ui-designer', 'design-brand-guardian'],
+  },
+  {
+    id: 'sre-observability',
+    query: 'SRE observability incident response reliability on-call',
+    relevantIds: [
+      'engineering-sre',
+      'ericgrill-general-observability-oracle',
+      'engineering-incident-response-commander',
+    ],
+  },
+  {
+    id: 'mobile-apps',
+    query: 'mobile app builder iOS Android release engineer',
+    relevantIds: ['engineering-mobile-app-builder', 'ericgrill-general-mobile-nomad'],
+  },
+  {
+    id: 'docs-writer',
+    query: 'technical writer API documentation developer experience docs',
+    relevantIds: ['engineering-technical-writer', 'agentcrow-technical-writer'],
+  },
+  {
+    id: 'data-pipelines',
+    query: 'data engineer pipeline analytics ETL warehouse',
+    relevantIds: ['engineering-data-engineer', 'agentcrow-data-pipeline-engineer'],
+  },
+  {
+    id: 'ml-llm',
+    query: 'machine learning ML model LLM AI engineer post-training',
+    relevantIds: [
+      'engineering-ai-engineer',
+      'ericgrill-general-ml-model-whisperer',
+      'engineering-llm-post-training-engineer',
+    ],
+  },
+  {
+    id: 'complexity-critic',
+    query: 'complexity critic meta reviewer code quality adversarial review',
+    relevantIds: ['agentcrow-complexity-critic', 'engineering-code-reviewer', 'agentcrow-compose-meta-reviewer'],
+  },
 ];

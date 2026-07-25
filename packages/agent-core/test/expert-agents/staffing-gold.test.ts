@@ -39,14 +39,18 @@ describe('staffing-gold nDCG', () => {
   });
 
   it('exports seed cases with catalog-backed relevantIds', () => {
-    expect(STAFFING_GOLD_SEED.length).toBeGreaterThanOrEqual(8);
+    expect(STAFFING_GOLD_SEED.length).toBeGreaterThanOrEqual(16);
     const catalog = JSON.parse(readFileSync(catalogPath, 'utf8')) as Record<string, unknown>;
     const nonEmpty = STAFFING_GOLD_SEED.filter((c) => c.relevantIds.length > 0);
-    expect(nonEmpty.length).toBeGreaterThanOrEqual(8);
+    expect(nonEmpty.length).toBeGreaterThanOrEqual(16);
     for (const gold of nonEmpty) {
       for (const id of gold.relevantIds) {
         expect(catalog[id], `missing catalog id ${id} in case ${gold.id}`).toBeDefined();
       }
     }
+    const ids = new Set(STAFFING_GOLD_SEED.map((c) => c.id));
+    expect(ids.has('product-pm')).toBe(true);
+    expect(ids.has('sre-observability')).toBe(true);
+    expect(ids.has('ml-llm')).toBe(true);
   });
 });

@@ -397,6 +397,17 @@ describe('ultra-swarm restaff/prompt pure builders', () => {
     ).toBe(false);
   });
 
+  it('shouldSkipAdaptiveRestaff yields to forceRestaff from war room', () => {
+    expect(
+      shouldSkipAdaptiveRestaff({
+        pausedForSteer: true,
+        decision: 'strong-approve',
+        intensity: 'light',
+        forceRestaff: true,
+      }),
+    ).toBe(false);
+  });
+
   it('planPhaseWaveEntries stamps swarm items and implement standup gate', () => {
     const specs = [
       {

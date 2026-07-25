@@ -76,10 +76,24 @@ export {
   getOutcome,
   listStaffingOutcomes,
   recordOutcome,
+  recordOutcomesFromSwarmResults,
   scoreBoost,
   type StaffingOutcomeInput,
   type StaffingOutcomeRecord,
+  type SwarmVerdictOutcomeInput,
 } from './expert-agents/staffing-outcome';
+export {
+  consumeUltraSwarmRestaffRequests,
+  consumeUltraSwarmSteerRequests,
+  createUltraSwarmRunContext,
+  hasPendingUltraSwarmRestaff,
+  isRestaffSteerText,
+  requestUltraSwarmRestaff,
+  requestUltraSwarmSteer,
+  type UltraSwarmRestaffRequest,
+  type UltraSwarmRunContext,
+  type UltraSwarmSteerRequest,
+} from './agent/ultra-swarm-run';
 export {
   STAFFING_GOLD_SEED,
   dcgAtK,

@@ -102,3 +102,44 @@ export function clearStaffingOutcomes(): void {
 export function listStaffingOutcomes(): readonly StaffingOutcomeRecord[] {
   return [...outcomeStore.values()];
 }
+
+/**
+ * Map UltraSwarm phase verdicts into staffing priors.
+ * - PASS / PASS_WITH_ADVICE → accepted
+ * - FAIL / BLOCKED → rejected + conflict
+ * - ABORTED / SKIPPED / failed status → rejected with light waste signal
+ */
+export interface SwarmVerdictOutcomeInput {
+  readonly expertId: string;
+  readonly verdict: string;
+  readonly status?: string;
+  /** Optional approximate tokens; default waste when aborted/skipped/failed. */
+  readonly wastedTokens?: number;
+}
+
+export function recordOutcomesFromSwarmResults(
+  results: readonly SwarmVerdictOutcomeInput[],
+): readonly StaffingOutcomeRecord[] {
+  const out: StaffingOutcomeRecord[] = [];
+  for (const result of results) {
+    const verdict = result.verdict.toUpperCase();
+    const accepted = verdict === 'PASS' || verdict === 'PASS_WITH_ADVICE';
+    const conflict = verdict === 'FAIL' || verdict === 'BLOCKED';
+    const wasteDefault =
+      verdict === 'ABORTED' ||
+      verdict === 'SKIPPED' ||
+      result.status === 'failed' ||
+      result.status === 'aborted'
+        ? 1_000
+        : 0;
+    out.push(
+      recordOutcome(result.expertId, {
+        accepted,
+        conflict,
+        wastedTokens: result.wastedTokens ?? wasteDefault,
+      }),
+    );
+  }
+  return out;
+}
+
