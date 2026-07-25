@@ -1,10 +1,11 @@
 import { strict as assert } from 'node:assert';
-import { describe, test } from 'node:test';
+import { describe, test } from 'vitest';
 
 import {
   addDebateTurn,
   allDebatesFinished,
   assessRisk,
+  attachDraftToDebate,
   buildDebateContext,
   createDebate,
   debatePhasesForRisk,
@@ -258,11 +259,9 @@ describe('ultra-swarm-debate — assessRisk', () => {
 });
 
 describe('ultra-swarm-debate — debatePhasesForRisk', () => {
-  test('simple risk gets 2 phases (critic + consensus)', () => {
+  test('simple risk skips heavy debate (empty phases)', () => {
     const phases = debatePhasesForRisk('simple');
-    assert.equal(phases.length, 2);
-    assert.ok(phases.includes('critic'));
-    assert.ok(phases.includes('consensus'));
+    assert.equal(phases.length, 0);
   });
 
   test('medium risk gets 3 phases', () => {
@@ -299,6 +298,17 @@ describe('ultra-swarm-debate — parseConsensusVerdict', () => {
     assert.equal(result.verdict, 'block');
   });
 
+  test('parses case-insensitive VERDICT prefix', () => {
+    const result = parseConsensusVerdict('VERDICT: PASS — looks good');
+    assert.equal(result.verdict, 'approve');
+  });
+
+  test('parses Korean verdict variants', () => {
+    assert.equal(parseConsensusVerdict('판정: 승인 — 문제 없음').verdict, 'approve');
+    assert.equal(parseConsensusVerdict('차단: 보안 이슈').verdict, 'block');
+    assert.equal(parseConsensusVerdict('수정 필요: 엣지 케이스').verdict, 'revise');
+  });
+
   test('defaults to revise', () => {
     const result = parseConsensusVerdict('needs more work on edge cases');
     assert.equal(result.verdict, 'revise');
@@ -307,25 +317,26 @@ describe('ultra-swarm-debate — parseConsensusVerdict', () => {
 });
 
 describe('ultra-swarm-debate — runDebateCycle', () => {
-  test('runs a complete simple debate cycle with mock LLM', async () => {
+  test('simple risk skips debate without calling LLM', async () => {
     const config = makeConfig();
     const debate = createDebate(config);
+    let calls = 0;
 
-    // Mock participants
     const critic: DebateParticipant = {
       expertId: 'critic-1',
       expertName: 'Critic',
-      generate: async (prompt: string) => {
-        if (prompt.includes('final verdict')) {
-          return 'approve: approach is sound';
-        }
-        return 'No major issues found.';
+      generate: async () => {
+        calls += 1;
+        return 'should not run';
       },
     };
     const author: DebateParticipant = {
       expertId: 'author-1',
       expertName: 'Author',
-      generate: async () => 'I will implement using pattern X with proper error handling.',
+      generate: async () => {
+        calls += 1;
+        return 'should not run';
+      },
     };
 
     const result = await runDebateCycle({
@@ -338,8 +349,33 @@ describe('ultra-swarm-debate — runDebateCycle', () => {
     });
 
     assert.ok(result.finished);
-    assert.ok(result.consensusVerdict !== undefined);
-    assert.ok(result.consensusVerdict!.includes('approve'));
+    assert.equal(calls, 0);
+    assert.ok(result.consensusVerdict?.includes('skipped debate'));
+  });
+
+  test('buildDebateContext includes draft excerpt citation instruction', () => {
+    const state = createDebate(makeConfig());
+    const context = buildDebateContext(state, 'critic-1', {
+      draftExcerpt: 'export function foo() { return 1 }',
+    });
+    assert.ok(context.includes('<draft_excerpt>'));
+    assert.ok(context.includes('export function foo()'));
+    assert.ok(context.includes('draft_excerpt') || context.includes('Cite specific'));
+  });
+
+  test('attachDraftToDebate puts draft into buildDebateContext', () => {
+    const draft = 'diff --git a/bar.ts\n+export function foo() { return 42 }';
+    const state = attachDraftToDebate(createDebate(makeConfig()), draft);
+    const context = buildDebateContext(state, 'critic-1');
+    assert.ok(context.includes('<draft_excerpt>'));
+    assert.ok(context.includes('export function foo() { return 42 }'));
+    assert.ok(context.includes('Cite specific'), 'prompt must require citing the draft');
+  });
+
+  test('attachDraftToDebate ignores empty draft', () => {
+    const base = createDebate(makeConfig());
+    const next = attachDraftToDebate(base, '   ');
+    assert.equal(next.draftExcerpt, undefined);
   });
 
   test('runs a complete complex debate cycle (4 phases)', async () => {
@@ -417,7 +453,7 @@ describe('ultra-swarm-debate — runDebateCycle', () => {
       author,
       runId: 'test-run',
       parent: { emitEvent: () => {} } as any,
-      phases: debatePhasesForRisk('simple'),
+      phases: debatePhasesForRisk('medium'),
     });
 
     // At least one participant should have seen the steering message

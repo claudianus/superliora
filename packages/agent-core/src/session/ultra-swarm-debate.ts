@@ -53,6 +53,11 @@ export interface DebateState {
   readonly finished: boolean;
   readonly consensusVerdict?: string;
   readonly steeringMessages: readonly string[];
+  /**
+   * Optional attached draft body (diff / design / failure log).
+   * Prefer this over artifactSummary when building citation context.
+   */
+  readonly draftExcerpt?: string;
 }
 
 const PHASE_ORDER: readonly DebatePhase[] = ['critic', 'rebuttal', 'counter-critique', 'consensus'];
@@ -155,10 +160,37 @@ export function injectSteering(state: DebateState, message: string): DebateState
 }
 
 /**
+ * Attach a draft excerpt to the debate state so later `buildDebateContext`
+ * calls cite it (participants must reference the draft, not only stance).
+ * Empty / whitespace drafts are ignored (state unchanged).
+ */
+export function attachDraftToDebate(state: DebateState, draft: string): DebateState {
+  const trimmed = draft.trim();
+  if (trimmed.length === 0) return state;
+  return {
+    ...state,
+    draftExcerpt: trimmed,
+  };
+}
+
+export interface BuildDebateContextOptions {
+  /**
+   * Optional excerpt of the attached draft (diff, design paragraph, failure log).
+   * Multiagent-debate style: participants must cite this text, not only stance.
+   * Prefer `attachDraftToDebate(state, draft)` when the draft is known up front.
+   */
+  readonly draftExcerpt?: string;
+}
+
+/**
  * Build the prompt context for a debate participant, showing prior turns
  * and any user steering messages.
  */
-export function buildDebateContext(state: DebateState, participantId: string): string {
+export function buildDebateContext(
+  state: DebateState,
+  participantId: string,
+  options: BuildDebateContextOptions = {},
+): string {
   const priorTurns = state.turns
     .map((turn) => {
       const speaker = turn.expertName;
@@ -172,11 +204,17 @@ export function buildDebateContext(state: DebateState, participantId: string): s
       state.steeringMessages.map((msg) => `- ${msg}`).join('\n')
     : '';
 
-  const phaseInstructions = debatePhasePrompt(state.currentPhase, participantId, state.config);
+  const draftExcerpt = resolveDraftExcerpt(state, options.draftExcerpt);
+  const phaseInstructions = debatePhasePrompt(state.currentPhase, participantId, state.config, {
+    hasDraft: draftExcerpt !== undefined,
+  });
 
   return [
     `<debate id="${state.debateId}" work_node="${state.workNodeId}">`,
     `<artifact>${state.config.artifactSummary}</artifact>`,
+    draftExcerpt !== undefined
+      ? `<draft_excerpt>\n${draftExcerpt}\n</draft_excerpt>`
+      : '',
     `<current_phase>${state.currentPhase}</current_phase>`,
     phaseInstructions,
     priorTurns ? `<prior_turns>\n${priorTurns}\n</prior_turns>` : '',
@@ -187,28 +225,45 @@ export function buildDebateContext(state: DebateState, participantId: string): s
     .join('\n');
 }
 
+function resolveDraftExcerpt(
+  state: DebateState,
+  explicit?: string,
+): string | undefined {
+  // Priority: explicit option → state.draftExcerpt (attachDraftToDebate) → artifact.
+  const fromOption = explicit?.trim();
+  if (fromOption !== undefined && fromOption.length > 0) return fromOption;
+  const fromState = state.draftExcerpt?.trim();
+  if (fromState !== undefined && fromState.length > 0) return fromState;
+  const fromArtifact = state.config.artifactSummary.trim();
+  return fromArtifact.length > 0 ? fromArtifact : undefined;
+}
+
 function debatePhasePrompt(
   phase: DebatePhase,
   participantId: string,
   config: DebateConfig,
+  options: { readonly hasDraft?: boolean } = {},
 ): string {
   const isCritic = participantId === config.criticExpertId;
+  const citeDraft = options.hasDraft === true
+    ? ' Cite specific lines or claims from the attached <draft_excerpt> (or artifact) — do not argue only from stance.'
+    : '';
 
   switch (phase) {
     case 'critic':
       return isCritic
-        ? '<instruction>As critic, identify concrete defects, gaps, and edge cases in the artifact. Be adversarial and specific.</instruction>'
+        ? `<instruction>As critic, identify concrete defects, gaps, and edge cases in the artifact.${citeDraft} Be adversarial and specific.</instruction>`
         : '<instruction>As author, wait for the critic to finish before responding.</instruction>';
     case 'rebuttal':
       return isCritic
         ? '<instruction>Wait for the author to respond to your critique.</instruction>'
-        : '<instruction>As author, defend your work against the critic\'s points. Address each concrete gap. Cite evidence.</instruction>';
+        : `<instruction>As author, defend your work against the critic's points. Address each concrete gap. Cite evidence.${citeDraft}</instruction>`;
     case 'counter-critique':
       return isCritic
-        ? '<instruction>As critic, challenge the author\'s rebuttal. Are the defenses valid? Probe deeper.</instruction>'
+        ? `<instruction>As critic, challenge the author's rebuttal. Are the defenses valid? Probe deeper.${citeDraft}</instruction>`
         : '<instruction>Wait for the critic\'s counter-critique.</instruction>';
     case 'consensus':
-      return '<instruction>Both sides: converge on a final verdict. State whether the work is approved, needs revision, or is blocked. Be concise.</instruction>';
+      return `<instruction>Both sides: converge on a final verdict. State whether the work is approved, needs revision, or is blocked. Be concise.${citeDraft}</instruction>`;
     default:
       return '';
   }
@@ -278,9 +333,16 @@ export interface RiskAssessmentInput {
 
 /**
  * Assess the risk level of a work node to determine debate depth.
- * - simple: 1 file, no deps, < 3 evidence → skip debate, quick review only
- * - medium: 3-5 files or has deps → 2-round design debate + 2-round review
- * - complex: 10+ files or 5+ deps → full 4-phase design + 4-phase review
+ *
+ * Heuristic only (not an LLM judge). Tuned for cheap escalation:
+ * - simple: no/low deps, few files, light evidence → skip heavy debate
+ * - medium: some deps or several files → critic + rebuttal + consensus
+ * - complex: many deps/files/evidence → full 4-phase debate
+ *
+ * Thresholds:
+ * - complex if dependsOn >= 5 OR files >= 10 OR requiredEvidence >= 5
+ * - medium if dependsOn >= 1 OR files >= 3 OR requiredEvidence >= 3
+ * - else simple
  */
 export function assessRisk(input: RiskAssessmentInput): RiskLevel {
   const fileCount = input.estimatedFileCount ?? 0;
@@ -294,14 +356,16 @@ export function assessRisk(input: RiskAssessmentInput): RiskLevel {
 
 /**
  * Determine which debate phases to run based on risk level.
+ * `simple` skips heavy debate (empty phases) — callers may still run a
+ * checklist review outside the debate module.
  */
 export function debatePhasesForRisk(risk: RiskLevel): readonly DebatePhase[] {
   switch (risk) {
     case 'simple':
-      // Quick review only: critic + consensus
-      return ['critic', 'consensus'];
+      // Skip multi-turn debate for trivial work.
+      return [];
     case 'medium':
-      // 2-round design + 2-round review
+      // 2-round design + consensus
       return ['critic', 'rebuttal', 'consensus'];
     case 'complex':
       // Full 4-phase
@@ -321,17 +385,52 @@ export interface ConsensusResult {
 
 /**
  * Parse a consensus text into a structured verdict.
+ * Case-insensitive; accepts English and common Korean VERDICT variants.
  */
 export function parseConsensusVerdict(text: string): ConsensusResult {
-  const lower = text.toLowerCase().trim();
-  if (lower.startsWith('approve') || lower.startsWith('strong-approve')) {
-    return { verdict: 'approve', text };
+  const normalized = text.trim();
+  const lower = normalized.toLowerCase();
+  // Strip optional "VERDICT:" / "판정:" prefixes and leading punctuation.
+  const stripped = lower
+    .replace(/^\s*(?:verdict|판정|결론)\s*[:：\-–—]?\s*/i, '')
+    .replace(/^\s*[*`"'«»]+/, '')
+    .trim();
+  const head = stripped.length > 0 ? stripped : lower;
+
+  if (
+    /^(?:strong[-_\s]?)?approve\b/.test(head) ||
+    /^(?:pass|approved|lgtm)\b/.test(head) ||
+    /^(?:승인|통과|합의|찬성)\b/.test(head) ||
+    head.startsWith('승인') ||
+    head.startsWith('통과')
+  ) {
+    return { verdict: 'approve', text: normalized };
   }
-  if (lower.startsWith('block') || lower.startsWith('reject')) {
-    return { verdict: 'block', text };
+  if (
+    /^(?:block|reject|blocked|fail|failed)\b/.test(head) ||
+    /^(?:차단|거절|반려|실패|불가)\b/.test(head) ||
+    head.startsWith('차단') ||
+    head.startsWith('반려')
+  ) {
+    return { verdict: 'block', text: normalized };
   }
+  if (
+    /^(?:revise|revision|needs?\s*revision|needs?\s*work)\b/.test(head) ||
+    /^(?:수정|보완|재작업|개선\s*필요)/.test(head)
+  ) {
+    return { verdict: 'revise', text: normalized, revisionNotes: normalized };
+  }
+
+  // Embedded verdict tokens (e.g. "Final: APPROVE — looks good")
+  if (/\b(?:strong[-_\s]?)?approve\b|\bpass\b|승인|통과/.test(lower) && !/\brevise\b|\bblock\b|수정|차단/.test(lower)) {
+    return { verdict: 'approve', text: normalized };
+  }
+  if (/\b(?:block|reject|fail)\b|차단|반려|실패/.test(lower) && !/\brevise\b|수정/.test(lower)) {
+    return { verdict: 'block', text: normalized };
+  }
+
   // Everything else is "needs revision"
-  return { verdict: 'revise', text, revisionNotes: text };
+  return { verdict: 'revise', text: normalized, revisionNotes: normalized };
 }
 
 // ── Debate cycle runner ──────────────────────────────────────────────
@@ -363,7 +462,16 @@ export async function runDebateCycle(
   options: RunDebateCycleOptions,
 ): Promise<DebateState> {
   let state = options.debate;
+  // Empty phases (simple risk) means skip debate entirely.
+  if (options.phases.length === 0) {
+    return {
+      ...state,
+      finished: true,
+      consensusVerdict: state.consensusVerdict ?? 'approve: skipped debate (simple risk)',
+    };
+  }
   const phases = options.phases.length > 0 ? options.phases : PHASE_ORDER;
+  const draftExcerpt = state.config.artifactSummary;
 
   for (let phaseIndex = 0; phaseIndex < phases.length; phaseIndex += 1) {
     const phase = phases[phaseIndex]!;
@@ -387,8 +495,10 @@ export async function runDebateCycle(
         stance: stanceForPhase(phase, turnInput.isCritic),
       });
 
-      // Build context with prior turns + steering
-      const context = buildDebateContext(state, turnInput.participant.expertId);
+      // Build context with prior turns + steering + draft excerpt to cite
+      const context = buildDebateContext(state, turnInput.participant.expertId, {
+        draftExcerpt,
+      });
       const prompt = `${context}\n\n${turnInput.instruction}`;
 
       // Call the participant's LLM

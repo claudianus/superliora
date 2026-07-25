@@ -4,6 +4,11 @@ import { EXPERT_CATALOG_META } from './catalog-meta';
 import { EXPERT_CATALOG_EXTENSIONS } from './catalog-extensions';
 import { enrichExpertForCatalog } from './expert-persona';
 import { inferExpertTaskProfile, type ExpertTaskProfile } from './task-profile';
+import {
+  applyStaffingDiversity,
+  rewriteExpertSearchQuery,
+} from './staffing-diversity';
+import { scoreBoost as staffingOutcomeScoreBoost } from './staffing-outcome';
 
 const ALL_EXPERTS: readonly ExpertCatalogEntry[] = [...EXPERT_CATALOG_META, ...EXPERT_CATALOG_EXTENSIONS];
 
@@ -85,10 +90,12 @@ export class ExpertSearchEngine {
     const minScore = options.minScore ?? 0.04;
     const taskProfile = resolveTaskProfile(options);
     const useEmbedding = options.useEmbedding !== false && this.embeddingCache !== undefined && this.embeddingCache.size > 0;
+    // Staffing 2.0: rewrite Hangul/noise queries into English technical tokens.
+    const query = rewriteExpertSearchQuery(options.query);
 
     // 1. Sparse search (MiniSearch)
-    const miniResults = this.index.search(options.query, {
-      fuzzy: options.query.trim().length <= 3 ? 0.05 : 0.2,
+    const miniResults = this.index.search(query, {
+      fuzzy: query.trim().length <= 3 ? 0.05 : 0.2,
     }).map((r) => {
       const expert = this.expertById.get(r.id);
       if (expert === undefined) return undefined;
@@ -100,7 +107,7 @@ export class ExpertSearchEngine {
     // inactive unless embeddings are added later — not a cosine hybrid ranker.
     let denseResults: ExpertSearchResult[] = [];
     if (useEmbedding) {
-      denseResults = this.secondaryLexicalSearch(options.query, topK * 2, taskProfile);
+      denseResults = this.secondaryLexicalSearch(query, topK * 2, taskProfile);
     }
 
     // 3. RRF fusion (dense half is empty when no embeddings)
@@ -123,7 +130,11 @@ export class ExpertSearchEngine {
     if (taskProfile.excludedDivisions.length > 0) {
       results = results.filter((r) => !taskProfile.excludedDivisions.includes(r.expert.division));
     }
-    return results.slice(0, topK);
+
+    // 5. Diversity: cap near-identical id prefixes / same division before topK.
+    // Pull a wider pool so diversity has room to drop near-duplicates.
+    const pool = results.slice(0, Math.max(topK * 3, topK));
+    return applyStaffingDiversity(pool, topK);
   }
 
   /**
@@ -262,6 +273,8 @@ function applyTaskProfileScore(
   if (taskProfile.preferredDivisions.includes(division)) score *= 1.35;
   if (taskProfile.excludedDivisions.includes(division)) score *= 0.12;
   if (options.division !== undefined && division === options.division) score *= 1.2;
+  // Staffing outcome prior (MVP): light multiplicative boost from hire history.
+  score *= staffingOutcomeScoreBoost(result.expert.id);
   return score;
 }
 

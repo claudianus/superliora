@@ -469,6 +469,52 @@ const ultraSwarmGlance: GlanceFn = (_toolCall, result) => {
   if (samples.length > 0) return samples.join(' · ');
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
+const runProjectChecksGlance: GlanceFn = (_toolCall, result) => {
+  const start = result.output.indexOf('{');
+  if (start >= 0) {
+    try {
+      const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
+      if (typeof json['summary'] === 'string' && json['summary'].length > 0) {
+        return json['summary'].replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+      }
+      const exitCode = typeof json['exitCode'] === 'number' ? json['exitCode'] : undefined;
+      const checks = Array.isArray(json['checks']) ? json['checks'].length : undefined;
+      const parts: string[] = [];
+      if (exitCode !== undefined) parts.push(exitCode === 0 ? 'pass' : `exit ${exitCode}`);
+      if (checks !== undefined) parts.push(`${checks} checks`);
+      if (parts.length > 0) return parts.join(' · ');
+    } catch {
+      // fall through
+    }
+  }
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+const verifySurfaceGlance: GlanceFn = (_toolCall, result) => {
+  const start = result.output.indexOf('{');
+  if (start >= 0) {
+    try {
+      const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
+      const pass = json['pass'] === true;
+      const url = typeof json['url'] === 'string' ? json['url'] : '';
+      const errors = Array.isArray(json['consoleErrors']) ? json['consoleErrors'].length : 0;
+      const parts: string[] = [pass ? 'pass' : 'fail'];
+      if (url.length > 0) {
+        try {
+          parts.push(new URL(url).host);
+        } catch {
+          parts.push(url.slice(0, 32));
+        }
+      }
+      if (errors > 0) parts.push(`${errors} console`);
+      return parts.join(' · ');
+    } catch {
+      // fall through
+    }
+  }
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 const browserStatusGlance: GlanceFn = (_toolCall, result) => {
   const json = (() => {
     const start = result.output.indexOf('{');
@@ -640,6 +686,8 @@ export const swarmChannelSummary: ResultRenderer = withGlance(swarmChannelGlance
 export const agentSummary: ResultRenderer = withGlance(agentGlance);
 export const agentSwarmSummary: ResultRenderer = withGlance(agentSwarmGlance);
 export const ultraSwarmSummary: ResultRenderer = withGlance(ultraSwarmGlance);
+export const runProjectChecksSummary: ResultRenderer = withGlance(runProjectChecksGlance);
+export const verifySurfaceSummary: ResultRenderer = withGlance(verifySurfaceGlance);
 export const browserStatusSummary: ResultRenderer = withGlance(browserStatusGlance);
 export const browserObserveSummary: ResultRenderer = withGlance(browserObserveGlance);
 export const browserScreenshotSummary: ResultRenderer = withGlance(null);

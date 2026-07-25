@@ -16,6 +16,7 @@ tools:
   - Grep
   - Glob
   - Bash
+  - RunProjectChecks
   - LioraRead
   - LioraTree
   - LioraSymbol
@@ -24,6 +25,7 @@ tools:
   - WebSearch
   - FetchURL
   - ReadMediaFile
+  - VerifySurface
   - AskUserQuestion
   - Memory
   - TodoList

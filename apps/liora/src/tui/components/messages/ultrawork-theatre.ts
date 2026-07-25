@@ -140,6 +140,8 @@ export class UltraworkTheatreComponent implements Component {
       case 'ultrawork.task.assigned':
         this.tasks.set(event.task.id, event.task);
         break;
+      // Chat feed is owned by AgentSwarmProgress (message_id-deduped live feed).
+      // Theatre never echoes collaboration message/mention bodies.
       case 'ultrawork.collaboration.message':
       case 'ultrawork.collaboration.mention':
         break;

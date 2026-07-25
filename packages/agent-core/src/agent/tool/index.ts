@@ -560,12 +560,14 @@ export class ToolManager {
           fileSnapshots: this.agent.fileSnapshots,
           getTurnId: () =>
             this.agent.turn.currentId !== undefined ? String(this.agent.turn.currentId) : undefined,
+          getSwarmLease: () => this.agent.swarmFileLease,
         }),
       this.shouldCreateBuiltin('Edit') &&
         new b.EditTool(kaos, workspace, {
           fileSnapshots: this.agent.fileSnapshots,
           getTurnId: () =>
             this.agent.turn.currentId !== undefined ? String(this.agent.turn.currentId) : undefined,
+          getSwarmLease: () => this.agent.swarmFileLease,
         }),
       this.shouldCreateBuiltin('Grep') && new b.GrepTool(kaos, workspace, this.agent.telemetry),
       this.shouldCreateBuiltin('Glob') && new b.GlobTool(kaos, workspace, this.agent.telemetry),
@@ -579,6 +581,8 @@ export class ToolManager {
           allowBackground,
           store: this.toolStore,
         }),
+      this.shouldCreateBuiltin('RunProjectChecks') &&
+        new b.RunProjectChecksTool(kaos, cwd, { store: this.toolStore }),
       this.shouldCreateBuiltin('ReadMediaFile') &&
         (modelCapabilities.image_in || modelCapabilities.video_in) &&
         new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
@@ -708,6 +712,12 @@ export class ToolManager {
       toolServices?.browserUse &&
         this.shouldCreateBuiltin('BrowserConsole') &&
         new b.BrowserConsoleTool(toolServices.browserUse),
+      // Always register when profile allows: missing runtime returns a clear error, never a fake pass.
+      this.shouldCreateBuiltin('VerifySurface') &&
+        new b.VerifySurfaceTool(toolServices?.browserUse, {
+          kaos: this.agent.kaos,
+          cwd: this.agent.config.cwd,
+        }),
       toolServices?.computerUse &&
         this.shouldCreateBuiltin('ComputerCapture') &&
         new b.ComputerCaptureTool(toolServices.computerUse),

@@ -13,6 +13,7 @@ tools:
   - Grep
   - Glob
   - Bash
+  - RunProjectChecks
   # Lean context tools — kept until merged into Read/Grep advanced modes.
   - LioraRead
   # Progress transparency and long-run autonomy (main agent only).
@@ -46,6 +47,7 @@ tools:
   - ReadMediaFile
   - GenerateImage
   - GenerateVideo
+  - VerifySurface
   # MCP tools are gated separately by the profile.
   - mcp__*
 

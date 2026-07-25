@@ -251,7 +251,7 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('╭');
     expect(output).toContain('UltraSwarm');
     expect(output).toContain('AppSec Engineer');
-    expect(output).toContain('live feed');
+    expect(output).toContain('war room');
     expect(output).toContain('awaiting team messages');
     expect(output).not.toContain('STAFF');
     expect(output).not.toContain('lanes:');
@@ -273,7 +273,9 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).toContain('integration report');
     expect(output).toContain('AppSec Engineer · review · PASS');
     expect(output).toContain('Reviewed auth middleware');
-    expect(output).not.toContain('ev_1');
+    expect(output).toContain('evidence wall');
+    expect(output).toContain('evidence · ev_1');
+    expect(output).toContain('evidence · ev_2');
     expect(output).not.toContain('DONE');
   });
 
@@ -302,7 +304,7 @@ describe('AgentSwarmProgressComponent', () => {
     });
 
     const output = renderText(component, 120);
-    expect(output).toContain('live feed');
+    expect(output).toContain('war room');
     expect(output).not.toContain('JOIN');
     expect(output).not.toContain('LIVE');
     expect(output).not.toContain('TOOL');
@@ -356,7 +358,7 @@ describe('AgentSwarmProgressComponent', () => {
 
     const output = renderText(component, 120);
     const feedSection = output.split('feed')[1]?.split('╰')[0] ?? '';
-    expect(output).toContain('live feed');
+    expect(output).toContain('war room');
     expect(feedSection).toContain('001→002: auth middleware missing tests');
     expect(feedSection).toContain('002: patch ready for review');
     expect(feedSection).toContain('001→@002: Need auth review @impl-engineer');
@@ -396,6 +398,49 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output.match(/001→impl/g)?.length).toBe(1);
   });
 
+  it('paints the same collaboration message_id only once even when message and mention both fire', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        emoji: '🔒',
+        coverageLane: 'security_privacy',
+        focus: 'review',
+      },
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+
+    const shared = {
+      id: 'msg_dedupe_1',
+      from: { expertId: 'security-appsec-engineer', name: 'AppSec Engineer', emoji: '🔒' },
+      to: { expertId: 'impl-engineer' },
+      channel: 'direct' as const,
+      body: 'Need auth review before merge',
+    };
+
+    // Same SwarmBus message is emitted as both collaboration.message and
+    // collaboration.mention (subagent-host onMessagePosted). Feed must paint once.
+    component.applySwarmCollaborationMessage(shared);
+    component.applySwarmCollaborationMention(shared);
+    component.applySwarmCollaborationMessage(shared);
+    component.applySwarmCollaborationMention(shared);
+
+    const output = renderText(component, 120);
+    const bodyHits = output.match(/Need auth review before merge/g) ?? [];
+    expect(bodyHits).toHaveLength(1);
+    // First writer wins: message path uses the direct/lane header (not mention @).
+    expect(output).toContain('001→002');
+    expect(output).not.toMatch(/Need auth review before merge[\s\S]*Need auth review before merge/);
+  });
+
   it('uses a two-line feed layout on narrow terminals to preserve message bodies', () => {
     const component = createComponent({ title: 'UltraSwarm' });
     component.applyUltraSwarmTeam([
@@ -420,6 +465,110 @@ describe('AgentSwarmProgressComponent', () => {
     expect(lines[feedHeaderIndex]).not.toContain('auth middleware');
   });
 
+  it('humanizes protocol XML collaboration bodies in the war room feed', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+      },
+    ]);
+    component.markInputComplete();
+    component.applySwarmCollaborationMessage({
+      from: { expertId: 'impl-engineer', name: 'Impl Engineer', emoji: '🔧' },
+      channel: 'lane',
+      body: '<handoff expert_id="impl-engineer" phase="implement" verdict="PASS">Dashboard attach scenario green</handoff>',
+    });
+
+    const output = renderText(component, 120);
+    expect(output).toContain('Dashboard attach');
+    expect(output).not.toContain('<handoff');
+    expect(output).not.toContain('</handoff>');
+  });
+
+  it('renders war room debate reel, evidence wall, file map, and action dock', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'security-appsec-engineer',
+        name: 'AppSec Engineer',
+        coverageLane: 'security_privacy',
+        focus: 'review',
+      },
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+
+    // Active swarm with no leases yet → empty file map state.
+    let output = renderText(component, 120);
+    expect(output).toContain('file map · no leases yet');
+    expect(output).toContain('actions · pause · restaff · raw (coming)');
+    expect(output).not.toContain('debate reel');
+    expect(output).not.toContain('evidence wall');
+
+    component.applySwarmCollaborationDebate({
+      debateId: 'db_1',
+      phase: 'critic',
+      expertId: 'security-appsec-engineer',
+      expertName: 'AppSec Engineer',
+      text: 'Missing auth tests on callback path',
+      stance: 'oppose',
+    });
+    component.applySwarmCollaborationDebate({
+      debateId: 'db_1',
+      phase: 'rebuttal',
+      expertId: 'impl-engineer',
+      expertName: 'Impl Engineer',
+      text: 'Tests land in packages/agent-core/src/auth.ts with ev_auth_1',
+      stance: 'support',
+    });
+    component.applySwarmCollaborationSteer({
+      debateId: 'db_1',
+      text: 'Prefer integration tests over unit stubs',
+      fromUser: true,
+    });
+    component.applySwarmCollaborationDebate({
+      debateId: 'db_1',
+      phase: 'consensus',
+      expertName: 'Council',
+      text: 'Ship with integration coverage',
+    });
+    component.applyFileLeaseClaim({
+      path: 'packages/agent-core/src/auth.ts',
+      owner: 'Impl Engineer',
+    });
+
+    output = renderText(component, 120);
+    expect(output).toContain('debate reel');
+    expect(output).toContain('debate · critic: Missing auth tests on callback path');
+    expect(output).toContain('debate · rebuttal:');
+    expect(output).toContain('debate · steer: Prefer integration tests over unit stubs');
+    expect(output).toContain('debate · consensus: Ship with integration coverage');
+    expect(output).toContain('evidence wall');
+    expect(output).toContain('evidence · ev_auth_1');
+    expect(output).toContain('evidence · packages/agent-core/src/auth.ts');
+    expect(output).toContain('file map');
+    expect(output).toContain('file · packages/agent-core/src/auth.ts @ Impl');
+    expect(output).not.toContain('file map · no leases yet');
+    expect(output).toContain('actions · pause · restaff · raw (coming)');
+
+    component.applyFileLeaseClaim({
+      path: 'packages/agent-core/src/auth.ts',
+      owner: 'Impl Engineer',
+      released: true,
+    });
+    output = renderText(component, 120);
+    expect(output).toContain('file map · no leases yet');
+    expect(output).not.toContain('file · packages/agent-core/src/auth.ts @ Impl');
+  });
+
   it('does not render the ops feed for plain Agent Swarm runs', () => {
     const component = createComponent({ title: 'Agent Swarm' });
     registerSubagents(component, 2);
@@ -427,7 +576,7 @@ describe('AgentSwarmProgressComponent', () => {
 
     const output = renderText(component);
     expect(output).not.toContain('LIVE FEED');
-    expect(output).not.toContain('live feed');
+    expect(output).not.toContain('war room');
   });
 
   it('fits three queued columns with the narrower gap and minimum cell width', () => {

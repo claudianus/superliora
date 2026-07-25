@@ -2,6 +2,11 @@ import type { ExpertCatalogEntry, ExpertSearchResult, ExpertSwarmPlan } from './
 import { globalExpertSearchEngine } from './search';
 import { inferExpertTaskProfile } from './task-profile';
 import { buildExpertAssignmentPrompt } from './expert-persona';
+import {
+  applyStaffingDiversity,
+  formatSelectionReason,
+  rewriteExpertSearchQuery,
+} from './staffing-diversity';
 
 export interface TaskAnalysis {
   readonly domains: readonly string[];
@@ -25,9 +30,10 @@ export class UltraSwarmOrchestrator {
 
   async analyzeTask(taskDescription: string): Promise<TaskAnalysis> {
     await globalExpertSearchEngine.initialize();
+    const searchQuery = rewriteExpertSearchQuery(taskDescription);
 
     // Extract potential domains by searching with keywords from the task
-    const keywords = taskDescription
+    const keywords = searchQuery
       .toLowerCase()
       .replaceAll(/[^\w\s]/g, '')
       .split(/\s+/)
@@ -38,7 +44,7 @@ export class UltraSwarmOrchestrator {
 
     // Search with the full description first
     const fullResults = globalExpertSearchEngine.search({
-      query: taskDescription,
+      query: searchQuery,
       topK: 10,
       taskDescription,
     });
@@ -101,12 +107,13 @@ export class UltraSwarmOrchestrator {
       // Auto-select experts based on task analysis
       const analysis = await this.analyzeTask(taskDescription);
       const targetExpertCount = targetExpertCountForAnalysis(analysis, options);
+      const searchQuery = rewriteExpertSearchQuery(taskDescription);
       experts = [];
       const seen = new Set<string>();
 
       for (const lane of requiredCoverageLanes(taskDescription, options.intensity)) {
         const laneExperts = globalExpertSearchEngine.search({
-          query: `${taskDescription} ${coverageLaneQuery(lane)}`,
+          query: `${searchQuery} ${coverageLaneQuery(lane)}`,
           topK: 8,
           taskDescription,
           filter: (expert) => coverageLaneForExpert(expert, taskDescription) === lane,
@@ -123,7 +130,7 @@ export class UltraSwarmOrchestrator {
       for (const domain of analysis.domains) {
         if (taskProfile.excludedDivisions.includes(domain)) continue;
         const domainExperts = globalExpertSearchEngine.search({
-          query: taskDescription,
+          query: searchQuery,
           topK: 1,
           division: domain,
           taskDescription,
@@ -141,7 +148,7 @@ export class UltraSwarmOrchestrator {
       // If we still don't have enough, do a broad search
       if (experts.length < targetExpertCount) {
         const broad = globalExpertSearchEngine.search({
-          query: taskDescription,
+          query: searchQuery,
           topK: targetExpertCount + 8,
           taskDescription,
         });
@@ -153,6 +160,9 @@ export class UltraSwarmOrchestrator {
           if (experts.length >= targetExpertCount) break;
         }
       }
+
+      // Final roster diversity: avoid near-duplicate specialists across lanes.
+      experts = applyStaffingDiversity(experts, targetExpertCount);
     }
 
     const strategy: ExpertSwarmPlan['strategy'] =
@@ -160,6 +170,7 @@ export class UltraSwarmOrchestrator {
 
     const assignments = experts.map((result, index) => {
       const prev = experts[index - 1];
+      const coverageLane = coverageLaneForExpert(result.expert, taskDescription);
       return {
         expertId: result.expert.id,
         expertName: result.expert.name,
@@ -169,8 +180,12 @@ export class UltraSwarmOrchestrator {
         color: result.expert.color,
         prompt: this.buildExpertPrompt(result.expert, taskDescription, index, experts.length),
         dependsOn: strategy === 'sequential' && index > 0 && prev !== undefined ? [prev.expert.id] : undefined,
-        coverageLane: coverageLaneForExpert(result.expert, taskDescription),
-        selectionReason: selectionReasonForExpert(result.expert),
+        coverageLane,
+        selectionReason: formatSelectionReason({
+          expert: result.expert,
+          score: result.score,
+          coverageLane,
+        }),
       };
     });
 
@@ -303,11 +318,4 @@ function coverageLaneForExpert(expert: ExpertCatalogEntry, taskDescription: stri
   return 'architecture_implementation';
 }
 
-function selectionReasonForExpert(expert: ExpertCatalogEntry): string {
-  const description = expert.description.trim();
-  if (description.length > 0) return description;
-  const tags = expert.tags.slice(0, 5).join(', ');
-  return tags.length > 0
-    ? `Selected for ${expert.divisionLabel} coverage: ${tags}.`
-    : `Selected for ${expert.divisionLabel} coverage.`;
-}
+

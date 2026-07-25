@@ -281,24 +281,74 @@ export class SubAgentEventHandler {
     });
   }
 
+  /**
+   * Routes a collaboration message into the live UltraSwarm feed.
+   * @returns true when an active swarm progress component owned the feed line
+   */
   handleUltraworkCollaborationMessage(
     event: Extract<Event, { type: 'ultrawork.collaboration.message' }>,
-  ): void {
+  ): boolean {
     const toolCallId = event.message.parentToolCallId;
-    if (toolCallId.length === 0) return;
-    this.updateAgentSwarmProgress(toolCallId, (progress) => {
+    if (toolCallId.length === 0) return false;
+    return this.updateAgentSwarmProgress(toolCallId, (progress) => {
       progress.applySwarmCollaborationMessage(event.message);
     });
   }
 
+  /**
+   * Routes a collaboration mention into the live UltraSwarm feed.
+   * @returns true when an active swarm progress component owned the feed line
+   */
   handleUltraworkCollaborationMention(
     event: Extract<Event, { type: 'ultrawork.collaboration.mention' }>,
-  ): void {
+  ): boolean {
     const toolCallId = event.message.parentToolCallId;
-    if (toolCallId.length === 0) return;
-    this.updateAgentSwarmProgress(toolCallId, (progress) => {
+    if (toolCallId.length === 0) return false;
+    return this.updateAgentSwarmProgress(toolCallId, (progress) => {
       progress.applySwarmCollaborationMention(event.message);
     });
+  }
+
+  /**
+   * Routes debate turns into active UltraSwarm war-room reels.
+   * Debate events are run-scoped (no parentToolCallId), so broadcast to live swarms.
+   * @returns true when at least one swarm progress component accepted the turn
+   */
+  handleUltraworkCollaborationDebate(
+    event: Extract<Event, { type: 'ultrawork.collaboration.debate' }>,
+  ): boolean {
+    let owned = false;
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applySwarmCollaborationDebate({
+        debateId: event.debateId,
+        phase: event.phase,
+        expertId: event.expertId,
+        expertName: event.expertName,
+        text: event.text,
+        stance: event.stance,
+      });
+      owned = true;
+    }
+    return owned;
+  }
+
+  /**
+   * Routes steer turns into active UltraSwarm war-room reels.
+   * @returns true when at least one swarm progress component accepted the turn
+   */
+  handleUltraworkCollaborationSteer(
+    event: Extract<Event, { type: 'ultrawork.collaboration.steer' }>,
+  ): boolean {
+    let owned = false;
+    for (const progress of this.agentSwarmProgress.values()) {
+      progress.applySwarmCollaborationSteer({
+        debateId: event.debateId,
+        text: event.text,
+        fromUser: event.fromUser,
+      });
+      owned = true;
+    }
+    return owned;
   }
 
   markActiveAgentSwarmsCancelled(): void {
@@ -624,6 +674,15 @@ export class SubAgentEventHandler {
         toolName: event.name,
         toolDescription: event.description,
       });
+      // War Room file map: surface Edit/Write path claims for the active worker.
+      if (event.name === 'Edit' || event.name === 'Write') {
+        const args = argsRecord(event.args);
+        const pathValue = args['path'];
+        const path = typeof pathValue === 'string' ? pathValue.trim() : '';
+        if (path.length > 0) {
+          progress.applyFileLeaseClaim({ path, owner: subagentId });
+        }
+      }
     } else if (event.type === 'tool.result') {
       const summary =
         typeof event.output === 'string'

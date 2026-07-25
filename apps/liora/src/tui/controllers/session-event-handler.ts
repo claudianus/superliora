@@ -372,12 +372,41 @@ export class SessionEventHandler {
     if (event.type === 'ultrawork.team.staffed') {
       this.subAgentEventHandler.handleUltraworkTeamStaffed(event);
     }
+
+    // Collaboration chat feed owns a single sink: AgentSwarmProgress when active.
+    // Debate/steer also paint the war-room reel when a swarm is live; theatre remains
+    // the fallback surface only when no swarm progress owns the event.
+    let collaborationFeedOwnedBySwarm = false;
     if (event.type === 'ultrawork.collaboration.message') {
-      this.subAgentEventHandler.handleUltraworkCollaborationMessage(event);
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationMessage(event);
     }
     if (event.type === 'ultrawork.collaboration.mention') {
-      this.subAgentEventHandler.handleUltraworkCollaborationMention(event);
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationMention(event) ||
+        collaborationFeedOwnedBySwarm;
     }
+    if (event.type === 'ultrawork.collaboration.debate') {
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationDebate(event) ||
+        collaborationFeedOwnedBySwarm;
+    }
+    if (event.type === 'ultrawork.collaboration.steer') {
+      collaborationFeedOwnedBySwarm =
+        this.subAgentEventHandler.handleUltraworkCollaborationSteer(event) ||
+        collaborationFeedOwnedBySwarm;
+    }
+    if (
+      collaborationFeedOwnedBySwarm &&
+      (event.type === 'ultrawork.collaboration.message' ||
+        event.type === 'ultrawork.collaboration.mention' ||
+        event.type === 'ultrawork.collaboration.debate' ||
+        event.type === 'ultrawork.collaboration.steer')
+    ) {
+      requestTUILayoutRender(this.host.state);
+      return;
+    }
+
     const runId = ultraworkTheatreRunId(event);
     const existing = this.ultraworkTheatres.get(runId);
     if (existing === undefined) {

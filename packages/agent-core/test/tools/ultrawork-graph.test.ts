@@ -223,6 +223,54 @@ describe('UltraworkGraphTool', () => {
       }),
     });
   });
+
+  it('rejects done without evidence when requiredEvidence is present', async () => {
+    const { tool } = makeTool();
+
+    await expect(
+      executeTool(tool, {
+        turnId: 't1',
+        toolCallId: 'call_gate',
+        args: {
+          run_id: 'uw_1',
+          nodes: [
+            node({
+              status: 'done',
+              requiredEvidence: ['unit test'],
+              evidenceIds: [],
+            }),
+          ],
+        },
+        signal,
+      }),
+    ).resolves.toMatchObject({
+      isError: true,
+      output: expect.stringContaining('cannot be done'),
+    });
+  });
+
+  it('accepts done when requiredEvidence is satisfied by evidenceIds', async () => {
+    const { tool, data } = makeTool();
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'call_gate_ok',
+      args: {
+        run_id: 'uw_1',
+        nodes: [
+          node({
+            status: 'done',
+            requiredEvidence: ['unit test'],
+            evidenceIds: ['ev-1'],
+          }),
+        ],
+      },
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: false });
+    expect((data[ULTRAWORK_GRAPH_STORE_KEY] as WorkGraph).nodes[0]?.status).toBe('done');
+  });
 });
 
 describe('parseWorkGraphNodesFromPlan', () => {
