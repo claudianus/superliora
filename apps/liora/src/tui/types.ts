@@ -63,6 +63,15 @@ export interface AppState {
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;
+  /**
+   * Soft working-set policy from loopControl (Settings → Context / `/context`).
+   * Used by the footer badge and `/usage` gauge. Missing until config sync.
+   */
+  workingSet?: {
+    readonly maxWorkingSetTokens: number;
+    readonly asyncWorkingSetTokens: number;
+    readonly presetId?: 'balanced' | 'economy' | 'deep' | 'full_window';
+  } | null;
   /** Accumulated session cost in USD (best-effort; undefined when unknown). */
   sessionCostUsd?: number;
   /** Context OS continuity/evidence health when compacted pages exist. */

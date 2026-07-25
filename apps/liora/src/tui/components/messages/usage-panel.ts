@@ -29,6 +29,10 @@ import {
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import {
+  effectiveSoftWorkingSetTokens,
+  workingSetUsageRatio,
+} from '#/tui/utils/context-working-set';
 
 const LEFT_MARGIN = 2;
 const SIDE_PADDING = 1;
@@ -72,6 +76,15 @@ export interface UsageReportOptions {
   readonly contextUsage: number;
   readonly contextTokens: number;
   readonly maxContextTokens: number;
+  /**
+   * Soft working-set policy (Settings → Context). When set, a second gauge
+   * shows live history pressure against the agent cap, not only the model window.
+   */
+  readonly workingSet?: {
+    readonly maxWorkingSetTokens: number;
+    readonly asyncWorkingSetTokens: number;
+    readonly presetId?: string;
+  } | null;
   readonly managedUsage?: ManagedUsageReport;
   readonly managedUsageError?: string;
   /** 0..1 multiplier applied to plan usage bars during ambient fill animation. */
@@ -495,6 +508,20 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
     lines.push(`  ${muted('Next')}       ${value(next)}`);
   }
 
+  const workingSetLines = buildWorkingSetUsageLines({
+    contextTokens: options.contextTokens,
+    maxContextTokens: options.maxContextTokens,
+    workingSet: options.workingSet,
+    accent,
+    value,
+    muted,
+    severityColor,
+  });
+  if (workingSetLines.length > 0) {
+    lines.push('');
+    lines.push(...workingSetLines);
+  }
+
   const managedSection = buildManagedUsageReportLines({
     managedUsage: options.managedUsage,
     managedUsageError: options.managedUsageError,
@@ -517,6 +544,81 @@ export function buildUsageReportLines(options: UsageReportOptions): string[] {
     lines.push(...quotaSection);
   }
 
+  return lines;
+}
+
+function buildWorkingSetUsageLines(input: {
+  readonly contextTokens: number;
+  readonly maxContextTokens: number;
+  readonly workingSet?: UsageReportOptions['workingSet'];
+  readonly accent: Colorize;
+  readonly value: Colorize;
+  readonly muted: Colorize;
+  readonly severityColor: (sev: 'ok' | 'warn' | 'danger') => 'success' | 'warning' | 'error';
+}): string[] {
+  const ws = input.workingSet;
+  if (ws === undefined || ws === null) return [];
+
+  const soft = effectiveSoftWorkingSetTokens({
+    maxContextTokens: input.maxContextTokens,
+    maxWorkingSetTokens: ws.maxWorkingSetTokens,
+  });
+  const lines: string[] = [input.accent('Working set')];
+  const preset =
+    ws.presetId !== undefined && ws.presetId.length > 0 ? ws.presetId : 'custom';
+
+  if (ws.maxWorkingSetTokens <= 0) {
+    lines.push(
+      `  ${input.muted('Policy')}    ${input.value('full model window')}  ${input.muted(`(${preset})`)}`,
+    );
+    lines.push(
+      `  ${input.muted('Next')}       ${input.value('Auto-compact follows ratio only; long 1M sessions can get expensive.')}`,
+    );
+    return lines;
+  }
+
+  const ratio =
+    workingSetUsageRatio({
+      contextTokens: input.contextTokens,
+      maxContextTokens: input.maxContextTokens,
+      maxWorkingSetTokens: ws.maxWorkingSetTokens,
+    }) ?? 0;
+  const pct = `${(ratio * 100).toFixed(1)}%`;
+  const sev: 'ok' | 'warn' | 'danger' =
+    ratio >= 0.95 ? 'danger' : ratio >= 0.8 ? 'warn' : 'ok';
+  const barColor = input.severityColor(sev);
+  const barColoured = renderRendererRatioProgressBar({
+    ratio,
+    width: 20,
+    filledStyle: (text) => currentTheme.fg(barColor, text),
+    emptyStyle: (text) => currentTheme.fg(barColor, text),
+  });
+  const remaining = Math.max(0, soft - input.contextTokens);
+  const next =
+    ratio >= 0.95
+      ? 'Soft compact should fire soon (or run /compact).'
+      : ratio >= 0.8
+        ? 'Approaching working-set cap; wrap up or /compact.'
+        : 'Live history is within the working-set budget.';
+
+  lines.push(
+    `  ${barColoured}  ${input.value(pct.padStart(6, ' '))}  ` +
+      input.muted(
+        `(${formatTokenCount(input.contextTokens)} / ${formatTokenCount(soft)} soft)`,
+      ),
+  );
+  lines.push(
+    `  ${input.muted('Policy')}    ${input.value(
+      `cap ${formatTokenCount(ws.maxWorkingSetTokens)} · async ${formatTokenCount(ws.asyncWorkingSetTokens)}`,
+    )}  ${input.muted(`(${preset})`)}`,
+  );
+  lines.push(
+    `  ${input.muted('Headroom')}  ${input.value(`${formatTokenCount(remaining)} tokens`)}`,
+  );
+  lines.push(`  ${input.muted('Next')}       ${input.value(next)}`);
+  lines.push(
+    `  ${input.muted('Tip')}        ${input.value('Change with /context or Settings → Context')}`,
+  );
   return lines;
 }
 

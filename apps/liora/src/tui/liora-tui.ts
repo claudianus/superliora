@@ -187,6 +187,7 @@ import { hasDispose, isExpandable } from './utils/component-capabilities';
 import { isDeadTerminalError } from './utils/dead-terminal';
 import { DisposableRegistry } from './utils/disposables';
 import { formatErrorMessage } from './utils/event-payload';
+import { contextWorkingSetSnapshotFromLoopControl } from './utils/context-working-set';
 import {
   requestTUIContentRender,
   requestTUILayoutRender,
@@ -283,6 +284,8 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
+    // Balanced defaults until harness config is loaded (footer badge stays stable).
+    workingSet: contextWorkingSetSnapshotFromLoopControl({}),
     isCompacting: false,
     isBackgroundCompacting: false,
     isReplaying: false,
@@ -1958,7 +1961,11 @@ export class LioraTUI {
   }
 
   async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
-    const [status, goalResult] = await Promise.all([session.getStatus(), session.getGoal()]);
+    const [status, goalResult, config] = await Promise.all([
+      session.getStatus(),
+      session.getGoal(),
+      this.harness.getConfig({ reload: false }).catch(() => null),
+    ]);
     this.setAppState({
       sessionId: session.id,
       model: status.model ?? '',
@@ -1978,6 +1985,14 @@ export class LioraTUI {
       providerRouteStatus: status.providerRouteStatus ?? null,
       sessionTitle: session.summary?.title ?? null,
       goal: goalResult.goal,
+      ...(config !== null
+        ? {
+            workingSet: contextWorkingSetSnapshotFromLoopControl({
+              maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
+              asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
+            }),
+          }
+        : {}),
     });
     this.syncAdditionalDirs(session);
   }

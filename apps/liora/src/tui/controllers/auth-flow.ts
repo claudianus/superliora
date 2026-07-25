@@ -2,6 +2,7 @@ import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sd
 import type { SkillListSession } from '../commands';
 
 import { OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE } from '../constant/liora-tui';
+import { contextWorkingSetSnapshotFromLoopControl } from '../utils/context-working-set';
 import { resolveThinkingLevelForApply } from '../utils/thinking-effort';
 import {
   refreshAllProviderModels,
@@ -138,6 +139,10 @@ export class AuthFlowController {
       availableProviders,
       model: defaultModel,
       maxContextTokens: selected.maxContextSize,
+      workingSet: contextWorkingSetSnapshotFromLoopControl({
+        maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
+        asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
+      }),
     };
     if (config.defaultThinking !== undefined) {
       appStatePatch.thinking = config.defaultThinking;

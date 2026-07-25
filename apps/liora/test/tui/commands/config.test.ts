@@ -6,12 +6,19 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   handleAppearanceCommand,
+  handleContextCommand,
   handlePlanCommand,
   handleThemeCommand,
   handleThinkingCommand,
 } from '#/tui/commands/config';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
+import {
+  BALANCED_ASYNC_WORKING_SET_TOKENS,
+  BALANCED_MAX_WORKING_SET_TOKENS,
+  ECONOMY_ASYNC_WORKING_SET_TOKENS,
+  ECONOMY_MAX_WORKING_SET_TOKENS,
+} from '#/tui/utils/context-working-set';
 
 function makeHost(options: { planMode?: boolean; planPath?: string | undefined } = {}) {
   const session = {
@@ -336,5 +343,79 @@ describe('handleThinkingCommand', () => {
 
     expect(session.setThinking).not.toHaveBeenCalled();
     expect(host.showError).toHaveBeenCalledWith('Current model does not support thinking.');
+  });
+});
+
+describe('context working-set command', () => {
+  function makeContextHost() {
+    const setConfig = vi.fn(async () => ({}));
+    const getConfig = vi.fn(async () => ({
+      loopControl: {
+        maxWorkingSetTokens: BALANCED_MAX_WORKING_SET_TOKENS,
+        asyncWorkingSetTokens: BALANCED_ASYNC_WORKING_SET_TOKENS,
+      },
+    }));
+    const host = {
+      harness: { getConfig, setConfig },
+      state: {
+        appState: {
+          model: 'big-model',
+          availableModels: {
+            'big-model': { maxContextSize: 1_000_000 },
+          },
+        },
+      },
+      mountEditorReplacement: vi.fn(),
+      restoreEditor: vi.fn(),
+      setAppState: vi.fn(),
+      showError: vi.fn(),
+      showStatus: vi.fn(),
+      track: vi.fn(),
+    };
+    return host as unknown as SlashCommandHost & typeof host;
+  }
+
+  it('applies the economy preset through setConfig', async () => {
+    const host = makeContextHost();
+    await handleContextCommand(host, 'economy');
+    expect(host.harness.setConfig).toHaveBeenCalledWith({
+      loopControl: {
+        maxWorkingSetTokens: ECONOMY_MAX_WORKING_SET_TOKENS,
+        asyncWorkingSetTokens: ECONOMY_ASYNC_WORKING_SET_TOKENS,
+      },
+    });
+    expect(host.setAppState).toHaveBeenCalledWith({
+      workingSet: {
+        maxWorkingSetTokens: ECONOMY_MAX_WORKING_SET_TOKENS,
+        asyncWorkingSetTokens: ECONOMY_ASYNC_WORKING_SET_TOKENS,
+        presetId: 'economy',
+      },
+    });
+    expect(host.showStatus).toHaveBeenCalled();
+    expect(host.track).toHaveBeenCalledWith('context_working_set_changed', {
+      preset: 'economy',
+    });
+  });
+
+  it('shows status without mutating config', async () => {
+    const host = makeContextHost();
+    await handleContextCommand(host, 'status');
+    expect(host.harness.setConfig).not.toHaveBeenCalled();
+    expect(host.showStatus).toHaveBeenCalled();
+    const status = String(host.showStatus.mock.calls[0]?.[0] ?? '');
+    expect(status).toContain('balanced');
+  });
+
+  it('rejects unknown preset names', async () => {
+    const host = makeContextHost();
+    await handleContextCommand(host, 'turbo');
+    expect(host.harness.setConfig).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalled();
+  });
+
+  it('opens the picker when args are empty', async () => {
+    const host = makeContextHost();
+    await handleContextCommand(host, '');
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
   });
 });
