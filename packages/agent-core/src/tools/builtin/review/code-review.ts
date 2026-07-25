@@ -16,6 +16,11 @@ import type { Agent } from '../../../agent';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ToolAccesses, type ToolExecution } from '../../../loop';
 import { parseDiff, type DiffFile } from './diff-parser';
+import {
+  scanDiffFile,
+  type ReviewHeuristicComment,
+  type ReviewSeverity,
+} from './review-heuristics';
 
 const inputSchema = z.object({
   diff_source: z.enum(['workspace', 'commit', 'range']).describe('Where to get the diff.'),
@@ -82,44 +87,15 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
   /**
    * Per-file review. In a full implementation this spawns a subagent; here we
    * do a lightweight structural scan for obvious issues (missing error
-   * handling, TODO/FIXME, large functions) as a baseline.
+   * handling, TODO/FIXME, secrets, type escapes) as a baseline.
    */
   private reviewFile(file: DiffFile): ReviewComment[] {
-    const comments: ReviewComment[] = [];
-    for (const hunk of file.hunks) {
-      for (const line of hunk.lines) {
-        if (line.type !== 'add' || line.newLineNo === null) continue;
-        const text = line.text.trim();
-        // TODO/FIXME in new code
-        if (/\b(?:TODO|FIXME|HACK|XXX)\b/i.test(text)) {
-          comments.push({
-            path: file.newPath,
-            line: line.newLineNo,
-            severity: 'suggestion',
-            message: 'Unresolved TODO/FIXME marker introduced in this change.',
-          });
-        }
-        // Empty catch blocks
-        if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(text)) {
-          comments.push({
-            path: file.newPath,
-            line: line.newLineNo,
-            severity: 'warning',
-            message: 'Empty catch block swallows errors silently.',
-          });
-        }
-        // console.log left in production code
-        if (/\bconsole\.log\b/.test(text)) {
-          comments.push({
-            path: file.newPath,
-            line: line.newLineNo,
-            severity: 'suggestion',
-            message: 'console.log left in code — consider removing or using a logger.',
-          });
-        }
-      }
-    }
-    return comments;
+    return scanDiffFile(file).map((c: ReviewHeuristicComment) => ({
+      path: c.path,
+      line: c.line,
+      severity: mapHeuristicSeverity(c.severity),
+      message: c.message,
+    }));
   }
 
   private async getDiff(input: CodeReviewInput): Promise<string> {
@@ -164,6 +140,14 @@ export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
     lines.push('Line numbers are resolved deterministically from the diff hunks.');
     return lines.join('\n');
   }
+}
+
+function mapHeuristicSeverity(
+  severity: ReviewSeverity,
+): ReviewComment['severity'] {
+  if (severity === 'error') return 'critical';
+  if (severity === 'info') return 'suggestion';
+  return severity;
 }
 
 /** Factory alias used by ToolManager registration. */
