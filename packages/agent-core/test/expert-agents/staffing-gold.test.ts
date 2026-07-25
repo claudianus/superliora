@@ -4,7 +4,14 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { meanNdcgAtK, ndcgAtK, STAFFING_GOLD_SEED } from '../../src/expert-agents/staffing-gold';
+import {
+  collectStaffingGoldLabels,
+  meanNdcgAtK,
+  ndcgAtK,
+  STAFFING_GOLD_SEED,
+  staffingGoldCasesForLabel,
+  staffingGoldLabelCoverage,
+} from '../../src/expert-agents/staffing-gold';
 
 const catalogPath = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -63,7 +70,7 @@ describe('staffing-gold nDCG', () => {
       (c) => c.labels !== undefined && c.labels.length > 0,
     );
     expect(labeled.length).toBe(STAFFING_GOLD_SEED.length);
-    const allLabels = new Set(labeled.flatMap((c) => c.labels ?? []));
+    const allLabels = new Set(collectStaffingGoldLabels());
     for (const required of [
       'Finance',
       'Marketing',
@@ -76,5 +83,19 @@ describe('staffing-gold nDCG', () => {
     ]) {
       expect(allLabels.has(required), `missing label ${required}`).toBe(true);
     }
+    expect(
+      staffingGoldLabelCoverage([
+        'Finance',
+        'Marketing',
+        'Sales',
+        'Support',
+        'Game Dev',
+        'Privacy',
+        'Cloud',
+        'Accessibility',
+      ]),
+    ).toBe(1);
+    expect(staffingGoldCasesForLabel('Finance').some((c) => c.id === 'finance-fpa')).toBe(true);
+    expect(staffingGoldCasesForLabel('Cloud').some((c) => c.id === 'cloud-infra')).toBe(true);
   });
 });

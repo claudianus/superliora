@@ -106,9 +106,12 @@ export {
 } from './agent/ultra-swarm-run';
 export {
   STAFFING_GOLD_SEED,
+  collectStaffingGoldLabels,
   dcgAtK,
   meanNdcgAtK,
   ndcgAtK,
+  staffingGoldCasesForLabel,
+  staffingGoldLabelCoverage,
   type StaffingGoldCase,
 } from './expert-agents/staffing-gold';
 export {

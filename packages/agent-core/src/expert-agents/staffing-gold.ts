@@ -56,6 +56,50 @@ export function meanNdcgAtK(
 }
 
 /**
+ * Collect unique catalog/division labels from a gold seed list.
+ * Empty/undefined labels are skipped.
+ */
+export function collectStaffingGoldLabels(
+  cases: readonly StaffingGoldCase[] = STAFFING_GOLD_SEED,
+): readonly string[] {
+  const labels = new Set<string>();
+  for (const gold of cases) {
+    for (const label of gold.labels ?? []) {
+      const trimmed = label.trim();
+      if (trimmed.length > 0) labels.add(trimmed);
+    }
+  }
+  return [...labels].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Cases whose `labels` include the given label (case-sensitive exact match).
+ */
+export function staffingGoldCasesForLabel(
+  label: string,
+  cases: readonly StaffingGoldCase[] = STAFFING_GOLD_SEED,
+): readonly StaffingGoldCase[] {
+  return cases.filter((gold) => (gold.labels ?? []).includes(label));
+}
+
+/**
+ * Offline domain coverage: share of required labels that appear at least once
+ * on the seed. Returns 1 when `required` is empty.
+ */
+export function staffingGoldLabelCoverage(
+  required: readonly string[],
+  cases: readonly StaffingGoldCase[] = STAFFING_GOLD_SEED,
+): number {
+  if (required.length === 0) return 1;
+  const present = new Set(collectStaffingGoldLabels(cases));
+  let hit = 0;
+  for (const label of required) {
+    if (present.has(label)) hit += 1;
+  }
+  return hit / required.length;
+}
+
+/**
  * Seed gold set for regression. `relevantIds` are real catalog persona keys
  * from `catalog-personas.json` (ExpertSearchResult uses `.expert.id`).
  */
