@@ -146,6 +146,9 @@ export {
   readPngDimensions,
   createVisualDiffTool,
   createLioraReviewTool,
+  scanAddedLine,
+  scanDiffFile,
+  scanDiffFiles,
   preferReadyWorkNodeIds,
   partitionReadyWorkNodeIds,
   rebindPhaseWorkNodeIds,
@@ -171,6 +174,9 @@ export type {
   StaffingOutcomeRecord,
   VisualDiffResult,
   DebateDraftHandoffEntry,
+  ReviewHeuristicComment,
+  ReviewHeuristicFile,
+  ReviewSeverity,
 } from '@superliora/agent-core';
 
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';
