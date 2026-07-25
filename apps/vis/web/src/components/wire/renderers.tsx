@@ -671,6 +671,14 @@ export const WIRE_RENDERERS: RendererMap = {
     }),
   },
 
+  'swarm.restaff': {
+    tone: 'lifecycle',
+    label: 'restaff',
+    headline: (r) => ({
+      main: <span className="truncate text-fg-1">{r.input}</span>,
+    }),
+  },
+
   'ultrawork.run': {
     tone: 'lifecycle',
     label: 'uw-run',

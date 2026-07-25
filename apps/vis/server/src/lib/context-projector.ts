@@ -428,6 +428,7 @@ export function projectContext(
       case 'plan_mode.state':
       case 'premium-quality.mode':
       case 'swarm.steer':
+      case 'swarm.restaff':
       case 'ultrawork.mode':
       case 'ultrawork.run':
         break;
