@@ -165,6 +165,7 @@ export {
   hasPendingUltraSwarmRestaff,
   requestUltraSwarmRestaff,
   consumeUltraSwarmRestaffRequests,
+  isRestaffSteerText,
   createUltraSwarmRunContext,
 } from '@superliora/agent-core';
 export type {
