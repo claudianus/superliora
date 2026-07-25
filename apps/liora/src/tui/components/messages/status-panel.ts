@@ -25,6 +25,7 @@ import {
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { resolveThinkingDisplay } from '#/tui/utils/thinking-effort';
 import {
   formatTokenCount,
   ratioSeverity,
@@ -139,8 +140,19 @@ function formatModelStatus(options: StatusReportOptions): string {
   const model = options.status?.model ?? options.model;
   if (model.trim().length === 0) return 'not set';
 
-  const thinking = options.status?.thinkingLevel ?? (options.thinking ? 'on' : 'off');
-  return `${displayModelName(model, options.availableModels)} (thinking ${thinking})`;
+  const thinkingRaw = options.status?.thinkingLevel ?? (options.thinking ? 'on' : 'off');
+  const alias = options.availableModels[model];
+  const display = resolveThinkingDisplay(thinkingRaw, {
+    thinking: options.thinking,
+    model: alias,
+  });
+  const thinkingLabel =
+    display.label === 'off'
+      ? 'off'
+      : display.requested === display.effective
+        ? display.requested
+        : `${display.requested}→${display.effective}`;
+  return `${displayModelName(model, options.availableModels)} (thinking ${thinkingLabel})`;
 }
 
 function paintStatusFieldValue(

@@ -483,6 +483,9 @@ export class SessionService extends Disposable implements ISessionService {
               compaction: config.roleModels.compaction ?? null,
               completion: config.roleModels.completion ?? null,
               exploration: config.roleModels.exploration ?? null,
+              coding: config.roleModels.coding ?? null,
+              planning: config.roleModels.planning ?? null,
+              debugging: config.roleModels.debugging ?? null,
             },
       provider_route: providerRoute,
       context_os:

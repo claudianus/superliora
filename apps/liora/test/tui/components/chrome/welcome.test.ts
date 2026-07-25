@@ -100,13 +100,59 @@ describe('WelcomeComponent', () => {
     setCliLocale('en');
     const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
 
-    expect(output).toContain('____  ___');
+    // Banner font is session-random (slant/lcd/standard/smslant/small); do not
+    // pin a single figlet glyph — only assert the logged-in prompt copy.
     expect(output).toContain('Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork');
     expect(output).not.toContain('Welcome to SuperLiora!');
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');
     expect(output).not.toContain('Kimi checks readiness and verification.');
     expect(output).not.toContain('Send /help for help information.');
+  });
+
+  it('shows the model name with the current thinking effort', () => {
+    setCliLocale('en');
+    const output = strip(
+      new WelcomeComponent({
+        ...appState,
+        thinking: true,
+        thinkingLevel: 'high',
+        availableModels: {
+          'kimi-k2': {
+            provider: 'managed:kimi-api',
+            model: 'kimi-k2',
+            maxContextSize: 200_000,
+            displayName: 'Kimi K2',
+            capabilities: ['thinking'],
+          } as AppState['availableModels'][string],
+        },
+      }).render(80).join('\n'),
+    );
+
+    expect(output).toContain('Kimi K2 · high');
+  });
+
+  it('shows clamp arrow when wire effort differs from requested', () => {
+    setCliLocale('en');
+    const output = strip(
+      new WelcomeComponent({
+        ...appState,
+        thinking: true,
+        thinkingLevel: 'max',
+        availableModels: {
+          'kimi-k2': {
+            provider: 'managed:kimi-api',
+            model: 'kimi-k2',
+            maxContextSize: 200_000,
+            displayName: 'Kimi K2',
+            capabilities: ['thinking'],
+            supportEfforts: ['low', 'high', 'max'],
+          } as AppState['availableModels'][string],
+        },
+      }).render(80).join('\n'),
+    );
+
+    expect(output).toContain('Kimi K2 · max→high');
   });
 
   it('renders ambient particle rails by default in safe terminals', () => {

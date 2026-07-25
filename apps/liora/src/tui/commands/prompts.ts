@@ -168,7 +168,7 @@ export function promptApiKeyForCatalogProvider(
 export function runModelSelector(
   host: SlashCommandHost,
   modelDict: Record<string, ModelAlias>,
-): Promise<{ alias: string; thinking: boolean } | undefined> {
+): Promise<{ alias: string; thinking: boolean; effort?: string } | undefined> {
   return new Promise((resolve) => {
     const firstAlias = Object.keys(modelDict)[0] ?? '';
     const caps = modelDict[firstAlias]?.capabilities ?? [];
@@ -178,9 +178,9 @@ export function runModelSelector(
       currentValue: firstAlias,
       currentThinking: initialThinking,
       searchable: true,
-      onSelect: ({ alias, thinking }) => {
+      onSelect: ({ alias, thinking, effort }) => {
         host.restoreEditor();
-        resolve({ alias, thinking });
+        resolve({ alias, thinking, effort });
       },
       onCancel: () => {
         host.restoreEditor();

@@ -357,6 +357,16 @@ export class UltraworkMode {
     this.emitStageChanged(run, from, 'done', reason);
     this.modeEnabled = false;
     this.agent.records.logRecord({ type: 'ultrawork.mode', enabled: false });
+    // Mirror the terminal stage into the workflow report so that the
+    // transparency ledger stays in sync even in headless mode.
+    mirrorUltraworkWorkflowStage(this.agent, {
+      workDir: this.agent.config.cwd,
+      evidenceRoot: this.activation?.evidenceRoot ?? '',
+      run,
+      from: from as UltraworkStage | undefined,
+      to: 'done',
+      reason,
+    });
     this.agent.telemetry.track('ultrawork_complete', {
       run_id: run.id,
       run_age_ms: Date.now() - Date.parse(run.createdAt),

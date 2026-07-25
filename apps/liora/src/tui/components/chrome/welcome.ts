@@ -3,6 +3,7 @@
  * Renders a round-bordered box with a figlet banner, session, model, and version.
  */
 
+import type { ModelAlias } from '@superliora/sdk';
 import type { Component } from '#/tui/renderer';
 import { renderRendererFrameRows, truncateToWidth } from '#/tui/renderer';
 import chalk from 'chalk';
@@ -17,8 +18,18 @@ import {
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+import { formatModelWithThinking } from '#/tui/utils/thinking-effort';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { renderWelcomeBanner } from './welcome-banner';
+
+/** Model name with the live thinking effort, e.g. `Kimi K2 · high` / `max→high`. */
+function formatWelcomeModelLabel(state: AppState, activeModel: ModelAlias | undefined): string {
+  const name = activeModel?.displayName ?? activeModel?.model ?? state.model;
+  return formatModelWithThinking(name, state.thinkingLevel, {
+    thinking: state.thinking,
+    model: activeModel,
+  });
+}
 
 export class WelcomeComponent implements Component {
   private state: AppState;
@@ -47,7 +58,7 @@ export class WelcomeComponent implements Component {
         : chalk.hex(currentTheme.palette.textDim)(loggedInPrompt);
       const model = isLoggedOut
         ? chalk.hex(currentTheme.palette.warning)(modelUnset)
-        : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
+        : formatWelcomeModelLabel(this.state, activeModel);
       return ['', ...banner, prompt, `${ttui('tui.welcome.modelPrefix')}${model}`].map((line) =>
         truncateToWidth(line, safeWidth, '…'),
       );
@@ -65,7 +76,7 @@ export class WelcomeComponent implements Component {
 
     const modelValue = isLoggedOut
       ? chalk.hex(currentTheme.palette.warning)(modelUnset)
-      : (activeModel?.displayName ?? activeModel?.model ?? this.state.model);
+      : formatWelcomeModelLabel(this.state, activeModel);
 
     const infoLines = [
       labelStyle(ttui('tui.welcome.label.directory')) + this.state.workDir,

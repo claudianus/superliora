@@ -5,6 +5,9 @@ export interface AgentRoleModels {
   compaction?: string;
   completion?: string;
   exploration?: string;
+  coding?: string;
+  planning?: string;
+  debugging?: string;
 }
 
 export interface AgentConfigData {

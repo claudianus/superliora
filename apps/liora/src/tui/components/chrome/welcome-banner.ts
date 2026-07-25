@@ -18,20 +18,55 @@ import {
   resolveQualityAdjustedAmbientEffectMode,
 } from '#/tui/utils/appearance-effects';
 
-// figlet Slant "SUPERLIORA".
-const BANNER_LARGE = [
-  '   _____ __  ______  __________  __    ________  ____  ___ ',
+/**
+ * Clean figlet pool for the welcome hero (pyfiglet).
+ * Chosen for mid density + open space so brand gradient waves and space
+ * sparkles read clearly — dense block fonts are intentionally excluded.
+ *
+ * Pool (session-random, reduced-motion → slant):
+ *   slant · lcd · standard · smslant · small
+ */
+
+// figlet Slant "SUPERLIORA"
+const BANNER_SLANT = [
+  '   _____ __  ______  __________  __    ________  ____  ___',
   '  / ___// / / / __ \\/ ____/ __ \\/ /   /  _/ __ \\/ __ \\/   |',
   '  \\__ \\/ / / / /_/ / __/ / /_/ / /    / // / / / /_/ / /| |',
   ' ___/ / /_/ / ____/ /___/ _, _/ /____/ // /_/ / _, _/ ___ |',
   '/____/\\____/_/   /_____/_/ |_/_____/___/\\____/_/ |_/_/  |_|',
 ] as const;
 
-// figlet Small "SUPERLIORA"
-const BANNER_COMPACT = [
-  ' ___ _   _ ___ ___ ___ _    ___ ___  ___    _   ',
-  '/ __| | | | _ \\ __| _ \\ |  |_ _/ _ \\| _ \\  /_\\  ',
-  '\\__ \\ |_| |  _/ _||   / |__ | | (_) |   / / _ \\ ',
+// figlet LCD "SUPERLIORA" — max open space for sparkles
+const BANNER_LCD = [
+  ' ___         ___   ___   ___         ___   ___   ___   ___',
+  '|     |   | |   | |     |   | |       |   |   | |   | |   |',
+  ' -+-  |   | |-+-  |-+-  |-+-  |       +   |   | |-+-  |-+-|',
+  '    | |   | |     |     |  \\  |       |   |   | |  \\  |   |',
+  ' ---   ---         ---         ---   ---   ---',
+] as const;
+
+// figlet Standard "SUPERLIORA"
+const BANNER_STANDARD = [
+  ' ____  _   _ ____  _____ ____  _     ___ ___  ____      _',
+  '/ ___|| | | |  _ \\| ____|  _ \\| |   |_ _/ _ \\|  _ \\    / \\',
+  '\\___ \\| | | | |_) |  _| | |_) | |    | | | | | |_) |  / _ \\',
+  ' ___) | |_| |  __/| |___|  _ <| |___ | | |_| |  _ <  / ___ \\',
+  '|____/ \\___/|_|   |_____|_| \\_\\_____|___\\___/|_| \\_\\/_/   \\_\\',
+] as const;
+
+// figlet Smslant "SUPERLIORA"
+const BANNER_SMSLANT = [
+  '   ______  _____  _______  __   ________  ___  ___',
+  '  / __/ / / / _ \\/ __/ _ \\/ /  /  _/ __ \\/ _ \\/ _ |',
+  ' _\\ \\/ /_/ / ___/ _// , _/ /___/ // /_/ / , _/ __ |',
+  '/___/\\____/_/  /___/_/|_/____/___/\\____/_/|_/_/ |_|',
+] as const;
+
+// figlet Small "SUPERLIORA" — also the narrow-terminal compact fallback
+const BANNER_SMALL = [
+  ' ___ _   _ ___ ___ ___ _    ___ ___  ___    _',
+  '/ __| | | | _ \\ __| _ \\ |  |_ _/ _ \\| _ \\  /_\\',
+  '\\__ \\ |_| |  _/ _||   / |__ | | (_) |   / / _ \\',
   '|___/\\___/|_| |___|_|_\\____|___\\___/|_|_\\/_/ \\_\\',
 ] as const;
 
@@ -40,63 +75,25 @@ const BANNER_SPARKLES = ['·', '∙', '•', '◦', '*', '˚'] as const;
 
 const BANNER_WORD = 'SUPERLIORA';
 
-/**
- * Block figlet set for the banner word — hand-built from monospace-safe block
- * elements (█ ▀ ▄) so every terminal font keeps the rows aligned.
- */
-const BLOCK_LETTERS_LARGE: Readonly<Record<string, readonly string[]>> = {
-  S: ['█████', '█    ', '█████', '    █', '█████'],
-  U: ['█   █', '█   █', '█   █', '█   █', ' ███ '],
-  P: ['████ ', '█   █', '████ ', '█    ', '█    '],
-  E: ['█████', '█    ', '████ ', '█    ', '█████'],
-  R: ['████ ', '█   █', '████ ', '█  █ ', '█   █'],
-  L: ['█    ', '█    ', '█    ', '█    ', '█████'],
-  I: ['███', ' █ ', ' █ ', ' █ ', '███'],
-  O: [' ███ ', '█   █', '█   █', '█   █', ' ███ '],
-  A: [' ███ ', '█   █', '█████', '█   █', '█   █'],
-};
-
-const BLOCK_LETTERS_COMPACT: Readonly<Record<string, readonly string[]>> = {
-  S: ['█▀▀', '▀█▀', '▄▄█'],
-  U: ['█ █', '█ █', '▄█▄'],
-  P: ['█▀█', '█▀▀', '█  '],
-  E: ['█▀▀', '██ ', '█▄▄'],
-  R: ['█▀█', '██ ', '█ █'],
-  L: ['█  ', '█  ', '█▄▄'],
-  I: ['▀█▀', ' █ ', '▄█▄'],
-  O: ['█▀█', '█ █', '▄█▄'],
-  A: ['█▀█', '███', '█ █'],
-};
-
-function composeBlockBanner(
-  letterRows: Readonly<Record<string, readonly string[]>>,
-): readonly string[] {
-  const rowCount = letterRows[BANNER_WORD[0]!]!.length;
-  const rows: string[] = [];
-  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-    rows.push(
-      BANNER_WORD.split('')
-        .map((letter) => letterRows[letter]?.[rowIndex] ?? '   ')
-        .join(' '),
-    );
-  }
-  return rows;
-}
-
-const BANNER_LARGE_BLOCK = composeBlockBanner(BLOCK_LETTERS_LARGE);
-const BANNER_COMPACT_BLOCK = composeBlockBanner(BLOCK_LETTERS_COMPACT);
-
-export type BannerFontId = 'slant' | 'block';
+export type BannerFontId = 'slant' | 'lcd' | 'standard' | 'smslant' | 'small';
 
 interface BannerFontSet {
   readonly id: BannerFontId;
   readonly large: readonly string[];
+  /** Used when the terminal is too narrow for {@link large}. */
   readonly compact: readonly string[];
 }
 
+/**
+ * Session-random font pool. Larger faces fall back to `small` when the
+ * layout is compact; already-compact faces keep themselves.
+ */
 const BANNER_FONT_SETS: readonly BannerFontSet[] = [
-  { id: 'slant', large: BANNER_LARGE, compact: BANNER_COMPACT },
-  { id: 'block', large: BANNER_LARGE_BLOCK, compact: BANNER_COMPACT_BLOCK },
+  { id: 'slant', large: BANNER_SLANT, compact: BANNER_SMALL },
+  { id: 'lcd', large: BANNER_LCD, compact: BANNER_SMALL },
+  { id: 'standard', large: BANNER_STANDARD, compact: BANNER_SMALL },
+  { id: 'smslant', large: BANNER_SMSLANT, compact: BANNER_SMSLANT },
+  { id: 'small', large: BANNER_SMALL, compact: BANNER_SMALL },
 ];
 
 /** Per-process salt: the font pick is random once per session, stable per frame. */
@@ -181,8 +178,9 @@ export function renderWelcomeBanner(
     const row = applyBannerCascade([BANNER_WORD], cascadeProgress)[0]!;
     return [paintBannerLine(row, appearance, 0, 1, width, sparkles)];
   }
+  // Prefer large when the terminal can hold the widest face (~61 cols for standard).
   const useLarge =
-    layout === 'standard' || layout === 'wide' || layout === 'ultrawide' || width >= 59;
+    layout === 'standard' || layout === 'wide' || layout === 'ultrawide' || width >= 61;
   const lines = applyBannerCascade(useLarge ? font.large : font.compact, cascadeProgress);
   return lines.map((line, index) =>
     paintBannerLine(line, appearance, index, lines.length, width, sparkles),

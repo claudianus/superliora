@@ -72,6 +72,40 @@ describe('FooterComponent', () => {
     expect(rendered).toContain('kimi-k2');
   });
 
+  it('renders the thinking effort level next to the model name', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      thinking: true,
+      thinkingLevel: 'high',
+    });
+
+    const rendered = footer.render(120).join('\n');
+
+    expect(rendered).toContain('kimi-k2 high');
+    expect(rendered).not.toContain('thinking');
+  });
+
+  it('shows wire clamp when request effort differs from transport', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      thinking: true,
+      thinkingLevel: 'max',
+      availableModels: {
+        'kimi-k2': {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+          capabilities: ['thinking'],
+          supportEfforts: ['low', 'high', 'max'],
+        } as AppState['availableModels'][string],
+      },
+    });
+
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).toContain('Kimi K2 max→high');
+  });
+
   it('repaints from the active palette on the next render (no setColors needed)', () => {
     const footer = new FooterComponent(appState);
     const before = footer.render(120).join('\n');

@@ -40,6 +40,8 @@ export interface TabbedModelSelectorOptions {
   readonly currentValue: string;
   readonly selectedValue?: string;
   readonly currentThinking: boolean;
+  /** Current thinking effort level (e.g. 'high') for the active model. */
+  readonly currentEffort?: string;
   /** When set, the tab for this provider id is initially active instead of the
    * tab derived from `currentValue`. */
   readonly initialTabId?: string;
@@ -180,6 +182,7 @@ function makeSelector(
     currentValue: opts.currentValue,
     ...(selectedValue !== undefined ? { selectedValue } : {}),
     currentThinking: opts.currentThinking,
+    ...(opts.currentEffort !== undefined ? { currentEffort: opts.currentEffort } : {}),
     searchable: true,
     providerSwitchHint: true,
     onSelect: opts.onSelect,

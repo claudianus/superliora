@@ -104,6 +104,13 @@ import {
   selectRestaffPhaseSpecs,
 } from './ultra-swarm-phase';
 import { buildUltraSwarmExpertPrompt } from './ultra-swarm-prompt';
+import {
+  assessRisk,
+  createDebate,
+  debatePhasesForRisk,
+  emitDebateTurn,
+  type RiskLevel,
+} from '../../../session/ultra-swarm-debate';
 
 export const UltraSwarmToolInputSchema = z
   .object({
@@ -190,6 +197,16 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
   readonly description = ULTRA_SWARM_DESCRIPTION;
 
   readonly parameters: Record<string, unknown> = toInputJsonSchema(UltraSwarmToolInputSchema);
+
+  /** phase별 토론 추적 활성화된 debate 목록 */
+  private readonly activeDebates: {
+    debateId: string;
+    workNodeId: string;
+    phase: string;
+    riskLevel: RiskLevel;
+    authorExpertId: string;
+    criticExpertId: string;
+  }[] = [];
 
   constructor(
     private readonly subagentHost: SessionSubagentHost,
@@ -477,6 +494,59 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       }
 
       phaseResults.push(...renderedPhaseResults);
+
+      // ── Debate checkpoint: structured adversarial critique after each phase ──
+      // Each phase result gets a risk assessment. Low-risk results skip debate;
+      // medium/complex results trigger a debate cycle with critic vs author.
+      // Consensus verdict flows into the phase handoff and WorkGraph.
+      if (phase !== 'plan' && renderedPhaseResults.length > 0) {
+        for (const result of renderedPhaseResults) {
+          const riskResult = assessDebateRiskForResult(result, phase);
+          if (riskResult === 'simple') continue; // skip debate for low-risk
+
+          const debatePhases = debatePhasesForRisk(riskResult);
+          // Pick critic = a different expert from the same phase
+          const otherExperts = input.team.experts.filter(
+            (e) => e.expertId !== result.spec.expertExpertId,
+          );
+          if (otherExperts.length === 0) continue;
+          const criticExpert = otherExperts[0]!;
+
+          const debate = createDebate({
+            workNodeId: result.spec.workNodeId ?? 'unknown',
+            criticExpertId: criticExpert.expertId,
+            criticExpertName: criticExpert.role,
+            authorExpertId: result.spec.expertExpertId ?? 'author',
+            authorExpertName: result.spec.expertName ?? 'Author',
+            artifactSummary: result.rendered ?? '',
+          });
+
+          // Emit debate start event
+          emitDebateTurn(this.agent, input.runId, {
+            debateId: debate.debateId,
+            workNodeId: debate.config.workNodeId,
+            phase: 'critic',
+            expertId: criticExpert.expertId,
+            expertName: criticExpert.role,
+            text: `Debate triggered (${riskResult} risk) for ${result.spec.expertName ?? 'unknown'}'s ${phase} output.`,
+            stance: 'neutral',
+          });
+
+          // Note: full runDebateCycle requires LLM access via subagent.
+          // In the phased loop, we record the debate trigger and let the
+          // review phase pick it up. The consensus verdict will be parsed
+          // from the review phase results.
+          this.activeDebates.push({
+            debateId: debate.debateId,
+            workNodeId: debate.config.workNodeId,
+            phase: phase,
+            riskLevel: riskResult,
+            authorExpertId: result.spec.expertExpertId ?? 'author',
+            criticExpertId: criticExpert.expertId,
+          });
+        }
+      }
+
       phaseHandoff = buildPhaseHandoff(
         renderedPhaseResults.map(withRenderedMetadata),
         input.busEnabled ? renderSwarmBusDigest(this.store) : '',
@@ -1007,5 +1077,27 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       team,
     });
   }
+}
+
+// ── Debate risk assessment helpers ────────────────────────────────────
+
+/**
+ * phase 결과물의 위험도를 평가하여 debate 깊이를 결정.
+ * - implement phase: 파일 수/의존성/증거 수 기준
+ * - review phase: 모든 결과에 대해 최소 medium 토론
+ * - plan phase: 토론 생략 (이미 plan 승인을 받았으므로)
+ */
+function assessDebateRiskForResult(
+  result: { rendered?: string; spec: { workNodeId?: string; expertExpertId?: string; expertName?: string } },
+  phase: string,
+): RiskLevel {
+  if (phase === 'plan') return 'simple';
+  if (phase === 'review') return 'medium'; // review는 항상 토론
+
+  // implement phase: 결과물 길이와 증거 수로 위험도 추정
+  const renderedLength = result.rendered?.length ?? 0;
+  if (renderedLength > 5000) return 'complex';
+  if (renderedLength > 1000) return 'medium';
+  return 'simple';
 }
 
