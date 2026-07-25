@@ -67,15 +67,14 @@ import { synthesizeExpertsWithLlm } from '../../../expert-agents/synthetic-exper
 import type { ExpertSwarmPlan } from '../../../expert-agents/types';
 import type { SwarmRoutingIntensity } from '../../../agent/plan/ultra-swarm-routing';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
-import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
 import { SWARM_HANDOFF_COMPACTION_RATIO } from '../../../agent/compaction/strategy';
 import {
   MAX_ULTRA_SWARM_SUBAGENTS,
+  buildDebateDraftHandoffPack,
   buildIntraPhaseDependencyHandoff,
   buildReviewRetryHandoff,
   capPlan,
   cloneWorkGraphNode,
-  escapeXml,
   mergePlans,
   mergeReviewResults,
   needsReviewRetry,
@@ -700,7 +699,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         input.busEnabled ? renderSwarmBusDigest(this.store) : '',
       );
       // Append debate draft packs so review experts cite concrete phase output.
-      const debateDraftPack = this.buildDebateDraftHandoffPack(phase);
+      const debateDraftPack = buildDebateDraftHandoffPack(this.activeDebates, phase);
       if (debateDraftPack.length > 0) {
         phaseHandoff = `${phaseHandoff}\n\n${debateDraftPack}`;
       }
@@ -809,29 +808,6 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
    * After a phase completes, mark claimed work nodes done/failed so the DAG
    * ready-set advances for subsequent phases.
    */
-  /**
-   * Serialize active debate drafts opened after `sourcePhase` into a handoff
-   * block for the next phase (typically review). Caps drafts for prompt size.
-   */
-  private buildDebateDraftHandoffPack(sourcePhase: string): string {
-    const drafts = this.activeDebates.filter(
-      (debate) => debate.phase === sourcePhase && debate.draftExcerpt.trim().length > 0,
-    );
-    if (drafts.length === 0) return '';
-    const lines = ['<debate_draft_pack>'];
-    for (const debate of drafts.slice(-8)) {
-      const excerpt = collapseForHandoff(debate.draftExcerpt).slice(0, 1_500);
-      lines.push(
-        `<debate_draft debate_id="${escapeXml(debate.debateId)}" work_node="${escapeXml(debate.workNodeId)}" author="${escapeXml(debate.authorExpertId)}" critic="${escapeXml(debate.criticExpertId)}" risk="${escapeXml(debate.riskLevel)}">${escapeXml(excerpt)}</debate_draft>`,
-      );
-    }
-    lines.push('</debate_draft_pack>');
-    lines.push(
-      'Reviewers: cite claims from <debate_draft> / <draft_excerpt> when challenging implementer output; do not argue from stance alone.',
-    );
-    return lines.join('\n');
-  }
-
   private finishPhaseClaimedWorkNodes(
     results: readonly UltraSwarmRenderedResult[],
   ): void {
