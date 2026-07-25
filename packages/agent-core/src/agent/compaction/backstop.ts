@@ -1,13 +1,55 @@
-import { extractEvidenceIdsFromText } from './quality';
-import { extractText, type Message } from '@superliora/kosong';
+import {
+  APIEmptyResponseError,
+  APIStatusError,
+  ChatProviderError,
+  extractText,
+  type Message,
+} from '@superliora/kosong';
 
+import { ErrorCodes, isKimiError } from '#/errors';
+import { isAbortError } from '../../loop/errors';
 import { estimateTokens } from '../../utils/tokens';
 import type { CompactionPlan } from './planner';
 import { renderMessagesToText } from './render-messages';
+import { extractEvidenceIdsFromText } from './quality';
 
 const EMERGENCY_NARRATIVE_MAX_TOKENS = 8_000;
 const EMERGENCY_MESSAGE_SNIPPET_CHARS = 600;
 const EMERGENCY_TOOL_SNIPPET_CHARS = 400;
+
+/**
+ * When the LLM summarizer cannot run (unsupported params, 4xx model errors,
+ * generic ChatProviderError after retries), prefer a classical extractive
+ * backstop over failing the whole turn. Abort/auth are excluded so the user
+ * can still fix credentials / cancel.
+ *
+ * Industry alignment:
+ * - OpenHands condensers (LLM + non-LLM / recent-events style)
+ * - Claude Code micro-compact (tool-result clearing without LLM)
+ * - Emergency extractive transcript when hierarchical LLM memory fails
+ */
+export function shouldUseClassicalCompactionFallback(error: unknown): boolean {
+  if (isAbortError(error)) return false;
+  if (isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED) return false;
+  if (error instanceof APIEmptyResponseError) return true;
+  if (error instanceof APIStatusError) {
+    // 429 is normally retried; after budget exhaustion callers still may fall back.
+    if (error.statusCode === 429) return true;
+    if (error.statusCode >= 400 && error.statusCode < 600) return true;
+  }
+  if (error instanceof ChatProviderError) return true;
+  if (error instanceof Error) {
+    const msg = error.message;
+    if (
+      /does not support parameter|unsupported.*parameter|reasoning_effort|reasoningEffort|invalid_request|400\b|APIEmptyResponse|context.?overflow|truncated/i.test(
+        msg,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Deterministic compaction summary used when the LLM summarizer exhausts retries.

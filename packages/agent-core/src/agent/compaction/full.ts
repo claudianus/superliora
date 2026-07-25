@@ -99,7 +99,10 @@ import {
   mergeIntoAnchor,
   renderAnchor,
 } from './anchor';
-import { buildEmergencyBackstopSummary } from './backstop';
+import {
+  buildEmergencyBackstopSummary,
+  shouldUseClassicalCompactionFallback,
+} from './backstop';
 import { buildCompactionSummaryText } from './handoff';
 import {
   compactionFinishedTelemetryProperties,
@@ -1706,7 +1709,16 @@ export class FullCompaction {
           usedEmergencyBackstop,
         };
       } catch (error) {
-        if (!isCompactionSummarizerError(error)) throw error;
+        // Parallel path failed: fall through to sequential (which has classical
+        // backstop). Only rethrow aborts / auth that must surface to the user.
+        if (isAbortError(error)) throw error;
+        if (isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED) throw error;
+        if (!isCompactionSummarizerError(error) && !shouldUseClassicalCompactionFallback(error)) {
+          throw error;
+        }
+        this.agent.telemetry.track('compaction_parallel_fallback_sequential', {
+          error_type: error instanceof Error ? error.name : 'Unknown',
+        });
       }
     }
 
@@ -1787,10 +1799,30 @@ export class FullCompaction {
         ) {
           compactedCount = this.strategy.reduceCompactOnOverflow(currentPrefix);
         } else if (!isRetryableGenerateError(error)) {
+          // Non-retryable provider/model failures (e.g. 400 unsupported params,
+          // permanent auth) must not hard-stall the turn — fall back to the
+          // deterministic extractive summary (OpenHands-style classical condenser
+          // / Claude Code micro-compact philosophy: keep working set without LLM).
+          if (shouldUseClassicalCompactionFallback(error)) {
+            this.agent.telemetry.track('compaction_classical_fallback', {
+              reason: 'non_retryable_generate',
+              error_type: error instanceof Error ? error.name : 'Unknown',
+            });
+            return {
+              summary: buildEmergencyBackstopSummary(currentPrefix, plan, instruction),
+              usage,
+              finalCompactedCount: compactedCount,
+              usedEmergencyBackstop: true,
+            };
+          }
           throw error;
         }
         if (retryCountRef.value + 1 >= MAX_COMPACTION_RETRY_ATTEMPTS) {
-          if (isCompactionSummarizerError(error)) {
+          if (isCompactionSummarizerError(error) || shouldUseClassicalCompactionFallback(error)) {
+            this.agent.telemetry.track('compaction_classical_fallback', {
+              reason: 'retry_exhausted',
+              error_type: error instanceof Error ? error.name : 'Unknown',
+            });
             return {
               summary: buildEmergencyBackstopSummary(currentPrefix, plan, instruction),
               usage,

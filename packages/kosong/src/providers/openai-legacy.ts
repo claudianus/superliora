@@ -168,6 +168,21 @@ function usesMaxCompletionTokens(model: string): boolean {
   return /^o\d(?:$|[-.])/.test(normalized) || /^gpt-5(?:$|[-.])/.test(normalized);
 }
 
+/**
+ * Models / gateways that reject OpenAI-style `reasoning_effort` (and camelCase
+ * `reasoningEffort`) on chat.completions. xAI Grok Build (`grok-build-*` via
+ * cli-chat-proxy) returns 400 if the param is present.
+ */
+export function modelRejectsReasoningEffortParam(model: string): boolean {
+  const normalized = model.toLowerCase().trim();
+  if (normalized.length === 0) return false;
+  // grok-build-0.1, grok-build-*, aliases containing grok-build
+  if (normalized.includes('grok-build')) return true;
+  // bare grok-build surface ids sometimes omit hyphenated suffix patterns
+  if (/^grok-build(?:$|[-_.])/.test(normalized)) return true;
+  return false;
+}
+
 function completionTokenKwargs(
   model: string,
   maxCompletionTokens: number,
@@ -577,14 +592,21 @@ export class OpenAILegacyChatProvider implements ChatProvider {
 
     // Determine reasoning_effort
     let reasoningEffort: string | undefined = this._reasoningEffort;
+    const rejectsReasoningEffort = modelRejectsReasoningEffortParam(this._model);
 
     // Auto-enable reasoning_effort when the history contains ThinkPart but reasoning
     // was not explicitly configured. This prevents server validation errors from APIs
     // (e.g. One API) that require reasoning_effort when messages contain reasoning_content.
     // Skip when the caller already pinned reasoning_effort via withGenerationKwargs —
     // their value would otherwise be silently overwritten below.
+    // Skip entirely for models/gateways that 400 on the parameter (e.g. grok-build).
     // See: https://github.com/MoonshotAI/kimi-code/issues/1616
-    if (reasoningEffort === undefined && kwargs['reasoning_effort'] === undefined) {
+    if (
+      !rejectsReasoningEffort &&
+      reasoningEffort === undefined &&
+      kwargs['reasoning_effort'] === undefined &&
+      kwargs['reasoningEffort'] === undefined
+    ) {
       const hasThinkPart = history.some((message) =>
         message.content.some((part) => part.type === 'think'),
       );
@@ -599,6 +621,16 @@ export class OpenAILegacyChatProvider implements ChatProvider {
         // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete kwargs[key];
       }
+    }
+
+    // Strip unsupported reasoning params before they hit the wire (kwargs may
+    // carry camelCase reasoningEffort from some callers).
+    if (rejectsReasoningEffort) {
+      reasoningEffort = undefined;
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete kwargs['reasoning_effort'];
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete kwargs['reasoningEffort'];
     }
 
     // Build the create params
@@ -630,8 +662,15 @@ export class OpenAILegacyChatProvider implements ChatProvider {
       createParams['stream_options'] = { include_usage: true };
     }
 
-    if (reasoningEffort !== undefined) {
+    if (reasoningEffort !== undefined && !rejectsReasoningEffort) {
       createParams['reasoning_effort'] = reasoningEffort;
+    }
+    // Final guard: never send reasoningEffort/reasoning_effort to rejecting models
+    if (rejectsReasoningEffort) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete createParams['reasoning_effort'];
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete createParams['reasoningEffort'];
     }
 
     try {
