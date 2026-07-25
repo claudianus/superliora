@@ -305,19 +305,39 @@ describe('CompactionComponent', () => {
 
     try {
       component.setPhase('summarizing');
-      component.appendSummaryDelta('first line\nsecond line\n');
-      component.appendSummaryDelta('third line\nfourth line\n');
+      component.appendSummaryDelta('line0\nline1\nline2\nline3\n');
+      component.appendSummaryDelta('line4\nline5\nline6\n');
       const text = component.render(120).map(strip).join('\n');
 
-      // Only the last non-empty lines are previewed, indented by two spaces.
-      expect(text).toContain('  second line');
-      expect(text).toContain('  third line');
-      expect(text).toContain('  fourth line');
-      expect(text).not.toContain('first line');
+      // Last SUMMARY_PREVIEW_LINES (5) non-empty lines are previewed.
+      expect(text).toContain('  line2');
+      expect(text).toContain('  line3');
+      expect(text).toContain('  line4');
+      expect(text).toContain('  line5');
+      expect(text).toContain('  line6');
+      expect(text).not.toContain('line0');
+      expect(text).not.toContain('line1');
 
       component.markDone(1000, 500);
       const settled = component.render(120).map(strip).join('\n');
-      expect(settled).not.toContain('fourth line');
+      expect(settled).not.toContain('line6');
+    } finally {
+      component.dispose();
+    }
+  });
+
+  it('shows stream kind, block index, and char count in the progress label', () => {
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      component.setStreamMeta({ streamKind: 'block', blockIndex: 2, blockCount: 4 });
+      component.appendSummaryDelta('alpha beta gamma');
+      const text = component.render(120).map(strip).join('\n');
+
+      expect(text).toContain('block 2/4');
+      expect(text).toMatch(/chars/);
+      expect(text).toContain('alpha beta gamma');
     } finally {
       component.dispose();
     }

@@ -124,6 +124,11 @@ export function isRetryableGenerateError(error: unknown): boolean {
   if (isPermanentQuotaOrBillingError(error)) {
     return false;
   }
+  // xAI-style capacity / high-demand often arrives as plain ChatProviderError
+  // without a 5xx status — still worth retrying after backoff.
+  if (isProviderCapacityError(error)) {
+    return true;
+  }
   return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);
 }
 
@@ -174,6 +179,28 @@ const PROVIDER_RATE_LIMIT_MESSAGE_PATTERNS = [
   /rate[ _-]?limit(?:ed)?/,
   /rate-limited/,
 ] as const;
+
+/**
+ * Provider capacity / overload messages that are not permanent quota and not
+ * always HTTP 429 (e.g. xAI "at capacity due to high demand" as ChatProviderError).
+ * Treat as transient so compaction and side generate can retry / fail over.
+ */
+const PROVIDER_CAPACITY_MESSAGE_PATTERNS = [
+  /at capacity/,
+  /high demand/,
+  /priority[-\s]?processing/,
+  /currently at capacity/,
+  /capacity due to high demand/,
+  /model is (?:currently )?overloaded/,
+  /\boverloaded\b/,
+  /service tier for priority/,
+] as const;
+
+export function isProviderCapacityError(error: unknown): boolean {
+  if (isPermanentQuotaOrBillingError(error)) return false;
+  const lowerMessage = errorMessage(error).toLowerCase();
+  return PROVIDER_CAPACITY_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
+}
 
 export function isContextOverflowErrorCode(code: string | null | undefined): boolean {
   return code === 'context_length_exceeded';
@@ -271,6 +298,10 @@ const TRANSIENT_PROVIDER_MESSAGE_PATTERNS = [
   /network/,
   /connection/,
   /econnreset|etimedout|econnrefused|econnaborted|enotfound|eai_again|epipe/,
+  /at capacity/,
+  /high demand/,
+  /priority[-\s]?processing/,
+  /capacity due to high demand/,
 ] as const;
 
 /**

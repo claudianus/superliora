@@ -114,6 +114,24 @@ describe('events / display re-exports', () => {
     expect(
       agentEventSchema.safeParse({
         type: 'compaction.progress',
+        phase: 'summarizing',
+        streamKind: 'block',
+        blockIndex: 1,
+        blockCount: 3,
+        delta: 'block chunk',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentEventSchema.safeParse({
+        type: 'compaction.progress',
+        phase: 'repairing',
+        streamKind: 'repair',
+        delta: 'repair chunk',
+      }).success,
+    ).toBe(true);
+    expect(
+      agentEventSchema.safeParse({
+        type: 'compaction.progress',
         phase: 'bogus',
         delta: 'hello',
       }).success,

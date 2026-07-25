@@ -1305,7 +1305,11 @@ export class SessionEventHandler {
   }
 
   private handleCompactionProgress(event: CompactionProgressEvent): void {
-    this.host.streamingUI.updateCompactionProgress(event.phase, event.delta);
+    this.host.streamingUI.updateCompactionProgress(event.phase, event.delta, {
+      streamKind: event.streamKind,
+      blockIndex: event.blockIndex,
+      blockCount: event.blockCount,
+    });
   }
 
   private finishCompaction(sendQueued: (item: QueuedMessage) => void): void {

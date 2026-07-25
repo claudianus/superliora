@@ -829,11 +829,23 @@ export interface CompactionCompletedEvent {
  */
 export type CompactionPhase = 'summarizing' | 'repairing' | 'finalizing';
 
+/**
+ * Which LLM sub-stream produced this progress tick. Optional so older clients
+ * can ignore it; TUI uses it for live transparency (block / merge / repair).
+ */
+export type CompactionStreamKind = 'summary' | 'block' | 'merge' | 'repair';
+
 export interface CompactionProgressEvent {
   readonly type: 'compaction.progress';
   readonly phase: CompactionPhase;
-  /** Incremental summary text streamed while the phase is `summarizing`. */
+  /** Incremental summary text streamed from the active compaction LLM call. */
   readonly delta?: string;
+  /** Logical stream source within the compaction round. */
+  readonly streamKind?: CompactionStreamKind;
+  /** 1-based block index when `streamKind` is `block`. */
+  readonly blockIndex?: number;
+  /** Total parallel blocks when `streamKind` is `block`. */
+  readonly blockCount?: number;
 }
 
 export interface BackgroundTaskStartedEvent {
@@ -1716,10 +1728,20 @@ export const compactionPhaseSchema = z.enum([
   'finalizing',
 ]) satisfies z.ZodType<CompactionPhase>;
 
+export const compactionStreamKindSchema = z.enum([
+  'summary',
+  'block',
+  'merge',
+  'repair',
+]) satisfies z.ZodType<CompactionStreamKind>;
+
 export const compactionProgressEventSchema = z.object({
   type: z.literal('compaction.progress'),
   phase: compactionPhaseSchema,
   delta: z.string().optional(),
+  streamKind: compactionStreamKindSchema.optional(),
+  blockIndex: z.number().int().positive().optional(),
+  blockCount: z.number().int().positive().optional(),
 }) satisfies z.ZodType<CompactionProgressEvent>;
 
 export const backgroundTaskStartedEventSchema = z.object({

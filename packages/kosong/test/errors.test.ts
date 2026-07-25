@@ -7,6 +7,7 @@ import {
   APITimeoutError,
   ChatProviderError,
   isProviderRateLimitError,
+  isProviderCapacityError,
   isRecoverableRequestStructureError,
   isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
@@ -160,6 +161,21 @@ describe('isRetryableGenerateError', () => {
     ).toBe(false);
     expect(isRetryableGenerateError(new Error('boom'))).toBe(false);
     expect(isRetryableGenerateError('boom')).toBe(false);
+  });
+
+  it('retries xAI-style capacity / high-demand ChatProviderError', () => {
+    const capacity = new ChatProviderError(
+      'Error: The model is currently at capacity due to high demand. Please try again in a few minutes, or use a higher service tier for priority processing: https://docs.x.ai/developers/advanced-api-usage/priority-processing',
+    );
+    expect(isProviderCapacityError(capacity)).toBe(true);
+    expect(isRetryableGenerateError(capacity)).toBe(true);
+    expect(isTransientProviderError(capacity)).toBe(true);
+  });
+
+  it('does not treat permanent billing as capacity retry', () => {
+    const billing = new APIStatusError(402, 'payment required');
+    expect(isProviderCapacityError(billing)).toBe(false);
+    expect(isRetryableGenerateError(billing)).toBe(false);
   });
 });
 

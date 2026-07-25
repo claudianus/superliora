@@ -23,6 +23,7 @@ import {
   emptyUsage,
   generate as kosongGenerate,
   grandTotal,
+  isProviderCapacityError,
   isProviderRateLimitError,
   isRetryableGenerateError,
   type ChatProvider,
@@ -1165,6 +1166,11 @@ export function classifyProviderRouteFailure(
   }
   if (error instanceof APIEmptyResponseError) {
     return { kind: 'empty', cooldownMs: cooldownMs(DEFAULT_EMPTY_COOLDOWN_MS) };
+  }
+  // xAI capacity / high-demand often surfaces as plain ChatProviderError without
+  // a 5xx statusCode — still fail over / cooldown like a transient server blip.
+  if (isProviderCapacityError(error)) {
+    return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
   }
   if (!(error instanceof APIStatusError)) return undefined;
 

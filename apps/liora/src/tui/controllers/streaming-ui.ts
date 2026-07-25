@@ -978,10 +978,21 @@ export class StreamingUIController {
     requestTUILayoutRender(this.host.state);
   }
 
-  updateCompactionProgress(phase: CompactionPhase, delta?: string): void {
+  updateCompactionProgress(
+    phase: CompactionPhase,
+    delta?: string,
+    meta?: {
+      readonly streamKind?: 'summary' | 'block' | 'merge' | 'repair';
+      readonly blockIndex?: number;
+      readonly blockCount?: number;
+    },
+  ): void {
     const block = this._activeCompactionBlock;
     if (block === undefined) return;
     block.setPhase(phase);
+    if (meta !== undefined) {
+      block.setStreamMeta(meta);
+    }
     if (delta !== undefined && delta.length > 0) {
       block.appendSummaryDelta(delta);
     }
