@@ -9,11 +9,25 @@ import { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
 import { isGenericToolResult } from '../components/messages/tool-renderers/registry';
-import { STREAMING_UI_FLUSH_MS } from '../constant/streaming';
-import { appearanceAnimationNow } from '../utils/appearance-effects';
+import { STREAM_REVEAL_TICK_MS, STREAMING_UI_FLUSH_MS } from '../constant/streaming';
+import { shouldAnimate } from './appearance';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+} from '../utils/appearance-effects';
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
 import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
+import {
+  createStreamingTextRevealState,
+  isRevealCaughtUp,
+  resetRevealState,
+  setRevealTarget,
+  snapRevealToTarget,
+  tickReveal,
+  visibleText,
+  type StreamingTextRevealState,
+} from '../utils/streaming-text-reveal';
 import { notifyUserAttentionOnce } from '../utils/terminal-notification';
 import { nextTranscriptId } from '../utils/transcript-id';
 import type { TodoItem } from '../components/chrome/todo-panel';
@@ -50,6 +64,14 @@ export class StreamingUIController {
   private pendingAssistantFlush = false;
   private pendingThinkingFlush = false;
   readonly pendingToolCallFlushIds = new Set<string>();
+
+  /**
+   * Shared catch-up reveal timer for assistant + thinking display lag.
+   * Runs only while at least one channel still lags its server draft.
+   */
+  private revealTimer: ReturnType<typeof setTimeout> | undefined;
+  private assistantReveal: StreamingTextRevealState = createStreamingTextRevealState();
+  private thinkingReveal: StreamingTextRevealState = createStreamingTextRevealState();
 
   // ---------------------------------------------------------------------------
   // Streaming runtime state (private — accessed via semantic methods below)
@@ -389,6 +411,9 @@ export class StreamingUIController {
 
   /** Tears down replay-specific state after session history has been rendered. */
   cleanupAfterReplay(completedToolCallIds: Set<string>): void {
+    this.clearRevealTimer();
+    this.assistantReveal = resetRevealState();
+    this.thinkingReveal = resetRevealState();
     this._activeToolCalls.clear();
     for (const toolCallId of completedToolCallIds) {
       this._pendingToolComponents.delete(toolCallId);
@@ -411,6 +436,8 @@ export class StreamingUIController {
       this._activeThinkingComponent.dispose();
       this._activeThinkingComponent = undefined;
     }
+    this.thinkingReveal = resetRevealState();
+    this.rescheduleRevealTimer();
   }
 
   disposeAndClearPendingToolComponents(): void {
@@ -452,6 +479,7 @@ export class StreamingUIController {
 
   discardPending(): void {
     this.clearFlushTimer();
+    this.resetRevealChannels();
     this.pendingAssistantFlush = false;
     this.pendingThinkingFlush = false;
     this.pendingToolCallFlushIds.clear();
@@ -529,6 +557,7 @@ export class StreamingUIController {
     this.pendingAssistantFlush = false;
     this.pendingThinkingFlush = false;
     this.clearFlushTimerIfIdle();
+    this.resetRevealChannels();
     this._assistantDraft = '';
     this._streamingBlock = null;
     this._thinkingDraft = '';
@@ -589,6 +618,8 @@ export class StreamingUIController {
     const { state } = this.host;
     this._pendingAgentGroup = null;
     this._pendingReadGroup = null;
+    this.assistantReveal = resetRevealState(Date.now());
+    this.rescheduleRevealTimer();
     const entry = {
       id: nextTranscriptId(),
       kind: 'assistant' as const,
@@ -605,46 +636,196 @@ export class StreamingUIController {
 
   onStreamingTextUpdate(fullText: string): void {
     const block = this._streamingBlock;
-    if (block !== null) {
-      block.entry.content = fullText;
+    if (block === null) return;
+
+    // Truth source: full server draft always lives on the transcript entry.
+    block.entry.content = fullText;
+    const nowMs = Date.now();
+
+    if (!this.shouldSmoothStreamReveal()) {
+      this.assistantReveal = snapRevealToTarget(
+        setRevealTarget(this.assistantReveal, fullText, nowMs),
+        nowMs,
+      );
       block.component.updateContent(fullText, { transient: true });
       requestTUIContentRender(this.host.state);
+      this.rescheduleRevealTimer();
+      return;
     }
+
+    this.assistantReveal = setRevealTarget(this.assistantReveal, fullText, nowMs);
+    // Immediate tick so the first chunk is not delayed until the timer fires.
+    this.assistantReveal = tickReveal(this.assistantReveal, nowMs);
+    block.component.updateContent(visibleText(this.assistantReveal), { transient: true });
+    requestTUIContentRender(this.host.state);
+    this.rescheduleRevealTimer();
   }
 
   onStreamingTextEnd(): void {
     const block = this._streamingBlock;
     if (block !== null) {
+      // Snap any lagging reveal so finalize never leaves a partial body.
+      const nowMs = Date.now();
+      this.assistantReveal = snapRevealToTarget(
+        setRevealTarget(this.assistantReveal, block.entry.content, nowMs),
+        nowMs,
+      );
       block.component.updateContent(block.entry.content, { transient: false });
     }
     this._streamingBlock = null;
+    this.assistantReveal = resetRevealState();
+    this.rescheduleRevealTimer();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Smooth stream reveal (display lag catch-up) — assistant + thinking
+  // ---------------------------------------------------------------------------
+
+  private shouldSmoothStreamReveal(): boolean {
+    return shouldAnimate(getActiveAppearancePreferences());
+  }
+
+  private resetRevealChannels(nowMs: number = 0): void {
+    this.clearRevealTimer();
+    this.assistantReveal = resetRevealState(nowMs);
+    this.thinkingReveal = resetRevealState(nowMs);
+  }
+
+  private clearRevealTimer(): void {
+    if (this.revealTimer === undefined) return;
+    clearTimeout(this.revealTimer);
+    this.revealTimer = undefined;
+  }
+
+  /** Start / stop the shared reveal timer based on remaining lag. */
+  private rescheduleRevealTimer(): void {
+    const assistantLag =
+      this._streamingBlock !== null && !isRevealCaughtUp(this.assistantReveal);
+    const thinkingLag =
+      this._activeThinkingComponent !== undefined && !isRevealCaughtUp(this.thinkingReveal);
+    if (!assistantLag && !thinkingLag) {
+      this.clearRevealTimer();
+      return;
+    }
+    if (this.revealTimer !== undefined) return;
+    this.revealTimer = setTimeout(() => {
+      this.revealTimer = undefined;
+      this.onRevealTick();
+    }, STREAM_REVEAL_TICK_MS);
+  }
+
+  private onRevealTick(): void {
+    if (!this.shouldSmoothStreamReveal()) {
+      this.snapAllActiveReveals();
+      return;
+    }
+
+    const nowMs = Date.now();
+    let painted = false;
+
+    const block = this._streamingBlock;
+    if (block !== null && !isRevealCaughtUp(this.assistantReveal)) {
+      this.assistantReveal = setRevealTarget(this.assistantReveal, block.entry.content, nowMs);
+      this.assistantReveal = tickReveal(this.assistantReveal, nowMs);
+      block.component.updateContent(visibleText(this.assistantReveal), { transient: true });
+      painted = true;
+    }
+
+    const thinking = this._activeThinkingComponent;
+    if (thinking !== undefined && !isRevealCaughtUp(this.thinkingReveal)) {
+      this.thinkingReveal = tickReveal(this.thinkingReveal, nowMs);
+      thinking.setText(visibleText(this.thinkingReveal));
+      painted = true;
+    }
+
+    if (painted) {
+      requestTUIContentRender(this.host.state);
+    }
+    this.rescheduleRevealTimer();
+  }
+
+  private snapAllActiveReveals(): void {
+    const nowMs = Date.now();
+    const block = this._streamingBlock;
+    if (block !== null) {
+      this.assistantReveal = snapRevealToTarget(
+        setRevealTarget(this.assistantReveal, block.entry.content, nowMs),
+        nowMs,
+      );
+      block.component.updateContent(block.entry.content, { transient: true });
+    }
+    const thinking = this._activeThinkingComponent;
+    if (thinking !== undefined) {
+      this.thinkingReveal = snapRevealToTarget(this.thinkingReveal, nowMs);
+      thinking.setText(this.thinkingReveal.target);
+    }
+    requestTUIContentRender(this.host.state);
+    this.clearRevealTimer();
   }
 
   onThinkingUpdate(fullText: string): void {
     if (fullText.length === 0 && this._activeThinkingComponent === undefined) return;
     const { state } = this.host;
+    const nowMs = Date.now();
+
+    if (!this.shouldSmoothStreamReveal()) {
+      this.thinkingReveal = snapRevealToTarget(
+        setRevealTarget(this.thinkingReveal, fullText, nowMs),
+        nowMs,
+      );
+      if (this._activeThinkingComponent === undefined) {
+        this._pendingAgentGroup = null;
+        this._pendingReadGroup = null;
+        this._activeThinkingComponent = new ThinkingComponent(
+          fullText,
+          true,
+          'live',
+          state.ui,
+        );
+        if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
+        state.transcriptContainer.addChild(this._activeThinkingComponent);
+        requestTUILayoutRender(state);
+        this.rescheduleRevealTimer();
+        return;
+      }
+      this._activeThinkingComponent.setText(fullText);
+      requestTUIContentRender(state);
+      this.rescheduleRevealTimer();
+      return;
+    }
+
+    this.thinkingReveal = setRevealTarget(this.thinkingReveal, fullText, nowMs);
+    this.thinkingReveal = tickReveal(this.thinkingReveal, nowMs);
+    const shown = visibleText(this.thinkingReveal);
+
     if (this._activeThinkingComponent === undefined) {
       this._pendingAgentGroup = null;
       this._pendingReadGroup = null;
-      this._activeThinkingComponent = new ThinkingComponent(
-        fullText,
-        true,
-        'live',
-        state.ui,
-      );
+      this._activeThinkingComponent = new ThinkingComponent(shown, true, 'live', state.ui);
       if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
       state.transcriptContainer.addChild(this._activeThinkingComponent);
       requestTUILayoutRender(state);
+      this.rescheduleRevealTimer();
       return;
     }
-    this._activeThinkingComponent.setText(fullText);
+
+    this._activeThinkingComponent.setText(shown);
     requestTUIContentRender(state);
+    this.rescheduleRevealTimer();
   }
 
   onThinkingEnd(): void {
     if (this._activeThinkingComponent === undefined) return;
+    const nowMs = Date.now();
+    // Snap full thinking body before finalize so collapsed previews are complete.
+    this.thinkingReveal = snapRevealToTarget(this.thinkingReveal, nowMs);
+    if (this.thinkingReveal.target.length > 0) {
+      this._activeThinkingComponent.setText(this.thinkingReveal.target);
+    }
     this._activeThinkingComponent.finalize();
     this._activeThinkingComponent = undefined;
+    this.thinkingReveal = resetRevealState();
+    this.rescheduleRevealTimer();
     requestTUILayoutRender(this.host.state);
     this.host.mergeCurrentTurnSteps();
   }
