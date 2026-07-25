@@ -7,6 +7,7 @@ import { join } from 'pathe';
 import type { ExecutableToolResult } from '../../loop';
 
 const TOOL_RESULT_MAX_CHARS = 4_000;
+const TOOL_RESULT_LARGE_WINDOW_MAX_CHARS = 12_000;
 const TOOL_RESULT_PREVIEW_CHARS = 80;
 
 interface BudgetToolResultOptions {
@@ -14,13 +15,20 @@ interface BudgetToolResultOptions {
   readonly toolName: string;
   readonly toolCallId: string;
   readonly result: ExecutableToolResult;
+  /**
+   * Maximum context window in tokens. When provided, the budget threshold is
+   * scaled up so that large windows (e.g. 131k) don't archive aggressively.
+   * Falls back to the static {@link TOOL_RESULT_MAX_CHARS} when omitted.
+   */
+  readonly contextWindowTokens?: number;
 }
 
 export async function budgetToolResultForModel(
   options: BudgetToolResultOptions,
 ): Promise<ExecutableToolResult> {
+  const maxChars = resolveMaxChars(options.contextWindowTokens);
   const text = persistableToolResultText(options.result.output);
-  if (text === undefined || text.length <= TOOL_RESULT_MAX_CHARS) return options.result;
+  if (text === undefined || text.length <= maxChars) return options.result;
   if (options.result.truncated === true) return options.result;
   if (options.homedir === undefined) return options.result;
 
@@ -29,7 +37,7 @@ export async function budgetToolResultForModel(
     text,
   );
   if (outputPath === undefined) return options.result;
-  const output = renderPersistedToolResult(options.toolName, options.toolCallId, text, outputPath);
+  const output = renderPersistedToolResult(options.toolName, options.toolCallId, text, outputPath, maxChars);
   return options.result.isError === true
     ? { ...options.result, output, isError: true }
     : { ...options.result, output };
@@ -68,9 +76,10 @@ function renderPersistedToolResult(
   toolCallId: string,
   text: string,
   outputPath: string,
+  maxChars: number,
 ): string {
   const lines = [
-    `Tool output exceeded ${String(TOOL_RESULT_MAX_CHARS)} characters; showing a preview only.`,
+    `Tool output exceeded ${String(maxChars)} characters; showing a preview only.`,
     `tool_name: ${toolName}`,
     `tool_call_id: ${toolCallId}`,
     `output_size_chars: ${String(text.length)}`,
@@ -80,6 +89,18 @@ function renderPersistedToolResult(
   ];
   lines.push('', '[preview]', text.slice(0, TOOL_RESULT_PREVIEW_CHARS));
   return lines.join('\n');
+}
+
+/**
+ * Resolve the character budget for tool results based on the context window.
+ * Large windows (>= 100k tokens) get a 3x larger budget to reduce
+ * unnecessary archiving of useful output.
+ */
+function resolveMaxChars(contextWindowTokens?: number): number {
+  if (contextWindowTokens === undefined || contextWindowTokens < 100_000) {
+    return TOOL_RESULT_MAX_CHARS;
+  }
+  return TOOL_RESULT_LARGE_WINDOW_MAX_CHARS;
 }
 
 function safeToolResultFileStem(toolName: string, toolCallId: string): string {
