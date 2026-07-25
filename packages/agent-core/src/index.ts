@@ -82,6 +82,7 @@ export {
 } from './session/ultra-swarm-debate';
 export {
   buildDebateDraftHandoffPack,
+  debateDraftPhasesForHandoff,
   type DebateDraftHandoffEntry,
 } from './tools/builtin/collaboration/ultra-swarm-helpers';
 export {

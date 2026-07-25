@@ -72,6 +72,7 @@ import { SWARM_HANDOFF_COMPACTION_RATIO } from '../../../agent/compaction/strate
 import {
   MAX_ULTRA_SWARM_SUBAGENTS,
   buildDebateDraftHandoffPack,
+  debateDraftPhasesForHandoff,
   buildIntraPhaseDependencyHandoff,
   buildReviewRetryHandoff,
   capPlan,
@@ -701,7 +702,11 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         input.busEnabled ? renderSwarmBusDigest(this.store) : '',
       );
       // Append debate draft packs so review experts cite concrete phase output.
-      const debateDraftPack = buildDebateDraftHandoffPack(this.activeDebates, phase);
+      // After implement: include plan+implement drafts; after review: keep implement+review.
+      const debateDraftPack = buildDebateDraftHandoffPack(
+        this.activeDebates,
+        debateDraftPhasesForHandoff(phase),
+      );
       if (debateDraftPack.length > 0) {
         phaseHandoff = `${phaseHandoff}\n\n${debateDraftPack}`;
       }
