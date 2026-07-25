@@ -156,6 +156,7 @@ export {
   buildDebateContext,
   createDebate,
   buildDebateDraftHandoffPack,
+  debateDraftPhasesForHandoff,
   recordOutcomesFromSwarmResults,
   shouldSkipAdaptiveRestaff,
   shouldStopPhaseLoopAtCheckpoint,
