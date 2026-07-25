@@ -1,7 +1,10 @@
-import { createUserMessage } from '@superliora/kosong';
+import { APIStatusError, ChatProviderError, createUserMessage } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
-import { buildEmergencyBackstopSummary } from '../../../src/agent/compaction/backstop';
+import {
+  buildEmergencyBackstopSummary,
+  shouldUseClassicalCompactionFallback,
+} from '../../../src/agent/compaction/backstop';
 import { CONTEXT_COMPACTION_V2_VERSION } from '../../../src/agent/compaction/planner';
 
 describe('buildEmergencyBackstopSummary', () => {
@@ -61,5 +64,29 @@ describe('buildEmergencyBackstopSummary', () => {
     expect(summary).toContain('raw_refs:');
     expect(summary).toContain('tool_exchange');
     expect(summary).toContain('Emergency extractive transcript');
+  });
+});
+
+describe('shouldUseClassicalCompactionFallback', () => {
+  it('falls back on 400 unsupported parameter errors (e.g. grok-build reasoning_effort)', () => {
+    const err = new APIStatusError(
+      400,
+      'Model grok-build-0.1 does not support parameter reasoningEffort.',
+    );
+    expect(shouldUseClassicalCompactionFallback(err)).toBe(true);
+  });
+
+  it('falls back on generic ChatProviderError and message patterns', () => {
+    expect(shouldUseClassicalCompactionFallback(new ChatProviderError('provider failed'))).toBe(
+      true,
+    );
+    expect(
+      shouldUseClassicalCompactionFallback(new Error('invalid_request: reasoning_effort')),
+    ).toBe(true);
+  });
+
+  it('does not fall back on abort', () => {
+    const abort = new DOMException('Aborted', 'AbortError');
+    expect(shouldUseClassicalCompactionFallback(abort)).toBe(false);
   });
 });

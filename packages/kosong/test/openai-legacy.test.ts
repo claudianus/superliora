@@ -1002,6 +1002,38 @@ describe('OpenAILegacyChatProvider', () => {
     });
   });
 
+  describe('grok-build rejects reasoning_effort', () => {
+    it('never sends reasoning_effort for grok-build-0.1 even with withThinking', async () => {
+      const provider = createProvider({ model: 'grok-build-0.1' }).withThinking('high');
+      const body = await captureRequestBody(provider, 'System prompt', [], []);
+      expect(body['reasoning_effort']).toBeUndefined();
+      expect(body['reasoningEffort']).toBeUndefined();
+    });
+
+    it('strips reasoning_effort from kwargs and skips ThinkPart auto-inject for grok-build', async () => {
+      const provider = createProvider({ model: 'grok-build-0.1' })
+        .withThinking('medium')
+        .withGenerationKwargs({ reasoning_effort: 'high' });
+      const history: Message[] = [
+        {
+          role: 'assistant',
+          content: [{ type: 'think', think: 'prior reasoning' }],
+          toolCalls: [],
+        },
+      ];
+      const body = await captureRequestBody(provider, 'System prompt', [], history);
+      expect(body['reasoning_effort']).toBeUndefined();
+      expect(body['reasoningEffort']).toBeUndefined();
+    });
+
+    it('modelRejectsReasoningEffortParam matches grok-build ids', async () => {
+      const { modelRejectsReasoningEffortParam } = await import('#/providers/openai-legacy');
+      expect(modelRejectsReasoningEffortParam('grok-build-0.1')).toBe(true);
+      expect(modelRejectsReasoningEffortParam('GROK-BUILD-1')).toBe(true);
+      expect(modelRejectsReasoningEffortParam('gpt-4.1')).toBe(false);
+    });
+  });
+
   describe('default reasoning protocol (no explicit reasoningKey)', () => {
     it('serializes ThinkPart back to reasoning_content even without reasoningKey', async () => {
       // The whole point of issue #69: a hand-written config.toml never sets
