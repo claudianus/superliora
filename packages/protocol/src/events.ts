@@ -852,6 +852,16 @@ export interface CompactionProgressEvent {
   readonly blockIndex?: number;
   /** Total parallel blocks when `streamKind` is `block`. */
   readonly blockCount?: number;
+  /**
+   * Number of parallel summarize blocks that have finished successfully.
+   * Optional for older engines; TUI prefers this over time-creep for bar %.
+   */
+  readonly blocksCompleted?: number;
+  /**
+   * Engine-computed overall progress in [0, 1). Optional — clients fall back
+   * to phase bases when absent. Monotonic within a compaction session.
+   */
+  readonly fraction?: number;
 }
 
 export interface BackgroundTaskStartedEvent {

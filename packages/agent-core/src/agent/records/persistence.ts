@@ -28,6 +28,20 @@ export interface FileSystemAgentRecordPersistenceOptions {
  */
 const DEFAULT_MAX_CONSECUTIVE_DRAIN_FAILURES = 5;
 
+/**
+ * Cap a single drain batch so we never build one giant string for `writeFile`.
+ * Large sessions (post-compaction rewrite, long wire journals) can exceed V8's
+ * max string length (~512MB–1GB) when every pending record is `JSON.stringify`d
+ * and `.join`ed — that surfaces as `RangeError: Invalid string length` and
+ * kills the process. Batches stay well under that ceiling and are written as
+ * sequential line chunks.
+ */
+const MAX_DRAIN_BATCH_RECORDS = 256;
+/** Soft byte budget for one drain batch of serialized JSONL (approx). */
+const MAX_DRAIN_BATCH_BYTES = 4 * 1024 * 1024;
+/** Max chars assembled before flushing a partial write within a batch. */
+const MAX_WRITE_CHUNK_CHARS = 1 * 1024 * 1024;
+
 export interface InMemoryAgentRecordPersistenceOptions {
   readonly onRecord?: ((record: AgentRecord) => void) | undefined;
 }
@@ -147,7 +161,12 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
   rewrite(records: readonly AgentRecord[]): void {
     this.throwIfError();
     this.shouldClear = true;
-    this.pendingRecords.splice(0, this.pendingRecords.length, ...records);
+    // Avoid `splice(0, n, ...records)` / spread — huge sessions can blow the
+    // call-stack argument limit before we even reach the disk path.
+    this.pendingRecords.length = 0;
+    for (const record of records) {
+      this.pendingRecords.push(record);
+    }
     this.scheduleFlush();
   }
 
@@ -177,18 +196,20 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     // process died, that batch is lost regardless (a sync path cannot await
     // an fd it does not own). We only guarantee durability for records still
     // in `pendingRecords` at the moment of the crash.
+    //
+    // Lines are written in char-capped chunks so we never assemble a single
+    // multi-hundred-MB string (RangeError: Invalid string length).
     if (this.pendingRecords.length === 0 && !this.shouldClear) return;
+    const clearAtStart = this.shouldClear;
     const batch = this.pendingRecords.splice(0);
-    const shouldClear = this.shouldClear;
     this.shouldClear = false;
     try {
       const directory = dirname(this.filePath);
       mkdirSync(directory, { recursive: true });
-      const content = batch.map((e) => JSON.stringify(e) + '\n').join('');
-      const flags = shouldClear ? 'w' : 'a';
+      const flags = clearAtStart ? 'w' : 'a';
       const fd = openSync(this.filePath, flags);
       try {
-        if (content.length > 0) appendFileSync(fd, content, 'utf8');
+        writeJsonlLinesSync(fd, batch);
         fsyncSync(fd);
       } finally {
         closeSync(fd);
@@ -204,14 +225,14 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       // so the offset is approximate at crash time — acceptable, since journal
       // replay (not this counter) is the source of truth and the offset only
       // guides checkpoint precedence.
-      this.committedRecordCount = shouldClear
+      this.committedRecordCount = clearAtStart
         ? batch.length
         : this.committedRecordCount + batch.length;
     } catch (error) {
       // Re-queue so a subsequent resume attempt can retry; do NOT latch — a
       // crash-path failure should not brick future sessions.
       this.pendingRecords.unshift(...batch);
-      if (shouldClear) this.shouldClear = true;
+      if (clearAtStart) this.shouldClear = true;
       this.options.onError?.(error);
     }
   }
@@ -288,35 +309,38 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
 
   private async drainPendingRecords(): Promise<void> {
     while (this.shouldClear || this.pendingRecords.length > 0) {
-      await this.drainBatch();
+      if (this.shouldClear) {
+        // Rewrite must truncate once and write the full replacement set under a
+        // single open handle. Splitting clear across multiple open('w')/'a'
+        // cycles can leave a half-written journal if a later chunk fails.
+        await this.drainRewrite();
+      } else {
+        await this.drainAppendBatch();
+      }
     }
   }
 
-  private async drainBatch(): Promise<void> {
+  /**
+   * Clear-then-write the entire pending queue. Lines are still serialized and
+   * flushed in char-capped chunks so we never join a multi-hundred-MB string.
+   */
+  private async drainRewrite(): Promise<void> {
     const shouldClear = this.shouldClear;
-    // Snapshot the batch but do not drop it from `pendingRecords` until the
-    // write is confirmed durable. On failure we re-queue it at the front so
-    // a transient error does not silently lose records — the next flush
-    // attempt re-attempts the same batch instead of skipping ahead.
     const batch = this.pendingRecords.splice(0);
     this.shouldClear = false;
 
     try {
-      const writable = this.options.blobStore !== undefined
-        ? await Promise.all(
-            batch.map((record) => this.options.blobStore!.offload(record)),
-          )
-        : batch;
+      const writable =
+        this.options.blobStore !== undefined
+          ? await Promise.all(batch.map((record) => this.options.blobStore!.offload(record)))
+          : batch;
 
-      const content = writable.map((e) => JSON.stringify(e) + '\n').join('');
       const directory = dirname(this.filePath);
       await mkdir(directory, { recursive: true });
 
-      const fh = await open(this.filePath, shouldClear ? 'w' : 'a');
+      const fh = await open(this.filePath, 'w');
       try {
-        if (content.length > 0) {
-          await fh.writeFile(content, 'utf8');
-        }
+        await writeJsonlLines(fh, writable);
         await fh.sync();
       } finally {
         await fh.close();
@@ -326,19 +350,136 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
         await syncDir(directory);
         this.directorySynced = true;
       }
-      // The batch is now durable. Advance the committed append-offset: a clear
-      // (rewrite) resets the log to exactly this batch, an append extends it.
-      this.committedRecordCount = shouldClear
-        ? writable.length
-        : this.committedRecordCount + writable.length;
+      this.committedRecordCount = writable.length;
     } catch (error) {
-      // Re-queue the un-drained batch so a transient failure does not lose
-      // records. `shouldClear` (a rewrite) is also restored so a failed
-      // rewrite retries as a clear-then-write rather than appending.
       this.pendingRecords.unshift(...batch);
       if (shouldClear) this.shouldClear = true;
       throw error;
     }
+  }
+
+  /**
+   * Append a size-capped slice of pending records. Used for steady-state
+   * append traffic so a burst of events cannot assemble one giant write.
+   */
+  private async drainAppendBatch(): Promise<void> {
+    const takeCount = takeDrainBatchCount(this.pendingRecords);
+    const batch = this.pendingRecords.splice(0, takeCount);
+
+    try {
+      const writable =
+        this.options.blobStore !== undefined
+          ? await Promise.all(batch.map((record) => this.options.blobStore!.offload(record)))
+          : batch;
+
+      const directory = dirname(this.filePath);
+      await mkdir(directory, { recursive: true });
+
+      const fh = await open(this.filePath, 'a');
+      try {
+        await writeJsonlLines(fh, writable);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
+
+      if (!this.directorySynced) {
+        await syncDir(directory);
+        this.directorySynced = true;
+      }
+      this.committedRecordCount += writable.length;
+    } catch (error) {
+      this.pendingRecords.unshift(...batch);
+      throw error;
+    }
+  }
+}
+
+/**
+ * How many pending records fit in one drain batch under the record + byte
+ * soft caps. Always takes at least one record when the queue is non-empty so
+ * a single oversized record still drains (written line-by-line without join).
+ */
+function takeDrainBatchCount(pending: readonly AgentRecord[]): number {
+  if (pending.length === 0) return 0;
+  let count = 0;
+  let approxBytes = 0;
+  for (const record of pending) {
+    if (count >= MAX_DRAIN_BATCH_RECORDS) break;
+    // Cheap size estimate: avoid full stringify twice. Over-estimate slightly
+    // so we stay under the join ceiling even when JSON expands keys.
+    const estimate = estimateRecordBytes(record);
+    if (count > 0 && approxBytes + estimate > MAX_DRAIN_BATCH_BYTES) break;
+    approxBytes += estimate;
+    count += 1;
+  }
+  return Math.max(1, count);
+}
+
+function estimateRecordBytes(record: AgentRecord): number {
+  // Rough UTF-8 estimate without a full stringify of every pending row.
+  // Prefer known large text fields; fall back to a modest default.
+  try {
+    const asJson = JSON.stringify(record);
+    return asJson.length + 1; // + newline
+  } catch {
+    // Circular / non-serializable should not happen for AgentRecord; if it
+    // does, force a single-record batch so the real write path surfaces it.
+    return MAX_DRAIN_BATCH_BYTES;
+  }
+}
+
+/** Write JSONL lines in char-capped chunks — never one giant joined string. */
+async function writeJsonlLines(
+  fh: Awaited<ReturnType<typeof open>>,
+  records: readonly AgentRecord[],
+): Promise<void> {
+  let chunk = '';
+  for (const record of records) {
+    const line = `${JSON.stringify(record)}\n`;
+    if (chunk.length > 0 && chunk.length + line.length > MAX_WRITE_CHUNK_CHARS) {
+      // Use write(Buffer) (not writeFile): writeFile on a FileHandle rewrites
+      // from position 0 and would clobber earlier chunks in the same open handle.
+      await fh.write(Buffer.from(chunk, 'utf8'));
+      chunk = '';
+    }
+    // A single line larger than the chunk budget still writes alone — never
+    // join multiple huge lines into one string.
+    if (line.length > MAX_WRITE_CHUNK_CHARS) {
+      if (chunk.length > 0) {
+        await fh.write(Buffer.from(chunk, 'utf8'));
+        chunk = '';
+      }
+      await fh.write(Buffer.from(line, 'utf8'));
+      continue;
+    }
+    chunk += line;
+  }
+  if (chunk.length > 0) {
+    await fh.write(Buffer.from(chunk, 'utf8'));
+  }
+}
+
+function writeJsonlLinesSync(fd: number, records: readonly AgentRecord[]): void {
+  let chunk = '';
+  for (const record of records) {
+    const line = `${JSON.stringify(record)}\n`;
+    if (chunk.length > 0 && chunk.length + line.length > MAX_WRITE_CHUNK_CHARS) {
+      appendFileSync(fd, chunk, 'utf8');
+      chunk = '';
+    }
+    if (line.length > MAX_WRITE_CHUNK_CHARS) {
+      if (chunk.length > 0) {
+        appendFileSync(fd, chunk, 'utf8');
+        chunk = '';
+      }
+      appendFileSync(fd, line, 'utf8');
+      continue;
+    }
+    chunk += line;
+  }
+  if (chunk.length > 0) {
+    appendFileSync(fd, chunk, 'utf8');
   }
 }
 

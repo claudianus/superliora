@@ -21,6 +21,12 @@ export interface CompactionConfig {
   absoluteTriggerMinContextTokens?: number;
   parallelBlockThreshold: number;
   parallelBlockTarget: number;
+  /**
+   * Max concurrent LLM calls for parallel block summarize. `0` / omit uses the
+   * engine default (adaptive, starts at 2). Cap is always ≤ 8 so a large
+   * session cannot open unbounded RPS against the provider.
+   */
+  parallelBlockConcurrency?: number;
   absoluteTriggerBlocks?: boolean;
   speculativeStepBufferTokens: number;
   minRecompactGrowthRatio: number;
@@ -265,6 +271,7 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
   parallelBlockThreshold: 12_000,
   parallelBlockTarget: 6_000,
+  parallelBlockConcurrency: 0,
   speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
   minRecompactGrowthRatio: DEFAULT_MIN_RECOMPACT_GROWTH_RATIO,
   // Soft ceilings: effective only when the model window exceeds the cap.
@@ -285,6 +292,7 @@ export interface CompactionStrategy {
   readonly maxOverflowCompactionAttempts: number;
   readonly parallelBlockThreshold?: number;
   readonly parallelBlockTarget?: number;
+  readonly parallelBlockConcurrency?: number;
   readonly minRecompactGrowthRatio?: number;
   readonly asyncTriggerRatio: number;
   readonly frozenZoneSize: number;
@@ -588,6 +596,18 @@ export class DefaultCompactionStrategy implements CompactionStrategy {
   get frozenZoneSize(): number {
     return this.config.frozenZoneSize;
   }
+
+  get parallelBlockThreshold(): number {
+    return this.config.parallelBlockThreshold;
+  }
+
+  get parallelBlockTarget(): number {
+    return this.config.parallelBlockTarget;
+  }
+
+  get parallelBlockConcurrency(): number {
+    return this.config.parallelBlockConcurrency ?? 0;
+  }
 }
 
 export class PipelineStrategy implements CompactionStrategy {
@@ -651,6 +671,18 @@ export class PipelineStrategy implements CompactionStrategy {
 
   get frozenZoneSize(): number {
     return this.trigger.frozenZoneSize;
+  }
+
+  get parallelBlockThreshold(): number | undefined {
+    return this.trigger.parallelBlockThreshold;
+  }
+
+  get parallelBlockTarget(): number | undefined {
+    return this.trigger.parallelBlockTarget;
+  }
+
+  get parallelBlockConcurrency(): number | undefined {
+    return this.trigger.parallelBlockConcurrency;
   }
 
   /** Forward to DefaultCompactionStrategy trigger when present (Pipeline-safe). */

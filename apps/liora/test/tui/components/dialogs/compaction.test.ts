@@ -342,4 +342,84 @@ describe('CompactionComponent', () => {
       component.dispose();
     }
   });
+
+  it('advances the bar from blocksCompleted / blockCount instead of time creep', () => {
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      // 0/4 completed — still near summarizing base (30%).
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockIndex: 1,
+        blockCount: 4,
+        blocksCompleted: 0,
+      });
+      let text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('block 0/4');
+      expect(text).toContain('30%');
+
+      // Half the blocks done → midpoint of summarizing band (30% → 70%).
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockIndex: 2,
+        blockCount: 4,
+        blocksCompleted: 2,
+      });
+      text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('block 2/4');
+      expect(text).toContain('50%');
+
+      // All blocks done → ceiling of summarizing band (70%).
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockIndex: 4,
+        blockCount: 4,
+        blocksCompleted: 4,
+      });
+      text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('block 4/4');
+      expect(text).toContain('70%');
+    } finally {
+      component.dispose();
+    }
+  });
+
+  it('prefers engine fraction over phase base and never rewinds', () => {
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockCount: 5,
+        blocksCompleted: 3,
+        fraction: 0.42,
+      });
+      let text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('42%');
+
+      // Later tick with lower fraction must not rewind the floor.
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockCount: 5,
+        blocksCompleted: 2,
+        fraction: 0.2,
+      });
+      text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('42%');
+
+      component.setStreamMeta({
+        streamKind: 'merge',
+        blockCount: 5,
+        blocksCompleted: 5,
+        fraction: 0.75,
+      });
+      text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('75%');
+      expect(text).toContain('merging blocks');
+    } finally {
+      component.dispose();
+    }
+  });
 });
