@@ -817,6 +817,12 @@ export class Agent {
       pauseUltrawork: (payload) => this.ultrawork.pause(payload),
       resumeUltrawork: () => this.ultrawork.resume(),
       cancelUltrawork: (payload) => this.ultrawork.cancel(payload.reason),
+      swarmRestaff: (payload) =>
+        this.swarmRestaff(
+          typeof payload.reason === 'string' && payload.reason.trim().length > 0
+            ? payload.reason
+            : 'User requested restaff',
+        ),
       classifyUltraworkAutoActivation: async (payload) => {
         const text = payload.text.trim();
         if (text.length === 0) {

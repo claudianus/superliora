@@ -91,6 +91,7 @@ import type {
   UltraworkObjectiveProfileDecision,
   CancelUltraworkPayload,
   PauseUltraworkPayload,
+  SwarmRestaffPayload,
   ResumeUltraworkPayloadResult,
   UltraworkRunSnapshot,
   CreateSessionPayload,
@@ -1121,6 +1122,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     ...payload
   }: SessionAgentPayload<PauseUltraworkPayload>): Promise<UltraworkRunSnapshot | null> {
     return Promise.resolve(this.sessionApi(sessionId).pauseUltrawork(payload));
+  }
+
+  swarmRestaff({
+    sessionId,
+    ...payload
+  }: SessionAgentPayload<SwarmRestaffPayload>): Promise<boolean> {
+    return Promise.resolve(this.sessionApi(sessionId).swarmRestaff(payload));
   }
 
   resumeUltrawork({

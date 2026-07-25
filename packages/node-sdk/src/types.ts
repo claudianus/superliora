@@ -150,6 +150,11 @@ export interface PauseUltraworkInput {
   readonly reason?: string;
 }
 
+/** War-room / /swarm restaff: force adaptive restaff without pausing. */
+export interface SwarmRestaffInput {
+  readonly reason?: string;
+}
+
 export interface CancelUltraworkInput {
   readonly reason?: string;
 }

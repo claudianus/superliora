@@ -28,6 +28,7 @@ import type {
   InlineCompletePayload,
   PromptIntelligenceCallOptions,
   PauseUltraworkPayload,
+  SwarmRestaffPayload,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
@@ -334,6 +335,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async pauseUltrawork({ agentId, ...payload }: AgentScopedPayload<PauseUltraworkPayload>) {
     return (await this.getAgent(agentId)).pauseUltrawork(payload);
+  }
+
+  async swarmRestaff({ agentId, ...payload }: AgentScopedPayload<SwarmRestaffPayload>) {
+    return (await this.getAgent(agentId)).swarmRestaff(payload);
   }
 
   async resumeUltrawork({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {

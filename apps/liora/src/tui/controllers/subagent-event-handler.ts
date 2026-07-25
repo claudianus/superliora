@@ -756,8 +756,9 @@ export class SubAgentEventHandler {
   }
 
   /**
-   * War-room action dock restaff: steer the session with a restaff directive so the
-   * orchestrator / UltraSwarm restaff path can pick it up (see ultra-swarm-restaff).
+   * War-room action dock restaff: force an UltraSwarm adaptive restaff wave via
+   * session.swarmRestaff (Agent.swarmRestaff). Falls back to steer text when the
+   * RPC rejects or no UltraSwarm run is active.
    */
   private handleWarRoomRestaffRequest(request: {
     readonly reason?: string;
@@ -773,18 +774,26 @@ export class SubAgentEventHandler {
       request.phase === undefined || request.phase.trim().length === 0
         ? ''
         : ` (phase: ${request.phase})`;
-    const directive = [
-      'UltraSwarm restaff requested from war room.',
-      reason,
-      phase.length > 0 ? phase : undefined,
-      'Close unresolved required gaps by staffing additional specialists when slots allow.',
-    ]
-      .filter((part): part is string => part !== undefined && part.length > 0)
-      .join(' ');
-    void session.steer(directive).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      this.host.showError(`Failed to request UltraSwarm restaff: ${message}`);
-    });
+    const reasonWithPhase = phase.length > 0 ? `${reason}${phase}` : reason;
+    void session
+      .swarmRestaff({ reason: reasonWithPhase })
+      .then((accepted) => {
+        if (accepted) return;
+        // No active UltraSwarm run context — keep steer fallback for older paths.
+        const directive = [
+          'UltraSwarm restaff requested from war room.',
+          reason,
+          phase.length > 0 ? phase : undefined,
+          'Close unresolved required gaps by staffing additional specialists when slots allow.',
+        ]
+          .filter((part): part is string => part !== undefined && part.length > 0)
+          .join(' ');
+        return session.steer(directive);
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.host.showError(`Failed to request UltraSwarm restaff: ${message}`);
+      });
   }
 
   private ensureAgentSwarmProgress(

@@ -39,6 +39,7 @@ import type {
   CreateGoalInput,
   CreateUltraworkRunInput,
   PauseUltraworkInput,
+  SwarmRestaffInput,
   CancelUltraworkInput,
   UltraworkAutoActivationDecision,
   UltraworkObjectiveProfileDecision,
@@ -925,6 +926,16 @@ export abstract class SDKRpcClientBase {
       reason: input.reason,
     });
   }
+
+  async swarmRestaff(input: SessionIdRpcInput & SwarmRestaffInput): Promise<boolean> {
+    const rpc = await this.getRpc();
+    return rpc.swarmRestaff({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      reason: input.reason,
+    });
+  }
+
   async classifyUltraworkAutoActivation(
     input: SessionIdRpcInput & { readonly text: string },
   ): Promise<UltraworkAutoActivationDecision> {
