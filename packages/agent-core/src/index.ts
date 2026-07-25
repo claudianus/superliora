@@ -53,6 +53,10 @@ export {
   type SwarmDagNodeStatus,
 } from './session/swarm-dag-scheduler';
 export {
+  shouldSkipAdaptiveRestaff,
+  shouldStopPhaseLoopAtCheckpoint,
+} from './tools/builtin/collaboration/ultra-swarm-phase';
+export {
   CHECK_LIKE_EVIDENCE_TOKENS,
   applyEvidenceHardGate,
   evaluateEvidenceHardGate,
