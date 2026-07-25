@@ -4,13 +4,22 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
+  DEFAULT_ASYNC_WORKING_SET_TOKENS,
   DEFAULT_COMPACTION_BLOCK_RATIO,
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_COMPACTION_TRIGGER_RATIO,
+  DEFAULT_MAX_WORKING_SET_TOKENS,
+  DEFAULT_MICRO_WORKING_SET_TOKENS,
   DefaultCompactionStrategy,
+  applyWorkingSetCap,
   defaultAsyncTriggerRatioForWindow,
+  defaultAsyncWorkingSetTokensForWindow,
+  defaultMaxWorkingSetTokensForWindow,
+  defaultMicroWorkingSetTokensForWindow,
   defaultTriggerRatioForWindow,
+  microPressureThresholdTokens,
   PipelineStrategy,
+  recompactGrowthBaseTokens,
   ToolCollapseStrategy,
   resolveCompactionBlockRatio,
   splitMessagesIntoTokenBlocks,
@@ -276,6 +285,9 @@ describe('DefaultCompactionStrategy', () => {
       reservedContextSize: 50_000,
       maxRecentMessages: 3,
       absoluteTriggerTokens: 251_000,
+      // Keep cap above the absolute floor so this fixture isolates floor semantics.
+      maxWorkingSetTokens: 0,
+      asyncWorkingSetTokens: 0,
     });
 
     expect(strategy.shouldCompact(250_999)).toBe(false);
@@ -285,18 +297,36 @@ describe('DefaultCompactionStrategy', () => {
     expect(strategy.shouldBlock(251_000)).toBe(true);
   });
 
-  it('defers to the ratio floor when absolute threshold is below it on large windows', () => {
-    const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
+  it('uses absolute tokens as a floor under the ratio, then applies working-set cap', () => {
+    // Without a cap, ratio 0.85 wins over absolute floor 200k → soft at 850k.
+    const uncapped = new DefaultCompactionStrategy(() => 1_000_000, {
       ...DEFAULT_COMPACTION_CONFIG,
       triggerRatio: 0.85,
       blockRatio: 0.92,
       reservedContextSize: 50_000,
       maxRecentMessages: 3,
       absoluteTriggerTokens: 200_000,
+      maxWorkingSetTokens: 0,
+      asyncWorkingSetTokens: 0,
     });
 
-    expect(strategy.shouldCompact(849_999)).toBe(false);
-    expect(strategy.shouldCompact(850_000)).toBe(true);
+    expect(uncapped.shouldCompact(849_999)).toBe(false);
+    expect(uncapped.shouldCompact(850_000)).toBe(true);
+
+    // With the default ~256k cap, soft fires at the cap — not at 850k.
+    const capped = new DefaultCompactionStrategy(() => 1_000_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.85,
+      blockRatio: 0.92,
+      reservedContextSize: 50_000,
+      maxRecentMessages: 3,
+      absoluteTriggerTokens: 200_000,
+      absoluteTriggerBlocks: false,
+    });
+    expect(capped.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS - 1)).toBe(false);
+    expect(capped.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(true);
+    expect(capped.shouldBlock(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(false);
+    expect(capped.shouldBlock(920_000)).toBe(true);
   });
 
   it('treats the absolute threshold as a soft trigger when v2 separates hard blocking', () => {
@@ -308,6 +338,8 @@ describe('DefaultCompactionStrategy', () => {
       maxRecentMessages: 3,
       absoluteTriggerTokens: 200_000,
       absoluteTriggerBlocks: false,
+      maxWorkingSetTokens: 0,
+      asyncWorkingSetTokens: 0,
     });
 
     expect(strategy.shouldCompact(849_999)).toBe(false);
@@ -328,6 +360,80 @@ describe('DefaultCompactionStrategy', () => {
 
     expect(strategy.shouldCompact(200_000)).toBe(false);
     expect(strategy.shouldCompact(204_000)).toBe(true);
+  });
+
+  describe('working-set caps on large windows', () => {
+    it('caps soft full compact near ~256k on 1M windows', () => {
+      const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
+        ...DEFAULT_COMPACTION_CONFIG,
+        triggerRatio: 0.8,
+        asyncTriggerRatio: 0.7,
+        blockRatio: 0.9,
+        reservedContextSize: 0,
+        absoluteTriggerBlocks: false,
+      });
+
+      // Ratio alone would wait until 800k; working-set cap pulls soft to ~256k.
+      expect(strategy.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS - 1)).toBe(false);
+      expect(strategy.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(true);
+      expect(strategy.shouldBlock(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(false);
+      expect(strategy.shouldBlock(900_000)).toBe(true);
+    });
+
+    it('starts async compact below the soft working-set cap', () => {
+      const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
+        ...DEFAULT_COMPACTION_CONFIG,
+        triggerRatio: 0.8,
+        asyncTriggerRatio: 0.7,
+        blockRatio: 0.9,
+        reservedContextSize: 0,
+        absoluteTriggerBlocks: false,
+      });
+
+      const asyncCap = DEFAULT_ASYNC_WORKING_SET_TOKENS;
+      expect(strategy.shouldAsyncCompact(asyncCap - 1)).toBe(false);
+      expect(strategy.shouldAsyncCompact(asyncCap)).toBe(true);
+      expect(strategy.shouldCompact(asyncCap)).toBe(false);
+      // Soft owns the path once the working-set soft cap is hit.
+      expect(strategy.shouldAsyncCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(false);
+      expect(strategy.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(true);
+    });
+
+    it('does not apply working-set caps when the window is at or below the cap', () => {
+      // 256k window: cap 262144 is above the window → ratio-only soft at 0.70.
+      const strategy = new DefaultCompactionStrategy(() => 256_000, {
+        ...DEFAULT_COMPACTION_CONFIG,
+        reservedContextSize: 0,
+      });
+      expect(strategy.shouldCompact(179_199)).toBe(false);
+      expect(strategy.shouldCompact(179_200)).toBe(true);
+    });
+
+    it('exports pure helpers for window-aware working-set defaults', () => {
+      expect(defaultMaxWorkingSetTokensForWindow(100_000)).toBe(0);
+      expect(defaultMaxWorkingSetTokensForWindow(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(0);
+      expect(defaultMaxWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_MAX_WORKING_SET_TOKENS);
+      expect(defaultAsyncWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_ASYNC_WORKING_SET_TOKENS);
+      expect(defaultAsyncWorkingSetTokensForWindow(100_000)).toBe(0);
+      expect(defaultMicroWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_MICRO_WORKING_SET_TOKENS);
+      expect(defaultMicroWorkingSetTokensForWindow(100_000)).toBe(0);
+      expect(applyWorkingSetCap(800_000, 262_144)).toBe(262_144);
+      expect(applyWorkingSetCap(100_000, 262_144)).toBe(100_000);
+      expect(applyWorkingSetCap(100_000, 0)).toBe(100_000);
+      expect(
+        recompactGrowthBaseTokens({
+          maxContextTokens: 1_000_000,
+          maxWorkingSetTokens: DEFAULT_MAX_WORKING_SET_TOKENS,
+        }),
+      ).toBe(DEFAULT_MAX_WORKING_SET_TOKENS);
+      expect(
+        microPressureThresholdTokens({
+          maxContextTokens: 1_000_000,
+          minContextUsageRatio: 0.4,
+          maxWorkingSetTokens: DEFAULT_MICRO_WORKING_SET_TOKENS,
+        }),
+      ).toBe(DEFAULT_MICRO_WORKING_SET_TOKENS);
+    });
   });
 
   it('uses decoupled default trigger and block ratios', () => {
@@ -596,6 +702,26 @@ describe('full compaction pure policy', () => {
         maxContextTokens: 10_000,
       }),
     ).toBe(false);
+
+    // Working-set cap shrinks the growth base: 5% of 262_144 ≈ 13_107, not 50k of 1M.
+    expect(
+      shouldSkipRecompactUntilGrowth({
+        lastCompactedTokenCount: 200_000,
+        tokenCountWithPending: 200_000 + 10_000,
+        minGrowthRatio: 0.05,
+        maxContextTokens: 1_000_000,
+        maxWorkingSetTokens: DEFAULT_MAX_WORKING_SET_TOKENS,
+      }),
+    ).toBe(true);
+    expect(
+      shouldSkipRecompactUntilGrowth({
+        lastCompactedTokenCount: 200_000,
+        tokenCountWithPending: 200_000 + 15_000,
+        minGrowthRatio: 0.05,
+        maxContextTokens: 1_000_000,
+        maxWorkingSetTokens: DEFAULT_MAX_WORKING_SET_TOKENS,
+      }),
+    ).toBe(false);
   });
 
   it('shouldDeferAutoCompaction defers under swarm unless blocked', () => {
@@ -625,6 +751,13 @@ describe('full compaction pure policy', () => {
   it('handoffThresholdTokens and relaxObservedMaxContextTokens are pure', () => {
     expect(handoffThresholdTokens({ maxTokens: undefined, triggerRatio: 0.72 })).toBeUndefined();
     expect(handoffThresholdTokens({ maxTokens: 1000, triggerRatio: 0.72 })).toBe(720);
+    expect(
+      handoffThresholdTokens({
+        maxTokens: 1_000_000,
+        triggerRatio: 0.65,
+        maxWorkingSetTokens: 180_000,
+      }),
+    ).toBe(180_000);
     expect(
       relaxObservedMaxContextTokens({
         observed: 1000,

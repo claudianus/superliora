@@ -8,6 +8,10 @@ import {
 } from '../../utils/tokens';
 import { extractArchiveIdFromToolOutput } from '../../lean-context/postprocess/tool-result';
 import { isSwarmToolResult, maskStaleSwarmToolResult } from './boundary-compaction';
+import {
+  DEFAULT_MICRO_WORKING_SET_TOKENS,
+  microPressureThresholdTokens,
+} from './strategy';
 
 export interface MicroCompactionConfig {
   keepRecentMessages: number;
@@ -15,6 +19,12 @@ export interface MicroCompactionConfig {
   cacheMissedThresholdMs: number;
   truncatedMarker: string;
   minContextUsageRatio: number;
+  /**
+   * Soft ceiling (tokens) for micro pressure. When the model window exceeds
+   * this, micro clearing arms at min(ratio * window, maxWorkingSetTokens)
+   * instead of waiting for 40% of a 1M window. `0` disables the cap.
+   */
+  maxWorkingSetTokens: number;
 }
 
 export interface MicroCompactionPolicyDecision {
@@ -35,7 +45,10 @@ const DEFAULT_CONFIG: MicroCompactionConfig = {
   truncatedMarker: '[Old tool result content cleared]',
   // Fire once usage is meaningful; full compaction still waits for triggerRatio.
   // Keep window short so long sessions clear bulky tool output before soft-trigger.
+  // On 1M windows the 0.40 ratio alone waits until ~400k; maxWorkingSetTokens
+  // pulls micro pressure back near ~140k (reversible clearing before full summarize).
   minContextUsageRatio: 0.40,
+  maxWorkingSetTokens: DEFAULT_MICRO_WORKING_SET_TOKENS,
 };
 
 export type MicroTriggerKind =
@@ -113,13 +126,12 @@ export class MicroCompaction {
   detect(): void {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return;
 
-    // Primary: usage-ratio pressure when max_context_tokens is known (tool-result
+    // Primary: usage pressure when max_context_tokens is known (tool-result
     // clearing is cheaper than full compaction). Without a known window size,
     // fall back to the cache-miss secondary path only.
-    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
-    const hasKnownWindow = maxContextTokens !== undefined && maxContextTokens > 0;
-    const usagePressure =
-      hasKnownWindow && this.contextUsageRatio() >= this.config.minContextUsageRatio;
+    // Large windows also honor maxWorkingSetTokens so micro clears near ~140k
+    // instead of waiting for 40% of a 1M advertised window.
+    const usagePressure = this.hasUsagePressure();
     const cacheMissed = this.isCacheMissed();
     if (!usagePressure && !cacheMissed) return;
 
@@ -138,7 +150,7 @@ export class MicroCompaction {
    */
   detectUnderSwarmPressure(minUsageRatio: number): void {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return;
-    if (this.contextUsageRatio() < minUsageRatio) return;
+    if (!this.hasUsagePressure(minUsageRatio)) return;
     this.applyPressureCutoff(this.agent.context.history.length, 'swarm_pressure');
   }
 
@@ -147,6 +159,22 @@ export class MicroCompaction {
     const contextTokens = this.agent.context.tokenCountWithPending;
     if (maxContextTokens === undefined || maxContextTokens <= 0) return 1;
     return contextTokens / maxContextTokens;
+  }
+
+  /**
+   * True when live context has crossed the micro pressure threshold.
+   * Threshold = min(ratio * window, maxWorkingSetTokens) when a cap is set.
+   */
+  private hasUsagePressure(minUsageRatio = this.config.minContextUsageRatio): boolean {
+    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
+    if (maxContextTokens === undefined || maxContextTokens <= 0) return false;
+    const contextTokens = this.agent.context.tokenCountWithPending;
+    const threshold = microPressureThresholdTokens({
+      maxContextTokens,
+      minContextUsageRatio: minUsageRatio,
+      maxWorkingSetTokens: this.config.maxWorkingSetTokens,
+    });
+    return threshold > 0 && contextTokens >= threshold;
   }
 
   private isCacheMissed(): boolean {
@@ -162,7 +190,9 @@ export class MicroCompaction {
     const config = this.config;
     const { history, lastAssistantAt } = this.agent.context;
     const contextUsageRatio = this.contextUsageRatio();
-    if (contextUsageRatio < config.minContextUsageRatio) return;
+    // Cache-miss secondary path may still clear without ratio pressure, but the
+    // usage/swarm paths require the (possibly capped) token threshold.
+    if (trigger !== 'cache_miss' && !this.hasUsagePressure()) return;
 
     const previousCutoff = this.cutoff;
     const nextCutoff = Math.max(0, historyLength - config.keepRecentMessages);

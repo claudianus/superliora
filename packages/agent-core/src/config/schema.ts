@@ -159,6 +159,17 @@ export const LoopControlSchema = z.object({
   compactionAsyncTriggerRatio: z.number().min(0.05).max(0.99).optional(),
   compactionBlockRatio: z.number().min(0.5).max(0.99).optional(),
   compactionTriggerTokens: z.number().int().min(1000).optional(),
+  /**
+   * Soft working-set ceiling for full compaction (tokens). `0` disables the
+   * cap so ratio-only thresholds apply. On 1M-class windows the default agent
+   * path keeps live history near ~256k unless overridden.
+   */
+  maxWorkingSetTokens: z.number().int().min(0).optional(),
+  /**
+   * Soft working-set ceiling for async (pre-rot) compaction. `0` disables.
+   * Should stay below `maxWorkingSetTokens` when both are set.
+   */
+  asyncWorkingSetTokens: z.number().int().min(0).optional(),
   compactionMaxRecentMessages: z.number().int().min(1).optional(),
   compactionModel: z.string().min(1).optional(),
   completionModel: z.string().min(1).optional(),

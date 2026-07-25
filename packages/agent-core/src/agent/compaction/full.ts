@@ -53,6 +53,7 @@ import type {
 } from './types';
 import {
   DEFAULT_COMPACTION_CONFIG,
+  DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
   DefaultCompactionStrategy,
   defaultAsyncTriggerRatioForWindow,
   defaultTriggerRatioForWindow,
@@ -227,6 +228,21 @@ export class FullCompaction {
         },
         get asyncTriggerRatio() {
           return userAsyncTriggerRatio ?? defaultAsyncTriggerRatioForWindow(maxContextTokens());
+        },
+        // Working-set caps: keep agent live history near ~256k even on 1M windows.
+        // Explicit loopControl values win (including 0 = disable cap). Absolute
+        // floor still comes from compactionTriggerTokens when set.
+        get maxWorkingSetTokens() {
+          return (
+            loopControl?.maxWorkingSetTokens ??
+            DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens
+          );
+        },
+        get asyncWorkingSetTokens() {
+          return (
+            loopControl?.asyncWorkingSetTokens ??
+            DEFAULT_COMPACTION_CONFIG.asyncWorkingSetTokens
+          );
         },
         blockRatio: compactionBlockRatio,
         reservedContextSize:
@@ -586,14 +602,18 @@ export class FullCompaction {
   }
 
   private shouldSkipRecompactUntilGrowth(): boolean {
+    const quality = this.strategyWithQualityControls();
     const minGrowthRatio =
-      this.strategyWithQualityControls()?.minRecompactGrowthRatio ??
+      quality?.minRecompactGrowthRatio ??
       DEFAULT_COMPACTION_CONFIG.minRecompactGrowthRatio;
+    const maxWorkingSetTokens =
+      quality?.maxWorkingSetTokens ?? DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens;
     return shouldSkipRecompactUntilGrowthPolicy({
       lastCompactedTokenCount: this.lastCompactedTokenCount,
       tokenCountWithPending: this.tokenCountWithPending,
       minGrowthRatio,
       maxContextTokens: this.getEffectiveMaxContextTokens(),
+      maxWorkingSetTokens,
     });
   }
 
@@ -623,6 +643,8 @@ export class FullCompaction {
     const threshold = handoffThresholdTokens({
       maxTokens: this.agent.config.modelCapabilities.max_context_tokens,
       triggerRatio,
+      // Cap pre-swarm reclaim near the agent working set, not the full 1M window.
+      maxWorkingSetTokens: DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
     });
     if (threshold === undefined || this.tokenCountWithPending <= threshold) return;
     this.checkAutoCompaction(false);

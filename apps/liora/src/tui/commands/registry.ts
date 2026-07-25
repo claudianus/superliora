@@ -274,6 +274,15 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'context',
+    aliases: ['working-set', 'workingset'],
+    description: 'Set context working-set size (when auto-compaction fires on large windows)',
+    priority: 90,
+    argumentHint: '[economy|balanced|deep|full|status]',
+    visibility: 'advanced',
+    availability: 'always',
+  },
+  {
     name: 'premium',
     aliases: ['pq'],
     description: 'Toggle Premium Quality mode (visual-first premium harness)',

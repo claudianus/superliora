@@ -32,6 +32,10 @@ import {
 import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
 import { formatThinkingLevelSuffix } from '#/tui/utils/thinking-effort';
 import {
+  formatWorkingSetFooterBadgeText,
+  workingSetPressure,
+} from '#/tui/utils/context-working-set';
+import {
   createGitStatusCache,
   formatGitBadgeBase,
   formatPullRequestBadge,
@@ -303,6 +307,28 @@ export function formatMicroCompactionFooterBadge(
     text: `μ:${short}×${String(micro.total)}`,
     severity,
   };
+}
+
+/**
+ * Soft working-set badge, e.g. `ws:256k`. Shows the agent live-history cap
+ * (not the full model window) so large-context models stay glanceable.
+ */
+export function formatWorkingSetFooterBadge(
+  workingSet: AppState['workingSet'],
+  contextTokens: number,
+  maxContextTokens: number,
+): FooterBadge | null {
+  if (workingSet === undefined || workingSet === null) return null;
+  const text = formatWorkingSetFooterBadgeText(workingSet);
+  if (text === null) return null;
+  const pressure = workingSetPressure({
+    contextTokens,
+    maxContextTokens,
+    maxWorkingSetTokens: workingSet.maxWorkingSetTokens,
+  });
+  const severity: FooterBadgeSeverity =
+    pressure === 'danger' ? 'danger' : pressure === 'warn' ? 'warning' : 'info';
+  return { text, severity };
 }
 
 /**
@@ -672,10 +698,18 @@ export class FooterComponent implements Component {
       state.maxContextTokens,
     );
     const quotaBadge = formatProviderQuotaFooterBadge(state.providerQuota);
+    const workingSetBadge = formatWorkingSetFooterBadge(
+      state.workingSet,
+      state.contextTokens,
+      state.maxContextTokens,
+    );
     const usageSeverity = contextUsageSeverity(state.contextUsage);
     const contextParts: string[] = [
       styleFooterBadge({ text: contextBase, severity: usageSeverity }, colors, appearance),
     ];
+    if (workingSetBadge !== null) {
+      contextParts.push(styleFooterBadge(workingSetBadge, colors, appearance));
+    }
     if (quotaBadge !== null) {
       contextParts.push(styleFooterBadge(quotaBadge, colors, appearance));
     }

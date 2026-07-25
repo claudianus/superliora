@@ -8,6 +8,7 @@ export type SettingsSelection =
   | 'editor'
   | 'permission'
   | 'accounts'
+  | 'context'
   | 'experiments'
   | 'upgrade'
   | 'usage';
@@ -27,6 +28,11 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     value: 'accounts',
     label: 'Accounts',
     description: 'Manage OAuth account pools (promote, label, remove).',
+  },
+  {
+    value: 'context',
+    label: 'Context',
+    description: 'Set when auto-compaction reclaims context on large windows.',
   },
   {
     value: 'theme',
@@ -74,6 +80,7 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'editor' ||
     value === 'permission' ||
     value === 'accounts' ||
+    value === 'context' ||
     value === 'experiments' ||
     value === 'upgrade' ||
     value === 'usage'

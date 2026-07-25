@@ -6,6 +6,7 @@ export * from './chrome/welcome';
 export * from './dialogs/approval-panel';
 export * from './dialogs/choice-picker';
 export * from './dialogs/compaction';
+export * from './dialogs/context-working-set-selector';
 export * from './dialogs/editor-selector';
 export * from './dialogs/experiments-selector';
 export * from './dialogs/help-panel';

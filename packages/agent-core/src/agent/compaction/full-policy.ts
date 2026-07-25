@@ -2,11 +2,18 @@
  * Pure auto-compaction policy helpers (pre-rot / recompact growth / overflow).
  */
 
+import { applyWorkingSetCap, recompactGrowthBaseTokens } from './strategy';
+
 export function shouldSkipRecompactUntilGrowth(input: {
   readonly lastCompactedTokenCount: number | null;
   readonly tokenCountWithPending: number;
   readonly minGrowthRatio: number;
   readonly maxContextTokens: number;
+  /**
+   * Optional soft working-set cap. When set, min growth is measured against
+   * min(window, cap) so 1M models do not require ~50k growth before recompact.
+   */
+  readonly maxWorkingSetTokens?: number | null;
 }): boolean {
   if (input.lastCompactedTokenCount === null) return false;
   if (input.tokenCountWithPending <= input.lastCompactedTokenCount) {
@@ -15,7 +22,11 @@ export function shouldSkipRecompactUntilGrowth(input: {
   if (input.minGrowthRatio <= 0 || input.maxContextTokens <= 0) {
     return false;
   }
-  const minGrowth = Math.floor(input.maxContextTokens * input.minGrowthRatio);
+  const growthBase = recompactGrowthBaseTokens({
+    maxContextTokens: input.maxContextTokens,
+    maxWorkingSetTokens: input.maxWorkingSetTokens,
+  });
+  const minGrowth = Math.floor(growthBase * input.minGrowthRatio);
   return input.tokenCountWithPending - input.lastCompactedTokenCount < minGrowth;
 }
 
@@ -34,9 +45,12 @@ export function shouldDeferAutoCompaction(input: {
 export function handoffThresholdTokens(input: {
   readonly maxTokens: number | undefined;
   readonly triggerRatio: number;
+  /** Optional absolute ceiling for pre-swarm handoff reclaim. */
+  readonly maxWorkingSetTokens?: number | null;
 }): number | undefined {
   if (input.maxTokens === undefined || input.maxTokens <= 0) return undefined;
-  return Math.floor(input.maxTokens * input.triggerRatio);
+  const ratioThreshold = Math.floor(input.maxTokens * input.triggerRatio);
+  return applyWorkingSetCap(ratioThreshold, input.maxWorkingSetTokens);
 }
 
 export function relaxObservedMaxContextTokens(input: {

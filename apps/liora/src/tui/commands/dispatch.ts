@@ -31,6 +31,7 @@ import {
   handleAutoCommand,
   handleAppearanceCommand,
   handleCompactCommand,
+  handleContextCommand,
   handleEditorCommand,
   handleModelCommand,
   handlePlanCommand,
@@ -379,6 +380,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'settings':
       showSettingsSelector(host);
+      return;
+    case 'context':
+      await handleContextCommand(host, args);
       return;
     case 'usage':
       void showUsage(host);
