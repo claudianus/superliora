@@ -572,10 +572,14 @@ describe('SessionSubagentHost', () => {
       'LioraCallgraph',
       'LioraExpand',
       'LioraRead',
+      'LioraReview',
       'LioraSymbol',
       'LioraTree',
       'Read',
+      'RunProjectChecks',
       'TodoList',
+      'VerifySurface',
+      'VisualDiff',
       'Write',
     ]);
     expect(
