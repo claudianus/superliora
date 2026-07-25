@@ -52,7 +52,14 @@ export interface AppState {
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
   swarmMode: boolean;
+  /** Whether thinking is enabled (true when {@link thinkingLevel} is not `'off'`). */
   thinking: boolean;
+  /**
+   * Session thinking effort level from the runtime (`off` | `on` | `low` |
+   * `medium` | `high` | `xhigh` | `max`). Prefer this over the boolean
+   * {@link thinking} flag when showing or applying effort.
+   */
+  thinkingLevel?: string;
   contextUsage: number;
   contextTokens: number;
   maxContextTokens: number;

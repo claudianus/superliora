@@ -512,6 +512,27 @@ export interface UltraworkCollaborationMentionEvent {
   readonly mentionExpertIds: readonly string[];
 }
 
+export interface UltraworkCollaborationDebateEvent {
+  readonly type: 'ultrawork.collaboration.debate';
+  readonly runId: string;
+  readonly debateId: string;
+  readonly workNodeId: string;
+  readonly phase: 'critic' | 'rebuttal' | 'counter-critique' | 'consensus';
+  readonly expertId: string;
+  readonly expertName: string;
+  readonly text: string;
+  readonly stance?: 'support' | 'oppose' | 'neutral';
+  readonly parentId?: string;
+}
+
+export interface UltraworkCollaborationSteerEvent {
+  readonly type: 'ultrawork.collaboration.steer';
+  readonly runId: string;
+  readonly debateId: string;
+  readonly text: string;
+  readonly fromUser: boolean;
+}
+
 export interface UltraworkCouncilDecisionEvent {
   readonly type: 'ultrawork.council.decision';
   readonly runId: string;
@@ -882,6 +903,8 @@ export type AgentEvent =
   | UltraworkTaskAssignedEvent
   | UltraworkCollaborationMessageEvent
   | UltraworkCollaborationMentionEvent
+  | UltraworkCollaborationDebateEvent
+  | UltraworkCollaborationSteerEvent
   | UltraworkCouncilDecisionEvent
   | UltraworkSwarmPausedEvent
   | UltraworkSwarmResumedEvent
@@ -1391,6 +1414,27 @@ export const ultraworkCollaborationMentionEventSchema = z.object({
   mentionExpertIds: z.array(z.string().min(1)).min(1),
 }) satisfies z.ZodType<UltraworkCollaborationMentionEvent>;
 
+export const ultraworkCollaborationDebateEventSchema = z.object({
+  type: z.literal('ultrawork.collaboration.debate'),
+  runId: z.string().min(1),
+  debateId: z.string().min(1),
+  workNodeId: z.string().min(1),
+  phase: z.enum(['critic', 'rebuttal', 'counter-critique', 'consensus']),
+  expertId: z.string().min(1),
+  expertName: z.string().min(1),
+  text: z.string(),
+  stance: z.enum(['support', 'oppose', 'neutral']).optional(),
+  parentId: z.string().optional(),
+}) satisfies z.ZodType<UltraworkCollaborationDebateEvent>;
+
+export const ultraworkCollaborationSteerEventSchema = z.object({
+  type: z.literal('ultrawork.collaboration.steer'),
+  runId: z.string().min(1),
+  debateId: z.string().min(1),
+  text: z.string(),
+  fromUser: z.boolean(),
+}) satisfies z.ZodType<UltraworkCollaborationSteerEvent>;
+
 export const ultraworkCouncilDecisionEventSchema = z.object({
   type: z.literal('ultrawork.council.decision'),
   runId: z.string().min(1),
@@ -1748,6 +1792,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   ultraworkTaskAssignedEventSchema,
   ultraworkCollaborationMessageEventSchema,
   ultraworkCollaborationMentionEventSchema,
+  ultraworkCollaborationDebateEventSchema,
+  ultraworkCollaborationSteerEventSchema,
   ultraworkCouncilDecisionEventSchema,
   ultraworkSwarmPausedEventSchema,
   ultraworkSwarmResumedEventSchema,

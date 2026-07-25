@@ -2,6 +2,7 @@ import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sd
 import type { SkillListSession } from '../commands';
 
 import { OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE } from '../constant/liora-tui';
+import { resolveThinkingLevelForApply } from '../utils/thinking-effort';
 import {
   refreshAllProviderModels,
   type RefreshProviderScope,
@@ -51,6 +52,7 @@ export class AuthFlowController {
       sessionId: '',
       model: '',
       thinking: false,
+      thinkingLevel: 'off',
       contextTokens: 0,
       maxContextTokens: 0,
       contextUsage: 0,
@@ -60,9 +62,17 @@ export class AuthFlowController {
     this.host.setStartupReady();
   }
 
-  async activateModelAfterLogin(model: string, thinking?: boolean): Promise<void> {
+  async activateModelAfterLogin(
+    model: string,
+    thinking?: boolean,
+    effort?: string,
+  ): Promise<void> {
     const { host } = this;
-    const level = thinking === undefined ? undefined : thinking ? 'on' : 'off';
+    const modelAlias = host.state.appState.availableModels[model];
+    const level =
+      thinking === undefined
+        ? undefined
+        : resolveThinkingLevelForApply(thinking, effort, modelAlias);
     if (host.session !== undefined) {
       await host.session.setModel(model);
       if (level !== undefined) {
@@ -131,6 +141,7 @@ export class AuthFlowController {
     };
     if (config.defaultThinking !== undefined) {
       appStatePatch.thinking = config.defaultThinking;
+      appStatePatch.thinkingLevel = config.defaultThinking ? 'on' : 'off';
     }
     host.setAppState(appStatePatch);
   }
@@ -142,6 +153,7 @@ export class AuthFlowController {
       availableProviders: config.providers ?? {},
       model: '',
       thinking: false,
+      thinkingLevel: 'off',
       maxContextTokens: 0,
       contextUsage: 0,
       contextTokens: 0,

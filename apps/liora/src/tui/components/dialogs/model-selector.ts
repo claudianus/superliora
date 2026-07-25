@@ -7,6 +7,11 @@ import {currentTheme} from '#/tui/theme';
 import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {SearchableList} from '#/tui/utils/searchable-list';
+import {
+  defaultEffortForModel as defaultEffortForModelUtil,
+  effortsForModel as effortsForModelUtil,
+  wireEffortForModel,
+} from '#/tui/utils/thinking-effort';
 
 import type { ChoiceOption } from './choice-picker';
 
@@ -107,21 +112,14 @@ function effectiveThinking(model: ModelAlias, thinkingDraft: boolean): boolean {
   return thinkingDraft;
 }
 
-/** All possible thinking effort levels in ascending order. */
-const ALL_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
-
-/** Resolves the effort list for a model: its declared supportEfforts or the full list. */
+/** Effort choices for a model (declared supportEfforts, else provider-aware defaults). */
 function effortsForModel(model: ModelAlias): readonly string[] {
-  const supportEfforts = model.supportEfforts;
-  if (supportEfforts !== undefined && supportEfforts.length > 0) {
-    return supportEfforts;
-  }
-  return ALL_EFFORTS;
+  return effortsForModelUtil(model);
 }
 
-/** Resolves the default effort for a model: its declared defaultEffort or 'high'. */
+/** Default effort for a model, snapped onto its supported list. */
 function defaultEffortForModel(model: ModelAlias): string {
-  return model.defaultEffort ?? 'high';
+  return defaultEffortForModelUtil(model);
 }
 
 /**
@@ -188,12 +186,8 @@ export class ModelSelectorComponent extends Container implements Focusable {
       return;
     }
 
-    // ↑/↓, PgUp/PgDn, and — when searchable — typing + Backspace.
-    if (this.list.handleKey(data)) {
-      return;
-    }
-
     // Left/Right toggle the thinking draft for models that support it.
+    // Handled before search so arrow keys never become filter characters.
     if (matchesKey(data, Key.left) || matchesKey(data, Key.right)) {
       const selected = this.selectedChoice();
       if (selected !== undefined && thinkingAvailability(selected.model) === 'toggle') {
@@ -203,16 +197,28 @@ export class ModelSelectorComponent extends Container implements Focusable {
     }
 
     // Number keys 1-9 select the effort level when thinking is enabled.
+    // Must run before SearchableList.handleKey so digits are not swallowed as
+    // search filter characters while an effort control is active.
     const num = Number(data);
     if (Number.isInteger(num) && num >= 1 && num <= 9) {
       const selected = this.selectedChoice();
-      if (selected !== undefined && thinkingAvailability(selected.model) !== 'unsupported') {
+      if (
+        selected !== undefined &&
+        thinkingAvailability(selected.model) !== 'unsupported' &&
+        effectiveThinking(selected.model, this.draftFor(selected))
+      ) {
         const efforts = effortsForModel(selected.model);
         const effort = efforts[num - 1];
         if (effort !== undefined) {
           this.effortOverrides.set(selected.alias, effort);
+          return;
         }
       }
+      // Digit out of range / thinking off / unsupported: fall through to search.
+    }
+
+    // ↑/↓, PgUp/PgDn, and — when searchable — typing + Backspace.
+    if (this.list.handleKey(data)) {
       return;
     }
 
@@ -256,6 +262,14 @@ export class ModelSelectorComponent extends Container implements Focusable {
     if (this.opts.providerSwitchHint) hintParts.push('Tab toggle provider');
     hintParts.push('↑↓ navigate');
     if (searchable && view.query.length > 0) hintParts.push('Backspace clear');
+    const selectedForHint = this.selectedChoice();
+    if (
+      selectedForHint !== undefined &&
+      thinkingAvailability(selectedForHint.model) !== 'unsupported' &&
+      effectiveThinking(selectedForHint.model, this.draftFor(selectedForHint))
+    ) {
+      hintParts.push('1-5 effort');
+    }
     hintParts.push('Enter select');
     if (this.opts.onSessionOnlySelect !== undefined) hintParts.push('Alt+S session-only');
     hintParts.push('Esc cancel');
@@ -320,11 +334,21 @@ export class ModelSelectorComponent extends Container implements Focusable {
       const thinkingHeader = availability === 'toggle' ? ' Thinking  (←→ to switch)' : ' Thinking';
       footer.push(currentTheme.fg('textMuted', thinkingHeader));
       footer.push(this.renderThinkingControl(selected));
-      // Show effort selector when thinking is enabled.
+      // Show effort selector when thinking is enabled. Digits bind to effort
+      // before search, so the control stays usable even while searchable.
       const thinkingOn = effectiveThinking(selected.model, this.draftFor(selected));
       if (thinkingOn && availability !== 'unsupported') {
-        footer.push(currentTheme.fg('textMuted', ' Effort  (1-5 to select)'));
+        const efforts = effortsForModel(selected.model);
+        const digitHint = efforts.length <= 1 ? '1' : `1-${String(efforts.length)}`;
+        footer.push(
+          currentTheme.fg(
+            'textMuted',
+            ` Effort  (${digitHint} select · type letters to search)`,
+          ),
+        );
         footer.push(this.renderEffortControl(selected));
+        const wireNote = this.renderEffortWireNote(selected);
+        if (wireNote !== undefined) footer.push(wireNote);
       }
       footer.push('');
     } else {
@@ -376,11 +400,25 @@ export class ModelSelectorComponent extends Container implements Focusable {
     const segments = efforts.map((effort, index) => {
       const isActive = effort === current;
       const numHint = String(index + 1);
-      const label = `${numHint}:${effort}`;
+      const wire = wireEffortForModel(effort, choice.model);
+      // Show clamp transparently in the option itself when request ≠ wire.
+      const effortLabel = wire === effort ? effort : `${effort}→${wire}`;
+      const label = `${numHint}:${effortLabel}`;
       return isActive
         ? currentTheme.boldFg('primary', `[ ${label} ]`)
         : currentTheme.fg('text', `  ${label}  `);
     });
     return `  ${segments.join(' ')}`;
+  }
+
+  /** One-line note when the active effort is remapped on the wire. */
+  private renderEffortWireNote(choice: ModelChoice): string | undefined {
+    const current = this.effortFor(choice);
+    const wire = wireEffortForModel(current, choice.model);
+    if (wire === current) return undefined;
+    return currentTheme.fg(
+      'textMuted',
+      `   wire sends ${wire} for ${current} on this provider`,
+    );
   }
 }

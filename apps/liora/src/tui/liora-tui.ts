@@ -279,6 +279,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     inputMode: 'prompt',
     swarmMode: false,
     thinking: false,
+    thinkingLevel: 'off',
     contextUsage: 0,
     contextTokens: 0,
     maxContextTokens: 0,
@@ -1928,7 +1929,10 @@ export class LioraTUI {
       workDir: this.state.appState.workDir,
       model,
       thinking:
-        this.session === undefined ? undefined : this.state.appState.thinking ? 'on' : 'off',
+        this.session === undefined
+          ? undefined
+          : (this.state.appState.thinkingLevel ??
+            (this.state.appState.thinking ? 'on' : 'off')),
       permission: this.state.appState.permissionMode,
       planMode: this.state.appState.planMode,
     };
@@ -1959,6 +1963,7 @@ export class LioraTUI {
       sessionId: session.id,
       model: status.model ?? '',
       thinking: status.thinkingLevel !== 'off',
+      thinkingLevel: status.thinkingLevel,
       permissionMode: status.permission,
       planMode: status.planMode,
       ultraworkMode: this.state.appState.ultraworkMode,

@@ -221,6 +221,69 @@ describe('ModelSelectorComponent', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('selects effort with number keys even when searchable is on', () => {
+    const onSelect = vi.fn();
+    const thinkingModel = {
+      ...model('Kimi K2', ['thinking']),
+      supportEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      defaultEffort: 'high',
+    } as unknown as ModelAlias;
+    const picker = new ModelSelectorComponent({
+      models: { kimi: thinkingModel },
+      currentValue: 'kimi',
+      currentThinking: true,
+      searchable: true,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    // Digit keys must set effort instead of becoming a search query.
+    picker.handleInput('1');
+    expect(text(picker)).not.toContain('Search:');
+    expect(text(picker)).toContain('[ 1:low ]');
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: true, effort: 'low' });
+
+    picker.handleInput('5');
+    // Kimi wire maps max→high, so the active option shows the clamp transparently.
+    expect(text(picker)).toContain('[ 5:max→high ]');
+    expect(text(picker)).toContain('wire sends high for max on this provider');
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: true, effort: 'max' });
+  });
+
+  it('lets letter keys still filter while effort digits stay bound', () => {
+    const onSelect = vi.fn();
+    const models: Record<string, ModelAlias> = {
+      kimi: {
+        ...model('Kimi K2', ['thinking']),
+        supportEfforts: ['low', 'medium', 'high'],
+        defaultEffort: 'medium',
+      } as unknown as ModelAlias,
+      turbo: model('Kimi Turbo', ['thinking']),
+    };
+    const picker = new ModelSelectorComponent({
+      models,
+      currentValue: 'kimi',
+      currentThinking: true,
+      searchable: true,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    picker.handleInput('t');
+    expect(text(picker)).toContain('Search: t');
+    expect(text(picker)).toContain('Kimi Turbo');
+    // After filtering to turbo, digit still picks effort for the selected row.
+    picker.handleInput('1');
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenLastCalledWith({
+      alias: 'turbo',
+      thinking: true,
+      effort: 'low',
+    });
+  });
+
   it('shows a "more" indicator when the list overflows a page', () => {
     const models: Record<string, ModelAlias> = {};
     for (let i = 0; i < 12; i++) models[`m${String(i)}`] = model(`Model ${String(i)}`);

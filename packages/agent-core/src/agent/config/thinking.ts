@@ -6,7 +6,15 @@ export type { ThinkingEffort };
 
 const DEFAULT_THINKING_EFFORT: ThinkingEffort = 'high';
 
-const THINKING_EFFORTS = new Set<ThinkingEffort>(['low', 'medium', 'high', 'xhigh', 'max']);
+const THINKING_EFFORT_ORDER: readonly ThinkingEffort[] = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+];
+
+const THINKING_EFFORTS = new Set<ThinkingEffort>(THINKING_EFFORT_ORDER);
 
 export interface ThinkingModelDefaults {
   readonly supportEfforts?: readonly string[];
@@ -43,27 +51,66 @@ export function resolveThinkingEffort(
   const normalized = requested?.trim().toLowerCase();
   if (!normalized) {
     if (defaults?.mode === 'off') return 'off';
-    return configEffort;
+    return clampEffortToModelSupport(configEffort, model);
   }
   if (normalized === 'off') return 'off';
-  if (normalized === 'on') return configEffort;
-  return parseEffort(normalized) ?? configEffort;
+  if (normalized === 'on') return clampEffortToModelSupport(configEffort, model);
+  const parsed = parseEffort(normalized);
+  if (parsed === undefined) return clampEffortToModelSupport(configEffort, model);
+  return clampEffortToModelSupport(parsed, model);
 }
 
 export function defaultThinkingEffortFor(
   model: ThinkingModelDefaults | undefined,
 ): ThinkingEffort {
   const modelDefault = parseEffort(model?.defaultEffort);
-  if (modelDefault !== undefined) return modelDefault;
+  if (modelDefault !== undefined) {
+    return clampEffortToModelSupport(modelDefault, model);
+  }
 
-  const supportEfforts = model?.supportEfforts
-    ?.map((effort) => parseEffort(effort))
-    .filter((effort): effort is ThinkingEffort => effort !== undefined);
+  const supportEfforts = supportedEffortsFor(model);
   if (supportEfforts !== undefined && supportEfforts.length > 0) {
     return supportEfforts[Math.floor(supportEfforts.length / 2)] ?? DEFAULT_THINKING_EFFORT;
   }
 
   return DEFAULT_THINKING_EFFORT;
+}
+
+/**
+ * When a model declares `supportEfforts`, snap unsupported levels onto the
+ * nearest supported rung (prefer lower, then higher). Without a declaration
+ * the effort is returned unchanged.
+ */
+export function clampEffortToModelSupport(
+  effort: ThinkingEffort,
+  model: ThinkingModelDefaults | undefined,
+): ThinkingEffort {
+  if (effort === 'off') return 'off';
+  const support = supportedEffortsFor(model);
+  if (support === undefined || support.length === 0) return effort;
+  if (support.includes(effort)) return effort;
+
+  const idx = THINKING_EFFORT_ORDER.indexOf(effort);
+  if (idx < 0) return support[support.length - 1] ?? DEFAULT_THINKING_EFFORT;
+  for (let i = idx; i >= 0; i--) {
+    const candidate = THINKING_EFFORT_ORDER[i]!;
+    if (support.includes(candidate)) return candidate;
+  }
+  for (let i = idx + 1; i < THINKING_EFFORT_ORDER.length; i++) {
+    const candidate = THINKING_EFFORT_ORDER[i]!;
+    if (support.includes(candidate)) return candidate;
+  }
+  return support[support.length - 1] ?? DEFAULT_THINKING_EFFORT;
+}
+
+function supportedEffortsFor(
+  model: ThinkingModelDefaults | undefined,
+): ThinkingEffort[] | undefined {
+  const supportEfforts = model?.supportEfforts
+    ?.map((effort) => parseEffort(effort))
+    .filter((effort): effort is ThinkingEffort => effort !== undefined);
+  if (supportEfforts === undefined || supportEfforts.length === 0) return undefined;
+  return supportEfforts;
 }
 
 function parseEffort(value: string | undefined): ThinkingEffort | undefined {

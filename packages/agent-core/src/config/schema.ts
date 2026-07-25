@@ -163,6 +163,9 @@ export const LoopControlSchema = z.object({
   compactionModel: z.string().min(1).optional(),
   completionModel: z.string().min(1).optional(),
   explorationModel: z.string().min(1).optional(),
+  codingModel: z.string().min(1).optional(),
+  planningModel: z.string().min(1).optional(),
+  debuggingModel: z.string().min(1).optional(),
 });
 
 export type LoopControl = z.infer<typeof LoopControlSchema>;

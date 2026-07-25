@@ -131,6 +131,9 @@ export const sessionStatusResponseSchema = z.object({
       compaction: z.string().min(1).nullable().optional(),
       completion: z.string().min(1).nullable().optional(),
       exploration: z.string().min(1).nullable().optional(),
+      coding: z.string().min(1).nullable().optional(),
+      planning: z.string().min(1).nullable().optional(),
+      debugging: z.string().min(1).nullable().optional(),
     })
     .optional(),
   provider_route: providerRouteStatusSchema.nullable().optional(),

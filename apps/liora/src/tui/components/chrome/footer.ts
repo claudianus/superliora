@@ -30,6 +30,7 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
+import { formatThinkingLevelSuffix } from '#/tui/utils/thinking-effort';
 import {
   createGitStatusCache,
   formatGitBadgeBase,
@@ -185,6 +186,14 @@ function formatBadgeElapsed(ms: number): string {
 function modelDisplayName(state: AppState): string {
   const model = state.availableModels[state.model];
   return model?.displayName ?? model?.model ?? state.model;
+}
+
+/** Suffix for the footer model badge: effective effort (shows clamp as max→high). */
+function thinkingLevelLabel(state: AppState): string {
+  return formatThinkingLevelSuffix(state.thinkingLevel, {
+    thinking: state.thinking,
+    model: state.availableModels[state.model],
+  });
 }
 
 function shortenCwd(path: string): string {
@@ -573,8 +582,7 @@ export class FooterComponent implements Component {
 
     const model = modelDisplayName(state);
     if (model) {
-      const thinkingLabel = state.thinking ? ' thinking' : '';
-      const modelLabel = `${model}${thinkingLabel}`;
+      const modelLabel = `${model}${thinkingLevelLabel(state)}`;
       left.push(
         state.streamingPhase === 'idle' && !state.thinking
           ? chalk.hex(colors.text)(modelLabel)

@@ -26,6 +26,10 @@ import { currentTheme, isBuiltInTheme, lightColors, loadCustomThemeMerged } from
 import { importThemeSource } from '#/tui/theme/importer';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
+import {
+  resolveThinkingDisplay,
+  resolveThinkingLevelForApply,
+} from '#/tui/utils/thinking-effort';
 import { handleAccountsCommand } from './accounts';
 import { showUsage } from './info';
 import { handlePersonaCommand } from './persona';
@@ -118,17 +122,31 @@ export async function handleThinkingCommand(host: SlashCommandHost, args: string
     return;
   }
 
+  // Clamp onto the model support list before applying so UI and session match.
+  const applied =
+    level === 'off' || level === 'on'
+      ? level
+      : resolveThinkingLevelForApply(true, level, model);
+
   try {
-    await session.setThinking(level);
+    await session.setThinking(applied);
   } catch (error) {
     host.showError(`Failed to set thinking: ${formatErrorMessage(error)}`);
     return;
   }
 
-  const enabled = level !== 'off';
-  host.setAppState({ thinking: enabled });
-  host.track('thinking_toggle', { enabled, level });
-  host.showStatus(`Thinking set to ${level}.`, 'success');
+  const enabled = applied !== 'off';
+  // UI may show a clamp note (max→high) when the wire mapping differs.
+  const display = resolveThinkingDisplay(applied, { thinking: enabled, model });
+  host.setAppState({ thinking: enabled, thinkingLevel: display.requested });
+  host.track('thinking_toggle', { enabled, level: display.requested });
+  const statusLabel =
+    display.label === 'off'
+      ? 'off'
+      : display.requested === display.effective
+        ? display.requested
+        : `${display.requested} (wire ${display.effective})`;
+  host.showStatus(`Thinking set to ${statusLabel}.`, 'success');
 }
 
 function normalizeThinkingLevel(args: string): ThinkingLevel | undefined {
@@ -170,7 +188,16 @@ function formatThinkingLevels(): string {
 function formatThinkingStatus(host: SlashCommandHost): string {
   const modelAlias = host.state.appState.model.trim();
   const model = host.state.appState.availableModels[modelAlias];
-  const status = host.state.appState.thinking ? 'on' : 'off';
+  const display = resolveThinkingDisplay(
+    host.state.appState.thinkingLevel ?? (host.state.appState.thinking ? 'on' : 'off'),
+    { thinking: host.state.appState.thinking, model },
+  );
+  const levelLabel =
+    display.label === 'off'
+      ? 'off'
+      : display.requested === display.effective
+        ? display.requested
+        : `${display.requested}→${display.effective}`;
 
   // Check if model supports thinking.
   const caps = model?.capabilities ?? [];
@@ -178,16 +205,16 @@ function formatThinkingStatus(host: SlashCommandHost): string {
     caps.includes('always_thinking') || caps.includes('thinking') || model?.adaptiveThinking === true;
 
   if (!supportsThinking) {
-    return `Thinking is ${status}. Current model does not support thinking.`;
+    return `Thinking is ${levelLabel}. Current model does not support thinking.`;
   }
 
   const supportEfforts = model?.supportEfforts;
   const defaultEffort = model?.defaultEffort ?? 'high';
 
   if (supportEfforts !== undefined && supportEfforts.length > 0) {
-    return `Thinking is ${status}. Default effort: ${defaultEffort}. Supported: ${supportEfforts.join(', ')}. Use /thinking <level>.`;
+    return `Thinking is ${levelLabel}. Default effort: ${defaultEffort}. Supported: ${supportEfforts.join(', ')}. Use /thinking <level>.`;
   }
-  return `Thinking is ${status}. Default effort: ${defaultEffort}. Use /thinking <${formatThinkingLevels()}>.`;
+  return `Thinking is ${levelLabel}. Default effort: ${defaultEffort}. Use /thinking <${formatThinkingLevels()}>.`;
 }
 
 async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {
@@ -508,19 +535,26 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
     );
     return;
   }
+  const currentEffort =
+    host.state.appState.thinkingLevel !== undefined &&
+    host.state.appState.thinkingLevel !== 'off' &&
+    host.state.appState.thinkingLevel !== 'on'
+      ? host.state.appState.thinkingLevel
+      : undefined;
   host.mountEditorReplacement(
     new TabbedModelSelectorComponent({
       models: host.state.appState.availableModels,
       currentValue: host.state.appState.model,
       selectedValue,
       currentThinking: host.state.appState.thinking,
-      onSelect: ({ alias, thinking }) => {
+      currentEffort,
+      onSelect: ({ alias, thinking, effort }) => {
         host.restoreEditor();
-        void performModelSwitch(host, alias, thinking, true);
+        void performModelSwitch(host, alias, thinking, true, effort);
       },
-      onSessionOnlySelect: ({ alias, thinking }) => {
+      onSessionOnlySelect: ({ alias, thinking, effort }) => {
         host.restoreEditor();
-        void performModelSwitch(host, alias, thinking, false);
+        void performModelSwitch(host, alias, thinking, false, effort);
       },
       onCancel: () => {
         host.restoreEditor();
@@ -534,26 +568,34 @@ async function performModelSwitch(
   alias: string,
   thinking: boolean,
   persist: boolean,
+  effort?: string,
 ): Promise<void> {
   if (host.state.appState.streamingPhase !== 'idle') {
     host.showError('Cannot switch models while streaming — press Esc or Ctrl-C first.');
     return;
   }
 
-  const level = thinking ? 'on' : 'off';
+  const model = host.state.appState.availableModels[alias];
+  const level = resolveThinkingLevelForApply(thinking, effort, model);
+  const display = resolveThinkingDisplay(level, { thinking, model });
   const prevModel = host.state.appState.model;
   const prevThinking = host.state.appState.thinking;
-  const runtimeChanged = alias !== prevModel || thinking !== prevThinking;
+  const prevLevel = host.state.appState.thinkingLevel ?? (prevThinking ? 'on' : 'off');
+  const runtimeChanged = alias !== prevModel || level !== prevLevel;
 
   const session = host.session;
   try {
     if (session === undefined && runtimeChanged) {
-      await host.authFlow.activateModelAfterLogin(alias, thinking);
+      await host.authFlow.activateModelAfterLogin(
+        alias,
+        thinking,
+        level === 'off' ? undefined : level,
+      );
     } else if (session !== undefined) {
       if (alias !== prevModel) {
         await session.setModel(alias);
       }
-      if (thinking !== prevThinking || (alias !== prevModel && thinking)) {
+      if (level !== prevLevel || (alias !== prevModel && thinking)) {
         await session.setThinking(level);
       }
     }
@@ -563,13 +605,13 @@ async function performModelSwitch(
     return;
   }
 
-  host.setAppState({ model: alias, thinking });
+  host.setAppState({ model: alias, thinking, thinkingLevel: display.requested });
   if (session === undefined && runtimeChanged) {
     if (alias !== prevModel) {
       host.track('model_switch', { model: alias });
     }
-    if (thinking !== prevThinking) {
-      host.track('thinking_toggle', { enabled: thinking });
+    if (level !== prevLevel) {
+      host.track('thinking_toggle', { enabled: thinking, level: display.requested });
     }
   }
 
@@ -584,15 +626,21 @@ async function performModelSwitch(
     }
   }
 
+  const levelLabel =
+    display.label === 'off'
+      ? 'off'
+      : display.requested === display.effective
+        ? display.requested
+        : `${display.requested}→${display.effective}`;
   let status: string;
   if (runtimeChanged) {
     status = persist
-      ? `Switched to ${alias} with thinking ${level}.`
-      : `Switched to ${alias} with thinking ${level} for this session only.`;
+      ? `Switched to ${alias} with thinking ${levelLabel}.`
+      : `Switched to ${alias} with thinking ${levelLabel} for this session only.`;
   } else if (persist && persisted) {
-    status = `Saved ${alias} with thinking ${level} as default.`;
+    status = `Saved ${alias} with thinking ${levelLabel} as default.`;
   } else {
-    status = `Already using ${alias} with thinking ${level}.`;
+    status = `Already using ${alias} with thinking ${levelLabel}.`;
   }
   host.showStatus(status, 'success');
 }

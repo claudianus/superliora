@@ -286,12 +286,16 @@ describe('handleThinkingCommand', () => {
     await handleThinkingCommand(host, 'max');
 
     expect(session.setThinking).toHaveBeenCalledWith('max');
-    expect(host.setAppState).toHaveBeenCalledWith({ thinking: true });
+    expect(host.setAppState).toHaveBeenCalledWith({ thinking: true, thinkingLevel: 'max' });
     expect(host.track).toHaveBeenCalledWith('thinking_toggle', {
       enabled: true,
       level: 'max',
     });
-    expect(host.showStatus).toHaveBeenCalledWith('Thinking set to max.', 'success');
+    // supportEfforts include max; Kimi wire maps max→high so status notes the wire.
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Thinking set to max (wire high).',
+      'success',
+    );
   });
 
   it('dispatches /thinking through the slash command path', async () => {
@@ -310,7 +314,7 @@ describe('handleThinkingCommand', () => {
     await handleThinkingCommand(host, 'off');
 
     expect(session.setThinking).toHaveBeenCalledWith('off');
-    expect(host.setAppState).toHaveBeenCalledWith({ thinking: false });
+    expect(host.setAppState).toHaveBeenCalledWith({ thinking: false, thinkingLevel: 'off' });
     expect(host.showError).not.toHaveBeenCalled();
   });
 

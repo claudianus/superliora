@@ -30,6 +30,8 @@ const ULTRAWORK_THEATRE_EVENT_TYPES = new Set<Event['type']>([
   'ultrawork.task.assigned',
   'ultrawork.collaboration.message',
   'ultrawork.collaboration.mention',
+  'ultrawork.collaboration.debate',
+  'ultrawork.collaboration.steer',
   'ultrawork.council.decision',
   'ultrawork.verification.completed',
   'ultrawork.knowledge.promoted',
@@ -49,6 +51,8 @@ export type UltraworkTheatreEvent = Extract<
       | 'ultrawork.task.assigned'
       | 'ultrawork.collaboration.message'
       | 'ultrawork.collaboration.mention'
+      | 'ultrawork.collaboration.debate'
+      | 'ultrawork.collaboration.steer'
       | 'ultrawork.council.decision'
       | 'ultrawork.verification.completed'
       | 'ultrawork.knowledge.promoted';
@@ -75,6 +79,18 @@ export class UltraworkTheatreComponent implements Component {
   private readonly decisions = new Map<string, CouncilDecision>();
   private verification: VerificationResult | undefined;
   private readonly promotions = new Map<string, KnowledgePromotion>();
+
+  // Debate streaming: live adversarial critique turns and user steering
+  private readonly debates: {
+    debateId: string;
+    workNodeId: string;
+    phase: string;
+    expertId: string;
+    expertName: string;
+    text: string;
+    stance?: string;
+  }[] = [];
+  private readonly steeringMessages: string[] = [];
 
   // Stage progress tracking
   private readonly stageOrder: readonly UltraworkRun['stage'][] = [
@@ -127,6 +143,20 @@ export class UltraworkTheatreComponent implements Component {
       case 'ultrawork.collaboration.message':
       case 'ultrawork.collaboration.mention':
         break;
+      case 'ultrawork.collaboration.debate':
+        this.debates.push({
+          debateId: event.debateId,
+          workNodeId: event.workNodeId,
+          phase: event.phase,
+          expertId: event.expertId,
+          expertName: event.expertName,
+          text: event.text,
+          stance: event.stance,
+        });
+        break;
+      case 'ultrawork.collaboration.steer':
+        this.steeringMessages.push(event.text);
+        break;
       case 'ultrawork.council.decision':
         this.decisions.set(event.decision.id, event.decision);
         break;
@@ -173,11 +203,25 @@ export class UltraworkTheatreComponent implements Component {
 
   private renderCompactContent(width: number): string[] {
     const objective = this.objective ?? this.run?.objective ?? 'pending';
-    return [
+    const lines = [
       this.plainLine(objective, width, 'text'),
       this.plainLine(this.stageProgressLine(), width, 'textDim'),
       this.plainLine(this.progressSummary(), width, 'textDim'),
     ];
+    // Debate streaming: show recent debate turns and user steering
+    for (const debate of this.debates.slice(-3)) {
+      const stanceIcon = debate.stance === 'oppose' ? '✗' : debate.stance === 'support' ? '✓' : '◆';
+      const phaseLabel = `[${debate.phase}]`;
+      const speaker = debate.expertName;
+      const text = truncateToWidth(`${stanceIcon} ${phaseLabel} ${speaker}: ${debate.text}`, width);
+      const tone = debate.stance === 'oppose' ? 'warning' : debate.stance === 'support' ? 'accent' : 'textDim';
+      lines.push(this.plainLine(text, width, tone));
+    }
+    for (const steer of this.steeringMessages.slice(-2)) {
+      const text = truncateToWidth(`>> ${steer}`, width);
+      lines.push(this.plainLine(text, width, 'accent'));
+    }
+    return lines;
   }
 
   private stageProgressLine(): string {

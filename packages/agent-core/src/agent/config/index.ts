@@ -81,7 +81,10 @@ export class ConfigState {
     const hasRoleModels =
       loopControl?.compactionModel !== undefined ||
       loopControl?.completionModel !== undefined ||
-      loopControl?.explorationModel !== undefined;
+      loopControl?.explorationModel !== undefined ||
+      loopControl?.codingModel !== undefined ||
+      loopControl?.planningModel !== undefined ||
+      loopControl?.debuggingModel !== undefined;
     return {
       cwd: this.cwd,
       provider: resolved?.provider,
@@ -95,6 +98,9 @@ export class ConfigState {
             compaction: loopControl?.compactionModel,
             completion: loopControl?.completionModel,
             exploration: loopControl?.explorationModel,
+            coding: loopControl?.codingModel,
+            planning: loopControl?.planningModel,
+            debugging: loopControl?.debuggingModel,
           }
         : undefined,
     };

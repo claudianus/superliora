@@ -63,6 +63,19 @@ describe('resolveThinkingEffort', () => {
       expect(resolveThinkingEffort('xhigh', undefined)).toBe('xhigh');
     });
 
+    it('clamps unsupported efforts onto the model support list', () => {
+      expect(
+        resolveThinkingEffort('max', undefined, {
+          supportEfforts: ['low', 'high'],
+        }),
+      ).toBe('high');
+      expect(
+        resolveThinkingEffort('low', undefined, {
+          supportEfforts: ['medium', 'high'],
+        }),
+      ).toBe('medium');
+    });
+
     it('falls back to config effort when request is unknown', () => {
       expect(resolveThinkingEffort('bogus', { effort: 'low' })).toBe('low');
     });
