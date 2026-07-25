@@ -722,6 +722,16 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         } as any);
         break;
       }
+      // War-room pauseUltrawork sets pausedForSteer without steer text — stop here.
+      if (this.agent.ultraSwarmRun?.pausedForSteer === true) {
+        this.agent.emitEvent({
+          type: 'ultrawork.swarm.paused',
+          runId: input.runId,
+          reason: 'UltraSwarm paused at phase checkpoint',
+          phase,
+        } as any);
+        break;
+      }
     }
 
     // Cost control: skip adaptive restaff when review consensus is already solid.
