@@ -105,7 +105,6 @@ import {
 } from './ultra-swarm-phase';
 import { buildUltraSwarmExpertPrompt } from './ultra-swarm-prompt';
 import {
-  assessRisk,
   createDebate,
   debatePhasesForRisk,
   emitDebateTurn,
@@ -504,21 +503,25 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           const riskResult = assessDebateRiskForResult(result, phase);
           if (riskResult === 'simple') continue; // skip debate for low-risk
 
-          const debatePhases = debatePhasesForRisk(riskResult);
+          // Depth is recorded via riskLevel; full multi-turn cycle is deferred.
+          void debatePhasesForRisk(riskResult);
           // Pick critic = a different expert from the same phase
           const otherExperts = input.team.experts.filter(
-            (e) => e.expertId !== result.spec.expertExpertId,
+            (e) => e.id !== result.spec.expertId,
           );
           if (otherExperts.length === 0) continue;
           const criticExpert = otherExperts[0]!;
+          const workNodeId = result.spec.workNodeIds[0] ?? 'unknown';
+          const artifactSummary =
+            result.status === 'completed' ? (result.result ?? '') : (result.error ?? '');
 
           const debate = createDebate({
-            workNodeId: result.spec.workNodeId ?? 'unknown',
-            criticExpertId: criticExpert.expertId,
+            workNodeId,
+            criticExpertId: criticExpert.id,
             criticExpertName: criticExpert.role,
-            authorExpertId: result.spec.expertExpertId ?? 'author',
-            authorExpertName: result.spec.expertName ?? 'Author',
-            artifactSummary: result.rendered ?? '',
+            authorExpertId: result.spec.expertId,
+            authorExpertName: result.spec.expertName,
+            artifactSummary,
           });
 
           // Emit debate start event
@@ -526,9 +529,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
             debateId: debate.debateId,
             workNodeId: debate.config.workNodeId,
             phase: 'critic',
-            expertId: criticExpert.expertId,
+            expertId: criticExpert.id,
             expertName: criticExpert.role,
-            text: `Debate triggered (${riskResult} risk) for ${result.spec.expertName ?? 'unknown'}'s ${phase} output.`,
+            text: `Debate triggered (${riskResult} risk) for ${result.spec.expertName}'s ${phase} output.`,
             stance: 'neutral',
           });
 
@@ -541,8 +544,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
             workNodeId: debate.config.workNodeId,
             phase: phase,
             riskLevel: riskResult,
-            authorExpertId: result.spec.expertExpertId ?? 'author',
-            criticExpertId: criticExpert.expertId,
+            authorExpertId: result.spec.expertId,
+            criticExpertId: criticExpert.id,
           });
         }
       }
@@ -1088,14 +1091,16 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
  * - plan phase: 토론 생략 (이미 plan 승인을 받았으므로)
  */
 function assessDebateRiskForResult(
-  result: { rendered?: string; spec: { workNodeId?: string; expertExpertId?: string; expertName?: string } },
+  result: UltraSwarmRenderedResult,
   phase: string,
 ): RiskLevel {
   if (phase === 'plan') return 'simple';
   if (phase === 'review') return 'medium'; // review는 항상 토론
 
   // implement phase: 결과물 길이와 증거 수로 위험도 추정
-  const renderedLength = result.rendered?.length ?? 0;
+  const text =
+    result.status === 'completed' ? (result.result ?? '') : (result.error ?? '');
+  const renderedLength = text.length;
   if (renderedLength > 5000) return 'complex';
   if (renderedLength > 1000) return 'medium';
   return 'simple';
