@@ -29,7 +29,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "clean": "corepack pnpm -r run clean",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "bench:staffing-gold": "tsx scripts/staffing-gold-bench.mjs"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "7.58.7",
@@ -45,8 +46,7 @@
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   },
-  "simple-git-hooks": {
-  },
+  "simple-git-hooks": {},
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
       "oxlint --fix --quiet",
