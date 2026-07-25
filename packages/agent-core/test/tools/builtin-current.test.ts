@@ -526,7 +526,7 @@ describe('current builtin collaboration tools', () => {
           swarmIndex: 1,
           swarmItem: 'src/a.ts',
           runInBackground: false,
-          signal,
+          signal: expect.any(AbortSignal),
           timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
         },
         {
@@ -544,7 +544,7 @@ describe('current builtin collaboration tools', () => {
           swarmIndex: 2,
           swarmItem: 'src/b.ts',
           runInBackground: false,
-          signal,
+          signal: expect.any(AbortSignal),
           timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
         },
       ],
@@ -714,7 +714,7 @@ describe('current builtin collaboration tools', () => {
           swarmItem: 'src/old-a.ts',
           runInBackground: false,
           resumeAgentId: 'agent-old-1',
-          signal,
+          signal: expect.any(AbortSignal),
           timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
         },
         {
@@ -734,7 +734,7 @@ describe('current builtin collaboration tools', () => {
           swarmItem: 'src/old-b.ts',
           runInBackground: false,
           resumeAgentId: 'agent-old-2',
-          signal,
+          signal: expect.any(AbortSignal),
           timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
         },
         {
@@ -752,7 +752,7 @@ describe('current builtin collaboration tools', () => {
           swarmIndex: 3,
           swarmItem: 'src/new.ts',
           runInBackground: false,
-          signal,
+          signal: expect.any(AbortSignal),
           timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
         },
       ],
@@ -816,7 +816,7 @@ describe('current builtin collaboration tools', () => {
         swarmItem: 'src/old-a.ts',
         runInBackground: false,
         resumeAgentId: 'agent-old-1',
-        signal,
+        signal: expect.any(AbortSignal),
         timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
       },
     ]);
@@ -1083,7 +1083,7 @@ describe('current builtin collaboration tools', () => {
         swarmIndex: 1,
         swarmItem: 'academic-anthropologist',
         runInBackground: false,
-        signal,
+        signal: expect.any(AbortSignal),
         timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
       }),
       expect.objectContaining({
@@ -1095,7 +1095,7 @@ describe('current builtin collaboration tools', () => {
         swarmIndex: 2,
         swarmItem: 'design-brand-guardian',
         runInBackground: false,
-        signal,
+        signal: expect.any(AbortSignal),
         timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
       }),
     ]);

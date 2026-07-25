@@ -35,12 +35,12 @@ export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined
 
   const audit = auditUltraworkCompletion({ run, requireWorkGraph: true });
   if (!audit.ok) {
-    agent.log.warn('ultrawork finish rejected by completion audit', {
+    agent.log?.warn?.('ultrawork finish rejected by completion audit', {
       runId: run.id,
       code: audit.code,
       reasons: audit.reasons,
     });
-    agent.telemetry.track('ultrawork_finish_audit_rejected', {
+    agent.telemetry?.track?.('ultrawork_finish_audit_rejected', {
       run_id: run.id,
       code: audit.code,
       open_nodes: audit.openNodeIds?.length ?? 0,
@@ -65,11 +65,11 @@ export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined
       const failedIds = graph.nodes
         .filter((node) => node.status === 'failed')
         .map((node) => node.id);
-      agent.log.warn('ultrawork run finishing with failed nodes', {
+      agent.log?.warn?.('ultrawork run finishing with failed nodes', {
         runId: run.id,
         failedNodeIds: failedIds,
       });
-      agent.telemetry.track('ultrawork_finish_with_failures', {
+      agent.telemetry?.track?.('ultrawork_finish_with_failures', {
         run_id: run.id,
         failed_nodes: failedIds.length,
         total_nodes: graph.nodes.length,
@@ -112,6 +112,6 @@ function completeUltraGoalForFinishedRun(agent: Agent): Promise<void> | undefine
     .markComplete({ reason: 'Ultrawork run completed' }, 'runtime')
     .then(() => undefined)
     .catch((error: unknown) => {
-      agent.log.warn('ultrawork run-complete goal close failed', { error });
+      agent.log?.warn?.('ultrawork run-complete goal close failed', { error });
     });
 }
