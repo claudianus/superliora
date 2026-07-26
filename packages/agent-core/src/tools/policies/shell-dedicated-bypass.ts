@@ -71,6 +71,11 @@ export function detectShellDedicatedBypass(
   const psPipeWriteHit = matchPowerShellPipeWriteBypass(unwrapped);
   if (psPipeWriteHit !== undefined) return psPipeWriteHit;
 
+  // Pure file dump → Set-Content/Out-File/tee/sponge pipes (before composition guard).
+  // Real process pipelines (`Get-Process | Set-Content …`) stay allowed.
+  const filePipeWriteHit = matchFileDumpPipeWriteBypass(unwrapped);
+  if (filePipeWriteHit !== undefined) return filePipeWriteHit;
+
   // Pure Get-Content path | Format-*/Out-String dumps → Read (before composition guard).
   const psPipeReadHit = matchPowerShellPipeReadBypass(unwrapped);
   if (psPipeReadHit !== undefined) return psPipeReadHit;
@@ -987,6 +992,59 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
     pattern: `${producer} | ${sink}`,
     message:
       'Use Write instead of PowerShell/stream producers (or string/constant/here-string) piped into Set-Content/Out-File/Tee-Object/sponge.',
+  };
+}
+
+/**
+ * Pure file dumps piped into write sinks → Write.
+ * Matches: cat/type/Get-Content/gc path | Set-Content/Out-File/Add-Content/Tee-Object/tee/sponge path
+ * Skips: multi-pipe, process producers, path-less sinks, stderr multi-redirects.
+ */
+function matchFileDumpPipeWriteBypass(command: string): ShellDedicatedBypassHit | undefined {
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[;&`\n]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
+
+  const producerRe =
+    '(?:\\/usr\\/bin\\/)?(?:busybox\\s+)?(?:g?cat|batcat|type(?:\\.exe)?|Get-Content|gc)';
+  const sinkRe = 'Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee|sponge';
+  const m = new RegExp(
+    `^(${producerRe})\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+    'i',
+  ).exec(command);
+  if (m === null) return undefined;
+
+  const producer = m[1] ?? 'cat';
+  const producerArgs = m[2] ?? '';
+  const sink = m[3] ?? 'Set-Content';
+  const sinkArgs = m[4] ?? '';
+
+  // Producer must look like a single-path dump (not recursive/filter listing work).
+  if (/(?:^|\s)-(?:Recurse|Filter|Include|Exclude|Directory)\b/i.test(producerArgs)) {
+    return undefined;
+  }
+  const producerHasPath =
+    /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(producerArgs) ||
+    /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+      producerArgs,
+    ) ||
+    /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(producerArgs);
+  if (!producerHasPath) return undefined;
+
+  const sinkHasPath =
+    /(?:^|\s)-(?:Path|LiteralPath|FilePath)\s+\S+/i.test(sinkArgs) ||
+    /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+      sinkArgs,
+    ) ||
+    /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(sinkArgs);
+  if (!sinkHasPath) return undefined;
+
+  return {
+    prefer: 'Write',
+    pattern: `${producer} | ${sink}`,
+    message:
+      'Use Write (or Edit for patches) instead of piping file dumps into Set-Content/Out-File/tee/sponge.',
   };
 }
 

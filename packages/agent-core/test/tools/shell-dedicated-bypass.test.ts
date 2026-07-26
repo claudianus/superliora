@@ -295,11 +295,18 @@ describe('detectShellDedicatedBypass', () => {
     ).toBe('Write');
     expect(detectShellDedicatedBypass('echo hi | sponge out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass("printf %s hi | tee out.txt")?.prefer).toBe('Write');
+    // pure file dumps into write sinks prefer Write
+    expect(detectShellDedicatedBypass('Get-Content a.txt | Set-Content b.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Out-File out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('type a.ts | Out-File out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('cat a.ts | tee out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('cat a.ts | sponge out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('gc notes.md | Add-Content out.txt')?.prefer).toBe('Write');
     // real process left-hand side / multi-pipe / no path stay allowed
     expect(detectShellDedicatedBypass('Get-Process | Set-Content out.txt')).toBeUndefined();
-    expect(detectShellDedicatedBypass('Get-Content a.txt | Set-Content b.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('Write-Output x | Set-Content out.txt | Measure-Object')).toBeUndefined();
     expect(detectShellDedicatedBypass('Write-Output x | Set-Content')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Set-Content b.ts | Measure-Object')).toBeUndefined();
   });
 
   it('blocks Write-* stream redirects to files', () => {
@@ -493,8 +500,8 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('mdcat docs/guide.md')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('rich src/a.py')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('python -m rich.syntax src/a.py')?.prefer).toBe('Read');
-    // pipelines stay allowed
-    expect(detectShellDedicatedBypass('cat src/a.ts | sponge out.txt')).toBeUndefined();
+    // pure file dump → sponge prefers Write; non-file producer pipes stay allowed
+    expect(detectShellDedicatedBypass('cat src/a.ts | sponge out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('glow README.md | head')).toBeUndefined();
   });
 
@@ -515,11 +522,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Content src/a.ts | Select-Object -First 5')?.prefer).toBe(
       'Read',
     );
-    // PowerShell single-file writes prefer Write; real file-to-file pipes stay allowed.
+    // PowerShell single-file writes prefer Write; pure file-dump pipes also prefer Write.
     expect(detectShellDedicatedBypass('Set-Content out.txt -Value hello')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Out-File -Path out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Add-Content notes.md more')?.prefer).toBe('Write');
-    expect(detectShellDedicatedBypass('Get-Content a.ts | Set-Content b.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Set-Content b.ts')?.prefer).toBe('Write');
   });
 
   it('blocks PowerShell Get-Item single-file dumps but allows dirs/pipelines', () => {
@@ -568,8 +575,8 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('tee -Path src/a.ts')?.prefer).toBe('Write');
     // clipboard → Tee-Object file dumps (composition guard would otherwise skip)
     expect(detectShellDedicatedBypass('Get-Clipboard | Tee-Object out.txt')?.prefer).toBe('Write');
-    // pipelines / bare stay allowed
-    expect(detectShellDedicatedBypass('Get-Content a.ts | Tee-Object out.txt')).toBeUndefined();
+    // pure file dump → Tee-Object prefers Write; bare Tee-Object stays allowed
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Tee-Object out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Tee-Object')).toBeUndefined();
   });
 
