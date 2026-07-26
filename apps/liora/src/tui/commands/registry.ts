@@ -124,6 +124,47 @@ const APPEARANCE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'help', description: 'Show appearance usage' },
 ];
 
+/** Fixed second-token values for `/appearance <key> <value>`. Free numbers (fps) stay open. */
+const APPEARANCE_VALUE_COMPLETIONS: Readonly<
+  Record<string, readonly ArgCompletionSpec[]>
+> = {
+  profile: [
+    { value: 'auto', description: 'Follow terminal / default motion profile' },
+    { value: 'off', description: 'Disable motion profile effects' },
+    { value: 'subtle', description: 'Low-motion subtle profile' },
+    { value: 'premium', description: 'Full premium motion profile' },
+  ],
+  density: [
+    { value: 'auto', description: 'Follow default spacing density' },
+    { value: 'compact', description: 'Tighter spacing' },
+    { value: 'comfortable', description: 'Default comfortable spacing' },
+    { value: 'spacious', description: 'Roomier spacing' },
+  ],
+  timestamps: [
+    { value: 'on', description: 'Show message timestamps' },
+    { value: 'off', description: 'Hide message timestamps' },
+  ],
+  particles: [
+    { value: 'auto', description: 'Follow default particle style' },
+    { value: 'off', description: 'Disable particles' },
+    { value: 'ambient', description: 'Ambient particle style' },
+    { value: 'events', description: 'Event-driven particles' },
+    { value: 'premium', description: 'Premium particle style' },
+  ],
+  'canvas-background': [
+    { value: 'on', description: 'Enable canvas background' },
+    { value: 'off', description: 'Disable canvas background' },
+  ],
+  'terminal-background': [
+    { value: 'off', description: 'No terminal background tint' },
+    { value: 'session', description: 'Session-tinted terminal background' },
+  ],
+  'terminal-palette': [
+    { value: 'on', description: 'Apply terminal palette overrides' },
+    { value: 'off', description: 'Use the stock terminal palette' },
+  ],
+};
+
 const PREFLIGHT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: '--query=', description: 'Override Liora Recall readiness query' },
 ];
@@ -282,10 +323,28 @@ export function themeArgumentCompletions(argumentPrefix: string): AutocompleteIt
   return completeLeadingArg(THEME_ARG_COMPLETIONS, argumentPrefix);
 }
 
-/** Leading-arg completions for `/appearance` preference keys. */
+/**
+ * Completions for `/appearance`.
+ * First token: preference keys. Second token: fixed values for that key
+ * (`profile premium`, `density compact`, …). Free-form values like
+ * `animation-fps 45` stay unclobbered (no second-token menu).
+ */
 export function appearanceArgumentCompletions(
   argumentPrefix: string,
 ): AutocompleteItem[] | null {
+  const valueMatch = argumentPrefix.match(/^(\S+)\s+(\S*)$/i);
+  if (valueMatch !== null) {
+    const key = (valueMatch[1] ?? '').toLowerCase();
+    const valuePrefix = valueMatch[2] ?? '';
+    const specs = APPEARANCE_VALUE_COMPLETIONS[key];
+    if (specs === undefined) return null;
+    return (
+      completeLeadingArg(specs, valuePrefix)?.map((item) => ({
+        ...item,
+        value: `${key} ${item.value}`,
+      })) ?? null
+    );
+  }
   return completeLeadingArg(APPEARANCE_ARG_COMPLETIONS, argumentPrefix);
 }
 

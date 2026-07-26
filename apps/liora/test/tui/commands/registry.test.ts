@@ -441,6 +441,25 @@ describe('built-in slash command registry', () => {
     expect(values('profile')).toBeNull();
     expect(values('help')).toBeNull();
     expect(values('unknown')).toBeNull();
+    expect(values('profile ')).toEqual(['profile auto', 'profile off', 'profile subtle', 'profile premium']);
+    expect(values('profile p')).toEqual(['profile premium']);
+    expect(values('profile premium')).toBeNull();
+    expect(values('density c')).toEqual(['density compact', 'density comfortable']);
+    expect(values('timestamps ')).toEqual(['timestamps on', 'timestamps off']);
+    expect(values('particles e')).toEqual(['particles events']);
+    expect(values('terminal-background ')).toEqual([
+      'terminal-background off',
+      'terminal-background session',
+    ]);
+    expect(values('canvas-background o')).toEqual([
+      'canvas-background on',
+      'canvas-background off',
+    ]);
+    // Free numeric fps and unknown keys must not invent second-token menus.
+    expect(values('animation-fps ')).toBeNull();
+    expect(values('animation-fps 30')).toBeNull();
+    expect(values('help ')).toBeNull();
+    expect(values('profile extra token')).toBeNull();
     expect(findBuiltInSlashCommand('appearance')?.completeArgs).toBe(
       appearanceArgumentCompletions,
     );
