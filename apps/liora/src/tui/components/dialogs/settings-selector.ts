@@ -9,6 +9,10 @@ export type SettingsSelection =
   | 'permission'
   | 'accounts'
   | 'context'
+  | 'harness'
+  | 'tools'
+  | 'premium'
+  | 'mcp'
   | 'experiments'
   | 'upgrade'
   | 'usage';
@@ -33,6 +37,26 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     value: 'context',
     label: 'Context',
     description: 'Set when auto-compaction reclaims context on large windows.',
+  },
+  {
+    value: 'harness',
+    label: 'Harness',
+    description: 'Eyes/hands surface: tools inventory, Premium, MCP, experiments.',
+  },
+  {
+    value: 'tools',
+    label: 'Tools',
+    description: 'List active agent tools (SearchTools inventory).',
+  },
+  {
+    value: 'premium',
+    label: 'Premium Quality',
+    description: 'Toggle visual-first premium harness mode.',
+  },
+  {
+    value: 'mcp',
+    label: 'MCP servers',
+    description: 'Show Model Context Protocol server status.',
   },
   {
     value: 'theme',
@@ -81,6 +105,10 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'permission' ||
     value === 'accounts' ||
     value === 'context' ||
+    value === 'harness' ||
+    value === 'tools' ||
+    value === 'premium' ||
+    value === 'mcp' ||
     value === 'experiments' ||
     value === 'upgrade' ||
     value === 'usage'

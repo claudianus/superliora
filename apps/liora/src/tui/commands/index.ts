@@ -31,6 +31,8 @@ export {
   showModelPicker,
   showPermissionPicker,
   showSettingsSelector,
+  showHarnessPanel,
+  showToolsInventory,
 } from './config';
 export { handleSwarmCommand } from './swarm';
 export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork';

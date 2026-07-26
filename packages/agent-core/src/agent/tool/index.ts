@@ -664,6 +664,7 @@ export class ToolManager {
     const hasInvocableSkills =
       (this.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
     return [
+      this.shouldCreateBuiltin('SearchTools') && new b.SearchToolsTool(this.agent),
       hasInvocableSkills && this.shouldCreateBuiltin('Skill') && new b.SkillTool(this.agent),
       hasInvocableSkills &&
         this.shouldCreateBuiltin('SearchSkill') &&

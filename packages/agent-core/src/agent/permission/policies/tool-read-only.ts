@@ -22,6 +22,7 @@ export const READ_ONLY_TOOL_NAMES = new Set<string>([
   'Context7Resolve',
   'Context7Docs',
   'SearchSkill',
+  'SearchTools',
   'Skill',
   'SearchExpert',
   'TodoList',

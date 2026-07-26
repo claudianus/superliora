@@ -37,6 +37,7 @@ const DEFAULT_APPROVE_TOOLS = new Set([
   'Context7Resolve',
   'Context7Docs',
   'SearchSkill',
+  'SearchTools',
   'SearchExpert',
   'NextPhase',
   'RecordInterviewFinding',

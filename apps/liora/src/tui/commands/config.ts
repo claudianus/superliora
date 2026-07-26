@@ -5,6 +5,7 @@ import type {
   Session,
 } from '@superliora/sdk';
 
+import { ChoicePickerComponent } from '../components/dialogs/choice-picker';
 import { ContextWorkingSetSelectorComponent } from '../components/dialogs/context-working-set-selector';
 import { EditorSelectorComponent } from '../components/dialogs/editor-selector';
 import {
@@ -41,7 +42,8 @@ import {
   resolveThinkingLevelForApply,
 } from '#/tui/utils/thinking-effort';
 import { handleAccountsCommand } from './accounts';
-import { showUsage } from './info';
+import { showMcpServers, showUsage } from './info';
+import { handlePremiumQualityCommand } from './premium';
 import { handlePersonaCommand } from './persona';
 import { setExperimentalFeatures } from './experimental-flags';
 import type { SlashCommandHost } from './dispatch';
@@ -891,6 +893,10 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'permission': showPermissionPicker(host); return;
     case 'accounts': void handleAccountsCommand(host); return;
     case 'context': void showContextWorkingSetPicker(host); return;
+    case 'harness': showHarnessPanel(host); return;
+    case 'tools': void showToolsInventory(host); return;
+    case 'premium': void handlePremiumQualityCommand(host, ''); return;
+    case 'mcp': void showMcpServers(host); return;
     case 'theme': showThemePicker(host); return;
     case 'appearance': void handleAppearanceCommand(host, ''); return;
     case 'editor': showEditorPicker(host); return;
@@ -898,6 +904,119 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'upgrade': showUpdatePreferencePicker(host); return;
     case 'persona': void handlePersonaCommand(host, ''); return;
     case 'usage': void showUsage(host); return;
+  }
+}
+
+/**
+ * Settings → Harness: hub for previously buried eyes/hands controls
+ * (tools inventory, premium, MCP, experiments).
+ */
+export function showHarnessPanel(host: SlashCommandHost): void {
+  host.mountEditorReplacement(
+    new ChoicePickerComponent({
+      title: 'Harness',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'tools',
+          label: 'Tools inventory',
+          description: 'List active agent tools (SearchTools surface).',
+        },
+        {
+          value: 'premium',
+          label: 'Premium Quality',
+          description: 'Toggle visual-first premium harness.',
+        },
+        {
+          value: 'mcp',
+          label: 'MCP servers',
+          description: 'Model Context Protocol server status.',
+        },
+        {
+          value: 'experiments',
+          label: 'Experiments',
+          description: 'Feature flags (micro compaction, codegraph, …).',
+        },
+        {
+          value: 'context',
+          label: 'Context working set',
+          description: 'Auto-compaction / working-set presets.',
+        },
+      ],
+      onSelect: (value) => {
+        host.restoreEditor();
+        switch (value) {
+          case 'tools':
+            void showToolsInventory(host);
+            return;
+          case 'premium':
+            void handlePremiumQualityCommand(host, '');
+            return;
+          case 'mcp':
+            void showMcpServers(host);
+            return;
+          case 'experiments':
+            void showExperimentsPanel(host);
+            return;
+          case 'context':
+            void showContextWorkingSetPicker(host);
+            return;
+          default:
+            return;
+        }
+      },
+      onCancel: () => {
+        host.restoreEditor();
+      },
+    }),
+  );
+}
+
+/** List active tools for the current session (TUI eyes for the tool surface). */
+export async function showToolsInventory(host: SlashCommandHost): Promise<void> {
+  const session = host.session;
+  if (session === undefined) {
+    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    return;
+  }
+  if (typeof session.getTools !== 'function') {
+    host.showError('Tools inventory is not available on this session.');
+    return;
+  }
+  try {
+    const tools = await session.getTools();
+    const active = tools.filter((tool) => tool.active);
+    const inactive = tools.filter((tool) => !tool.active);
+    const bySource = (list: typeof tools) => {
+      const m = new Map<string, number>();
+      for (const tool of list) {
+        m.set(tool.source, (m.get(tool.source) ?? 0) + 1);
+      }
+      return [...m.entries()].map(([k, v]) => `${k}:${String(v)}`).join(' · ') || 'none';
+    };
+    const lines: string[] = [
+      `Tools: ${String(active.length)} active / ${String(tools.length)} registered (${bySource(tools)})`,
+      '',
+      'Active:',
+    ];
+    const sorted = [...active].sort((a, b) => a.name.localeCompare(b.name));
+    const cap = 48;
+    for (const tool of sorted.slice(0, cap)) {
+      const desc = tool.description.replace(/\s+/g, ' ').trim();
+      const short = desc.length > 72 ? `${desc.slice(0, 69)}…` : desc;
+      lines.push(`  ${tool.name}  [${tool.source}]  ${short}`);
+    }
+    if (sorted.length > cap) {
+      lines.push(`  … +${String(sorted.length - cap)} more active`);
+    }
+    if (inactive.length > 0) {
+      lines.push('', `Inactive (${String(inactive.length)}): ${inactive.map((t) => t.name).sort().slice(0, 24).join(', ')}${inactive.length > 24 ? '…' : ''}`);
+    }
+    lines.push('', 'Tip: agent can call SearchTools for the same inventory mid-turn.');
+    host.showNotice(lines.join('\n'));
+  } catch (error) {
+    host.showError(`Failed to load tools: ${formatErrorMessage(error)}`);
   }
 }
 

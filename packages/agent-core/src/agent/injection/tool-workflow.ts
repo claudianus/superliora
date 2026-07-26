@@ -10,6 +10,7 @@
 
 export type ToolWorkflowCapability = {
   readonly hasSearchSkill: boolean;
+  readonly hasSearchTools: boolean;
   readonly hasSkill: boolean;
   readonly hasWebSearch: boolean;
   readonly hasFetchUrl: boolean;
@@ -23,6 +24,7 @@ export type ToolWorkflowCapability = {
 
 const TOOL_CAPABILITY_NAMES = {
   SearchSkill: 'hasSearchSkill',
+  SearchTools: 'hasSearchTools',
   Skill: 'hasSkill',
   WebSearch: 'hasWebSearch',
   FetchURL: 'hasFetchUrl',
@@ -45,6 +47,7 @@ export function resolveToolWorkflowCapability(
   const set = new Set(toolNames);
   const cap: Record<keyof ToolWorkflowCapability, boolean> = {
     hasSearchSkill: false,
+    hasSearchTools: false,
     hasSkill: false,
     hasWebSearch: false,
     hasFetchUrl: false,
@@ -66,6 +69,7 @@ export function resolveToolWorkflowCapability(
 export function hasToolWorkflowSurface(cap: ToolWorkflowCapability): boolean {
   return (
     cap.hasSearchSkill ||
+    cap.hasSearchTools ||
     cap.hasSkill ||
     cap.hasWebSearch ||
     cap.hasFetchUrl ||
@@ -93,6 +97,12 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
   if (cap.hasLeanRead) {
     lines.push(
       '- Codebase: LioraRead(signatures|map|lines)/LioraSymbol/LioraTree before full Read dumps; expand [liora-archived] only on failure paths.',
+    );
+  }
+
+  if (cap.hasSearchTools) {
+    lines.push(
+      '- Tool inventory: SearchTools when unsure which dedicated tool fits — prefer registry tools over improvising with Bash.',
     );
   }
 
@@ -130,6 +140,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
   }
 
   const available: string[] = [];
+  if (cap.hasSearchTools) available.push('SearchTools');
   if (cap.hasSearchSkill) available.push('SearchSkill');
   if (cap.hasWebSearch) available.push('WebSearch');
   if (cap.hasContext7) available.push('Context7');
@@ -151,6 +162,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
 /** Sparse checkpoint — short enough to re-inject often without flooding. */
 export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): string {
   const bits: string[] = ['Tool workflow still ON:'];
+  if (cap.hasSearchTools) bits.push('SearchTools');
   if (cap.hasSearchSkill) bits.push('SearchSkill→Skill');
   if (cap.hasWebSearch || cap.hasFetchUrl) bits.push('WebSearch/FetchURL when stale');
   if (cap.hasContext7) bits.push('Context7 for libs');

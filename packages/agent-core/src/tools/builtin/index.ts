@@ -11,6 +11,7 @@ export * from './collaboration/swarm-channel';
 export * from './collaboration/ask-user';
 export * from './collaboration/search-expert';
 export * from './collaboration/search-skill';
+export * from './collaboration/search-tools';
 export * from './collaboration/skill-tool';
 export * from './context/liora-callgraph';
 export * from './context/liora-expand';

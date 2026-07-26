@@ -42,6 +42,8 @@ import {
   showModelPicker,
   showPermissionPicker,
   showSettingsSelector,
+  showHarnessPanel,
+  showToolsInventory,
 } from './config';
 import { handleGoalCommand } from './goal';
 import { handleImproveHarnessCommand } from './improve-harness';
@@ -370,6 +372,12 @@ async function handleBuiltInSlashCommand(
       return;
     case 'mcp':
       void showMcpServers(host);
+      return;
+    case 'tools':
+      void showToolsInventory(host);
+      return;
+    case 'harness':
+      showHarnessPanel(host);
       return;
     case 'plugins':
       void handlePluginsCommand(host, args);

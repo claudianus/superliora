@@ -465,6 +465,20 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'tools',
+    aliases: ['tool'],
+    description: 'List active agent tools (SearchTools inventory)',
+    priority: 70,
+    availability: 'always',
+  },
+  {
+    name: 'harness',
+    aliases: [],
+    description: 'Open harness controls (tools, premium, MCP, experiments)',
+    priority: 70,
+    availability: 'always',
+  },
+  {
     name: 'plugins',
     aliases: [],
     description: 'Manage plugins',

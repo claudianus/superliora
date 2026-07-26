@@ -22,6 +22,7 @@ import {
   type SuggestPromptsResult,
   type ToolCallRequest,
   type ToolCallResponse,
+  type ToolInfo,
   type SwarmModeTrigger,
   type TurnCancelSource,
 } from '@superliora/agent-core';
@@ -789,6 +790,14 @@ export abstract class SDKRpcClientBase {
   async listSkills(input: SessionIdRpcInput): Promise<readonly SkillSummary[]> {
     const rpc = await this.getRpc();
     return rpc.listSkills({ sessionId: input.sessionId });
+  }
+
+  async getTools(input: SessionIdRpcInput): Promise<readonly ToolInfo[]> {
+    const rpc = await this.getRpc();
+    return rpc.getTools({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+    });
   }
 
   async listPluginCommands(input: SessionIdRpcInput): Promise<readonly PluginCommandDef[]> {
