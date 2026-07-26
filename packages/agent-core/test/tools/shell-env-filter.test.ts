@@ -39,9 +39,12 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('CODE_SIGNING_CERT')).toBe(true);
     expect(isSecretEnvKeyName('DATABASE_URL')).toBe(true);
     expect(isSecretEnvKeyName('MONGO_URI')).toBe(true);
+    expect(isSecretEnvKeyName('MONGODB_URI')).toBe(true);
     expect(isSecretEnvKeyName('POSTGRES_URL')).toBe(true);
     expect(isSecretEnvKeyName('REDIS_URL')).toBe(true);
     expect(isSecretEnvKeyName('SUPABASE_SERVICE_ROLE')).toBe(true);
+    expect(isSecretEnvKeyName('PGURL')).toBe(true);
+    expect(isSecretEnvKeyName('SUPABASE_URL')).toBe(true);
   });
 
   it('does not match ordinary path-like keys', () => {

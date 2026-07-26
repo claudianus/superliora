@@ -69,6 +69,7 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   // Match common env key stems only (not bare "URL" which false-positives CDN_URL).
   'DATABASE_URL',
   'MONGO_URI',
+  'MONGODB_URI',
   'POSTGRES_URL',
   'POSTGRES_URI',
   'MYSQL_URL',
@@ -78,6 +79,10 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   'DATABASE_URI',
   'DB_URL',
   'DB_URI',
+  // Short DB URL stems (PGURL/SUPABASE_URL) — not bare URL.
+  'PGURL',
+  'PG_URL',
+  'SUPABASE_URL',
   'SERVICE_ROLE',
   'SERVICE_KEY',
 ] as const;

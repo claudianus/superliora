@@ -77,7 +77,8 @@ export function matchExplicitResumePhrase(
   text: string,
 ): InterruptedWorkResumeIntent | undefined {
   const trimmed = text.trim();
-  if (trimmed.length === 0 || trimmed.length > 96) return undefined;
+  // Exact short phrases stay under ~96; resume+steering may run longer (cap 160 below).
+  if (trimmed.length === 0 || trimmed.length > 160) return undefined;
 
   const normalized = trimmed
     .toLowerCase()
@@ -174,7 +175,51 @@ export function matchExplicitResumePhrase(
     };
   }
 
+  // Resume + short steering: "continue, fix the auth tests" / "이어서 해줘. 테스트도 돌려".
+  // Keep this conservative: message must start with a resume verb/phrase and stay short.
+  if (trimmed.length <= 160 && matchResumePrefixWithSteering(normalized)) {
+    return {
+      shouldResume: true,
+      confidence: 0.9,
+      reason: 'Explicit resume phrase with steering',
+    };
+  }
+
   return undefined;
+}
+
+/**
+ * True when the normalized message begins with a resume command and then
+ * continues with steering (comma/colon/dash/space + more text).
+ * Rejects long free-form requests that merely contain "continue" mid-sentence.
+ */
+function matchResumePrefixWithSteering(normalized: string): boolean {
+  // English prefixes (word-boundary safe)
+  const en =
+    /^(please\s+)?(continue|resume|retry|proceed|go on|keep going|go ahead|carry on|keep at it|keep working|continue working|continue the work|resume work|resume the work|pick it back up)\b([,.:;–—-]|\s+)/i;
+  if (en.test(normalized)) {
+    // Require residual steering content after the prefix
+    const rest = normalized.replace(en, '').trim();
+    return rest.length >= 2 && !/^(please)$/i.test(rest);
+  }
+
+  // Korean short prefixes that commonly lead steering.
+  // No \b after Hangul — JS word boundaries only fire on [A-Za-z0-9_].
+  const ko =
+    /^(이어서(\s*(해\s*줘|해\s*주세요|해주세요|작업해\s*줘|작업해\s*주세요|진행해?줘?|진행))?|계속(\s*(해\s*줘|해\s*주세요|해주세요|작업해\s*줘|작업해\s*주세요|진행해?줘?|진행하라|진행|해))?|재개(\s*(해\s*줘|해))?|다시\s*(이어서|시작해?))/u;
+  if (ko.test(normalized)) {
+    const rest = normalized.replace(ko, '').trim().replace(/^[,.。，、:：\-–—]+\s*/u, '');
+    return rest.length >= 2;
+  }
+
+  // Chinese / Japanese short prefixes (no \b — CJK is non-word for JS \b).
+  const cjk = /^(继续(吧)?|请继续|続けて(ください)?|再開)/u;
+  if (cjk.test(normalized)) {
+    const rest = normalized.replace(cjk, '').trim().replace(/^[,.。，、:：\-–—]+\s*/u, '');
+    return rest.length >= 2;
+  }
+
+  return false;
 }
 
 export async function detectInterruptedWorkResumeIntentWithLlm(

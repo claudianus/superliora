@@ -124,6 +124,26 @@ describe('interrupted work resume intent', () => {
     expect(matchExplicitResumePhrase('')).toBeUndefined();
   });
 
+  it('matches resume prefixes that carry short steering without an LLM', () => {
+    for (const phrase of [
+      'continue, and also fix the auth tests',
+      'continue — focus on the failing suite',
+      'resume: finish the PR',
+      'keep going, ignore the lint noise',
+      'go on please and run the tests',
+      '이어서 작업해줘. 그리고 테스트도 돌려',
+      '계속 해줘, 이번엔 빌드부터',
+    ]) {
+      const intent = matchExplicitResumePhrase(phrase);
+      expect(shouldActOnResumeIntent(intent), phrase).toBe(true);
+      expect(intent?.reason, phrase).toMatch(/steering|resume/i);
+    }
+    // Free-form tasks that only mention "continue" later must not match.
+    expect(
+      matchExplicitResumePhrase('please rewrite auth and continue later'),
+    ).toBeUndefined();
+  });
+
   it('resumes blocked ultrawork from an explicit phrase without a provider', async () => {
     const agent = new Agent({ kaos: testKaos });
     agent.ultrawork.create({
