@@ -195,7 +195,7 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
 }
 
 export async function showStatusReport(host: SlashCommandHost): Promise<void> {
-  const [runtimeStatus, managedUsage, ultraworkRun] = await Promise.all([
+  const [runtimeStatus, managedUsage, ultraworkRun, activeToolNames] = await Promise.all([
     loadRuntimeStatusReport(host),
     loadManagedUsageReport(host),
     (async () => {
@@ -207,6 +207,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
         return null;
       }
     })(),
+    loadActiveToolNames(host),
   ]);
   const appState = host.state.appState;
   const humanWriting = loadPreflightHumanWriting(appState.workDir);
@@ -254,6 +255,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     managedUsageError: managedUsage?.error,
     upstreamBaseline: formatUpstreamBaselineSummary(),
     fieldMotion,
+    activeToolNames,
   };
   playStatusOpenBeat(host, 'Status', 'status');
   const panel = new UsagePanelComponent({
@@ -420,6 +422,17 @@ async function loadContextComposition(
     const session = host.requireSession();
     if (typeof session.getContextComposition !== 'function') return undefined;
     return await session.getContextComposition();
+  } catch {
+    return undefined;
+  }
+}
+
+async function loadActiveToolNames(host: SlashCommandHost): Promise<readonly string[] | undefined> {
+  const session = host.session;
+  if (session === undefined || typeof session.getTools !== 'function') return undefined;
+  try {
+    const tools = await session.getTools();
+    return tools.filter((tool) => tool.active).map((tool) => tool.name);
   } catch {
     return undefined;
   }

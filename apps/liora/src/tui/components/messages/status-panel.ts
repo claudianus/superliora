@@ -246,6 +246,15 @@ const ENGINE_GATE = 'UltraPlan | UltraGoal | Research | Swarm decision | Integra
 const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
+
+function formatToolsGate(options: StatusReportOptions): string {
+  const names = options.activeToolNames;
+  if (names === undefined) return TOOLS_GATE;
+  const count = names.length;
+  const inventory = names.includes('SearchTools') ? ' · SearchTools on' : ' · SearchTools off';
+  const skills = names.includes('SearchSkill') ? ' · SearchSkill on' : '';
+  return `${String(count)} active tools${inventory}${skills} · /tools for full list`;
+}
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
 const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · a1/m2/sw800/s8';
 const MEDIA_GATE =
@@ -716,7 +725,7 @@ function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
     { label: 'Auto', value: AUTO_GATE },
     { label: 'Autonomy', value: AUTONOMY_GATE },
     { label: 'Recovery', value: formatRecoveryGate(options) },
-    { label: 'Tools', value: TOOLS_GATE },
+    { label: 'Tools', value: formatToolsGate(options) },
     { label: 'Research', value: formatResearchGate(options) },
     { label: 'Bench', value: BENCH_GATE },
     { label: 'Media', value: formatMediaGate(options) },

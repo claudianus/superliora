@@ -1253,6 +1253,46 @@ describe('BashTool', () => {
   });
 });
 
+
+  it('rejects simple cat/grep/find that dedicated tools should handle', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+
+    const cat = await executeTool(tool, context({ command: 'cat src/index.ts', timeout: 60 }));
+    expect(cat).toMatchObject({ isError: true });
+    expect(String(cat.output)).toContain('Read');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const grep = await executeTool(tool, context({ command: 'rg "foo" packages', timeout: 60 }));
+    expect(grep).toMatchObject({ isError: true });
+    expect(String(grep.output)).toContain('Grep');
+
+    const find = await executeTool(tool, context({ command: "find . -name '*.ts'", timeout: 60 }));
+    expect(find).toMatchObject({ isError: true });
+    expect(String(find.output)).toContain('Glob');
+  });
+
+  it('allows LIORA_FORCE_BASH escape hatch for simple cat', async () => {
+    const execWithEnv = vi.fn().mockResolvedValue(processWithOutput({ stdout: 'ok\n' }));
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+
+    const result = await executeTool(
+      tool,
+      context({ command: 'LIORA_FORCE_BASH=1 cat src/index.ts', timeout: 60 }),
+    );
+    expect(result).toMatchObject({ isError: false });
+    expect(execWithEnv).toHaveBeenCalled();
+  });
+
+  it('allows real process work and pipelines', async () => {
+    const execWithEnv = vi.fn().mockResolvedValue(processWithOutput({ stdout: 'ok\n' }));
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+
+    await executeTool(tool, context({ command: 'pnpm test', timeout: 60 }));
+    await executeTool(tool, context({ command: 'cat file | head', timeout: 60 }));
+    expect(execWithEnv).toHaveBeenCalledTimes(2);
+  });
+
 describe('BashTool prompt / runtime consistency', () => {
   it('reports unavailable background using only tools the prompt documents', async () => {
     const execWithEnv = vi.fn();

@@ -368,6 +368,37 @@ describe('status panel report lines', () => {
     expect(researchRow ?? '').toContain('Context7 on');
   });
 
+  it('surfaces active tool inventory on the Tools readiness row when activeToolNames is provided', () => {
+    const lines = buildStatusReportLines({
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null,
+      thinking: true,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.005,
+      contextTokens: 50,
+      maxContextTokens: 10000,
+      availableModels: {},
+      activeToolNames: ['Read', 'Bash', 'SearchTools', 'SearchSkill', 'WebSearch'],
+      humanWriting: {
+        ready: true,
+        advisoryOnly: true,
+        nextAction: 'ready',
+      },
+    }).map(strip);
+
+    const toolsRow =
+      lines.find((line) => /Tools\s+\d+ active tools/.test(line)) ??
+      lines.find((line) => line.includes('SearchTools on'));
+    expect(toolsRow).toBeDefined();
+    expect(toolsRow ?? '').toMatch(/5 active tools/);
+    expect(toolsRow ?? '').toContain('SearchTools on');
+    expect(toolsRow ?? '').toContain('SearchSkill on');
+  });
+
 
   it('surfaces ready recovery evidence in the harness radar row', () => {
     const lines = buildStatusReportLines({
