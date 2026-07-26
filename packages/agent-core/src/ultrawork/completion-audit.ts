@@ -13,6 +13,7 @@ import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
 } from '../session/swarm-evidence-gate';
+import { collectVerificationGapNodes } from './recovery-prompt';
 import { analyzeFailedNodes, detectStuckWorkGraphNodes } from './stage-progress';
 
 export type CompletionAuditCode =
@@ -265,6 +266,27 @@ export function auditUltraworkCompletion(
           .slice(0, 3)
           .map((n) => `${n.id}[${n.status}]`)
           .join(', ')}${stuckOwned.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
+      );
+    }
+    // Match recovery-triangle verification-gap next_actions for open graphs
+    // (done-only graphs already hit verification_failed/pending/blocked codes).
+    const verificationGaps = collectVerificationGapNodes(open);
+    if (verificationGaps.length > 0) {
+      nextActions.push(
+        `Close verification gaps on node(s): ${verificationGaps
+          .slice(0, 3)
+          .map((node) => {
+            const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
+            const missing =
+              required.length > 0
+                ? `; missing evidence: ${required
+                    .filter((id) => !(node.evidenceIds ?? []).includes(id))
+                    .slice(0, 3)
+                    .join(', ')}`
+                : '';
+            return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
+          })
+          .join(', ')}${verificationGaps.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
       );
     }
     nextActions.push(

@@ -541,4 +541,37 @@ describe('auditUltraworkCompletion', () => {
       expect(result.nextActions.some((a) => /orphan running/i.test(a))).toBe(false);
     }
   });
+
+  it('hints verification gaps on open nodes in incomplete nextActions', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_gap',
+              kind: 'acceptance_criterion',
+              status: 'running',
+              ownerExpertId: 'expert-1',
+              requiredEvidence: ['vitest'],
+              evidenceIds: [],
+              verificationStatus: 'pending',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('incomplete_nodes');
+      expect(result.nextActions.some((a) => /Close verification gaps on node\(s\)/i.test(a))).toBe(
+        true,
+      );
+      expect(
+        result.nextActions.some((a) => /ac_gap/.test(a) && /missing evidence: vitest/.test(a)),
+      ).toBe(true);
+      expect(result.nextActions.some((a) => /verify=pending/.test(a))).toBe(true);
+    }
+  });
 });
