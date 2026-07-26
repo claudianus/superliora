@@ -1042,7 +1042,10 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
     'Select-Xml',
     'ConvertTo-Json',
     'ConvertFrom-Json',
+    'ConvertTo-Csv',
     'ConvertFrom-Csv',
+    'ConvertTo-Html',
+    'ConvertTo-Xml',
     'Import-Csv',
     'ipcsv',
     'Import-Clixml',
@@ -1117,9 +1120,9 @@ function matchClipboardFileBypass(command: string): ShellDedicatedBypassHit | un
 
   // Exactly one pipe for pure file <-> clipboard shims.
   if ((command.match(/\|/g) ?? []).length === 1) {
-    // Get-Content/cat/type path | Set-Clipboard/pbcopy/wl-copy → Read
+    // Get-Content/cat/type path | Set-Clipboard/pbcopy/wl-copy/clip → Read
     const fileToClip =
-      /^(Get-Content|gc|type|cat|gcat)\b([\s\S]*?)\s*\|\s*(Set-Clipboard|scb|pbcopy|wl-copy)\b([\s\S]*)$/i.exec(
+      /^(Get-Content|gc|type|cat|gcat)\b([\s\S]*?)\s*\|\s*(Set-Clipboard|scb|pbcopy|wl-copy|clip)\b([\s\S]*)$/i.exec(
         command,
       );
     if (fileToClip !== null) {

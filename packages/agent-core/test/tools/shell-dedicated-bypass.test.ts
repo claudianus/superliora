@@ -37,8 +37,11 @@ describe('detectShellDedicatedBypass', () => {
     // pure file -> clipboard dumps prefer Read
     expect(detectShellDedicatedBypass('cat src/a.ts | pbcopy')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Content src/a.ts | Set-Clipboard')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('type src\\a.ts | clip')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cat notes.md | clip')?.prefer).toBe('Read');
     // non-file producers stay allowed
     expect(detectShellDedicatedBypass('echo hi | pbcopy')).toBeUndefined();
+    expect(detectShellDedicatedBypass('echo hi | clip')).toBeUndefined();
     expect(detectShellDedicatedBypass('pbcopy')).toBeUndefined();
     // PowerShell clipboard file I/O (Unix pbcopy/pbpaste counterparts)
     expect(detectShellDedicatedBypass('Set-Clipboard -Path src/a.ts')?.prefer).toBe('Read');
@@ -130,9 +133,15 @@ describe('detectShellDedicatedBypass', () => {
     // pure Get-Content path | Convert*/Import-* dumps prefer Read
     expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Json')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Content a.json | ConvertFrom-Json')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Xml')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Content a.xml | Select-Xml -XPath //x')?.prefer).toBe(
       'Read',
     );
+    // analysis/count pipes stay allowed
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Measure-Object')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cat a.ts | wc -l')).toBeUndefined();
     // Import-Csv / Export-Csv path dumps → Read/Write; pure Get-Content pipes prefer Read.
     expect(detectShellDedicatedBypass('Import-Csv -Path data.csv')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('ipcsv report.csv')?.prefer).toBe('Read');
