@@ -280,4 +280,21 @@ describe('Liora lean context tools', () => {
       expect(compressed.text.length, command).toBeLessThan(stdout.length);
     }
   });
+
+  it('compressShellOutput collapses long next/vite/webpack build dumps', () => {
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `chunk ${String(i)} 1.2 kB  [rendered]`,
+    ).join('\n');
+    for (const command of ['next build', 'vite build', 'webpack --mode production', 'turbo run build']) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      // Build dumps reuse the test/build collapse path (passing-line + head/tail via maxChars).
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+    }
+  });
 });

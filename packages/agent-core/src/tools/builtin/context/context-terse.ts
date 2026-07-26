@@ -248,6 +248,15 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\b(?:pnpm|npm|yarn)\s+(?:run\s+)?(?:build|lint|check)\b/u.test(command)) {
     next = compressBuildOutput(next);
   }
+  // Frontend / bundler dumps are mostly chunk lines — use head+tail, not test-pass collapse.
+  if (
+    /\b(?:next|nuxt|astro)\s+build\b/u.test(command) ||
+    /\b(?:vite|webpack|esbuild|rollup|parcel)\b[^\n]*\b(?:build|--mode)\b/u.test(command) ||
+    /\bturbo\s+run\s+build\b/u.test(command) ||
+    /\bwebpack\s+--mode\b/u.test(command)
+  ) {
+    next = compressCompilerOutput(next);
+  }
   if (/\b(?:cargo|pnpm|npm|yarn)\s+(?:test|run\s+test)\b/u.test(command)) {
     next = compressTestOutput(next);
   }

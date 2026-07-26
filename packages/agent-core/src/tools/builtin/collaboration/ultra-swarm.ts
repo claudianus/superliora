@@ -634,16 +634,23 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       ).length;
       // Product-file edits mentioned in expert text count as high-signal file changes
       // so implement waves with sparse evidenceIds are not pure waste.
-      const phaseFileChangeCount = uniqueStrings(
+      const phaseFileChangePaths = uniqueStrings(
         renderedPhaseResults.flatMap((result) => {
           const text =
             result.status === 'completed' ? (result.result ?? '') : (result.error ?? '');
           return extractFileChangePaths(text);
         }),
-      ).length;
+      );
+      const phaseFileChangeCount = phaseFileChangePaths.length;
+      // Path-like evidence/artifact tokens also count as artifacts for budget history.
+      const phaseArtifactIds = uniqueStrings([
+        ...phaseFileChangePaths,
+        ...phaseEvidenceIds.filter((id) => id.includes('/') || /\.[A-Za-z0-9]{1,8}$/u.test(id)),
+      ]);
       budgetState = recordSwarmBudgetRound(budgetState, {
         label: phase,
         evidenceIds: phaseEvidenceIds,
+        artifactIds: phaseArtifactIds,
         verificationPassed,
         fileChangeCount: phaseFileChangeCount,
         // Completed expert results are high-signal tool successes even without
@@ -654,12 +661,14 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           phaseEvidenceIds.length === 0 &&
           !verificationPassed &&
           completedCount === 0 &&
-          phaseFileChangeCount === 0,
+          phaseFileChangeCount === 0 &&
+          phaseArtifactIds.length === 0,
         productive:
           phaseEvidenceIds.length > 0 ||
           verificationPassed ||
           completedCount > 0 ||
-          phaseFileChangeCount > 0,
+          phaseFileChangeCount > 0 ||
+          phaseArtifactIds.length > 0,
       });
       const budgetSuggestion = suggestSwarmBudgetKill(budgetState);
       if (budgetSuggestion.shouldKill) {

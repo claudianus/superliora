@@ -189,6 +189,9 @@ describe('interrupted work resume intent', () => {
       'prosseguir',
       'продолжай',
       'давай дальше',
+      // Curly apostrophe should normalize to ASCII for FR resume phrases.
+      "s\u2019il vous plaît continue",
+      "s\u2019il te plaît continue",
     ]) {
       const intent = matchExplicitResumePhrase(phrase);
       expect(shouldActOnResumeIntent(intent), phrase).toBe(true);

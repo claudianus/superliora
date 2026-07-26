@@ -121,4 +121,18 @@ describe('swarm-budget', () => {
     expect(state.consecutiveWastedRounds).toBe(1);
   });
 
+  it('records artifactIds as high-signal and non-wasted history', () => {
+    let state = createSwarmBudgetState();
+    state = recordSwarmBudgetRound(state, {
+      label: 'implement',
+      artifactIds: ['packages/agent-core/src/foo.ts'],
+      evidenceIds: [],
+    });
+    expect(state.history[0]?.artifactCount).toBe(1);
+    expect(state.history[0]?.wasted).toBe(false);
+    expect(hasHighSignalBudgetProgress({ artifactIds: ['packages/agent-core/src/foo.ts'] })).toBe(
+      true,
+    );
+  });
+
 });
