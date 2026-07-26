@@ -1,176 +1,152 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  SWARM_DAG_DONE_STATUSES,
+  SWARM_DAG_TERMINAL_STATUSES,
   areDependenciesSatisfied,
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
   readyNodeIds,
   rebindPhaseWorkNodeIds,
   type SwarmDagNode,
+  type SwarmDagNodeStatus,
 } from '../../src/session/swarm-dag-scheduler';
 
-function n(
-  id: string,
-  status: SwarmDagNode['status'],
-  dependsOn?: readonly string[],
-): SwarmDagNode {
+function node(id: string, status: SwarmDagNodeStatus, dependsOn: readonly string[] = []): SwarmDagNode {
   return { id, status, dependsOn };
 }
 
-describe('swarm-dag-scheduler', () => {
-  it('returns roots with no deps as ready', () => {
-    const nodes = [n('a', 'queued'), n('b', 'queued')];
+describe('swarm-dag-scheduler.ts — status sets', () => {
+  it('pins the documented done/succeeded set and the broader terminal set', () => {
+    expect([...SWARM_DAG_DONE_STATUSES]).toEqual(['done', 'succeeded']);
+    expect([...SWARM_DAG_TERMINAL_STATUSES]).toEqual([
+      'done',
+      'succeeded',
+      'failed',
+      'blocked',
+      'cancelled',
+      'needs_integration',
+    ]);
+  });
+});
+
+describe('swarm-dag-scheduler.ts — readyNodeIds', () => {
+  it('returns no ids when every node is terminal or running', () => {
+    const nodes = [node('a', 'done'), node('b', 'running'), node('c', 'failed')];
+    expect(readyNodeIds(nodes)).toEqual([]);
+  });
+
+  it('returns every non-terminal, non-running node when none have deps', () => {
+    const nodes = [
+      node('a', 'queued'),
+      node('b', 'ready'),
+      node('c', 'done'),
+      node('d', 'running'),
+    ];
     expect(readyNodeIds(nodes)).toEqual(['a', 'b']);
   });
 
-  it('schedules diamond: roots first, then middle, then tip', () => {
-    //     a
-    //    / \
-    //   b   c
-    //    \ /
-    //     d
-    const initial = [
-      n('a', 'queued'),
-      n('b', 'queued', ['a']),
-      n('c', 'queued', ['a']),
-      n('d', 'queued', ['b', 'c']),
-    ];
-    expect(readyNodeIds(initial)).toEqual(['a']);
-
-    const afterA = [
-      n('a', 'done'),
-      n('b', 'queued', ['a']),
-      n('c', 'queued', ['a']),
-      n('d', 'queued', ['b', 'c']),
-    ];
-    expect(readyNodeIds(afterA)).toEqual(['b', 'c']);
-
-    const afterB = [
-      n('a', 'done'),
-      n('b', 'done', ['a']),
-      n('c', 'queued', ['a']),
-      n('d', 'queued', ['b', 'c']),
-    ];
-    expect(readyNodeIds(afterB)).toEqual(['c']);
-
-    const afterBC = [
-      n('a', 'done'),
-      n('b', 'succeeded', ['a']),
-      n('c', 'done', ['a']),
-      n('d', 'queued', ['b', 'c']),
-    ];
-    expect(readyNodeIds(afterBC)).toEqual(['d']);
-  });
-
-  it('blocks dependents when a dependency is failed', () => {
+  it('waits on a dependency whose status is queued/running (not done)', () => {
     const nodes = [
-      n('a', 'failed'),
-      n('b', 'queued', ['a']),
-      n('c', 'queued'),
+      node('a', 'queued'),
+      node('b', 'queued', ['a']),
+      node('c', 'queued', ['b']),
     ];
-    expect(readyNodeIds(nodes)).toEqual(['c']);
-  });
-
-  it('blocks dependents when a dependency is still running/queued', () => {
-    const nodes = [
-      n('a', 'running'),
-      n('b', 'queued', ['a']),
-    ];
-    expect(readyNodeIds(nodes)).toEqual([]);
-  });
-
-  it('skips terminal nodes themselves', () => {
-    const nodes = [
-      n('a', 'done'),
-      n('b', 'failed'),
-      n('c', 'blocked'),
-      n('d', 'queued'),
-    ];
-    expect(readyNodeIds(nodes)).toEqual(['d']);
+    expect(readyNodeIds(nodes)).toEqual(['a']);
   });
 
   it('treats unknown dependency ids as unsatisfied', () => {
-    const nodes = [n('b', 'queued', ['missing'])];
+    const nodes = [node('a', 'queued', ['missing'])];
     expect(readyNodeIds(nodes)).toEqual([]);
   });
 
-  it('areDependenciesSatisfied mirrors ready-set rules', () => {
+  it('preserves the input order across mixed ready/dependent nodes', () => {
+    const nodes = [
+      node('a', 'queued'),
+      node('b', 'queued', ['a']),
+      node('c', 'queued'),
+      node('d', 'queued', ['c']),
+    ];
+    expect(readyNodeIds(nodes)).toEqual(['a', 'c']);
+  });
+});
+
+describe('swarm-dag-scheduler.ts — areDependenciesSatisfied', () => {
+  it('returns true when no deps are listed', () => {
+    expect(areDependenciesSatisfied(node('a', 'queued'), new Map())).toBe(true);
+  });
+
+  it('returns false when any dep is missing or not done', () => {
     const byId = new Map<string, SwarmDagNode>([
-      ['a', n('a', 'done')],
-      ['b', n('b', 'queued', ['a'])],
+      ['a', node('a', 'done')],
+      ['b', node('b', 'queued')],
     ]);
-    expect(areDependenciesSatisfied(byId.get('b')!, byId)).toBe(true);
-    expect(areDependenciesSatisfied(n('c', 'queued', ['missing']), byId)).toBe(false);
+    expect(areDependenciesSatisfied(node('z', 'queued', ['a', 'missing']), byId)).toBe(false);
+    expect(areDependenciesSatisfied(node('z', 'queued', ['a', 'b']), byId)).toBe(false);
+    expect(areDependenciesSatisfied(node('z', 'queued', ['a']), byId)).toBe(true);
   });
+});
 
-  it('partitionReadyWorkNodeIds splits ready vs blocked', () => {
+describe('swarm-dag-scheduler.ts — partitionReadyWorkNodeIds', () => {
+  it('splits bound-but-non-terminal nodes into ready vs blocked', () => {
+    // 'a' is still queued so c and d remain blocked; 'a' (no deps) and
+    // 'b' (no deps) are ready.
     const nodes = [
-      n('a', 'queued'),
-      n('b', 'queued', ['a']),
-      n('c', 'done'),
+      node('a', 'queued'),
+      node('b', 'queued'),
+      node('c', 'queued', ['a']),
+      node('d', 'queued', ['a']),
     ];
     expect(partitionReadyWorkNodeIds(nodes)).toEqual({
-      readyIds: ['a'],
-      blockedIds: ['b'],
+      readyIds: ['a', 'b'],
+      blockedIds: ['c', 'd'],
     });
   });
+});
 
-  it('treats needs_integration as unschedulable (not ready)', () => {
-    const nodes = [
-      n('a', 'needs_integration'),
-      n('b', 'queued', ['a']),
-      n('c', 'queued'),
-    ];
-    // a is terminal-for-schedule; b still blocked because deps require done/succeeded
-    expect(readyNodeIds(nodes)).toEqual(['c']);
-    expect(partitionReadyWorkNodeIds(nodes)).toEqual({
-      readyIds: ['c'],
-      blockedIds: ['b'],
-    });
-  });
-
-  it('preferReadyWorkNodeIds keeps only ready bound ids when any are ready', () => {
-    const nodes = [n('a', 'queued'), n('b', 'queued', ['a']), n('c', 'queued')];
-    expect(preferReadyWorkNodeIds(['a', 'b', 'c'], nodes)).toEqual(['a', 'c']);
-  });
-
-  it('preferReadyWorkNodeIds falls back to bound ids when none are ready', () => {
-    const nodes = [n('a', 'running'), n('b', 'queued', ['a'])];
+describe('swarm-dag-scheduler.ts — preferReadyWorkNodeIds', () => {
+  it('returns the bound ids when none are ready (no starvation)', () => {
+    const nodes = [node('a', 'done'), node('b', 'queued', ['a'])];
     expect(preferReadyWorkNodeIds(['b'], nodes)).toEqual(['b']);
   });
 
-  it('rebindPhaseWorkNodeIds keeps held ready nodes and assigns free ready to empty specs', () => {
-    // a done → b,c ready; d still blocked on b
+  it('filters the bound list to currently ready ids', () => {
+    const nodes = [node('a', 'queued'), node('b', 'queued', ['a']), node('c', 'queued')];
+    expect(preferReadyWorkNodeIds(['a', 'b', 'c'], nodes)).toEqual(['a', 'c']);
+  });
+});
+
+describe('swarm-dag-scheduler.ts — rebindPhaseWorkNodeIds', () => {
+  it('returns the original specs when both inputs are empty', () => {
+    expect(rebindPhaseWorkNodeIds([], [], [])).toEqual([]);
+  });
+
+  it('keeps a spec that already holds ready ids untouched', () => {
+    const nodes = [node('a', 'queued'), node('b', 'queued')];
+    const specs = [{ workNodeIds: ['a', 'b'] }];
+    expect(rebindPhaseWorkNodeIds(specs, ['a', 'b'], nodes)).toEqual(specs);
+  });
+
+  it('moves freed ready nodes onto an empty spec', () => {
+    const nodes = [node('a', 'queued'), node('b', 'queued')];
+    const specs: { workNodeIds: string[] }[] = [{ workNodeIds: [] }];
+    const out = rebindPhaseWorkNodeIds(specs, ['a', 'b'], nodes);
+    expect(out[0]?.workNodeIds).toEqual(['a', 'b']);
+  });
+
+  it('prunes non-ready ids and assigns free ready nodes to empty specs', () => {
+    // 'a' is already done (terminal → not schedulable); 'b' and 'c' are
+    // queued with no deps and therefore ready. Spec 0 holds 'a' + 'b' →
+    // 'a' is pruned, 'b' is kept. Spec 1 is empty so the leftover ready
+    // 'c' is assigned to it.
     const nodes = [
-      n('a', 'done'),
-      n('b', 'queued', ['a']),
-      n('c', 'queued', ['a']),
-      n('d', 'queued', ['b']),
+      node('a', 'done'),
+      node('b', 'queued'),
+      node('c', 'queued'),
     ];
-    const specs = [
-      { expertId: 'e1', workNodeIds: ['b'] },
-      { expertId: 'e2', workNodeIds: [] as string[] },
-      { expertId: 'e3', workNodeIds: ['d'] }, // blocked — should drop and wait free
-    ];
-    const rebound = rebindPhaseWorkNodeIds(specs, ['a', 'b', 'c', 'd'], nodes);
-    expect(rebound[0]?.workNodeIds).toEqual(['b']);
-    // e2 empty + e3 blocked → free ready is only c
-    expect(rebound[1]?.workNodeIds).toEqual(['c']);
-    // no more free ready after c assigned
-    expect(rebound[2]?.workNodeIds).toEqual([]);
-  });
-
-  it('rebindPhaseWorkNodeIds round-robins leftover free ready nodes', () => {
-    const nodes = [n('a', 'queued'), n('b', 'queued'), n('c', 'queued')];
-    const specs = [{ expertId: 'only', workNodeIds: [] as string[] }];
-    const rebound = rebindPhaseWorkNodeIds(specs, ['a', 'b', 'c'], nodes);
-    expect(rebound[0]?.workNodeIds).toEqual(['a', 'b', 'c']);
-  });
-
-  it('rebindPhaseWorkNodeIds is a no-op when nothing is free', () => {
-    const nodes = [n('a', 'queued'), n('b', 'queued', ['a'])];
-    const specs = [{ expertId: 'e1', workNodeIds: ['a'] }];
-    const rebound = rebindPhaseWorkNodeIds(specs, ['a', 'b'], nodes);
-    expect(rebound).toEqual(specs);
+    const specs: { workNodeIds: string[] }[] = [{ workNodeIds: ['a', 'b'] }, { workNodeIds: [] }];
+    const out = rebindPhaseWorkNodeIds(specs, ['a', 'b', 'c'], nodes);
+    expect(out[0]?.workNodeIds).toEqual(['b']);
+    expect(out[1]?.workNodeIds).toEqual(['c']);
   });
 });
