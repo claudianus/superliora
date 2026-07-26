@@ -192,6 +192,39 @@ function modelDisplayName(state: AppState): string {
   return model?.displayName ?? model?.model ?? state.model;
 }
 
+/** Effective step model when the provider route differs from the session alias. */
+function effectiveRouteModelLabel(state: AppState): string | undefined {
+  const selection = state.lastProviderRouteSelection;
+  if (selection === undefined || selection === null) return undefined;
+  if (selection.modelAlias === state.model) return undefined;
+  const entry = state.availableModels[selection.modelAlias];
+  return entry?.displayName ?? entry?.model ?? selection.modelAlias;
+}
+
+function formatModelRouteBadge(state: AppState): string | undefined {
+  const notice = state.lastModelRouteNotice;
+  if (notice === undefined || notice === null) return undefined;
+  // Keep the badge fresh for ~45s so operators can still read it after a switch.
+  if (Date.now() - notice.atMs > 45_000) return undefined;
+  const toEntry = state.availableModels[notice.toAlias];
+  const toLabel = toEntry?.displayName ?? toEntry?.model ?? notice.toAlias;
+  if (notice.kind === 'failover' && notice.fromAlias !== undefined) {
+    const fromEntry = state.availableModels[notice.fromAlias];
+    const fromLabel = fromEntry?.displayName ?? fromEntry?.model ?? notice.fromAlias;
+    return `failover ${fromLabel}→${toLabel}`;
+  }
+  if (notice.kind === 'selection' && notice.reason?.startsWith('compaction')) {
+    return `compact ${toLabel}`;
+  }
+  if (notice.kind === 'selection' && notice.reason?.startsWith('completion')) {
+    return `complete ${toLabel}`;
+  }
+  if (notice.fromAlias !== undefined && notice.fromAlias !== notice.toAlias) {
+    return `via ${toLabel}`;
+  }
+  return undefined;
+}
+
 /** Suffix for the footer model badge: effective effort (shows clamp as max→high). */
 function thinkingLevelLabel(state: AppState): string {
   return formatThinkingLevelSuffix(state.thinkingLevel, {
@@ -608,12 +641,31 @@ export class FooterComponent implements Component {
 
     const model = modelDisplayName(state);
     if (model) {
-      const modelLabel = `${model}${thinkingLevelLabel(state)}`;
+      const routeEffective = effectiveRouteModelLabel(state);
+      const modelLabel =
+        routeEffective !== undefined
+          ? `${model}${thinkingLevelLabel(state)}→${routeEffective}`
+          : `${model}${thinkingLevelLabel(state)}`;
+      const modelHot =
+        state.lastModelRouteNotice !== undefined &&
+        state.lastModelRouteNotice !== null &&
+        Date.now() - state.lastModelRouteNotice.atMs < 45_000;
       left.push(
-        state.streamingPhase === 'idle' && !state.thinking
-          ? chalk.hex(colors.text)(modelLabel)
-          : renderPulseText(modelLabel, 'footer:model', 'text', appearance),
+        modelHot || state.streamingPhase !== 'idle' || state.thinking
+          ? renderPulseText(
+              modelLabel,
+              modelHot ? 'footer:model-route' : 'footer:model',
+              modelHot ? 'glow' : 'text',
+              appearance,
+            )
+          : chalk.hex(colors.text)(modelLabel),
       );
+      const routeBadge = formatModelRouteBadge(state);
+      if (routeBadge !== undefined) {
+        left.push(
+          renderPulseText(routeBadge, 'footer:model-failover', 'glow', appearance),
+        );
+      }
     }
 
     // Background-task badges sit immediately before cwd. `bash-*` tasks

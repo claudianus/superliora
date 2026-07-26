@@ -3,6 +3,7 @@ import type {
   GoalSnapshot,
   ModelAlias,
   PermissionMode,
+  ProviderRouteSelection,
   ProviderRouteStatus,
   ProviderConfig,
   PromptPart,
@@ -122,6 +123,25 @@ export interface AppState {
   availableModels: Record<string, ModelAlias>;
   availableProviders: Record<string, ProviderConfig>;
   providerRouteStatus?: ProviderRouteStatus | null;
+  /**
+   * Last successful step-level provider route selection (effective model +
+   * credential). Updated from `turn.step.completed.providerRouteSelection`.
+   */
+  lastProviderRouteSelection?: ProviderRouteSelection | null;
+  /**
+   * One-shot route transparency: last failover / model switch the TUI surfaced
+   * (footer pulse + /status). Cleared when the user switches models manually.
+   */
+  lastModelRouteNotice?: {
+    readonly kind: 'failover' | 'switch' | 'selection';
+    readonly fromAlias?: string;
+    readonly toAlias: string;
+    readonly providerName?: string;
+    readonly credentialLabel?: string;
+    readonly providerModel?: string;
+    readonly reason?: string;
+    readonly atMs: number;
+  } | null;
   sessionTitle: string | null;
   /** Current goal snapshot for the footer badge; null/undefined when no active goal. */
   goal?: GoalSnapshot | null;
@@ -179,6 +199,8 @@ export interface BackgroundAgentMetadata {
   readonly parentToolCallId: string;
   readonly agentName?: string;
   readonly description?: string;
+  /** Effective model alias for this child when known (explore cheap route etc.). */
+  readonly modelAlias?: string;
 }
 
 export type BackgroundAgentStatusPhase = 'started' | 'completed' | 'failed';

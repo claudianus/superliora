@@ -682,6 +682,9 @@ export class StreamingUIController {
   // ---------------------------------------------------------------------------
 
   private shouldSmoothStreamReveal(): boolean {
+    // Replay mounts full assistant/thinking bodies in one shot; smooth reveal
+    // only schedules timers and mid-pass frames that fight hydrate batching.
+    if (this.host.state.appState.isReplaying) return false;
     return shouldAnimate(getActiveAppearancePreferences());
   }
 
@@ -915,7 +918,7 @@ export class StreamingUIController {
 
   beginCompaction(
     instruction?: string,
-    options?: { readonly background?: boolean },
+    options?: { readonly background?: boolean; readonly modelAlias?: string },
   ): void {
     const { state } = this.host;
     if (this._activeCompactionBlock !== undefined) {
@@ -929,6 +932,7 @@ export class StreamingUIController {
       workingTip === undefined ? undefined : tipText(workingTip),
       {
         background: options?.background === true,
+        modelAlias: options?.modelAlias,
       },
     );
     this._activeCompactionBlock = block;

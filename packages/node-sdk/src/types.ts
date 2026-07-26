@@ -1,5 +1,6 @@
 import type {
   ExportSessionManifest,
+  ProviderRouteSelection,
   ProviderRouteStatus,
   ResumeSessionResult,
   ShellEnvironment,
@@ -71,6 +72,7 @@ export type {
   ProcessBackgroundTaskInfo,
   PromptOrigin,
   ProviderConfig,
+  ProviderRouteSelection,
   ProviderRouteStatus,
   ProviderType,
   QuestionBackgroundTaskInfo,

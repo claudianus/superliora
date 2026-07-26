@@ -242,7 +242,10 @@ describe('PromptIntelligenceService', () => {
 
   it('uses completionModel alias when configured', async () => {
     const resolveProviderConfig = vi.fn().mockReturnValue({
-      provider: { withThinking: () => ({ withMaxCompletionTokens: () => ({}) }) },
+      modelAlias: 'fast-model',
+      providerName: 'openai',
+      provider: { type: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' },
+      modelCapabilities: {},
     });
     const generate = vi.fn().mockResolvedValue({
       message: { content: [{ type: 'text', text: 'done' }] },
@@ -253,9 +256,15 @@ describe('PromptIntelligenceService', () => {
       kimiConfig: { loopControl: { completionModel: 'fast-model' } },
       modelProvider: { resolveProviderConfig },
       generate,
+      config: {
+        modelAlias: 'main-model',
+        provider: { withThinking: () => ({ withMaxCompletionTokens: () => ({}) }) },
+      },
     } as unknown as Partial<Agent>);
     const svc = new PromptIntelligenceService(agent);
-    await svc.inlineComplete({ text: 'hello', cursorLine: 0, cursorCol: 5 });
+    const result = await svc.inlineComplete({ text: 'hello', cursorLine: 0, cursorCol: 5 });
     expect(resolveProviderConfig).toHaveBeenCalledWith('fast-model');
+    expect(result.modelAlias).toBe('fast-model');
+    expect(generate.mock.calls[0]?.[5]).toMatchObject({ runtimeModelAlias: 'fast-model' });
   });
 });

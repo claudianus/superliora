@@ -81,6 +81,8 @@ export interface InlineCompletePayload {
 
 export interface InlineCompleteResult {
   readonly completion: string;
+  /** Effective model alias used for this prediction (completion/cheap/main). */
+  readonly modelAlias?: string;
 }
 
 export interface SuggestPromptsPayload {
@@ -89,6 +91,8 @@ export interface SuggestPromptsPayload {
 
 export interface SuggestPromptsResult {
   readonly suggestions: readonly string[];
+  /** Effective model alias used for this suggestion call. */
+  readonly modelAlias?: string;
 }
 
 const INLINE_SYSTEM_PROMPT = [
@@ -119,8 +123,9 @@ export class PromptIntelligenceService {
     const draft = extractDraft(payload);
     if (draft.length === 0) return empty;
 
-    const provider = await this.resolveProvider(INLINE_MAX_TOKENS);
-    if (provider === undefined) return empty;
+    const resolved = await this.resolveProvider(INLINE_MAX_TOKENS);
+    if (resolved === undefined) return empty;
+    const { provider, modelAlias } = resolved;
 
     const context = summarizeHistory(this.agent.context.messages, HISTORY_CONTEXT_CHARS);
     const userPrompt =
@@ -133,7 +138,7 @@ export class PromptIntelligenceService {
     try {
       const options: GenerateOptionsWithRequestLogFields = {
         signal: payload.signal,
-        runtimeModelAlias: this.completionModelAlias(),
+        runtimeModelAlias: modelAlias,
       };
       const response = await this.agent.generate(
         provider,
@@ -144,7 +149,7 @@ export class PromptIntelligenceService {
         options,
       );
       const completion = cleanInlineCompletion(extractText(response), draft);
-      return { completion };
+      return { completion, modelAlias };
     } catch (error) {
       if (!isAbortError(error)) this.agent.log.warn('inline completion failed', error);
       return empty;
@@ -155,8 +160,9 @@ export class PromptIntelligenceService {
     const empty: SuggestPromptsResult = { suggestions: [] };
     if (!this.isEnabled()) return empty;
 
-    const provider = await this.resolveProvider(SUGGEST_MAX_TOKENS);
-    if (provider === undefined) return empty;
+    const resolved = await this.resolveProvider(SUGGEST_MAX_TOKENS);
+    if (resolved === undefined) return empty;
+    const { provider, modelAlias } = resolved;
 
     const context = summarizeHistory(this.agent.context.messages, HISTORY_CONTEXT_CHARS);
     const preference = this.agent.getResponseLanguagePreference();
@@ -173,7 +179,7 @@ export class PromptIntelligenceService {
     try {
       const options: GenerateOptionsWithRequestLogFields = {
         signal: payload.signal,
-        runtimeModelAlias: this.completionModelAlias(),
+        runtimeModelAlias: modelAlias,
       };
       const response = await this.agent.generate(
         provider,
@@ -184,7 +190,7 @@ export class PromptIntelligenceService {
         options,
       );
       const suggestions = parseSuggestionLines(extractText(response));
-      return { suggestions };
+      return { suggestions, modelAlias };
     } catch (error) {
       if (!isAbortError(error)) this.agent.log.warn('prompt suggestions failed', error);
       return empty;
@@ -228,16 +234,25 @@ export class PromptIntelligenceService {
     return inferCheapModelAliasSync(models);
   }
 
-  private async resolveProvider(maxTokens: number): Promise<ChatProvider | undefined> {
+  private async resolveProvider(
+    maxTokens: number,
+  ): Promise<{ readonly provider: ChatProvider; readonly modelAlias: string | undefined } | undefined> {
     try {
-      const alias = this.completionModelAlias() ?? (await this.inferCheapModelAlias());
-      const resolved = alias ? this.agent.modelProvider?.resolveProviderConfig(alias) : undefined;
+      const configuredOrCheap = this.completionModelAlias() ?? (await this.inferCheapModelAlias());
+      const resolved =
+        configuredOrCheap !== undefined
+          ? this.agent.modelProvider?.resolveProviderConfig(configuredOrCheap)
+          : undefined;
       let provider = resolved ? createProvider(resolved.provider) : this.agent.config.provider;
+      // Prefer the alias we actually resolved; otherwise the session main model.
+      const modelAlias = resolved
+        ? configuredOrCheap
+        : this.agent.config.modelAlias;
       provider = provider.withThinking('off');
       if (typeof provider.withMaxCompletionTokens === 'function') {
         provider = provider.withMaxCompletionTokens(maxTokens);
       }
-      return provider;
+      return { provider, modelAlias };
     } catch (error) {
       this.agent.log.warn('prompt intelligence provider resolution failed', error);
       return undefined;

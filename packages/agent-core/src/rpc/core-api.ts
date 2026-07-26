@@ -402,10 +402,14 @@ export interface InlineCompletePayload {
 export interface InlineCompleteResult {
   /** Predicted continuation to render as ghost text after the cursor (may be empty). */
   readonly completion: string;
+  /** Effective model alias used for this prediction (completion/cheap/main). */
+  readonly modelAlias?: string;
 }
 export interface SuggestPromptsResult {
   /** Contextually relevant next-task prompts (may be empty). */
   readonly suggestions: readonly string[];
+  /** Effective model alias used for this suggestion call. */
+  readonly modelAlias?: string;
 }
 /**
  * Optional out-of-band call options for prompt-intelligence RPCs. The abort

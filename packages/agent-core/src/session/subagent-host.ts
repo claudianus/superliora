@@ -209,7 +209,17 @@ export class SessionSubagentHost {
       { parentAgentId: this.ownerAgentId, swarmItem: options.swarmItem },
     );
     const completion = this.runWithActiveChild(id, options, async (runOptions) => {
-      this.emitSubagentSpawned(parent, id, profile.name, runOptions);
+      const modelAlias = resolveSubagentModelAlias(
+        profile.name,
+        options.profileBaseName,
+        parent.config.modelAlias,
+        parent.kimiConfig?.models,
+        parent.kimiConfig?.loopControl?.explorationModel,
+        {
+          isAliasHealthy: (alias) => isModelAliasHealthy(alias, parent.kimiConfig?.models),
+        },
+      );
+      this.emitSubagentSpawned(parent, id, profile.name, runOptions, modelAlias);
       try {
         await this.configureChild(parent, agent, profile, id, runOptions, options.profileBaseName);
         return await this.runPromptTurn(parent, id, agent, profile.name, runOptions);
@@ -230,22 +240,23 @@ export class SessionSubagentHost {
     options.signal.throwIfAborted();
     const { parent, child, profileName } = await this.ensureIdleSubagent(agentId);
     const completion = this.runWithActiveChild(agentId, options, async (runOptions) => {
-      this.emitSubagentSpawned(parent, agentId, profileName, runOptions);
+      const modelAlias = resolveSubagentModelAlias(
+        profileName,
+        undefined,
+        parent.config.modelAlias,
+        parent.kimiConfig?.models,
+        parent.kimiConfig?.loopControl?.explorationModel,
+        {
+          isAliasHealthy: (alias) =>
+            isModelAliasHealthy(alias, parent.kimiConfig?.models),
+        },
+      );
+      this.emitSubagentSpawned(parent, agentId, profileName, runOptions, modelAlias);
       try {
         // Read-only explore subagents run on a cheap configured model when one
         // exists; every other profile keeps the parent agent's current model.
         child.config.update({
-          modelAlias: resolveSubagentModelAlias(
-            profileName,
-            undefined,
-            parent.config.modelAlias,
-            parent.kimiConfig?.models,
-            parent.kimiConfig?.loopControl?.explorationModel,
-            {
-              isAliasHealthy: (alias) =>
-                isModelAliasHealthy(alias, parent.kimiConfig?.models),
-            },
-          ),
+          modelAlias,
         });
         this.attachUltraSwarmChannelIfNeeded(parent, child, agentId, runOptions, profileName);
         return await this.runPromptTurn(parent, agentId, child, profileName, runOptions);
@@ -640,6 +651,7 @@ export class SessionSubagentHost {
     childId: string,
     profileName: string,
     options: RunSubagentOptions,
+    modelAlias?: string,
   ): void {
     const run = parent.ultraSwarmRun;
     if (
@@ -659,6 +671,7 @@ export class SessionSubagentHost {
       description: options.description,
       swarmIndex: options.swarmIndex,
       runInBackground: options.runInBackground,
+      modelAlias,
     });
     parent.telemetry.track('subagent_created', {
       subagent_name: profileName,

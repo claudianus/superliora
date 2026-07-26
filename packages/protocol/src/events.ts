@@ -756,6 +756,8 @@ export interface SubagentSpawnedEvent {
   readonly description?: string;
   readonly swarmIndex?: number;
   readonly runInBackground: boolean;
+  /** Effective model alias for this child (explore cheap route or parent). */
+  readonly modelAlias?: string;
 }
 
 export interface SubagentStartedEvent {
@@ -812,6 +814,8 @@ export interface CompactionStartedEvent {
    * as busy until completion.
    */
   readonly mode?: 'blocking' | 'background';
+  /** Effective summarizer model alias after cheap-model resolve (may equal main). */
+  readonly modelAlias?: string;
 }
 
 export interface CompactionBlockedEvent {
@@ -1677,6 +1681,7 @@ export const subagentSpawnedEventSchema = z.object({
   description: z.string().optional(),
   swarmIndex: z.number().optional(),
   runInBackground: z.boolean(),
+  modelAlias: z.string().optional(),
 }) satisfies z.ZodType<SubagentSpawnedEvent>;
 
 export const subagentStartedEventSchema = z.object({
@@ -1728,6 +1733,7 @@ export const compactionStartedEventSchema = z.object({
   trigger: z.enum(['manual', 'auto']),
   instruction: z.string().optional(),
   mode: z.enum(['blocking', 'background']).optional(),
+  modelAlias: z.string().optional(),
 }) satisfies z.ZodType<CompactionStartedEvent>;
 
 export const compactionBlockedEventSchema = z.object({

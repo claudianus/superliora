@@ -98,6 +98,10 @@ import { FileViewerComponent } from './components/dialogs/file-viewer';
 import { SearchResultsComponent } from './components/dialogs/search-results';
 import { QuestionDialogComponent } from './components/dialogs/question-dialog';
 import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
+import {
+  SessionLoadingOverlayComponent,
+  type SessionLoadingPhase,
+} from './components/dialogs/session-loading-overlay';
 import { AgentDashboardComponent } from './components/dialogs/agent-dashboard';
 import { ExtensionsModalComponent } from './components/dialogs/extensions-modal';
 import {
@@ -191,6 +195,7 @@ import { DisposableRegistry } from './utils/disposables';
 import { formatErrorMessage } from './utils/event-payload';
 import { contextWorkingSetSnapshotFromLoopControl } from './utils/context-working-set';
 import {
+  flushSuppressedTUIFrame,
   requestTUIContentRender,
   requestTUILayoutRender,
   requestTUIScrollRender,
@@ -323,6 +328,8 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     availableModels: {},
     availableProviders: {},
     providerRouteStatus: null,
+    lastProviderRouteSelection: null,
+    lastModelRouteNotice: null,
     sessionTitle: null,
     goal: null,
     mcpServersSummary: null,
@@ -1007,8 +1014,29 @@ export class LioraTUI {
       return;
     }
     if (shouldReplayHistory) {
-      await this.sessionReplay.hydrateFromReplay(this.requireSession());
-      this.applyStartupPermissionAndPlanToAppState();
+      // Cold-start resume: paint the premium loading modal as soon as the
+      // splash yields so large histories never sit on a silent empty editor.
+      const session = this.requireSession();
+      const ownsColdStartOverlay = !this.isSessionLoadingOverlayActive();
+      if (ownsColdStartOverlay) {
+        this.beginSessionLoading(session.id, ttui('tui.sessionLoading.title'));
+        this.reportSessionLoading({
+          phase: 'loading',
+          progress: 0.22,
+          sessionId: session.id,
+          detail: ttui('tui.sessionLoading.phase.loading'),
+        });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      try {
+        await this.sessionReplay.hydrateFromReplay(session);
+        this.applyStartupPermissionAndPlanToAppState();
+      } finally {
+        // hydrate ends only when *it* opened the modal; we own this cold-start one.
+        if (ownsColdStartOverlay) {
+          this.endSessionLoading();
+        }
+      }
     }
     const resumeState = this.session?.getResumeState();
     if (resumeState?.warning !== undefined) {
@@ -1193,6 +1221,8 @@ export class LioraTUI {
     if (this.isShuttingDown) return;
     this.isShuttingDown = true;
     this.unregisterSignalHandlers();
+    this.stopSessionLoadingPulse();
+    this.sessionLoadingOverlay = undefined;
     this.aborted = true;
     this.streamingUI.discardPending();
     this.editorKeyboard.clearPendingExit();
@@ -1409,8 +1439,8 @@ export class LioraTUI {
       this.handleInputModeChange('prompt');
     }
     if (text.trim().length === 0) return;
-    if (this.state.appState.isReplaying) {
-      this.showError('Cannot send input while session history is replaying.');
+    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
+      this.showError(ttui('tui.sessionLoading.busy'));
       return;
     }
     // Shell commands are stored with a leading `!` so ↑ recall can tell them
@@ -2188,22 +2218,34 @@ export class LioraTUI {
       this.showError('Cannot switch sessions while streaming — press Esc or Ctrl-C first.');
       return false;
     }
-    if (this.state.appState.isReplaying) {
-      this.showError('Cannot switch sessions while history is replaying.');
+    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
+      this.showError(ttui('tui.sessionLoading.busy'));
       return false;
     }
 
+    this.beginSessionLoading(targetSessionId);
+    this.reportSessionLoading({
+      phase: 'loading',
+      progress: 0.2,
+      detail: ttui('tui.sessionLoading.phase.loading'),
+      sessionId: targetSessionId,
+    });
     let session: Session;
     try {
       session = await this.harness.resumeSession({ id: targetSessionId });
     } catch (error) {
+      this.endSessionLoading();
       const msg = formatErrorMessage(error);
       this.showError(`Failed to resume session ${targetSessionId}: ${msg}`);
       return false;
     }
 
-    await this.switchToSession(session, `Resumed session (${session.id}).`);
-    return true;
+    try {
+      await this.switchToSession(session, `Resumed session (${session.id}).`);
+      return true;
+    } finally {
+      this.endSessionLoading();
+    }
   }
 
   async switchToSession(session: Session, statusMessage: string): Promise<void> {
@@ -2263,50 +2305,65 @@ export class LioraTUI {
   }
 
   async createNewSession(): Promise<void> {
-    if (this.state.appState.isReplaying) {
-      this.showError('Cannot start a new session while history is replaying.');
+    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
+      this.showError(ttui('tui.sessionLoading.busy'));
       return;
     }
 
-    let session: Session;
-    try {
-      session = await this.createSessionFromCurrentState();
-    } catch (error) {
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to start a new session: ${msg}`);
-      return;
-    }
+    await this.runWithBusyOverlay(
+      {
+        title: ttui('tui.sessionLoading.creating'),
+        detail: ttui('tui.sessionLoading.creating'),
+        phase: 'working',
+      },
+      async () => {
+        let session: Session;
+        try {
+          session = await this.createSessionFromCurrentState();
+        } catch (error) {
+          const msg = formatErrorMessage(error);
+          this.showError(`Failed to start a new session: ${msg}`);
+          return;
+        }
 
-    this.resetSessionRuntime();
-    this.setAppState({
-      ultraworkMode: false,
-      ultraworkPriorState: null,
-      activityTip: null,
-      isCompacting: false,
-      isBackgroundCompacting: false,
-      streamingPhase: 'idle',
-    });
-    await this.setSession(session);
-    this.setAppState({ sessionId: session.id });
-    this.clearTranscriptAndRedraw();
-    try {
-      await this.activateRuntime();
-      await this.syncRuntimeState(session);
-    } catch (error) {
-      this.sessionEventHandler.startSubscription();
-      const msg = formatErrorMessage(error);
-      this.showError(`Post-create setup failed: ${msg}`);
-      return;
-    }
-    try {
-      await this.refreshDynamicSlashCommands(this.session);
-    } catch {
-      /* keep the new session usable even if dynamic skills fail */
-    }
-    this.sessionEventHandler.startSubscription();
-    this.showStatus(`Started a new session (${session.id}).`);
-    void this.showSessionWarnings(session);
-    void this.showConfigWarningsIfAny();
+        this.resetSessionRuntime();
+        this.setAppState({
+          ultraworkMode: false,
+          ultraworkPriorState: null,
+          activityTip: null,
+          isCompacting: false,
+          isBackgroundCompacting: false,
+          streamingPhase: 'idle',
+        });
+        await this.setSession(session);
+        this.setAppState({ sessionId: session.id });
+        this.clearTranscriptAndRedraw();
+        this.reportSessionLoading({
+          phase: 'finishing',
+          progress: 0.85,
+          detail: ttui('tui.sessionLoading.phase.finishing'),
+          sessionId: session.id,
+        });
+        try {
+          await this.activateRuntime();
+          await this.syncRuntimeState(session);
+        } catch (error) {
+          this.sessionEventHandler.startSubscription();
+          const msg = formatErrorMessage(error);
+          this.showError(`Post-create setup failed: ${msg}`);
+          return;
+        }
+        try {
+          await this.refreshDynamicSlashCommands(this.session);
+        } catch {
+          /* keep the new session usable even if dynamic skills fail */
+        }
+        this.sessionEventHandler.startSubscription();
+        this.showStatus(`Started a new session (${session.id}).`);
+        void this.showSessionWarnings(session);
+        void this.showConfigWarningsIfAny();
+      },
+    );
   }
 
   /** Surface config.toml load warnings (degraded or kept-previous config) in the status bar. */
@@ -2417,6 +2474,12 @@ export class LioraTUI {
     if (component) {
       markTranscriptComponent(component, entry);
       this.state.transcriptContainer.addChild(component);
+    }
+    // Session hydrate: frames are suppressed and merge uses a high water-mark
+    // so we only collapse when a turn is far over the keep window (not every entry).
+    if (this.state.appState.isReplaying) {
+      this.mergeCurrentTurnSteps();
+      return;
     }
     const trimmed = this.trimTranscriptWindow();
     const merged = this.mergeCurrentTurnSteps();
@@ -2685,7 +2748,13 @@ export class LioraTUI {
       stepIndices.push(i);
     }
 
-    if (stepIndices.length <= TRANSCRIPT_KEEP_RECENT_STEPS) return false;
+    // Live: merge as soon as we exceed the keep window.
+    // Hydrate: wait until well over the window so we do not rebuild the turn
+    // on every tool result (O(n²)), while still bounding component count.
+    const mergeThreshold = this.state.appState.isReplaying
+      ? TRANSCRIPT_KEEP_RECENT_STEPS + Math.max(TRANSCRIPT_KEEP_RECENT_STEPS, 20)
+      : TRANSCRIPT_KEEP_RECENT_STEPS;
+    if (stepIndices.length <= mergeThreshold) return false;
     const mergeCount = stepIndices.length - TRANSCRIPT_KEEP_RECENT_STEPS;
     const toMergeIndices = stepIndices.slice(0, mergeCount);
 
@@ -3315,6 +3384,122 @@ export class LioraTUI {
   // Dialogs / Selectors
   // =========================================================================
 
+  isSessionLoadingOverlayActive(): boolean {
+    return this.sessionLoadingOverlay !== undefined;
+  }
+
+  beginSessionLoading(sessionId?: string, title?: string): void {
+    this.setAppState({ isReplaying: true });
+    if (this.sessionLoadingOverlay !== undefined) {
+      this.reportSessionLoading({
+        phase: 'opening',
+        progress: 0.08,
+        sessionId,
+        title,
+        detail: ttui('tui.sessionLoading.phase.opening'),
+      });
+      return;
+    }
+    // Drop any open picker/dashboard so a second resume cannot start mid-load.
+    if (
+      this.state.activeDialog === 'session-picker' ||
+      this.state.activeDialog === 'agent-dashboard' ||
+      this.state.activeDialog === 'command' ||
+      this.state.activeDialog === 'help' ||
+      this.state.activeDialog === 'search'
+    ) {
+      this.state.activeDialog = null;
+    }
+    const overlay = new SessionLoadingOverlayComponent({
+      sessionId,
+      title,
+      phase: 'opening',
+      progress: 0.08,
+      detail: ttui('tui.sessionLoading.phase.opening'),
+    });
+    this.sessionLoadingOverlay = overlay;
+    this.state.activeDialog = 'session-loading';
+    this.mountEditorReplacement(overlay);
+    this.startSessionLoadingPulse();
+    // Paint immediately so the user never sees a silent freeze.
+    flushSuppressedTUIFrame(this.state, 'layout');
+  }
+
+  reportSessionLoading(patch: {
+    readonly phase?: SessionLoadingPhase;
+    readonly progress?: number;
+    readonly detail?: string;
+    readonly sessionId?: string;
+    readonly title?: string;
+  }): void {
+    const overlay = this.sessionLoadingOverlay;
+    if (overlay === undefined) return;
+    overlay.update(patch);
+    // Mid-hydrate content frames are suppressed by batch mount; force a layout
+    // paint so the modal spinner/bar stay alive.
+    flushSuppressedTUIFrame(this.state, 'layout');
+  }
+
+  endSessionLoading(): void {
+    this.stopSessionLoadingPulse();
+    this.sessionLoadingOverlay = undefined;
+    this.setAppState({ isReplaying: false });
+    if (this.state.activeDialog === 'session-loading') {
+      this.state.activeDialog = null;
+      this.restoreEditor();
+    } else {
+      // Overlay was already replaced; still force a final layout paint.
+      flushSuppressedTUIFrame(this.state, 'layout');
+    }
+  }
+
+  async runWithBusyOverlay<T>(
+    options: {
+      readonly title?: string;
+      readonly detail?: string;
+      readonly sessionId?: string;
+      readonly phase?: SessionLoadingPhase;
+    },
+    work: () => Promise<T> | T,
+  ): Promise<T> {
+    const already = this.isSessionLoadingOverlayActive();
+    if (!already) {
+      this.beginSessionLoading(options.sessionId, options.title);
+    }
+    this.reportSessionLoading({
+      phase: options.phase ?? 'working',
+      detail: options.detail ?? ttui('tui.sessionLoading.phase.working'),
+      sessionId: options.sessionId,
+      title: options.title,
+    });
+    // Let the modal paint before potentially-blocking work.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    try {
+      return await work();
+    } finally {
+      if (!already) {
+        this.endSessionLoading();
+      }
+    }
+  }
+
+  private startSessionLoadingPulse(): void {
+    this.stopSessionLoadingPulse();
+    this.sessionLoadingPulseTimer = setInterval(() => {
+      if (this.sessionLoadingOverlay === undefined) {
+        this.stopSessionLoadingPulse();
+        return;
+      }
+      flushSuppressedTUIFrame(this.state, 'content');
+    }, 100);
+  }
+
+  private stopSessionLoadingPulse(): void {
+    if (this.sessionLoadingPulseTimer === undefined) return;
+    clearInterval(this.sessionLoadingPulseTimer);
+    this.sessionLoadingPulseTimer = undefined;
+  }
+
   mountEditorReplacement(panel: Component & Focusable): void {
     this.state.editorContainer.clear();
     this.state.editorContainer.addChild(panel);
@@ -3323,11 +3508,22 @@ export class LioraTUI {
     // Track that a command-driven dialog owns the editor area so background
     // approval/question events do not clobber it mid-flow (BUG-7). Help and
     // session-picker set their own specific dialog id after this call.
+    // Keep session-loading sticky so restore paths cannot silently drop the lock.
     if (this.state.activeDialog === null) this.state.activeDialog = 'command';
     requestTUIContentRender(this.state);
   }
 
   restoreEditor(): void {
+    // Never restore the free editor while history is still loading.
+    if (this.sessionLoadingOverlay !== undefined) {
+      this.state.editorContainer.clear();
+      this.state.editorContainer.addChild(this.sessionLoadingOverlay);
+      this.state.ui.setFocus(this.sessionLoadingOverlay);
+      this.mountNativeInputModal(this.sessionLoadingOverlay);
+      this.state.activeDialog = 'session-loading';
+      requestTUIContentRender(this.state);
+      return;
+    }
     this.state.editorContainer.clear();
     this.state.editorContainer.addChild(this.state.editor);
     this.state.ui.setFocus(this.state.editor);
@@ -3337,7 +3533,9 @@ export class LioraTUI {
     // Only clear a generic command-dialog marker. Help/session-picker/
     // agent-dashboard manage their own `activeDialog` lifecycle and may
     // already be null here.
-    if (this.state.activeDialog === 'command') this.state.activeDialog = null;
+    if (this.state.activeDialog === 'command' || this.state.activeDialog === 'session-loading') {
+      this.state.activeDialog = null;
+    }
     requestTUIContentRender(this.state);
     // Flush any reverse-RPC panel that was deferred while a command dialog was
     // open (BUG-7). Approval takes priority, then question.
@@ -3571,28 +3769,43 @@ export class LioraTUI {
   }
 
   showFileExplorer(): void {
-    const workDir = this.state.appState.workDir;
-    const listing = listProjectFiles(workDir);
-    const nodes = buildFileTree(listing.paths);
-    this.state.activeDialog = 'files';
-    this.mountEditorReplacement(
-      new FileExplorerComponent({
-        workDir,
-        nodes,
-        truncated: listing.truncated,
-        source: listing.source,
-        onPick: (relativePath) => {
-          this.hideFileExplorer();
-          this.state.editor.insertTextAtCursor(`${relativePath} `);
-          requestTUILayoutRender(this.state);
-        },
-        onPreview: (relativePath) => {
-          this.showFileViewer(relativePath);
-        },
-        onClose: () => {
-          this.hideFileExplorer();
-        },
-      }),
+    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
+      this.showError(ttui('tui.sessionLoading.busy'));
+      return;
+    }
+    void this.runWithBusyOverlay(
+      {
+        title: ttui('tui.sessionLoading.scanning'),
+        detail: ttui('tui.sessionLoading.scanning'),
+        phase: 'working',
+      },
+      async () => {
+        const workDir = this.state.appState.workDir;
+        // Paint overlay before the sync FS walk blocks the event loop.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        const listing = listProjectFiles(workDir);
+        const nodes = buildFileTree(listing.paths);
+        this.state.activeDialog = 'files';
+        this.mountEditorReplacement(
+          new FileExplorerComponent({
+            workDir,
+            nodes,
+            truncated: listing.truncated,
+            source: listing.source,
+            onPick: (relativePath) => {
+              this.hideFileExplorer();
+              this.state.editor.insertTextAtCursor(`${relativePath} `);
+              requestTUILayoutRender(this.state);
+            },
+            onPreview: (relativePath) => {
+              this.showFileViewer(relativePath);
+            },
+            onClose: () => {
+              this.hideFileExplorer();
+            },
+          }),
+        );
+      },
     );
   }
 
@@ -3861,8 +4074,15 @@ export class LioraTUI {
     forwardEditorExit: false,
   };
   private sessionPickerScopeRequestToken = 0;
+  /** Editor-area modal while resume RPC + history hydrate run. */
+  private sessionLoadingOverlay: SessionLoadingOverlayComponent | undefined;
+  private sessionLoadingPulseTimer: ReturnType<typeof setInterval> | undefined;
 
   async showSessionPicker(): Promise<void> {
+    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
+      this.showError(ttui('tui.sessionLoading.busy'));
+      return;
+    }
     await this.openSessionPicker({
       applyStartupModes: false,
       closeOnCancel: false,
@@ -3875,10 +4095,21 @@ export class LioraTUI {
    * Enter attaches (resume) the selected session. last_prompt is masked.
    */
   async showAgentDashboard(): Promise<void> {
+    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
+      this.showError(ttui('tui.sessionLoading.busy'));
+      return;
+    }
     this.state.loadingSessions = true;
     let summaries: Awaited<ReturnType<LioraHarness['listSessions']>> = [];
     try {
-      summaries = await this.harness.listSessions({ workDir: this.state.appState.workDir });
+      summaries = await this.runWithBusyOverlay(
+        {
+          title: ttui('tui.sessionLoading.dashboard'),
+          detail: ttui('tui.sessionLoading.dashboard'),
+          phase: 'working',
+        },
+        async () => this.harness.listSessions({ workDir: this.state.appState.workDir }),
+      );
       // Keep session-picker cache in sync for other dialogs.
       this.state.sessions = sessionRowsForPicker(
         summaries,
@@ -3937,22 +4168,31 @@ export class LioraTUI {
     }
 
     const initialTab: ExtensionsTabId = resolveExtensionsTab(raw);
-    this.state.activeDialog = 'extensions';
 
     let snapshot: ExtensionsSnapshot = { plugins: [], skills: [], mcpServers: [] };
     try {
       const session = this.requireSession();
-      const [plugins, skills, mcpServers] = await Promise.all([
-        session.listPlugins().catch(() => []),
-        session.listSkills().catch(() => []),
-        session.listMcpServers().catch(() => []),
-      ]);
-      snapshot = { plugins, skills, mcpServers };
+      snapshot = await this.runWithBusyOverlay(
+        {
+          title: ttui('tui.sessionLoading.extensions'),
+          detail: ttui('tui.sessionLoading.extensions'),
+          phase: 'working',
+        },
+        async () => {
+          const [plugins, skills, mcpServers] = await Promise.all([
+            session.listPlugins().catch(() => []),
+            session.listSkills().catch(() => []),
+            session.listMcpServers().catch(() => []),
+          ]);
+          return { plugins, skills, mcpServers };
+        },
+      );
     } catch (error) {
       this.showError(`확장 목록 불러오기 실패: ${formatErrorMessage(error)}`);
       // Still open empty modal so operators can reach Claude import (i).
     }
 
+    this.state.activeDialog = 'extensions';
     this.mountEditorReplacement(
       new ExtensionsModalComponent({
         snapshot,
@@ -4130,6 +4370,10 @@ export class LioraTUI {
     readonly closeOnCancel: boolean;
     readonly forwardEditorExit: boolean;
   }): Promise<void> {
+    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
+      this.showError(ttui('tui.sessionLoading.busy'));
+      return;
+    }
     this.sessionPickerOptions = options;
     await this.fetchSessions('cwd');
     this.mountSessionPicker({

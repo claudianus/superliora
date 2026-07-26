@@ -77,6 +77,7 @@ export interface TUIState {
   activeDialog:
     | 'session-picker'
     | 'agent-dashboard'
+    | 'session-loading'
     | 'extensions'
     | 'help'
     | 'files'

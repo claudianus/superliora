@@ -21,11 +21,12 @@ import type { TodoItem } from '../components/chrome/todo-panel';
 import type {
   AppState,
   BackgroundAgentMetadata,
+  ToolCallBlockData,
   ToolResultBlockData,
   TranscriptEntry,
 } from '../types';
 import { formatErrorMessage, isTodoItemShape } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { flushSuppressedTUIFrame, requestTUILayoutRender } from '../utils/frame-render';
 import { formatBackgroundAgentTranscript } from '../utils/background-agent-status';
 import { formatBackgroundTaskTranscript } from '../utils/background-task-status';
 import { buildGoalCompletionMessage } from '../utils/goal-completion';
@@ -41,6 +42,7 @@ import {
   isTerminalBackgroundTask,
   limitReplayRecordsByTurn,
   pluginCommandFromOrigin,
+  REPLAY_MAX_TOOL_MOUNTS_PER_TURN,
   REPLAY_TURN_LIMIT,
   replayBackgroundProjection,
   replayEntry,
@@ -65,6 +67,14 @@ type CompactionReplayRecord = Extract<AgentReplayRecord, { type: 'compaction' }>
 type AgentEventReplayRecord = Extract<AgentReplayRecord, { type: 'agent_event' }>;
 type GoalReplayLifecycleChange = GoalChange & { readonly kind: 'lifecycle' };
 
+export interface SessionLoadingProgress {
+  readonly phase?: 'opening' | 'loading' | 'building' | 'finishing' | 'ready';
+  readonly progress?: number;
+  readonly detail?: string;
+  readonly sessionId?: string;
+  readonly title?: string;
+}
+
 export interface SessionReplayHost {
   state: TUIState;
   readonly streamingUI: StreamingUIController;
@@ -78,6 +88,17 @@ export interface SessionReplayHost {
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
   requireSession(): Session;
   showStatus(msg: string, severity?: 'info' | 'warning' | 'error'): void;
+  /** True while the session-loading editor modal is mounted. */
+  isSessionLoadingOverlayActive(): boolean;
+  beginSessionLoading(sessionId?: string): void;
+  reportSessionLoading(patch: SessionLoadingProgress): void;
+  endSessionLoading(): void;
+}
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
 }
 
 function extractBashTag(
@@ -100,8 +121,22 @@ export class SessionReplayRenderer {
   constructor(private readonly host: SessionReplayHost) {}
 
   async hydrateFromReplay(session: Session): Promise<boolean> {
-    this.host.setAppState({ isReplaying: true });
+    // Host may already own the loading modal (resume RPC). If not, open one here.
+    const ownsLoading = !this.host.isSessionLoadingOverlayActive();
+    if (ownsLoading) {
+      this.host.beginSessionLoading(session.id);
+    } else {
+      this.host.setAppState({ isReplaying: true });
+      this.host.reportSessionLoading({
+        phase: 'building',
+        sessionId: session.id,
+        detail: ttui('tui.sessionLoading.phase.building'),
+      });
+    }
+
     this.host.state.transcriptContainer.dismissIdleStage();
+    // Bulk-mount: defer per-child invalidate / frame thrash until the tree is built.
+    this.host.state.transcriptContainer.beginBatchMount();
     this.host.motionBeats.play({
       name: 'session_resume',
       title: 'Resuming session',
@@ -117,17 +152,37 @@ export class SessionReplayRenderer {
       }
 
       this.hydrateSnapshot(main);
-      this.renderRecords(main);
+      this.host.reportSessionLoading({
+        phase: 'building',
+        progress: 0.45,
+        detail: ttui('tui.sessionLoading.phase.building'),
+      });
+      await this.renderRecords(main);
       this.applyTerminalBackgroundAgentStatuses(main);
+      this.host.reportSessionLoading({
+        phase: 'finishing',
+        progress: 0.92,
+        detail: ttui('tui.sessionLoading.phase.finishing'),
+      });
       this.host.mergeAllTurnSteps();
       await this.autoResumeUltraworkIfNeeded(session);
+      this.host.reportSessionLoading({
+        phase: 'ready',
+        progress: 1,
+        detail: ttui('tui.sessionLoading.phase.ready'),
+      });
       return true;
     } catch (error) {
       const message = formatErrorMessage(error);
       this.host.showError(`Failed to replay session history: ${message}`);
       return false;
     } finally {
-      this.host.setAppState({ isReplaying: false });
+      this.host.state.transcriptContainer.endBatchMount();
+      // One layout pass after the batch (mid-hydrate frames were suppressed).
+      flushSuppressedTUIFrame(this.host.state, 'layout');
+      if (ownsLoading) {
+        this.host.endSessionLoading();
+      }
     }
   }
 
@@ -214,10 +269,26 @@ export class SessionReplayRenderer {
   // Record rendering
   // ---------------------------------------------------------------------------
 
-  private renderRecords(agent: ResumedAgentState): void {
+  private async renderRecords(agent: ResumedAgentState): Promise<void> {
     const context = createReplayRenderContext();
-    for (const record of limitReplayRecordsByTurn(agent.replay, REPLAY_TURN_LIMIT)) {
-      this.renderRecord(context, record);
+    const records = limitReplayRecordsByTurn(agent.replay, REPLAY_TURN_LIMIT);
+    const total = records.length;
+    for (let index = 0; index < total; index++) {
+      this.renderRecord(context, records[index]!);
+      // Yield + progress so the loading modal can paint and the event loop
+      // is not starved for the entire synchronous mount of large histories.
+      if (total > 0 && (index === 0 || index === total - 1 || (index + 1) % 12 === 0)) {
+        const fraction = 0.45 + (0.45 * (index + 1)) / total;
+        this.host.reportSessionLoading({
+          phase: 'building',
+          progress: fraction,
+          detail: ttui('tui.sessionLoading.progress', {
+            current: index + 1,
+            total,
+          }),
+        });
+        await yieldToEventLoop();
+      }
     }
     this.flushAssistant(context);
     this.cleanupRuntime(context);
@@ -396,12 +467,28 @@ export class SessionReplayRenderer {
     const { streamingUI } = this.host;
     context.stepIndex += 1;
     this.applyStepContext(context);
+
+    // Prefer the newest tools when a single assistant step exceeds the mount budget.
+    // Older excess tools stay registered for result bookkeeping but skip UI mount.
+    const remaining = Math.max(0, REPLAY_MAX_TOOL_MOUNTS_PER_TURN - context.mountedToolCountThisTurn);
+    const parsed: ToolCallBlockData[] = [];
     for (const rawToolCall of toolCalls) {
       const toolCall = toolCallFromReplayMessage(rawToolCall, context);
       if (toolCall === undefined) continue;
       context.toolCalls.set(toolCall.id, toolCall);
+      parsed.push(toolCall);
+    }
+    const mountFrom = remaining >= parsed.length ? 0 : parsed.length - remaining;
+    for (let i = 0; i < parsed.length; i++) {
+      const toolCall = parsed[i]!;
       streamingUI.setActiveToolCall(toolCall.id, toolCall);
+      if (i < mountFrom) {
+        context.suppressedToolCountThisTurn += 1;
+        continue;
+      }
       streamingUI.onToolCallStart(toolCall);
+      context.mountedToolCallIds.add(toolCall.id);
+      context.mountedToolCountThisTurn += 1;
     }
   }
 
@@ -418,16 +505,36 @@ export class SessionReplayRenderer {
     };
     call.result = result;
     this.applyStepContext(context);
-    this.host.streamingUI.onToolCallEnd(toolCallId, result);
+    // Skipped mounts never created a component; still clear active-tool bookkeeping.
+    if (context.mountedToolCallIds.has(toolCallId)) {
+      this.host.streamingUI.onToolCallEnd(toolCallId, result);
+    }
     this.host.streamingUI.removeActiveToolCall(toolCallId);
     context.completedToolCallIds.add(toolCallId);
   }
 
   private advanceTurn(context: ReplayRenderContext): void {
+    this.flushSuppressedToolNotice(context);
     context.turnIndex += 1;
     context.stepIndex = 0;
+    context.mountedToolCountThisTurn = 0;
+    context.suppressedToolCountThisTurn = 0;
     context.currentTurnId = `replay:${String(context.turnIndex)}`;
     this.applyStepContext(context);
+  }
+
+  private flushSuppressedToolNotice(context: ReplayRenderContext): void {
+    if (context.suppressedToolCountThisTurn <= 0) return;
+    const n = context.suppressedToolCountThisTurn;
+    context.suppressedToolCountThisTurn = 0;
+    this.host.appendTranscriptEntry(
+      replayEntry(
+        context,
+        'status',
+        `… ${String(n)} earlier tool step${n === 1 ? '' : 's'} hidden (history cap)`,
+        'notice',
+      ),
+    );
   }
 
   private applyStepContext(context: ReplayRenderContext): void {
@@ -456,6 +563,7 @@ export class SessionReplayRenderer {
 
   private cleanupRuntime(context: ReplayRenderContext): void {
     this.flushAssistant(context);
+    this.flushSuppressedToolNotice(context);
     this.host.streamingUI.cleanupAfterReplay(context.completedToolCallIds);
   }
 

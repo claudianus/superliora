@@ -18,6 +18,8 @@ import type { SessionEventHandler } from '#/tui/controllers/session-event-handle
 import type { StreamingUIController } from '#/tui/controllers/streaming-ui';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
+import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { REPLAY_MAX_TOOL_MOUNTS_PER_TURN } from '#/tui/utils/message-replay';
 
 vi.mock('#/utils/open-url', () => ({ openUrl: vi.fn() }));
 
@@ -35,6 +37,7 @@ interface ReplayDriver {
   readonly sessionEventHandler: SessionEventHandler;
   init(): Promise<boolean>;
   switchToSession(session: Session, statusMessage: string): Promise<void>;
+  isSessionLoadingOverlayActive(): boolean;
 }
 
 function makeStartupInput(): LioraTUIStartupInput {
@@ -1186,5 +1189,61 @@ describe('LioraTUI resume message replay', () => {
     expect(transcript).toContain('replay final approved plan');
     expect(transcript).not.toContain('Plan rejected by user.');
     expect(transcript).not.toContain('Plan mode: OFF');
+  });
+
+  it('caps tool mounts within a single long-running replayed turn', async () => {
+    const toolCount = REPLAY_MAX_TOOL_MOUNTS_PER_TURN + 12;
+    const tools = Array.from({ length: toolCount }, (_, index) =>
+      toolCall(`call_${index}`, 'Bash', { command: `echo ${index}` }),
+    );
+    const results = tools.map((tool, index) =>
+      message('tool', [{ type: 'text', text: `out ${index}` }], { toolCallId: tool.id }),
+    );
+    const driver = await replayIntoDriver([
+      message('user', [{ type: 'text', text: 'run many tools' }]),
+      message('assistant', [{ type: 'text', text: 'working' }], { toolCalls: tools }),
+      ...results,
+    ]);
+
+    const mountedTools = driver.state.transcriptContainer.children.filter(
+      (child) => child instanceof ToolCallComponent,
+    );
+    // Mount budget caps the storm, then mergeAllTurnSteps collapses older steps
+    // into a summary — so the live tree stays well under the raw tool count.
+    expect(mountedTools.length).toBeLessThanOrEqual(REPLAY_MAX_TOOL_MOUNTS_PER_TURN);
+    expect(mountedTools.length).toBeLessThan(toolCount);
+    expect(mountedTools.length).toBeGreaterThan(0);
+    // Newest tools are kept (last window of the storm).
+    const rendered = driver.state.transcriptContainer.render(120).join('\n');
+    expect(rendered).toContain(`echo ${toolCount - 1}`);
+    expect(rendered).not.toContain('echo 0');
+    expect(
+      driver.state.transcriptEntries.some(
+        (entry) =>
+          entry.kind === 'status' &&
+          entry.content.includes('earlier tool step') &&
+          entry.content.includes(String(toolCount - REPLAY_MAX_TOOL_MOUNTS_PER_TURN)),
+      ),
+    ).toBe(true);
+    expect(driver.state.appState.isReplaying).toBe(false);
+  });
+
+  it('finishes hydrate batch mount so later appends invalidate normally', async () => {
+    const driver = await replayIntoDriver([
+      message('user', [{ type: 'text', text: 'hello' }]),
+      message('assistant', [{ type: 'text', text: 'hi' }]),
+    ]);
+    expect(driver.state.transcriptContainer.isBatchMounting).toBe(false);
+    expect(driver.state.appState.isReplaying).toBe(false);
+  });
+
+  it('clears session loading overlay after hydrate completes', async () => {
+    const driver = await replayIntoDriver([
+      message('user', [{ type: 'text', text: 'hello' }]),
+      message('assistant', [{ type: 'text', text: 'hi' }]),
+    ]);
+    expect(driver.isSessionLoadingOverlayActive()).toBe(false);
+    expect(driver.state.activeDialog).not.toBe('session-loading');
+    expect(driver.state.appState.isReplaying).toBe(false);
   });
 });

@@ -144,7 +144,7 @@ export class AssistantMessageComponent implements Component {
             : currentTheme.fg('text', STATUS_BULLET);
         // Reserve a column for the pulsing caret while streaming so it does not
         // get truncated off the end of the last content line.
-        const caretReserve = streaming ? 1 : 0;
+        const caretReserve = streaming ? 3 : 0;
         const contentWidth = Math.max(
           1,
           measureRendererTranscriptContentWidth({ width: safeWidth, prefix }) - caretReserve,
@@ -181,26 +181,31 @@ function caretActive(): boolean {
   return resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences()) !== 'off';
 }
 
-/** A pulsing caret block appended to the last content line while streaming. */
-const STREAMING_CARET = '▍';
-const CARET_PULSE_INTERVAL_MS = 560;
+/** Kinetic caret — block + dual spark trail so catch-up is impossible to miss. */
+const STREAMING_CARET = '▌';
+const CARET_PULSE_INTERVAL_MS = 280;
+const CARET_TRAIL = ['·', '˙', '˚', '•'] as const;
+const CARET_TRAIL_OUTER = ['˙', '·', '˚'] as const;
 
 /**
- * Append a pulsing caret to the last non-empty content line. The caret fades
- * in and out via a triangle wave on the shared animation clock, signalling
- * that the assistant is actively composing.
+ * Append a pulsing caret (+ dual micro trail) to the last non-empty content line.
+ * Triangle-wave brand glow on the shared animation clock.
  */
 function appendStreamingCaret(lines: readonly string[], _contentWidth: number): readonly string[] {
   if (lines.length === 0) return lines;
-  // Find the last line with visible content.
   let lastIndex = lines.length - 1;
   while (lastIndex > 0 && lines[lastIndex]!.trim().length === 0) {
     lastIndex--;
   }
-  const phase = (Math.sin(appearanceAnimationNow() / CARET_PULSE_INTERVAL_MS * Math.PI) + 1) / 2;
-  const token = phase > 0.5 ? 'gradientStart' : 'textDim';
-  const caret = currentTheme.boldFg(token, STREAMING_CARET);
+  const now = appearanceAnimationNow();
+  const phase = (Math.sin((now / CARET_PULSE_INTERVAL_MS) * Math.PI) + 1) / 2;
+  const hot = phase > 0.48;
+  const caret = currentTheme.boldFg(hot ? 'glow' : 'gradientStart', STREAMING_CARET);
+  const trailGlyph = CARET_TRAIL[Math.floor(now / 70) % CARET_TRAIL.length] ?? '·';
+  const outerGlyph = CARET_TRAIL_OUTER[Math.floor(now / 95) % CARET_TRAIL_OUTER.length] ?? '˙';
+  const trail = currentTheme.fg(hot ? 'primary' : 'particle', trailGlyph);
+  const outer = currentTheme.fg(hot ? 'glow' : 'primary', outerGlyph);
   const next = [...lines];
-  next[lastIndex] = `${lines[lastIndex]}${caret}`;
+  next[lastIndex] = `${lines[lastIndex]}${outer}${trail}${caret}`;
   return next;
 }

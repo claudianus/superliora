@@ -11,6 +11,7 @@ import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/lior
 import { isAbortError } from '../utils/errors';
 import { formatErrorMessage } from '../utils/event-payload';
 import { buildExportMarkdown } from '../utils/export-markdown';
+import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 
 // ---------------------------------------------------------------------------
@@ -52,35 +53,46 @@ export async function handleForkCommand(host: SlashCommandHost, args: string): P
     host.showError(NO_ACTIVE_SESSION_MESSAGE);
     return;
   }
-
-  const parsed = parseForkArgs(args);
-  const sourceTitle = forkSourceTitle(host, session);
-  let forked: Session;
-  try {
-    forked = await host.harness.forkSession({
-      id: session.id,
-      title: `Fork: ${sourceTitle}`,
-      worktree: parsed.worktree,
-    });
-  } catch (error) {
-    const msg = formatErrorMessage(error);
-    host.showError(`Failed to fork session: ${msg}`);
+  if (host.isSessionLoadingOverlayActive()) {
+    host.showError(ttui('tui.sessionLoading.busy'));
     return;
   }
 
-  const worktreeNote =
-    parsed.worktree === undefined
-      ? ''
-      : ` Worktree: ${forked.workDir}`;
+  const parsed = parseForkArgs(args);
+  const sourceTitle = forkSourceTitle(host, session);
+  const originalId = session.id;
 
   try {
-    await host.switchToSession(
-      forked,
-      `Session forked (${forked.id}).${worktreeNote} To return to the original session: liora -r ${session.id}`,
+    await host.runWithBusyOverlay(
+      {
+        title: ttui('tui.sessionLoading.forking'),
+        detail: ttui('tui.sessionLoading.forking'),
+        phase: 'working',
+        sessionId: originalId,
+      },
+      async () => {
+        const forked = await host.harness.forkSession({
+          id: originalId,
+          title: `Fork: ${sourceTitle}`,
+          worktree: parsed.worktree,
+        });
+        const worktreeNote =
+          parsed.worktree === undefined ? '' : ` Worktree: ${forked.workDir}`;
+        host.reportSessionLoading({
+          phase: 'loading',
+          progress: 0.35,
+          sessionId: forked.id,
+          detail: ttui('tui.sessionLoading.phase.loading'),
+        });
+        await host.switchToSession(
+          forked,
+          `Session forked (${forked.id}).${worktreeNote} To return to the original session: liora -r ${originalId}`,
+        );
+      },
     );
   } catch (error) {
     const msg = formatErrorMessage(error);
-    host.showError(`Failed to switch to forked session: ${msg}`);
+    host.showError(`Failed to fork session: ${msg}`);
   }
 }
 
@@ -127,45 +139,58 @@ export async function handleExportMdCommand(host: SlashCommandHost, args: string
     host.showError(NO_ACTIVE_SESSION_MESSAGE);
     return;
   }
+  if (host.isSessionLoadingOverlayActive()) {
+    host.showError(ttui('tui.sessionLoading.busy'));
+    return;
+  }
 
-  host.showStatus('Exporting session as Markdown…');
   try {
-    let trace: SessionTrace | undefined;
-    try {
-      trace = await session.getSessionTrace();
-    } catch {
-      trace = undefined;
-    }
-    const context = trace?.context ?? await session.getContext();
-    if (context.history.length === 0) {
-      host.showError('No messages to export.');
-      return;
-    }
+    await host.runWithBusyOverlay(
+      {
+        title: ttui('tui.sessionLoading.exporting'),
+        detail: ttui('tui.sessionLoading.exporting'),
+        phase: 'working',
+        sessionId: session.id,
+      },
+      async () => {
+        let trace: SessionTrace | undefined;
+        try {
+          trace = await session.getSessionTrace();
+        } catch {
+          trace = undefined;
+        }
+        const context = trace?.context ?? await session.getContext();
+        if (context.history.length === 0) {
+          host.showError('No messages to export.');
+          return;
+        }
 
-    const now = new Date();
-    const shortId = session.id.slice(0, 8);
-    const timestamp = now.toISOString().replaceAll(/[-:]/g, '').replace(/T/, '-').slice(0, 15);
-    const defaultName = `kimi-export-${shortId}-${timestamp}.md`;
+        const now = new Date();
+        const shortId = session.id.slice(0, 8);
+        const timestamp = now.toISOString().replaceAll(/[-:]/g, '').replace(/T/, '-').slice(0, 15);
+        const defaultName = `kimi-export-${shortId}-${timestamp}.md`;
 
-    const trimmedArgs = args.trim();
-    const outputPath = trimmedArgs.length > 0
-      ? resolve(trimmedArgs)
-      : resolve(host.state.appState.workDir, defaultName);
+        const trimmedArgs = args.trim();
+        const outputPath = trimmedArgs.length > 0
+          ? resolve(trimmedArgs)
+          : resolve(host.state.appState.workDir, defaultName);
 
-    const md = buildExportMarkdown({
-      sessionId: session.id,
-      workDir: host.state.appState.workDir,
-      history: context.history,
-      tokenCount: context.tokenCount,
-      now,
-      trace,
-    });
+        const md = buildExportMarkdown({
+          sessionId: session.id,
+          workDir: host.state.appState.workDir,
+          history: context.history,
+          tokenCount: context.tokenCount,
+          now,
+          trace,
+        });
 
-    await mkdir(dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, md, 'utf-8');
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, md, 'utf-8');
 
-    const linked = toTerminalHyperlink(outputPath, pathToFileURL(outputPath).href);
-    host.showNotice(`Exported ${String(context.history.length)} messages`, linked);
+        const linked = toTerminalHyperlink(outputPath, pathToFileURL(outputPath).href);
+        host.showNotice(`Exported ${String(context.history.length)} messages`, linked);
+      },
+    );
   } catch (error) {
     const msg = formatErrorMessage(error);
     host.showError(`Failed to export session: ${msg}`);
@@ -178,20 +203,33 @@ export async function handleExportDebugZipCommand(host: SlashCommandHost): Promi
     host.showError(NO_ACTIVE_SESSION_MESSAGE);
     return;
   }
+  if (host.isSessionLoadingOverlayActive()) {
+    host.showError(ttui('tui.sessionLoading.busy'));
+    return;
+  }
 
-  host.showStatus('Exporting session…');
   try {
-    const installSource = await detectInstallSource();
-    const shellEnv = detectShellEnvironment();
-    const result = await host.harness.exportSession({
-      id: session.id,
-      version: host.state.appState.version,
-      installSource,
-      shellEnv,
-      includeGlobalLog: true,
-    });
-    const linked = toTerminalHyperlink(result.zipPath, pathToFileURL(result.zipPath).href);
-    host.showNotice('Export complete', linked);
+    await host.runWithBusyOverlay(
+      {
+        title: ttui('tui.sessionLoading.exporting'),
+        detail: ttui('tui.sessionLoading.exporting'),
+        phase: 'working',
+        sessionId: session.id,
+      },
+      async () => {
+        const installSource = await detectInstallSource();
+        const shellEnv = detectShellEnvironment();
+        const result = await host.harness.exportSession({
+          id: session.id,
+          version: host.state.appState.version,
+          installSource,
+          shellEnv,
+          includeGlobalLog: true,
+        });
+        const linked = toTerminalHyperlink(result.zipPath, pathToFileURL(result.zipPath).href);
+        host.showNotice('Export complete', linked);
+      },
+    );
   } catch (error) {
     const msg = formatErrorMessage(error);
     host.showError(`Failed to export session: ${msg}`);

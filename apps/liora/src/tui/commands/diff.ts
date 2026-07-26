@@ -5,39 +5,56 @@
  */
 
 import { collectGitDiff } from '#/utils/git/git-diff';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 
 export function showDiff(host: SlashCommandHost, args?: string): void {
-  const report = collectGitDiff(host.state.appState.workDir);
-  if (report === null) {
-    host.showError('Not a git repository — /diff needs a working tree.');
+  if (host.isSessionLoadingOverlayActive()) {
+    host.showError(ttui('tui.sessionLoading.busy'));
     return;
   }
-
-  const filter = (args ?? '').trim();
-  const files =
-    filter.length === 0
-      ? report.files
-      : report.files.filter(
-          (file) => file.path.includes(filter) || (file.oldPath?.includes(filter) ?? false),
-        );
-
-  if (filter.length > 0 && files.length === 0) {
-    host.showStatus(`No working-tree changes match "${filter}".`);
-    return;
-  }
-
-  const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
-  const totalDeleted = files.reduce((sum, file) => sum + file.deleted, 0);
-
-  host.showDiffReview(
+  void host.runWithBusyOverlay(
     {
-      branch: report.branch,
-      files,
-      totalAdded,
-      totalDeleted,
-      truncated: report.truncated,
+      title: ttui('tui.sessionLoading.diffing'),
+      detail: ttui('tui.sessionLoading.diffing'),
+      phase: 'working',
     },
-    filter,
+    async () => {
+      // Yield so the premium overlay paints before the sync git walk.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const report = collectGitDiff(host.state.appState.workDir);
+      if (report === null) {
+        host.showError('Not a git repository — /diff needs a working tree.');
+        return;
+      }
+
+      const filter = (args ?? '').trim();
+      const files =
+        filter.length === 0
+          ? report.files
+          : report.files.filter(
+              (file) =>
+                file.path.includes(filter) || (file.oldPath?.includes(filter) ?? false),
+            );
+
+      if (filter.length > 0 && files.length === 0) {
+        host.showStatus(`No working-tree changes match "${filter}".`);
+        return;
+      }
+
+      const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
+      const totalDeleted = files.reduce((sum, file) => sum + file.deleted, 0);
+
+      host.showDiffReview(
+        {
+          branch: report.branch,
+          files,
+          totalAdded,
+          totalDeleted,
+          truncated: report.truncated,
+        },
+        filter,
+      );
+    },
   );
 }

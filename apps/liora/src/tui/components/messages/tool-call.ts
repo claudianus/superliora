@@ -558,6 +558,7 @@ export class ToolCallComponent extends Container {
   // parent tool call resolves.
   private subagentAgentId: string | undefined;
   private subagentAgentName: string | undefined;
+  private subagentModelAlias: string | undefined;
   private readonly ongoingSubCalls = new Map<string, OngoingSubCall>();
   private readonly finishedSubCalls: FinishedSubCall[] = [];
   private readonly subToolActivities = new Map<string, SubToolActivity>();
@@ -1115,9 +1116,11 @@ export class ToolCallComponent extends Container {
     agentId: string;
     agentName?: string | undefined;
     runInBackground: boolean;
+    modelAlias?: string | undefined;
   }): void {
     this.subagentAgentId = meta.agentId;
     this.subagentAgentName = meta.agentName;
+    this.subagentModelAlias = meta.modelAlias;
     this.subagentPhase = meta.runInBackground ? 'backgrounded' : 'queued';
     this.subagentStartedAtMs = Date.now();
     this.subagentEndedAtMs = undefined;
@@ -1871,12 +1874,18 @@ export class ToolCallComponent extends Container {
         : rawDescription;
     const descriptionPlain = description.length > 0 ? ` (${description})` : '';
     const descriptionText = descriptionPlain.length > 0 ? currentTheme.dim(descriptionPlain) : '';
+    const modelPlain =
+      this.subagentModelAlias !== undefined && this.subagentModelAlias.length > 0
+        ? ` · ${this.subagentModelAlias}`
+        : '';
+    const modelText =
+      modelPlain.length > 0 ? currentTheme.fg('glow', modelPlain) : '';
     const statsText = this.formatSingleSubagentStatsText();
     if (isDone) {
-      return `${marker}${currentTheme.boldFg('success', labelText)} ${currentTheme.fg('success', `Completed${descriptionPlain}${statsText}`)}`;
+      return `${marker}${currentTheme.boldFg('success', labelText)} ${currentTheme.fg('success', `Completed${descriptionPlain}${modelPlain}${statsText}`)}`;
     }
     const stats = currentTheme.dim(statsText);
-    return `${marker}${label} ${status}${descriptionText}${stats}`;
+    return `${marker}${label} ${status}${descriptionText}${modelText}${stats}`;
   }
 
   private buildSingleSubagentMarker(phase: SubagentPhase | undefined): string {

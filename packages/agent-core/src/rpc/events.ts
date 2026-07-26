@@ -26,6 +26,7 @@ export type {
   ProviderRouteCandidateStatus,
   ProviderRouteFailureKind,
   ProviderRouteRateLimitStatus,
+  ProviderRouteSelection,
   ProviderRouteStatus,
   SessionCreatedEvent,
   SessionMetaUpdatedEvent,

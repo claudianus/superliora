@@ -14,6 +14,7 @@ export * from './dialogs/model-selector';
 export * from './dialogs/permission-selector';
 export * from './dialogs/question-dialog';
 export * from './dialogs/session-picker';
+export * from './dialogs/session-loading-overlay';
 export * from './dialogs/agent-dashboard';
 export * from './dialogs/extensions-modal';
 export * from './dialogs/settings-selector';
