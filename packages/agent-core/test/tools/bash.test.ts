@@ -1274,6 +1274,25 @@ describe('BashTool', () => {
   });
 
 
+  it('rejects php/perl file-read one-liners', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const php = await executeTool(
+      tool,
+      context({ command: "php -r \"echo file_get_contents('src/a.ts');\"", timeout: 60 }),
+    );
+    expect(php).toMatchObject({ isError: true });
+    expect(String(php.output)).toContain('Read');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const perl = await executeTool(
+      tool,
+      context({ command: "perl -ne 'print' src/a.ts", timeout: 60 }),
+    );
+    expect(perl).toMatchObject({ isError: true });
+    expect(String(perl.output)).toContain('Read');
+  });
+
   it('rejects python/node file-read one-liners', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
