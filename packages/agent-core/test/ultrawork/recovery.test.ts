@@ -781,6 +781,62 @@ describe('Ultrawork recovery', () => {
       expect.stringContaining('<ultrawork_post_swarm>'),
       expect.objectContaining({ variant: 'ultrawork_post_swarm' }),
     );
+    const swarmText = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_swarm>'))?.[0] ??
+        '',
+    );
+    expect(swarmText).toContain('Run: run-integrate');
+    expect(swarmText).toContain('Objective:');
+    expect(swarmText).toContain('status=running');
+  });
+
+  it('includes pending WorkGraph nodes in post-swarm injection', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    const run = agent.ultrawork.create({
+      id: 'run-post-swarm-graph',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-post-swarm-graph',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-post-swarm-graph:work_graph',
+          runId: 'run-post-swarm-graph',
+          rootGoal: 'Ship feature',
+          nodes: [
+            {
+              id: 'node-1',
+              title: 'Integrate API',
+              stage: 'integrate',
+              status: 'running',
+            },
+          ],
+        },
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostSwarmContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_swarm>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('Pending WorkGraph nodes');
+    expect(text).toContain('node-1[running]');
+    expect(text).toContain('run-post-swarm-graph');
+    expect(run.id).toBe('run-post-swarm-graph');
   });
 
   it('injects post-compaction continuation for an active ultrawork run', () => {

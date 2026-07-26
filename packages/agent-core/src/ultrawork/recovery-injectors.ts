@@ -55,19 +55,37 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   const run = agent.ultrawork?.getRun();
   if (run === null || run === undefined || run.status !== 'running') return;
   if (run.stage !== 'integrate') return;
-  agent.context.appendSystemReminder(
-    [
-      '<ultrawork_post_swarm>',
-      'UltraSwarm finished. Continue this Ultrawork run in order:',
-      '1. Integrate — merge specialist output, resolve conflicts, pick an integration owner before more product edits.',
-      '2. Verify — mechanical + real-surface checks for acceptance criteria.',
-      '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
-      'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
-      'False-complete guard: UpdateGoal(complete) is rejected while WorkGraph is empty/incomplete or requiredEvidence lacks verificationStatus=passed. Keep working until audit passes — do not wait for the user to re-prompt.',
-      '</ultrawork_post_swarm>',
-    ].join('\n'),
-    { kind: 'injection', variant: 'ultrawork_post_swarm' },
+
+  const pendingNodes =
+    run.workGraph?.nodes.filter(
+      (node) => node.status !== 'done' && node.status !== 'cancelled',
+    ) ?? [];
+  const lines = [
+    '<ultrawork_post_swarm>',
+    'UltraSwarm finished. Continue this Ultrawork run in order:',
+    `Run: ${run.id} · stage=${run.stage} · status=${run.status}`,
+    `Objective: ${run.objective}`,
+    '1. Integrate — merge specialist output, resolve conflicts, pick an integration owner before more product edits.',
+    '2. Verify — mechanical + real-surface checks for acceptance criteria.',
+    '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
+  ];
+  if (pendingNodes.length > 0) {
+    lines.push(
+      `Pending WorkGraph nodes (${String(pendingNodes.length)}): ${pendingNodes
+        .slice(0, 4)
+        .map((node) => `${node.id}[${node.status}]`)
+        .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
+    );
+  }
+  lines.push(
+    'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
+    'False-complete guard: UpdateGoal(complete) is rejected while WorkGraph is empty/incomplete or requiredEvidence lacks verificationStatus=passed. Keep working until audit passes — do not wait for the user to re-prompt.',
+    '</ultrawork_post_swarm>',
   );
+  agent.context.appendSystemReminder(lines.join('\n'), {
+    kind: 'injection',
+    variant: 'ultrawork_post_swarm',
+  });
 }
 
 export function injectUltraworkPostCompactionContinuation(agent: Agent): void {

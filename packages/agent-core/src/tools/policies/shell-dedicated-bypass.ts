@@ -176,6 +176,25 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read (edit-ready bytes) or LioraRead (signatures/map/lines) instead of cat.',
     };
   }
+  // Windows cmd `type file` and PowerShell Get-Content single-file dumps
+  if (/^type(?:\s+\/[A-Za-z]+)*\s+\S+\s*$/i.test(command)) {
+    return {
+      prefer: 'Read',
+      pattern: 'type file',
+      message: 'Use Read instead of Windows `type` for file contents.',
+    };
+  }
+  if (
+    /^(?:Get-Content|gc)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /\s\S+\s*$/.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'Get-Content file',
+      message: 'Use Read instead of PowerShell Get-Content for file contents.',
+    };
+  }
   // head/tail [flags] path — not head of a pipeline (+ busybox/ghead/gtail)
   // Flags may take a following value token: head -n 20 file, tail -50 file, head -n20 file
   if (

@@ -200,7 +200,13 @@ describe('Liora lean context tools', () => {
       { length: 100 },
       (_, i) => `[warn] src/a${String(i)}.ts Code style issues found`,
     ).join('\n');
-    for (const command of ['prettier --check .', 'black --check .', 'cargo fmt --check']) {
+    for (const command of [
+      'prettier --check .',
+      'black --check .',
+      'cargo fmt --check',
+      'gofmt -l .',
+      'clang-format --dry-run src/a.c',
+    ]) {
       const compressed = compressShellOutput({
         stdout,
         stderr: '',

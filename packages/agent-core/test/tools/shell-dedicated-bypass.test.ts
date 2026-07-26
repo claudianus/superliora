@@ -196,6 +196,14 @@ describe('detectShellDedicatedBypass', () => {
     ).toBe('Write');
   });
 
+  it('blocks Windows type/Get-Content single-file dumps', () => {
+    expect(detectShellDedicatedBypass('type src\\a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gc src/a.ts')?.prefer).toBe('Read');
+    // pipelines stay allowed
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts | Select-Object -First 5')).toBeUndefined();
+  });
+
   it('blocks simple cp workspace copies but allows mv and recursive cp', () => {
     expect(detectShellDedicatedBypass('cp src/a.ts dest/a.ts')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('cp -p src/a.ts dest/a.ts')?.prefer).toBe('Write');
