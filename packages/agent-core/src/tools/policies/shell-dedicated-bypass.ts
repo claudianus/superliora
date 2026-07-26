@@ -147,6 +147,36 @@ function stripLeadingShellUtilityWrappers(command: string): string {
     else if (/^nohup\s+/.test(next)) {
       next = next.replace(/^nohup\s+/, '').trimStart();
     }
+    // `powershell -Command …` / `pwsh -c '…'` — unwrap one-shot script hosts so
+    // dedicated-tool detection still prefers Read/Write for simple file I/O.
+    // Interactive/session hosts without -Command/-c stay allowed.
+    else if (/^(?:powershell(?:\.exe)?|pwsh(?:\.exe)?)\b/i.test(next)) {
+      const m =
+        /^(?:powershell(?:\.exe)?|pwsh(?:\.exe)?)\b(?:\s+(?!(?:-Command|-c)\b)\S+)*\s+(?:-Command|-c)\s+(.+)$/i.exec(
+          next,
+        );
+      if (m?.[1] !== undefined) {
+        let inner = m[1].trim();
+        if (
+          (inner.startsWith('"') && inner.endsWith('"') && inner.length >= 2) ||
+          (inner.startsWith("'") && inner.endsWith("'") && inner.length >= 2)
+        ) {
+          inner = inner.slice(1, -1).trim();
+        }
+        if (inner.length > 0) next = inner;
+      }
+    }
+    // `cmd /c type file` / `cmd.exe /C "Get-Content a.ts"` — unwrap one-shot cmd.
+    else if (/^cmd(?:\.exe)?\s+\/[cC]\s+/.test(next)) {
+      let inner = next.replace(/^cmd(?:\.exe)?\s+\/[cC]\s+/i, '').trim();
+      if (
+        (inner.startsWith('"') && inner.endsWith('"') && inner.length >= 2) ||
+        (inner.startsWith("'") && inner.endsWith("'") && inner.length >= 2)
+      ) {
+        inner = inner.slice(1, -1).trim();
+      }
+      if (inner.length > 0) next = inner;
+    }
     if (next === before) break;
   }
   return next.trim();
@@ -181,8 +211,8 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read (edit-ready bytes) or LioraRead (signatures/map/lines) instead of cat.',
     };
   }
-  // Windows cmd `type file` and PowerShell Get-Content single-file dumps
-  if (/^type(?:\s+\/[A-Za-z]+)*\s+\S+\s*$/i.test(command)) {
+  // Windows cmd `type file` / `type.exe file` and PowerShell Get-Content single-file dumps
+  if (/^type(?:\.exe)?(?:\s+\/[A-Za-z]+)*\s+\S+\s*$/i.test(command)) {
     return {
       prefer: 'Read',
       pattern: 'type file',

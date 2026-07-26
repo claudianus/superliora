@@ -388,6 +388,26 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('timeout 5 pnpm test')).toBeUndefined();
   });
 
+  it('strips powershell/pwsh/cmd one-shot wrappers for file I/O', () => {
+    expect(detectShellDedicatedBypass('powershell -Command Get-Content src/a.ts')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass('powershell.exe -NoProfile -Command Get-Content src/a.ts')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass("pwsh -c 'Get-Content src/a.ts'")?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('pwsh -Command "Set-Content out.txt -Value hello"')?.prefer).toBe(
+      'Write',
+    );
+    expect(detectShellDedicatedBypass('cmd /c type src\\a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cmd.exe /C "type src\\a.ts"')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('type.exe src\\a.ts')?.prefer).toBe('Read');
+    // interactive hosts / non-file work stay allowed
+    expect(detectShellDedicatedBypass('powershell')).toBeUndefined();
+    expect(detectShellDedicatedBypass('pwsh -NoProfile')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cmd /c pnpm test')).toBeUndefined();
+  });
+
   it('blocks jq/yq/json.tool whole-file dumps', () => {
     expect(detectShellDedicatedBypass('jq . package.json')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('yq . config.yaml')?.prefer).toBe('Read');

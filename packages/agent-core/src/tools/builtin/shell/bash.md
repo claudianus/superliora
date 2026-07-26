@@ -29,7 +29,7 @@ Simple whole-command file I/O shapes are **rejected** at runtime — use dedicat
 - writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`, PowerShell `Set-Content`/`Out-File`/`Add-Content`/`Clear-Content`/`New-Item -ItemType File`/`Copy-Item` (simple two-path; `-Recurse` stays allowed)
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
 - search/list: `grep`/`rg`/`rg --files`/`ag`/`ack`/`ugrep`/`git grep`/`git ls-files`/`find`/`fd`/`fdfind`/`mdfind`/`locate`/`compgen -G`/`tree`/`ls -R`/`Select-String`/`findstr`/`Get-ChildItem -Recurse`/`Get-ChildItem -Name`/`dir /s`/`where /r`
-Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.
+Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`/`powershell -Command`/`pwsh -c`/`cmd /c`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.
 
 Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required (does **not** override sensitive-path hard blocks).
 
