@@ -6,7 +6,7 @@ Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, process
 - `echo > file` / heredoc / `sponge` / empty redirect → `Write`
 - simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
 - pattern find → `Glob` (plain `ls <dir>` OK)
-- `grep`/`rg` → `Grep`
+- `grep`/`rg`/`Select-String`/`findstr` → `Grep`
 - `jq`/`yq`/`python -m json.tool` whole-file dumps → `Read`
 - `git show <rev>:<path>` / `svn cat` / `hg cat` → `Read` (commit summaries stay OK)
 - talk to the user → text reply
@@ -28,7 +28,7 @@ Simple whole-command file I/O shapes are **rejected** at runtime — use dedicat
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
 - writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`, PowerShell `Set-Content`/`Out-File`/`Add-Content`
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
-- search: `grep`/`rg`/`find`
+- search: `grep`/`rg`/`find`/`Select-String`/`findstr`
 Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.
 
 Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required (does **not** override sensitive-path hard blocks).

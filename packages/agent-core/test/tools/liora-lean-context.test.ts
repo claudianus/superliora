@@ -311,6 +311,9 @@ describe('Liora lean context tools', () => {
       'fly logs',
       'vercel logs',
       'railway logs',
+      'gh run view 123',
+      'gh run list',
+      'gh api repos/owner/repo/actions/runs',
     ]) {
       const compressed = compressShellOutput({
         stdout,

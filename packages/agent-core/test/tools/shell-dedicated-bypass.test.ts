@@ -66,6 +66,14 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('grep -n foo src')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('rg "error" packages')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass("find . -name '*.ts'")?.prefer).toBe('Glob');
+    // Windows search utilities prefer Grep; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('Select-String -Path src -Pattern foo')?.prefer).toBe(
+      'Grep',
+    );
+    expect(detectShellDedicatedBypass('sls foo src/a.ts')?.prefer).toBe('Grep');
+    expect(detectShellDedicatedBypass('findstr foo src/a.ts')?.prefer).toBe('Grep');
+    expect(detectShellDedicatedBypass('findstr.exe /s /i foo *.ts')?.prefer).toBe('Grep');
+    expect(detectShellDedicatedBypass('Get-ChildItem | Select-String foo')).toBeUndefined();
   });
 
   it('blocks simple echo/printf/cat redirects to files', () => {

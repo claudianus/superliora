@@ -1076,6 +1076,22 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Grep (ripgrep-backed, workspace policy, capped output) instead of shell grep/rg.',
     };
   }
+  // Windows: Select-String / findstr whole-command searches → Grep.
+  // Pipelines already short-circuit via hasShellComposition.
+  if (/^(?:Select-String|sls)\b/i.test(command)) {
+    return {
+      prefer: 'Grep',
+      pattern: 'Select-String',
+      message: 'Use Grep instead of PowerShell Select-String for workspace search.',
+    };
+  }
+  if (/^findstr(?:\.exe)?\b/i.test(command)) {
+    return {
+      prefer: 'Grep',
+      pattern: 'findstr',
+      message: 'Use Grep instead of Windows findstr for workspace search.',
+    };
+  }
   return undefined;
 }
 
