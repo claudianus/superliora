@@ -52,6 +52,40 @@ describe('ultra-swarm budget kill helpers', () => {
     expect(xml).toContain('fileChangeCount');
   });
 
+  it('formatBudgetKillHandoff surfaces the last few round verdicts in a trail', () => {
+    const xml = formatBudgetKillHandoff({
+      reason: 'Budget governor: 3 consecutive rounds without high-signal progress',
+      phase: 'implement',
+      wastedRounds: 3,
+      killThreshold: 2,
+      lastRounds: [
+        { label: 'plan', wasted: false, evidenceCount: 1, toolSuccessCount: 2 },
+        { label: 'implement', wasted: true, evidenceCount: 0, toolSuccessCount: 0 },
+        { label: 'review', wasted: true, evidenceCount: 0, toolSuccessCount: 1 },
+        { label: 'implement-retry', wasted: true, evidenceCount: 0, toolSuccessCount: 0 },
+      ],
+      maxRounds: 3,
+    });
+    expect(xml).toContain('Last rounds:');
+    // Truncates to 3 newest, so plan should be dropped.
+    expect(xml).not.toContain('plan=productive');
+    expect(xml).toContain('implement=wasted');
+    expect(xml).toContain('review=wasted (tools 1)');
+    expect(xml).toContain('implement-retry=wasted');
+    // The bare wasted round carries no signal suffix.
+    expect(xml).not.toMatch(/implement=wasted \(/);
+  });
+
+  it('formatBudgetKillHandoff omits the trail when no history is provided', () => {
+    const xml = formatBudgetKillHandoff({
+      reason: 'Budget governor: 2 consecutive rounds without high-signal progress',
+      phase: 'review',
+      wastedRounds: 2,
+      killThreshold: 2,
+    });
+    expect(xml).not.toContain('Last rounds:');
+  });
+
   it('suggestSwarmBudgetKill + handoff compose the kill path contract', () => {
     let state = createSwarmBudgetState({ killThreshold: 2 });
     state = recordSwarmBudgetRound(state, { label: 'plan', evidenceIds: [] });

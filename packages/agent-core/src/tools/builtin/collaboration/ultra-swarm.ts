@@ -695,6 +695,12 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
           phase,
           wastedRounds: budgetSuggestion.wastedRounds,
           killThreshold: budgetSuggestion.killThreshold,
+          lastRounds: budgetState.history.map((round) => ({
+            label: round.label,
+            wasted: round.wasted,
+            evidenceCount: round.evidenceCount,
+            toolSuccessCount: round.toolSuccessCount,
+          })),
         })}`;
         break;
       }
@@ -1532,16 +1538,43 @@ export function formatBudgetKillHandoff(input: {
   readonly phase: string;
   readonly wastedRounds: number;
   readonly killThreshold: number;
+  /**
+   * Optional trail of the last few rounds (newest first) so the next session
+   * sees which phases were wasted vs productive without re-deriving from state.
+   * At most `maxRounds` entries are rendered; defaults to 3.
+   */
+  readonly lastRounds?: readonly {
+    readonly label?: string;
+    readonly wasted: boolean;
+    readonly evidenceCount: number;
+    readonly toolSuccessCount: number;
+  }[];
+  /** Cap on rendered lastRounds trail length (default 3, hard cap 8). */
+  readonly maxRounds?: number;
 }): string {
   const reason = input.reason.replace(/"/g, "'");
-  return [
+  const lines: string[] = [
     `<budget_kill reason="${reason}" phase="${input.phase}" ` +
       `wasted_rounds="${String(input.wastedRounds)}" ` +
       `threshold="${String(input.killThreshold)}" />`,
     'Budget governor stopped further UltraSwarm phases after consecutive low-signal rounds.',
     'Do not re-launch UltraSwarm for the same wasted pattern.',
     'Next: close verification gaps, attach requiredEvidence/artifactIds/fileChangeCount signal, integrate accepted handoffs, or re-scope — then re-staff only if the plan changed.',
-  ].join('\n');
+  ];
+  if (input.lastRounds !== undefined && input.lastRounds.length > 0) {
+    const cap = Math.max(1, Math.min(input.maxRounds ?? 3, 8));
+    const trail = input.lastRounds.slice(-cap).map((round) => {
+      const verdict = round.wasted ? 'wasted' : 'productive';
+      const label = round.label !== undefined && round.label.length > 0 ? round.label : 'round';
+      const signals: string[] = [];
+      if (round.evidenceCount > 0) signals.push(`evidence ${String(round.evidenceCount)}`);
+      if (round.toolSuccessCount > 0) signals.push(`tools ${String(round.toolSuccessCount)}`);
+      const sig = signals.length > 0 ? ` (${signals.join(', ')})` : '';
+      return `${label}=${verdict}${sig}`;
+    });
+    lines.push(`Last rounds: ${trail.join(' → ')}.`);
+  }
+  return lines.join('\n');
 }
 
 // ── Debate risk assessment helpers ────────────────────────────────────
