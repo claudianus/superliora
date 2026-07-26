@@ -1,16 +1,16 @@
-
-import type { Message } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import {
+  DefaultCompactionStrategy,
   DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
-  DEFAULT_ASYNC_WORKING_SET_TOKENS,
   DEFAULT_COMPACTION_BLOCK_RATIO,
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_COMPACTION_TRIGGER_RATIO,
+  DEFAULT_FROZEN_ZONE_SIZE,
   DEFAULT_MAX_WORKING_SET_TOKENS,
   DEFAULT_MICRO_WORKING_SET_TOKENS,
-  DefaultCompactionStrategy,
+  SWARM_HANDOFF_COMPACTION_RATIO,
+  SWARM_MICRO_PRESSURE_RATIO,
   applyWorkingSetCap,
   defaultAsyncTriggerRatioForWindow,
   defaultAsyncWorkingSetTokensForWindow,
@@ -18,816 +18,296 @@ import {
   defaultMicroWorkingSetTokensForWindow,
   defaultTriggerRatioForWindow,
   microPressureThresholdTokens,
-  PipelineStrategy,
   recompactGrowthBaseTokens,
-  ToolCollapseStrategy,
   resolveCompactionBlockRatio,
-  splitMessagesIntoTokenBlocks,
-} from '../../../src/agent/compaction';
-import { CompactionQualityTracker } from '../../../src/agent/compaction/quality';
-import { estimateTokensForMessages } from '../../../src/utils/tokens';
-import {
-  handoffThresholdTokens,
-  relaxObservedMaxContextTokens,
-  resolveEffectiveMaxContextTokens,
-  shouldDeferAutoCompaction,
-  shouldRecoverFromOverflowStatus,
-  shouldSkipRecompactUntilGrowth,
-  shouldUseParallelSummarize,
-} from '../../../src/agent/compaction/full-policy';
+} from '../../../src/agent/compaction/strategy';
 
-describe('DefaultCompactionStrategy', () => {
-  it('keeps an oversized trailing user message as recent', () => {
-    const strategy = testCompactionStrategy();
-    const messages = [
-      textMessage('user', 'old user'),
-      textMessage('assistant', 'old assistant'),
-      textMessage('user', `pending user ${'x'.repeat(1_200)}`),
-    ];
-
-    expect(strategy.computeCompactCount(messages, 'auto')).toBe(2);
-  });
-
-  it('keeps consecutive trailing user messages as recent', () => {
-    const strategy = testCompactionStrategy();
-    const messages = [
-      textMessage('user', 'old user'),
-      textMessage('assistant', 'old assistant'),
-      textMessage('user', `pending user one ${'x'.repeat(1_200)}`),
-      textMessage('user', `pending user two ${'x'.repeat(1_200)}`),
-    ];
-
-    expect(strategy.computeCompactCount(messages, 'auto')).toBe(2);
-  });
-
-  it('compacts the prefix when the trailing exchange itself is oversized', () => {
-    const strategy = testCompactionStrategy();
-    const messages = [
-      textMessage('user', 'old user'),
-      textMessage('assistant', 'old assistant'),
-      textMessage('user', 'recent user'),
-      textMessage('assistant', `recent assistant ${'x'.repeat(1_200)}`),
-    ];
-
-    expect(strategy.computeCompactCount(messages, 'auto')).toBe(2);
-  });
-
-  it('returns 0 when there is nothing to compact', () => {
-    const strategy = testCompactionStrategy();
-    expect(strategy.computeCompactCount([], 'auto')).toBe(0);
-    expect(strategy.computeCompactCount([textMessage('user', 'only pending')], 'auto')).toBe(0);
-    expect(
-      strategy.computeCompactCount(
-        [
-          textMessage('user', 'a'),
-          textMessage('user', 'b'),
-          textMessage('user', 'c'),
-        ],
-        'auto',
-      ),
-    ).toBe(0);
-  });
-
-  it('returns 0 when no intermediate split exists and the last message is also unsplittable', () => {
-    const strategy = testCompactionStrategy();
-    const messages: Message[] = [
-      textMessage('user', 'inspect'),
-      {
-        role: 'assistant',
-        content: [],
-        toolCalls: [{ type: 'function', id: 'call_a', name: 'Lookup', arguments: '{}' }],
-      },
-    ];
-
-    expect(strategy.computeCompactCount(messages, 'auto')).toBe(0);
-  });
-
-  it('does not split inside a parallel tool exchange', () => {
-    const strategy = testCompactionStrategy();
-    const messages: Message[] = [
-      textMessage('user', 'old user'),
-      textMessage('assistant', 'old assistant'),
-      textMessage('user', 'run both tools'),
-      {
-        role: 'assistant',
-        content: [],
-        toolCalls: [
-          { type: 'function', id: 'call_a', name: 'Lookup', arguments: '{}' },
-          { type: 'function', id: 'call_b', name: 'Lookup', arguments: '{}' },
-        ],
-      },
-      { role: 'tool', content: [{ type: 'text', text: 'a' }], toolCalls: [], toolCallId: 'call_a' },
-      { role: 'tool', content: [{ type: 'text', text: 'b' }], toolCalls: [], toolCallId: 'call_b' },
-      textMessage('user', 'next prompt'),
-    ];
-
-    // The only valid split is before the parallel exchange (after 'old assistant'),
-    // never between tool_a and tool_b — that would leave tool_b as an orphan.
-    expect(strategy.computeCompactCount(messages, 'auto')).toBe(2);
-  });
-
-  it('splits v2 parallel summary blocks only at tool-call group boundaries', () => {
-    const messages: Message[] = [
-      textMessage('user', 'old user'),
-      {
-        role: 'assistant',
-        content: [],
-        toolCalls: [
-          { type: 'function', id: 'call_a', name: 'Lookup', arguments: '{}' },
-          { type: 'function', id: 'call_b', name: 'Lookup', arguments: '{}' },
-        ],
-      },
-      { role: 'tool', content: [{ type: 'text', text: 'a'.repeat(2_000) }], toolCalls: [], toolCallId: 'call_a' },
-      { role: 'tool', content: [{ type: 'text', text: 'b'.repeat(2_000) }], toolCalls: [], toolCallId: 'call_b' },
-      textMessage('user', 'next prompt'),
-    ];
-
-    const blocks = splitMessagesIntoTokenBlocks(messages, 10);
-    const toolBlock = blocks.find((block) => block.some((message) => message.role === 'tool'));
-
-    expect(toolBlock?.map((message) => message.role)).toEqual(['assistant', 'tool', 'tool']);
-  });
-
-  it('shrinks auto compaction input to fit the model window', () => {
-    const maxSize = 1_000;
-    const strategy = testCompactionStrategy(maxSize);
-    const messages = Array.from({ length: 30 }, (_, i) =>
-      textMessage('assistant', `message ${i} ${'x'.repeat(400)}`),
-    );
-
-    const count = strategy.computeCompactCount(messages, 'auto');
-
-    expect(count).toBeGreaterThan(0);
-    expect(count).toBeLessThan(messages.length);
-    expect(estimateTokensForMessages(messages.slice(0, count))).toBeLessThanOrEqual(maxSize);
-    expect(estimateTokensForMessages(messages.slice(0, count + 1))).toBeGreaterThan(maxSize);
-  });
-
-  it('shrinks manual compaction input to fit the model window', () => {
-    const maxSize = 1_000;
-    const strategy = testCompactionStrategy(maxSize);
-    const messages = Array.from({ length: 30 }, (_, i) =>
-      textMessage('assistant', `message ${i} ${'x'.repeat(400)}`),
-    );
-
-    const count = strategy.computeCompactCount(messages, 'manual');
-
-    expect(count).toBeGreaterThan(0);
-    expect(count).toBeLessThan(messages.length);
-    expect(estimateTokensForMessages(messages.slice(0, count))).toBeLessThanOrEqual(maxSize);
-    expect(estimateTokensForMessages(messages.slice(0, count + 1))).toBeGreaterThan(maxSize);
-  });
-
-  it('reserves response context for blocking but not for the soft trigger', () => {
-    const strategy = new DefaultCompactionStrategy(() => 256_000);
-
-    // Soft 0.70 → ~179k; hard 0.90 → ~230k; reserved 16k only raises the hard floor.
-    expect(strategy.shouldCompact(179_200)).toBe(true);
-    expect(strategy.shouldBlock(179_200)).toBe(false);
-    expect(strategy.shouldBlock(230_400)).toBe(true);
-  });
-
-  it('uses reserved context only for hard blocking on smaller windows', () => {
-    const strategy = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      // Keep hard ratio above the reserved threshold so this fixture isolates
-      // reserved-size blocking after densify ladders.
-      blockRatio: 0.90,
-      reservedContextSize: 50_000,
+describe('strategy.ts — pure helpers', () => {
+  describe('applyWorkingSetCap', () => {
+    it('returns the ratio threshold unchanged when the cap is missing/0/negative', () => {
+      expect(applyWorkingSetCap(1234, undefined)).toBe(1234);
+      expect(applyWorkingSetCap(1234, null)).toBe(1234);
+      expect(applyWorkingSetCap(1234, 0)).toBe(1234);
+      expect(applyWorkingSetCap(1234, -1)).toBe(1234);
     });
 
-    expect(strategy.shouldCompact(1_000)).toBe(false);
-    // reserved 50k + hard90 → max(50k, floor(100k*0.90)=90k) = 90k
-    expect(strategy.shouldBlock(49_999)).toBe(false);
-    expect(strategy.shouldCompact(81_000)).toBe(true);
-    expect(strategy.shouldBlock(90_000)).toBe(true);
-  });
-
-  it('starts async compaction between the async threshold and soft trigger', () => {
-    const strategy = new DefaultCompactionStrategy(() => 100_000);
-
-    // asyncTriggerRatio=0.55 → 55k; soft trigger=0.70 → 70k
-    expect(strategy.shouldAsyncCompact(54_999)).toBe(false);
-    expect(strategy.shouldAsyncCompact(55_000)).toBe(true);
-    expect(strategy.shouldCompact(55_000)).toBe(false);
-    // Once the soft trigger fires, async path yields to blocking compact.
-    expect(strategy.shouldAsyncCompact(70_000)).toBe(false);
-    expect(strategy.shouldCompact(70_000)).toBe(true);
-  });
-
-  describe('window-aware default trigger ratios', () => {
-    it('keeps the original defaults for small windows', () => {
-      expect(defaultTriggerRatioForWindow(100_000)).toBe(DEFAULT_COMPACTION_TRIGGER_RATIO);
-      expect(defaultAsyncTriggerRatioForWindow(100_000)).toBe(DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO);
-      // Just below the 128k threshold still uses the small-window defaults.
-      expect(defaultTriggerRatioForWindow(127_999)).toBe(DEFAULT_COMPACTION_TRIGGER_RATIO);
-      expect(defaultAsyncTriggerRatioForWindow(127_999)).toBe(DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO);
-    });
-
-    it('raises the defaults on large windows (>= 128k)', () => {
-      expect(defaultTriggerRatioForWindow(128_000)).toBe(0.8);
-      expect(defaultAsyncTriggerRatioForWindow(128_000)).toBe(0.7);
-      expect(defaultTriggerRatioForWindow(131_072)).toBe(0.8);
-      expect(defaultAsyncTriggerRatioForWindow(131_072)).toBe(0.7);
-    });
-
-    it('lets explicit user config override the window-aware default', () => {
-      const windowSize = 131_072;
-      // Mirrors the full.ts call site: explicit config wins over the default.
-      const userConfigured: number | undefined = 0.6;
-      const resolved = userConfigured ?? defaultTriggerRatioForWindow(windowSize);
-      expect(resolved).toBe(0.6);
-
-      const strategy = new DefaultCompactionStrategy(() => windowSize, {
-        ...DEFAULT_COMPACTION_CONFIG,
-        triggerRatio: resolved,
-      });
-      expect(strategy.effectiveTriggerRatio).toBeCloseTo(0.6, 5);
-      // Fires at the explicit 0.60 ratio (~78.6k), well before the 0.80
-      // large-window default (~104.8k): proof the explicit value is used.
-      expect(strategy.shouldCompact(Math.floor(windowSize * 0.6) - 1)).toBe(false);
-      expect(strategy.shouldCompact(Math.floor(windowSize * 0.6))).toBe(true);
-    });
-
-    it('never lets the window-aware default reach the block ratio ceiling', () => {
-      for (const windowSize of [100_000, 128_000, 131_072, 1_000_000]) {
-        const trigger = defaultTriggerRatioForWindow(windowSize);
-        const async = defaultAsyncTriggerRatioForWindow(windowSize);
-        const block = resolveCompactionBlockRatio(trigger);
-        expect(trigger).toBeLessThan(DEFAULT_COMPACTION_BLOCK_RATIO);
-        expect(trigger).toBeLessThan(block);
-        expect(async).toBeLessThan(trigger);
-      }
+    it('clamps the ratio threshold to the cap when the cap is positive', () => {
+      expect(applyWorkingSetCap(1_000_000, 256_000)).toBe(256_000);
+      expect(applyWorkingSetCap(100, 256_000)).toBe(100);
     });
   });
 
-  it('ignores reserved context when the reserve is not smaller than the model window', () => {
-    const strategy = new DefaultCompactionStrategy(() => 32_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      triggerRatio: 0.85,
-      blockRatio: 0.85,
-      reservedContextSize: 50_000,
+  describe('recompactGrowthBaseTokens', () => {
+    it('returns 0 for non-positive maxContextTokens', () => {
+      expect(recompactGrowthBaseTokens({ maxContextTokens: 0 })).toBe(0);
+      expect(recompactGrowthBaseTokens({ maxContextTokens: -1 })).toBe(0);
     });
 
-    expect(strategy.shouldCompact(1)).toBe(false);
-    expect(strategy.shouldBlock(1)).toBe(false);
-    // trigger/block 0.85 on 32k → 27_200
-    expect(strategy.shouldCompact(27_199)).toBe(false);
-    expect(strategy.shouldCompact(27_200)).toBe(true);
-    expect(strategy.shouldBlock(27_200)).toBe(true);
-  });
-
-  it('triggers at absolute token threshold for large-context models', () => {
-    const strategy = new DefaultCompactionStrategy(() => 500_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      triggerRatio: 0.4,
-      blockRatio: 0.92,
-      reservedContextSize: 50_000,
-      maxRecentMessages: 3,
-      absoluteTriggerTokens: 251_000,
-      // Keep cap above the absolute floor so this fixture isolates floor semantics.
-      maxWorkingSetTokens: 0,
-      asyncWorkingSetTokens: 0,
+    it('returns maxContextTokens when the working-set cap is disabled', () => {
+      expect(
+        recompactGrowthBaseTokens({ maxContextTokens: 1_000_000, maxWorkingSetTokens: 0 }),
+      ).toBe(1_000_000);
+      expect(
+        recompactGrowthBaseTokens({ maxContextTokens: 1_000_000, maxWorkingSetTokens: undefined }),
+      ).toBe(1_000_000);
     });
 
-    expect(strategy.shouldCompact(250_999)).toBe(false);
-    expect(strategy.shouldBlock(250_999)).toBe(false);
-
-    expect(strategy.shouldCompact(251_000)).toBe(true);
-    expect(strategy.shouldBlock(251_000)).toBe(true);
-  });
-
-  it('uses absolute tokens as a floor under the ratio, then applies working-set cap', () => {
-    // Without a cap, ratio 0.85 wins over absolute floor 200k → soft at 850k.
-    const uncapped = new DefaultCompactionStrategy(() => 1_000_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      triggerRatio: 0.85,
-      blockRatio: 0.92,
-      reservedContextSize: 50_000,
-      maxRecentMessages: 3,
-      absoluteTriggerTokens: 200_000,
-      maxWorkingSetTokens: 0,
-      asyncWorkingSetTokens: 0,
-    });
-
-    expect(uncapped.shouldCompact(849_999)).toBe(false);
-    expect(uncapped.shouldCompact(850_000)).toBe(true);
-
-    // With the default ~256k cap, soft fires at the cap — not at 850k.
-    const capped = new DefaultCompactionStrategy(() => 1_000_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      triggerRatio: 0.85,
-      blockRatio: 0.92,
-      reservedContextSize: 50_000,
-      maxRecentMessages: 3,
-      absoluteTriggerTokens: 200_000,
-      absoluteTriggerBlocks: false,
-    });
-    expect(capped.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS - 1)).toBe(false);
-    expect(capped.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(true);
-    expect(capped.shouldBlock(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(false);
-    expect(capped.shouldBlock(920_000)).toBe(true);
-  });
-
-  it('treats the absolute threshold as a soft trigger when v2 separates hard blocking', () => {
-    const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      triggerRatio: 0.85,
-      blockRatio: 0.92,
-      reservedContextSize: 50_000,
-      maxRecentMessages: 3,
-      absoluteTriggerTokens: 200_000,
-      absoluteTriggerBlocks: false,
-      maxWorkingSetTokens: 0,
-      asyncWorkingSetTokens: 0,
-    });
-
-    expect(strategy.shouldCompact(849_999)).toBe(false);
-    expect(strategy.shouldCompact(850_000)).toBe(true);
-    expect(strategy.shouldBlock(850_000)).toBe(false);
-    expect(strategy.shouldBlock(920_000)).toBe(true);
-  });
-
-  it('falls back to ratio trigger when the model window is below the large-context threshold', () => {
-    const strategy = new DefaultCompactionStrategy(() => 240_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      triggerRatio: 0.85,
-      blockRatio: 0.85,
-      reservedContextSize: 0,
-      maxRecentMessages: 3,
-      absoluteTriggerTokens: 200_000,
-    });
-
-    expect(strategy.shouldCompact(200_000)).toBe(false);
-    expect(strategy.shouldCompact(204_000)).toBe(true);
-  });
-
-  describe('working-set caps on large windows', () => {
-    it('caps soft full compact near ~256k on 1M windows', () => {
-      const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
-        ...DEFAULT_COMPACTION_CONFIG,
-        triggerRatio: 0.8,
-        asyncTriggerRatio: 0.7,
-        blockRatio: 0.9,
-        reservedContextSize: 0,
-        absoluteTriggerBlocks: false,
-      });
-
-      // Ratio alone would wait until 800k; working-set cap pulls soft to ~256k.
-      expect(strategy.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS - 1)).toBe(false);
-      expect(strategy.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(true);
-      expect(strategy.shouldBlock(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(false);
-      expect(strategy.shouldBlock(900_000)).toBe(true);
-    });
-
-    it('starts async compact below the soft working-set cap', () => {
-      const strategy = new DefaultCompactionStrategy(() => 1_000_000, {
-        ...DEFAULT_COMPACTION_CONFIG,
-        triggerRatio: 0.8,
-        asyncTriggerRatio: 0.7,
-        blockRatio: 0.9,
-        reservedContextSize: 0,
-        absoluteTriggerBlocks: false,
-      });
-
-      const asyncCap = DEFAULT_ASYNC_WORKING_SET_TOKENS;
-      expect(strategy.shouldAsyncCompact(asyncCap - 1)).toBe(false);
-      expect(strategy.shouldAsyncCompact(asyncCap)).toBe(true);
-      expect(strategy.shouldCompact(asyncCap)).toBe(false);
-      // Soft owns the path once the working-set soft cap is hit.
-      expect(strategy.shouldAsyncCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(false);
-      expect(strategy.shouldCompact(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(true);
-    });
-
-    it('does not apply working-set caps when the window is at or below the cap', () => {
-      // 256k window: cap 262144 is above the window → ratio-only soft at 0.70.
-      const strategy = new DefaultCompactionStrategy(() => 256_000, {
-        ...DEFAULT_COMPACTION_CONFIG,
-        reservedContextSize: 0,
-      });
-      expect(strategy.shouldCompact(179_199)).toBe(false);
-      expect(strategy.shouldCompact(179_200)).toBe(true);
-    });
-
-    it('exports pure helpers for window-aware working-set defaults', () => {
-      expect(defaultMaxWorkingSetTokensForWindow(100_000)).toBe(0);
-      expect(defaultMaxWorkingSetTokensForWindow(DEFAULT_MAX_WORKING_SET_TOKENS)).toBe(0);
-      expect(defaultMaxWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_MAX_WORKING_SET_TOKENS);
-      expect(defaultAsyncWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_ASYNC_WORKING_SET_TOKENS);
-      expect(defaultAsyncWorkingSetTokensForWindow(100_000)).toBe(0);
-      expect(defaultMicroWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_MICRO_WORKING_SET_TOKENS);
-      expect(defaultMicroWorkingSetTokensForWindow(100_000)).toBe(0);
-      expect(applyWorkingSetCap(800_000, 262_144)).toBe(262_144);
-      expect(applyWorkingSetCap(100_000, 262_144)).toBe(100_000);
-      expect(applyWorkingSetCap(100_000, 0)).toBe(100_000);
+    it('clamps to the cap when the cap is below the model window', () => {
       expect(
         recompactGrowthBaseTokens({
           maxContextTokens: 1_000_000,
-          maxWorkingSetTokens: DEFAULT_MAX_WORKING_SET_TOKENS,
+          maxWorkingSetTokens: 256_000,
         }),
-      ).toBe(DEFAULT_MAX_WORKING_SET_TOKENS);
+      ).toBe(256_000);
+    });
+
+    it('ignores a cap that exceeds the model window', () => {
       expect(
-        microPressureThresholdTokens({
-          maxContextTokens: 1_000_000,
-          minContextUsageRatio: 0.4,
-          maxWorkingSetTokens: DEFAULT_MICRO_WORKING_SET_TOKENS,
+        recompactGrowthBaseTokens({
+          maxContextTokens: 100_000,
+          maxWorkingSetTokens: 256_000,
         }),
-      ).toBe(DEFAULT_MICRO_WORKING_SET_TOKENS);
+      ).toBe(100_000);
     });
   });
 
-  it('uses decoupled default trigger and block ratios', () => {
-    const strategy = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
+  describe('window-aware default ratios', () => {
+    it('returns the small-window default for windows below the threshold', () => {
+      expect(defaultTriggerRatioForWindow(64_000)).toBe(DEFAULT_COMPACTION_TRIGGER_RATIO);
+      // 128k is the documented large-window threshold: the default flips
+      // to the large-window ratio at the boundary, not just past it.
+      expect(defaultTriggerRatioForWindow(127_999)).toBe(DEFAULT_COMPACTION_TRIGGER_RATIO);
     });
-    expect(strategy.effectiveTriggerRatio).toBe(0.70);
-    expect(strategy.shouldCompact(69_999)).toBe(false);
-    expect(strategy.shouldCompact(70_000)).toBe(true);
-    expect(strategy.shouldBlock(89_999)).toBe(false);
-    expect(strategy.shouldBlock(90_000)).toBe(true);
-    expect(strategy.checkAfterStep).toBe(true);
-  });
 
-  it('resolves block ratio above trigger when only trigger is configured', () => {
-    expect(resolveCompactionBlockRatio(0.7)).toBe(0.90);
-    expect(resolveCompactionBlockRatio(0.9)).toBeCloseTo(0.95);
-    expect(resolveCompactionBlockRatio(0.8, 0.88)).toBe(0.88);
-  });
-
-  it('speculatively compacts only when projected usage crosses the soft trigger', () => {
-    const strategy = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
+    it('raises the soft-trigger default on large windows while staying below the hard block', () => {
+      const ratio = defaultTriggerRatioForWindow(1_000_000);
+      expect(ratio).toBeGreaterThan(DEFAULT_COMPACTION_TRIGGER_RATIO);
+      expect(ratio).toBeLessThan(DEFAULT_COMPACTION_BLOCK_RATIO);
     });
-    expect(strategy.shouldSpeculativelyCompact(69_999)).toBe(false);
-    expect(strategy.shouldSpeculativelyCompact(70_000)).toBe(true);
 
-    const lateTrigger = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      triggerRatio: 0.95,
-      blockRatio: 0.92,
-      reservedContextSize: 0,
-      absoluteTriggerTokens: 0,
+    it('keeps the async default strictly below the sync default for the same window', () => {
+      const small = defaultAsyncTriggerRatioForWindow(64_000);
+      const smallSync = defaultTriggerRatioForWindow(64_000);
+      expect(small).toBeLessThan(smallSync);
+
+      const large = defaultAsyncTriggerRatioForWindow(1_000_000);
+      const largeSync = defaultTriggerRatioForWindow(1_000_000);
+      expect(large).toBeLessThan(largeSync);
     });
-    expect(lateTrigger.shouldCompact(93_000)).toBe(false);
-    expect(lateTrigger.shouldSpeculativelyCompact(93_000)).toBe(false);
   });
 
-  it('tightens the trigger threshold only after emergency backstop compactions', () => {
-    const strategy = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
+  describe('window-aware working-set caps', () => {
+    it('disables the soft cap when the window is at/below the default', () => {
+      expect(defaultMaxWorkingSetTokensForWindow(0)).toBe(0);
+      expect(defaultMaxWorkingSetTokensForWindow(64_000)).toBe(0);
+      expect(defaultMaxWorkingSetTokensForWindow(262_144)).toBe(0);
     });
-    strategy.applyQualityFeedback({ recallEvalScore: 0.5, usedEmergencyBackstop: false });
-    expect(strategy.effectiveTriggerRatio).toBe(0.70);
-    strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    expect(strategy.effectiveTriggerRatio).toBeLessThan(0.70);
-    // 0.70 - 0.02 bias = 0.68 → 68k
-    expect(strategy.shouldCompact(68_000)).toBe(true);
-  });
 
-  it('moves the async compaction threshold with asyncTriggerRatio', () => {
-    const defaultAsync = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
+    it('returns the default soft cap for large windows', () => {
+      expect(defaultMaxWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_MAX_WORKING_SET_TOKENS);
     });
-    // Default async ratio 0.55 → ~55k threshold; the sync trigger owns ≥70k.
-    expect(defaultAsync.shouldAsyncCompact(54_000)).toBe(false);
-    expect(defaultAsync.shouldAsyncCompact(56_000)).toBe(true);
-    expect(defaultAsync.shouldAsyncCompact(70_000)).toBe(false);
 
-    const earlyAsync = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
-      asyncTriggerRatio: 0.3,
+    it('keeps the async cap strictly below the soft cap when both apply', () => {
+      const soft = defaultMaxWorkingSetTokensForWindow(1_000_000);
+      const asyncCap = defaultAsyncWorkingSetTokensForWindow(1_000_000);
+      expect(asyncCap).toBeGreaterThan(0);
+      expect(asyncCap).toBeLessThan(soft);
     });
-    // Lowering the ratio moves the async threshold down with it.
-    expect(earlyAsync.shouldAsyncCompact(28_000)).toBe(false);
-    expect(earlyAsync.shouldAsyncCompact(31_000)).toBe(true);
-    expect(defaultAsync.shouldAsyncCompact(40_000)).toBe(false);
-    expect(earlyAsync.shouldAsyncCompact(40_000)).toBe(true);
-  });
 
-  it('caps the quality trigger bias at a small delta below the configured ratio', () => {
-    const strategy = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
+    it('disables the async and micro caps when the soft cap is disabled', () => {
+      expect(defaultAsyncWorkingSetTokensForWindow(64_000)).toBe(0);
+      expect(defaultMicroWorkingSetTokensForWindow(64_000)).toBe(0);
     });
-    for (let i = 0; i < 6; i++) {
-      strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    }
-    // Repeated backstops saturate at the 0.02 cap instead of stacking.
-    expect(strategy.applyQualityFeedback({ usedEmergencyBackstop: true })).toBe(0.02);
-    expect(strategy.effectiveTriggerRatio).toBeCloseTo(0.68, 10);
-    expect(strategy.effectiveTriggerRatio).toBeGreaterThan(0.67);
-  });
 
-  it('decays the quality trigger bias after clean compactions without a high recall score', () => {
-    const strategy = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
+    it('returns the micro working-set cap for large windows', () => {
+      expect(defaultMicroWorkingSetTokensForWindow(1_000_000)).toBe(DEFAULT_MICRO_WORKING_SET_TOKENS);
     });
-    strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    strategy.applyQualityFeedback({ usedEmergencyBackstop: true });
-    // A clean (non-backstop) compaction decays the bias even with no recall score...
-    expect(strategy.applyQualityFeedback({ usedEmergencyBackstop: false })).toBeCloseTo(0.01);
-    // ...and a low recall score no longer blocks the decay.
-    expect(
-      strategy.applyQualityFeedback({ recallEvalScore: 0.3, usedEmergencyBackstop: false }),
-    ).toBeCloseTo(0);
   });
-});
 
-describe('CompactionQualityTracker', () => {
-  it('tracks rolling averages and low-quality streaks', () => {
-    const tracker = new CompactionQualityTracker();
-    tracker.record({ recallEvalScore: 0.9, usedEmergencyBackstop: false });
-    const afterLow = tracker.record({ recallEvalScore: 0.4, usedEmergencyBackstop: false });
-    expect(afterLow.sampleCount).toBe(2);
-    expect(afterLow.rollingAverage).toBe(0.65);
-    expect(afterLow.lowQualityStreak).toBe(1);
-    const afterBackstop = tracker.record({ usedEmergencyBackstop: true });
-    expect(afterBackstop.emergencyBackstopCount).toBe(1);
-    expect(afterBackstop.lowQualityStreak).toBe(2);
-  });
-});
-
-function testCompactionStrategy(maxSize: number = 1_000): DefaultCompactionStrategy {
-  return new DefaultCompactionStrategy(() => maxSize, {
-    ...DEFAULT_COMPACTION_CONFIG,
-    reservedContextSize: 0,
-    maxRecentMessages: 10,
-  });
-}
-
-function overflowOnlyCompactionStrategy(maxSize: number = 14): DefaultCompactionStrategy {
-  return new DefaultCompactionStrategy(() => maxSize, {
-    ...DEFAULT_COMPACTION_CONFIG,
-    triggerRatio: Infinity,
-    blockRatio: Infinity,
-    reservedContextSize: 0,
-    maxRecentMessages: 3,
-    absoluteTriggerTokens: 200_000,
-  });
-}
-
-function textMessage(role: 'user' | 'assistant', text: string): Message {
-  return {
-    role,
-    content: [{ type: 'text', text }],
-    toolCalls: [],
-  };
-}
-
-describe('ToolCollapseStrategy', () => {
-  it('defaults to keeping the last two tool-call groups', () => {
-    const strategy = new ToolCollapseStrategy();
-    // Construct history: 3 tool exchanges (user/asst+tool) so collapse can fire.
-    const messages = [
-      { role: 'user' as const, content: [{ type: 'text' as const, text: 'u0' }], toolCalls: [] },
-      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a0' }], toolCalls: [{ id: 'c0', name: 'Read', arguments: '{}' }] },
-      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r0' }], toolCallId: 'c0', toolCalls: [] },
-      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a1' }], toolCalls: [{ id: 'c1', name: 'Read', arguments: '{}' }] },
-      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r1' }], toolCallId: 'c1', toolCalls: [] },
-      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a2' }], toolCalls: [{ id: 'c2', name: 'Read', arguments: '{}' }] },
-      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r2' }], toolCallId: 'c2', toolCalls: [] },
-    ];
-    // With keep=2, the oldest exchange is collapsible → compact count ends after first tool group.
-    const count = strategy.computeCompactCount(messages as never, 'auto');
-    expect(count).toBeGreaterThan(0);
-    // keep=1 would collapse more aggressively (higher compact count or same).
-    const aggressive = new ToolCollapseStrategy(1).computeCompactCount(messages as never, 'auto');
-    expect(aggressive).toBeGreaterThanOrEqual(count);
-  });
-});
-
-describe('PipelineStrategy', () => {
-  it('treats secondary computeCompactCount 0 as no constraint', () => {
-    const trigger = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
-      maxRecentMessages: 2,
+  describe('microPressureThresholdTokens', () => {
+    it('returns 0 for a non-positive model window', () => {
+      expect(
+        microPressureThresholdTokens({ maxContextTokens: 0, minContextUsageRatio: 0.4 }),
+      ).toBe(0);
     });
-    const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
-    const messages = [
-      textMessage('user', 'u0'),
-      textMessage('assistant', 'a0'),
-      textMessage('user', 'u1'),
-      textMessage('assistant', 'a1'),
-      textMessage('user', 'u2'),
-    ];
-    const base = trigger.computeCompactCount(messages, 'auto');
-    const piped = pipeline.computeCompactCount(messages, 'auto');
-    expect(piped).toBe(base);
-    expect(piped).toBeGreaterThan(0);
-  });
 
-  it('can tighten compact count when ToolCollapse finds older tool groups', () => {
-    const trigger = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
-      maxRecentMessages: 20,
-    });
-    const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
-    const messages = [
-      { role: 'user' as const, content: [{ type: 'text' as const, text: 'u0' }], toolCalls: [] },
-      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a0' }], toolCalls: [{ id: 'c0', name: 'Read', arguments: '{}' }] },
-      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r0' }], toolCallId: 'c0', toolCalls: [] },
-      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a1' }], toolCalls: [{ id: 'c1', name: 'Read', arguments: '{}' }] },
-      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r1' }], toolCallId: 'c1', toolCalls: [] },
-      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'a2' }], toolCalls: [{ id: 'c2', name: 'Read', arguments: '{}' }] },
-      { role: 'tool' as const, content: [{ type: 'text' as const, text: 'r2' }], toolCallId: 'c2', toolCalls: [] },
-      textMessage('user', 'recent'),
-    ] as Message[];
-    const base = trigger.computeCompactCount(messages, 'auto');
-    const collapse = new ToolCollapseStrategy(2).computeCompactCount(messages, 'auto');
-    const piped = pipeline.computeCompactCount(messages, 'auto');
-    expect(collapse).toBeGreaterThan(0);
-    expect(piped).toBe(Math.min(base, collapse));
-  });
-});
-
-describe('PipelineStrategy quality controls', () => {
-  it('forwards applyQualityFeedback to the DefaultCompactionStrategy trigger', () => {
-    const trigger = new DefaultCompactionStrategy(() => 100_000, {
-      ...DEFAULT_COMPACTION_CONFIG,
-      reservedContextSize: 0,
-    });
-    const pipeline = new PipelineStrategy([new ToolCollapseStrategy(2)], trigger);
-    const before = trigger.effectiveTriggerRatio;
-    expect(before).toBe(0.70);
-    const bias = pipeline.applyQualityFeedback({ usedEmergencyBackstop: true });
-    expect(bias).toBeGreaterThan(0);
-    expect(trigger.effectiveTriggerRatio).toBeLessThan(before);
-    expect(pipeline.speculativeStepBufferTokens).toBe(trigger.speculativeStepBufferTokens);
-  });
-});
-
-
-describe('full compaction pure policy', () => {
-  it('shouldSkipRecompactUntilGrowth requires min growth after a compact', () => {
-    expect(
-      shouldSkipRecompactUntilGrowth({
-        lastCompactedTokenCount: null,
-        tokenCountWithPending: 1000,
-        minGrowthRatio: 0.05,
-        maxContextTokens: 10_000,
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldSkipRecompactUntilGrowth({
-        lastCompactedTokenCount: 1000,
-        tokenCountWithPending: 1000,
-        minGrowthRatio: 0.05,
-        maxContextTokens: 10_000,
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldSkipRecompactUntilGrowth({
-        lastCompactedTokenCount: 1000,
-        tokenCountWithPending: 1200,
-        minGrowthRatio: 0.05,
-        maxContextTokens: 10_000,
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldSkipRecompactUntilGrowth({
-        lastCompactedTokenCount: 1000,
-        tokenCountWithPending: 1600,
-        minGrowthRatio: 0.05,
-        maxContextTokens: 10_000,
-      }),
-    ).toBe(false);
-
-    // Working-set cap shrinks the growth base: 5% of 262_144 ≈ 13_107, not 50k of 1M.
-    expect(
-      shouldSkipRecompactUntilGrowth({
-        lastCompactedTokenCount: 200_000,
-        tokenCountWithPending: 200_000 + 10_000,
-        minGrowthRatio: 0.05,
+    it('floors the ratio threshold and applies an optional working-set cap', () => {
+      // 1M * 0.4 = 400_000, but the cap pulls it down to 140k.
+      const th = microPressureThresholdTokens({
         maxContextTokens: 1_000_000,
-        maxWorkingSetTokens: DEFAULT_MAX_WORKING_SET_TOKENS,
-      }),
-    ).toBe(true);
-    expect(
-      shouldSkipRecompactUntilGrowth({
-        lastCompactedTokenCount: 200_000,
-        tokenCountWithPending: 200_000 + 15_000,
-        minGrowthRatio: 0.05,
-        maxContextTokens: 1_000_000,
-        maxWorkingSetTokens: DEFAULT_MAX_WORKING_SET_TOKENS,
-      }),
-    ).toBe(false);
+        minContextUsageRatio: SWARM_MICRO_PRESSURE_RATIO,
+        maxWorkingSetTokens: 140_000,
+      });
+      expect(th).toBe(140_000);
+    });
+
+    it('keeps the ratio threshold when no cap is configured', () => {
+      const th = microPressureThresholdTokens({
+        maxContextTokens: 256_000,
+        minContextUsageRatio: 0.5,
+      });
+      expect(th).toBe(128_000);
+    });
   });
 
-  it('shouldDeferAutoCompaction defers under swarm unless blocked', () => {
-    expect(
-      shouldDeferAutoCompaction({
-        ultraSwarmActive: true,
-        shouldBlock: false,
-        hasActiveForegroundChildren: false,
-      }),
-    ).toBe(true);
-    expect(
-      shouldDeferAutoCompaction({
-        ultraSwarmActive: true,
-        shouldBlock: true,
-        hasActiveForegroundChildren: false,
-      }),
-    ).toBe(false);
-    expect(
-      shouldDeferAutoCompaction({
-        ultraSwarmActive: false,
-        shouldBlock: false,
-        hasActiveForegroundChildren: true,
-      }),
-    ).toBe(true);
+  describe('resolveCompactionBlockRatio', () => {
+    it('returns the configured value when provided', () => {
+      expect(resolveCompactionBlockRatio(0.7, 0.95)).toBe(0.95);
+    });
+
+    it('returns max(default, trigger+0.05) when no override is provided', () => {
+      expect(resolveCompactionBlockRatio(0.7)).toBeCloseTo(0.9, 5);
+      expect(resolveCompactionBlockRatio(0.95)).toBeCloseTo(1.0, 5);
+    });
   });
 
-  it('handoffThresholdTokens and relaxObservedMaxContextTokens are pure', () => {
-    expect(handoffThresholdTokens({ maxTokens: undefined, triggerRatio: 0.72 })).toBeUndefined();
-    expect(handoffThresholdTokens({ maxTokens: 1000, triggerRatio: 0.72 })).toBe(720);
-    expect(
-      handoffThresholdTokens({
-        maxTokens: 1_000_000,
-        triggerRatio: 0.65,
-        maxWorkingSetTokens: 180_000,
-      }),
-    ).toBe(180_000);
-    expect(
-      relaxObservedMaxContextTokens({
-        observed: 1000,
-        configured: 2000,
-        decayPerTurn: 0.25,
-      }),
-    ).toBe(1250);
-    expect(
-      relaxObservedMaxContextTokens({
-        observed: 2000,
-        configured: 2000,
-        decayPerTurn: 0.25,
-      }),
-    ).toBe(2000);
+  describe('window-aware swarm ratios', () => {
+    it('pins SWARM_HANDOFF_COMPACTION_RATIO and SWARM_MICRO_PRESSURE_RATIO to their declared defaults', () => {
+      // Sanity: the handoff and micro-pressure ratios stay well below the
+      // sync soft trigger so background reclaim never races the blocking
+      // path.
+      expect(SWARM_HANDOFF_COMPACTION_RATIO).toBe(0.65);
+      expect(SWARM_MICRO_PRESSURE_RATIO).toBe(0.4);
+      expect(SWARM_HANDOFF_COMPACTION_RATIO).toBeLessThan(DEFAULT_COMPACTION_TRIGGER_RATIO);
+      expect(SWARM_MICRO_PRESSURE_RATIO).toBeLessThan(SWARM_HANDOFF_COMPACTION_RATIO);
+    });
   });
 
-  it('resolveEffectiveMaxContextTokens and overflow recovery thresholds', () => {
-    expect(resolveEffectiveMaxContextTokens({ configured: 1000, observed: undefined })).toBe(1000);
-    expect(resolveEffectiveMaxContextTokens({ configured: 1000, observed: 800 })).toBe(800);
-    expect(resolveEffectiveMaxContextTokens({ configured: 0, observed: 800 })).toBe(800);
-    expect(
-      shouldRecoverFromOverflowStatus({
-        isContextOverflowError: true,
-        isStatus413: false,
-        estimatedRequestTokens: 1,
-        maxContextTokens: 1000,
-        recoveryRatio: 0.9,
-      }),
-    ).toBe(true);
-    expect(
-      shouldRecoverFromOverflowStatus({
-        isContextOverflowError: false,
-        isStatus413: true,
-        estimatedRequestTokens: 950,
-        maxContextTokens: 1000,
-        recoveryRatio: 0.9,
-      }),
-    ).toBe(true);
-    expect(
-      shouldRecoverFromOverflowStatus({
-        isContextOverflowError: false,
-        isStatus413: true,
-        estimatedRequestTokens: 100,
-        maxContextTokens: 1000,
-        recoveryRatio: 0.9,
-      }),
-    ).toBe(false);
+  describe('DEFAULT_COMPACTION_CONFIG invariants', () => {
+    it('keeps asyncTriggerRatio below the sync triggerRatio', () => {
+      expect(DEFAULT_COMPACTION_CONFIG.asyncTriggerRatio).toBeLessThan(
+        DEFAULT_COMPACTION_CONFIG.triggerRatio,
+      );
+      expect(DEFAULT_COMPACTION_CONFIG.asyncTriggerRatio).toBe(
+        DEFAULT_ASYNC_COMPACTION_TRIGGER_RATIO,
+      );
+    });
+
+    it('keeps asyncWorkingSetTokens strictly below maxWorkingSetTokens when both are enabled', () => {
+      expect(DEFAULT_COMPACTION_CONFIG.asyncWorkingSetTokens).toBeGreaterThan(0);
+      expect(DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens).toBeGreaterThan(
+        DEFAULT_COMPACTION_CONFIG.asyncWorkingSetTokens,
+      );
+    });
+
+    it('keeps blockRatio strictly above triggerRatio', () => {
+      expect(DEFAULT_COMPACTION_CONFIG.blockRatio).toBeGreaterThan(
+        DEFAULT_COMPACTION_CONFIG.triggerRatio,
+      );
+    });
+
+    it('keeps the frozen zone at the documented default', () => {
+      expect(DEFAULT_COMPACTION_CONFIG.frozenZoneSize).toBe(DEFAULT_FROZEN_ZONE_SIZE);
+    });
+  });
+});
+
+describe('DefaultCompactionStrategy — threshold logic', () => {
+  it('never compacts or blocks when maxSize is non-positive', () => {
+    const s = new DefaultCompactionStrategy(() => 0, DEFAULT_COMPACTION_CONFIG);
+    expect(s.shouldCompact(999_999)).toBe(false);
+    expect(s.shouldAsyncCompact(999_999)).toBe(false);
+    expect(s.shouldBlock(999_999)).toBe(false);
   });
 
-  it('shouldUseParallelSummarize chooses parallel only for large prefixes', () => {
+  it('fires shouldCompact at the ratio threshold and shouldBlock at the block ratio', () => {
+    const s = new DefaultCompactionStrategy(() => 200_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.7,
+      blockRatio: 0.9,
+    });
+    // ratio threshold = floor(200_000 * 0.7) = 140_000
+    expect(s.shouldCompact(139_999)).toBe(false);
+    expect(s.shouldCompact(140_000)).toBe(true);
+    // block threshold = floor(200_000 * 0.9) = 180_000
+    expect(s.shouldBlock(179_999)).toBe(false);
+    expect(s.shouldBlock(180_000)).toBe(true);
+  });
+
+  it('caps the soft threshold with maxWorkingSetTokens when the cap is below the ratio', () => {
+    const s = new DefaultCompactionStrategy(() => 1_000_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.7,
+      maxWorkingSetTokens: 200_000,
+    });
+    // ratio = 700_000, but cap pulls soft to 200_000.
+    expect(s.shouldCompact(199_999)).toBe(false);
+    expect(s.shouldCompact(200_000)).toBe(true);
+  });
+
+  it('fires shouldAsyncCompact only between the async and sync thresholds', () => {
+    const s = new DefaultCompactionStrategy(() => 200_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.7,
+      blockRatio: 0.9,
+      asyncTriggerRatio: 0.5,
+    });
+    // async threshold = floor(200_000 * 0.5) = 100_000
+    // sync threshold = 140_000
+    expect(s.shouldAsyncCompact(99_999)).toBe(false);
+    expect(s.shouldAsyncCompact(100_000)).toBe(true);
+    // once sync fires, async must not fire alongside it
+    expect(s.shouldAsyncCompact(140_000)).toBe(false);
+  });
+
+  it('disables async compaction when asyncTriggerRatio is 0', () => {
+    const s = new DefaultCompactionStrategy(() => 200_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      asyncTriggerRatio: 0,
+    });
+    expect(s.shouldAsyncCompact(200_000)).toBe(false);
+  });
+
+  it('uses the reserved-context path to block before the hard ratio when reserved is larger', () => {
+    const s = new DefaultCompactionStrategy(() => 200_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.7,
+      blockRatio: 0.9,
+      reservedContextSize: 60_000,
+    });
+    // block ratio = 180_000; reserved threshold = 200_000 - 60_000 = 140_000;
+    // shouldBlockForReservedContext fires at max(140_000, 180_000) = 180_000.
+    expect(s.shouldBlock(179_999)).toBe(false);
+    expect(s.shouldBlock(180_000)).toBe(true);
+  });
+
+  it('clamps quality-bias ratchet between 0 and MAX_QUALITY_TRIGGER_BIAS (0.02)', () => {
+    const s = new DefaultCompactionStrategy(() => 200_000, DEFAULT_COMPACTION_CONFIG);
+    // First backstop: +0.02 → 0.02
     expect(
-      shouldUseParallelSummarize({
-        compactedTokens: 100,
-        messageCount: 10,
-        parallelThreshold: 1000,
-      }),
-    ).toBe(false);
-    expect(
-      shouldUseParallelSummarize({
-        compactedTokens: 5000,
-        messageCount: 2,
-        parallelThreshold: 1000,
-      }),
-    ).toBe(false);
-    expect(
-      shouldUseParallelSummarize({
-        compactedTokens: 5000,
-        messageCount: 8,
-        parallelThreshold: 1000,
-      }),
-    ).toBe(true);
+      s.applyQualityFeedback({ usedEmergencyBackstop: true, recallEvalScore: 0.5 }),
+    ).toBeCloseTo(0.02, 5);
+    // Second backstop: already at cap, stays at 0.02
+    expect(s.applyQualityFeedback({ usedEmergencyBackstop: true })).toBeCloseTo(0.02, 5);
+    // Clean compaction: -0.01 → 0.01
+    expect(s.applyQualityFeedback({ usedEmergencyBackstop: false })).toBeCloseTo(0.01, 5);
+    // Decay all the way to 0, not below
+    expect(s.applyQualityFeedback({ usedEmergencyBackstop: false })).toBe(0);
+    expect(s.applyQualityFeedback({ usedEmergencyBackstop: false })).toBe(0);
+  });
+
+  it('lowers the effective trigger ratio by the quality bias (clamped to 0.01)', () => {
+    const s = new DefaultCompactionStrategy(() => 200_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      triggerRatio: 0.7,
+    });
+    s.applyQualityFeedback({ usedEmergencyBackstop: true });
+    // effective = max(0.01, 0.7 - 0.02) = 0.68
+    expect(s.effectiveTriggerRatio).toBeCloseTo(0.68, 5);
+  });
+
+  it('reflects the maxWorkingSetTokens base in workingSetBaseTokens', () => {
+    const s = new DefaultCompactionStrategy(() => 1_000_000, {
+      ...DEFAULT_COMPACTION_CONFIG,
+      maxWorkingSetTokens: 256_000,
+    });
+    expect(s.workingSetBaseTokens).toBe(256_000);
+  });
+
+  it('exposes a positive parallelBlockThreshold that is at least the parallelBlockTarget', () => {
+    const cfg = DEFAULT_COMPACTION_CONFIG;
+    expect(cfg.parallelBlockThreshold).toBeGreaterThan(0);
+    expect(cfg.parallelBlockTarget).toBeGreaterThan(0);
+    expect(cfg.parallelBlockThreshold).toBeGreaterThanOrEqual(cfg.parallelBlockTarget);
   });
 });
