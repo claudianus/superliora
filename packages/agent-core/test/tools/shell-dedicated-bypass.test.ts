@@ -129,6 +129,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('ConvertTo-Csv -Path out.csv')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Get-Content data.csv | Import-Csv')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Process | Export-Csv out.csv')).toBeUndefined();
+    // Import-Clixml / Export-Clixml path dumps → Read/Write; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('Import-Clixml -Path state.clixml')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Export-Clixml -Path state.clixml')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Get-Content state.clixml | Import-Clixml')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Process | Export-Clixml state.clixml')).toBeUndefined();
     // Select-Object path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('Select-Object -Path src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('select -Path src/a.ts')?.prefer).toBe('Read');

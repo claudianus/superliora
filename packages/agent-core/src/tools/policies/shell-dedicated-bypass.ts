@@ -1336,6 +1336,30 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Write instead of PowerShell Export-Csv/ConvertTo-Csv for file dumps.',
     };
   }
+  // Import-Clixml path dumps → Read; Export-Clixml path dumps → Write (pipelines stay allowed).
+  if (
+    /^(?:Import-Clixml)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b)/i.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'Import-Clixml',
+      message: 'Use Read instead of PowerShell Import-Clixml for file content dumps.',
+    };
+  }
+  if (
+    /^(?:Export-Clixml)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:ForEach-Object|%|Where-Object)\b/i.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b)/i.test(command)
+  ) {
+    return {
+      prefer: 'Write',
+      pattern: 'Export-Clixml',
+      message: 'Use Write instead of PowerShell Export-Clixml for file dumps.',
+    };
+  }
   // Select-Object path / Get-Content InputObject dumps → Read (pipelines stay allowed).
   if (
     /^(?:Select-Object|select)\b/i.test(command) &&

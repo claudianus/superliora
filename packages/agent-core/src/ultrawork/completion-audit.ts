@@ -13,7 +13,10 @@ import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
 } from '../session/swarm-evidence-gate';
-import { collectVerificationGapNodes } from './recovery-prompt';
+import {
+  collectVerificationGapNodes,
+  formatEvidenceHardGateNextActions,
+} from './recovery-prompt';
 import {
   analyzeFailedNodes,
   countResumeCyclesFromHistory,
@@ -272,20 +275,10 @@ export function auditUltraworkCompletion(
     ];
     const nextActions: string[] = [];
     // Promote concrete evidence-gate repair steps first when the hard gate fired
-    // (done-without-evidence remapped to blocked). Generic incomplete actions follow.
+    // (done-without-evidence remapped to blocked). Share recovery-prompt wording.
     if (evidenceHits.length > 0) {
-      const gateNodes = violations.length > 0
-        ? violations.slice(0, 3).map((v) => {
-            const node = open.find((n) => n.id === v.nodeId) ?? graph.nodes.find((n) => n.id === v.nodeId);
-            const required =
-              node?.requiredEvidence?.filter((id) => id.length > 0).slice(0, 3).join(', ') ?? '';
-            const missing =
-              required.length > 0 ? `; requiredEvidence: ${required}` : '';
-            return `${v.nodeId}${missing}`;
-          })
-        : openNodeIds.slice(0, 3);
       nextActions.push(
-        `Close evidence hard-gate on node(s): ${gateNodes.join(', ')}${evidenceHits.length > 3 || openNodeIds.length > 3 ? ', …' : ''} — attach matching evidenceIds (and verificationSummary when useful), then set status=done only after checks.`,
+        ...formatEvidenceHardGateNextActions(graph.nodes),
         'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
       );
     }
