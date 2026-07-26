@@ -472,9 +472,16 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'eyes',
+    aliases: ['eye'],
+    description: 'Show browser-use / computer-use eyes readiness',
+    priority: 70,
+    availability: 'always',
+  },
+  {
     name: 'harness',
     aliases: [],
-    description: 'Open harness controls (tools, premium, MCP, experiments)',
+    description: 'Open harness controls (tools, eyes, premium, MCP, experiments)',
     priority: 70,
     availability: 'always',
   },

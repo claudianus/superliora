@@ -692,6 +692,45 @@ describe('harness panel and tools inventory', () => {
     });
   });
 
+  it('routes /tools slash command to live tools inventory', async () => {
+    const getTools = vi.fn(async () => [
+      { name: 'Read', description: 'Read a file', source: 'builtin', active: true },
+    ]);
+    const host = makeHarnessHost({ session: { getTools } });
+    await dispatchInput(host, '/tools');
+    await vi.waitFor(() => {
+      expect(getTools).toHaveBeenCalledOnce();
+    });
+    expect(host.showNotice).toHaveBeenCalled();
+    expect(String(host.showNotice.mock.calls[0]?.[0] ?? '')).toContain('Tools:');
+  });
+
+  it('routes /eyes slash command to eyes readiness report', async () => {
+    const host = makeHarnessHost();
+    await dispatchInput(host, '/eyes');
+    await vi.waitFor(
+      () => {
+        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
+          0,
+        );
+      },
+      { timeout: 5000 },
+    );
+  });
+
+  it('routes /eye alias to eyes readiness report', async () => {
+    const host = makeHarnessHost();
+    await dispatchInput(host, '/eye');
+    await vi.waitFor(
+      () => {
+        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
+          0,
+        );
+      },
+      { timeout: 5000 },
+    );
+  });
+
   it('surfaces eyes readiness load failures without crashing', async () => {
     const host = makeHarnessHost();
     // force package root path that still exercises the catch path by monkeypatching is hard;

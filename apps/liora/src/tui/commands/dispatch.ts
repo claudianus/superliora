@@ -42,6 +42,7 @@ import {
   showModelPicker,
   showPermissionPicker,
   showSettingsSelector,
+  showHarnessEyesReadiness,
   showHarnessPanel,
   showToolsInventory,
 } from './config';
@@ -375,6 +376,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'tools':
       void showToolsInventory(host);
+      return;
+    case 'eyes':
+      void showHarnessEyesReadiness(host);
       return;
     case 'harness':
       showHarnessPanel(host);
