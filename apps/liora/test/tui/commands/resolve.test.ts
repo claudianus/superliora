@@ -80,6 +80,9 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/eyes')).toMatchObject({ kind: 'builtin', name: 'eyes', args: '' });
     expect(resolve('/eye')).toMatchObject({ kind: 'builtin', name: 'eyes', args: '' });
     expect(resolve('/harness')).toMatchObject({ kind: 'builtin', name: 'harness', args: '' });
+    expect(resolve('/premium')).toMatchObject({ kind: 'builtin', name: 'premium', args: '' });
+    expect(resolve('/pq')).toMatchObject({ kind: 'builtin', name: 'premium', args: '' });
+    expect(resolve('/premium on')).toMatchObject({ kind: 'builtin', name: 'premium', args: 'on' });
     expect(resolve('/fork')).toMatchObject({ kind: 'builtin', name: 'fork', args: '' });
     expect(resolve('/title New title')).toMatchObject({
       kind: 'builtin',
@@ -330,6 +333,16 @@ describe('resolveSlashCommandInput', () => {
       kind: 'builtin',
       name: 'harness',
       args: '',
+    });
+    expect(resolve('/premium', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'premium',
+      args: '',
+    });
+    expect(resolve('/pq status', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'premium',
+      args: 'status',
     });
     expect(resolve('/reload-tui', { isStreaming: true })).toMatchObject({
       kind: 'builtin',

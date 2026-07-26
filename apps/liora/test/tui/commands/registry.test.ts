@@ -64,6 +64,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('eyes')?.name).toBe('eyes');
     expect(findBuiltInSlashCommand('eye')?.name).toBe('eyes');
     expect(findBuiltInSlashCommand('harness')?.name).toBe('harness');
+    expect(findBuiltInSlashCommand('premium')?.name).toBe('premium');
+    expect(findBuiltInSlashCommand('pq')?.name).toBe('premium');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
     expect(findBuiltInSlashCommand('thinking')?.name).toBe('thinking');
     expect(findBuiltInSlashCommand('think')?.name).toBe('thinking');
