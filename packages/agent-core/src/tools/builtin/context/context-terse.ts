@@ -254,8 +254,11 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\bcargo\s+(?:build|test|check|clippy)\b/u.test(command)) {
     next = compressBuildOutput(next);
   }
-  if (/\bgit\s+(?:log|diff|show)\b/u.test(command)) {
-    next = compressGitOutput(next);
+  if (
+    /\bgit\s+(?:log|diff|show|blame|shortlog|stash\s+show|whatchanged)\b/u.test(command) ||
+    /\bgit\s+(?:diff|show|log)\b[^\n]*--(?:name-status|stat|numstat|shortstat)\b/u.test(command)
+  ) {
+    next = compressGitOutput(next, command);
   }
   if (/\bdocker\s+(?:ps|logs|compose)\b/u.test(command)) {
     next = compressDockerOutput(next);
@@ -369,12 +372,75 @@ function compressTestOutput(text: string): string {
   return kept.join('\n');
 }
 
-function compressGitOutput(text: string): string {
+/**
+ * Compress long git log/diff/show/blame dumps.
+ * Diffs keep file headers + hunk headers and collapse pure context/body runs.
+ * Other git dumps use a tighter head+tail window than the generic shell cap.
+ */
+function compressGitOutput(text: string, command = ''): string {
   const lines = text.split('\n');
+  const isDiffLike =
+    /\bgit\s+(?:diff|show|stash\s+show)\b/u.test(command) ||
+    /^diff --git /m.test(text) ||
+    /^@@ /m.test(text);
+
+  if (isDiffLike && lines.length > 40) {
+    return compressGitDiffOutput(lines);
+  }
+
+  // log / blame / shortlog / name-status — keep head+tail with a tighter budget.
   if (lines.length <= AUTO_FULL_LINE_THRESHOLD) return text;
-  const head = lines.slice(0, 60);
-  const tail = lines.slice(-40);
-  return [...head, `[... ${String(lines.length - 100)} git lines omitted ...]`, ...tail].join('\n');
+  const headCount = 40;
+  const tailCount = 20;
+  if (lines.length <= headCount + tailCount) return text;
+  const head = lines.slice(0, headCount);
+  const tail = lines.slice(-tailCount);
+  return [
+    ...head,
+    `[... ${String(lines.length - headCount - tailCount)} git lines omitted ...]`,
+    ...tail,
+  ].join('\n');
+}
+
+/** Keep file/hunk headers; keep first 8 body lines per hunk, omit the rest. */
+function compressGitDiffOutput(lines: readonly string[]): string {
+  const kept: string[] = [];
+  let bodyRun = 0;
+
+  const flushOmittedBody = (): void => {
+    if (bodyRun > 8) {
+      kept.push(`[... ${String(bodyRun - 8)} diff body lines omitted ...]`);
+    }
+    bodyRun = 0;
+  };
+
+  for (const line of lines) {
+    const isHeader =
+      /^(?:diff --git |index |--- |\+\+\+ |@@ |new file mode |deleted file mode |rename |similarity |Binary files )/u.test(
+        line,
+      ) || /^(?:commit |Author:|Date:|Merge:)/u.test(line);
+    if (isHeader) {
+      flushOmittedBody();
+      kept.push(line);
+      continue;
+    }
+    bodyRun += 1;
+    if (bodyRun <= 8) {
+      kept.push(line);
+    }
+  }
+  flushOmittedBody();
+
+  if (kept.length > 200) {
+    const head = kept.slice(0, 120);
+    const tail = kept.slice(-40);
+    return [
+      ...head,
+      `[... ${String(kept.length - 160)} git lines omitted ...]`,
+      ...tail,
+    ].join('\n');
+  }
+  return kept.join('\n');
 }
 
 function truncateInline(text: string, maxLength: number): string {

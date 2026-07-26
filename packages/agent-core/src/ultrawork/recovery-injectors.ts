@@ -56,6 +56,17 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   if (run === null || run === undefined || run.status !== 'running') return;
   if (run.stage !== 'integrate') return;
 
+  const planContext = agent.ultrawork.isModeEnabled()
+    ? capturePlanRecoveryContextFromAgent(agent)
+    : undefined;
+  const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
+  const nextActions = suggestNextActions(
+    run,
+    'UltraSwarm finished — integrate then verify',
+    planContext,
+    resumeCursor,
+  );
+
   const pendingNodes =
     run.workGraph?.nodes.filter(
       (node) => node.status !== 'done' && node.status !== 'cancelled',
@@ -69,13 +80,22 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     '2. Verify — mechanical + real-surface checks for acceptance criteria.',
     '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
   ];
+  if (resumeCursor.workGraphNodeId !== undefined) {
+    lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
   if (pendingNodes.length > 0) {
     lines.push(
       `Pending WorkGraph nodes (${String(pendingNodes.length)}): ${pendingNodes
         .slice(0, 4)
-        .map((node) => `${node.id}[${node.status}]`)
+        .map((node) => `${node.id}[${node.status}] ${node.title}`)
         .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
     );
+  }
+  if (nextActions.length > 0) {
+    lines.push('Next actions:');
+    for (const action of nextActions.slice(0, 3)) {
+      lines.push(`- ${action}`);
+    }
   }
   lines.push(
     'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',

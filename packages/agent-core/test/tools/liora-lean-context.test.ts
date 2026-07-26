@@ -217,4 +217,50 @@ describe('Liora lean context tools', () => {
       expect(compressed.text.length, command).toBeLessThan(stdout.length);
     }
   });
+
+  it('compressShellOutput collapses long git log dumps', () => {
+    const stdout = Array.from(
+      { length: 120 },
+      (_, i) => `commit ${String(i).padStart(40, 'a')}\nAuthor: Dev\nDate: now\n\n    msg ${String(i)}\n`,
+    ).join('');
+    const compressed = compressShellOutput({
+      stdout,
+      stderr: '',
+      command: 'git log --oneline -n 200',
+    });
+    expect(compressed.text).toContain('git lines omitted');
+    expect(compressed.savedPercent).toBeGreaterThan(0);
+    expect(compressed.text.length).toBeLessThan(stdout.length);
+  });
+
+  it('compressShellOutput keeps git diff headers and omits long body runs', () => {
+    const body = Array.from({ length: 40 }, (_, i) => `+const x${String(i)} = ${String(i)};`).join(
+      '\n',
+    );
+    const stdout = [
+      'diff --git a/src/a.ts b/src/a.ts',
+      'index 111..222 100644',
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -1,5 +1,45 @@',
+      body,
+      'diff --git a/src/b.ts b/src/b.ts',
+      'index 333..444 100644',
+      '--- a/src/b.ts',
+      '+++ b/src/b.ts',
+      '@@ -1,2 +1,2 @@',
+      '-old',
+      '+new',
+    ].join('\n');
+    const compressed = compressShellOutput({
+      stdout,
+      stderr: '',
+      command: 'git diff HEAD~1',
+    });
+    expect(compressed.text).toContain('diff --git a/src/a.ts');
+    expect(compressed.text).toContain('diff --git a/src/b.ts');
+    expect(compressed.text).toContain('diff body lines omitted');
+    expect(compressed.text.length).toBeLessThan(stdout.length);
+    expect(compressed.savedPercent).toBeGreaterThan(0);
+  });
 });

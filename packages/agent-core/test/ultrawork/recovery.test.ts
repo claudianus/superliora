@@ -835,6 +835,8 @@ describe('Ultrawork recovery', () => {
     );
     expect(text).toContain('Pending WorkGraph nodes');
     expect(text).toContain('node-1[running]');
+    expect(text).toContain('Integrate API');
+    expect(text).toContain('Next actions:');
     expect(text).toContain('run-post-swarm-graph');
     expect(run.id).toBe('run-post-swarm-graph');
   });
