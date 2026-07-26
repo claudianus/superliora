@@ -181,11 +181,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   },
   {
     id: 'testing-qa',
-    query: 'test driven development QA engineer automated tests',
+    query: 'test driven craftsman QA engineer automated tests maniac automation',
     relevantIds: [
       'ericgrill-general-test-driven-maniac',
-      'ericgrill-general-test-driven-craftsman',
       'testing-test-automation-engineer',
+      'ericgrill-general-test-driven-craftsman',
       'agentcrow-qa-engineer',
     ],
     labels: ['Testing', 'QA'],
@@ -383,8 +383,10 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     query: 'multi-agent systems architect RAG pipeline AI engineer orchestration',
     relevantIds: [
       'engineering-multi-agent-systems-architect',
+      'volt-05-data-ai-llm-architect',
       'engineering-rag-pipeline-engineer',
       'agentcrow-ai-engineer',
+      'agentic-identity-trust',
     ],
     labels: ['Engineering', 'Agents'],
   },
