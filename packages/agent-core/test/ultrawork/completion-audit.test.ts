@@ -217,6 +217,35 @@ describe('auditUltraworkCompletion', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('attaches analyzeFailedNodes category guidance for status=failed nodes', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_timeout',
+              kind: 'acceptance_criterion',
+              status: 'failed',
+              verificationSummary: 'timeout after 120s',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('node_failed');
+      expect(result.reasons.some((r) => /ac_timeout\[timeout\]/.test(r))).toBe(true);
+      expect(result.nextActions.some((a) => /Repair ac_timeout \[timeout\]/.test(a))).toBe(true);
+      expect(result.nextActions.some((a) => /Increase timeout|split/i.test(a))).toBe(true);
+      const formatted = formatCompletionAuditRejection(result);
+      expect(formatted).toContain('timeout');
+      expect(formatted).toContain('ac_timeout');
+    }
+  });
+
   it('treats cancelled nodes as terminal (not incomplete)', () => {
     const result = auditUltraworkCompletion({
       run: baseRun({
@@ -248,8 +277,9 @@ describe('auditUltraworkCompletion', () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.code).toBe('verification_failed');
+      expect(result.code).toBe('node_failed');
       expect(result.openNodeIds).toContain('impl_1');
+      expect(result.reasons.some((r) => /impl_1\[unknown\]/.test(r))).toBe(true);
     }
   });
 

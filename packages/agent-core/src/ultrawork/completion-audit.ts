@@ -13,6 +13,7 @@ import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
 } from '../session/swarm-evidence-gate';
+import { analyzeFailedNodes } from './stage-progress';
 
 export type CompletionAuditCode =
   | 'empty_work_graph'
@@ -22,6 +23,8 @@ export type CompletionAuditCode =
   /** verificationStatus=blocked on a gated node (checks could not complete). */
   | 'verification_blocked'
   | 'verification_pending'
+  /** WorkGraph node status=failed (distinct from verificationStatus=failed). */
+  | 'node_failed'
   | 'run_not_running'
   /** Structured GoalPredicate evaluation failed (paths/tests/evidence). */
   | 'predicate_failed'
@@ -138,17 +141,35 @@ export function auditUltraworkCompletion(
 
   // Node status=failed means the work itself failed — not a dropped cancelled scope.
   // Completing the goal while any node is failed would paper over broken ACs.
+  // Match recovery triangle: attach analyzeFailedNodes category guidance so
+  // UpdateGoal(complete) rejections point to concrete repair steps.
   const failedNodes = gatedNodes.filter((n) => n.status === 'failed');
   if (failedNodes.length > 0) {
     const openNodeIds = failedNodes.map((n) => n.id);
+    const failedAnalysis = analyzeFailedNodes({
+      id: run.workGraph?.id ?? `${run.id}:work_graph`,
+      runId: run.id,
+      nodes: failedNodes,
+    });
+    const categoryReasons = failedAnalysis
+      .slice(0, 2)
+      .map(({ node, category, guidance }) => `${node.id}[${category}]: ${guidance}`);
+    const categoryActions = failedAnalysis
+      .slice(0, 2)
+      .map(({ node, category, guidance }) => `Repair ${node.id} [${category}]: ${guidance}`);
     return reject(
-      'verification_failed',
+      'node_failed',
       [
         `WorkGraph nodes still status=failed: ${openNodeIds.join(', ')}.`,
         'Failed nodes block goal complete — fix, re-run, or cancel only after deliberate scope drop.',
+        ...categoryReasons,
       ],
       [
-        'Repair the failed work, re-run checks, then set status=done with verificationStatus=passed.',
+        ...(categoryActions.length > 0
+          ? categoryActions
+          : [
+              'Repair the failed work, re-run checks, then set status=done with verificationStatus=passed.',
+            ]),
         'If the node is out of scope, set status=cancelled (not failed) after an explicit decision.',
       ],
       openNodeIds,
