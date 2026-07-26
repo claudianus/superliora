@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   computeFamilyBudgetOverflowToolCallIds,
+  MicroCompaction,
   MicroTriggerTracker,
   MICRO_TOOL_RESULT_FAMILY_KEEP,
 } from '../../../src/agent/compaction/micro';
@@ -1224,3 +1225,45 @@ describe('computeFamilyBudgetOverflowToolCallIds', () => {
   });
 });
 
+describe('MicroCompaction.apply monotonicity', () => {
+  // `apply(cutoff)` records the absolute clear-window position. Within a
+  // session the window only grows: a smaller value would un-mask history
+  // items that were already micro-cleared, so the LLM could re-read the
+  // same content twice. Pin the clamp and the monotonicity guard so a
+  // future refactor cannot silently regress the position.
+
+  function buildAgent(): Parameters<typeof MicroCompaction.prototype.apply>[0] extends infer _ ? any : never {
+    // A minimal agent stub: only `records.logRecord` is exercised by apply().
+    const records = {
+      logRecord: () => undefined,
+    };
+    return { records } as any;
+  }
+
+  it('keeps the larger cutoff when apply is called with a smaller value', () => {
+    const micro = new MicroCompaction(buildAgent());
+    micro.apply(10);
+    micro.apply(7);
+    expect((micro as unknown as { cutoff: number }).cutoff).toBe(10);
+  });
+
+  it('clamps a negative cutoff to zero without regressing prior progress', () => {
+    const micro = new MicroCompaction(buildAgent());
+    micro.apply(5);
+    micro.apply(-3);
+    expect((micro as unknown as { cutoff: number }).cutoff).toBe(5);
+  });
+
+  it('accepts a fresh agent at cutoff 0 and clamps a negative to 0', () => {
+    const micro = new MicroCompaction(buildAgent());
+    micro.apply(-1);
+    expect((micro as unknown as { cutoff: number }).cutoff).toBe(0);
+  });
+
+  it('reset(0) lowers a positive cutoff back to 0', () => {
+    const micro = new MicroCompaction(buildAgent());
+    micro.apply(15);
+    micro.reset(0);
+    expect((micro as unknown as { cutoff: number }).cutoff).toBe(0);
+  });
+});

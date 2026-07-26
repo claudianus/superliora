@@ -128,7 +128,15 @@ export class MicroCompaction {
       type: 'micro_compaction.apply',
       cutoff,
     });
-    this.cutoff = cutoff;
+    // `cutoff` is the absolute index up to which the clearable window has
+    // been removed. It is monotonically increasing within a session: a
+    // smaller value would un-mask history items that were already
+    // micro-cleared (and therefore no longer recoverable from the model's
+    // perspective), letting the LLM see the same content twice. Clamp
+    // negatives (defensive — detection logic should not pass a negative
+    // value) and never let the new cutoff regress behind the previous one.
+    const safe = cutoff < 0 ? 0 : cutoff;
+    this.cutoff = safe > this.cutoff ? safe : this.cutoff;
   }
 
   detect(): void {
