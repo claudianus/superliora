@@ -75,6 +75,10 @@ export function detectShellDedicatedBypass(
   const psPipeReadHit = matchPowerShellPipeReadBypass(unwrapped);
   if (psPipeReadHit !== undefined) return psPipeReadHit;
 
+  // Pure file → pager/head/tail pipes → Read (before composition guard).
+  const filePagerHit = matchFilePagerPipeReadBypass(unwrapped);
+  if (filePagerHit !== undefined) return filePagerHit;
+
   // Start-Transcript path dumps → Write (session log file I/O; Stop-Transcript stays allowed).
   const transcriptHit = matchStartTranscriptWrite(unwrapped);
   if (transcriptHit !== undefined) return transcriptHit;
@@ -973,6 +977,41 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
     pattern: `${producer} | ${sink}`,
     message:
       'Use Write instead of PowerShell/stream producers (or string/constant/here-string) piped into Set-Content/Out-File/Tee-Object/sponge.',
+  };
+}
+
+/**
+ * Pure file path dumps piped into pagers/head/tail -> Read.
+ * Matches: cat/gcat/type/Get-Content/gc path | less|more|most|head|tail|nl
+ * Skips: multi-pipe, non-file left-hand sides, path-less producers.
+ */
+function matchFilePagerPipeReadBypass(command: string): ShellDedicatedBypassHit | undefined {
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[;&`\n]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
+
+  const m =
+    /^(?:\/usr\/bin\/)?(cat|gcat|type|Get-Content|gc)\b([\s\S]*?)\s*\|\s*(?:\/usr\/bin\/)?(less|more|most|head|ghead|tail|gtail|nl)\b([\s\S]*)$/i.exec(
+      command,
+    );
+  if (m === null) return undefined;
+
+  const leftArgs = m[2] ?? '';
+  const hasPath =
+    /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(leftArgs) ||
+    /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+      leftArgs,
+    ) ||
+    /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(leftArgs);
+  if (!hasPath) return undefined;
+
+  const producer = m[1] ?? 'cat';
+  const pager = m[3] ?? 'less';
+  return {
+    prefer: 'Read',
+    pattern: `${producer} | ${pager}`,
+    message: 'Use Read instead of piping a file into less/more/head/tail for content dumps.',
   };
 }
 

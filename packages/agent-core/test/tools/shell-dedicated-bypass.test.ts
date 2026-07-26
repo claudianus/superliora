@@ -227,6 +227,19 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Process | Write-Output > out.txt')).toBeUndefined();
   });
 
+  it('blocks pure file pipes into pagers/head/tail', () => {
+    expect(detectShellDedicatedBypass('cat src/a.ts | less')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('type src\\a.ts | more')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts | more')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cat notes.md | head')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cat notes.md | tail -n 5')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gcat ./readme.md | nl')?.prefer).toBe('Read');
+    // non-file left-hand side / multi-pipe / analysis stay allowed
+    expect(detectShellDedicatedBypass('echo hi | less')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cat src/a.ts | head | wc -l')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cat src/a.ts | wc -l')).toBeUndefined();
+  });
+
   it('blocks pure PowerShell producer pipes into file writers', () => {
     expect(detectShellDedicatedBypass('Write-Output x | Set-Content out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Write-Host x | Out-File out.txt')?.prefer).toBe('Write');
