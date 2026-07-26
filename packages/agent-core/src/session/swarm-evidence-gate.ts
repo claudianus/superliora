@@ -2,7 +2,9 @@
  * Evidence hard gate for WorkGraph done transitions.
  *
  * Rules:
- * - requiredEvidence empty/missing → allow `done` (no gate).
+ * - Policy nodes (acceptance_criterion / verification / stage=verify / id ac_*)
+ *   cannot be `done` with empty/missing requiredEvidence.
+ * - Other nodes with empty requiredEvidence → allow `done` (scaffolding).
  * - requiredEvidence present + empty/missing evidenceIds → block.
  * - When a requiredEvidence token looks like a check/tool signal
  *   (`RunProjectChecks`, `VerifySurface`, `screenshot`, `test`, …),
@@ -19,7 +21,13 @@ import type { WorkGraphNode } from '@superliora/protocol';
 
 export type EvidenceGateNode = Pick<
   WorkGraphNode,
-  'id' | 'status' | 'requiredEvidence' | 'evidenceIds' | 'verificationSummary'
+  | 'id'
+  | 'status'
+  | 'requiredEvidence'
+  | 'evidenceIds'
+  | 'verificationSummary'
+  | 'kind'
+  | 'stage'
 >;
 
 export type EvidenceGateResult =
@@ -32,6 +40,8 @@ export type EvidenceGateResult =
       readonly suggestedStatus: 'blocked';
       /** Check-like required tokens that lacked matching evidence. */
       readonly unmatchedCheckTokens?: readonly string[];
+      /** Empty requiredEvidence on a policy-bound node. */
+      readonly missingRequiredEvidencePolicy?: true;
     };
 
 /**
@@ -55,9 +65,50 @@ export const CHECK_LIKE_EVIDENCE_TOKENS = [
   'smoke',
 ] as const;
 
+/** Default token injected when seeding AC nodes without requiredEvidence. */
+export const DEFAULT_REQUIRED_EVIDENCE_TOKEN = 'test';
+
+/**
+ * Nodes that must declare non-empty requiredEvidence before `done`.
+ * Conservative: AC/verification kinds, verify stage, or id prefix `ac_`.
+ */
+export function requiresNonEmptyRequiredEvidence(node: EvidenceGateNode): boolean {
+  if (node.kind === 'acceptance_criterion' || node.kind === 'verification') {
+    return true;
+  }
+  if (node.stage === 'verify') {
+    return true;
+  }
+  const id = node.id.trim().toLowerCase();
+  if (id.startsWith('ac_') || id.startsWith('ac-')) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Ensure AC-like nodes have at least one requiredEvidence token (seed helper).
+ * Pure: returns a new node object when injection is needed.
+ */
+export function withDefaultRequiredEvidence<T extends EvidenceGateNode>(node: T): T {
+  if (!requiresNonEmptyRequiredEvidence(node)) {
+    return node;
+  }
+  const required = (node.requiredEvidence ?? [])
+    .map((value) => value.trim())
+    .filter((v) => v.length > 0);
+  if (required.length > 0) {
+    return node;
+  }
+  return {
+    ...node,
+    requiredEvidence: [DEFAULT_REQUIRED_EVIDENCE_TOKEN],
+  };
+}
+
 /**
  * Validate a single node that claims status `done`.
- * Returns ok when no requiredEvidence, or when evidence requirements pass.
+ * Returns ok when evidence requirements pass (or node is non-policy with no requiredEvidence).
  */
 export function evaluateEvidenceHardGate(node: EvidenceGateNode): EvidenceGateResult {
   if (node.status !== 'done') return { ok: true };
@@ -65,7 +116,22 @@ export function evaluateEvidenceHardGate(node: EvidenceGateNode): EvidenceGateRe
   const required = (node.requiredEvidence ?? [])
     .map((value) => value.trim())
     .filter((v) => v.length > 0);
-  if (required.length === 0) return { ok: true };
+
+  if (required.length === 0) {
+    if (requiresNonEmptyRequiredEvidence(node)) {
+      return {
+        ok: false,
+        nodeId: node.id,
+        reason:
+          `WorkGraph node ${node.id} cannot be done: policy requires non-empty ` +
+          `requiredEvidence for acceptance/verification (or stage=verify / id ac_*), ` +
+          `but requiredEvidence is empty or missing.`,
+        suggestedStatus: 'blocked',
+        missingRequiredEvidencePolicy: true,
+      };
+    }
+    return { ok: true };
+  }
 
   const evidence = (node.evidenceIds ?? [])
     .map((value) => value.trim())
@@ -153,11 +219,12 @@ export function isPathLikeEvidenceToken(token: string): boolean {
   // Explicit relative path
   if (t.startsWith('./') || t.startsWith('../')) return true;
   // Contains a path separator and a file-ish suffix or known package root
-  if ((t.includes('/') || t.includes('\\')) && (
-    /\.(ts|tsx|js|mjs|cjs|json|md|png|jpg|webp|log|txt)$/i.test(t) ||
-    /(?:^|\/)(?:packages|apps|src|test|tests|scripts|docs)\//i.test(t) ||
-    /\.(test|spec)\./i.test(t)
-  )) {
+  if (
+    (t.includes('/') || t.includes('\\')) &&
+    (/\.(ts|tsx|js|mjs|cjs|json|md|png|jpg|webp|log|txt)$/i.test(t) ||
+      /(?:^|\/)(?:packages|apps|src|test|tests|scripts|docs)\//i.test(t) ||
+      /\.(test|spec)\./i.test(t))
+  ) {
     return true;
   }
   return false;
@@ -213,9 +280,12 @@ export function applyEvidenceHardGate(nodes: readonly WorkGraphNode[]): {
     violations.push(result);
     return {
       ...node,
-      status: result.suggestedStatus,
+      status: 'blocked' as const,
       verificationStatus: 'blocked' as const,
-      verificationSummary: result.reason,
+      verificationSummary:
+        node.verificationSummary && node.verificationSummary.trim().length > 0
+          ? `${node.verificationSummary.trim()} | ${result.reason}`
+          : result.reason,
     };
   });
   return { nodes: next, violations };

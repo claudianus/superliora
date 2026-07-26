@@ -64,8 +64,15 @@ describe('auditUltraworkCompletion', () => {
           id: 'g1',
           runId: 'run-audit-1',
           nodes: [
-            node({ id: 'ac_1', status: 'done' }),
-            node({ id: 'ac_2', status: 'queued' }),
+            node({
+              id: 'ac_1',
+              kind: 'acceptance_criterion',
+              status: 'done',
+              requiredEvidence: ['test'],
+              evidenceIds: ['unit-test-report'],
+              verificationStatus: 'passed',
+            }),
+            node({ id: 'ac_2', kind: 'acceptance_criterion', status: 'queued' }),
           ],
         },
       }),
@@ -133,7 +140,10 @@ describe('auditUltraworkCompletion', () => {
           nodes: [
             node({
               id: 'ac_1',
+              kind: 'acceptance_criterion',
               status: 'done',
+              requiredEvidence: ['test'],
+              evidenceIds: ['unit-test-report'],
               verificationStatus: 'failed',
             }),
           ],
@@ -144,20 +154,45 @@ describe('auditUltraworkCompletion', () => {
     if (!result.ok) expect(result.code).toBe('verification_failed');
   });
 
-  it('passes when all nodes done without requiredEvidence', () => {
+  it('passes when non-policy nodes are done without requiredEvidence', () => {
     const result = auditUltraworkCompletion({
       run: baseRun({
         workGraph: {
           id: 'g1',
           runId: 'run-audit-1',
           nodes: [
-            node({ id: 'ac_1', status: 'done' }),
-            node({ id: 'ac_2', status: 'done' }),
+            node({ id: 'research_1', kind: 'research', stage: 'research', status: 'done' }),
+            node({ id: 'other_1', kind: 'other', stage: 'swarm', status: 'done' }),
           ],
         },
       }),
     });
     expect(result.ok).toBe(true);
+  });
+
+  it('rejects AC done nodes with empty requiredEvidence (policy hard gate)', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_1',
+              kind: 'acceptance_criterion',
+              stage: 'implement',
+              status: 'done',
+              requiredEvidence: [],
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(['evidence_gate', 'incomplete_nodes']).toContain(result.code);
+      expect(result.reasons.join(' ')).toMatch(/policy requires non-empty|cannot be done|still/i);
+    }
   });
 
   it('passes when requiredEvidence has matching evidenceIds and verificationStatus=passed', () => {

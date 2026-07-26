@@ -9,6 +9,8 @@ import {
   findEvidenceHardGateViolation,
   isCheckLikeEvidenceToken,
   isPathLikeEvidenceToken,
+  requiresNonEmptyRequiredEvidence,
+  withDefaultRequiredEvidence,
 } from '../../src/session/swarm-evidence-gate';
 
 function node(overrides: Partial<WorkGraphNode> = {}): WorkGraphNode {
@@ -22,8 +24,62 @@ function node(overrides: Partial<WorkGraphNode> = {}): WorkGraphNode {
 }
 
 describe('swarm-evidence-gate', () => {
-  it('allows done without requiredEvidence', () => {
-    expect(evaluateEvidenceHardGate(node({ status: 'done' }))).toEqual({ ok: true });
+  it('allows done without requiredEvidence for non-policy nodes', () => {
+    expect(
+      evaluateEvidenceHardGate(
+        node({
+          id: 'research_1',
+          kind: 'research',
+          stage: 'research',
+          status: 'done',
+        }),
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it('blocks done without requiredEvidence for acceptance_criterion', () => {
+    const result = evaluateEvidenceHardGate(
+      node({
+        id: 'ac_1',
+        kind: 'acceptance_criterion',
+        stage: 'implement',
+        status: 'done',
+        requiredEvidence: [],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.missingRequiredEvidencePolicy).toBe(true);
+    expect(result.reason).toMatch(/policy requires non-empty/i);
+  });
+
+  it('blocks done without requiredEvidence for stage=verify', () => {
+    const result = evaluateEvidenceHardGate(
+      node({
+        id: 'verify_1',
+        kind: 'other',
+        stage: 'verify',
+        status: 'done',
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.missingRequiredEvidencePolicy).toBe(true);
+  });
+
+  it('blocks done without requiredEvidence for id prefix ac_', () => {
+    const result = evaluateEvidenceHardGate(
+      node({ id: 'ac_99', stage: 'swarm', status: 'done' }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('withDefaultRequiredEvidence injects test token for AC nodes', () => {
+    const seeded = withDefaultRequiredEvidence(
+      node({ id: 'ac_2', kind: 'acceptance_criterion', stage: 'implement' }),
+    );
+    expect(seeded.requiredEvidence).toEqual(['test']);
+    expect(requiresNonEmptyRequiredEvidence(seeded)).toBe(true);
   });
 
   it('allows non-done statuses even with requiredEvidence', () => {

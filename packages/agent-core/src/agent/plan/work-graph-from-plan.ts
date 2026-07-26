@@ -1,5 +1,7 @@
 import type { WorkGraph, WorkGraphNode, UltraworkStage } from '@superliora/protocol';
 
+import { withDefaultRequiredEvidence } from '../../session/swarm-evidence-gate';
+
 import type { Agent } from '..';
 import {
   cloneWorkGraph,
@@ -151,17 +153,19 @@ function parseWorkGraphBullets(section: string): WorkGraphNode[] {
     const evidenceMatch = /\brequired\s+evidence\s*:?\s*(.+)$/i.exec(line);
     const stage = parseStage(stageMatch?.[1]);
     if (stage === undefined) continue;
-    nodes.push({
-      id,
-      title: buildNodeTitle(id, acMatch?.[1], evidenceMatch?.[1]),
-      acceptanceCriterionId: normalizeOptional(acMatch?.[1]),
-      stage,
-      laneId: parseLaneId(line),
-      status: 'queued',
-      kind: kindForStage(stage),
-      dependsOn: parseDependencies(line),
-      requiredEvidence: parseRequiredEvidence(evidenceMatch?.[1]),
-    });
+    nodes.push(
+      withDefaultRequiredEvidence({
+        id,
+        title: buildNodeTitle(id, acMatch?.[1], evidenceMatch?.[1]),
+        acceptanceCriterionId: normalizeOptional(acMatch?.[1]),
+        stage,
+        laneId: parseLaneId(line),
+        status: 'queued',
+        kind: kindForStage(stage),
+        dependsOn: parseDependencies(line),
+        requiredEvidence: parseRequiredEvidence(evidenceMatch?.[1]),
+      }),
+    );
   }
   return nodes;
 }
@@ -217,7 +221,7 @@ function nodeFromTableCells(
     description ??
     buildNodeTitle(id, acceptanceCriterionId, requiredEvidenceRaw);
 
-  return {
+  return withDefaultRequiredEvidence({
     id,
     title,
     acceptanceCriterionId,
@@ -227,7 +231,7 @@ function nodeFromTableCells(
     kind: kindForStage(stage),
     dependsOn: parseDependencies(cellValue(cells, columnIndex.dependsOn)),
     requiredEvidence: parseRequiredEvidence(requiredEvidenceRaw),
-  };
+  });
 }
 
 function splitTableRow(row: string): string[] {
