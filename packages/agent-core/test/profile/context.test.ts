@@ -116,19 +116,31 @@ describe('loadAgentsMd brand home (SUPERLIORA_HOME)', () => {
 });
 
 describe('loadAgentsMd oversized content', () => {
-  it('keeps the full content when AGENTS.md exceeds the recommended size', async () => {
+  it('keeps the full content when AGENTS.md exceeds the recommended soft budget', async () => {
     const largeContent = 'x'.repeat(40 * 1024);
     await writeFile(join(workDir, 'AGENTS.md'), largeContent, 'utf-8');
 
     const result = await loadAgentsMd(testKaos);
 
     expect(result).toContain(largeContent);
-    expect(result).not.toContain('truncated or omitted');
+    expect(result).not.toContain('truncated: earlier sections omitted');
+  });
+
+  it('hard-truncates AGENTS.md above the injection cap and keeps the project-local tail', async () => {
+    const largeContent = `HEAD_MARKER\n${'x'.repeat(80 * 1024)}\nTAIL_MARKER`;
+    await writeFile(join(workDir, 'AGENTS.md'), largeContent, 'utf-8');
+
+    const result = await loadAgentsMd(testKaos);
+
+    expect(result).toContain('truncated: earlier sections omitted');
+    expect(result).toContain('TAIL_MARKER');
+    expect(result).not.toContain('HEAD_MARKER');
+    expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(64 * 1024);
   });
 });
 
 describe('prepareSystemPromptContext AGENTS.md size warning', () => {
-  it('returns agentsMdWarning and keeps full content when oversized', async () => {
+  it('returns agentsMdWarning and keeps full content when over soft budget but under hard cap', async () => {
     const brandHome = await mkdtemp(join(tmpdir(), 'kimi-agents-brand-'));
     extraDirs.push(brandHome);
     const largeContent = 'x'.repeat(40 * 1024);
@@ -139,6 +151,22 @@ describe('prepareSystemPromptContext AGENTS.md size warning', () => {
     expect(result.agentsMd).toContain(largeContent);
     expect(result.agentsMdWarning).toBeDefined();
     expect(result.agentsMdWarning).toContain('exceeds the recommended');
+  });
+
+  it('returns hard-cap warning and truncated content when AGENTS.md exceeds injection cap', async () => {
+    const brandHome = await mkdtemp(join(tmpdir(), 'kimi-agents-brand-'));
+    extraDirs.push(brandHome);
+    const largeContent = `HEAD_MARKER\n${'x'.repeat(80 * 1024)}\nTAIL_MARKER`;
+    await writeFile(join(workDir, 'AGENTS.md'), largeContent, 'utf-8');
+
+    const result = await prepareSystemPromptContext(testKaos, brandHome);
+
+    expect(result.agentsMd).toContain('truncated: earlier sections omitted');
+    expect(result.agentsMd).toContain('TAIL_MARKER');
+    expect(result.agentsMd).not.toContain('HEAD_MARKER');
+    expect(result.agentsMdWarning).toBeDefined();
+    expect(result.agentsMdWarning).toContain('hard injection cap');
+    expect(Buffer.byteLength(result.agentsMd ?? '', 'utf8')).toBeLessThanOrEqual(64 * 1024);
   });
 
   it('does not return agentsMdWarning when within the recommended size', async () => {
