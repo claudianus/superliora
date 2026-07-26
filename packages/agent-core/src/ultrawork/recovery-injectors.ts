@@ -15,9 +15,11 @@ import {
 import type { UltraworkPlanRecoveryContext } from './types';
 import {
   collectVerificationGapNodes,
+  formatBlockedNodeNextActions,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
+  formatNeedsIntegrationNextActions,
   formatVerificationGapNextActions,
   formatVerificationGapSummary,
   suggestNextActions,
@@ -147,6 +149,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatNeedsIntegrationNextActions(needsIntegrationNodes),
       'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
     );
   }
@@ -158,6 +161,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatBlockedNodeNextActions(blockedNodes),
       'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
     );
   }
@@ -344,6 +348,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatNeedsIntegrationNextActions(needsIntegrationNodes),
       'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
     );
   }
@@ -355,6 +360,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatBlockedNodeNextActions(blockedNodes),
       'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
     );
   }

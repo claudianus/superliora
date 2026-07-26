@@ -162,6 +162,36 @@ export function formatFailedNodeNextActions(
   ];
 }
 
+/** Match recovery-triangle needs_integration next_actions (id + title). */
+export function formatNeedsIntegrationNextActions(
+  nodes: readonly WorkGraphNode[],
+): readonly string[] {
+  if (nodes.length === 0) return [];
+  return [
+    `Integrate specialist handoffs for node(s): ${nodes
+      .slice(0, 3)
+      .map((node) => `${node.id} (${node.title})`)
+      .join(', ')}${nodes.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
+  ];
+}
+
+/** Match recovery-triangle blocked-node next_actions (id + title + dependsOn). */
+export function formatBlockedNodeNextActions(nodes: readonly WorkGraphNode[]): readonly string[] {
+  if (nodes.length === 0) return [];
+  const depHints = nodes
+    .slice(0, 3)
+    .map((node) => {
+      const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+      return deps.length > 0
+        ? `${node.id} (${node.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`
+        : `${node.id} (${node.title})`;
+    })
+    .join(', ');
+  return [
+    `Unblock WorkGraph node(s) first: ${depHints}${nodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
+  ];
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
@@ -469,28 +499,12 @@ export function suggestNextActions(
   const needsIntegration =
     run.workGraph?.nodes.filter((node) => node.status === 'needs_integration') ?? [];
   if (needsIntegration.length > 0) {
-    actions.push(
-      `Integrate specialist handoffs for node(s): ${needsIntegration
-        .slice(0, 3)
-        .map((node) => `${node.id} (${node.title})`)
-        .join(', ')}${needsIntegration.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
-    );
+    actions.push(...formatNeedsIntegrationNextActions(needsIntegration));
   }
   const blockedNodes =
     run.workGraph?.nodes.filter((node) => node.status === 'blocked') ?? [];
   if (blockedNodes.length > 0) {
-    const depHints = blockedNodes
-      .slice(0, 3)
-      .map((node) => {
-        const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
-        return deps.length > 0
-          ? `${node.id} (${node.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`
-          : `${node.id} (${node.title})`;
-      })
-      .join(', ');
-    actions.push(
-      `Unblock WorkGraph node(s) first: ${depHints}${blockedNodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
-    );
+    actions.push(...formatBlockedNodeNextActions(blockedNodes));
   }
   const ownerlessRunning =
     run.workGraph?.nodes.filter(

@@ -15,8 +15,10 @@ import {
 } from '../session/swarm-evidence-gate';
 import {
   collectVerificationGapNodes,
+  formatBlockedNodeNextActions,
   formatEvidenceHardGateNextActions,
   formatFailedNodeNextActions,
+  formatNeedsIntegrationNextActions,
   formatVerificationGapNextActions,
 } from './recovery-prompt';
 import {
@@ -165,11 +167,6 @@ export function auditUltraworkCompletion(
   const needsIntegrationNodes = gatedNodes.filter((n) => n.status === 'needs_integration');
   if (needsIntegrationNodes.length > 0) {
     const openNodeIds = needsIntegrationNodes.map((n) => n.id);
-    // Match recovery-prompt id+(title) formatting for specialist handoffs.
-    const integrateHints = needsIntegrationNodes
-      .slice(0, 3)
-      .map((n) => `${n.id} (${n.title})`)
-      .join(', ');
     return reject(
       'needs_integration',
       [
@@ -177,7 +174,8 @@ export function auditUltraworkCompletion(
         'needs_integration blocks goal complete — merge specialist handoffs before finishing.',
       ],
       [
-        `Integrate specialist handoffs for node(s): ${integrateHints}${needsIntegrationNodes.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
+        // Match recovery-prompt needs_integration next_actions wording.
+        ...formatNeedsIntegrationNextActions(needsIntegrationNodes),
         'Merge handoffs and mark nodes done only after integration evidence.',
         'Do not call UpdateGoal(complete) while any node is still needs_integration.',
       ],
@@ -191,16 +189,6 @@ export function auditUltraworkCompletion(
   const blockedNodes = graph.nodes.filter((n) => n.status === 'blocked');
   if (blockedNodes.length > 0) {
     const openNodeIds = blockedNodes.map((n) => n.id);
-    // Match recovery-prompt dependsOn formatting (comma+space, ellipsis).
-    const depHints = blockedNodes
-      .slice(0, 3)
-      .map((n) => {
-        const deps = n.dependsOn?.filter((id) => id.length > 0) ?? [];
-        return deps.length > 0
-          ? `${n.id} (${n.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`
-          : `${n.id} (${n.title})`;
-      })
-      .join(', ');
     return reject(
       'node_blocked',
       [
@@ -208,7 +196,8 @@ export function auditUltraworkCompletion(
         'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
       ],
       [
-        `Unblock WorkGraph node(s) first: ${depHints}${blockedNodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
+        // Match recovery-prompt blocked-node next_actions wording.
+        ...formatBlockedNodeNextActions(blockedNodes),
         'Do not call UpdateGoal(complete) while any node is still blocked.',
       ],
       openNodeIds,

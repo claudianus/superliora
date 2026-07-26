@@ -2,9 +2,11 @@ import type { Agent } from '../agent';
 import { buildUltraworkResumeCursor } from './recovery';
 import {
   collectVerificationGapNodes,
+  formatBlockedNodeNextActions,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
+  formatNeedsIntegrationNextActions,
   formatVerificationGapNextActions,
   formatVerificationGapSummary,
   suggestNextActions,
@@ -254,6 +256,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatNeedsIntegrationNextActions(needsIntegrationNodes),
       'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
     );
   }
@@ -265,6 +268,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatBlockedNodeNextActions(blockedNodes),
       'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
     );
   }
