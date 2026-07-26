@@ -309,6 +309,13 @@ function applyShellPatterns(text: string, command: string): string {
     /\b(?:promtool|logcli|amtool)\b/u.test(command) ||
     /\b(?:elasticsearch|elasticdump|kibana-plugin)\b/u.test(command) ||
     /\b(?:grafana-cli|jaeger|otelcol(?:-contrib)?)\b/u.test(command) ||
+    /\b(?:kafka-console-(?:consumer|producer)|kafka-topics|kafka-configs|kcat|kafkacat)\b/u.test(
+      command,
+    ) ||
+    /\brabbitmq(?:ctl|admin)\b/u.test(command) ||
+    /\bnats(?:\s|-(?:cli|server|box)\b)/u.test(command) ||
+    /\bpulsar(?:-admin|-client)?\b/u.test(command) ||
+    /\bcelery\s+(?:inspect|status|events|worker)\b/u.test(command) ||
     /\b(?:terraform|tofu)\s+(?:plan|show|state|output|apply)\b/u.test(command) ||
     /\bpulumi\s+(?:preview|stack|up)\b/u.test(command) ||
     /\baws\s+\S+/u.test(command) ||

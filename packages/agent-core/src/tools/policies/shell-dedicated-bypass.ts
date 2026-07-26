@@ -1212,6 +1212,14 @@ function matchGlobLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Glob for workspace file-name search instead of locate.',
     };
   }
+  // Bash `compgen -G '*.ts'` pathname expansion listing → Glob.
+  if (/^compgen\s+-G\b/.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'compgen -G',
+      message: 'Use Glob for pathname expansion listing instead of compgen -G.',
+    };
+  }
   // ls *.ts only — ls of a directory is often legitimate navigation; only block `ls` with glob chars?
   // Too noisy — skip bare ls.
   return undefined;

@@ -110,6 +110,9 @@ describe('detectShellDedicatedBypass', () => {
       'Glob',
     );
     expect(detectShellDedicatedBypass('locate "*.ts"')?.prefer).toBe('Glob');
+    // Bash pathname expansion listing → Glob.
+    expect(detectShellDedicatedBypass("compgen -G '*.ts'")?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('compgen -G "packages/**/*.ts"')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('Get-ChildItem src')).toBeUndefined();
     expect(detectShellDedicatedBypass('dir')).toBeUndefined();
     expect(detectShellDedicatedBypass('ls packages')).toBeUndefined();

@@ -5,7 +5,7 @@ Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, process
 - `sed`/`gsed`/`awk`/`perl -i`/`ruby -i` (in-place edit) → `Edit`
 - `echo > file` / heredoc / `sponge` / empty redirect → `Write`
 - simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
-- pattern find / `fd`/`fdfind` / `rg --files` / `mdfind`/`locate` / `tree` / `ls -R` / `Get-ChildItem -Recurse` / `dir /s` / `where /r` → `Glob` (plain `ls`/`dir`/`gci` of a directory OK)
+- pattern find / `fd`/`fdfind` / `rg --files` / `mdfind`/`locate` / `compgen -G` / `tree` / `ls -R` / `Get-ChildItem -Recurse` / `dir /s` / `where /r` → `Glob` (plain `ls`/`dir`/`gci` of a directory OK)
 - `grep`/`rg` (content) / `ag`/`ack`/`ugrep` / `git grep` / `Select-String`/`findstr` → `Grep`
 - `jq`/`yq`/`python -m json.tool` whole-file dumps → `Read`
 - `git show <rev>:<path>` / `svn cat` / `hg cat` → `Read` (commit summaries stay OK)
@@ -28,7 +28,7 @@ Simple whole-command file I/O shapes are **rejected** at runtime — use dedicat
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
 - writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`, PowerShell `Set-Content`/`Out-File`/`Add-Content`
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
-- search/list: `grep`/`rg`/`rg --files`/`ag`/`ack`/`ugrep`/`git grep`/`git ls-files`/`find`/`fd`/`fdfind`/`mdfind`/`locate`/`tree`/`ls -R`/`Select-String`/`findstr`/`Get-ChildItem -Recurse`/`dir /s`/`where /r`
+- search/list: `grep`/`rg`/`rg --files`/`ag`/`ack`/`ugrep`/`git grep`/`git ls-files`/`find`/`fd`/`fdfind`/`mdfind`/`locate`/`compgen -G`/`tree`/`ls -R`/`Select-String`/`findstr`/`Get-ChildItem -Recurse`/`dir /s`/`where /r`
 Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.
 
 Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required (does **not** override sensitive-path hard blocks).
