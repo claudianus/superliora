@@ -427,23 +427,100 @@ describe('harness panel and tools inventory', () => {
   function makeHarnessHost(options: {
     session?: Record<string, unknown> | undefined;
     activeSession?: Record<string, unknown> | undefined;
+    premiumQualityMode?: boolean;
   } = {}) {
+    const transcriptContainer = {
+      addChild: vi.fn(),
+      isBatchMounting: false,
+    };
+    const session =
+      options.session === undefined
+        ? undefined
+        : {
+            listMcpServers: vi.fn(async () => []),
+            setPremiumQuality: vi.fn(async () => undefined),
+            ...options.session,
+          };
     return {
-      session: options.session,
-      activeSession: options.activeSession ?? options.session,
-      state: { appState: {} },
+      session,
+      activeSession: options.activeSession ?? session,
+      requireSession: vi.fn(() => {
+        if (session === undefined) throw new Error('no session');
+        return session;
+      }),
+      motionBeats: { play: vi.fn() },
+      state: {
+        appState: {
+          premiumQualityMode: options.premiumQualityMode === true,
+          model: 'big-model',
+          availableModels: {
+            'big-model': { maxContextSize: 1_000_000 },
+          },
+        },
+        transcriptContainer,
+        renderer: { invalidateFrame: vi.fn() },
+      },
+      setAppState: vi.fn(),
+      harness: {
+        getExperimentalFeatures: vi.fn(async () => []),
+        getConfig: vi.fn(async () => ({
+          loopControl: {
+            maxWorkingSetTokens: 48_000,
+            asyncWorkingSetTokens: 16_000,
+          },
+        })),
+        setConfig: vi.fn(async () => undefined),
+      },
       mountEditorReplacement: vi.fn(),
       restoreEditor: vi.fn(),
       showError: vi.fn(),
       showNotice: vi.fn(),
+      showStatus: vi.fn(),
       showExtensionsModal: vi.fn(),
       showExperimentsModal: vi.fn(),
+      track: vi.fn(),
     } as unknown as SlashCommandHost & {
       mountEditorReplacement: ReturnType<typeof vi.fn>;
       restoreEditor: ReturnType<typeof vi.fn>;
       showError: ReturnType<typeof vi.fn>;
       showNotice: ReturnType<typeof vi.fn>;
+      showStatus: ReturnType<typeof vi.fn>;
+      setAppState: ReturnType<typeof vi.fn>;
+      requireSession: ReturnType<typeof vi.fn>;
+      motionBeats: { play: ReturnType<typeof vi.fn> };
+      harness: {
+        getExperimentalFeatures: ReturnType<typeof vi.fn>;
+        getConfig: ReturnType<typeof vi.fn>;
+      };
+      state: {
+        appState: {
+          premiumQualityMode?: boolean;
+          model: string;
+          availableModels: Record<string, { maxContextSize: number }>;
+        };
+        transcriptContainer: {
+          addChild: ReturnType<typeof vi.fn>;
+          isBatchMounting: boolean;
+        };
+        renderer: { invalidateFrame: ReturnType<typeof vi.fn> };
+      };
     };
+  }
+
+  async function selectHarnessOption(
+    host: { mountEditorReplacement: ReturnType<typeof vi.fn> },
+    optionIndex: number,
+  ): Promise<void> {
+    showHarnessPanel(host as unknown as SlashCommandHost);
+    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < optionIndex; i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    await Promise.resolve();
+    await Promise.resolve();
   }
 
   it('opens the harness panel modal with live observation actions', () => {
@@ -559,6 +636,60 @@ describe('harness panel and tools inventory', () => {
     });
     await showToolsInventory(host);
     expect(host.showError).toHaveBeenCalledWith('Failed to load tools: rpc down');
+  });
+
+
+  it('routes harness panel premium selection to premium status notice', async () => {
+    const host = makeHarnessHost({ session: {}, premiumQualityMode: false });
+    // tools=0, eyes=1, premium=2
+    await selectHarnessOption(host, 2);
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.showNotice).toHaveBeenCalled();
+    });
+    const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+    expect(notice.length).toBeGreaterThan(0);
+  });
+
+  it('routes harness panel mcp selection to MCP report or error surface', async () => {
+    const listMcpServers = vi.fn(async () => []);
+    const host = makeHarnessHost({ session: { listMcpServers } });
+    // mcp=3
+    await selectHarnessOption(host, 3);
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(listMcpServers).toHaveBeenCalled();
+    });
+    await vi.waitFor(() => {
+      const ok =
+        host.showError.mock.calls.length > 0 ||
+        host.state.transcriptContainer.addChild.mock.calls.length > 0 ||
+        host.showNotice.mock.calls.length > 0;
+      expect(ok).toBe(true);
+    });
+    expect(host.motionBeats.play).toHaveBeenCalled();
+  });
+
+  it('routes harness panel experiments selection to experiments panel', async () => {
+    const host = makeHarnessHost({ session: {} });
+    // experiments=4
+    await selectHarnessOption(host, 4);
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.harness.getExperimentalFeatures).toHaveBeenCalled();
+    });
+  });
+
+  it('routes harness panel context selection to context working-set picker', async () => {
+    const host = makeHarnessHost({ session: {} });
+    // context=5
+    await selectHarnessOption(host, 5);
+    expect(host.restoreEditor).toHaveBeenCalled();
+    // picker remounts via mountEditorReplacement after restore
+    await vi.waitFor(() => {
+      expect(host.harness.getConfig).toHaveBeenCalled();
+      expect(host.mountEditorReplacement.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   it('surfaces eyes readiness load failures without crashing', async () => {
