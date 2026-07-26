@@ -46,6 +46,8 @@ describe('ultra-swarm budget kill helpers', () => {
     expect(xml).toContain('wasted_rounds="2"');
     expect(xml).toContain('threshold="2"');
     expect(xml).toContain('Budget governor');
+    expect(xml).toContain('Do not re-launch UltraSwarm');
+    expect(xml).toContain('attach evidenceIds');
   });
 
   it('suggestSwarmBudgetKill + handoff compose the kill path contract', () => {

@@ -246,6 +246,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('gc src/a.ts')?.prefer).toBe('Read');
     // pipelines stay allowed
     expect(detectShellDedicatedBypass('Get-Content src/a.ts | Select-Object -First 5')).toBeUndefined();
+    // PowerShell single-file writes prefer Write; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('Set-Content out.txt -Value hello')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Out-File -Path out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Add-Content notes.md more')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Set-Content b.ts')).toBeUndefined();
   });
 
   it('blocks git/svn/hg single-path content dumps but allows commit summaries', () => {

@@ -26,7 +26,7 @@ If `run_in_background=true`, start as a background task and return a task ID (pr
 Simple whole-command file I/O shapes are **rejected** at runtime — use dedicated tools:
 - reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`less`/`more`/`most`/`nl`/`w3m`/`lynx`/`elinks` (local path)/`zcat`/`gzcat`/`bzcat`/`xzcat`/`zstdcat`/`rev`/`paste` (single file)/`sort`/`uniq`/`shuf` (single file)/`look word file`/`iconv … file`/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`/`pbcopy < path`/`xclip path`/`xsel path`
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
-- writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`
+- writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`, PowerShell `Set-Content`/`Out-File`/`Add-Content`
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
 - search: `grep`/`rg`/`find`
 Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.

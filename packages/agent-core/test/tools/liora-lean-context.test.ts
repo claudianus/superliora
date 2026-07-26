@@ -307,6 +307,10 @@ describe('Liora lean context tools', () => {
       'gcloud compute instances list',
       'az vm list',
       'ansible-playbook site.yml',
+      'flyctl logs',
+      'fly logs',
+      'vercel logs',
+      'railway logs',
     ]) {
       const compressed = compressShellOutput({
         stdout,

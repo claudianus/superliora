@@ -200,6 +200,27 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of PowerShell Get-Content for file contents.',
     };
   }
+  // PowerShell Set-Content / Out-File / Add-Content single-file writes → Write.
+  // Pipelines and multi-object composition stay allowed.
+  if (
+    /^(?:Set-Content|sc|Out-File|Add-Content|ac)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:ForEach-Object|%|Where-Object)\b/i.test(command)
+  ) {
+    const hasPath =
+      /(?:^|\s)-Path\s+\S+/i.test(command) ||
+      /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+        command,
+      ) ||
+      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(command);
+    if (hasPath) {
+      return {
+        prefer: 'Write',
+        pattern: 'Set-Content/Out-File',
+        message: 'Use Write (or Edit for patches) instead of PowerShell Set-Content/Out-File.',
+      };
+    }
+  }
   // head/tail [flags] path — not head of a pipeline (+ busybox/ghead/gtail)
   // Flags may take a following value token: head -n 20 file, tail -50 file, head -n20 file
   if (

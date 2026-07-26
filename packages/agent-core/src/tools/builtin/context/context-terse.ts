@@ -281,7 +281,10 @@ function applyShellPatterns(text: string, command: string): string {
     /\baws\s+\S+/u.test(command) ||
     /\bgcloud\s+\S+/u.test(command) ||
     /\baz\s+\S+/u.test(command) ||
-    /\bansible(?:-playbook)?\b/u.test(command)
+    /\bansible(?:-playbook)?\b/u.test(command) ||
+    /\b(?:flyctl|fly)\s+(?:logs|status|apps|deploy)\b/u.test(command) ||
+    /\bvercel\s+(?:logs|ls|list|inspect|deploy)\b/u.test(command) ||
+    /\brailway\s+(?:logs|status|up)\b/u.test(command)
   ) {
     next = compressDockerOutput(next);
   }

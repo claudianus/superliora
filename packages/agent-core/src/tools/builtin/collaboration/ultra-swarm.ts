@@ -1534,11 +1534,14 @@ export function formatBudgetKillHandoff(input: {
   readonly killThreshold: number;
 }): string {
   const reason = input.reason.replace(/"/g, "'");
-  return (
+  return [
     `<budget_kill reason="${reason}" phase="${input.phase}" ` +
-    `wasted_rounds="${String(input.wastedRounds)}" ` +
-    `threshold="${String(input.killThreshold)}" />`
-  );
+      `wasted_rounds="${String(input.wastedRounds)}" ` +
+      `threshold="${String(input.killThreshold)}" />`,
+    'Budget governor stopped further UltraSwarm phases after consecutive low-signal rounds.',
+    'Do not re-launch UltraSwarm for the same wasted pattern. Integrate accepted specialist handoffs,',
+    'attach evidenceIds / verification, or change approach (smaller scope, different tools, or user steering).',
+  ].join('\n');
 }
 
 // ── Debate risk assessment helpers ────────────────────────────────────
