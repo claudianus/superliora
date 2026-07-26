@@ -28,7 +28,7 @@ Simple whole-command file I/O shapes are **rejected** at runtime — use dedicat
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
 - writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`, PowerShell `Set-Content`/`Out-File`/`Add-Content`
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
-- search/list: `grep`/`rg`/`rg --files`/`find`/`fd`/`fdfind`/`Select-String`/`findstr`/`Get-ChildItem -Recurse -Filter`/`dir /s`/`where /r`
+- search/list: `grep`/`rg`/`rg --files`/`git grep`/`git ls-files`/`find`/`fd`/`fdfind`/`Select-String`/`findstr`/`Get-ChildItem -Recurse -Filter`/`dir /s`/`where /r`
 Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.
 
 Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required (does **not** override sensitive-path hard blocks).

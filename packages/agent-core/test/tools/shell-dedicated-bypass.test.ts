@@ -73,6 +73,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass("rg --files -g '*.ts'")?.prefer).toBe('Glob');
     // Content rg still prefers Grep.
     expect(detectShellDedicatedBypass('rg "error" packages')?.prefer).toBe('Grep');
+    // git grep → Grep; git ls-files → Glob.
+    expect(detectShellDedicatedBypass('git grep -n foo')?.prefer).toBe('Grep');
+    expect(detectShellDedicatedBypass('git grep -n -- foo -- "*.ts"')?.prefer).toBe('Grep');
+    expect(detectShellDedicatedBypass('git ls-files')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('git ls-files "*.ts"')?.prefer).toBe('Glob');
     // Windows search utilities prefer Grep; pipelines stay allowed.
     expect(detectShellDedicatedBypass('Select-String -Path src -Pattern foo')?.prefer).toBe(
       'Grep',

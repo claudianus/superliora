@@ -1084,6 +1084,15 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Grep (ripgrep-backed, workspace policy, capped output) instead of shell grep/rg.',
     };
   }
+  // `git grep` content search — prefer Grep (workspace-scoped, capped).
+  // Pipelines / multi-rev composition already short-circuit.
+  if (/^(?:\/usr\/bin\/)?git\s+grep\b/.test(command)) {
+    return {
+      prefer: 'Grep',
+      pattern: 'git grep',
+      message: 'Use Grep instead of git grep for workspace content search.',
+    };
+  }
   // Windows: Select-String / findstr whole-command searches → Grep.
   // Pipelines already short-circuit via hasShellComposition.
   if (/^(?:Select-String|sls)\b/i.test(command)) {
@@ -1131,6 +1140,15 @@ function matchGlobLike(command: string): ShellDedicatedBypassHit | undefined {
       prefer: 'Glob',
       pattern: 'rg --files',
       message: 'Use Glob for file-name listing instead of rg --files.',
+    };
+  }
+  // `git ls-files` tracked-path listing → Glob (gitignore-aware workspace listing).
+  // Keep `git ls-files --stage` / plumbing with complex flags allowed only via force.
+  if (/^(?:\/usr\/bin\/)?git\s+ls-files\b/.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'git ls-files',
+      message: 'Use Glob for workspace file listing instead of git ls-files.',
     };
   }
   // Windows recursive listing with name filters → Glob.

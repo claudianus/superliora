@@ -106,10 +106,19 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   }
 
   const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
-  if (progress.doneCount > 0 || progress.pendingCount > 0) {
-    lines.push(
-      `workgraph_progress: ${String(progress.doneCount)} done, ${String(progress.pendingCount)} pending`,
-    );
+  if (
+    progress.doneCount > 0 ||
+    progress.pendingCount > 0 ||
+    progress.failedCount > 0 ||
+    progress.cancelledCount > 0
+  ) {
+    const parts = [
+      `${String(progress.doneCount)} done`,
+      `${String(progress.pendingCount)} pending`,
+    ];
+    if (progress.failedCount > 0) parts.push(`${String(progress.failedCount)} failed`);
+    if (progress.cancelledCount > 0) parts.push(`${String(progress.cancelledCount)} cancelled`);
+    lines.push(`workgraph_progress: ${parts.join(', ')}`);
   }
 
   const researchPackCount = snapshot.run.researchRun?.evidencePack !== undefined ? 1 : 0;
@@ -206,6 +215,12 @@ export function renderUltraworkRunsMemorySection(snapshot: UltraworkRunMirror): 
   const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
   if (progress.pendingCount > 0) {
     lines.push(`  pending_nodes=${String(progress.pendingCount)}`);
+  }
+  if (progress.failedCount > 0) {
+    lines.push(`  failed_nodes=${String(progress.failedCount)}`);
+  }
+  if (progress.cancelledCount > 0) {
+    lines.push(`  cancelled_nodes=${String(progress.cancelledCount)}`);
   }
   return lines.join('\n');
 }

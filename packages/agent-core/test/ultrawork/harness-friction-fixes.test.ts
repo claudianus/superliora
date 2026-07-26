@@ -52,8 +52,27 @@ describe('harness friction fixes (H1–H4)', () => {
     expect(progress.pendingCount).toBe(0);
     expect(progress.nextPendingNode).toBeUndefined();
     expect(progress.doneCount).toBe(1);
+    expect(progress.cancelledCount).toBe(1);
+    expect(progress.failedCount).toBe(0);
     // Same auto-stage floor as all-done graphs.
     expect(inferEffectiveUltraworkStage('swarm', graph)).toBe('integrate');
+  });
+
+  it('counts failed nodes separately while keeping them out of pending', () => {
+    const graph: WorkGraph = {
+      id: 'g1',
+      runId: 'r1',
+      nodes: [
+        { id: 'n1', title: 'Implement', stage: 'integrate', status: 'done' },
+        { id: 'n2', title: 'Broken verify', stage: 'verify', status: 'failed' },
+        { id: 'n3', title: 'Open work', stage: 'integrate', status: 'running' },
+      ],
+    };
+    const progress = summarizeWorkGraphProgress(graph);
+    expect(progress.doneCount).toBe(1);
+    expect(progress.failedCount).toBe(1);
+    expect(progress.pendingCount).toBe(1);
+    expect(progress.nextPendingNode?.id).toBe('n3');
   });
 
   it('still resumes at verify when open verify work remains', () => {

@@ -9,6 +9,10 @@ const STAGE_INDEX = new Map<UltraworkStage, number>(
 export interface WorkGraphProgressSummary {
   readonly doneCount: number;
   readonly pendingCount: number;
+  /** Nodes with status=failed (terminal for progress counts; still block goal complete). */
+  readonly failedCount: number;
+  /** Nodes with status=cancelled (deliberate success-terminal scope drop). */
+  readonly cancelledCount: number;
   readonly inProgressNodes: readonly WorkGraphNode[];
   readonly nextPendingNode?: WorkGraphNode;
   readonly inferredStage?: UltraworkStage;
@@ -37,10 +41,18 @@ export function summarizeWorkGraphProgress(
   workGraph: WorkGraph | undefined,
 ): WorkGraphProgressSummary {
   if (workGraph === undefined || workGraph.nodes.length === 0) {
-    return { doneCount: 0, pendingCount: 0, inProgressNodes: [] };
+    return {
+      doneCount: 0,
+      pendingCount: 0,
+      failedCount: 0,
+      cancelledCount: 0,
+      inProgressNodes: [],
+    };
   }
 
   const doneCount = workGraph.nodes.filter((node) => node.status === 'done').length;
+  const failedCount = workGraph.nodes.filter((node) => node.status === 'failed').length;
+  const cancelledCount = workGraph.nodes.filter((node) => node.status === 'cancelled').length;
   const pendingNodes = workGraph.nodes.filter((node) => !isTerminalWorkNodeStatus(node.status));
   const inProgressNodes = workGraph.nodes.filter(
     (node) =>
@@ -71,6 +83,8 @@ export function summarizeWorkGraphProgress(
   return {
     doneCount,
     pendingCount: pendingNodes.length,
+    failedCount,
+    cancelledCount,
     inProgressNodes,
     nextPendingNode,
     inferredStage,
