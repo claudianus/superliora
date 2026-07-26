@@ -110,9 +110,9 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'engineering-terminal-ui-engineer',
       'volt-06-developer-experience-powershell-ui-architect',
-      'volt-02-language-specialists-typescript-pro',
       'volt-06-developer-experience-cli-developer',
-      'terminal-integration-specialist',
+      'volt-02-language-specialists-powershell-7-expert',
+      'volt-02-language-specialists-typescript-pro',
     ],
     labels: ['Engineering', 'TUI'],
   },
@@ -223,7 +223,12 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'design-ui-ux',
     query: 'UI UX design visual system inclusive designer',
-    relevantIds: ['design-ui-designer', 'agentcrow-ui-designer', 'design-brand-guardian'],
+    relevantIds: [
+      'design-ui-designer',
+      'agentcrow-ui-designer',
+      'volt-04-quality-security-ui-ux-tester',
+      'design-brand-guardian',
+    ],
     labels: ['Design'],
   },
   {
@@ -350,9 +355,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     id: 'marketing-growth',
     query: 'marketing SEO growth carousel app store optimizer campaigns',
     relevantIds: [
-      'marketing-agentic-search-optimizer',
       'marketing-carousel-growth-engine',
       'marketing-app-store-optimizer',
+      'volt-08-business-product-content-marketer',
+      'marketing-growth-hacker',
+      'marketing-agentic-search-optimizer',
     ],
     labels: ['Marketing'],
   },
