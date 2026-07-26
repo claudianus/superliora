@@ -311,7 +311,7 @@ describe('auditUltraworkCompletion', () => {
     }
   });
 
-  it('still rejects needs_integration as incomplete', () => {
+  it('rejects needs_integration with dedicated audit code and integrate actions', () => {
     const result = auditUltraworkCompletion({
       run: baseRun({
         workGraph: {
@@ -330,8 +330,72 @@ describe('auditUltraworkCompletion', () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.code).toBe('incomplete_nodes');
+      expect(result.code).toBe('needs_integration');
       expect(result.openNodeIds).toContain('integrate_1');
+      expect(result.nextActions.some((a) => /Integrate specialist handoffs/i.test(a))).toBe(true);
+      expect(result.nextActions.some((a) => /integration evidence/i.test(a))).toBe(true);
+    }
+  });
+
+  it('prioritizes node_failed over generic incomplete when both exist', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_fail',
+              kind: 'acceptance_criterion',
+              status: 'failed',
+              verificationSummary: 'timeout after 30s',
+            }),
+            node({
+              id: 'ac_queued',
+              kind: 'acceptance_criterion',
+              status: 'queued',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('node_failed');
+      expect(result.openNodeIds).toContain('ac_fail');
+      expect(result.openNodeIds).not.toContain('ac_queued');
+      expect(result.reasons.some((r) => /ac_fail\[timeout\]/.test(r))).toBe(true);
+      expect(result.nextActions.some((a) => /Repair ac_fail \[timeout\]/.test(a))).toBe(true);
+    }
+  });
+
+  it('prioritizes needs_integration over generic incomplete when both exist', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_int',
+              kind: 'acceptance_criterion',
+              status: 'needs_integration',
+            }),
+            node({
+              id: 'ac_queued',
+              kind: 'acceptance_criterion',
+              status: 'queued',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('needs_integration');
+      expect(result.openNodeIds).toContain('ac_int');
+      expect(result.openNodeIds).not.toContain('ac_queued');
+      expect(result.nextActions.some((a) => /Integrate specialist handoffs/i.test(a))).toBe(true);
     }
   });
 });

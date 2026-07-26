@@ -25,6 +25,8 @@ export type CompletionAuditCode =
   | 'verification_pending'
   /** WorkGraph node status=failed (distinct from verificationStatus=failed). */
   | 'node_failed'
+  /** WorkGraph node status=needs_integration — specialist handoffs not merged. */
+  | 'needs_integration'
   | 'run_not_running'
   /** Structured GoalPredicate evaluation failed (paths/tests/evidence). */
   | 'predicate_failed'
@@ -110,39 +112,11 @@ export function auditUltraworkCompletion(
   // Evidence hard gate: done without evidence becomes blocked in the gated view.
   const { nodes: gatedNodes, violations } = applyEvidenceHardGate(graph.nodes);
   // cancelled is a deliberate terminal status (dropped scope) — treat like done.
-  // status=failed is NOT success: it still blocks goal complete (see failedNodes below).
-  const open = gatedNodes.filter(
-    (n) => n.status !== 'done' && n.status !== 'failed' && n.status !== 'cancelled',
-  );
-  if (open.length > 0) {
-    const openNodeIds = open.map((n) => n.id);
-    const evidenceHits =
-      violations.length > 0
-        ? violations.map((v) => `${v.nodeId}: ${v.reason}`)
-        : (() => {
-            const hit = findEvidenceHardGateViolation(open);
-            return hit === undefined ? [] : [`${hit.nodeId}: ${hit.reason}`];
-          })();
-    const reasons = [
-      `WorkGraph still has ${open.length} non-done node(s): ${openNodeIds.join(', ')}.`,
-      ...evidenceHits.slice(0, 5),
-    ];
-    return reject(
-      evidenceHits.length > 0 ? 'evidence_gate' : 'incomplete_nodes',
-      reasons,
-      [
-        'Finish or re-open incomplete nodes with real evidence.',
-        'Do not call UpdateGoal(complete) until every AC node is done with verification.',
-        'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
-      ],
-      openNodeIds,
-    );
-  }
-
-  // Node status=failed means the work itself failed — not a dropped cancelled scope.
+  // Match recovery triangle priority: failed → needs_integration → generic open.
+  // status=failed is NOT success: it still blocks goal complete.
   // Completing the goal while any node is failed would paper over broken ACs.
-  // Match recovery triangle: attach analyzeFailedNodes category guidance so
-  // UpdateGoal(complete) rejections point to concrete repair steps.
+  // Attach analyzeFailedNodes category guidance so UpdateGoal(complete) rejections
+  // point to concrete repair steps (even when other open nodes also exist).
   const failedNodes = gatedNodes.filter((n) => n.status === 'failed');
   if (failedNodes.length > 0) {
     const openNodeIds = failedNodes.map((n) => n.id);
@@ -171,6 +145,52 @@ export function auditUltraworkCompletion(
               'Repair the failed work, re-run checks, then set status=done with verificationStatus=passed.',
             ]),
         'If the node is out of scope, set status=cancelled (not failed) after an explicit decision.',
+      ],
+      openNodeIds,
+    );
+  }
+
+  const needsIntegrationNodes = gatedNodes.filter((n) => n.status === 'needs_integration');
+  if (needsIntegrationNodes.length > 0) {
+    const openNodeIds = needsIntegrationNodes.map((n) => n.id);
+    return reject(
+      'needs_integration',
+      [
+        `WorkGraph nodes still needs_integration: ${openNodeIds.join(', ')}.`,
+        'needs_integration blocks goal complete — merge specialist handoffs before finishing.',
+      ],
+      [
+        `Integrate specialist handoffs for node(s): ${openNodeIds.slice(0, 3).join(', ')}${openNodeIds.length > 3 ? ', …' : ''} — merge handoffs and mark nodes done only after integration evidence.`,
+        'Do not call UpdateGoal(complete) while any node is still needs_integration.',
+      ],
+      openNodeIds,
+    );
+  }
+
+  // Remaining non-terminal open work (queued/running/blocked/…) — not failed/cancelled/done.
+  const open = gatedNodes.filter(
+    (n) => n.status !== 'done' && n.status !== 'failed' && n.status !== 'cancelled',
+  );
+  if (open.length > 0) {
+    const openNodeIds = open.map((n) => n.id);
+    const evidenceHits =
+      violations.length > 0
+        ? violations.map((v) => `${v.nodeId}: ${v.reason}`)
+        : (() => {
+            const hit = findEvidenceHardGateViolation(open);
+            return hit === undefined ? [] : [`${hit.nodeId}: ${hit.reason}`];
+          })();
+    const reasons = [
+      `WorkGraph still has ${open.length} non-done node(s): ${openNodeIds.join(', ')}.`,
+      ...evidenceHits.slice(0, 5),
+    ];
+    return reject(
+      evidenceHits.length > 0 ? 'evidence_gate' : 'incomplete_nodes',
+      reasons,
+      [
+        'Finish or re-open incomplete nodes with real evidence.',
+        'Do not call UpdateGoal(complete) until every AC node is done with verification.',
+        'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
       ],
       openNodeIds,
     );
