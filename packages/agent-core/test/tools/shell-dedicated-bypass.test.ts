@@ -153,3 +153,10 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('install -d dest/')).toBeUndefined();
   });
 
+  it('blocks truncate -s 0 empty-file writes', () => {
+    expect(detectShellDedicatedBypass('truncate -s 0 out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('truncate --size=0 out.txt')?.prefer).toBe('Write');
+    // non-zero sizes stay allowed (sparse allocate / intentional sizing)
+    expect(detectShellDedicatedBypass('truncate -s 1M out.bin')).toBeUndefined();
+  });
+

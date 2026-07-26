@@ -485,6 +485,29 @@ function matchWriteLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Write to create or update files instead of touch.',
     };
   }
+  // `truncate -s 0 path` / `truncate --size=0 path` — empty a file
+  // (non-zero sizes stay allowed for sparse allocate / intentional sizing).
+  if (/^(?:\/usr\/bin\/)?truncate\b/.test(command)) {
+    const zeroSize =
+      /(?:^|\s)-(?:s|--size)(?:=|\s+)0(?:\s|$)/.test(command) ||
+      /(?:^|\s)--size=0(?:\s|$)/.test(command);
+    if (zeroSize) {
+      const without = command
+        .replace(/^(?:\/usr\/bin\/)?truncate\b/, '')
+        .replace(/(?:^|\s)-(?:s|--size)(?:=|\s+)\S+/g, ' ')
+        .replace(/(?:^|\s)--size=\S+/g, ' ')
+        .replace(/(?:^|\s)-[A-Za-z]+/g, ' ')
+        .trim();
+      const args = without.split(/\s+/).filter(Boolean);
+      if (args.length === 1 && !args[0]!.startsWith('-')) {
+        return {
+          prefer: 'Write',
+          pattern: 'truncate -s 0',
+          message: 'Use Write with empty content instead of truncate -s 0 to clear a file.',
+        };
+      }
+    }
+  }
   return undefined;
 }
 

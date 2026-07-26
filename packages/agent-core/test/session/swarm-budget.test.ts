@@ -23,6 +23,8 @@ describe('swarm-budget', () => {
   it('hasHighSignalBudgetProgress requires real artifacts', () => {
     expect(hasHighSignalBudgetProgress({ productive: true })).toBe(false);
     expect(hasHighSignalBudgetProgress({ evidenceIds: ['x'] })).toBe(true);
+    expect(hasHighSignalBudgetProgress({ verificationPassed: true })).toBe(true);
+    expect(isWastedBudgetRound({ verificationPassed: true })).toBe(false);
   });
 
   it('suggests kill when wastedRounds >= default threshold (2)', () => {

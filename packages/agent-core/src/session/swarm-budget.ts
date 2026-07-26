@@ -8,7 +8,8 @@
  * - non-empty evidenceIds, OR
  * - non-empty artifactIds, OR
  * - fileChangeCount > 0, OR
- * - toolSuccessCount > 0
+ * - toolSuccessCount > 0, OR
+ * - verificationPassed === true (checks re-run and passed)
  *
  * `productive: true` alone is **not** enough (prevents gaming the governor).
  * Explicit `wasted: true` always counts as wasted.
@@ -27,6 +28,11 @@ export interface SwarmBudgetRoundInput {
   readonly fileChangeCount?: number;
   /** Successful tool calls attributed to this round. */
   readonly toolSuccessCount?: number;
+  /**
+   * True when this round re-ran required checks and verificationStatus became passed.
+   * Counts as high-signal so verify-only rounds are not killed as waste.
+   */
+  readonly verificationPassed?: boolean;
   /** Explicit wasted flag from ledger/worker result. */
   readonly wasted?: boolean;
   /**
@@ -98,6 +104,7 @@ export function hasHighSignalBudgetProgress(input: SwarmBudgetRoundInput): boole
   if (nonEmptyIds(input.artifactIds).length > 0) return true;
   if ((input.fileChangeCount ?? 0) > 0) return true;
   if ((input.toolSuccessCount ?? 0) > 0) return true;
+  if (input.verificationPassed === true) return true;
   return false;
 }
 
