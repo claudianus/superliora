@@ -1637,14 +1637,3 @@ function addTokenUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
   };
 }
 
-function summarizeArgs(args: Record<string, unknown>): string | undefined {
-  // Pick the most informative field for a short preview
-  const candidates = ['path', 'command', 'query', 'pattern', 'url', 'description', 'prompt'];
-  for (const key of candidates) {
-    const val = args[key];
-    if (typeof val === 'string' && val.length > 0) {
-      return val.length > 60 ? `${val.slice(0, 59)}…` : val;
-    }
-  }
-  return undefined;
-}

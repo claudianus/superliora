@@ -203,7 +203,7 @@ export class PromptIntelligenceController {
       // request — do not surface it.  Genuine failures go to stderr so they
       // stay out of the TUI render surface.
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        process.stderr.write(`[prompt-intelligence] inline completion failed: ${error}\n`);
+        process.stderr.write(`[prompt-intelligence] inline completion failed: ${String(error)}\n`);
         if (editor.getGhostText?.() === INLINE_PENDING_GHOST) {
           editor.setGhostText(undefined, 'inline');
         }
@@ -256,7 +256,7 @@ export class PromptIntelligenceController {
       this.maybeSurfaceCompletionModel(result.modelAlias, 'suggest');
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        process.stderr.write(`[prompt-intelligence] suggestion request failed: ${error}\n`);
+        process.stderr.write(`[prompt-intelligence] suggestion request failed: ${String(error)}\n`);
       }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;

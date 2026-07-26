@@ -8,7 +8,6 @@ import {
   NativeTerminalSession,
   type Component,
   type Focusable,
-  type NativeInputEvent,
   Spacer,
 } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
@@ -1124,7 +1123,7 @@ export class LioraTUI {
         displayText: `🎯 ${firstGoal.objective.slice(0, 50)}...`,
       });
     } catch (error) {
-      this.showStatus(`Failed to resume goal from queue: ${error}`, 'error');
+      this.showStatus(`Failed to resume goal from queue: ${String(error)}`, 'error');
     }
   }
 
@@ -4299,8 +4298,12 @@ export class LioraTUI {
     const roots = resolveClaudeImportRoots(workDir);
     const entries: ClaudeImportScanEntry[] = [];
 
-    const { readdirSync, statSync } = await import('node:fs');
-    const { join, relative } = await import('node:path');
+    const nodeFs = await import('node:fs');
+    const nodePath = await import('node:path');
+    const readdirSync = nodeFs.readdirSync.bind(nodeFs);
+    const statSync = nodeFs.statSync.bind(nodeFs);
+    const join = nodePath.join.bind(nodePath);
+    const relative = nodePath.relative.bind(nodePath);
 
     const walk = (
       rootPath: string,

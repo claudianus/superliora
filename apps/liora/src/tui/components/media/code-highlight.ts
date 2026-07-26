@@ -391,7 +391,7 @@ export function highlightShellCommandLine(line: string, palette?: ColorPalette):
         expectCommand = true;
         continue;
       }
-      while (j < line.length && /[A-Za-z0-9_@*#?$!\-]/.test(line[j]!)) j++;
+      while (j < line.length && /[A-Za-z0-9_@*#?$!-]/.test(line[j]!)) j++;
       out += s.variable(line.slice(i, j));
       i = j;
       expectCommand = false;

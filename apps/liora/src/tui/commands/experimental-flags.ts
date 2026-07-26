@@ -61,6 +61,7 @@ export function isExperimentalFlagEnabled(flag: string | undefined): boolean {
   if (envHit !== undefined) return envHit.enabled;
   // Match agent-core registry defaults so ghost/autocomplete is not silently dark
   // between process start and init()'s setExperimentalFeatures.
-  if (KNOWN_FLAG_DEFAULTS[flag] !== undefined) return KNOWN_FLAG_DEFAULTS[flag]!;
+  const knownDefault = KNOWN_FLAG_DEFAULTS[flag];
+  if (knownDefault !== undefined) return knownDefault;
   return false;
 }
