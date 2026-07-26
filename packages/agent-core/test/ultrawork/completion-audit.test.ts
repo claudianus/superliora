@@ -253,6 +253,34 @@ describe('auditUltraworkCompletion', () => {
     }
   });
 
+  it('rejects verificationStatus=blocked even when node status is done', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'verify_1',
+              kind: 'verification',
+              stage: 'verify',
+              status: 'done',
+              verificationStatus: 'blocked',
+              requiredEvidence: ['ev-runtime'],
+              evidenceIds: ['ev-runtime'],
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('verification_blocked');
+      expect(result.openNodeIds).toContain('verify_1');
+      expect(result.reasons.some((r) => r.includes('verificationStatus=blocked'))).toBe(true);
+    }
+  });
+
   it('still rejects needs_integration as incomplete', () => {
     const result = auditUltraworkCompletion({
       run: baseRun({

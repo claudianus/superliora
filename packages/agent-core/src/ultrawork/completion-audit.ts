@@ -169,6 +169,23 @@ export function auditUltraworkCompletion(
     );
   }
 
+  // Blocked verification is not a pass — same class of false-complete as failed.
+  const verificationBlocked = gatedNodes.filter((n) => n.verificationStatus === 'blocked');
+  if (verificationBlocked.length > 0) {
+    const openNodeIds = verificationBlocked.map((n) => n.id);
+    return reject(
+      'verification_blocked',
+      [
+        `Nodes with verificationStatus=blocked: ${openNodeIds.join(', ')}.`,
+        'Blocked verification means checks could not complete; status=done is not enough.',
+      ],
+      [
+        'Unblock the verification path (deps, env, surface), re-run checks, then set verificationStatus=passed with evidence.',
+      ],
+      openNodeIds,
+    );
+  }
+
   // Nodes that declare requiredEvidence must explicitly pass verification —
   // soft string evidenceIds alone is not enough to close a long-running goal.
   const pendingVerify = gatedNodes.filter(

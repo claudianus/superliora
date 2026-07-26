@@ -316,6 +316,9 @@ function applyShellPatterns(text: string, command: string): string {
     /\bnats(?:\s|-(?:cli|server|box)\b)/u.test(command) ||
     /\bpulsar(?:-admin|-client)?\b/u.test(command) ||
     /\bcelery\s+(?:inspect|status|events|worker)\b/u.test(command) ||
+    /\b(?:rclone|s3cmd|azcopy)\b/u.test(command) ||
+    /\bgsutil\s+(?:ls|cat|cp|r-?sync|stat|du|bucket)\b/u.test(command) ||
+    /\bmc\s+(?:ls|cat|cp|mirror|stat|tree|find|du|admin)\b/u.test(command) ||
     /\b(?:terraform|tofu)\s+(?:plan|show|state|output|apply)\b/u.test(command) ||
     /\bpulumi\s+(?:preview|stack|up)\b/u.test(command) ||
     /\baws\s+\S+/u.test(command) ||
