@@ -19,6 +19,9 @@ import {
   formatEvidenceHardGateNextActions,
   formatFailedNodeNextActions,
   formatNeedsIntegrationNextActions,
+  formatOwnerlessRunningNextActions,
+  formatQueuedDependsOnWaitNextActions,
+  formatStuckNodeNextActions,
   formatVerificationGapNextActions,
 } from './recovery-prompt';
 import {
@@ -244,24 +247,10 @@ export function auditUltraworkCompletion(
       );
     }
     if (ownerlessRunning.length > 0) {
-      nextActions.push(
-        `Assign owner or re-queue orphan running node(s): ${ownerlessRunning
-          .slice(0, 3)
-          .map((n) => `${n.id} (${n.title})`)
-          .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
-      );
+      nextActions.push(...formatOwnerlessRunningNextActions(ownerlessRunning));
     }
     if (waitingQueued.length > 0) {
-      const waitHints = waitingQueued
-        .slice(0, 3)
-        .map((n) => {
-          const deps = n.dependsOn?.filter((id) => id.length > 0) ?? [];
-          return `${n.id} (${n.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`;
-        })
-        .join(', ');
-      nextActions.push(
-        `Queued node(s) waiting on dependsOn: ${waitHints}${waitingQueued.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
-      );
+      nextActions.push(...formatQueuedDependsOnWaitNextActions(waitingQueued));
     }
     // Match recovery-triangle owned stuck promotion (blocked already has node_blocked).
     const stuckOwned = detectStuckWorkGraphNodes(run.workGraph).filter((n) => {
@@ -273,12 +262,7 @@ export function auditUltraworkCompletion(
       return hasOwner;
     });
     if (stuckOwned.length > 0) {
-      nextActions.push(
-        `Circuit-break stuck WorkGraph node(s): ${stuckOwned
-          .slice(0, 3)
-          .map((n) => `${n.id}[${n.status}]`)
-          .join(', ')}${stuckOwned.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
-      );
+      nextActions.push(...formatStuckNodeNextActions(stuckOwned));
     }
     // Match recovery-triangle verification-gap next_actions for open graphs
     // (done-only graphs already hit verification_failed/pending/blocked codes).

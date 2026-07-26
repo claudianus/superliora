@@ -192,6 +192,47 @@ export function formatBlockedNodeNextActions(nodes: readonly WorkGraphNode[]): r
   ];
 }
 
+/** Match recovery-triangle ownerless-running next_actions (id + title). */
+export function formatOwnerlessRunningNextActions(
+  nodes: readonly WorkGraphNode[],
+): readonly string[] {
+  if (nodes.length === 0) return [];
+  return [
+    `Assign owner or re-queue orphan running node(s): ${nodes
+      .slice(0, 3)
+      .map((node) => `${node.id} (${node.title})`)
+      .join(', ')}${nodes.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
+  ];
+}
+
+/** Match recovery-triangle queued dependsOn wait next_actions. */
+export function formatQueuedDependsOnWaitNextActions(
+  nodes: readonly WorkGraphNode[],
+): readonly string[] {
+  if (nodes.length === 0) return [];
+  const waitHints = nodes
+    .slice(0, 3)
+    .map((node) => {
+      const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+      return `${node.id} (${node.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`;
+    })
+    .join(', ');
+  return [
+    `Queued node(s) waiting on dependsOn: ${waitHints}${nodes.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
+  ];
+}
+
+/** Match recovery-triangle owned stuck-node next_actions (id + status). */
+export function formatStuckNodeNextActions(nodes: readonly WorkGraphNode[]): readonly string[] {
+  if (nodes.length === 0) return [];
+  return [
+    `Circuit-break stuck WorkGraph node(s): ${nodes
+      .slice(0, 3)
+      .map((node) => `${node.id}[${node.status}]`)
+      .join(', ')}${nodes.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
+  ];
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
@@ -514,12 +555,7 @@ export function suggestNextActions(
         (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
     ) ?? [];
   if (ownerlessRunning.length > 0) {
-    actions.push(
-      `Assign owner or re-queue orphan running node(s): ${ownerlessRunning
-        .slice(0, 3)
-        .map((node) => `${node.id} (${node.title})`)
-        .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
-    );
+    actions.push(...formatOwnerlessRunningNextActions(ownerlessRunning));
   }
   // Queued nodes with explicit dependsOn that are not yet terminal — surface the wait graph.
   const waitingQueued =
@@ -530,16 +566,7 @@ export function suggestNextActions(
     }) ?? [];
   if (waitingQueued.length > 0 && blockedNodes.length === 0) {
     // Skip when blocked guidance already covers dependency stalls to avoid duplicate noise.
-    const waitHints = waitingQueued
-      .slice(0, 3)
-      .map((node) => {
-        const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
-        return `${node.id} (${node.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`;
-      })
-      .join(', ');
-    actions.push(
-      `Queued node(s) waiting on dependsOn: ${waitHints}${waitingQueued.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
-    );
+    actions.push(...formatQueuedDependsOnWaitNextActions(waitingQueued));
   }
   const verificationGaps = collectVerificationGapNodes(run.workGraph?.nodes);
   if (verificationGaps.length > 0) {
@@ -559,12 +586,7 @@ export function suggestNextActions(
     return hasOwner;
   });
   if (stuckNodes.length > 0) {
-    actions.push(
-      `Circuit-break stuck WorkGraph node(s): ${stuckNodes
-        .slice(0, 3)
-        .map((node) => `${node.id}[${node.status}]`)
-        .join(', ')}${stuckNodes.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
-    );
+    actions.push(...formatStuckNodeNextActions(stuckNodes));
   }
   const resumeCycles = countResumeCyclesFromHistory(run);
   if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {

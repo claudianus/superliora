@@ -20,6 +20,9 @@ import {
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
   formatNeedsIntegrationNextActions,
+  formatOwnerlessRunningNextActions,
+  formatQueuedDependsOnWaitNextActions,
+  formatStuckNodeNextActions,
   formatVerificationGapNextActions,
   formatVerificationGapSummary,
   suggestNextActions,
@@ -173,6 +176,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatOwnerlessRunningNextActions(ownerlessRunningNodes),
       'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
     );
   }
@@ -193,6 +197,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
     );
     lines.push(
+      ...formatQueuedDependsOnWaitNextActions(waitingQueuedNodes),
       'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
     );
   }
@@ -233,6 +238,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .join(', ')}`,
     );
     lines.push(
+      ...formatStuckNodeNextActions(stuckNodes),
       'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
     );
   }
@@ -372,6 +378,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatOwnerlessRunningNextActions(ownerlessRunningNodes),
       'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
     );
   }
@@ -392,6 +399,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
     );
     lines.push(
+      ...formatQueuedDependsOnWaitNextActions(waitingQueuedNodes),
       'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
     );
   }
@@ -432,6 +440,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .join(', ')}`,
     );
     lines.push(
+      ...formatStuckNodeNextActions(stuckNodes),
       'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
     );
   }
