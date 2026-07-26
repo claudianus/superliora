@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD,
   createSwarmBudgetState,
   evaluateSwarmBudget,
   hasHighSignalBudgetProgress,
@@ -9,130 +10,129 @@ import {
   suggestSwarmBudgetKill,
 } from '../../src/session/swarm-budget';
 
-describe('swarm-budget', () => {
-  it('treats empty progress as wasted; bare productive does not clear waste', () => {
-    expect(isWastedBudgetRound({ evidenceIds: [] })).toBe(true);
-    expect(isWastedBudgetRound({ evidenceIds: ['e1'] })).toBe(false);
-    expect(isWastedBudgetRound({ evidenceIds: [], productive: true })).toBe(true);
-    expect(isWastedBudgetRound({ artifactIds: ['a1'] })).toBe(false);
-    expect(isWastedBudgetRound({ fileChangeCount: 2 })).toBe(false);
-    expect(isWastedBudgetRound({ toolSuccessCount: 1 })).toBe(false);
-    // Soft wasted flag no longer overrides high-signal artifacts.
-    expect(isWastedBudgetRound({ wasted: true, evidenceIds: ['e1'] })).toBe(false);
-    expect(isWastedBudgetRound({ wasted: true, toolSuccessCount: 2 })).toBe(false);
-    expect(isWastedBudgetRound({ wasted: true, verificationPassed: true })).toBe(false);
-    expect(isWastedBudgetRound({ wasted: true })).toBe(true);
+describe('swarm-budget.ts — high-signal detection', () => {
+  describe('hasHighSignalBudgetProgress', () => {
+    it('returns false for an empty round', () => {
+      expect(hasHighSignalBudgetProgress({})).toBe(false);
+    });
+
+    it('treats productive alone as NOT high-signal (anti-gaming)', () => {
+      expect(hasHighSignalBudgetProgress({ productive: true })).toBe(false);
+    });
+
+    it('flips high-signal for any of the documented artifacts', () => {
+      expect(hasHighSignalBudgetProgress({ evidenceIds: ['e-1'] })).toBe(true);
+      expect(hasHighSignalBudgetProgress({ artifactIds: ['a-1'] })).toBe(true);
+      expect(hasHighSignalBudgetProgress({ fileChangeCount: 1 })).toBe(true);
+      expect(hasHighSignalBudgetProgress({ toolSuccessCount: 1 })).toBe(true);
+      expect(hasHighSignalBudgetProgress({ verificationPassed: true })).toBe(true);
+    });
+
+    it('ignores empty-string evidence/artifact ids (trim filter)', () => {
+      expect(hasHighSignalBudgetProgress({ evidenceIds: ['', '   '] })).toBe(false);
+      expect(hasHighSignalBudgetProgress({ artifactIds: [''] })).toBe(false);
+    });
   });
 
-  it('hasHighSignalBudgetProgress requires real artifacts', () => {
-    expect(hasHighSignalBudgetProgress({ productive: true })).toBe(false);
-    expect(hasHighSignalBudgetProgress({ evidenceIds: ['x'] })).toBe(true);
-    expect(hasHighSignalBudgetProgress({ verificationPassed: true })).toBe(true);
-    expect(isWastedBudgetRound({ verificationPassed: true })).toBe(false);
-    expect(hasHighSignalBudgetProgress({ toolSuccessCount: 2 })).toBe(true);
-    expect(isWastedBudgetRound({ toolSuccessCount: 1 })).toBe(false);
+  describe('isWastedBudgetRound', () => {
+    it('returns true for an empty round (default wasted)', () => {
+      expect(isWastedBudgetRound({})).toBe(true);
+    });
+
+    it('returns true for explicit wasted without any high-signal artifact', () => {
+      expect(isWastedBudgetRound({ wasted: true, productive: true })).toBe(true);
+    });
+
+    it('returns false when high-signal wins over an explicit wasted flag', () => {
+      expect(isWastedBudgetRound({ wasted: true, toolSuccessCount: 2 })).toBe(false);
+      expect(isWastedBudgetRound({ wasted: true, verificationPassed: true })).toBe(false);
+      expect(isWastedBudgetRound({ wasted: true, evidenceIds: ['e-1'] })).toBe(false);
+    });
+  });
+});
+
+describe('swarm-budget.ts — state recording', () => {
+  it('defaults the kill threshold to 2 and clamps below to 1', () => {
+    expect(createSwarmBudgetState().killThreshold).toBe(DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD);
+    expect(createSwarmBudgetState({ killThreshold: 0 }).killThreshold).toBe(1);
+    expect(createSwarmBudgetState({ killThreshold: 5 }).killThreshold).toBe(5);
   });
 
-  it('suggests kill when wastedRounds >= default threshold (2)', () => {
-    let state = createSwarmBudgetState();
-    state = recordSwarmBudgetRound(state, { label: 'implement', evidenceIds: [] });
-    expect(suggestSwarmBudgetKill(state).shouldKill).toBe(false);
-    expect(state.consecutiveWastedRounds).toBe(1);
-
-    state = recordSwarmBudgetRound(state, { label: 'review', evidenceIds: [] });
-    const suggestion = suggestSwarmBudgetKill(state);
-    expect(suggestion.shouldKill).toBe(true);
-    expect(suggestion.wastedRounds).toBe(2);
-    expect(suggestion.consecutiveWastedRounds).toBe(2);
-    expect(suggestion.reason).toMatch(/Budget governor|high-signal|without/i);
+  it('records a productive round and resets the consecutive-wasted counter', () => {
+    const s0 = createSwarmBudgetState();
+    const s1 = recordSwarmBudgetRound(s0, { evidenceIds: ['e-1'] });
+    expect(s1.rounds).toBe(1);
+    expect(s1.wastedRounds).toBe(0);
+    expect(s1.consecutiveWastedRounds).toBe(0);
+    expect(s1.evidenceCount).toBe(1);
+    expect(s1.history).toHaveLength(1);
   });
 
-  it('resets consecutive waste after a high-signal round', () => {
-    let state = createSwarmBudgetState();
-    state = recordSwarmBudgetRound(state, { evidenceIds: [] });
-    state = recordSwarmBudgetRound(state, { evidenceIds: ['e1'] });
-    expect(state.consecutiveWastedRounds).toBe(0);
-    expect(state.wastedRounds).toBe(1);
-    expect(suggestSwarmBudgetKill(state).shouldKill).toBe(false);
+  it('records a wasted round and increments wastedRounds + consecutiveWastedRounds', () => {
+    const s1 = recordSwarmBudgetRound(createSwarmBudgetState(), { wasted: true });
+    const s2 = recordSwarmBudgetRound(s1, { wasted: true });
+    expect(s2.rounds).toBe(2);
+    expect(s2.wastedRounds).toBe(2);
+    expect(s2.consecutiveWastedRounds).toBe(2);
   });
 
-  it('does not kill when only one wasted round exists among productive work', () => {
-    const { suggestion, state } = evaluateSwarmBudget([
-      { label: 'plan', evidenceIds: [] },
-      { label: 'implement', evidenceIds: ['test:unit'] },
-      { label: 'review', evidenceIds: ['review:note'] },
+  it('clamps negative fileChangeCount/toolSuccessCount to 0', () => {
+    const s = recordSwarmBudgetRound(createSwarmBudgetState(), {
+      fileChangeCount: -5,
+      toolSuccessCount: -3,
+    });
+    expect(s.history[0]?.fileChangeCount).toBe(0);
+    expect(s.history[0]?.toolSuccessCount).toBe(0);
+  });
+
+  it('preserves the last round label (only the most recent label wins)', () => {
+    let s = createSwarmBudgetState();
+    s = recordSwarmBudgetRound(s, { label: 'first', evidenceIds: ['e-1'] });
+    s = recordSwarmBudgetRound(s, { label: 'second', evidenceIds: ['e-2'] });
+    expect(s.lastRoundLabel).toBe('second');
+  });
+});
+
+describe('swarm-budget.ts — kill suggestion', () => {
+  it('does not kill below the threshold and reports the continue reason', () => {
+    const s = recordSwarmBudgetRound(createSwarmBudgetState(), { wasted: true });
+    const sug = suggestSwarmBudgetKill(s);
+    expect(sug.shouldKill).toBe(false);
+    expect(sug.reason).toMatch(/continue/);
+  });
+
+  it('kills when total wasted rounds cross the kill threshold', () => {
+    const s0 = createSwarmBudgetState();
+    const s1 = recordSwarmBudgetRound(s0, { label: 'r1', wasted: true });
+    const s2 = recordSwarmBudgetRound(s1, { label: 'r2', wasted: true });
+    const sug = suggestSwarmBudgetKill(s2);
+    expect(sug.shouldKill).toBe(true);
+    // Two consecutive wasted rounds at threshold 2 hit the consecutive
+    // branch first — the reason message must still surface both the count
+    // and the last round label.
+    expect(sug.reason).toMatch(/2 consecutive rounds without high-signal progress/);
+    expect(sug.reason).toMatch(/last: r2/);
+  });
+
+  it('kills when consecutive wasted rounds cross the threshold even if total is below', () => {
+    let s = createSwarmBudgetState({ killThreshold: 2 });
+    s = recordSwarmBudgetRound(s, { wasted: true });
+    s = recordSwarmBudgetRound(s, { evidenceIds: ['e-1'] });
+    s = recordSwarmBudgetRound(s, { wasted: true });
+    s = recordSwarmBudgetRound(s, { wasted: true });
+    const sug = suggestSwarmBudgetKill(s);
+    expect(sug.shouldKill).toBe(true);
+    expect(sug.reason).toMatch(/2 consecutive rounds without high-signal progress/);
+  });
+
+  it('evaluateSwarmBudget folds a sequence and reports the final suggestion', () => {
+    const { state, suggestion } = evaluateSwarmBudget([
+      { label: 'a', evidenceIds: ['e-1'] },
+      { wasted: true, label: 'b' },
+      { wasted: true, label: 'c' },
     ]);
-    expect(suggestion.shouldKill).toBe(false);
-    expect(state.wastedRounds).toBe(1);
-    expect(state.evidenceCount).toBe(2);
-  });
-
-  it('honors custom kill threshold', () => {
-    const { suggestion } = evaluateSwarmBudget(
-      [{ evidenceIds: [] }, { evidenceIds: [] }, { evidenceIds: [] }],
-      { killThreshold: 3 },
-    );
+    expect(state.rounds).toBe(3);
+    expect(state.wastedRounds).toBe(2);
     expect(suggestion.shouldKill).toBe(true);
-    expect(suggestion.killThreshold).toBe(3);
   });
-
-  it('exposes a stable kill reason for visible handoff / telemetry', () => {
-    const { suggestion } = evaluateSwarmBudget(
-      [
-        { label: 'plan', evidenceIds: [] },
-        { label: 'implement', evidenceIds: [] },
-      ],
-      { killThreshold: 2 },
-    );
-    expect(suggestion.shouldKill).toBe(true);
-    expect(suggestion.reason).toMatch(/Budget governor/i);
-    expect(suggestion.reason).toMatch(/high-signal|without/i);
-    expect(suggestion.reason).toMatch(/implement|threshold|consecutive/i);
-    expect(suggestion.wastedRounds).toBe(2);
-    expect(suggestion.killThreshold).toBe(2);
-  });
-
-  it('records verificationPassed on round history', () => {
-    let state = createSwarmBudgetState();
-    state = recordSwarmBudgetRound(state, { verificationPassed: true, label: 'review' });
-    expect(state.history[0]?.verificationPassed).toBe(true);
-    expect(state.history[0]?.wasted).toBe(false);
-    state = recordSwarmBudgetRound(state, { label: 'empty' });
-    expect(state.history[1]?.verificationPassed).toBe(false);
-    expect(state.history[1]?.wasted).toBe(true);
-  });
-
-  it('records fileChangeCount / toolSuccessCount and treats file edits as high-signal', () => {
-    let state = createSwarmBudgetState();
-    state = recordSwarmBudgetRound(state, {
-      label: 'implement',
-      fileChangeCount: 3,
-      toolSuccessCount: 2,
-      evidenceIds: [],
-    });
-    expect(state.history[0]?.fileChangeCount).toBe(3);
-    expect(state.history[0]?.toolSuccessCount).toBe(2);
-    expect(state.history[0]?.wasted).toBe(false);
-    expect(state.consecutiveWastedRounds).toBe(0);
-
-    state = recordSwarmBudgetRound(state, { label: 'noise', evidenceIds: [] });
-    expect(state.history[1]?.fileChangeCount).toBe(0);
-    expect(state.history[1]?.wasted).toBe(true);
-    expect(state.consecutiveWastedRounds).toBe(1);
-  });
-
-  it('records artifactIds as high-signal and non-wasted history', () => {
-    let state = createSwarmBudgetState();
-    state = recordSwarmBudgetRound(state, {
-      label: 'implement',
-      artifactIds: ['packages/agent-core/src/foo.ts'],
-      evidenceIds: [],
-    });
-    expect(state.history[0]?.artifactCount).toBe(1);
-    expect(state.history[0]?.wasted).toBe(false);
-    expect(hasHighSignalBudgetProgress({ artifactIds: ['packages/agent-core/src/foo.ts'] })).toBe(
-      true,
-    );
-  });
-
 });
