@@ -337,18 +337,28 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       };
     }
   }
-  // New-Item -ItemType File / ni … File → Write (Unix: touch). Directories stay allowed.
+  // New-Item -ItemType File / ni … File / bare New-Item path.ext → Write (Unix: touch).
+  // Directory creates and recursive/filter work stay allowed.
   if (
     /^(?:New-Item|ni)\b/i.test(command) &&
     !/\s\|/.test(command) &&
-    /(?:-ItemType|-Type)\s+File\b/i.test(command) &&
-    !/(?:-ItemType|-Type)\s+Directory\b/i.test(command)
+    !/(?:-ItemType|-Type)\s+Directory\b/i.test(command) &&
+    !/\b(?:-Recurse|-Force)\b/i.test(command)
   ) {
-    return {
-      prefer: 'Write',
-      pattern: 'New-Item File',
-      message: 'Use Write to create empty/new files instead of PowerShell New-Item -ItemType File.',
-    };
+    const isFileType = /(?:-ItemType|-Type)\s+File\b/i.test(command);
+    const hasPathExt =
+      /(?:^|\s)-(?:Path|LiteralPath|Name)\s+\S+\.\w{1,8}\b/i.test(command) ||
+      /(?:^|\s)(?:\.\/|\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+        command,
+      ) ||
+      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(command);
+    if (isFileType || hasPathExt) {
+      return {
+        prefer: 'Write',
+        pattern: 'New-Item File',
+        message: 'Use Write to create empty/new files instead of PowerShell New-Item.',
+      };
+    }
   }
   // head/tail [flags] path — not head of a pipeline (+ busybox/ghead/gtail)
   // Flags may take a following value token: head -n 20 file, tail -50 file, head -n20 file
@@ -1431,7 +1441,7 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
   // Content producers + pure identity/listing dumps redirected to a file.
   // Keep process-heavy left-hand sides (e.g. `git status > log`) allowed.
   const m =
-    /^(?:\/usr\/bin\/)?(echo|printf|cat|Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|pwd|hostname|whoami|date|uname|ls|dir|Get-Location|gl|Get-ChildItem|gci)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
+    /^(?:\/usr\/bin\/)?(echo|printf|cat|type|Get-Content|gc|Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|pwd|hostname|whoami|date|uname|ls|dir|Get-Location|gl|Get-ChildItem|gci)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
       command,
     );
   if (m === null) return undefined;

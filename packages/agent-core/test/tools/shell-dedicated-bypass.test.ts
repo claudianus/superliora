@@ -255,6 +255,15 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('pwd')).toBeUndefined();
   });
 
+  it('blocks pure Get-Content/type redirects to files', () => {
+    expect(detectShellDedicatedBypass('Get-Content a.ts > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('gc notes.md >> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('type a.ts > out.txt')?.prefer).toBe('Write');
+    // bare single-file dumps prefer Read; stderr multi-redirect stays allowed
+    expect(detectShellDedicatedBypass('Get-Content a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.ts 2> err.txt')).toBeUndefined();
+  });
+
   it('blocks pure file pipes into pagers/head/tail', () => {
     expect(detectShellDedicatedBypass('cat src/a.ts | less')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('type src\\a.ts | more')?.prefer).toBe('Read');
@@ -535,6 +544,8 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('clc -Path notes.md')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('New-Item -ItemType File empty.ts')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('ni out.txt -ItemType File')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('New-Item empty.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('New-Item -Path ./notes.md')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Copy-Item src/a.ts dest/a.ts')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('ci src/a.ts dest/a.ts')?.prefer).toBe('Write');
     // directories / recursive / pipelines stay allowed
