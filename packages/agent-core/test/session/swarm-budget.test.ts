@@ -17,7 +17,11 @@ describe('swarm-budget', () => {
     expect(isWastedBudgetRound({ artifactIds: ['a1'] })).toBe(false);
     expect(isWastedBudgetRound({ fileChangeCount: 2 })).toBe(false);
     expect(isWastedBudgetRound({ toolSuccessCount: 1 })).toBe(false);
-    expect(isWastedBudgetRound({ wasted: true, evidenceIds: ['e1'] })).toBe(true);
+    // Soft wasted flag no longer overrides high-signal artifacts.
+    expect(isWastedBudgetRound({ wasted: true, evidenceIds: ['e1'] })).toBe(false);
+    expect(isWastedBudgetRound({ wasted: true, toolSuccessCount: 2 })).toBe(false);
+    expect(isWastedBudgetRound({ wasted: true, verificationPassed: true })).toBe(false);
+    expect(isWastedBudgetRound({ wasted: true })).toBe(true);
   });
 
   it('hasHighSignalBudgetProgress requires real artifacts', () => {

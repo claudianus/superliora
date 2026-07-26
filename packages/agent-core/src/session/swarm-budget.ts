@@ -12,7 +12,8 @@
  * - verificationPassed === true (checks re-run and passed)
  *
  * `productive: true` alone is **not** enough (prevents gaming the governor).
- * Explicit `wasted: true` always counts as wasted.
+ * Explicit `wasted: true` marks waste **only when** no high-signal artifact is present
+ * (evidence / artifacts / file changes / tool successes / verificationPassed win).
  */
 
 export const DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD = 2;
@@ -112,14 +113,16 @@ export function hasHighSignalBudgetProgress(input: SwarmBudgetRoundInput): boole
 
 /**
  * Decide whether a single round is wasted.
- * - explicit wasted → true
- * - high-signal progress → false
+ * - high-signal progress → false (wins over soft wasted flags)
+ * - explicit wasted without high-signal → true
  * - bare productive without signal → true (gaming blocked)
  * - empty progress → true
  */
 export function isWastedBudgetRound(input: SwarmBudgetRoundInput): boolean {
-  if (input.wasted === true) return true;
+  // Real artifacts always clear waste so callers can pass both
+  // `wasted: true` (soft ledger hint) and toolSuccessCount/verificationPassed.
   if (hasHighSignalBudgetProgress(input)) return false;
+  // Explicit wasted without high-signal, bare productive, or empty progress.
   return true;
 }
 

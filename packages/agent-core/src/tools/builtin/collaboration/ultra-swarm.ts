@@ -635,16 +635,14 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         label: phase,
         evidenceIds: phaseEvidenceIds,
         verificationPassed,
+        // Completed expert results are high-signal tool successes even without
+        // evidenceIds (e.g. PASS review with empty evidence bag).
         toolSuccessCount: completedCount,
-        // Force waste only when there is no high-signal artifact at all.
+        // Soft waste hint only — high-signal fields above win in isWastedBudgetRound.
         wasted:
           phaseEvidenceIds.length === 0 &&
           !verificationPassed &&
-          renderedPhaseResults.every(
-            (result) =>
-              result.status !== 'completed' ||
-              (result.evidenceIds ?? []).length === 0,
-          ),
+          completedCount === 0,
         productive: phaseEvidenceIds.length > 0 || verificationPassed || completedCount > 0,
       });
       const budgetSuggestion = suggestSwarmBudgetKill(budgetState);
