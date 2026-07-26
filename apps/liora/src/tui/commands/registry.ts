@@ -66,6 +66,17 @@ const CONTEXT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'status', description: 'Show current working-set preset' },
 ];
 
+const LOOP_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'list', description: 'List active conversation loops' },
+  { value: 'stop', description: 'Stop a conversation loop (optional id)' },
+];
+
+const CRON_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'list', description: 'List scheduled cron jobs' },
+  { value: 'delete', description: 'Delete a cron job by id' },
+  { value: 'help', description: 'Show /cron usage' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -166,6 +177,16 @@ export function premiumArgumentCompletions(argumentPrefix: string): Autocomplete
 /** Argument autocompletion for the `/context` working-set command. */
 export function contextArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(CONTEXT_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Argument autocompletion for the `/loop` list/stop subcommands. */
+export function loopArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(LOOP_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Argument autocompletion for the `/cron` list/delete/help subcommands. */
+export function cronArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(CRON_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -473,6 +494,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Manage scheduled jobs (list / delete)',
     priority: 60,
     argumentHint: 'list | delete <jobId>',
+    completeArgs: cronArgumentCompletions,
     availability: 'always',
   },
   {
@@ -735,6 +757,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Repeat a prompt on an interval inside this conversation',
     priority: 75,
     argumentHint: '[interval] <prompt> | stop [id] | list',
+    completeArgs: loopArgumentCompletions,
     availability: 'always',
   },
   {

@@ -5,7 +5,9 @@ import {
   resolveSlashCommandAvailability,
   addDirArgumentCompletions,
   contextArgumentCompletions,
+  cronArgumentCompletions,
   helpArgumentCompletions,
+  loopArgumentCompletions,
   memoryArgumentCompletions,
   personaArgumentCompletions,
   planArgumentCompletions,
@@ -194,6 +196,41 @@ describe('built-in slash command registry', () => {
     expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('context')!, 'deep')).toBe(
       'always',
     );
+  });
+
+  it('offers loop list/stop argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = loopArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['list', 'stop']);
+    expect(values('l')).toEqual(['list']);
+    expect(values('s')).toEqual(['stop']);
+    expect(loopArgumentCompletions('st')).toEqual([
+      { value: 'stop', label: 'stop', description: 'Stop a conversation loop (optional id)' },
+    ]);
+    expect(values('list')).toBeNull();
+    expect(values('2m')).toBeNull();
+    expect(findBuiltInSlashCommand('loop')?.completeArgs).toBe(loopArgumentCompletions);
+  });
+
+  it('offers cron list/delete/help argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = cronArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['list', 'delete', 'help']);
+    expect(values('d')).toEqual(['delete']);
+    expect(values('h')).toEqual(['help']);
+    expect(cronArgumentCompletions('li')).toEqual([
+      { value: 'list', label: 'list', description: 'List scheduled cron jobs' },
+    ]);
+    expect(values('list')).toBeNull();
+    expect(values('delete')).toBeNull();
+    expect(values('unknown')).toBeNull();
+    expect(findBuiltInSlashCommand('cron')?.completeArgs).toBe(cronArgumentCompletions);
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {

@@ -416,6 +416,26 @@ describe('resolveSlashCommandInput', () => {
       name: 'context',
       args: 'full',
     });
+    expect(resolve('/loop list', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'loop',
+      args: 'list',
+    });
+    expect(resolve('/loop stop', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'loop',
+      args: 'stop',
+    });
+    expect(resolve('/cron list', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'cron',
+      args: 'list',
+    });
+    expect(resolve('/cron delete job-1', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'cron',
+      args: 'delete job-1',
+    });
   });
 
   it('blocks plan clear while compacting because it is idle-only', () => {
