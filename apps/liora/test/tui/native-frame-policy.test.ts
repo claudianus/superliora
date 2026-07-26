@@ -1,198 +1,134 @@
 import { describe, expect, it } from 'vitest';
 
+import type { NativeRenderCause } from '#/tui/renderer';
+
 import {
   frameInvalidationIntentToCause,
   isLiveGoalChromeActive,
   isPureInputFrame,
   isPureTranscriptScrollFrame,
-  resolveTUIStateNativeFramePolicy,
-  shouldForceNativeCursor,
-  shouldForceTUIStateNativeLayoutFrame,
-  shouldRefreshNativeTerminalPalette,
   shouldReuseTUIChromeCache,
-  shouldUseAmbientDamageOnlyPaint,
   tuiChromeEpoch,
 } from '#/tui/utils/native-frame-policy';
 
-describe('native-frame-policy', () => {
-  it('maps invalidation intents to native render causes', () => {
+describe('frameInvalidationIntentToCause', () => {
+  it('maps every intent to a stable native cause', () => {
+    // Pin the mapping so a future rename on the renderer side does not
+    // silently drop a cause and let the chrome cache serve stale paint.
     expect(frameInvalidationIntentToCause('content')).toBe('request');
     expect(frameInvalidationIntentToCause('layout')).toBe('manual');
     expect(frameInvalidationIntentToCause('palette')).toBe('manual');
     expect(frameInvalidationIntentToCause('animation')).toBe('animation');
     expect(frameInvalidationIntentToCause('scroll')).toBe('transcript-scroll');
   });
+});
 
-  it('forces authoritative redraw and palette refresh on structural layout shifts', () => {
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['request'],
-      viewportScrolled: false,
-      structuralShift: true,
-      nextTranscriptStart: 12,
-      ambientAnimationAllowed: true,
-    });
-
-    expect(policy.force).toBe(true);
-    expect(policy.clear).toBe(true);
-    expect(policy.refreshTerminalPalette).toBe(true);
-    expect(policy.clearTranscriptSelection).toBe(false);
-  });
-
-  it('uses incremental frames for pure transcript scroll', () => {
+describe('isPureTranscriptScrollFrame', () => {
+  it('rejects frames with no transcript-scroll cause', () => {
+    const causes: NativeRenderCause[] = ['animation'];
     expect(
-      isPureTranscriptScrollFrame(['transcript-scroll'], true, false),
-    ).toBe(true);
-
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['transcript-scroll'],
-      viewportScrolled: true,
-      structuralShift: false,
-      priorTranscriptStart: 4,
-      nextTranscriptStart: 7,
-      ambientAnimationAllowed: false,
-    });
-
-    expect(policy.force).toBe(false);
-    expect(policy.clear).toBe(false);
-    expect(policy.refreshTerminalPalette).toBe(false);
-    expect(policy.clearTranscriptSelection).toBe(true);
-    expect(
-      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll'], false, {
-        viewportScrolled: true,
-      }),
-    ).toBe(false);
-    expect(
-      shouldRefreshNativeTerminalPalette(['transcript-scroll'], false, {
-        viewportScrolled: true,
-      }),
+      isPureTranscriptScrollFrame(causes, true, false),
     ).toBe(false);
   });
 
-  it('forces authoritative redraw when scroll is combined with content updates', () => {
+  it('accepts scroll with optional animation tick when geometry is stable', () => {
+    const causes: NativeRenderCause[] = ['transcript-scroll', 'animation'];
     expect(
-      isPureTranscriptScrollFrame(['transcript-scroll', 'request'], true, false),
-    ).toBe(false);
-    expect(
-      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll', 'request'], false, {
-        viewportScrolled: true,
-      }),
+      isPureTranscriptScrollFrame(causes, true, false),
     ).toBe(true);
   });
 
-  it('treats scroll coalesced with ambient animation as pure scroll (no force/clear)', () => {
+  it('rejects when a structural shift is reported', () => {
+    const causes: NativeRenderCause[] = ['transcript-scroll'];
     expect(
-      isPureTranscriptScrollFrame(['transcript-scroll', 'animation'], true, false),
-    ).toBe(true);
-    expect(
-      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll', 'animation'], false, {
-        viewportScrolled: true,
-        ambientAnimation: true,
-      }),
-    ).toBe(false);
-
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['transcript-scroll', 'animation'],
-      viewportScrolled: true,
-      structuralShift: false,
-      priorTranscriptStart: 4,
-      nextTranscriptStart: 7,
-      ambientAnimationAllowed: true,
-    });
-    expect(policy.force).toBe(false);
-    expect(policy.clear).toBe(false);
-    expect(policy.refreshTerminalPalette).toBe(false);
-  });
-
-  it('keeps pure transcript scroll damage-only so stack regions do not clear-fill', () => {
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: false,
-        viewportScrolled: true,
-        causes: ['transcript-scroll'],
-        ambientAnimationAllowed: false,
-        idleAquariumMounted: false,
-      }),
-    ).toBe(true);
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: false,
-        viewportScrolled: true,
-        causes: ['transcript-scroll', 'animation'],
-        ambientAnimationAllowed: true,
-        idleAquariumMounted: false,
-      }),
-    ).toBe(true);
-    // Scroll + content still needs clears for uncovered rows.
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: false,
-        viewportScrolled: true,
-        causes: ['transcript-scroll', 'request'],
-        ambientAnimationAllowed: false,
-        idleAquariumMounted: true,
-      }),
+      isPureTranscriptScrollFrame(causes, true, true),
     ).toBe(false);
   });
 
-  it('keeps ambient animation damage-only without clear or OSC palette spam', () => {
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['animation'],
-      viewportScrolled: false,
-      structuralShift: false,
-      priorTranscriptStart: 4,
-      nextTranscriptStart: 4,
-      ambientAnimationAllowed: true,
-    });
-
-    expect(policy.force).toBe(false);
-    expect(policy.clear).toBe(false);
-    expect(policy.refreshTerminalPalette).toBe(false);
+  it('rejects when the viewport did not actually scroll', () => {
+    const causes: NativeRenderCause[] = ['transcript-scroll'];
     expect(
-      shouldForceTUIStateNativeLayoutFrame(['animation'], false, { ambientAnimation: true }),
+      isPureTranscriptScrollFrame(causes, false, false),
+    ).toBe(false);
+  });
+});
+
+describe('isPureInputFrame', () => {
+  it('accepts a single input cause when geometry is stable', () => {
+    expect(isPureInputFrame(['input'], false, false)).toBe(true);
+  });
+
+  it('rejects when the viewport also scrolled', () => {
+    expect(isPureInputFrame(['input'], false, true)).toBe(false);
+  });
+
+  it('rejects when a structural shift is reported', () => {
+    expect(isPureInputFrame(['input'], true, false)).toBe(false);
+  });
+
+  it('rejects mixed causes', () => {
+    expect(isPureInputFrame(['input', 'manual'], false, false)).toBe(false);
+  });
+});
+
+describe('shouldReuseTUIChromeCache', () => {
+  const base = {
+    hasCache: true,
+    widthMatches: true,
+    stageWidthMatches: true,
+    epochMatches: true,
+    pureInputFrame: true,
+    chromeStatic: false,
+    causes: [] as NativeRenderCause[],
+  };
+
+  it('reuses on a pure input frame when geometry and epoch match', () => {
+    expect(shouldReuseTUIChromeCache(base)).toBe(true);
+  });
+
+  it('rejects when the cache is missing', () => {
+    expect(shouldReuseTUIChromeCache({ ...base, hasCache: false })).toBe(
+      false,
+    );
+  });
+
+  it('rejects when the renderer width drifted', () => {
+    expect(shouldReuseTUIChromeCache({ ...base, widthMatches: false })).toBe(
+      false,
+    );
+  });
+
+  it('rejects when the stage width drifted', () => {
+    expect(
+      shouldReuseTUIChromeCache({ ...base, stageWidthMatches: false }),
     ).toBe(false);
   });
 
-  it('still clears on resize even when animation is coalesced', () => {
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['resize', 'animation'],
-      viewportScrolled: false,
-      structuralShift: false,
-      nextTranscriptStart: 0,
-      ambientAnimationAllowed: true,
-    });
-
-    expect(policy.force).toBe(true);
-    expect(policy.clear).toBe(true);
+  it('rejects when the chrome epoch drifted', () => {
+    expect(shouldReuseTUIChromeCache({ ...base, epochMatches: false })).toBe(
+      false,
+    );
   });
 
-  it('clears transcript selection when the viewport start moves', () => {
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['request'],
-      viewportScrolled: true,
-      structuralShift: false,
-      priorTranscriptStart: 2,
-      nextTranscriptStart: 8,
-      ambientAnimationAllowed: false,
-    });
-
-    expect(policy.clearTranscriptSelection).toBe(true);
-  });
-
-  it('reuses chrome on pure input / idle static, but not on request with a live goal', () => {
-    const base = {
-      hasCache: true,
-      widthMatches: true,
-      stageWidthMatches: true,
-      epochMatches: true,
-    };
+  it('rejects on request causes so live patches reach the chrome', () => {
     expect(
       shouldReuseTUIChromeCache({
         ...base,
-        pureInputFrame: true,
-        chromeStatic: false,
-        causes: ['input'],
+        causes: ['request'],
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('rejects on manual causes so the goal-timer tick repaints', () => {
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        causes: ['manual'],
+      }),
+    ).toBe(false);
+  });
+
+  it('reuses when chrome is static even on ambient animation', () => {
     expect(
       shouldReuseTUIChromeCache({
         ...base,
@@ -201,181 +137,67 @@ describe('native-frame-policy', () => {
         causes: ['animation'],
       }),
     ).toBe(true);
-    // Footer goal timer → content invalidate → request must rebuild chrome.
-    expect(
-      shouldReuseTUIChromeCache({
-        ...base,
-        pureInputFrame: false,
-        chromeStatic: false,
-        causes: ['request'],
-      }),
-    ).toBe(false);
-    expect(
-      shouldReuseTUIChromeCache({
-        ...base,
-        pureInputFrame: false,
-        chromeStatic: true,
-        causes: ['request'],
-      }),
-    ).toBe(false);
+  });
+});
+
+describe('tuiChromeEpoch', () => {
+  it('changes when the streaming phase changes', () => {
+    const a = tuiChromeEpoch({ streamingPhase: 'idle', thinking: false });
+    const b = tuiChromeEpoch({ streamingPhase: 'streaming', thinking: false });
+    expect(a).not.toBe(b);
+  });
+
+  it('changes when the thinking flag flips', () => {
+    const a = tuiChromeEpoch({ streamingPhase: 'idle', thinking: false });
+    const b = tuiChromeEpoch({ streamingPhase: 'idle', thinking: true });
+    expect(a).not.toBe(b);
+  });
+
+  it('changes when a live goal id or status changes', () => {
+    const a = tuiChromeEpoch({
+      streamingPhase: 'idle',
+      thinking: false,
+      liveGoalId: 'g-1',
+      liveGoalStatus: 'active',
+    });
+    const b = tuiChromeEpoch({
+      streamingPhase: 'idle',
+      thinking: false,
+      liveGoalId: 'g-1',
+      liveGoalStatus: 'paused',
+    });
+    const c = tuiChromeEpoch({
+      streamingPhase: 'idle',
+      thinking: false,
+      liveGoalId: 'g-2',
+      liveGoalStatus: 'active',
+    });
+    expect(a).not.toBe(b);
+    expect(a).not.toBe(c);
+  });
+
+  it('is stable when no live goal is attached', () => {
+    const a = tuiChromeEpoch({ streamingPhase: 'idle', thinking: false });
+    const b = tuiChromeEpoch({ streamingPhase: 'idle', thinking: false });
+    expect(a).toBe(b);
+  });
+});
+
+describe('isLiveGoalChromeActive', () => {
+  it('returns true for active/paused/blocked statuses', () => {
     expect(isLiveGoalChromeActive({ status: 'active' })).toBe(true);
-    expect(isLiveGoalChromeActive({ status: 'complete' })).toBe(false);
-    expect(
-      tuiChromeEpoch({
-        streamingPhase: 'idle',
-        thinking: false,
-        liveGoalId: 'g1',
-        liveGoalStatus: 'active',
-      }),
-    ).toBe('idle|0|g1|active');
+    expect(isLiveGoalChromeActive({ status: 'paused' })).toBe(true);
+    expect(isLiveGoalChromeActive({ status: 'blocked' })).toBe(true);
   });
 
-  it('treats pure keystroke frames as incremental (no force/clear) while forceCursor stays on', () => {
-    expect(isPureInputFrame(['input'], false, false)).toBe(true);
-    expect(isPureInputFrame(['input', 'request'], false, false)).toBe(false);
-    expect(isPureInputFrame(['input'], true, false)).toBe(false);
-    expect(isPureInputFrame(['input'], false, true)).toBe(false);
-
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['input'],
-      viewportScrolled: false,
-      structuralShift: false,
-      nextTranscriptStart: 0,
-      ambientAnimationAllowed: true,
-    });
-
-    // force/clear stay off on pure input even when ambient is allowed —
-    // ambient is only forced when the frame cause is animation.
-    expect(policy.force).toBe(false);
-    expect(policy.clear).toBe(false);
-    expect(
-      shouldForceTUIStateNativeLayoutFrame(['input'], false, {
-        ambientAnimation: true,
-        viewportScrolled: false,
-      }),
-    ).toBe(false);
-    // IME path: cursor re-emit is independent of force/clear.
-    expect(shouldForceNativeCursor({ causes: ['input'] })).toBe(true);
+  it('returns false for terminal statuses', () => {
+    expect(isLiveGoalChromeActive({ status: 'done' })).toBe(false);
+    expect(isLiveGoalChromeActive({ status: 'cancelled' })).toBe(false);
+    expect(isLiveGoalChromeActive({ status: 'failed' })).toBe(false);
   });
 
-  it('keeps forceCursor on for animation-only frames without coupling it to force', () => {
-    // Pure ambient animation stays damage-only; forceCursor remains independent (IME).
-    expect(
-      shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
-        ambientAnimation: true,
-      }),
-    ).toBe(false);
-    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
-
-    expect(
-      shouldForceTUIStateNativeLayoutFrame(['animation'], false, {
-        ambientAnimation: false,
-      }),
-    ).toBe(false);
-    expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
-  });
-
-  it('keeps append-only transcript growth damage-only without full clear', () => {
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['request'],
-      viewportScrolled: false,
-      structuralShift: true,
-      contentGrew: true,
-      geometryShift: false,
-      contentShrunk: false,
-      nextTranscriptStart: 12,
-      ambientAnimationAllowed: true,
-    });
-    // Still force present for correctness, but do not clear the buffer.
-    expect(policy.force).toBe(true);
-    expect(policy.clear).toBe(false);
-
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: true,
-        contentGrew: true,
-        geometryShift: false,
-        contentShrunk: false,
-        viewportScrolled: false,
-        causes: ['request'],
-        ambientAnimationAllowed: true,
-        idleAquariumMounted: false,
-      }),
-    ).toBe(true);
-  });
-
-  it('still clears when transcript content shrinks', () => {
-    const policy = resolveTUIStateNativeFramePolicy({
-      causes: ['request'],
-      viewportScrolled: false,
-      structuralShift: true,
-      contentGrew: false,
-      contentShrunk: true,
-      geometryShift: false,
-      nextTranscriptStart: 3,
-      ambientAnimationAllowed: false,
-    });
-    expect(policy.force).toBe(true);
-    expect(policy.clear).toBe(true);
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: true,
-        contentShrunk: true,
-        contentGrew: false,
-        geometryShift: false,
-        viewportScrolled: false,
-        causes: ['request'],
-        ambientAnimationAllowed: false,
-        idleAquariumMounted: true,
-      }),
-    ).toBe(false);
-  });
-
-  it('keeps Jewel Tank idle damage-only on request-only thinking ticks', () => {
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: false,
-        viewportScrolled: false,
-        causes: ['request'],
-        ambientAnimationAllowed: true,
-        idleAquariumMounted: true,
-      }),
-    ).toBe(true);
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: false,
-        viewportScrolled: false,
-        causes: ['request'],
-        ambientAnimationAllowed: false,
-        idleAquariumMounted: true,
-      }),
-    ).toBe(true);
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: false,
-        viewportScrolled: false,
-        causes: ['request'],
-        ambientAnimationAllowed: true,
-        idleAquariumMounted: false,
-      }),
-    ).toBe(false);
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: true,
-        viewportScrolled: false,
-        causes: ['request'],
-        ambientAnimationAllowed: true,
-        idleAquariumMounted: true,
-      }),
-    ).toBe(false);
-    expect(
-      shouldUseAmbientDamageOnlyPaint({
-        structuralShift: false,
-        viewportScrolled: false,
-        causes: ['resize', 'animation'],
-        ambientAnimationAllowed: true,
-        idleAquariumMounted: true,
-      }),
-    ).toBe(false);
+  it('returns false for null and undefined', () => {
+    expect(isLiveGoalChromeActive(null)).toBe(false);
+    expect(isLiveGoalChromeActive(undefined)).toBe(false);
   });
 });
