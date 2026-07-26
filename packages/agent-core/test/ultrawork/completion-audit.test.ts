@@ -398,4 +398,85 @@ describe('auditUltraworkCompletion', () => {
       expect(result.nextActions.some((a) => /Integrate specialist handoffs/i.test(a))).toBe(true);
     }
   });
+
+  it('rejects blocked nodes with dedicated node_blocked code and unblock actions', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_block',
+              kind: 'acceptance_criterion',
+              status: 'blocked',
+              dependsOn: ['ac_dep'],
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('node_blocked');
+      expect(result.openNodeIds).toContain('ac_block');
+      expect(result.nextActions.some((a) => /Unblock WorkGraph/i.test(a))).toBe(true);
+      expect(result.nextActions.some((a) => /dependsOn/i.test(a))).toBe(true);
+    }
+  });
+
+  it('prioritizes node_blocked over generic incomplete when both exist', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_block',
+              kind: 'acceptance_criterion',
+              status: 'blocked',
+            }),
+            node({
+              id: 'ac_queued',
+              kind: 'acceptance_criterion',
+              status: 'queued',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('node_blocked');
+      expect(result.openNodeIds).toContain('ac_block');
+      expect(result.openNodeIds).not.toContain('ac_queued');
+    }
+  });
+
+  it('hints ownerless running nodes in incomplete nextActions', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_orphan',
+              kind: 'acceptance_criterion',
+              status: 'running',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('incomplete_nodes');
+      expect(result.nextActions.some((a) => /Assign owner or re-queue orphan running/i.test(a))).toBe(
+        true,
+      );
+      expect(result.nextActions.some((a) => a.includes('ac_orphan'))).toBe(true);
+    }
+  });
 });

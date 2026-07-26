@@ -27,6 +27,8 @@ export type CompletionAuditCode =
   | 'node_failed'
   /** WorkGraph node status=needs_integration — specialist handoffs not merged. */
   | 'needs_integration'
+  /** WorkGraph node status=blocked — dependsOn or external stall. */
+  | 'node_blocked'
   | 'run_not_running'
   /** Structured GoalPredicate evaluation failed (paths/tests/evidence). */
   | 'predicate_failed'
@@ -112,7 +114,8 @@ export function auditUltraworkCompletion(
   // Evidence hard gate: done without evidence becomes blocked in the gated view.
   const { nodes: gatedNodes, violations } = applyEvidenceHardGate(graph.nodes);
   // cancelled is a deliberate terminal status (dropped scope) — treat like done.
-  // Match recovery triangle priority: failed → needs_integration → generic open.
+  // Match recovery triangle priority:
+  // failed → needs_integration → blocked → generic open (ownerless hint).
   // status=failed is NOT success: it still blocks goal complete.
   // Completing the goal while any node is failed would paper over broken ACs.
   // Attach analyzeFailedNodes category guidance so UpdateGoal(complete) rejections
@@ -167,7 +170,37 @@ export function auditUltraworkCompletion(
     );
   }
 
-  // Remaining non-terminal open work (queued/running/blocked/…) — not failed/cancelled/done.
+  // Use original graph status for intentional blocked — evidence hard gate also
+  // remaps done-without-evidence to status=blocked in gatedNodes, which must
+  // stay on the evidence_gate path below.
+  const blockedNodes = graph.nodes.filter((n) => n.status === 'blocked');
+  if (blockedNodes.length > 0) {
+    const openNodeIds = blockedNodes.map((n) => n.id);
+    const depHints = blockedNodes
+      .slice(0, 3)
+      .map((n) => {
+        const deps = n.dependsOn?.filter((id) => id.length > 0) ?? [];
+        return deps.length > 0
+          ? `${n.id} (${n.title}; dependsOn: ${deps.slice(0, 3).join(',')})`
+          : `${n.id} (${n.title})`;
+      })
+      .join(', ');
+    return reject(
+      'node_blocked',
+      [
+        `WorkGraph nodes still status=blocked: ${openNodeIds.join(', ')}.`,
+        'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
+      ],
+      [
+        `Unblock WorkGraph node(s) first: ${depHints}${blockedNodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
+        'Do not call UpdateGoal(complete) while any node is still blocked.',
+      ],
+      openNodeIds,
+    );
+  }
+
+  // Remaining non-terminal open work (queued/running/evidence-remapped blocked/…).
+  // Do not exclude gated status=blocked here — evidence hard gate uses that path.
   const open = gatedNodes.filter(
     (n) => n.status !== 'done' && n.status !== 'failed' && n.status !== 'cancelled',
   );
@@ -180,18 +213,34 @@ export function auditUltraworkCompletion(
             const hit = findEvidenceHardGateViolation(open);
             return hit === undefined ? [] : [`${hit.nodeId}: ${hit.reason}`];
           })();
+    const ownerlessRunning = open.filter(
+      (n) =>
+        n.status === 'running' &&
+        (n.ownerExpertId === undefined || n.ownerExpertId.length === 0) &&
+        (n.ownerAgentId === undefined || n.ownerAgentId.length === 0),
+    );
     const reasons = [
       `WorkGraph still has ${open.length} non-done node(s): ${openNodeIds.join(', ')}.`,
       ...evidenceHits.slice(0, 5),
     ];
+    const nextActions: string[] = [];
+    if (ownerlessRunning.length > 0) {
+      nextActions.push(
+        `Assign owner or re-queue orphan running node(s): ${ownerlessRunning
+          .slice(0, 3)
+          .map((n) => `${n.id} (${n.title})`)
+          .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
+      );
+    }
+    nextActions.push(
+      'Finish or re-open incomplete nodes with real evidence.',
+      'Do not call UpdateGoal(complete) until every AC node is done with verification.',
+      'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
+    );
     return reject(
       evidenceHits.length > 0 ? 'evidence_gate' : 'incomplete_nodes',
       reasons,
-      [
-        'Finish or re-open incomplete nodes with real evidence.',
-        'Do not call UpdateGoal(complete) until every AC node is done with verification.',
-        'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
-      ],
+      nextActions,
       openNodeIds,
     );
   }
