@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   cleanInlineCompletion,
   extractDraft,
+  looksLikeCheapCompletionModel,
   MAX_SUGGESTIONS,
   parseSuggestionLines,
+  pinCompletionThinking,
   PromptIntelligenceService,
   summarizeHistory,
 } from '../../../src/agent/intelligence/prompt-intelligence';
@@ -172,12 +174,41 @@ describe('parseSuggestionLines', () => {
 // PromptIntelligenceService (flag gate + provider resolution)
 // ---------------------------------------------------------------------------
 
+type CheapProviderStub = {
+  thinkingEffort: string;
+  withThinking: (effort: string) => CheapProviderStub;
+  withMaxCompletionTokens: (n: number) => CheapProviderStub;
+};
+
+function makeCheapProvider(): CheapProviderStub {
+  const provider: CheapProviderStub = {
+    thinkingEffort: 'off',
+    withThinking: (effort: string) => ({
+      thinkingEffort: effort === 'off' || effort === 'low' ? effort : 'high',
+      withThinking: provider.withThinking,
+      withMaxCompletionTokens: (_n: number) => provider,
+    }),
+    withMaxCompletionTokens: (_n: number) => provider,
+  };
+  // Wrap with vi.fn for call assertions where useful.
+  provider.withThinking = vi.fn(provider.withThinking) as CheapProviderStub['withThinking'];
+  provider.withMaxCompletionTokens = vi.fn(
+    provider.withMaxCompletionTokens,
+  ) as CheapProviderStub['withMaxCompletionTokens'];
+  return provider;
+}
+
 function fakeAgent(overrides: Partial<Agent> = {}): Agent {
   return {
     experimentalFlags: { enabled: () => true, enabledIds: () => [] },
     log: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
     kimiConfig: {},
-    config: { provider: { withThinking: () => ({ withMaxCompletionTokens: () => ({}) }) } },
+    // Default to a cheap-looking main alias so ghost traffic is allowed without
+    // an explicit completionModel (production skips expensive main models).
+    config: {
+      modelAlias: 'fast-mini',
+      provider: makeCheapProvider(),
+    },
     modelProvider: undefined,
     context: { messages: [] },
     generate: vi.fn(),
@@ -258,7 +289,7 @@ describe('PromptIntelligenceService', () => {
       generate,
       config: {
         modelAlias: 'main-model',
-        provider: { withThinking: () => ({ withMaxCompletionTokens: () => ({}) }) },
+        provider: makeCheapProvider(),
       },
     } as unknown as Partial<Agent>);
     const svc = new PromptIntelligenceService(agent);
@@ -266,5 +297,134 @@ describe('PromptIntelligenceService', () => {
     expect(resolveProviderConfig).toHaveBeenCalledWith('fast-model');
     expect(result.modelAlias).toBe('fast-model');
     expect(generate.mock.calls[0]?.[5]).toMatchObject({ runtimeModelAlias: 'fast-model' });
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Cheap model / thinking pin guards
+// ---------------------------------------------------------------------------
+
+describe('looksLikeCheapCompletionModel', () => {
+  it('accepts known cheap tiers', () => {
+    expect(looksLikeCheapCompletionModel('claude-haiku-4')).toBe(true);
+    expect(looksLikeCheapCompletionModel('gpt-4o-mini')).toBe(true);
+    expect(looksLikeCheapCompletionModel('gemini-2.0-flash')).toBe(true);
+    expect(looksLikeCheapCompletionModel('local-fast')).toBe(true);
+  });
+
+  it('rejects expensive / reasoning-looking ids', () => {
+    expect(looksLikeCheapCompletionModel('claude-opus-4')).toBe(false);
+    expect(looksLikeCheapCompletionModel('claude-sonnet-4')).toBe(false);
+    expect(looksLikeCheapCompletionModel('o3-mini')).toBe(false); // contains o3
+    expect(looksLikeCheapCompletionModel('gpt-5.2')).toBe(false);
+    expect(looksLikeCheapCompletionModel('')).toBe(false);
+  });
+});
+
+describe('pinCompletionThinking', () => {
+  it('prefers off when the provider accepts it', () => {
+    const provider = makeCheapProvider();
+    const pinned = pinCompletionThinking(provider as never);
+    expect(pinned).toBeDefined();
+    expect(pinned?.thinkingEffort).toBe('off');
+  });
+
+  it('falls back to low when off is rejected', () => {
+    const provider = {
+      thinkingEffort: 'high',
+      withThinking: vi.fn((effort: string) => {
+        if (effort === 'off') throw new Error('off unsupported');
+        return {
+          thinkingEffort: effort,
+          withThinking: vi.fn(),
+          withMaxCompletionTokens: (_n: number) => provider,
+        };
+      }),
+      withMaxCompletionTokens: (_n: number) => provider,
+    };
+    const pinned = pinCompletionThinking(provider as never);
+    expect(pinned).toBeDefined();
+    expect(pinned?.thinkingEffort).toBe('low');
+  });
+
+  it('returns undefined when neither off nor low can be applied', () => {
+    const provider = {
+      thinkingEffort: 'high',
+      withThinking: vi.fn(() => {
+        throw new Error('thinking locked');
+      }),
+      withMaxCompletionTokens: (_n: number) => provider,
+    };
+    expect(pinCompletionThinking(provider as never)).toBeUndefined();
+  });
+});
+
+describe('PromptIntelligenceService cost guards', () => {
+  it('skips when the only available model looks expensive', async () => {
+    const generate = vi.fn();
+    const agent = fakeAgent({
+      generate,
+      config: {
+        modelAlias: 'claude-opus',
+        provider: makeCheapProvider(),
+      },
+      kimiConfig: {},
+    } as unknown as Partial<Agent>);
+    const svc = new PromptIntelligenceService(agent);
+    expect(await svc.inlineComplete({ text: 'hello there friend', cursorLine: 0, cursorCol: 17 })).toEqual({
+      completion: '',
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('skips when thinking cannot be pinned low/off', async () => {
+    const generate = vi.fn();
+    const lockedProvider = {
+      thinkingEffort: 'high',
+      withThinking: vi.fn(() => {
+        throw new Error('no thinking control');
+      }),
+      withMaxCompletionTokens: (_n: number) => lockedProvider,
+    };
+    const agent = fakeAgent({
+      generate,
+      config: {
+        modelAlias: 'fast-mini',
+        provider: lockedProvider,
+      },
+    } as unknown as Partial<Agent>);
+    const svc = new PromptIntelligenceService(agent);
+    expect(await svc.inlineComplete({ text: 'hello there friend', cursorLine: 0, cursorCol: 17 })).toEqual({
+      completion: '',
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('uses configured completionModel even when the name looks expensive', async () => {
+    // Explicit user opt-in: do not second-guess completionModel.
+    const resolveProviderConfig = vi.fn().mockReturnValue({
+      modelAlias: 'my-opus-completion',
+      providerName: 'anthropic',
+      provider: { type: 'openai', model: 'gpt-4o-mini', apiKey: 'sk-test' },
+      modelCapabilities: {},
+    });
+    const generate = vi.fn().mockResolvedValue({
+      message: { content: [{ type: 'text', text: ' ok' }] },
+      finishReason: 'stop',
+      usage: null,
+    });
+    const agent = fakeAgent({
+      kimiConfig: { loopControl: { completionModel: 'my-opus-completion' } },
+      modelProvider: { resolveProviderConfig },
+      generate,
+    } as unknown as Partial<Agent>);
+    const svc = new PromptIntelligenceService(agent);
+    const result = await svc.inlineComplete({ text: 'hello', cursorLine: 0, cursorCol: 5 });
+    expect(resolveProviderConfig).toHaveBeenCalledWith('my-opus-completion');
+    // createProvider may or may not succeed depending on provider shape; at least
+    // we attempted the configured alias rather than skipping on name heuristics.
+    expect(resolveProviderConfig).toHaveBeenCalled();
+    void result;
   });
 });

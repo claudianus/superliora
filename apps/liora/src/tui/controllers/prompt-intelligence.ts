@@ -11,24 +11,32 @@ import {
 } from '../utils/model-route-notice';
 
 /** Debounce before requesting an inline completion after the last keystroke. */
-const INLINE_DEBOUNCE_MS = 280;
+const INLINE_DEBOUNCE_MS = 450;
 /** Debounce before requesting next-task suggestions when the editor is empty. */
-const SUGGEST_DEBOUNCE_MS = 450;
+const SUGGEST_DEBOUNCE_MS = 1200;
 /**
  * Minimum characters of typed prose before we ask the model for a continuation.
- * Kept modest so short Korean/English drafts still get ghost text.
+ * Higher than a few keystrokes so we do not fire on every short phrase.
  */
-const INLINE_REQUEST_MIN_CHARS = 6;
+const INLINE_REQUEST_MIN_CHARS = 12;
 /**
  * Minimum length of a model completion we will paint as ghost text.
- * Previously matched the request threshold (10), which discarded most short
- * continuations (" the rest of…") — the main reason ghost never appeared.
+ * Keep low so short useful continuations still show after a successful call.
  */
-const INLINE_SHOW_MIN_CHARS = 1;
+const INLINE_SHOW_MIN_CHARS = 2;
 /** Dim placeholder shown after the cursor while an inline request is in flight. */
 const INLINE_PENDING_GHOST = '…';
 /** Maximum entries in the inline-completion LRU cache. */
 const CACHE_MAX_SIZE = 32;
+/**
+ * Minimum characters the user must *add* since the last successful or attempted
+ * inline request before we spend another LLM call (reduces thrash while editing).
+ */
+const INLINE_MIN_CHARS_SINCE_LAST = 4;
+/** Cooldown after an empty/failed completion before retrying the same prefix family. */
+const INLINE_EMPTY_COOLDOWN_MS = 8_000;
+/** Max in-flight inline requests per rolling minute (hard cost cap). */
+const INLINE_MAX_REQUESTS_PER_MINUTE = 12;
 
 export interface PromptIntelligenceHost {
   state: TUIState;
@@ -64,6 +72,14 @@ export class PromptIntelligenceController {
   /** Generation counter so stale async results cannot clear a newer phase. */
   private requestGeneration = 0;
   private activePhase: 'idle' | 'inline' | 'suggest' = 'idle';
+  /** Prefix length at last inline request (for delta gating). */
+  private lastInlinePrefixLen = 0;
+  /** Wall time of last empty completion (ms). */
+  private lastEmptyInlineAt = 0;
+  /** Timestamps of recent inline RPC starts for per-minute budget. */
+  private inlineRequestTimes: number[] = [];
+  /** True after at least one idle→suggest cycle this idle window. */
+  private suggestIssuedForIdle = false;
 
   constructor(private readonly host: PromptIntelligenceHost) {}
 
@@ -95,6 +111,7 @@ export class PromptIntelligenceController {
    * editor is empty.
    */
   notifyIdle(): void {
+    if (this.suggestIssuedForIdle) return;
     this.scheduleSuggestion();
   }
 
@@ -114,8 +131,10 @@ export class PromptIntelligenceController {
     this.abortInFlight();
     if (text.length === 0) {
       this.clearInlineTimer();
+      // Empty editor after a turn: allow one suggest cycle (notifyIdle may also fire).
       this.scheduleSuggestion();
     } else {
+      this.suggestIssuedForIdle = false;
       this.clearSuggestTimer();
       this.scheduleInlineCompletion();
     }
@@ -141,6 +160,8 @@ export class PromptIntelligenceController {
     const text = editor.getText();
     if (text.trim().length < INLINE_REQUEST_MIN_CHARS) return;
     if (this.isAutocompleteTrigger(text)) return;
+    if (!this.looksLikeProseDraft(text)) return;
+    if (!this.shouldSpendInlineBudget(text)) return;
 
     // Cache key: text before the cursor (the prefix the completion extends).
     // This gives cache hits when the user backspaces to a previous prefix.
@@ -163,6 +184,7 @@ export class PromptIntelligenceController {
     this.abortController = ac;
     const generation = ++this.requestGeneration;
     this.setPhase('inline');
+    this.noteInlineRequestStart(text);
     // Immediate visual feedback so the user knows a prediction is in flight.
     if (editor.getGhostText?.() === undefined) {
       editor.setGhostText(INLINE_PENDING_GHOST, 'inline');
@@ -184,6 +206,9 @@ export class PromptIntelligenceController {
 
       const completion = result.completion.trimEnd();
       this.lruSet(cacheKey, completion);
+      if (completion.length < INLINE_SHOW_MIN_CHARS) {
+        this.lastEmptyInlineAt = Date.now();
+      }
       if (completion.length >= INLINE_SHOW_MIN_CHARS) {
         // Prefer a leading space when the model returns a bare word continuation
         // so Tab acceptance does not glue tokens together.
@@ -239,6 +264,7 @@ export class PromptIntelligenceController {
     this.abortController = ac;
     const generation = ++this.requestGeneration;
     this.setPhase('suggest');
+    this.suggestIssuedForIdle = true;
 
     try {
       const session = this.host.session;
@@ -278,6 +304,54 @@ export class PromptIntelligenceController {
   // ---------------------------------------------------------------------------
   // Guards & helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * Ghost completions are for natural-language prompts, not identifiers,
+   * shell-ish tokens, or unfinished code fences.
+   */
+  private looksLikeProseDraft(text: string): boolean {
+    const editor = this.host.state.editor;
+    const cursor = editor.getCursor();
+    const lines = text.split('\n');
+    const line = lines[cursor.line] ?? '';
+    const before = line.slice(0, cursor.col).trimEnd();
+    if (before.length < INLINE_REQUEST_MIN_CHARS) return false;
+    // Require at least one whitespace so single tokens / filenames do not fire.
+    if (!/\s/.test(before)) return false;
+    // Skip path-only fragments.
+    if (/^\s*[\w./-]+$/.test(before) && before.includes('/')) return false;
+    // Skip open code fence contexts.
+    const fenceCount = (text.match(/```/g) ?? []).length;
+    if (fenceCount % 2 === 1) return false;
+    return true;
+  }
+
+  private shouldSpendInlineBudget(text: string): boolean {
+    const now = Date.now();
+    // Per-minute hard cap.
+    this.inlineRequestTimes = this.inlineRequestTimes.filter((t) => now - t < 60_000);
+    if (this.inlineRequestTimes.length >= INLINE_MAX_REQUESTS_PER_MINUTE) return false;
+
+    // Cooldown after empty model replies (same session).
+    if (this.lastEmptyInlineAt > 0 && now - this.lastEmptyInlineAt < INLINE_EMPTY_COOLDOWN_MS) {
+      return false;
+    }
+
+    // Require meaningful growth since last request to avoid re-query on thrash.
+    const len = text.trim().length;
+    if (
+      this.lastInlinePrefixLen > 0 &&
+      Math.abs(len - this.lastInlinePrefixLen) < INLINE_MIN_CHARS_SINCE_LAST
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  private noteInlineRequestStart(text: string): void {
+    this.lastInlinePrefixLen = text.trim().length;
+    this.inlineRequestTimes.push(Date.now());
+  }
 
   private setPhase(phase: 'idle' | 'inline' | 'suggest'): void {
     if (this.activePhase === phase) return;
