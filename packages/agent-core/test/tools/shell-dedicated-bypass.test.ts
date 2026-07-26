@@ -112,9 +112,14 @@ describe('detectShellDedicatedBypass', () => {
     );
     expect(detectShellDedicatedBypass('Format-List')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Content a.ts | Format-List')).toBeUndefined();
-    // ConvertTo-Json path dumps → Read; pipelines stay allowed.
+    // ConvertTo-Json / ConvertFrom-Json path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('ConvertTo-Json -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ConvertFrom-Json -Path src/a.json')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ConvertFrom-Json -LiteralPath config.json')?.prefer).toBe(
+      'Read',
+    );
     expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Json')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content a.json | ConvertFrom-Json')).toBeUndefined();
     // Select-Object path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('Select-Object -Path src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('select -Path src/a.ts')?.prefer).toBe('Read');

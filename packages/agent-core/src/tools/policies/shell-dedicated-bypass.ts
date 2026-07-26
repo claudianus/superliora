@@ -1279,16 +1279,19 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of PowerShell Format-*/Out-String for file contents.',
     };
   }
-  // ConvertTo-Json of a single file path / Get-Content dump → Read (pipelines stay allowed).
+  // ConvertTo-Json / ConvertFrom-Json of a single file path / Get-Content dump → Read
+  // (pipelines stay allowed for real shell composition).
   if (
-    /^(?:ConvertTo-Json)\b/i.test(command) &&
-    /(?:\.[\w]+|\bPath\b|\bGet-Content\b|\bFile\b)/i.test(command) &&
+    /^(?:ConvertTo-Json|ConvertFrom-Json)\b/i.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bGet-Content\b|\bFile\b|\bLiteralPath\b)/i.test(command) &&
     !/\s\|/.test(command)
   ) {
     return {
       prefer: 'Read',
-      pattern: 'ConvertTo-Json',
-      message: 'Use Read instead of ConvertTo-Json for file content dumps.',
+      pattern: /^(?:ConvertFrom-Json)\b/i.test(command) ? 'ConvertFrom-Json' : 'ConvertTo-Json',
+      message: /^(?:ConvertFrom-Json)\b/i.test(command)
+        ? 'Use Read instead of ConvertFrom-Json for file content dumps.'
+        : 'Use Read instead of ConvertTo-Json for file content dumps.',
     };
   }
   // Select-Object path / Get-Content InputObject dumps → Read (pipelines stay allowed).

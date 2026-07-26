@@ -7,7 +7,7 @@ Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, process
 - simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
 - pattern find / `fd`/`fdfind` / `rg --files` / `mdfind`/`locate` / `compgen -G` / `tree` / `ls -R` / `Get-ChildItem -Recurse` / `Get-ChildItem -Name` / `dir /s` / `where /r` → `Glob` (plain `ls`/`dir`/`gci` of a directory OK)
 - `grep`/`rg` (content) / `ag`/`ack`/`ugrep` / `git grep` / `Select-String`/`findstr` → `Grep`
-- `jq`/`yq`/`python -m json.tool`/`ConvertTo-Json`/`Select-Object` (path dumps) whole-file dumps → `Read`
+- `jq`/`yq`/`python -m json.tool`/`ConvertTo-Json`/`ConvertFrom-Json`/`Select-Object` (path dumps) whole-file dumps → `Read`
 - `git show <rev>:<path>` / `svn cat` / `hg cat` → `Read` (commit summaries stay OK)
 - talk to the user → text reply
 
@@ -24,7 +24,7 @@ If `run_in_background=true`, start as a background task and return a task ID (pr
 **Commands available:** Common bins (confirm with `which`): `ls` `pwd` `cd` `stat` `file` `du` `df` `tree` `cp` `mv` `rm` `mkdir` `touch` `ln` `chmod` `chown` `wc` `sort` `uniq` `cut` `tr` `diff` `xargs` `tar` `gzip` `gunzip` `zip` `unzip` `curl` `wget` `ping` `ssh` `scp` `git` `ps` `kill` `top` `env` `date` `uname` `whoami` `node` `npm` `pnpm` `yarn` `python` `pip`.
 
 Simple whole-command file I/O shapes are **rejected** at runtime — use dedicated tools:
-- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`Get-Item` (file path dumps)/`ConvertTo-Json` (path dumps)/`Select-Object` (path dumps)/`Format-List`/`Format-Table`/`Out-String` (path dumps)/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`less`/`more`/`most`/`nl`/`w3m`/`lynx`/`elinks` (local path)/`zcat`/`gzcat`/`bzcat`/`xzcat`/`zstdcat`/`rev`/`paste` (single file)/`sort`/`uniq`/`shuf` (single file)/`look word file`/`iconv … file`/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`/`pbcopy < path`/`Set-Clipboard -Path`/`xclip path`/`xsel path`
+- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`Get-Item` (file path dumps)/`ConvertTo-Json`/`ConvertFrom-Json` (path dumps)/`Select-Object` (path dumps)/`Format-List`/`Format-Table`/`Out-String` (path dumps)/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`less`/`more`/`most`/`nl`/`w3m`/`lynx`/`elinks` (local path)/`zcat`/`gzcat`/`bzcat`/`xzcat`/`zstdcat`/`rev`/`paste` (single file)/`sort`/`uniq`/`shuf` (single file)/`look word file`/`iconv … file`/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`/`pbcopy < path`/`Set-Clipboard -Path`/`xclip path`/`xsel path`
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
 - writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`, `Get-Clipboard > path`/`Get-Clipboard | Set-Content`/`Get-Clipboard | Tee-Object`, PowerShell `Set-Content`/`Out-File`/`Add-Content`/`Clear-Content`/`Tee-Object`/`New-Item -ItemType File`/`Copy-Item` (simple two-path; `-Recurse` stays allowed)
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
