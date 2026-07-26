@@ -506,6 +506,16 @@ describe('resolveSlashCommandInput', () => {
       name: 'appearance',
       args: 'density compact',
     });
+    expect(resolve('/preflight --query=harness readiness', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'preflight',
+      args: '--query=harness readiness',
+    });
+    expect(resolve('/pf', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'preflight',
+      args: '',
+    });
   });
 
   it('blocks plan clear while compacting because it is idle-only', () => {

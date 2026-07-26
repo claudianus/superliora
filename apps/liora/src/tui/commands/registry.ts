@@ -123,6 +123,10 @@ const APPEARANCE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'help', description: 'Show appearance usage' },
 ];
 
+const PREFLIGHT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: '--query=', description: 'Override Liora Recall readiness query' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -275,6 +279,17 @@ export function appearanceArgumentCompletions(
   argumentPrefix: string,
 ): AutocompleteItem[] | null {
   return completeLeadingArg(APPEARANCE_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/**
+ * Leading-arg completions for `/preflight`.
+ * Completes the fixed `--query=` flag while the user is still on the first
+ * token so free-form evidence paths remain unclobbered.
+ */
+export function preflightArgumentCompletions(
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  return completeLeadingArg(PREFLIGHT_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -529,6 +544,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 80,
     visibility: 'diagnostic',
     argumentHint: '[bench-evidence-path] [--query=<recall query>]',
+    completeArgs: preflightArgumentCompletions,
     availability: 'always',
   },
   {

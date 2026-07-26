@@ -14,6 +14,7 @@ import {
   permissionArgumentCompletions,
   personaArgumentCompletions,
   planArgumentCompletions,
+  preflightArgumentCompletions,
   premiumArgumentCompletions,
   rendererArgumentCompletions,
   slashCommandsForHelp,
@@ -442,6 +443,30 @@ describe('built-in slash command registry', () => {
       appearanceArgumentCompletions,
     );
     expect(findBuiltInSlashCommand('skin')?.completeArgs).toBe(appearanceArgumentCompletions);
+  });
+
+  it('offers preflight --query= argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = preflightArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['--query=']);
+    expect(values('-')).toEqual(['--query=']);
+    expect(values('--q')).toEqual(['--query=']);
+    expect(preflightArgumentCompletions('--que')).toEqual([
+      {
+        value: '--query=',
+        label: '--query=',
+        description: 'Override Liora Recall readiness query',
+      },
+    ]);
+    expect(values('--query=')).toBeNull();
+    expect(values('evidence')).toBeNull();
+    expect(findBuiltInSlashCommand('preflight')?.completeArgs).toBe(
+      preflightArgumentCompletions,
+    );
+    expect(findBuiltInSlashCommand('pf')?.completeArgs).toBe(preflightArgumentCompletions);
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {
