@@ -227,6 +227,13 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('cp src/a.ts src/b.ts dest/')).toBeUndefined();
   });
 
+  it('blocks simple local rsync two-path copies but allows archive/remote', () => {
+    expect(detectShellDedicatedBypass('rsync src/a.ts dest/a.ts')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('rsync -a src/ dest/')).toBeUndefined();
+    expect(detectShellDedicatedBypass('rsync -r src dest')).toBeUndefined();
+    expect(detectShellDedicatedBypass('rsync src/a.ts host:dest/a.ts')).toBeUndefined();
+  });
+
   it('strips leading process wrappers before dedicated-tool detection', () => {
     expect(detectShellDedicatedBypass('command cat src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('timeout 5 cat src/a.ts')?.prefer).toBe('Read');

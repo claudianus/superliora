@@ -1,11 +1,14 @@
 Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, processes, git, package managers, build/test runners, multi-step shell work.
 
 **Prefer dedicated tools:**
-- `cat`/`head`/`tail` (known path) → `Read`
-- `sed`/`awk` (in-place edit) → `Edit`
-- `echo > file` / heredoc → `Write`
+- `cat`/`head`/`tail`/`gcat`/`bat`/`batcat`/`type`/`Get-Content` (known path) → `Read`
+- `sed`/`gsed`/`awk`/`perl -i`/`ruby -i` (in-place edit) → `Edit`
+- `echo > file` / heredoc / `sponge` / empty redirect → `Write`
+- simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
 - pattern find → `Glob` (plain `ls <dir>` OK)
 - `grep`/`rg` → `Grep`
+- `jq`/`yq`/`python -m json.tool` whole-file dumps → `Read`
+- `git show <rev>:<path>` / `svn cat` / `hg cat` → `Read` (commit summaries stay OK)
 - talk to the user → text reply
 
 Dedicated tools keep output capped and the permission UI clear.
@@ -20,6 +23,14 @@ If `run_in_background=true`, start as a background task and return a task ID (pr
 
 **Commands available:** Common bins (confirm with `which`): `ls` `pwd` `cd` `stat` `file` `du` `df` `tree` `cp` `mv` `rm` `mkdir` `touch` `ln` `chmod` `chown` `wc` `sort` `uniq` `cut` `tr` `diff` `xargs` `tar` `gzip` `gunzip` `zip` `unzip` `curl` `wget` `ping` `ssh` `scp` `git` `ps` `kill` `top` `env` `date` `uname` `whoami` `node` `npm` `pnpm` `yarn` `python` `pip`.
 
-Simple whole-command `cat`/`head`/`tail`/`sed -i`/`grep`/`rg`/`find` on files, plus simple `echo`/`printf`/`cat` redirects, `cat`/`tee` heredoc writers, `python`/`node`/`ruby`/`php`/`perl`/`lua` one-liner file reads **and writes** (`open(...,'w')`, `writeFileSync`, `file_put_contents`, …), workspace `dd if=… of=…` / `install src dest` copies, empty redirects (`: > file`, `true > file`), plus `bat`/`tac`/`rev`/`paste`/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold` whole-file dumps, are **rejected** at runtime — use dedicated tools. Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required (does **not** override sensitive-path hard blocks).
+Simple whole-command file I/O shapes are **rejected** at runtime — use dedicated tools:
+- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`rev`/`paste` (single file)/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`
+- edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
+- writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed)
+- language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
+- search: `grep`/`rg`/`find`
+Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.
 
-Commands that reference sensitive paths (`.env*`, SSH keys, cloud credentials, `~/.ssh/`, `~/.gnupg/`) are **hard-blocked** with no force escape — same policy as Read/Write/Edit.
+Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required (does **not** override sensitive-path hard blocks).
+
+Commands that reference sensitive paths (`.env*`, SSH keys, cloud credentials, `.npmrc`/`.pypirc`/`.netrc`/`.pgpass`/`kubeconfig`, `~/.ssh/`, `~/.gnupg/`, `~/.composer/auth.json`, `~/.config/gh/hosts.yml`) are **hard-blocked** with no force escape — same policy as Read/Write/Edit.

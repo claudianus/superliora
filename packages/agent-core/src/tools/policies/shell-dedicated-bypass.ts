@@ -708,6 +708,31 @@ function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassHit | un
     }
   }
 
+  // rsync SRC DEST — simple two-path file copy (not recursive trees / multi-source).
+  if (/^(?:\/usr\/bin\/)?rsync\b/.test(command)) {
+    if (/(?:^|\s)-(?:[a-zA-Z]*r[a-zA-Z]*|R|a|recursive)(?:\s|$)/.test(command)) {
+      return undefined;
+    }
+    if (/(?:^|\s)--(?:recursive|archive|delete|dirs)\b/.test(command)) {
+      return undefined;
+    }
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?rsync\b/, '')
+      .replace(/(?:^|\s)--\S+/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z]+/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
+      // Remote paths (host:path) stay allowed — real network/sync work.
+      if (args[0]!.includes(':') || args[1]!.includes(':')) return undefined;
+      return {
+        prefer: 'Write',
+        pattern: 'rsync src dest',
+        message: 'Use Read + Write instead of rsync for simple local file copies.',
+      };
+    }
+  }
+
   return undefined;
 }
 
