@@ -62,7 +62,7 @@ async function fetchModelPricing(): Promise<Map<string, number>> {
     for (const provider of Object.values(data)) {
       if (provider.models === undefined) continue;
       for (const model of Object.values(provider.models)) {
-        if (model.id !== undefined && model.cost?.input != null) {
+        if (model.id !== undefined && model.cost?.input !== undefined && model.cost.input !== null) {
           pricing.set(model.id.toLowerCase(), model.cost.input);
         }
       }
