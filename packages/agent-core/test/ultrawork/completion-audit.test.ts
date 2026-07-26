@@ -113,6 +113,15 @@ describe('auditUltraworkCompletion', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe('evidence_gate');
+      expect(result.nextActions.some((a) => /Close evidence hard-gate on node\(s\)/i.test(a))).toBe(
+        true,
+      );
+      expect(
+        result.nextActions.some(
+          (a) => /ac_1/.test(a) && /requiredEvidence: vitest recovery/.test(a),
+        ),
+      ).toBe(true);
+      expect(result.nextActions.some((a) => /evidence hard gate remaps/i.test(a))).toBe(true);
     }
   });
 
