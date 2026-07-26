@@ -3,6 +3,7 @@ import { buildUltraworkResumeCursor } from './recovery';
 import {
   collectVerificationGapNodes,
   formatVerificationGapSummary,
+  suggestNextActions,
 } from './recovery-prompt';
 import { detectLongRunningStage, detectStuckWorkGraphNodes, inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
 import type { UltraworkRunMirror } from './types';
@@ -182,10 +183,86 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   }
 
   // cancelled is success-terminal (deliberate scope drop) — match injectors / resume-intent.
-  const pendingNodes =
-    snapshot.run.workGraph?.nodes.filter(
-      (node) => node.status !== 'done' && node.status !== 'cancelled',
-    ) ?? [];
+  const nodes = snapshot.run.workGraph?.nodes ?? [];
+  const pendingNodes = nodes.filter(
+    (node) => node.status !== 'done' && node.status !== 'cancelled',
+  );
+  const failedNodes = nodes.filter((node) => node.status === 'failed');
+  const needsIntegrationNodes = nodes.filter((node) => node.status === 'needs_integration');
+  const blockedNodes = nodes.filter((node) => node.status === 'blocked');
+  const ownerlessRunningNodes = nodes.filter(
+    (node) =>
+      node.status === 'running' &&
+      (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
+      (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
+  );
+  const waitingQueuedNodes = nodes.filter((node) => {
+    if (node.status !== 'queued') return false;
+    const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+    return deps.length > 0;
+  });
+
+  // Injector-grade stall classification so post-compaction resume matches
+  // post-swarm / recovery nextActions priority instead of a flat pending dump.
+  if (failedNodes.length > 0) {
+    lines.push(
+      `failed_workgraph_nodes: ${failedNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+    );
+  }
+  if (needsIntegrationNodes.length > 0) {
+    lines.push(
+      `needs_integration_workgraph_nodes: ${needsIntegrationNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
+    );
+  }
+  if (blockedNodes.length > 0) {
+    lines.push(
+      `blocked_workgraph_nodes: ${blockedNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
+    );
+  }
+  if (ownerlessRunningNodes.length > 0) {
+    lines.push(
+      `ownerless_running_workgraph_nodes: ${ownerlessRunningNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
+    );
+  }
+  if (waitingQueuedNodes.length > 0 && blockedNodes.length === 0) {
+    lines.push(
+      `queued_waiting_dependsOn: ${waitingQueuedNodes
+        .slice(0, 4)
+        .map((node) => {
+          const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+          return `${node.id} dependsOn=${deps.slice(0, 3).join(',')}`;
+        })
+        .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
+    );
+    lines.push(
+      'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
+    );
+  }
+
   if (pendingNodes.length > 0) {
     lines.push(`pending_workgraph_nodes: ${String(pendingNodes.length)}`);
     for (const node of pendingNodes.slice(0, 12)) {
@@ -197,6 +274,19 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   const stuckNodes = detectStuckWorkGraphNodes(snapshot.run.workGraph);
   if (stuckNodes.length > 0) {
     lines.push(`stuck_nodes: ${stuckNodes.slice(0, 5).map((n) => `${n.id}[${n.status}]`).join(', ')}`);
+  }
+
+  const nextActions = suggestNextActions(
+    snapshot.run,
+    snapshot.interruptReason,
+    snapshot.planCheckpoint,
+    snapshot.resumeCursor,
+  );
+  if (nextActions.length > 0) {
+    lines.push('next_actions:');
+    for (const action of nextActions.slice(0, 3)) {
+      lines.push(`- ${action}`);
+    }
   }
 
   // Flag stages exceeding expected duration (un-bounded loop anti-pattern).
@@ -243,7 +333,8 @@ export function renderUltraworkRunsMemorySection(snapshot: UltraworkRunMirror): 
     lines.push(`  resume_node=${snapshot.resumeCursor.workGraphNodeId}`);
   }
   const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
-  const graphNodeCount = snapshot.run.workGraph?.nodes.length ?? 0;
+  const graphNodes = snapshot.run.workGraph?.nodes ?? [];
+  const graphNodeCount = graphNodes.length;
   if (graphNodeCount === 0) {
     lines.push('  empty_work_graph=true');
   }
@@ -252,6 +343,19 @@ export function renderUltraworkRunsMemorySection(snapshot: UltraworkRunMirror): 
   }
   if (progress.failedCount > 0) {
     lines.push(`  failed_nodes=${String(progress.failedCount)}`);
+  }
+  const blockedCount = graphNodes.filter((node) => node.status === 'blocked').length;
+  if (blockedCount > 0) {
+    lines.push(`  blocked_nodes=${String(blockedCount)}`);
+  }
+  const ownerlessCount = graphNodes.filter(
+    (node) =>
+      node.status === 'running' &&
+      (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
+      (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
+  ).length;
+  if (ownerlessCount > 0) {
+    lines.push(`  ownerless_running_nodes=${String(ownerlessCount)}`);
   }
   if (progress.cancelledCount > 0) {
     lines.push(`  cancelled_nodes=${String(progress.cancelledCount)}`);

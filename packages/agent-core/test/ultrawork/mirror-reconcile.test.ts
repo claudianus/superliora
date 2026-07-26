@@ -237,6 +237,88 @@ Swarm decision: ENGAGE
     expect(runsSection).toContain('empty_work_graph=true');
   });
 
+  it('classifies stall nodes and next_actions in compaction envelopes', () => {
+    const homedir = join(tmpdir(), `ultrawork-envelope-stall-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    agent.ultrawork.create({
+      id: 'run-envelope-stall',
+      objective: 'Classify stalls after compact',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-envelope-stall',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-envelope-stall:work_graph',
+          runId: 'run-envelope-stall',
+          rootGoal: 'Classify stalls after compact',
+          nodes: [
+            {
+              id: 'node-fail',
+              title: 'Broken verify',
+              stage: 'verify',
+              status: 'failed',
+            },
+            {
+              id: 'node-int',
+              title: 'Specialist handoff',
+              stage: 'integrate',
+              status: 'needs_integration',
+            },
+            {
+              id: 'node-block',
+              title: 'Blocked dep',
+              stage: 'integrate',
+              status: 'blocked',
+            },
+            {
+              id: 'node-orphan',
+              title: 'Ownerless run',
+              stage: 'integrate',
+              status: 'running',
+            },
+            {
+              id: 'node-wait',
+              title: 'Waiting queue',
+              stage: 'integrate',
+              status: 'queued',
+              dependsOn: ['node-block'],
+            },
+          ],
+        },
+      },
+    });
+
+    const envelope = buildUltraworkCompactionEnvelope(agent, { compactionBoundary: true });
+    expect(envelope).toContain('failed_workgraph_nodes:');
+    expect(envelope).toContain('node-fail');
+    expect(envelope).toContain('Failed nodes block UpdateGoal(complete)');
+    expect(envelope).toContain('needs_integration_workgraph_nodes:');
+    expect(envelope).toContain('node-int');
+    expect(envelope).toContain('blocked_workgraph_nodes:');
+    expect(envelope).toContain('node-block');
+    expect(envelope).toContain('ownerless_running_workgraph_nodes:');
+    expect(envelope).toContain('node-orphan');
+    // dependsOn waits only surface when no blocked nodes (match injectors)
+    expect(envelope).not.toContain('queued_waiting_dependsOn:');
+    expect(envelope).toContain('next_actions:');
+    expect(envelope).toMatch(/next_actions:[\s\S]*- /);
+
+    const snapshot = captureUltraworkEnvelopeSnapshot(agent, { compactionBoundary: true });
+    const runsSection = renderUltraworkRunsMemorySection(snapshot!);
+    expect(runsSection).toContain('failed_nodes=');
+    expect(runsSection).toContain('blocked_nodes=');
+    expect(runsSection).toContain('ownerless_running_nodes=');
+  });
+
   it('excludes cancelled WorkGraph nodes from envelope pending lists', () => {
     const homedir = join(tmpdir(), `ultrawork-envelope-cancel-${String(Date.now())}`);
     mkdirSync(homedir, { recursive: true });
