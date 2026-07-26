@@ -450,8 +450,58 @@ describe('harness panel and tools inventory', () => {
     const host = makeHarnessHost();
     showHarnessPanel(host);
     expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
-    const [component] = host.mountEditorReplacement.mock.calls[0] as [unknown];
+    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+      { handleInput: (data: string) => void; render: (width: number) => string[] },
+    ];
     expect(component).toBeTruthy();
+    const body = component.render(80).join('\n');
+    expect(body).toContain('Tools inventory');
+    expect(body).toContain('Eyes readiness');
+    expect(body).toContain('Premium Quality');
+    expect(body).toContain('MCP servers');
+    expect(body).toContain('Experiments');
+    expect(body).toContain('Context working set');
+  });
+
+  it('routes harness panel tools selection to live tools inventory', async () => {
+    const getTools = vi.fn(async () => [
+      { name: 'Read', description: 'Read a file', source: 'builtin', active: true },
+    ]);
+    const host = makeHarnessHost({ session: { getTools } });
+    showHarnessPanel(host);
+    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    // First option is tools; Enter selects it.
+    component.handleInput('\r');
+    // showToolsInventory is async
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.restoreEditor).toHaveBeenCalled();
+    expect(getTools).toHaveBeenCalledOnce();
+    expect(host.showNotice).toHaveBeenCalledOnce();
+    expect(String(host.showNotice.mock.calls[0]?.[0] ?? '')).toContain('Tools:');
+  });
+
+  it('routes harness panel eyes selection to eyes readiness report', async () => {
+    const host = makeHarnessHost();
+    showHarnessPanel(host);
+    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    // Move to eyes (second option) then Enter.
+    component.handleInput('\u001B[B');
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    // loadHarnessEyesReadiness may need a few ticks / package root probe
+    await vi.waitFor(
+      () => {
+        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
+          0,
+        );
+      },
+      { timeout: 5000 },
+    );
   });
 
   it('reports missing session for tools inventory', async () => {
