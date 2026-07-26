@@ -219,7 +219,6 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
       lines.push(`Evidence hard-gate nodes: ${evidenceHardGateSummary}`);
       lines.push(
         ...formatEvidenceHardGateNextActions(run.workGraph?.nodes),
-        'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
       );
     }
   }
@@ -423,7 +422,6 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
       lines.push(`Evidence hard-gate nodes: ${evidenceHardGateSummary}`);
       lines.push(
         ...formatEvidenceHardGateNextActions(run.workGraph?.nodes),
-        'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
       );
     }
   }

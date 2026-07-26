@@ -246,7 +246,6 @@ export function auditUltraworkCompletion(
     if (evidenceHits.length > 0) {
       nextActions.push(
         ...formatEvidenceHardGateNextActions(graph.nodes),
-        'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
       );
     }
     if (ownerlessRunning.length > 0) {

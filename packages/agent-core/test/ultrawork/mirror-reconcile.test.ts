@@ -227,7 +227,7 @@ Swarm decision: ENGAGE
     const envelope = buildUltraworkCompactionEnvelope(agent, { compactionBoundary: true });
     expect(envelope).toContain('workgraph_empty: true');
     expect(envelope).toContain('WorkGraph empty or missing');
-    expect(envelope).toContain('seed via UltraworkGraph');
+    expect(envelope).toContain('Seed WorkGraph via UltraworkGraph');
     expect(envelope).toContain('requiredEvidence');
     expect(envelope).not.toContain('pending_workgraph_nodes:');
 

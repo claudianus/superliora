@@ -47,6 +47,11 @@ export function collectVerificationGapNodes(
  * Surfaces done-without-evidence (or policy missing requiredEvidence) nodes so
  * recovery injectors / envelopes / next_actions share one repair cue.
  */
+/** Shared UpdateGoal(complete) ban when evidence hard-gate remaps done → blocked. */
+export function formatEvidenceHardGateCompleteBan(): string {
+  return 'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.';
+}
+
 export function formatEvidenceHardGateNextActions(
   nodes: readonly WorkGraphNode[] | undefined,
 ): readonly string[] {
@@ -62,6 +67,7 @@ export function formatEvidenceHardGateNextActions(
   });
   return [
     `Close evidence hard-gate on node(s): ${gateNodes.join(', ')}${violations.length > 3 ? ', …' : ''} — attach matching evidenceIds (and verificationSummary when useful), then set status=done only after checks.`,
+    formatEvidenceHardGateCompleteBan(),
   ];
 }
 

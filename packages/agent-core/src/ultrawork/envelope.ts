@@ -174,7 +174,6 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
       lines.push(`evidence_hard_gate: ${evidenceHardGateSummary}`);
       lines.push(
         ...formatEvidenceHardGateNextActions(snapshot.run.workGraph?.nodes),
-        'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
       );
     }
   }
