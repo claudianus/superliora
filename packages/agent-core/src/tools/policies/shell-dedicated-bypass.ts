@@ -1117,6 +1117,18 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Grep instead of Windows findstr for workspace search.',
     };
   }
+  // PowerShell Format-* / Out-String whole dumps of Get-Content/Get-ChildItem results.
+  // Pipelines stay allowed; only simple Format-* on a path-like arg is rejected.
+  if (
+    /^(?:Format-List|Format-Table|Format-Wide|Format-Custom|Out-String)\b/i.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bFile\b)/i.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'Format-*/Out-String',
+      message: 'Use Read instead of PowerShell Format-*/Out-String for file contents.',
+    };
+  }
   return undefined;
 }
 

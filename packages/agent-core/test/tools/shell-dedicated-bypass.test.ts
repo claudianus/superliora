@@ -90,6 +90,16 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('findstr foo src/a.ts')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('findstr.exe /s /i foo *.ts')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('Get-ChildItem | Select-String foo')).toBeUndefined();
+    // PowerShell Format-*/Out-String path dumps → Read; pipelines/bare stay allowed.
+    expect(detectShellDedicatedBypass('Format-List -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Format-Table Path,Length -Path src/a.ts')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass('Out-String -InputObject (Get-Content a.ts)')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass('Format-List')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Format-List')).toBeUndefined();
     // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',

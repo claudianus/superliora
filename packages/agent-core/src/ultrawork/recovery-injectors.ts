@@ -149,6 +149,26 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
       'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
     );
   }
+  const waitingQueuedNodes =
+    run.workGraph?.nodes.filter((node) => {
+      if (node.status !== 'queued') return false;
+      const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+      return deps.length > 0;
+    }) ?? [];
+  if (waitingQueuedNodes.length > 0 && blockedNodes.length === 0) {
+    lines.push(
+      `Queued waiting on dependsOn (${String(waitingQueuedNodes.length)}): ${waitingQueuedNodes
+        .slice(0, 4)
+        .map((node) => {
+          const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+          return `${node.id} dependsOn=${deps.slice(0, 3).join(',')}`;
+        })
+        .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
+    );
+    lines.push(
+      'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
+    );
+  }
   if (verificationGapNodes.length > 0) {
     lines.push(
       `Verification-gap WorkGraph nodes (${String(verificationGapNodes.length)}): ${formatVerificationGapSummary(verificationGapNodes)}${verificationGapNodes.length > 4 ? ', …' : ''}`,
@@ -272,6 +292,26 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     );
     lines.push(
       'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
+    );
+  }
+  const waitingQueuedNodes =
+    run.workGraph?.nodes.filter((node) => {
+      if (node.status !== 'queued') return false;
+      const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+      return deps.length > 0;
+    }) ?? [];
+  if (waitingQueuedNodes.length > 0 && blockedNodes.length === 0) {
+    lines.push(
+      `Queued waiting on dependsOn (${String(waitingQueuedNodes.length)}): ${waitingQueuedNodes
+        .slice(0, 4)
+        .map((node) => {
+          const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+          return `${node.id} dependsOn=${deps.slice(0, 3).join(',')}`;
+        })
+        .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
+    );
+    lines.push(
+      'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
     );
   }
   if (verificationGapNodes.length > 0) {

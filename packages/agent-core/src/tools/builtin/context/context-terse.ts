@@ -344,6 +344,11 @@ function applyShellPatterns(text: string, command: string): string {
     /\bopenstack\s+\S+/u.test(command) ||
     /\boci\s+\S+/u.test(command) ||
     /\bibmcloud\s+\S+/u.test(command) ||
+    /\bvultr(?:-cli)?\s+\S+/u.test(command) ||
+    /\bexoscale\s+\S+/u.test(command) ||
+    /\bupctl\s+\S+/u.test(command) ||
+    /\bovh(?:cloud)?\s+\S+/u.test(command) ||
+    /\bequinix(?:-metal|-cli)?\s+\S+/u.test(command) ||
     /\bgh\s+(?:run\s+)?(?:view|list|watch|logs)\b/u.test(command) ||
     /\bgh\s+api\b/u.test(command)
   ) {

@@ -958,6 +958,63 @@ describe('Ultrawork recovery', () => {
     expect(text).not.toContain('node-done[done]');
   });
 
+  it('includes queued dependsOn waits in post-swarm injection', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    agent.ultrawork.create({
+      id: 'run-post-swarm-queued-deps',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-post-swarm-queued-deps',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-post-swarm-queued-deps:work_graph',
+          runId: 'run-post-swarm-queued-deps',
+          rootGoal: 'Ship feature',
+          nodes: [
+            {
+              id: 'node-dep',
+              title: 'Upstream work',
+              stage: 'integrate',
+              status: 'running',
+              ownerExpertId: 'expert-1',
+            },
+            {
+              id: 'node-wait',
+              title: 'Waiting integrate',
+              stage: 'integrate',
+              status: 'queued',
+              dependsOn: ['node-dep'],
+            },
+          ],
+        },
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostSwarmContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_swarm>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('Queued waiting on dependsOn');
+    expect(text).toContain('node-wait');
+    expect(text).toContain('dependsOn=node-dep');
+    expect(text).toContain('finish or cancel deps');
+  });
+
   it('injects post-compaction continuation for an active ultrawork run', () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
