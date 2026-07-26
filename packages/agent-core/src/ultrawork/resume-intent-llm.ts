@@ -65,7 +65,18 @@ export function hasInterruptedWorkResumeContext(
   ) {
     return true;
   }
+  // Soft mid-run: still-running Ultrawork with unfinished WorkGraph nodes is
+  // resumable even when interruptReason was not mirrored onto the agent yet.
+  if (run.status === 'running' && hasPendingWorkGraphNodes(run)) {
+    return true;
+  }
   return false;
+}
+
+function hasPendingWorkGraphNodes(run: UltraworkRun): boolean {
+  const nodes = run.workGraph?.nodes;
+  if (nodes === undefined || nodes.length === 0) return false;
+  return nodes.some((node) => node.status !== 'done' && node.status !== 'cancelled');
 }
 
 /**

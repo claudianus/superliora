@@ -271,10 +271,13 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\bcargo\s+test\b/u.test(command) || /^test\s+\S.+\s+\.\.\.\s+(?:ok|FAILED)\b/mu.test(text)) {
     next = compressTestOutput(next);
   }
-  // TypeScript / ESLint / oxlint dumps: keep head+tail of long compiler/linter streams.
+  // TypeScript / ESLint / oxlint / biome / clippy dumps: keep head+tail of long streams.
   if (
-    /\b(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|pyright|ty)\b/u.test(command) ||
-    /\b(?:pnpm|npm|yarn)\s+(?:exec\s+)?(?:tsc|eslint|oxlint|oxfmt|ruff|mypy)\b/u.test(command) ||
+    /\b(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|pyright|ty|biome|clippy)\b/u.test(command) ||
+    /\b(?:pnpm|npm|yarn)\s+(?:exec\s+)?(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|biome)\b/u.test(
+      command,
+    ) ||
+    /\bcargo\s+clippy\b/u.test(command) ||
     /\berror TS\d+:/u.test(text)
   ) {
     next = compressCompilerOutput(next);

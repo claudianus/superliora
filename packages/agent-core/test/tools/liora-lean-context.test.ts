@@ -175,4 +175,23 @@ describe('Liora lean context tools', () => {
       expect(compressed.text.length, command).toBeLessThan(stdout.length);
     }
   });
+
+  it('compressShellOutput collapses long biome/clippy dumps', () => {
+    // Keep lines short enough that pattern compress stays under the default
+    // maxChars budget; otherwise a second char-cap pass rewrites the middle.
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `src/a${String(i)}.ts:1:1 lint unused x${String(i)}`,
+    ).join('\n');
+    for (const command of ['biome check .', 'cargo clippy']) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      expect(compressed.text, command).toContain('compiler/linter lines omitted');
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+    }
+  });
 });

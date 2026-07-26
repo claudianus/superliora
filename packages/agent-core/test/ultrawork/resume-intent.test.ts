@@ -102,6 +102,61 @@ describe('interrupted work resume intent', () => {
     ).toBe(false);
   });
 
+  it('detects soft mid-run resume from pending WorkGraph nodes without interrupt reason', () => {
+    expect(
+      hasInterruptedWorkResumeContext({
+        goal: null,
+        ultraworkRun: {
+          id: 'run-soft-mid',
+          objective: 'Ship',
+          status: 'running',
+          stage: 'integrate',
+          createdAt: '2026-07-06T00:00:00.000Z',
+          updatedAt: '2026-07-06T00:05:00.000Z',
+          workGraph: {
+            id: 'run-soft-mid:work_graph',
+            runId: 'run-soft-mid',
+            rootGoal: 'Ship',
+            nodes: [
+              {
+                id: 'node-1',
+                title: 'Implement API',
+                stage: 'integrate',
+                status: 'running',
+              },
+            ],
+          },
+        },
+      }),
+    ).toBe(true);
+    expect(
+      hasInterruptedWorkResumeContext({
+        goal: null,
+        ultraworkRun: {
+          id: 'run-soft-done',
+          objective: 'Ship',
+          status: 'running',
+          stage: 'learn',
+          createdAt: '2026-07-06T00:00:00.000Z',
+          updatedAt: '2026-07-06T00:05:00.000Z',
+          workGraph: {
+            id: 'run-soft-done:work_graph',
+            runId: 'run-soft-done',
+            rootGoal: 'Ship',
+            nodes: [
+              {
+                id: 'node-1',
+                title: 'Done node',
+                stage: 'learn',
+                status: 'done',
+              },
+            ],
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('matches explicit multilingual short resume phrases without an LLM', () => {
     for (const phrase of [
       'continue',

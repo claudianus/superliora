@@ -173,9 +173,9 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'devops-ci',
     query: 'engineering devops automator CI CD pipeline infrastructure',
+    // Keep live top-ranked DevOps automators (drop deep-tail dispatcher).
     relevantIds: [
       'engineering-devops-automator',
-      'ericgrill-general-devops-dispatcher',
       'agentcrow-devops-automator',
     ],
     labels: ['Engineering', 'DevOps'],
