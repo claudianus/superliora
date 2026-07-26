@@ -173,10 +173,95 @@ export function buildUltraworkRecoveryPrompt(
 
   // Keep only the most actionable pending nodes / orphans; full graph is on disk.
   // cancelled is success-terminal (deliberate scope drop) — match injectors / resume-intent.
+  // Injector/envelope-grade stall classification so crash recovery is not a flat pending dump.
   if (report.run.workGraph !== undefined && report.run.workGraph.nodes.length > 0) {
-    const pending = report.run.workGraph.nodes.filter(
+    const nodes = report.run.workGraph.nodes;
+    const pending = nodes.filter(
       (node) => node.status !== 'done' && node.status !== 'cancelled',
     );
+    const failedNodes = nodes.filter((node) => node.status === 'failed');
+    const needsIntegrationNodes = nodes.filter((node) => node.status === 'needs_integration');
+    const blockedNodes = nodes.filter((node) => node.status === 'blocked');
+    const ownerlessRunningNodes = nodes.filter(
+      (node) =>
+        node.status === 'running' &&
+        (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
+        (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
+    );
+    const waitingQueuedNodes = nodes.filter((node) => {
+      if (node.status !== 'queued') return false;
+      const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+      return deps.length > 0;
+    });
+    const verificationGapNodes = collectVerificationGapNodes(nodes);
+
+    if (failedNodes.length > 0) {
+      lines.push(
+        `Failed WorkGraph nodes (${String(failedNodes.length)}): ${failedNodes
+          .slice(0, 4)
+          .map((node) => `${node.id} ${node.title}`)
+          .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
+      );
+      lines.push(
+        'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+      );
+    }
+    if (needsIntegrationNodes.length > 0) {
+      lines.push(
+        `Needs-integration WorkGraph nodes (${String(needsIntegrationNodes.length)}): ${needsIntegrationNodes
+          .slice(0, 4)
+          .map((node) => `${node.id} ${node.title}`)
+          .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
+      );
+      lines.push(
+        'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
+      );
+    }
+    if (blockedNodes.length > 0) {
+      lines.push(
+        `Blocked WorkGraph nodes (${String(blockedNodes.length)}): ${blockedNodes
+          .slice(0, 4)
+          .map((node) => `${node.id} ${node.title}`)
+          .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
+      );
+      lines.push(
+        'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
+      );
+    }
+    if (ownerlessRunningNodes.length > 0) {
+      lines.push(
+        `Ownerless running WorkGraph nodes (${String(ownerlessRunningNodes.length)}): ${ownerlessRunningNodes
+          .slice(0, 4)
+          .map((node) => `${node.id} ${node.title}`)
+          .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
+      );
+      lines.push(
+        'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
+      );
+    }
+    if (waitingQueuedNodes.length > 0 && blockedNodes.length === 0) {
+      lines.push(
+        `Queued waiting on dependsOn (${String(waitingQueuedNodes.length)}): ${waitingQueuedNodes
+          .slice(0, 4)
+          .map((node) => {
+            const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+            return `${node.id} dependsOn=${deps.slice(0, 3).join(',')}`;
+          })
+          .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
+      );
+      lines.push(
+        'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
+      );
+    }
+    if (verificationGapNodes.length > 0) {
+      lines.push(
+        `Verification-gap WorkGraph nodes (${String(verificationGapNodes.length)}): ${formatVerificationGapSummary(verificationGapNodes)}${verificationGapNodes.length > 4 ? ', …' : ''}`,
+      );
+      lines.push(
+        'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
+      );
+    }
+
     if (pending.length > 0) {
       lines.push(`Pending WorkGraph nodes (${String(pending.length)}):`);
       for (const node of pending.slice(0, 5)) {

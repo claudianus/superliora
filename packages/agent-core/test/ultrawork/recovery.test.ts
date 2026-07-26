@@ -716,9 +716,81 @@ describe('Ultrawork recovery', () => {
     expect(prompt).toContain('Pending WorkGraph nodes (2)');
     expect(prompt).toContain('[running] node-run');
     expect(prompt).toContain('[failed] node-fail');
+    expect(prompt).toContain('Failed WorkGraph nodes');
+    expect(prompt).toContain('Ownerless running WorkGraph nodes');
     expect(prompt).not.toContain('node-cancel');
     expect(prompt).not.toContain('Dropped scope');
     expect(prompt).not.toContain('[done] node-done');
+  });
+
+  it('classifies multi-stall WorkGraph nodes in recovery prompt body', () => {
+    const prompt = buildUltraworkRecoveryPrompt({
+      run: sampleRun({
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-1:work_graph',
+          runId: 'run-1',
+          nodes: [
+            {
+              id: 'node-fail',
+              title: 'Broken verify',
+              stage: 'verify',
+              status: 'failed',
+            },
+            {
+              id: 'node-int',
+              title: 'Specialist handoff',
+              stage: 'integrate',
+              status: 'needs_integration',
+            },
+            {
+              id: 'node-block',
+              title: 'Blocked dep',
+              stage: 'integrate',
+              status: 'blocked',
+            },
+            {
+              id: 'node-orphan',
+              title: 'Ownerless run',
+              stage: 'integrate',
+              status: 'running',
+            },
+            {
+              id: 'node-wait',
+              title: 'Waiting queue',
+              stage: 'integrate',
+              status: 'queued',
+              dependsOn: ['node-block'],
+            },
+            {
+              id: 'node-gap',
+              title: 'Done without evidence',
+              stage: 'verify',
+              status: 'done',
+              requiredEvidence: ['test-log'],
+              evidenceIds: [],
+            },
+          ],
+        },
+      }),
+      interruptReason: 'Paused after interruption',
+      orphanedWorkNodes: [],
+      orphanedExperts: [],
+      lostBackgroundTasks: [],
+      nextActions: ['Repair failed WorkGraph node node-fail'],
+    });
+    expect(prompt).toContain('Failed WorkGraph nodes');
+    expect(prompt).toContain('node-fail');
+    expect(prompt).toContain('Needs-integration WorkGraph nodes');
+    expect(prompt).toContain('node-int');
+    expect(prompt).toContain('Blocked WorkGraph nodes');
+    expect(prompt).toContain('node-block');
+    expect(prompt).toContain('Ownerless running WorkGraph nodes');
+    expect(prompt).toContain('node-orphan');
+    // dependsOn waits only when no blocked nodes (match injectors)
+    expect(prompt).not.toContain('Queued waiting on dependsOn');
+    expect(prompt).toContain('Verification-gap WorkGraph nodes');
+    expect(prompt).toContain('node-gap');
   });
 
   it('omits pending WorkGraph section when only done/cancelled remain', () => {
