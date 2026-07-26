@@ -12,8 +12,8 @@ export class CurrentTimeInjector extends DynamicInjector {
     this.lastInjectedUserMessageAt = null;
   }
 
-  override onContextCompacted(compactedCount: number): void {
-    super.onContextCompacted(compactedCount);
+  override onContextCompacted(compactedCount: number, _keptHeadCount: number = 0): void {
+    super.onContextCompacted(compactedCount, _keptHeadCount);
     this.lastInjectedUserMessageAt = null;
   }
 

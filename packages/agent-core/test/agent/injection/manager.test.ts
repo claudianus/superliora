@@ -17,9 +17,17 @@ class RecordingInjector extends DynamicInjector {
     super.onContextClear();
   }
 
-  override onContextCompacted(compactedCount: number): void {
+  override onContextCompacted(compactedCount: number, keptHeadCount: number = 0): void {
     this.compactionCalls += 1;
-    super.onContextCompacted(compactedCount);
+    super.onContextCompacted(compactedCount, keptHeadCount);
+  }
+
+  get observedInjectedAt(): number | null {
+    return this.injectedAt;
+  }
+
+  set observedInjectedAt(value: number | null) {
+    this.injectedAt = value;
   }
 
   protected override getInjection(): string | undefined {
@@ -30,7 +38,7 @@ class RecordingInjector extends DynamicInjector {
 class BoomInjector extends DynamicInjector {
   override readonly injectionVariant = 'boom_test';
 
-  override onContextCompacted(_compactedCount: number): void {
+  override onContextCompacted(_compactedCount: number, _keptHeadCount: number = 0): void {
     throw new Error('boom-compact');
   }
 
@@ -120,6 +128,37 @@ describe('InjectionManager.onContextCompacted', () => {
 
     expect(recorder.clearCalls).toBe(1);
     expect(recorder.compactionCalls).toBe(1);
+  });
+
+  it('shifts injectedAt by keptHeadCount so post-compaction positions are accurate', () => {
+    const ctx = testAgent();
+    ctx.configure();
+    const recorder = new RecordingInjector(ctx.agent);
+    installInjectors(ctx.agent.injection, [recorder]);
+
+    // Simulate a previous injection that landed at original index 7.
+    recorder.observedInjectedAt = 7;
+
+    // Compaction drops the first 3 messages and keeps 2 head messages in
+    // front of the new summary. Post-compaction layout:
+    //   [head-0, head-1, summary, ...retainedSuffix]
+    // The retained-tail message at original index 7 must map to
+    // `keptHeadCount(2) + 1(summary) + (7 - compactedCount(3)) = 7`.
+    ctx.agent.injection.onContextCompacted(3, 2);
+    expect(recorder.observedInjectedAt).toBe(7);
+
+    // Same scenario without keptHeadCount (legacy callers / tests that
+    // only pass compactedCount). The math falls back to the old formula
+    // and yields 5 — a known low-severity drift that the new path fixes.
+    recorder.observedInjectedAt = 7;
+    ctx.agent.injection.onContextCompacted(3, 0);
+    expect(recorder.observedInjectedAt).toBe(5);
+
+    // Compacted beyond the injection clears the marker so the next
+    // inject() re-emits the reminder.
+    recorder.observedInjectedAt = 2;
+    ctx.agent.injection.onContextCompacted(5, 0);
+    expect(recorder.observedInjectedAt).toBeNull();
   });
 });
 

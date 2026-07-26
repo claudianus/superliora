@@ -436,7 +436,18 @@ export class ContextMemory {
     this.tokenCountCoveredMessageCount = this._history.length;
     this.agent.microCompaction.reset();
     this.agent.contextOS.recordCompaction(result);
-    this.agent.injection.onContextCompacted(result.compactedCount);
+    // The post-compaction history is
+    //   [...keptMessages, summaryMessage, ...retainedSuffix]
+    // (or `[summaryMessage, ...retainedSuffix]` for the legacy restore path).
+    // A retained-tail message at original index N (N >= compactedCount) lands
+    // at `keptHeadCount + 1 + (N - compactedCount)`. The `+1` accounts for the
+    // new summary message; `keptHeadCount` is the count of messages kept in
+    // front of it, excluding the summary itself. Without this, every
+    // DynamicInjector would believe its prior injection lived at a position
+    // that has shifted upward by `keptHeadCount`, causing shouldRefresh to
+    // fire on turns that did not actually advance past the injection.
+    const keptHeadCount = isLegacyRestore ? 0 : selection.head.length;
+    this.agent.injection.onContextCompacted(result.compactedCount, keptHeadCount);
     this.agent.emitStatusUpdated();
     return result;
   }

@@ -9,9 +9,16 @@ export abstract class DynamicInjector {
     this.injectedAt = null;
   }
 
-  onContextCompacted(compactedCount: number): void {
+  onContextCompacted(compactedCount: number, keptHeadCount: number = 0): void {
     if (this.injectedAt !== null) {
-      const newInjectedAt = this.injectedAt - compactedCount + 1;
+      // The post-compaction history is
+      //   [...keptMessages, summaryMessage, ...retainedSuffix]
+      // so a retained tail message at original index N (N >= compactedCount)
+      // moves to `keptMessages.length + 1 + (N - compactedCount)`. The
+      // `+1` accounts for the new summary message; `keptHeadCount` is
+      // passed in because the base class cannot know the head length.
+      const newInjectedAt =
+        this.injectedAt - compactedCount + 1 + keptHeadCount;
       this.injectedAt = newInjectedAt >= 0 ? newInjectedAt : null;
     }
   }

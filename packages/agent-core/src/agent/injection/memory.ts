@@ -11,10 +11,12 @@ export class MemoryInjector extends DynamicInjector {
     this.lastAttemptedUserMessageAt = null;
   }
 
-  override onContextCompacted(compactedCount: number): void {
-    super.onContextCompacted(compactedCount);
+  override onContextCompacted(compactedCount: number, keptHeadCount: number = 0): void {
+    super.onContextCompacted(compactedCount, keptHeadCount);
     if (this.lastAttemptedUserMessageAt !== null) {
-      const next = this.lastAttemptedUserMessageAt - compactedCount + 1;
+      // See injector.onContextCompacted for the post-compaction index math.
+      const next =
+        this.lastAttemptedUserMessageAt - compactedCount + 1 + keptHeadCount;
       this.lastAttemptedUserMessageAt = next >= 0 ? next : null;
     }
   }
