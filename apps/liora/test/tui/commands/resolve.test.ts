@@ -476,6 +476,16 @@ describe('resolveSlashCommandInput', () => {
       name: 'auto',
       args: 'off',
     });
+    expect(resolve('/permission manual', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'permission',
+      args: 'manual',
+    });
+    expect(resolve('/permission yolo', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'permission',
+      args: 'yolo',
+    });
   });
 
   it('blocks plan clear while compacting because it is idle-only', () => {

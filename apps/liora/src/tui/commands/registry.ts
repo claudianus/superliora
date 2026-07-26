@@ -98,6 +98,12 @@ const TOGGLE_ON_OFF_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'off', description: 'Disable this mode' },
 ];
 
+const PERMISSION_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'manual', description: 'Prompt for every tool call' },
+  { value: 'auto', description: 'Auto-approve safe tool calls' },
+  { value: 'yolo', description: 'Auto-approve all tool calls' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -233,6 +239,13 @@ export function toggleOnOffArgumentCompletions(
   return completeLeadingArg(TOGGLE_ON_OFF_ARG_COMPLETIONS, argumentPrefix);
 }
 
+/** Leading-arg completions for `/permission` modes. */
+export function permissionArgumentCompletions(
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  return completeLeadingArg(PERMISSION_ARG_COMPLETIONS, argumentPrefix);
+}
+
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(ULTRAWORK_ARG_COMPLETIONS, argumentPrefix);
 }
@@ -357,6 +370,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Select permission mode',
     priority: 100,
+    argumentHint: '[manual|auto|yolo]',
+    completeArgs: permissionArgumentCompletions,
     visibility: 'advanced',
     availability: 'always',
   },

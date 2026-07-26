@@ -742,6 +742,32 @@ export function showPermissionPicker(host: SlashCommandHost): void {
   );
 }
 
+function isPermissionModeArg(value: string): value is PermissionMode {
+  return value === 'manual' || value === 'auto' || value === 'yolo';
+}
+
+/**
+ * `/permission [manual|auto|yolo]` — set the mode directly, or open the picker
+ * when no valid mode token is provided.
+ */
+export async function handlePermissionCommand(
+  host: SlashCommandHost,
+  args: string,
+): Promise<void> {
+  const token = args.trim().toLowerCase().split(/\s+/)[0] ?? '';
+  if (token.length === 0) {
+    showPermissionPicker(host);
+    return;
+  }
+  if (!isPermissionModeArg(token)) {
+    host.showError(
+      `Unknown permission mode: ${token}. Use manual, auto, or yolo (or omit args for the picker).`,
+    );
+    return;
+  }
+  await applyPermissionChoice(host, token);
+}
+
 export function showUpdatePreferencePicker(host: SlashCommandHost): void {
   host.mountEditorReplacement(
     new UpdatePreferenceSelectorComponent({

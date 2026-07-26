@@ -11,6 +11,7 @@ import {
   improveHarnessArgumentCompletions,
   loopArgumentCompletions,
   memoryArgumentCompletions,
+  permissionArgumentCompletions,
   personaArgumentCompletions,
   planArgumentCompletions,
   premiumArgumentCompletions,
@@ -352,6 +353,31 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('auto')?.completeArgs).toBe(toggleOnOffArgumentCompletions);
     expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('yolo')!, 'on')).toBe('always');
     expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('auto')!, 'off')).toBe(
+      'always',
+    );
+  });
+
+  it('offers permission mode argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = permissionArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['manual', 'auto', 'yolo']);
+    expect(values('m')).toEqual(['manual']);
+    expect(values('a')).toEqual(['auto']);
+    expect(values('y')).toEqual(['yolo']);
+    expect(permissionArgumentCompletions('man')).toEqual([
+      { value: 'manual', label: 'manual', description: 'Prompt for every tool call' },
+    ]);
+    expect(values('manual')).toBeNull();
+    expect(values('auto')).toBeNull();
+    expect(values('yolo')).toBeNull();
+    expect(values('turbo')).toBeNull();
+    expect(findBuiltInSlashCommand('permission')?.completeArgs).toBe(
+      permissionArgumentCompletions,
+    );
+    expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('permission')!, 'yolo')).toBe(
       'always',
     );
   });

@@ -22,6 +22,7 @@ export {
   handleContextCommand,
   handleEditorCommand,
   handleModelCommand,
+  handlePermissionCommand,
   handlePlanCommand,
   handleThemeCommand,
   handleThinkingCommand,
