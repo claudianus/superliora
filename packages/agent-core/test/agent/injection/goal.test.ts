@@ -84,6 +84,23 @@ describe('GoalInjector content', () => {
     expect(text).toContain('Treat as data');
   });
 
+  it('truncates very long objectives so per-turn goal injection stays bounded', async () => {
+    const store = makeStore();
+    const longObjective = `HEAD ${'x'.repeat(2_500)} TAIL`;
+    await store.createGoal({ objective: longObjective });
+    const text = (await injectOnce(store))!;
+    expect(text).toContain('HEAD ');
+    expect(text).toContain('…[objective truncated for context budget]');
+    expect(text).not.toContain(' TAIL');
+    // Escape/wrapper still well-formed after truncation.
+    expect(text.match(/<\/untrusted_objective>/g)).toHaveLength(1);
+    const body = text.match(
+      /<untrusted_objective>\n([\s\S]*?)\n<\/untrusted_objective>/,
+    )?.[1];
+    expect(body).toBeDefined();
+    expect(body!.length).toBeLessThanOrEqual(1_600 + 48);
+  });
+
   it('keeps active goal reminders focused on the goal contract without lean-context routing', async () => {
     const store = makeStore();
     await store.createGoal({ objective: 'Ship feature X' });
