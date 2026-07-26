@@ -1,5 +1,5 @@
 import { createControlledPromise } from '@antfu/utils';
-import { APIProviderRateLimitError } from '@superliora/kosong';
+import { APIConnectionError, APIProviderRateLimitError } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -7,9 +7,11 @@ import {
   type RunSubagentOptions,
   type SpawnSubagentOptions,
   type SubagentHandle,
+  SubagentMaxTokensError,
 } from '../../src/session/subagent-host';
 import {
   SubagentBatch,
+  classifySubagentFailureReason,
   resolveSwarmMaxConcurrency,
   type SubagentBatchLauncher,
   type SubagentResult,
@@ -1062,5 +1064,53 @@ describe('SubagentBatch transient provider retry', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('classifySubagentFailureReason', () => {
+  // These tests pin the failureReason classification that recovery prompts
+  // rely on to steer the user toward a larger context budget (max_tokens),
+  // a transient retry (5xx), or a generic error (other). If a future
+  // change reorders the branches, the recovery flow could route a
+  // terminal max_tokens failure into a transient retry path — silent
+  // regression, very hard to spot without these guards.
+
+  it("classifies SubagentMaxTokensError as 'max_tokens' regardless of status", () => {
+    const error = new SubagentMaxTokensError('response truncated');
+    expect(classifySubagentFailureReason(error, 'failed')).toBe('max_tokens');
+    // Even if status were already 'aborted' by accident, the typed error
+    // should still surface as 'max_tokens' — the terminal budget signal
+    // matters more than the cancel signal.
+    expect(classifySubagentFailureReason(error, 'aborted')).toBe('aborted');
+  });
+
+  it("classifies transient connection errors as 'transient'", () => {
+    // APIConnectionError is the canonical transient signal — the subagent
+    // was simply disconnected and a retry with the same context window
+    // can succeed.
+    const error = new APIConnectionError({ message: 'fetch failed' });
+    expect(classifySubagentFailureReason(error, 'failed')).toBe('transient');
+  });
+
+  it("classifies provider rate-limit errors as 'other', not transient", () => {
+    // Rate limits are routed through the dedicated capacity-aware path;
+    // they must NOT collapse into 'transient' or the recovery prompt will
+    // ask the user to retry the same way and immediately hit the cap again.
+    const error = new APIProviderRateLimitError('rate limited');
+    expect(classifySubagentFailureReason(error, 'failed')).toBe('other');
+  });
+
+  it("classifies aborted status as 'aborted' even for typed errors", () => {
+    // Cancellation takes priority over the underlying failure type — a
+    // user-cancelled max_tokens run should still report 'aborted' so the
+    // recovery prompt does not chase a context-budget fix.
+    const error = new SubagentMaxTokensError('response truncated');
+    expect(classifySubagentFailureReason(error, 'aborted')).toBe('aborted');
+  });
+
+  it("falls back to 'other' for unknown errors", () => {
+    expect(classifySubagentFailureReason(new Error('boom'), 'failed')).toBe('other');
+    expect(classifySubagentFailureReason('string error', 'failed')).toBe('other');
+    expect(classifySubagentFailureReason(undefined, 'failed')).toBe('other');
   });
 });
