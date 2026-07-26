@@ -70,6 +70,32 @@ function reject(
 }
 
 /**
+ * Match recovery-triangle verification-gap next_actions formatting.
+ * Callers pass the already-filtered node set (failed/blocked/pending/open gaps).
+ */
+function formatVerificationGapNextActions(
+  nodes: readonly WorkGraphNode[],
+): readonly string[] {
+  if (nodes.length === 0) return [];
+  return [
+    `Close verification gaps on node(s): ${nodes
+      .slice(0, 3)
+      .map((node) => {
+        const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
+        const missing =
+          required.length > 0
+            ? `; missing evidence: ${required
+                .filter((id) => !(node.evidenceIds ?? []).includes(id))
+                .slice(0, 3)
+                .join(', ')}`
+            : '';
+        return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
+      })
+      .join(', ')}${nodes.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
+  ];
+}
+
+/**
  * Audit whether an Ultrawork run is allowed to finish (and close its goal).
  * Terminal runs (done/failed) pass so callers can still close leftover goals.
  */
@@ -270,25 +296,7 @@ export function auditUltraworkCompletion(
     }
     // Match recovery-triangle verification-gap next_actions for open graphs
     // (done-only graphs already hit verification_failed/pending/blocked codes).
-    const verificationGaps = collectVerificationGapNodes(open);
-    if (verificationGaps.length > 0) {
-      nextActions.push(
-        `Close verification gaps on node(s): ${verificationGaps
-          .slice(0, 3)
-          .map((node) => {
-            const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
-            const missing =
-              required.length > 0
-                ? `; missing evidence: ${required
-                    .filter((id) => !(node.evidenceIds ?? []).includes(id))
-                    .slice(0, 3)
-                    .join(', ')}`
-                : '';
-            return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
-          })
-          .join(', ')}${verificationGaps.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
-      );
-    }
+    nextActions.push(...formatVerificationGapNextActions(collectVerificationGapNodes(open)));
     nextActions.push(
       'Finish or re-open incomplete nodes with real evidence.',
       'Do not call UpdateGoal(complete) until every AC node is done with verification.',
@@ -305,6 +313,7 @@ export function auditUltraworkCompletion(
   const verificationFailed = gatedNodes.filter((n) => n.verificationStatus === 'failed');
   if (verificationFailed.length > 0) {
     const openNodeIds = verificationFailed.map((n) => n.id);
+    const gapActions = formatVerificationGapNextActions(verificationFailed);
     return reject(
       'verification_failed',
       [
@@ -312,6 +321,7 @@ export function auditUltraworkCompletion(
         'Failed verification cannot be papered over with status=done.',
       ],
       [
+        ...gapActions,
         'Fix failures, re-run checks, then set verificationStatus=passed with fresh evidence.',
       ],
       openNodeIds,
@@ -322,6 +332,7 @@ export function auditUltraworkCompletion(
   const verificationBlocked = gatedNodes.filter((n) => n.verificationStatus === 'blocked');
   if (verificationBlocked.length > 0) {
     const openNodeIds = verificationBlocked.map((n) => n.id);
+    const gapActions = formatVerificationGapNextActions(verificationBlocked);
     return reject(
       'verification_blocked',
       [
@@ -329,6 +340,7 @@ export function auditUltraworkCompletion(
         'Blocked verification means checks could not complete; status=done is not enough.',
       ],
       [
+        ...gapActions,
         'Unblock the verification path (deps, env, surface), re-run checks, then set verificationStatus=passed with evidence.',
       ],
       openNodeIds,
@@ -346,6 +358,7 @@ export function auditUltraworkCompletion(
   );
   if (pendingVerify.length > 0) {
     const openNodeIds = pendingVerify.map((n) => n.id);
+    const gapActions = formatVerificationGapNextActions(pendingVerify);
     return reject(
       'verification_pending',
       [
@@ -353,6 +366,7 @@ export function auditUltraworkCompletion(
         'Marking nodes done without an explicit verification pass is a false complete.',
       ],
       [
+        ...gapActions,
         'Run mechanical verification (vitest/smoke/real surface).',
         'Set verificationStatus=passed and record evidenceIds for each required token.',
       ],

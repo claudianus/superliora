@@ -151,7 +151,13 @@ describe('auditUltraworkCompletion', () => {
       }),
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('verification_failed');
+    if (!result.ok) {
+      expect(result.code).toBe('verification_failed');
+      expect(result.nextActions.some((a) => /Close verification gaps on node\(s\)/i.test(a))).toBe(
+        true,
+      );
+      expect(result.nextActions.some((a) => /ac_1/.test(a) && /verify=failed/.test(a))).toBe(true);
+    }
   });
 
   it('passes when non-policy nodes are done without requiredEvidence', () => {
@@ -308,6 +314,41 @@ describe('auditUltraworkCompletion', () => {
       expect(result.code).toBe('verification_blocked');
       expect(result.openNodeIds).toContain('verify_1');
       expect(result.reasons.some((r) => r.includes('verificationStatus=blocked'))).toBe(true);
+      expect(result.nextActions.some((a) => /Close verification gaps on node\(s\)/i.test(a))).toBe(
+        true,
+      );
+      expect(result.nextActions.some((a) => /verify_1/.test(a) && /verify=blocked/.test(a))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('attaches verification-gap nextActions for verification_pending rejects', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_pending',
+              kind: 'acceptance_criterion',
+              status: 'done',
+              requiredEvidence: ['smoke'],
+              evidenceIds: ['smoke'],
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('verification_pending');
+      expect(result.openNodeIds).toContain('ac_pending');
+      expect(result.nextActions.some((a) => /Close verification gaps on node\(s\)/i.test(a))).toBe(
+        true,
+      );
+      expect(result.nextActions.some((a) => a.includes('ac_pending'))).toBe(true);
     }
   });
 
