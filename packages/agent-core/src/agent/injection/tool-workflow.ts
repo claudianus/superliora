@@ -91,6 +91,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
     '- Default to tools for any workspace, code, research, or multi-step task. Text-only only for pure chat with no file/system/internet need.',
     '- Prefer dedicated tools over raw Bash when they fit (Read/Write/Edit/Grep/Glob/list). Shell is for real process semantics, not file I/O.',
     '- File content: use Write/Edit — do not cat/echo/printf redirect, heredoc, or tee file bodies through Bash (runtime-blocked).',
+    '- File reads: use Read/LioraRead — do not python/node/ruby -c/-e open/readFile one-liners for file contents (runtime-blocked).',
     '- Secrets: never cat/source/base64 .env, SSH keys, or cloud credentials via Bash (hard-blocked, no force escape).',
     '- Parallelize independent reads/searches in one turn. Serial only when a later call needs earlier output.',
     '- Small verifiable steps: change → check → continue. Leave clean artifacts (tests green, notes, evidence) for the next turn/session.',
