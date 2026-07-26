@@ -1,102 +1,86 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  humanizeCollaborationEvent,
-  looksLikeProtocolMessage,
-} from '../../src/session/swarm-humanize';
+import { humanizeCollaborationEvent, looksLikeProtocolMessage } from '../../src/session/swarm-humanize';
 
-describe('looksLikeProtocolMessage', () => {
-  it('detects XML handoff / team roster payloads', () => {
-    expect(
-      looksLikeProtocolMessage(
-        '<handoff expert_id="a" phase="implement" verdict="PASS">done</handoff>',
-      ),
-    ).toBe(true);
-    expect(looksLikeProtocolMessage('<team_roster><expert name="Alice"/></team_roster>')).toBe(
-      true,
-    );
-    expect(looksLikeProtocolMessage('VERDICT: PASS')).toBe(true);
-    expect(
-      looksLikeProtocolMessage(
-        '<debate_draft_pack><debate_draft phase="critic">x</debate_draft></debate_draft_pack>',
-      ),
-    ).toBe(true);
+describe('swarm-humanize.ts — looksLikeProtocolMessage', () => {
+  it('returns true for a string containing an XML tag', () => {
+    expect(looksLikeProtocolMessage('<handoff>body</handoff>')).toBe(true);
+    expect(looksLikeProtocolMessage('plain <b>text</b> prose')).toBe(true);
   });
 
-  it('leaves plain chat alone', () => {
-    expect(looksLikeProtocolMessage('auth middleware missing tests')).toBe(false);
-    expect(looksLikeProtocolMessage('patch ready for review')).toBe(false);
+  it('returns false for free prose without XML', () => {
+    expect(looksLikeProtocolMessage('just plain text')).toBe(false);
+    expect(looksLikeProtocolMessage('  ')).toBe(false);
   });
 });
 
-describe('humanizeCollaborationEvent', () => {
-  it('passes plain bodies through', () => {
-    const result = humanizeCollaborationEvent({
-      body: 'auth middleware missing tests',
-      fromName: 'AppSec',
-      channel: 'blocker',
+describe('swarm-humanize.ts — humanizeCollaborationEvent', () => {
+  it('emits from-only header for empty body', () => {
+    const out = humanizeCollaborationEvent({
+      fromExpertId: 'e-1',
+      body: '   ',
     });
-    expect(result.humanized).toBe(false);
-    expect(result.body).toBe('auth middleware missing tests');
-    expect(result.severity).toBe('warning');
+    expect(out.headline).toBe('e-1');
+    expect(out.body).toBe('');
+    expect(out.humanized).toBe(false);
   });
 
-  it('humanizes handoff XML into a scannable line', () => {
-    const result = humanizeCollaborationEvent({
-      body: '<handoff expert_id="impl-1" phase="implement" verdict="PASS">Dashboard attach scenario green</handoff>',
-      fromName: 'Impl',
+  it('keeps free prose as the body (non-protocol)', () => {
+    const out = humanizeCollaborationEvent({
+      fromExpertId: 'e-1',
+      body: 'just plain text',
     });
-    expect(result.humanized).toBe(true);
-    expect(result.headline).toContain('impl-1');
-    expect(result.body).toContain('Dashboard attach');
-    expect(result.severity).toBe('success');
+    expect(out.headline).toBe('e-1');
+    expect(out.body).toBe('just plain text');
+    expect(out.humanized).toBe(false);
   });
 
-  it('humanizes team roster XML', () => {
-    const result = humanizeCollaborationEvent({
-      body: '<team_roster><expert name="Alice"/><expert name="Bob"/></team_roster>',
+  it('humanizes <handoff> with expert/phase/verdict and inner body', () => {
+    const out = humanizeCollaborationEvent({
+      fromExpertId: 'e-1',
+      body: '<handoff expert_id="e-1" phase="implement" verdict="PASS">shipped</handoff>',
     });
-    expect(result.humanized).toBe(true);
-    expect(result.headline).toContain('로스터');
-    expect(result.body).toMatch(/Alice|Bob/);
+    expect(out.headline).toBe('e-1 · implement · 통과');
+    expect(out.body).toBe('shipped');
+    expect(out.severity).toBe('success');
+    expect(out.humanized).toBe(true);
   });
 
-  it('humanizes debate envelopes', () => {
-    const result = humanizeCollaborationEvent({
-      body: '<debate id="d1" work_node="ac_1"><artifact>foo()</artifact><current_phase>critic</current_phase><instruction>Be adversarial</instruction></debate>',
+  it('humanizes <handoff> with FAIL verdict as error severity', () => {
+    const out = humanizeCollaborationEvent({
+      fromExpertId: 'e-1',
+      body: '<handoff expert_id="e-1" phase="review" verdict="FAIL">block</handoff>',
     });
-    expect(result.humanized).toBe(true);
-    expect(result.headline.toLowerCase()).toContain('토론');
-    expect(result.body.length).toBeGreaterThan(0);
+    expect(out.severity).toBe('error');
   });
 
-  it('humanizes debate_draft_pack for reviewers', () => {
-    const result = humanizeCollaborationEvent({
-      body:
-        '<debate_draft_pack><debate_draft debate_id="d1" work_node="ac_1" author="impl" critic="rev" risk="medium" phase="critic">use auth middleware</debate_draft></debate_draft_pack>',
+  it('humanizes <expert> blocks with name/outcome/verdict', () => {
+    const out = humanizeCollaborationEvent({
+      fromExpertId: 'e-1',
+      body: '<expert name="Alpha" outcome="completed" verdict="PASS"><selection_reason>best</selection_reason></expert>',
     });
-    expect(result.humanized).toBe(true);
-    expect(result.headline).toContain('토론 초안');
-    expect(result.body).toMatch(/ac_1|auth middleware/);
+    expect(out.headline).toBe('Alpha · completed · 통과');
+    expect(out.body).toBe('best');
+    expect(out.severity).toBe('success');
   });
 
-  it('humanizes dependency_handoff upstream summaries', () => {
-    const result = humanizeCollaborationEvent({
-      body:
-        '<dependency_handoff><upstream expert_id="impl-1" phase="implement" verdict="PASS">ok</upstream></dependency_handoff>',
+  it('humanizes <team_roster> with up to 6 unique names', () => {
+    const out = humanizeCollaborationEvent({
+      fromExpertId: 'e-1',
+      body: '<team_roster><e name="Alpha"/><e name="Bravo"/><e name="Alpha"/><e name="Charlie"/><e name="Delta"/><e name="Echo"/><e name="Foxtrot"/><e name="Golf"/></team_roster>',
     });
-    expect(result.humanized).toBe(true);
-    expect(result.headline).toContain('의존');
-    expect(result.body).toMatch(/impl-1|통과|PASS/);
+    expect(out.headline).toBe('팀 로스터');
+    expect(out.body).toContain('Alpha');
+    expect(out.body).toContain('…');
   });
 
-  it('humanizes review_revision_request', () => {
-    const result = humanizeCollaborationEvent({
-      body:
-        '<review_revision_request><prior_review expert_id="rev-1" verdict="FAIL">missing tests</prior_review></review_revision_request>',
+  it('humanizes <swarm_channel_rules> as neutral preamble', () => {
+    const out = humanizeCollaborationEvent({
+      fromExpertId: 'e-1',
+      body: '<swarm_channel_rules>Use SwarmChannel for coordination.</swarm_channel_rules>',
     });
-    expect(result.humanized).toBe(true);
-    expect(result.severity).toBe('warning');
-    expect(result.headline).toContain('수정');
+    expect(out.headline).toBe('협업 규칙');
+    expect(out.body).toContain('Use SwarmChannel');
+    expect(out.severity).toBe('neutral');
   });
 });
