@@ -207,13 +207,14 @@ export function formatBlockedNodeNextActions(nodes: readonly WorkGraphNode[]): r
     .slice(0, 3)
     .map((node) => {
       const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
-      return deps.length > 0
-        ? `${node.id} (${node.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`
-        : `${node.id} (${node.title})`;
+      if (deps.length === 0) return `${node.id} (${node.title})`;
+      const head = deps.slice(0, 3).join(', ');
+      const overflow = deps.length > 3 ? `, … +${String(deps.length - 3)} more` : '';
+      return `${node.id} (${node.title}; dependsOn: ${head}${overflow})`;
     })
     .join(', ');
   return [
-    `Unblock WorkGraph node(s) first: ${depHints}${nodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
+    `Unblock WorkGraph node(s) first: ${depHints}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — resolve dependencies or re-queue before more product edits.`,
     formatBlockedNodeStallBan(),
   ];
 }
