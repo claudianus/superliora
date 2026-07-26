@@ -301,6 +301,10 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('type a.ts | Out-File out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('cat a.ts | tee out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('cat a.ts | sponge out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('bat a.ts | sponge out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('bat a.ts | tee out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('tac a.ts | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('pygmentize a.ts | Out-File out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('gc notes.md | Add-Content out.txt')?.prefer).toBe('Write');
     // real process left-hand side / multi-pipe / no path stay allowed
     expect(detectShellDedicatedBypass('Get-Process | Set-Content out.txt')).toBeUndefined();
