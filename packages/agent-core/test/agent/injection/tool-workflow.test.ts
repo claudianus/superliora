@@ -157,7 +157,8 @@ describe('ToolWorkflowInjector', () => {
     const text = buildToolWorkflowGuidance(cap);
     expect(text).toMatch(/Write\/Edit/);
     expect(text).toMatch(/heredoc|redirect/i);
-    expect(text).toMatch(/python\/node\/ruby|Read\/LioraRead/);
+    expect(text).toMatch(/python\/node\/ruby/);
+    expect(text).toMatch(/use Read/i);
     expect(text).toMatch(/Secrets:|\.env|SSH/i);
     const sparse = buildToolWorkflowSparseGuidance(cap);
     expect(sparse).toContain('Write≠shell I/O');
