@@ -121,6 +121,44 @@ describe('TodoPanelComponent', () => {
     expect(panel.isEmpty()).toBe(true);
   });
 
+  it('restores live goal after clear() when re-bound from appState (session redraw path)', () => {
+    const panel = new TodoPanelComponent();
+    const liveGoal = {
+      goalId: 'g-redraw',
+      objective: 'Survive transcript clear',
+      status: 'active' as const,
+      turnsUsed: 4,
+      tokensUsed: 9_000,
+      wallClockMs: 60_000,
+      budget: {
+        turnBudget: null,
+        tokenBudget: null,
+        wallClockBudgetMs: null,
+        remainingTurns: null,
+        remainingTokens: null,
+        remainingWallClockMs: null,
+        tokenBudgetReached: false,
+        turnBudgetReached: false,
+        wallClockBudgetReached: false,
+        overBudget: false,
+      },
+    };
+    panel.setGoal(liveGoal as never);
+    panel.setTodos([{ title: 'ephemeral todo', status: 'pending' }]);
+    expect(panel.isEmpty()).toBe(false);
+
+    // Mirrors clearTranscriptAndRedraw: wipe todos, then re-bind goal from appState.
+    panel.clear();
+    expect(panel.isEmpty()).toBe(true);
+    expect(panel.render(80)).toEqual([]);
+    panel.setGoal(liveGoal as never);
+    expect(panel.hasLiveGoal()).toBe(true);
+    expect(panel.isEmpty()).toBe(false);
+    const joined = panel.render(80).map(strip).join('\n');
+    expect(joined).toContain('Survive transcript clear');
+    expect(joined).not.toContain('ephemeral todo');
+  });
+
   it('combines goal monitor header with the todo board', () => {
     const panel = new TodoPanelComponent();
     panel.setGoal({

@@ -2388,6 +2388,9 @@ export class LioraTUI {
           isCompacting: false,
           isBackgroundCompacting: false,
           streamingPhase: 'idle',
+          // New session has no goal yet; clear before redraw so the monitor
+          // does not reappear from the previous session's snapshot.
+          goal: null,
         });
         await this.setSession(session);
         this.setAppState({ sessionId: session.id });
@@ -2697,8 +2700,12 @@ export class LioraTUI {
     this.state.transcriptContainer.invalidate();
     this.btwPanelController.clear();
     this.clearTerminalInlineImages();
+    // Drop todo cards, then re-bind any live goal from appState so session
+    // switches (goal already hydrated) and mid-session redraws keep the
+    // monitor chrome. New sessions null goal before/after this via setAppState.
     this.state.todoPanel.clear();
     this.state.todoPanelContainer.clear();
+    this.syncGoalMonitorPanel();
     this.imageStore.clear();
     this.renderWelcome();
     requestTUILayoutRender(this.state);
