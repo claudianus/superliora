@@ -6,6 +6,7 @@ import {
   addDirArgumentCompletions,
   contextArgumentCompletions,
   cronArgumentCompletions,
+  extensionsArgumentCompletions,
   helpArgumentCompletions,
   improveHarnessArgumentCompletions,
   loopArgumentCompletions,
@@ -265,6 +266,46 @@ describe('built-in slash command registry', () => {
     expect(values('unknown')).toBeNull();
     expect(findBuiltInSlashCommand('improve-harness')?.completeArgs).toBe(
       improveHarnessArgumentCompletions,
+    );
+  });
+
+  it('offers extensions tab and Claude import argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = extensionsArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual([
+      'plugins',
+      'hooks',
+      'skills',
+      'mcp',
+      'claude',
+      'import-claude',
+      'import',
+    ]);
+    expect(values('p')).toEqual(['plugins']);
+    expect(values('h')).toEqual(['hooks']);
+    expect(values('s')).toEqual(['skills']);
+    expect(values('m')).toEqual(['mcp']);
+    expect(values('c')).toEqual(['claude']);
+    expect(values('i')).toEqual(['import-claude', 'import']);
+    expect(extensionsArgumentCompletions('import-c')).toEqual([
+      {
+        value: 'import-claude',
+        label: 'import-claude',
+        description: 'Import from Claude allowlist inventory',
+      },
+    ]);
+    expect(values('plugins')).toBeNull();
+    expect(values('claude')).toBeNull();
+    expect(values('unknown')).toBeNull();
+    expect(findBuiltInSlashCommand('extensions')?.completeArgs).toBe(
+      extensionsArgumentCompletions,
+    );
+    expect(findBuiltInSlashCommand('ext')?.completeArgs).toBe(extensionsArgumentCompletions);
+    expect(findBuiltInSlashCommand('import-claude')?.completeArgs).toBe(
+      extensionsArgumentCompletions,
     );
   });
 

@@ -78,6 +78,16 @@ const CRON_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'help', description: 'Show /cron usage' },
 ];
 
+const EXTENSIONS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'plugins', description: 'Open the plugins tab' },
+  { value: 'hooks', description: 'Open the hooks tab' },
+  { value: 'skills', description: 'Open the skills tab' },
+  { value: 'mcp', description: 'Open the MCP tab' },
+  { value: 'claude', description: 'Import from Claude allowlist inventory' },
+  { value: 'import-claude', description: 'Import from Claude allowlist inventory' },
+  { value: 'import', description: 'Import from Claude allowlist inventory' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -188,6 +198,13 @@ export function loopArgumentCompletions(argumentPrefix: string): AutocompleteIte
 /** Argument autocompletion for the `/cron` list/delete/help subcommands. */
 export function cronArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(CRON_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Argument autocompletion for `/extensions` tabs and Claude import shortcuts. */
+export function extensionsArgumentCompletions(
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  return completeLeadingArg(EXTENSIONS_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -480,7 +497,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: '확장 기능 — 플러그인/훅/스킬/MCP · Claude 가져오기',
     priority: 70,
     availability: 'always',
-    argumentHint: '[claude]',
+    argumentHint: '[plugins|hooks|skills|mcp|claude]',
+    completeArgs: extensionsArgumentCompletions,
   },
   {
     name: 'tasks',

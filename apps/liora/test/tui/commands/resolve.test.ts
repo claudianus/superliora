@@ -436,6 +436,26 @@ describe('resolveSlashCommandInput', () => {
       name: 'cron',
       args: 'delete job-1',
     });
+    expect(resolve('/extensions mcp', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'extensions',
+      args: 'mcp',
+    });
+    expect(resolve('/ext hooks', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'extensions',
+      args: 'hooks',
+    });
+    expect(resolve('/import-claude', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'extensions',
+      args: '',
+    });
+    expect(resolve('/extensions claude', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'extensions',
+      args: 'claude',
+    });
   });
 
   it('blocks plan clear while compacting because it is idle-only', () => {
