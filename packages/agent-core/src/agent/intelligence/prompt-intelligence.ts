@@ -1,6 +1,16 @@
-import { createProvider, type ChatProvider, type GenerateResult, type Message } from '@superliora/kosong';
+import {
+  createProvider,
+  type ChatProvider,
+  type GenerateResult,
+  type Message,
+  type ThinkingEffort,
+} from '@superliora/kosong';
 
-import { inferCheapModelAliasSync } from '../../utils/cheap-model';
+import {
+  inferCheapModelAliasSync,
+  inferCheapestModelAliasByCostSync,
+  type CheapModelConfig,
+} from '../../utils/cheap-model';
 import type { GenerateOptionsWithRequestLogFields } from '../llm-request-logger';
 import type { Agent } from '../index';
 
@@ -13,9 +23,11 @@ import type { Agent } from '../index';
  *   tasks when the prompt box is empty.
  *
  * Both paths are deliberately cheap: a dedicated fast model
- * (`loopControl.completionModel`, falling back to the session model), thinking
- * turned off, and a small completion-token budget. Failures are swallowed and
- * reported as empty results so the input box is never disturbed.
+ * (`loopControl.completionModel`, else cheapest configured alias, never a
+ * heavy main model by default), thinking off (or lowest effort when off is
+ * unsupported), and a small completion-token budget. When no safe cheap
+ * route exists the feature returns empty (forced off for that call). Failures
+ * are swallowed so the input box is never disturbed.
  */
 
 /** models.dev catalog URL used to resolve per-token model pricing. */
@@ -50,7 +62,7 @@ async function fetchModelPricing(): Promise<Map<string, number>> {
     for (const provider of Object.values(data)) {
       if (provider.models === undefined) continue;
       for (const model of Object.values(provider.models)) {
-        if (model.id !== undefined && model.cost?.input != null) {
+        if (model.id !== undefined && model.cost?.input !== undefined && model.cost.input !== null) {
           pricing.set(model.id.toLowerCase(), model.cost.input);
         }
       }
@@ -113,6 +125,84 @@ const SUGGEST_SYSTEM_PROMPT = [
   'Each suggestion must be a concise imperative prompt of at most about 12 words.',
   'If there is no sensible suggestion, output nothing.',
 ].join(' ');
+
+/**
+ * Reasoning-first families — always too costly for high-frequency ghost traffic,
+ * even when the id also contains "mini" / "fast" (e.g. `o3-mini`).
+ */
+const REASONING_MODEL_PATTERNS: readonly string[] = [
+  'o1',
+  'o3',
+  'o4',
+  'reasoning',
+  'think',
+];
+
+/** Premium non-reasoning tiers that should not be used for ghost by default. */
+const EXPENSIVE_MODEL_PATTERNS: readonly string[] = [
+  'opus',
+  'sonnet',
+  'ultra',
+  'gpt-4',
+  'gpt4',
+  'gpt-5',
+  'gpt5',
+  'claude-3',
+  'claude-4',
+  'grok-4',
+  'grok4',
+];
+
+/** Name fragments that mark a model as acceptable for ghost/suggest traffic. */
+const CHEAP_TIER_PATTERNS: readonly string[] = [
+  'haiku',
+  'flash',
+  'nano',
+  'mini',
+  'lite',
+  'turbo',
+  'small',
+  'fast',
+];
+
+/**
+ * True when the model id/alias looks like a cheap, non-reasoning tier suitable
+ * for high-frequency ghost completions. Explicit `completionModel` config bypasses this.
+ */
+export function looksLikeCheapCompletionModel(modelOrAlias: string): boolean {
+  const hay = modelOrAlias.trim().toLowerCase();
+  if (hay.length === 0) return false;
+  // Hard reject reasoning-first families before cheap-tier substring matches.
+  if (REASONING_MODEL_PATTERNS.some((p) => hay.includes(p))) return false;
+  if (CHEAP_TIER_PATTERNS.some((p) => hay.includes(p))) return true;
+  // Unknown short ids without expensive markers: allow (user may use local/custom).
+  if (!EXPENSIVE_MODEL_PATTERNS.some((p) => hay.includes(p))) return true;
+  return false;
+}
+
+/**
+ * Pin thinking as low-cost as the provider allows.
+ * Prefer `off`; if the adapter still reports a non-off effort (or `off` throws),
+ * fall back to `low`. Returns `undefined` when even the lowest effort cannot be applied
+ * safely (caller should skip the feature for this call).
+ */
+export function pinCompletionThinking(provider: ChatProvider): ChatProvider | undefined {
+  const efforts: readonly ThinkingEffort[] = ['off', 'low'];
+  let current = provider;
+  for (const effort of efforts) {
+    try {
+      current = current.withThinking(effort);
+    } catch {
+      continue;
+    }
+    const reported = current.thinkingEffort;
+    // null/undefined → provider does not track effort; treat as ok after withThinking.
+    if (reported === null || reported === undefined || reported === 'off' || reported === 'low') {
+      return current;
+    }
+  }
+  return undefined;
+}
 
 export class PromptIntelligenceService {
   constructor(private readonly agent: Agent) {}
@@ -207,20 +297,37 @@ export class PromptIntelligenceService {
 
   /**
    * When no explicit `completionModel` is configured, pick the cheapest
-   * model from the user's configured aliases.  Prefers actual per-token
-   * pricing from the models.dev catalog; falls back to well-known
-   * model-name patterns when pricing is unavailable.
+   * model from the user's configured aliases.
+   *
+   * Order: local `models.*.cost` → name heuristic → models.dev pricing.
+   * Always filters out aliases that look like heavy reasoning tiers unless
+   * the user pinned `completionModel` explicitly.
    */
   private async inferCheapModelAlias(): Promise<string | undefined> {
-    const models = this.agent.kimiConfig?.models;
+    const models = this.agent.kimiConfig?.models as Record<string, CheapModelConfig> | undefined;
     if (models === undefined) return undefined;
 
-    // 1. Try actual pricing data from models.dev.
+    const isAcceptable = (alias: string): boolean => {
+      const cfg = models[alias];
+      const modelId = cfg?.model ?? alias;
+      return looksLikeCheapCompletionModel(alias) || looksLikeCheapCompletionModel(modelId);
+    };
+
+    // 1. Local config prices (sync, no network) — preferred for hot path.
+    const byLocalCost = inferCheapestModelAliasByCostSync(models, isAcceptable);
+    if (byLocalCost !== undefined) return byLocalCost;
+
+    // 2. Name-pattern heuristic (haiku/flash/mini/…).
+    const byName = inferCheapModelAliasSync(models, isAcceptable);
+    if (byName !== undefined) return byName;
+
+    // 3. models.dev catalog (async, best-effort).
     const pricing = await getModelPricing();
     if (pricing.size > 0) {
       let bestAlias: string | undefined;
       let bestCost = Number.POSITIVE_INFINITY;
       for (const [alias, config] of Object.entries(models)) {
+        if (!isAcceptable(alias)) continue;
         const cost = pricing.get(config.model.toLowerCase());
         if (cost !== undefined && cost < bestCost) {
           bestCost = cost;
@@ -230,25 +337,52 @@ export class PromptIntelligenceService {
       if (bestAlias !== undefined) return bestAlias;
     }
 
-    // 2. Fallback: name-pattern heuristic (lower score = cheaper / faster).
-    return inferCheapModelAliasSync(models);
+    return undefined;
   }
 
   private async resolveProvider(
     maxTokens: number,
   ): Promise<{ readonly provider: ChatProvider; readonly modelAlias: string | undefined } | undefined> {
     try {
-      const configuredOrCheap = this.completionModelAlias() ?? (await this.inferCheapModelAlias());
-      const resolved =
-        configuredOrCheap !== undefined
-          ? this.agent.modelProvider?.resolveProviderConfig(configuredOrCheap)
-          : undefined;
-      let provider = resolved ? createProvider(resolved.provider) : this.agent.config.provider;
-      // Prefer the alias we actually resolved; otherwise the session main model.
-      const modelAlias = resolved
-        ? configuredOrCheap
-        : this.agent.config.modelAlias;
-      provider = provider.withThinking('off');
+      const explicit = this.completionModelAlias();
+      const cheap = explicit === undefined ? await this.inferCheapModelAlias() : undefined;
+      const chosenAlias = explicit ?? cheap;
+
+      let provider: ChatProvider;
+      let modelAlias: string | undefined;
+
+      if (chosenAlias !== undefined) {
+        const resolved = this.agent.modelProvider?.resolveProviderConfig(chosenAlias);
+        if (resolved === undefined) {
+          // Configured alias unresolvable — do not silently burn the main model.
+          return undefined;
+        }
+        provider = createProvider(resolved.provider);
+        modelAlias = chosenAlias;
+      } else {
+        // No cheap alias: only use the session main model if it itself looks cheap.
+        const mainAlias = this.agent.config.modelAlias ?? '';
+        const mainModel =
+          (this.agent.kimiConfig?.models as Record<string, CheapModelConfig> | undefined)?.[mainAlias]
+            ?.model ?? mainAlias;
+        if (!looksLikeCheapCompletionModel(mainAlias) && !looksLikeCheapCompletionModel(mainModel)) {
+          this.agent.log.debug?.(
+            'prompt intelligence skipped: no cheap completion model (set loopControl.completionModel)',
+          );
+          return undefined;
+        }
+        provider = this.agent.config.provider;
+        modelAlias = mainAlias.length > 0 ? mainAlias : undefined;
+      }
+
+      const pinned = pinCompletionThinking(provider);
+      if (pinned === undefined) {
+        this.agent.log.debug?.(
+          'prompt intelligence skipped: cannot pin thinking off/low on completion provider',
+        );
+        return undefined;
+      }
+      provider = pinned;
       if (typeof provider.withMaxCompletionTokens === 'function') {
         provider = provider.withMaxCompletionTokens(maxTokens);
       }
