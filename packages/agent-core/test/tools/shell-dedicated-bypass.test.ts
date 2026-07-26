@@ -712,11 +712,16 @@ describe('detectShellDedicatedBypass', () => {
 
   it('blocks jq/yq/json.tool whole-file dumps', () => {
     expect(detectShellDedicatedBypass('jq . package.json')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('jq package.json')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('yq . config.yaml')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('yq e . config.yaml')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('python3 -m json.tool package.json')?.prefer).toBe('Read');
-    // pipelines / filters stay allowed
-    expect(detectShellDedicatedBypass('cat package.json | jq .')).toBeUndefined();
     expect(detectShellDedicatedBypass("jq -r '.name' package.json")?.prefer).toBe('Read');
+    // pipelines / stdin-only filters stay allowed
+    expect(detectShellDedicatedBypass('cat package.json | jq .')).toBeUndefined();
+    expect(detectShellDedicatedBypass('jq .')).toBeUndefined();
+    expect(detectShellDedicatedBypass('jq -c .')).toBeUndefined();
+    expect(detectShellDedicatedBypass('yq e .')).toBeUndefined();
   });
 
   it('blocks empty redirect file creators', () => {

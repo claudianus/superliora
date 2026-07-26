@@ -635,17 +635,28 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     }
   }
 
-  // jq/yq whole-file pretty-print / dump (no pipeline, single path arg)
-  if (
-    /^(?:\/usr\/bin\/)?(?:jq|yq)(?:\s+-[A-Za-z0-9=]+)*(?:\s+['"]?\.[A-Za-z0-9_.\[\]'"]*)?\s+\S+\s*$/.test(
-      command,
-    )
-  ) {
-    return {
-      prefer: 'Read',
-      pattern: 'jq/yq file',
-      message: 'Use Read instead of jq/yq for whole-file JSON/YAML dumps.',
-    };
+  // jq/yq whole-file pretty-print / dump (no pipeline, single path arg).
+  // Support `yq e . file` and require a real path so bare `jq .` / `jq -c .` stay allowed.
+  if (/^(?:\/usr\/bin\/)?(?:jq|yq)\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?(?:jq|yq)\b/, '')
+      // yq eval verbs: e / eval / ea / eval-all
+      .replace(/^(?:\s+)(?:e|eval|ea|eval-all)\b/i, ' ')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      // filter expression: `.`, `.name`, `'.name'`, `".items[0]"`
+      .replace(/(?:^|\s)'[^']*'/g, ' ')
+      .replace(/(?:^|\s)"[^"]*"/g, ' ')
+      .replace(/(?:^|\s)\.[A-Za-z0-9_.\[\]*]*/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-') && args[0] !== '.') {
+      return {
+        prefer: 'Read',
+        pattern: 'jq/yq file',
+        message: 'Use Read instead of jq/yq for whole-file JSON/YAML dumps.',
+      };
+    }
   }
 
   // python -m json.tool path  (pretty-print dump of a JSON file)
