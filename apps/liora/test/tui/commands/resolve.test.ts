@@ -456,6 +456,26 @@ describe('resolveSlashCommandInput', () => {
       name: 'extensions',
       args: 'claude',
     });
+    expect(resolve('/yolo on', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'yolo',
+      args: 'on',
+    });
+    expect(resolve('/yes off', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'yolo',
+      args: 'off',
+    });
+    expect(resolve('/auto on', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'auto',
+      args: 'on',
+    });
+    expect(resolve('/auto off', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'auto',
+      args: 'off',
+    });
   });
 
   it('blocks plan clear while compacting because it is idle-only', () => {

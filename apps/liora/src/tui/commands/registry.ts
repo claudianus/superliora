@@ -93,6 +93,11 @@ const ULTRAGOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: '--loop', description: 'Open self-improvement loop with circuit breaker' },
 ];
 
+const TOGGLE_ON_OFF_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'on', description: 'Enable this mode' },
+  { value: 'off', description: 'Disable this mode' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -221,6 +226,13 @@ export function ultragoalArgumentCompletions(argumentPrefix: string): Autocomple
   return completeLeadingArg(ULTRAGOAL_ARG_COMPLETIONS, argumentPrefix);
 }
 
+/** Leading-arg completions for toggle commands that accept `on` / `off`. */
+export function toggleOnOffArgumentCompletions(
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  return completeLeadingArg(TOGGLE_ON_OFF_ARG_COMPLETIONS, argumentPrefix);
+}
+
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(ULTRAWORK_ARG_COMPLETIONS, argumentPrefix);
 }
@@ -327,6 +339,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: ['yes'],
     description: 'Toggle auto-approve mode',
     priority: 100,
+    argumentHint: '[on|off]',
+    completeArgs: toggleOnOffArgumentCompletions,
     availability: 'always',
   },
   {
@@ -334,6 +348,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Toggle auto permission mode',
     priority: 100,
+    argumentHint: '[on|off]',
+    completeArgs: toggleOnOffArgumentCompletions,
     availability: 'always',
   },
   {

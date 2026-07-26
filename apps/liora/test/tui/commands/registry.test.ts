@@ -20,6 +20,7 @@ import {
   swarmArgumentCompletions,
   thinkingArgumentCompletions,
   thinkingArgumentCompletionsForModel,
+  toggleOnOffArgumentCompletions,
   ultragoalArgumentCompletions,
   type LioraSlashCommand,
 } from '#/tui/commands/index';
@@ -332,6 +333,27 @@ describe('built-in slash command registry', () => {
     expect(values('Ship feature')).toBeNull();
     expect(findBuiltInSlashCommand('ultragoal')?.completeArgs).toBe(ultragoalArgumentCompletions);
     expect(findBuiltInSlashCommand('ug')?.completeArgs).toBe(ultragoalArgumentCompletions);
+  });
+
+  it('offers yolo/auto on/off argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = toggleOnOffArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['on', 'off']);
+    expect(values('o')).toEqual(['on', 'off']);
+    expect(values('of')).toEqual(['off']);
+    expect(toggleOnOffArgumentCompletions('on')).toBeNull();
+    expect(toggleOnOffArgumentCompletions('off')).toBeNull();
+    expect(values('turbo')).toBeNull();
+    expect(findBuiltInSlashCommand('yolo')?.completeArgs).toBe(toggleOnOffArgumentCompletions);
+    expect(findBuiltInSlashCommand('yes')?.completeArgs).toBe(toggleOnOffArgumentCompletions);
+    expect(findBuiltInSlashCommand('auto')?.completeArgs).toBe(toggleOnOffArgumentCompletions);
+    expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('yolo')!, 'on')).toBe('always');
+    expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('auto')!, 'off')).toBe(
+      'always',
+    );
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {
