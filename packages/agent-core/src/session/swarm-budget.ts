@@ -60,6 +60,8 @@ export interface SwarmBudgetRoundRecord {
   readonly artifactCount: number;
   readonly fileChangeCount: number;
   readonly toolSuccessCount: number;
+  /** True when this round reported verificationPassed high-signal. */
+  readonly verificationPassed: boolean;
 }
 
 export interface SwarmBudgetSuggestion {
@@ -132,6 +134,7 @@ export function recordSwarmBudgetRound(
   const artifacts = nonEmptyIds(input.artifactIds);
   const fileChangeCount = Math.max(0, input.fileChangeCount ?? 0);
   const toolSuccessCount = Math.max(0, input.toolSuccessCount ?? 0);
+  const verificationPassed = input.verificationPassed === true;
   const wasted = isWastedBudgetRound(input);
   const record: SwarmBudgetRoundRecord = {
     label: input.label,
@@ -140,6 +143,7 @@ export function recordSwarmBudgetRound(
     artifactCount: artifacts.length,
     fileChangeCount,
     toolSuccessCount,
+    verificationPassed,
   };
   return {
     rounds: state.rounds + 1,

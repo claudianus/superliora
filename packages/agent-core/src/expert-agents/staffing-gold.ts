@@ -178,7 +178,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-devops-automator',
       'ericgrill-general-devops-dispatcher',
       'agentcrow-devops-automator',
-      'volt-03-infrastructure-devops-engineer',
     ],
     labels: ['Engineering', 'DevOps'],
   },

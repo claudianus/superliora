@@ -108,7 +108,7 @@ describe('staffing-gold nDCG', () => {
     expect(scored.length).toBeGreaterThanOrEqual(28);
     const mean = meanNdcgAtK(scored, k);
     // Offline regression floor: catch ranking/query regressions without flaking on embeddings.
-    expect(mean).toBeGreaterThanOrEqual(0.93);
+    expect(mean).toBeGreaterThanOrEqual(0.94);
     const zeros = scored.filter((row) => ndcgAtK(row.rankedIds, row.gold.relevantIds, k) <= 0);
     expect(zeros.map((row) => row.gold.id)).toEqual([]);
   });

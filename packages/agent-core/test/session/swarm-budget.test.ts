@@ -87,4 +87,15 @@ describe('swarm-budget', () => {
     expect(suggestion.wastedRounds).toBe(2);
     expect(suggestion.killThreshold).toBe(2);
   });
+
+  it('records verificationPassed on round history', () => {
+    let state = createSwarmBudgetState();
+    state = recordSwarmBudgetRound(state, { verificationPassed: true, label: 'review' });
+    expect(state.history[0]?.verificationPassed).toBe(true);
+    expect(state.history[0]?.wasted).toBe(false);
+    state = recordSwarmBudgetRound(state, { label: 'empty' });
+    expect(state.history[1]?.verificationPassed).toBe(false);
+    expect(state.history[1]?.wasted).toBe(true);
+  });
+
 });
