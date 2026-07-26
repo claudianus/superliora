@@ -20,13 +20,17 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('nl -ba src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('nl -n ln src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('nl -w 3 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('/usr/bin/nl -n ln src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('less -N src/a.ts')?.prefer).toBe('Read');
     // bare pagers / flag-only forms stay allowed (interactive)
     expect(detectShellDedicatedBypass('nl -n ln')).toBeUndefined();
     expect(detectShellDedicatedBypass('less -N')).toBeUndefined();
     expect(detectShellDedicatedBypass('w3m index.html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('w3m -dump index.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('lynx notes.html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('lynx -dump notes.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('elinks page.html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('elinks -dump page.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('zcat archive.gz')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('gzcat log.gz')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('bzcat data.bz2')?.prefer).toBe('Read');
@@ -34,9 +38,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('zstdcat data.zst')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('lzcat data.lz')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('/usr/bin/lzcat data.lz')?.prefer).toBe('Read');
-    // Real URLs stay allowed for text-browser browsing.
+    // Real URLs stay allowed for text-browser browsing (even with -dump).
     expect(detectShellDedicatedBypass('w3m https://example.com')).toBeUndefined();
+    expect(detectShellDedicatedBypass('w3m -dump https://example.com')).toBeUndefined();
     expect(detectShellDedicatedBypass('lynx http://example.com/docs')).toBeUndefined();
+    expect(detectShellDedicatedBypass('lynx -dump http://example.com/docs')).toBeUndefined();
     // Pipelines stay allowed for real shell composition.
     expect(detectShellDedicatedBypass('zcat archive.gz | head')).toBeUndefined();
     // Clipboard file dumps/loads prefer Read/Write; bare/pipeline clipboard stays allowed.
