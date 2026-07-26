@@ -203,10 +203,26 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Write-Host hi > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Write-Output hello >> out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('write-output x > ./notes.md')?.prefer).toBe('Write');
-    // stdout-only / real composition stay allowed
+    // stdout-only / real process composition stay allowed
     expect(detectShellDedicatedBypass('Write-Output hello')).toBeUndefined();
-    expect(detectShellDedicatedBypass('Write-Output x | Set-Content out.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Process | Write-Output > out.txt')).toBeUndefined();
+  });
+
+  it('blocks pure PowerShell producer pipes into file writers', () => {
+    expect(detectShellDedicatedBypass('Write-Output x | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Host x | Out-File out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass("echo hello | Out-File notes.md")?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass("Write-Output x | Tee-Object out.txt")?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass("'hello' | Set-Content out.txt")?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('"hello" | Add-Content out.txt')?.prefer).toBe('Write');
+    expect(
+      detectShellDedicatedBypass('Write-Output x | Set-Content -Path out.txt')?.prefer,
+    ).toBe('Write');
+    // real process left-hand side / multi-pipe / no path stay allowed
+    expect(detectShellDedicatedBypass('Get-Process | Set-Content out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content a.txt | Set-Content b.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Write-Output x | Set-Content out.txt | Measure-Object')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Write-Output x | Set-Content')).toBeUndefined();
   });
 
   it('allows pipelines, && chains, and real process work', () => {

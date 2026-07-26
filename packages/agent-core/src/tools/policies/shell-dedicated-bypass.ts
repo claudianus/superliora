@@ -66,6 +66,11 @@ export function detectShellDedicatedBypass(
   const clipboardHit = matchClipboardFileBypass(unwrapped);
   if (clipboardHit !== undefined) return clipboardHit;
 
+  // Pure PowerShell producer → Set-Content/Out-File/Tee-Object pipes (before composition guard).
+  // Real process pipelines (`Get-Process | Set-Content …`) stay allowed.
+  const psPipeWriteHit = matchPowerShellPipeWriteBypass(unwrapped);
+  if (psPipeWriteHit !== undefined) return psPipeWriteHit;
+
   // Multi-statement / pipeline / redirection chains → real shell work.
   if (hasShellComposition(unwrapped)) return undefined;
 
@@ -878,6 +883,49 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
   }
 
   return undefined;
+}
+
+/**
+ * Pure PowerShell value producers piped into file writers.
+ * Matches:
+ *   - Write-Output/Write-Host/echo … | Set-Content/Out-File/Add-Content/Tee-Object path
+ *   - 'literal' / "literal" | Set-Content path
+ * Skips: real process left-hand sides, multi-pipe chains, &&/|| lists.
+ */
+function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHit | undefined {
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[;&`\n]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  // Exactly one pipe — multi-stage pipelines stay allowed.
+  if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
+
+  const m =
+    /^(Write-Output|Write-Host|echo)\b([\s\S]*?)\s*\|\s*(Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee)\b([\s\S]*)$/i.exec(
+      command,
+    ) ??
+    /^(['"])([\s\S]*?)\1\s*\|\s*(Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee)\b([\s\S]*)$/i.exec(
+      command,
+    );
+  if (m === null) return undefined;
+
+  const sinkArgs = m[4] ?? '';
+  // Require a path-like sink argument so bare `Write-Output x | Set-Content` stays allowed.
+  const hasPath =
+    /(?:^|\s)-(?:Path|LiteralPath|FilePath)\s+\S+/i.test(sinkArgs) ||
+    /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+      sinkArgs,
+    ) ||
+    /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(sinkArgs);
+  if (!hasPath) return undefined;
+
+  const producer = (m[1] ?? 'literal').replace(/^['"]$/, 'literal');
+  const sink = m[3] ?? 'Set-Content';
+  return {
+    prefer: 'Write',
+    pattern: `${/^(?:Write-Output|Write-Host|echo)$/i.test(producer) ? producer : 'literal'} | ${sink}`,
+    message:
+      'Use Write instead of PowerShell Write-Output/Write-Host/echo (or string) piped into Set-Content/Out-File/Tee-Object.',
+  };
 }
 
 /**
