@@ -1047,6 +1047,8 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
     'Out-String',
     'Out-Host',
     'Out-Default',
+    'Out-Null',
+    'Out-Printer',
     'Format-Hex',
     'fhx',
     'Out-GridView',
@@ -1088,7 +1090,7 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
     prefer: 'Read',
     pattern: `${producer} | ${formatter}`,
     message:
-      'Use Read instead of PowerShell Get-Content/Get-Item/Get-FileHash piped into Format-*/Out-String/Out-Host/Select-Object/Convert*/Import-* for file dumps.',
+      'Use Read instead of PowerShell Get-Content/Get-Item/Get-FileHash piped into Format-*/Out-String/Out-Host/Out-Null/Out-Printer/Select-Object/Convert*/Import-* for file dumps.',
   };
 }
 

@@ -526,6 +526,8 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-FileHash src/a.ts | Format-List')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-FileHash src/a.ts | fl')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Content src/a.ts | Out-Host')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts | Out-Null')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts | Out-Printer')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-ChildItem src/a.ts | Format-List')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('gci notes.md | Select-Object *')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('certutil -hashfile src/a.ts SHA256')?.prefer).toBe('Read');
