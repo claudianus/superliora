@@ -60,24 +60,30 @@ import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../controllers
 import type { TUIState } from '../tui-state';
 import { IdleStageComponent } from '../components/chrome/idle-stage';
 import {
+  isLiveGoalChromeActive,
   isPureInputFrame,
   resolveTUIStateNativeFramePolicy,
   shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
+  shouldReuseTUIChromeCache,
   shouldUseAmbientDamageOnlyPaint,
+  tuiChromeEpoch,
   type TUIStateNativeFramePolicy,
 } from './native-frame-policy';
 
 export {
   frameInvalidationIntentToCause,
+  isLiveGoalChromeActive,
   isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
   shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
+  shouldReuseTUIChromeCache,
   shouldUseAmbientDamageOnlyPaint,
+  tuiChromeEpoch,
   type FrameInvalidationIntent,
   type TUIStateNativeFramePolicy,
   type TUIStateNativeFramePolicyInput,
@@ -415,22 +421,34 @@ export function createTUIStateNativeRenderCallback(
     // Chrome (header/footer/panels) only carries time-based content while the
     // agent is active — the activity pane's moon spinner and the footer's
     // pulsing model label both gate on `streamingPhase !== 'idle' || thinking`.
-    // When idle, chrome is fully static, so animation frames can reuse the
-    // cached chrome lines instead of re-rendering the whole chrome component
-    // tree every tick (the dominant per-frame cost once the transcript is long).
-    // The chromeEpoch guard forces a rebuild whenever activity starts or stops,
-    // so a stale spinner can never be reused (no frozen / incorrect chrome).
+    // A live goal also keeps chrome dynamic: footer goal badge + Todo Board
+    // monitor wall-clock / status pulse must re-render on content + animation
+    // ticks (footer 1s timer invalidates 'content' → cause 'request').
+    // When idle with no live goal, chrome is fully static, so animation frames
+    // can reuse the cached chrome lines instead of re-rendering the whole
+    // chrome tree every tick (the dominant per-frame cost once the transcript
+    // is long). The chromeEpoch guard forces a rebuild whenever activity or
+    // live-goal presence starts/stops so stale chrome is never reused.
+    const liveGoal = isLiveGoalChromeActive(state.appState.goal);
     const chromeStatic =
-      state.appState.streamingPhase === 'idle' && !state.appState.thinking;
-    const chromeEpoch = `${state.appState.streamingPhase}|${state.appState.thinking ? 1 : 0}`;
-    const reuseChrome =
-      chromeCache !== undefined &&
-      chromeCache.width === size.columns &&
-      chromeCache.stageWidth === stageProbe.stage.width &&
-      chromeCache.chromeEpoch === chromeEpoch &&
-      (pureInputFrame || chromeStatic)
-        ? chromeCache
-        : undefined;
+      state.appState.streamingPhase === 'idle' && !state.appState.thinking && !liveGoal;
+    const chromeEpoch = tuiChromeEpoch({
+      streamingPhase: state.appState.streamingPhase,
+      thinking: state.appState.thinking,
+      liveGoalId: liveGoal ? state.appState.goal!.goalId : undefined,
+      liveGoalStatus: liveGoal ? state.appState.goal!.status : undefined,
+    });
+    const reuseChrome = shouldReuseTUIChromeCache({
+      hasCache: chromeCache !== undefined,
+      widthMatches: chromeCache?.width === size.columns,
+      stageWidthMatches: chromeCache?.stageWidth === stageProbe.stage.width,
+      epochMatches: chromeCache?.chromeEpoch === chromeEpoch,
+      pureInputFrame,
+      chromeStatic,
+      causes: frame.causes,
+    })
+      ? chromeCache
+      : undefined;
     // Animation / idle-aquarium ticks must not full-clear. Request-only frames
     // while Jewel Tank is mounted (e.g. thinking footer) used to clear:true the
     // whole transcript — ~70% frame rewrite that tears into black horizontal bands

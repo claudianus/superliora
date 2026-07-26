@@ -69,6 +69,59 @@ export function isPureInputFrame(
 }
 
 /**
+ * Whether chrome (header/footer/todo/queue/btw/activity) lines may be reused
+ * from the previous frame instead of re-rendering containers.
+ *
+ * - Pure keystroke frames always reuse when geometry/epoch match.
+ * - Idle chrome with no live goal is static → animation ticks may reuse.
+ * - Live goals keep wall-clock / status pulse dynamic → do not treat as static.
+ * - Explicit content/manual requests (`request` / `manual`) always rebuild so
+ *   footer goal-timer ticks and setAppState patches are not trapped by cache.
+ */
+export function shouldReuseTUIChromeCache(options: {
+  readonly hasCache: boolean;
+  readonly widthMatches: boolean;
+  readonly stageWidthMatches: boolean;
+  readonly epochMatches: boolean;
+  readonly pureInputFrame: boolean;
+  readonly chromeStatic: boolean;
+  readonly causes: readonly NativeRenderCause[];
+}): boolean {
+  if (!options.hasCache || !options.widthMatches || !options.stageWidthMatches) {
+    return false;
+  }
+  if (!options.epochMatches) return false;
+  if (options.causes.includes('request') || options.causes.includes('manual')) {
+    return false;
+  }
+  return options.pureInputFrame || options.chromeStatic;
+}
+
+/** Activity + live-goal signature used to invalidate chrome cache. */
+export function tuiChromeEpoch(options: {
+  readonly streamingPhase: string;
+  readonly thinking: boolean;
+  readonly liveGoalId?: string;
+  readonly liveGoalStatus?: string;
+}): string {
+  const goalPart =
+    options.liveGoalId !== undefined && options.liveGoalStatus !== undefined
+      ? `${options.liveGoalId}|${options.liveGoalStatus}`
+      : '';
+  return `${options.streamingPhase}|${options.thinking ? 1 : 0}|${goalPart}`;
+}
+
+export function isLiveGoalChromeActive(
+  goal: { readonly status: string } | null | undefined,
+): boolean {
+  return (
+    goal !== null &&
+    goal !== undefined &&
+    (goal.status === 'active' || goal.status === 'paused' || goal.status === 'blocked')
+  );
+}
+
+/**
  * Whether present() must re-emit CUP (cursor position).
  *
  * Independent of force/clear:

@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
   frameInvalidationIntentToCause,
+  isLiveGoalChromeActive,
   isPureInputFrame,
   isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
   shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
+  shouldReuseTUIChromeCache,
   shouldUseAmbientDamageOnlyPaint,
+  tuiChromeEpoch,
 } from '#/tui/utils/native-frame-policy';
 
 describe('native-frame-policy', () => {
@@ -173,6 +176,58 @@ describe('native-frame-policy', () => {
     });
 
     expect(policy.clearTranscriptSelection).toBe(true);
+  });
+
+  it('reuses chrome on pure input / idle static, but not on request with a live goal', () => {
+    const base = {
+      hasCache: true,
+      widthMatches: true,
+      stageWidthMatches: true,
+      epochMatches: true,
+    };
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        pureInputFrame: true,
+        chromeStatic: false,
+        causes: ['input'],
+      }),
+    ).toBe(true);
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        pureInputFrame: false,
+        chromeStatic: true,
+        causes: ['animation'],
+      }),
+    ).toBe(true);
+    // Footer goal timer → content invalidate → request must rebuild chrome.
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        pureInputFrame: false,
+        chromeStatic: false,
+        causes: ['request'],
+      }),
+    ).toBe(false);
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        pureInputFrame: false,
+        chromeStatic: true,
+        causes: ['request'],
+      }),
+    ).toBe(false);
+    expect(isLiveGoalChromeActive({ status: 'active' })).toBe(true);
+    expect(isLiveGoalChromeActive({ status: 'complete' })).toBe(false);
+    expect(
+      tuiChromeEpoch({
+        streamingPhase: 'idle',
+        thinking: false,
+        liveGoalId: 'g1',
+        liveGoalStatus: 'active',
+      }),
+    ).toBe('idle|0|g1|active');
   });
 
   it('treats pure keystroke frames as incremental (no force/clear) while forceCursor stays on', () => {
