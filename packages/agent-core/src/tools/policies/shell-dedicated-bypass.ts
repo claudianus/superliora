@@ -400,6 +400,27 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read for file contents instead of shell dump utilities.',
     };
   }
+  // iconv whole-file re-encode dumps: iconv -f enc -t enc file
+  // stdin forms (`iconv -f … -t …` with no path / `-`) stay allowed.
+  // Options take values (`-f utf-8`), so strip flag+value pairs before counting paths.
+  if (/^(?:\/usr\/bin\/)?iconv\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?iconv\b/, '')
+      .replace(/(?:^|\s)-(?:f|t|c|o|l|s)\s+\S+/g, ' ')
+      .replace(/(?:^|\s)--(?:from-code|to-code)=[^\s]+/g, ' ')
+      .replace(/(?:^|\s)--(?:from-code|to-code)\s+\S+/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'iconv file',
+        message: 'Use Read instead of iconv for whole-file content dumps.',
+      };
+    }
+  }
 
   // jq/yq whole-file pretty-print / dump (no pipeline, single path arg)
   if (

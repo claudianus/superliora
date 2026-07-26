@@ -18,6 +18,9 @@ import { basename } from 'pathe';
 
 const SENSITIVE_BASENAMES = new Set<string>([
   '.env',
+  // dotenv-like secret dump often left in cwd (`.envrc` stays allowed — common
+  // direnv config that is not always secrets; covered only when named secrets.env).
+  'secrets.env',
   'id_rsa',
   'id_ed25519',
   'id_ecdsa',

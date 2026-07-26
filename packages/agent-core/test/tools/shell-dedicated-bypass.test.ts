@@ -45,6 +45,11 @@ describe('detectShellDedicatedBypass', () => {
     // look WORD FILE prefers Grep; bare look (system dict) stays allowed.
     expect(detectShellDedicatedBypass('look foo words.txt')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('look foo')).toBeUndefined();
+    // iconv whole-file re-encode dumps prefer Read; stdin forms stay allowed.
+    expect(detectShellDedicatedBypass('iconv -f utf-8 -t ascii//TRANSLIT notes.txt')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass('iconv -f utf-8 -t ascii//TRANSLIT')).toBeUndefined();
   });
 
   it('blocks sed -i and grep/rg/find', () => {

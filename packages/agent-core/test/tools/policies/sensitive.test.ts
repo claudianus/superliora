@@ -49,6 +49,8 @@ describe('isSensitiveFile', () => {
       'client_secret.json',
       'secrets.yaml',
       'secrets.json',
+      'secrets.env',
+      '/home/user/secrets.env',
       '/home/user/.azure/accessTokens.json',
       '/home/user/.azure/msal_token_cache.json',
       '/home/user/.pulumi/credentials.json',

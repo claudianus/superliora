@@ -213,6 +213,23 @@ export function matchExplicitResumePhrase(
     'продолжить',
     'давай дальше',
     'продолжай пожалуйста',
+    // TR / PL / NL / NO short resume phrases
+    'devam',
+    'devam et',
+    'devam edin',
+    'devam et lütfen',
+    'kontynuuj',
+    'kontynuuj proszę',
+    'dalej',
+    'kontynuować',
+    'voortzetten',
+    'ga door',
+    'ga verder',
+    'doorgaan',
+    'fortsett',
+    'fortsett vennligst',
+    'fortsätt',
+    'fortsätt gärna',
   ]);
   if (exact.has(normalized)) {
     return {
@@ -277,7 +294,7 @@ function matchResumePrefixWithSteering(normalized: string): boolean {
 
   // Romance / Germanic / Slavic short prefixes (word-boundary safe where Latin).
   const other =
-    /^(por\s+favor\s+)?(continuar|continúa|continua|sigue(\s+adelante)?|reanudar|reanuda|weiter(\s+machen)?|weitermachen|fortsetzen|bitte\s+(fortsetzen|weiter)|continuer|continuez|reprendre|reprends|continua\s+per\s+favore|riprendi|riprendere|prosseguir|continue\s+por\s+favor|retomar|продолжай|продолжить|давай\s+дальше)(\s+(por\s+favor|пожалуйста|please))?([,.:;–—-]|\s+)/iu;
+    /^(por\s+favor\s+)?(continuar|continúa|continua|sigue(\s+adelante)?|reanudar|reanuda|weiter(\s+machen)?|weitermachen|fortsetzen|bitte\s+(fortsetzen|weiter)|continuer|continuez|reprendre|reprends|continua\s+per\s+favore|riprendi|riprendere|prosseguir|continue\s+por\s+favor|retomar|продолжай|продолжить|давай\s+дальше|devam(\s+et(in)?)?|kontynuuj|dalej|voortzetten|ga\s+(door|verder)|doorgaan|fortsett|fortsätt)(\s+(por\s+favor|пожалуйста|please|lütfen|proszę|vennligst|gärna))?([,.:;–—-]|\s+)/iu;
   if (other.test(normalized)) {
     const rest = normalized.replace(other, '').trim();
     return rest.length >= 2 && !/^(please|por favor|пожалуйста)$/iu.test(rest);
