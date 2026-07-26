@@ -327,6 +327,7 @@ Swarm decision: ENGAGE
               title: 'Broken verify',
               stage: 'verify',
               status: 'failed',
+              verificationSummary: 'timeout after 120s',
             },
             {
               id: 'node-int',
@@ -362,6 +363,8 @@ Swarm decision: ENGAGE
     expect(envelope).toContain('failed_workgraph_nodes:');
     expect(envelope).toContain('node-fail');
     expect(envelope).toContain('Failed nodes block UpdateGoal(complete)');
+    expect(envelope).toMatch(/node-fail \[timeout\]:/);
+    expect(envelope).toMatch(/Increase timeout|split|timeout/i);
     expect(envelope).toContain('needs_integration_workgraph_nodes:');
     expect(envelope).toContain('node-int');
     expect(envelope).toContain('blocked_workgraph_nodes:');

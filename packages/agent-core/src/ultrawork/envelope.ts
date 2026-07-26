@@ -6,6 +6,7 @@ import {
   suggestNextActions,
 } from './recovery-prompt';
 import {
+  analyzeFailedNodes,
   countResumeCyclesFromHistory,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
@@ -150,6 +151,9 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     lines.push(
       `verification_gaps: ${formatVerificationGapSummary(verificationGaps)}${verificationGaps.length > 4 ? ', …' : ''}`,
     );
+    lines.push(
+      'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
+    );
   }
 
   const researchPackCount = snapshot.run.researchRun?.evidencePack !== undefined ? 1 : 0;
@@ -221,6 +225,10 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     lines.push(
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
     );
+    const failedAnalysis = analyzeFailedNodes(snapshot.run.workGraph);
+    for (const { node, category, guidance } of failedAnalysis.slice(0, 2)) {
+      lines.push(`- ${node.id} [${category}]: ${guidance}`);
+    }
   }
   if (needsIntegrationNodes.length > 0) {
     lines.push(
