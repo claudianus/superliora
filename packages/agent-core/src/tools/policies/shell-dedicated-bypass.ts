@@ -853,7 +853,38 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
  * Skips: bare pbcopy (stdin from pipeline), multi-arg real shell work.
  */
 function matchClipboardFileBypass(command: string): ShellDedicatedBypassHit | undefined {
+  // PowerShell clipboard file I/O first — idiomatic forms often use pipelines
+  // (`Get-Clipboard | Set-Content out.txt`) which the composition guard would skip.
   if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/^(?:Set-Clipboard|scb)\b/i.test(command)) {
+    // Set-Clipboard -Path / -Value (Get-Content file) / < file
+    if (
+      /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(command) ||
+      /(?:^|\s)<\s*\S+\s*$/.test(command) ||
+      /\(\s*(?:Get-Content|gc)\b/i.test(command)
+    ) {
+      return {
+        prefer: 'Read',
+        pattern: 'Set-Clipboard file',
+        message: 'Use Read instead of PowerShell Set-Clipboard for file contents.',
+      };
+    }
+  }
+  if (/^(?:Get-Clipboard|gcb)\b/i.test(command)) {
+    // Get-Clipboard | Set-Content / Out-File / > path
+    if (
+      /(?:^|\s)>\s*\S+\s*$/.test(command) ||
+      /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(command) ||
+      /\b(?:Set-Content|Out-File|Add-Content|sc|ac)\b/i.test(command)
+    ) {
+      return {
+        prefer: 'Write',
+        pattern: 'Get-Clipboard file',
+        message: 'Use Write instead of PowerShell Get-Clipboard for file dumps.',
+      };
+    }
+  }
+
   if (/[|;&`\n]/.test(command)) return undefined;
   if (/\$\(|\$\{/.test(command)) return undefined;
 

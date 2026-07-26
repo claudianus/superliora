@@ -36,6 +36,18 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('xsel notes.md')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('cat src/a.ts | pbcopy')).toBeUndefined();
     expect(detectShellDedicatedBypass('pbcopy')).toBeUndefined();
+    // PowerShell clipboard file I/O (Unix pbcopy/pbpaste counterparts)
+    expect(detectShellDedicatedBypass('Set-Clipboard -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('scb -LiteralPath src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Set-Clipboard -Value (Get-Content src/a.ts)')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass('Get-Clipboard > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Get-Clipboard | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('gcb | Out-File notes.md')?.prefer).toBe('Write');
+    // bare / interactive clipboard stays allowed
+    expect(detectShellDedicatedBypass('Get-Clipboard')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Set-Clipboard -Value hello')).toBeUndefined();
     // sort/uniq/shuf single-file dumps prefer Read; multi-file / stdin stay allowed.
     expect(detectShellDedicatedBypass('sort src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('uniq notes.txt')?.prefer).toBe('Read');
