@@ -273,7 +273,11 @@ function applyShellPatterns(text: string, command: string): string {
     /\bdocker\s+(?:ps|logs|compose)\b/u.test(command) ||
     /\bpodman\s+(?:ps|logs|compose)\b/u.test(command) ||
     /\bnerdctl\s+(?:ps|logs|compose)\b/u.test(command) ||
-    /\b(?:minikube|kind)\s+(?:logs|export)\b/u.test(command)
+    /\b(?:minikube|kind)\s+(?:logs|export)\b/u.test(command) ||
+    /\bjournalctl\b/u.test(command) ||
+    /\bsystemctl\s+(?:status|show|list-units|list-unit-files)\b/u.test(command) ||
+    /^(?:\/usr\/bin\/)?dmesg(?:\s|$)/u.test(command) ||
+    /\blogcat\b/u.test(command)
   ) {
     next = compressDockerOutput(next);
   }

@@ -1180,6 +1180,22 @@ function matchGlobLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Glob for recursive file-name search instead of where /r.',
     };
   }
+  // macOS Spotlight / Unix locate name indexes → Glob (workspace-scoped, capped).
+  // `mdfind -onlyin` / `locate pattern` whole-command dumps flood context.
+  if (/^(?:\/usr\/bin\/)?mdfind(?:\s|$)/.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'mdfind',
+      message: 'Use Glob for workspace file-name search instead of mdfind.',
+    };
+  }
+  if (/^(?:\/usr\/bin\/)?locate(?:\s|$)/.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'locate',
+      message: 'Use Glob for workspace file-name search instead of locate.',
+    };
+  }
   // ls *.ts only — ls of a directory is often legitimate navigation; only block `ls` with glob chars?
   // Too noisy — skip bare ls.
   return undefined;

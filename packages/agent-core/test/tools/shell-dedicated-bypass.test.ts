@@ -97,6 +97,12 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('gci -Recurse -Filter *.ts')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('dir /s /b *.ts')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('where /r . *.ts')?.prefer).toBe('Glob');
+    // macOS Spotlight / Unix locate name search → Glob.
+    expect(detectShellDedicatedBypass('mdfind -name "*.ts"')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('mdfind -onlyin . kMDItemFSName == "*.ts"')?.prefer).toBe(
+      'Glob',
+    );
+    expect(detectShellDedicatedBypass('locate "*.ts"')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('Get-ChildItem src')).toBeUndefined();
     expect(detectShellDedicatedBypass('dir')).toBeUndefined();
     expect(detectShellDedicatedBypass('where.exe python')).toBeUndefined();
