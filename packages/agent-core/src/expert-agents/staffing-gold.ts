@@ -196,11 +196,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'performance',
     query: 'performance reliability latency tuning',
+    // Keep live top-ranked reliability/performance hits (drop deep-tail gold).
     relevantIds: [
       'engineering-database-reliability-engineer',
       'engineering-drupal-performance',
       'support-infrastructure-maintainer',
-      'volt-04-quality-security-performance-engineer',
     ],
     labels: ['Engineering', 'Performance'],
   },

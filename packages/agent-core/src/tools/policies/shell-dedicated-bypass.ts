@@ -628,6 +628,19 @@ function matchEditLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Edit for in-place text changes instead of perl -pi/-i.',
     };
   }
+  // ruby -i / -i.bak -pe in-place edits
+  if (
+    /^(?:\/usr\/bin\/)?ruby\s+-[A-Za-z]*i[A-Za-z]*(?:\S*)?(?:\s+-[A-Za-z]*p|\s+-pe|\s+-p\b|\s+-e\b)/.test(
+      command,
+    ) ||
+    /^(?:\/usr\/bin\/)?ruby\s+-i(?:\.\S+)?(?:\s|$)/.test(command)
+  ) {
+    return {
+      prefer: 'Edit',
+      pattern: 'ruby -i',
+      message: 'Use Edit for in-place text changes instead of ruby -i.',
+    };
+  }
   return undefined;
 }
 
