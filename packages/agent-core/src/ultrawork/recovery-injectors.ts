@@ -15,6 +15,8 @@ import {
 import type { UltraworkPlanRecoveryContext } from './types';
 import {
   collectVerificationGapNodes,
+  formatEvidenceHardGateNextActions,
+  formatEvidenceHardGateSummary,
   formatVerificationGapSummary,
   suggestNextActions,
 } from './recovery-prompt';
@@ -194,6 +196,16 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     lines.push(
       'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
+  }
+  {
+    const evidenceHardGateSummary = formatEvidenceHardGateSummary(run.workGraph?.nodes);
+    if (evidenceHardGateSummary !== undefined) {
+      lines.push(`Evidence hard-gate nodes: ${evidenceHardGateSummary}`);
+      lines.push(
+        ...formatEvidenceHardGateNextActions(run.workGraph?.nodes),
+        'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
+      );
+    }
   }
   if (pendingNodes.length > 0) {
     lines.push(
@@ -379,6 +391,16 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     lines.push(
       'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
+  }
+  {
+    const evidenceHardGateSummary = formatEvidenceHardGateSummary(run.workGraph?.nodes);
+    if (evidenceHardGateSummary !== undefined) {
+      lines.push(`Evidence hard-gate nodes: ${evidenceHardGateSummary}`);
+      lines.push(
+        ...formatEvidenceHardGateNextActions(run.workGraph?.nodes),
+        'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
+      );
+    }
   }
   if (pendingNodes.length > 0) {
     lines.push(

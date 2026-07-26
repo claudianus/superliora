@@ -1901,6 +1901,44 @@ describe('suggestNextActions fallbacks', () => {
     expect(actions.some((a) => a.includes('verify=failed'))).toBe(true);
   });
 
+  it('surfaces evidence hard-gate next_actions for done-without-evidence nodes', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const actions = suggestNextActions({
+      id: 'run-evidence-gate',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'verify',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-evidence-gate',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-evidence-gate:work_graph',
+        runId: 'run-evidence-gate',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'ac_gate',
+            title: 'AC with missing evidence',
+            kind: 'acceptance_criterion',
+            stage: 'verify',
+            status: 'done',
+            requiredEvidence: ['vitest recovery'],
+            evidenceIds: [],
+          },
+        ],
+      },
+    } as UltraworkRun);
+    expect(actions.some((a) => /Close evidence hard-gate on node\(s\)/i.test(a))).toBe(true);
+    expect(actions.some((a) => /ac_gate/.test(a) && /requiredEvidence: vitest recovery/.test(a))).toBe(
+      true,
+    );
+  });
+
   it('includes verification-gap nodes in post-swarm injection', () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
     agent.ultrawork.create({
@@ -1951,6 +1989,58 @@ describe('suggestNextActions fallbacks', () => {
     expect(text).toContain('node-gap');
     expect(text).toContain('missing=ev-runtime');
     expect(text).toContain('attach requiredEvidence');
+  });
+
+  it('includes evidence hard-gate nodes in post-swarm injection', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    agent.ultrawork.create({
+      id: 'run-post-swarm-evidence-gate',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-post-swarm-evidence-gate',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-post-swarm-evidence-gate:work_graph',
+          runId: 'run-post-swarm-evidence-gate',
+          rootGoal: 'Ship feature',
+          nodes: [
+            {
+              id: 'ac_gate',
+              title: 'AC missing evidence',
+              kind: 'acceptance_criterion',
+              stage: 'verify',
+              status: 'done',
+              requiredEvidence: ['vitest recovery'],
+              evidenceIds: [],
+            },
+          ],
+        },
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostSwarmContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_swarm>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('Evidence hard-gate nodes');
+    expect(text).toContain('ac_gate');
+    expect(text).toContain('Close evidence hard-gate');
+    expect(text).toContain('requiredEvidence: vitest recovery');
   });
 
   it('flags ownerless running WorkGraph nodes in next actions', async () => {

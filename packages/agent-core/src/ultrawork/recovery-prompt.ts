@@ -4,6 +4,7 @@
 
 import type { UltraworkRun, WorkGraphNode } from '@superliora/protocol';
 
+import { applyEvidenceHardGate } from '../session/swarm-evidence-gate';
 import {
   analyzeFailedNodes,
   countResumeCyclesFromHistory,
@@ -39,6 +40,48 @@ export function collectVerificationGapNodes(
     }
     return false;
   });
+}
+
+/**
+ * Match completion-audit evidence hard-gate next_actions formatting.
+ * Surfaces done-without-evidence (or policy missing requiredEvidence) nodes so
+ * recovery injectors / envelopes / next_actions share one repair cue.
+ */
+export function formatEvidenceHardGateNextActions(
+  nodes: readonly WorkGraphNode[] | undefined,
+): readonly string[] {
+  if (nodes === undefined || nodes.length === 0) return [];
+  const { violations } = applyEvidenceHardGate(nodes);
+  if (violations.length === 0) return [];
+  const gateNodes = violations.slice(0, 3).map((v) => {
+    const node = nodes.find((n) => n.id === v.nodeId);
+    const required =
+      node?.requiredEvidence?.filter((id) => id.length > 0).slice(0, 3).join(', ') ?? '';
+    const missing = required.length > 0 ? `; requiredEvidence: ${required}` : '';
+    return `${v.nodeId}${missing}`;
+  });
+  return [
+    `Close evidence hard-gate on node(s): ${gateNodes.join(', ')}${violations.length > 3 ? ', …' : ''} — attach matching evidenceIds (and verificationSummary when useful), then set status=done only after checks.`,
+  ];
+}
+
+/** Compact body/envelope summary of evidence hard-gate violations. */
+export function formatEvidenceHardGateSummary(
+  nodes: readonly WorkGraphNode[] | undefined,
+): string | undefined {
+  if (nodes === undefined || nodes.length === 0) return undefined;
+  const { violations } = applyEvidenceHardGate(nodes);
+  if (violations.length === 0) return undefined;
+  const ids = violations
+    .slice(0, 4)
+    .map((v) => {
+      const node = nodes.find((n) => n.id === v.nodeId);
+      const required =
+        node?.requiredEvidence?.filter((id) => id.length > 0).slice(0, 2).join(',') ?? '';
+      return required.length > 0 ? `${v.nodeId}[${required}]` : v.nodeId;
+    })
+    .join(', ');
+  return `${ids}${violations.length > 4 ? ', …' : ''}`;
 }
 
 export function formatVerificationGapSummary(
@@ -462,6 +505,8 @@ export function suggestNextActions(
         .join(', ')}${verificationGaps.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
     );
   }
+  // Match completion-audit evidence hard-gate next_actions for recovery surfaces.
+  actions.push(...formatEvidenceHardGateNextActions(run.workGraph?.nodes));
   // Promote circuit-break signals into next_actions (not body-only) so injectors
   // and envelopes do not keep recommending "Resume node" during oscillation.
   // Skip blocked/ownerless already handled above — only owned running stuck remain.

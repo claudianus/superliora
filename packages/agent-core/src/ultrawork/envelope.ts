@@ -2,6 +2,8 @@ import type { Agent } from '../agent';
 import { buildUltraworkResumeCursor } from './recovery';
 import {
   collectVerificationGapNodes,
+  formatEvidenceHardGateNextActions,
+  formatEvidenceHardGateSummary,
   formatVerificationGapSummary,
   suggestNextActions,
 } from './recovery-prompt';
@@ -154,6 +156,16 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     lines.push(
       'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
+  }
+  {
+    const evidenceHardGateSummary = formatEvidenceHardGateSummary(snapshot.run.workGraph?.nodes);
+    if (evidenceHardGateSummary !== undefined) {
+      lines.push(`evidence_hard_gate: ${evidenceHardGateSummary}`);
+      lines.push(
+        ...formatEvidenceHardGateNextActions(snapshot.run.workGraph?.nodes),
+        'Do not call UpdateGoal(complete) while evidence hard gate remaps done nodes to blocked.',
+      );
+    }
   }
 
   const researchPackCount = snapshot.run.researchRun?.evidencePack !== undefined ? 1 : 0;
