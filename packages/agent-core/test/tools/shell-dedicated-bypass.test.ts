@@ -166,12 +166,14 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Select-Object -InputObject (Get-Content a.ts)')?.prefer).toBe(
       'Read',
     );
-    // pure Get-Content path | Select-Object dumps prefer Read
+    // pure Get-Content/Get-Item path | Select-Object dumps prefer Read
     expect(detectShellDedicatedBypass('Get-Content a.ts | Select-Object -First 5')?.prefer).toBe(
       'Read',
     );
-    // real process left-hand side stays allowed
-    expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')?.prefer).toBe(
+      'Read',
+    );
+    // bare Select-Object stays allowed
     expect(detectShellDedicatedBypass('Select-Object -First 5')).toBeUndefined();
     // Format-Hex / Get-FileHash / Select-Xml path dumps → Read; pure Get-Content pipes prefer Read.
     expect(detectShellDedicatedBypass('Format-Hex -Path src/a.bin')?.prefer).toBe('Read');
@@ -492,11 +494,19 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Item src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('gi packages/foo/bar.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Item .\\src\\a.ts')?.prefer).toBe('Read');
-    // directory navigation and filters stay allowed
+    // pure Get-Item/Get-FileHash path | Format-*/Select-Object dumps prefer Read
+    expect(detectShellDedicatedBypass('Get-Item src/a.ts | Format-List')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object *')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-FileHash src/a.ts | Format-List')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-FileHash src/a.ts | fl')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts | Out-Host')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('certutil -hashfile src/a.ts SHA256')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('certutil.exe -hashfile notes.md MD5')?.prefer).toBe('Read');
+    // directory navigation and multi-file/process work stay allowed
     expect(detectShellDedicatedBypass('Get-Item .')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Item src')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Item -Recurse src')).toBeUndefined();
-    expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-ChildItem | Get-FileHash')).toBeUndefined();
   });
 
   it('blocks PowerShell Clear-Content / New-Item File / Copy-Item writes', () => {

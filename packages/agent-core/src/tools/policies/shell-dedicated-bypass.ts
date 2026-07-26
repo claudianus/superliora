@@ -1028,12 +1028,15 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
 
   // Longer/more-specific cmdlets first so `select` does not steal Select-Xml.
+  const producerRe = 'Get-Content|gc|type|Get-Item|gi|Get-FileHash';
   const sinkRe = [
     'Format-List',
     'Format-Table',
     'Format-Wide',
     'Format-Custom',
     'Out-String',
+    'Out-Host',
+    'Out-Default',
     'Format-Hex',
     'fhx',
     'Out-GridView',
@@ -1055,7 +1058,7 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
     'fw',
   ].join('|');
   const m = new RegExp(
-    `^(Get-Content|gc|type)\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+    `^(${producerRe})\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
     'i',
   ).exec(command);
   if (m === null) return undefined;
@@ -1069,12 +1072,13 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
     /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(leftArgs);
   if (!hasPath) return undefined;
 
+  const producer = m[1] ?? 'Get-Content';
   const formatter = m[3] ?? 'Format-List';
   return {
     prefer: 'Read',
-    pattern: `Get-Content | ${formatter}`,
+    pattern: `${producer} | ${formatter}`,
     message:
-      'Use Read instead of PowerShell Get-Content piped into Format-*/Out-String/Format-Hex/Out-GridView/Select-Object/Convert*/Import-* for file dumps.',
+      'Use Read instead of PowerShell Get-Content/Get-Item/Get-FileHash piped into Format-*/Out-String/Out-Host/Select-Object/Convert*/Import-* for file dumps.',
   };
 }
 
@@ -1582,6 +1586,18 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       prefer: 'Read',
       pattern,
       message: `Use Read instead of PowerShell ${pattern} for file content dumps.`,
+    };
+  }
+  // Windows certutil -hashfile single-path dumps → Read (real multi-arg work stays allowed).
+  if (
+    /^(?:certutil)(?:\.exe)?\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /\s-hashfile\s+\S+/i.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'certutil -hashfile',
+      message: 'Use Read (or a dedicated hash tool via package scripts) instead of certutil -hashfile for file dumps.',
     };
   }
   // ConvertTo-Html path dumps → Read/Write (pipelines stay allowed).
