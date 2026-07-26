@@ -1711,6 +1711,44 @@ describe('suggestNextActions fallbacks', () => {
     expect(repair).toMatch(/increase timeout|retry with longer budget|timeout/i);
   });
 
+  it('promotes owned stuck running nodes into next_actions', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const actions = suggestNextActions({
+      id: 'run-stuck-owned',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-stuck-owned',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-stuck-owned:work_graph',
+        runId: 'run-stuck-owned',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'node-owned-stuck',
+            title: 'Owned but stuck',
+            stage: 'integrate',
+            status: 'running',
+            ownerExpertId: 'expert-1',
+          },
+        ],
+      },
+    } as UltraworkRun);
+
+    expect(actions.some((a) => /Circuit-break stuck WorkGraph/i.test(a))).toBe(true);
+    expect(actions.some((a) => a.includes('node-owned-stuck[running]'))).toBe(true);
+    // ownerless path must not fire for owned nodes
+    expect(actions.some((a) => /orphan running/i.test(a))).toBe(false);
+    expect(actions.length).toBeLessThanOrEqual(4);
+  });
+
   it('fills a defensive fallback when stage guidance is empty', async () => {
     const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
     // Force an empty path by skipping interrupt/plan context and using a stage

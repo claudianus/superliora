@@ -464,6 +464,23 @@ export function suggestNextActions(
   }
   // Promote circuit-break signals into next_actions (not body-only) so injectors
   // and envelopes do not keep recommending "Resume node" during oscillation.
+  // Skip blocked/ownerless already handled above — only owned running stuck remain.
+  const stuckNodes = detectStuckWorkGraphNodes(run.workGraph).filter((node) => {
+    if (node.status === 'blocked') return false;
+    if (node.status !== 'running') return false;
+    const hasOwner =
+      (node.ownerExpertId !== undefined && node.ownerExpertId.length > 0) ||
+      (node.ownerAgentId !== undefined && node.ownerAgentId.length > 0);
+    return hasOwner;
+  });
+  if (stuckNodes.length > 0) {
+    actions.push(
+      `Circuit-break stuck WorkGraph node(s): ${stuckNodes
+        .slice(0, 3)
+        .map((node) => `${node.id}[${node.status}]`)
+        .join(', ')}${stuckNodes.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
+    );
+  }
   const resumeCycles = countResumeCyclesFromHistory(run);
   if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
     actions.push(
