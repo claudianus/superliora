@@ -821,16 +821,21 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
     }
   }
 
-  // node/nodejs -e "...readFileSync('path')..."
-  if (/^(?:\/usr\/bin\/)?node(?:js)?\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
+  // node/nodejs -e / -p "...readFileSync('path')..."
+  // `-p` is print mode (same one-liner surface as `-e` for agent file dumps).
+  if (
+    /^(?:\/usr\/bin\/)?node(?:js)?\b/.test(command) &&
+    /(?:^|\s)-(?:e|p)(?:\s|$)/.test(command)
+  ) {
     if (/readFile(?:Sync)?\s*\(/.test(command) || /promises\.readFile\s*\(/.test(command)) {
       if (/writeFile(?:Sync)?\s*\(/.test(command) || /appendFile(?:Sync)?\s*\(/.test(command)) {
         return undefined;
       }
+      const flag = /(?:^|\s)-p(?:\s|$)/.test(command) ? '-p' : '-e';
       return {
         prefer: 'Read',
-        pattern: 'node -e readFile',
-        message: 'Use Read or LioraRead instead of node -e readFile for file contents.',
+        pattern: `node ${flag} readFile`,
+        message: `Use Read or LioraRead instead of node ${flag} readFile for file contents.`,
       };
     }
   }
@@ -1691,7 +1696,7 @@ function isSingleUnixHashFileDump(command: string): boolean {
   // Strip the utility name (+ optional busybox / absolute path prefix).
   const rest = command
     .replace(
-      /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:md5sum|sha1sum|sha224sum|sha256sum|sha384sum|sha512sum|shasum|cksum)\b/i,
+      /^(?:\/(?:usr\/bin|sbin|bin)\/)?(?:busybox\s+)?(?:g?md5sum|g?sha1sum|g?sha224sum|g?sha256sum|g?sha384sum|g?sha512sum|shasum|cksum)\b/i,
       '',
     )
     .trim();
@@ -1713,6 +1718,62 @@ function isSingleUnixHashFileDump(command: string): boolean {
   if (parts.length !== 1) return false;
   const path = parts[0] ?? '';
   // Require a path-like token (has extension or path separators).
+  return isPathLikeHashOperand(path);
+}
+
+/**
+ * macOS / BSD `md5` (distinct from coreutils `md5sum`).
+ * Allows quiet/raw flags: `md5 -q file`, `md5 -r file`.
+ */
+function isSingleMacMd5FileDump(command: string): boolean {
+  const rest = command.replace(/^(?:\/(?:usr\/bin|sbin|bin)\/)?md5\b/i, '').trim();
+  if (rest.length === 0) return false;
+  // Reject string-hash mode (`md5 -s 'hello'`) and multi-file dumps.
+  if (/(?:^|\s)-(?:s|string)(?:=\S+|\s+\S+)/i.test(rest)) return false;
+  let args = rest
+    .replace(/(?:^|\s)-(?:q|r|p|x|t)(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (args.length === 0) return false;
+  if (/[*?\[{]/.test(args)) return false;
+  const parts = args.split(/\s+/).filter((part) => part.length > 0);
+  if (parts.length !== 1) return false;
+  return isPathLikeHashOperand(parts[0] ?? '');
+}
+
+/**
+ * `plutil -p Info.plist` or `plutil -convert xml1 -o - Info.plist` (stdout dump).
+ * In-place convert without `-o -` and multi-file args stay allowed.
+ */
+function isSinglePlutilFileDump(command: string): boolean {
+  // Pretty-print dump.
+  if (/^(?:\/usr\/bin\/)?plutil\s+-p\b/.test(command)) {
+    const rest = command.replace(/^(?:\/usr\/bin\/)?plutil\s+-p\b/i, '').trim();
+    if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+    const parts = rest.split(/\s+/).filter((part) => part.length > 0);
+    if (parts.length !== 1) return false;
+    return isPathLikeHashOperand(parts[0] ?? '');
+  }
+  // Convert to stdout: must include `-o -` (or `--output -`) and one path.
+  if (
+    /^(?:\/usr\/bin\/)?plutil\s+-convert\b/.test(command) &&
+    /(?:^|\s)-(?:o|output)\s+-(?:\s|$)/.test(command)
+  ) {
+    let rest = command.replace(/^(?:\/usr\/bin\/)?plutil\s+-convert\s+\S+/i, '').trim();
+    rest = rest
+      .replace(/(?:^|\s)-(?:o|output)\s+-?(?=\s|$)/gi, ' ')
+      .replace(/(?:^|\s)--\s+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+    const parts = rest.split(/\s+/).filter((part) => part.length > 0 && !part.startsWith('-'));
+    if (parts.length !== 1) return false;
+    return isPathLikeHashOperand(parts[0] ?? '');
+  }
+  return false;
+}
+
+function isPathLikeHashOperand(path: string): boolean {
   return (
     /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)/.test(path) ||
     /\.\w{1,8}$/.test(path)
@@ -1720,10 +1781,12 @@ function isSingleUnixHashFileDump(command: string): boolean {
 }
 
 /**
- * True when openssl dgst is hashing exactly one concrete path (not signing/verify/out).
+ * True when openssl dgst / openssl md5|sha* is hashing exactly one concrete path.
  */
 function isSingleOpensslDgstFileDump(command: string): boolean {
-  const rest = command.replace(/^(?:\/usr\/bin\/)?openssl\s+dgst\b/i, '').trim();
+  const rest = command
+    .replace(/^(?:\/usr\/bin\/)?openssl\s+(?:dgst|md5|sha1|sha256|sha512)\b/i, '')
+    .trim();
   if (rest.length === 0) return false;
   // Multi-arg real shell work (write signature, HMAC, custom out file).
   if (/(?:^|\s)-(?:out|hmac|mac|macopt|signature|keyform|passin)(?:=\S+|\s+\S+)/i.test(rest)) {
@@ -1738,10 +1801,7 @@ function isSingleOpensslDgstFileDump(command: string): boolean {
   const parts = args.split(/\s+/).filter((part) => part.length > 0);
   if (parts.length !== 1) return false;
   const path = parts[0] ?? '';
-  return (
-    /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)/.test(path) ||
-    /\.\w{1,8}$/.test(path)
-  );
+  return isPathLikeHashOperand(path);
 }
 
 function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
@@ -1837,8 +1897,9 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
   }
   // Unix hash dumps of a single path → Read (parity with Get-FileHash / certutil).
   // Skips: multi-file args, globs, pipelines, check mode, openssl without a path.
+  // Includes coreutils names plus g-prefixed Homebrew ports (gsha256sum, gmd5sum).
   if (
-    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:md5sum|sha1sum|sha224sum|sha256sum|sha384sum|sha512sum|shasum|cksum)\b/.test(
+    /^(?:\/(?:usr|sbin|bin)\/)?(?:busybox\s+)?(?:g?md5sum|g?sha1sum|g?sha224sum|g?sha256sum|g?sha384sum|g?sha512sum|shasum|cksum)\b/.test(
       command,
     ) &&
     !/\s\|/.test(command) &&
@@ -1855,8 +1916,34 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       };
     }
   }
+  // macOS / BSD `md5` (not md5sum) single-file dump → Read.
+  // `md5 -q file`, `md5 -r file`, `/sbin/md5 file`. Multi-file / stdin stay allowed.
   if (
-    /^(?:\/usr\/bin\/)?openssl\s+dgst\b/.test(command) &&
+    /^(?:\/(?:usr\/bin|sbin|bin)\/)?md5\b/.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\bmd5sum\b/.test(command)
+  ) {
+    if (isSingleMacMd5FileDump(command)) {
+      return {
+        prefer: 'Read',
+        pattern: 'macos md5 file',
+        message: 'Use Read (or package-script hash tooling) instead of md5 for single-file dumps.',
+      };
+    }
+  }
+  // plutil pretty-print / convert-to-stdout of a single plist → Read.
+  // In-place convert (`plutil -convert xml1 Info.plist`) and multi-file stay allowed.
+  if (/^(?:\/usr\/bin\/)?plutil\b/.test(command) && !/\s\|/.test(command)) {
+    if (isSinglePlutilFileDump(command)) {
+      return {
+        prefer: 'Read',
+        pattern: 'plutil file',
+        message: 'Use Read instead of plutil for single-file property list dumps.',
+      };
+    }
+  }
+  if (
+    /^(?:\/usr\/bin\/)?openssl\s+(?:dgst|md5|sha1|sha256|sha512)\b/.test(command) &&
     !/\s\|/.test(command) &&
     !/\b(?:-verify|-prverify|-sign)\b/.test(command)
   ) {

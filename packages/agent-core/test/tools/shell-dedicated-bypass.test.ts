@@ -781,3 +781,27 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('cksum a.ts b.ts')).toBeUndefined();
   });
 
+  it('routes macOS md5 / gsha256sum / openssl md5 / node -p / plutil dumps to Read', () => {
+    expect(detectShellDedicatedBypass('md5 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('md5 -q src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('md5 -r src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('/sbin/md5 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gsha256sum src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('openssl md5 src/a.ts')?.prefer).toBe('Read');
+    expect(
+      detectShellDedicatedBypass(
+        'node -p "require(\'fs\').readFileSync(\'src/a.ts\',\'utf8\')"',
+      )?.prefer,
+    ).toBe('Read');
+    expect(detectShellDedicatedBypass('plutil -p Info.plist')?.prefer).toBe('Read');
+    expect(
+      detectShellDedicatedBypass('plutil -convert xml1 -o - Info.plist')?.prefer,
+    ).toBe('Read');
+
+    // Multi-file / non-dump forms stay allowed.
+    expect(detectShellDedicatedBypass('md5 a.ts b.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass("md5 -s 'hello'")).toBeUndefined();
+    expect(detectShellDedicatedBypass('plutil -convert xml1 Info.plist')).toBeUndefined();
+    expect(detectShellDedicatedBypass('node -p "1+1"')).toBeUndefined();
+  });
+
