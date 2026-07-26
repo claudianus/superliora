@@ -178,8 +178,22 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass("busybox sed -i 's/a/b/' src/a.ts")?.prefer).toBe('Edit');
     expect(detectShellDedicatedBypass('busybox head -n 5 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('busybox tail -5 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gcat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ghead -n 5 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gtail -5 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('batcat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('pygmentize src/a.ts')?.prefer).toBe('Read');
     // pipelines stay allowed
     expect(detectShellDedicatedBypass('cat src/a.ts | sponge out.txt')).toBeUndefined();
+  });
+
+  it('routes lua file-read one-liners to Read not Write', () => {
+    expect(
+      detectShellDedicatedBypass("lua -e \"print(io.open('a.ts'):read('*a'))\"")?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass("lua -e \"io.open('a.ts','w'):write('x')\"")?.prefer,
+    ).toBe('Write');
   });
 
   it('blocks simple cp workspace copies but allows mv and recursive cp', () => {

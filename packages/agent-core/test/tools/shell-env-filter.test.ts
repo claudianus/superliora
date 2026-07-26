@@ -50,6 +50,11 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('KUBECONFIG')).toBe(true);
     expect(isSecretEnvKeyName('DOCKER_AUTH_CONFIG')).toBe(true);
     expect(isSecretEnvKeyName('PGPASSFILE')).toBe(true);
+    expect(isSecretEnvKeyName('COMPOSER_AUTH')).toBe(true);
+    expect(isSecretEnvKeyName('BUNDLE_AUTH__GITHUB__COM')).toBe(true);
+    expect(isSecretEnvKeyName('REGISTRY_AUTH_FILE')).toBe(true);
+    expect(isSecretEnvKeyName('PIP_INDEX_URL')).toBe(true);
+    expect(isSecretEnvKeyName('POETRY_HTTP_BASIC_PYPI_PASSWORD')).toBe(true);
   });
 
   it('does not match ordinary path-like keys', () => {

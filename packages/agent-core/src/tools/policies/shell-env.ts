@@ -92,6 +92,13 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   'DOCKER_AUTH',
   'PGPASSFILE',
   'PGPASS',
+  // Package-manager / registry auth blobs that often omit KEY/TOKEN in the name.
+  // Avoid bare NPM_CONFIG (false-positives NPM_CONFIG_CACHE / PREFIX).
+  'COMPOSER_AUTH',
+  'BUNDLE_AUTH',
+  'REGISTRY_AUTH',
+  'PIP_INDEX_URL',
+  'POETRY_HTTP_BASIC',
 ] as const;
 
 const CORE_ENV_EXACT = new Set([

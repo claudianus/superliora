@@ -28,6 +28,10 @@ const SENSITIVE_BASENAMES = new Set<string>([
   '.pgpass',
   'kubeconfig',
   'service-account.json',
+  '.npmrc',
+  '.pypirc',
+  // Google ADC file name (often in cwd or ~/.config/gcloud/).
+  'application_default_credentials.json',
 ]);
 
 const SENSITIVE_PATH_SUFFIXES = [
@@ -36,6 +40,9 @@ const SENSITIVE_PATH_SUFFIXES = [
   ['.gcp', 'credentials'],
   ['.kube', 'config'],
   ['.docker', 'config.json'],
+  ['.composer', 'auth.json'],
+  ['.config', 'gh', 'hosts.yml'],
+  ['.config', 'gcloud', 'application_default_credentials.json'],
 ];
 
 /**

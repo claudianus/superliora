@@ -24,7 +24,7 @@ describe('isSensitiveFile', () => {
       '.aws/config',
       '.gcp/credentials',
       'credentials',
-      // netrc / pgpass / kubeconfig / GCP service accounts
+      // netrc / pgpass / kubeconfig / GCP service accounts / package-manager auth
       '.netrc',
       '/home/user/.netrc',
       '_netrc',
@@ -34,6 +34,14 @@ describe('isSensitiveFile', () => {
       './kubeconfig',
       'service-account.json',
       '/secrets/service-account.json',
+      '.npmrc',
+      '/home/user/.npmrc',
+      '.pypirc',
+      '/home/user/.pypirc',
+      'application_default_credentials.json',
+      '/home/user/.config/gcloud/application_default_credentials.json',
+      '/home/user/.composer/auth.json',
+      '/home/user/.config/gh/hosts.yml',
     ]) {
       expect(isSensitiveFile(path), path).toBe(true);
     }

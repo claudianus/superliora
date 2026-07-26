@@ -166,18 +166,20 @@ function hasShellComposition(command: string): boolean {
 }
 
 function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
-  // cat [flags] path  (+ busybox cat)
-  if (/^(?:\/usr\/bin\/)?(?:busybox\s+)?cat(?:\s+-[A-Za-z]+)*\s+\S+\s*$/.test(command)) {
+  // cat [flags] path  (+ busybox/gcat/batcat aliases)
+  if (
+    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?cat|batcat)(?:\s+-[A-Za-z]+)*\s+\S+\s*$/.test(command)
+  ) {
     return {
       prefer: 'Read',
       pattern: 'cat file',
       message: 'Use Read (edit-ready bytes) or LioraRead (signatures/map/lines) instead of cat.',
     };
   }
-  // head/tail [flags] path — not head of a pipeline (+ busybox head/tail)
+  // head/tail [flags] path — not head of a pipeline (+ busybox/ghead/gtail)
   // Flags may take a following value token: head -n 20 file, tail -50 file, head -n20 file
   if (
-    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:head|tail)(?:\s+-[A-Za-z0-9]+(?:\s+\d+)?)*(?:\s+\S+)\s*$/.test(
+    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?head|g?tail)(?:\s+-[A-Za-z0-9]+(?:\s+\d+)?)*(?:\s+\S+)\s*$/.test(
       command,
     )
   ) {
@@ -199,12 +201,29 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   // skip wc — useful for quick metrics
   // skip file/stat/sha256sum/md5sum/cksum/realpath — metadata/hash, not content dumps
 
-  // bat / tac / rev — pure file dumpers (rev is reverse-order dump, still whole-file I/O)
-  if (/^(?:\/usr\/bin\/)?(?:bat|tac|rev)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
+  // bat / batcat / tac / rev / pygmentize / highlight — pure file dumpers
+  if (
+    /^(?:\/usr\/bin\/)?(?:bat|batcat|tac|rev|pygmentize)(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(
+      command,
+    )
+  ) {
     return {
       prefer: 'Read',
       pattern: 'bat/tac/rev file',
       message: 'Use Read or LioraRead instead of bat/tac/rev for file contents.',
+    };
+  }
+  // highlight / source-highlight whole-file pretty dumps to stdout
+  if (
+    /^(?:\/usr\/bin\/)?(?:highlight|source-highlight)(?:\s+-[A-Za-z0-9=]+)*(?:\s+-i\s+\S+|\s+\S+)\s*$/.test(
+      command,
+    ) &&
+    !/\s-o\s+(?!\/dev\/stdout)\S+/.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'highlight file',
+      message: 'Use Read instead of highlight/source-highlight for file contents.',
     };
   }
 
@@ -547,9 +566,13 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
     }
   }
 
-  // lua -e io.open(...):write
+  // lua -e io.open(...):write  (require explicit write-mode open or :write call)
   if (/^(?:\/usr\/bin\/)?lua\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
-    if (/:write\s*\(/.test(command) || /io\.open\s*\([^)]*['"][wax]/.test(command)) {
+    const hasWriteCall = /:write\s*\(/.test(command);
+    // Match io.open('path','w') / io.open("path", "a+") — not bare io.open('path'):read('*a')
+    const hasWriteModeOpen =
+      /io\.open\s*\(\s*['"][^'"]+['"]\s*,\s*['"][wax+]/.test(command);
+    if (hasWriteCall || hasWriteModeOpen) {
       return {
         prefer: 'Write',
         pattern: 'lua -e io.write',
