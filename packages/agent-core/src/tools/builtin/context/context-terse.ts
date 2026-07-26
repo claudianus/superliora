@@ -273,8 +273,8 @@ function applyShellPatterns(text: string, command: string): string {
   }
   // TypeScript / ESLint / oxlint dumps: keep head+tail of long compiler/linter streams.
   if (
-    /\b(?:tsc|eslint|oxlint|oxfmt)\b/u.test(command) ||
-    /\b(?:pnpm|npm|yarn)\s+(?:exec\s+)?(?:tsc|eslint|oxlint|oxfmt)\b/u.test(command) ||
+    /\b(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|pyright|ty)\b/u.test(command) ||
+    /\b(?:pnpm|npm|yarn)\s+(?:exec\s+)?(?:tsc|eslint|oxlint|oxfmt|ruff|mypy)\b/u.test(command) ||
     /\berror TS\d+:/u.test(text)
   ) {
     next = compressCompilerOutput(next);

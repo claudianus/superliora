@@ -158,4 +158,21 @@ describe('Liora lean context tools', () => {
     expect(compressed.savedPercent).toBeGreaterThan(0);
     expect(compressed.text.length).toBeLessThan(stdout.length);
   });
+
+  it('compressShellOutput collapses long ruff/mypy dumps', () => {
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `src/a${String(i)}.py:1:1: F401 [ ] \`os\` imported but unused`,
+    ).join('\n');
+    for (const command of ['ruff check .', 'mypy src']) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      expect(compressed.text, command).toContain('compiler/linter lines omitted');
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+    }
+  });
 });

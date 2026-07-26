@@ -200,10 +200,8 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'engineering-database-reliability-engineer',
       'engineering-drupal-performance',
-      'volt-04-quality-security-performance-engineer',
-      'testing-performance-benchmarker',
-      'volt-09-meta-orchestration-performance-monitor',
       'support-infrastructure-maintainer',
+      'volt-04-quality-security-performance-engineer',
     ],
     labels: ['Engineering', 'Performance'],
   },
