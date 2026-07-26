@@ -16,6 +16,7 @@ import {
 import {
   collectVerificationGapNodes,
   formatEvidenceHardGateNextActions,
+  formatVerificationGapNextActions,
 } from './recovery-prompt';
 import {
   analyzeFailedNodes,
@@ -76,32 +77,6 @@ function reject(
   openNodeIds?: readonly string[],
 ): CompletionAuditRejection {
   return { ok: false, code, reasons, nextActions, openNodeIds };
-}
-
-/**
- * Match recovery-triangle verification-gap next_actions formatting.
- * Callers pass the already-filtered node set (failed/blocked/pending/open gaps).
- */
-function formatVerificationGapNextActions(
-  nodes: readonly WorkGraphNode[],
-): readonly string[] {
-  if (nodes.length === 0) return [];
-  return [
-    `Close verification gaps on node(s): ${nodes
-      .slice(0, 3)
-      .map((node) => {
-        const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
-        const missing =
-          required.length > 0
-            ? `; missing evidence: ${required
-                .filter((id) => !(node.evidenceIds ?? []).includes(id))
-                .slice(0, 3)
-                .join(', ')}`
-            : '';
-        return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
-      })
-      .join(', ')}${nodes.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
-  ];
 }
 
 /**

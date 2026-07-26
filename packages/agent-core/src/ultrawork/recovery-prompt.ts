@@ -106,6 +106,32 @@ export function formatVerificationGapSummary(
     .join(', ');
 }
 
+/**
+ * Match completion-audit / recovery-triangle verification-gap next_actions.
+ * Callers pass the already-filtered node set (failed/blocked/pending/open gaps).
+ */
+export function formatVerificationGapNextActions(
+  nodes: readonly WorkGraphNode[],
+): readonly string[] {
+  if (nodes.length === 0) return [];
+  return [
+    `Close verification gaps on node(s): ${nodes
+      .slice(0, 3)
+      .map((node) => {
+        const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
+        const missing =
+          required.length > 0
+            ? `; missing evidence: ${required
+                .filter((id) => !(node.evidenceIds ?? []).includes(id))
+                .slice(0, 3)
+                .join(', ')}`
+            : '';
+        return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
+      })
+      .join(', ')}${nodes.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
+  ];
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
@@ -488,22 +514,7 @@ export function suggestNextActions(
   }
   const verificationGaps = collectVerificationGapNodes(run.workGraph?.nodes);
   if (verificationGaps.length > 0) {
-    actions.push(
-      `Close verification gaps on node(s): ${verificationGaps
-        .slice(0, 3)
-        .map((node) => {
-          const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
-          const missing =
-            required.length > 0
-              ? `; missing evidence: ${required
-                  .filter((id) => !(node.evidenceIds ?? []).includes(id))
-                  .slice(0, 3)
-                  .join(', ')}`
-              : '';
-          return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
-        })
-        .join(', ')}${verificationGaps.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
-    );
+    actions.push(...formatVerificationGapNextActions(verificationGaps));
   }
   // Match completion-audit evidence hard-gate next_actions for recovery surfaces.
   actions.push(...formatEvidenceHardGateNextActions(run.workGraph?.nodes));
