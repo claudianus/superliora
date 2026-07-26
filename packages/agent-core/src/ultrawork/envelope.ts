@@ -281,7 +281,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .slice(0, 4)
         .map((node) => {
           const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
-          return `${node.id} dependsOn=${deps.slice(0, 3).join(',')}`;
+          return `${node.id} (dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`;
         })
         .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
     );

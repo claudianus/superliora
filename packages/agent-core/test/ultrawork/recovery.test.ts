@@ -1323,7 +1323,7 @@ describe('Ultrawork recovery', () => {
     );
     expect(text).toContain('Queued waiting on dependsOn');
     expect(text).toContain('node-wait');
-    expect(text).toContain('dependsOn=node-dep');
+    expect(text).toContain('dependsOn: node-dep');
     expect(text).toContain('finish or cancel deps');
   });
 
