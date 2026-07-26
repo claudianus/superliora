@@ -44,6 +44,10 @@ describe('auditUltraworkCompletion', () => {
     if (!result.ok) {
       expect(result.code).toBe('empty_work_graph');
       expect(formatCompletionAuditRejection(result)).toContain('false complete');
+      // Match recovery-triangle seed wording.
+      expect(result.nextActions.some((a) => /Seed WorkGraph via UltraworkGraph/i.test(a))).toBe(
+        true,
+      );
     }
   });
 
@@ -54,7 +58,12 @@ describe('auditUltraworkCompletion', () => {
       }),
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('empty_work_graph');
+    if (!result.ok) {
+      expect(result.code).toBe('empty_work_graph');
+      expect(result.nextActions.some((a) => /Seed WorkGraph via UltraworkGraph/i.test(a))).toBe(
+        true,
+      );
+    }
   });
 
   it('rejects incomplete nodes', () => {
@@ -613,6 +622,83 @@ describe('auditUltraworkCompletion', () => {
         result.nextActions.some((a) => /ac_gap/.test(a) && /missing evidence: vitest/.test(a)),
       ).toBe(true);
       expect(result.nextActions.some((a) => /verify=pending/.test(a))).toBe(true);
+    }
+  });
+
+  it('promotes high-resume oscillation and long-running stage on incomplete audits', () => {
+    const now = Date.now();
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        stage: 'integrate',
+        stageHistory: [
+          {
+            stage: 'integrate',
+            enteredAt: new Date(now - 20 * 60_000).toISOString(),
+            reason: 'interrupt: context pressure',
+          },
+          {
+            stage: 'integrate',
+            enteredAt: new Date(now - 19 * 60_000).toISOString(),
+            reason: 'crash recovery',
+          },
+          {
+            stage: 'integrate',
+            enteredAt: new Date(now - 18 * 60_000).toISOString(),
+            reason: 'blocked on dependency',
+          },
+        ],
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_open',
+              kind: 'acceptance_criterion',
+              stage: 'integrate',
+              status: 'running',
+              ownerExpertId: 'expert-1',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('incomplete_nodes');
+      expect(result.nextActions.some((a) => /Break oscillation|high resume count/i.test(a))).toBe(
+        true,
+      );
+      expect(result.nextActions.some((a) => /Advance or split long-running stage/i.test(a))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('formats blocked dependsOn with comma+space like recovery-prompt', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_block',
+              kind: 'acceptance_criterion',
+              status: 'blocked',
+              dependsOn: ['dep_a', 'dep_b', 'dep_c'],
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('node_blocked');
+      expect(
+        result.nextActions.some(
+          (a) => /dependsOn: dep_a, dep_b, dep_c/.test(a) && /Unblock WorkGraph/i.test(a),
+        ),
+      ).toBe(true);
     }
   });
 });

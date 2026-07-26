@@ -14,7 +14,13 @@ import {
   findEvidenceHardGateViolation,
 } from '../session/swarm-evidence-gate';
 import { collectVerificationGapNodes } from './recovery-prompt';
-import { analyzeFailedNodes, detectStuckWorkGraphNodes } from './stage-progress';
+import {
+  analyzeFailedNodes,
+  countResumeCyclesFromHistory,
+  detectLongRunningStage,
+  detectStuckWorkGraphNodes,
+  OSCILLATION_WARN_THRESHOLD,
+} from './stage-progress';
 
 export type CompletionAuditCode =
   | 'empty_work_graph'
@@ -128,7 +134,8 @@ export function auditUltraworkCompletion(
         'Long-running Ultrawork must seed AC nodes, implement, and verify before done.',
       ],
       [
-        'Seed UltraworkGraph from the approved AC Tree.',
+        // Match recovery-triangle seed wording so injectors/envelope/audit share one action.
+        'Seed WorkGraph via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete) — empty graph is rejected as false complete.',
         'Implement open nodes with real code/tests.',
         'Attach requiredEvidence and set verificationStatus=passed only after checks.',
       ],
@@ -203,12 +210,13 @@ export function auditUltraworkCompletion(
   const blockedNodes = graph.nodes.filter((n) => n.status === 'blocked');
   if (blockedNodes.length > 0) {
     const openNodeIds = blockedNodes.map((n) => n.id);
+    // Match recovery-prompt dependsOn formatting (comma+space, ellipsis).
     const depHints = blockedNodes
       .slice(0, 3)
       .map((n) => {
         const deps = n.dependsOn?.filter((id) => id.length > 0) ?? [];
         return deps.length > 0
-          ? `${n.id} (${n.title}; dependsOn: ${deps.slice(0, 3).join(',')})`
+          ? `${n.id} (${n.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`
           : `${n.id} (${n.title})`;
       })
       .join(', ');
@@ -297,6 +305,22 @@ export function auditUltraworkCompletion(
     // Match recovery-triangle verification-gap next_actions for open graphs
     // (done-only graphs already hit verification_failed/pending/blocked codes).
     nextActions.push(...formatVerificationGapNextActions(collectVerificationGapNodes(open)));
+    // Match recovery-triangle circuit-break signals on incomplete audits so
+    // UpdateGoal(complete) rejections name oscillation / long stages too.
+    const resumeCycles = countResumeCyclesFromHistory(run);
+    if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
+      nextActions.push(
+        `Break oscillation: high resume count (${String(resumeCycles)} ≥ ${String(OSCILLATION_WARN_THRESHOLD)}) — simplify objective, cancel stuck nodes, or split into smaller runs before more product edits.`,
+      );
+    }
+    const longStage = detectLongRunningStage(run);
+    if (longStage !== undefined) {
+      const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
+      const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
+      nextActions.push(
+        `Advance or split long-running stage "${longStage.stage}" (~${String(elapsedMin)}min, expected <${String(thresholdMin)}min) — avoid unbounded loops.`,
+      );
+    }
     nextActions.push(
       'Finish or re-open incomplete nodes with real evidence.',
       'Do not call UpdateGoal(complete) until every AC node is done with verification.',
