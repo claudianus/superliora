@@ -43,6 +43,15 @@ const RATE_LIMIT_CAPACITY_SHRINK_INTERVAL_MS = 2000;
 const RATE_LIMIT_CAPACITY_RECOVERY_INTERVAL_MS = 3 * 60 * 1000;
 const RATE_LIMIT_SUSPENDED_REASON = 'Provider rate limit; subagent requeued for retry.';
 
+/**
+ * Strictly monotonic millisecond counter. Used for the rate-limit capacity
+ * "quiet window" / shrink-throttle checks so a wall-clock jump (NTP, suspend
+ * resume on some platforms, manual change) cannot spuriously trigger or
+ * suppress recovery. `Date.now()` is kept for `setTimeout` deadlines, which
+ * the OS scheduler aligns to wall time anyway.
+ */
+const monoNowMs = (): number => Number(process.hrtime.bigint() / 1_000_000n);
+
 /** Extra in-place attempts granted for transient provider failures. */
 const TRANSIENT_RETRY_MAX_ATTEMPTS = 2;
 /** Exponential backoff base for transient retries: 1000 ms, then 2000 ms. */
@@ -166,8 +175,14 @@ export class SubagentBatch<T> {
   private startedSuccessCount = 0;
   private rateLimitCapacity = 1;
   private lastRateLimitAt: number | undefined;
+  /** Monotonic companion to `lastRateLimitAt` for the 3-minute quiet window. */
+  private lastRateLimitMonoMs: number | undefined;
   private lastCapacityShrinkAt: number | undefined;
+  /** Monotonic companion for the 2-second shrink throttle. */
+  private lastCapacityShrinkMonoMs: number | undefined;
   private lastCapacityRecoveryAt: number | undefined;
+  /** Monotonic companion to `lastCapacityRecoveryAt` for the quiet window. */
+  private lastCapacityRecoveryMonoMs: number | undefined;
   private globalRetryIntervalMs = RATE_LIMIT_RETRY_BASE_MS;
   private nextRateLimitLaunchAt = 0;
 
@@ -513,6 +528,7 @@ export class SubagentBatch<T> {
 
     const now = Date.now();
     this.lastRateLimitAt = now;
+    this.lastRateLimitMonoMs = monoNowMs();
     state.retryCount += 1;
     const retryDelay = retry.createTimeout(Math.max(0, state.retryCount - 1), {
       minTimeout: RATE_LIMIT_RETRY_BASE_MS,
@@ -555,12 +571,16 @@ export class SubagentBatch<T> {
   }
 
   private shrinkRateLimitCapacity(now: number, force: boolean): void {
-    if (
-      !force &&
-      this.lastCapacityShrinkAt !== undefined &&
-      now - this.lastCapacityShrinkAt < RATE_LIMIT_CAPACITY_SHRINK_INTERVAL_MS
-    ) {
-      return;
+    if (!force && this.lastCapacityShrinkMonoMs !== undefined) {
+      // Use the monotonic clock so a wall-clock jump cannot bypass the
+      // 2-second shrink throttle.
+      const mono = monoNowMs();
+      if (mono - this.lastCapacityShrinkMonoMs < RATE_LIMIT_CAPACITY_SHRINK_INTERVAL_MS) {
+        return;
+      }
+      this.lastCapacityShrinkMonoMs = mono;
+    } else {
+      this.lastCapacityShrinkMonoMs = monoNowMs();
     }
 
     this.rateLimitCapacity = Math.max(1, this.rateLimitCapacity - 1);
@@ -568,11 +588,14 @@ export class SubagentBatch<T> {
   }
 
   private recoverRateLimitCapacity(now: number): void {
-    const nextRecoveryAt = this.nextRateLimitCapacityRecoveryAt();
-    if (nextRecoveryAt > now) return;
+    if (this.lastRateLimitMonoMs === undefined) return;
+    const mono = monoNowMs();
+    const nextRecoveryMonoMs = this.nextRateLimitCapacityRecoveryMonoMs();
+    if (nextRecoveryMonoMs > mono) return;
 
     this.rateLimitCapacity += 1;
     this.lastCapacityRecoveryAt = now;
+    this.lastCapacityRecoveryMonoMs = mono;
     this.nextRateLimitLaunchAt = Math.min(this.nextRateLimitLaunchAt, now);
   }
 
@@ -586,6 +609,22 @@ export class SubagentBatch<T> {
       this.lastCapacityRecoveryAt ?? 0,
     );
     return latestCapacityChangeAt + RATE_LIMIT_CAPACITY_RECOVERY_INTERVAL_MS;
+  }
+
+  /**
+   * Monotonic counterpart of {@link nextRateLimitCapacityRecoveryAt}. Returns
+   * the next monotonic millisecond at which the 3-minute quiet window
+   * elapses and capacity is allowed to recover by one slot.
+   */
+  private nextRateLimitCapacityRecoveryMonoMs(): number {
+    if (this.pending.length === 0 || this.lastRateLimitMonoMs === undefined) {
+      return Number.POSITIVE_INFINITY;
+    }
+    const latestCapacityChangeMonoMs = Math.max(
+      this.lastRateLimitMonoMs,
+      this.lastCapacityRecoveryMonoMs ?? 0,
+    );
+    return latestCapacityChangeMonoMs + RATE_LIMIT_CAPACITY_RECOVERY_INTERVAL_MS;
   }
 
   private scheduleRateLimitWakeup(wakeupAt: number, now: number): void {

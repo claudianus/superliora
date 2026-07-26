@@ -407,6 +407,63 @@ describe('SubagentBatch scheduling contract', () => {
     }
   });
 
+  it('rate-limit capacity recovery uses a monotonic clock and ignores wall-clock jumps', async () => {
+    // The 3-minute quiet window must hold against real (monotonic) time,
+    // not wall-clock time. A wall-clock jump forward (NTP correction,
+    // suspend/resume) must NOT make the scheduler think 3 minutes already
+    // elapsed. The test jumps the wall clock 10 minutes forward right after
+    // a rate-limit; the old wall-clock-based code would recover immediately,
+    // the new monotonic code must still wait the full 3 minutes of fake
+    // (which here advances both clocks together) time.
+    vi.useFakeTimers();
+    const realDateNow = Date.now;
+    try {
+      const controller = new AbortController();
+      const { runBatch, attempts } = createMockBatchRunner();
+      const running = runBatch(Array.from({ length: 6 }, (_, index) => queuedTask(index + 1)), {
+        signal: controller.signal,
+      });
+      void running.catch(() => {});
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(5);
+      attempts.forEach((attempt) => {
+        attempt.markReady();
+      });
+
+      attempts[0]!.outcome.resolve({ type: 'rate_limited', agentId: 'agent-1' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(5);
+
+      // Wall-clock jumps forward by 10 minutes. The old code would now
+      // see "more than 3 minutes since last rate limit" and recover
+      // immediately. The new code must keep waiting for 3 minutes of
+      // monotonic time.
+      const baseWall = realDateNow();
+      Date.now = () => baseWall + 10 * 60 * 1000;
+      try {
+        // Advance only 2 minutes of (monotonic) fake time: still below the
+        // 3-minute quiet window, so no new launch despite the wall-clock
+        // jump making it look like 12 minutes have passed.
+        await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+        expect(attempts).toHaveLength(5);
+
+        // One more minute of monotonic time (3 minutes total since the
+        // rate-limit): the quiet window elapses and capacity recovers.
+        await vi.advanceTimersByTimeAsync(60 * 1000);
+        expect(attempts).toHaveLength(6);
+        expect(attempts[5]!.retryAgentId).toBe('agent-1');
+      } finally {
+        Date.now = realDateNow;
+      }
+
+      controller.abort();
+      await expect(running).rejects.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rate-limit phase keeps launches bounded after repeated 429s', async () => {
     vi.useFakeTimers();
     try {
