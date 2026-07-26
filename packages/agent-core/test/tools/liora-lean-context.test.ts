@@ -194,4 +194,21 @@ describe('Liora lean context tools', () => {
       expect(compressed.text.length, command).toBeLessThan(stdout.length);
     }
   });
+
+  it('compressShellOutput collapses long prettier/black/rustfmt dumps', () => {
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `[warn] src/a${String(i)}.ts Code style issues found`,
+    ).join('\n');
+    for (const command of ['prettier --check .', 'black --check .', 'cargo fmt --check']) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      expect(compressed.text, command).toContain('compiler/linter lines omitted');
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+    }
+  });
 });

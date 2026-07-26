@@ -271,13 +271,16 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\bcargo\s+test\b/u.test(command) || /^test\s+\S.+\s+\.\.\.\s+(?:ok|FAILED)\b/mu.test(text)) {
     next = compressTestOutput(next);
   }
-  // TypeScript / ESLint / oxlint / biome / clippy dumps: keep head+tail of long streams.
+  // TypeScript / ESLint / oxlint / biome / clippy / formatter dumps: head+tail.
   if (
-    /\b(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|pyright|ty|biome|clippy)\b/u.test(command) ||
-    /\b(?:pnpm|npm|yarn)\s+(?:exec\s+)?(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|biome)\b/u.test(
+    /\b(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|pyright|ty|biome|clippy|prettier|black|isort|rustfmt|gofmt|clang-format)\b/u.test(
       command,
     ) ||
-    /\bcargo\s+clippy\b/u.test(command) ||
+    /\b(?:pnpm|npm|yarn)\s+(?:exec\s+)?(?:tsc|eslint|oxlint|oxfmt|ruff|mypy|biome|prettier)\b/u.test(
+      command,
+    ) ||
+    /\bcargo\s+(?:clippy|fmt)\b/u.test(command) ||
+    /\bpython(?:3(?:\.\d+)?)?\s+-m\s+(?:black|isort)\b/u.test(command) ||
     /\berror TS\d+:/u.test(text)
   ) {
     next = compressCompilerOutput(next);

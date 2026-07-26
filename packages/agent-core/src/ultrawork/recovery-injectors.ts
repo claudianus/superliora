@@ -83,16 +83,34 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
   const nextActions = suggestNextActions(run, 'Context compacted', planContext, resumeCursor);
 
+  const interruptReason = ultrawork.getInterruptReason()?.trim();
   const lines = [
     '<ultrawork_post_compaction>',
     'Context compacted during active Ultrawork. Continue from the durable checkpoint — do not restart UltraPlan/UltraResearch or open a new Ultrawork run.',
-    `Run: ${run.id} · stage=${run.stage}`,
+    `Run: ${run.id} · stage=${run.stage} · status=${run.status}`,
+    `Objective: ${run.objective}`,
   ];
   if (effectiveStage !== run.stage) {
     lines.push(`Effective stage: ${effectiveStage}`);
   }
+  if (interruptReason !== undefined && interruptReason.length > 0) {
+    lines.push(`Interrupt reason: ${interruptReason}`);
+  }
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
+
+  const pendingNodes =
+    run.workGraph?.nodes.filter(
+      (node) => node.status !== 'done' && node.status !== 'cancelled',
+    ) ?? [];
+  if (pendingNodes.length > 0) {
+    lines.push(
+      `Pending WorkGraph nodes (${String(pendingNodes.length)}): ${pendingNodes
+        .slice(0, 4)
+        .map((node) => `${node.id}[${node.status}]`)
+        .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
+    );
   }
 
   const stageGuidance = stageContinuationGuidance(effectiveStage, agent.ultraSwarmRun !== undefined);

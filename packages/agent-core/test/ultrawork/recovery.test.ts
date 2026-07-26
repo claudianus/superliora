@@ -809,6 +809,60 @@ describe('Ultrawork recovery', () => {
     const text = String(compactionCall?.[0] ?? '');
     expect(text).toContain('run-compact-cont');
     expect(text).toContain('do not restart UltraPlan');
+    expect(text).toContain('Objective:');
+    expect(text).toContain('status=');
+  });
+
+  it('includes pending WorkGraph nodes and interrupt reason in post-compaction injection', async () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    const run = agent.ultrawork.create({
+      id: 'run-compact-graph',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-compact-graph',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...run,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-compact-graph:work_graph',
+          runId: 'run-compact-graph',
+          rootGoal: 'Ship feature',
+          nodes: [
+            {
+              id: 'node-1',
+              title: 'Implement API',
+              stage: 'integrate',
+              status: 'running',
+            },
+            {
+              id: 'node-2',
+              title: 'Done already',
+              stage: 'integrate',
+              status: 'done',
+            },
+          ],
+        },
+      },
+      interruptReason: 'Context pressure mid-run',
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostCompactionContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_compaction>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('Pending WorkGraph nodes');
+    expect(text).toContain('node-1[running]');
+    expect(text).not.toContain('node-2[done]');
+    expect(text).toContain('Interrupt reason: Context pressure mid-run');
+    expect(text).toContain('Ship feature');
   });
 
   it('reinjects ultrawork graph status after compaction even during swarm', async () => {
