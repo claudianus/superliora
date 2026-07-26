@@ -1239,6 +1239,18 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of ConvertTo-Json for file content dumps.',
     };
   }
+  // Select-Object path / Get-Content InputObject dumps → Read (pipelines stay allowed).
+  if (
+    /^(?:Select-Object|select)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b|\bGet-Content\b|\bgc\b)/i.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'Select-Object',
+      message: 'Use Read instead of PowerShell Select-Object for file content dumps.',
+    };
+  }
   return undefined;
 }
 

@@ -103,6 +103,17 @@ describe('detectShellDedicatedBypass', () => {
     // ConvertTo-Json path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('ConvertTo-Json -Path src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Json')).toBeUndefined();
+    // Select-Object path dumps → Read; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('Select-Object -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('select -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Select-Object -First 5 -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Select-Object -LiteralPath src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Select-Object -InputObject (Get-Content a.ts)')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Select-Object -First 5')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Select-Object -First 5')).toBeUndefined();
     // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',
