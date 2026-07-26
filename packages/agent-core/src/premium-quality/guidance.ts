@@ -55,6 +55,7 @@ export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [
   'Premium Quality ON (code/evidence density — no visible UI in the active objective).',
   'Raise correctness, tests, types, failure handling, performance, and security toward ultra-premium, engineer-respecting quality. Prefer small high-leverage diffs.',
   'DoD: inspect relevant files/tests; focused verification; finish with evidence (tests, typecheck, real CLI/API proof) and remaining risks.',
+  'Harness force: SearchSkill→Skill for domain workflows; WebSearch/Context7/FetchURL for freshness; dedicated tools over Bash; parallelize independent calls.',
   'If work later adds a user-visible surface, switch to visual Premium: art direction, anti-slop, screenshot proof, god-tier craft.',
   'Skip frontend design skill loads while there is zero user-visible surface change.',
 ].join('\n');

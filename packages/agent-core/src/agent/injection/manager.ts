@@ -5,6 +5,7 @@ import { CurrentTimeInjector } from './current-time';
 import { GoalInjector } from './goal';
 import type { DynamicInjector } from './injector';
 import { LeanContextInjector } from './lean-context-injector';
+import { ToolWorkflowInjector } from './tool-workflow-injector';
 import { MemoryInjector } from './memory';
 import { PermissionModeInjector } from './permission-mode';
 import { PluginSessionStartInjector } from './plugin-session-start';
@@ -35,6 +36,7 @@ export class InjectionManager {
       new PluginSessionStartInjector(agent),
       new MemoryInjector(agent),
       new LeanContextInjector(agent),
+      new ToolWorkflowInjector(agent),
       new ContextOSInjector(agent),
       new TodoListReminderInjector(agent),
       new PlanModeInjector(agent),
