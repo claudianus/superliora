@@ -124,7 +124,7 @@ export function decideModelRouteSurface(input: {
   if (previous !== null) {
     const prevIdentity = resolveModelRouteIdentity(previous.modelAlias, availableModels, previous);
     if (isSameEffectiveModel(prevIdentity, toIdentity) && !credentialChanged) {
-      return { kind: 'none', toAlias };
+      return { kind: 'none', toAlias, credentialChanged: false };
     }
 
     if (!isSameEffectiveModel(prevIdentity, toIdentity)) {

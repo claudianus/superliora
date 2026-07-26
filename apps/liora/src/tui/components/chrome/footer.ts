@@ -227,7 +227,6 @@ function formatModelRouteBadge(state: AppState): string | undefined {
       isSameEffectiveModel(
         resolveModelRouteIdentity(notice.fromAlias, state.availableModels),
         resolveModelRouteIdentity(notice.toAlias, state.availableModels, {
-          modelAlias: notice.toAlias,
           providerModel: notice.providerModel ?? '',
           providerName: notice.providerName,
         }),

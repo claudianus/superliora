@@ -243,17 +243,23 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
   readonly idleAquariumMounted: boolean;
   readonly fullscreenTakeover?: boolean;
 }): boolean {
+  // Snapshot optional booleans once so control-flow narrowing does not turn
+  // later `=== true` checks into always-false after compound expressions.
+  const contentGrew = input.contentGrew === true;
+  const geometryShift = input.geometryShift === true;
+  const contentShrunk = input.contentShrunk === true;
+
   if (input.causes.includes('resize')) {
     return false;
   }
 
   // Editor/chrome geometry change needs clear-fills for layout holes.
-  if (input.geometryShift === true) {
+  if (geometryShift) {
     return false;
   }
 
   // Transcript shrank (compaction, collapse, remove) — wipe uncovered cells.
-  if (input.contentShrunk === true) {
+  if (contentShrunk) {
     return false;
   }
 
@@ -265,7 +271,7 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
       input.viewportScrolled,
       // Treat content-only growth as non-structural for pure-scroll detection;
       // pure scroll already requires !structuralShift from the caller.
-      input.structuralShift && input.contentGrew !== true,
+      input.structuralShift && !contentGrew,
     )
   ) {
     return true;
@@ -273,13 +279,13 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
 
   // Append-only transcript growth: keep damage-only so streaming does not
   // flip region.clear and thrash composition topology (full-buffer clear flash).
-  if (input.contentGrew === true && input.geometryShift !== true) {
+  if (contentGrew) {
     return true;
   }
 
   // Other structural shifts (unknown content churn without grew/shrunk flags)
   // keep the conservative clear path.
-  if (input.structuralShift && input.contentGrew !== true) {
+  if (input.structuralShift) {
     return false;
   }
 
