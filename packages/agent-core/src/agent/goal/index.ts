@@ -665,17 +665,33 @@ export class GoalMode {
     const elapsed = state.turnsUsed - this.lastRejectAtTurn;
     if (elapsed >= GOAL_COMPLETE_REJECT_COOLDOWN_TURNS) return null;
     const remaining = GOAL_COMPLETE_REJECT_COOLDOWN_TURNS - elapsed;
+    // Re-surface the prior audit rejection so cooldown turns still show
+    // concrete repair actions (node_failed / dependsOn / stuck) instead of
+    // only "wait N turns" generic lines.
+    const prior = this.lastCompletionRejection;
+    const priorCode =
+      prior !== undefined && prior.code !== 'reject_cooldown' ? prior.code : undefined;
+    const priorActions =
+      prior !== undefined && prior.code !== 'reject_cooldown'
+        ? prior.nextActions.slice(0, 2)
+        : [];
     return {
       ok: false,
       code: 'reject_cooldown',
       reasons: [
         `Completion rejected: cooldown active (${elapsed}/${GOAL_COMPLETE_REJECT_COOLDOWN_TURNS} turns since last false complete).`,
         `Reject streak: ${this.completionRejectStreak}. Wait ~${remaining} more goal turn(s) and make real progress before UpdateGoal(complete).`,
+        ...(priorCode !== undefined ? [`Prior rejection code: ${priorCode}.`] : []),
+        ...(prior !== undefined && prior.code !== 'reject_cooldown'
+          ? prior.reasons.slice(0, 2)
+          : []),
       ],
       nextActions: [
+        ...priorActions,
         'Implement or verify open work (tests, evidence, WorkGraph nodes).',
         `Do not spam UpdateGoal(complete); wait at least ${GOAL_COMPLETE_REJECT_COOLDOWN_TURNS} goal turns after a rejection.`,
       ],
+      openNodeIds: prior?.openNodeIds,
     };
   }
 

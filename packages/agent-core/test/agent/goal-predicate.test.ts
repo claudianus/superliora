@@ -197,10 +197,24 @@ describe('GoalMode markComplete predicate + cooldown', () => {
 
     expect(await goals.markComplete({}, 'model')).toBeNull();
     expect(goals.getCompletionRejectStreak()).toBe(1);
+    const prior = goals.getLastCompletionRejection();
+    expect(prior?.code).toBe('predicate_failed');
+    const priorAction = prior?.nextActions[0];
+    expect(priorAction).toBeTruthy();
 
     // Immediate re-attempt → cooldown (no turn elapsed).
     expect(await goals.markComplete({}, 'model')).toBeNull();
-    expect(goals.getLastCompletionRejection()?.code).toBe('reject_cooldown');
+    const cooldown = goals.getLastCompletionRejection();
+    expect(cooldown?.code).toBe('reject_cooldown');
+    // Prior audit nextActions survive cooldown so the model keeps repair steps.
+    expect(cooldown?.reasons.some((r) => r.includes('Prior rejection code: predicate_failed'))).toBe(
+      true,
+    );
+    if (priorAction !== undefined) {
+      expect(cooldown?.nextActions.some((a) => a === priorAction || a.includes(priorAction.slice(0, 24)))).toBe(
+        true,
+      );
+    }
 
     // Advance goal turns past cooldown, still missing path → predicate again.
     for (let i = 0; i < GOAL_COMPLETE_REJECT_COOLDOWN_TURNS; i++) {
