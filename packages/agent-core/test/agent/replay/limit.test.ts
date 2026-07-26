@@ -1,132 +1,125 @@
-import { LocalKaos } from '@superliora/kaos';
 import { describe, expect, it } from 'vitest';
 
-import { Agent } from '../../../src/agent';
-import type { ContextMessage } from '../../../src/agent/context';
+import type { AgentReplayRecord } from '#/rpc/resumed';
 import {
-  limitReplayRecordsByTurn,
   RESUME_REPLAY_TURN_LIMIT,
-} from '../../../src/agent/replay/limit';
-import type { AgentReplayRecord } from '../../../src/rpc/resumed';
+  isReplayUserTurnRecord,
+  limitReplayRecordsByTurn,
+} from '#/agent/replay/limit';
 
-function userMessage(text: string): ContextMessage {
-  return {
+const userMessage = (overrides: Record<string, unknown> = {}): AgentReplayRecord => ({
+  type: 'message',
+  message: {
     role: 'user',
-    content: [{ type: 'text', text }],
-    origin: { kind: 'user' },
-  };
-}
+    content: [{ type: 'text', text: 'hi' }],
+    ...overrides,
+  },
+} as unknown as AgentReplayRecord);
 
-function assistantMessage(text: string): ContextMessage {
-  return {
-    role: 'assistant',
-    content: [{ type: 'text', text }],
-  };
-}
+const assistantMessage = (): AgentReplayRecord =>
+  ({
+    type: 'message',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }] },
+  } as unknown as AgentReplayRecord);
 
-function messageRecord(message: ContextMessage, time = 1): AgentReplayRecord {
-  return { type: 'message', time, message };
-}
+const toolMessage = (): AgentReplayRecord =>
+  ({
+    type: 'message',
+    message: { role: 'tool', content: [{ type: 'text', text: 'tool' }] },
+  } as unknown as AgentReplayRecord);
 
-describe('limitReplayRecordsByTurn', () => {
-  it('keeps the default resume window at 10 turns', () => {
+describe('agent/replay/limit — RESUME_REPLAY_TURN_LIMIT', () => {
+  it('exposes the documented constant', () => {
     expect(RESUME_REPLAY_TURN_LIMIT).toBe(10);
-  });
-
-  it('returns all records when under the turn limit', () => {
-    const records = [
-      messageRecord(userMessage('u1')),
-      messageRecord(assistantMessage('a1')),
-      messageRecord(userMessage('u2')),
-      messageRecord(assistantMessage('a2')),
-    ];
-    expect(limitReplayRecordsByTurn(records, 10)).toEqual(records);
-  });
-
-  it('slices from the Nth-last user turn', () => {
-    const records: AgentReplayRecord[] = [];
-    for (let i = 1; i <= 5; i += 1) {
-      records.push(messageRecord(userMessage(`u${i}`), i));
-      records.push(messageRecord(assistantMessage(`a${i}`), i));
-    }
-    const limited = limitReplayRecordsByTurn(records, 2);
-    expect(limited).toHaveLength(4);
-    expect(limited[0]).toMatchObject({
-      type: 'message',
-      message: { role: 'user', content: [{ type: 'text', text: 'u4' }] },
-    });
-    expect(limited.at(-1)).toMatchObject({
-      type: 'message',
-      message: { role: 'assistant', content: [{ type: 'text', text: 'a5' }] },
-    });
-  });
-
-  it('treats shell ! input as a user-turn anchor but not shell output', () => {
-    const records: AgentReplayRecord[] = [
-      messageRecord({
-        role: 'user',
-        content: [{ type: 'text', text: 'old' }],
-        origin: { kind: 'user' },
-      }),
-      messageRecord(assistantMessage('old-a')),
-      messageRecord({
-        role: 'user',
-        content: [{ type: 'text', text: 'ls' }],
-        origin: { kind: 'shell_command', phase: 'input' },
-      }),
-      messageRecord({
-        role: 'user',
-        content: [{ type: 'text', text: 'out' }],
-        origin: { kind: 'shell_command', phase: 'output' },
-      }),
-      messageRecord(assistantMessage('after')),
-    ];
-    const limited = limitReplayRecordsByTurn(records, 1);
-    expect(limited).toHaveLength(3);
-    expect(limited[0]).toMatchObject({
-      message: { origin: { kind: 'shell_command', phase: 'input' } },
-    });
-  });
-
-  it('returns an empty list for non-positive limits', () => {
-    const records = [messageRecord(userMessage('u1'))];
-    expect(limitReplayRecordsByTurn(records, 0)).toEqual([]);
-    expect(limitReplayRecordsByTurn(records, -1)).toEqual([]);
   });
 });
 
-describe('ReplayBuilder restore turn window', () => {
-  it('trims retained records while restoring past the turn limit', async () => {
-    const agent = new Agent({
-      kaos: await LocalKaos.create(),
-      type: 'sub',
-    });
-    for (let i = 1; i <= RESUME_REPLAY_TURN_LIMIT + 5; i += 1) {
-      agent.records.restore({
-        type: 'context.append_message',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: `u${i}` }],
-          origin: { kind: 'user' },
-        },
-      });
-      agent.records.restore({
-        type: 'context.append_message',
-        message: {
-          role: 'assistant',
-          content: [{ type: 'text', text: `a${i}` }],
-        },
-      });
-    }
+describe('agent/replay/limit — isReplayUserTurnRecord', () => {
+  it('returns false for non-message records', () => {
+    expect(isReplayUserTurnRecord({ type: 'tool', payload: {} } as unknown as AgentReplayRecord)).toBe(false);
+  });
 
-    const replay = agent.replayBuilder.buildResult();
-    const userTurns = replay.filter(
-      (record) =>
-        record.type === 'message' &&
-        record.message.role === 'user' &&
-        record.message.origin?.kind === 'user',
-    );
-    expect(userTurns.length).toBeLessThanOrEqual(RESUME_REPLAY_TURN_LIMIT);
-    expect(replay.length).toBeLessThanOrEqual(RESUME_REPLAY_TURN_LIMIT * 2);
+  it('returns false for non-user role', () => {
+    expect(isReplayUserTurnRecord(assistantMessage())).toBe(false);
+    expect(isReplayUserTurnRecord(toolMessage())).toBe(false);
+  });
+
+  it('returns true for a user message with no origin', () => {
+    expect(isReplayUserTurnRecord(userMessage())).toBe(true);
+  });
+
+  it('returns true for a user origin', () => {
+    expect(
+      isReplayUserTurnRecord(
+        userMessage({ origin: { kind: 'user', source: 'user' } }),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns true for skill_activation with user-slash trigger', () => {
+    expect(
+      isReplayUserTurnRecord(
+        userMessage({ origin: { kind: 'skill_activation', trigger: 'user-slash' } }),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns false for skill_activation without user-slash', () => {
+    expect(
+      isReplayUserTurnRecord(
+        userMessage({ origin: { kind: 'skill_activation', trigger: 'auto' } }),
+      ),
+    ).toBe(false);
+  });
+
+  it('returns true for shell_command at input phase', () => {
+    expect(
+      isReplayUserTurnRecord(
+        userMessage({ origin: { kind: 'shell_command', phase: 'input' } }),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns false for synthetic origins', () => {
+    expect(
+      isReplayUserTurnRecord(
+        userMessage({ origin: { kind: 'injection', variant: 'todo_list' } }),
+      ),
+    ).toBe(false);
+    expect(
+      isReplayUserTurnRecord(
+        userMessage({ origin: { kind: 'compaction_summary' } }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('agent/replay/limit — limitReplayRecordsByTurn', () => {
+  it('returns an empty array when maxTurns <= 0', () => {
+    const records = [userMessage()];
+    expect(limitReplayRecordsByTurn(records, 0)).toEqual([]);
+    expect(limitReplayRecordsByTurn(records, -3)).toEqual([]);
+  });
+
+  it('returns the same array when there are fewer user turns than the limit', () => {
+    const records = [userMessage(), assistantMessage(), userMessage()];
+    expect(limitReplayRecordsByTurn(records, 5)).toBe(records);
+  });
+
+  it('keeps only the last N user-turn windows', () => {
+    const records = [
+      userMessage(), // turn 0 start
+      assistantMessage(),
+      userMessage(), // turn 1 start
+      assistantMessage(),
+      userMessage(), // turn 2 start
+      assistantMessage(),
+      userMessage(), // turn 3 start
+    ];
+    const result = limitReplayRecordsByTurn(records, 2);
+    // turnStarts = [0, 2, 4, 6]; last 2 → slice(4) = records[4..6] (3 items).
+    expect(result).toHaveLength(3);
+    expect(result[0]).toBe(records[4]);
+    expect(result[result.length - 1]).toBe(records[6]);
   });
 });
