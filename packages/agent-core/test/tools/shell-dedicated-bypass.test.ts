@@ -457,6 +457,12 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('rev src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('paste src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass("sed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass("gsed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass("busybox sed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass("/usr/bin/sed -n '1,5p' src/a.ts")?.prefer).toBe('Read');
+    // stdin / expression-only forms stay allowed
+    expect(detectShellDedicatedBypass("sed -n '1,20p'")).toBeUndefined();
+    expect(detectShellDedicatedBypass('sed -n')).toBeUndefined();
     expect(detectShellDedicatedBypass('awk 1 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base64 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base32 src/a.ts')?.prefer).toBe('Read');

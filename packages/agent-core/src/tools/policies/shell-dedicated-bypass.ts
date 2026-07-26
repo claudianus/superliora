@@ -543,11 +543,27 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     }
   }
 
-  // sed -n print range (not -i) with a file path
+  // sed/gsed/busybox sed -n print range (not -i) with a file path.
+  // Require a trailing non-flag path so bare `sed -n '1,20p'` (stdin) stays allowed.
   if (
-    /^(?:\/usr\/bin\/)?sed\b/.test(command) &&
+    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?sed)\b/.test(command) &&
     /(?:^|\s)-n(?:\s|$)/.test(command) &&
-    !/(?:^|\s)-[A-Za-z]*i[A-Za-z]*(?:\s|$)/.test(command)
+    !/(?:^|\s)-[A-Za-z]*i[A-Za-z]*(?:\s|$)/.test(command) &&
+    /(?:^|\s)(?!-)\S+\s*$/.test(command) &&
+    // script/expression alone is not a path; need a path after the last -e/-f/quoted script
+    (() => {
+      const withoutOpts = command
+        .replace(/^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?sed)\b/, '')
+        .replace(/(?:^|\s)-[A-Za-z]*n[A-Za-z]*/g, ' ')
+        .replace(/(?:^|\s)-[ef]\s+\S+/g, ' ')
+        .replace(/(?:^|\s)--(?:expression|file)=[^\s]+/g, ' ')
+        .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+        .replace(/(?:^|\s)'[^']*'/g, ' ')
+        .replace(/(?:^|\s)"[^"]*"/g, ' ')
+        .trim();
+      const args = withoutOpts.split(/\s+/).filter(Boolean);
+      return args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-');
+    })()
   ) {
     return {
       prefer: 'Read',
