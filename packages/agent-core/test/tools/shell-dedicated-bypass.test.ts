@@ -305,6 +305,16 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('bat a.ts | tee out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('tac a.ts | Set-Content out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('pygmentize a.ts | Out-File out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('glow README.md | sponge out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('mdcat docs/guide.md | tee out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('rich src/a.py | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('python -m rich.syntax src/a.py | Out-File out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('head -n 5 a.ts | tee out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('tail -n 5 a.ts | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('nl a.ts | Out-File out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('base64 a.ts | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('hexdump -C a.ts | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('less a.ts | tee out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('gc notes.md | Add-Content out.txt')?.prefer).toBe('Write');
     // real process left-hand side / multi-pipe / no path stay allowed
     expect(detectShellDedicatedBypass('Get-Process | Set-Content out.txt')).toBeUndefined();

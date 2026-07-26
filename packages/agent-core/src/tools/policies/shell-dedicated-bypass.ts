@@ -997,7 +997,7 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
 
 /**
  * Pure file dumps piped into write sinks → Write.
- * Matches: cat/bat/batcat/tac/rev/pygmentize/type/Get-Content/gc path | Set-Content/Out-File/Add-Content/Tee-Object/tee/sponge path
+ * Matches: cat/bat/glow/head/base64/type/Get-Content path | Set-Content/Out-File/tee/sponge path
  * Skips: multi-pipe, process producers, path-less sinks, stderr multi-redirects.
  */
 function matchFileDumpPipeWriteBypass(command: string): ShellDedicatedBypassHit | undefined {
@@ -1007,7 +1007,7 @@ function matchFileDumpPipeWriteBypass(command: string): ShellDedicatedBypassHit 
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
 
   const producerRe =
-    '(?:\\/usr\\/bin\\/)?(?:busybox\\s+)?(?:g?cat|bat|batcat|tac|rev|pygmentize|type(?:\\.exe)?|Get-Content|gc)';
+    '(?:\\/usr\\/bin\\/)?(?:busybox\\s+)?(?:g?cat|bat|batcat|tac|rev|pygmentize|glow|mdcat|rich|g?head|g?tail|nl|less|more|most|base64|hexdump|od|xxd|strings|type(?:\\.exe)?|Get-Content|gc|python(?:3)?\\s+-m\\s+rich\\.syntax)';
   const sinkRe = 'Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee|sponge';
   const m = new RegExp(
     `^(${producerRe})\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
