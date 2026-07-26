@@ -10,6 +10,7 @@ import {
   BlobStore,
   FileSystemAgentRecordPersistence,
   InMemoryAgentRecordPersistence,
+  MAX_WIRE_LINE_BYTES,
   type AgentRecord,
 } from '../../../src/agent/records';
 
@@ -375,6 +376,59 @@ describe('FileSystemAgentRecordPersistence', () => {
     persistence.flushSync();
     const linesAfterNoop = await readLines(wirePath);
     expect(linesAfterNoop).toHaveLength(2);
+  });
+
+  it('reads wire via buffer chunks without utf8 string concat', async () => {
+    const wirePath = await makeWirePath();
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+    for (let i = 0; i < 20; i += 1) {
+      persistence.append({
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: `buf-${i}` }],
+        origin: { kind: 'user' },
+      });
+    }
+    await persistence.close();
+
+    const reader = new FileSystemAgentRecordPersistence(wirePath);
+    const records: AgentRecord[] = [];
+    for await (const record of reader.read()) records.push(record);
+    expect(records).toHaveLength(20);
+    expect(JSON.stringify(records[0])).toContain('buf-0');
+    expect(JSON.stringify(records[19])).toContain('buf-19');
+  });
+
+  it('rejects a single JSONL line over the soft byte ceiling', async () => {
+    const wirePath = await makeWirePath();
+    // Unterminated oversize buffer hits the soft-cap before JSON.parse.
+    await writeFile(wirePath, Buffer.alloc(MAX_WIRE_LINE_BYTES + 1, 0x61));
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+    await expect(async () => {
+      for await (const _record of persistence.read()) {
+        // drain
+      }
+    }).rejects.toThrow(/exceeds/);
+  });
+
+  it('streams a migration rewrite without keeping the full record array pending', async () => {
+    const wirePath = await makeWirePath();
+    const persistence = new FileSystemAgentRecordPersistence(wirePath);
+    const rewrite = await persistence.beginStreamingRewrite();
+    const count = 500;
+    for (let i = 0; i < count; i += 1) {
+      await rewrite.write({
+        type: 'turn.prompt',
+        input: [{ type: 'text', text: `mig-${i}` }],
+        origin: { kind: 'user' },
+      });
+    }
+    await rewrite.commit();
+
+    const lines = await readLines(wirePath);
+    expect(lines).toHaveLength(count);
+    expect(JSON.parse(lines[0]!)['input'][0]['text']).toBe('mig-0');
+    expect(JSON.parse(lines[count - 1]!)['input'][0]['text']).toBe(`mig-${count - 1}`);
+    expect(persistence.recordCount()).toBe(count);
   });
 
   it('requeues a huge failed flushSync batch without call-stack blowup', async () => {

@@ -26,7 +26,7 @@ export function limitReplayRecordsByTurn(
   return records.slice(turnStarts[turnStarts.length - maxTurns]!);
 }
 
-function isReplayUserTurnRecord(record: AgentReplayRecord): boolean {
+export function isReplayUserTurnRecord(record: AgentReplayRecord): boolean {
   if (record.type !== 'message') return false;
   const { message } = record;
   if (message.role !== 'user') return false;

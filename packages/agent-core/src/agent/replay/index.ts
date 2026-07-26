@@ -1,8 +1,14 @@
 import type { Agent } from '..';
 import type { AgentReplayRecord, AgentReplayRecordPayload } from '../../rpc/resumed';
 import type { ContextMessage } from '../context';
+import {
+  isReplayUserTurnRecord,
+  limitReplayRecordsByTurn,
+  RESUME_REPLAY_TURN_LIMIT,
+} from './limit';
 
 export {
+  isReplayUserTurnRecord,
   limitReplayRecordsByTurn,
   RESUME_REPLAY_TURN_LIMIT,
 } from './limit';
@@ -14,6 +20,11 @@ export interface ReplayRangeOptions {
 
 export interface ReplayBuilderOptions {
   readonly range?: ReplayRangeOptions;
+  /**
+   * While restoring from wire, keep only the last N user-turn windows in
+   * memory. Defaults to {@link RESUME_REPLAY_TURN_LIMIT}. Set `0` to disable.
+   */
+  readonly restoreTurnLimit?: number;
 }
 
 const UNDO_BOUNDARY_RECORD_TYPES = new Set(['context.clear', 'context.apply_compaction']);
@@ -24,6 +35,7 @@ export class ReplayBuilder {
   protected readonly records: AgentReplayRecord[] = [];
   private frozen = false;
   private segmentStart = 0;
+  private restoreUserTurnCount = 0;
 
   constructor(
     public readonly agent: Agent,
@@ -38,6 +50,21 @@ export class ReplayBuilder {
         time: this.agent.records.restoring?.time ?? Date.now(),
       };
       this.records.push(stamped);
+      if (this.agent.records.restoring) {
+        this.trimRestoreWindow(stamped);
+      }
+    }
+  }
+
+  /** Replace retained records (e.g. after payload truncation). */
+  keepOnly(records: readonly AgentReplayRecord[]): void {
+    this.records.length = 0;
+    for (const record of records) {
+      this.records.push(record);
+    }
+    this.restoreUserTurnCount = 0;
+    for (const record of this.records) {
+      if (isReplayUserTurnRecord(record)) this.restoreUserTurnCount += 1;
     }
   }
 
@@ -76,6 +103,7 @@ export class ReplayBuilder {
 
     this.segmentStart = nextSegmentStart;
     this.records.splice(0);
+    this.restoreUserTurnCount = 0;
     return false;
   }
 
@@ -104,6 +132,25 @@ export class ReplayBuilder {
       if (record.type === 'message' && removedMessages.has(record.message)) {
         records.splice(i, 1);
       }
+    }
+  }
+
+  private trimRestoreWindow(stamped: AgentReplayRecord): void {
+    const limit = this.options.restoreTurnLimit ?? RESUME_REPLAY_TURN_LIMIT;
+    if (limit <= 0) return;
+    if (isReplayUserTurnRecord(stamped)) {
+      this.restoreUserTurnCount += 1;
+    }
+    if (this.restoreUserTurnCount <= limit) return;
+    const trimmed = limitReplayRecordsByTurn(this.records, limit);
+    if (trimmed.length === this.records.length) return;
+    this.records.length = 0;
+    for (const record of trimmed) {
+      this.records.push(record);
+    }
+    this.restoreUserTurnCount = 0;
+    for (const record of this.records) {
+      if (isReplayUserTurnRecord(record)) this.restoreUserTurnCount += 1;
     }
   }
 }

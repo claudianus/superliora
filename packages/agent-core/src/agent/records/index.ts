@@ -1,3 +1,5 @@
+import type { ContentPart } from '@superliora/kosong';
+
 import type { Agent } from '..';
 import type { AgentEvent } from '../../rpc/events';
 import {
@@ -8,6 +10,11 @@ import {
   type WireMigration,
   type WireMigrationRecord,
 } from './migration';
+import { isBlobRef } from './blobref';
+import {
+  FileSystemAgentRecordPersistence,
+  type StreamingWireRewrite,
+} from './persistence';
 import type { AgentRecord, AgentRecordPersistence } from './types';
 
 export * from './types';
@@ -15,8 +22,12 @@ export { AGENT_WIRE_PROTOCOL_VERSION } from './migration';
 export {
   FileSystemAgentRecordPersistence,
   InMemoryAgentRecordPersistence,
+  MAX_WIRE_LINE_BYTES,
 } from './persistence';
-export type { FileSystemAgentRecordPersistenceOptions } from './persistence';
+export type {
+  FileSystemAgentRecordPersistenceOptions,
+  StreamingWireRewrite,
+} from './persistence';
 export { BlobStore, isBlobRef } from './blobref';
 export type { BlobStoreOptions } from './blobref';
 
@@ -224,46 +235,72 @@ export class AgentRecords {
     let hasMetadata = false;
     let shouldRewrite = false;
     let warning: string | undefined;
-    const replayedRecords: AgentRecord[] | undefined = rewriteMigratedRecords ? [] : undefined;
+    // Only allocate / stream a rewrite buffer when the wire protocol actually
+    // needs bumping. Previously we always mirrored every record into
+    // `replayedRecords`, doubling peak heap on large already-current sessions.
+    let replayedRecords: AgentRecord[] | undefined;
+    let streamingRewrite: StreamingWireRewrite | undefined;
     let completed = true;
-    for await (const record of this.persistence.read()) {
-      if (!hasMetadata) {
-        if (record.type !== 'metadata') {
-          throw new Error('AgentRecords replay expected metadata as the first record');
+    try {
+      for await (const record of this.persistence.read()) {
+        if (!hasMetadata) {
+          if (record.type !== 'metadata') {
+            throw new Error('AgentRecords replay expected metadata as the first record');
+          }
+          hasMetadata = true;
+          this.metadataInitialized = true;
+          const readVersion = record.protocol_version;
+          if (isNewerWireVersion(readVersion)) {
+            warning = `Session wire protocol version ${readVersion} is newer than the current version ${AGENT_WIRE_PROTOCOL_VERSION}. Records will be replayed without migration.`;
+            shouldRewrite = false;
+          } else {
+            migrations = resolveWireMigrations(readVersion);
+            shouldRewrite = readVersion !== AGENT_WIRE_PROTOCOL_VERSION;
+          }
+          if (shouldRewrite && rewriteMigratedRecords) {
+            streamingRewrite = await tryBeginStreamingRewrite(this.persistence);
+            if (streamingRewrite === undefined) {
+              replayedRecords = [];
+            }
+          }
         }
-        hasMetadata = true;
-        this.metadataInitialized = true;
-        const readVersion = record.protocol_version;
-        if (isNewerWireVersion(readVersion)) {
-          warning = `Session wire protocol version ${readVersion} is newer than the current version ${AGENT_WIRE_PROTOCOL_VERSION}. Records will be replayed without migration.`;
-          shouldRewrite = false;
+        let migratedRecord = migrateWireRecord(
+          record as WireMigrationRecord,
+          migrations,
+        ) as AgentRecord;
+        if (migratedRecord.type === 'metadata') {
+          migratedRecord = {
+            ...migratedRecord,
+            protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
+          };
+        }
+        if (streamingRewrite !== undefined) {
+          await streamingRewrite.write(migratedRecord);
         } else {
-          migrations = resolveWireMigrations(readVersion);
-          shouldRewrite = readVersion !== AGENT_WIRE_PROTOCOL_VERSION;
+          replayedRecords?.push(migratedRecord);
+        }
+        if (this.restore(migratedRecord)) {
+          completed = false;
+          break;
         }
       }
-      let migratedRecord = migrateWireRecord(
-        record as WireMigrationRecord,
-        migrations,
-      ) as AgentRecord;
-      if (migratedRecord.type === 'metadata') {
-        migratedRecord = {
-          ...migratedRecord,
-          protocol_version: AGENT_WIRE_PROTOCOL_VERSION,
-        };
+      if (completed && streamingRewrite !== undefined) {
+        await streamingRewrite.commit();
+        streamingRewrite = undefined;
+      } else if (completed && shouldRewrite && replayedRecords !== undefined) {
+        this.persistence.rewrite(replayedRecords);
+        await this.persistence.flush();
       }
-      replayedRecords?.push(migratedRecord);
-      if (this.restore(migratedRecord)) {
-        completed = false;
-        break;
+    } finally {
+      if (streamingRewrite !== undefined) {
+        await streamingRewrite.abort().catch(() => {});
       }
-    }
-    if (completed && shouldRewrite && replayedRecords !== undefined) {
-      this.persistence.rewrite(replayedRecords);
-      await this.persistence.flush();
     }
     if (completed && this.agent.blobStore !== undefined) {
+      // Rehydrate media lazily-ish: only messages that still carry blobrefs,
+      // and yield between messages so the event loop can GC.
       for (const msg of this.agent.context.history) {
+        if (!contentHasBlobRef(msg.content)) continue;
         await this.agent.blobStore.rehydrateParts(msg.content);
       }
     }
@@ -294,4 +331,30 @@ export class AgentRecords {
     }
     return records;
   }
+}
+
+async function tryBeginStreamingRewrite(
+  persistence: AgentRecordPersistence,
+): Promise<StreamingWireRewrite | undefined> {
+  if (!(persistence instanceof FileSystemAgentRecordPersistence)) {
+    return undefined;
+  }
+  return persistence.beginStreamingRewrite();
+}
+
+function contentHasBlobRef(parts: readonly ContentPart[]): boolean {
+  for (const part of parts) {
+    for (const value of Object.values(part as object)) {
+      if (
+        value !== null &&
+        typeof value === 'object' &&
+        'url' in value &&
+        typeof (value as { url: unknown }).url === 'string' &&
+        isBlobRef((value as { url: string }).url)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

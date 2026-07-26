@@ -1,10 +1,29 @@
-import { appendFileSync, closeSync, createReadStream, fsyncSync, mkdirSync, openSync } from 'node:fs';
-import { mkdir, open } from 'node:fs/promises';
+import {
+  appendFileSync,
+  closeSync,
+  createReadStream,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+} from 'node:fs';
+import { mkdir, open, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'pathe';
 
 import { syncDir, syncDirSync } from '../../utils/fs';
 import type { BlobStore } from './blobref';
 import { type AgentRecord, type AgentRecordPersistence } from './types';
+
+/**
+ * Soft ceiling for a single JSONL line. Past this we abort rather than
+ * `+=` / `indexOf` a multi-hundred-MB string (heap OOM during resume).
+ */
+export const MAX_WIRE_LINE_BYTES = 64 * 1024 * 1024;
+
+export interface StreamingWireRewrite {
+  write(record: AgentRecord): Promise<void>;
+  commit(): Promise<void>;
+  abort(): Promise<void>;
+}
 
 export interface FileSystemAgentRecordPersistenceOptions {
   readonly onError?: ((error: unknown) => void) | undefined;
@@ -112,31 +131,41 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
   async *read(): AsyncIterable<AgentRecord> {
     await this.flush();
 
-    let line = '';
+    // Binary chunks + Buffer.indexOf avoid V8 string rope flatten/OOM on
+    // large sessions (`line += chunk` + StringIndexOf was a common crash).
+    let buffer = Buffer.alloc(0);
     let lineNumber = 0;
     let yielded = 0;
-    const stream = createReadStream(this.filePath, { encoding: 'utf8' });
+    const stream = createReadStream(this.filePath);
     try {
       for await (const chunk of stream) {
-        line += chunk;
-        let newlineIndex = line.indexOf('\n');
+        const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        buffer = buffer.length === 0 ? piece : Buffer.concat([buffer, piece]);
+        let newlineIndex = buffer.indexOf(0x0a);
         while (newlineIndex !== -1) {
-          const rawLine = line.slice(0, newlineIndex);
-          line = line.slice(newlineIndex + 1);
+          const lineBuf = buffer.subarray(0, newlineIndex);
+          buffer = Buffer.from(buffer.subarray(newlineIndex + 1));
           lineNumber++;
+          if (lineBuf.length > MAX_WIRE_LINE_BYTES) {
+            throw new Error(
+              `wire.jsonl: line ${lineNumber} in ${this.filePath} exceeds ${MAX_WIRE_LINE_BYTES} bytes`,
+            );
+          }
+          let rawLine = lineBuf.toString('utf8');
+          if (rawLine.endsWith('\r')) rawLine = rawLine.slice(0, -1);
 
-          const record = parseRecordLine(
-            rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine,
-            lineNumber,
-            this.filePath,
-            false,
-          );
+          const record = parseRecordLine(rawLine, lineNumber, this.filePath, false);
           if (record !== undefined) {
             yielded++;
             yield record;
           }
 
-          newlineIndex = line.indexOf('\n');
+          newlineIndex = buffer.indexOf(0x0a);
+        }
+        if (buffer.length > MAX_WIRE_LINE_BYTES) {
+          throw new Error(
+            `wire.jsonl: line ${lineNumber + 1} in ${this.filePath} exceeds ${MAX_WIRE_LINE_BYTES} bytes`,
+          );
         }
       }
     } catch (error) {
@@ -145,9 +174,10 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       throw error;
     }
 
-    if (line.length > 0) {
+    if (buffer.length > 0) {
       lineNumber++;
-      const record = parseRecordLine(line, lineNumber, this.filePath, true);
+      const rawLine = buffer.toString('utf8');
+      const record = parseRecordLine(rawLine, lineNumber, this.filePath, true);
       if (record !== undefined) {
         yielded++;
         yield record;
@@ -158,6 +188,56 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     // resumed persistence reflects the existing durable log length before any
     // new appends or rewrites land.
     this.committedRecordCount = yielded;
+  }
+
+  /**
+   * Stream a full-wire migration rewrite to a temp file, then rename into place.
+   * Avoids holding every migrated record in `pendingRecords` during resume.
+   */
+  async beginStreamingRewrite(): Promise<StreamingWireRewrite> {
+    this.throwIfError();
+    await this.flush();
+    const tmpPath = `${this.filePath}.migrating`;
+    await mkdir(dirname(this.filePath), { recursive: true });
+    await unlink(tmpPath).catch(() => {});
+    const fh = await open(tmpPath, 'w');
+    let count = 0;
+    let closed = false;
+    const closeOnce = async (): Promise<void> => {
+      if (closed) return;
+      closed = true;
+      await fh.close();
+    };
+    return {
+      write: async (record: AgentRecord) => {
+        const writable =
+          this.options.blobStore !== undefined
+            ? await this.options.blobStore.offload(record)
+            : record;
+        const line = `${JSON.stringify(writable)}\n`;
+        if (line.length > MAX_WIRE_LINE_BYTES) {
+          throw new Error(
+            `wire.jsonl: migrated record exceeds ${MAX_WIRE_LINE_BYTES} bytes`,
+          );
+        }
+        await fh.write(Buffer.from(line, 'utf8'));
+        count += 1;
+      },
+      commit: async () => {
+        await fh.sync();
+        await closeOnce();
+        await rename(tmpPath, this.filePath);
+        await syncDir(dirname(this.filePath));
+        this.directorySynced = true;
+        this.committedRecordCount = count;
+        this.pendingRecords.length = 0;
+        this.shouldClear = false;
+      },
+      abort: async () => {
+        await closeOnce().catch(() => {});
+        await unlink(tmpPath).catch(() => {});
+      },
+    };
   }
 
   append(input: AgentRecord): void {
