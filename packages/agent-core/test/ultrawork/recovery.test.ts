@@ -1145,4 +1145,44 @@ describe('suggestNextActions fallbacks', () => {
     } as UltraworkRun);
     expect(actions.length).toBeGreaterThan(0);
   });
+
+  it('prioritizes blocked WorkGraph nodes in next actions', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const actions = suggestNextActions({
+      id: 'run-blocked-actions',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-blocked-actions',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-blocked-actions:work_graph',
+        runId: 'run-blocked-actions',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'node-blocked',
+            title: 'Waiting on review',
+            stage: 'integrate',
+            status: 'blocked',
+          },
+          {
+            id: 'node-open',
+            title: 'Open work',
+            stage: 'integrate',
+            status: 'queued',
+          },
+        ],
+      },
+    } as UltraworkRun);
+    expect(actions.some((a) => a.includes('Unblock WorkGraph node'))).toBe(true);
+    expect(actions.some((a) => a.includes('node-blocked'))).toBe(true);
+    expect(actions.some((a) => a.includes('Waiting on review'))).toBe(true);
+  });
 });

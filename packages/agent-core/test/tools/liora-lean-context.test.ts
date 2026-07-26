@@ -233,6 +233,25 @@ describe('Liora lean context tools', () => {
     expect(compressed.text.length).toBeLessThan(stdout.length);
   });
 
+  it('compressShellOutput collapses long git branch/tag/reflog/stash list dumps', () => {
+    const stdout = Array.from({ length: 100 }, (_, i) => `  branch-${String(i)}`).join('\n');
+    for (const command of [
+      'git branch -a',
+      'git tag -l',
+      'git stash list',
+      'git reflog',
+    ]) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      expect(compressed.text, command).toContain('git lines omitted');
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+    }
+  });
+
   it('compressShellOutput keeps git diff headers and omits long body runs', () => {
     const body = Array.from({ length: 40 }, (_, i) => `+const x${String(i)} = ${String(i)};`).join(
       '\n',

@@ -233,6 +233,16 @@ export function suggestNextActions(
         .join(', ')}${needsIntegration.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
     );
   }
+  const blockedNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'blocked') ?? [];
+  if (blockedNodes.length > 0) {
+    actions.push(
+      `Unblock WorkGraph node(s) first: ${blockedNodes
+        .slice(0, 3)
+        .map((node) => `${node.id} (${node.title})`)
+        .join(', ')}${blockedNodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
+    );
+  }
   if (
     progress.doneCount > 0 &&
     ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') &&

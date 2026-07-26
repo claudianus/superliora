@@ -265,7 +265,8 @@ function applyShellPatterns(text: string, command: string): string {
   }
   if (
     /\bgit\s+(?:log|diff|show|blame|shortlog|stash\s+show|whatchanged)\b/u.test(command) ||
-    /\bgit\s+(?:diff|show|log)\b[^\n]*--(?:name-status|stat|numstat|shortstat)\b/u.test(command)
+    /\bgit\s+(?:diff|show|log)\b[^\n]*--(?:name-status|stat|numstat|shortstat)\b/u.test(command) ||
+    /\bgit\s+(?:branch|tag|stash\s+list|reflog)\b/u.test(command)
   ) {
     next = compressGitOutput(next, command);
   }
