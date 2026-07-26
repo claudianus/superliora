@@ -452,6 +452,22 @@ export function suggestNextActions(
         .join(', ')}${verificationGaps.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
     );
   }
+  // Promote circuit-break signals into next_actions (not body-only) so injectors
+  // and envelopes do not keep recommending "Resume node" during oscillation.
+  const resumeCycles = countResumeCyclesFromHistory(run);
+  if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
+    actions.push(
+      `Break oscillation: high resume count (${String(resumeCycles)} ≥ ${String(OSCILLATION_WARN_THRESHOLD)}) — simplify objective, cancel stuck nodes, or split into smaller runs before more product edits.`,
+    );
+  }
+  const longStage = detectLongRunningStage(run);
+  if (longStage !== undefined) {
+    const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
+    const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
+    actions.push(
+      `Advance or split long-running stage "${longStage.stage}" (~${String(elapsedMin)}min, expected <${String(thresholdMin)}min) — avoid unbounded loops.`,
+    );
+  }
   if (
     progress.doneCount > 0 &&
     ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') &&

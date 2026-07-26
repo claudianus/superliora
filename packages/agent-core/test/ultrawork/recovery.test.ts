@@ -1614,6 +1614,63 @@ describe('suggestNextActions fallbacks', () => {
     expect(empty.some((a) => a.includes('empty graph is rejected'))).toBe(true);
   });
 
+  it('promotes high-resume and long-running stages into next_actions', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const now = Date.now();
+    const actions = suggestNextActions({
+      id: 'run-next-actions-circuit-break',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-next-actions-circuit-break',
+        workDir: '/tmp',
+      },
+      stageHistory: [
+        {
+          stage: 'integrate',
+          enteredAt: new Date(now - 20 * 60_000).toISOString(),
+          reason: 'interrupt: context pressure',
+        },
+        {
+          stage: 'integrate',
+          enteredAt: new Date(now - 19 * 60_000).toISOString(),
+          reason: 'crash recovery',
+        },
+        {
+          stage: 'integrate',
+          enteredAt: new Date(now - 18 * 60_000).toISOString(),
+          reason: 'blocked on dependency',
+        },
+      ],
+      workGraph: {
+        id: 'run-next-actions-circuit-break:work_graph',
+        runId: 'run-next-actions-circuit-break',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'node-run',
+            title: 'Still open',
+            stage: 'integrate',
+            status: 'running',
+          },
+        ],
+      },
+    } as UltraworkRun);
+
+    expect(actions.some((a) => /Break oscillation|high resume count/i.test(a))).toBe(true);
+    expect(actions.some((a) => /Advance or split long-running stage/i.test(a))).toBe(true);
+    // Cap is 4 — circuit-break cues must still win a slot over generic resume-only lists.
+    expect(actions.length).toBeLessThanOrEqual(4);
+    expect(actions.slice(0, 4).some((a) => /Break oscillation|high resume count/i.test(a))).toBe(
+      true,
+    );
+  });
+
   it('fills a defensive fallback when stage guidance is empty', async () => {
     const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
     // Force an empty path by skipping interrupt/plan context and using a stage
