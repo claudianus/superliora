@@ -22,11 +22,24 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('OpenAi_Token')).toBe(true);
   });
 
+  it('matches extended credential substrings (password, bearer, webhook, …)', () => {
+    expect(isSecretEnvKeyName('DB_PASSWORD')).toBe(true);
+    expect(isSecretEnvKeyName('MYSQL_PASSWD')).toBe(true);
+    expect(isSecretEnvKeyName('AWS_CREDENTIAL_FILE')).toBe(true);
+    expect(isSecretEnvKeyName('SSH_PRIVATE_KEY')).toBe(true);
+    expect(isSecretEnvKeyName('HTTP_BEARER')).toBe(true);
+    expect(isSecretEnvKeyName('AUTHORIZATION')).toBe(true);
+    expect(isSecretEnvKeyName('SLACK_WEBHOOK_URL')).toBe(true);
+    expect(isSecretEnvKeyName('OAUTH_CLIENT_SECRET')).toBe(true);
+    expect(isSecretEnvKeyName('AWS_ACCESS_KEY_ID')).toBe(true);
+  });
+
   it('does not match ordinary path-like keys', () => {
     expect(isSecretEnvKeyName('PATH')).toBe(false);
     expect(isSecretEnvKeyName('HOME')).toBe(false);
     expect(isSecretEnvKeyName('NODE_ENV')).toBe(false);
     expect(isSecretEnvKeyName('PWD')).toBe(false);
+    expect(isSecretEnvKeyName('LANG')).toBe(false);
   });
 });
 
@@ -39,6 +52,8 @@ describe('filterShellEnv', () => {
       MY_SECRET: 'x',
       GH_TOKEN: 'y',
       api_key: 'z',
+      DB_PASSWORD: 'p',
+      SLACK_WEBHOOK_URL: 'w',
       NODE_ENV: 'test',
     });
 
@@ -49,8 +64,17 @@ describe('filterShellEnv', () => {
     expect(env).not.toHaveProperty('MY_SECRET');
     expect(env).not.toHaveProperty('GH_TOKEN');
     expect(env).not.toHaveProperty('api_key');
+    expect(env).not.toHaveProperty('DB_PASSWORD');
+    expect(env).not.toHaveProperty('SLACK_WEBHOOK_URL');
     expect(strippedKeys).toEqual(
-      expect.arrayContaining(['API_KEY', 'MY_SECRET', 'GH_TOKEN', 'api_key']),
+      expect.arrayContaining([
+        'API_KEY',
+        'MY_SECRET',
+        'GH_TOKEN',
+        'api_key',
+        'DB_PASSWORD',
+        'SLACK_WEBHOOK_URL',
+      ]),
     );
     // Never assert secret values — keys only.
   });

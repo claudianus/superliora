@@ -18,8 +18,8 @@ export interface ShellEnvFilterPolicy {
    */
   readonly inherit?: ShellEnvInheritMode | undefined;
   /**
-   * When true (default), drop keys matching SuperLiora default secret globs:
-   * `*KEY*`, `*SECRET*`, `*TOKEN*` (case-insensitive substring).
+   * When true (default), drop keys matching SuperLiora default secret globs
+   * (KEY/SECRET/TOKEN/PASSWORD/CREDENTIAL/… — see DEFAULT_SECRET_ENV_SUBSTRINGS).
    */
   readonly stripDefaultSecrets?: boolean | undefined;
   /** Extra case-insensitive substring patterns (without wildcards). */
@@ -37,8 +37,27 @@ export const DEFAULT_SHELL_ENV_FILTER_POLICY: Required<
   stripDefaultSecrets: true,
 };
 
-/** Default secret name substrings (case-insensitive). */
-export const DEFAULT_SECRET_ENV_SUBSTRINGS = ['KEY', 'SECRET', 'TOKEN'] as const;
+/**
+ * Default secret name substrings (case-insensitive).
+ * Kept as short tokens so `API_KEY` / `GH_TOKEN` still match; extended
+ * credentials (PASSWORD, BEARER, …) close common ambient-leak gaps.
+ */
+export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
+  'KEY',
+  'SECRET',
+  'TOKEN',
+  'PASSWORD',
+  'PASSWD',
+  'CREDENTIAL',
+  'PRIVATE',
+  'BEARER',
+  'AUTHORIZATION',
+  'AUTH_HEADER',
+  'WEBHOOK',
+  'CLIENT_SECRET',
+  'ACCESS_KEY',
+  'PRIVATE_KEY',
+] as const;
 
 const CORE_ENV_EXACT = new Set([
   'PATH',
@@ -69,8 +88,9 @@ function isCoreEnvKey(key: string): boolean {
 
 /**
  * True when the env key name matches a secret-style pattern.
- * Matches substrings KEY / SECRET / TOKEN case-insensitively.
- * Note: false positives like KEYBOARD / TOKENIZER are accepted by policy.
+ * Matches {@link DEFAULT_SECRET_ENV_SUBSTRINGS} case-insensitively.
+ * Note: false positives like KEYBOARD / TOKENIZER / AUTHORIZATION_CODE
+ * are accepted by policy (prefer allowKeys for rare escapes).
  */
 export function isSecretEnvKeyName(
   key: string,
