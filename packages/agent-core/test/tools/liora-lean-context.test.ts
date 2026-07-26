@@ -296,13 +296,22 @@ describe('Liora lean context tools', () => {
       { length: 100 },
       (_, i) => `chunk ${String(i)} 1.2 kB  [rendered]`,
     ).join('\n');
-    for (const command of ['next build', 'vite build', 'webpack --mode production', 'turbo run build']) {
+    for (const command of [
+      'next build',
+      'vite build',
+      'webpack --mode production',
+      'turbo run build',
+      'dotnet build',
+      'swift test',
+      'cmake --build build',
+      'rustc src/main.rs',
+    ]) {
       const compressed = compressShellOutput({
         stdout,
         stderr: '',
         command,
       });
-      // Build dumps reuse the test/build collapse path (passing-line + head/tail via maxChars).
+      // Build dumps reuse compiler head+tail collapse.
       expect(compressed.text.length, command).toBeLessThan(stdout.length);
       expect(compressed.savedPercent, command).toBeGreaterThan(0);
     }

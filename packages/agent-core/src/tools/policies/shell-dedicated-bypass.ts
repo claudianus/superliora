@@ -330,6 +330,23 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     };
   }
 
+  // sort/uniq/shuf single-file dumps — multi-file sort/merge and stdin stay allowed.
+  if (/^(?:\/usr\/bin\/)?(?:sort|uniq|shuf|gsort)\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?(?:sort|uniq|shuf|gsort)\b/, '')
+      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'sort/uniq/shuf file',
+        message: 'Use Read instead of sort/uniq/shuf for single-file content dumps.',
+      };
+    }
+  }
+
   // sed -n print range (not -i) with a file path
   if (
     /^(?:\/usr\/bin\/)?sed\b/.test(command) &&

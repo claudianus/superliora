@@ -293,6 +293,8 @@ function applyShellPatterns(text: string, command: string): string {
     ) ||
     /\bcargo\s+(?:clippy|fmt)\b/u.test(command) ||
     /\bpython(?:3(?:\.\d+)?)?\s+-m\s+(?:black|isort)\b/u.test(command) ||
+    /\b(?:dotnet|swift)\s+(?:build|test)\b/u.test(command) ||
+    /\b(?:javac|cmake|ninja|rustc)\b/u.test(command) ||
     /\berror TS\d+:/u.test(text)
   ) {
     next = compressCompilerOutput(next);

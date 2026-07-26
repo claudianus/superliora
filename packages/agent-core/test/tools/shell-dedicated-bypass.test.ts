@@ -36,6 +36,12 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('xsel notes.md')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('cat src/a.ts | pbcopy')).toBeUndefined();
     expect(detectShellDedicatedBypass('pbcopy')).toBeUndefined();
+    // sort/uniq/shuf single-file dumps prefer Read; multi-file / stdin stay allowed.
+    expect(detectShellDedicatedBypass('sort src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('uniq notes.txt')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('shuf data.csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('sort -n a.txt b.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('sort -')).toBeUndefined();
   });
 
   it('blocks sed -i and grep/rg/find', () => {
