@@ -1279,6 +1279,23 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of PowerShell Format-*/Out-String for file contents.',
     };
   }
+  // Format-Hex / Get-FileHash / Select-Xml path dumps → Read (pipelines stay allowed).
+  if (
+    /^(?:Format-Hex|fhx|Get-FileHash|Select-Xml)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b|\bGet-Content\b|\bgc\b)/i.test(command)
+  ) {
+    const pattern = /^(?:Format-Hex|fhx)\b/i.test(command)
+      ? 'Format-Hex'
+      : /^(?:Get-FileHash)\b/i.test(command)
+        ? 'Get-FileHash'
+        : 'Select-Xml';
+    return {
+      prefer: 'Read',
+      pattern,
+      message: `Use Read instead of PowerShell ${pattern} for file content dumps.`,
+    };
+  }
   // ConvertTo-Json / ConvertFrom-Json of a single file path / Get-Content dump → Read
   // (pipelines stay allowed for real shell composition).
   if (

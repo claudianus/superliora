@@ -140,6 +140,13 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Content a.ts | Select-Object -First 5')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')).toBeUndefined();
     expect(detectShellDedicatedBypass('Select-Object -First 5')).toBeUndefined();
+    // Format-Hex / Get-FileHash / Select-Xml path dumps → Read; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('Format-Hex -Path src/a.bin')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('fhx notes.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-FileHash -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Select-Xml -Path config.xml')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.bin | Format-Hex')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-ChildItem | Get-FileHash')).toBeUndefined();
     // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',
