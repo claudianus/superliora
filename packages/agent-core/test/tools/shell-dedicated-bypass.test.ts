@@ -113,6 +113,9 @@ describe('detectShellDedicatedBypass', () => {
     // Bash pathname expansion listing → Glob.
     expect(detectShellDedicatedBypass("compgen -G '*.ts'")?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('compgen -G "packages/**/*.ts"')?.prefer).toBe('Glob');
+    // PowerShell name-only listing → Glob; bare navigation stays allowed.
+    expect(detectShellDedicatedBypass('Get-ChildItem -Name src')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('gci -Name *.ts')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('Get-ChildItem src')).toBeUndefined();
     expect(detectShellDedicatedBypass('dir')).toBeUndefined();
     expect(detectShellDedicatedBypass('ls packages')).toBeUndefined();

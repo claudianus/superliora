@@ -1220,6 +1220,22 @@ function matchGlobLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Glob for pathname expansion listing instead of compgen -G.',
     };
   }
+  // PowerShell `Get-ChildItem -Name` / `gci -Name` is a recursive-capable name dump.
+  // Bare `Get-ChildItem src` without -Name stays allowed for navigation.
+  if (
+    /^(?:Get-ChildItem|gci)\b/i.test(command) &&
+    /(?:^|\s)-Name\b/i.test(command) &&
+    !/(?:-Recurse|\s\/s\b)/i.test(command)
+  ) {
+    // Only block when the command is clearly listing many names (path + -Name),
+    // not interactive inspection of a single known path without wildcards is still noisy —
+    // route name-only listings to Glob for consistency.
+    return {
+      prefer: 'Glob',
+      pattern: 'Get-ChildItem -Name',
+      message: 'Use Glob for name-only file listing instead of Get-ChildItem -Name.',
+    };
+  }
   // ls *.ts only — ls of a directory is often legitimate navigation; only block `ls` with glob chars?
   // Too noisy — skip bare ls.
   return undefined;

@@ -19,6 +19,8 @@ export type CompletionAuditCode =
   | 'incomplete_nodes'
   | 'evidence_gate'
   | 'verification_failed'
+  /** verificationStatus=blocked on a gated node (checks could not complete). */
+  | 'verification_blocked'
   | 'verification_pending'
   | 'run_not_running'
   /** Structured GoalPredicate evaluation failed (paths/tests/evidence). */

@@ -306,6 +306,9 @@ function applyShellPatterns(text: string, command: string): string {
     /\b(?:psql|mysql|mysqldump|mongosh|mongo|redis-cli|sqlite3|clickhouse-client)\b/u.test(
       command,
     ) ||
+    /\b(?:pg_dump|pg_restore|mongodump|mongoexport|mongoimport|mysqldump|mysqlpump)\b/u.test(
+      command,
+    ) ||
     /\b(?:promtool|logcli|amtool)\b/u.test(command) ||
     /\b(?:elasticsearch|elasticdump|kibana-plugin)\b/u.test(command) ||
     /\b(?:grafana-cli|jaeger|otelcol(?:-contrib)?)\b/u.test(command) ||
