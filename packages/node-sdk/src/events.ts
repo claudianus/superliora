@@ -21,6 +21,7 @@ export type {
   PluginCommandActivatedEvent,
   ProviderRouteCandidateStatus,
   ProviderRouteFailureKind,
+  ProviderRouteSelection,
   ProviderRouteStatus,
   ErrorEvent,
   WarningEvent,

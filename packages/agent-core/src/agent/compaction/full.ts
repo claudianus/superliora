@@ -334,11 +334,20 @@ export class FullCompaction {
       type: 'full_compaction.begin',
       ...data,
     });
+    // Resolve effective summarizer early so the TUI can show which model is
+    // about to write the compaction summary (cheap auto / explicit / main).
+    const configuredCompactionModel = this.agent.kimiConfig?.loopControl?.compactionModel;
+    const resolvedCompactionModel =
+      resolveCompactionModelAlias({
+        explicit: configuredCompactionModel,
+        models: this.agent.kimiConfig?.models,
+      }) ?? this.agent.config.modelAlias;
     this.agent.emitEvent({
       type: 'compaction.started',
       trigger: data.source,
       instruction: data.instruction,
       mode: this.agent.turn.hasActiveTurn ? 'background' : 'blocking',
+      modelAlias: resolvedCompactionModel,
     });
     const abortController = new AbortController();
     this.compacting = {
