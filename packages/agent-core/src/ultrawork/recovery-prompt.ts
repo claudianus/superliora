@@ -163,25 +163,27 @@ export function formatFailedNodeNextActions(
   workGraph?: UltraworkRun['workGraph'],
 ): readonly string[] {
   if (nodes.length === 0) return [];
+  // Per-node category hints so every failed node (up to the cap) carries its
+  // own repair guidance, not just the first two — the old `slice(0, 2)` cap
+  // silently dropped hints for nodes 3..N even though their id was listed.
   const failedAnalysis = analyzeFailedNodes(workGraph);
-  const categoryHints = failedAnalysis
-    .slice(0, 2)
-    .map(({ node, category, guidance }) => `${node.id}[${category}]: ${guidance}`)
-    .join(' | ');
-  if (categoryHints.length > 0) {
-    return [
-      `Repair failed WorkGraph node(s) first: ${nodes
-        .slice(0, 3)
-        .map((node) => node.id)
-        .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — ${categoryHints}`,
-      formatFailedNodeCompleteBan(),
-    ];
-  }
+  const hintById = new Map(
+    failedAnalysis.map(({ node, category, guidance }) => [node.id, { category, guidance }]),
+  );
+  const head = nodes.slice(0, 3).map((node) => {
+    const id = node.id;
+    const hint = hintById.get(id);
+    if (hint === undefined) return id;
+    return `${id}[${hint.category}]: ${hint.guidance}`;
+  });
+  const overflow = nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : '';
+  const hasAnyHint = head.some((entry) => entry.includes('['));
   return [
-    `Repair failed WorkGraph node(s) first: ${nodes
-      .slice(0, 3)
-      .map((node) => node.id)
-      .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — failed status blocks goal complete.`,
+    `Repair failed WorkGraph node(s) first: ${head.join(' | ')}${overflow} — ${
+      hasAnyHint
+        ? 'match the per-node category to its repair step.'
+        : 'failed status blocks goal complete.'
+    }`,
     formatFailedNodeCompleteBan(),
   ];
 }
