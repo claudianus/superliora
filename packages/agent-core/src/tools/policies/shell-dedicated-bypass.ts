@@ -71,6 +71,10 @@ export function detectShellDedicatedBypass(
   const psPipeWriteHit = matchPowerShellPipeWriteBypass(unwrapped);
   if (psPipeWriteHit !== undefined) return psPipeWriteHit;
 
+  // Start-Transcript path dumps → Write (session log file I/O; Stop-Transcript stays allowed).
+  const transcriptHit = matchStartTranscriptWrite(unwrapped);
+  if (transcriptHit !== undefined) return transcriptHit;
+
   // Multi-statement / pipeline / redirection chains → real shell work.
   if (hasShellComposition(unwrapped)) return undefined;
 
@@ -890,6 +894,7 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
  * Matches:
  *   - Write-Output/Write-Host/echo … | Set-Content/Out-File/Add-Content/Tee-Object/sponge path
  *   - 'literal' / "literal" | Set-Content path
+ *   - $null / numeric / range constants | Set-Content path
  * Skips: real process left-hand sides, multi-pipe chains, &&/|| lists.
  */
 function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHit | undefined {
@@ -899,21 +904,30 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
   // Exactly one pipe — multi-stage pipelines stay allowed.
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
 
-  const producerRe =
+  const producerCmdRe =
     'Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|echo|printf';
   const sinkRe = 'Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee|sponge';
   const m =
     new RegExp(
-      `^(${producerRe})\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+      `^(${producerCmdRe})\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
       'i',
     ).exec(command) ??
     new RegExp(
       `^(['"])([\\s\\S]*?)\\1\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
       'i',
+    ).exec(command) ??
+    // Constant producers: $null, 0, 1.5, 1..3
+    new RegExp(
+      `^(\\$null|-?\\d+(?:\\.\\d+)?|-?\\d+\\.\\.-?\\d+)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+      'i',
     ).exec(command);
   if (m === null) return undefined;
 
-  const sinkArgs = m[4] ?? '';
+  // Groups differ for constant form (producer, sink, sinkArgs) vs command/string form
+  // (producer, middle, sink, sinkArgs).
+  const isConstant = m.length === 4 && !/^['"]/.test(m[1] ?? '') && !/^(?:Write-|echo|printf)/i.test(m[1] ?? '');
+  const sink = (isConstant ? m[2] : m[3]) ?? 'Set-Content';
+  const sinkArgs = (isConstant ? m[3] : m[4]) ?? '';
   // Require a path-like sink argument so bare `Write-Output x | Set-Content` stays allowed.
   const hasPath =
     /(?:^|\s)-(?:Path|LiteralPath|FilePath)\s+\S+/i.test(sinkArgs) ||
@@ -924,17 +938,45 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
   if (!hasPath) return undefined;
 
   const producerRaw = m[1] ?? 'literal';
-  const producer = /^(?:Write-(?:Output|Host|Verbose|Warning|Error|Information|Debug)|echo|printf)$/i.test(
-    producerRaw,
-  )
-    ? producerRaw
-    : 'literal';
-  const sink = m[3] ?? 'Set-Content';
+  let producer: string;
+  if (/^(?:Write-(?:Output|Host|Verbose|Warning|Error|Information|Debug)|echo|printf)$/i.test(producerRaw)) {
+    producer = producerRaw;
+  } else if (/^\$null$/i.test(producerRaw) || /^-?\d/.test(producerRaw)) {
+    producer = 'constant';
+  } else {
+    producer = 'literal';
+  }
   return {
     prefer: 'Write',
     pattern: `${producer} | ${sink}`,
     message:
-      'Use Write instead of PowerShell/stream producers (or string) piped into Set-Content/Out-File/Tee-Object/sponge.',
+      'Use Write instead of PowerShell/stream producers (or string/constant) piped into Set-Content/Out-File/Tee-Object/sponge.',
+  };
+}
+
+/**
+ * PowerShell Start-Transcript path dumps → Write.
+ * Matches: Start-Transcript -Path/-LiteralPath file, Start-Transcript file.ext
+ * Skips: Stop-Transcript, pipelines, path-less Start-Transcript (console default).
+ */
+function matchStartTranscriptWrite(command: string): ShellDedicatedBypassHit | undefined {
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[|;&`\n]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  if (!/^(?:Start-Transcript)\b/i.test(command)) return undefined;
+
+  const hasPath =
+    /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(command) ||
+    /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+      command,
+    ) ||
+    /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(command);
+  if (!hasPath) return undefined;
+
+  return {
+    prefer: 'Write',
+    pattern: 'Start-Transcript path',
+    message: 'Use Write instead of PowerShell Start-Transcript for file dumps.',
   };
 }
 

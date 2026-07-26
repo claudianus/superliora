@@ -238,6 +238,26 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Write-Warning hi')).toBeUndefined();
   });
 
+  it('blocks constant producer pipes into file writers', () => {
+    expect(detectShellDedicatedBypass('$null | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('0 | Set-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('1..3 | Out-File notes.md')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('1.5 | Add-Content out.txt')?.prefer).toBe('Write');
+    // real process left-hand side stays allowed
+    expect(detectShellDedicatedBypass('Get-Date | Out-File out.txt')).toBeUndefined();
+  });
+
+  it('blocks Start-Transcript path dumps but allows Stop-Transcript', () => {
+    expect(detectShellDedicatedBypass('Start-Transcript -Path log.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Start-Transcript -LiteralPath ./session.log')?.prefer).toBe(
+      'Write',
+    );
+    expect(detectShellDedicatedBypass('Start-Transcript log.txt')?.prefer).toBe('Write');
+    // path-less / stop stay allowed
+    expect(detectShellDedicatedBypass('Start-Transcript')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Stop-Transcript')).toBeUndefined();
+  });
+
   it('allows pipelines, && chains, and real process work', () => {
     expect(detectShellDedicatedBypass('cat file | head')).toBeUndefined();
     expect(detectShellDedicatedBypass('cd src && cat index.ts')).toBeUndefined();
