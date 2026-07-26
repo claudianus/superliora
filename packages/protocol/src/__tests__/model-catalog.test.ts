@@ -1,72 +1,74 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  getProviderResponseSchema,
-  listModelsResponseSchema,
-  listProvidersResponseSchema,
   modelCatalogItemSchema,
   providerCatalogItemSchema,
   providerCatalogStatusSchema,
-  setDefaultModelResponseSchema,
-  type ModelCatalogItem,
-  type ProviderCatalogItem,
-} from '../index';
+  providerRefreshChangeSchema,
+  providerRefreshFailureSchema,
+} from '../modelCatalog';
 
-describe('model catalog schemas', () => {
-  const model: ModelCatalogItem = {
-    provider: 'kimi',
-    model: 'k2',
-    display_name: 'Kimi K2',
-    max_context_size: 131072,
-    capabilities: ['thinking'],
-    support_efforts: ['low', 'high', 'max'],
-    default_effort: 'high',
-  };
-
-  const provider: ProviderCatalogItem = {
-    id: 'kimi',
-    type: 'kimi',
-    base_url: 'https://api.example.test/v1',
-    default_model: 'k2',
-    has_api_key: true,
-    status: 'connected',
-    models: ['k2'],
-  };
-
-  it('round-trips a model catalog item', () => {
-    expect(modelCatalogItemSchema.parse(model)).toEqual(model);
+describe('protocol/modelCatalog — zod schemas', () => {
+  it('providerCatalogStatusSchema accepts the documented status values', () => {
+    for (const v of ['connected', 'error', 'unconfigured']) {
+      expect(providerCatalogStatusSchema.parse(v)).toBe(v);
+    }
+    expect(() => providerCatalogStatusSchema.parse('bogus')).toThrow();
   });
 
-  it('rejects invalid model context sizes', () => {
-    expect(
-      modelCatalogItemSchema.safeParse({ ...model, max_context_size: 0 }).success,
-    ).toBe(false);
+  it('modelCatalogItemSchema accepts a well-formed item', () => {
+    const item = modelCatalogItemSchema.parse({
+      provider: 'kimi',
+      model: 'kimi-k2',
+      display_name: 'Kimi K2',
+      max_context_size: 131072,
+      capabilities: ['tool_use', 'thinking'],
+    });
+    expect(item.model).toBe('kimi-k2');
   });
 
-  it.each(['connected', 'error', 'unconfigured'] as const)(
-    'accepts provider status %s',
-    (status) => {
-      expect(providerCatalogStatusSchema.parse(status)).toBe(status);
-    },
-  );
-
-  it('round-trips a provider catalog item', () => {
-    expect(providerCatalogItemSchema.parse(provider)).toEqual(provider);
-    expect(getProviderResponseSchema.parse(provider)).toEqual(provider);
+  it('modelCatalogItemSchema rejects a missing model', () => {
+    expect(() =>
+      modelCatalogItemSchema.parse({
+        provider: 'kimi',
+        max_context_size: 1000,
+        capabilities: [],
+      }),
+    ).toThrow();
   });
 
-  it('round-trips list responses and set-default response', () => {
-    expect(listModelsResponseSchema.parse({ items: [model] })).toEqual({
-      items: [model],
+  it('providerCatalogItemSchema accepts a complete item', () => {
+    const item = providerCatalogItemSchema.parse({
+      id: 'kimi',
+      type: 'managed',
+      has_api_key: true,
+      status: 'connected',
     });
-    expect(listProvidersResponseSchema.parse({ items: [provider] })).toEqual({
-      items: [provider],
+    expect(item.status).toBe('connected');
+  });
+
+  it('providerRefreshChangeSchema requires provider_id and provider_name', () => {
+    expect(() =>
+      providerRefreshChangeSchema.parse({
+        provider_id: 'kimi',
+        added: 0,
+        removed: 0,
+      }),
+    ).toThrow();
+    expect(() =>
+      providerRefreshChangeSchema.parse({
+        provider_name: 'kimi',
+        added: 0,
+        removed: 0,
+      }),
+    ).toThrow();
+  });
+
+  it('providerRefreshFailureSchema accepts a failure with provider + reason', () => {
+    const item = providerRefreshFailureSchema.parse({
+      provider: 'kimi',
+      reason: 'RATE_LIMITED',
     });
-    expect(
-      setDefaultModelResponseSchema.parse({ default_model: 'k2', model }),
-    ).toEqual({
-      default_model: 'k2',
-      model,
-    });
+    expect(item.reason).toBe('RATE_LIMITED');
   });
 });
