@@ -19,6 +19,8 @@ import {
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
+  formatHighResumeOscillationNextActions,
+  formatLongRunningStageNextActions,
   formatNeedsIntegrationNextActions,
   formatOwnerlessRunningNextActions,
   formatQueuedDependsOnWaitNextActions,
@@ -248,12 +250,14 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
     lines.push(
       `long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min) — consider advancing or splitting work.`,
+      ...formatLongRunningStageNextActions(longStage),
     );
   }
   const resumeCycles = countResumeCyclesFromHistory(run);
   if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
     lines.push(
       `high_resume_count: ${String(resumeCycles)} (≥${String(OSCILLATION_WARN_THRESHOLD)}) — repeated crash-recovery cycles; simplify objective or split run.`,
+      ...formatHighResumeOscillationNextActions(resumeCycles),
     );
   }
   if (nextActions.length > 0) {
@@ -450,12 +454,14 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
     lines.push(
       `long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min) — consider advancing or splitting work.`,
+      ...formatLongRunningStageNextActions(longStage),
     );
   }
   const resumeCycles = countResumeCyclesFromHistory(run);
   if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
     lines.push(
       `high_resume_count: ${String(resumeCycles)} (≥${String(OSCILLATION_WARN_THRESHOLD)}) — repeated crash-recovery cycles; simplify objective or split run.`,
+      ...formatHighResumeOscillationNextActions(resumeCycles),
     );
   }
 

@@ -18,6 +18,8 @@ import {
   formatBlockedNodeNextActions,
   formatEvidenceHardGateNextActions,
   formatFailedNodeNextActions,
+  formatHighResumeOscillationNextActions,
+  formatLongRunningStageNextActions,
   formatNeedsIntegrationNextActions,
   formatOwnerlessRunningNextActions,
   formatQueuedDependsOnWaitNextActions,
@@ -29,7 +31,6 @@ import {
   countResumeCyclesFromHistory,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
-  OSCILLATION_WARN_THRESHOLD,
 } from './stage-progress';
 
 export type CompletionAuditCode =
@@ -269,20 +270,10 @@ export function auditUltraworkCompletion(
     nextActions.push(...formatVerificationGapNextActions(collectVerificationGapNodes(open)));
     // Match recovery-triangle circuit-break signals on incomplete audits so
     // UpdateGoal(complete) rejections name oscillation / long stages too.
-    const resumeCycles = countResumeCyclesFromHistory(run);
-    if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
-      nextActions.push(
-        `Break oscillation: high resume count (${String(resumeCycles)} ≥ ${String(OSCILLATION_WARN_THRESHOLD)}) — simplify objective, cancel stuck nodes, or split into smaller runs before more product edits.`,
-      );
-    }
-    const longStage = detectLongRunningStage(run);
-    if (longStage !== undefined) {
-      const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
-      const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
-      nextActions.push(
-        `Advance or split long-running stage "${longStage.stage}" (~${String(elapsedMin)}min, expected <${String(thresholdMin)}min) — avoid unbounded loops.`,
-      );
-    }
+    nextActions.push(
+      ...formatHighResumeOscillationNextActions(countResumeCyclesFromHistory(run)),
+      ...formatLongRunningStageNextActions(detectLongRunningStage(run)),
+    );
     nextActions.push(
       'Finish or re-open incomplete nodes with real evidence.',
       'Do not call UpdateGoal(complete) until every AC node is done with verification.',

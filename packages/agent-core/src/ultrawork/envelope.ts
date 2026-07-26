@@ -6,6 +6,8 @@ import {
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
+  formatHighResumeOscillationNextActions,
+  formatLongRunningStageNextActions,
   formatNeedsIntegrationNextActions,
   formatOwnerlessRunningNextActions,
   formatQueuedDependsOnWaitNextActions,
@@ -337,7 +339,10 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   const longStage = detectLongRunningStage(snapshot.run);
   if (longStage !== undefined) {
     const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
-    lines.push(`long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (threshold ${String(Math.round(longStage.thresholdMs / 60_000))}min)`);
+    lines.push(
+      `long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (threshold ${String(Math.round(longStage.thresholdMs / 60_000))}min)`,
+      ...formatLongRunningStageNextActions(longStage),
+    );
   }
 
   const resumeCycles = countResumeCyclesFromHistory(snapshot.run);
@@ -345,6 +350,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     lines.push(`high_resume_count: ${String(resumeCycles)}`);
     lines.push(
       `oscillation_warning: repeated crash-recovery cycles (≥${String(OSCILLATION_WARN_THRESHOLD)}); simplify objective or split run.`,
+      ...formatHighResumeOscillationNextActions(resumeCycles),
     );
   }
 

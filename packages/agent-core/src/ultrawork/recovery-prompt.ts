@@ -233,6 +233,26 @@ export function formatStuckNodeNextActions(nodes: readonly WorkGraphNode[]): rea
   ];
 }
 
+/** Match recovery-triangle high-resume oscillation next_actions. */
+export function formatHighResumeOscillationNextActions(resumeCycles: number): readonly string[] {
+  if (resumeCycles < OSCILLATION_WARN_THRESHOLD) return [];
+  return [
+    `Break oscillation: high resume count (${String(resumeCycles)} ≥ ${String(OSCILLATION_WARN_THRESHOLD)}) — simplify objective, cancel stuck nodes, or split into smaller runs before more product edits.`,
+  ];
+}
+
+/** Match recovery-triangle long-running stage next_actions. */
+export function formatLongRunningStageNextActions(
+  longStage: ReturnType<typeof detectLongRunningStage>,
+): readonly string[] {
+  if (longStage === undefined) return [];
+  const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
+  const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
+  return [
+    `Advance or split long-running stage "${longStage.stage}" (~${String(elapsedMin)}min, expected <${String(thresholdMin)}min) — avoid unbounded loops.`,
+  ];
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
@@ -589,19 +609,9 @@ export function suggestNextActions(
     actions.push(...formatStuckNodeNextActions(stuckNodes));
   }
   const resumeCycles = countResumeCyclesFromHistory(run);
-  if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
-    actions.push(
-      `Break oscillation: high resume count (${String(resumeCycles)} ≥ ${String(OSCILLATION_WARN_THRESHOLD)}) — simplify objective, cancel stuck nodes, or split into smaller runs before more product edits.`,
-    );
-  }
+  actions.push(...formatHighResumeOscillationNextActions(resumeCycles));
   const longStage = detectLongRunningStage(run);
-  if (longStage !== undefined) {
-    const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
-    const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
-    actions.push(
-      `Advance or split long-running stage "${longStage.stage}" (~${String(elapsedMin)}min, expected <${String(thresholdMin)}min) — avoid unbounded loops.`,
-    );
-  }
+  actions.push(...formatLongRunningStageNextActions(longStage));
   if (
     progress.doneCount > 0 &&
     ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') &&
