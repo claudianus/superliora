@@ -900,6 +900,64 @@ describe('Ultrawork recovery', () => {
     expect(run.id).toBe('run-post-swarm-graph');
   });
 
+  it('includes needs_integration WorkGraph nodes in post-swarm injection', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    agent.ultrawork.create({
+      id: 'run-post-swarm-needs-int',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-post-swarm-needs-int',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-post-swarm-needs-int:work_graph',
+          runId: 'run-post-swarm-needs-int',
+          rootGoal: 'Ship feature',
+          nodes: [
+            {
+              id: 'node-int',
+              title: 'Specialist handoff',
+              stage: 'integrate',
+              status: 'needs_integration',
+            },
+            {
+              id: 'node-done',
+              title: 'Already merged',
+              stage: 'integrate',
+              status: 'done',
+            },
+          ],
+        },
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostSwarmContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_swarm>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('Needs-integration WorkGraph nodes');
+    expect(text).toContain('node-int');
+    expect(text).toContain('Specialist handoff');
+    expect(text).toContain('needs_integration blocks UpdateGoal(complete)');
+    expect(text).toContain('Integrate specialist handoffs');
+    expect(text).toContain('node-int[needs_integration]');
+    expect(text).not.toContain('node-done[done]');
+  });
+
   it('injects post-compaction continuation for an active ultrawork run', () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({

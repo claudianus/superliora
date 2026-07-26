@@ -73,6 +73,8 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     ) ?? [];
   const failedNodes =
     run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
+  const needsIntegrationNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'needs_integration') ?? [];
   const interruptReason = agent.ultrawork?.getInterruptReason()?.trim();
   const lines = [
     '<ultrawork_post_swarm>',
@@ -98,6 +100,17 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     );
     lines.push(
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+    );
+  }
+  if (needsIntegrationNodes.length > 0) {
+    lines.push(
+      `Needs-integration WorkGraph nodes (${String(needsIntegrationNodes.length)}): ${needsIntegrationNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
     );
   }
   if (pendingNodes.length > 0) {
@@ -161,6 +174,8 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     ) ?? [];
   const failedNodes =
     run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
+  const needsIntegrationNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'needs_integration') ?? [];
   if (failedNodes.length > 0) {
     lines.push(
       `Failed WorkGraph nodes (${String(failedNodes.length)}): ${failedNodes
@@ -170,6 +185,17 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     );
     lines.push(
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+    );
+  }
+  if (needsIntegrationNodes.length > 0) {
+    lines.push(
+      `Needs-integration WorkGraph nodes (${String(needsIntegrationNodes.length)}): ${needsIntegrationNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
     );
   }
   if (pendingNodes.length > 0) {

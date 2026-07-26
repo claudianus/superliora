@@ -5,7 +5,7 @@ Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, process
 - `sed`/`gsed`/`awk`/`perl -i`/`ruby -i` (in-place edit) → `Edit`
 - `echo > file` / heredoc / `sponge` / empty redirect → `Write`
 - simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
-- pattern find → `Glob` (plain `ls <dir>` OK)
+- pattern find / `Get-ChildItem -Recurse -Filter` / `dir /s` / `where /r` → `Glob` (plain `ls`/`dir`/`gci` of a directory OK)
 - `grep`/`rg`/`Select-String`/`findstr` → `Grep`
 - `jq`/`yq`/`python -m json.tool` whole-file dumps → `Read`
 - `git show <rev>:<path>` / `svn cat` / `hg cat` → `Read` (commit summaries stay OK)

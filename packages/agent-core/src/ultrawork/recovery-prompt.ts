@@ -223,6 +223,16 @@ export function suggestNextActions(
         .join(', ')}${failedNodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
     );
   }
+  const needsIntegration =
+    run.workGraph?.nodes.filter((node) => node.status === 'needs_integration') ?? [];
+  if (needsIntegration.length > 0) {
+    actions.push(
+      `Integrate specialist handoffs for node(s): ${needsIntegration
+        .slice(0, 3)
+        .map((node) => `${node.id} (${node.title})`)
+        .join(', ')}${needsIntegration.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
+    );
+  }
   if (
     progress.doneCount > 0 &&
     ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') &&

@@ -1104,6 +1104,27 @@ function matchGlobLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Glob for file-name search (gitignore-aware, capped) instead of find.',
     };
   }
+  // Windows recursive listing with name filters → Glob.
+  // Bare `dir` / `Get-ChildItem` of a single directory stays allowed for navigation.
+  if (
+    /^(?:Get-ChildItem|gci|dir)\b/i.test(command) &&
+    /(?:-Recurse|\s\/s\b)/i.test(command) &&
+    /(?:-Filter\s+\S+|-Include\s+\S+|\*\.\w{1,8}|\*\.\*)/i.test(command)
+  ) {
+    return {
+      prefer: 'Glob',
+      pattern: 'Get-ChildItem/dir recurse',
+      message: 'Use Glob for recursive file-name search instead of Get-ChildItem/dir.',
+    };
+  }
+  // `where /r . *.ts` recursive file search (not `where.exe python` which is PATH lookup).
+  if (/^where(?:\.exe)?\s+\/r\b/i.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'where /r',
+      message: 'Use Glob for recursive file-name search instead of where /r.',
+    };
+  }
   // ls *.ts only — ls of a directory is often legitimate navigation; only block `ls` with glob chars?
   // Too noisy — skip bare ls.
   return undefined;

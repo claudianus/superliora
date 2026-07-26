@@ -74,6 +74,16 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('findstr foo src/a.ts')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('findstr.exe /s /i foo *.ts')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('Get-ChildItem | Select-String foo')).toBeUndefined();
+    // Windows recursive name listing prefers Glob; bare dir/gci navigation stays allowed.
+    expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
+      'Glob',
+    );
+    expect(detectShellDedicatedBypass('gci -Recurse -Filter *.ts')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('dir /s /b *.ts')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('where /r . *.ts')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('Get-ChildItem src')).toBeUndefined();
+    expect(detectShellDedicatedBypass('dir')).toBeUndefined();
+    expect(detectShellDedicatedBypass('where.exe python')).toBeUndefined();
   });
 
   it('blocks simple echo/printf/cat redirects to files', () => {
