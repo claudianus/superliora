@@ -339,6 +339,11 @@ function applyShellPatterns(text: string, command: string): string {
     /\bdoctl\s+(?:apps|compute|kubernetes|registry|databases)\b/u.test(command) ||
     /\bcivo\s+(?:kubernetes|instance|loadbalancer|app)\b/u.test(command) ||
     /\bscaleway(?:-cli)?\s+\S+/u.test(command) ||
+    /\blinode-cli\s+\S+/u.test(command) ||
+    /\bhcloud\s+\S+/u.test(command) ||
+    /\bopenstack\s+\S+/u.test(command) ||
+    /\boci\s+\S+/u.test(command) ||
+    /\bibmcloud\s+\S+/u.test(command) ||
     /\bgh\s+(?:run\s+)?(?:view|list|watch|logs)\b/u.test(command) ||
     /\bgh\s+api\b/u.test(command)
   ) {

@@ -1146,6 +1146,48 @@ describe('suggestNextActions fallbacks', () => {
     expect(actions.length).toBeGreaterThan(0);
   });
 
+  it('surfaces queued nodes waiting on dependsOn when not blocked', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const actions = suggestNextActions({
+      id: 'run-queued-deps',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-queued-deps',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-queued-deps:work_graph',
+        runId: 'run-queued-deps',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'node-dep',
+            title: 'Upstream work',
+            stage: 'integrate',
+            status: 'running',
+            ownerExpertId: 'expert-1',
+          },
+          {
+            id: 'node-wait',
+            title: 'Waiting integrate',
+            stage: 'integrate',
+            status: 'queued',
+            dependsOn: ['node-dep'],
+          },
+        ],
+      },
+    } as UltraworkRun);
+    expect(actions.some((a) => a.includes('Queued node(s) waiting on dependsOn'))).toBe(true);
+    expect(actions.some((a) => a.includes('node-wait'))).toBe(true);
+    expect(actions.some((a) => a.includes('dependsOn: node-dep'))).toBe(true);
+  });
+
   it('prioritizes blocked WorkGraph nodes in next actions', async () => {
     const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
     const actions = suggestNextActions({

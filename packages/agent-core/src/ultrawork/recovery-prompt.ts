@@ -306,6 +306,26 @@ export function suggestNextActions(
         .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
     );
   }
+  // Queued nodes with explicit dependsOn that are not yet terminal — surface the wait graph.
+  const waitingQueued =
+    run.workGraph?.nodes.filter((node) => {
+      if (node.status !== 'queued') return false;
+      const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+      return deps.length > 0;
+    }) ?? [];
+  if (waitingQueued.length > 0 && blockedNodes.length === 0) {
+    // Skip when blocked guidance already covers dependency stalls to avoid duplicate noise.
+    const waitHints = waitingQueued
+      .slice(0, 3)
+      .map((node) => {
+        const deps = node.dependsOn?.filter((id) => id.length > 0) ?? [];
+        return `${node.id} (${node.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`;
+      })
+      .join(', ');
+    actions.push(
+      `Queued node(s) waiting on dependsOn: ${waitHints}${waitingQueued.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
+    );
+  }
   const verificationGaps = collectVerificationGapNodes(run.workGraph?.nodes);
   if (verificationGaps.length > 0) {
     actions.push(
