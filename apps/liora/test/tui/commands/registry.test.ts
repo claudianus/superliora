@@ -21,6 +21,8 @@ import {
   swarmArgumentCompletions,
   thinkingArgumentCompletions,
   thinkingArgumentCompletionsForModel,
+  themeArgumentCompletions,
+  appearanceArgumentCompletions,
   toggleOnOffArgumentCompletions,
   ultragoalArgumentCompletions,
   type LioraSlashCommand,
@@ -380,6 +382,66 @@ describe('built-in slash command registry', () => {
     expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('permission')!, 'yolo')).toBe(
       'always',
     );
+  });
+
+  it('offers theme built-in argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = themeArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['auto', 'dark', 'light', 'import']);
+    expect(values('d')).toEqual(['dark']);
+    expect(values('l')).toEqual(['light']);
+    expect(values('i')).toEqual(['import']);
+    expect(themeArgumentCompletions('au')).toEqual([
+      { value: 'auto', label: 'auto', description: 'Follow terminal light/dark detection' },
+    ]);
+    expect(values('auto')).toBeNull();
+    expect(values('import')).toBeNull();
+    expect(values('unknown')).toBeNull();
+    expect(findBuiltInSlashCommand('theme')?.completeArgs).toBe(themeArgumentCompletions);
+  });
+
+  it('offers appearance key argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = appearanceArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual([
+      'profile',
+      'density',
+      'timestamps',
+      'particles',
+      'animation-fps',
+      'canvas-background',
+      'terminal-background',
+      'terminal-palette',
+      'help',
+    ]);
+    expect(values('p')).toEqual(['profile', 'particles']);
+    expect(values('t')).toEqual(['timestamps', 'terminal-background', 'terminal-palette']);
+    expect(values('d')).toEqual(['density']);
+    expect(appearanceArgumentCompletions('term')).toEqual([
+      {
+        value: 'terminal-background',
+        label: 'terminal-background',
+        description: 'Terminal background (off|session)',
+      },
+      {
+        value: 'terminal-palette',
+        label: 'terminal-palette',
+        description: 'Terminal palette (on|off)',
+      },
+    ]);
+    expect(values('profile')).toBeNull();
+    expect(values('help')).toBeNull();
+    expect(values('unknown')).toBeNull();
+    expect(findBuiltInSlashCommand('appearance')?.completeArgs).toBe(
+      appearanceArgumentCompletions,
+    );
+    expect(findBuiltInSlashCommand('skin')?.completeArgs).toBe(appearanceArgumentCompletions);
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {

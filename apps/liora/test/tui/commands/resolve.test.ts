@@ -486,6 +486,26 @@ describe('resolveSlashCommandInput', () => {
       name: 'permission',
       args: 'yolo',
     });
+    expect(resolve('/theme dark', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'theme',
+      args: 'dark',
+    });
+    expect(resolve('/theme import ./x.json', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'theme',
+      args: 'import ./x.json',
+    });
+    expect(resolve('/appearance profile subtle', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'appearance',
+      args: 'profile subtle',
+    });
+    expect(resolve('/skin density compact', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'appearance',
+      args: 'density compact',
+    });
   });
 
   it('blocks plan clear while compacting because it is idle-only', () => {

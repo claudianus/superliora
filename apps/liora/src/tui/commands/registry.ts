@@ -104,6 +104,25 @@ const PERMISSION_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'yolo', description: 'Auto-approve all tool calls' },
 ];
 
+const THEME_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'auto', description: 'Follow terminal light/dark detection' },
+  { value: 'dark', description: 'Force the dark built-in theme' },
+  { value: 'light', description: 'Force the light built-in theme' },
+  { value: 'import', description: 'Import a theme from path/url/github' },
+];
+
+const APPEARANCE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'profile', description: 'Motion/profile preset (auto|off|subtle|premium)' },
+  { value: 'density', description: 'Spacing density (auto|compact|comfortable|spacious)' },
+  { value: 'timestamps', description: 'Show timestamps (on|off)' },
+  { value: 'particles', description: 'Particle style (auto|off|ambient|events|premium)' },
+  { value: 'animation-fps', description: 'Animation FPS (1-60)' },
+  { value: 'canvas-background', description: 'Canvas background (on|off)' },
+  { value: 'terminal-background', description: 'Terminal background (off|session)' },
+  { value: 'terminal-palette', description: 'Terminal palette (on|off)' },
+  { value: 'help', description: 'Show appearance usage' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -244,6 +263,18 @@ export function permissionArgumentCompletions(
   argumentPrefix: string,
 ): AutocompleteItem[] | null {
   return completeLeadingArg(PERMISSION_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Leading-arg completions for `/theme` built-ins and import. */
+export function themeArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(THEME_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Leading-arg completions for `/appearance` preference keys. */
+export function appearanceArgumentCompletions(
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  return completeLeadingArg(APPEARANCE_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -845,6 +876,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Set the terminal UI theme',
     priority: 60,
+    argumentHint: '[auto|dark|light|import <source>]',
+    completeArgs: themeArgumentCompletions,
     availability: 'always',
   },
   {
@@ -852,6 +885,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: ['skin'],
     description: 'Tune TUI motion, density, and background',
     priority: 60,
+    argumentHint: '[profile|density|timestamps|particles|…]',
+    completeArgs: appearanceArgumentCompletions,
     availability: 'always',
   },
   {
