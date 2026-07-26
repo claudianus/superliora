@@ -209,9 +209,19 @@ describe('Ultrawork goal completion', () => {
       ],
     });
     agent.ultrawork.syncWorkGraphFromStore();
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
     void maybeFinishUltraworkRun(agent);
     expect(agent.ultrawork.getRun()?.status).toBe('running');
     expect(agent.goal.getGoal().goal).not.toBeNull();
+    const text = String(
+      append.mock.calls.find((call) =>
+        String(call[0]).includes('<ultrawork_completion_rejected>'),
+      )?.[0] ?? '',
+    );
+    expect(text).toContain('<ultrawork_completion_rejected>');
+    expect(text).toContain('run-finish-rejects-failed');
+    expect(text).toContain('Ship feature');
+    expect(text).toContain('node-fail');
   });
 
   it('maybeFinishUltraworkRun accepts cancelled nodes as success-terminal', async () => {

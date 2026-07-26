@@ -303,6 +303,10 @@ describe('Liora lean context tools', () => {
       'terraform plan',
       'pulumi preview',
       'docker logs app',
+      'aws s3 ls',
+      'gcloud compute instances list',
+      'az vm list',
+      'ansible-playbook site.yml',
     ]) {
       const compressed = compressShellOutput({
         stdout,

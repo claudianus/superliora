@@ -83,7 +83,20 @@ export function injectCompletionAuditRejectionReminder(
   agent: Agent,
   rejection: ReturnType<typeof auditUltraworkCompletion> & { ok: false },
 ): void {
-  agent.context?.appendSystemReminder?.(formatCompletionAuditRejection(rejection), {
+  const run = agent.ultrawork?.getRun();
+  const base = formatCompletionAuditRejection(rejection);
+  const header =
+    run === undefined || run === null
+      ? base
+      : base.replace(
+          '<ultrawork_completion_rejected>',
+          [
+            '<ultrawork_completion_rejected>',
+            `Run: ${run.id} · stage=${run.stage} · status=${run.status}`,
+            `Objective: ${run.objective}`,
+          ].join('\n'),
+        );
+  agent.context?.appendSystemReminder?.(header, {
     kind: 'injection',
     variant: 'ultrawork_completion_rejected',
   });

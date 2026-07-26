@@ -272,12 +272,16 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\bdocker\s+(?:ps|logs|compose)\b/u.test(command)) {
     next = compressDockerOutput(next);
   }
-  // kubectl / helm / terraform dumps are long and rarely need full fidelity mid-run.
+  // kubectl / helm / terraform / cloud CLI dumps are long and rarely need full fidelity mid-run.
   if (
     /\bkubectl\s+(?:logs|get|describe|apply|diff)\b/u.test(command) ||
     /\bhelm\s+(?:list|status|get|template)\b/u.test(command) ||
     /\bterraform\s+(?:plan|show|state)\b/u.test(command) ||
-    /\bpulumi\s+(?:preview|stack|up)\b/u.test(command)
+    /\bpulumi\s+(?:preview|stack|up)\b/u.test(command) ||
+    /\baws\s+\S+/u.test(command) ||
+    /\bgcloud\s+\S+/u.test(command) ||
+    /\baz\s+\S+/u.test(command) ||
+    /\bansible(?:-playbook)?\b/u.test(command)
   ) {
     next = compressDockerOutput(next);
   }
