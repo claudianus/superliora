@@ -23,7 +23,6 @@ import {
   InMemoryAgentRecordPersistence,
 } from '../../../src/agent/records';
 import type { ContextMessage } from '../../../src/agent/context';
-import { FLAG_DEFINITIONS, FlagResolver } from '../../../src/flags';
 import { testAgent, type TestAgentContext } from '../harness/agent';
 
 type GenerateFn = NonNullable<AgentOptions['generate']>;
