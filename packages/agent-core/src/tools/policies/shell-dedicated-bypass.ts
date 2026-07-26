@@ -1442,8 +1442,9 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
   if (/<</.test(command)) return undefined;
   // Content producers + pure identity/listing dumps redirected to a file.
   // Keep process-heavy left-hand sides (e.g. `git status > log`) allowed.
+  // Optional explicit stdout fd `1` before `>` / `>>` (e.g. `echo hi 1> out.txt`).
   const m =
-    /^(?:\/usr\/bin\/)?(echo|printf|cat|type|Get-Content|gc|Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|pwd|hostname|whoami|date|uname|ls|dir|Get-Location|gl|Get-ChildItem|gci)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
+    /^(?:\/usr\/bin\/)?(echo|printf|cat|type|Get-Content|gc|Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|pwd|hostname|whoami|date|uname|ls|dir|Get-Location|gl|Get-ChildItem|gci)\b([\s\S]*?)\s*(?:1)?(>>?)\s*(\S+)\s*$/i.exec(
       command,
     );
   if (m === null) return undefined;
@@ -1466,19 +1467,19 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
 
 /**
  * Empty-file creators via redirect without content producers.
- * Matches: `: > path`, `true > path`, bare `> path` (and `>>` append-create).
+ * Matches: `: > path`, `true > path`, bare `> path` / `1> path` (and `>>` / `1>>`).
  * Skips: pipes, lists, stderr redirects, heredocs, process substitution.
  */
 function matchEmptyRedirectWrite(command: string): ShellDedicatedBypassHit | undefined {
   if (/[|;&`\n]/.test(command)) return undefined;
   if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
   if (/\$\(|\$\{/.test(command)) return undefined;
+  // Reject stderr redirects and multi-redirect forms (2>, &>, 2>&1, 1>&2).
   if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
   if (/<</.test(command)) return undefined;
-  // `: > path` / `: >> path` / `true > path` / `false > path` / bare `> path`
-  const m =
-    /^(?::|true|false)?\s*(>>?)\s*(\S+)\s*$/.exec(command) ??
-    /^(?::|true|false)\s*(>>?)\s*(\S+)\s*$/.exec(command);
+  // `: > path` / `: 1> path` / `true > path` / bare `> path` / bare `1> path`
+  // Optional explicit stdout fd `1` before `>` / `>>` (common shell form).
+  const m = /^(?::|true|false)?\s*(?:1)?(>>?)\s*(\S+)\s*$/.exec(command);
   if (m === null) return undefined;
   const op = m[1];
   const path = m[2] ?? '';

@@ -3,7 +3,7 @@ Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, process
 **Prefer dedicated tools:**
 - `cat`/`head`/`tail`/`gcat`/`bat`/`batcat`/`type`/`Get-Content`/`Get-Item`/`glow`/`mdcat`/`rich`/`less`/`more`/`most`/`w3m`/`lynx` (local path) → `Read`
 - `sed`/`gsed`/`awk`/`perl -i`/`ruby -i` (in-place edit) → `Edit`
-- `echo > file` / heredoc / `sponge` / empty redirect → `Write`
+- `echo > file` / heredoc / `sponge` / empty redirect (`>`, `1>`, `>>`, `1>>`) → `Write`
 - simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
 - pattern find / `fd`/`fdfind` / `rg --files` / `mdfind`/`locate` / `compgen -G` / `tree` / `ls -R` / `Get-ChildItem -Recurse` / `Get-ChildItem -Name` / `dir /s` / `where /r` → `Glob` (plain `ls`/`dir`/`gci` of a directory OK)
 - `grep`/`rg` (content) / `ag`/`ack`/`ugrep` / `git grep` / `Select-String`/`findstr` → `Grep`

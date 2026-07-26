@@ -226,6 +226,9 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('echo hello > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass("printf 'x' >> out.txt")?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('cat > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('echo hello 1> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass("printf 'x' 1>> out.txt")?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('cat 1> out.txt')?.prefer).toBe('Write');
   });
 
   it('blocks simple Write-Output/Write-Host redirects to files', () => {
@@ -233,9 +236,12 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Write-Host hi > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Write-Output hello >> out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('write-output x > ./notes.md')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Output hello 1> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Host hi 1>> out.txt')?.prefer).toBe('Write');
     // stdout-only / real process composition stay allowed
     expect(detectShellDedicatedBypass('Write-Output hello')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Process | Write-Output > out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Write-Output hello 2> err.txt')).toBeUndefined();
   });
 
   it('blocks pure identity/listing redirects to files', () => {
@@ -645,7 +651,15 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('true > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('> out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass(':>out.txt')?.prefer).toBe('Write');
-    // real process work stays allowed
+    // Explicit stdout fd forms (`1>` / `1>>`) are the same empty-file shape.
+    expect(detectShellDedicatedBypass(': 1> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('true 1> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('false 1>> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('1> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('1>> out.txt')?.prefer).toBe('Write');
+    // stderr / multi-redirect real shell work stays allowed
+    expect(detectShellDedicatedBypass(': 2> err.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('true 2> err.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('true > out.txt && echo hi')).toBeUndefined();
   });
 
