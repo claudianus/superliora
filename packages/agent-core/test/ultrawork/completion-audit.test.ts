@@ -534,6 +534,49 @@ describe('auditUltraworkCompletion', () => {
     }
   });
 
+  it('merges evidence-gate reasons when both node_blocked and remap-from-done exist', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_block',
+              kind: 'acceptance_criterion',
+              status: 'blocked',
+            }),
+            node({
+              id: 'ac_done_no_evidence',
+              kind: 'acceptance_criterion',
+              status: 'done',
+              requiredEvidence: ['vitest recovery'],
+              evidenceIds: [],
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('node_blocked');
+      // Original blocked still primary
+      expect(result.openNodeIds).toContain('ac_block');
+      // Evidence-gate remap id surfaced so user can repair both tracks
+      expect(result.openNodeIds).toContain('ac_done_no_evidence');
+      // Reasons include the remap violation
+      expect(
+        result.reasons.some(
+          (r) => /ac_done_no_evidence/.test(r) && /cannot be done|requiredEvidence/.test(r),
+        ),
+      ).toBe(true);
+      // Next actions surface the evidence-gate repair step
+      expect(
+        result.nextActions.some((a) => /Close evidence hard-gate on node\(s\)/i.test(a)),
+      ).toBe(true);
+    }
+  });
+
   it('hints ownerless running nodes in incomplete nextActions', () => {
     const result = auditUltraworkCompletion({
       run: baseRun({

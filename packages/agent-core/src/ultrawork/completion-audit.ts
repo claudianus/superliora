@@ -196,17 +196,35 @@ export function auditUltraworkCompletion(
   const blockedNodes = graph.nodes.filter((n) => n.status === 'blocked');
   if (blockedNodes.length > 0) {
     const openNodeIds = blockedNodes.map((n) => n.id);
+    // When evidence hard gate ALSO remaps done nodes to blocked, surface those
+    // reasons here so the audit does not silently drop the evidence-gate work.
+    // Keep the priority code (node_blocked) but merge evidence info so the
+    // recovery prompt can drive both repair tracks.
+    const evidenceRemapIds = violations.map((v) => v.nodeId);
+    const evidenceReasons = violations
+      .slice(0, 5)
+      .map((v) => `${v.nodeId}: ${v.reason}`);
+    const evidenceActions =
+      violations.length > 0
+        ? formatEvidenceHardGateNextActions(graph.nodes)
+        : [];
+    const mergedOpenNodeIds =
+      evidenceRemapIds.length > 0
+        ? Array.from(new Set([...openNodeIds, ...evidenceRemapIds]))
+        : openNodeIds;
     return reject(
       'node_blocked',
       [
         `WorkGraph nodes still status=blocked: ${openNodeIds.join(', ')}.`,
         formatBlockedNodeStallBan(),
+        ...evidenceReasons,
       ],
       [
         // Match recovery-prompt blocked-node next_actions wording.
         ...formatBlockedNodeNextActions(blockedNodes),
+        ...evidenceActions,
       ],
-      openNodeIds,
+      mergedOpenNodeIds,
     );
   }
 
