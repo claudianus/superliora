@@ -911,15 +911,20 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
     }
   }
 
-  // perl -e/-ne/-pe reading a file (open/read_file or path arg)
+  // perl -e/-ne/-nE/-pe/-pE/-lne reading a file (open/read_file or path arg)
+  // Clustered short flags (`-nE`, `-lne`, `-pE`) are the same dump surface as `-ne`.
   if (/^(?:\/usr\/bin\/)?perl\b/.test(command)) {
     // In-place edits (`-i`, `-pi`) are Edit jobs — leave for matchEditLike.
     if (/(?:^|\s)-[A-Za-z]*i[A-Za-z]*(?:\S*)?(?:\s|$)/.test(command)) {
       return undefined;
     }
-    if (/(?:^|\s)-(?:e|ne|pe|n|p)(?:\s|$)/.test(command)) {
+    const perlOneLiner =
+      /(?:^|\s)-(?:e|ne|nE|pe|pE|n|p)(?:\s|$)/.test(command) ||
+      /(?:^|\s)-[A-Za-z]*[np][A-Za-z]*[eE][A-Za-z]*(?:\s|$)/.test(command) ||
+      /(?:^|\s)-[A-Za-z]*[eE][A-Za-z]*(?:\s|$)/.test(command);
+    if (perlOneLiner) {
       // Write-mode open belongs to matchLanguageWriteLike / shell work, not Read.
-      if (/open\s*[^;]*['"]\s*>/.test(command) || /\bprint\s+[A-Za-z_]\w*\b/.test(command) && /open\s/.test(command)) {
+      if (/open\s*[^;]*['"]\s*>/.test(command) || (/\bprint\s+[A-Za-z_]\w*\b/.test(command) && /open\s/.test(command))) {
         /* fall through — write matcher already ran, allow or already blocked */
       } else if (
         /\bopen\b/.test(command) ||
@@ -933,11 +938,14 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
           message: 'Use Read or LioraRead instead of perl one-liners for file contents.',
         };
       }
-      // perl -ne 'print' path  (file arg, no pipe)
+      // perl -ne/-nE/-pe/-pE/-lne 'print' path  (file arg, no pipe)
+      const perlLineLoop =
+        /(?:^|\s)-(?:n|p|ne|nE|pe|pE)(?:\s|$)/.test(command) ||
+        /(?:^|\s)-[A-Za-z]*[np][A-Za-z]*(?:\s|$)/.test(command);
       if (
-        /(?:^|\s)-(?:n|p|ne|pe)(?:\s|$)/.test(command) &&
+        perlLineLoop &&
         /\s\S+\s*$/.test(command) &&
-        !/[|<>]/.test(command.replace(/-[a-z]+/g, ''))
+        !/[|<>]/.test(command.replace(/-[A-Za-z]+/g, ''))
       ) {
         // crude: trailing path token after -e script is hard; match `perl -ne '...' file`
         if (/\s+\S+\.[A-Za-z0-9]+\s*$/.test(command) || /\s+\.?\/?[\w./-]+\s*$/.test(command)) {
@@ -948,6 +956,34 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
           };
         }
       }
+    }
+  }
+
+  // ruby -ne/-pe/-npe/-ane '…' path  (line-loop file dump, no pipe)
+  // Distinct from `ruby -e File.read(...)` which is handled above.
+  if (/^(?:\/usr\/bin\/)?ruby\b/.test(command) && !/[|<>]/.test(command.replace(/-[A-Za-z]+/g, ''))) {
+    // In-place (`-i`) is Edit.
+    if (/(?:^|\s)-[A-Za-z]*i[A-Za-z]*(?:\S*)?(?:\s|$)/.test(command)) {
+      return undefined;
+    }
+    const rubyLineLoop =
+      /(?:^|\s)-(?:ne|pe|npe|ane|n|p|a)(?:\s|$)/.test(command) ||
+      /(?:^|\s)-[A-Za-z]*[npa][A-Za-z]*(?:\s|$)/.test(command);
+    // Require an -e script somewhere so bare `ruby path.rb` stays allowed.
+    const hasEval = /(?:^|\s)-(?:e|ne|pe|npe|ane)(?:\s|$)/.test(command) ||
+      /(?:^|\s)-[A-Za-z]*e[A-Za-z]*(?:\s|$)/.test(command);
+    if (
+      rubyLineLoop &&
+      hasEval &&
+      !/File\.write\s*\(/.test(command) &&
+      !/IO\.write\s*\(/.test(command) &&
+      (/\s+\S+\.[A-Za-z0-9]+\s*$/.test(command) || /\s+\.?\/?[\w./-]+\s*$/.test(command))
+    ) {
+      return {
+        prefer: 'Read',
+        pattern: 'ruby -ne file',
+        message: 'Use Read or LioraRead instead of ruby -ne/-pe for file contents.',
+      };
     }
   }
 

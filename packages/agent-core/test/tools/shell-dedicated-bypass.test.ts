@@ -839,3 +839,19 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('xmllint --shell a.xml')).toBeUndefined();
   });
 
+  it('routes perl -nE/-pE/-lne and ruby -ne/-pe/-npe single-file dumps to Read', () => {
+    expect(detectShellDedicatedBypass('perl -ne "print" a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('perl -nE "print" a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('perl -pE "" a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('perl -lne "print" a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ruby -ne "puts $_" a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ruby -pe "" a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ruby -npe "" a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ruby -ane "puts $_" a.ts')?.prefer).toBe('Read');
+
+    // Scripts / multi-file / in-place stay allowed.
+    expect(detectShellDedicatedBypass('perl script.pl')).toBeUndefined();
+    expect(detectShellDedicatedBypass('ruby script.rb')).toBeUndefined();
+    expect(detectShellDedicatedBypass('perl -i -pe "s/a/b/" a.ts')?.prefer).toBe('Edit');
+  });
+
