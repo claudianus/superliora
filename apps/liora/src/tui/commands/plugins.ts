@@ -23,7 +23,45 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { formatPluginSourceLabel, isOfficialPluginSource } from '../utils/plugin-source-label';
 import { loadPluginMarketplace } from '#/utils/plugin-marketplace';
+import type { AutocompleteItem } from '#/tui/renderer';
+
 import type { SlashCommandHost } from './dispatch';
+import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
+
+const PLUGINS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'list', description: 'List installed plugins' },
+  { value: 'install', description: 'Install from a local path or zip URL' },
+  { value: 'marketplace', description: 'Browse the plugin marketplace' },
+  { value: 'info', description: 'Show details for a plugin id' },
+  { value: 'mcp', description: 'Enable or disable a plugin MCP server' },
+  { value: 'enable', description: 'Enable an installed plugin' },
+  { value: 'disable', description: 'Disable an installed plugin' },
+  { value: 'remove', description: 'Remove an installed plugin' },
+  { value: 'reload', description: 'Reload plugins from disk' },
+];
+
+const PLUGINS_MCP_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'enable', description: 'Enable an MCP server for a plugin' },
+  { value: 'disable', description: 'Disable an MCP server for a plugin' },
+];
+
+/**
+ * Leading / multi-token completions for `/plugins`.
+ * Completes fixed subcommands, plus `mcp enable|disable` while the user is still
+ * on that second token so free-form ids/paths are never clobbered.
+ */
+export function pluginsArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  const mcpMatch = argumentPrefix.match(/^mcp\s+(\S*)$/i);
+  if (mcpMatch !== null) {
+    return (
+      completeLeadingArg(PLUGINS_MCP_ARG_COMPLETIONS, mcpMatch[1] ?? '')?.map((item) => ({
+        ...item,
+        value: `mcp ${item.value}`,
+      })) ?? null
+    );
+  }
+  return completeLeadingArg(PLUGINS_ARG_COMPLETIONS, argumentPrefix);
+}
 
 interface ShowPluginsPickerOptions {
   readonly selectedId?: string;

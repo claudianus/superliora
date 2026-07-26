@@ -17,6 +17,7 @@ import {
   planArgumentCompletions,
   preflightArgumentCompletions,
   premiumArgumentCompletions,
+  pluginsArgumentCompletions,
   rendererArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
@@ -567,6 +568,38 @@ describe('built-in slash command registry', () => {
     expect(rendererArgumentCompletions('trace e')?.map((item) => item.value)).toEqual([
       'trace export',
     ]);
+  });
+
+  it('offers /plugins subcommand and mcp enable|disable completions', () => {
+    expect(pluginsArgumentCompletions('')?.map((item) => item.value)).toEqual([
+      'list',
+      'install',
+      'marketplace',
+      'info',
+      'mcp',
+      'enable',
+      'disable',
+      'remove',
+      'reload',
+    ]);
+    expect(pluginsArgumentCompletions('i')?.map((item) => item.value)).toEqual([
+      'install',
+      'info',
+    ]);
+    expect(pluginsArgumentCompletions('list')).toBeNull();
+    expect(pluginsArgumentCompletions('install ./plugins/foo')).toBeNull();
+    expect(pluginsArgumentCompletions('mcp ')?.map((item) => item.value)).toEqual([
+      'mcp enable',
+      'mcp disable',
+    ]);
+    expect(pluginsArgumentCompletions('mcp e')?.map((item) => item.value)).toEqual([
+      'mcp enable',
+    ]);
+    expect(pluginsArgumentCompletions('mcp enable')).toBeNull();
+    expect(pluginsArgumentCompletions('mcp enable foo')).toBeNull();
+    const plugins = findBuiltInSlashCommand('plugins') as LioraSlashCommand | undefined;
+    expect(plugins?.completeArgs).toBe(pluginsArgumentCompletions);
+    expect(plugins?.argumentHint).toContain('mcp');
   });
 
   it('puts core vibe-coding controls first in primary help order', () => {

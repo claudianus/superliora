@@ -6,6 +6,7 @@ import type { AutocompleteItem } from '#/tui/renderer';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
 import { improveHarnessArgumentCompletions } from './improve-harness';
+import { pluginsArgumentCompletions } from './plugins';
 import { rendererArgumentCompletions } from './renderer';
 import type { LioraSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from './types';
 
@@ -662,6 +663,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Manage plugins',
     priority: 60,
     availability: 'always',
+    argumentHint: '[list|install|marketplace|info|mcp|enable|disable|remove|reload]',
+    completeArgs: pluginsArgumentCompletions,
   },
   {
     name: 'memory',

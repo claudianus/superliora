@@ -52,7 +52,7 @@ export {
   loadPreflightStatus,
   redactPreflightText,
 } from './preflight';
-export { handlePluginsCommand } from './plugins';
+export { handlePluginsCommand, pluginsArgumentCompletions } from './plugins';
 export { handlePersonaCommand } from './persona';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
 export {
