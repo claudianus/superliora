@@ -1,6 +1,6 @@
 import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 
-const EDITOR_OPTIONS: readonly ChoiceOption[] = [
+export const EDITOR_OPTIONS: readonly ChoiceOption[] = [
   { value: 'code --wait', label: 'VS Code (code --wait)' },
   { value: 'vim', label: 'Vim' },
   { value: 'nvim', label: 'Neovim' },

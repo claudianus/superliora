@@ -6,6 +6,7 @@ import {
   addDirArgumentCompletions,
   contextArgumentCompletions,
   cronArgumentCompletions,
+  editorArgumentCompletions,
   extensionsArgumentCompletions,
   helpArgumentCompletions,
   improveHarnessArgumentCompletions,
@@ -467,6 +468,25 @@ describe('built-in slash command registry', () => {
       preflightArgumentCompletions,
     );
     expect(findBuiltInSlashCommand('pf')?.completeArgs).toBe(preflightArgumentCompletions);
+  });
+
+  it('offers editor argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = editorArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['code --wait', 'vim', 'nvim', 'nano']);
+    expect(values('v')).toEqual(['vim']);
+    expect(values('n')).toEqual(['nvim', 'nano']);
+    expect(values('c')).toEqual(['code --wait']);
+    expect(editorArgumentCompletions('nv')).toEqual([
+      { value: 'nvim', label: 'nvim', description: 'Neovim' },
+    ]);
+    expect(values('vim')).toBeNull();
+    expect(values('nano')).toBeNull();
+    expect(values('emacs')).toBeNull();
+    expect(findBuiltInSlashCommand('editor')?.completeArgs).toBe(editorArgumentCompletions);
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {

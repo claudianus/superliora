@@ -127,6 +127,13 @@ const PREFLIGHT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: '--query=', description: 'Override Liora Recall readiness query' },
 ];
 
+const EDITOR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'code --wait', description: 'VS Code (code --wait)' },
+  { value: 'vim', description: 'Vim' },
+  { value: 'nvim', description: 'Neovim' },
+  { value: 'nano', description: 'Nano' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -290,6 +297,11 @@ export function preflightArgumentCompletions(
   argumentPrefix: string,
 ): AutocompleteItem[] | null {
   return completeLeadingArg(PREFLIGHT_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Leading-arg completions for common `/editor` external editors. */
+export function editorArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(EDITOR_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -885,6 +897,8 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Set the external editor for Ctrl-G',
     priority: 60,
+    argumentHint: '[code --wait|vim|nvim|nano]',
+    completeArgs: editorArgumentCompletions,
     availability: 'always',
   },
   {

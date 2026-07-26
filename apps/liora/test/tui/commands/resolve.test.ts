@@ -516,6 +516,16 @@ describe('resolveSlashCommandInput', () => {
       name: 'preflight',
       args: '',
     });
+    expect(resolve('/editor vim', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'editor',
+      args: 'vim',
+    });
+    expect(resolve('/editor code --wait', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'editor',
+      args: 'code --wait',
+    });
   });
 
   it('blocks plan clear while compacting because it is idle-only', () => {
