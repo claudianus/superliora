@@ -32,6 +32,11 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('SLACK_WEBHOOK_URL')).toBe(true);
     expect(isSecretEnvKeyName('OAUTH_CLIENT_SECRET')).toBe(true);
     expect(isSecretEnvKeyName('AWS_ACCESS_KEY_ID')).toBe(true);
+    expect(isSecretEnvKeyName('SESSION_COOKIE')).toBe(true);
+    expect(isSecretEnvKeyName('AUTH_JWT')).toBe(true);
+    expect(isSecretEnvKeyName('WALLET_MNEMONIC')).toBe(true);
+    expect(isSecretEnvKeyName('DB_CONNECTION_STRING')).toBe(true);
+    expect(isSecretEnvKeyName('CODE_SIGNING_CERT')).toBe(true);
   });
 
   it('does not match ordinary path-like keys', () => {

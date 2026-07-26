@@ -106,13 +106,13 @@ export function staffingGoldLabelCoverage(
 export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'tui-terminal',
-    query: 'terminal TUI renderer component typescript',
+    query: 'terminal TUI renderer component typescript CLI powershell',
     relevantIds: [
       'engineering-terminal-ui-engineer',
       'volt-06-developer-experience-powershell-ui-architect',
+      'volt-02-language-specialists-typescript-pro',
       'terminal-integration-specialist',
       'volt-06-developer-experience-cli-developer',
-      'volt-02-language-specialists-typescript-pro',
     ],
     labels: ['Engineering', 'TUI'],
   },
@@ -168,6 +168,8 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     query: 'database optimizer query performance reliability',
     relevantIds: [
       'engineering-database-optimizer',
+      'volt-05-data-ai-postgres-pro',
+      'volt-02-language-specialists-sql-pro',
       'engineering-database-reliability-engineer',
       'ericgrill-general-database-sage',
     ],
@@ -176,7 +178,12 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'devops-ci',
     query: 'devops automation CI CD pipeline infrastructure',
-    relevantIds: ['engineering-devops-automator', 'agentcrow-devops-automator'],
+    relevantIds: [
+      'engineering-devops-automator',
+      'ericgrill-general-devops-dispatcher',
+      'agentcrow-devops-automator',
+      'volt-03-infrastructure-devops-engineer',
+    ],
     labels: ['Engineering', 'DevOps'],
   },
   {
@@ -319,8 +326,10 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     id: 'legal-compliance',
     query: 'legal document review privacy officer compliance auditor GDPR',
     relevantIds: [
+      'volt-04-quality-security-gdpr-ccpa-compliance',
       'legal-document-review',
       'data-privacy-officer',
+      'volt-08-business-product-legal-advisor',
       'security-compliance-auditor',
       'support-legal-compliance-checker',
     ],

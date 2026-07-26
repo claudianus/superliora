@@ -57,6 +57,14 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   'CLIENT_SECRET',
   'ACCESS_KEY',
   'PRIVATE_KEY',
+  'COOKIE',
+  'JWT',
+  'PASSPHRASE',
+  'REFRESH_TOKEN',
+  'SIGNING',
+  'MNEMONIC',
+  'PKCS',
+  'CONNECTION_STRING',
 ] as const;
 
 const CORE_ENV_EXACT = new Set([
