@@ -1673,14 +1673,17 @@ async function resumeSessionResult(
     const plan = await api.getPlan({ agentId });
     const swarmMode = await api.getSwarmMode({ agentId });
     const usage = await api.getUsage({ agentId });
+    const replay = limitReplayRecordsByTurn(
+      agent.replayBuilder.buildResult(),
+      RESUME_REPLAY_TURN_LIMIT,
+    );
+    // Drop retained full-session UI replay now that the payload is capped.
+    agent.replayBuilder.keepOnly(replay);
     agents[agentId] = {
       type: agent.type,
       config,
       context,
-      replay: limitReplayRecordsByTurn(
-        agent.replayBuilder.buildResult(),
-        RESUME_REPLAY_TURN_LIMIT,
-      ),
+      replay,
       permission,
       plan,
       swarmMode,

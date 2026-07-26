@@ -1,11 +1,13 @@
+import { LocalKaos } from '@superliora/kaos';
 import { describe, expect, it } from 'vitest';
 
+import { Agent } from '../../../src/agent';
+import type { ContextMessage } from '../../../src/agent/context';
 import {
   limitReplayRecordsByTurn,
   RESUME_REPLAY_TURN_LIMIT,
 } from '../../../src/agent/replay/limit';
 import type { AgentReplayRecord } from '../../../src/rpc/resumed';
-import type { ContextMessage } from '../../../src/agent/context';
 
 function userMessage(text: string): ContextMessage {
   return {
@@ -90,5 +92,41 @@ describe('limitReplayRecordsByTurn', () => {
     const records = [messageRecord(userMessage('u1'))];
     expect(limitReplayRecordsByTurn(records, 0)).toEqual([]);
     expect(limitReplayRecordsByTurn(records, -1)).toEqual([]);
+  });
+});
+
+describe('ReplayBuilder restore turn window', () => {
+  it('trims retained records while restoring past the turn limit', async () => {
+    const agent = new Agent({
+      kaos: await LocalKaos.create(),
+      type: 'sub',
+    });
+    for (let i = 1; i <= RESUME_REPLAY_TURN_LIMIT + 5; i += 1) {
+      agent.records.restore({
+        type: 'context.append_message',
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: `u${i}` }],
+          origin: { kind: 'user' },
+        },
+      });
+      agent.records.restore({
+        type: 'context.append_message',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: `a${i}` }],
+        },
+      });
+    }
+
+    const replay = agent.replayBuilder.buildResult();
+    const userTurns = replay.filter(
+      (record) =>
+        record.type === 'message' &&
+        record.message.role === 'user' &&
+        record.message.origin?.kind === 'user',
+    );
+    expect(userTurns.length).toBeLessThanOrEqual(RESUME_REPLAY_TURN_LIMIT);
+    expect(replay.length).toBeLessThanOrEqual(RESUME_REPLAY_TURN_LIMIT * 2);
   });
 });
