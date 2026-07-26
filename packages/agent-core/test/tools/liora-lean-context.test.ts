@@ -334,6 +334,23 @@ describe('Liora lean context tools', () => {
     }
   });
 
+  it('compressShellOutput collapses long tree/ls -R/du dumps', () => {
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `│   ├── file-${String(i)}.ts`,
+    ).join('\n');
+    for (const command of ['tree', 'tree -L 3 src', 'ls -R packages', 'du -ah .']) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      expect(compressed.text, command).toContain('infra/log lines omitted');
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+    }
+  });
+
   it('compressShellOutput collapses long next/vite/webpack build dumps', () => {
     const stdout = Array.from(
       { length: 100 },

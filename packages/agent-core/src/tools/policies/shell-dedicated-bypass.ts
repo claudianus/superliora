@@ -1084,6 +1084,14 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Grep (ripgrep-backed, workspace policy, capped output) instead of shell grep/rg.',
     };
   }
+  // Silver Searcher / ack / ugrep content search → Grep.
+  if (/^(?:\/usr\/bin\/)?(?:ag|ack|ugrep|ug)(?:\s|$)/.test(command)) {
+    return {
+      prefer: 'Grep',
+      pattern: 'ag/ack/ugrep',
+      message: 'Use Grep instead of ag/ack/ugrep for workspace content search.',
+    };
+  }
   // `git grep` content search — prefer Grep (workspace-scoped, capped).
   // Pipelines / multi-rev composition already short-circuit.
   if (/^(?:\/usr\/bin\/)?git\s+grep\b/.test(command)) {

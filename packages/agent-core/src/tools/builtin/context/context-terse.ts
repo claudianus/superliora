@@ -272,6 +272,14 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\bdocker\s+(?:ps|logs|compose)\b/u.test(command)) {
     next = compressDockerOutput(next);
   }
+  // Recursive tree/list dumps — prefer LioraTree in prompts; still lean when shell is used.
+  if (
+    /^(?:\/usr\/bin\/)?tree(?:\s|$)/u.test(command) ||
+    /\bls\s+-[A-Za-z]*R\b/u.test(command) ||
+    /\bdu\s+-[A-Za-z]*[ah]\b/u.test(command)
+  ) {
+    next = compressDockerOutput(next);
+  }
   // kubectl / helm / terraform / cloud CLI dumps are long and rarely need full fidelity mid-run.
   if (
     /\bkubectl\s+(?:logs|get|describe|apply|diff)\b/u.test(command) ||
