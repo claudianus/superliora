@@ -169,15 +169,23 @@ describe('built-in slash command registry', () => {
       'instructions',
       'clear',
       'help',
+      'friendly',
+      'professional',
+      'concise',
+      'creative',
+      'mentor',
+      'playful',
     ]);
     expect(values('l')).toEqual(['list']);
-    expect(values('p')).toEqual(['personality']);
+    expect(values('p')).toEqual(['personality', 'professional', 'playful']);
     expect(values('i')).toEqual(['instructions']);
+    expect(values('fr')).toEqual(['friendly']);
     expect(personaArgumentCompletions('to')).toEqual([
       { value: 'tone', label: 'tone', description: 'Set response tone' },
     ]);
     expect(values('list')).toBeNull();
     expect(values('clear')).toBeNull();
+    expect(values('friendly')).toBeNull();
     expect(values('unknown')).toBeNull();
     expect(values('set ')).toEqual([
       'set friendly',

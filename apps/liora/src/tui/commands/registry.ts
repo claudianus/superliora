@@ -189,6 +189,14 @@ const ADD_DIR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'Show configured additional workspace directories' },
 ];
 
+const PERSONA_SET_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = PERSONA_PRESET_NAMES.map(
+  (name) => ({
+    value: name,
+    description: PERSONA_PRESET_DESCRIPTIONS[name],
+  }),
+);
+
+/** Subcommands first, then bare preset shortcuts accepted by the handler. */
 const PERSONA_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'List available presets' },
   { value: 'set', description: 'Apply a preset persona' },
@@ -198,14 +206,8 @@ const PERSONA_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'instructions', description: 'Add free-form instructions' },
   { value: 'clear', description: 'Remove persona customization' },
   { value: 'help', description: 'Show persona command help' },
+  ...PERSONA_SET_ARG_COMPLETIONS,
 ];
-
-const PERSONA_SET_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = PERSONA_PRESET_NAMES.map(
-  (name) => ({
-    value: name,
-    description: PERSONA_PRESET_DESCRIPTIONS[name],
-  }),
-);
 
 const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'stats', description: 'Show Liora Recall memory stats' },
