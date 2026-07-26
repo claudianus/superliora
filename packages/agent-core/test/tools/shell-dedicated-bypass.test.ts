@@ -156,6 +156,10 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('ConvertTo-Html -Path out.html')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('ConvertTo-Html report.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Process | ConvertTo-Html')).toBeUndefined();
+    // Out-GridView path dumps → Read; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('Out-GridView -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ogv notes.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Out-GridView')).toBeUndefined();
     // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',

@@ -8,6 +8,7 @@ import {
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
   formatHighResumeOscillationNextActions,
+  formatIncompleteNodeNextActions,
   formatLongRunningStageNextActions,
   formatNeedsIntegrationNextActions,
   formatOwnerlessRunningNextActions,
@@ -310,6 +311,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     for (const node of pendingNodes.slice(0, 12)) {
       lines.push(`- [${node.status}] ${node.id}: ${node.title} (stage=${node.stage})`);
     }
+    lines.push(...formatIncompleteNodeNextActions());
   }
 
   // Highlight stuck nodes so post-compaction resume can circuit-break them.

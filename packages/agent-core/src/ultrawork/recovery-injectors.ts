@@ -21,6 +21,7 @@ import {
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
   formatHighResumeOscillationNextActions,
+  formatIncompleteNodeNextActions,
   formatLongRunningStageNextActions,
   formatNeedsIntegrationNextActions,
   formatOwnerlessRunningNextActions,
@@ -229,6 +230,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .map((node) => `${node.id}[${node.status}] ${node.title}`)
         .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
     );
+    lines.push(...formatIncompleteNodeNextActions());
   }
   // Match recovery-prompt / envelope circuit-break signals on mid-run injectors.
   const stuckNodes = detectStuckWorkGraphNodes(run.workGraph);
@@ -432,6 +434,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .map((node) => `${node.id}[${node.status}] ${node.title}`)
         .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
     );
+    lines.push(...formatIncompleteNodeNextActions());
   }
   // Match recovery-prompt / envelope circuit-break signals on mid-run injectors.
   const stuckNodes = detectStuckWorkGraphNodes(run.workGraph);

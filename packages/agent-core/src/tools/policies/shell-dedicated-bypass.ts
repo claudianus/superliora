@@ -1315,6 +1315,18 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
         : 'Use Read instead of PowerShell ConvertTo-Html for file content dumps.',
     };
   }
+  // Out-GridView path dumps → Read (pipelines stay allowed for real composition).
+  if (
+    /^(?:Out-GridView|ogv)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b|\bGet-Content\b|\bgc\b)/i.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'Out-GridView',
+      message: 'Use Read instead of PowerShell Out-GridView for file content dumps.',
+    };
+  }
   // ConvertTo-Json / ConvertFrom-Json of a single file path / Get-Content dump → Read
   // (pipelines stay allowed for real shell composition).
   if (
