@@ -13,6 +13,7 @@ import {
   showHarnessPanel,
   showToolsInventory,
   showHarnessEyesReadiness,
+  showSettingsSelector,
 } from '#/tui/commands/config';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
@@ -721,6 +722,43 @@ describe('harness panel and tools inventory', () => {
   it('routes /eye alias to eyes readiness report', async () => {
     const host = makeHarnessHost();
     await dispatchInput(host, '/eye');
+    await vi.waitFor(
+      () => {
+        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
+          0,
+        );
+      },
+      { timeout: 5000 },
+    );
+  });
+
+
+  it('lists Eyes readiness in the settings selector', () => {
+    const host = makeHarnessHost();
+    showSettingsSelector(host);
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+      { render: (width: number) => string[] },
+    ];
+    const body = component.render(120).join('\n');
+    expect(body).toContain('Eyes readiness');
+    expect(body).toContain('Tools');
+    expect(body).toContain('Harness');
+  });
+
+  it('routes settings eyes selection to eyes readiness report', async () => {
+    const host = makeHarnessHost();
+    showSettingsSelector(host);
+    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    // Settings options order: model, permission, accounts, context, harness, tools, eyes, ...
+    // eyes is index 6
+    for (let i = 0; i < 6; i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(
       () => {
         expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(

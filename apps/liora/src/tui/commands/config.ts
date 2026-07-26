@@ -900,6 +900,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'context': void showContextWorkingSetPicker(host); return;
     case 'harness': showHarnessPanel(host); return;
     case 'tools': void showToolsInventory(host); return;
+    case 'eyes': void showHarnessEyesReadiness(host); return;
     case 'premium': void handlePremiumQualityCommand(host, ''); return;
     case 'mcp': void showMcpServers(host); return;
     case 'theme': showThemePicker(host); return;

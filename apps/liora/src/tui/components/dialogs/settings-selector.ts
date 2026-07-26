@@ -11,6 +11,7 @@ export type SettingsSelection =
   | 'context'
   | 'harness'
   | 'tools'
+  | 'eyes'
   | 'premium'
   | 'mcp'
   | 'experiments'
@@ -41,12 +42,17 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
   {
     value: 'harness',
     label: 'Harness',
-    description: 'Eyes/hands surface: tools inventory, Premium, MCP, experiments.',
+    description: 'Eyes/hands surface: tools, eyes readiness, Premium, MCP, experiments.',
   },
   {
     value: 'tools',
     label: 'Tools',
     description: 'List active agent tools (SearchTools inventory).',
+  },
+  {
+    value: 'eyes',
+    label: 'Eyes readiness',
+    description: 'Browser-use / computer-use runtime status.',
   },
   {
     value: 'premium',
@@ -107,6 +113,7 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'context' ||
     value === 'harness' ||
     value === 'tools' ||
+    value === 'eyes' ||
     value === 'premium' ||
     value === 'mcp' ||
     value === 'experiments' ||

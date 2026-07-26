@@ -94,4 +94,16 @@ describe('accounts-manager dialogs', () => {
     expect(out.some((line) => line.includes('Accounts'))).toBe(true);
     expect(out.some((line) => line.includes('OAuth account pools'))).toBe(true);
   });
+
+  it('exposes Eyes readiness in Settings options', () => {
+    const settings = new SettingsSelectorComponent({
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const out = settings.render(120).map(strip);
+    expect(out.some((line) => line.includes('Eyes readiness'))).toBe(true);
+    expect(out.some((line) => line.includes('browser-use') || line.includes('computer-use'))).toBe(
+      true,
+    );
+  });
 });
