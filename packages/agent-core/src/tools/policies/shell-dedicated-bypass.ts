@@ -319,6 +319,10 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
 
   // perl -e/-ne/-pe reading a file (open/read_file or path arg)
   if (/^(?:\/usr\/bin\/)?perl\b/.test(command)) {
+    // In-place edits (`-i`, `-pi`) are Edit jobs — leave for matchEditLike.
+    if (/(?:^|\s)-[A-Za-z]*i[A-Za-z]*(?:\S*)?(?:\s|$)/.test(command)) {
+      return undefined;
+    }
     if (/(?:^|\s)-(?:e|ne|pe|n|p)(?:\s|$)/.test(command)) {
       // Write-mode open belongs to matchLanguageWriteLike / shell work, not Read.
       if (/open\s*[^;]*['"]\s*>/.test(command) || /\bprint\s+[A-Za-z_]\w*\b/.test(command) && /open\s/.test(command)) {
@@ -603,20 +607,25 @@ function matchEmptyRedirectWrite(command: string): ShellDedicatedBypassHit | und
 }
 
 function matchEditLike(command: string): ShellDedicatedBypassHit | undefined {
-  // sed -i ...
-  if (/^(?:\/usr\/bin\/)?sed\s+-[A-Za-z]*i[A-Za-z]*/.test(command)) {
+  // sed/gsed -i ... (GNU/BSD in-place edits)
+  if (/^(?:\/usr\/bin\/)?(?:g?sed)\s+-[A-Za-z]*i[A-Za-z]*/.test(command)) {
     return {
       prefer: 'Edit',
       pattern: 'sed -i',
       message: 'Use Edit for in-place edits; it preserves exact bytes and policy checks.',
     };
   }
-  // perl -pi -e
-  if (/^(?:\/usr\/bin\/)?perl\s+-[A-Za-z]*p[A-Za-z]*i/.test(command)) {
+  // perl -pi / -i -pe / -i.bak -pe in-place edits
+  if (
+    /^(?:\/usr\/bin\/)?perl\s+-[A-Za-z]*p[A-Za-z]*i/.test(command) ||
+    /^(?:\/usr\/bin\/)?perl\s+-[A-Za-z]*i[A-Za-z]*(?:\S*)?(?:\s+-[A-Za-z]*p|\s+-pe|\s+-p\b)/.test(
+      command,
+    )
+  ) {
     return {
       prefer: 'Edit',
       pattern: 'perl -pi',
-      message: 'Use Edit for in-place text changes instead of perl -pi.',
+      message: 'Use Edit for in-place text changes instead of perl -pi/-i.',
     };
   }
   return undefined;

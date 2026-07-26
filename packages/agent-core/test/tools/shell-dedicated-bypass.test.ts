@@ -15,6 +15,9 @@ describe('detectShellDedicatedBypass', () => {
 
   it('blocks sed -i and grep/rg/find', () => {
     expect(detectShellDedicatedBypass("sed -i 's/a/b/' file.ts")?.prefer).toBe('Edit');
+    expect(detectShellDedicatedBypass("gsed -i 's/a/b/' file.ts")?.prefer).toBe('Edit');
+    expect(detectShellDedicatedBypass("perl -pi -e 's/a/b/' file.ts")?.prefer).toBe('Edit');
+    expect(detectShellDedicatedBypass("perl -i -pe 's/a/b/' file.ts")?.prefer).toBe('Edit');
     expect(detectShellDedicatedBypass('grep -n foo src')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('rg "error" packages')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass("find . -name '*.ts'")?.prefer).toBe('Glob');

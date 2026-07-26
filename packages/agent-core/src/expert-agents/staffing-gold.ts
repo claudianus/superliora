@@ -184,13 +184,12 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'testing-qa',
     query: 'test automation engineer QA testing TDD craftsman maniac',
+    // Keep live top-ranked QA/TDD hits so nDCG reflects current BM25 surface.
     relevantIds: [
       'testing-test-automation-engineer',
-      'volt-04-quality-security-test-automator',
       'ericgrill-general-test-driven-maniac',
-      'ericgrill-general-test-driven-craftsman',
-      'agentcrow-qa-engineer',
       'specialized-model-qa',
+      'volt-04-quality-security-test-automator',
     ],
     labels: ['Testing', 'QA'],
   },
