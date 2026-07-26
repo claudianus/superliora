@@ -266,6 +266,19 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\bgo\s+test\b/u.test(command) || /^--- (?:PASS|FAIL|SKIP):/mu.test(text)) {
     next = compressTestOutput(next);
   }
+  // cargo test lines: `test foo::bar ... ok` (also covered by cargo build/test above,
+  // but force test collapse when the command is cargo test specifically).
+  if (/\bcargo\s+test\b/u.test(command) || /^test\s+\S.+\s+\.\.\.\s+(?:ok|FAILED)\b/mu.test(text)) {
+    next = compressTestOutput(next);
+  }
+  // TypeScript / ESLint / oxlint dumps: keep head+tail of long compiler/linter streams.
+  if (
+    /\b(?:tsc|eslint|oxlint|oxfmt)\b/u.test(command) ||
+    /\b(?:pnpm|npm|yarn)\s+(?:exec\s+)?(?:tsc|eslint|oxlint|oxfmt)\b/u.test(command) ||
+    /\berror TS\d+:/u.test(text)
+  ) {
+    next = compressCompilerOutput(next);
+  }
   if (/\brg\b/u.test(command) || /\bripgrep\b/u.test(command)) {
     next = compressRipgrepOutput(next);
   }
@@ -282,6 +295,19 @@ function compressGitStatusOutput(text: string): string {
 
 function compressBuildOutput(text: string): string {
   return compressTestOutput(text);
+}
+
+/** Long tsc/eslint/oxlint dumps: keep head + tail, omit the middle. */
+function compressCompilerOutput(text: string): string {
+  const lines = text.split('\n');
+  if (lines.length <= 80) return text;
+  const head = lines.slice(0, 50);
+  const tail = lines.slice(-20);
+  return [
+    ...head,
+    `[... ${String(lines.length - 70)} compiler/linter lines omitted ...]`,
+    ...tail,
+  ].join('\n');
 }
 
 function compressDockerOutput(text: string): string {
@@ -306,11 +332,15 @@ function compressTestOutput(text: string): string {
       /^(?:PASS|✓|✔|\s*ok\s+\d+\s+-)/u.test(trimmed) ||
       /^--- PASS:/u.test(trimmed) ||
       /^ok\s+/u.test(trimmed) ||
+      // cargo / libtest: `test foo::bar ... ok`
+      /^test\s+\S.+\s+\.\.\.\s+ok\b/u.test(trimmed) ||
       /\bpassed\b/iu.test(trimmed) ||
       /\b✓\b/u.test(trimmed);
     const isFail =
       /^(?:FAIL|✗|×|\s*not ok\b)/u.test(trimmed) ||
       /^--- FAIL:/u.test(trimmed) ||
+      // cargo / libtest: `test foo::bar ... FAILED`
+      /^test\s+\S.+\s+\.\.\.\s+FAILED\b/u.test(trimmed) ||
       /\bfailed\b/iu.test(trimmed) ||
       /\berror\b/iu.test(trimmed);
     if (isFail) {

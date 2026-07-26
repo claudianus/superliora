@@ -126,4 +126,36 @@ describe('Liora lean context tools', () => {
     expect(compressed.text).toContain('--- FAIL: TestBoom');
     expect(compressed.savedPercent).toBeGreaterThan(0);
   });
+
+  it('compressShellOutput collapses cargo test ok lines', () => {
+    const stdout = [
+      ...Array.from({ length: 16 }, (_, i) => `test foo::bar${String(i)} ... ok`),
+      'test foo::boom ... FAILED',
+      'failures:',
+      '    foo::boom',
+    ].join('\n');
+    const compressed = compressShellOutput({
+      stdout,
+      stderr: '',
+      command: 'cargo test',
+    });
+    expect(compressed.text).toContain('passing tests omitted');
+    expect(compressed.text).toContain('test foo::boom ... FAILED');
+    expect(compressed.savedPercent).toBeGreaterThan(0);
+  });
+
+  it('compressShellOutput collapses long tsc error dumps', () => {
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `src/a${String(i)}.ts(${String(i)},1): error TS2304: Cannot find name 'x${String(i)}'.`,
+    ).join('\n');
+    const compressed = compressShellOutput({
+      stdout,
+      stderr: '',
+      command: 'tsc -p .',
+    });
+    expect(compressed.text).toContain('compiler/linter lines omitted');
+    expect(compressed.savedPercent).toBeGreaterThan(0);
+    expect(compressed.text.length).toBeLessThan(stdout.length);
+  });
 });

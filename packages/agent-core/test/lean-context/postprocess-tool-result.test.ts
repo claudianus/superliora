@@ -104,5 +104,35 @@ describe('postprocessLeanToolResult Bash', () => {
     });
     expect(result.output).toBe(output);
   });
+
+  it('compresses cargo test and tsc dumps under lean postprocess', async () => {
+    const store = memoryStore();
+    const agent = mockAgent(store);
+    const cargoOut = [
+      ...Array.from({ length: 20 }, (_, i) => `test foo::bar${String(i)} ... ok`),
+      'test result: ok. 20 passed; 0 failed',
+    ].join('\n');
+    const cargo = await postprocessLeanToolResult({
+      agent,
+      toolName: 'Bash',
+      args: { command: 'cargo test' },
+      result: { isError: false, output: cargoOut },
+    });
+    expect(String(cargo.output).length).toBeLessThan(cargoOut.length);
+    expect(String(cargo.output)).toMatch(/passing tests omitted|liora-compressed/i);
+
+    const tscOut = Array.from(
+      { length: 100 },
+      (_, i) => `src/a${String(i)}.ts(${String(i)},1): error TS2304: Cannot find name 'x'.`,
+    ).join('\n');
+    const tsc = await postprocessLeanToolResult({
+      agent,
+      toolName: 'Bash',
+      args: { command: 'tsc -p .' },
+      result: { isError: false, output: tscOut },
+    });
+    expect(String(tsc.output).length).toBeLessThan(tscOut.length);
+    expect(String(tsc.output)).toMatch(/compiler\/linter lines omitted|liora-compressed/i);
+  });
 });
 

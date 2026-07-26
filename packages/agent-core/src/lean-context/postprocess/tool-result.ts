@@ -133,7 +133,9 @@ function postprocessBash(
   const command = args.command ?? '';
   const shouldCompress =
     args.compress_output === true ||
-    /\b(?:pnpm|npm|yarn|cargo|vitest|jest|pytest|go\s+test|git|docker)\b/u.test(command);
+    /\b(?:pnpm|npm|yarn|cargo|vitest|jest|pytest|go\s+test|tsc|eslint|oxlint|oxfmt|git|docker)\b/u.test(
+      command,
+    );
   if (!shouldCompress || typeof input.result.output !== 'string') return input.result;
   const compressed = compressShellOutput({
     stdout: input.result.output,
