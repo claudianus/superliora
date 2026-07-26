@@ -8,7 +8,10 @@ import type { ExecutableToolResult } from '../../loop';
 
 const TOOL_RESULT_MAX_CHARS = 4_000;
 const TOOL_RESULT_LARGE_WINDOW_MAX_CHARS = 12_000;
-const TOOL_RESULT_PREVIEW_CHARS = 80;
+/** Head chars kept in the in-context preview after archive. */
+const TOOL_RESULT_PREVIEW_HEAD_CHARS = 160;
+/** Tail chars kept so error/status lines at EOF remain visible. */
+const TOOL_RESULT_PREVIEW_TAIL_CHARS = 160;
 
 interface BudgetToolResultOptions {
   readonly homedir?: string;
@@ -87,8 +90,23 @@ function renderPersistedToolResult(
     `output_path: ${outputPath}`,
     'next_step: Use Read with output_path to page through the full output.',
   ];
-  lines.push('', '[preview]', text.slice(0, TOOL_RESULT_PREVIEW_CHARS));
+  lines.push('', '[preview]', buildToolResultPreview(text));
   return lines.join('\n');
+}
+
+/**
+ * Prefer head + tail over head-only so failure lines near EOF survive the
+ * archive stub (common for test runners and build logs).
+ */
+export function buildToolResultPreview(text: string): string {
+  const headBudget = TOOL_RESULT_PREVIEW_HEAD_CHARS;
+  const tailBudget = TOOL_RESULT_PREVIEW_TAIL_CHARS;
+  if (text.length <= headBudget + tailBudget + 20) {
+    return text;
+  }
+  const head = text.slice(0, headBudget);
+  const tail = text.slice(-tailBudget);
+  return `${head}\n...\n${tail}`;
 }
 
 /**
