@@ -36,7 +36,7 @@ export async function postprocessLeanToolResult(
       : undefined;
   const pressureMode = resolvePressureMode(contextUsage);
 
-  if (input.toolName === 'Read') {
+  if (input.toolName === 'Read' || input.toolName === 'LioraRead') {
     return postprocessRead(input, store, pressureMode);
   }
   if (input.toolName === 'Grep') {
@@ -65,7 +65,10 @@ function postprocessRead(
   })();
   if (bounceRateForPath(store, pathArg) > 0.35) {
     recordReadAccess(store, pathArg, 'full');
-    return appendHint(input.result, '[liora-gate] bounce detected — kept Read output verbatim.');
+    return appendHint(
+      input.result,
+      `[liora-gate] bounce detected — kept ${input.toolName} output verbatim.`,
+    );
   }
 
   // Density-driven mode: high-surprise content (novel logic, project-specific

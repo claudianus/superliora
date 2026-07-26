@@ -52,9 +52,30 @@ export function bounceRateForPath(store: ToolStore, path: string): number {
 
 export function shouldSkipCompressionForRead(args: unknown): boolean {
   if (typeof args !== 'object' || args === null) return false;
-  const lineOffset = (args as { line_offset?: unknown }).line_offset;
-  const nLines = (args as { n_lines?: unknown }).n_lines;
-  return lineOffset !== undefined || nLines !== undefined;
+  const record = args as {
+    line_offset?: unknown;
+    n_lines?: unknown;
+    start_line?: unknown;
+    limit?: unknown;
+    mode?: unknown;
+    raw?: unknown;
+  };
+  // Windowed reads are already scoped — do not re-compress.
+  if (
+    record.line_offset !== undefined ||
+    record.n_lines !== undefined ||
+    record.start_line !== undefined ||
+    record.limit !== undefined
+  ) {
+    return true;
+  }
+  // LioraRead signatures/map/lines are already lean; only full/raw/auto dumps may compress.
+  if (record.raw === true) return false;
+  if (typeof record.mode === 'string') {
+    const mode = record.mode.toLowerCase();
+    if (mode === 'signatures' || mode === 'map' || mode === 'lines') return true;
+  }
+  return false;
 }
 
 export function resolvePressureMode(contextUsage: number | undefined): 'normal' | 'signatures' | 'aggressive' {
