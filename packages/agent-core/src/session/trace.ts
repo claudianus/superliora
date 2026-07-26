@@ -20,8 +20,14 @@ const INTERNAL_ORIGINS = new Set<PromptOrigin['kind']>([
 
 const SECRET_KEY_RE = /(api[_-]?key|authorization|bearer|credential|password|secret|token)/i;
 const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
-  /\bsk-[A-Za-z0-9_-]{12,}\b/g,
-  /\bBearer\s+[A-Za-z0-9._-]{12,}\b/gi,
+  // Detect secret tokens even when embedded in a long string without a
+  // `\w` boundary (e.g. `'x'.repeat(5000) + 'sk-…'`). The previous
+  // `\b…\b` form silently under-matched those — a security leak.
+  // Trailing lookahead prevents the token from eating neighbours; the
+  // leading anchor is intentionally dropped because over-matching is
+  // safer than under-matching for secret detection.
+  /sk-[A-Za-z0-9_-]{12,}(?![A-Za-z0-9_-])/g,
+  /Bearer\s+[A-Za-z0-9._-]{12,}(?![A-Za-z0-9._-])/gi,
 ];
 const MAX_STRING_LENGTH = 4000;
 const MAX_DEPTH = 7;
@@ -458,16 +464,19 @@ function toJsonValue(value: unknown, redactions: RedactionState, depth: number, 
 }
 
 function sanitizeString(value: string, redactions: RedactionState): string {
-  let out = value.length > MAX_STRING_LENGTH
-    ? `${value.slice(0, MAX_STRING_LENGTH)}...[truncated]`
-    : value;
+  // Redact FIRST so secrets that appear past the truncation boundary are
+  // still scrubbed. Truncating before redaction silently leaks any
+  // sensitive token that lives beyond MAX_STRING_LENGTH.
+  let redacted = value;
   for (const pattern of SECRET_VALUE_PATTERNS) {
-    out = out.replace(pattern, () => {
+    redacted = redacted.replace(pattern, () => {
       redactions.count += 1;
       return '[redacted]';
     });
   }
-  return out;
+  if (redacted.length <= MAX_STRING_LENGTH) return redacted;
+  const dropped = redacted.length - MAX_STRING_LENGTH;
+  return `${redacted.slice(0, MAX_STRING_LENGTH)}...[truncated ${dropped} chars]`;
 }
 
 function jsonObjectUnchecked(value: unknown): JsonObject {

@@ -105,4 +105,42 @@ describe('buildSessionTrace', () => {
     expect(trace.completeness.warnings[0]).toContain('records were unavailable');
     expect(trace.events[0]?.type).toBe('message.assistant');
   });
+
+  it('redacts secrets that appear past the truncation boundary', () => {
+    // Build a single string > 4000 chars whose tail contains a secret token.
+    // The previous order (truncate then redact) silently leaked the secret.
+    const tailSecret = 'sk-abcdef0123456789abcdef0123456789';
+    const padding = 'x'.repeat(5000);
+    const value = `${padding}${tailSecret}`;
+
+    const trace = buildSessionTrace({
+      sessionId: 'ses_1',
+      agentId: 'main',
+      context: {
+        tokenCount: 1,
+        history: [],
+      },
+      records: [
+        {
+          type: 'subagent.lifecycle',
+          time: 1,
+          event: {
+            type: 'subagent.spawned',
+            subagentId: 'agent_1',
+            subagentName: 'leaky',
+            // Field name `note` is not a secret-key so redaction depends on
+            // the value patterns — this is the path the order-of-operations
+            // bug used to leak secrets past the truncation boundary.
+            note: value,
+          },
+        },
+      ],
+    });
+
+    const serialized = JSON.stringify(trace);
+    expect(serialized).not.toContain(tailSecret);
+    expect(trace.completeness.redactedCount).toBeGreaterThanOrEqual(1);
+    // The truncated tail marker surfaces the dropped size for debugging.
+    expect(serialized).toMatch(/truncated \d+ chars/);
+  });
 });
