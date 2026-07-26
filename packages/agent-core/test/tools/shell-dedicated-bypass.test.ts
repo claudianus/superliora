@@ -34,7 +34,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('pbpaste > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('xclip src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('xsel notes.md')?.prefer).toBe('Read');
-    expect(detectShellDedicatedBypass('cat src/a.ts | pbcopy')).toBeUndefined();
+    // pure file -> clipboard dumps prefer Read
+    expect(detectShellDedicatedBypass('cat src/a.ts | pbcopy')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts | Set-Clipboard')?.prefer).toBe('Read');
+    // non-file producers stay allowed
+    expect(detectShellDedicatedBypass('echo hi | pbcopy')).toBeUndefined();
     expect(detectShellDedicatedBypass('pbcopy')).toBeUndefined();
     // PowerShell clipboard file I/O (Unix pbcopy/pbpaste counterparts)
     expect(detectShellDedicatedBypass('Set-Clipboard -Path src/a.ts')?.prefer).toBe('Read');
@@ -45,6 +49,7 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Clipboard > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Get-Clipboard | Set-Content out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('gcb | Out-File notes.md')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('pbpaste | Set-Content out.txt')?.prefer).toBe('Write');
     // bare / interactive clipboard stays allowed
     expect(detectShellDedicatedBypass('Get-Clipboard')).toBeUndefined();
     expect(detectShellDedicatedBypass('Set-Clipboard -Value hello')).toBeUndefined();
@@ -146,24 +151,28 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Select-Object -InputObject (Get-Content a.ts)')?.prefer).toBe(
       'Read',
     );
-    expect(detectShellDedicatedBypass('Get-Content a.ts | Select-Object -First 5')).toBeUndefined();
+    // pure Get-Content path | Select-Object dumps prefer Read
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Select-Object -First 5')?.prefer).toBe(
+      'Read',
+    );
+    // real process left-hand side stays allowed
     expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')).toBeUndefined();
     expect(detectShellDedicatedBypass('Select-Object -First 5')).toBeUndefined();
-    // Format-Hex / Get-FileHash / Select-Xml path dumps → Read; pipelines stay allowed.
+    // Format-Hex / Get-FileHash / Select-Xml path dumps → Read; pure Get-Content pipes prefer Read.
     expect(detectShellDedicatedBypass('Format-Hex -Path src/a.bin')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('fhx notes.md')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-FileHash -Path src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Select-Xml -Path config.xml')?.prefer).toBe('Read');
-    expect(detectShellDedicatedBypass('Get-Content a.bin | Format-Hex')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content a.bin | Format-Hex')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-ChildItem | Get-FileHash')).toBeUndefined();
     // ConvertTo-Html -Path writes → Write; bare path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('ConvertTo-Html -Path out.html')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('ConvertTo-Html report.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Process | ConvertTo-Html')).toBeUndefined();
-    // Out-GridView path dumps → Read; pipelines stay allowed.
+    // Out-GridView path dumps → Read; pure Get-Content pipes prefer Read.
     expect(detectShellDedicatedBypass('Out-GridView -Path src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('ogv notes.md')?.prefer).toBe('Read');
-    expect(detectShellDedicatedBypass('Get-Content a.ts | Out-GridView')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Out-GridView')?.prefer).toBe('Read');
     // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',
@@ -440,9 +449,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('type src\\a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Content src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('gc src/a.ts')?.prefer).toBe('Read');
-    // pipelines stay allowed
-    expect(detectShellDedicatedBypass('Get-Content src/a.ts | Select-Object -First 5')).toBeUndefined();
-    // PowerShell single-file writes prefer Write; pipelines stay allowed.
+    // pure Get-Content path | Select-Object dumps prefer Read
+    expect(detectShellDedicatedBypass('Get-Content src/a.ts | Select-Object -First 5')?.prefer).toBe(
+      'Read',
+    );
+    // PowerShell single-file writes prefer Write; real file-to-file pipes stay allowed.
     expect(detectShellDedicatedBypass('Set-Content out.txt -Value hello')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Out-File -Path out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('Add-Content notes.md more')?.prefer).toBe('Write');

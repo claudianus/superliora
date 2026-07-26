@@ -977,8 +977,8 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
 }
 
 /**
- * Pure Get-Content path dumps piped into Format-* or Out-String -> Read.
- * Matches: Get-Content/gc/type path | Format-List|Format-Table|Out-String ...
+ * Pure Get-Content path dumps piped into formatters/viewers -> Read.
+ * Matches: Get-Content/gc/type path | Format-*|Out-String|Format-Hex|Out-GridView|Select-Object|Select-Xml
  * Skips: multi-pipe, real process left-hand sides, path-less Get-Content.
  */
 function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit | undefined {
@@ -987,10 +987,12 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
   if (/\$\(|\$\{/.test(command)) return undefined;
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
 
-  const m =
-    /^(Get-Content|gc|type)\b([\s\S]*?)\s*\|\s*(Format-List|Format-Table|Format-Wide|Format-Custom|Out-String|fl|ft|fw)\b([\s\S]*)$/i.exec(
-      command,
-    );
+  const sinkRe =
+    'Format-List|Format-Table|Format-Wide|Format-Custom|Out-String|Format-Hex|fhx|Out-GridView|ogv|Select-Object|select|Select-Xml|fl|ft|fw';
+  const m = new RegExp(
+    `^(Get-Content|gc|type)\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+    'i',
+  ).exec(command);
   if (m === null) return undefined;
 
   const leftArgs = m[2] ?? '';
@@ -1006,7 +1008,8 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
   return {
     prefer: 'Read',
     pattern: `Get-Content | ${formatter}`,
-    message: 'Use Read instead of PowerShell Get-Content piped into Format-*/Out-String for file dumps.',
+    message:
+      'Use Read instead of PowerShell Get-Content piped into Format-*/Out-String/Format-Hex/Out-GridView/Select-Object for file dumps.',
   };
 }
 
@@ -1047,6 +1050,56 @@ function matchClipboardFileBypass(command: string): ShellDedicatedBypassHit | un
   // PowerShell clipboard file I/O first — idiomatic forms often use pipelines
   // (`Get-Clipboard | Set-Content out.txt`) which the composition guard would skip.
   if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[;&`\n]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+
+  // Exactly one pipe for pure file <-> clipboard shims.
+  if ((command.match(/\|/g) ?? []).length === 1) {
+    // Get-Content/cat/type path | Set-Clipboard/pbcopy/wl-copy → Read
+    const fileToClip =
+      /^(Get-Content|gc|type|cat|gcat)\b([\s\S]*?)\s*\|\s*(Set-Clipboard|scb|pbcopy|wl-copy)\b([\s\S]*)$/i.exec(
+        command,
+      );
+    if (fileToClip !== null) {
+      const leftArgs = fileToClip[2] ?? '';
+      const hasPath =
+        /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(leftArgs) ||
+        /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+          leftArgs,
+        ) ||
+        /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(leftArgs);
+      if (hasPath) {
+        return {
+          prefer: 'Read',
+          pattern: `${fileToClip[1] ?? 'Get-Content'} | clipboard`,
+          message: 'Use Read instead of piping a file into the clipboard utility.',
+        };
+      }
+    }
+
+    // pbpaste/Get-Clipboard | Set-Content/Out-File path → Write
+    const clipToFile =
+      /^(pbpaste|wl-paste|Get-Clipboard|gcb)\b([\s\S]*?)\s*\|\s*(Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee)\b([\s\S]*)$/i.exec(
+        command,
+      );
+    if (clipToFile !== null) {
+      const sinkArgs = clipToFile[4] ?? '';
+      const hasPath =
+        /(?:^|\s)-(?:Path|LiteralPath|FilePath)\s+\S+/i.test(sinkArgs) ||
+        /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+          sinkArgs,
+        ) ||
+        /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(sinkArgs);
+      if (hasPath) {
+        return {
+          prefer: 'Write',
+          pattern: `${clipToFile[1] ?? 'clipboard'} | ${clipToFile[3] ?? 'Set-Content'}`,
+          message: 'Use Write instead of dumping the clipboard into a file.',
+        };
+      }
+    }
+  }
+
   if (/^(?:Set-Clipboard|scb)\b/i.test(command)) {
     // Set-Clipboard -Path / -Value (Get-Content file) / < file
     if (
@@ -1076,8 +1129,7 @@ function matchClipboardFileBypass(command: string): ShellDedicatedBypassHit | un
     }
   }
 
-  if (/[|;&`\n]/.test(command)) return undefined;
-  if (/\$\(|\$\{/.test(command)) return undefined;
+  if (/[|]/.test(command)) return undefined;
 
   // Input redirect into clipboard: pbcopy < file, wl-copy < file
   if (
