@@ -76,6 +76,61 @@ describe('native-frame-policy', () => {
     ).toBe(true);
   });
 
+  it('treats scroll coalesced with ambient animation as pure scroll (no force/clear)', () => {
+    expect(
+      isPureTranscriptScrollFrame(['transcript-scroll', 'animation'], true, false),
+    ).toBe(true);
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll', 'animation'], false, {
+        viewportScrolled: true,
+        ambientAnimation: true,
+      }),
+    ).toBe(false);
+
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['transcript-scroll', 'animation'],
+      viewportScrolled: true,
+      structuralShift: false,
+      priorTranscriptStart: 4,
+      nextTranscriptStart: 7,
+      ambientAnimationAllowed: true,
+    });
+    expect(policy.force).toBe(false);
+    expect(policy.clear).toBe(false);
+    expect(policy.refreshTerminalPalette).toBe(false);
+  });
+
+  it('keeps pure transcript scroll damage-only so stack regions do not clear-fill', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: false,
+        viewportScrolled: true,
+        causes: ['transcript-scroll'],
+        ambientAnimationAllowed: false,
+        idleAquariumMounted: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: false,
+        viewportScrolled: true,
+        causes: ['transcript-scroll', 'animation'],
+        ambientAnimationAllowed: true,
+        idleAquariumMounted: false,
+      }),
+    ).toBe(true);
+    // Scroll + content still needs clears for uncovered rows.
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: false,
+        viewportScrolled: true,
+        causes: ['transcript-scroll', 'request'],
+        ambientAnimationAllowed: false,
+        idleAquariumMounted: true,
+      }),
+    ).toBe(false);
+  });
+
   it('keeps ambient animation damage-only without clear or OSC palette spam', () => {
     const policy = resolveTUIStateNativeFramePolicy({
       causes: ['animation'],
@@ -163,6 +218,62 @@ describe('native-frame-policy', () => {
       }),
     ).toBe(false);
     expect(shouldForceNativeCursor({ causes: ['animation'] })).toBe(true);
+  });
+
+  it('keeps append-only transcript growth damage-only without full clear', () => {
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['request'],
+      viewportScrolled: false,
+      structuralShift: true,
+      contentGrew: true,
+      geometryShift: false,
+      contentShrunk: false,
+      nextTranscriptStart: 12,
+      ambientAnimationAllowed: true,
+    });
+    // Still force present for correctness, but do not clear the buffer.
+    expect(policy.force).toBe(true);
+    expect(policy.clear).toBe(false);
+
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: true,
+        contentGrew: true,
+        geometryShift: false,
+        contentShrunk: false,
+        viewportScrolled: false,
+        causes: ['request'],
+        ambientAnimationAllowed: true,
+        idleAquariumMounted: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('still clears when transcript content shrinks', () => {
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['request'],
+      viewportScrolled: false,
+      structuralShift: true,
+      contentGrew: false,
+      contentShrunk: true,
+      geometryShift: false,
+      nextTranscriptStart: 3,
+      ambientAnimationAllowed: false,
+    });
+    expect(policy.force).toBe(true);
+    expect(policy.clear).toBe(true);
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        structuralShift: true,
+        contentShrunk: true,
+        contentGrew: false,
+        geometryShift: false,
+        viewportScrolled: false,
+        causes: ['request'],
+        ambientAnimationAllowed: false,
+        idleAquariumMounted: true,
+      }),
+    ).toBe(false);
   });
 
   it('keeps Jewel Tank idle damage-only on request-only thinking ticks', () => {

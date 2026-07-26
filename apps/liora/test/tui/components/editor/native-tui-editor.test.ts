@@ -382,11 +382,13 @@ describe('NativeTUIEditor ghost text', () => {
   });
 
   it('closes ghost text with Esc', () => {
+    vi.useFakeTimers();
     const editor = makeEditor();
     editor.setGhostText('hello world', 'inline');
     expect(editor.getGhostText()).toBe('hello world');
 
-    editor.handleInput('\u001B'); // escape
+    editor.handleInput('\u001B'); // escape — bare ESC resolves after decoder timer
+    vi.advanceTimersByTime(50);
 
     expect(editor.getGhostText()).toBeUndefined();
   });
@@ -438,4 +440,59 @@ describe('NativeTUIEditor ghost text', () => {
     // Ghost text may increase row count if it causes wrapping
     expect(rowsWithGhost).toBeGreaterThanOrEqual(rowsWithoutGhost);
   });
+
+  it('clears ghost text via applyNativeTextInputSync when text changes', () => {
+    const editor = makeEditor();
+    editor.setText('hello');
+    editor.setGhostText(' world', 'inline');
+    expect(editor.getGhostText()).toBe(' world');
+
+    editor.applyNativeTextInputSync('hellx', { line: 0, col: 5 });
+
+    expect(editor.getText()).toBe('hellx');
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('keeps ghost text when applyNativeTextInputSync only moves the cursor', () => {
+    const editor = makeEditor();
+    editor.setText('hello');
+    editor.setGhostText(' world', 'inline');
+
+    editor.applyNativeTextInputSync('hello', { line: 0, col: 3 });
+
+    expect(editor.getGhostText()).toBe(' world');
+  });
+
+  it('opens autocomplete with Tab when a slash trigger is present and no ghost', async () => {
+    const provider = providerReturning([
+      { value: 'help', label: 'help', description: 'Show help' },
+    ]);
+    const editor = makeEditor();
+    editor.setAutocompleteProvider(provider);
+    editor.setText('/');
+    editor.setCursorPosition({ line: 0, col: 1 });
+
+    editor.handleInput('\t');
+    await flushAutocomplete();
+
+    expect(provider.getSuggestions).toHaveBeenCalled();
+    expect(editor.isShowingAutocomplete()).toBe(true);
+  });
+
+  it('does not open autocomplete with Tab on plain prose', async () => {
+    const provider = providerReturning([
+      { value: 'help', label: 'help', description: 'Show help' },
+    ]);
+    const editor = makeEditor();
+    editor.setAutocompleteProvider(provider);
+    editor.setText('hello');
+    editor.setCursorPosition({ line: 0, col: 5 });
+
+    editor.handleInput('\t');
+    await flushAutocomplete();
+
+    expect(provider.getSuggestions).not.toHaveBeenCalled();
+    expect(editor.isShowingAutocomplete()).toBe(false);
+  });
+
 });

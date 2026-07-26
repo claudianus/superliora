@@ -8,7 +8,6 @@ import {
   NativeTerminalSession,
   type Component,
   type Focusable,
-  type NativeInputEvent,
   Spacer,
 } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
@@ -317,6 +316,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     isReplaying: false,
     streamingPhase: 'idle',
     streamingStartTime: 0,
+    promptIntelligencePhase: 'idle',
     activityTip: null,
     theme: input.tuiConfig.theme,
     disablePasteBurst: input.tuiConfig.disablePasteBurst,
@@ -593,9 +593,40 @@ export class LioraTUI {
     this.setupAutocomplete();
   }
 
-  async refreshSkillCommands(_session?: SkillListSession): Promise<void> {
-    this.skillCommands = [];
+  async refreshSkillCommands(session?: SkillListSession): Promise<void> {
+    if (session === undefined) {
+      this.skillCommands = [];
+      this.skillCommandMap.clear();
+      this.setupAutocomplete();
+      return;
+    }
+
+    let skills;
+    try {
+      skills = await session.listSkills();
+    } catch {
+      // Keep any previously loaded skills; still rebuild the provider so static
+      // slash commands stay wired after a failed RPC.
+      this.setupAutocomplete();
+      return;
+    }
+    // Drop stale results if the active session rotated while listSkills was in flight.
+    if (this.session !== undefined && session !== this.session) {
+      this.setupAutocomplete();
+      return;
+    }
+
+    const skillCommands = buildSkillSlashCommands(skills);
+    // Cap the static slash menu so huge skill catalogs stay scannable; deeper
+    // matches still arrive via dynamic `/skill:` search.
+    const MAX_STATIC_SKILL_COMMANDS = 64;
+    this.skillCommands = [...skillCommands.commands].slice(0, MAX_STATIC_SKILL_COMMANDS);
     this.skillCommandMap.clear();
+    for (const [commandName, skillName] of skillCommands.commandMap) {
+      if (this.skillCommands.some((cmd) => cmd.name === commandName)) {
+        this.skillCommandMap.set(commandName, skillName);
+      }
+    }
     this.setupAutocomplete();
   }
 
@@ -636,10 +667,15 @@ export class LioraTUI {
     const session = this.session;
     if (session === undefined || signal.aborted) return [];
     const skillQuery = query.startsWith('skill:') ? query.slice('skill:'.length) : query;
-    if (skillQuery.trim().length === 0) return [];
+    const trimmed = skillQuery.trim();
     let skills;
     try {
-      skills = await session.searchSkills(skillQuery, { limit: 5 });
+      // Bare `/skill:` (or whitespace-only) reuses listSkills so the menu can
+      // surface activatable skills even when the static cache is still empty.
+      skills =
+        trimmed.length === 0
+          ? await session.listSkills()
+          : await session.searchSkills(trimmed, { limit: 12 });
     } catch {
       return [];
     }
@@ -648,7 +684,8 @@ export class LioraTUI {
     for (const [commandName, skillName] of skillCommands.commandMap) {
       this.skillCommandMap.set(commandName, skillName);
     }
-    return skillCommands.commands;
+    // Cap dynamic results so the autocomplete menu stays scannable.
+    return skillCommands.commands.slice(0, 12);
   }
 
   // =========================================================================
@@ -1086,7 +1123,7 @@ export class LioraTUI {
         displayText: `🎯 ${firstGoal.objective.slice(0, 50)}...`,
       });
     } catch (error) {
-      this.showStatus(`Failed to resume goal from queue: ${error}`, 'error');
+      this.showStatus(`Failed to resume goal from queue: ${String(error)}`, 'error');
     }
   }
 
@@ -4261,8 +4298,12 @@ export class LioraTUI {
     const roots = resolveClaudeImportRoots(workDir);
     const entries: ClaudeImportScanEntry[] = [];
 
-    const { readdirSync, statSync } = await import('node:fs');
-    const { join, relative } = await import('node:path');
+    const nodeFs = await import('node:fs');
+    const nodePath = await import('node:path');
+    const readdirSync = nodeFs.readdirSync.bind(nodeFs);
+    const statSync = nodeFs.statSync.bind(nodeFs);
+    const join = nodePath.join.bind(nodePath);
+    const relative = nodePath.relative.bind(nodePath);
 
     const walk = (
       rootPath: string,

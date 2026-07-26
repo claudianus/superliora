@@ -6,14 +6,32 @@ import { experimentalFeatureMap } from '#/utils/experimental-features';
 // synchronously by the command palette and dispatch. App-local cache, not a source of truth.
 let snapshot: ExperimentalFlagMap = {};
 
+/**
+ * Defaults that match packages/agent-core/src/flags/registry.ts for flags the TUI
+ * must evaluate before (or without) a harness snapshot. Keep in sync with registry.
+ */
+const KNOWN_FLAG_DEFAULTS: Readonly<Record<string, boolean>> = {
+  prompt_intelligence: true,
+};
+
+function parseEnvFlagValue(raw: string | undefined): boolean | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === '1' || raw === 'true') return true;
+  if (raw === '0' || raw === 'false') return false;
+  return undefined;
+}
+
 function envExperimentalFeatures(): ReadonlyArray<{ id: string; enabled: boolean }> {
   if (typeof process === 'undefined' || process.env === undefined) return [];
-  return Object.keys(process.env)
-    .filter((key) => key.startsWith('SUPERLIORA_EXPERIMENTAL_'))
-    .map((key) => {
-      const flag = key.slice('SUPERLIORA_EXPERIMENTAL_'.length).toLowerCase();
-      return { id: flag, enabled: process.env[key] === '1' || process.env[key] === 'true' };
-    });
+  const out: Array<{ id: string; enabled: boolean }> = [];
+  for (const key of Object.keys(process.env)) {
+    if (!key.startsWith('SUPERLIORA_EXPERIMENTAL_')) continue;
+    const flag = key.slice('SUPERLIORA_EXPERIMENTAL_'.length).toLowerCase();
+    const parsed = parseEnvFlagValue(process.env[key]);
+    if (parsed === undefined) continue;
+    out.push({ id: flag, enabled: parsed });
+  }
+  return out;
 }
 
 function mergeWithEnvFeatures(
@@ -39,5 +57,11 @@ export function setExperimentalFeatures(
 export function isExperimentalFlagEnabled(flag: string | undefined): boolean {
   if (flag === undefined) return true;
   if (snapshot[flag] !== undefined) return snapshot[flag];
-  return envExperimentalFeatures().some((f) => f.id === flag && f.enabled);
+  const envHit = envExperimentalFeatures().find((f) => f.id === flag);
+  if (envHit !== undefined) return envHit.enabled;
+  // Match agent-core registry defaults so ghost/autocomplete is not silently dark
+  // between process start and init()'s setExperimentalFeatures.
+  const knownDefault = KNOWN_FLAG_DEFAULTS[flag];
+  if (knownDefault !== undefined) return knownDefault;
+  return false;
 }

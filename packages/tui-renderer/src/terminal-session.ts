@@ -76,8 +76,16 @@ export const ANSI_ENABLE_MOUSE_TRACKING = '\u001B[?1000h';
  * keep press/release tracking.
  */
 export const ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING = '\u001B[?1002h';
+/**
+ * Any-event mouse tracking: reports motion even when no button is held.
+ * Needed for hover affordances (stage-frame resize grips). Supersedes 1002
+ * on xterm-compatible terminals; both are enabled so partial terminals still
+ * get drag events from 1002.
+ */
+export const ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING = '\u001B[?1003h';
 export const ANSI_DISABLE_MOUSE_TRACKING = '\u001B[?1000l';
 export const ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING = '\u001B[?1002l';
+export const ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING = '\u001B[?1003l';
 export const ANSI_ENABLE_SGR_MOUSE_MODE = '\u001B[?1006h';
 export const ANSI_DISABLE_SGR_MOUSE_MODE = '\u001B[?1006l';
 // Flags: 0b1 disambiguate + 0b100 report alternate keys (base-layout-key).
@@ -177,6 +185,11 @@ export class NativeTerminalSession {
       output.write(ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING);
       this.cleanup.push(() => {
         output.write(ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING);
+      });
+      // Hover grips need motion without a held button (stage resize affordance).
+      output.write(ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING);
+      this.cleanup.push(() => {
+        output.write(ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING);
       });
       output.write(ANSI_ENABLE_SGR_MOUSE_MODE);
       this.cleanup.push(() => {

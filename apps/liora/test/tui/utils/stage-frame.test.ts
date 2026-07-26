@@ -1,3 +1,4 @@
+import { getActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
@@ -403,5 +404,42 @@ describe('stageFrame entrance + chase', () => {
     });
     expect(painted).toContain('╭');
     expect(painted.filter((c) => c === '─').length).toBeGreaterThan(10);
+  });
+
+  it('brightens the active resize grip when resizeHoverZone is set', () => {
+    const bundle = { x: 10, y: 5, width: 40, height: 12 };
+    const cols = 80;
+    const rows = 40;
+    const appearance = getActiveAppearancePreferences();
+    const base = paintStageFrameCells({
+      bundle,
+      cols,
+      rows,
+      nowMs: 10_000,
+      appearance,
+      freezeChase: true,
+    });
+    const hovered = paintStageFrameCells({
+      bundle,
+      cols,
+      rows,
+      nowMs: 10_000,
+      appearance,
+      freezeChase: true,
+      resizeHoverZone: 'resize-right',
+      resizeDragging: false,
+    });
+    // Right-edge stroke cells should change color under hover.
+    const rightX = bundle.x + bundle.width; // stroke is at bundle.x+width+GAP-1; GAP=1 → x+width
+    // stroke at STAGE_FRAME_GAP outside: right = bundle.x + bundle.width + GAP - 1 = bundle.x+width
+    const baseRight = base.filter((c) => c.x === bundle.x + bundle.width);
+    const hoverRight = hovered.filter((c) => c.x === bundle.x + bundle.width);
+    expect(hoverRight.length).toBeGreaterThan(0);
+    expect(baseRight.length).toBeGreaterThan(0);
+    // At least one right-edge cell fg should differ when hover is active.
+    const baseFgs = new Set(baseRight.map((c) => c.fg));
+    const hoverFgs = new Set(hoverRight.map((c) => c.fg));
+    const changed = [...hoverFgs].some((fg) => !baseFgs.has(fg));
+    expect(changed).toBe(true);
   });
 });

@@ -1,6 +1,9 @@
 import {
+  ansiPushPointerShape,
+  ANSI_POP_POINTER_SHAPE,
   hitTestPanelBorder,
   isResizeZone,
+  type KittyPointerShape,
   type NativeInputEvent,
   type NativeInputMouseEvent,
   type PanelBorderZone,
@@ -31,9 +34,27 @@ interface StageResizeDrag {
 
 let activeDrag: StageResizeDrag | undefined;
 
-/** Test-only: drop any in-flight drag so cases stay isolated. */
+/** Hover zone while the pointer rests on a resize grip (no button held). */
+let hoverZone: PanelBorderZone | undefined;
+
+/** Last Kitty pointer shape we pushed (undefined = default / popped). */
+let activePointerShape: KittyPointerShape | undefined;
+
+/** Test-only: drop any in-flight drag / hover so cases stay isolated. */
 export function resetStageResizeDragForTests(): void {
   activeDrag = undefined;
+  hoverZone = undefined;
+  activePointerShape = undefined;
+}
+
+/** Current resize hover zone for stage-frame paint (undefined = none). */
+export function getStageResizeHoverZone(): PanelBorderZone | undefined {
+  return activeDrag?.zone ?? hoverZone;
+}
+
+/** True while a corner/edge drag is in progress. */
+export function isStageResizeDragging(): boolean {
+  return activeDrag !== undefined;
 }
 
 export function handleStageResizeMouseInput(
@@ -48,14 +69,29 @@ function handleStageResizeMouseEvent(
   state: TUIState,
   event: NativeInputMouseEvent,
 ): boolean {
+  // Hover moves arrive as button=none + action=move (any-event tracking 1003).
+  // Drag moves keep the pressed button + action=drag (1002).
   if (event.button !== 'left' && event.button !== 'none') return false;
-  if (event.action !== 'press' && event.action !== 'drag' && event.action !== 'release') {
+  if (
+    event.action !== 'press' &&
+    event.action !== 'drag' &&
+    event.action !== 'release' &&
+    event.action !== 'move'
+  ) {
     return false;
+  }
+
+  if (event.action === 'move') {
+    return handleHoverMove(state, event);
   }
 
   if (event.action === 'release') {
     if (activeDrag === undefined) return false;
     activeDrag = undefined;
+    // Re-evaluate hover under the release point so the grip stays lit if
+    // the pointer is still on the frame.
+    updateHoverFromPoint(state, event.x, event.y);
+    requestTUILayoutRender(state);
     return true;
   }
 
@@ -63,16 +99,7 @@ function handleStageResizeMouseEvent(
     const band = resolveStageBand(state);
     if (band === undefined) return false;
     if (!stageFrameVisible(band, state.terminal.columns, state.terminal.rows)) return false;
-    // The visible stroke ring sits one cell outside the bundle (STAGE_FRAME_GAP),
-    // so expand the band by one cell: the grab border then matches the drawn
-    // frame exactly and never overlaps the transcript body inside the bundle.
-    const grabRect: RendererRect = {
-      x: band.x - 1,
-      y: band.y - 1,
-      width: band.width + 2,
-      height: band.height + 2,
-    };
-    const zone = hitTestPanelBorder(event.x, event.y, grabRect);
+    const zone = hitTestGrab(band, event.x, event.y);
     if (!isResizeZone(zone)) return false;
     activeDrag = {
       zone,
@@ -81,6 +108,9 @@ function handleStageResizeMouseEvent(
       startWidth: band.width,
       startHeight: band.height,
     };
+    hoverZone = zone;
+    applyPointerShape(state, pointerShapeForZone(zone));
+    requestTUILayoutRender(state);
     return true;
   }
 
@@ -89,8 +119,108 @@ function handleStageResizeMouseEvent(
   const dx = event.x - activeDrag.pressX;
   const dy = event.y - activeDrag.pressY;
   state.userStageSize = computeNextSize(activeDrag, dx, dy, state);
+  // Keep pointer shape locked to the drag zone for the whole gesture.
+  applyPointerShape(state, pointerShapeForZone(activeDrag.zone));
   requestTUILayoutRender(state);
   return true;
+}
+
+function handleHoverMove(state: TUIState, event: NativeInputMouseEvent): boolean {
+  // While dragging, motion is delivered as 'drag' — ignore stray moves.
+  if (activeDrag !== undefined) return false;
+  const prev = hoverZone;
+  updateHoverFromPoint(state, event.x, event.y);
+  if (hoverZone === prev) {
+    // Still update pointer shape if terminal lost it (rare) — cheap when equal.
+    if (hoverZone !== undefined) {
+      applyPointerShape(state, pointerShapeForZone(hoverZone));
+    }
+    return hoverZone !== undefined;
+  }
+  requestTUILayoutRender(state);
+  return true;
+}
+
+function updateHoverFromPoint(state: TUIState, x: number, y: number): void {
+  const band = resolveStageBand(state);
+  if (band === undefined || !stageFrameVisible(band, state.terminal.columns, state.terminal.rows)) {
+    clearHover(state);
+    return;
+  }
+  const zone = hitTestGrab(band, x, y);
+  if (!isResizeZone(zone)) {
+    clearHover(state);
+    return;
+  }
+  hoverZone = zone;
+  applyPointerShape(state, pointerShapeForZone(zone));
+}
+
+function clearHover(state: TUIState): void {
+  const had = hoverZone !== undefined || activePointerShape !== undefined;
+  hoverZone = undefined;
+  applyPointerShape(state, undefined);
+  if (had) {
+    // Caller decides whether to re-render; clearHover itself is silent.
+  }
+}
+
+function hitTestGrab(band: StageFrameBand, x: number, y: number): PanelBorderZone {
+  // The visible stroke ring sits one cell outside the bundle (STAGE_FRAME_GAP),
+  // so expand the band by one cell: the grab border then matches the drawn
+  // frame exactly and never overlaps the transcript body inside the bundle.
+  const grabRect: RendererRect = {
+    x: band.x - 1,
+    y: band.y - 1,
+    width: band.width + 2,
+    height: band.height + 2,
+  };
+  const zone = hitTestPanelBorder(x, y, grabRect);
+  // Panel frames treat the top edge as a title-bar drag handle. The stage
+  // has no window chrome — the whole ring is a resize grip, so remap.
+  if (zone === 'title-bar') return 'resize-top';
+  return zone;
+}
+
+/**
+ * Map a resize zone to a Kitty pointer shape. Terminals without the protocol
+ * ignore the CSI; we still push it so Kitty / Ghostty / WezTerm show the grip.
+ */
+export function pointerShapeForZone(zone: PanelBorderZone): KittyPointerShape {
+  switch (zone) {
+    case 'resize-left':
+    case 'resize-right':
+      return 'ew-resize';
+    case 'resize-top':
+    case 'resize-bottom':
+      return 'ns-resize';
+    case 'resize-top-left':
+    case 'resize-bottom-right':
+      return 'nwse-resize';
+    case 'resize-top-right':
+    case 'resize-bottom-left':
+      return 'nesw-resize';
+    default:
+      return 'default';
+  }
+}
+
+function applyPointerShape(state: TUIState, shape: KittyPointerShape | undefined): void {
+  if (shape === activePointerShape) return;
+  try {
+    if (shape === undefined || shape === 'default') {
+      if (activePointerShape !== undefined) {
+        state.terminal.write(ANSI_POP_POINTER_SHAPE);
+      }
+      activePointerShape = undefined;
+      return;
+    }
+    // Push replaces the previous shape; no need to pop first.
+    state.terminal.write(ansiPushPointerShape(shape));
+    activePointerShape = shape;
+  } catch {
+    // Never let pointer CSI take down the input path.
+  }
 }
 
 /**

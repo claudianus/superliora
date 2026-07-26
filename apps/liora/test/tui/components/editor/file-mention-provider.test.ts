@@ -209,6 +209,27 @@ describe('FileMentionProvider', () => {
     });
   });
 
+  it('fetches bare skill: completions from the dynamic provider', async () => {
+    const calls: string[] = [];
+    const provider = new FileMentionProvider(
+      [HELP_COMMAND],
+      workDir,
+      NO_FD,
+      [],
+      async (query) => {
+        calls.push(query);
+        return [LARK_CALENDAR_COMMAND];
+      },
+    );
+    const line = '/skill:';
+
+    const result = await provider.getSuggestions([line], 0, line.length, { signal: ctrl() });
+
+    expect(calls).toEqual(['skill:']);
+    expect(result).not.toBeNull();
+    expect(result!.items.some((item) => item.value === 'skill:lark-calendar')).toBe(true);
+  });
+
   it('does not call the dynamic slash provider for normal built-in prefixes', async () => {
     let calls = 0;
     const provider = new FileMentionProvider([HELP_COMMAND], workDir, NO_FD, [], async () => {

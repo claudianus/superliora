@@ -15,7 +15,7 @@ import {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { Input } from './input';
-import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
+import { highlightLines, highlightShellCommandLine, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import type {
   ApprovalPanelChoice,
@@ -104,9 +104,11 @@ function renderShellDisplayBlock(
   const cmdLines = block.command.length > 0 ? block.command.split('\n') : [''];
   cmdLines.forEach((cmdLine, idx) => {
     const prefix = idx === 0 ? `${s.accent('$')} ` : `${s.dim('·')} `;
+    // Dangerous commands keep the breathe effect on plain text so the
+    // animation is not fighting nested ANSI. Safe commands get token colors.
     const styledCmd = breatheDanger
       ? renderDangerBreathe(cmdLine, `approval:danger:${idx}`)
-      : s.strong(cmdLine);
+      : highlightShellCommandLine(cmdLine);
     appendWrappedLine(lines, prefix, '  ', styledCmd, width);
   });
   if (block.description !== undefined && block.description.length > 0) {

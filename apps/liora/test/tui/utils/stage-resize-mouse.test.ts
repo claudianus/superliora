@@ -6,7 +6,10 @@ import { createTUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';
 import type { NativeInputMouseEvent } from '#/tui/renderer';
 import {
+  getStageResizeHoverZone,
   handleStageResizeMouseInput,
+  isStageResizeDragging,
+  pointerShapeForZone,
   resetStageResizeDragForTests,
 } from '#/tui/utils/stage-resize-mouse';
 
@@ -54,6 +57,8 @@ function createState(): TUIState {
   });
   Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => ROWS });
   Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => COLS });
+  // Swallow Kitty pointer-shape CSI so tests never leak control sequences.
+  state.terminal.write = () => {};
   state.cachedStageBand = { ...BAND };
   return state;
 }
@@ -83,8 +88,43 @@ describe('handleStageResizeMouseInput', () => {
   it('ignores non-mouse events and non-resize actions', () => {
     const state = createState();
     expect(handleStageResizeMouseInput(state, { type: 'focus', raw: '', focused: true } as never)).toBe(false);
-    expect(handleStageResizeMouseInput(state, mouse('move', GRAB_RIGHT, MID_Y))).toBe(false);
     expect(handleStageResizeMouseInput(state, mouse('wheel', GRAB_RIGHT, MID_Y))).toBe(false);
+  });
+
+  it('lights the resize grip and reports a pointer shape on hover move', () => {
+    const state = createState();
+    const writes: string[] = [];
+    state.terminal.write = (chunk: string) => {
+      writes.push(chunk);
+    };
+
+    // Move over the right edge grip (button=none for any-event tracking).
+    expect(handleStageResizeMouseInput(state, mouse('move', GRAB_RIGHT, MID_Y, 'none'))).toBe(true);
+    expect(getStageResizeHoverZone()).toBe('resize-right');
+    expect(isStageResizeDragging()).toBe(false);
+    expect(writes.some((w) => w.includes('ew-resize'))).toBe(true);
+
+    // Leave the grip — hover clears and pointer pops.
+    expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
+    expect(getStageResizeHoverZone()).toBeUndefined();
+  });
+
+  it('maps resize zones to Kitty pointer shapes', () => {
+    expect(pointerShapeForZone('resize-left')).toBe('ew-resize');
+    expect(pointerShapeForZone('resize-right')).toBe('ew-resize');
+    expect(pointerShapeForZone('resize-top')).toBe('ns-resize');
+    expect(pointerShapeForZone('resize-bottom')).toBe('ns-resize');
+    expect(pointerShapeForZone('resize-top-left')).toBe('nwse-resize');
+    expect(pointerShapeForZone('resize-bottom-right')).toBe('nwse-resize');
+    expect(pointerShapeForZone('resize-top-right')).toBe('nesw-resize');
+    expect(pointerShapeForZone('resize-bottom-left')).toBe('nesw-resize');
+  });
+
+  it('treats the top edge as a resize grip (not a window title-bar)', () => {
+    const state = createState();
+    expect(handleStageResizeMouseInput(state, mouse('press', MID_X, GRAB_TOP))).toBe(true);
+    expect(isStageResizeDragging()).toBe(true);
+    expect(getStageResizeHoverZone()).toBe('resize-top');
   });
 
   it('does not start a drag from the stage body interior', () => {
@@ -96,6 +136,8 @@ describe('handleStageResizeMouseInput', () => {
   it('grows the width by 2*dx when dragging the right edge (center stays fixed)', () => {
     const state = createState();
     expect(handleStageResizeMouseInput(state, mouse('press', GRAB_RIGHT, MID_Y))).toBe(true);
+    expect(isStageResizeDragging()).toBe(true);
+    expect(getStageResizeHoverZone()).toBe('resize-right');
     expect(handleStageResizeMouseInput(state, mouse('drag', GRAB_RIGHT + 5, MID_Y))).toBe(true);
     expect(state.userStageSize).toEqual({ width: BAND.width + 10, height: BAND.height });
   });

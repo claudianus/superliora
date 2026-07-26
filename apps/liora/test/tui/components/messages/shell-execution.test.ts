@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -20,6 +21,24 @@ describe('ShellExecutionComponent', () => {
 
     expect(output).toContain('  $ printf hello');
     expect(output).toContain('    printf world');
+  });
+
+  it('colors shell command tokens while keeping the $ prompt', () => {
+    const previous = chalk.level;
+    chalk.level = 3;
+    try {
+      const component = new ShellExecutionComponent({
+        command: 'rg -n "TODO" src',
+        showCommand: true,
+      });
+      const raw = component.render(100);
+      const plain = raw.map(strip);
+      expect(plain.some((l) => l.includes('$ rg'))).toBe(true);
+      // Prompt body should not be fully plain — expect ANSI on the command line.
+      expect(raw.some((l) => /\u001B\[[0-9;]*m/.test(l))).toBe(true);
+    } finally {
+      chalk.level = previous;
+    }
   });
 
   it('keeps collapsed shell output short and expands on demand', () => {

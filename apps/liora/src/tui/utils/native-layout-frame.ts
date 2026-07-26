@@ -92,6 +92,7 @@ import {
   createStageFrameOverlayRegions,
   stageFrameBundleRect,
 } from './stage-frame';
+import { getStageResizeHoverZone, isStageResizeDragging } from './stage-resize-mouse';
 import {
   cellSelectedAtColumn,
   shouldHoldTranscriptAnimation,
@@ -243,7 +244,18 @@ interface TUIStateNativeLayoutTracking {
 export interface TUIStateNativeLayoutShift {
   readonly shifted: boolean;
   readonly viewportScrolled: boolean;
+  /** Transcript content rows/children or editor geometry changed. */
   readonly structuralShift: boolean;
+  /**
+   * Editor (or other chrome geometry) row count changed — needs region
+   * clear-fills so layout holes wipe. Transcript-only content growth does not
+   * set this, so stage/letterbox can stay damage-only during streaming.
+   */
+  readonly geometryShift: boolean;
+  /** Transcript grew (rows or children). Safe for damage-only stack paint. */
+  readonly contentGrew: boolean;
+  /** Transcript shrank — holes need clear-fills. */
+  readonly contentShrunk: boolean;
   readonly next: TUIStateNativeLayoutTracking;
 }
 
@@ -268,14 +280,28 @@ export function detectTUIStateNativeLayoutShift(
       : undefined;
   const viewportScrolled =
     prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart;
-  const structuralShift =
+  const rowsChanged =
+    prior.transcriptContentRows !== undefined &&
+    prior.transcriptContentRows !== transcriptContentRows;
+  const childrenChanged =
+    prior.transcriptChildCount !== undefined &&
+    prior.transcriptChildCount !== transcriptChildCount;
+  const contentShift = rowsChanged || childrenChanged;
+  const contentGrew =
     (prior.transcriptContentRows !== undefined &&
-      prior.transcriptContentRows !== transcriptContentRows) ||
+      transcriptContentRows > prior.transcriptContentRows) ||
     (prior.transcriptChildCount !== undefined &&
-      prior.transcriptChildCount !== transcriptChildCount) ||
-    (prior.editorLayoutRows !== undefined &&
-      editorLayoutRows !== undefined &&
-      prior.editorLayoutRows !== editorLayoutRows);
+      transcriptChildCount > prior.transcriptChildCount);
+  const contentShrunk =
+    (prior.transcriptContentRows !== undefined &&
+      transcriptContentRows < prior.transcriptContentRows) ||
+    (prior.transcriptChildCount !== undefined &&
+      transcriptChildCount < prior.transcriptChildCount);
+  const geometryShift =
+    prior.editorLayoutRows !== undefined &&
+    editorLayoutRows !== undefined &&
+    prior.editorLayoutRows !== editorLayoutRows;
+  const structuralShift = contentShift || geometryShift;
   const next: TUIStateNativeLayoutTracking = {
     transcriptStart,
     transcriptContentRows,
@@ -286,6 +312,9 @@ export function detectTUIStateNativeLayoutShift(
     shifted: viewportScrolled || structuralShift,
     viewportScrolled,
     structuralShift,
+    geometryShift,
+    contentGrew,
+    contentShrunk,
     next,
   };
 }
@@ -339,6 +368,9 @@ export function createTUIStateNativeRenderCallback(
       causes: frame.causes,
       viewportScrolled: layoutShift.viewportScrolled,
       structuralShift: layoutShift.structuralShift,
+      geometryShift: layoutShift.geometryShift,
+      contentGrew: layoutShift.contentGrew,
+      contentShrunk: layoutShift.contentShrunk,
       priorTranscriptStart: priorStart,
       nextTranscriptStart: layoutShift.next.transcriptStart ?? 0,
       ambientAnimationAllowed,
@@ -409,6 +441,9 @@ export function createTUIStateNativeRenderCallback(
     );
     const ambientDamageOnly = splashJustDisposed || shouldUseAmbientDamageOnlyPaint({
       structuralShift: layoutShift.structuralShift,
+      geometryShift: layoutShift.geometryShift,
+      contentGrew: layoutShift.contentGrew,
+      contentShrunk: layoutShift.contentShrunk,
       viewportScrolled: layoutShift.viewportScrolled,
       causes: frame.causes,
       ambientAnimationAllowed,
@@ -872,6 +907,8 @@ function buildTUIStateNativeFrame(
       rows: height,
       nowMs: appearanceAnimationNow(),
       appearance,
+      resizeHoverZone: getStageResizeHoverZone(),
+      resizeDragging: isStageResizeDragging(),
     }),
   );
   const diagnosticsOverlay = skipDecorative

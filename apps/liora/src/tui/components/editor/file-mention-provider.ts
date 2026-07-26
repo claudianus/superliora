@@ -228,7 +228,7 @@ export class FileMentionProvider implements AutocompleteProvider {
   > {
     if (this.dynamicSlashCommands === undefined) return [];
     if (!query.startsWith('skill:')) return [];
-    if (query.length <= 'skill:'.length) return [];
+    // Include bare `skill:` so listSkills fallback can populate the menu.
     const commands = await this.dynamicSlashCommands(query, signal);
     if (commands.length === 0 || signal.aborted) return [];
     return commands.map((cmd) => ({

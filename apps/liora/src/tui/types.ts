@@ -112,6 +112,11 @@ export interface AppState {
   isReplaying: boolean;
   streamingPhase: 'idle' | 'waiting' | 'thinking' | 'composing' | 'shell';
   streamingStartTime: number;
+  /**
+   * Prompt-intelligence (LLM ghost) activity for the footer badge / spinner.
+   * `idle` when nothing is in flight; `inline` / `suggest` while a request runs.
+   */
+  promptIntelligencePhase?: 'idle' | 'inline' | 'suggest';
   activityTip?: string | null;
   theme: ThemeName;
   disablePasteBurst?: boolean;
