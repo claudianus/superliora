@@ -124,6 +124,7 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   }
   // wc -l path (line count only — still better as Read for agents? allow wc for process stats)
   // skip wc — useful for quick metrics
+  // skip file/stat/sha256sum/md5sum/cksum/realpath — metadata/hash, not content dumps
 
   // bat / tac — pure file dumpers
   if (/^(?:\/usr\/bin\/)?(?:bat|tac)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
@@ -131,6 +132,19 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       prefer: 'Read',
       pattern: 'bat/tac file',
       message: 'Use Read or LioraRead instead of bat/tac for file contents.',
+    };
+  }
+
+  // Text formatters that dump a whole file to stdout (fmt/pr/fold/expand/…)
+  if (
+    /^(?:\/usr\/bin\/)?(?:fmt|pr|fold|expand|unexpand|column)(?:\s+-[A-Za-z0-9=]+)*(?:\s+\S+)*\s+\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'fmt/pr/fold file',
+      message: 'Use Read or LioraRead instead of text formatters for file contents.',
     };
   }
 

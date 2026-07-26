@@ -169,3 +169,14 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('true > out.txt && echo hi')).toBeUndefined();
   });
 
+  it('blocks text formatter whole-file dumps', () => {
+    expect(detectShellDedicatedBypass('fmt src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('pr -n src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('fold -w 80 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('expand src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('column -t src/a.ts')?.prefer).toBe('Read');
+    // metrics / metadata stay allowed
+    expect(detectShellDedicatedBypass('wc -l src/a.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('sha256sum src/a.ts')).toBeUndefined();
+  });
+

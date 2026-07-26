@@ -1369,6 +1369,32 @@ describe('BashTool', () => {
     expect(String(install.output)).toContain('Write');
   });
 
+  it('rejects empty redirect file creators', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const empty = await executeTool(tool, context({ command: ': > out.txt', timeout: 60 }));
+    expect(empty).toMatchObject({ isError: true });
+    expect(String(empty.output)).toContain('Write');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const bare = await executeTool(tool, context({ command: 'true > out.txt', timeout: 60 }));
+    expect(bare).toMatchObject({ isError: true });
+    expect(String(bare.output)).toContain('Write');
+  });
+
+  it('rejects text formatter whole-file dumps', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const fmt = await executeTool(tool, context({ command: 'fmt src/a.ts', timeout: 60 }));
+    expect(fmt).toMatchObject({ isError: true });
+    expect(String(fmt.output)).toContain('Read');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const fold = await executeTool(tool, context({ command: 'fold -w 80 src/a.ts', timeout: 60 }));
+    expect(fold).toMatchObject({ isError: true });
+    expect(String(fold.output)).toContain('Read');
+  });
+
   it('rejects simple cat/tee heredoc writers', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
