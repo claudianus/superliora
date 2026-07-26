@@ -977,8 +977,9 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
 }
 
 /**
- * Pure Get-Content path dumps piped into formatters/viewers -> Read.
- * Matches: Get-Content/gc/type path | Format-*|Out-String|Format-Hex|Out-GridView|Select-Object|Select-Xml
+ * Pure Get-Content path dumps piped into formatters/viewers/parsers -> Read.
+ * Matches: Get-Content/gc/type path | Format-*|Out-String|Format-Hex|Out-GridView|
+ * Select-Object|Select-Xml|ConvertTo-Json|ConvertFrom-Json|Import-Csv|Import-Clixml
  * Skips: multi-pipe, real process left-hand sides, path-less Get-Content.
  */
 function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit | undefined {
@@ -987,8 +988,30 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
   if (/\$\(|\$\{/.test(command)) return undefined;
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
 
-  const sinkRe =
-    'Format-List|Format-Table|Format-Wide|Format-Custom|Out-String|Format-Hex|fhx|Out-GridView|ogv|Select-Object|select|Select-Xml|fl|ft|fw';
+  // Longer/more-specific cmdlets first so `select` does not steal Select-Xml.
+  const sinkRe = [
+    'Format-List',
+    'Format-Table',
+    'Format-Wide',
+    'Format-Custom',
+    'Out-String',
+    'Format-Hex',
+    'fhx',
+    'Out-GridView',
+    'ogv',
+    'Select-Object',
+    'Select-Xml',
+    'ConvertTo-Json',
+    'ConvertFrom-Json',
+    'ConvertFrom-Csv',
+    'Import-Csv',
+    'ipcsv',
+    'Import-Clixml',
+    'select',
+    'fl',
+    'ft',
+    'fw',
+  ].join('|');
   const m = new RegExp(
     `^(Get-Content|gc|type)\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
     'i',
@@ -1009,7 +1032,7 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
     prefer: 'Read',
     pattern: `Get-Content | ${formatter}`,
     message:
-      'Use Read instead of PowerShell Get-Content piped into Format-*/Out-String/Format-Hex/Out-GridView/Select-Object for file dumps.',
+      'Use Read instead of PowerShell Get-Content piped into Format-*/Out-String/Format-Hex/Out-GridView/Select-Object/Convert*/Import-* for file dumps.',
   };
 }
 

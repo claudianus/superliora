@@ -127,21 +127,27 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('ConvertFrom-Json -LiteralPath config.json')?.prefer).toBe(
       'Read',
     );
-    expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Json')).toBeUndefined();
-    expect(detectShellDedicatedBypass('Get-Content a.json | ConvertFrom-Json')).toBeUndefined();
-    // Import-Csv / Export-Csv path dumps → Read/Write; pipelines stay allowed.
+    // pure Get-Content path | Convert*/Import-* dumps prefer Read
+    expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Json')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.json | ConvertFrom-Json')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.xml | Select-Xml -XPath //x')?.prefer).toBe(
+      'Read',
+    );
+    // Import-Csv / Export-Csv path dumps → Read/Write; pure Get-Content pipes prefer Read.
     expect(detectShellDedicatedBypass('Import-Csv -Path data.csv')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('ipcsv report.csv')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('ConvertFrom-Csv -Path data.csv')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Export-Csv -Path out.csv')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('epcsv results.csv')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('ConvertTo-Csv -Path out.csv')?.prefer).toBe('Write');
-    expect(detectShellDedicatedBypass('Get-Content data.csv | Import-Csv')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content data.csv | Import-Csv')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Process | Export-Csv out.csv')).toBeUndefined();
-    // Import-Clixml / Export-Clixml path dumps → Read/Write; pipelines stay allowed.
+    // Import-Clixml / Export-Clixml path dumps → Read/Write; pure Get-Content pipes prefer Read.
     expect(detectShellDedicatedBypass('Import-Clixml -Path state.clixml')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Export-Clixml -Path state.clixml')?.prefer).toBe('Write');
-    expect(detectShellDedicatedBypass('Get-Content state.clixml | Import-Clixml')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Content state.clixml | Import-Clixml')?.prefer).toBe(
+      'Read',
+    );
     expect(detectShellDedicatedBypass('Get-Process | Export-Clixml state.clixml')).toBeUndefined();
     // Select-Object path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('Select-Object -Path src/a.ts')?.prefer).toBe('Read');
