@@ -107,7 +107,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'tui-terminal',
     query: 'terminal TUI renderer component typescript',
-    relevantIds: ['terminal-integration-specialist'],
+    relevantIds: [
+      'engineering-terminal-ui-engineer',
+      'terminal-integration-specialist',
+      'volt-06-developer-experience-cli-developer',
+    ],
     labels: ['Engineering', 'TUI'],
   },
   {
@@ -124,7 +128,12 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'code-review',
     query: 'code review pull request quality findings',
-    relevantIds: ['engineering-code-reviewer', 'agentcrow-compose-meta-reviewer'],
+    relevantIds: [
+      'engineering-code-reviewer',
+      'agentcrow-compose-meta-reviewer',
+      'security-ai-generated-code-auditor',
+      'volt-04-quality-security-ad-security-reviewer',
+    ],
     labels: ['Engineering', 'Review'],
   },
   {
@@ -144,6 +153,8 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-backend-architect',
       'engineering-api-platform-engineer',
       'agentcrow-backend-architect',
+      'volt-01-core-development-backend-developer',
+      'volt-01-core-development-api-designer',
     ],
     labels: ['Engineering', 'Backend'],
   },
@@ -177,7 +188,10 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     id: 'performance',
     query: 'performance reliability latency tuning',
     relevantIds: [
+      'volt-04-quality-security-performance-engineer',
+      'testing-performance-benchmarker',
       'ericgrill-general-performance-tuner',
+      'volt-09-meta-orchestration-performance-monitor',
       'engineering-wordpress-performance',
     ],
     labels: ['Engineering', 'Performance'],
@@ -213,7 +227,13 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'docs-writer',
     query: 'technical writer API documentation developer experience docs',
-    relevantIds: ['engineering-technical-writer', 'agentcrow-technical-writer'],
+    relevantIds: [
+      'engineering-technical-writer',
+      'agentcrow-technical-writer',
+      'volt-06-developer-experience-documentation-engineer',
+      'volt-07-specialized-domains-api-documenter',
+      'specialized-developer-advocate',
+    ],
     labels: ['Engineering', 'Docs'],
   },
   {
@@ -316,9 +336,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     query: 'sales deal strategist engineer account outbound lead gen',
     relevantIds: [
       'sales-deal-strategist',
+      'sales-offer-lead-gen-strategist',
       'sales-engineer',
       'sales-account-strategist',
-      'sales-offer-lead-gen-strategist',
+      'sales-outreach',
+      'volt-08-business-product-sales-engineer',
     ],
     labels: ['Sales'],
   },

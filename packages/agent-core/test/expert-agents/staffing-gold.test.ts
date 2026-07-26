@@ -1,22 +1,14 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import {
+  STAFFING_GOLD_SEED,
   collectStaffingGoldLabels,
   meanNdcgAtK,
   ndcgAtK,
-  STAFFING_GOLD_SEED,
   staffingGoldCasesForLabel,
   staffingGoldLabelCoverage,
 } from '../../src/expert-agents/staffing-gold';
-
-const catalogPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../src/expert-agents/catalog-personas.json',
-);
+import { ExpertSearchEngine } from '../../src/expert-agents/search';
 
 describe('staffing-gold nDCG', () => {
   it('scores perfect ranking as 1', () => {
@@ -45,14 +37,18 @@ describe('staffing-gold nDCG', () => {
     expect(mean).toBeLessThan(1);
   });
 
-  it('exports seed cases with catalog-backed relevantIds', () => {
+  it('exports seed cases with catalog-backed relevantIds', async () => {
     expect(STAFFING_GOLD_SEED.length).toBeGreaterThanOrEqual(28);
-    const catalog = JSON.parse(readFileSync(catalogPath, 'utf8')) as Record<string, unknown>;
+    const engine = new ExpertSearchEngine();
+    await engine.initialize();
     const nonEmpty = STAFFING_GOLD_SEED.filter((c) => c.relevantIds.length > 0);
     expect(nonEmpty.length).toBeGreaterThanOrEqual(28);
     for (const gold of nonEmpty) {
       for (const id of gold.relevantIds) {
-        expect(catalog[id], `missing catalog id ${id} in case ${gold.id}`).toBeDefined();
+        expect(
+          engine.getExpertById(id),
+          `missing search-catalog id ${id} in case ${gold.id}`,
+        ).toBeDefined();
       }
     }
     const ids = new Set(STAFFING_GOLD_SEED.map((c) => c.id));
@@ -97,5 +93,23 @@ describe('staffing-gold nDCG', () => {
     ).toBe(1);
     expect(staffingGoldCasesForLabel('Finance').some((c) => c.id === 'finance-fpa')).toBe(true);
     expect(staffingGoldCasesForLabel('Cloud').some((c) => c.id === 'cloud-infra')).toBe(true);
+  });
+
+  it('scores live ExpertSearchEngine ranks above an nDCG@10 floor', async () => {
+    const engine = new ExpertSearchEngine();
+    await engine.initialize();
+    const k = 10;
+    const scored = STAFFING_GOLD_SEED.filter((gold) => gold.relevantIds.length > 0).map((gold) => {
+      const rankedIds = engine
+        .search({ query: gold.query, topK: k, useEmbedding: false })
+        .map((hit) => hit.expert.id);
+      return { rankedIds, gold };
+    });
+    expect(scored.length).toBeGreaterThanOrEqual(28);
+    const mean = meanNdcgAtK(scored, k);
+    // Offline regression floor: catch ranking/query regressions without flaking on embeddings.
+    expect(mean).toBeGreaterThanOrEqual(0.72);
+    const zeros = scored.filter((row) => ndcgAtK(row.rankedIds, row.gold.relevantIds, k) <= 0);
+    expect(zeros.map((row) => row.gold.id)).toEqual([]);
   });
 });
