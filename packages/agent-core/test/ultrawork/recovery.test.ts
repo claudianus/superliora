@@ -1,12 +1,14 @@
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import type { UltraworkRun } from '@superliora/protocol';
+
 import { Agent } from '../../src/agent';
 import { testKaos } from '../fixtures/test-kaos';
+
 import {
   applyUltraworkResumeSkipInterview,
   buildUltraworkRecoveryPrompt,
@@ -25,6 +27,23 @@ import {
 import { inferEffectiveUltraworkStage } from '../../src/ultrawork/stage-progress';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
 import type { WorkGraph } from '@superliora/protocol';
+
+
+/** PlanMode without homedir writes to cwd/plan — isolate from package tree. */
+function agentWithTempCwd(): { agent: Agent; cleanup: () => void } {
+  const dir = mkdtempSync(join(tmpdir(), 'uw-recovery-'));
+  const agent = new Agent({ kaos: testKaos.withCwd(dir) });
+  return {
+    agent,
+    cleanup: () => {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // ignore
+      }
+    },
+  };
+}
 
 function sampleRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
   return {
@@ -69,7 +88,7 @@ function createUltraworkAtPlan(agent: Agent, id: string): void {
 
 describe('Ultrawork goal completion', () => {
   it('completeLearnStage from plan finishes run', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-goal-complete-plan');
     expect(agent.ultrawork.getRun()?.stage).toBe('plan');
 
@@ -80,7 +99,7 @@ describe('Ultrawork goal completion', () => {
   });
 
   it('markComplete with empty WorkGraph is rejected (false-complete guard)', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-mark-complete-plan');
     await agent.goal.createGoal({ objective: 'Ship docs', source: 'ultrawork' });
 
@@ -93,7 +112,7 @@ describe('Ultrawork goal completion', () => {
   });
 
   it('markComplete succeeds after WorkGraph is fully done', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-mark-complete-with-graph');
     await agent.goal.createGoal({ objective: 'Ship docs', source: 'ultrawork' });
     agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
@@ -110,7 +129,7 @@ describe('Ultrawork goal completion', () => {
   });
 
   it('maybeAdvanceUltraworkOnGoalComplete from plan does not force-finish empty graph', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-advance-on-goal-complete');
     await agent.goal.createGoal({ objective: 'Ship docs' });
 
@@ -121,7 +140,7 @@ describe('Ultrawork goal completion', () => {
   });
 
   it('finishing the run when the work graph completes also closes the active goal', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-graph-done-closes-goal');
     await agent.goal.createGoal({ objective: 'Ship docs' });
     agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
@@ -142,7 +161,7 @@ describe('Ultrawork goal completion', () => {
     // UltraSwarm's updateWorkNodes calls syncWorkGraphFromStore() then
     // maybeFinishUltraworkRun() after marking work nodes done. This test
     // verifies that path terminates both the run and the active goal.
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-swarm-path-closes-goal');
     await agent.goal.createGoal({ objective: 'Ship feature' });
     agent.ultrawork.advance('research', 'test');
@@ -178,7 +197,7 @@ describe('Ultrawork goal completion', () => {
   });
 
   it('maybeAdvanceUltraworkOnGoalComplete does not force-finish blocked run without WorkGraph', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-blocked-on-goal-complete');
     await agent.goal.createGoal({ objective: 'Ship docs' });
     await agent.ultrawork.markInterrupted({ reason: 'Paused after interruption' });
@@ -190,7 +209,7 @@ describe('Ultrawork goal completion', () => {
   });
 
   it('completeLearnStage from learn transitions to done', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-goal-complete-learn');
     for (const stage of ['research', 'goal', 'staff', 'swarm', 'integrate', 'verify', 'learn'] as const) {
       agent.ultrawork.advance(stage, 'test');
@@ -221,7 +240,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('skips interview on resume when the plan phase is already interview', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-skip-interview',
       objective: 'Ship landing page',
@@ -250,7 +269,7 @@ describe('Ultrawork recovery', () => {
     expect(agent.planMode.phase).toBe('design');
   });
   it('exits plan mode on resume once a goal exists instead of parking in design', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-resume-goal-exits-plan',
       objective: 'Ship feature',
@@ -279,7 +298,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('exits plan mode on resume when WorkGraph already has pending nodes', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-resume-graph-exits-plan',
       objective: 'Ship feature',
@@ -312,7 +331,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('preserves write phase on resume when still planning (no goal/work graph)', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-resume-write-phase',
       objective: 'Ship feature',
@@ -349,7 +368,7 @@ describe('Ultrawork recovery', () => {
     expect(shouldKeepPlanModeForUltraworkRun(run)).toBe(false);
   });
   it('resume() exits design-phase plan mode when execution has already started', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-resume-api-design-trap',
       objective: 'Ship feature',
@@ -413,7 +432,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('releases ultrawork plan mode after execution has started', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-exit-plan',
       objective: 'Ship feature',
@@ -460,7 +479,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('does not regress ultrawork stage during maybeAdvanceUltraworkStage', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-no-regress',
       objective: 'Ship feature',
@@ -490,7 +509,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('reconciles orphaned running graph nodes and experts', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     const graph = sampleRun().workGraph!;
     agent.tools.updateStore('ultrawork_graph', graph);
 
@@ -520,7 +539,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('interrupt → resume reconciles running nodes and preserves interrupt reason', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-interrupt-reconcile',
       objective: 'Resume after interrupt',
@@ -584,7 +603,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('preserves interrupt reason in recovery prompt after resume', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-resume',
       objective: 'Resume test',
@@ -703,7 +722,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('syncs ultrawork stage forward when work graph progress advances', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-sync',
       objective: 'Ship feature',
@@ -734,7 +753,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('injects post-swarm continuation only when the run reaches integrate', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-integrate',
       objective: 'Ship feature',
@@ -765,7 +784,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('injects post-compaction continuation for an active ultrawork run', () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-compact-cont',
       objective: 'Ship feature',
@@ -793,7 +812,7 @@ describe('Ultrawork recovery', () => {
   });
 
   it('reinjects ultrawork graph status after compaction even during swarm', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-graph-inject',
       objective: 'Ship feature',

@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Agent } from '../../src/agent';
@@ -33,7 +36,7 @@ interface StageChangedLike {
 
 describe('Ultrawork plan-mode release on terminal transitions', () => {
   it('releases Ultra Plan when a run reaches done', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-plan-rel-"))) });
     createUltraworkAtPlan(agent, 'run-done-releases-plan');
     await enterUltraPlan(agent, 'done-release-plan');
     expect(agent.planMode.isActive).toBe(true);
@@ -46,7 +49,7 @@ describe('Ultrawork plan-mode release on terminal transitions', () => {
   });
 
   it('cancel() releases Ultra Plan and emits a terminal stage-changed event', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-plan-rel-"))) });
     createUltraworkAtPlan(agent, 'run-cancel-releases-plan');
     await enterUltraPlan(agent, 'cancel-release-plan');
     await agent.goal.createGoal({ objective: 'Ship feature' });
@@ -66,7 +69,7 @@ describe('Ultrawork plan-mode release on terminal transitions', () => {
   });
 
   it('finishes a terminal empty-WorkGraph run and releases stranded Ultra Plan', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-plan-rel-"))) });
     createUltraworkAtPlan(agent, 'run-empty-graph-terminal');
     await enterUltraPlan(agent, 'empty-graph-plan');
     await agent.goal.createGoal({ objective: 'Ship feature' });
@@ -88,7 +91,7 @@ describe('Ultrawork plan-mode release on terminal transitions', () => {
   });
 
   it('closes the goal for a done run even when the WorkGraph is empty', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-plan-rel-"))) });
     createUltraworkAtPlan(agent, 'run-empty-graph-done');
     await agent.goal.createGoal({ objective: 'Ship feature' });
 
@@ -104,7 +107,7 @@ describe('Ultrawork plan-mode release on terminal transitions', () => {
   });
 
   it('does not prematurely close a running run that has no WorkGraph yet', async () => {
-    const agent = new Agent({ kaos: testKaos });
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-plan-rel-"))) });
     createUltraworkAtPlan(agent, 'run-empty-graph-running');
     await agent.goal.createGoal({ objective: 'Ship feature' });
 
