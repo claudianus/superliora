@@ -204,6 +204,21 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Content src/a.ts | Select-Object -First 5')).toBeUndefined();
   });
 
+  it('blocks git/svn/hg single-path content dumps but allows commit summaries', () => {
+    expect(detectShellDedicatedBypass('git show HEAD:src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('git show abcdef1:packages/foo/bar.ts')?.prefer).toBe(
+      'Read',
+    );
+    expect(detectShellDedicatedBypass('git cat-file -p HEAD:src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('svn cat file.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('hg cat file.ts')?.prefer).toBe('Read');
+    // commit-level / metadata stays allowed
+    expect(detectShellDedicatedBypass('git show HEAD')).toBeUndefined();
+    expect(detectShellDedicatedBypass('git show --stat HEAD')).toBeUndefined();
+    expect(detectShellDedicatedBypass('git cat-file -t HEAD')).toBeUndefined();
+    expect(detectShellDedicatedBypass('git blame src/a.ts')).toBeUndefined();
+  });
+
   it('blocks simple cp workspace copies but allows mv and recursive cp', () => {
     expect(detectShellDedicatedBypass('cp src/a.ts dest/a.ts')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('cp -p src/a.ts dest/a.ts')?.prefer).toBe('Write');

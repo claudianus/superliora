@@ -338,6 +338,40 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     };
   }
 
+  // VCS single-path content dumps: prefer Read for workspace files.
+  // Keep `git show HEAD`, `git show --stat`, blame, and multi-file log allowed.
+  if (/^(?:\/usr\/bin\/)?git\s+show\b/.test(command)) {
+    // `git show <rev>:<path>` or `git show :<path>` — blob dump of a tracked path.
+    if (/(?:^|\s)(?:[^\s:]+:)?(?:\.?\/)?[\w./@+-]+\.[A-Za-z0-9]+\s*$/.test(command) &&
+      /:[^\s]+/.test(command) &&
+      !/(?:^|\s)--(?:stat|name-only|name-status|oneline|pretty|format=)/.test(command)
+    ) {
+      return {
+        prefer: 'Read',
+        pattern: 'git show path',
+        message:
+          'Use Read for workspace file contents. Prefer `git show --stat` for commit summaries.',
+      };
+    }
+  }
+  if (
+    /^(?:\/usr\/bin\/)?git\s+cat-file\s+-p\s+\S+:\S+\s*$/.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'git cat-file -p path',
+      message: 'Use Read for workspace file contents instead of git cat-file -p <rev>:<path>.',
+    };
+  }
+  // svn/hg cat path
+  if (/^(?:\/usr\/bin\/)?(?:svn|hg)\s+cat(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(command)) {
+    return {
+      prefer: 'Read',
+      pattern: 'svn/hg cat file',
+      message: 'Use Read instead of svn/hg cat for file contents.',
+    };
+  }
+
   return undefined;
 }
 
