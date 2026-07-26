@@ -389,7 +389,11 @@ export function formatCompletionAuditRejection(rejection: CompletionAuditRejecti
     ...rejection.nextActions.map((a) => `- ${a}`),
   ];
   if (rejection.openNodeIds !== undefined && rejection.openNodeIds.length > 0) {
-    lines.push('', `Open nodes: ${rejection.openNodeIds.join(', ')}`);
+    const head = rejection.openNodeIds.slice(0, 8);
+    const overflow = rejection.openNodeIds.length > 8
+      ? `, … +${String(rejection.openNodeIds.length - 8)} more`
+      : '';
+    lines.push('', `Open nodes: ${head.join(', ')}${overflow}`);
   }
   lines.push(
     '',
