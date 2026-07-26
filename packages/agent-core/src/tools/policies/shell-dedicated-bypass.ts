@@ -1587,6 +1587,67 @@ function matchEditLike(command: string): ShellDedicatedBypassHit | undefined {
   return undefined;
 }
 
+/**
+ * True when a unix checksum utility is hashing exactly one concrete path.
+ * Multi-file args, globs, and option-only forms stay allowed for real shell work.
+ */
+function isSingleUnixHashFileDump(command: string): boolean {
+  // Strip the utility name (+ optional busybox / absolute path prefix).
+  const rest = command
+    .replace(
+      /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:md5sum|sha1sum|sha224sum|sha256sum|sha384sum|sha512sum|shasum|cksum)\b/i,
+      '',
+    )
+    .trim();
+  if (rest.length === 0) return false;
+  // Drop known option tokens so only path operands remain.
+  // shasum: -a 256 / --algorithm 256; others: -b/--binary -t/--text --tag -z/--zero
+  let args = rest
+    .replace(/(?:^|\s)(?:--algorithm|-a)(?:=\S+|\s+\S+)/gi, ' ')
+    .replace(
+      /(?:^|\s)(?:--binary|--text|--tag|--zero|-b|-t|-z)(?:=\S+)?(?=\s|$)/gi,
+      ' ',
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (args.length === 0) return false;
+  // Globs or multiple operands → real shell work.
+  if (/[*?\[{]/.test(args)) return false;
+  const parts = args.split(/\s+/).filter((part) => part.length > 0);
+  if (parts.length !== 1) return false;
+  const path = parts[0] ?? '';
+  // Require a path-like token (has extension or path separators).
+  return (
+    /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)/.test(path) ||
+    /\.\w{1,8}$/.test(path)
+  );
+}
+
+/**
+ * True when openssl dgst is hashing exactly one concrete path (not signing/verify/out).
+ */
+function isSingleOpensslDgstFileDump(command: string): boolean {
+  const rest = command.replace(/^(?:\/usr\/bin\/)?openssl\s+dgst\b/i, '').trim();
+  if (rest.length === 0) return false;
+  // Multi-arg real shell work (write signature, HMAC, custom out file).
+  if (/(?:^|\s)-(?:out|hmac|mac|macopt|signature|keyform|passin)(?:=\S+|\s+\S+)/i.test(rest)) {
+    return false;
+  }
+  let args = rest
+    .replace(/(?:^|\s)-(?:sha\d+|md5|blake2\w*|sm3|rmd\d+|whirlpool|r|hex|binary|c)(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (args.length === 0) return false;
+  if (/[*?\[{]/.test(args)) return false;
+  const parts = args.split(/\s+/).filter((part) => part.length > 0);
+  if (parts.length !== 1) return false;
+  const path = parts[0] ?? '';
+  return (
+    /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)/.test(path) ||
+    /\.\w{1,8}$/.test(path)
+  );
+}
+
 function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
   // grep/rg/egrep/fgrep with no pipes (composition already filtered).
   // `rg --files` is a lister → handled by matchGlobLike (called after this).
@@ -1679,7 +1740,7 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
     };
   }
   // Unix hash dumps of a single path → Read (parity with Get-FileHash / certutil).
-  // Skips: multi-file args, pipelines, recursive dir walks, openssl without a path.
+  // Skips: multi-file args, globs, pipelines, check mode, openssl without a path.
   if (
     /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:md5sum|sha1sum|sha224sum|sha256sum|sha384sum|sha512sum|shasum|cksum)\b/.test(
       command,
@@ -1688,11 +1749,8 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
     // `-c` / `--check` verify mode stays allowed (not a pure single-file dump).
     !/(?:^|\s)(?:-c|--check)(?:\s|=|$)/.test(command)
   ) {
-    // Require a path-like argument; bare `md5sum` (stdin) stays allowed.
-    const hasPath =
-      /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/.test(command) ||
-      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/.test(command);
-    if (hasPath) {
+    // Bare stdin / multi-file / glob work stays allowed; only one concrete path.
+    if (isSingleUnixHashFileDump(command)) {
       return {
         prefer: 'Read',
         pattern: 'unix hash file',
@@ -1706,10 +1764,7 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
     !/\s\|/.test(command) &&
     !/\b(?:-verify|-prverify|-sign)\b/.test(command)
   ) {
-    const hasPath =
-      /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/.test(command) ||
-      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/.test(command);
-    if (hasPath) {
+    if (isSingleOpensslDgstFileDump(command)) {
       return {
         prefer: 'Read',
         pattern: 'openssl dgst file',

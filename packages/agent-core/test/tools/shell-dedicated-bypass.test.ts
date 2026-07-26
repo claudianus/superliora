@@ -702,9 +702,12 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('cksum src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('shasum -a 256 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('openssl dgst -sha256 src/a.ts')?.prefer).toBe('Read');
-    // stdin / check modes / multi-pipe stay allowed
+    // stdin / check modes / multi-file / globs / multi-pipe stay allowed
     expect(detectShellDedicatedBypass('md5sum')).toBeUndefined();
     expect(detectShellDedicatedBypass('sha256sum -c checksums.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('cat src/a.ts | sha256sum')).toBeUndefined();
+    expect(detectShellDedicatedBypass('md5sum a.ts b.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('sha256sum *.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cksum a.ts b.ts')).toBeUndefined();
   });
 
