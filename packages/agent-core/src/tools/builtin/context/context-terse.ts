@@ -302,8 +302,9 @@ function applyShellPatterns(text: string, command: string): string {
   }
   // Package / dependency trees are huge and rarely need full fidelity mid-run.
   if (
-    /\b(?:pnpm|npm|yarn)\s+(?:list|ls|why|outdated)\b/u.test(command) ||
-    /\bcargo\s+tree\b/u.test(command) ||
+    /\b(?:pnpm|npm|yarn)\s+(?:list|ls|why|outdated|audit)\b/u.test(command) ||
+    /\bcargo\s+(?:tree|audit)\b/u.test(command) ||
+    /\bgo\s+mod\s+(?:graph|why|download)\b/u.test(command) ||
     /\bpip(?:3)?\s+(?:list|freeze|show)\b/u.test(command) ||
     /\bbun\s+pm\s+ls\b/u.test(command)
   ) {

@@ -337,9 +337,12 @@ function buildDetectionUserPrompt(text: string, context: InterruptedWorkResumeCo
   }
   const run = context.ultraworkRun;
   const interruptReason = context.ultraworkInterruptReason?.trim();
+  const softMidRun =
+    run !== null && run.status === 'running' && hasPendingWorkGraphNodes(run);
   if (
     run !== null &&
     (run.status === 'blocked' ||
+      softMidRun ||
       (run.status === 'running' && interruptReason !== undefined && interruptReason.length > 0))
   ) {
     lines.push(
@@ -352,6 +355,20 @@ function buildDetectionUserPrompt(text: string, context: InterruptedWorkResumeCo
         ? ''
         : `- interrupt reason: ${interruptReason}`,
     );
+    if (softMidRun) {
+      const pending =
+        run.workGraph?.nodes.filter(
+          (node) => node.status !== 'done' && node.status !== 'cancelled',
+        ) ?? [];
+      if (pending.length > 0) {
+        lines.push(
+          `- pending WorkGraph nodes: ${pending
+            .slice(0, 4)
+            .map((node) => `${node.id}[${node.status}]`)
+            .join(', ')}${pending.length > 4 ? ', …' : ''}`,
+        );
+      }
+    }
   }
   return lines.filter((line) => line.length > 0).join('\n');
 }

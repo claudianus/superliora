@@ -269,7 +269,17 @@ describe('Liora lean context tools', () => {
       { length: 100 },
       (_, i) => `├── pkg-${String(i)}@1.0.${String(i)}`,
     ).join('\n');
-    for (const command of ['pnpm list', 'npm ls', 'yarn why lodash', 'cargo tree', 'pip freeze']) {
+    for (const command of [
+      'pnpm list',
+      'npm ls',
+      'yarn why lodash',
+      'cargo tree',
+      'pip freeze',
+      'pnpm audit',
+      'npm audit',
+      'go mod graph',
+      'cargo audit',
+    ]) {
       const compressed = compressShellOutput({
         stdout,
         stderr: '',

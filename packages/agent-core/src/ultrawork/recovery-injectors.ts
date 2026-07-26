@@ -150,7 +150,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     lines.push(
       `Pending WorkGraph nodes (${String(pendingNodes.length)}): ${pendingNodes
         .slice(0, 4)
-        .map((node) => `${node.id}[${node.status}]`)
+        .map((node) => `${node.id}[${node.status}] ${node.title}`)
         .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
     );
   }

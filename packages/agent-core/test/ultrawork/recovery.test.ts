@@ -920,6 +920,7 @@ describe('Ultrawork recovery', () => {
     );
     expect(text).toContain('Pending WorkGraph nodes');
     expect(text).toContain('node-1[running]');
+    expect(text).toContain('Implement API');
     expect(text).not.toContain('node-2[done]');
     expect(text).toContain('Interrupt reason: Context pressure mid-run');
     expect(text).toContain('Ship feature');
