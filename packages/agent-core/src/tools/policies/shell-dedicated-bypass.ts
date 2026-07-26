@@ -667,17 +667,22 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     }
   }
 
-  // python -m json.tool path  (pretty-print dump of a JSON file)
-  if (
-    /^(?:\/usr\/bin\/)?python(?:3(?:\.\d+)?)?\s+-m\s+json\.tool(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(
-      command,
-    )
-  ) {
-    return {
-      prefer: 'Read',
-      pattern: 'python -m json.tool file',
-      message: 'Use Read instead of python -m json.tool for JSON file dumps.',
-    };
+  // python -m json.tool path  (pretty-print dump of a JSON file).
+  // Require a real path so bare `python -m json.tool` / `python -m json.tool -` (stdin) stay allowed.
+  if (/^(?:\/usr\/bin\/)?python(?:3(?:\.\d+)?)?\s+-m\s+json\.tool\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?python(?:3(?:\.\d+)?)?\s+-m\s+json\.tool\b/, '')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'python -m json.tool file',
+        message: 'Use Read instead of python -m json.tool for JSON file dumps.',
+      };
+    }
   }
 
   // VCS single-path content dumps: prefer Read for workspace files.

@@ -722,12 +722,15 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('yq . config.yaml')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('yq e . config.yaml')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('python3 -m json.tool package.json')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('/usr/bin/python3 -m json.tool data.json')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass("jq -r '.name' package.json")?.prefer).toBe('Read');
     // pipelines / stdin-only filters stay allowed
     expect(detectShellDedicatedBypass('cat package.json | jq .')).toBeUndefined();
     expect(detectShellDedicatedBypass('jq .')).toBeUndefined();
     expect(detectShellDedicatedBypass('jq -c .')).toBeUndefined();
     expect(detectShellDedicatedBypass('yq e .')).toBeUndefined();
+    expect(detectShellDedicatedBypass('python3 -m json.tool')).toBeUndefined();
+    expect(detectShellDedicatedBypass('python -m json.tool -')).toBeUndefined();
   });
 
   it('blocks empty redirect file creators', () => {
