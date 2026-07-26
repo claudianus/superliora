@@ -134,7 +134,7 @@ export function formatVerificationGapNextActions(
             : '';
         return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
       })
-      .join(', ')}${nodes.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
+      .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — attach required evidence before UpdateGoal(complete).`,
     'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
   ];
 }
@@ -173,7 +173,7 @@ export function formatFailedNodeNextActions(
       `Repair failed WorkGraph node(s) first: ${nodes
         .slice(0, 3)
         .map((node) => node.id)
-        .join(', ')}${nodes.length > 3 ? ', …' : ''} — ${categoryHints}`,
+        .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — ${categoryHints}`,
       formatFailedNodeCompleteBan(),
     ];
   }
@@ -181,7 +181,7 @@ export function formatFailedNodeNextActions(
     `Repair failed WorkGraph node(s) first: ${nodes
       .slice(0, 3)
       .map((node) => node.id)
-      .join(', ')}${nodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
+      .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — failed status blocks goal complete.`,
     formatFailedNodeCompleteBan(),
   ];
 }
@@ -195,7 +195,7 @@ export function formatNeedsIntegrationNextActions(
     `Integrate specialist handoffs for node(s): ${nodes
       .slice(0, 3)
       .map((node) => `${node.id} (${node.title})`)
-      .join(', ')}${nodes.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
+      .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — needs_integration blocks goal complete.`,
     formatNeedsIntegrationCompleteBan(),
   ];
 }
@@ -228,7 +228,7 @@ export function formatOwnerlessRunningNextActions(
     `Assign owner or re-queue orphan running node(s): ${nodes
       .slice(0, 3)
       .map((node) => `${node.id} (${node.title})`)
-      .join(', ')}${nodes.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
+      .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — running without owner stalls progress.`,
     'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
   ];
 }
@@ -246,7 +246,7 @@ export function formatQueuedDependsOnWaitNextActions(
     })
     .join(', ');
   return [
-    `Queued node(s) waiting on dependsOn: ${waitHints}${nodes.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
+    `Queued node(s) waiting on dependsOn: ${waitHints}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — finish or cancel deps before forcing progress.`,
     'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
   ];
 }
@@ -258,7 +258,7 @@ export function formatStuckNodeNextActions(nodes: readonly WorkGraphNode[]): rea
     `Circuit-break stuck WorkGraph node(s): ${nodes
       .slice(0, 3)
       .map((node) => `${node.id}[${node.status}]`)
-      .join(', ')}${nodes.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
+      .join(', ')}${nodes.length > 3 ? `, … +${String(nodes.length - 3)} more` : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
     'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
   ];
 }
