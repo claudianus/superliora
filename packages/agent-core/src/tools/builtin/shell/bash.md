@@ -19,3 +19,5 @@ If `run_in_background=true`, start as a background task and return a task ID (pr
 **Efficiency:** Chain with `&&`, `;`, `||`, pipes, redirections. Quote paths with spaces. Prefer one multi-step call over many tiny shells. Prefer `run_in_background=true` for long builds, tests, watchers, or servers when the conversation should continue.
 
 **Commands available:** Common bins (confirm with `which`): `ls` `pwd` `cd` `stat` `file` `du` `df` `tree` `cp` `mv` `rm` `mkdir` `touch` `ln` `chmod` `chown` `wc` `sort` `uniq` `cut` `tr` `diff` `xargs` `tar` `gzip` `gunzip` `zip` `unzip` `curl` `wget` `ping` `ssh` `scp` `git` `ps` `kill` `top` `env` `date` `uname` `whoami` `node` `npm` `pnpm` `yarn` `python` `pip`.
+
+Simple whole-command `cat`/`head`/`tail`/`sed -i`/`grep`/`rg`/`find` on files are **rejected** at runtime — use dedicated tools. Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required.

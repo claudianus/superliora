@@ -43,6 +43,10 @@ import {
   buildShellChildEnv,
   type ShellEnvFilterPolicy,
 } from '../../policies/shell-env';
+import {
+  detectShellDedicatedBypass,
+  formatShellDedicatedBypassError,
+} from '../../policies/shell-dedicated-bypass';
 import bashDescriptionTemplate from './bash.md?raw';
 
 const MS_PER_SECOND = 1000;
@@ -359,6 +363,13 @@ export class BashTool implements BuiltinTool<BashInput> {
   ): ExecutableToolResult | undefined {
     if (signal.aborted) return { isError: true, output: 'Aborted before command started' };
     if (args.command.length === 0) return { isError: true, output: 'Command cannot be empty.' };
+    const dedicatedBypass = detectShellDedicatedBypass(args.command);
+    if (dedicatedBypass !== undefined) {
+      return {
+        isError: true,
+        output: formatShellDedicatedBypassError(dedicatedBypass),
+      };
+    }
     if (args.run_in_background !== true) return undefined;
     if (!this.allowBackground) {
       return {
