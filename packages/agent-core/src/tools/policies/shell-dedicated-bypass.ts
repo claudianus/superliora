@@ -888,7 +888,7 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
 /**
  * Pure PowerShell value producers piped into file writers.
  * Matches:
- *   - Write-Output/Write-Host/echo … | Set-Content/Out-File/Add-Content/Tee-Object path
+ *   - Write-Output/Write-Host/echo … | Set-Content/Out-File/Add-Content/Tee-Object/sponge path
  *   - 'literal' / "literal" | Set-Content path
  * Skips: real process left-hand sides, multi-pipe chains, &&/|| lists.
  */
@@ -899,13 +899,18 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
   // Exactly one pipe — multi-stage pipelines stay allowed.
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
 
+  const producerRe =
+    'Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|echo|printf';
+  const sinkRe = 'Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee|sponge';
   const m =
-    /^(Write-Output|Write-Host|echo)\b([\s\S]*?)\s*\|\s*(Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee)\b([\s\S]*)$/i.exec(
-      command,
-    ) ??
-    /^(['"])([\s\S]*?)\1\s*\|\s*(Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee)\b([\s\S]*)$/i.exec(
-      command,
-    );
+    new RegExp(
+      `^(${producerRe})\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+      'i',
+    ).exec(command) ??
+    new RegExp(
+      `^(['"])([\\s\\S]*?)\\1\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+      'i',
+    ).exec(command);
   if (m === null) return undefined;
 
   const sinkArgs = m[4] ?? '';
@@ -918,13 +923,18 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
     /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(sinkArgs);
   if (!hasPath) return undefined;
 
-  const producer = (m[1] ?? 'literal').replace(/^['"]$/, 'literal');
+  const producerRaw = m[1] ?? 'literal';
+  const producer = /^(?:Write-(?:Output|Host|Verbose|Warning|Error|Information|Debug)|echo|printf)$/i.test(
+    producerRaw,
+  )
+    ? producerRaw
+    : 'literal';
   const sink = m[3] ?? 'Set-Content';
   return {
     prefer: 'Write',
-    pattern: `${/^(?:Write-Output|Write-Host|echo)$/i.test(producer) ? producer : 'literal'} | ${sink}`,
+    pattern: `${producer} | ${sink}`,
     message:
-      'Use Write instead of PowerShell Write-Output/Write-Host/echo (or string) piped into Set-Content/Out-File/Tee-Object.',
+      'Use Write instead of PowerShell/stream producers (or string) piped into Set-Content/Out-File/Tee-Object/sponge.',
   };
 }
 
@@ -1199,9 +1209,10 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
   if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
   // Exactly one > or >> to a path (not << heredoc).
   if (/<</.test(command)) return undefined;
-  const m = /^(?:\/usr\/bin\/)?(echo|printf|cat|Write-Output|Write-Host)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
-    command,
-  );
+  const m =
+    /^(?:\/usr\/bin\/)?(echo|printf|cat|Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
+      command,
+    );
   if (m === null) return undefined;
   const op = m[3];
   if (op !== '>' && op !== '>>') return undefined;

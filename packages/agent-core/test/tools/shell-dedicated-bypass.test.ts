@@ -218,11 +218,24 @@ describe('detectShellDedicatedBypass', () => {
     expect(
       detectShellDedicatedBypass('Write-Output x | Set-Content -Path out.txt')?.prefer,
     ).toBe('Write');
+    expect(detectShellDedicatedBypass('echo hi | sponge out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass("printf %s hi | tee out.txt")?.prefer).toBe('Write');
     // real process left-hand side / multi-pipe / no path stay allowed
     expect(detectShellDedicatedBypass('Get-Process | Set-Content out.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Content a.txt | Set-Content b.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('Write-Output x | Set-Content out.txt | Measure-Object')).toBeUndefined();
     expect(detectShellDedicatedBypass('Write-Output x | Set-Content')).toBeUndefined();
+  });
+
+  it('blocks Write-* stream redirects to files', () => {
+    expect(detectShellDedicatedBypass('Write-Verbose hi > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Warning hi > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Error hi >> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Information hi > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Debug hi > out.txt')?.prefer).toBe('Write');
+    // stdout-only stays allowed
+    expect(detectShellDedicatedBypass('Write-Verbose hi')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Write-Warning hi')).toBeUndefined();
   });
 
   it('allows pipelines, && chains, and real process work', () => {
