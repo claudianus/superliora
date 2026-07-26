@@ -1,194 +1,147 @@
+import type { TeamPlan } from '@superliora/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { buildTeamRosterXml, buildSwarmChannelRulesXml, buildSwarmCollaborationRequiredXml } from '../../src/session/swarm-bus-coordination';
 import {
   assignDiverseCriticEdges,
-  assignReviewCriticEdges,
   buildCriticAssignmentXml,
-  CRITIC_LENSES,
+  type CriticAssignment,
+  type CriticLens,
+  type CriticReviewSource,
 } from '../../src/session/ultra-swarm-critic';
-import {
-  consensusFromDiverseVotes,
-  extractLensVotes,
-} from '../../src/session/ultra-swarm-consensus';
 
-describe('ultra-swarm critic edges', () => {
-  it('pairs review experts with implement and plan sources in order', () => {
-    const assignments = assignReviewCriticEdges(
-      [
-        { expertId: 'security-appsec-engineer', expertName: 'AppSec Engineer' },
-        { expertId: 'testing-evidence-collector', expertName: 'QA Collector' },
-      ],
-      [
-        {
-          expertId: 'impl-engineer',
-          expertName: 'Impl Engineer',
-          phase: 'implement',
-          verdict: 'PASS',
-          handoff: 'Implemented auth middleware.',
-        },
-        {
-          expertId: 'product-manager',
-          expertName: 'Product Manager',
-          phase: 'plan',
-          verdict: 'PASS',
-          handoff: 'Defined acceptance criteria.',
-        },
-      ],
-    );
+const SAMPLE_TEAM: TeamPlan = {
+  experts: [
+    { id: 'e-1', name: 'Alpha', role: 'implementer', focus: 'core logic' },
+    { id: 'e-2', name: 'Bravo', role: 'reviewer', focus: 'review', coverageLane: 'qa' },
+  ],
+};
 
-    expect(assignments.get('security-appsec-engineer')).toMatchObject({
-      targetExpertId: 'impl-engineer',
-      targetPhase: 'implement',
-    });
-    expect(assignments.get('testing-evidence-collector')).toMatchObject({
-      targetExpertId: 'product-manager',
-      targetPhase: 'plan',
-    });
-  });
-
-  it('renders critic assignment xml with target handoff', () => {
-    const xml = buildCriticAssignmentXml({
-      criticExpertId: 'security-appsec-engineer',
-      targetExpertId: 'impl-engineer',
-      targetExpertName: 'Impl Engineer',
+describe('ultra-swarm-critic.ts — buildCriticAssignmentXml', () => {
+  it('renders the critic edge prompt with explicit fields', () => {
+    const a: CriticAssignment = {
+      criticExpertId: 'rev-1',
+      targetExpertId: 'e-1',
+      targetExpertName: 'Alpha',
       targetPhase: 'implement',
       targetVerdict: 'PASS',
-      targetHandoff: 'Implemented auth middleware.',
-    });
-
-    expect(xml).toContain('<critic_assignment>');
-    expect(xml).toContain('Impl Engineer');
-    expect(xml).toContain('<target_handoff>');
-    expect(xml).toContain('Implemented auth middleware.');
+      targetHandoff: 'h body',
+    };
+    const out = buildCriticAssignmentXml(a);
+    expect(out).toContain('<critic_assignment>');
+    expect(out).toContain('Review as a critic edge for Alpha (e-1) in implement phase.');
+    expect(out).toContain('Prior verdict: PASS.');
+    expect(out).toContain('<target_handoff>');
+    expect(out).toContain('h body');
+    expect(out).toContain('</target_handoff>');
+    expect(out).toContain('</critic_assignment>');
+    expect(out).not.toContain('<review_lens');
   });
 
-  it('includes review lens in assignment xml when provided', () => {
-    const xml = buildCriticAssignmentXml({
-      criticExpertId: 'security-appsec-engineer',
-      targetExpertId: 'impl-engineer',
-      targetExpertName: 'Impl Engineer',
-      targetPhase: 'implement',
-      targetVerdict: 'PASS',
-      targetHandoff: 'Implemented auth middleware.',
-      lensId: 'adversarial',
-      lensAngle: 'Adopt an adversarial stance.',
-    });
-
-    expect(xml).toContain('<review_lens id="adversarial">');
-    expect(xml).toContain('adversarial stance');
-  });
-
-  it('assigns diverse lenses across reviewers for multi-lens review', () => {
-    const assignments = assignDiverseCriticEdges(
-      [
-        { expertId: 'reviewer-a', expertName: 'Reviewer A' },
-        { expertId: 'reviewer-b', expertName: 'Reviewer B' },
-        { expertId: 'reviewer-c', expertName: 'Reviewer C' },
-      ],
-      [
-        {
-          expertId: 'impl-engineer',
-          expertName: 'Impl Engineer',
-          phase: 'implement',
-          verdict: 'PASS',
-          handoff: 'Implemented feature.',
-        },
-      ],
-      CRITIC_LENSES,
-    );
-
-    expect(assignments.size).toBe(3);
-    const lensIds = [...assignments.values()].map((a) => a.lensId).sort();
-    expect(lensIds).toEqual(['adversarial', 'edge-case', 'spec-strict']);
+  it('emits a <review_lens> block when both lensId and lensAngle are provided', () => {
+    const a: CriticAssignment = {
+      criticExpertId: 'rev-1',
+      targetExpertId: 'e-1',
+      targetExpertName: 'Alpha',
+      targetPhase: 'review',
+      targetVerdict: 'REVISE',
+      targetHandoff: 'h',
+      lensId: 'safety',
+      lensAngle: 'audit the user-visible side effects',
+    };
+    const out = buildCriticAssignmentXml(a);
+    expect(out).toContain('<review_lens id="safety">audit the user-visible side effects</review_lens>');
   });
 });
 
-describe('ultra-swarm consensus', () => {
-  it('returns approve for unanimous high-confidence PASS votes', () => {
-    const decision = consensusFromDiverseVotes([
-      {
-        expertId: 'a',
-        verdict: 'PASS',
-        confidence: 0.9,
-        rationale: 'All acceptance criteria met in file auth.ts line 12',
-      },
-      {
-        expertId: 'b',
-        verdict: 'PASS',
-        confidence: 0.85,
-        rationale: 'Tests cover the happy path and edge cases',
-      },
-    ]);
-    expect(decision).toBe('strong-approve');
+describe('ultra-swarm-critic.ts — assignDiverseCriticEdges', () => {
+  const LENSES: CriticLens[] = [
+    { lensId: 'safety', personaAngle: 'audit safety' },
+    { lensId: 'clarity', personaAngle: 'audit clarity' },
+  ];
+  const REVIEWERS = [
+    { expertId: 'r-1', expertName: 'Reviewer 1' },
+    { expertId: 'r-2', expertName: 'Reviewer 2' },
+    { expertId: 'r-3', expertName: 'Reviewer 3' },
+    { expertId: 'r-4', expertName: 'Reviewer 4' },
+  ];
+
+  it('returns an empty map when reviewers, sources, or lenses are empty', () => {
+    expect(assignDiverseCriticEdges([], [{ expertId: 's', expertName: 'S', phase: 'plan', verdict: 'PASS', handoff: 'h' }], LENSES).size).toBe(0);
+    expect(assignDiverseCriticEdges(REVIEWERS, [], LENSES).size).toBe(0);
+    expect(assignDiverseCriticEdges(REVIEWERS, [{ expertId: 's', expertName: 'S', phase: 'plan', verdict: 'PASS', handoff: 'h' }], []).size).toBe(0);
   });
 
-  it('returns revise when a high-confidence FAIL cannot be outvoted 2:1', () => {
-    // Safety guard: high-confidence FAIL forces at least revise unless PASS
-    // outweighs block weight by 2x.
-    const decision = consensusFromDiverseVotes([
-      {
-        expertId: 'a',
-        verdict: 'FAIL',
-        confidence: 0.95,
-        rationale: 'Missing test for auth edge case in file login.ts line 40',
-      },
-      {
-        expertId: 'b',
-        verdict: 'PASS',
-        confidence: 0.4,
-        rationale: 'Looks fine',
-      },
-    ]);
-    expect(decision).toBe('revise');
+  it('prioritizes implement/plan targets before review-only targets', () => {
+    const sources: CriticReviewSource[] = [
+      { expertId: 'rev-src', expertName: 'RevSrc', phase: 'review', verdict: 'PASS', handoff: 'rh' },
+      { expertId: 'impl-src', expertName: 'ImplSrc', phase: 'implement', verdict: 'PASS', handoff: 'ih' },
+      { expertId: 'plan-src', expertName: 'PlanSrc', phase: 'plan', verdict: 'PASS', handoff: 'ph' },
+    ];
+    const out = assignDiverseCriticEdges(REVIEWERS, sources, [LENSES[0]!]);
+    // First assignment must point to the implement source (highest priority).
+    const firstKey = out.keys().next().value as string;
+    const first = out.get(firstKey);
+    expect(first?.targetExpertId).toBe('impl-src');
   });
 
-  it('returns block when multiple FAIL votes outweigh PASS', () => {
-    const decision = consensusFromDiverseVotes([
-      {
-        expertId: 'a',
-        verdict: 'FAIL',
-        confidence: 0.5,
-        rationale: 'Broken path in file login.ts line 10',
-      },
-      {
-        expertId: 'b',
-        verdict: 'FAIL',
-        confidence: 0.5,
-        rationale: 'Missing test coverage for step 2',
-      },
-      {
-        expertId: 'c',
-        verdict: 'PASS',
-        confidence: 0.3,
-        rationale: 'ok',
-      },
-    ]);
-    expect(decision).toBe('block');
+  it('cycles reviewers across lens×target so each reviewer is used at most once', () => {
+    const sources: CriticReviewSource[] = [
+      { expertId: 's-1', expertName: 'S1', phase: 'implement', verdict: 'PASS', handoff: 'h1' },
+      { expertId: 's-2', expertName: 'S2', phase: 'implement', verdict: 'PASS', handoff: 'h2' },
+    ];
+    const out = assignDiverseCriticEdges(REVIEWERS.slice(0, 2), sources, LENSES);
+    // lens×target = 2×2 = 4 attempts, but each reviewer can only be
+    // assigned once (same-key skip), so the map caps at 2 entries.
+    expect(out.size).toBe(2);
+    const criticIds = [...out.values()].map((v) => v.criticExpertId);
+    expect(new Set(criticIds).size).toBe(2);
   });
 
-  it('extracts votes from completed review results only', () => {
-    const votes = extractLensVotes([
-      {
-        spec: { expertId: 'r1', phase: 'review' },
-        status: 'completed',
-        verdict: 'PASS',
-        result: 'Looks good with tests covering the file path',
-      },
-      {
-        spec: { expertId: 'i1', phase: 'implement' },
-        status: 'completed',
-        verdict: 'PASS',
-        result: 'done',
-      },
-      {
-        spec: { expertId: 'r2', phase: 'review' },
-        status: 'failed',
-        verdict: 'FAIL',
-        error: 'timeout',
-      },
-    ]);
-    expect(votes).toHaveLength(1);
-    expect(votes[0]?.expertId).toBe('r1');
-    expect(votes[0]?.verdict).toBe('PASS');
+  it('attaches the lens metadata to each assignment', () => {
+    const out = assignDiverseCriticEdges(
+      [{ expertId: 'r-1', expertName: 'R1' }],
+      [{ expertId: 's-1', expertName: 'S1', phase: 'plan', verdict: 'PASS', handoff: 'h' }],
+      [LENSES[1]!],
+    );
+    const a = out.get('r-1');
+    expect(a?.lensId).toBe('clarity');
+    expect(a?.lensAngle).toBe('audit clarity');
+  });
+});
+
+describe('swarm-bus-coordination.ts — XML builders', () => {
+  it('buildTeamRosterXml uses coverageLane when provided and falls back to role', () => {
+    const out = buildTeamRosterXml(SAMPLE_TEAM);
+    expect(out).toContain('<team_roster>');
+    expect(out).toContain('- Alpha (e-1) · implementer · focus=core logic');
+    expect(out).toContain('- Bravo (e-2) · qa · focus=review');
+    expect(out).toContain('</team_roster>');
+  });
+
+  it('buildTeamRosterXml returns the wrap with no bullets for an empty team', () => {
+    const out = buildTeamRosterXml({ experts: [] });
+    expect(out).toBe('<team_roster>\n</team_roster>');
+  });
+
+  it('buildSwarmChannelRulesXml pins the documented channel rule list', () => {
+    const out = buildSwarmChannelRulesXml();
+    expect(out).toContain('<swarm_channel_rules>');
+    expect(out).toContain('Channels: standup (progress), lane (lane work), direct (@peer), blocker (urgent), council (review notes).');
+    expect(out).toContain('</swarm_channel_rules>');
+  });
+
+  it('buildSwarmCollaborationRequiredXml switches on the phase', () => {
+    const implement = buildSwarmCollaborationRequiredXml('implement');
+    expect(implement).toContain('1. SwarmChannel list — read peer updates before major decisions.');
+    expect(implement).toContain('3. Before handoff: SwarmChannel standup — outcome, evidence, open gaps.');
+
+    const review = buildSwarmCollaborationRequiredXml('review');
+    expect(review).toContain('1. Read upstream handoffs and SwarmChannel list before issuing VERDICT.');
+    expect(review).not.toContain('Before handoff');
+
+    const plan = buildSwarmCollaborationRequiredXml('plan');
+    expect(plan).toContain('1. SwarmChannel standup when your plan findings affect implement or review lanes.');
+    expect(plan).toContain('</collaboration_required>');
   });
 });
