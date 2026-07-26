@@ -139,6 +139,21 @@ export function formatVerificationGapNextActions(
   ];
 }
 
+/** Shared UpdateGoal(complete) ban for status=failed WorkGraph nodes. */
+export function formatFailedNodeCompleteBan(): string {
+  return 'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.';
+}
+
+/** Shared UpdateGoal(complete) ban for needs_integration WorkGraph nodes. */
+export function formatNeedsIntegrationCompleteBan(): string {
+  return 'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.';
+}
+
+/** Shared stall ban for status=blocked WorkGraph nodes. */
+export function formatBlockedNodeStallBan(): string {
+  return 'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.';
+}
+
 /**
  * Match recovery-triangle failed-node next_actions formatting.
  * Prefer analyzeFailedNodes category guidance when available.
@@ -159,7 +174,7 @@ export function formatFailedNodeNextActions(
         .slice(0, 3)
         .map((node) => node.id)
         .join(', ')}${nodes.length > 3 ? ', …' : ''} — ${categoryHints}`,
-      'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+      formatFailedNodeCompleteBan(),
     ];
   }
   return [
@@ -167,7 +182,7 @@ export function formatFailedNodeNextActions(
       .slice(0, 3)
       .map((node) => node.id)
       .join(', ')}${nodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
-    'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+    formatFailedNodeCompleteBan(),
   ];
 }
 
@@ -181,7 +196,7 @@ export function formatNeedsIntegrationNextActions(
       .slice(0, 3)
       .map((node) => `${node.id} (${node.title})`)
       .join(', ')}${nodes.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
-    'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
+    formatNeedsIntegrationCompleteBan(),
   ];
 }
 
@@ -199,7 +214,7 @@ export function formatBlockedNodeNextActions(nodes: readonly WorkGraphNode[]): r
     .join(', ');
   return [
     `Unblock WorkGraph node(s) first: ${depHints}${nodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
-    'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
+    formatBlockedNodeStallBan(),
   ];
 }
 

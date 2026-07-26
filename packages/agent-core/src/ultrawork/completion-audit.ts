@@ -16,12 +16,15 @@ import {
 import {
   collectVerificationGapNodes,
   formatBlockedNodeNextActions,
+  formatBlockedNodeStallBan,
   formatEmptyWorkGraphSeedNextActions,
   formatEvidenceHardGateNextActions,
+  formatFailedNodeCompleteBan,
   formatFailedNodeNextActions,
   formatHighResumeOscillationNextActions,
   formatIncompleteNodeNextActions,
   formatLongRunningStageNextActions,
+  formatNeedsIntegrationCompleteBan,
   formatNeedsIntegrationNextActions,
   formatOwnerlessRunningNextActions,
   formatQueuedDependsOnWaitNextActions,
@@ -158,7 +161,7 @@ export function auditUltraworkCompletion(
       'node_failed',
       [
         `WorkGraph nodes still status=failed: ${openNodeIds.join(', ')}.`,
-        'Failed nodes block goal complete — fix, re-run, or cancel only after deliberate scope drop.',
+        formatFailedNodeCompleteBan(),
         ...categoryReasons,
       ],
       [
@@ -177,12 +180,11 @@ export function auditUltraworkCompletion(
       'needs_integration',
       [
         `WorkGraph nodes still needs_integration: ${openNodeIds.join(', ')}.`,
-        'needs_integration blocks goal complete — merge specialist handoffs before finishing.',
+        formatNeedsIntegrationCompleteBan(),
       ],
       [
         // Match recovery-prompt needs_integration next_actions wording.
         ...formatNeedsIntegrationNextActions(needsIntegrationNodes),
-        'Merge handoffs and mark nodes done only after integration evidence.',
       ],
       openNodeIds,
     );
@@ -198,7 +200,7 @@ export function auditUltraworkCompletion(
       'node_blocked',
       [
         `WorkGraph nodes still status=blocked: ${openNodeIds.join(', ')}.`,
-        'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
+        formatBlockedNodeStallBan(),
       ],
       [
         // Match recovery-prompt blocked-node next_actions wording.
