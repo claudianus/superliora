@@ -163,6 +163,8 @@ describe('interrupted work resume intent', () => {
       '재개',
       '계속진행하라',
       '继续',
+      '继续做',
+      '接着干',
       'keep going',
       '이어서 해 주세요',
       'go on please',
@@ -175,6 +177,18 @@ describe('interrupted work resume intent', () => {
       'resume the work',
       'keep working',
       '다시 시작해',
+      '続けて',
+      '続行',
+      '再開してください',
+      'continuar',
+      'sigue adelante',
+      'weiter',
+      'fortsetzen',
+      'continuer',
+      'riprendi',
+      'prosseguir',
+      'продолжай',
+      'давай дальше',
     ]) {
       const intent = matchExplicitResumePhrase(phrase);
       expect(shouldActOnResumeIntent(intent), phrase).toBe(true);
@@ -192,6 +206,11 @@ describe('interrupted work resume intent', () => {
       'go on please and run the tests',
       '이어서 작업해줘. 그리고 테스트도 돌려',
       '계속 해줘, 이번엔 빌드부터',
+      '继续做, 先跑测试',
+      '続けて テストを回して',
+      'continuar, arregla los tests',
+      'weiter, und fix die tests',
+      'продолжай, почини тесты',
     ]) {
       const intent = matchExplicitResumePhrase(phrase);
       expect(shouldActOnResumeIntent(intent), phrase).toBe(true);

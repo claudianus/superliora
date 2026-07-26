@@ -78,6 +78,7 @@ import {
   buildReviewRetryHandoff,
   capPlan,
   cloneWorkGraphNode,
+  extractFileChangePaths,
   mergePlans,
   mergeReviewResults,
   needsReviewRetry,
@@ -631,10 +632,20 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       const completedCount = renderedPhaseResults.filter(
         (result) => result.status === 'completed',
       ).length;
+      // Product-file edits mentioned in expert text count as high-signal file changes
+      // so implement waves with sparse evidenceIds are not pure waste.
+      const phaseFileChangeCount = uniqueStrings(
+        renderedPhaseResults.flatMap((result) => {
+          const text =
+            result.status === 'completed' ? (result.result ?? '') : (result.error ?? '');
+          return extractFileChangePaths(text);
+        }),
+      ).length;
       budgetState = recordSwarmBudgetRound(budgetState, {
         label: phase,
         evidenceIds: phaseEvidenceIds,
         verificationPassed,
+        fileChangeCount: phaseFileChangeCount,
         // Completed expert results are high-signal tool successes even without
         // evidenceIds (e.g. PASS review with empty evidence bag).
         toolSuccessCount: completedCount,
@@ -642,8 +653,13 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         wasted:
           phaseEvidenceIds.length === 0 &&
           !verificationPassed &&
-          completedCount === 0,
-        productive: phaseEvidenceIds.length > 0 || verificationPassed || completedCount > 0,
+          completedCount === 0 &&
+          phaseFileChangeCount === 0,
+        productive:
+          phaseEvidenceIds.length > 0 ||
+          verificationPassed ||
+          completedCount > 0 ||
+          phaseFileChangeCount > 0,
       });
       const budgetSuggestion = suggestSwarmBudgetKill(budgetState);
       if (budgetSuggestion.shouldKill) {

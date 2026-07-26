@@ -100,6 +100,48 @@ export function extractEvidenceIds(text: string): readonly string[] {
   return [...ids];
 }
 
+/**
+ * Count distinct product-file paths mentioned as changed/written in expert text.
+ * Feeds swarm budget `fileChangeCount` so implement waves with real edits are
+ * not killed as pure waste when evidenceIds are sparse.
+ */
+export function extractFileChangePaths(text: string): readonly string[] {
+  const paths = new Set<string>();
+  // Labeled lists: files_changed: a.ts, b.ts / files touched: path / changed files: …
+  const labeled =
+    /\b(?:files?(?:[_ -]?(?:changed|touched|edited|written|modified))?|changed[_ -]?files?|edited[_ -]?files?|wrote|modified)\s*[:=]\s*([^\n]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = labeled.exec(text)) !== null) {
+    for (const raw of (match[1] ?? '').split(/[,;\s]+/)) {
+      const path = normalizeFileChangePath(raw);
+      if (path !== undefined) paths.add(path);
+    }
+  }
+  // Inline path tokens with common source extensions (avoid bare words).
+  const inline =
+    /(?:^|[\s"'`(])((?:[\w.@+-]+\/)+[\w.@+-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|swift|md|json|yml|yaml|toml|css|scss|html|vue|svelte|sh|bash|zsh|rb|php|cs|cpp|c|h|hpp|sql|proto|graphql|gql))(?=[\s"'`),;:]|$)/gim;
+  while ((match = inline.exec(text)) !== null) {
+    const path = normalizeFileChangePath(match[1] ?? '');
+    if (path !== undefined) paths.add(path);
+  }
+  return [...paths];
+}
+
+function normalizeFileChangePath(raw: string): string | undefined {
+  const trimmed = raw
+    .trim()
+    .replace(/^['"`(\[]+/u, '')
+    .replace(/['"`)\],;:.]+$/u, '');
+  if (trimmed.length < 3) return undefined;
+  // Must look like a path (slash or extension), not a bare token / URL / evidence id.
+  if (/^https?:\/\//i.test(trimmed)) return undefined;
+  if (!/[./]/.test(trimmed)) return undefined;
+  if (!/\.[A-Za-z0-9]{1,8}$/u.test(trimmed) && !trimmed.includes('/')) return undefined;
+  // Reject pure evidence-style ids without path separators when no extension.
+  if (/^[A-Za-z0-9_-]+$/u.test(trimmed)) return undefined;
+  return trimmed;
+}
+
 export function resolveMaxExperts(
   toolIntensity: string | undefined,
   routing: { readonly estimatedExperts: number } | undefined,

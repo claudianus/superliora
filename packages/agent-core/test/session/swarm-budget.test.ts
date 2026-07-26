@@ -102,4 +102,23 @@ describe('swarm-budget', () => {
     expect(state.history[1]?.wasted).toBe(true);
   });
 
+  it('records fileChangeCount / toolSuccessCount and treats file edits as high-signal', () => {
+    let state = createSwarmBudgetState();
+    state = recordSwarmBudgetRound(state, {
+      label: 'implement',
+      fileChangeCount: 3,
+      toolSuccessCount: 2,
+      evidenceIds: [],
+    });
+    expect(state.history[0]?.fileChangeCount).toBe(3);
+    expect(state.history[0]?.toolSuccessCount).toBe(2);
+    expect(state.history[0]?.wasted).toBe(false);
+    expect(state.consecutiveWastedRounds).toBe(0);
+
+    state = recordSwarmBudgetRound(state, { label: 'noise', evidenceIds: [] });
+    expect(state.history[1]?.fileChangeCount).toBe(0);
+    expect(state.history[1]?.wasted).toBe(true);
+    expect(state.consecutiveWastedRounds).toBe(1);
+  });
+
 });

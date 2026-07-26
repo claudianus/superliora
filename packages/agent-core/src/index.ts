@@ -83,6 +83,8 @@ export {
 export {
   buildDebateDraftHandoffPack,
   debateDraftPhasesForHandoff,
+  extractEvidenceIds,
+  extractFileChangePaths,
   type DebateDraftHandoffEntry,
 } from './tools/builtin/collaboration/ultra-swarm-helpers';
 export {

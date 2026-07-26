@@ -165,9 +165,51 @@ export function matchExplicitResumePhrase(
     '继续',
     '继续吧',
     '请继续',
+    '继续做',
+    '继续工作',
+    '接着做',
+    '接着干',
+    '接着',
+    '继续吧请',
     '続けて',
     '再開',
     '続けてください',
+    '続けて下さい',
+    '続行',
+    '続行して',
+    '再開して',
+    '再開してください',
+    'continuar',
+    'continúa',
+    'continua',
+    'sigue',
+    'sigue adelante',
+    'por favor continúa',
+    'por favor continua',
+    'reanudar',
+    'reanuda',
+    'weiter',
+    'weiter machen',
+    'weitermachen',
+    'fortsetzen',
+    'bitte fortsetzen',
+    'bitte weiter',
+    'continuer',
+    'continuez',
+    'reprendre',
+    'reprends',
+    's\'il vous plaît continue',
+    's\'il te plaît continue',
+    'continua per favore',
+    'riprendi',
+    'riprendere',
+    'prosseguir',
+    'continue por favor',
+    'retomar',
+    'продолжай',
+    'продолжить',
+    'давай дальше',
+    'продолжай пожалуйста',
   ]);
   if (exact.has(normalized)) {
     return {
@@ -224,10 +266,18 @@ function matchResumePrefixWithSteering(normalized: string): boolean {
   }
 
   // Chinese / Japanese short prefixes (no \b — CJK is non-word for JS \b).
-  const cjk = /^(继续(吧)?|请继续|続けて(ください)?|再開)/u;
+  const cjk = /^(继续(吧|做|工作)?|请继续|接着(做|干)?|続けて(ください|下さい)?|続行(して)?|再開(して(ください)?)?)/u;
   if (cjk.test(normalized)) {
     const rest = normalized.replace(cjk, '').trim().replace(/^[,.。，、:：\-–—]+\s*/u, '');
     return rest.length >= 2;
+  }
+
+  // Romance / Germanic / Slavic short prefixes (word-boundary safe where Latin).
+  const other =
+    /^(por\s+favor\s+)?(continuar|continúa|continua|sigue(\s+adelante)?|reanudar|reanuda|weiter(\s+machen)?|weitermachen|fortsetzen|bitte\s+(fortsetzen|weiter)|continuer|continuez|reprendre|reprends|continua\s+per\s+favore|riprendi|riprendere|prosseguir|continue\s+por\s+favor|retomar|продолжай|продолжить|давай\s+дальше)(\s+(por\s+favor|пожалуйста|please))?([,.:;–—-]|\s+)/iu;
+  if (other.test(normalized)) {
+    const rest = normalized.replace(other, '').trim();
+    return rest.length >= 2 && !/^(please|por favor|пожалуйста)$/iu.test(rest);
   }
 
   return false;
