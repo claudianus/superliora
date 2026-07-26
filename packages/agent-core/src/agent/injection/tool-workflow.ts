@@ -89,7 +89,9 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
   const lines: string[] = [
     'Tool / Skill / Research Workflow (MANDATORY — soft prompts are not enough):',
     '- Default to tools for any workspace, code, research, or multi-step task. Text-only only for pure chat with no file/system/internet need.',
-    '- Prefer dedicated tools over raw Bash when they fit (read/search/edit/glob/grep/list). Shell is for real process semantics, not file I/O.',
+    '- Prefer dedicated tools over raw Bash when they fit (Read/Write/Edit/Grep/Glob/list). Shell is for real process semantics, not file I/O.',
+    '- File content: use Write/Edit — do not cat/echo/printf redirect, heredoc, or tee file bodies through Bash (runtime-blocked).',
+    '- Secrets: never cat/source/base64 .env, SSH keys, or cloud credentials via Bash (hard-blocked, no force escape).',
     '- Parallelize independent reads/searches in one turn. Serial only when a later call needs earlier output.',
     '- Small verifiable steps: change → check → continue. Leave clean artifacts (tests green, notes, evidence) for the next turn/session.',
   ];
@@ -168,6 +170,8 @@ export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): st
   if (cap.hasContext7) bits.push('Context7 for libs');
   if (cap.hasLeanRead) bits.push('Liora* before dumps');
   bits.push('dedicated tools > Bash');
+  bits.push('Write≠shell I/O');
+  bits.push('no secret shell');
   bits.push('verify before done');
   return bits.join(' · ');
 }

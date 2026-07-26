@@ -151,4 +151,16 @@ describe('ToolWorkflowInjector', () => {
     await injector.inject();
     expect(history(agent)).toHaveLength(0);
   });
+
+  it('mentions Write/Edit over shell redirects and secret-file hard blocks', () => {
+    const cap = resolveToolWorkflowCapability(['Read', 'Write', 'Bash', 'SearchTools']);
+    const text = buildToolWorkflowGuidance(cap);
+    expect(text).toMatch(/Write\/Edit/);
+    expect(text).toMatch(/heredoc|redirect/i);
+    expect(text).toMatch(/Secrets:|\.env|SSH/i);
+    const sparse = buildToolWorkflowSparseGuidance(cap);
+    expect(sparse).toContain('Write≠shell I/O');
+    expect(sparse).toContain('no secret shell');
+  });
+
 });
