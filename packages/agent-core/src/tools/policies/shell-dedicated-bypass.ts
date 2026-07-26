@@ -35,11 +35,12 @@ export function detectShellDedicatedBypass(
     return undefined;
   }
 
+  // Simple echo/printf/cat redirects → Write (checked before generic composition).
+  const redirectWrite = matchSimpleRedirectWrite(raw);
+  if (redirectWrite !== undefined) return redirectWrite;
+
   // Multi-statement / pipeline / redirection chains → real shell work.
   if (hasShellComposition(raw)) return undefined;
-
-  // Strip a single outer `cd dir &&` wrapper only if the rest is still simple
-  // — actually composition already rejects `&&`. Good.
 
   const readHit = matchReadLike(raw);
   if (readHit !== undefined) return readHit;
@@ -109,9 +110,6 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
 }
 
 function matchWriteLike(command: string): ShellDedicatedBypassHit | undefined {
-  // echo/printf alone without redirect already allowed by hasShellComposition if redirect
-  // So write-like pure forms without redirect are rare (tee?).
-  // `tee path` alone reading stdin hangs — not useful.
   // `touch path` — create empty file → Write can do it
   if (/^(?:\/usr\/bin\/)?touch(?:\s+-[A-Za-z]+)*\s+\S+\s*$/.test(command)) {
     return {
@@ -121,6 +119,36 @@ function matchWriteLike(command: string): ShellDedicatedBypassHit | undefined {
     };
   }
   return undefined;
+}
+
+/**
+ * Whole-command file writes via shell redirect.
+ * Matches: echo/printf/cat … > path | >> path
+ * Skips: pipes, &&, stderr redirects, multi-redirect, process substitution.
+ */
+function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | undefined {
+  // No pipes, lists, backticks, newlines, or process substitution.
+  if (/[|;&`\n]/.test(command)) return undefined;
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  // Reject stderr redirects and multi-redirect forms (2>, &>, 2>&1).
+  if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
+  // Exactly one > or >> to a path (not << heredoc).
+  if (/<</.test(command)) return undefined;
+  const m = /^(?:\/usr\/bin\/)?(echo|printf|cat)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/.exec(
+    command,
+  );
+  if (m === null) return undefined;
+  const op = m[3];
+  if (op !== '>' && op !== '>>') return undefined;
+  // Left side should not contain another redirect.
+  const left = m[2] ?? '';
+  if (/[<>]/.test(left)) return undefined;
+  return {
+    prefer: 'Write',
+    pattern: `${m[1] ?? 'echo'} ${op} file`,
+    message: 'Use Write (or Edit for patches) instead of shell redirects for file content.',
+  };
 }
 
 function matchEditLike(command: string): ShellDedicatedBypassHit | undefined {

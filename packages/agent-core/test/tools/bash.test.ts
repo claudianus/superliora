@@ -1270,6 +1270,10 @@ describe('BashTool', () => {
     const find = await executeTool(tool, context({ command: "find . -name '*.ts'", timeout: 60 }));
     expect(find).toMatchObject({ isError: true });
     expect(String(find.output)).toContain('Glob');
+
+    const redirect = await executeTool(tool, context({ command: 'echo hello > out.txt', timeout: 60 }));
+    expect(redirect).toMatchObject({ isError: true });
+    expect(String(redirect.output)).toContain('Write');
   });
 
   it('allows LIORA_FORCE_BASH escape hatch for simple cat', async () => {

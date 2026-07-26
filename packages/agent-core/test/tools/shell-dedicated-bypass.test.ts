@@ -20,6 +20,12 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass("find . -name '*.ts'")?.prefer).toBe('Glob');
   });
 
+  it('blocks simple echo/printf/cat redirects to files', () => {
+    expect(detectShellDedicatedBypass('echo hello > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass("printf 'x' >> out.txt")?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('cat > out.txt')?.prefer).toBe('Write');
+  });
+
   it('allows pipelines, && chains, and real process work', () => {
     expect(detectShellDedicatedBypass('cat file | head')).toBeUndefined();
     expect(detectShellDedicatedBypass('cd src && cat index.ts')).toBeUndefined();
@@ -27,6 +33,8 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('git status')).toBeUndefined();
     expect(detectShellDedicatedBypass('ls -la')).toBeUndefined();
     expect(detectShellDedicatedBypass('node scripts/build.mjs')).toBeUndefined();
+    expect(detectShellDedicatedBypass('pnpm test 2>/dev/null')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cmd >out 2>&1')).toBeUndefined();
   });
 
   it('allows LIORA_FORCE_BASH escape hatch', () => {
