@@ -28,6 +28,14 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('lynx http://example.com/docs')).toBeUndefined();
     // Pipelines stay allowed for real shell composition.
     expect(detectShellDedicatedBypass('zcat archive.gz | head')).toBeUndefined();
+    // Clipboard file dumps/loads prefer Read/Write; bare/pipeline clipboard stays allowed.
+    expect(detectShellDedicatedBypass('pbcopy < src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('wl-copy < notes.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('pbpaste > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('xclip src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('xsel notes.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cat src/a.ts | pbcopy')).toBeUndefined();
+    expect(detectShellDedicatedBypass('pbcopy')).toBeUndefined();
   });
 
   it('blocks sed -i and grep/rg/find', () => {

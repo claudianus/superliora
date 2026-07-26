@@ -24,9 +24,9 @@ If `run_in_background=true`, start as a background task and return a task ID (pr
 **Commands available:** Common bins (confirm with `which`): `ls` `pwd` `cd` `stat` `file` `du` `df` `tree` `cp` `mv` `rm` `mkdir` `touch` `ln` `chmod` `chown` `wc` `sort` `uniq` `cut` `tr` `diff` `xargs` `tar` `gzip` `gunzip` `zip` `unzip` `curl` `wget` `ping` `ssh` `scp` `git` `ps` `kill` `top` `env` `date` `uname` `whoami` `node` `npm` `pnpm` `yarn` `python` `pip`.
 
 Simple whole-command file I/O shapes are **rejected** at runtime — use dedicated tools:
-- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`less`/`more`/`most`/`nl`/`w3m`/`lynx`/`elinks` (local path)/`zcat`/`gzcat`/`bzcat`/`xzcat`/`zstdcat`/`rev`/`paste` (single file)/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`
+- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`less`/`more`/`most`/`nl`/`w3m`/`lynx`/`elinks` (local path)/`zcat`/`gzcat`/`bzcat`/`xzcat`/`zstdcat`/`rev`/`paste` (single file)/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`/`pbcopy < path`/`xclip path`/`xsel path`
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
-- writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed)
+- writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed), `pbpaste > path`
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
 - search: `grep`/`rg`/`find`
 Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cmd`) are stripped before detection. Pipelines, `&&` lists, and real process work stay allowed.

@@ -61,6 +61,11 @@ export function detectShellDedicatedBypass(
   const copyHit = matchSimpleFileCopyWrite(unwrapped);
   if (copyHit !== undefined) return copyHit;
 
+  // Clipboard file dumps/loads before composition so `pbcopy < file` still prefers Read/Write.
+  // Pipelines like `cmd | pbcopy` stay allowed (real shell composition).
+  const clipboardHit = matchClipboardFileBypass(unwrapped);
+  if (clipboardHit !== undefined) return clipboardHit;
+
   // Multi-statement / pipeline / redirection chains → real shell work.
   if (hasShellComposition(unwrapped)) return undefined;
 
@@ -679,6 +684,68 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
         prefer: 'Write',
         pattern: 'lua -e io.write',
         message: 'Use Write (or Edit for patches) instead of lua -e io.open write for file content.',
+      };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Clipboard utilities used as file dump/load shims.
+ * Matches:
+ *   - pbcopy < path / pbpaste > path
+ *   - xclip / xsel / wl-copy with a single path arg
+ * Skips: bare pbcopy (stdin from pipeline), multi-arg real shell work.
+ */
+function matchClipboardFileBypass(command: string): ShellDedicatedBypassHit | undefined {
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[|;&`\n]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+
+  // Input redirect into clipboard: pbcopy < file, wl-copy < file
+  if (
+    /^(?:\/usr\/bin\/)?(?:pbcopy|wl-copy|xclip|xsel)(?:\s+-[A-Za-z0-9=]+)*(?:\s+--?\S+)*\s*<\s*\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'clipboard < file',
+      message: 'Use Read instead of piping a file into the clipboard utility.',
+    };
+  }
+
+  // Output redirect from clipboard: pbpaste > file, xclip -o > file
+  if (
+    /^(?:\/usr\/bin\/)?(?:pbpaste|wl-paste)(?:\s+-[A-Za-z0-9=]+)*\s*>\s*\S+\s*$/.test(command) ||
+    /^(?:\/usr\/bin\/)?xclip(?:\s+-[A-Za-z0-9=]+)*\s+-o(?:\s+-[A-Za-z0-9=]+)*\s*>\s*\S+\s*$/.test(
+      command,
+    ) ||
+    /^(?:\/usr\/bin\/)?xsel(?:\s+-[A-Za-z0-9=]+)*\s+--output(?:\s+-[A-Za-z0-9=]+)*\s*>\s*\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Write',
+      pattern: 'clipboard > file',
+      message: 'Use Write instead of dumping the clipboard into a file.',
+    };
+  }
+
+  // xclip/xsel with a trailing path (reads file into selection without redirect).
+  if (/^(?:\/usr\/bin\/)?(?:xclip|xsel)\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?(?:xclip|xsel)\b/, '')
+      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'xclip/xsel file',
+        message: 'Use Read instead of xclip/xsel for file contents.',
       };
     }
   }
