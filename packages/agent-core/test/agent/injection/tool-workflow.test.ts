@@ -169,4 +169,25 @@ describe('ToolWorkflowInjector', () => {
     expect(sparse).toContain('no secret shell');
   });
 
+  it('shifts injectedAt by keptHeadCount so post-compaction sparse refresh is correct', async () => {
+    // Regression for the onContextCompacted off-by-one: without the
+    // keptHeadCount shift, the tool-workflow injector would undercount the
+    // assistant turns since its prior injection, switching from
+    // full → sparse at the wrong boundary. Pin the math directly here: a
+    // prior injection at original index 4, with compactedCount=2 and
+    // keptHeadCount=1, lands at 1 + 1 + (4 - 2) = 4.
+    const agent = workflowAgent();
+    const injector = new ToolWorkflowInjector(agent);
+    await injector.inject();
+    const internal = injector as unknown as { injectedAt: number | null };
+    internal.injectedAt = 4;
+    injector.onContextCompacted(2, 1);
+    expect(internal.injectedAt).toBe(4);
+    // A second compaction with a different head count shifts the index
+    // by the new head count, not zero.
+    internal.injectedAt = 7;
+    injector.onContextCompacted(3, 2);
+    expect(internal.injectedAt).toBe(2 + 1 + (7 - 3));
+  });
+
 });
