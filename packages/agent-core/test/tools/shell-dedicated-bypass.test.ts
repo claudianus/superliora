@@ -111,7 +111,11 @@ describe('detectShellDedicatedBypass', () => {
       'Read',
     );
     expect(detectShellDedicatedBypass('Format-List')).toBeUndefined();
-    expect(detectShellDedicatedBypass('Get-Content a.ts | Format-List')).toBeUndefined();
+    // pure Get-Content path | Format-* dumps prefer Read
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Format-List')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Out-String')?.prefer).toBe('Read');
+    // multi-pipe / real process left-hand side stay allowed
+    expect(detectShellDedicatedBypass('Get-Process | Format-List')).toBeUndefined();
     // ConvertTo-Json / ConvertFrom-Json path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('ConvertTo-Json -Path src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('ConvertFrom-Json -Path src/a.json')?.prefer).toBe('Read');
@@ -245,6 +249,14 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('1.5 | Add-Content out.txt')?.prefer).toBe('Write');
     // real process left-hand side stays allowed
     expect(detectShellDedicatedBypass('Get-Date | Out-File out.txt')).toBeUndefined();
+  });
+
+  it('blocks here-string producer pipes into file writers', () => {
+    expect(detectShellDedicatedBypass("@'hello'@ | Set-Content out.txt")?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('@"hello"@ | Out-File notes.md')?.prefer).toBe('Write');
+    expect(
+      detectShellDedicatedBypass("@'line1\nline2'@ | Add-Content out.txt")?.prefer,
+    ).toBe('Write');
   });
 
   it('blocks Start-Transcript path dumps but allows Stop-Transcript', () => {

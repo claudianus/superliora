@@ -71,6 +71,10 @@ export function detectShellDedicatedBypass(
   const psPipeWriteHit = matchPowerShellPipeWriteBypass(unwrapped);
   if (psPipeWriteHit !== undefined) return psPipeWriteHit;
 
+  // Pure Get-Content path | Format-*/Out-String dumps → Read (before composition guard).
+  const psPipeReadHit = matchPowerShellPipeReadBypass(unwrapped);
+  if (psPipeReadHit !== undefined) return psPipeReadHit;
+
   // Start-Transcript path dumps → Write (session log file I/O; Stop-Transcript stays allowed).
   const transcriptHit = matchStartTranscriptWrite(unwrapped);
   if (transcriptHit !== undefined) return transcriptHit;
@@ -899,7 +903,7 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
  */
 function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHit | undefined {
   if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
-  if (/[;&`\n]/.test(command)) return undefined;
+  if (/[;&`]/.test(command)) return undefined;
   if (/\$\(|\$\{/.test(command)) return undefined;
   // Exactly one pipe — multi-stage pipelines stay allowed.
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
@@ -907,7 +911,15 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
   const producerCmdRe =
     'Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|echo|printf';
   const sinkRe = 'Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee|sponge';
+  // PowerShell here-string first: body may contain newlines (`@'…'@` / `@"…"@`).
+  const hereStringMatch = new RegExp(
+    `^(@(['"])[\\s\\S]*?\\2@)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
+    'i',
+  ).exec(command);
+  // Non-here-string producers still reject raw newlines (statement separators).
+  if (hereStringMatch === null && /\n/.test(command)) return undefined;
   const m =
+    hereStringMatch ??
     new RegExp(
       `^(${producerCmdRe})\\b([\\s\\S]*?)\\s*\\|\\s*(${sinkRe})\\b([\\s\\S]*)$`,
       'i',
@@ -923,9 +935,17 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
     ).exec(command);
   if (m === null) return undefined;
 
-  // Groups differ for constant form (producer, sink, sinkArgs) vs command/string form
-  // (producer, middle, sink, sinkArgs).
-  const isConstant = m.length === 4 && !/^['"]/.test(m[1] ?? '') && !/^(?:Write-|echo|printf)/i.test(m[1] ?? '');
+  // Groups differ:
+  // - command form: producer, middle, sink, sinkArgs (length 5)
+  // - string form: quote, body, sink, sinkArgs (length 5, producer is quote char)
+  // - here-string form: fullHere, quote, sink, sinkArgs (length 5)
+  // - constant form: producer, sink, sinkArgs (length 4)
+  const isConstant =
+    m.length === 4 &&
+    !/^['"]/.test(m[1] ?? '') &&
+    !/^@/.test(m[1] ?? '') &&
+    !/^(?:Write-|echo|printf)/i.test(m[1] ?? '');
+  const isHereString = typeof m[1] === 'string' && m[1].startsWith('@');
   const sink = (isConstant ? m[2] : m[3]) ?? 'Set-Content';
   const sinkArgs = (isConstant ? m[3] : m[4]) ?? '';
   // Require a path-like sink argument so bare `Write-Output x | Set-Content` stays allowed.
@@ -941,6 +961,8 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
   let producer: string;
   if (/^(?:Write-(?:Output|Host|Verbose|Warning|Error|Information|Debug)|echo|printf)$/i.test(producerRaw)) {
     producer = producerRaw;
+  } else if (isHereString) {
+    producer = 'here-string';
   } else if (/^\$null$/i.test(producerRaw) || /^-?\d/.test(producerRaw)) {
     producer = 'constant';
   } else {
@@ -950,7 +972,41 @@ function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedBypassHi
     prefer: 'Write',
     pattern: `${producer} | ${sink}`,
     message:
-      'Use Write instead of PowerShell/stream producers (or string/constant) piped into Set-Content/Out-File/Tee-Object/sponge.',
+      'Use Write instead of PowerShell/stream producers (or string/constant/here-string) piped into Set-Content/Out-File/Tee-Object/sponge.',
+  };
+}
+
+/**
+ * Pure Get-Content path dumps piped into Format-* or Out-String -> Read.
+ * Matches: Get-Content/gc/type path | Format-List|Format-Table|Out-String ...
+ * Skips: multi-pipe, real process left-hand sides, path-less Get-Content.
+ */
+function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit | undefined {
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[;&`\n]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
+
+  const m =
+    /^(Get-Content|gc|type)\b([\s\S]*?)\s*\|\s*(Format-List|Format-Table|Format-Wide|Format-Custom|Out-String|fl|ft|fw)\b([\s\S]*)$/i.exec(
+      command,
+    );
+  if (m === null) return undefined;
+
+  const leftArgs = m[2] ?? '';
+  const hasPath =
+    /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(leftArgs) ||
+    /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+      leftArgs,
+    ) ||
+    /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(leftArgs);
+  if (!hasPath) return undefined;
+
+  const formatter = m[3] ?? 'Format-List';
+  return {
+    prefer: 'Read',
+    pattern: `Get-Content | ${formatter}`,
+    message: 'Use Read instead of PowerShell Get-Content piped into Format-*/Out-String for file dumps.',
   };
 }
 
