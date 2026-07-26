@@ -23,6 +23,8 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('bzcat data.bz2')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('xzcat data.xz')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('zstdcat data.zst')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('lzcat data.lz')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('/usr/bin/lzcat data.lz')?.prefer).toBe('Read');
     // Real URLs stay allowed for text-browser browsing.
     expect(detectShellDedicatedBypass('w3m https://example.com')).toBeUndefined();
     expect(detectShellDedicatedBypass('lynx http://example.com/docs')).toBeUndefined();
@@ -443,16 +445,24 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('awk 1 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base64 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base32 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('base64 -d encoded.b64')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('base64 --decode encoded.b64')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('base32 -d encoded.b32')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('base32 --decode encoded.b32')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('/usr/bin/base64 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('hexdump -C src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('od -An -tx1 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('xxd src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('xxd -l 100 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('strings src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('/usr/bin/strings -n 8 src/a.ts')?.prefer).toBe('Read');
-    // multi-file paste and pipelines stay allowed
+    // multi-file paste and pipelines stay allowed; bare dumpers without a path too
     expect(detectShellDedicatedBypass('paste src/a.ts src/b.ts')).toBeUndefined();
     expect(detectShellDedicatedBypass('cat src/a.ts | base64')).toBeUndefined();
     expect(detectShellDedicatedBypass('od -An -tx1')).toBeUndefined();
     expect(detectShellDedicatedBypass('strings')).toBeUndefined();
+    expect(detectShellDedicatedBypass('base64 -d')).toBeUndefined();
+    expect(detectShellDedicatedBypass('base64 --decode')).toBeUndefined();
   });
 
 });

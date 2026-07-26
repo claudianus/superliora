@@ -554,10 +554,11 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   }
 
   // binary/text dumpers aimed at a single path
-  // Allow short flags and numeric flag values (`strings -n 8 file`, `xxd -l 100 file`)
-  // while still requiring a non-flag path token so bare `od -An` stays allowed.
+  // Allow short flags, long flags (`base64 --decode file`), and numeric flag values
+  // (`strings -n 8 file`, `xxd -l 100 file`) while still requiring a non-flag path
+  // token so bare `od -An` / `base64 -d` stay allowed.
   if (
-    /^(?:\/usr\/bin\/)?(?:od|hexdump|xxd|strings|base64|base32)(?:\s+(?:-[A-Za-z0-9=]+|\d+))*\s+(?!-)\S+\s*$/.test(
+    /^(?:\/usr\/bin\/)?(?:od|hexdump|xxd|strings|base64|base32)(?:\s+(?:--[A-Za-z0-9-]+(?:=[^\s]+)?|-[A-Za-z0-9=]+|\d+))*\s+(?!-)\S+\s*$/.test(
       command,
     )
   ) {
