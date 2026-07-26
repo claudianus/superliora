@@ -387,3 +387,169 @@ describe('resolveCompactionUserMessageBudget', () => {
     expect(resolveCompactionUserMessageBudget(64_000)).toBeLessThan(COMPACT_USER_MESSAGE_MAX_TOKENS);
   });
 });
+
+describe('isCompactionSummaryMessage', () => {
+  it('returns true for compaction_summary origin', () => {
+    expect(
+      isCompactionSummaryMessage({
+        role: 'user',
+        content: [],
+        origin: { kind: 'compaction_summary' },
+      } as Message),
+    ).toBe(true);
+  });
+
+  it('returns false for non-compaction origins', () => {
+    expect(
+      isCompactionSummaryMessage({
+        role: 'user',
+        content: [],
+        origin: { kind: 'user' },
+      } as Message),
+    ).toBe(false);
+    expect(
+      isCompactionSummaryMessage({
+        role: 'user',
+        content: [],
+        origin: { kind: 'injection', variant: 'lean_context' },
+      } as Message),
+    ).toBe(false);
+  });
+
+  it('returns false when origin is missing', () => {
+    expect(
+      isCompactionSummaryMessage({
+        role: 'user',
+        content: [],
+      } as Message),
+    ).toBe(false);
+  });
+});
+
+describe('compactionUserMessageDisposition', () => {
+  // This is the source of truth for which origin kinds are kept in the
+  // live context vs dropped after compaction. New PromptOrigin kinds MUST
+  // add an entry here, otherwise the exhaustive `never` switch will catch
+  // the omission at compile time. The tests pin the policy that the
+  // exhaustive check already enforces.
+
+  it('keeps real user prompts', () => {
+    expect(
+      compactionUserMessageDisposition({ kind: 'user' } as never),
+    ).toBe('keep');
+  });
+
+  it('keeps user-slash skill activations but drops other triggers', () => {
+    expect(
+      compactionUserMessageDisposition({
+        kind: 'skill_activation',
+        trigger: 'user-slash',
+      } as never),
+    ).toBe('keep');
+    expect(
+      compactionUserMessageDisposition({
+        kind: 'skill_activation',
+        trigger: 'auto',
+      } as never),
+    ).toBe('drop');
+    expect(
+      compactionUserMessageDisposition({
+        kind: 'plugin_command',
+        trigger: 'user-slash',
+      } as never),
+    ).toBe('keep');
+  });
+
+  it('drops ephemeral / system origins', () => {
+    for (const origin of [
+      { kind: 'injection', variant: 'lean_context' },
+      { kind: 'shell_command' },
+      { kind: 'compaction_summary' },
+      { kind: 'system_trigger' },
+      { kind: 'background_task' },
+      { kind: 'cron_job' },
+      { kind: 'cron_missed' },
+      { kind: 'hook_result' },
+      { kind: 'retry' },
+    ]) {
+      expect(
+        compactionUserMessageDisposition(origin as never),
+      ).toBe('drop');
+    }
+  });
+
+  it('treats missing origin as keep (defensive default)', () => {
+    expect(compactionUserMessageDisposition(undefined)).toBe('keep');
+  });
+});
+
+describe('isRealUserInput', () => {
+  it('is true for role=user with keep disposition', () => {
+    expect(
+      isRealUserInput({
+        role: 'user',
+        content: [],
+        origin: { kind: 'user' },
+      } as Message),
+    ).toBe(true);
+  });
+
+  it('is false for non-user roles', () => {
+    expect(
+      isRealUserInput({
+        role: 'assistant',
+        content: [],
+        origin: { kind: 'user' },
+      } as Message),
+    ).toBe(false);
+  });
+
+  it('is false for system / injection user messages', () => {
+    expect(
+      isRealUserInput({
+        role: 'user',
+        content: [],
+        origin: { kind: 'injection', variant: 'lean_context' },
+      } as Message),
+    ).toBe(false);
+    expect(
+      isRealUserInput({
+        role: 'user',
+        content: [],
+        origin: { kind: 'compaction_summary' },
+      } as Message),
+    ).toBe(false);
+  });
+});
+
+describe('collectCompactableUserMessages', () => {
+  it('keeps real user input but excludes compaction summaries', () => {
+    const result = collectCompactableUserMessages([
+      { role: 'user', content: [], origin: { kind: 'user' } } as Message,
+      {
+        role: 'user',
+        content: [],
+        origin: { kind: 'compaction_summary' },
+      } as Message,
+      { role: 'assistant', content: [], origin: { kind: 'user' } } as Message,
+      {
+        role: 'user',
+        content: [],
+        origin: { kind: 'injection', variant: 'lean_context' },
+      } as Message,
+    ]);
+    expect(result).toHaveLength(1);
+  });
+});
+
+describe('buildCompactionElisionText', () => {
+  it('includes the omitted token count', () => {
+    const text = buildCompactionElisionText(12_345);
+    expect(text).toMatch(/12,?345/);
+  });
+
+  it('returns a non-empty placeholder even when zero', () => {
+    const text = buildCompactionElisionText(0);
+    expect(text.length).toBeGreaterThan(0);
+  });
+});
