@@ -151,13 +151,12 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'backend-api',
     query: 'engineering backend architect api platform engineer',
+    // Keep live top-ranked backend/API hits (drop deep-tail gold).
     relevantIds: [
       'engineering-backend-architect',
-      'volt-03-infrastructure-platform-engineer',
       'engineering-api-platform-engineer',
-      'agentcrow-backend-architect',
       'volt-01-core-development-backend-developer',
-      'volt-01-core-development-api-designer',
+      'volt-03-infrastructure-platform-engineer',
     ],
     labels: ['Engineering', 'Backend'],
   },

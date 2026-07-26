@@ -97,8 +97,8 @@ function hasShellComposition(command: string): boolean {
 }
 
 function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
-  // cat [flags] path
-  if (/^(?:\/usr\/bin\/)?cat(?:\s+-[A-Za-z]+)*\s+\S+\s*$/.test(command)) {
+  // cat [flags] path  (+ busybox cat)
+  if (/^(?:\/usr\/bin\/)?(?:busybox\s+)?cat(?:\s+-[A-Za-z]+)*\s+\S+\s*$/.test(command)) {
     return {
       prefer: 'Read',
       pattern: 'cat file',
@@ -524,6 +524,15 @@ function matchWriteLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Write to create or update files instead of touch.',
     };
   }
+  // bare `sponge path` (no pipe) is still a whole-file sink — prefer Write.
+  // Pipelines (`cmd | sponge path`) stay allowed via hasShellComposition.
+  if (/^(?:\/usr\/bin\/)?sponge(?:\s+-[A-Za-z]+)*\s+\S+\s*$/.test(command)) {
+    return {
+      prefer: 'Write',
+      pattern: 'sponge file',
+      message: 'Use Write instead of sponge for whole-file writes.',
+    };
+  }
   // `truncate -s 0 path` / `truncate --size=0 path` — empty a file
   // (non-zero sizes stay allowed for sparse allocate / intentional sizing).
   if (/^(?:\/usr\/bin\/)?truncate\b/.test(command)) {
@@ -607,8 +616,8 @@ function matchEmptyRedirectWrite(command: string): ShellDedicatedBypassHit | und
 }
 
 function matchEditLike(command: string): ShellDedicatedBypassHit | undefined {
-  // sed/gsed -i ... (GNU/BSD in-place edits)
-  if (/^(?:\/usr\/bin\/)?(?:g?sed)\s+-[A-Za-z]*i[A-Za-z]*/.test(command)) {
+  // sed/gsed/busybox sed -i ... (GNU/BSD in-place edits)
+  if (/^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?sed)\s+-[A-Za-z]*i[A-Za-z]*/.test(command)) {
     return {
       prefer: 'Edit',
       pattern: 'sed -i',

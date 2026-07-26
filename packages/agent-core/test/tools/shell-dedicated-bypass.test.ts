@@ -172,6 +172,14 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('truncate -s 1M out.bin')).toBeUndefined();
   });
 
+  it('blocks bare sponge and busybox cat/sed -i file I/O', () => {
+    expect(detectShellDedicatedBypass('sponge out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('busybox cat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass("busybox sed -i 's/a/b/' src/a.ts")?.prefer).toBe('Edit');
+    // pipelines stay allowed
+    expect(detectShellDedicatedBypass('cat src/a.ts | sponge out.txt')).toBeUndefined();
+  });
+
   it('blocks empty redirect file creators', () => {
     expect(detectShellDedicatedBypass(': > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('true > out.txt')?.prefer).toBe('Write');
