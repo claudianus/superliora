@@ -370,6 +370,7 @@ describe('auditUltraworkCompletion', () => {
           nodes: [
             node({
               id: 'integrate_1',
+              title: 'Merge specialist handoff',
               kind: 'integration',
               stage: 'integrate',
               status: 'needs_integration',
@@ -382,7 +383,14 @@ describe('auditUltraworkCompletion', () => {
     if (!result.ok) {
       expect(result.code).toBe('needs_integration');
       expect(result.openNodeIds).toContain('integrate_1');
-      expect(result.nextActions.some((a) => /Integrate specialist handoffs/i.test(a))).toBe(true);
+      // Match recovery-prompt id+(title) formatting.
+      expect(
+        result.nextActions.some(
+          (a) =>
+            /Integrate specialist handoffs/i.test(a) &&
+            /integrate_1 \(Merge specialist handoff\)/.test(a),
+        ),
+      ).toBe(true);
       expect(result.nextActions.some((a) => /integration evidence/i.test(a))).toBe(true);
     }
   });

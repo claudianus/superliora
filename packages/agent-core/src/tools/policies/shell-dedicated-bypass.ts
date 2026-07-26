@@ -285,6 +285,27 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       };
     }
   }
+  // Tee-Object / tee single-file write → Write (Unix: tee path).
+  // Pipelines (`cmd | Tee-Object file`) stay allowed for real shell composition.
+  if (
+    /^(?:Tee-Object|tee)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:ForEach-Object|%|Where-Object)\b/i.test(command)
+  ) {
+    const hasPath =
+      /(?:^|\s)-(?:FilePath|Path|LiteralPath)\s+\S+/i.test(command) ||
+      /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+        command,
+      ) ||
+      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(command);
+    if (hasPath) {
+      return {
+        prefer: 'Write',
+        pattern: 'Tee-Object file',
+        message: 'Use Write (or Edit for patches) instead of PowerShell Tee-Object for file content.',
+      };
+    }
+  }
   // New-Item -ItemType File / ni … File → Write (Unix: touch). Directories stay allowed.
   if (
     /^(?:New-Item|ni)\b/i.test(command) &&
@@ -871,11 +892,11 @@ function matchClipboardFileBypass(command: string): ShellDedicatedBypassHit | un
     }
   }
   if (/^(?:Get-Clipboard|gcb)\b/i.test(command)) {
-    // Get-Clipboard | Set-Content / Out-File / > path
+    // Get-Clipboard | Set-Content / Out-File / Tee-Object / > path
     if (
       /(?:^|\s)>\s*\S+\s*$/.test(command) ||
       /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(command) ||
-      /\b(?:Set-Content|Out-File|Add-Content|sc|ac)\b/i.test(command)
+      /\b(?:Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee)\b/i.test(command)
     ) {
       return {
         prefer: 'Write',

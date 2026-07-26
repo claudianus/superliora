@@ -190,6 +190,11 @@ export function auditUltraworkCompletion(
   const needsIntegrationNodes = gatedNodes.filter((n) => n.status === 'needs_integration');
   if (needsIntegrationNodes.length > 0) {
     const openNodeIds = needsIntegrationNodes.map((n) => n.id);
+    // Match recovery-prompt id+(title) formatting for specialist handoffs.
+    const integrateHints = needsIntegrationNodes
+      .slice(0, 3)
+      .map((n) => `${n.id} (${n.title})`)
+      .join(', ');
     return reject(
       'needs_integration',
       [
@@ -197,7 +202,8 @@ export function auditUltraworkCompletion(
         'needs_integration blocks goal complete — merge specialist handoffs before finishing.',
       ],
       [
-        `Integrate specialist handoffs for node(s): ${openNodeIds.slice(0, 3).join(', ')}${openNodeIds.length > 3 ? ', …' : ''} — merge handoffs and mark nodes done only after integration evidence.`,
+        `Integrate specialist handoffs for node(s): ${integrateHints}${needsIntegrationNodes.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
+        'Merge handoffs and mark nodes done only after integration evidence.',
         'Do not call UpdateGoal(complete) while any node is still needs_integration.',
       ],
       openNodeIds,

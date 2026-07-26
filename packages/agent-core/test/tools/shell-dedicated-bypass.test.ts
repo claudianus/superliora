@@ -367,6 +367,17 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Clear-Content a.txt | Out-Null')).toBeUndefined();
   });
 
+  it('blocks PowerShell Tee-Object single-file writes', () => {
+    expect(detectShellDedicatedBypass('Tee-Object out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Tee-Object -FilePath notes.md')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('tee -Path src/a.ts')?.prefer).toBe('Write');
+    // clipboard → Tee-Object file dumps (composition guard would otherwise skip)
+    expect(detectShellDedicatedBypass('Get-Clipboard | Tee-Object out.txt')?.prefer).toBe('Write');
+    // pipelines / bare stay allowed
+    expect(detectShellDedicatedBypass('Get-Content a.ts | Tee-Object out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Tee-Object')).toBeUndefined();
+  });
+
   it('blocks git/svn/hg single-path content dumps but allows commit summaries', () => {
     expect(detectShellDedicatedBypass('git show HEAD:src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('git show abcdef1:packages/foo/bar.ts')?.prefer).toBe(
