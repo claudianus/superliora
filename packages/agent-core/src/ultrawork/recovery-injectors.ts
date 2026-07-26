@@ -3,6 +3,8 @@ import type { UltraworkStage } from '@superliora/protocol';
 import type { Agent } from '../agent';
 import { maybeFinishUltraworkRun } from './finish-run';
 import {
+  detectLongRunningStage,
+  detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
   ultraworkStageIndex,
@@ -194,6 +196,27 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
     );
   }
+  // Match recovery-prompt / envelope circuit-break signals on mid-run injectors.
+  const stuckNodes = detectStuckWorkGraphNodes(run.workGraph);
+  if (stuckNodes.length > 0) {
+    lines.push(
+      `stuck_nodes: ${stuckNodes
+        .slice(0, 5)
+        .map((node) => `${node.id}[${node.status}]`)
+        .join(', ')}`,
+    );
+    lines.push(
+      'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
+    );
+  }
+  const longStage = detectLongRunningStage(run);
+  if (longStage !== undefined) {
+    const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
+    const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
+    lines.push(
+      `long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min) — consider advancing or splitting work.`,
+    );
+  }
   if (nextActions.length > 0) {
     lines.push('Next actions:');
     for (const action of nextActions.slice(0, 3)) {
@@ -346,6 +369,27 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .slice(0, 4)
         .map((node) => `${node.id}[${node.status}] ${node.title}`)
         .join(', ')}${pendingNodes.length > 4 ? ', …' : ''}`,
+    );
+  }
+  // Match recovery-prompt / envelope circuit-break signals on mid-run injectors.
+  const stuckNodes = detectStuckWorkGraphNodes(run.workGraph);
+  if (stuckNodes.length > 0) {
+    lines.push(
+      `stuck_nodes: ${stuckNodes
+        .slice(0, 5)
+        .map((node) => `${node.id}[${node.status}]`)
+        .join(', ')}`,
+    );
+    lines.push(
+      'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
+    );
+  }
+  const longStage = detectLongRunningStage(run);
+  if (longStage !== undefined) {
+    const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
+    const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
+    lines.push(
+      `long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min) — consider advancing or splitting work.`,
     );
   }
 

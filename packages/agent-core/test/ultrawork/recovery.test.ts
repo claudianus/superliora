@@ -1076,7 +1076,61 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('Next actions:');
     expect(text).toContain('Interrupt reason: Context compacted mid-swarm');
     expect(text).toContain('run-post-swarm-graph');
+    expect(text).toContain('stuck_nodes:');
+    expect(text).toContain('re-queue blocked nodes');
     expect(run.id).toBe('run-post-swarm-graph');
+  });
+
+  it('surfaces long_running_stage in post-compaction injection', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    const oldEnteredAt = new Date(Date.now() - 20 * 60_000).toISOString();
+    const run = agent.ultrawork.create({
+      id: 'run-compact-long-stage',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-compact-long-stage',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...run,
+        status: 'running',
+        stage: 'integrate',
+        stageHistory: [
+          ...(run.stageHistory ?? []),
+          {
+            stage: 'integrate',
+            enteredAt: oldEnteredAt,
+            reason: 'test long stage',
+          },
+        ],
+        workGraph: {
+          id: 'run-compact-long-stage:work_graph',
+          runId: 'run-compact-long-stage',
+          rootGoal: 'Ship feature',
+          nodes: [
+            {
+              id: 'node-1',
+              title: 'Long integrate',
+              stage: 'integrate',
+              status: 'running',
+            },
+          ],
+        },
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostCompactionContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_compaction>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('long_running_stage: integrate');
+    expect(text).toContain('expected <15min');
+    expect(text).toContain('stuck_nodes:');
   });
 
   it('includes needs_integration WorkGraph nodes in post-swarm injection', () => {
@@ -1327,6 +1381,9 @@ describe('Ultrawork recovery', () => {
     expect(text).not.toContain('node-2[done]');
     expect(text).toContain('Interrupt reason: Context pressure mid-run');
     expect(text).toContain('Ship feature');
+    expect(text).toContain('stuck_nodes:');
+    expect(text).toContain('node-1[running]');
+    expect(text).toContain('re-queue blocked nodes');
   });
 
   it('seeds empty WorkGraph guidance in post-compaction injection', () => {
