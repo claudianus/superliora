@@ -59,6 +59,11 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('vibe')).toBeUndefined();
     expect(findBuiltInSlashCommand('code')).toBeUndefined();
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
+    expect(findBuiltInSlashCommand('tools')?.name).toBe('tools');
+    expect(findBuiltInSlashCommand('tool')?.name).toBe('tools');
+    expect(findBuiltInSlashCommand('eyes')?.name).toBe('eyes');
+    expect(findBuiltInSlashCommand('eye')?.name).toBe('eyes');
+    expect(findBuiltInSlashCommand('harness')?.name).toBe('harness');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
     expect(findBuiltInSlashCommand('thinking')?.name).toBe('thinking');
     expect(findBuiltInSlashCommand('think')?.name).toBe('thinking');
@@ -66,6 +71,19 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('web')?.name).toBe('web');
     expect(findBuiltInSlashCommand('fetch')?.name).toBe('web');
     expect(findBuiltInSlashCommand('unknown')).toBeUndefined();
+  });
+
+  it('lists harness observation commands in help with eyes aliases', () => {
+    // Primary help mode keeps high-signal harness observation commands visible.
+    const helpNames = new Set(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').map((c) => c.name));
+    expect(helpNames.has('tools')).toBe(true);
+    expect(helpNames.has('eyes')).toBe(true);
+    expect(helpNames.has('harness')).toBe(true);
+    const eyes = findBuiltInSlashCommand('eyes');
+    expect(eyes?.aliases).toContain('eye');
+    expect(eyes?.description.toLowerCase()).toMatch(/eyes|browser|computer-use|readiness/);
+    const harness = findBuiltInSlashCommand('harness');
+    expect(harness?.description.toLowerCase()).toMatch(/tools|eyes|premium|mcp/);
   });
 
   it('marks plan clear as idle-only while normal plan toggles are always available', () => {
@@ -260,13 +278,17 @@ describe('built-in slash command registry', () => {
       return items === null ? null : items.map((item) => item.value);
     };
 
-    expect(values('')).toEqual(['on', 'off']);
+    expect(values('')).toEqual(['on', 'off', 'pause', 'restaff', 'raw']);
     expect(values('O')).toEqual(['on', 'off']);
+    expect(values('p')).toEqual(['pause']);
+    expect(values('re')).toEqual(['restaff']);
+    expect(values('ra')).toEqual(['raw']);
     expect(swarmArgumentCompletions('of')).toEqual([
       { value: 'off', label: 'off', description: 'Turn team mode off' },
     ]);
     expect(values('on')).toBeNull();
     expect(values('off')).toBeNull();
+    expect(values('pause')).toBeNull();
     expect(values('Ship feature X')).toBeNull();
   });
 
