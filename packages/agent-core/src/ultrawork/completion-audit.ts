@@ -16,6 +16,7 @@ import {
 import {
   collectVerificationGapNodes,
   formatBlockedNodeNextActions,
+  formatEmptyWorkGraphSeedNextActions,
   formatEvidenceHardGateNextActions,
   formatFailedNodeNextActions,
   formatHighResumeOscillationNextActions,
@@ -120,7 +121,7 @@ export function auditUltraworkCompletion(
       ],
       [
         // Match recovery-triangle seed wording so injectors/envelope/audit share one action.
-        'Seed WorkGraph via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete) — empty graph is rejected as false complete.',
+        ...formatEmptyWorkGraphSeedNextActions(),
         'Implement open nodes with real code/tests.',
         'Attach requiredEvidence and set verificationStatus=passed only after checks.',
       ],

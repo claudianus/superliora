@@ -16,6 +16,7 @@ import type { UltraworkPlanRecoveryContext } from './types';
 import {
   collectVerificationGapNodes,
   formatBlockedNodeNextActions,
+  formatEmptyWorkGraphSeedNextActions,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
@@ -126,9 +127,8 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   }
   const graphNodeCount = run.workGraph?.nodes.length ?? 0;
   if (graphNodeCount === 0) {
-    lines.push(
-      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
-    );
+    lines.push('WorkGraph empty or missing.');
+    lines.push(...formatEmptyWorkGraphSeedNextActions());
   }
   if (failedNodes.length > 0) {
     lines.push(
@@ -311,9 +311,8 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   }
   const graphNodeCount = run.workGraph?.nodes.length ?? 0;
   if (graphNodeCount === 0) {
-    lines.push(
-      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
-    );
+    lines.push('WorkGraph empty or missing.');
+    lines.push(...formatEmptyWorkGraphSeedNextActions());
   }
 
   const pendingNodes =

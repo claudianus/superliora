@@ -3,6 +3,7 @@ import { buildUltraworkResumeCursor } from './recovery';
 import {
   collectVerificationGapNodes,
   formatBlockedNodeNextActions,
+  formatEmptyWorkGraphSeedNextActions,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
   formatFailedNodeNextActions,
@@ -136,9 +137,8 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   // do not silently resume product work without a WorkGraph ledger.
   if (graphNodeCount === 0) {
     lines.push('workgraph_empty: true');
-    lines.push(
-      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
-    );
+    lines.push('WorkGraph empty or missing.');
+    lines.push(...formatEmptyWorkGraphSeedNextActions());
   }
   if (
     progress.doneCount > 0 ||

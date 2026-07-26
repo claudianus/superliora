@@ -667,7 +667,7 @@ describe('Ultrawork recovery', () => {
       nextActions: ['Seed WorkGraph via UltraworkGraph'],
     });
     expect(prompt).toContain('WorkGraph empty or missing');
-    expect(prompt).toContain('seed via UltraworkGraph');
+    expect(prompt).toContain('Seed WorkGraph via UltraworkGraph');
     expect(prompt).toContain('requiredEvidence');
     expect(prompt).not.toContain('Pending WorkGraph nodes');
   });
@@ -1364,7 +1364,7 @@ describe('Ultrawork recovery', () => {
         '',
     );
     expect(text).toContain('WorkGraph empty or missing');
-    expect(text).toContain('seed via UltraworkGraph');
+    expect(text).toContain('Seed WorkGraph via UltraworkGraph');
     expect(text).toContain('requiredEvidence');
   });
 
@@ -1497,7 +1497,7 @@ describe('Ultrawork recovery', () => {
         '',
     );
     expect(text).toContain('WorkGraph empty or missing');
-    expect(text).toContain('seed via UltraworkGraph');
+    expect(text).toContain('Seed WorkGraph via UltraworkGraph');
     expect(text).toContain('requiredEvidence');
   });
 

@@ -253,6 +253,16 @@ export function formatLongRunningStageNextActions(
   ];
 }
 
+/**
+ * Match recovery-triangle empty WorkGraph seed next_actions.
+ * Used by recovery-prompt, completion-audit, injectors, and envelope.
+ */
+export function formatEmptyWorkGraphSeedNextActions(): readonly string[] {
+  return [
+    'Seed WorkGraph via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete) — empty graph is rejected as false complete.',
+  ];
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
@@ -323,9 +333,8 @@ export function buildUltraworkRecoveryPrompt(
   const graphNodeCount = report.run.workGraph?.nodes.length ?? 0;
   // Body-level seed (nextActions already prioritizes empty graphs) — match injectors/envelope.
   if (graphNodeCount === 0) {
-    lines.push(
-      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
-    );
+    lines.push('WorkGraph empty or missing.');
+    lines.push(...formatEmptyWorkGraphSeedNextActions());
   }
   if (progress.doneCount > 0 || progress.pendingCount > 0) {
     lines.push(
@@ -545,9 +554,7 @@ export function suggestNextActions(
   // Empty/missing WorkGraph is a hard false-complete gate — seed before more product work.
   const graphNodes = run.workGraph?.nodes;
   if (graphNodes === undefined || graphNodes.length === 0) {
-    actions.push(
-      'Seed WorkGraph via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete) — empty graph is rejected as false complete.',
-    );
+    actions.push(...formatEmptyWorkGraphSeedNextActions());
   }
 
   const progress = summarizeWorkGraphProgress(run.workGraph);
