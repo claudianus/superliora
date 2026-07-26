@@ -45,6 +45,11 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('SUPABASE_SERVICE_ROLE')).toBe(true);
     expect(isSecretEnvKeyName('PGURL')).toBe(true);
     expect(isSecretEnvKeyName('SUPABASE_URL')).toBe(true);
+    expect(isSecretEnvKeyName('SMTP_PASS')).toBe(true);
+    expect(isSecretEnvKeyName('MYSQL_PWD')).toBe(true);
+    expect(isSecretEnvKeyName('KUBECONFIG')).toBe(true);
+    expect(isSecretEnvKeyName('DOCKER_AUTH_CONFIG')).toBe(true);
+    expect(isSecretEnvKeyName('PGPASSFILE')).toBe(true);
   });
 
   it('does not match ordinary path-like keys', () => {
@@ -55,6 +60,8 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('LANG')).toBe(false);
     expect(isSecretEnvKeyName('CDN_URL')).toBe(false);
     expect(isSecretEnvKeyName('PUBLIC_URL')).toBe(false);
+    expect(isSecretEnvKeyName('AWS_PROFILE')).toBe(false);
+    expect(isSecretEnvKeyName('OAUTH_CLIENT_ID')).toBe(false);
   });
 });
 

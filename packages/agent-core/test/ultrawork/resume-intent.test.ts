@@ -9,7 +9,11 @@ import {
   matchExplicitResumePhrase,
   shouldActOnResumeIntent,
 } from '../../src/ultrawork/resume-intent-llm';
-import { maybeTransformPromptForInterruptedWorkResume } from '../../src/ultrawork/interrupted-work-resume';
+import {
+  buildResumeWithSteering,
+  maybeTransformPromptForInterruptedWorkResume,
+} from '../../src/ultrawork/interrupted-work-resume';
+import { CONTINUE_GOAL_INPUT } from '../../src/ultrawork/resume-intent-llm';
 
 describe('interrupted work resume intent', () => {
   it('detects resumable context from paused goals and blocked ultrawork runs', () => {
@@ -304,5 +308,21 @@ describe('interrupted work resume intent', () => {
     );
     expect(transformed).toBeUndefined();
     expect(agent.goal.getGoal().goal?.status).toBe('paused');
+  });
+
+  it('falls back to CONTINUE_GOAL_INPUT when recoveryPrompt is empty', () => {
+    const empty = buildResumeWithSteering('', 'continue');
+    expect(empty).toContain(CONTINUE_GOAL_INPUT);
+    expect(empty).toContain('## User steering for this resume');
+    expect(empty).toContain('continue');
+    expect(empty.startsWith('\n\n## User steering')).toBe(false);
+
+    const whitespaceOnly = buildResumeWithSteering('   \n  ', 'keep going');
+    expect(whitespaceOnly).toContain(CONTINUE_GOAL_INPUT);
+    expect(whitespaceOnly).toContain('keep going');
+
+    const durable = buildResumeWithSteering('<ultrawork_recovery>\nok', 'continue');
+    expect(durable).toContain('<ultrawork_recovery>');
+    expect(durable).not.toContain(CONTINUE_GOAL_INPUT);
   });
 });

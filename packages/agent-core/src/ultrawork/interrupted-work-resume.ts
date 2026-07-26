@@ -14,10 +14,15 @@ export function buildResumeWithSteering(
   recoveryPrompt: string,
   userText: string,
 ): string {
+  // Soft mid-run resume can yield an empty recovery prompt when the cursor
+  // builder has nothing durable yet — fall back to the goal-continue scaffold
+  // so steering is never the only content and the model still gets a resume brief.
+  const base =
+    recoveryPrompt.trim().length > 0 ? recoveryPrompt.trimEnd() : CONTINUE_GOAL_INPUT;
   const trimmed = userText.trim();
-  if (trimmed.length === 0) return recoveryPrompt;
+  if (trimmed.length === 0) return base;
   return [
-    recoveryPrompt,
+    base,
     '',
     '## User steering for this resume',
     'The user provided additional direction while work was interrupted. Apply it on top of the recovery cursor above.',

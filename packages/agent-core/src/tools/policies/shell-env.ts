@@ -85,6 +85,13 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   'SUPABASE_URL',
   'SERVICE_ROLE',
   'SERVICE_KEY',
+  // Exact-ish stems that lack KEY/TOKEN/PASSWORD tokens.
+  'SMTP_PASS',
+  'MYSQL_PWD',
+  'KUBECONFIG',
+  'DOCKER_AUTH',
+  'PGPASSFILE',
+  'PGPASS',
 ] as const;
 
 const CORE_ENV_EXACT = new Set([
