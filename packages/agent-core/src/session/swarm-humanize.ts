@@ -24,7 +24,7 @@ export interface HumanizedCollaborationEvent {
 }
 
 const XML_TAG = /<\/?[a-zA-Z_][\w:.-]*\b[^>]*>/;
-const XML_BLOCK = /<\/?(?:team_roster|handoff|expert|debate|phase_handoff_pack|selection_reason|instruction|artifact|prior_turns|integration_report|verdict)\b/i;
+const XML_BLOCK = /<\/?(?:team_roster|handoff|expert|debate|debate_draft|debate_draft_pack|phase_handoff_pack|selection_reason|instruction|artifact|prior_turns|integration_report|verdict|dependency_handoff|work_node_contracts|review_revision_request|swarm_channel_rules|collaboration_required|prior_review|upstream)\b/i;
 
 /**
  * Detect protocol-ish messages that should not be shown raw in the feed.
@@ -192,6 +192,93 @@ export function humanizeCollaborationEvent(
       headline: '판정',
       body: token ?? collapseWhitespace(verdictLine[1]),
       severity: token === '차단/실패' ? 'error' : token === '통과' ? 'success' : 'info',
+      humanized: true,
+    };
+  }
+
+  // Debate draft pack (reviewer handoff)
+  if (/<debate_draft_pack\b/i.test(bodyTrimmed) || /<debate_draft\b/i.test(bodyTrimmed)) {
+    const drafts = Array.from(
+      bodyTrimmed.matchAll(/<debate_draft\b([^>]*)>([\s\S]*?)<\/debate_draft>/gi),
+    );
+    const summaries = drafts.slice(0, 4).map((match) => {
+      const attrs = match[1] ?? '';
+      const work = extractXmlAttr(attrs, 'work_node');
+      const phase = extractXmlAttr(attrs, 'phase');
+      const author = extractXmlAttr(attrs, 'author');
+      const excerpt = stripXmlTags(match[2] ?? '').slice(0, 160);
+      return [work, phase, author].filter(Boolean).join(' · ') + (excerpt ? `: ${excerpt}` : '');
+    });
+    return {
+      headline: '토론 초안 팩',
+      body:
+        summaries.length > 0
+          ? summaries.join(' | ')
+          : '리뷰어용 토론 초안 팩을 전달했습니다.',
+      severity: 'info',
+      humanized: true,
+    };
+  }
+
+  // Dependency handoff between phases
+  if (/<dependency_handoff\b/i.test(bodyTrimmed) || /<upstream\b/i.test(bodyTrimmed)) {
+    const upstream = Array.from(bodyTrimmed.matchAll(/<upstream\b([^>]*)>/gi)).map((match) => {
+      const attrs = match[1] ?? '';
+      const expertId = extractXmlAttr(attrs, 'expert_id');
+      const phase = extractXmlAttr(attrs, 'phase');
+      const verdict = humanizeVerdictToken(extractXmlAttr(attrs, 'verdict'));
+      return [expertId, phase, verdict].filter(Boolean).join(' · ');
+    });
+    const unique = Array.from(new Set(upstream.filter((line) => line.length > 0))).slice(0, 5);
+    return {
+      headline: '의존 핸드오프',
+      body: unique.length > 0 ? `상류: ${unique.join(' | ')}` : '상위 단계 결과를 전달했습니다.',
+      severity: 'info',
+      humanized: true,
+    };
+  }
+
+  // Work node contracts
+  if (/<work_node_contracts\b/i.test(bodyTrimmed) || /<node\b[^>]*\bid=/i.test(bodyTrimmed)) {
+    const ids = Array.from(bodyTrimmed.matchAll(/\bid="([^"]+)"/gi)).map((m) => m[1]!);
+    const unique = Array.from(new Set(ids)).slice(0, 6);
+    return {
+      headline: '작업 노드 계약',
+      body:
+        unique.length > 0
+          ? `노드: ${unique.join(', ')}${ids.length > unique.length ? '…' : ''}`
+          : 'WorkGraph 노드 계약을 공유했습니다.',
+      severity: 'info',
+      humanized: true,
+    };
+  }
+
+  // Review revision request
+  if (/<review_revision_request\b/i.test(bodyTrimmed) || /<prior_review\b/i.test(bodyTrimmed)) {
+    const reviews = Array.from(bodyTrimmed.matchAll(/<prior_review\b([^>]*)>/gi)).map((match) => {
+      const attrs = match[1] ?? '';
+      const expertId = extractXmlAttr(attrs, 'expert_id');
+      const verdict = humanizeVerdictToken(extractXmlAttr(attrs, 'verdict'));
+      return [expertId, verdict].filter(Boolean).join(' · ');
+    });
+    return {
+      headline: '리뷰 수정 요청',
+      body:
+        reviews.length > 0
+          ? reviews.slice(0, 4).join(' | ')
+          : '리뷰 피드백에 따른 수정 라운드가 요청되었습니다.',
+      severity: 'warning',
+      humanized: true,
+    };
+  }
+
+  // Channel / collaboration rules (usually system preamble)
+  if (/<swarm_channel_rules\b/i.test(bodyTrimmed) || /<collaboration_required\b/i.test(bodyTrimmed)) {
+    const plain = stripXmlTags(bodyTrimmed).slice(0, 200);
+    return {
+      headline: '협업 규칙',
+      body: plain.length > 0 ? plain : '스웜 협업 채널 규칙을 안내했습니다.',
+      severity: 'neutral',
       humanized: true,
     };
   }

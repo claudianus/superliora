@@ -7,11 +7,20 @@ import {
 
 describe('looksLikeProtocolMessage', () => {
   it('detects XML handoff / team roster payloads', () => {
-    expect(looksLikeProtocolMessage('<handoff expert_id="a" phase="implement" verdict="PASS">done</handoff>')).toBe(
+    expect(
+      looksLikeProtocolMessage(
+        '<handoff expert_id="a" phase="implement" verdict="PASS">done</handoff>',
+      ),
+    ).toBe(true);
+    expect(looksLikeProtocolMessage('<team_roster><expert name="Alice"/></team_roster>')).toBe(
       true,
     );
-    expect(looksLikeProtocolMessage('<team_roster><expert name="Alice"/></team_roster>')).toBe(true);
     expect(looksLikeProtocolMessage('VERDICT: PASS')).toBe(true);
+    expect(
+      looksLikeProtocolMessage(
+        '<debate_draft_pack><debate_draft phase="critic">x</debate_draft></debate_draft_pack>',
+      ),
+    ).toBe(true);
   });
 
   it('leaves plain chat alone', () => {
@@ -59,5 +68,35 @@ describe('humanizeCollaborationEvent', () => {
     expect(result.humanized).toBe(true);
     expect(result.headline.toLowerCase()).toContain('토론');
     expect(result.body.length).toBeGreaterThan(0);
+  });
+
+  it('humanizes debate_draft_pack for reviewers', () => {
+    const result = humanizeCollaborationEvent({
+      body:
+        '<debate_draft_pack><debate_draft debate_id="d1" work_node="ac_1" author="impl" critic="rev" risk="medium" phase="critic">use auth middleware</debate_draft></debate_draft_pack>',
+    });
+    expect(result.humanized).toBe(true);
+    expect(result.headline).toContain('토론 초안');
+    expect(result.body).toMatch(/ac_1|auth middleware/);
+  });
+
+  it('humanizes dependency_handoff upstream summaries', () => {
+    const result = humanizeCollaborationEvent({
+      body:
+        '<dependency_handoff><upstream expert_id="impl-1" phase="implement" verdict="PASS">ok</upstream></dependency_handoff>',
+    });
+    expect(result.humanized).toBe(true);
+    expect(result.headline).toContain('의존');
+    expect(result.body).toMatch(/impl-1|통과|PASS/);
+  });
+
+  it('humanizes review_revision_request', () => {
+    const result = humanizeCollaborationEvent({
+      body:
+        '<review_revision_request><prior_review expert_id="rev-1" verdict="FAIL">missing tests</prior_review></review_revision_request>',
+    });
+    expect(result.humanized).toBe(true);
+    expect(result.severity).toBe('warning');
+    expect(result.headline).toContain('수정');
   });
 });
