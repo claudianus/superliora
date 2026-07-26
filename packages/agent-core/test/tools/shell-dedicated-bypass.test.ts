@@ -143,3 +143,13 @@ describe('detectShellDedicatedBypass', () => {
     ).toBeUndefined();
   });
 
+  it('blocks dd/install workspace file copies', () => {
+    expect(detectShellDedicatedBypass('dd if=src/a.ts of=dest/a.ts')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('dd if=src/a.ts of=dest/a.ts bs=4k')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('install -m 644 src/a.ts dest/a.ts')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('install src/a.ts dest/a.ts')?.prefer).toBe('Write');
+    // device / dir forms stay allowed
+    expect(detectShellDedicatedBypass('dd if=/dev/zero of=out.bin bs=1 count=1')).toBeUndefined();
+    expect(detectShellDedicatedBypass('install -d dest/')).toBeUndefined();
+  });
+

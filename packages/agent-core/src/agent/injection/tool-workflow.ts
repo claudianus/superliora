@@ -90,7 +90,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
     'Tool / Skill / Research Workflow (MANDATORY — soft prompts are not enough):',
     '- Default to tools for any workspace, code, research, or multi-step task. Text-only only for pure chat with no file/system/internet need.',
     '- Prefer dedicated tools over raw Bash when they fit (Read/Write/Edit/Grep/Glob/list). Shell is for real process semantics, not file I/O.',
-    '- File content: use Write/Edit — do not cat/echo/printf redirect, heredoc, tee, or python/node/ruby/php/perl/lua -c/-e/-r writeFile/open-write one-liners through Bash (runtime-blocked).',
+    '- File content: use Write/Edit — do not cat/echo/printf redirect, heredoc, tee, dd if=/of=, install src dest, or python/node/ruby/php/perl/lua -c/-e/-r writeFile/open-write one-liners through Bash (runtime-blocked).',
     '- File reads: use Read — do not python/node/ruby/php/perl/lua -c/-e/-r open/readFile one-liners, or bat/tac/sed -n/awk/base64 dumps, for file contents (runtime-blocked).',
     '- Secrets: never cat/source/base64 .env, SSH keys, or cloud credentials via Bash (hard-blocked, no force escape).',
     '- Parallelize independent reads/searches in one turn. Serial only when a later call needs earlier output.',

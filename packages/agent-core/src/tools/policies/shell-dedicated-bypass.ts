@@ -49,6 +49,10 @@ export function detectShellDedicatedBypass(
   const langReadHit = matchLanguageReadLike(raw);
   if (langReadHit !== undefined) return langReadHit;
 
+  // Whole-command dd/install file copies (if=/of= use "=", not shell redirects).
+  const copyHit = matchSimpleFileCopyWrite(raw);
+  if (copyHit !== undefined) return copyHit;
+
   // Multi-statement / pipeline / redirection chains → real shell work.
   if (hasShellComposition(raw)) return undefined;
 
@@ -412,6 +416,59 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
         prefer: 'Write',
         pattern: 'lua -e io.write',
         message: 'Use Write (or Edit for patches) instead of lua -e io.open write for file content.',
+      };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Whole-command file copies that should use Write/Read instead of shell.
+ * Matches: dd if=src of=dest (workspace files only), install [-m mode] src dest
+ * Skips: /dev/* sources, pipelines, multi-dest install -d directories.
+ */
+function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassHit | undefined {
+  if (/[|;&`\n]/.test(command)) return undefined;
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/[<>]/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+
+  // dd if=src of=dest [bs=…] [count=…] — only when both paths look like workspace files.
+  if (/^(?:\/usr\/bin\/)?dd\b/.test(command)) {
+    const ifMatch = /(?:^|\s)if=(\S+)/.exec(command);
+    const ofMatch = /(?:^|\s)of=(\S+)/.exec(command);
+    if (ifMatch && ofMatch) {
+      const src = ifMatch[1] ?? '';
+      const dest = ofMatch[1] ?? '';
+      const isDev = (p: string) => p === '/dev/null' || p.startsWith('/dev/');
+      // Real shell: zero/random fill, or device I/O.
+      if (!isDev(src) && !isDev(dest) && src.length > 0 && dest.length > 0) {
+        return {
+          prefer: 'Write',
+          pattern: 'dd if= of=',
+          message: 'Use Read + Write (or a dedicated copy tool) instead of dd for workspace file copies.',
+        };
+      }
+    }
+  }
+
+  // install [-m MODE] [-o user] [-g group] SRC DEST — single file install/copy.
+  // Skip: install -d (mkdir), multi-source install, install without dest.
+  if (/^(?:\/usr\/bin\/)?install\b/.test(command)) {
+    if (/(?:^|\s)-d(?:\s|$)/.test(command)) return undefined;
+    // Strip known option tokens, then require exactly two path args.
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?install\b/, '')
+      .replace(/(?:^|\s)-(?:m|o|g|S|Z|C|p|v|b)(?:\s+\S+)?/g, ' ')
+      .replace(/(?:^|\s)--\S+/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
+      return {
+        prefer: 'Write',
+        pattern: 'install src dest',
+        message: 'Use Write (or a dedicated copy) instead of install for workspace file copies.',
       };
     }
   }
