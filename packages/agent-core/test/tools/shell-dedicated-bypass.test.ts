@@ -160,3 +160,12 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('truncate -s 1M out.bin')).toBeUndefined();
   });
 
+  it('blocks empty redirect file creators', () => {
+    expect(detectShellDedicatedBypass(': > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('true > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass(':>out.txt')?.prefer).toBe('Write');
+    // real process work stays allowed
+    expect(detectShellDedicatedBypass('true > out.txt && echo hi')).toBeUndefined();
+  });
+

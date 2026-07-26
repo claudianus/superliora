@@ -25,6 +25,8 @@ describe('swarm-budget', () => {
     expect(hasHighSignalBudgetProgress({ evidenceIds: ['x'] })).toBe(true);
     expect(hasHighSignalBudgetProgress({ verificationPassed: true })).toBe(true);
     expect(isWastedBudgetRound({ verificationPassed: true })).toBe(false);
+    expect(hasHighSignalBudgetProgress({ toolSuccessCount: 2 })).toBe(true);
+    expect(isWastedBudgetRound({ toolSuccessCount: 1 })).toBe(false);
   });
 
   it('suggests kill when wastedRounds >= default threshold (2)', () => {

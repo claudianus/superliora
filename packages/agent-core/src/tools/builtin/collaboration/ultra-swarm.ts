@@ -617,19 +617,35 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       // Close work nodes finished in this phase so dependents become ready next.
       this.finishPhaseClaimedWorkNodes(renderedPhaseResults);
 
-      // Budget governor: count rounds without evidence; suggest kill after N wastes.
+      // Budget governor: count rounds without high-signal progress; suggest kill after N wastes.
+      // Review/implement PASS without evidenceIds still counts via verificationPassed so
+      // verify-only waves are not killed as pure waste.
       const phaseEvidenceIds = uniqueStrings(
         renderedPhaseResults.flatMap((result) => result.evidenceIds ?? []),
       );
+      const verificationPassed = renderedPhaseResults.some(
+        (result) =>
+          result.status === 'completed' &&
+          (result.verdict === 'PASS' || result.verdict === 'PASS_WITH_ADVICE'),
+      );
+      const completedCount = renderedPhaseResults.filter(
+        (result) => result.status === 'completed',
+      ).length;
       budgetState = recordSwarmBudgetRound(budgetState, {
         label: phase,
         evidenceIds: phaseEvidenceIds,
-        wasted: renderedPhaseResults.every(
-          (result) =>
-            result.status !== 'completed' ||
-            (result.evidenceIds ?? []).length === 0,
-        ),
-        productive: phaseEvidenceIds.length > 0,
+        verificationPassed,
+        toolSuccessCount: completedCount,
+        // Force waste only when there is no high-signal artifact at all.
+        wasted:
+          phaseEvidenceIds.length === 0 &&
+          !verificationPassed &&
+          renderedPhaseResults.every(
+            (result) =>
+              result.status !== 'completed' ||
+              (result.evidenceIds ?? []).length === 0,
+          ),
+        productive: phaseEvidenceIds.length > 0 || verificationPassed || completedCount > 0,
       });
       const budgetSuggestion = suggestSwarmBudgetKill(budgetState);
       if (budgetSuggestion.shouldKill) {

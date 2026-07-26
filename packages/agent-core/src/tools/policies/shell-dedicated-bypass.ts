@@ -39,6 +39,10 @@ export function detectShellDedicatedBypass(
   const redirectWrite = matchSimpleRedirectWrite(raw);
   if (redirectWrite !== undefined) return redirectWrite;
 
+  // `: > file` / `true > file` / bare `> file` empty creators → Write
+  const emptyRedirect = matchEmptyRedirectWrite(raw);
+  if (emptyRedirect !== undefined) return emptyRedirect;
+
   // cat/tee file <<EOF heredoc writers → Write (newlines make hasShellComposition true).
   const heredocWrite = matchSimpleHeredocWrite(raw);
   if (heredocWrite !== undefined) return heredocWrite;
@@ -538,6 +542,32 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
     prefer: 'Write',
     pattern: `${m[1] ?? 'echo'} ${op} file`,
     message: 'Use Write (or Edit for patches) instead of shell redirects for file content.',
+  };
+}
+
+/**
+ * Empty-file creators via redirect without content producers.
+ * Matches: `: > path`, `true > path`, bare `> path` (and `>>` append-create).
+ * Skips: pipes, lists, stderr redirects, heredocs, process substitution.
+ */
+function matchEmptyRedirectWrite(command: string): ShellDedicatedBypassHit | undefined {
+  if (/[|;&`\n]/.test(command)) return undefined;
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
+  if (/<</.test(command)) return undefined;
+  // `: > path` / `: >> path` / `true > path` / `false > path` / bare `> path`
+  const m =
+    /^(?::|true|false)?\s*(>>?)\s*(\S+)\s*$/.exec(command) ??
+    /^(?::|true|false)\s*(>>?)\s*(\S+)\s*$/.exec(command);
+  if (m === null) return undefined;
+  const op = m[1];
+  const path = m[2] ?? '';
+  if ((op !== '>' && op !== '>>') || path.length === 0) return undefined;
+  return {
+    prefer: 'Write',
+    pattern: `${op} file`,
+    message: 'Use Write to create or clear files instead of empty shell redirects.',
   };
 }
 
