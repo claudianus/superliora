@@ -105,6 +105,9 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
   }
+  if (resumeCursor.journalOffset !== undefined) {
+    lines.push(`journal_offset: ${String(resumeCursor.journalOffset)}`);
+  }
   const graphNodeCount = run.workGraph?.nodes.length ?? 0;
   if (graphNodeCount === 0) {
     lines.push(
@@ -236,6 +239,9 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   }
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
+  if (resumeCursor.journalOffset !== undefined) {
+    lines.push(`journal_offset: ${String(resumeCursor.journalOffset)}`);
   }
   const graphNodeCount = run.workGraph?.nodes.length ?? 0;
   if (graphNodeCount === 0) {

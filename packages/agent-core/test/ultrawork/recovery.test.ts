@@ -942,6 +942,7 @@ describe('Ultrawork recovery', () => {
     expect(swarmText).toContain('Run: run-integrate');
     expect(swarmText).toContain('Objective:');
     expect(swarmText).toContain('status=running');
+    expect(swarmText).toMatch(/journal_offset: \d+/);
   });
 
   it('includes pending WorkGraph nodes in post-swarm injection', () => {
@@ -1190,6 +1191,7 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('do not restart UltraPlan');
     expect(text).toContain('Objective:');
     expect(text).toContain('status=');
+    expect(text).toMatch(/journal_offset: \d+/);
   });
 
   it('includes pending WorkGraph nodes and interrupt reason in post-compaction injection', async () => {
