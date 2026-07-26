@@ -22,6 +22,12 @@ const SENSITIVE_BASENAMES = new Set<string>([
   'id_ed25519',
   'id_ecdsa',
   'credentials',
+  // Common credential dumps that are not covered by `.env*` / cloud suffixes.
+  '.netrc',
+  '_netrc',
+  '.pgpass',
+  'kubeconfig',
+  'service-account.json',
 ]);
 
 const SENSITIVE_PATH_SUFFIXES = [

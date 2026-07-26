@@ -252,6 +252,50 @@ describe('interrupted work resume intent', () => {
     expect(agent.ultrawork.getInterruptReason()).toBeUndefined();
   });
 
+  it('resumes soft mid-run ultrawork with pending WorkGraph and no interrupt reason', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    const run = agent.ultrawork.create({
+      id: 'run-resume-soft-graph',
+      objective: 'Ship game',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-resume-soft-graph',
+        workDir: '/tmp',
+      },
+    });
+    // Soft mid-run: still running, unfinished WorkGraph nodes, no interruptReason
+    // (e.g. session restore before interrupt metadata is mirrored).
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...run,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-resume-soft-graph:work_graph',
+          runId: 'run-resume-soft-graph',
+          rootGoal: 'Ship game',
+          nodes: [
+            {
+              id: 'node-1',
+              title: 'Implement API',
+              stage: 'integrate',
+              status: 'running',
+            },
+          ],
+        },
+      },
+    });
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+    expect(agent.ultrawork.getInterruptReason()).toBeUndefined();
+
+    const transformed = await maybeTransformPromptForInterruptedWorkResume(agent, 'continue');
+    expect(transformed?.reason).toMatch(/resume|Explicit/i);
+    expect(transformed?.promptText.length).toBeGreaterThan(20);
+    expect(transformed?.promptText).toMatch(/ultrawork_recovery|Continue from where you left off/i);
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+  });
+
   it('parses multilingual resume intent from the classifier response', async () => {
     const intent = await detectInterruptedWorkResumeIntentWithLlm(
       {

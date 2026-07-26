@@ -187,7 +187,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'testing-test-automation-engineer',
       'ericgrill-general-test-driven-maniac',
       'specialized-model-qa',
-      'volt-04-quality-security-test-automator',
     ],
     labels: ['Testing', 'QA'],
   },

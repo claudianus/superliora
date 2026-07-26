@@ -24,6 +24,16 @@ describe('isSensitiveFile', () => {
       '.aws/config',
       '.gcp/credentials',
       'credentials',
+      // netrc / pgpass / kubeconfig / GCP service accounts
+      '.netrc',
+      '/home/user/.netrc',
+      '_netrc',
+      '.pgpass',
+      '/home/user/.pgpass',
+      'kubeconfig',
+      './kubeconfig',
+      'service-account.json',
+      '/secrets/service-account.json',
     ]) {
       expect(isSensitiveFile(path), path).toBe(true);
     }
