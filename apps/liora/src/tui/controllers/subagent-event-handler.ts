@@ -37,6 +37,7 @@ export interface SubagentInfo {
   readonly name: string;
   readonly runInBackground: boolean;
   readonly swarmIndex?: number;
+  readonly modelAlias?: string;
 }
 
 export type SubagentLifecycleEvent = Event & { type: `subagent.${string}` };
@@ -406,6 +407,7 @@ export class SubAgentEventHandler {
     event: SubagentLifecycleEventOf<'subagent.spawned'>,
   ): void {
     this.rememberSubagent(event);
+    this.maybeSurfaceSubagentModel(event);
 
     if (this.shouldUseSwarmProgressUi(event.parentToolCallId, event.runInBackground)) {
       this.handleForegroundSubagentSpawned(event);
@@ -416,6 +418,37 @@ export class SubAgentEventHandler {
     this.backgroundAgentMetadata.set(event.subagentId, meta);
     this.appendBackgroundAgentEntry('started', meta);
     this.deps.syncBackgroundAgentBadge();
+  }
+
+  /** When a child (esp. explore) lands on a different model, say so once. */
+  private maybeSurfaceSubagentModel(
+    event: SubagentLifecycleEventOf<'subagent.spawned'>,
+  ): void {
+    const modelAlias = event.modelAlias;
+    if (modelAlias === undefined || modelAlias.length === 0) return;
+    const sessionModel = this.host.state.appState.model;
+    if (sessionModel.length === 0 || sessionModel === modelAlias) return;
+    // Only surface explore/cheap diversions — avoid noise for same-as-parent clones.
+    const profile = event.subagentName.toLowerCase();
+    const isExplore =
+      profile.includes('explore') ||
+      profile.includes('search') ||
+      profile.includes('research');
+    if (!isExplore) return;
+    this.host.showNotice(
+      'Subagent model',
+      `${event.subagentName}: ${sessionModel} → ${modelAlias}`,
+      { coalesceKey: `model-route:subagent:${event.subagentId}` },
+    );
+    this.host.setAppState({
+      lastModelRouteNotice: {
+        kind: 'selection',
+        fromAlias: sessionModel,
+        toAlias: modelAlias,
+        reason: `subagent:${event.subagentName}`,
+        atMs: Date.now(),
+      },
+    });
   }
 
   private handleSubagentStarted(
@@ -564,6 +597,7 @@ export class SubAgentEventHandler {
       parentToolCallId: event.parentToolCallId,
       agentName: event.subagentName,
       description: typeof description === 'string' ? description : undefined,
+      modelAlias: event.modelAlias,
     };
   }
 
@@ -593,6 +627,7 @@ export class SubAgentEventHandler {
       name: event.subagentName,
       runInBackground: event.runInBackground,
       swarmIndex: event.swarmIndex,
+      modelAlias: event.modelAlias,
     });
   }
 
@@ -615,6 +650,7 @@ export class SubAgentEventHandler {
       agentId: event.subagentId,
       agentName: event.subagentName,
       runInBackground: event.runInBackground,
+      modelAlias: event.modelAlias,
     });
   }
 

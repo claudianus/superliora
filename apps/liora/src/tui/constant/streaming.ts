@@ -11,30 +11,36 @@ export const STREAMING_UI_FLUSH_MS = 50;
 
 // ---------------------------------------------------------------------------
 // Smooth stream reveal (client-side catch-up interpolation)
-// Tuned for visible motion: lag stays under ~200ms, ~45fps ticks.
-// Too-fast catch-up made the previous pass feel like "just delayed dumps".
+// Premium profile: readable kinetic type-on, ~60fps ticks, longer lag budget
+// so bursts feel like streaming ink — not delayed dumps.
 // ---------------------------------------------------------------------------
 
 /** Minimum catch-up speed while the display lags the server draft (code points/sec). */
-export const STREAM_REVEAL_BASE_CPS = 55;
+export const STREAM_REVEAL_BASE_CPS = 32;
 
 /** Hard ceiling on catch-up speed so huge backlogs do not paint every frame. */
-export const STREAM_REVEAL_MAX_CPS = 420;
+export const STREAM_REVEAL_MAX_CPS = 240;
 
 /**
  * Extra code points/sec added per backlog code point before easing toward MAX.
- * Moderate gain keeps bursts readable instead of snapping closed.
+ * Lower gain keeps mid bursts legible; lag budget still caps worst-case wait.
  */
-export const STREAM_REVEAL_BACKLOG_GAIN = 2.5;
+export const STREAM_REVEAL_BACKLOG_GAIN = 1.45;
 
 /**
  * If estimated time-to-catch-up at current speed exceeds this, jump farther
  * in a single tick so the display never lags more than ~this long.
  */
-export const STREAM_REVEAL_MAX_LAG_MS = 200;
+export const STREAM_REVEAL_MAX_LAG_MS = 420;
 
-/** Reveal timer cadence (~45fps). Independent of ambient animationFps. */
-export const STREAM_REVEAL_TICK_MS = 22;
+/** Reveal timer cadence (~60fps). Independent of ambient animationFps. */
+export const STREAM_REVEAL_TICK_MS = 16;
 
 /** When still lagging, always advance at least this many code points per tick. */
 export const STREAM_REVEAL_MIN_CHARS_PER_TICK = 1;
+
+/** Live caret glyph painted at the growing edge while catch-up is active. */
+export const STREAM_REVEAL_CARET = '▌';
+
+/** How long the caret blinks on after each advance (ms). */
+export const STREAM_REVEAL_CARET_ON_MS = 110;

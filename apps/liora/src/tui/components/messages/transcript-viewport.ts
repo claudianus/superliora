@@ -24,6 +24,13 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
   private readonly resolveVisibleRows: (width: number) => number;
   /** Prior transcript children while `/aquarium` Welcome-sized overlay is shown. */
   private aquariumOverlaySnapshot: Component[] | undefined;
+  /**
+   * When true, {@link addChild} skips per-child {@link invalidate}. Session
+   * hydrate mounts hundreds of steps; invalidating on every add forces
+   * O(n²) line-count remeasure. Callers must {@link endBatchMount} (or
+   * invalidate once) when the batch finishes.
+   */
+  private batchMountDepth = 0;
 
   constructor(
     leftPad: number,
@@ -114,6 +121,27 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     this.invalidate();
   }
 
+  /** Begin bulk child mounts (session hydrate). Nested calls are reference-counted. */
+  beginBatchMount(): void {
+    this.batchMountDepth += 1;
+  }
+
+  /**
+   * End bulk mounts and invalidate once so line-count / render caches rebuild
+   * after the full tree is in place.
+   */
+  endBatchMount(): void {
+    if (this.batchMountDepth <= 0) return;
+    this.batchMountDepth -= 1;
+    if (this.batchMountDepth === 0) {
+      this.invalidate();
+    }
+  }
+
+  get isBatchMounting(): boolean {
+    return this.batchMountDepth > 0;
+  }
+
   override addChild(component: Component): void {
     // Real transcript content dismisses the empty-state ambient stage so the
     // scene never competes with user/assistant/tool output.
@@ -125,7 +153,11 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       }
     }
     super.addChild(component);
-    this.invalidate();
+    // Hydrate mounts many children in one sync pass; defer invalidate so we
+    // do not re-render every previous child on each add (O(n²) storm).
+    if (this.batchMountDepth === 0) {
+      this.invalidate();
+    }
   }
 
   /** Drop every IdleStage child (idempotent). */

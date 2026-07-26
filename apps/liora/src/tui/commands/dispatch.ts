@@ -172,6 +172,26 @@ export interface SlashCommandHost {
   showLoginProgressSpinner(label: string): LoginProgressSpinnerHandle;
   showLoginAuthorizationPrompt(auth: DeviceAuthorization): LoginProgressSpinnerHandle;
   showProgressSpinner(label: string): LoginProgressSpinnerHandle;
+  isSessionLoadingOverlayActive(): boolean;
+  beginSessionLoading(sessionId?: string, title?: string): void;
+  reportSessionLoading(patch: {
+    readonly phase?: 'opening' | 'loading' | 'building' | 'finishing' | 'ready' | 'working';
+    readonly progress?: number;
+    readonly detail?: string;
+    readonly sessionId?: string;
+    readonly title?: string;
+  }): void;
+  endSessionLoading(): void;
+  /** Run work under the premium busy overlay (locks input, shows progress). */
+  runWithBusyOverlay<T>(
+    options: {
+      readonly title?: string;
+      readonly detail?: string;
+      readonly sessionId?: string;
+      readonly phase?: 'opening' | 'loading' | 'building' | 'finishing' | 'ready' | 'working';
+    },
+    work: () => Promise<T> | T,
+  ): Promise<T>;
 
   // Theme
   applyTheme(theme: ThemeName, resolved?: ResolvedTheme): Promise<void>;

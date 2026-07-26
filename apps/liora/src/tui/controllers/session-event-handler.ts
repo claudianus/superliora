@@ -605,6 +605,7 @@ export class SessionEventHandler {
       this.currentTurnUsage = addTokenUsage(this.currentTurnUsage, event.usage);
     }
     this.maybeShowDebugTiming(event);
+    this.maybeSurfaceProviderRouteSelection(event);
 
     if (event.providerFinishReason === 'filtered') {
       this.host.showNotice(
@@ -629,6 +630,85 @@ export class SessionEventHandler {
       ? 'If this limit is wrong for your model, set `max_output_size` on the model alias in your kimi-code config.'
       : undefined;
     this.host.showNotice(title, detail);
+  }
+
+
+  /**
+   * Surface the effective model/credential for this step when it differs from
+   * the session alias or from the previous step — failover & auto-route become
+   * visible in the transcript + footer instead of only /status.
+   */
+  private maybeSurfaceProviderRouteSelection(event: TurnStepCompletedEvent): void {
+    const selection = event.providerRouteSelection;
+    if (selection === undefined) return;
+
+    const prev = this.host.state.appState.lastProviderRouteSelection ?? null;
+    const sessionModel = this.host.state.appState.model;
+    const displayName = (alias: string): string => {
+      const entry = this.host.state.appState.availableModels[alias];
+      return entry?.displayName ?? entry?.model ?? alias;
+    };
+
+    const toAlias = selection.modelAlias;
+    const fromAlias =
+      prev?.modelAlias !== undefined && prev.modelAlias !== toAlias
+        ? prev.modelAlias
+        : sessionModel.length > 0 && sessionModel !== toAlias
+          ? sessionModel
+          : undefined;
+
+    const credentialChanged =
+      prev !== null &&
+      (prev.credentialLabel !== selection.credentialLabel ||
+        prev.providerName !== selection.providerName ||
+        prev.providerModel !== selection.providerModel);
+
+    const isFailover = fromAlias !== undefined && fromAlias !== toAlias;
+    const isInteresting =
+      isFailover ||
+      credentialChanged ||
+      (prev === null && sessionModel.length > 0 && sessionModel !== toAlias);
+
+    const patch: Partial<AppState> = {
+      lastProviderRouteSelection: selection,
+    };
+
+    if (isInteresting) {
+      const toLabel = displayName(toAlias);
+      const fromLabel = fromAlias !== undefined ? displayName(fromAlias) : undefined;
+      const cred =
+        selection.credentialLabel !== undefined && selection.credentialLabel.length > 0
+          ? selection.credentialLabel
+          : selection.providerName;
+      const detailParts: string[] = [];
+      if (fromLabel !== undefined) {
+        detailParts.push(`${fromLabel} → ${toLabel}`);
+      } else {
+        detailParts.push(toLabel);
+      }
+      if (selection.providerModel.length > 0 && selection.providerModel !== toAlias) {
+        detailParts.push(selection.providerModel);
+      }
+      if (cred !== undefined && cred.length > 0) {
+        detailParts.push(cred);
+      }
+      const title = isFailover ? 'Model failover' : 'Route selected';
+      this.host.showNotice(title, detailParts.join(' · '), {
+        coalesceKey: 'model-route:step',
+      });
+      patch.lastModelRouteNotice = {
+        kind: isFailover ? 'failover' : 'selection',
+        fromAlias,
+        toAlias,
+        providerName: selection.providerName,
+        credentialLabel: selection.credentialLabel,
+        providerModel: selection.providerModel,
+        reason: isFailover ? 'provider-failover' : 'provider-route',
+        atMs: Date.now(),
+      };
+    }
+
+    this.host.setAppState(patch);
   }
 
   private maybeShowDebugTiming(event: TurnStepCompletedEvent): void {
@@ -1300,7 +1380,29 @@ export class SessionEventHandler {
     }
     this.host.streamingUI.beginCompaction(event.instruction, {
       background,
+      modelAlias: event.modelAlias,
     });
+    if (event.modelAlias !== undefined && event.modelAlias.length > 0) {
+      const parentModel = this.host.state.appState.model;
+      const switched =
+        parentModel.length > 0 && event.modelAlias !== parentModel
+          ? `${parentModel} → ${event.modelAlias}`
+          : event.modelAlias;
+      this.host.showNotice(
+        'Compaction model',
+        switched,
+        { coalesceKey: 'model-route:compaction' },
+      );
+      this.host.setAppState({
+        lastModelRouteNotice: {
+          kind: 'selection',
+          fromAlias: parentModel.length > 0 ? parentModel : undefined,
+          toAlias: event.modelAlias,
+          reason: background ? 'compaction-background' : 'compaction',
+          atMs: Date.now(),
+        },
+      });
+    }
   }
 
   private handleCompactionBlocked(_event: CompactionBlockedEvent): void {

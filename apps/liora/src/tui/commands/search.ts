@@ -5,6 +5,7 @@
  */
 
 import { searchProject } from '#/utils/fs/project-search';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 
 export function showSearch(host: SlashCommandHost, args?: string): void {
@@ -13,6 +14,20 @@ export function showSearch(host: SlashCommandHost, args?: string): void {
     host.showError('Usage: /search <pattern>');
     return;
   }
-  const results = searchProject(host.state.appState.workDir, pattern);
-  host.showSearchResults(results);
+  if (host.isSessionLoadingOverlayActive()) {
+    host.showError(ttui('tui.sessionLoading.busy'));
+    return;
+  }
+  void host.runWithBusyOverlay(
+    {
+      title: ttui('tui.sessionLoading.searching'),
+      detail: ttui('tui.sessionLoading.searching'),
+      phase: 'working',
+    },
+    async () => {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const results = searchProject(host.state.appState.workDir, pattern);
+      host.showSearchResults(results);
+    },
+  );
 }

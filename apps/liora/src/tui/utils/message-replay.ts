@@ -20,7 +20,17 @@ import type {
 import { mediaUrlPartToText } from './media-url';
 import { nextTranscriptId } from './transcript-id';
 
+/** Recent user-turns to mount when hydrating a resumed session. */
 export const REPLAY_TURN_LIMIT = 10;
+
+/**
+ * Soft cap for assistant tool-call mounts within a single replayed turn.
+ * Long-running turns can contain hundreds of tools; mounting all of them
+ * (even with turn-limit 10) still freezes the TUI. Excess calls stay in the
+ * tool map for result bookkeeping but skip component mount — the trailing
+ * window of tools is kept so the latest work is visible.
+ */
+export const REPLAY_MAX_TOOL_MOUNTS_PER_TURN = 40;
 
 export interface ReplayRenderContext {
   turnIndex: number;
@@ -31,6 +41,12 @@ export interface ReplayRenderContext {
     text: string[];
   };
   toolCalls: Map<string, ToolCallBlockData>;
+  /** Tool call ids that received a component mount this turn. */
+  mountedToolCallIds: Set<string>;
+  /** Tool mounts created in the current turn (resets on user-turn advance). */
+  mountedToolCountThisTurn: number;
+  /** Tool calls skipped this turn because of {@link REPLAY_MAX_TOOL_MOUNTS_PER_TURN}. */
+  suppressedToolCountThisTurn: number;
   completedToolCallIds: Set<string>;
   skillActivationIds: Set<string>;
   pluginCommandActivationIds: Set<string>;
@@ -129,6 +145,9 @@ export function createReplayRenderContext(): ReplayRenderContext {
     currentTurnId: undefined,
     assistant: { thinking: [], text: [] },
     toolCalls: new Map(),
+    mountedToolCallIds: new Set(),
+    mountedToolCountThisTurn: 0,
+    suppressedToolCountThisTurn: 0,
     completedToolCallIds: new Set(),
     skillActivationIds: new Set(),
     pluginCommandActivationIds: new Set(),

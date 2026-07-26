@@ -2,6 +2,7 @@ import type { Session } from '@superliora/sdk';
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 
+import type { AppState } from '../types';
 import type { TUIState } from '../tui-state';
 
 /** Debounce before requesting an inline completion after the last keystroke. */
@@ -17,6 +18,8 @@ export interface PromptIntelligenceHost {
   state: TUIState;
   session: Session | undefined;
   track(event: string, props?: Record<string, unknown>): void;
+  setAppState(patch: Partial<AppState>): void;
+  showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
 }
 
 /**
@@ -38,6 +41,8 @@ export class PromptIntelligenceController {
   private abortController: AbortController | undefined;
   private suggestionCache: readonly string[] = [];
   private suggestionIndex = 0;
+  /** Last completion-role model we already announced (avoid notice spam). */
+  private lastSurfacedCompletionModel: string | undefined;
   /** Simple LRU: Map iteration order is insertion order; evict oldest. */
   private readonly lru = new Map<string, string>();
 
@@ -148,6 +153,7 @@ export class PromptIntelligenceController {
       if (result.completion.length >= INLINE_MIN_CHARS) {
         editor.setGhostText(result.completion, 'inline');
       }
+      this.maybeSurfaceCompletionModel(result.modelAlias, 'inline');
     } catch (error) {
       // AbortError is expected when a newer keystroke cancels the in-flight
       // request — do not surface it.  Genuine failures go to stderr so they
@@ -197,6 +203,7 @@ export class PromptIntelligenceController {
         this.suggestionIndex = 0;
         editor.setGhostText(this.suggestionCache[0], 'suggestion');
       }
+      this.maybeSurfaceCompletionModel(result.modelAlias, 'suggest');
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         process.stderr.write(`[prompt-intelligence] suggestion request failed: ${error}\n`);
@@ -299,6 +306,63 @@ export class PromptIntelligenceController {
       clearTimeout(this.suggestTimer);
       this.suggestTimer = undefined;
     }
+  }
+
+
+  /**
+   * Surface the completion-role model once when it differs from the session
+   * main model. Ghost autocomplete fires often — coalesce + de-dupe hard.
+   */
+  private maybeSurfaceCompletionModel(
+    modelAlias: string | undefined,
+    purpose: 'inline' | 'suggest',
+  ): void {
+    if (modelAlias === undefined || modelAlias.length === 0) return;
+    const sessionModel = this.host.state.appState.model;
+    if (sessionModel.length === 0) return;
+    if (modelAlias === sessionModel) return;
+    if (this.lastSurfacedCompletionModel === modelAlias) {
+      // Still refresh the footer badge clock so the glow stays visible.
+      const prev = this.host.state.appState.lastModelRouteNotice;
+      if (
+        prev !== undefined &&
+        prev !== null &&
+        prev.toAlias === modelAlias &&
+        prev.reason?.startsWith('completion')
+      ) {
+        this.host.setAppState({
+          lastModelRouteNotice: { ...prev, atMs: Date.now() },
+        });
+      }
+      return;
+    }
+    this.lastSurfacedCompletionModel = modelAlias;
+
+    const models = this.host.state.appState.availableModels;
+    const display = (alias: string): string => {
+      const entry = models[alias];
+      return entry?.displayName ?? entry?.model ?? alias;
+    };
+    const purposeLabel = purpose === 'inline' ? 'ghost complete' : 'suggest';
+    this.host.showNotice(
+      'Completion model',
+      `${display(sessionModel)} → ${display(modelAlias)} · ${purposeLabel}`,
+      { coalesceKey: 'model-route:completion' },
+    );
+    this.host.setAppState({
+      lastModelRouteNotice: {
+        kind: 'selection',
+        fromAlias: sessionModel,
+        toAlias: modelAlias,
+        reason: `completion:${purpose}`,
+        atMs: Date.now(),
+      },
+    });
+    this.host.track('prompt_intelligence_model', {
+      model_alias: modelAlias,
+      session_model: sessionModel,
+      purpose,
+    });
   }
 
   private abortInFlight(): void {

@@ -72,6 +72,80 @@ describe('FooterComponent', () => {
     expect(rendered).toContain('kimi-k2');
   });
 
+  it('surfaces a completion-role badge when ghost complete uses a cheaper model', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      model: 'kimi-k2',
+      availableModels: {
+        'kimi-k2': {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+        } as AppState['availableModels'][string],
+        turbo: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-turbo',
+          maxContextSize: 200_000,
+          displayName: 'Kimi Turbo',
+        } as AppState['availableModels'][string],
+      },
+      lastModelRouteNotice: {
+        kind: 'selection',
+        fromAlias: 'kimi-k2',
+        toAlias: 'turbo',
+        reason: 'completion:inline',
+        atMs: Date.now(),
+      },
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+
+    const rendered = footer.render(160).join('\n');
+    expect(rendered).toContain('complete');
+    expect(rendered).toContain('Kimi Turbo');
+  });
+
+  it('surfaces an effective route and failover badge when the step model differs', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      model: 'kimi-k2',
+      availableModels: {
+        'kimi-k2': {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 200_000,
+          displayName: 'Kimi K2',
+        } as AppState['availableModels'][string],
+        turbo: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-turbo',
+          maxContextSize: 200_000,
+          displayName: 'Kimi Turbo',
+        } as AppState['availableModels'][string],
+      },
+      lastProviderRouteSelection: {
+        modelAlias: 'turbo',
+        providerName: 'managed:kimi-api',
+        credentialLabel: 'acct-a',
+        providerModel: 'kimi-turbo',
+      },
+      lastModelRouteNotice: {
+        kind: 'failover',
+        fromAlias: 'kimi-k2',
+        toAlias: 'turbo',
+        reason: 'provider-failover',
+        atMs: Date.now(),
+      },
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+
+    const rendered = footer.render(160).join('\n');
+    // Session alias → effective step model
+    expect(rendered).toMatch(/Kimi K2|kimi-k2/);
+    expect(rendered).toContain('Kimi Turbo');
+    expect(rendered).toContain('failover');
+  });
+
   it('renders the thinking effort level next to the model name', () => {
     const footer = new FooterComponent({
       ...appState,

@@ -25,13 +25,13 @@ import {
 } from '#/tui/utils/appearance-effects';
 
 /** Premium entrance length — long enough to read as motion, short enough not to lag. */
-export const TRANSCRIPT_ENTRANCE_MS_PREMIUM = 480;
+export const TRANSCRIPT_ENTRANCE_MS_PREMIUM = 560;
 /** Subtle profile stretches the same ease so it still finishes cleanly. */
 export const TRANSCRIPT_ENTRANCE_MS_SUBTLE = 640;
 /** Live stream tail glow width in visual clusters. */
-export const STREAM_TAIL_GLOW_CLUSTERS = 14;
+export const STREAM_TAIL_GLOW_CLUSTERS = 28;
 /** How long a "fresh" tail glow lingers after the last paint. */
-export const STREAM_TAIL_GLOW_MS = 220;
+export const STREAM_TAIL_GLOW_MS = 480;
 
 export type TranscriptEntranceKind =
   | 'assistant'
@@ -253,21 +253,24 @@ export function applyStreamTailGlow(
 
   const glowClusters = options.glowClusters ?? STREAM_TAIL_GLOW_CLUSTERS;
   const glow = glowHex(kind);
+  const spark = currentTheme.color('glow');
   const start = Math.max(0, cells.length - glowClusters);
   const nextCells = cells.map((cell, index) => {
     if (index < start) return cell;
     if (cell.char === ' ' && cell.style === undefined) return cell;
     const local = (index - start + 1) / Math.max(1, cells.length - start);
-    // Newest clusters closest to full brand glow.
-    const intensity = 0.25 + 0.75 * local * local;
+    // Newest clusters closest to full brand glow + hot tip on the last few.
+    const tipBoost = local > 0.78 ? 0.32 : local > 0.55 ? 0.12 : 0;
+    const intensity = clamp01(0.22 + 0.78 * local * local + tipBoost);
     const baseFg = cell.style?.fg ?? currentTheme.color('text');
+    const toward = local > 0.7 ? mixHexColor(glow, spark, 0.55) : glow;
     return {
       ...cell,
       style: {
         ...cell.style,
-        fg: mixHexColor(baseFg, glow, intensity),
-        bold: local > 0.55 ? true : cell.style?.bold,
-        dim: local < 0.2 ? true : undefined,
+        fg: mixHexColor(baseFg, toward, intensity),
+        bold: local > 0.32 ? true : cell.style?.bold,
+        dim: local < 0.12 ? true : undefined,
       },
     };
   });

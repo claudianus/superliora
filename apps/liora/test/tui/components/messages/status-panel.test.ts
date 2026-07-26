@@ -846,4 +846,100 @@ describe('status panel report lines', () => {
     const withoutRoles = buildStatusReportLines({ ...base, status }).map(strip);
     expect(withoutRoles.join('\n')).not.toContain('Role models');
   });
+
+  it('surfaces last effective model route and failover notice', () => {
+    const base = {
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null as string | null,
+      thinking: false,
+      permissionMode: 'manual' as const,
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      availableModels: {
+        k2: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 1000,
+          displayName: 'Kimi K2',
+        },
+        turbo: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-turbo',
+          maxContextSize: 1000,
+          displayName: 'Kimi Turbo',
+        },
+      },
+    };
+    const lines = buildStatusReportLines({
+      ...base,
+      lastProviderRouteSelection: {
+        modelAlias: 'turbo',
+        providerName: 'managed:kimi-api',
+        credentialLabel: 'acct-a',
+        providerModel: 'kimi-turbo',
+      },
+      lastModelRouteNotice: {
+        kind: 'failover',
+        fromAlias: 'k2',
+        toAlias: 'turbo',
+        reason: 'provider-failover',
+        atMs: Date.now() - 2000,
+      },
+    }).map(strip);
+    const output = lines.join('\n');
+    expect(output).toContain('Last model route');
+    expect(output).toContain('Kimi Turbo');
+    expect(output).toMatch(/Kimi K2 → Kimi Turbo|Failover/);
+    expect(output).toContain('provider-failover');
+  });
+
+  it('surfaces completion-role model route in Last model route', () => {
+    const base = {
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null as string | null,
+      thinking: false,
+      permissionMode: 'manual' as const,
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      availableModels: {
+        k2: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-k2',
+          maxContextSize: 1000,
+          displayName: 'Kimi K2',
+        },
+        turbo: {
+          provider: 'managed:kimi-api',
+          model: 'kimi-turbo',
+          maxContextSize: 1000,
+          displayName: 'Kimi Turbo',
+        },
+      },
+    };
+    const lines = buildStatusReportLines({
+      ...base,
+      lastModelRouteNotice: {
+        kind: 'selection',
+        fromAlias: 'k2',
+        toAlias: 'turbo',
+        reason: 'completion:inline',
+        atMs: Date.now() - 1000,
+      },
+    }).map(strip);
+    const output = lines.join('\n');
+    expect(output).toContain('Last model route');
+    expect(output).toContain('Kimi K2 → Kimi Turbo');
+    expect(output).toContain('ghost complete');
+  });
+
 });

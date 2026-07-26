@@ -233,6 +233,8 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     availableModels: appState.availableModels,
     availableProviders: appState.availableProviders,
     providerRouteStatus: runtimeStatus.status?.providerRouteStatus ?? appState.providerRouteStatus,
+    lastProviderRouteSelection: appState.lastProviderRouteSelection ?? null,
+    lastModelRouteNotice: appState.lastModelRouteNotice ?? null,
     status: runtimeStatus.status,
     statusError: runtimeStatus.error,
     contextOS: runtimeStatus.status?.contextOS,

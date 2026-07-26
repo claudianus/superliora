@@ -78,6 +78,7 @@ export class CompactionComponent extends Container {
   private readonly headerText: Text;
   private readonly instruction: string | undefined;
   private readonly tip: string | undefined;
+  private readonly modelAlias: string | undefined;
   private background: boolean;
   private done = false;
   private canceled = false;
@@ -99,12 +100,13 @@ export class CompactionComponent extends Container {
     ui?: RendererRootUI,
     instruction?: string | undefined,
     tip?: string,
-    options?: { readonly background?: boolean },
+    options?: { readonly background?: boolean; readonly modelAlias?: string },
   ) {
     super();
     this.ui = ui;
     this.instruction = instruction;
     this.tip = tip;
+    this.modelAlias = options?.modelAlias;
     this.background = options?.background === true;
 
     // Top margin so the block isn't glued to the previous transcript
@@ -155,10 +157,14 @@ export class CompactionComponent extends Container {
     if (!this.done && !this.canceled && animated) {
       const title = this.background ? 'Compacting context (bg)' : 'Compacting context';
       const beat = renderEnterBeat(title, width, 'compaction', this.startedAtMs, appearance);
+      const model =
+        this.modelAlias !== undefined && this.modelAlias.length > 0
+          ? currentTheme.fg('glow', ` · ${this.modelAlias}`)
+          : '';
       const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
       const headed =
-        tip.length > 0 && beat.length > 0
-          ? [...beat.slice(0, -1), `${beat[beat.length - 1] ?? ''}${tip}`]
+        (tip.length > 0 || model.length > 0) && beat.length > 0
+          ? [...beat.slice(0, -1), `${beat[beat.length - 1] ?? ''}${model}${tip}`]
           : beat;
       return this.composeBeatRender(headed, width);
     }
@@ -456,7 +462,11 @@ export class CompactionComponent extends Container {
           appearance,
         )
       : currentTheme.boldFg(this.background ? 'warning' : 'primary', activeLabel);
+    const model =
+      this.modelAlias !== undefined && this.modelAlias.length > 0
+        ? currentTheme.fg('glow', ` · ${this.modelAlias}`)
+        : '';
     const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
-    return `${bullet}${label}${tip}`;
+    return `${bullet}${label}${model}${tip}`;
   }
 }
