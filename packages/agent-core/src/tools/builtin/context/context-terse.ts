@@ -290,6 +290,9 @@ function applyShellPatterns(text: string, command: string): string {
     /\bwrangler\s+(?:tail|deploy|pages|versions|secret)\b/u.test(command) ||
     /\bsupabase\s+(?:logs|status|functions|db)\b/u.test(command) ||
     /\bfirebase\s+(?:deploy|functions:log|apps)\b/u.test(command) ||
+    /\bdoctl\s+(?:apps|compute|kubernetes|registry|databases)\b/u.test(command) ||
+    /\bcivo\s+(?:kubernetes|instance|loadbalancer|app)\b/u.test(command) ||
+    /\bscaleway(?:-cli)?\s+\S+/u.test(command) ||
     /\bgh\s+(?:run\s+)?(?:view|list|watch|logs)\b/u.test(command) ||
     /\bgh\s+api\b/u.test(command)
   ) {

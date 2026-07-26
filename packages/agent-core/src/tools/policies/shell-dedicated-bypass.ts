@@ -1068,7 +1068,15 @@ function matchEditLike(command: string): ShellDedicatedBypassHit | undefined {
 }
 
 function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
-  // grep/rg/egrep/fgrep with no pipes (composition already filtered)
+  // grep/rg/egrep/fgrep with no pipes (composition already filtered).
+  // `rg --files` is a lister → handled by matchGlobLike (called after this).
+  // Still route it away from Grep here so Glob can claim it.
+  if (
+    /^(?:\/usr\/bin\/)?rg\b/.test(command) &&
+    /(?:^|\s)--files(?:\s|$)/.test(command)
+  ) {
+    return undefined;
+  }
   if (/^(?:\/usr\/bin\/)?(?:grep|egrep|fgrep|rg)(?:\s|$)/.test(command)) {
     return {
       prefer: 'Grep',
@@ -1102,6 +1110,27 @@ function matchGlobLike(command: string): ShellDedicatedBypassHit | undefined {
       prefer: 'Glob',
       pattern: 'find',
       message: 'Use Glob for file-name search (gitignore-aware, capped) instead of find.',
+    };
+  }
+  // fd / fdfind — modern find alternatives (file-name search).
+  // Pipelines already short-circuit; allow pure flags like `fd --help` via no-path still OK.
+  if (/^(?:\/usr\/bin\/)?(?:fd|fdfind)(?:\s|$)/.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'fd/fdfind',
+      message: 'Use Glob for file-name search (gitignore-aware, capped) instead of fd/fdfind.',
+    };
+  }
+  // `rg --files` / `rg --files -g '*.ts'` is a file lister, not content search.
+  // Content search (`rg pattern`) is handled by matchGrepLike.
+  if (
+    /^(?:\/usr\/bin\/)?rg\b/.test(command) &&
+    /(?:^|\s)--files(?:\s|$)/.test(command)
+  ) {
+    return {
+      prefer: 'Glob',
+      pattern: 'rg --files',
+      message: 'Use Glob for file-name listing instead of rg --files.',
     };
   }
   // Windows recursive listing with name filters → Glob.

@@ -66,6 +66,13 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('grep -n foo src')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('rg "error" packages')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass("find . -name '*.ts'")?.prefer).toBe('Glob');
+    // fd / fdfind / rg --files are file listers → Glob (not Grep).
+    expect(detectShellDedicatedBypass('fd .ts src')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('fdfind --type f .')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('rg --files')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass("rg --files -g '*.ts'")?.prefer).toBe('Glob');
+    // Content rg still prefers Grep.
+    expect(detectShellDedicatedBypass('rg "error" packages')?.prefer).toBe('Grep');
     // Windows search utilities prefer Grep; pipelines stay allowed.
     expect(detectShellDedicatedBypass('Select-String -Path src -Pattern foo')?.prefer).toBe(
       'Grep',
