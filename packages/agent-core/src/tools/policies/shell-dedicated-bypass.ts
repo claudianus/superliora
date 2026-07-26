@@ -378,13 +378,25 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read with line_offset/n_lines (or LioraRead mode=lines) instead of head/tail.',
     };
   }
-  // less/more/most/nl path — pure pagers dumping a single file.
-  if (/^(?:\/usr\/bin\/)?(?:less|more|most|nl)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
-    return {
-      prefer: 'Read',
-      pattern: 'pager file',
-      message: 'Use Read instead of a pager for file contents.',
-    };
+  // less/more/most/nl path — pure pagers / numberers dumping a single file.
+  // Flags may take values (`nl -n ln file`, `nl -w 3 file`, `less -N file`).
+  // Strip flag(+value) pairs first so bare `nl -n ln` / `less -N` stay allowed.
+  if (/^(?:\/usr\/bin\/)?(?:less|more|most|nl)\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?(?:less|more|most|nl)\b/, '')
+      // nl value-taking short opts: -n STYLE, -b STYLE, -w N, -v N, -i N, -l N, -s STR, -d STR
+      .replace(/(?:^|\s)-[nbwvilsd]\s+\S+/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'pager file',
+        message: 'Use Read instead of a pager for file contents.',
+      };
+    }
   }
   // w3m/lynx/elinks file dumps (local path only; URLs stay allowed for real browsing).
   if (

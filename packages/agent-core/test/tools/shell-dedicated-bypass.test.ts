@@ -15,6 +15,13 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('more README.md')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('most docs/guide.md')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('nl src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('nl -ba src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('nl -n ln src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('nl -w 3 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('less -N src/a.ts')?.prefer).toBe('Read');
+    // bare pagers / flag-only forms stay allowed (interactive)
+    expect(detectShellDedicatedBypass('nl -n ln')).toBeUndefined();
+    expect(detectShellDedicatedBypass('less -N')).toBeUndefined();
     expect(detectShellDedicatedBypass('w3m index.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('lynx notes.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('elinks page.html')?.prefer).toBe('Read');
