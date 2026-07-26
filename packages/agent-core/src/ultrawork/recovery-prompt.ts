@@ -243,6 +243,21 @@ export function suggestNextActions(
         .join(', ')}${blockedNodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
     );
   }
+  const ownerlessRunning =
+    run.workGraph?.nodes.filter(
+      (node) =>
+        node.status === 'running' &&
+        (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
+        (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
+    ) ?? [];
+  if (ownerlessRunning.length > 0) {
+    actions.push(
+      `Assign owner or re-queue orphan running node(s): ${ownerlessRunning
+        .slice(0, 3)
+        .map((node) => `${node.id} (${node.title})`)
+        .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
+    );
+  }
   if (
     progress.doneCount > 0 &&
     ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') &&

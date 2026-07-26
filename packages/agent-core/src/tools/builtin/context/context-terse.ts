@@ -352,7 +352,14 @@ function applyShellPatterns(text: string, command: string): string {
     /\bcargo\s+(?:tree|audit)\b/u.test(command) ||
     /\bgo\s+mod\s+(?:graph|why|download)\b/u.test(command) ||
     /\bpip(?:3)?\s+(?:list|freeze|show)\b/u.test(command) ||
-    /\bbun\s+pm\s+ls\b/u.test(command)
+    /\bbun\s+pm\s+ls\b/u.test(command) ||
+    /\bcomposer\s+(?:show|outdated|depends)\b/u.test(command) ||
+    /\b(?:bundle|gem)\s+(?:list|outdated|dependency)\b/u.test(command) ||
+    /\bpoetry\s+(?:show|export)\b/u.test(command) ||
+    /\buv\s+pip\s+(?:list|freeze|show)\b/u.test(command) ||
+    /\bconda\s+(?:list|env\s+export)\b/u.test(command) ||
+    /\bmix\s+deps\b/u.test(command) ||
+    /\bflutter\s+pub\s+(?:deps|outdated)\b/u.test(command)
   ) {
     next = compressDependencyTreeOutput(next);
   }

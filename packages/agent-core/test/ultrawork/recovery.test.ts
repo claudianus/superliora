@@ -1185,4 +1185,49 @@ describe('suggestNextActions fallbacks', () => {
     expect(actions.some((a) => a.includes('node-blocked'))).toBe(true);
     expect(actions.some((a) => a.includes('Waiting on review'))).toBe(true);
   });
+
+  it('flags ownerless running WorkGraph nodes in next actions', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const actions = suggestNextActions({
+      id: 'run-orphan-running',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'swarm',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-orphan-running',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-orphan-running:work_graph',
+        runId: 'run-orphan-running',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'node-orphan',
+            title: 'Specialist wave without owner',
+            stage: 'swarm',
+            status: 'running',
+          },
+          {
+            id: 'node-owned',
+            title: 'Owned wave',
+            stage: 'swarm',
+            status: 'running',
+            ownerExpertId: 'expert-1',
+          },
+        ],
+      },
+    } as UltraworkRun);
+    expect(actions.some((a) => a.includes('orphan running node'))).toBe(true);
+    expect(actions.some((a) => a.includes('node-orphan'))).toBe(true);
+    expect(actions.some((a) => a.includes('Specialist wave without owner'))).toBe(true);
+    // Owned running nodes are not listed in the orphan guidance.
+    expect(
+      actions.some((a) => a.includes('orphan running') && a.includes('node-owned')),
+    ).toBe(false);
+  });
 });
