@@ -1,5 +1,9 @@
 import type { Agent } from '../agent';
 import { buildUltraworkResumeCursor } from './recovery';
+import {
+  collectVerificationGapNodes,
+  formatVerificationGapSummary,
+} from './recovery-prompt';
 import { detectLongRunningStage, detectStuckWorkGraphNodes, inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
 import type { UltraworkRunMirror } from './types';
 
@@ -106,11 +110,13 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   }
 
   const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
+  const verificationGaps = collectVerificationGapNodes(snapshot.run.workGraph?.nodes);
   if (
     progress.doneCount > 0 ||
     progress.pendingCount > 0 ||
     progress.failedCount > 0 ||
-    progress.cancelledCount > 0
+    progress.cancelledCount > 0 ||
+    verificationGaps.length > 0
   ) {
     const parts = [
       `${String(progress.doneCount)} done`,
@@ -118,7 +124,15 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     ];
     if (progress.failedCount > 0) parts.push(`${String(progress.failedCount)} failed`);
     if (progress.cancelledCount > 0) parts.push(`${String(progress.cancelledCount)} cancelled`);
+    if (verificationGaps.length > 0) {
+      parts.push(`${String(verificationGaps.length)} verification_gaps`);
+    }
     lines.push(`workgraph_progress: ${parts.join(', ')}`);
+  }
+  if (verificationGaps.length > 0) {
+    lines.push(
+      `verification_gaps: ${formatVerificationGapSummary(verificationGaps)}${verificationGaps.length > 4 ? ', …' : ''}`,
+    );
   }
 
   const researchPackCount = snapshot.run.researchRun?.evidencePack !== undefined ? 1 : 0;
@@ -221,6 +235,10 @@ export function renderUltraworkRunsMemorySection(snapshot: UltraworkRunMirror): 
   }
   if (progress.cancelledCount > 0) {
     lines.push(`  cancelled_nodes=${String(progress.cancelledCount)}`);
+  }
+  const verificationGaps = collectVerificationGapNodes(snapshot.run.workGraph?.nodes);
+  if (verificationGaps.length > 0) {
+    lines.push(`  verification_gaps=${String(verificationGaps.length)}`);
   }
   return lines.join('\n');
 }

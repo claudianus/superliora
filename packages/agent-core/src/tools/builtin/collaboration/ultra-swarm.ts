@@ -1539,8 +1539,8 @@ export function formatBudgetKillHandoff(input: {
       `wasted_rounds="${String(input.wastedRounds)}" ` +
       `threshold="${String(input.killThreshold)}" />`,
     'Budget governor stopped further UltraSwarm phases after consecutive low-signal rounds.',
-    'Do not re-launch UltraSwarm for the same wasted pattern. Integrate accepted specialist handoffs,',
-    'attach evidenceIds / verification, or change approach (smaller scope, different tools, or user steering).',
+    'Do not re-launch UltraSwarm for the same wasted pattern.',
+    'Next: close verification gaps, attach requiredEvidence/artifactIds/fileChangeCount signal, integrate accepted handoffs, or re-scope — then re-staff only if the plan changed.',
   ].join('\n');
 }
 
