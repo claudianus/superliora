@@ -1958,6 +1958,7 @@ export class LioraTUI {
       'streamingPhase' in patch &&
       this.state.appState.streamingPhase !== 'idle' &&
       patch.streamingPhase === 'idle';
+    const goalChanged = 'goal' in patch;
     const modeBeats = collectFooterModeBeats(this.state.appState, patch);
     Object.assign(this.state.appState, patch);
     if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
@@ -1975,6 +1976,9 @@ export class LioraTUI {
     }
     this.state.footer.setState(this.state.appState);
     this.state.header.setState(this.state.appState);
+    if (goalChanged) {
+      this.syncGoalMonitorPanel();
+    }
     this.updateActivityPane();
     if (busyChanged) {
       this.updateQueueDisplay();
@@ -1983,6 +1987,19 @@ export class LioraTUI {
     if (additionalDirsChanged) this.setupAutocomplete();
     if (becameIdle) this.promptIntelligence.notifyIdle();
     requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Keep the chrome todo/goal panel mounted for live goals even when the
+   * TodoList is empty, and unmount when both are gone.
+   */
+  private syncGoalMonitorPanel(): void {
+    this.state.todoPanel.setGoal(this.state.appState.goal);
+    this.state.todoPanelContainer.clear();
+    if (!this.state.todoPanel.isEmpty()) {
+      this.state.todoPanelContainer.addChild(this.state.todoPanel);
+    }
+    requestTUILayoutRender(this.state);
   }
 
   patchLivePane(patch: Partial<LivePaneState>): void {

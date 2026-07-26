@@ -7,6 +7,10 @@
  * tool; state survives across turns so the list stays visible until
  * explicitly cleared (`todos: []`), a new session starts, or `/clear`
  * is issued.
+ *
+ * When a live goal (active / paused / blocked) is set via {@link setGoal},
+ * the panel stays mounted even with an empty todo list and prepends a
+ * goal monitor header (objective, status pulse, progress, budget).
  */
 
 import {
@@ -17,8 +21,16 @@ import {
   wrapTextWithAnsi,
   type Component,
 } from '#/tui/renderer';
+import type { GoalSnapshot } from '@superliora/sdk';
 import chalk from 'chalk';
 
+import {
+  goalMonitorBorderToken,
+  goalMonitorSnapshotKey,
+  goalMonitorTitle,
+  isLiveGoal,
+  renderGoalMonitorLines,
+} from '#/tui/components/chrome/goal-monitor';
 import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
@@ -158,6 +170,10 @@ export class TodoPanelComponent implements Component {
   private recentChanges = new Map<string, TodoChangeKind>();
   private changeSummary: TodoPanelChangeSummary | undefined;
   private callsSinceUpdate = 0;
+  private goal: GoalSnapshot | null = null;
+  private goalObservedAtMs = Date.now();
+  private goalSnapshotKey: string | null = null;
+  private goalChangedAtMs: number | undefined;
 
   setTodos(todos: readonly TodoItem[]): void {
     const next = todos.map((t) => ({ title: t.title, status: t.status }));
@@ -166,6 +182,30 @@ export class TodoPanelComponent implements Component {
     this.recentChanges = diff.highlights;
     this.changeSummary = diff.summary;
     this.callsSinceUpdate = 0;
+  }
+
+  /**
+   * Bind the live goal snapshot. When status is active/paused/blocked the
+   * panel stays visible even with zero todos. Complete / null clears the
+   * monitor chrome.
+   */
+  setGoal(goal: GoalSnapshot | null | undefined): void {
+    const next = goal ?? null;
+    const nextKey = goalMonitorSnapshotKey(next);
+    if (nextKey !== this.goalSnapshotKey) {
+      const statusChanged =
+        this.goal?.status !== next?.status || this.goal?.goalId !== next?.goalId;
+      this.goalSnapshotKey = nextKey;
+      this.goalObservedAtMs = Date.now();
+      if (statusChanged && isLiveGoal(next)) {
+        this.goalChangedAtMs = appearanceAnimationNow();
+      }
+    }
+    this.goal = next;
+  }
+
+  getGoal(): GoalSnapshot | null {
+    return this.goal;
   }
 
   getTodos(): readonly TodoItem[] {
@@ -186,10 +226,17 @@ export class TodoPanelComponent implements Component {
     this.recentChanges = new Map();
     this.changeSummary = undefined;
     this.callsSinceUpdate = 0;
+    this.goal = null;
+    this.goalSnapshotKey = null;
+    this.goalChangedAtMs = undefined;
   }
 
   isEmpty(): boolean {
-    return this.todos.length === 0;
+    return this.todos.length === 0 && !isLiveGoal(this.goal);
+  }
+
+  hasLiveGoal(): boolean {
+    return isLiveGoal(this.goal);
   }
 
   /** True when the list exceeds the collapsed cap, i.e. there is something to expand. */
@@ -208,27 +255,62 @@ export class TodoPanelComponent implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    if (this.todos.length === 0) return [];
+    const liveGoal = isLiveGoal(this.goal) ? this.goal : null;
+    if (this.todos.length === 0 && liveGoal === null) return [];
+
     const profile = resolveResponsiveLayout({ width });
-    const content = this.buildTodoContent(width, profile);
-    const counts = countTodos(this.todos);
-    const title =
-      profile === 'tiny'
-        ? ' Todo '
-        : ` Todo Board · ${String(counts.done)}/${String(this.todos.length)} done `;
+    const contentWidth = this.interiorWidth(width, profile);
+    const colors = currentTheme.palette;
+    const lines: string[] = [];
+
+    if (liveGoal !== null) {
+      const wallClockMs = this.goalWallClockMs(liveGoal);
+      lines.push(
+        ...renderGoalMonitorLines({
+          goal: liveGoal,
+          colors,
+          width: contentWidth,
+          wallClockMs,
+          changedAtMs: this.goalChangedAtMs,
+          profile,
+        }),
+      );
+      if (this.todos.length > 0) {
+        lines.push(chalk.hex(colors.border)(`  ${'─'.repeat(Math.max(4, Math.min(24, contentWidth - 2)))}`));
+      }
+    }
+
+    if (this.todos.length > 0) {
+      lines.push(...this.buildTodoContent(width, profile));
+    }
 
     if (profile === 'tiny') {
-      return content.map((line) => truncateToWidth(line, width));
+      return lines.map((line) => truncateToWidth(line, width));
     }
+
+    const counts = countTodos(this.todos);
+    const title =
+      liveGoal !== null
+        ? this.todos.length > 0
+          ? ` Goal · ${liveGoal.status} · ${String(counts.done)}/${String(this.todos.length)} done `
+          : goalMonitorTitle(liveGoal, profile)
+        : ` Todo Board · ${String(counts.done)}/${String(this.todos.length)} done `;
+    const borderToken =
+      liveGoal !== null ? goalMonitorBorderToken(liveGoal.status) : 'border';
 
     return renderRoundedPanel({
       title,
-      content,
+      content: lines,
       width,
-      borderToken: 'border',
+      borderToken,
       leftMargin: 2,
       minBoxWidth: profile === 'compact' ? 60 : BOARD_MIN_WIDTH,
     });
+  }
+
+  private goalWallClockMs(goal: GoalSnapshot): number {
+    if (goal.status !== 'active') return goal.wallClockMs;
+    return goal.wallClockMs + Math.max(0, Date.now() - this.goalObservedAtMs);
   }
 
   private buildTodoContent(

@@ -908,6 +908,8 @@ export class StreamingUIController {
 
   setTodoList(todos: readonly TodoItem[]): void {
     const { state } = this.host;
+    // Preserve any live goal monitor chrome already bound via setAppState.
+    state.todoPanel.setGoal(state.appState.goal);
     state.todoPanel.setTodos(todos);
     state.todoPanelContainer.clear();
     if (!state.todoPanel.isEmpty()) {
