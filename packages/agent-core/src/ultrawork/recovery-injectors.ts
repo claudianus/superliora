@@ -3,10 +3,12 @@ import type { UltraworkStage } from '@superliora/protocol';
 import type { Agent } from '../agent';
 import { maybeFinishUltraworkRun } from './finish-run';
 import {
+  countResumeCyclesFromHistory,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
   maxUltraworkStage,
+  OSCILLATION_WARN_THRESHOLD,
   ultraworkStageIndex,
 } from './stage-progress';
 import type { UltraworkPlanRecoveryContext } from './types';
@@ -217,6 +219,12 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
       `long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min) — consider advancing or splitting work.`,
     );
   }
+  const resumeCycles = countResumeCyclesFromHistory(run);
+  if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
+    lines.push(
+      `high_resume_count: ${String(resumeCycles)} (≥${String(OSCILLATION_WARN_THRESHOLD)}) — repeated crash-recovery cycles; simplify objective or split run.`,
+    );
+  }
   if (nextActions.length > 0) {
     lines.push('Next actions:');
     for (const action of nextActions.slice(0, 3)) {
@@ -390,6 +398,12 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     const thresholdMin = Math.round(longStage.thresholdMs / 60_000);
     lines.push(
       `long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (expected <${String(thresholdMin)}min) — consider advancing or splitting work.`,
+    );
+  }
+  const resumeCycles = countResumeCyclesFromHistory(run);
+  if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
+    lines.push(
+      `high_resume_count: ${String(resumeCycles)} (≥${String(OSCILLATION_WARN_THRESHOLD)}) — repeated crash-recovery cycles; simplify objective or split run.`,
     );
   }
 

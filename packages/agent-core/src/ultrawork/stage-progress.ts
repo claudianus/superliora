@@ -233,6 +233,23 @@ export function detectLongRunningStage(
   return undefined;
 }
 
+/**
+ * Threshold for warning about oscillation (repeated crash-recovery loops).
+ * High values indicate the run is stuck in a failure cycle.
+ */
+export const OSCILLATION_WARN_THRESHOLD = 3;
+
+/**
+ * Count blocked/failed/interrupt/crash entries in stageHistory as a proxy for
+ * resume cycles. High values indicate oscillation (repeated crash-recovery loops).
+ */
+export function countResumeCyclesFromHistory(run: UltraworkRun): number {
+  const history = run.stageHistory ?? [];
+  return history.filter(
+    (entry) => entry.reason !== undefined && /block|fail|interrupt|crash/i.test(entry.reason),
+  ).length;
+}
+
 function stageIndex(stage: UltraworkStage): number {
   return ultraworkStageIndex(stage);
 }

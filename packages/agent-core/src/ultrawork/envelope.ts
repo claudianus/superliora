@@ -5,7 +5,14 @@ import {
   formatVerificationGapSummary,
   suggestNextActions,
 } from './recovery-prompt';
-import { detectLongRunningStage, detectStuckWorkGraphNodes, inferEffectiveUltraworkStage, summarizeWorkGraphProgress } from './stage-progress';
+import {
+  countResumeCyclesFromHistory,
+  detectLongRunningStage,
+  detectStuckWorkGraphNodes,
+  inferEffectiveUltraworkStage,
+  OSCILLATION_WARN_THRESHOLD,
+  summarizeWorkGraphProgress,
+} from './stage-progress';
 import type { UltraworkRunMirror } from './types';
 
 export interface UltraworkEnvelopeOptions {
@@ -274,6 +281,9 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   const stuckNodes = detectStuckWorkGraphNodes(snapshot.run.workGraph);
   if (stuckNodes.length > 0) {
     lines.push(`stuck_nodes: ${stuckNodes.slice(0, 5).map((n) => `${n.id}[${n.status}]`).join(', ')}`);
+    lines.push(
+      'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
+    );
   }
 
   const nextActions = suggestNextActions(
@@ -294,6 +304,14 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   if (longStage !== undefined) {
     const elapsedMin = Math.round(longStage.elapsedMs / 60_000);
     lines.push(`long_running_stage: ${longStage.stage} ~${String(elapsedMin)}min (threshold ${String(Math.round(longStage.thresholdMs / 60_000))}min)`);
+  }
+
+  const resumeCycles = countResumeCyclesFromHistory(snapshot.run);
+  if (resumeCycles >= OSCILLATION_WARN_THRESHOLD) {
+    lines.push(`high_resume_count: ${String(resumeCycles)}`);
+    lines.push(
+      `oscillation_warning: repeated crash-recovery cycles (≥${String(OSCILLATION_WARN_THRESHOLD)}); simplify objective or split run.`,
+    );
   }
 
   // Context budget awareness: help post-compaction resume understand available context.

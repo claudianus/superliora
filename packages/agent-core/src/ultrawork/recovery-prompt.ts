@@ -6,9 +6,11 @@ import type { UltraworkRun, WorkGraphNode } from '@superliora/protocol';
 
 import {
   analyzeFailedNodes,
+  countResumeCyclesFromHistory,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
   inferEffectiveUltraworkStage,
+  OSCILLATION_WARN_THRESHOLD,
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
 } from './stage-progress';
@@ -564,21 +566,4 @@ export function suggestNextActions(
   }
 
   return actions.slice(0, 4);
-}
-
-/**
- * Threshold for warning about oscillation (repeated crash-recovery loops).
- * High values indicate the run is stuck in a failure cycle.
- */
-const OSCILLATION_WARN_THRESHOLD = 3;
-
-/**
- * Count blocked/failed entries in stageHistory as a proxy for resume cycles.
- * High values indicate oscillation (repeated crash-recovery loops).
- */
-function countResumeCyclesFromHistory(run: UltraworkRun): number {
-  const history = run.stageHistory ?? [];
-  return history.filter(
-    (entry) => entry.reason !== undefined && /block|fail|interrupt|crash/i.test(entry.reason),
-  ).length;
 }

@@ -1133,6 +1133,82 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('stuck_nodes:');
   });
 
+  it('surfaces high_resume_count in post-swarm and post-compaction injectors', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    const now = Date.now();
+    const oscillationHistory = [
+      {
+        stage: 'integrate' as const,
+        enteredAt: new Date(now - 30_000).toISOString(),
+        reason: 'interrupt: context pressure',
+      },
+      {
+        stage: 'integrate' as const,
+        enteredAt: new Date(now - 20_000).toISOString(),
+        reason: 'crash recovery',
+      },
+      {
+        stage: 'integrate' as const,
+        enteredAt: new Date(now - 10_000).toISOString(),
+        reason: 'blocked on dependency',
+      },
+    ];
+    agent.ultrawork.create({
+      id: 'run-high-resume',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-high-resume',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        stageHistory: oscillationHistory,
+        workGraph: {
+          id: 'run-high-resume:work_graph',
+          runId: 'run-high-resume',
+          rootGoal: 'Ship feature',
+          nodes: [
+            {
+              id: 'node-1',
+              title: 'Stuck integrate',
+              stage: 'integrate',
+              status: 'running',
+            },
+          ],
+        },
+      },
+    });
+
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostSwarmContinuation(agent);
+    const swarmText = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_swarm>'))?.[0] ??
+        '',
+    );
+    expect(swarmText).toContain('high_resume_count: 3');
+    expect(swarmText).toContain('repeated crash-recovery cycles');
+
+    append.mockClear();
+    injectUltraworkPostCompactionContinuation(agent);
+    const compactText = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_compaction>'))?.[0] ??
+        '',
+    );
+    expect(compactText).toContain('high_resume_count: 3');
+    expect(compactText).toContain('simplify objective or split run');
+  });
+
   it('includes needs_integration WorkGraph nodes in post-swarm injection', () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
     agent.ultrawork.create({

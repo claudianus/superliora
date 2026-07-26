@@ -237,6 +237,67 @@ Swarm decision: ENGAGE
     expect(runsSection).toContain('empty_work_graph=true');
   });
 
+  it('surfaces high_resume_count oscillation in compaction envelopes', () => {
+    const homedir = join(tmpdir(), `ultrawork-envelope-osc-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    const now = Date.now();
+    agent.ultrawork.create({
+      id: 'run-envelope-osc',
+      objective: 'Break oscillation',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-envelope-osc',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        stageHistory: [
+          {
+            stage: 'integrate',
+            enteredAt: new Date(now - 30_000).toISOString(),
+            reason: 'interrupt: context pressure',
+          },
+          {
+            stage: 'integrate',
+            enteredAt: new Date(now - 20_000).toISOString(),
+            reason: 'crash recovery',
+          },
+          {
+            stage: 'integrate',
+            enteredAt: new Date(now - 10_000).toISOString(),
+            reason: 'blocked on dependency',
+          },
+        ],
+        workGraph: {
+          id: 'run-envelope-osc:work_graph',
+          runId: 'run-envelope-osc',
+          rootGoal: 'Break oscillation',
+          nodes: [
+            {
+              id: 'node-run',
+              title: 'Still open',
+              stage: 'integrate',
+              status: 'running',
+            },
+          ],
+        },
+      },
+    });
+
+    const envelope = buildUltraworkCompactionEnvelope(agent, { compactionBoundary: true });
+    expect(envelope).toContain('high_resume_count: 3');
+    expect(envelope).toContain('oscillation_warning:');
+    expect(envelope).toContain('simplify objective or split run');
+    expect(envelope).toContain('stuck_nodes:');
+    expect(envelope).toContain('re-queue blocked nodes');
+  });
+
   it('classifies stall nodes and next_actions in compaction envelopes', () => {
     const homedir = join(tmpdir(), `ultrawork-envelope-stall-${String(Date.now())}`);
     mkdirSync(homedir, { recursive: true });
