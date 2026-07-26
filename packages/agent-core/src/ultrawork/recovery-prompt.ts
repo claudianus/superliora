@@ -132,6 +132,36 @@ export function formatVerificationGapNextActions(
   ];
 }
 
+/**
+ * Match recovery-triangle failed-node next_actions formatting.
+ * Prefer analyzeFailedNodes category guidance when available.
+ */
+export function formatFailedNodeNextActions(
+  nodes: readonly WorkGraphNode[],
+  workGraph?: UltraworkRun['workGraph'],
+): readonly string[] {
+  if (nodes.length === 0) return [];
+  const failedAnalysis = analyzeFailedNodes(workGraph);
+  const categoryHints = failedAnalysis
+    .slice(0, 2)
+    .map(({ node, category, guidance }) => `${node.id}[${category}]: ${guidance}`)
+    .join(' | ');
+  if (categoryHints.length > 0) {
+    return [
+      `Repair failed WorkGraph node(s) first: ${nodes
+        .slice(0, 3)
+        .map((node) => node.id)
+        .join(', ')}${nodes.length > 3 ? ', …' : ''} — ${categoryHints}`,
+    ];
+  }
+  return [
+    `Repair failed WorkGraph node(s) first: ${nodes
+      .slice(0, 3)
+      .map((node) => node.id)
+      .join(', ')}${nodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
+  ];
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;
@@ -434,22 +464,7 @@ export function suggestNextActions(
   const failedNodes =
     run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
   if (failedNodes.length > 0) {
-    const failedAnalysis = analyzeFailedNodes(run.workGraph);
-    const categoryHints = failedAnalysis
-      .slice(0, 2)
-      .map(({ node, category, guidance }) => `${node.id}[${category}]: ${guidance}`)
-      .join(' | ');
-    actions.push(
-      categoryHints.length > 0
-        ? `Repair failed WorkGraph node(s) first: ${failedNodes
-            .slice(0, 3)
-            .map((node) => node.id)
-            .join(', ')}${failedNodes.length > 3 ? ', …' : ''} — ${categoryHints}`
-        : `Repair failed WorkGraph node(s) first: ${failedNodes
-            .slice(0, 3)
-            .map((node) => node.id)
-            .join(', ')}${failedNodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
-    );
+    actions.push(...formatFailedNodeNextActions(failedNodes, run.workGraph));
   }
   const needsIntegration =
     run.workGraph?.nodes.filter((node) => node.status === 'needs_integration') ?? [];

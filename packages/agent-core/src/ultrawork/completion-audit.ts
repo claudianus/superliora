@@ -16,6 +16,7 @@ import {
 import {
   collectVerificationGapNodes,
   formatEvidenceHardGateNextActions,
+  formatFailedNodeNextActions,
   formatVerificationGapNextActions,
 } from './recovery-prompt';
 import {
@@ -135,17 +136,16 @@ export function auditUltraworkCompletion(
   const failedNodes = gatedNodes.filter((n) => n.status === 'failed');
   if (failedNodes.length > 0) {
     const openNodeIds = failedNodes.map((n) => n.id);
-    const failedAnalysis = analyzeFailedNodes({
+    const failedGraph = {
       id: run.workGraph?.id ?? `${run.id}:work_graph`,
       runId: run.id,
+      rootGoal: run.workGraph?.rootGoal,
       nodes: failedNodes,
-    });
+    };
+    const failedAnalysis = analyzeFailedNodes(failedGraph);
     const categoryReasons = failedAnalysis
       .slice(0, 2)
       .map(({ node, category, guidance }) => `${node.id}[${category}]: ${guidance}`);
-    const categoryActions = failedAnalysis
-      .slice(0, 2)
-      .map(({ node, category, guidance }) => `Repair ${node.id} [${category}]: ${guidance}`);
     return reject(
       'node_failed',
       [
@@ -154,11 +154,8 @@ export function auditUltraworkCompletion(
         ...categoryReasons,
       ],
       [
-        ...(categoryActions.length > 0
-          ? categoryActions
-          : [
-              'Repair the failed work, re-run checks, then set status=done with verificationStatus=passed.',
-            ]),
+        // Match recovery-prompt failed-node next_actions wording.
+        ...formatFailedNodeNextActions(failedNodes, failedGraph),
         'If the node is out of scope, set status=cancelled (not failed) after an explicit decision.',
       ],
       openNodeIds,

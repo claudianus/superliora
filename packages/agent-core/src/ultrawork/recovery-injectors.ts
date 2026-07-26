@@ -17,6 +17,7 @@ import {
   collectVerificationGapNodes,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
+  formatFailedNodeNextActions,
   formatVerificationGapNextActions,
   formatVerificationGapSummary,
   suggestNextActions,
@@ -130,6 +131,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatFailedNodeNextActions(failedNodes, run.workGraph),
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
     );
     const failedAnalysis = analyzeFailedNodes(run.workGraph);
@@ -326,6 +328,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatFailedNodeNextActions(failedNodes, run.workGraph),
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
     );
     const failedAnalysis = analyzeFailedNodes(run.workGraph);

@@ -4,6 +4,7 @@ import {
   collectVerificationGapNodes,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
+  formatFailedNodeNextActions,
   formatVerificationGapNextActions,
   formatVerificationGapSummary,
   suggestNextActions,
@@ -237,6 +238,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatFailedNodeNextActions(failedNodes, snapshot.run.workGraph),
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
     );
     const failedAnalysis = analyzeFailedNodes(snapshot.run.workGraph);

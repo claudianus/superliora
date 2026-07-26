@@ -262,7 +262,14 @@ describe('auditUltraworkCompletion', () => {
     if (!result.ok) {
       expect(result.code).toBe('node_failed');
       expect(result.reasons.some((r) => /ac_timeout\[timeout\]/.test(r))).toBe(true);
-      expect(result.nextActions.some((a) => /Repair ac_timeout \[timeout\]/.test(a))).toBe(true);
+      // Match recovery-prompt shared failed-node next_actions wording.
+      expect(
+        result.nextActions.some(
+          (a) =>
+            /Repair failed WorkGraph node\(s\) first: ac_timeout/.test(a) &&
+            /ac_timeout\[timeout\]/.test(a),
+        ),
+      ).toBe(true);
       expect(result.nextActions.some((a) => /Increase timeout|split/i.test(a))).toBe(true);
       const formatted = formatCompletionAuditRejection(result);
       expect(formatted).toContain('timeout');
@@ -432,7 +439,13 @@ describe('auditUltraworkCompletion', () => {
       expect(result.openNodeIds).toContain('ac_fail');
       expect(result.openNodeIds).not.toContain('ac_queued');
       expect(result.reasons.some((r) => /ac_fail\[timeout\]/.test(r))).toBe(true);
-      expect(result.nextActions.some((a) => /Repair ac_fail \[timeout\]/.test(a))).toBe(true);
+      expect(
+        result.nextActions.some(
+          (a) =>
+            /Repair failed WorkGraph node\(s\) first: ac_fail/.test(a) &&
+            /ac_fail\[timeout\]/.test(a),
+        ),
+      ).toBe(true);
     }
   });
 
