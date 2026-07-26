@@ -1300,6 +1300,26 @@ describe('BashTool', () => {
     expect(String(paste.output)).toContain('Read');
   });
 
+  it('rejects git show path dumps and Windows type/Get-Content', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const show = await executeTool(
+      tool,
+      context({ command: 'git show HEAD:src/a.ts', timeout: 60 }),
+    );
+    expect(show).toMatchObject({ isError: true });
+    expect(String(show.output)).toContain('Read');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const typeCmd = await executeTool(tool, context({ command: 'type src\\a.ts', timeout: 60 }));
+    expect(typeCmd).toMatchObject({ isError: true });
+    expect(String(typeCmd.output)).toContain('Read');
+
+    const jq = await executeTool(tool, context({ command: 'jq . package.json', timeout: 60 }));
+    expect(jq).toMatchObject({ isError: true });
+    expect(String(jq.output)).toContain('Read');
+  });
+
   it('rejects php/perl file-read one-liners', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');

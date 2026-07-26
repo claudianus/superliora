@@ -216,4 +216,44 @@ describe('auditUltraworkCompletion', () => {
     });
     expect(result.ok).toBe(true);
   });
+
+  it('treats cancelled nodes as terminal (not incomplete)', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({ id: 'research_1', kind: 'research', stage: 'research', status: 'done' }),
+            node({ id: 'dropped_1', kind: 'other', stage: 'swarm', status: 'cancelled' }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('still rejects needs_integration as incomplete', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'integrate_1',
+              kind: 'integration',
+              stage: 'integrate',
+              status: 'needs_integration',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('incomplete_nodes');
+      expect(result.openNodeIds).toContain('integrate_1');
+    }
+  });
 });

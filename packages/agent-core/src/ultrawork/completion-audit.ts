@@ -104,7 +104,10 @@ export function auditUltraworkCompletion(
 
   // Evidence hard gate: done without evidence becomes blocked in the gated view.
   const { nodes: gatedNodes, violations } = applyEvidenceHardGate(graph.nodes);
-  const open = gatedNodes.filter((n) => n.status !== 'done' && n.status !== 'failed');
+  // cancelled is a deliberate terminal status (dropped scope) — treat like done/failed.
+  const open = gatedNodes.filter(
+    (n) => n.status !== 'done' && n.status !== 'failed' && n.status !== 'cancelled',
+  );
   if (open.length > 0) {
     const openNodeIds = open.map((n) => n.id);
     const evidenceHits =
