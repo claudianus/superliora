@@ -83,6 +83,33 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/premium')).toMatchObject({ kind: 'builtin', name: 'premium', args: '' });
     expect(resolve('/pq')).toMatchObject({ kind: 'builtin', name: 'premium', args: '' });
     expect(resolve('/premium on')).toMatchObject({ kind: 'builtin', name: 'premium', args: 'on' });
+    expect(resolve('/persona list')).toMatchObject({
+      kind: 'builtin',
+      name: 'persona',
+      args: 'list',
+    });
+    expect(resolve('/character tone friendly')).toMatchObject({
+      kind: 'builtin',
+      name: 'persona',
+      args: 'tone friendly',
+    });
+    expect(resolve('/feed')).toMatchObject({ kind: 'builtin', name: 'feed', args: '' });
+    expect(resolve('/food')).toMatchObject({ kind: 'builtin', name: 'feed', args: '' });
+    expect(resolve('/context status')).toMatchObject({
+      kind: 'builtin',
+      name: 'context',
+      args: 'status',
+    });
+    expect(resolve('/working-set deep')).toMatchObject({
+      kind: 'builtin',
+      name: 'context',
+      args: 'deep',
+    });
+    expect(resolve('/workingset economy')).toMatchObject({
+      kind: 'builtin',
+      name: 'context',
+      args: 'economy',
+    });
     expect(resolve('/fork')).toMatchObject({ kind: 'builtin', name: 'fork', args: '' });
     expect(resolve('/title New title')).toMatchObject({
       kind: 'builtin',
@@ -358,6 +385,36 @@ describe('resolveSlashCommandInput', () => {
       kind: 'builtin',
       name: 'btw',
       args: 'side question',
+    });
+    expect(resolve('/persona list', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'persona',
+      args: 'list',
+    });
+    expect(resolve('/character help', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'persona',
+      args: 'help',
+    });
+    expect(resolve('/feed', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'feed',
+      args: '',
+    });
+    expect(resolve('/food', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'feed',
+      args: '',
+    });
+    expect(resolve('/context balanced', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'context',
+      args: 'balanced',
+    });
+    expect(resolve('/working-set full', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'context',
+      args: 'full',
     });
   });
 

@@ -6,6 +6,7 @@ import {
   addDirArgumentCompletions,
   helpArgumentCompletions,
   memoryArgumentCompletions,
+  personaArgumentCompletions,
   planArgumentCompletions,
   premiumArgumentCompletions,
   rendererArgumentCompletions,
@@ -67,6 +68,13 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('harness')?.name).toBe('harness');
     expect(findBuiltInSlashCommand('premium')?.name).toBe('premium');
     expect(findBuiltInSlashCommand('pq')?.name).toBe('premium');
+    expect(findBuiltInSlashCommand('persona')?.name).toBe('persona');
+    expect(findBuiltInSlashCommand('character')?.name).toBe('persona');
+    expect(findBuiltInSlashCommand('feed')?.name).toBe('feed');
+    expect(findBuiltInSlashCommand('food')?.name).toBe('feed');
+    expect(findBuiltInSlashCommand('context')?.name).toBe('context');
+    expect(findBuiltInSlashCommand('working-set')?.name).toBe('context');
+    expect(findBuiltInSlashCommand('workingset')?.name).toBe('context');
     expect(findBuiltInSlashCommand('status')?.name).toBe('status');
     expect(findBuiltInSlashCommand('thinking')?.name).toBe('thinking');
     expect(findBuiltInSlashCommand('think')?.name).toBe('thinking');
@@ -133,6 +141,34 @@ describe('built-in slash command registry', () => {
     expect(values('turbo')).toBeNull();
   });
 
+  it('offers persona argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = personaArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual([
+      'list',
+      'set',
+      'name',
+      'tone',
+      'personality',
+      'instructions',
+      'clear',
+      'help',
+    ]);
+    expect(values('l')).toEqual(['list']);
+    expect(values('p')).toEqual(['personality']);
+    expect(values('i')).toEqual(['instructions']);
+    expect(personaArgumentCompletions('to')).toEqual([
+      { value: 'tone', label: 'tone', description: 'Set response tone' },
+    ]);
+    expect(values('list')).toBeNull();
+    expect(values('clear')).toBeNull();
+    expect(values('unknown')).toBeNull();
+    expect(findBuiltInSlashCommand('persona')?.completeArgs).toBe(personaArgumentCompletions);
+    expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('persona')!, '')).toBe('always');
+  });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {
     const swarm = findBuiltInSlashCommand('swarm');
