@@ -10,6 +10,7 @@ import type {
   SpawnSubagentOptions,
   SubagentHandle,
 } from './subagent-host';
+import { isSubagentMaxTokensError } from './subagent-host';
 import { isUserCancellation } from '../utils/abort';
 
 /*
@@ -86,6 +87,13 @@ export type SubagentResult<T = unknown> = {
   readonly result?: string;
   readonly usage?: TokenUsage;
   readonly error?: string;
+  /**
+   * Structured reason for failed/aborted outcomes. Lets downstream recovery
+   * prompts distinguish recoverable failures (e.g. transient provider 5xx)
+   * from terminal ones (e.g. `max_tokens` — needs a larger context window,
+   * not a retry).
+   */
+  readonly failureReason?: 'max_tokens' | 'transient' | 'aborted' | 'other';
 };
 
 export type SubagentSuspendedEvent = {
@@ -435,6 +443,7 @@ export class SubagentBatch<T> {
       status,
       state: attempt.state.agentId === undefined ? 'not_started' : 'started',
       error: this.attemptErrorMessage(attempt, error, status),
+      failureReason: classifySubagentFailureReason(error, status),
     };
   }
 
@@ -725,6 +734,22 @@ export class SubagentBatch<T> {
     if (status === 'aborted') return 'The user manually interrupted this subagent batch.';
     return error instanceof Error ? error.message : String(error);
   }
+}
+
+/**
+ * Map a thrown subagent error to a structured `failureReason` for recovery
+ * prompts. `max_tokens` is terminal (a retry with the same context window
+ * will not help) and should steer the user toward a larger context budget
+ * rather than a transient retry.
+ */
+function classifySubagentFailureReason(
+  error: unknown,
+  status: SubagentResult['status'],
+): SubagentResult['failureReason'] {
+  if (status === 'aborted') return 'aborted';
+  if (isSubagentMaxTokensError(error)) return 'max_tokens';
+  if (isTransientProviderError(error)) return 'transient';
+  return 'other';
 }
 
 /** Default normal-phase concurrency when env is unset/empty/invalid. */

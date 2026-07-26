@@ -79,6 +79,26 @@ const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const SUBAGENT_MAX_TOKENS_ERROR =
   'Subagent turn failed before completing its final summary: reason=max_tokens';
+
+/**
+ * Typed error thrown when a subagent turn exhausts its output token budget
+ * before producing the required final summary. Callers (subagent-batch,
+ * recovery prompts) can identify this class with `instanceof` or the
+ * `code` discriminant instead of substring-matching the human message.
+ */
+export class SubagentMaxTokensError extends Error {
+  readonly code = 'subagent_max_tokens' as const;
+
+  constructor(message: string = SUBAGENT_MAX_TOKENS_ERROR) {
+    super(message);
+    this.name = 'SubagentMaxTokensError';
+  }
+}
+
+/** Type guard for {@link SubagentMaxTokensError} thrown by `runChildTurnToCompletion`. */
+export function isSubagentMaxTokensError(error: unknown): error is SubagentMaxTokensError {
+  return error instanceof SubagentMaxTokensError;
+}
 const TOOL_CALL_DISABLED_MESSAGE =
   'Tool calls are disabled for side questions. Answer with text only.';
 const SUBAGENT_PROMPT_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'subagent' };
@@ -735,7 +755,7 @@ async function runChildTurnToCompletion(child: Agent, signal: AbortSignal): Prom
     throw failure;
   }
   if (completion.stopReason === 'max_tokens') {
-    throw new Error(`${SUBAGENT_MAX_TOKENS_ERROR}.`);
+    throw new SubagentMaxTokensError(`${SUBAGENT_MAX_TOKENS_ERROR}.`);
   }
 }
 

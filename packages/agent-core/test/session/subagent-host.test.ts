@@ -15,6 +15,8 @@ import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {
   SessionSubagentHost,
+  SubagentMaxTokensError,
+  isSubagentMaxTokensError,
   type QueuedSubagentTask,
 } from '../../src/session/subagent-host';
 import { abortError, userCancellationReason } from '../../src/utils/abort';
@@ -912,6 +914,47 @@ describe('SessionSubagentHost', () => {
         event: 'subagent.completed',
       }),
     );
+  });
+
+  it('throws a typed SubagentMaxTokensError when the response is truncated', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const child = testAgent();
+    child.mockNextProviderResponse({
+      parts: [
+        { type: 'think', think: 'The child used its output budget before writing a summary.' },
+      ],
+      finishReason: 'truncated',
+      rawFinishReason: 'length',
+    });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn({
+      profileName: 'coder',
+      parentToolCallId: 'call_agent',
+      prompt: 'Investigate',
+      description: 'Investigate',
+      runInBackground: false,
+      signal,
+    });
+
+    // Caller must be able to identify max_tokens failures without
+    // substring-matching the human message.
+    let captured: unknown;
+    await handle.completion.catch((error) => {
+      captured = error;
+    });
+    expect(captured).toBeInstanceOf(SubagentMaxTokensError);
+    expect(captured).toBeInstanceOf(Error);
+    expect(isSubagentMaxTokensError(captured)).toBe(true);
+    if (isSubagentMaxTokensError(captured)) {
+      expect(captured.code).toBe('subagent_max_tokens');
+      expect(captured.name).toBe('SubagentMaxTokensError');
+      expect(captured.message).toMatch(/reason=max_tokens/);
+    }
   });
 
   it('does not re-prompt when the first summary is long enough', async () => {
