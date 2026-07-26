@@ -114,6 +114,52 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   }
   // wc -l path (line count only — still better as Read for agents? allow wc for process stats)
   // skip wc — useful for quick metrics
+
+  // bat / tac — pure file dumpers
+  if (/^(?:\/usr\/bin\/)?(?:bat|tac)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
+    return {
+      prefer: 'Read',
+      pattern: 'bat/tac file',
+      message: 'Use Read or LioraRead instead of bat/tac for file contents.',
+    };
+  }
+
+  // sed -n print range (not -i) with a file path
+  if (
+    /^(?:\/usr\/bin\/)?sed\b/.test(command) &&
+    /(?:^|\s)-n(?:\s|$)/.test(command) &&
+    !/(?:^|\s)-[A-Za-z]*i[A-Za-z]*(?:\s|$)/.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'sed -n file',
+      message: 'Use Read with line_offset/n_lines instead of sed -n for file windows.',
+    };
+  }
+
+  // awk/gawk one-file dumpers: awk 1 file, awk '{print}' file
+  if (/^(?:\/usr\/bin\/)?(?:awk|gawk|nawk)\b/.test(command) && /\s\S+\s*$/.test(command)) {
+    // skip if looks like multi-file or BEGIN-heavy scripts without a path-ish token — still whole-command only
+    return {
+      prefer: 'Read',
+      pattern: 'awk file',
+      message: 'Use Read or Grep instead of awk for whole-file dumps.',
+    };
+  }
+
+  // binary/text dumpers aimed at a single path
+  if (
+    /^(?:\/usr\/bin\/)?(?:od|hexdump|xxd|strings|base64|base32)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'od/hexdump/base64 file',
+      message: 'Use Read for file contents instead of shell dump utilities.',
+    };
+  }
+
   return undefined;
 }
 
