@@ -235,6 +235,39 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       };
     }
   }
+  // Clear-Content / clc single-file clear → Write (Unix: truncate -s 0).
+  if (
+    /^(?:Clear-Content|clc)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:ForEach-Object|%|Where-Object)\b/i.test(command)
+  ) {
+    const hasPath =
+      /(?:^|\s)-Path\s+\S+/i.test(command) ||
+      /(?:^|\s)(?:\.\/|\.\.\\|[A-Za-z]:\\|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/i.test(
+        command,
+      ) ||
+      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/i.test(command);
+    if (hasPath) {
+      return {
+        prefer: 'Write',
+        pattern: 'Clear-Content',
+        message: 'Use Write with empty content instead of PowerShell Clear-Content to clear a file.',
+      };
+    }
+  }
+  // New-Item -ItemType File / ni … File → Write (Unix: touch). Directories stay allowed.
+  if (
+    /^(?:New-Item|ni)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /(?:-ItemType|-Type)\s+File\b/i.test(command) &&
+    !/(?:-ItemType|-Type)\s+Directory\b/i.test(command)
+  ) {
+    return {
+      prefer: 'Write',
+      pattern: 'New-Item File',
+      message: 'Use Write to create empty/new files instead of PowerShell New-Item -ItemType File.',
+    };
+  }
   // head/tail [flags] path — not head of a pipeline (+ busybox/ghead/gtail)
   // Flags may take a following value token: head -n 20 file, tail -50 file, head -n20 file
   if (
@@ -911,6 +944,27 @@ function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassHit | un
         prefer: 'Write',
         pattern: 'cp src dest',
         message: 'Use Read + Write instead of cp for simple workspace file copies.',
+      };
+    }
+  }
+
+  // Copy-Item / ci / copy SRC DEST — simple two-path (not -Recurse, not multi-source).
+  if (/^(?:Copy-Item|ci|copy)\b/i.test(command)) {
+    if (/(?:^|\s)-(?:Recurse|Container|Filter|Include|Exclude)\b/i.test(command)) {
+      return undefined;
+    }
+    if (/\s\|/.test(command)) return undefined;
+    const withoutOpts = command
+      .replace(/^(?:Copy-Item|ci|copy)\b/i, '')
+      .replace(/(?:^|\s)-(?:Path|Destination|LiteralPath)\s+/gi, ' ')
+      .replace(/(?:^|\s)-[A-Za-z]+\b/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
+      return {
+        prefer: 'Write',
+        pattern: 'Copy-Item src dest',
+        message: 'Use Read + Write instead of Copy-Item for simple workspace file copies.',
       };
     }
   }

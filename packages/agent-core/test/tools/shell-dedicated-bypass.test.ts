@@ -331,6 +331,19 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')).toBeUndefined();
   });
 
+  it('blocks PowerShell Clear-Content / New-Item File / Copy-Item writes', () => {
+    expect(detectShellDedicatedBypass('Clear-Content out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('clc -Path notes.md')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('New-Item -ItemType File empty.ts')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('ni out.txt -ItemType File')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Copy-Item src/a.ts dest/a.ts')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('ci src/a.ts dest/a.ts')?.prefer).toBe('Write');
+    // directories / recursive / pipelines stay allowed
+    expect(detectShellDedicatedBypass('New-Item -ItemType Directory dir')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Copy-Item -Recurse src dest')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Clear-Content a.txt | Out-Null')).toBeUndefined();
+  });
+
   it('blocks git/svn/hg single-path content dumps but allows commit summaries', () => {
     expect(detectShellDedicatedBypass('git show HEAD:src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('git show abcdef1:packages/foo/bar.ts')?.prefer).toBe(
