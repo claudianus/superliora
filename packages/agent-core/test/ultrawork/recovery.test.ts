@@ -156,7 +156,16 @@ describe('Ultrawork goal completion', () => {
       runId: 'run-swarm-path-closes-goal',
       nodes: [
         { id: 'node-1', title: 'Implement', stage: 'swarm', status: 'done' },
-        { id: 'node-2', title: 'Verify', stage: 'verify', status: 'done' },
+        {
+          id: 'node-2',
+          title: 'Verify',
+          stage: 'verify',
+          status: 'done',
+          kind: 'verification',
+          requiredEvidence: ['test'],
+          evidenceIds: ['unit-test-report'],
+          verificationStatus: 'passed',
+        },
       ],
     });
     agent.ultrawork.syncWorkGraphFromStore();
