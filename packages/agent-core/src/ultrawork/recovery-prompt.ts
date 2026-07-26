@@ -365,11 +365,21 @@ export function suggestNextActions(
   const failedNodes =
     run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
   if (failedNodes.length > 0) {
+    const failedAnalysis = analyzeFailedNodes(run.workGraph);
+    const categoryHints = failedAnalysis
+      .slice(0, 2)
+      .map(({ node, category, guidance }) => `${node.id}[${category}]: ${guidance}`)
+      .join(' | ');
     actions.push(
-      `Repair failed WorkGraph node(s) first: ${failedNodes
-        .slice(0, 3)
-        .map((node) => node.id)
-        .join(', ')}${failedNodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
+      categoryHints.length > 0
+        ? `Repair failed WorkGraph node(s) first: ${failedNodes
+            .slice(0, 3)
+            .map((node) => node.id)
+            .join(', ')}${failedNodes.length > 3 ? ', …' : ''} — ${categoryHints}`
+        : `Repair failed WorkGraph node(s) first: ${failedNodes
+            .slice(0, 3)
+            .map((node) => node.id)
+            .join(', ')}${failedNodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
     );
   }
   const needsIntegration =

@@ -1078,6 +1078,9 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('run-post-swarm-graph');
     expect(text).toContain('stuck_nodes:');
     expect(text).toContain('re-queue blocked nodes');
+    // analyzeFailedNodes category guidance lines (unknown when no summary)
+    expect(text).toMatch(/node-fail \[unknown\]:/);
+    expect(text).toContain('Inspect node details and logs');
     expect(run.id).toBe('run-post-swarm-graph');
   });
 
@@ -1669,6 +1672,43 @@ describe('suggestNextActions fallbacks', () => {
     expect(actions.slice(0, 4).some((a) => /Break oscillation|high resume count/i.test(a))).toBe(
       true,
     );
+  });
+
+  it('embeds analyzeFailedNodes category guidance into failed next_actions', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const actions = suggestNextActions({
+      id: 'run-failed-category',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'verify',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-failed-category',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-failed-category:work_graph',
+        runId: 'run-failed-category',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'node-timeout',
+            title: 'Timed out verify',
+            stage: 'verify',
+            status: 'failed',
+            verificationSummary: 'timeout after 120s',
+          },
+        ],
+      },
+    } as UltraworkRun);
+
+    const repair = actions.find((a) => a.includes('Repair failed WorkGraph'));
+    expect(repair).toBeDefined();
+    expect(repair).toMatch(/node-timeout\[timeout\]/);
+    expect(repair).toMatch(/increase timeout|retry with longer budget|timeout/i);
   });
 
   it('fills a defensive fallback when stage guidance is empty', async () => {

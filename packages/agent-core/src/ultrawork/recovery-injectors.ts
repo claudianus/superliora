@@ -3,6 +3,7 @@ import type { UltraworkStage } from '@superliora/protocol';
 import type { Agent } from '../agent';
 import { maybeFinishUltraworkRun } from './finish-run';
 import {
+  analyzeFailedNodes,
   countResumeCyclesFromHistory,
   detectLongRunningStage,
   detectStuckWorkGraphNodes,
@@ -128,6 +129,10 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     lines.push(
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
     );
+    const failedAnalysis = analyzeFailedNodes(run.workGraph);
+    for (const { node, category, guidance } of failedAnalysis.slice(0, 2)) {
+      lines.push(`- ${node.id} [${category}]: ${guidance}`);
+    }
   }
   if (needsIntegrationNodes.length > 0) {
     lines.push(
@@ -309,6 +314,10 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     lines.push(
       'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
     );
+    const failedAnalysis = analyzeFailedNodes(run.workGraph);
+    for (const { node, category, guidance } of failedAnalysis.slice(0, 2)) {
+      lines.push(`- ${node.id} [${category}]: ${guidance}`);
+    }
   }
   if (needsIntegrationNodes.length > 0) {
     lines.push(
