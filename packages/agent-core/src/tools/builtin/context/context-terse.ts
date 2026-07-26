@@ -285,6 +285,11 @@ function applyShellPatterns(text: string, command: string): string {
     /\b(?:flyctl|fly)\s+(?:logs|status|apps|deploy)\b/u.test(command) ||
     /\bvercel\s+(?:logs|ls|list|inspect|deploy)\b/u.test(command) ||
     /\brailway\s+(?:logs|status|up)\b/u.test(command) ||
+    /\bheroku\s+(?:logs|ps|releases|apps)\b/u.test(command) ||
+    /\bnetlify\s+(?:logs|status|deploy|sites)\b/u.test(command) ||
+    /\bwrangler\s+(?:tail|deploy|pages|versions|secret)\b/u.test(command) ||
+    /\bsupabase\s+(?:logs|status|functions|db)\b/u.test(command) ||
+    /\bfirebase\s+(?:deploy|functions:log|apps)\b/u.test(command) ||
     /\bgh\s+(?:run\s+)?(?:view|list|watch|logs)\b/u.test(command) ||
     /\bgh\s+api\b/u.test(command)
   ) {

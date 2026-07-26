@@ -78,7 +78,10 @@ export function summarizeWorkGraphProgress(
 }
 
 function isTerminalWorkNodeStatus(status: WorkGraphNode['status']): boolean {
-  return status === 'done' || status === 'failed';
+  // cancelled is a deliberate success-terminal scope drop (matches finish-run /
+  // completion-audit). failed remains terminal for progress counts but still
+  // blocks goal complete via audit.
+  return status === 'done' || status === 'failed' || status === 'cancelled';
 }
 
 function capAutoPromotedStage(

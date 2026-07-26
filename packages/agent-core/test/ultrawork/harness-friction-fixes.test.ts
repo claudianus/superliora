@@ -8,7 +8,10 @@ import {
 import { inferVerdict } from '../../src/tools/builtin/collaboration/ultra-swarm-helpers';
 import { workNodeOutcome } from '../../src/tools/builtin/collaboration/ultra-swarm-phase';
 import { todosFromWorkGraph } from '../../src/tools/builtin/state/ultrawork-graph';
-import { inferEffectiveUltraworkStage } from '../../src/ultrawork/stage-progress';
+import {
+  inferEffectiveUltraworkStage,
+  summarizeWorkGraphProgress,
+} from '../../src/ultrawork/stage-progress';
 import { isUltraworkWorkflowReportWritePath } from '../../src/ultrawork/workflow-report';
 
 describe('harness friction fixes (H1–H4)', () => {
@@ -33,6 +36,23 @@ describe('harness friction fixes (H1–H4)', () => {
     };
 
     expect(inferEffectiveUltraworkStage('plan', graph)).toBe('integrate');
+    expect(inferEffectiveUltraworkStage('swarm', graph)).toBe('integrate');
+  });
+
+  it('treats cancelled nodes as terminal progress (not resume targets)', () => {
+    const graph: WorkGraph = {
+      id: 'g1',
+      runId: 'r1',
+      nodes: [
+        { id: 'n1', title: 'Implement', stage: 'integrate', status: 'done' },
+        { id: 'n2', title: 'Dropped scope', stage: 'swarm', status: 'cancelled' },
+      ],
+    };
+    const progress = summarizeWorkGraphProgress(graph);
+    expect(progress.pendingCount).toBe(0);
+    expect(progress.nextPendingNode).toBeUndefined();
+    expect(progress.doneCount).toBe(1);
+    // Same auto-stage floor as all-done graphs.
     expect(inferEffectiveUltraworkStage('swarm', graph)).toBe('integrate');
   });
 
