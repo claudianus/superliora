@@ -30,6 +30,7 @@ tools:
   # Skills + subagents (catalog still loads on demand).
   - Skill
   - SearchSkill
+  - SearchTools
   - Agent
   - SearchExpert
   - AgentSwarm

@@ -33,6 +33,7 @@ tools:
   - Memory
   - Skill
   - SearchSkill
+  - SearchTools
   - SearchExpert
   - WebSearch
   - BrowserStatus

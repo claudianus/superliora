@@ -33,5 +33,6 @@ tools:
   - TodoList
   - Skill
   - SearchSkill
+  - SearchTools
   - GetCurrentTime
   - mcp__*

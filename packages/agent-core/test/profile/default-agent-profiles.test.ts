@@ -73,6 +73,7 @@ describe('default agent profiles', () => {
         'ExitPlanMode',
         'Skill',
         'SearchSkill',
+        'SearchTools',
         'Agent',
       ]),
     );
@@ -106,7 +107,7 @@ describe('default agent profiles', () => {
 
   it('keeps the full profile skill runtime prompt aligned with exposed tools', () => {
     const full = DEFAULT_AGENT_PROFILES['superliora-full'];
-    expect(full?.tools).toEqual(expect.arrayContaining(['Skill', 'SearchSkill']));
+    expect(full?.tools).toEqual(expect.arrayContaining(['Skill', 'SearchSkill', 'SearchTools']));
 
     const prompt = full?.systemPrompt(promptContext) ?? '';
     expect(prompt).toContain('Discover with SearchSkill');
@@ -145,6 +146,14 @@ describe('default agent profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).not.toContain('Memory');
   });
 
+
+  it('exposes SearchTools inventory on default coding and plan profiles', () => {
+    for (const name of ['agent', 'coder', 'explore', 'plan', 'superliora-full', 'ultra-plan']) {
+      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
+      expect(tools, name).toContain('SearchTools');
+    }
+  });
+
   it('fails loudly when an embedded system prompt source is missing', () => {
     expect(() =>
       loadAgentProfilesFromSources(['profile/default/agent.yaml'], {
@@ -157,6 +166,7 @@ describe('default agent profiles', () => {
     for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).toContain('SearchSkill');
+      expect(tools).toContain('SearchTools');
       expect(tools).toContain('Skill');
     }
   });

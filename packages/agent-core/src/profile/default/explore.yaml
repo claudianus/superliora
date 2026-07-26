@@ -37,3 +37,4 @@ tools:
   - GetCurrentTime
   - Skill
   - SearchSkill
+  - SearchTools
