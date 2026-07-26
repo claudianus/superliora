@@ -13,7 +13,7 @@ import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
 } from '../session/swarm-evidence-gate';
-import { analyzeFailedNodes } from './stage-progress';
+import { analyzeFailedNodes, detectStuckWorkGraphNodes } from './stage-progress';
 
 export type CompletionAuditCode =
   | 'empty_work_graph'
@@ -248,6 +248,23 @@ export function auditUltraworkCompletion(
         .join(', ');
       nextActions.push(
         `Queued node(s) waiting on dependsOn: ${waitHints}${waitingQueued.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
+      );
+    }
+    // Match recovery-triangle owned stuck promotion (blocked already has node_blocked).
+    const stuckOwned = detectStuckWorkGraphNodes(run.workGraph).filter((n) => {
+      if (n.status !== 'running') return false;
+      if (!openNodeIds.includes(n.id)) return false;
+      const hasOwner =
+        (n.ownerExpertId !== undefined && n.ownerExpertId.length > 0) ||
+        (n.ownerAgentId !== undefined && n.ownerAgentId.length > 0);
+      return hasOwner;
+    });
+    if (stuckOwned.length > 0) {
+      nextActions.push(
+        `Circuit-break stuck WorkGraph node(s): ${stuckOwned
+          .slice(0, 3)
+          .map((n) => `${n.id}[${n.status}]`)
+          .join(', ')}${stuckOwned.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
       );
     }
     nextActions.push(

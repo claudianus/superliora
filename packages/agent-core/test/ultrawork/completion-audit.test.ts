@@ -514,4 +514,31 @@ describe('auditUltraworkCompletion', () => {
       );
     }
   });
+
+  it('hints owned stuck running nodes in incomplete nextActions', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_owned_stuck',
+              kind: 'acceptance_criterion',
+              status: 'running',
+              ownerExpertId: 'expert-1',
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('incomplete_nodes');
+      expect(result.nextActions.some((a) => /Circuit-break stuck WorkGraph/i.test(a))).toBe(true);
+      expect(result.nextActions.some((a) => a.includes('ac_owned_stuck[running]'))).toBe(true);
+      // ownerless path must not fire for owned nodes
+      expect(result.nextActions.some((a) => /orphan running/i.test(a))).toBe(false);
+    }
+  });
 });
