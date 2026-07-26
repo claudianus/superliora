@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { postprocessLeanToolResult } from '../../src/lean-context/postprocess/tool-result';
-import { shouldSkipCompressionForRead } from '../../src/lean-context/gate/bounce';
+import { recordReadAccess, shouldSkipCompressionForRead } from '../../src/lean-context/gate/bounce';
 import type { Agent } from '../../src/agent';
 import type { ToolStore } from '../../src/tools/store';
 
@@ -74,6 +74,27 @@ describe('postprocessLeanToolResult LioraRead', () => {
     expect(typeof result.output).toBe('string');
     expect(String(result.output).length).toBeLessThan(large.length);
     expect(String(result.output)).toMatch(/liora-compressed|liora-archived|signatures|map/i);
+  });
+
+  it('skips re-compression when bounce rate is high for the same path', async () => {
+    const store = memoryStore();
+    const agent = mockAgent(store, 0.2);
+    const large = `${'export function alpha(): number { return 1; }\n'.repeat(200)}${'const pad = 1;\n'.repeat(400)}`;
+    // Seed compressed→full bounce history so bounceRate > 0.35
+    recordReadAccess(store, 'src/bouncy.ts', 'compressed');
+    recordReadAccess(store, 'src/bouncy.ts', 'full');
+    recordReadAccess(store, 'src/bouncy.ts', 'compressed');
+    recordReadAccess(store, 'src/bouncy.ts', 'full');
+
+    const result = await postprocessLeanToolResult({
+      agent,
+      toolName: 'LioraRead',
+      args: { path: 'src/bouncy.ts', mode: 'full' },
+      result: { isError: false, output: large },
+    });
+    // High bounce → leave full dump and attach a bounce hint instead of compressing.
+    expect(String(result.output)).toContain(large.slice(0, 40));
+    expect(String(result.output)).toMatch(/bounce|LioraRead/i);
   });
 });
 

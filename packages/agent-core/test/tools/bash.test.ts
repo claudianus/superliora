@@ -1350,6 +1350,25 @@ describe('BashTool', () => {
     expect(String(nodeWrite.output)).toContain('Write');
   });
 
+  it('rejects dd/install workspace file copies', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const dd = await executeTool(
+      tool,
+      context({ command: 'dd if=src/a.ts of=dest/a.ts', timeout: 60 }),
+    );
+    expect(dd).toMatchObject({ isError: true });
+    expect(String(dd.output)).toContain('Write');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const install = await executeTool(
+      tool,
+      context({ command: 'install -m 644 src/a.ts dest/a.ts', timeout: 60 }),
+    );
+    expect(install).toMatchObject({ isError: true });
+    expect(String(install.output)).toContain('Write');
+  });
+
   it('rejects simple cat/tee heredoc writers', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
