@@ -666,14 +666,16 @@ export class GoalMode {
     if (elapsed >= GOAL_COMPLETE_REJECT_COOLDOWN_TURNS) return null;
     const remaining = GOAL_COMPLETE_REJECT_COOLDOWN_TURNS - elapsed;
     // Re-surface the prior audit rejection so cooldown turns still show
-    // concrete repair actions (node_failed / dependsOn / stuck) instead of
-    // only "wait N turns" generic lines.
+    // concrete repair actions (node_failed / dependsOn / stuck / verification-gap /
+    // evidence hard-gate) instead of only "wait N turns" generic lines.
     const prior = this.lastCompletionRejection;
     const priorCode =
       prior !== undefined && prior.code !== 'reject_cooldown' ? prior.code : undefined;
+    // Keep up to 3 prior actions so multi-hint audits (evidence + verification + stuck)
+    // survive cooldown without collapsing to a single generic line.
     const priorActions =
       prior !== undefined && prior.code !== 'reject_cooldown'
-        ? prior.nextActions.slice(0, 2)
+        ? prior.nextActions.slice(0, 3)
         : [];
     return {
       ok: false,
@@ -683,7 +685,7 @@ export class GoalMode {
         `Reject streak: ${this.completionRejectStreak}. Wait ~${remaining} more goal turn(s) and make real progress before UpdateGoal(complete).`,
         ...(priorCode !== undefined ? [`Prior rejection code: ${priorCode}.`] : []),
         ...(prior !== undefined && prior.code !== 'reject_cooldown'
-          ? prior.reasons.slice(0, 2)
+          ? prior.reasons.slice(0, 3)
           : []),
       ],
       nextActions: [

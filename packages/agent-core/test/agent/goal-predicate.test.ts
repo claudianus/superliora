@@ -215,6 +215,12 @@ describe('GoalMode markComplete predicate + cooldown', () => {
         true,
       );
     }
+    // Cooldown keeps up to 3 prior nextActions (not just the first).
+    const priorCount = Math.min(prior?.nextActions.length ?? 0, 3);
+    const resurfaced = (prior?.nextActions.slice(0, priorCount) ?? []).filter((action) =>
+      (cooldown?.nextActions ?? []).includes(action),
+    );
+    expect(resurfaced.length).toBe(priorCount);
 
     // Advance goal turns past cooldown, still missing path → predicate again.
     for (let i = 0; i < GOAL_COMPLETE_REJECT_COOLDOWN_TURNS; i++) {

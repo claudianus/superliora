@@ -120,6 +120,15 @@ describe('detectShellDedicatedBypass', () => {
     );
     expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Json')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Content a.json | ConvertFrom-Json')).toBeUndefined();
+    // Import-Csv / Export-Csv path dumps → Read/Write; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('Import-Csv -Path data.csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ipcsv report.csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('ConvertFrom-Csv -Path data.csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Export-Csv -Path out.csv')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('epcsv results.csv')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('ConvertTo-Csv -Path out.csv')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Get-Content data.csv | Import-Csv')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Process | Export-Csv out.csv')).toBeUndefined();
     // Select-Object path dumps → Read; pipelines stay allowed.
     expect(detectShellDedicatedBypass('Select-Object -Path src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('select -Path src/a.ts')?.prefer).toBe('Read');

@@ -1294,6 +1294,31 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
         : 'Use Read instead of ConvertTo-Json for file content dumps.',
     };
   }
+  // Import-Csv / ConvertFrom-Csv path dumps → Read (pipelines stay allowed).
+  if (
+    /^(?:Import-Csv|ipcsv|ConvertFrom-Csv)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b|\bGet-Content\b|\bgc\b)/i.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: /^(?:ConvertFrom-Csv)\b/i.test(command) ? 'ConvertFrom-Csv' : 'Import-Csv',
+      message: 'Use Read instead of PowerShell Import-Csv/ConvertFrom-Csv for file content dumps.',
+    };
+  }
+  // Export-Csv / ConvertTo-Csv single-file writes → Write (pipelines stay allowed).
+  if (
+    /^(?:Export-Csv|epcsv|ConvertTo-Csv)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:ForEach-Object|%|Where-Object)\b/i.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b)/i.test(command)
+  ) {
+    return {
+      prefer: 'Write',
+      pattern: /^(?:ConvertTo-Csv)\b/i.test(command) ? 'ConvertTo-Csv' : 'Export-Csv',
+      message: 'Use Write instead of PowerShell Export-Csv/ConvertTo-Csv for file dumps.',
+    };
+  }
   // Select-Object path / Get-Content InputObject dumps → Read (pipelines stay allowed).
   if (
     /^(?:Select-Object|select)\b/i.test(command) &&
