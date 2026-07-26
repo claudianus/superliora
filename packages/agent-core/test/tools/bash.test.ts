@@ -1274,6 +1274,28 @@ describe('BashTool', () => {
   });
 
 
+  it('rejects python/node file-read one-liners', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const py = await executeTool(
+      tool,
+      context({ command: "python -c \"print(open('src/a.ts').read())\"", timeout: 60 }),
+    );
+    expect(py).toMatchObject({ isError: true });
+    expect(String(py.output)).toContain('Read');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const node = await executeTool(
+      tool,
+      context({
+        command: "node -e \"console.log(require('fs').readFileSync('src/a.ts','utf8'))\"",
+        timeout: 60,
+      }),
+    );
+    expect(node).toMatchObject({ isError: true });
+    expect(String(node.output)).toContain('Read');
+  });
+
   it('rejects simple cat/tee heredoc writers', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');

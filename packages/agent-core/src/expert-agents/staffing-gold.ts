@@ -180,9 +180,10 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     id: 'testing-qa',
     query: 'test driven development QA engineer automated tests',
     relevantIds: [
-      'ericgrill-general-test-driven-craftsman',
-      'agentcrow-qa-engineer',
       'ericgrill-general-test-driven-maniac',
+      'ericgrill-general-test-driven-craftsman',
+      'testing-test-automation-engineer',
+      'agentcrow-qa-engineer',
     ],
     labels: ['Testing', 'QA'],
   },
