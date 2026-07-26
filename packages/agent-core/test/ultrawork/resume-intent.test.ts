@@ -6,6 +6,7 @@ import { testKaos } from '../fixtures/test-kaos';
 import {
   detectInterruptedWorkResumeIntentWithLlm,
   hasInterruptedWorkResumeContext,
+  matchExplicitResumePhrase,
   shouldActOnResumeIntent,
 } from '../../src/ultrawork/resume-intent-llm';
 import { maybeTransformPromptForInterruptedWorkResume } from '../../src/ultrawork/interrupted-work-resume';
@@ -65,6 +66,36 @@ describe('interrupted work resume intent', () => {
     ).toBe(false);
   });
 
+
+  it('matches explicit multilingual short resume phrases without an LLM', () => {
+    for (const phrase of ['continue', '재개', '계속진행하라', '继续', 'keep going']) {
+      const intent = matchExplicitResumePhrase(phrase);
+      expect(shouldActOnResumeIntent(intent), phrase).toBe(true);
+    }
+    expect(matchExplicitResumePhrase('rewrite the auth module from scratch')).toBeUndefined();
+    expect(matchExplicitResumePhrase('')).toBeUndefined();
+  });
+
+  it('resumes blocked ultrawork from an explicit phrase without a provider', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    agent.ultrawork.create({
+      id: 'run-resume-heuristic',
+      objective: 'Ship game',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-resume-heuristic',
+        workDir: '/tmp',
+      },
+    });
+    await agent.ultrawork.markInterrupted({ reason: 'Paused after provider API error: 500' });
+
+    const transformed = await maybeTransformPromptForInterruptedWorkResume(agent, 'continue');
+    expect(transformed?.reason).toContain('Explicit short resume phrase');
+    expect(transformed?.promptText.length).toBeGreaterThan(20);
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+  });
+
   it('parses multilingual resume intent from the classifier response', async () => {
     const intent = await detectInterruptedWorkResumeIntentWithLlm(
       {
@@ -86,7 +117,7 @@ describe('interrupted work resume intent', () => {
         provider: {} as never,
       },
       {
-        text: '계속진행하라',
+        text: '방금 멈춘 작업 이어서 마무리해줘',
         context: {
           goal: null,
           ultraworkRun: {

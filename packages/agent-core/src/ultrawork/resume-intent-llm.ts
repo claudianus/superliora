@@ -57,6 +57,79 @@ export function hasInterruptedWorkResumeContext(
   return run !== null && run.status === 'blocked';
 }
 
+/**
+ * Deterministic short-phrase resume detector (no LLM).
+ * Used before the classifier and when the provider is unavailable so clear
+ * "continue / 재개 / 继续" messages still recover blocked work.
+ */
+export function matchExplicitResumePhrase(
+  text: string,
+): InterruptedWorkResumeIntent | undefined {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > 96) return undefined;
+
+  const normalized = trimmed
+    .toLowerCase()
+    .replace(/[!?.。！？…]+$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const exact = new Set([
+    'continue',
+    'go on',
+    'keep going',
+    'keep going please',
+    'please continue',
+    'please resume',
+    'resume',
+    'resume please',
+    'retry',
+    'proceed',
+    'go ahead',
+    '계속',
+    '계속해',
+    '계속해줘',
+    '계속 해',
+    '계속 해줘',
+    '계속진행',
+    '계속진행하라',
+    '계속 진행',
+    '계속 진행하라',
+    '재개',
+    '재개해',
+    '재개해줘',
+    '이어서',
+    '이어서 해',
+    '이어서 해줘',
+    '이어가',
+    '이어가줘',
+    '继续',
+    '继续吧',
+    '请继续',
+    '続けて',
+    '再開',
+    '続けてください',
+  ]);
+  if (exact.has(normalized)) {
+    return {
+      shouldResume: true,
+      confidence: 0.95,
+      reason: 'Explicit short resume phrase',
+    };
+  }
+
+  // Light English variants with optional please / trailing period already stripped.
+  if (/^(please\s+)?(continue|resume|retry|proceed|go on|keep going|go ahead)$/i.test(normalized)) {
+    return {
+      shouldResume: true,
+      confidence: 0.92,
+      reason: 'Explicit short resume phrase',
+    };
+  }
+
+  return undefined;
+}
+
 export async function detectInterruptedWorkResumeIntentWithLlm(
   deps: InterruptedWorkResumeLlmDeps,
   input: {
@@ -67,6 +140,9 @@ export async function detectInterruptedWorkResumeIntentWithLlm(
 ): Promise<InterruptedWorkResumeIntent | undefined> {
   const text = input.text.trim();
   if (text.length === 0) return undefined;
+
+  const explicit = matchExplicitResumePhrase(text);
+  if (explicit !== undefined) return explicit;
 
   const clipped = clipClassifierText(text);
 

@@ -3,8 +3,10 @@ import {
   CONTINUE_GOAL_INPUT,
   detectInterruptedWorkResumeIntentWithLlm,
   hasInterruptedWorkResumeContext,
+  matchExplicitResumePhrase,
   shouldActOnResumeIntent,
   type InterruptedWorkResumeContext,
+  type InterruptedWorkResumeIntent,
 } from './resume-intent-llm';
 
 
@@ -47,14 +49,19 @@ export async function maybeTransformPromptForInterruptedWorkResume(
   const context = readInterruptedWorkResumeContext(agent);
   if (!hasInterruptedWorkResumeContext(context)) return undefined;
 
-  const provider = agent.config.provider;
-  if (provider === undefined) return undefined;
-
-  const intent = await detectInterruptedWorkResumeIntentWithLlm(
-    { generate: agent.generate, provider },
-    { text: userText, context, signal: options.signal },
-  );
-  if (!shouldActOnResumeIntent(intent)) return undefined;
+  // Clear short resume phrases work without a provider / LLM call.
+  let intent: InterruptedWorkResumeIntent | undefined = matchExplicitResumePhrase(userText);
+  if (!shouldActOnResumeIntent(intent)) {
+    const provider = agent.config.provider;
+    if (provider === undefined) return undefined;
+    intent = await detectInterruptedWorkResumeIntentWithLlm(
+      { generate: agent.generate, provider },
+      { text: userText, context, signal: options.signal },
+    );
+    if (!shouldActOnResumeIntent(intent)) return undefined;
+  }
+  // shouldActOnResumeIntent narrowed intent above on every exit path that continues.
+  const acted = intent!;
 
   const blockedUltrawork =
     context.ultraworkRun !== null && context.ultraworkRun.status === 'blocked';
@@ -63,7 +70,7 @@ export async function maybeTransformPromptForInterruptedWorkResume(
     if (resumed === null) return undefined;
     return {
       promptText: buildResumeWithSteering(resumed.recoveryPrompt, userText),
-      reason: intent.reason,
+      reason: acted.reason,
     };
   }
 
@@ -71,7 +78,7 @@ export async function maybeTransformPromptForInterruptedWorkResume(
     context.goal?.status === 'paused' || context.goal?.status === 'blocked';
   if (pausedGoal) {
     await agent.goal.resumeGoal();
-    return { promptText: CONTINUE_GOAL_INPUT, reason: intent.reason };
+    return { promptText: CONTINUE_GOAL_INPUT, reason: acted.reason };
   }
 
   return undefined;
