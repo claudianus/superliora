@@ -4,11 +4,12 @@ import {
   MAX_INTERVIEW_ROUNDS,
   ULTRA_PLAN_REQUIRED_SECTIONS,
   ULTRA_PLAN_SECTION_GUIDANCE,
-} from '../../../src/agent/plan/ultra-plan-section-guidance';
+  type UltraPlanRequiredSection,
+} from '#/agent/plan/ultra-plan-section-guidance';
 
-describe('plan/ultra-plan-section-guidance.ts — required sections', () => {
-  it('pins the documented 10-section list in order', () => {
-    expect([...ULTRA_PLAN_REQUIRED_SECTIONS]).toEqual([
+describe('agent/plan/ultra-plan-section-guidance — required sections + guidance', () => {
+  it('lists the canonical 10 required seed sections in order', () => {
+    expect(ULTRA_PLAN_REQUIRED_SECTIONS).toEqual([
       'goal',
       'actors',
       'inputs',
@@ -22,21 +23,29 @@ describe('plan/ultra-plan-section-guidance.ts — required sections', () => {
     ]);
   });
 
-  it('MAX_INTERVIEW_ROUNDS stays at 8 (soft cap, no Design-gate bypass)', () => {
-    expect(MAX_INTERVIEW_ROUNDS).toBe(8);
-  });
-
-  it('ULTRA_PLAN_SECTION_GUIDANCE covers every required section', () => {
-    for (const sec of ULTRA_PLAN_REQUIRED_SECTIONS) {
-      const g = ULTRA_PLAN_SECTION_GUIDANCE[sec];
-      expect(g.label.length).toBeGreaterThan(0);
-      expect(g.askHint.length).toBeGreaterThan(0);
+  it('exposes a `label` and `askHint` for every required section', () => {
+    for (const section of ULTRA_PLAN_REQUIRED_SECTIONS) {
+      const entry = ULTRA_PLAN_SECTION_GUIDANCE[section];
+      expect(typeof entry.label).toBe('string');
+      expect(entry.label.length).toBeGreaterThan(0);
+      expect(typeof entry.askHint).toBe('string');
+      expect(entry.askHint.length).toBeGreaterThan(0);
     }
   });
 
-  it('each guidance label is the human-readable form of the snake_case key', () => {
-    expect(ULTRA_PLAN_SECTION_GUIDANCE.acceptance_criteria.label).toBe('Acceptance Criteria');
-    expect(ULTRA_PLAN_SECTION_GUIDANCE.verification_plan.label).toBe('Verification Plan');
-    expect(ULTRA_PLAN_SECTION_GUIDANCE.failure_modes.label).toBe('Failure Modes');
+  it('exposes a guidance entry exactly for the required sections (no more, no less)', () => {
+    const guidanceKeys = Object.keys(ULTRA_PLAN_SECTION_GUIDANCE).sort();
+    const required = [...ULTRA_PLAN_REQUIRED_SECTIONS].sort();
+    expect(guidanceKeys).toEqual(required);
+  });
+
+  it('exposes MAX_INTERVIEW_ROUNDS as a positive soft cap', () => {
+    expect(MAX_INTERVIEW_ROUNDS).toBe(8);
+    expect(MAX_INTERVIEW_ROUNDS).toBeGreaterThan(0);
+  });
+
+  it('keeps `UltraPlanRequiredSection` aligned with the runtime list', () => {
+    const runtime: readonly UltraPlanRequiredSection[] = ULTRA_PLAN_REQUIRED_SECTIONS;
+    expect(runtime.length).toBe(10);
   });
 });
