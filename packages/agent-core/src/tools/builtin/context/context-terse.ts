@@ -303,6 +303,9 @@ function applyShellPatterns(text: string, command: string): string {
     /\bnomad\s+(?:job|alloc|status|logs)\b/u.test(command) ||
     /\bconsul\s+(?:members|catalog|kv|intention)\b/u.test(command) ||
     /\bvault\s+(?:status|kv|policy|auth)\b/u.test(command) ||
+    /\b(?:psql|mysql|mysqldump|mongosh|mongo|redis-cli|sqlite3|clickhouse-client)\b/u.test(
+      command,
+    ) ||
     /\b(?:terraform|tofu)\s+(?:plan|show|state|output|apply)\b/u.test(command) ||
     /\bpulumi\s+(?:preview|stack|up)\b/u.test(command) ||
     /\baws\s+\S+/u.test(command) ||

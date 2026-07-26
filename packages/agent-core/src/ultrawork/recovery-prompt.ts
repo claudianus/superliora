@@ -2,7 +2,7 @@
  * Pure Ultrawork recovery report/prompt builders (no Agent mutation).
  */
 
-import type { UltraworkRun } from '@superliora/protocol';
+import type { UltraworkRun, WorkGraphNode } from '@superliora/protocol';
 
 import {
   analyzeFailedNodes,
@@ -18,6 +18,48 @@ import type {
   UltraworkRecoveryReport,
   UltraworkResumeCursor,
 } from './types';
+
+/** Nodes that still need verification evidence or have failed/blocked verification. */
+export function collectVerificationGapNodes(
+  nodes: readonly WorkGraphNode[] | undefined,
+): readonly WorkGraphNode[] {
+  if (nodes === undefined || nodes.length === 0) return [];
+  return nodes.filter((node) => {
+    if (node.status === 'cancelled' || node.status === 'failed') return false;
+    if (node.verificationStatus === 'failed' || node.verificationStatus === 'blocked') {
+      return true;
+    }
+    if (node.verificationStatus === 'pending' || node.verificationStatus === undefined) {
+      const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
+      if (required.length === 0) return false;
+      const evidence = new Set(node.evidenceIds ?? []);
+      return required.some((id) => !evidence.has(id));
+    }
+    return false;
+  });
+}
+
+export function formatVerificationGapSummary(
+  nodes: readonly WorkGraphNode[],
+  limit = 4,
+): string {
+  return nodes
+    .slice(0, limit)
+    .map((node) => {
+      const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
+      const missing =
+        required.length > 0
+          ? ` missing=${required
+              .filter((id) => !(node.evidenceIds ?? []).includes(id))
+              .slice(0, 3)
+              .join(',')}`
+          : '';
+      const verify =
+        node.verificationStatus !== undefined ? ` verify=${node.verificationStatus}` : '';
+      return `${node.id}${verify}${missing}`;
+    })
+    .join(', ');
+}
 
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
@@ -264,20 +306,7 @@ export function suggestNextActions(
         .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
     );
   }
-  const verificationGaps =
-    run.workGraph?.nodes.filter((node) => {
-      if (node.status === 'cancelled' || node.status === 'failed') return false;
-      if (node.verificationStatus === 'failed' || node.verificationStatus === 'blocked') {
-        return true;
-      }
-      if (node.verificationStatus === 'pending' || node.verificationStatus === undefined) {
-        const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
-        if (required.length === 0) return false;
-        const evidence = new Set(node.evidenceIds ?? []);
-        return required.some((id) => !evidence.has(id));
-      }
-      return false;
-    }) ?? [];
+  const verificationGaps = collectVerificationGapNodes(run.workGraph?.nodes);
   if (verificationGaps.length > 0) {
     actions.push(
       `Close verification gaps on node(s): ${verificationGaps

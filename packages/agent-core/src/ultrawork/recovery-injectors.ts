@@ -8,7 +8,11 @@ import {
   ultraworkStageIndex,
 } from './stage-progress';
 import type { UltraworkPlanRecoveryContext } from './types';
-import { suggestNextActions } from './recovery-prompt';
+import {
+  collectVerificationGapNodes,
+  formatVerificationGapSummary,
+  suggestNextActions,
+} from './recovery-prompt';
 import {
   buildUltraworkResumeCursor,
   inferResumeStageFloor,
@@ -84,6 +88,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
         (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
         (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
     ) ?? [];
+  const verificationGapNodes = collectVerificationGapNodes(run.workGraph?.nodes);
   const interruptReason = agent.ultrawork?.getInterruptReason()?.trim();
   const lines = [
     '<ultrawork_post_swarm>',
@@ -142,6 +147,14 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     );
     lines.push(
       'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
+    );
+  }
+  if (verificationGapNodes.length > 0) {
+    lines.push(
+      `Verification-gap WorkGraph nodes (${String(verificationGapNodes.length)}): ${formatVerificationGapSummary(verificationGapNodes)}${verificationGapNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
   }
   if (pendingNodes.length > 0) {
@@ -216,6 +229,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
         (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
         (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
     ) ?? [];
+  const verificationGapNodes = collectVerificationGapNodes(run.workGraph?.nodes);
   if (failedNodes.length > 0) {
     lines.push(
       `Failed WorkGraph nodes (${String(failedNodes.length)}): ${failedNodes
@@ -258,6 +272,14 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     );
     lines.push(
       'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
+    );
+  }
+  if (verificationGapNodes.length > 0) {
+    lines.push(
+      `Verification-gap WorkGraph nodes (${String(verificationGapNodes.length)}): ${formatVerificationGapSummary(verificationGapNodes)}${verificationGapNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
   }
   if (pendingNodes.length > 0) {
