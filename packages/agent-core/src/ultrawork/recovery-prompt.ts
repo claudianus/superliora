@@ -135,6 +135,7 @@ export function formatVerificationGapNextActions(
         return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
       })
       .join(', ')}${nodes.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
+    'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
   ];
 }
 
@@ -158,6 +159,7 @@ export function formatFailedNodeNextActions(
         .slice(0, 3)
         .map((node) => node.id)
         .join(', ')}${nodes.length > 3 ? ', …' : ''} — ${categoryHints}`,
+      'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
     ];
   }
   return [
@@ -165,6 +167,7 @@ export function formatFailedNodeNextActions(
       .slice(0, 3)
       .map((node) => node.id)
       .join(', ')}${nodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
+    'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
   ];
 }
 
@@ -178,6 +181,7 @@ export function formatNeedsIntegrationNextActions(
       .slice(0, 3)
       .map((node) => `${node.id} (${node.title})`)
       .join(', ')}${nodes.length > 3 ? ', …' : ''} — needs_integration blocks goal complete.`,
+    'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
   ];
 }
 
@@ -195,6 +199,7 @@ export function formatBlockedNodeNextActions(nodes: readonly WorkGraphNode[]): r
     .join(', ');
   return [
     `Unblock WorkGraph node(s) first: ${depHints}${nodes.length > 3 ? ', …' : ''} — resolve dependencies or re-queue before more product edits.`,
+    'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
   ];
 }
 
@@ -208,6 +213,7 @@ export function formatOwnerlessRunningNextActions(
       .slice(0, 3)
       .map((node) => `${node.id} (${node.title})`)
       .join(', ')}${nodes.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
+    'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
   ];
 }
 
@@ -225,6 +231,7 @@ export function formatQueuedDependsOnWaitNextActions(
     .join(', ');
   return [
     `Queued node(s) waiting on dependsOn: ${waitHints}${nodes.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
+    'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
   ];
 }
 
@@ -236,6 +243,7 @@ export function formatStuckNodeNextActions(nodes: readonly WorkGraphNode[]): rea
       .slice(0, 3)
       .map((node) => `${node.id}[${node.status}]`)
       .join(', ')}${nodes.length > 3 ? ', …' : ''} — re-queue, verify active owner progress, or mark failed if unrecoverable.`,
+    'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
   ];
 }
 
@@ -421,9 +429,7 @@ export function buildUltraworkRecoveryPrompt(
           .map((node) => `${node.id} ${node.title}`)
           .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
       );
-      lines.push(
-        'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
-      );
+      lines.push(...formatFailedNodeNextActions(failedNodes, report.run.workGraph));
     }
     if (needsIntegrationNodes.length > 0) {
       lines.push(
@@ -432,9 +438,7 @@ export function buildUltraworkRecoveryPrompt(
           .map((node) => `${node.id} ${node.title}`)
           .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
       );
-      lines.push(
-        'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
-      );
+      lines.push(...formatNeedsIntegrationNextActions(needsIntegrationNodes));
     }
     if (blockedNodes.length > 0) {
       lines.push(
@@ -443,9 +447,7 @@ export function buildUltraworkRecoveryPrompt(
           .map((node) => `${node.id} ${node.title}`)
           .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
       );
-      lines.push(
-        'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
-      );
+      lines.push(...formatBlockedNodeNextActions(blockedNodes));
     }
     if (ownerlessRunningNodes.length > 0) {
       lines.push(
@@ -454,9 +456,7 @@ export function buildUltraworkRecoveryPrompt(
           .map((node) => `${node.id} ${node.title}`)
           .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
       );
-      lines.push(
-        'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
-      );
+      lines.push(...formatOwnerlessRunningNextActions(ownerlessRunningNodes));
     }
     if (waitingQueuedNodes.length > 0 && blockedNodes.length === 0) {
       lines.push(
@@ -468,17 +468,13 @@ export function buildUltraworkRecoveryPrompt(
           })
           .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
       );
-      lines.push(
-        'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
-      );
+      lines.push(...formatQueuedDependsOnWaitNextActions(waitingQueuedNodes));
     }
     if (verificationGapNodes.length > 0) {
       lines.push(
         `Verification-gap WorkGraph nodes (${String(verificationGapNodes.length)}): ${formatVerificationGapSummary(verificationGapNodes)}${verificationGapNodes.length > 4 ? ', …' : ''}`,
       );
-      lines.push(
-        'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
-      );
+      lines.push(...formatVerificationGapNextActions(verificationGapNodes));
     }
 
     if (pending.length > 0) {
@@ -496,9 +492,7 @@ export function buildUltraworkRecoveryPrompt(
       lines.push(
         `⚠ Stuck nodes (${String(stuckNodes.length)}): ${stuckNodes.slice(0, 3).map((n) => `${n.id} [${n.status}]`).join(', ')}`,
       );
-      lines.push(
-        'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
-      );
+      lines.push(...formatStuckNodeNextActions(stuckNodes));
     }
   }
   // Warn about stages running longer than expected (un-bounded loop anti-pattern).

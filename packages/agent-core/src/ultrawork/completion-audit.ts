@@ -183,7 +183,6 @@ export function auditUltraworkCompletion(
         // Match recovery-prompt needs_integration next_actions wording.
         ...formatNeedsIntegrationNextActions(needsIntegrationNodes),
         'Merge handoffs and mark nodes done only after integration evidence.',
-        'Do not call UpdateGoal(complete) while any node is still needs_integration.',
       ],
       openNodeIds,
     );
@@ -204,7 +203,6 @@ export function auditUltraworkCompletion(
       [
         // Match recovery-prompt blocked-node next_actions wording.
         ...formatBlockedNodeNextActions(blockedNodes),
-        'Do not call UpdateGoal(complete) while any node is still blocked.',
       ],
       openNodeIds,
     );

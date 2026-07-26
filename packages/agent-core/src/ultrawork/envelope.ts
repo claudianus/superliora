@@ -163,10 +163,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     lines.push(
       `verification_gaps: ${formatVerificationGapSummary(verificationGaps)}${verificationGaps.length > 4 ? ', …' : ''}`,
     );
-    lines.push(
-      ...formatVerificationGapNextActions(verificationGaps),
-      'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
-    );
+    lines.push(...formatVerificationGapNextActions(verificationGaps));
   }
   {
     const evidenceHardGateSummary = formatEvidenceHardGateSummary(snapshot.run.workGraph?.nodes);
@@ -244,10 +241,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .map((node) => `${node.id} ${node.title}`)
         .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
     );
-    lines.push(
-      ...formatFailedNodeNextActions(failedNodes, snapshot.run.workGraph),
-      'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
-    );
+    lines.push(...formatFailedNodeNextActions(failedNodes, snapshot.run.workGraph));
     const failedAnalysis = analyzeFailedNodes(snapshot.run.workGraph);
     for (const { node, category, guidance } of failedAnalysis.slice(0, 2)) {
       lines.push(`- ${node.id} [${category}]: ${guidance}`);
@@ -260,10 +254,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .map((node) => `${node.id} ${node.title}`)
         .join(', ')}${needsIntegrationNodes.length > 4 ? ', …' : ''}`,
     );
-    lines.push(
-      ...formatNeedsIntegrationNextActions(needsIntegrationNodes),
-      'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
-    );
+    lines.push(...formatNeedsIntegrationNextActions(needsIntegrationNodes));
   }
   if (blockedNodes.length > 0) {
     lines.push(
@@ -272,10 +263,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .map((node) => `${node.id} ${node.title}`)
         .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
     );
-    lines.push(
-      ...formatBlockedNodeNextActions(blockedNodes),
-      'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
-    );
+    lines.push(...formatBlockedNodeNextActions(blockedNodes));
   }
   if (ownerlessRunningNodes.length > 0) {
     lines.push(
@@ -284,10 +272,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         .map((node) => `${node.id} ${node.title}`)
         .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
     );
-    lines.push(
-      ...formatOwnerlessRunningNextActions(ownerlessRunningNodes),
-      'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
-    );
+    lines.push(...formatOwnerlessRunningNextActions(ownerlessRunningNodes));
   }
   if (waitingQueuedNodes.length > 0 && blockedNodes.length === 0) {
     lines.push(
@@ -299,10 +284,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
         })
         .join('; ')}${waitingQueuedNodes.length > 4 ? '; …' : ''}`,
     );
-    lines.push(
-      ...formatQueuedDependsOnWaitNextActions(waitingQueuedNodes),
-      'Queued dependsOn waits stall progress — finish or cancel deps before forcing progress.',
-    );
+    lines.push(...formatQueuedDependsOnWaitNextActions(waitingQueuedNodes));
   }
 
   if (pendingNodes.length > 0) {
@@ -317,10 +299,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
   const stuckNodes = detectStuckWorkGraphNodes(snapshot.run.workGraph);
   if (stuckNodes.length > 0) {
     lines.push(`stuck_nodes: ${stuckNodes.slice(0, 5).map((n) => `${n.id}[${n.status}]`).join(', ')}`);
-    lines.push(
-      ...formatStuckNodeNextActions(stuckNodes),
-      'Consider: re-queue blocked nodes, verify running nodes have active owners, or mark failed if unrecoverable.',
-    );
+    lines.push(...formatStuckNodeNextActions(stuckNodes));
   }
 
   const nextActions = suggestNextActions(
