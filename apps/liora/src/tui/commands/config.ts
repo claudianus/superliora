@@ -48,6 +48,11 @@ import { handlePersonaCommand } from './persona';
 import { setExperimentalFeatures } from './experimental-flags';
 import type { SlashCommandHost } from './dispatch';
 import { isActiveUltraworkRun, ultraworkModeDisableBlockedMessage } from './ultrawork-contract';
+import {
+  formatHarnessEyesReadiness,
+  loadHarnessEyesReadiness,
+} from '#/tui/utils/harness-eyes-readiness';
+import { getHostPackageRoot } from '#/cli/version';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 // ---------------------------------------------------------------------------
@@ -924,6 +929,11 @@ export function showHarnessPanel(host: SlashCommandHost): void {
           description: 'List active agent tools (SearchTools surface).',
         },
         {
+          value: 'eyes',
+          label: 'Eyes readiness',
+          description: 'Browser-use / computer-use runtime status.',
+        },
+        {
           value: 'premium',
           label: 'Premium Quality',
           description: 'Toggle visual-first premium harness.',
@@ -949,6 +959,9 @@ export function showHarnessPanel(host: SlashCommandHost): void {
         switch (value) {
           case 'tools':
             void showToolsInventory(host);
+            return;
+          case 'eyes':
+            void showHarnessEyesReadiness(host);
             return;
           case 'premium':
             void handlePremiumQualityCommand(host, '');
@@ -1019,6 +1032,18 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
     host.showError(`Failed to load tools: ${formatErrorMessage(error)}`);
   }
 }
+
+
+/** Browser-use / computer-use runtime readiness (Harness eyes). */
+export async function showHarnessEyesReadiness(host: SlashCommandHost): Promise<void> {
+  try {
+    const report = await loadHarnessEyesReadiness({ packageRoot: getHostPackageRoot() });
+    host.showNotice(formatHarnessEyesReadiness(report));
+  } catch (error) {
+    host.showError(`Failed to load eyes readiness: ${formatErrorMessage(error)}`);
+  }
+}
+
 
 /**
  * /context [economy|balanced|deep|full|status] — open the working-set picker

@@ -33,6 +33,7 @@ export {
   showSettingsSelector,
   showHarnessPanel,
   showToolsInventory,
+  showHarnessEyesReadiness,
 } from './config';
 export { handleSwarmCommand } from './swarm';
 export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork';
