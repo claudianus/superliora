@@ -5,6 +5,7 @@ import { basename, dirname, join, relative, resolve } from 'pathe';
 import type { AutocompleteItem } from '#/tui/renderer';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
+import { improveHarnessArgumentCompletions } from './improve-harness';
 import { rendererArgumentCompletions } from './renderer';
 import type { LioraSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from './types';
 
@@ -611,6 +612,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Analyze and improve the SuperLiora harness codebase (self-improvement mode)',
     priority: 75,
     argumentHint: '[area] [--auto]',
+    completeArgs: improveHarnessArgumentCompletions,
     availability: () => 'idle-only',
   },
   {

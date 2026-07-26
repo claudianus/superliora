@@ -7,6 +7,7 @@ import {
   contextArgumentCompletions,
   cronArgumentCompletions,
   helpArgumentCompletions,
+  improveHarnessArgumentCompletions,
   loopArgumentCompletions,
   memoryArgumentCompletions,
   personaArgumentCompletions,
@@ -231,6 +232,40 @@ describe('built-in slash command registry', () => {
     expect(values('delete')).toBeNull();
     expect(values('unknown')).toBeNull();
     expect(findBuiltInSlashCommand('cron')?.completeArgs).toBe(cronArgumentCompletions);
+  });
+
+  it('offers improve-harness area and --auto argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = improveHarnessArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual([
+      'tui',
+      'tools',
+      'performance',
+      'reliability',
+      'ux',
+      'docs',
+      'tests',
+      '--auto',
+    ]);
+    expect(values('t')).toEqual(['tui', 'tools', 'tests']);
+    expect(values('p')).toEqual(['performance']);
+    expect(values('-')).toEqual(['--auto']);
+    expect(improveHarnessArgumentCompletions('re')).toEqual([
+      {
+        value: 'reliability',
+        label: 'reliability',
+        description: 'Focus harness improvement on reliability',
+      },
+    ]);
+    expect(values('tui')).toBeNull();
+    expect(values('--auto')).toBeNull();
+    expect(values('unknown')).toBeNull();
+    expect(findBuiltInSlashCommand('improve-harness')?.completeArgs).toBe(
+      improveHarnessArgumentCompletions,
+    );
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {

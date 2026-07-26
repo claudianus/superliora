@@ -1,3 +1,6 @@
+import type { AutocompleteItem } from '#/tui/renderer';
+
+import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
 import type { SlashCommandHost } from './dispatch';
 
 /**
@@ -19,6 +22,27 @@ export interface ImproveHarnessOptions {
   readonly area?: string;
   readonly auto?: boolean;
 }
+
+/** Fixed focus areas accepted by `/improve-harness <area>`. */
+export const IMPROVEMENT_AREAS = [
+  'tui',
+  'tools',
+  'performance',
+  'reliability',
+  'ux',
+  'docs',
+  'tests',
+] as const;
+
+type ImprovementArea = (typeof IMPROVEMENT_AREAS)[number];
+
+const IMPROVE_HARNESS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  ...IMPROVEMENT_AREAS.map((area) => ({
+    value: area,
+    description: `Focus harness improvement on ${area}`,
+  })),
+  { value: '--auto', description: 'Run autonomous improvement loop' },
+];
 
 export function parseImproveHarnessCommand(rawArgs: string): ImproveHarnessOptions {
   const args = rawArgs.trim();
@@ -42,17 +66,12 @@ export function parseImproveHarnessCommand(rawArgs: string): ImproveHarnessOptio
   };
 }
 
-const IMPROVEMENT_AREAS = [
-  'tui',
-  'tools',
-  'performance',
-  'reliability',
-  'ux',
-  'docs',
-  'tests',
-] as const;
-
-type ImprovementArea = (typeof IMPROVEMENT_AREAS)[number];
+/** Leading-arg completions for `/improve-harness` areas and `--auto`. */
+export function improveHarnessArgumentCompletions(
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  return completeLeadingArg(IMPROVE_HARNESS_ARG_COMPLETIONS, argumentPrefix);
+}
 
 function isImprovementArea(value: string): value is ImprovementArea {
   return (IMPROVEMENT_AREAS as readonly string[]).includes(value);

@@ -69,6 +69,12 @@ export { handleUndoCommand } from './undo';
 export { handleRewindCommand } from './rewind';
 export { handleLoopCommand } from './loop';
 export {
+  IMPROVEMENT_AREAS,
+  handleImproveHarnessCommand,
+  improveHarnessArgumentCompletions,
+  parseImproveHarnessCommand,
+} from './improve-harness';
+export {
   promptApiKey,
   promptApiKeyForCatalogProvider,
   promptLogoutProviderSelection,
