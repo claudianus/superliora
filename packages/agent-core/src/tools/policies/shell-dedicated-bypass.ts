@@ -821,21 +821,68 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
     }
   }
 
-  // node/nodejs -e / -p "...readFileSync('path')..."
-  // `-p` is print mode (same one-liner surface as `-e` for agent file dumps).
+  // node/nodejs -e / -p / --eval / --print "...readFileSync('path')..."
+  // Long forms (`--eval`, `--print`) are the same dump surface as short flags.
   if (
     /^(?:\/usr\/bin\/)?node(?:js)?\b/.test(command) &&
-    /(?:^|\s)-(?:e|p)(?:\s|$)/.test(command)
+    /(?:^|\s)(?:-(?:e|p)|--eval|--print)(?:\s|=|$)/.test(command)
   ) {
     if (/readFile(?:Sync)?\s*\(/.test(command) || /promises\.readFile\s*\(/.test(command)) {
       if (/writeFile(?:Sync)?\s*\(/.test(command) || /appendFile(?:Sync)?\s*\(/.test(command)) {
         return undefined;
       }
-      const flag = /(?:^|\s)-p(?:\s|$)/.test(command) ? '-p' : '-e';
+      const flag = /(?:^|\s)(?:-p|--print)(?:\s|=|$)/.test(command)
+        ? /(?:^|\s)--print(?:\s|=|$)/.test(command)
+          ? '--print'
+          : '-p'
+        : /(?:^|\s)--eval(?:\s|=|$)/.test(command)
+          ? '--eval'
+          : '-e';
       return {
         prefer: 'Read',
         pattern: `node ${flag} readFile`,
         message: `Use Read or LioraRead instead of node ${flag} readFile for file contents.`,
+      };
+    }
+  }
+
+  // bun -e / bun -p / bun --eval "...Bun.file / readFileSync..."
+  if (
+    /^(?:\/usr\/bin\/)?bun\b/.test(command) &&
+    /(?:^|\s)(?:-(?:e|p)|--eval|--print)(?:\s|=|$)/.test(command)
+  ) {
+    if (
+      /readFile(?:Sync)?\s*\(/.test(command) ||
+      /Bun\.file\s*\(/.test(command) ||
+      /promises\.readFile\s*\(/.test(command)
+    ) {
+      if (/writeFile(?:Sync)?\s*\(/.test(command) || /Bun\.write\s*\(/.test(command)) {
+        return undefined;
+      }
+      return {
+        prefer: 'Read',
+        pattern: 'bun -e readFile',
+        message: 'Use Read or LioraRead instead of bun -e for file contents.',
+      };
+    }
+  }
+
+  // deno eval / deno -e "...readTextFile(Sync)..."
+  if (
+    /^(?:\/usr\/bin\/)?deno\b/.test(command) &&
+    /(?:^|\s)(?:eval|-e|--eval)(?:\s|=|$)/.test(command)
+  ) {
+    if (
+      /readTextFile(?:Sync)?\s*\(/.test(command) ||
+      /readFile(?:Sync)?\s*\(/.test(command)
+    ) {
+      if (/writeTextFile(?:Sync)?\s*\(/.test(command) || /writeFile(?:Sync)?\s*\(/.test(command)) {
+        return undefined;
+      }
+      return {
+        prefer: 'Read',
+        pattern: 'deno eval readFile',
+        message: 'Use Read or LioraRead instead of deno eval for file contents.',
       };
     }
   }
@@ -1773,6 +1820,70 @@ function isSinglePlutilFileDump(command: string): boolean {
   return false;
 }
 
+/**
+ * `PlistBuddy -c Print Info.plist` / `PlistBuddy -c 'Print :key' Info.plist`.
+ * Only pure Print dumps; mutating -c commands stay allowed.
+ */
+function isSinglePlistBuddyPrintDump(command: string): boolean {
+  // Must not include mutating subcommands in any -c argument.
+  if (/\b(?:Set|Add|Delete|Merge|Clear|Copy|Import|Save)\b/i.test(command)) {
+    // Allow "Print" dumps that mention those words only inside paths — rare.
+    // If a -c string contains a mutator, leave it alone.
+    if (/(?:^|\s)-c\s+['"]?(?:Set|Add|Delete|Merge|Clear|Copy|Import|Save)\b/i.test(command)) {
+      return false;
+    }
+  }
+  // Strip utility + all -c '…' / -c "…" / -c Print chunks; leftover should be one path.
+  let rest = command
+    .replace(/^(?:\/usr\/libexec\/|\/usr\/bin\/)?PlistBuddy\b/i, '')
+    .trim();
+  rest = rest
+    .replace(/(?:^|\s)-c\s+(?:'[^']*'|"[^"]*"|\S+)/gi, ' ')
+    .replace(/(?:^|\s)-x(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+  const parts = rest.split(/\s+/).filter((part) => part.length > 0 && !part.startsWith('-'));
+  if (parts.length !== 1) return false;
+  return isPathLikeHashOperand(parts[0] ?? '');
+}
+
+/**
+ * `xmllint --format a.xml` / `xmllint --xpath '//x' a.xml` single-file dumps.
+ *
+ * Note: do not use `\b` before `--flag` — `-` is non-word, so `\b--format`
+ * never matches after a space.
+ */
+function isSingleXmllintFileDump(command: string): boolean {
+  // Must be a format/xpath/encode dump, not a full interactive shell.
+  const hasDumpFlag =
+    /(?:^|\s)--(?:format|xpath|encode|c14n|noblanks)(?:=\S+|\s|$)/.test(command);
+  if (!hasDumpFlag) {
+    // Bare `xmllint file.xml` also dumps parsed XML to stdout — catch path-only form.
+    const bare = command.replace(/^(?:\/usr\/bin\/)?xmllint\b/i, '').trim();
+    if (bare.length === 0 || /[*?\[{]/.test(bare)) return false;
+    if (/(?:^|\s)--\S+/.test(bare)) return false;
+    const parts = bare.split(/\s+/).filter((part) => part.length > 0);
+    if (parts.length !== 1) return false;
+    return isPathLikeHashOperand(parts[0] ?? '');
+  }
+  let rest = command.replace(/^(?:\/usr\/bin\/)?xmllint\b/i, '').trim();
+  // Drop known dump flags (and their single values for --xpath / --encode).
+  rest = rest
+    .replace(/(?:^|\s)--xpath(?:=\S+|\s+\S+)/gi, ' ')
+    .replace(/(?:^|\s)--encode(?:=\S+|\s+\S+)/gi, ' ')
+    .replace(
+      /(?:^|\s)--(?:format|c14n|noblanks|noout|nonet|nowarning|quiet)(?=\s|$)/gi,
+      ' ',
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+  const parts = rest.split(/\s+/).filter((part) => part.length > 0 && !part.startsWith('-'));
+  if (parts.length !== 1) return false;
+  return isPathLikeHashOperand(parts[0] ?? '');
+}
+
 function isPathLikeHashOperand(path: string): boolean {
   return (
     /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)/.test(path) ||
@@ -1939,6 +2050,36 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
         prefer: 'Read',
         pattern: 'plutil file',
         message: 'Use Read instead of plutil for single-file property list dumps.',
+      };
+    }
+  }
+  // PlistBuddy -c Print of a single plist → Read (macOS property list dump).
+  // Mutating commands (Set/Add/Delete/Merge/Clear/Copy) stay allowed.
+  if (
+    /^(?:\/usr\/libexec\/|\/usr\/bin\/)?PlistBuddy\b/.test(command) &&
+    !/\s\|/.test(command) &&
+    /(?:^|\s)-c\s+['"]?Print\b/i.test(command)
+  ) {
+    if (isSinglePlistBuddyPrintDump(command)) {
+      return {
+        prefer: 'Read',
+        pattern: 'PlistBuddy Print',
+        message: 'Use Read instead of PlistBuddy -c Print for single-file property list dumps.',
+      };
+    }
+  }
+  // xmllint --format / --xpath of a single local xml file → Read.
+  // Network / DTD fetch modes and multi-file stay allowed.
+  if (
+    /^(?:\/usr\/bin\/)?xmllint\b/.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:--html|--shell|--path)\b/.test(command)
+  ) {
+    if (isSingleXmllintFileDump(command)) {
+      return {
+        prefer: 'Read',
+        pattern: 'xmllint file',
+        message: 'Use Read instead of xmllint for single-file XML dumps.',
       };
     }
   }

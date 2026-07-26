@@ -805,3 +805,37 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('node -p "1+1"')).toBeUndefined();
   });
 
+  it('routes node --eval/--print, bun/deno, PlistBuddy Print, xmllint dumps to Read', () => {
+    expect(
+      detectShellDedicatedBypass(
+        'node --eval "require(\'fs\').readFileSync(\'src/a.ts\')"',
+      )?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass(
+        'node --print "require(\'fs\').readFileSync(\'src/a.ts\',\'utf8\')"',
+      )?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass(
+        'bun -e "console.log(await Bun.file(\'src/a.ts\').text())"',
+      )?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass(
+        'deno eval "console.log(Deno.readTextFileSync(\'src/a.ts\'))"',
+      )?.prefer,
+    ).toBe('Read');
+    expect(detectShellDedicatedBypass('PlistBuddy -c Print Info.plist')?.prefer).toBe('Read');
+    expect(
+      detectShellDedicatedBypass('/usr/libexec/PlistBuddy -c Print Info.plist')?.prefer,
+    ).toBe('Read');
+    expect(detectShellDedicatedBypass('xmllint --format a.xml')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('xmllint a.xml')?.prefer).toBe('Read');
+
+    // Non-dump / mutating forms stay allowed.
+    expect(detectShellDedicatedBypass('node --eval "1+1"')).toBeUndefined();
+    expect(detectShellDedicatedBypass('PlistBuddy -c "Set :k v" Info.plist')).toBeUndefined();
+    expect(detectShellDedicatedBypass('xmllint --shell a.xml')).toBeUndefined();
+  });
+
