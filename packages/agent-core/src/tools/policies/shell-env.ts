@@ -65,6 +65,21 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   'MNEMONIC',
   'PKCS',
   'CONNECTION_STRING',
+  // Connection / service URLs often carry credentials in the value.
+  // Match common env key stems only (not bare "URL" which false-positives CDN_URL).
+  'DATABASE_URL',
+  'MONGO_URI',
+  'POSTGRES_URL',
+  'POSTGRES_URI',
+  'MYSQL_URL',
+  'MYSQL_URI',
+  'REDIS_URL',
+  'REDIS_URI',
+  'DATABASE_URI',
+  'DB_URL',
+  'DB_URI',
+  'SERVICE_ROLE',
+  'SERVICE_KEY',
 ] as const;
 
 const CORE_ENV_EXACT = new Set([

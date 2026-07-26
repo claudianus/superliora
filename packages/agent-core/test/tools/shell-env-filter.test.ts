@@ -37,6 +37,11 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('WALLET_MNEMONIC')).toBe(true);
     expect(isSecretEnvKeyName('DB_CONNECTION_STRING')).toBe(true);
     expect(isSecretEnvKeyName('CODE_SIGNING_CERT')).toBe(true);
+    expect(isSecretEnvKeyName('DATABASE_URL')).toBe(true);
+    expect(isSecretEnvKeyName('MONGO_URI')).toBe(true);
+    expect(isSecretEnvKeyName('POSTGRES_URL')).toBe(true);
+    expect(isSecretEnvKeyName('REDIS_URL')).toBe(true);
+    expect(isSecretEnvKeyName('SUPABASE_SERVICE_ROLE')).toBe(true);
   });
 
   it('does not match ordinary path-like keys', () => {
@@ -45,6 +50,8 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('NODE_ENV')).toBe(false);
     expect(isSecretEnvKeyName('PWD')).toBe(false);
     expect(isSecretEnvKeyName('LANG')).toBe(false);
+    expect(isSecretEnvKeyName('CDN_URL')).toBe(false);
+    expect(isSecretEnvKeyName('PUBLIC_URL')).toBe(false);
   });
 });
 

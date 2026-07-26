@@ -123,8 +123,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'security-architect',
       'security-appsec-engineer',
       'volt-03-infrastructure-security-engineer',
-      'security-secrets-credential-engineer',
-      'ericgrill-general-security-sentinel',
       'volt-04-quality-security-ad-security-reviewer',
     ],
     labels: ['Security'],
@@ -152,7 +150,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   },
   {
     id: 'backend-api',
-    query: 'backend API platform service architecture',
+    query: 'engineering backend architect api platform engineer',
     relevantIds: [
       'engineering-backend-architect',
       'volt-03-infrastructure-platform-engineer',
@@ -236,8 +234,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'engineering-incident-response-commander',
       'volt-03-infrastructure-sre-engineer',
-      'engineering-sre',
-      'ericgrill-general-observability-oracle',
       'security-incident-responder',
       'ericgrill-general-incident-commander',
     ],
@@ -251,7 +247,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   },
   {
     id: 'docs-writer',
-    query: 'technical writer API documentation developer experience docs',
+    query: 'documentation technical writer developer docs',
     relevantIds: [
       'engineering-technical-writer',
       'agentcrow-technical-writer',
@@ -287,7 +283,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     id: 'finance-fpa',
     query: 'financial analyst FP&A bookkeeping controller payments billing',
     relevantIds: [
-      'finance-financial-analyst',
       'finance-fpa-analyst',
       'finance-bookkeeper-controller',
       'engineering-payments-billing-engineer',
@@ -299,8 +294,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     query: 'cloud architect azure devops infrastructure cost optimizer',
     relevantIds: [
       'volt-03-infrastructure-azure-infra-engineer',
-      'volt-03-infrastructure-cloud-architect',
-      'volt-03-infrastructure-devops-engineer',
       'security-cloud-security-architect',
       'ericgrill-general-cloud-cost-optimizer',
       'support-infrastructure-maintainer',
@@ -358,7 +351,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'marketing-app-store-optimizer',
       'volt-08-business-product-content-marketer',
       'marketing-growth-hacker',
-      'marketing-agentic-search-optimizer',
     ],
     labels: ['Marketing'],
   },
