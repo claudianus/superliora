@@ -1028,7 +1028,7 @@ function matchPowerShellPipeReadBypass(command: string): ShellDedicatedBypassHit
   if ((command.match(/\|/g) ?? []).length !== 1) return undefined;
 
   // Longer/more-specific cmdlets first so `select` does not steal Select-Xml.
-  const producerRe = 'Get-Content|gc|type|Get-Item|gi|Get-FileHash';
+  const producerRe = 'Get-Content|gc|type|Get-Item|gi|Get-FileHash|Get-ChildItem|gci|ls|dir';
   const sinkRe = [
     'Format-List',
     'Format-Table',
