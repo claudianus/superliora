@@ -20,6 +20,7 @@ import {
   swarmArgumentCompletions,
   thinkingArgumentCompletions,
   thinkingArgumentCompletionsForModel,
+  ultragoalArgumentCompletions,
   type LioraSlashCommand,
 } from '#/tui/commands/index';
 import { describe, expect, it } from 'vitest';
@@ -307,6 +308,30 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('import-claude')?.completeArgs).toBe(
       extensionsArgumentCompletions,
     );
+  });
+
+  it('offers ultragoal replace/--loop argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = ultragoalArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['replace', '--loop']);
+    expect(values('r')).toEqual(['replace']);
+    expect(values('-')).toEqual(['--loop']);
+    expect(ultragoalArgumentCompletions('--l')).toEqual([
+      {
+        value: '--loop',
+        label: '--loop',
+        description: 'Open self-improvement loop with circuit breaker',
+      },
+    ]);
+    expect(values('replace')).toBeNull();
+    expect(values('--loop')).toBeNull();
+    // Free-form objectives stay untouched after the first token.
+    expect(values('Ship feature')).toBeNull();
+    expect(findBuiltInSlashCommand('ultragoal')?.completeArgs).toBe(ultragoalArgumentCompletions);
+    expect(findBuiltInSlashCommand('ug')?.completeArgs).toBe(ultragoalArgumentCompletions);
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {

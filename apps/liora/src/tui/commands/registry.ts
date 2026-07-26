@@ -88,6 +88,11 @@ const EXTENSIONS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'import', description: 'Import from Claude allowlist inventory' },
 ];
 
+const ULTRAGOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'replace', description: 'Replace the active UltraGoal objective' },
+  { value: '--loop', description: 'Open self-improvement loop with circuit breaker' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -205,6 +210,15 @@ export function extensionsArgumentCompletions(
   argumentPrefix: string,
 ): AutocompleteItem[] | null {
   return completeLeadingArg(EXTENSIONS_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/**
+ * Leading-arg completions for `/ultragoal`.
+ * Completes `replace` / `--loop` only while the user is still on the first
+ * token so free-form objectives are never clobbered.
+ */
+export function ultragoalArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(ULTRAGOAL_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -392,6 +406,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 100,
     visibility: 'advanced',
     argumentHint: '[replace] [--loop] <objective>',
+    completeArgs: ultragoalArgumentCompletions,
     availability: 'idle-only',
   },
   {
