@@ -121,6 +121,21 @@ export function matchExplicitResumePhrase(
     '다시 이어서',
     'pick up where you left off',
     'from where you left off',
+    'pick up where we left off',
+    'from where we left off',
+    'carry on',
+    'carry on please',
+    'go on please',
+    'keep at it',
+    'keep at it please',
+    '이어서 해 주세요',
+    '이어서 해주세요',
+    '이어서 해 주세요.',
+    '계속 해주세요',
+    '계속해 주세요',
+    '계속 해 주세요',
+    '다시 이어서 해줘',
+    '다시 이어서',
     '继续',
     '继续吧',
     '请继续',
@@ -137,7 +152,7 @@ export function matchExplicitResumePhrase(
   }
 
   // Light English variants with optional please / trailing period already stripped.
-  if (/^(please\s+)?(continue|resume|retry|proceed|go on|keep going|go ahead)$/i.test(normalized)) {
+  if (/^(please\s+)?(continue|resume|retry|proceed|go on|keep going|go ahead|carry on|keep at it)(\s+please)?$/i.test(normalized)) {
     return {
       shouldResume: true,
       confidence: 0.92,

@@ -109,4 +109,21 @@ describe('Liora lean context tools', () => {
     expect(compressed.text).toContain('FAIL test/e');
     expect(compressed.savedPercent).toBeGreaterThan(0);
   });
+
+  it('compressShellOutput collapses go test --- PASS lines', () => {
+    const stdout = [
+      ...Array.from({ length: 12 }, (_, i) => `--- PASS: TestFoo${String(i)} (0.00s)`),
+      '--- FAIL: TestBoom (0.01s)',
+      '    boom_test.go:12: expected true',
+      'FAIL',
+    ].join('\n');
+    const compressed = compressShellOutput({
+      stdout,
+      stderr: '',
+      command: 'go test ./...',
+    });
+    expect(compressed.text).toContain('passing tests omitted');
+    expect(compressed.text).toContain('--- FAIL: TestBoom');
+    expect(compressed.savedPercent).toBeGreaterThan(0);
+  });
 });

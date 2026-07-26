@@ -99,7 +99,19 @@ describe('interrupted work resume intent', () => {
   });
 
   it('matches explicit multilingual short resume phrases without an LLM', () => {
-    for (const phrase of ['continue', '재개', '계속진행하라', '继续', 'keep going']) {
+    for (const phrase of [
+      'continue',
+      '재개',
+      '계속진행하라',
+      '继续',
+      'keep going',
+      '이어서 해 주세요',
+      'go on please',
+      'carry on',
+      'keep at it',
+      '계속 해주세요',
+      'pick up where we left off',
+    ]) {
       const intent = matchExplicitResumePhrase(phrase);
       expect(shouldActOnResumeIntent(intent), phrase).toBe(true);
     }

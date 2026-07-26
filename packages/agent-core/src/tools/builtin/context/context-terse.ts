@@ -263,6 +263,9 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\b(?:vitest|jest|pytest)\b/u.test(command) || /\b(?:vitest|jest|pytest)\b/u.test(text)) {
     next = compressTestOutput(next);
   }
+  if (/\bgo\s+test\b/u.test(command) || /^--- (?:PASS|FAIL|SKIP):/mu.test(text)) {
+    next = compressTestOutput(next);
+  }
   if (/\brg\b/u.test(command) || /\bripgrep\b/u.test(command)) {
     next = compressRipgrepOutput(next);
   }
@@ -301,10 +304,13 @@ function compressTestOutput(text: string): string {
     const trimmed = line.trim();
     const isPass =
       /^(?:PASS|✓|✔|\s*ok\s+\d+\s+-)/u.test(trimmed) ||
+      /^--- PASS:/u.test(trimmed) ||
+      /^ok\s+/u.test(trimmed) ||
       /\bpassed\b/iu.test(trimmed) ||
       /\b✓\b/u.test(trimmed);
     const isFail =
       /^(?:FAIL|✗|×|\s*not ok\b)/u.test(trimmed) ||
+      /^--- FAIL:/u.test(trimmed) ||
       /\bfailed\b/iu.test(trimmed) ||
       /\berror\b/iu.test(trimmed);
     if (isFail) {

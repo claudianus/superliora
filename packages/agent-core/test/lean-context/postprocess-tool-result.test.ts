@@ -76,3 +76,33 @@ describe('postprocessLeanToolResult LioraRead', () => {
     expect(String(result.output)).toMatch(/liora-compressed|liora-archived|signatures|map/i);
   });
 });
+
+describe('postprocessLeanToolResult Bash', () => {
+  it('compresses go test command output the same way as pnpm/vitest', async () => {
+    const store = memoryStore();
+    const agent = mockAgent(store);
+    const noisy = Array.from({ length: 80 }, (_, i) => `--- PASS: TestFoo${i} (0.00s)`).join('\n');
+    const result = await postprocessLeanToolResult({
+      agent,
+      toolName: 'Bash',
+      args: { command: 'go test ./...' },
+      result: { isError: false, output: noisy },
+    });
+    expect(String(result.output).length).toBeLessThan(noisy.length);
+    expect(String(result.output)).toMatch(/liora-compressed/i);
+  });
+
+  it('leaves non-build shell output alone unless compress_output is true', async () => {
+    const store = memoryStore();
+    const agent = mockAgent(store);
+    const output = 'hello from echo\n'.repeat(40);
+    const result = await postprocessLeanToolResult({
+      agent,
+      toolName: 'Bash',
+      args: { command: 'echo hello' },
+      result: { isError: false, output },
+    });
+    expect(result.output).toBe(output);
+  });
+});
+
