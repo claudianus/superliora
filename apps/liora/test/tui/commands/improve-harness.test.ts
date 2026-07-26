@@ -57,7 +57,22 @@ describe('/improve-harness command', () => {
     expect(improveHarnessArgumentCompletions('to')?.map((item) => item.value)).toEqual(['tools']);
     expect(improveHarnessArgumentCompletions('--a')?.map((item) => item.value)).toEqual(['--auto']);
     expect(improveHarnessArgumentCompletions('tui')).toBeNull();
+    expect(improveHarnessArgumentCompletions('tui ')?.map((item) => item.value)).toEqual([
+      'tui --auto',
+    ]);
+    expect(improveHarnessArgumentCompletions('tui --a')?.map((item) => item.value)).toEqual([
+      'tui --auto',
+    ]);
     expect(improveHarnessArgumentCompletions('tui --auto')).toBeNull();
+    expect(improveHarnessArgumentCompletions('--auto ')?.map((item) => item.value)).toEqual([
+      ...IMPROVEMENT_AREAS.map((area) => `--auto ${area}`),
+    ]);
+    expect(improveHarnessArgumentCompletions('--auto r')?.map((item) => item.value)).toEqual([
+      '--auto reliability',
+    ]);
+    expect(improveHarnessArgumentCompletions('--auto reliability')).toBeNull();
+    expect(improveHarnessArgumentCompletions('unknown ')).toBeNull();
+    expect(improveHarnessArgumentCompletions('tui --auto extra')).toBeNull();
   });
 
   it('rejects unknown areas without starting a session prompt', async () => {

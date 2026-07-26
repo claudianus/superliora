@@ -66,10 +66,51 @@ export function parseImproveHarnessCommand(rawArgs: string): ImproveHarnessOptio
   };
 }
 
-/** Leading-arg completions for `/improve-harness` areas and `--auto`. */
+/**
+ * Completions for `/improve-harness`.
+ * First token: areas or `--auto`. Second token: the other half so
+ * `tui --auto` / `--auto reliability` can be completed without clobbering
+ * free text after a finished pair.
+ */
 export function improveHarnessArgumentCompletions(
   argumentPrefix: string,
 ): AutocompleteItem[] | null {
+  const areaThenAuto = argumentPrefix.match(/^(\S+)\s+(\S*)$/i);
+  if (areaThenAuto !== null) {
+    const first = areaThenAuto[1] ?? '';
+    const secondPrefix = areaThenAuto[2] ?? '';
+    const firstLower = first.toLowerCase();
+
+    if ((IMPROVEMENT_AREAS as readonly string[]).includes(firstLower)) {
+      return (
+        completeLeadingArg(
+          [{ value: '--auto', description: 'Run autonomous improvement loop' }],
+          secondPrefix,
+        )?.map((item) => ({
+          ...item,
+          value: `${firstLower} ${item.value}`,
+        })) ?? null
+      );
+    }
+
+    if (firstLower === '--auto') {
+      return (
+        completeLeadingArg(
+          IMPROVEMENT_AREAS.map((area) => ({
+            value: area,
+            description: `Focus harness improvement on ${area}`,
+          })),
+          secondPrefix,
+        )?.map((item) => ({
+          ...item,
+          value: `--auto ${item.value}`,
+        })) ?? null
+      );
+    }
+
+    return null;
+  }
+
   return completeLeadingArg(IMPROVE_HARNESS_ARG_COMPLETIONS, argumentPrefix);
 }
 
