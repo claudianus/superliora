@@ -9,6 +9,9 @@ import chalk from 'chalk';
 
 import { projectRendererLineWindow } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import type { ColorPalette } from '#/tui/theme';
+
+import { highlightLines, langFromPath } from './code-highlight';
 
 export type DiffLineKind = 'context' | 'add' | 'delete';
 
@@ -134,10 +137,9 @@ export function renderDiffLines(
     maxLines: maxLines !== undefined && maxLines >= 0 ? maxLines : undefined,
   });
 
+  const syntaxByCode = buildSyntaxLookup(changedLines, path, true);
   for (const line of preview.lines) {
-    const marker = line.kind === 'add' ? '+' : '-';
-    const color = line.kind === 'add' ? s.add : s.del;
-    output.push(s.gutter(String(line.lineNum).padStart(4) + ' ') + color(marker + ' ' + line.code));
+    output.push(formatDiffRow(line, s, syntaxByCode));
   }
 
   const hidden = preview.hiddenLineCount;
@@ -157,6 +159,13 @@ export interface ClusteredDiffOptions {
   readonly maxLines?: number;
   readonly isIncomplete?: boolean;
   readonly expandKeyHint?: string;
+  /**
+   * When true (default), highlight code on each diff row using language from
+   * `path`. Diff markers (+/-) and gutter stay on the diff palette; only the
+   * code body receives syntax colors.
+   */
+  readonly syntaxHighlight?: boolean;
+  readonly palette?: ColorPalette;
 }
 
 interface Cluster {
@@ -220,11 +229,57 @@ function buildClusters(
   };
 }
 
-function formatDiffRow(line: DiffLine, s: DiffStyles): string {
+/**
+ * Highlight each unique plain code line once, then look up by plain text.
+ * Line-oriented (cli-highlight per line) — multi-line tokens may degrade, but
+ * Edit hunks are usually short and this keeps add/delete rows independent.
+ */
+function buildSyntaxLookup(
+  diffLines: DiffLine[],
+  path: string,
+  enabled: boolean,
+  palette?: ColorPalette,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!enabled) return map;
+  const lang = langFromPath(path);
+  if (lang === undefined) return map;
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const line of diffLines) {
+    if (seen.has(line.code)) continue;
+    seen.add(line.code);
+    unique.push(line.code);
+  }
+  if (unique.length === 0) return map;
+
+  // Join with a rare sentinel so one highlight pass covers the hunk.
+  // Using \n preserves line alignment for languages that care.
+  const joined = unique.join('\n');
+  const highlighted = highlightLines(joined, lang, palette);
+  for (let i = 0; i < unique.length; i++) {
+    map.set(unique[i]!, highlighted[i] ?? unique[i]!);
+  }
+  return map;
+}
+
+function formatDiffRow(
+  line: DiffLine,
+  s: DiffStyles,
+  syntaxByCode?: ReadonlyMap<string, string>,
+): string {
   const gutter = s.gutter(String(line.lineNum).padStart(4) + ' ');
-  if (line.kind === 'add') return gutter + s.add('+ ' + line.code);
-  if (line.kind === 'delete') return gutter + s.del('- ' + line.code);
-  return gutter + '  ' + line.code;
+  const code =
+    syntaxByCode !== undefined ? (syntaxByCode.get(line.code) ?? line.code) : line.code;
+  if (line.kind === 'add') {
+    // Marker colored as add; code keeps syntax colors when available.
+    return gutter + s.add('+ ') + code;
+  }
+  if (line.kind === 'delete') {
+    return gutter + s.del('- ') + code;
+  }
+  return gutter + '  ' + code;
 }
 
 /**
@@ -260,6 +315,13 @@ export function renderClusteredDiffBody(
   const s = makeDiffStyles();
   const contextLines = opts.contextLines ?? 3;
   const maxLines = opts.maxLines;
+  const syntaxHighlight = opts.syntaxHighlight !== false;
+  const syntaxByCode = buildSyntaxLookup(
+    diffLines,
+    path,
+    syntaxHighlight,
+    opts.palette,
+  );
   const { clusters, changedCount, addedCount, removedCount } = buildClusters(
     diffLines,
     contextLines,
@@ -288,7 +350,7 @@ export function renderClusteredDiffBody(
     }
     for (let i = cluster.start; i <= cluster.end; i++) {
       const line = diffLines[i]!;
-      bodyRows.push({ text: formatDiffRow(line, s), line });
+      bodyRows.push({ text: formatDiffRow(line, s, syntaxByCode), line });
     }
     prevEnd = cluster.end;
   }

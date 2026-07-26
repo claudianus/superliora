@@ -32,6 +32,11 @@ import {
 import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
 import { formatThinkingLevelSuffix } from '#/tui/utils/thinking-effort';
 import {
+  isSameEffectiveModel,
+  modelRouteDisplayName,
+  resolveModelRouteIdentity,
+} from '#/tui/utils/model-route-notice';
+import {
   formatWorkingSetFooterBadgeText,
   workingSetPressure,
 } from '#/tui/utils/context-working-set';
@@ -192,13 +197,22 @@ function modelDisplayName(state: AppState): string {
   return model?.displayName ?? model?.model ?? state.model;
 }
 
-/** Effective step model when the provider route differs from the session alias. */
+/** Effective step model when the provider route differs from the session model. */
 function effectiveRouteModelLabel(state: AppState): string | undefined {
   const selection = state.lastProviderRouteSelection;
   if (selection === undefined || selection === null) return undefined;
   if (selection.modelAlias === state.model) return undefined;
-  const entry = state.availableModels[selection.modelAlias];
-  return entry?.displayName ?? entry?.model ?? selection.modelAlias;
+  // Same underlying model under a different alias — do not dual-label the footer.
+  if (
+    state.model.length > 0 &&
+    isSameEffectiveModel(
+      resolveModelRouteIdentity(state.model, state.availableModels),
+      resolveModelRouteIdentity(selection.modelAlias, state.availableModels, selection),
+    )
+  ) {
+    return undefined;
+  }
+  return modelRouteDisplayName(selection.modelAlias, state.availableModels);
 }
 
 function formatModelRouteBadge(state: AppState): string | undefined {
@@ -206,11 +220,23 @@ function formatModelRouteBadge(state: AppState): string | undefined {
   if (notice === undefined || notice === null) return undefined;
   // Keep the badge fresh for ~45s so operators can still read it after a switch.
   if (Date.now() - notice.atMs > 45_000) return undefined;
-  const toEntry = state.availableModels[notice.toAlias];
-  const toLabel = toEntry?.displayName ?? toEntry?.model ?? notice.toAlias;
+  const toLabel = modelRouteDisplayName(notice.toAlias, state.availableModels);
   if (notice.kind === 'failover' && notice.fromAlias !== undefined) {
-    const fromEntry = state.availableModels[notice.fromAlias];
-    const fromLabel = fromEntry?.displayName ?? fromEntry?.model ?? notice.fromAlias;
+    // Defensive: never badge a same-effective-model rename as failover.
+    if (
+      isSameEffectiveModel(
+        resolveModelRouteIdentity(notice.fromAlias, state.availableModels),
+        resolveModelRouteIdentity(notice.toAlias, state.availableModels, {
+          modelAlias: notice.toAlias,
+          providerModel: notice.providerModel ?? '',
+          providerName: notice.providerName,
+        }),
+      )
+    ) {
+      return undefined;
+    }
+    const fromLabel = modelRouteDisplayName(notice.fromAlias, state.availableModels);
+    if (fromLabel === toLabel) return undefined;
     return `failover ${fromLabel}→${toLabel}`;
   }
   if (notice.kind === 'selection' && notice.reason?.startsWith('compaction')) {
@@ -219,7 +245,18 @@ function formatModelRouteBadge(state: AppState): string | undefined {
   if (notice.kind === 'selection' && notice.reason?.startsWith('completion')) {
     return `complete ${toLabel}`;
   }
+  if (notice.kind === 'selection' && notice.reason === 'provider-credential') {
+    return `cred ${toLabel}`;
+  }
   if (notice.fromAlias !== undefined && notice.fromAlias !== notice.toAlias) {
+    if (
+      isSameEffectiveModel(
+        resolveModelRouteIdentity(notice.fromAlias, state.availableModels),
+        resolveModelRouteIdentity(notice.toAlias, state.availableModels),
+      )
+    ) {
+      return undefined;
+    }
     return `via ${toLabel}`;
   }
   return undefined;
@@ -616,6 +653,18 @@ export class FooterComponent implements Component {
       modes.push(renderPulseText('compact-bg', 'footer:compact-bg', 'warning', appearance));
     } else if (state.isCompacting) {
       modes.push(renderPulseText('compact', 'footer:compact', 'primary', appearance));
+    }
+    // LLM ghost autocomplete in flight — spinner-like pulse so users see progress
+    // while the completion-role model is predicting next words / next tasks.
+    const piPhase = state.promptIntelligencePhase ?? 'idle';
+    if (piPhase === 'inline') {
+      modes.push(
+        renderPulseText('ghost…', 'footer:prompt-intel-inline', 'accent', appearance),
+      );
+    } else if (piPhase === 'suggest') {
+      modes.push(
+        renderPulseText('suggest…', 'footer:prompt-intel-suggest', 'accent', appearance),
+      );
     }
     const mediaBadge = formatMediaFooterBadge();
     if (mediaBadge !== null) {

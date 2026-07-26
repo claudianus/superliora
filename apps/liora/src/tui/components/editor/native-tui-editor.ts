@@ -14,6 +14,7 @@ import {
   renderRendererEditorSurface,
   resolveRendererEditorSurfaceStyles,
   type AutocompleteProvider,
+  type NativeInputEvent,
   type NativeInputKeyEvent,
   type RendererEditorAutocompleteCompletion,
   type RendererEditorAutocompleteLineStyles,
@@ -82,7 +83,7 @@ export class NativeTUIEditor implements TUIEditor {
   private historyFilter: ((entry: string) => boolean) | null = null;
   private historyDraftText: string | undefined;
   private hostHistoryDraft: unknown;
-  private readonly decoder = new NativeInputDecoder();
+  private readonly decoder: NativeInputDecoder;
   private readonly input = new RendererTextInput({ focused: true });
   private readonly autocomplete: RendererEditorAutocompleteController;
   private readonly history: string[] = [];
@@ -102,6 +103,15 @@ export class NativeTUIEditor implements TUIEditor {
       requestRender: options.requestRender,
       maxVisible: options.autocompleteMaxVisible,
       debounceMs: options.autocompleteDebounceMs ?? DEFAULT_AUTOCOMPLETE_DEBOUNCE_MS,
+    });
+    // Bare ESC is buffered briefly so multi-byte CSI sequences can complete.
+    // Without onResolvedEvents the timer has no delivery path and Esc is dropped
+    // (handleInput / non-streaming callers). Wire async resolve back into the
+    // same key pipeline the synchronous decode path uses.
+    this.decoder = new NativeInputDecoder({
+      onResolvedEvents: (events) => {
+        this.dispatchDecodedNativeEvents(events);
+      },
     });
   }
 
@@ -132,6 +142,8 @@ export class NativeTUIEditor implements TUIEditor {
     if (text !== before) {
       this.input.setText(text);
       this.historyIndex = undefined;
+      // Native key path bypasses handleInput's clearGhost — keep ghost in sync.
+      this.clearGhost();
     }
     this.input.setCursor({ line: cursor.line, column: cursor.col });
     if (text !== before) this.onChange?.(text);
@@ -222,6 +234,17 @@ export class NativeTUIEditor implements TUIEditor {
     }
 
     const events = this.decoder.decode(normalized);
+    this.dispatchDecodedNativeEvents(events, normalized);
+  }
+
+  /**
+   * Shared key pipeline for sync decode() results and bare-ESC timer resolve.
+   * `rawInput` is the original string chunk when available (bash `!` trigger).
+   */
+  private dispatchDecodedNativeEvents(
+    events: readonly NativeInputEvent[],
+    rawInput?: string,
+  ): void {
     if (this.autocomplete.isOpen()) {
       for (const event of events) {
         if (event.type !== 'key' || event.eventType === 'release') continue;
@@ -292,13 +315,25 @@ export class NativeTUIEditor implements TUIEditor {
         continue;
       }
       if (event.key === 'tab') {
-        if (this.ghostText !== undefined && !this.autocomplete.isOpen()) {
+        if (this.autocomplete.isOpen()) {
+          // Open-menu Tab is handled by handleAutocompleteNavigation (native path).
+          // Legacy string path should not steal focus while the menu is open.
+          continue;
+        }
+        if (this.ghostText !== undefined) {
           this.acceptGhost();
+          continue;
+        }
+        // No ghost: open autocomplete when the line has a known trigger (/ @ path)
+        // or bash mode. Avoid Tab spam on plain prose (no force).
+        if (this.shouldQueryAutocomplete() || this.inputMode === 'bash') {
+          void this.requestAutocomplete({ force: true });
         }
         continue;
       }
 
-      const trigger = printableChar(normalized);
+      const triggerSource = rawInput ?? event.raw;
+      const trigger = printableChar(triggerSource);
       if (
         this.inputMode === 'prompt' &&
         trigger === '!' &&

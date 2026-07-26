@@ -1,11 +1,22 @@
 import chalk from 'chalk';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
+import {
+  clearHighlightCache,
+  formatShellCommandPreview,
+  highlightLines,
+  highlightLinesWindow,
+  highlightShellCommandLine,
+  langFromPath,
+} from '#/tui/components/media/code-highlight';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 
 import { captureProcessWrite } from '../../../helpers/process';
+
+function stripAnsi(text: string): string {
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
 
 describe('code-highlight', () => {
   const previousChalkLevel = chalk.level;
@@ -13,11 +24,14 @@ describe('code-highlight', () => {
   afterEach(() => {
     chalk.level = previousChalkLevel;
     currentTheme.setPalette(darkColors);
+    clearHighlightCache();
   });
 
   it('maps known file extensions to supported highlight languages', () => {
     expect(langFromPath('src/foo.ts')).toBe('typescript');
     expect(langFromPath('src/foo.TS')).toBe('typescript');
+    expect(langFromPath('Dockerfile')).toBe('dockerfile');
+    expect(langFromPath('scripts/run.sh')).toBe('bash');
   });
 
   it('treats unsupported file extensions as plain text', () => {
@@ -50,16 +64,48 @@ describe('code-highlight', () => {
     chalk.level = 3;
     currentTheme.setPalette(darkColors);
 
-    const highlighted = highlightLines(
-      'const value = "kimi";',
-      'typescript',
-      {
-        ...darkColors,
-        syntaxKeyword: '#654321',
-      },
-    ).join('\n');
+    const highlighted = highlightLines('const value = "kimi";', 'typescript', {
+      ...darkColors,
+      syntaxKeyword: '#654321',
+    }).join('\n');
 
     expect(highlighted).toContain('\u001B[38;2;101;67;33m');
     expect(currentTheme.palette).toBe(darkColors);
+  });
+
+  it('windowed highlight only tokenizes the requested range for large files', () => {
+    chalk.level = 3;
+    const lines = Array.from({ length: 500 }, (_, i) =>
+      i === 10 ? 'const answer = 42;' : `// line ${String(i)}`,
+    );
+    const code = lines.join('\n');
+    const highlighted = highlightLinesWindow(code, 'typescript', {
+      startLine: 8,
+      endLine: 14,
+      maxHighlightLines: 50,
+    });
+    expect(highlighted).toHaveLength(500);
+    // The window around the const line should carry ANSI; distant plain comments may not.
+    expect(highlighted[10]).toContain('\u001B[');
+    expect(stripAnsi(highlighted[10]!)).toContain('const answer = 42;');
+  });
+
+  it('highlights shell command binaries, flags, and strings', () => {
+    chalk.level = 3;
+    const line = highlightShellCommandLine('rg -n "TODO" src/**/*.ts | head -n 20');
+    const plain = stripAnsi(line);
+    expect(plain).toContain('rg');
+    expect(plain).toContain('-n');
+    expect(plain).toContain('"TODO"');
+    // Expect multiple color runs (not a single dim blob).
+    const ansiRuns = line.match(/\u001B\[[0-9;]*m/g) ?? [];
+    expect(ansiRuns.length).toBeGreaterThan(2);
+  });
+
+  it('formats shell preview with a dim $ prompt and colored body', () => {
+    chalk.level = 3;
+    const lines = formatShellCommandPreview('pnpm -C apps/liora test');
+    expect(stripAnsi(lines[0]!)).toMatch(/^\$ pnpm /);
+    expect(lines[0]).toContain('\u001B[');
   });
 });

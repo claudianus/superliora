@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -172,5 +173,36 @@ describe('renderDiffLinesClustered', () => {
     expect(text).toMatch(/more change/);
     expect(text).toContain('ctrl+o to expand');
     expect(text).not.toContain('L41X');
+  });
+
+  it('syntax-highlights code body while keeping +/- markers', () => {
+    const previous = chalk.level;
+    chalk.level = 3;
+    try {
+      const oldText = 'const a = 1;\n';
+      const newText = 'const a = 2;\n';
+      const out = renderDiffLinesClustered(oldText, newText, 'sample.ts', {
+        contextLines: 1,
+        syntaxHighlight: true,
+      });
+      const joined = out.join('\n');
+      const plain = stripAnsi(joined);
+      expect(plain).toContain('const a = 1');
+      expect(plain).toContain('const a = 2');
+      expect(plain).toMatch(/[+-]/);
+      // At least one body line should include ANSI SGR (syntax or diff palette).
+      expect(out.some((line) => /\u001B\[[0-9;]*m/.test(line))).toBe(true);
+    } finally {
+      chalk.level = previous;
+    }
+  });
+
+  it('can disable syntax highlight on clustered diffs', () => {
+    const out = renderDiffLinesClustered('const a = 1;', 'const a = 2;', 'sample.ts', {
+      syntaxHighlight: false,
+    });
+    const plain = stripAnsi(out.join('\n'));
+    expect(plain).toContain('const a = 1');
+    expect(plain).toContain('const a = 2');
   });
 });

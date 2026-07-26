@@ -4,13 +4,29 @@ import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 
 import type { AppState } from '../types';
 import type { TUIState } from '../tui-state';
+import {
+  isSameEffectiveModel,
+  modelRouteDisplayName,
+  resolveModelRouteIdentity,
+} from '../utils/model-route-notice';
 
 /** Debounce before requesting an inline completion after the last keystroke. */
-const INLINE_DEBOUNCE_MS = 300;
+const INLINE_DEBOUNCE_MS = 280;
 /** Debounce before requesting next-task suggestions when the editor is empty. */
-const SUGGEST_DEBOUNCE_MS = 500;
-/** Minimum characters before inline completion fires (short input → low-quality predictions). */
-const INLINE_MIN_CHARS = 10;
+const SUGGEST_DEBOUNCE_MS = 450;
+/**
+ * Minimum characters of typed prose before we ask the model for a continuation.
+ * Kept modest so short Korean/English drafts still get ghost text.
+ */
+const INLINE_REQUEST_MIN_CHARS = 6;
+/**
+ * Minimum length of a model completion we will paint as ghost text.
+ * Previously matched the request threshold (10), which discarded most short
+ * continuations (" the rest of…") — the main reason ghost never appeared.
+ */
+const INLINE_SHOW_MIN_CHARS = 1;
+/** Dim placeholder shown after the cursor while an inline request is in flight. */
+const INLINE_PENDING_GHOST = '…';
 /** Maximum entries in the inline-completion LRU cache. */
 const CACHE_MAX_SIZE = 32;
 
@@ -45,6 +61,9 @@ export class PromptIntelligenceController {
   private lastSurfacedCompletionModel: string | undefined;
   /** Simple LRU: Map iteration order is insertion order; evict oldest. */
   private readonly lru = new Map<string, string>();
+  /** Generation counter so stale async results cannot clear a newer phase. */
+  private requestGeneration = 0;
+  private activePhase: 'idle' | 'inline' | 'suggest' = 'idle';
 
   constructor(private readonly host: PromptIntelligenceHost) {}
 
@@ -82,6 +101,7 @@ export class PromptIntelligenceController {
   dispose(): void {
     this.clearTimers();
     this.abortInFlight();
+    this.setPhase('idle');
   }
 
   // ---------------------------------------------------------------------------
@@ -89,6 +109,9 @@ export class PromptIntelligenceController {
   // ---------------------------------------------------------------------------
 
   private handleEditorChange(text: string): void {
+    // New keystrokes supersede any in-flight prediction; the editor already
+    // clears real ghost text, but abort the RPC so we do not paint a stale hit.
+    this.abortInFlight();
     if (text.length === 0) {
       this.clearInlineTimer();
       this.scheduleSuggestion();
@@ -116,24 +139,34 @@ export class PromptIntelligenceController {
 
     const editor = this.host.state.editor;
     const text = editor.getText();
-    if (text.length < INLINE_MIN_CHARS) return;
+    if (text.trim().length < INLINE_REQUEST_MIN_CHARS) return;
     if (this.isAutocompleteTrigger(text)) return;
 
     // Cache key: text before the cursor (the prefix the completion extends).
     // This gives cache hits when the user backspaces to a previous prefix.
     const cursor = editor.getCursor();
     const lines = text.split('\n');
-    const prefix = (lines.slice(0, cursor.line).join('\n') + (cursor.line > 0 ? '\n' : '') + (lines[cursor.line] ?? '').slice(0, cursor.col)).trimEnd();
+    const prefix = (
+      lines.slice(0, cursor.line).join('\n') +
+      (cursor.line > 0 ? '\n' : '') +
+      (lines[cursor.line] ?? '').slice(0, cursor.col)
+    ).trimEnd();
     const cacheKey = prefix;
     const cached = this.lruGet(cacheKey);
     if (cached !== undefined) {
-      if (cached.length >= INLINE_MIN_CHARS) editor.setGhostText(cached, 'inline');
+      if (cached.length >= INLINE_SHOW_MIN_CHARS) editor.setGhostText(cached, 'inline');
       return;
     }
 
     this.abortInFlight();
     const ac = new AbortController();
     this.abortController = ac;
+    const generation = ++this.requestGeneration;
+    this.setPhase('inline');
+    // Immediate visual feedback so the user knows a prediction is in flight.
+    if (editor.getGhostText?.() === undefined) {
+      editor.setGhostText(INLINE_PENDING_GHOST, 'inline');
+    }
 
     try {
       const session = this.host.session;
@@ -144,14 +177,25 @@ export class PromptIntelligenceController {
         cursorCol: cursor.col,
         signal: ac.signal,
       });
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted || generation !== this.requestGeneration) return;
       // Guard: editor state may have changed while the request was in flight.
       if (editor.getText() !== text) return;
       if (editor.isShowingAutocomplete()) return;
 
-      this.lruSet(cacheKey, result.completion);
-      if (result.completion.length >= INLINE_MIN_CHARS) {
-        editor.setGhostText(result.completion, 'inline');
+      const completion = result.completion.trimEnd();
+      this.lruSet(cacheKey, completion);
+      if (completion.length >= INLINE_SHOW_MIN_CHARS) {
+        // Prefer a leading space when the model returns a bare word continuation
+        // so Tab acceptance does not glue tokens together.
+        const ghost =
+          completion.startsWith(' ') || completion.startsWith('\n') || prefix.endsWith(' ')
+            ? completion
+            : prefix.length > 0 && !/\s$/.test(prefix)
+              ? ` ${completion}`
+              : completion;
+        editor.setGhostText(ghost, 'inline');
+      } else if (editor.getGhostText?.() === INLINE_PENDING_GHOST) {
+        editor.setGhostText(undefined, 'inline');
       }
       this.maybeSurfaceCompletionModel(result.modelAlias, 'inline');
     } catch (error) {
@@ -160,9 +204,13 @@ export class PromptIntelligenceController {
       // stay out of the TUI render surface.
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         process.stderr.write(`[prompt-intelligence] inline completion failed: ${error}\n`);
+        if (editor.getGhostText?.() === INLINE_PENDING_GHOST) {
+          editor.setGhostText(undefined, 'inline');
+        }
       }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;
+      if (generation === this.requestGeneration) this.setPhase('idle');
     }
   }
 
@@ -189,12 +237,14 @@ export class PromptIntelligenceController {
     this.abortInFlight();
     const ac = new AbortController();
     this.abortController = ac;
+    const generation = ++this.requestGeneration;
+    this.setPhase('suggest');
 
     try {
       const session = this.host.session;
       if (session === undefined) return;
       const result = await session.suggestPrompts({ signal: ac.signal });
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted || generation !== this.requestGeneration) return;
       if (editor.getText().length > 0) return;
       if (editor.isShowingAutocomplete()) return;
 
@@ -210,6 +260,7 @@ export class PromptIntelligenceController {
       }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;
+      if (generation === this.requestGeneration) this.setPhase('idle');
     }
   }
 
@@ -227,6 +278,14 @@ export class PromptIntelligenceController {
   // ---------------------------------------------------------------------------
   // Guards & helpers
   // ---------------------------------------------------------------------------
+
+  private setPhase(phase: 'idle' | 'inline' | 'suggest'): void {
+    if (this.activePhase === phase) return;
+    this.activePhase = phase;
+    const current = this.host.state.appState.promptIntelligencePhase ?? 'idle';
+    if (current === phase) return;
+    this.host.setAppState({ promptIntelligencePhase: phase });
+  }
 
   private canRequestIntelligence(): boolean {
     if (!isExperimentalFlagEnabled('prompt_intelligence')) return false;
@@ -321,6 +380,16 @@ export class PromptIntelligenceController {
     const sessionModel = this.host.state.appState.model;
     if (sessionModel.length === 0) return;
     if (modelAlias === sessionModel) return;
+    const models = this.host.state.appState.availableModels;
+    // Same underlying model under a different alias/display — do not notify.
+    if (
+      isSameEffectiveModel(
+        resolveModelRouteIdentity(sessionModel, models),
+        resolveModelRouteIdentity(modelAlias, models),
+      )
+    ) {
+      return;
+    }
     if (this.lastSurfacedCompletionModel === modelAlias) {
       // Still refresh the footer badge clock so the glow stays visible.
       const prev = this.host.state.appState.lastModelRouteNotice;
@@ -338,15 +407,10 @@ export class PromptIntelligenceController {
     }
     this.lastSurfacedCompletionModel = modelAlias;
 
-    const models = this.host.state.appState.availableModels;
-    const display = (alias: string): string => {
-      const entry = models[alias];
-      return entry?.displayName ?? entry?.model ?? alias;
-    };
     const purposeLabel = purpose === 'inline' ? 'ghost complete' : 'suggest';
     this.host.showNotice(
       'Completion model',
-      `${display(sessionModel)} → ${display(modelAlias)} · ${purposeLabel}`,
+      `${modelRouteDisplayName(sessionModel, models)} → ${modelRouteDisplayName(modelAlias, models)} · ${purposeLabel}`,
       { coalesceKey: 'model-route:completion' },
     );
     this.host.setAppState({
@@ -366,7 +430,12 @@ export class PromptIntelligenceController {
   }
 
   private abortInFlight(): void {
-    this.abortController?.abort();
+    if (this.abortController === undefined) return;
+    this.abortController.abort();
     this.abortController = undefined;
+    // Invalidate in-flight finally blocks so they cannot paint or clear phase
+    // after a newer keystroke has already taken ownership.
+    this.requestGeneration += 1;
+    this.setPhase('idle');
   }
 }

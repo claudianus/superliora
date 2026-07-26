@@ -1,3 +1,4 @@
+import type { PanelBorderZone } from '#/tui/renderer';
 import type { AppearancePreferences } from '#/tui/config';
 import { mixHexColor, type RendererCell, type RendererFrameRegion } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
@@ -243,6 +244,13 @@ export function paintStageFrameCells(input: {
   readonly appearance: AppearancePreferences;
   /** Freeze chase (ambient off / explicit freeze only — not typing holdoff). */
   readonly freezeChase?: boolean;
+  /**
+   * Resize grip under the pointer (or active drag zone). Brightens that edge /
+   * corner so the stage frame advertises that it is resizable.
+   */
+  readonly resizeHoverZone?: PanelBorderZone;
+  /** Stronger grip highlight while the user is actively dragging. */
+  readonly resizeDragging?: boolean;
 }): readonly StageFramePaintCell[] {
   const key = stageFrameVisible(input.bundle, input.cols, input.rows)
     ? stageFrameBundleKey(input.bundle)
@@ -325,20 +333,92 @@ export function paintStageFrameCells(input: {
     });
   }
 
+  const hoverZone = input.resizeHoverZone;
+  const dragging = input.resizeDragging === true;
+  const gripHot =
+    hoverZone !== undefined && hoverZone.startsWith('resize-')
+      ? mixHexColor(primary, glow, dragging ? 0.55 : 0.35)
+      : undefined;
+  // Grab rect matches stage-resize-mouse (bundle expanded by 1 = stroke ring).
+  const grabLeft = input.bundle.x - 1;
+  const grabRight = input.bundle.x + input.bundle.width;
+  const grabTop = input.bundle.y - 1;
+  const grabBottom = input.bundle.y + input.bundle.height;
+
   for (const cell of path) {
     if (!onScreen(cell.x, cell.y)) continue;
     const style = strokeFg.get(`${cell.x},${cell.y}`) ?? { fg: dim, bold: false };
+    let fg = style.fg;
+    let bold = style.bold;
+    if (gripHot !== undefined && hoverZone !== undefined) {
+      if (strokeCellMatchesResizeZone(cell.x, cell.y, hoverZone, grabLeft, grabRight, grabTop, grabBottom)) {
+        fg = gripHot;
+        bold = true;
+        // Corner glyphs get an extra pulse so the diagonal grip is obvious.
+        if (cell.corner) {
+          fg = mixHexColor(gripHot, glow, dragging ? 0.45 : 0.25);
+        }
+      } else if (dragging) {
+        // Dim the rest of the ring slightly while dragging so the active edge pops.
+        fg = mixHexColor(style.fg, fadeTarget, 0.25);
+      }
+    }
     out.push({
       x: cell.x,
       y: cell.y,
       char: cell.char,
-      fg: style.fg,
+      fg,
       ...(canvasBg !== undefined ? { bg: canvasBg } : {}),
-      ...(style.bold ? { bold: true } : {}),
+      ...(bold ? { bold: true } : {}),
     });
   }
 
   return out;
+}
+
+/**
+ * Whether a stroke cell sits on the active resize grip. Uses the same grab
+ * geometry as {@link handleStageResizeMouseInput} (bundle + 1 cell ring).
+ */
+function strokeCellMatchesResizeZone(
+  x: number,
+  y: number,
+  zone: PanelBorderZone,
+  left: number,
+  right: number,
+  top: number,
+  bottom: number,
+): boolean {
+  const onLeft = x === left;
+  const onRight = x === right;
+  const onTop = y === top;
+  const onBottom = y === bottom;
+  // Expand corner hit by ±1 cell along the edge so the grip feels larger than
+  // a single glyph.
+  const nearLeft = x <= left + 1;
+  const nearRight = x >= right - 1;
+  const nearTop = y <= top + 1;
+  const nearBottom = y >= bottom - 1;
+  switch (zone) {
+    case 'resize-left':
+      return onLeft;
+    case 'resize-right':
+      return onRight;
+    case 'resize-top':
+      return onTop;
+    case 'resize-bottom':
+      return onBottom;
+    case 'resize-top-left':
+      return (onTop && nearLeft) || (onLeft && nearTop);
+    case 'resize-top-right':
+      return (onTop && nearRight) || (onRight && nearTop);
+    case 'resize-bottom-left':
+      return (onBottom && nearLeft) || (onLeft && nearBottom);
+    case 'resize-bottom-right':
+      return (onBottom && nearRight) || (onRight && nearBottom);
+    default:
+      return false;
+  }
 }
 
 export function createStageFrameOverlayRegions(input: {
@@ -348,6 +428,8 @@ export function createStageFrameOverlayRegions(input: {
   readonly nowMs: number;
   readonly appearance: AppearancePreferences;
   readonly freezeChase?: boolean;
+  readonly resizeHoverZone?: PanelBorderZone;
+  readonly resizeDragging?: boolean;
 }): readonly RendererFrameRegion[] {
   if (!stageFrameVisible(input.bundle, input.cols, input.rows)) return [];
 

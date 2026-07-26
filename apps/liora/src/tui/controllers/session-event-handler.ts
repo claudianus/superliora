@@ -87,6 +87,12 @@ import {
   selectMcpStartupStatusRows,
 } from '../utils/mcp-server-status';
 import { openUrl } from '#/utils/open-url';
+import {
+  decideModelRouteSurface,
+  isSameEffectiveModel,
+  modelRouteDisplayName,
+  resolveModelRouteIdentity,
+} from '../utils/model-route-notice';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import { errorReportHintLine } from '../constant/feedback';
@@ -634,9 +640,12 @@ export class SessionEventHandler {
 
 
   /**
-   * Surface the effective model/credential for this step when it differs from
-   * the session alias or from the previous step — failover & auto-route become
-   * visible in the transcript + footer instead of only /status.
+   * Surface the effective model/credential for this step when it meaningfully
+   * differs from the previous step route — real failover & credential rotation
+   * become visible in the transcript + footer instead of only /status.
+   *
+   * Alias/display renames of the *same* underlying model (e.g. "Grok 4.5" vs
+   * "grok-4.5") are suppressed so every step does not spam "Model failover".
    */
   private maybeSurfaceProviderRouteSelection(event: TurnStepCompletedEvent): void {
     const selection = event.providerRouteSelection;
@@ -644,55 +653,51 @@ export class SessionEventHandler {
 
     const prev = this.host.state.appState.lastProviderRouteSelection ?? null;
     const sessionModel = this.host.state.appState.model;
-    const displayName = (alias: string): string => {
-      const entry = this.host.state.appState.availableModels[alias];
-      return entry?.displayName ?? entry?.model ?? alias;
-    };
-
-    const toAlias = selection.modelAlias;
-    const fromAlias =
-      prev?.modelAlias !== undefined && prev.modelAlias !== toAlias
-        ? prev.modelAlias
-        : sessionModel.length > 0 && sessionModel !== toAlias
-          ? sessionModel
-          : undefined;
-
-    const credentialChanged =
-      prev !== null &&
-      (prev.credentialLabel !== selection.credentialLabel ||
-        prev.providerName !== selection.providerName ||
-        prev.providerModel !== selection.providerModel);
-
-    const isFailover = fromAlias !== undefined && fromAlias !== toAlias;
-    const isInteresting =
-      isFailover ||
-      credentialChanged ||
-      (prev === null && sessionModel.length > 0 && sessionModel !== toAlias);
+    const availableModels = this.host.state.appState.availableModels;
+    const decision = decideModelRouteSurface({
+      selection,
+      previous: prev,
+      sessionModel,
+      availableModels,
+    });
 
     const patch: Partial<AppState> = {
       lastProviderRouteSelection: selection,
     };
 
-    if (isInteresting) {
-      const toLabel = displayName(toAlias);
-      const fromLabel = fromAlias !== undefined ? displayName(fromAlias) : undefined;
+    if (decision.kind !== 'none') {
+      const toAlias = decision.toAlias;
+      const fromAlias = decision.fromAlias;
+      const toLabel = modelRouteDisplayName(toAlias, availableModels);
+      const fromLabel =
+        fromAlias !== undefined ? modelRouteDisplayName(fromAlias, availableModels) : undefined;
       const cred =
         selection.credentialLabel !== undefined && selection.credentialLabel.length > 0
           ? selection.credentialLabel
           : selection.providerName;
       const detailParts: string[] = [];
-      if (fromLabel !== undefined) {
+      if (fromLabel !== undefined && fromLabel !== toLabel) {
         detailParts.push(`${fromLabel} → ${toLabel}`);
       } else {
         detailParts.push(toLabel);
       }
-      if (selection.providerModel.length > 0 && selection.providerModel !== toAlias) {
+      // Append wire model id only when it adds information beyond the alias/label.
+      if (
+        selection.providerModel.length > 0 &&
+        selection.providerModel !== toAlias &&
+        selection.providerModel !== toLabel
+      ) {
         detailParts.push(selection.providerModel);
       }
       if (cred !== undefined && cred.length > 0) {
         detailParts.push(cred);
       }
-      const title = isFailover ? 'Model failover' : 'Route selected';
+      const isFailover = decision.kind === 'failover';
+      const title = isFailover
+        ? 'Model failover'
+        : decision.credentialChanged
+          ? 'Route credential'
+          : 'Route selected';
       this.host.showNotice(title, detailParts.join(' · '), {
         coalesceKey: 'model-route:step',
       });
@@ -703,7 +708,11 @@ export class SessionEventHandler {
         providerName: selection.providerName,
         credentialLabel: selection.credentialLabel,
         providerModel: selection.providerModel,
-        reason: isFailover ? 'provider-failover' : 'provider-route',
+        reason: isFailover
+          ? 'provider-failover'
+          : decision.credentialChanged
+            ? 'provider-credential'
+            : 'provider-route',
         atMs: Date.now(),
       };
     }
@@ -1384,24 +1393,37 @@ export class SessionEventHandler {
     });
     if (event.modelAlias !== undefined && event.modelAlias.length > 0) {
       const parentModel = this.host.state.appState.model;
-      const switched =
-        parentModel.length > 0 && event.modelAlias !== parentModel
-          ? `${parentModel} → ${event.modelAlias}`
-          : event.modelAlias;
-      this.host.showNotice(
-        'Compaction model',
-        switched,
-        { coalesceKey: 'model-route:compaction' },
-      );
-      this.host.setAppState({
-        lastModelRouteNotice: {
-          kind: 'selection',
-          fromAlias: parentModel.length > 0 ? parentModel : undefined,
-          toAlias: event.modelAlias,
-          reason: background ? 'compaction-background' : 'compaction',
-          atMs: Date.now(),
-        },
-      });
+      const models = this.host.state.appState.availableModels;
+      // Same underlying model as the session alias — keep quiet (alias noise).
+      if (
+        parentModel.length > 0 &&
+        isSameEffectiveModel(
+          resolveModelRouteIdentity(parentModel, models),
+          resolveModelRouteIdentity(event.modelAlias, models),
+        )
+      ) {
+        // still no-op for notice
+      } else {
+        const fromLabel =
+          parentModel.length > 0 ? modelRouteDisplayName(parentModel, models) : undefined;
+        const toLabel = modelRouteDisplayName(event.modelAlias, models);
+        const switched =
+          fromLabel !== undefined && fromLabel !== toLabel
+            ? `${fromLabel} → ${toLabel}`
+            : toLabel;
+        this.host.showNotice('Compaction model', switched, {
+          coalesceKey: 'model-route:compaction',
+        });
+        this.host.setAppState({
+          lastModelRouteNotice: {
+            kind: 'selection',
+            fromAlias: parentModel.length > 0 ? parentModel : undefined,
+            toAlias: event.modelAlias,
+            reason: background ? 'compaction-background' : 'compaction',
+            atMs: Date.now(),
+          },
+        });
+      }
     }
   }
 

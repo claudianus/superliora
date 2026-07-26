@@ -31,6 +31,11 @@ import {
 } from '../utils/war-room-action';
 import type { SessionEventHost } from './session-event-handler';
 import { requestTUILayoutRender } from '../utils/frame-render';
+import {
+  isSameEffectiveModel,
+  modelRouteDisplayName,
+  resolveModelRouteIdentity,
+} from '../utils/model-route-notice';
 
 export interface SubagentInfo {
   readonly parentToolCallId: string;
@@ -428,6 +433,16 @@ export class SubAgentEventHandler {
     if (modelAlias === undefined || modelAlias.length === 0) return;
     const sessionModel = this.host.state.appState.model;
     if (sessionModel.length === 0 || sessionModel === modelAlias) return;
+    const models = this.host.state.appState.availableModels;
+    // Same underlying model under a different alias — keep quiet.
+    if (
+      isSameEffectiveModel(
+        resolveModelRouteIdentity(sessionModel, models),
+        resolveModelRouteIdentity(modelAlias, models),
+      )
+    ) {
+      return;
+    }
     // Only surface explore/cheap diversions — avoid noise for same-as-parent clones.
     const profile = event.subagentName.toLowerCase();
     const isExplore =
@@ -437,7 +452,7 @@ export class SubAgentEventHandler {
     if (!isExplore) return;
     this.host.showNotice(
       'Subagent model',
-      `${event.subagentName}: ${sessionModel} → ${modelAlias}`,
+      `${event.subagentName}: ${modelRouteDisplayName(sessionModel, models)} → ${modelRouteDisplayName(modelAlias, models)}`,
       { coalesceKey: `model-route:subagent:${event.subagentId}` },
     );
     this.host.setAppState({

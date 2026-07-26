@@ -2,7 +2,7 @@ import type { Session, SkillSummary } from '@superliora/sdk';
 
 import type { LioraSlashCommand } from './types';
 
-export type SkillListSession = Pick<Session, 'searchSkills'>;
+export type SkillListSession = Pick<Session, 'listSkills' | 'searchSkills'>;
 
 export interface SkillSlashCommands {
   readonly commands: readonly LioraSlashCommand[];
@@ -38,10 +38,23 @@ export function buildSkillSlashCommands(skills: readonly SkillSummary[]): SkillS
         ? skill.name
         : `skill:${skill.name}`;
     commandMap.set(commandName, skill.name);
+    const sourceHint =
+      skill.source === 'builtin'
+        ? 'builtin'
+        : skill.source === undefined
+          ? undefined
+          : String(skill.source);
+    const baseDesc = (skill.description ?? '').trim();
+    const description =
+      sourceHint !== undefined && sourceHint !== 'builtin' && baseDesc.length > 0
+        ? `${baseDesc} · ${sourceHint}`
+        : sourceHint !== undefined && sourceHint !== 'builtin'
+          ? sourceHint
+          : baseDesc;
     return {
       name: commandName,
       aliases: [],
-      description: skill.description ?? '',
+      description,
     };
   });
   return { commands, commandMap };

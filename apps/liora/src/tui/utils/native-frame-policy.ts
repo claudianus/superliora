@@ -21,6 +21,21 @@ export function frameInvalidationIntentToCause(intent: FrameInvalidationIntent):
   }
 }
 
+/**
+ * Causes that may ride along with a pure transcript scroll without forcing a
+ * full clear/repaint. Ambient animation ticks frequently coalesce with wheel
+ * scroll; treating that as "content force" caused clear→rewrite background
+ * flicker on the stage/letterbox.
+ */
+const SCROLL_COMPATIBLE_CAUSES = new Set<NativeRenderCause>([
+  'transcript-scroll',
+  'animation',
+]);
+
+/**
+ * True when this frame only moves the transcript viewport (optionally with an
+ * ambient animation tick). No structural geometry change, no content append.
+ */
 export function isPureTranscriptScrollFrame(
   causes: readonly NativeRenderCause[],
   viewportScrolled: boolean,
@@ -29,8 +44,9 @@ export function isPureTranscriptScrollFrame(
   return (
     viewportScrolled &&
     !structuralShift &&
-    causes.length === 1 &&
-    causes[0] === 'transcript-scroll'
+    causes.length > 0 &&
+    causes.every((cause) => SCROLL_COMPATIBLE_CAUSES.has(cause)) &&
+    causes.includes('transcript-scroll')
   );
 }
 
@@ -103,6 +119,7 @@ export function shouldForceTUIStateNativeLayoutFrame(
     causes.includes('start') ||
     causes.includes('resize') ||
     causes.includes('manual') ||
+    // Non-pure scroll (e.g. scroll + request content) still forces.
     causes.includes('transcript-scroll') ||
     structuralShift
   );
@@ -136,6 +153,12 @@ export interface TUIStateNativeFramePolicyInput {
   readonly causes: readonly NativeRenderCause[];
   readonly viewportScrolled: boolean;
   readonly structuralShift: boolean;
+  /** Editor geometry row change — must clear layout holes. */
+  readonly geometryShift?: boolean;
+  /** Transcript append-only growth — prefer damage-only (no full clear flash). */
+  readonly contentGrew?: boolean;
+  /** Transcript shrink — must clear uncovered cells. */
+  readonly contentShrunk?: boolean;
   readonly priorTranscriptStart?: number;
   readonly nextTranscriptStart: number;
   readonly ambientAnimationAllowed: boolean;
@@ -154,6 +177,17 @@ export function resolveTUIStateNativeFramePolicy(
   const ambientAnimationFrame =
     input.causes.includes('animation') && input.ambientAnimationAllowed;
   const resizeFrame = input.causes.includes('resize');
+  const pureScroll = isPureTranscriptScrollFrame(
+    input.causes,
+    input.viewportScrolled,
+    input.structuralShift,
+  );
+  // Append-only transcript growth: still "force" present for correctness, but
+  // never full-clear the buffer — that is the streaming background flicker.
+  const appendOnlyGrowth =
+    input.contentGrew === true &&
+    input.geometryShift !== true &&
+    input.contentShrunk !== true;
   const force = shouldForceTUIStateNativeLayoutFrame(input.causes, input.structuralShift, {
     ambientAnimation: ambientAnimationFrame,
     viewportScrolled: input.viewportScrolled,
@@ -164,7 +198,13 @@ export function resolveTUIStateNativeFramePolicy(
   // gated so structural force frames never clear on animation causes.
   // Resize is the exception: coalesce with animation must still clear so
   // soft buffers catch up after CSI wipe of the alternate screen.
-  const clear = force && (!ambientAnimationFrame || resizeFrame);
+  // Pure transcript scroll and append-only growth also never clear —
+  // clear:true invalidates composition topology and blanks stage background.
+  const clear =
+    force &&
+    !pureScroll &&
+    !appendOnlyGrowth &&
+    (!ambientAnimationFrame || resizeFrame);
   const refreshTerminalPalette =
     force &&
     shouldRefreshNativeTerminalPalette(input.causes, input.structuralShift, {
@@ -187,18 +227,68 @@ export function resolveTUIStateNativeFramePolicy(
  * Idle Jewel Tank + Welcome must stay damage-only even on request-only ticks
  * (thinking footer), otherwise clear:true rewrites the whole transcript every
  * status update and tears into black horizontal bands inside the stage.
+ *
+ * Pure transcript scroll must also stay damage-only: blanking stack regions
+ * (transcript/editor/chrome) on every wheel tick is the main background
+ * flicker path (clear→topology miss→full beginFrame clear).
  */
 export function shouldUseAmbientDamageOnlyPaint(input: {
   readonly structuralShift: boolean;
+  readonly geometryShift?: boolean;
+  readonly contentGrew?: boolean;
+  readonly contentShrunk?: boolean;
   readonly viewportScrolled: boolean;
   readonly causes: readonly NativeRenderCause[];
   readonly ambientAnimationAllowed: boolean;
   readonly idleAquariumMounted: boolean;
   readonly fullscreenTakeover?: boolean;
 }): boolean {
-  if (input.structuralShift || input.viewportScrolled || input.causes.includes('resize')) {
+  if (input.causes.includes('resize')) {
     return false;
   }
+
+  // Editor/chrome geometry change needs clear-fills for layout holes.
+  if (input.geometryShift === true) {
+    return false;
+  }
+
+  // Transcript shrank (compaction, collapse, remove) — wipe uncovered cells.
+  if (input.contentShrunk === true) {
+    return false;
+  }
+
+  // Pure scroll (optionally coalesced with ambient animation) must not
+  // clear-fill stack regions — that blanks letterbox/stage for a frame.
+  if (
+    isPureTranscriptScrollFrame(
+      input.causes,
+      input.viewportScrolled,
+      // Treat content-only growth as non-structural for pure-scroll detection;
+      // pure scroll already requires !structuralShift from the caller.
+      input.structuralShift && input.contentGrew !== true,
+    )
+  ) {
+    return true;
+  }
+
+  // Append-only transcript growth: keep damage-only so streaming does not
+  // flip region.clear and thrash composition topology (full-buffer clear flash).
+  if (input.contentGrew === true && input.geometryShift !== true) {
+    return true;
+  }
+
+  // Other structural shifts (unknown content churn without grew/shrunk flags)
+  // keep the conservative clear path.
+  if (input.structuralShift && input.contentGrew !== true) {
+    return false;
+  }
+
+  // Non-pure viewport scroll still needs clears so uncovered rows wipe.
+  if (input.viewportScrolled) {
+    // content-grew + scroll (auto follow) stays damage-only above.
+    return false;
+  }
+
   // Jewel Tank + Welcome must stay damage-only whenever the idle stage is
   // mounted — even if ambientAnimationAllowed is false (selection holdoff,
   // quality gate). Otherwise clear:true rewrites the transcript and tears

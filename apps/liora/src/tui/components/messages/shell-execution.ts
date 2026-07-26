@@ -9,7 +9,7 @@ import {
 import type { Component } from '#/tui/renderer';
 import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 
-import { currentTheme } from '#/tui/theme';
+import { formatShellCommandPreview } from '#/tui/components/media/code-highlight';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 import type { ResultRenderer } from './tool-renderers/types';
@@ -54,13 +54,14 @@ export class ShellExecutionComponent extends Container {
 
   private addCommandPreview(command: string, previewLines: number | undefined): void {
     if (command.length === 0) return;
+    // Highlight binary / flags / strings / redirects; dim only the `$ ` prompt.
+    const highlighted = formatShellCommandPreview(command);
     const lines = projectRendererLineWindow({
-      lines: command.split('\n'),
+      lines: highlighted,
       maxLines: previewLines,
     }).lines;
-    for (const [i, line] of lines.entries()) {
-      const prefix = i === 0 ? '$ ' : '  ';
-      this.addChild(new Text(currentTheme.dim(prefix + line), 2, 0));
+    for (const line of lines) {
+      this.addChild(new Text(line, 2, 0));
     }
   }
 

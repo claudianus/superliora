@@ -18,7 +18,7 @@ import {
   renderRendererToolActivityHeader,
 } from '#/tui/renderer';
 import type { RendererRootUI } from '#/tui/renderer';
-import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
+import { highlightLines, langFromPath, highlightLinesWindow } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import {
   BRAILLE_SPINNER_FRAMES,
@@ -2059,12 +2059,25 @@ export class ToolCallComponent extends Container {
       if (content.length === 0) return;
       const filePath = str(this.toolCall.args['file_path'] ?? this.toolCall.args['path']);
       const lang = langFromPath(filePath);
-      const allLines = highlightLines(content, lang);
       // Cap as soon as args finalize, not just when result lands. Otherwise the
       // brief render tick between finalized args and result draws the full file,
       // and the snap back to the collapsed cap triggers pi-tui's full-redraw
       // path which wipes the terminal scrollback (pre-TUI history).
       const writeShouldCap = !this.expanded;
+      const plainLines = content.split('\n');
+      const totalLines = plainLines.length;
+      // Collapsed: highlight only the visible window (avoid full-file tokenize).
+      // Expanded: full highlight (cached) for readable code review.
+      let allLines: string[];
+      if (writeShouldCap) {
+        const end = Math.min(totalLines, COMMAND_PREVIEW_LINES);
+        allLines = highlightLinesWindow(content, lang, {
+          startLine: 0,
+          endLine: end,
+        });
+      } else {
+        allLines = highlightLines(content, lang);
+      }
       const preview = projectRendererLineWindow({
         lines: allLines,
         maxLines: writeShouldCap ? COMMAND_PREVIEW_LINES : undefined,
@@ -2079,7 +2092,7 @@ export class ToolCallComponent extends Container {
         this.addChild(
           new Text(
             currentTheme.dim(
-              `... (${String(remaining)} more lines, ${String(allLines.length)} total, ctrl+o to expand)`,
+              `... (${String(remaining)} more lines, ${String(totalLines)} total, ctrl+o to expand)`,
             ),
             2,
             0,
@@ -2136,7 +2149,14 @@ export class ToolCallComponent extends Container {
         extractPartialStringField(previewText, 'path') ??
         '';
       const lang = langFromPath(filePath);
-      const allLines = highlightLines(content, lang);
+      const plainLines = content.split('\n');
+      const total = plainLines.length;
+      // Tail window only — streaming can be huge; never tokenize the whole blob.
+      const tailStart = Math.max(0, total - COMMAND_PREVIEW_LINES);
+      const allLines = highlightLinesWindow(content, lang, {
+        startLine: tailStart,
+        endLine: total,
+      });
       const preview = projectRendererLineWindow({
         lines: allLines,
         maxLines: COMMAND_PREVIEW_LINES,
@@ -2155,6 +2175,8 @@ export class ToolCallComponent extends Container {
         extractPartialStringField(previewText, 'file_path') ??
         extractPartialStringField(previewText, 'path') ??
         '';
+      const oldStr = extractPartialStringField(previewText, 'old_string') ?? '';
+      const newStr = extractPartialStringField(previewText, 'new_string') ?? '';
       const bytes = Buffer.byteLength(previewText, 'utf8');
       const startedAtMs = this.toolCall.streamingStartedAtMs;
       const elapsedSeconds =
@@ -2164,6 +2186,18 @@ export class ToolCallComponent extends Container {
         elapsedSeconds,
       )} elapsed`;
       this.addChild(new Text(currentTheme.dim(progress), 2, 0));
+      // Live incomplete diff once either side has content — syntax-colored.
+      if (oldStr.length > 0 || newStr.length > 0) {
+        const lines = renderDiffLinesClustered(oldStr, newStr, filePath, {
+          contextLines: 2,
+          maxLines: COMMAND_PREVIEW_LINES,
+          isIncomplete: true,
+          syntaxHighlight: true,
+        });
+        for (const line of lines) {
+          this.addChild(new Text(line, 2, 0));
+        }
+      }
       return;
     }
     if (name === 'Bash') {

@@ -1627,7 +1627,7 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('line10');
   });
 
-  it('renders a stable Edit progress placeholder during the streaming delta window', () => {
+  it('renders Edit streaming progress with a live incomplete diff', () => {
     vi.useFakeTimers();
     vi.setSystemTime(4000);
     const oldLines: string[] = [];
@@ -1660,11 +1660,14 @@ describe('ToolCallComponent', () => {
     expect(out).toContain('Preparing changes for foo.ts...');
     expect(out).toContain('4s elapsed');
     expect(out).toMatch(/\d+(?:\.\d+)? (?:B|KB|MB)/);
-    expect(out).not.toContain('old20');
-    expect(out).not.toContain('new20');
-    expect(out).not.toMatch(/^\s*\d+\s+[+-]\s/m);
-    expect(out).not.toContain('ctrl+o to expand');
+    // Live incomplete diff is now part of the streaming body (syntax-colored).
+    // Cap keeps the preview short; full hunks appear after finalize/expand.
+    expect(out).toMatch(/^\s*\d+\s+[+-]\s/m);
+    expect(out).toMatch(/old\d+|new\d+/);
+
+    vi.useRealTimers();
   });
+
 
   it('caps the Write preview between finalized args and result to keep transcript height stable', () => {
     // The wire sequence is: tool.call.delta → ... → tool.call (final
@@ -1784,8 +1787,12 @@ describe('ToolCallComponent', () => {
       },
       undefined,
     );
-    expect(strip(component.render(100).join('\n'))).toContain('Preparing changes');
-    expect(strip(component.render(100).join('\n'))).not.toMatch(/^\s*\d+\s+[+-]\s/m);
+    const streamingOut = strip(component.render(100).join('\n'));
+    expect(streamingOut).toContain('Preparing changes');
+    // Live incomplete diff is shown while args stream so operators can read
+    // the change early (syntax-colored +/- rows).
+    expect(streamingOut).toMatch(/^\s*2\s+- b\s*$/m);
+    expect(streamingOut).toMatch(/^\s*2\s+\+ B\s*$/m);
 
     component.updateToolCall({
       id: 'call_edit_seq',
