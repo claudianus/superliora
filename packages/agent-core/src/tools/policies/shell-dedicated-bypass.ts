@@ -495,6 +495,30 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     }
   }
 
+  // cut single-file field/byte dumps: cut -d, -f1 file, cut -c1-10 file.
+  // Multi-file cut and stdin (`cut -f1` / `cut -f1 -`) stay allowed.
+  if (/^(?:\/usr\/bin\/)?cut\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?cut\b/, '')
+      // Attached first: -d,, -f1, -c1-10, --delimiter=,
+      .replace(/(?:^|\s)-[dfcb]\S+/g, ' ')
+      .replace(/(?:^|\s)--(?:delimiter|fields|characters|bytes)=[^\s]+/g, ' ')
+      // Bare letter + separate value: -d , -f 1 -c 1-10
+      .replace(/(?:^|\s)-[dfcb]\s+\S+/g, ' ')
+      .replace(/(?:^|\s)--(?:delimiter|fields|characters|bytes)\s+\S+/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'cut file',
+        message: 'Use Read instead of cut for single-file content dumps.',
+      };
+    }
+  }
+
   // Text formatters that dump a whole file to stdout (fmt/pr/fold/expand/…)
   if (
     /^(?:\/usr\/bin\/)?(?:fmt|pr|fold|expand|unexpand|column)(?:\s+-[A-Za-z0-9=]+)*(?:\s+\S+)*\s+\S+\s*$/.test(

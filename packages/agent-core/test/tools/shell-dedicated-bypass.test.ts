@@ -462,6 +462,9 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('tac src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('rev src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('paste src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cut -d, -f1 data.csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cut -c1-10 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('/usr/bin/cut -f1 notes.txt')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass("sed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass("gsed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass("busybox sed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
@@ -495,6 +498,9 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('/usr/bin/strings -n 8 src/a.ts')?.prefer).toBe('Read');
     // multi-file paste and pipelines stay allowed; bare dumpers without a path too
     expect(detectShellDedicatedBypass('paste src/a.ts src/b.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cut -f1')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cut -f1 -')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cut -f1 a.txt b.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('cat src/a.ts | base64')).toBeUndefined();
     expect(detectShellDedicatedBypass('od -An -tx1')).toBeUndefined();
     expect(detectShellDedicatedBypass('strings')).toBeUndefined();
