@@ -166,6 +166,9 @@ export function buildUltraworkRecoveryPrompt(
     if (resumeCursor.goalStatus !== undefined) {
       lines.push(`- goal_status: ${resumeCursor.goalStatus}`);
     }
+    if (resumeCursor.journalOffset !== undefined) {
+      lines.push(`- journal_offset: ${String(resumeCursor.journalOffset)}`);
+    }
   }
 
   // Keep only the most actionable pending nodes / orphans; full graph is on disk.

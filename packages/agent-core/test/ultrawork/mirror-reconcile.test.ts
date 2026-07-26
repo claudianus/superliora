@@ -179,10 +179,12 @@ Swarm decision: ENGAGE
     expect(envelope).toContain('ultraplan_phase: interview');
     expect(envelope).toContain('compaction_boundary: true');
     expect(envelope).toContain('resume_cursor:');
+    expect(envelope).toMatch(/resume_cursor:[\s\S]*journal_offset: \d+/);
     expect(envelope).toContain('resume_policy:');
 
     const snapshot = captureUltraworkEnvelopeSnapshot(agent, { compactionBoundary: true });
     expect(snapshot).not.toBeUndefined();
+    expect(snapshot?.resumeCursor?.journalOffset).toEqual(expect.any(Number));
     const runsSection = renderUltraworkRunsMemorySection(snapshot!);
     expect(runsSection).toContain('ultrawork_runs:');
     expect(runsSection).toContain('run_id=run-compact');

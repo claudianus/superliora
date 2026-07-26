@@ -176,6 +176,9 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     if (snapshot.resumeCursor.goalStatus !== undefined) {
       lines.push(`- goal_status: ${snapshot.resumeCursor.goalStatus}`);
     }
+    if (snapshot.resumeCursor.journalOffset !== undefined) {
+      lines.push(`- journal_offset: ${String(snapshot.resumeCursor.journalOffset)}`);
+    }
   }
 
   // cancelled is success-terminal (deliberate scope drop) — match injectors / resume-intent.
