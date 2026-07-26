@@ -71,6 +71,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     run.workGraph?.nodes.filter(
       (node) => node.status !== 'done' && node.status !== 'cancelled',
     ) ?? [];
+  const interruptReason = agent.ultrawork?.getInterruptReason()?.trim();
   const lines = [
     '<ultrawork_post_swarm>',
     'UltraSwarm finished. Continue this Ultrawork run in order:',
@@ -80,6 +81,9 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     '2. Verify — mechanical + real-surface checks for acceptance criteria.',
     '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
   ];
+  if (interruptReason !== undefined && interruptReason.length > 0) {
+    lines.push(`Interrupt reason: ${interruptReason}`);
+  }
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
   }

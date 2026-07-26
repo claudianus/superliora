@@ -826,6 +826,7 @@ describe('Ultrawork recovery', () => {
           ],
         },
       },
+      interruptReason: 'Context compacted mid-swarm',
     });
     const append = vi.spyOn(agent.context, 'appendSystemReminder');
     injectUltraworkPostSwarmContinuation(agent);
@@ -837,6 +838,7 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('node-1[running]');
     expect(text).toContain('Integrate API');
     expect(text).toContain('Next actions:');
+    expect(text).toContain('Interrupt reason: Context compacted mid-swarm');
     expect(text).toContain('run-post-swarm-graph');
     expect(run.id).toBe('run-post-swarm-graph');
   });

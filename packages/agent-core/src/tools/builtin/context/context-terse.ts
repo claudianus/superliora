@@ -291,6 +291,15 @@ function applyShellPatterns(text: string, command: string): string {
   if (/\brg\b/u.test(command) || /\bripgrep\b/u.test(command)) {
     next = compressRipgrepOutput(next);
   }
+  // Package / dependency trees are huge and rarely need full fidelity mid-run.
+  if (
+    /\b(?:pnpm|npm|yarn)\s+(?:list|ls|why|outdated)\b/u.test(command) ||
+    /\bcargo\s+tree\b/u.test(command) ||
+    /\bpip(?:3)?\s+(?:list|freeze|show)\b/u.test(command) ||
+    /\bbun\s+pm\s+ls\b/u.test(command)
+  ) {
+    next = compressDependencyTreeOutput(next);
+  }
   return next;
 }
 
@@ -329,6 +338,19 @@ function compressRipgrepOutput(text: string): string {
   const lines = text.split('\n');
   if (lines.length <= 80) return text;
   return [...lines.slice(0, 60), `[... ${String(lines.length - 70)} rg lines omitted ...]`, ...lines.slice(-10)].join('\n');
+}
+
+/** pnpm/npm/yarn list|why, cargo tree, pip freeze — keep head+tail. */
+function compressDependencyTreeOutput(text: string): string {
+  const lines = text.split('\n');
+  if (lines.length <= 60) return text;
+  const head = lines.slice(0, 40);
+  const tail = lines.slice(-15);
+  return [
+    ...head,
+    `[... ${String(lines.length - 55)} dependency tree lines omitted ...]`,
+    ...tail,
+  ].join('\n');
 }
 
 function compressTestOutput(text: string): string {

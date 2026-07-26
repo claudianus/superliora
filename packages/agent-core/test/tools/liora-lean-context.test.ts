@@ -263,4 +263,21 @@ describe('Liora lean context tools', () => {
     expect(compressed.text.length).toBeLessThan(stdout.length);
     expect(compressed.savedPercent).toBeGreaterThan(0);
   });
+
+  it('compressShellOutput collapses long dependency trees', () => {
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `├── pkg-${String(i)}@1.0.${String(i)}`,
+    ).join('\n');
+    for (const command of ['pnpm list', 'npm ls', 'yarn why lodash', 'cargo tree', 'pip freeze']) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      expect(compressed.text, command).toContain('dependency tree lines omitted');
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+    }
+  });
 });
