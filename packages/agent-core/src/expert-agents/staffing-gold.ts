@@ -155,7 +155,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'engineering-backend-architect',
       'engineering-api-platform-engineer',
-      'volt-01-core-development-backend-developer',
     ],
     labels: ['Engineering', 'Backend'],
   },
@@ -197,7 +196,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'engineering-database-reliability-engineer',
       'engineering-drupal-performance',
-      'support-infrastructure-maintainer',
     ],
     labels: ['Engineering', 'Performance'],
   },
@@ -252,7 +250,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'engineering-technical-writer',
       'agentcrow-technical-writer',
-      'volt-06-developer-experience-documentation-engineer',
     ],
     labels: ['Engineering', 'Docs'],
   },
@@ -282,9 +279,9 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'finance-fpa',
     query: 'financial analyst FP&A bookkeeping controller payments billing',
+    // Keep live top-ranked finance hits (drop deep-tail bookkeeper).
     relevantIds: [
       'finance-fpa-analyst',
-      'finance-bookkeeper-controller',
       'engineering-payments-billing-engineer',
     ],
     labels: ['Finance'],
@@ -313,10 +310,10 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'game-dev',
     query: 'game designer Unreal GAS audio engineer gameplay developer',
+    // Keep live top-ranked game hits (drop deep-tail game-developer).
     relevantIds: [
       'game-designer',
       'agentcrow-unreal-gas-specialist',
-      'volt-07-specialized-domains-game-developer',
     ],
     labels: ['Game Dev'],
   },
@@ -367,10 +364,10 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'customer-support',
     query: 'customer success manager support responder service desk',
+    // Keep live top-ranked support hits (drop deep-tail customer-service).
     relevantIds: [
       'customer-success-manager',
       'support-support-responder',
-      'customer-service',
     ],
     labels: ['Support'],
   },

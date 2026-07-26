@@ -204,6 +204,15 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('timeout 5 pnpm test')).toBeUndefined();
   });
 
+  it('blocks jq/yq/json.tool whole-file dumps', () => {
+    expect(detectShellDedicatedBypass('jq . package.json')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('yq . config.yaml')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('python3 -m json.tool package.json')?.prefer).toBe('Read');
+    // pipelines / filters stay allowed
+    expect(detectShellDedicatedBypass('cat package.json | jq .')).toBeUndefined();
+    expect(detectShellDedicatedBypass("jq -r '.name' package.json")?.prefer).toBe('Read');
+  });
+
   it('blocks empty redirect file creators', () => {
     expect(detectShellDedicatedBypass(': > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('true > out.txt')?.prefer).toBe('Write');

@@ -274,6 +274,32 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     };
   }
 
+  // jq/yq whole-file pretty-print / dump (no pipeline, single path arg)
+  if (
+    /^(?:\/usr\/bin\/)?(?:jq|yq)(?:\s+-[A-Za-z0-9=]+)*(?:\s+['"]?\.[A-Za-z0-9_.\[\]'"]*)?\s+\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'jq/yq file',
+      message: 'Use Read instead of jq/yq for whole-file JSON/YAML dumps.',
+    };
+  }
+
+  // python -m json.tool path  (pretty-print dump of a JSON file)
+  if (
+    /^(?:\/usr\/bin\/)?python(?:3(?:\.\d+)?)?\s+-m\s+json\.tool(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'python -m json.tool file',
+      message: 'Use Read instead of python -m json.tool for JSON file dumps.',
+    };
+  }
+
   return undefined;
 }
 

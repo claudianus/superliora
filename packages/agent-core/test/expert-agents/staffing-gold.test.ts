@@ -108,8 +108,8 @@ describe('staffing-gold nDCG', () => {
     expect(scored.length).toBeGreaterThanOrEqual(28);
     const mean = meanNdcgAtK(scored, k);
     // Offline regression floor: catch ranking/query regressions without flaking on embeddings.
-    // Live BM25 gold trims keep mean near 0.99; floor at 0.95 still leaves headroom.
-    expect(mean).toBeGreaterThanOrEqual(0.95);
+    // Live BM25 gold trims keep mean near 1.0; floor at 0.96 still leaves headroom.
+    expect(mean).toBeGreaterThanOrEqual(0.96);
     const zeros = scored.filter((row) => ndcgAtK(row.rankedIds, row.gold.relevantIds, k) <= 0);
     expect(zeros.map((row) => row.gold.id)).toEqual([]);
   });
