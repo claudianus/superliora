@@ -159,6 +159,19 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     run.workGraph?.nodes.filter(
       (node) => node.status !== 'done' && node.status !== 'cancelled',
     ) ?? [];
+  const failedNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
+  if (failedNodes.length > 0) {
+    lines.push(
+      `Failed WorkGraph nodes (${String(failedNodes.length)}): ${failedNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+    );
+  }
   if (pendingNodes.length > 0) {
     lines.push(
       `Pending WorkGraph nodes (${String(pendingNodes.length)}): ${pendingNodes

@@ -954,6 +954,12 @@ describe('Ultrawork recovery', () => {
               stage: 'integrate',
               status: 'done',
             },
+            {
+              id: 'node-fail',
+              title: 'Broken verify',
+              stage: 'verify',
+              status: 'failed',
+            },
           ],
         },
       },
@@ -968,6 +974,10 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('Pending WorkGraph nodes');
     expect(text).toContain('node-1[running]');
     expect(text).toContain('Implement API');
+    expect(text).toContain('Failed WorkGraph nodes');
+    expect(text).toContain('node-fail');
+    expect(text).toContain('Broken verify');
+    expect(text).toContain('Repair failed WorkGraph node');
     expect(text).not.toContain('node-2[done]');
     expect(text).toContain('Interrupt reason: Context pressure mid-run');
     expect(text).toContain('Ship feature');

@@ -213,6 +213,16 @@ export function suggestNextActions(
 
   const progress = summarizeWorkGraphProgress(run.workGraph);
   const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);
+  const failedNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
+  if (failedNodes.length > 0) {
+    actions.push(
+      `Repair failed WorkGraph node(s) first: ${failedNodes
+        .slice(0, 3)
+        .map((node) => node.id)
+        .join(', ')}${failedNodes.length > 3 ? ', …' : ''} — failed status blocks goal complete.`,
+    );
+  }
   if (
     progress.doneCount > 0 &&
     ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') &&
