@@ -13,10 +13,14 @@ import { EXPERT_CATALOG_BY_ID, EXPERT_CATALOG_META_BY_ID, hydrateExpertCatalogEn
 import {
   clearStaffingOutcomes,
   recordOutcomesFromSwarmResults,
+  resetStaffingOutcomesForTests,
+  setStaffingOutcomesPersistPathForTests,
 } from '../../src/expert-agents/staffing-outcome';
 
 describe('ExpertSearchEngine', () => {
   afterEach(() => {
+    setStaffingOutcomesPersistPathForTests(null);
+    resetStaffingOutcomesForTests();
     clearStaffingOutcomes();
   });
 

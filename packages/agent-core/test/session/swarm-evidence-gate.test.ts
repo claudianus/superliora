@@ -42,7 +42,7 @@ describe('swarm-evidence-gate', () => {
       node({
         id: 'ac_1',
         kind: 'acceptance_criterion',
-        stage: 'implement',
+        stage: 'swarm',
         status: 'done',
         requiredEvidence: [],
       }),
@@ -76,7 +76,7 @@ describe('swarm-evidence-gate', () => {
 
   it('withDefaultRequiredEvidence injects test token for AC nodes', () => {
     const seeded = withDefaultRequiredEvidence(
-      node({ id: 'ac_2', kind: 'acceptance_criterion', stage: 'implement' }),
+      node({ id: 'ac_2', kind: 'acceptance_criterion', stage: 'swarm' }),
     );
     expect(seeded.requiredEvidence).toEqual(['test']);
     expect(requiresNonEmptyRequiredEvidence(seeded)).toBe(true);

@@ -12,7 +12,7 @@ function baseRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
     id: 'run-audit-1',
     objective: 'Ship harness fix',
     status: 'running',
-    stage: 'implement',
+    stage: 'swarm',
     createdAt: '2026-07-26T00:00:00.000Z',
     updatedAt: '2026-07-26T00:00:00.000Z',
     ...overrides,
@@ -180,7 +180,7 @@ describe('auditUltraworkCompletion', () => {
             node({
               id: 'ac_1',
               kind: 'acceptance_criterion',
-              stage: 'implement',
+              stage: 'swarm',
               status: 'done',
               requiredEvidence: [],
             }),
