@@ -306,11 +306,24 @@ export function extensionsArgumentCompletions(
 }
 
 /**
- * Leading-arg completions for `/ultragoal`.
- * Completes `replace` / `--loop` only while the user is still on the first
- * token so free-form objectives are never clobbered.
+ * Completions for `/ultragoal`.
+ * First token: `replace` / `--loop`. Second token after `replace`: `--loop`
+ * (handler parses replace first, then --loop). Free-form objectives stay unclobbered.
  */
 export function ultragoalArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  const replaceThenLoop = argumentPrefix.match(/^replace\s+(\S*)$/i);
+  if (replaceThenLoop !== null) {
+    const valuePrefix = replaceThenLoop[1] ?? '';
+    return (
+      completeLeadingArg(
+        [{ value: '--loop', description: 'Open self-improvement loop with circuit breaker' }],
+        valuePrefix,
+      )?.map((item) => ({
+        ...item,
+        value: `replace ${item.value}`,
+      })) ?? null
+    );
+  }
   return completeLeadingArg(ULTRAGOAL_ARG_COMPLETIONS, argumentPrefix);
 }
 

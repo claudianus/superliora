@@ -358,8 +358,14 @@ describe('built-in slash command registry', () => {
     ]);
     expect(values('replace')).toBeNull();
     expect(values('--loop')).toBeNull();
-    // Free-form objectives stay untouched after the first token.
+    // After `replace `, offer `--loop` (handler parses replace then --loop).
+    expect(values('replace ')).toEqual(['replace --loop']);
+    expect(values('replace --')).toEqual(['replace --loop']);
+    expect(values('replace --loop')).toBeNull();
+    // Free-form objectives stay untouched after the first token / finished pair.
     expect(values('Ship feature')).toBeNull();
+    expect(values('--loop improve harness')).toBeNull();
+    expect(values('replace --loop Ship feature')).toBeNull();
     expect(findBuiltInSlashCommand('ultragoal')?.completeArgs).toBe(ultragoalArgumentCompletions);
     expect(findBuiltInSlashCommand('ug')?.completeArgs).toBe(ultragoalArgumentCompletions);
   });
