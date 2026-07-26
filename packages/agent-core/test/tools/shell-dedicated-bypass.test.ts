@@ -100,6 +100,9 @@ describe('detectShellDedicatedBypass', () => {
     );
     expect(detectShellDedicatedBypass('Format-List')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-Content a.ts | Format-List')).toBeUndefined();
+    // ConvertTo-Json path dumps → Read; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('ConvertTo-Json -Path src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Content a.ts | ConvertTo-Json')).toBeUndefined();
     // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',

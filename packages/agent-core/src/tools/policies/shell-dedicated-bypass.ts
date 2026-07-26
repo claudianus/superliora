@@ -1129,6 +1129,18 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of PowerShell Format-*/Out-String for file contents.',
     };
   }
+  // ConvertTo-Json of a single file path / Get-Content dump → Read (pipelines stay allowed).
+  if (
+    /^(?:ConvertTo-Json)\b/i.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bGet-Content\b|\bFile\b)/i.test(command) &&
+    !/\s\|/.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'ConvertTo-Json',
+      message: 'Use Read instead of ConvertTo-Json for file content dumps.',
+    };
+  }
   return undefined;
 }
 

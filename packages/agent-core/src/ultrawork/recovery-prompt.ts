@@ -252,6 +252,13 @@ export function suggestNextActions(
   if (interruptReason !== undefined) {
     actions.push(`Acknowledge interruption (${interruptReason}); restate objective.`);
   }
+  // Empty/missing WorkGraph is a hard false-complete gate — seed before more product work.
+  const graphNodes = run.workGraph?.nodes;
+  if (graphNodes === undefined || graphNodes.length === 0) {
+    actions.push(
+      'Seed WorkGraph via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete) — empty graph is rejected as false complete.',
+    );
+  }
 
   const progress = summarizeWorkGraphProgress(run.workGraph);
   const effectiveStage = inferEffectiveUltraworkStage(run.stage, run.workGraph);

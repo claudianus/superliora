@@ -1179,7 +1179,49 @@ describe('suggestNextActions fallbacks', () => {
       },
     } as UltraworkRun);
     expect(actions.length).toBeGreaterThan(0);
-    expect(actions[0]).toMatch(/Plan|checkpoint|evidence|WorkGraph|stage|Continue/i);
+    expect(actions[0]).toMatch(/Plan|checkpoint|evidence|WorkGraph|stage|Continue|Seed/i);
+  });
+
+  it('prioritizes seeding WorkGraph when graph is missing or empty', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const missing = suggestNextActions({
+      id: 'run-no-graph',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-no-graph',
+        workDir: '/tmp',
+      },
+    } as UltraworkRun);
+    expect(missing.some((a) => a.includes('Seed WorkGraph'))).toBe(true);
+
+    const empty = suggestNextActions({
+      id: 'run-empty-graph',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'integrate',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-empty-graph',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-empty-graph:work_graph',
+        runId: 'run-empty-graph',
+        rootGoal: 'Ship feature',
+        nodes: [],
+      },
+    } as UltraworkRun);
+    expect(empty.some((a) => a.includes('Seed WorkGraph'))).toBe(true);
+    expect(empty.some((a) => a.includes('empty graph is rejected'))).toBe(true);
   });
 
   it('fills a defensive fallback when stage guidance is empty', async () => {
