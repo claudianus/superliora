@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rmdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rmdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 
@@ -377,6 +377,34 @@ describe('FileSystemAgentRecordPersistence', () => {
     expect(linesAfterNoop).toHaveLength(2);
   });
 
+  it('requeues a huge failed flushSync batch without call-stack blowup', async () => {
+    // Regression: catch paths used `unshift(...batch)`. A failed full-session
+    // rewrite (~200k+ records) then threw Maximum call stack size exceeded
+    // instead of surfacing the original I/O error.
+    const dir = join(tmpdir(), `wire-jsonl-blocked-${randomBytes(6).toString('hex')}`);
+    await mkdir(dir, { recursive: true });
+    cleanups.push(dir);
+    const blockedParent = join(dir, 'not-a-directory');
+    await writeFile(blockedParent, 'x', 'utf8');
+    const wirePath = join(blockedParent, 'wire.jsonl');
+
+    let sawError = false;
+    const persistence = new FileSystemAgentRecordPersistence(wirePath, {
+      onError: () => {
+        sawError = true;
+      },
+    });
+    const count = 220_000;
+    const records: AgentRecord[] = Array.from({ length: count }, (_, i) => ({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: `fail-${i}` }],
+      origin: { kind: 'user' as const },
+    }));
+    persistence.rewrite(records);
+    expect(() => persistence.flushSync()).not.toThrow();
+    expect(sawError).toBe(true);
+  });
+
   it('survives a simulated power loss: durable prefix intact, torn tail dropped', async () => {
     // Simulate a hard crash (SIGKILL / power loss) mid-write:
     //   1. fsync a few records (durable on disk).
@@ -445,5 +473,25 @@ describe('InMemoryAgentRecordPersistence', () => {
       },
     ]);
     expect(persistence.records).toEqual(records);
+  });
+
+  it('rewrites hundreds of thousands of records without call-stack blowup', () => {
+    // Regression: `splice(0, n, ...records)` / `push(...records)` exceeds V8's
+    // argument limit around ~200k entries and kills large-session restore.
+    const count = 220_000;
+    const records: AgentRecord[] = Array.from({ length: count }, (_, i) => ({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: `row-${i}` }],
+      origin: { kind: 'user' as const },
+    }));
+    const persistence = new InMemoryAgentRecordPersistence(records.slice(0, 10));
+    expect(() => persistence.rewrite(records)).not.toThrow();
+    expect(persistence.recordCount()).toBe(count);
+    expect(persistence.records[0]).toMatchObject({
+      input: [{ type: 'text', text: 'row-0' }],
+    });
+    expect(persistence.records[count - 1]).toMatchObject({
+      input: [{ type: 'text', text: `row-${count - 1}` }],
+    });
   });
 });

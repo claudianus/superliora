@@ -18,7 +18,7 @@ import { assertKimiHostIdentity, createKimiDefaultHeaders } from '@superliora/oa
 
 import { LioraAuthFacade } from '#/auth';
 import { LioraHarness } from '#/liora-harness';
-import { ClientAPI, SDKRpcClientBase } from '#/rpc';
+import { ClientAPI, SDKRpcClientBase, type ReloadSessionRpcInput } from '#/rpc';
 import type {
   CreateSessionOptions,
   LioraHarnessOptions,
@@ -108,6 +108,14 @@ export class SDKRpcClient extends SDKRpcClientBase {
     return this.core.createSessionWithOverrides(coreInput, { kaos, persistenceKaos });
   }
 
+  /**
+   * Bypass in-process RPC `simulateNetwork` (JSON.stringify/parse). Large
+   * resume payloads can exceed V8's max string length and kill the process.
+   */
+  override async resumeSession(input: ResumeSessionInput): Promise<ResumedSessionSummary> {
+    return this.core.resumeSessionWithOverrides({ ...input, sessionId: input.id }, {});
+  }
+
   override async resumeSessionWithKaos(
     input: ResumeSessionInput,
     kaos: Kaos,
@@ -117,6 +125,14 @@ export class SDKRpcClient extends SDKRpcClientBase {
       { ...input, sessionId: input.id },
       { kaos, persistenceKaos },
     );
+  }
+
+  /** Same bypass as {@link resumeSession} — reload returns a full resume payload. */
+  override async reloadSession(input: ReloadSessionRpcInput): Promise<ResumedSessionSummary> {
+    return this.core.reloadSession({
+      sessionId: input.sessionId,
+      forcePluginSessionStartReminder: input.forcePluginSessionStartReminder,
+    });
   }
 
   override emergencyFlushSync(): void {
