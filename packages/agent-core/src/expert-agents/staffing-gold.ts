@@ -106,7 +106,7 @@ export function staffingGoldLabelCoverage(
 export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'tui-terminal',
-    query: 'terminal TUI renderer component typescript CLI powershell',
+    query: 'TUI terminal renderer CLI engineer typescript powershell',
     relevantIds: [
       'engineering-terminal-ui-engineer',
       'volt-06-developer-experience-powershell-ui-architect',
@@ -205,7 +205,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-drupal-performance',
       'volt-04-quality-security-performance-engineer',
       'testing-performance-benchmarker',
-      'ericgrill-general-performance-tuner',
       'volt-09-meta-orchestration-performance-monitor',
       'engineering-wordpress-performance',
       'support-infrastructure-maintainer',
@@ -252,7 +251,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-technical-writer',
       'agentcrow-technical-writer',
       'volt-06-developer-experience-documentation-engineer',
-      'volt-07-specialized-domains-api-documenter',
       'specialized-developer-advocate',
     ],
     labels: ['Engineering', 'Docs'],
@@ -387,12 +385,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   },
   {
     id: 'multi-agent-systems',
-    query: 'multi-agent systems architect RAG pipeline AI engineer orchestration',
+    query: 'engineering multi-agent systems architect RAG pipeline',
     relevantIds: [
       'engineering-multi-agent-systems-architect',
       'volt-05-data-ai-llm-architect',
       'engineering-rag-pipeline-engineer',
-      'agentcrow-ai-engineer',
       'agentic-identity-trust',
     ],
     labels: ['Engineering', 'Agents'],

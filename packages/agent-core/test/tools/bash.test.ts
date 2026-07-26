@@ -1328,6 +1328,28 @@ describe('BashTool', () => {
     expect(String(node.output)).toContain('Read');
   });
 
+  it('rejects python/node file-write one-liners', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const py = await executeTool(
+      tool,
+      context({ command: "python -c \"open('out.txt','w').write('x')\"", timeout: 60 }),
+    );
+    expect(py).toMatchObject({ isError: true });
+    expect(String(py.output)).toContain('Write');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const nodeWrite = await executeTool(
+      tool,
+      context({
+        command: "node -e \"require('fs').writeFileSync('out.txt','x')\"",
+        timeout: 60,
+      }),
+    );
+    expect(nodeWrite).toMatchObject({ isError: true });
+    expect(String(nodeWrite.output)).toContain('Write');
+  });
+
   it('rejects simple cat/tee heredoc writers', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');

@@ -43,7 +43,9 @@ export function detectShellDedicatedBypass(
   const heredocWrite = matchSimpleHeredocWrite(raw);
   if (heredocWrite !== undefined) return heredocWrite;
 
-  // Language -c/-e/-r file reads before composition (perl open uses "<" etc.).
+  // Language -c/-e/-r file reads/writes before composition (perl open uses "<"/">" etc.).
+  const langWriteHit = matchLanguageWriteLike(raw);
+  if (langWriteHit !== undefined) return langWriteHit;
   const langReadHit = matchLanguageReadLike(raw);
   if (langReadHit !== undefined) return langReadHit;
 
@@ -279,7 +281,10 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
   // perl -e/-ne/-pe reading a file (open/read_file or path arg)
   if (/^(?:\/usr\/bin\/)?perl\b/.test(command)) {
     if (/(?:^|\s)-(?:e|ne|pe|n|p)(?:\s|$)/.test(command)) {
-      if (
+      // Write-mode open belongs to matchLanguageWriteLike / shell work, not Read.
+      if (/open\s*[^;]*['"]\s*>/.test(command) || /\bprint\s+[A-Za-z_]\w*\b/.test(command) && /open\s/.test(command)) {
+        /* fall through — write matcher already ran, allow or already blocked */
+      } else if (
         /\bopen\b/.test(command) ||
         /read_file\s*\(/.test(command) ||
         /File::Slurp/.test(command) ||
@@ -317,6 +322,88 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
         prefer: 'Read',
         pattern: 'lua -e io.open',
         message: 'Use Read or LioraRead instead of lua -e io.open for file contents.',
+      };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Whole-command language one-liners that only write a file.
+ * Matches: python -c open('path','w').write(...), node writeFileSync, etc.
+ * Skips: multi-line scripts, pipelines, network I/O.
+ */
+function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | undefined {
+  if (/[|`\n]/.test(command)) return undefined;
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+
+  // python/python3 -c write
+  if (/^(?:\/usr\/bin\/)?python3?(?:\d+(?:\.\d+)*)?\b/.test(command) && /(?:^|\s)-c(?:\s|$)/.test(command)) {
+    if (
+      /\bopen\s*\([^)]*['"]\s*,\s*['"][wax+]/.test(command) ||
+      /\bwrite(?:_text|_bytes)?\s*\(/.test(command) ||
+      /\bPath\s*\([^)]*\)\s*\.\s*write_text\s*\(/.test(command)
+    ) {
+      return {
+        prefer: 'Write',
+        pattern: 'python -c write(file)',
+        message: 'Use Write (or Edit for patches) instead of python -c open(...).write for file content.',
+      };
+    }
+  }
+
+  // node -e writeFileSync / appendFileSync
+  if (/^(?:\/usr\/bin\/)?node(?:js)?\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
+    if (/writeFile(?:Sync)?\s*\(/.test(command) || /appendFile(?:Sync)?\s*\(/.test(command)) {
+      return {
+        prefer: 'Write',
+        pattern: 'node -e writeFile',
+        message: 'Use Write (or Edit for patches) instead of node -e writeFile for file content.',
+      };
+    }
+  }
+
+  // ruby -e File.write
+  if (/^(?:\/usr\/bin\/)?ruby\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
+    if (/File\.write\s*\(/.test(command) || /IO\.write\s*\(/.test(command) || /File\.open\s*\([^)]*['"][wax]/.test(command)) {
+      return {
+        prefer: 'Write',
+        pattern: 'ruby -e File.write',
+        message: 'Use Write (or Edit for patches) instead of ruby -e File.write for file content.',
+      };
+    }
+  }
+
+  // php -r file_put_contents / fwrite
+  if (/^(?:\/usr\/bin\/)?php\b/.test(command) && /(?:^|\s)-r(?:\s|$)/.test(command)) {
+    if (/file_put_contents\s*\(/.test(command) || /fwrite\s*\(/.test(command)) {
+      return {
+        prefer: 'Write',
+        pattern: 'php -r file_put_contents',
+        message: 'Use Write (or Edit for patches) instead of php -r file_put_contents for file content.',
+      };
+    }
+  }
+
+  // perl -e open with write mode
+  if (/^(?:\/usr\/bin\/)?perl\b/.test(command) && /(?:^|\s)-(?:e|ne|pe|n|p)(?:\s|$)/.test(command)) {
+    if (/open\s*[^;]*['"]\s*>/.test(command) || /Path::Tiny.*spew/.test(command) || /write_file\s*\(/.test(command)) {
+      return {
+        prefer: 'Write',
+        pattern: 'perl -e open write',
+        message: 'Use Write (or Edit for patches) instead of perl one-liners for file content.',
+      };
+    }
+  }
+
+  // lua -e io.open(...):write
+  if (/^(?:\/usr\/bin\/)?lua\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
+    if (/:write\s*\(/.test(command) || /io\.open\s*\([^)]*['"][wax]/.test(command)) {
+      return {
+        prefer: 'Write',
+        pattern: 'lua -e io.write',
+        message: 'Use Write (or Edit for patches) instead of lua -e io.open write for file content.',
       };
     }
   }

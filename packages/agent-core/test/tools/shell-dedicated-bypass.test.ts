@@ -73,10 +73,10 @@ describe('detectShellDedicatedBypass', () => {
     expect(
       detectShellDedicatedBypass("ruby -e \"puts File.read('src/a.ts')\"")?.prefer,
     ).toBe('Read');
-    // writes stay allowed for shell (or other policies)
+    // language write one-liners prefer Write
     expect(
-      detectShellDedicatedBypass("python -c \"open('out.txt','w').write('x')\""),
-    ).toBeUndefined();
+      detectShellDedicatedBypass("python -c \"open('out.txt','w').write('x')\"")?.prefer,
+    ).toBe('Write');
   });
 
 
@@ -106,3 +106,27 @@ describe('detectShellDedicatedBypass', () => {
   });
 
 });
+
+  it('blocks language one-liner file writes', () => {
+    expect(
+      detectShellDedicatedBypass("python -c \"open('a.ts','w').write('x')\"")?.prefer,
+    ).toBe('Write');
+    expect(
+      detectShellDedicatedBypass("node -e \"require('fs').writeFileSync('a.ts','x')\"")?.prefer,
+    ).toBe('Write');
+    expect(detectShellDedicatedBypass("ruby -e \"File.write('a.ts','x')\"")?.prefer).toBe('Write');
+    expect(
+      detectShellDedicatedBypass("php -r \"file_put_contents('a.ts','x');\"")?.prefer,
+    ).toBe('Write');
+    expect(
+      detectShellDedicatedBypass("perl -e \"open F,'>a.ts'; print F 'x'\"")?.prefer,
+    ).toBe('Write');
+    expect(
+      detectShellDedicatedBypass("lua -e \"io.open('a.ts','w'):write('x')\"")?.prefer,
+    ).toBe('Write');
+    // pipelines still allowed
+    expect(
+      detectShellDedicatedBypass("python -c \"open('a.ts','w').write('x')\" | cat"),
+    ).toBeUndefined();
+  });
+
