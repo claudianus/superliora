@@ -227,7 +227,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'design-ui-designer',
       'agentcrow-ui-designer',
       'volt-04-quality-security-ui-ux-tester',
-      'design-brand-guardian',
     ],
     labels: ['Design'],
   },

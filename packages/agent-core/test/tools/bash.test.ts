@@ -1274,6 +1274,19 @@ describe('BashTool', () => {
   });
 
 
+  it('rejects bat/base64 whole-file dumps', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const bat = await executeTool(tool, context({ command: 'bat src/a.ts', timeout: 60 }));
+    expect(bat).toMatchObject({ isError: true });
+    expect(String(bat.output)).toContain('Read');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const b64 = await executeTool(tool, context({ command: 'base64 src/a.ts', timeout: 60 }));
+    expect(b64).toMatchObject({ isError: true });
+    expect(String(b64.output)).toContain('Read');
+  });
+
   it('rejects php/perl file-read one-liners', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
