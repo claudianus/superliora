@@ -52,6 +52,12 @@ const PLAN_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'clear', description: 'Clear current plan' },
 ];
 
+const PREMIUM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'on', description: 'Enable Premium Quality mode' },
+  { value: 'off', description: 'Disable Premium Quality mode' },
+  { value: 'status', description: 'Show Premium Quality status' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -143,6 +149,10 @@ function thinkingCompletionSpecsForModel(
 
 export function planArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(PLAN_ARG_COMPLETIONS, argumentPrefix);
+}
+
+export function premiumArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(PREMIUM_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -291,6 +301,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Toggle Premium Quality mode (visual-first premium harness)',
     priority: 100,
     argumentHint: '[on|off|status]',
+    completeArgs: premiumArgumentCompletions,
     availability: 'always',
   },
   {

@@ -7,6 +7,7 @@ import {
   helpArgumentCompletions,
   memoryArgumentCompletions,
   planArgumentCompletions,
+  premiumArgumentCompletions,
   rendererArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
@@ -113,6 +114,25 @@ describe('built-in slash command registry', () => {
     expect(values('ultra')).toBeNull();
     expect(values('Ship feature X')).toBeNull();
   });
+
+  it('offers premium quality argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = premiumArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['on', 'off', 'status']);
+    expect(values('o')).toEqual(['on', 'off']);
+    expect(values('s')).toEqual(['status']);
+    expect(premiumArgumentCompletions('st')).toEqual([
+      { value: 'status', label: 'status', description: 'Show Premium Quality status' },
+    ]);
+    expect(values('on')).toBeNull();
+    expect(values('off')).toBeNull();
+    expect(values('status')).toBeNull();
+    expect(values('turbo')).toBeNull();
+  });
+
 
   it('keeps team mode changes and swarm tasks idle-only', () => {
     const swarm = findBuiltInSlashCommand('swarm');
