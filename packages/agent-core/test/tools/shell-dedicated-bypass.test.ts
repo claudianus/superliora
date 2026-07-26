@@ -315,6 +315,10 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('base64 a.ts | Set-Content out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('hexdump -C a.ts | Set-Content out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('less a.ts | tee out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('jq . a.json | Set-Content out.json')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('yq . a.yaml | Out-File out.yaml')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('python -m json.tool a.json | Set-Content out.json')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('python3 -m json.tool a.json | tee out.json')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('gc notes.md | Add-Content out.txt')?.prefer).toBe('Write');
     // real process left-hand side / multi-pipe / no path stay allowed
     expect(detectShellDedicatedBypass('Get-Process | Set-Content out.txt')).toBeUndefined();
