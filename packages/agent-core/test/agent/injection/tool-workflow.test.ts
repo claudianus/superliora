@@ -157,9 +157,13 @@ describe('ToolWorkflowInjector', () => {
     const text = buildToolWorkflowGuidance(cap);
     expect(text).toMatch(/Write\/Edit/);
     expect(text).toMatch(/heredoc|redirect/i);
-    expect(text).toMatch(/python\/node\/ruby/);
+    expect(text).toMatch(/python\/node/);
     expect(text).toMatch(/use Read/i);
     expect(text).toMatch(/Secrets:|\.env|SSH/i);
+    // Newer shell-dedicated-bypass surface stays in sync.
+    expect(text).toMatch(/bun|deno/);
+    expect(text).toMatch(/plutil|PlistBuddy/);
+    expect(text).toMatch(/md5/);
     const sparse = buildToolWorkflowSparseGuidance(cap);
     expect(sparse).toContain('Write≠shell I/O');
     expect(sparse).toContain('no secret shell');
