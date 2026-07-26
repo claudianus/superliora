@@ -292,6 +292,11 @@ export function formatEmptyWorkGraphSeedNextActions(): readonly string[] {
   ];
 }
 
+/** Shared UpdateGoal(complete) ban while WorkGraph nodes remain incomplete. */
+export function formatIncompleteNodeCompleteBan(): string {
+  return 'Do not call UpdateGoal(complete) until every AC node is done with verification.';
+}
+
 /**
  * Generic incomplete-node next_actions shared by completion-audit (and any
  * recovery surface that needs the same finish guidance after stall-specific hints).
@@ -299,7 +304,7 @@ export function formatEmptyWorkGraphSeedNextActions(): readonly string[] {
 export function formatIncompleteNodeNextActions(): readonly string[] {
   return [
     'Finish or re-open incomplete nodes with real evidence.',
-    'Do not call UpdateGoal(complete) until every AC node is done with verification.',
+    formatIncompleteNodeCompleteBan(),
     'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
   ];
 }
@@ -740,11 +745,8 @@ export function suggestNextActions(
       case 'done':
         actions.push('Confirm completion criteria and close the run.');
         break;
-      case 'plan':
-      case 'research':
-        actions.push('Continue plan/research from checkpoint; do not restart discovery.');
-        break;
       default:
+        // plan/research are handled above; remaining stages fall through here.
         actions.push(
           `Continue Ultrawork stage ${effectiveStage}; keep WorkGraph current and attach evidence before UpdateGoal(complete).`,
         );

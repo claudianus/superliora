@@ -509,9 +509,17 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   }
 
   // sort/uniq/shuf single-file dumps — multi-file sort/merge and stdin stay allowed.
+  // Value-taking short opts (`sort -k 2 file`, `sort -t , file`, `uniq -f 1 file`)
+  // must not leave orphan value tokens that look like extra paths.
   if (/^(?:\/usr\/bin\/)?(?:sort|uniq|shuf|gsort)\b/.test(command)) {
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?(?:sort|uniq|shuf|gsort)\b/, '')
+      // Attached first: -k2, -t,, -oout, -S50%, --key=2
+      .replace(/(?:^|\s)-[ktoS]\S+/g, ' ')
+      .replace(/(?:^|\s)--(?:key|field-separator|output|buffer-size)=[^\s]+/g, ' ')
+      // Bare letter + separate value: -k 2, -t ,, -o out, -S 50%, -f 1 (uniq), -s 2 (uniq)
+      .replace(/(?:^|\s)-[ktoSfs]\s+\S+/g, ' ')
+      .replace(/(?:^|\s)--(?:key|field-separator|output|buffer-size)\s+\S+/g, ' ')
       .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
       .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
       .trim();

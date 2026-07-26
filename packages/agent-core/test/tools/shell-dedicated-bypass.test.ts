@@ -77,8 +77,14 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('sort src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('uniq notes.txt')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('shuf data.csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gsort src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('sort -k 2 data.txt')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('sort -t , data.csv')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('sort --key=2 data.txt')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('uniq -f 1 notes.txt')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('sort -n a.txt b.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('sort -')).toBeUndefined();
+    expect(detectShellDedicatedBypass('sort -k 2')).toBeUndefined();
     // look WORD FILE prefers Grep; bare look (system dict) stays allowed.
     expect(detectShellDedicatedBypass('look foo words.txt')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('look foo')).toBeUndefined();

@@ -57,12 +57,9 @@ export function hasInterruptedWorkResumeContext(
   if (run === null) return false;
   if (run.status === 'blocked') return true;
   // Soft / mirrored interrupts may record a reason while status is still running.
+  // (blocked already returned above — only running remains for reason-based soft resume.)
   const reason = context.ultraworkInterruptReason?.trim();
-  if (
-    reason !== undefined &&
-    reason.length > 0 &&
-    (run.status === 'running' || run.status === 'blocked')
-  ) {
+  if (reason !== undefined && reason.length > 0 && run.status === 'running') {
     return true;
   }
   // Soft mid-run: still-running Ultrawork with unfinished WorkGraph nodes is
