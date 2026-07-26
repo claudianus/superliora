@@ -347,6 +347,24 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     }
   }
 
+  // look WORD FILE — binary-search dump of a sorted dictionary file.
+  // `look word` (system dict, no path) stays allowed.
+  if (/^(?:\/usr\/bin\/)?look\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?look\b/, '')
+      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 2 && args.every((a) => a !== '-' && !a.startsWith('-'))) {
+      return {
+        prefer: 'Grep',
+        pattern: 'look word file',
+        message: 'Use Grep (or Read) instead of look for dictionary/file searches.',
+      };
+    }
+  }
+
   // sed -n print range (not -i) with a file path
   if (
     /^(?:\/usr\/bin\/)?sed\b/.test(command) &&

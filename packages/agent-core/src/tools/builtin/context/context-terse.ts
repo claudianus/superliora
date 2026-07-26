@@ -352,7 +352,12 @@ function compressCompilerOutput(text: string): string {
 function compressDockerOutput(text: string): string {
   const lines = text.split('\n');
   if (lines.length <= 60) return text;
-  return [...lines.slice(0, 40), `[... ${String(lines.length - 50)} docker lines omitted ...]`, ...lines.slice(-10)].join('\n');
+  // Shared by docker + kubectl/helm/terraform/pulumi long dumps.
+  return [
+    ...lines.slice(0, 40),
+    `[... ${String(lines.length - 50)} infra/log lines omitted ...]`,
+    ...lines.slice(-10),
+  ].join('\n');
 }
 
 function compressRipgrepOutput(text: string): string {

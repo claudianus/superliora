@@ -42,6 +42,9 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('shuf data.csv')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('sort -n a.txt b.txt')).toBeUndefined();
     expect(detectShellDedicatedBypass('sort -')).toBeUndefined();
+    // look WORD FILE prefers Grep; bare look (system dict) stays allowed.
+    expect(detectShellDedicatedBypass('look foo words.txt')?.prefer).toBe('Grep');
+    expect(detectShellDedicatedBypass('look foo')).toBeUndefined();
   });
 
   it('blocks sed -i and grep/rg/find', () => {

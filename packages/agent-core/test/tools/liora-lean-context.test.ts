@@ -302,12 +302,14 @@ describe('Liora lean context tools', () => {
       'helm list -A',
       'terraform plan',
       'pulumi preview',
+      'docker logs app',
     ]) {
       const compressed = compressShellOutput({
         stdout,
         stderr: '',
         command,
       });
+      expect(compressed.text, command).toContain('infra/log lines omitted');
       expect(compressed.text.length, command).toBeLessThan(stdout.length);
       expect(compressed.savedPercent, command).toBeGreaterThan(0);
     }
