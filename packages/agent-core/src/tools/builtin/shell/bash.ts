@@ -47,6 +47,10 @@ import {
   detectShellDedicatedBypass,
   formatShellDedicatedBypassError,
 } from '../../policies/shell-dedicated-bypass';
+import {
+  detectShellSensitivePath,
+  formatShellSensitivePathError,
+} from '../../policies/shell-sensitive-path';
 import bashDescriptionTemplate from './bash.md?raw';
 
 const MS_PER_SECOND = 1000;
@@ -363,6 +367,14 @@ export class BashTool implements BuiltinTool<BashInput> {
   ): ExecutableToolResult | undefined {
     if (signal.aborted) return { isError: true, output: 'Aborted before command started' };
     if (args.command.length === 0) return { isError: true, output: 'Command cannot be empty.' };
+    // Sensitive paths hard-deny before dedicated-tool redirects (no force hatch).
+    const sensitivePath = detectShellSensitivePath(args.command);
+    if (sensitivePath !== undefined) {
+      return {
+        isError: true,
+        output: formatShellSensitivePathError(sensitivePath),
+      };
+    }
     const dedicatedBypass = detectShellDedicatedBypass(args.command);
     if (dedicatedBypass !== undefined) {
       return {

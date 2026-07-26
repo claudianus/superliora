@@ -1251,9 +1251,6 @@ describe('BashTool', () => {
     // the background-enabled Bash description, the only place that documents it.
     expect(description).toContain('return control to the user');
   });
-});
-
-
   it('rejects simple cat/grep/find that dedicated tools should handle', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
@@ -1276,6 +1273,25 @@ describe('BashTool', () => {
     expect(String(redirect.output)).toContain('Write');
   });
 
+
+  it('rejects sensitive path access via Bash with hard deny', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+
+    const env = await executeTool(tool, context({ command: 'cat .env', timeout: 60 }));
+    expect(env).toMatchObject({ isError: true });
+    expect(String(env.output)).toMatch(/sensitive/i);
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const forced = await executeTool(
+      tool,
+      context({ command: 'LIORA_FORCE_BASH=1 cat .env', timeout: 60 }),
+    );
+    expect(forced).toMatchObject({ isError: true });
+    expect(String(forced.output)).toMatch(/sensitive/i);
+    expect(execWithEnv).not.toHaveBeenCalled();
+  });
+
   it('allows LIORA_FORCE_BASH escape hatch for simple cat', async () => {
     const execWithEnv = vi.fn().mockResolvedValue(processWithOutput({ stdout: 'ok\n' }));
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
@@ -1296,6 +1312,10 @@ describe('BashTool', () => {
     await executeTool(tool, context({ command: 'cat file | head', timeout: 60 }));
     expect(execWithEnv).toHaveBeenCalledTimes(2);
   });
+
+
+});
+
 
 describe('BashTool prompt / runtime consistency', () => {
   it('reports unavailable background using only tools the prompt documents', async () => {
