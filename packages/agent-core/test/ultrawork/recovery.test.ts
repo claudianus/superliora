@@ -1989,6 +1989,8 @@ describe('suggestNextActions fallbacks', () => {
     expect(text).toContain('node-gap');
     expect(text).toContain('missing=ev-runtime');
     expect(text).toContain('attach requiredEvidence');
+    // Match recovery-prompt / audit next_actions wording on injectors.
+    expect(text).toContain('Close verification gaps on node(s)');
   });
 
   it('includes evidence hard-gate nodes in post-swarm injection', () => {

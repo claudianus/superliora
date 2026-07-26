@@ -17,6 +17,7 @@ import {
   collectVerificationGapNodes,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
+  formatVerificationGapNextActions,
   formatVerificationGapSummary,
   suggestNextActions,
 } from './recovery-prompt';
@@ -194,6 +195,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
       `Verification-gap WorkGraph nodes (${String(verificationGapNodes.length)}): ${formatVerificationGapSummary(verificationGapNodes)}${verificationGapNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatVerificationGapNextActions(verificationGapNodes),
       'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
   }
@@ -389,6 +391,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
       `Verification-gap WorkGraph nodes (${String(verificationGapNodes.length)}): ${formatVerificationGapSummary(verificationGapNodes)}${verificationGapNodes.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatVerificationGapNextActions(verificationGapNodes),
       'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
   }

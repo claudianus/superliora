@@ -4,6 +4,7 @@ import {
   collectVerificationGapNodes,
   formatEvidenceHardGateNextActions,
   formatEvidenceHardGateSummary,
+  formatVerificationGapNextActions,
   formatVerificationGapSummary,
   suggestNextActions,
 } from './recovery-prompt';
@@ -154,6 +155,7 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
       `verification_gaps: ${formatVerificationGapSummary(verificationGaps)}${verificationGaps.length > 4 ? ', …' : ''}`,
     );
     lines.push(
+      ...formatVerificationGapNextActions(verificationGaps),
       'Verification gaps block UpdateGoal(complete) — attach requiredEvidence and re-verify before finishing.',
     );
   }
