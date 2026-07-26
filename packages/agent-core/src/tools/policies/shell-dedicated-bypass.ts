@@ -572,14 +572,30 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     };
   }
 
-  // awk/gawk one-file dumpers: awk 1 file, awk '{print}' file
-  if (/^(?:\/usr\/bin\/)?(?:awk|gawk|nawk)\b/.test(command) && /\s\S+\s*$/.test(command)) {
-    // skip if looks like multi-file or BEGIN-heavy scripts without a path-ish token — still whole-command only
-    return {
-      prefer: 'Read',
-      pattern: 'awk file',
-      message: 'Use Read or Grep instead of awk for whole-file dumps.',
-    };
+  // awk/gawk/nawk/busybox awk one-file dumpers: awk 1 file, awk '{print}' file
+  // Strip programs/options first so bare `awk 1` / `awk '{print}'` (stdin) stay allowed.
+  if (/^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:awk|gawk|nawk)\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:awk|gawk|nawk)\b/, '')
+      // Attached first: -F, -F',' -fprog -vvar=1 (must not swallow the program token).
+      .replace(/(?:^|\s)-[Ffv]\S+/g, ' ')
+      // Then bare letter + separate value: -F FS, -f prog, -v x=1
+      .replace(/(?:^|\s)-[Ffv]\s+\S+/g, ' ')
+      .replace(/(?:^|\s)--(?:file|source)=[^\s]+/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replace(/(?:^|\s)'[^']*'/g, ' ')
+      .replace(/(?:^|\s)"[^"]*"/g, ' ')
+      // bare program tokens like `1` or `{print}` without a path
+      .replace(/(?:^|\s)(?:1|\{[^}]*\})\b/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'awk file',
+        message: 'Use Read or Grep instead of awk for whole-file dumps.',
+      };
+    }
   }
 
   // binary/text dumpers aimed at a single path

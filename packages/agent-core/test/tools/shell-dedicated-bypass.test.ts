@@ -464,6 +464,16 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass("sed -n '1,20p'")).toBeUndefined();
     expect(detectShellDedicatedBypass('sed -n')).toBeUndefined();
     expect(detectShellDedicatedBypass('awk 1 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass("awk '{print}' src/a.ts")?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gawk 1 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('nawk 1 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('busybox awk 1 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass("/usr/bin/awk -F, '{print $1}' data.csv")?.prefer).toBe(
+      'Read',
+    );
+    // stdin / program-only forms stay allowed
+    expect(detectShellDedicatedBypass('awk 1')).toBeUndefined();
+    expect(detectShellDedicatedBypass("awk '{print}'")).toBeUndefined();
     expect(detectShellDedicatedBypass('base64 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base32 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base64 -d encoded.b64')?.prefer).toBe('Read');
