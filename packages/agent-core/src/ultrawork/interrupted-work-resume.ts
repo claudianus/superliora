@@ -63,9 +63,12 @@ export async function maybeTransformPromptForInterruptedWorkResume(
   // shouldActOnResumeIntent narrowed intent above on every exit path that continues.
   const acted = intent!;
 
-  const blockedUltrawork =
-    context.ultraworkRun !== null && context.ultraworkRun.status === 'blocked';
-  if (blockedUltrawork) {
+  const interruptedUltrawork =
+    context.ultraworkRun !== null &&
+    (context.ultraworkRun.status === 'blocked' ||
+      (context.ultraworkRun.status === 'running' &&
+        (context.ultraworkInterruptReason?.trim().length ?? 0) > 0));
+  if (interruptedUltrawork) {
     const resumed = await agent.ultrawork.resume();
     if (resumed === null) return undefined;
     return {

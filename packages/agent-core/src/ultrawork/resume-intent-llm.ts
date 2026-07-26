@@ -54,7 +54,18 @@ export function hasInterruptedWorkResumeContext(
   const goal = context.goal;
   if (goal?.status === 'paused' || goal?.status === 'blocked') return true;
   const run = context.ultraworkRun;
-  return run !== null && run.status === 'blocked';
+  if (run === null) return false;
+  if (run.status === 'blocked') return true;
+  // Soft / mirrored interrupts may record a reason while status is still running.
+  const reason = context.ultraworkInterruptReason?.trim();
+  if (
+    reason !== undefined &&
+    reason.length > 0 &&
+    (run.status === 'running' || run.status === 'blocked')
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -103,6 +114,13 @@ export function matchExplicitResumePhrase(
     '이어서 해줘',
     '이어가',
     '이어가줘',
+    '이어서 진행',
+    '이어서 진행해',
+    '이어서 진행해줘',
+    '계속 진행해줘',
+    '다시 이어서',
+    'pick up where you left off',
+    'from where you left off',
     '继续',
     '继续吧',
     '请继续',
@@ -180,15 +198,21 @@ function buildDetectionUserPrompt(text: string, context: InterruptedWorkResumeCo
     );
   }
   const run = context.ultraworkRun;
-  if (run !== null && run.status === 'blocked') {
+  const interruptReason = context.ultraworkInterruptReason?.trim();
+  if (
+    run !== null &&
+    (run.status === 'blocked' ||
+      (run.status === 'running' && interruptReason !== undefined && interruptReason.length > 0))
+  ) {
     lines.push(
       '',
       'Interrupted Ultrawork run:',
       `- objective: ${run.objective}`,
       `- stage: ${run.stage}`,
-      context.ultraworkInterruptReason === undefined
+      `- status: ${run.status}`,
+      interruptReason === undefined || interruptReason.length === 0
         ? ''
-        : `- interrupt reason: ${context.ultraworkInterruptReason}`,
+        : `- interrupt reason: ${interruptReason}`,
     );
   }
   return lines.filter((line) => line.length > 0).join('\n');

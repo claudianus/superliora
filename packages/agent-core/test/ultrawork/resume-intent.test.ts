@@ -67,6 +67,37 @@ describe('interrupted work resume intent', () => {
   });
 
 
+
+  it('detects soft interrupt reason on a still-running ultrawork run', () => {
+    expect(
+      hasInterruptedWorkResumeContext({
+        goal: null,
+        ultraworkRun: {
+          id: 'run-1',
+          objective: 'Ship',
+          status: 'running',
+          stage: 'verify',
+          createdAt: '2026-07-06T00:00:00.000Z',
+          updatedAt: '2026-07-06T00:05:00.000Z',
+        },
+        ultraworkInterruptReason: 'Paused after agent resume',
+      }),
+    ).toBe(true);
+    expect(
+      hasInterruptedWorkResumeContext({
+        goal: null,
+        ultraworkRun: {
+          id: 'run-1',
+          objective: 'Ship',
+          status: 'running',
+          stage: 'verify',
+          createdAt: '2026-07-06T00:00:00.000Z',
+          updatedAt: '2026-07-06T00:05:00.000Z',
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('matches explicit multilingual short resume phrases without an LLM', () => {
     for (const phrase of ['continue', '재개', '계속진행하라', '继续', 'keep going']) {
       const intent = matchExplicitResumePhrase(phrase);
