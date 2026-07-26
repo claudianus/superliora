@@ -327,7 +327,23 @@ export function suggestNextActions(
       case 'done':
         actions.push('Confirm completion criteria and close the run.');
         break;
+      case 'plan':
+      case 'research':
+        actions.push('Continue plan/research from checkpoint; do not restart discovery.');
+        break;
+      default:
+        actions.push(
+          `Continue Ultrawork stage ${effectiveStage}; keep WorkGraph current and attach evidence before UpdateGoal(complete).`,
+        );
+        break;
     }
+  }
+
+  // Defensive: never return an empty action list — empty guidance freezes the autonomous loop.
+  if (actions.length === 0) {
+    actions.push(
+      'Continue from durable checkpoint; re-run checks, attach evidence, and only then UpdateGoal(complete).',
+    );
   }
 
   return actions.slice(0, 4);

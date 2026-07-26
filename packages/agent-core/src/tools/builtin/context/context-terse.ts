@@ -269,7 +269,12 @@ function applyShellPatterns(text: string, command: string): string {
   ) {
     next = compressGitOutput(next, command);
   }
-  if (/\bdocker\s+(?:ps|logs|compose)\b/u.test(command)) {
+  if (
+    /\bdocker\s+(?:ps|logs|compose)\b/u.test(command) ||
+    /\bpodman\s+(?:ps|logs|compose)\b/u.test(command) ||
+    /\bnerdctl\s+(?:ps|logs|compose)\b/u.test(command) ||
+    /\b(?:minikube|kind)\s+(?:logs|export)\b/u.test(command)
+  ) {
     next = compressDockerOutput(next);
   }
   // Recursive tree/list dumps — prefer LioraTree in prompts; still lean when shell is used.
