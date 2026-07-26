@@ -105,6 +105,12 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
   }
+  const graphNodeCount = run.workGraph?.nodes.length ?? 0;
+  if (graphNodeCount === 0) {
+    lines.push(
+      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
+    );
+  }
   if (failedNodes.length > 0) {
     lines.push(
       `Failed WorkGraph nodes (${String(failedNodes.length)}): ${failedNodes
@@ -230,6 +236,12 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   }
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
+  const graphNodeCount = run.workGraph?.nodes.length ?? 0;
+  if (graphNodeCount === 0) {
+    lines.push(
+      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
+    );
   }
 
   const pendingNodes =

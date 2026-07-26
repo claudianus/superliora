@@ -320,6 +320,17 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Content a.ts | Set-Content b.ts')).toBeUndefined();
   });
 
+  it('blocks PowerShell Get-Item single-file dumps but allows dirs/pipelines', () => {
+    expect(detectShellDedicatedBypass('Get-Item src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gi packages/foo/bar.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Item .\\src\\a.ts')?.prefer).toBe('Read');
+    // directory navigation and filters stay allowed
+    expect(detectShellDedicatedBypass('Get-Item .')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Item src')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Item -Recurse src')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Item src/a.ts | Select-Object Name')).toBeUndefined();
+  });
+
   it('blocks git/svn/hg single-path content dumps but allows commit summaries', () => {
     expect(detectShellDedicatedBypass('git show HEAD:src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('git show abcdef1:packages/foo/bar.ts')?.prefer).toBe(

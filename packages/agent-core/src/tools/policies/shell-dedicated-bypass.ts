@@ -200,6 +200,20 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of PowerShell Get-Content for file contents.',
     };
   }
+  // Get-Item / gi of a single file path often used as a content/metadata dump → Read.
+  // Directory navigation (`Get-Item .`) and pipelines stay allowed.
+  if (
+    /^(?:Get-Item|gi)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    !/(?:-Recurse|-Filter|-Include|-Exclude)\b/i.test(command) &&
+    /(?:\.[\w]{1,8}\b|\\[\w.-]+\.[\w]{1,8}\b|\/[\w.-]+\.[\w]{1,8}\b)/.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'Get-Item file',
+      message: 'Use Read instead of PowerShell Get-Item for file contents/metadata dumps.',
+    };
+  }
   // PowerShell Set-Content / Out-File / Add-Content single-file writes → Write.
   // Pipelines and multi-object composition stay allowed.
   if (

@@ -1015,6 +1015,47 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('finish or cancel deps');
   });
 
+  it('seeds empty WorkGraph guidance in post-swarm injection', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    agent.ultrawork.create({
+      id: 'run-post-swarm-empty-graph',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-post-swarm-empty-graph',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.advance('research', 'test');
+    agent.ultrawork.advance('goal', 'test');
+    agent.ultrawork.advance('staff', 'test');
+    agent.ultrawork.advance('swarm', 'test');
+    agent.ultrawork.advance('integrate', 'test');
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-post-swarm-empty-graph:work_graph',
+          runId: 'run-post-swarm-empty-graph',
+          rootGoal: 'Ship feature',
+          nodes: [],
+        },
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostSwarmContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_swarm>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('WorkGraph empty or missing');
+    expect(text).toContain('seed via UltraworkGraph');
+    expect(text).toContain('requiredEvidence');
+  });
+
   it('injects post-compaction continuation for an active ultrawork run', () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
@@ -1106,6 +1147,42 @@ describe('Ultrawork recovery', () => {
     expect(text).not.toContain('node-2[done]');
     expect(text).toContain('Interrupt reason: Context pressure mid-run');
     expect(text).toContain('Ship feature');
+  });
+
+  it('seeds empty WorkGraph guidance in post-compaction injection', () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    const run = agent.ultrawork.create({
+      id: 'run-compact-empty-graph',
+      objective: 'Ship feature',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-compact-empty-graph',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...run,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-compact-empty-graph:work_graph',
+          runId: 'run-compact-empty-graph',
+          rootGoal: 'Ship feature',
+          nodes: [],
+        },
+      },
+    });
+    const append = vi.spyOn(agent.context, 'appendSystemReminder');
+    injectUltraworkPostCompactionContinuation(agent);
+    const text = String(
+      append.mock.calls.find((call) => String(call[0]).includes('<ultrawork_post_compaction>'))?.[0] ??
+        '',
+    );
+    expect(text).toContain('WorkGraph empty or missing');
+    expect(text).toContain('seed via UltraworkGraph');
+    expect(text).toContain('requiredEvidence');
   });
 
   it('reinjects ultrawork graph status after compaction even during swarm', async () => {
