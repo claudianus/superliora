@@ -442,10 +442,17 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass("sed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('awk 1 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base64 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('base32 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('hexdump -C src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('od -An -tx1 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('xxd src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('strings src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('/usr/bin/strings -n 8 src/a.ts')?.prefer).toBe('Read');
     // multi-file paste and pipelines stay allowed
     expect(detectShellDedicatedBypass('paste src/a.ts src/b.ts')).toBeUndefined();
     expect(detectShellDedicatedBypass('cat src/a.ts | base64')).toBeUndefined();
+    expect(detectShellDedicatedBypass('od -An -tx1')).toBeUndefined();
+    expect(detectShellDedicatedBypass('strings')).toBeUndefined();
   });
 
 });
