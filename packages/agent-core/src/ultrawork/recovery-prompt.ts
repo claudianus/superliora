@@ -263,6 +263,18 @@ export function formatEmptyWorkGraphSeedNextActions(): readonly string[] {
   ];
 }
 
+/**
+ * Generic incomplete-node next_actions shared by completion-audit (and any
+ * recovery surface that needs the same finish guidance after stall-specific hints).
+ */
+export function formatIncompleteNodeNextActions(): readonly string[] {
+  return [
+    'Finish or re-open incomplete nodes with real evidence.',
+    'Do not call UpdateGoal(complete) until every AC node is done with verification.',
+    'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
+  ];
+}
+
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;
   readonly activation?: UltraworkActivation;

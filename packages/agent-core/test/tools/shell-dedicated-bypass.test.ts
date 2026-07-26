@@ -152,6 +152,10 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Select-Xml -Path config.xml')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('Get-Content a.bin | Format-Hex')).toBeUndefined();
     expect(detectShellDedicatedBypass('Get-ChildItem | Get-FileHash')).toBeUndefined();
+    // ConvertTo-Html -Path writes → Write; bare path dumps → Read; pipelines stay allowed.
+    expect(detectShellDedicatedBypass('ConvertTo-Html -Path out.html')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('ConvertTo-Html report.html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('Get-Process | ConvertTo-Html')).toBeUndefined();
     // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',

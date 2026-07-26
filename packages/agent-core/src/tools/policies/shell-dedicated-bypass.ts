@@ -1296,6 +1296,25 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       message: `Use Read instead of PowerShell ${pattern} for file content dumps.`,
     };
   }
+  // ConvertTo-Html path dumps → Read/Write (pipelines stay allowed).
+  // -Path/-LiteralPath without -Fragment typically writes an HTML file → Write.
+  // Path dumps without write flags still prefer Read for whole-command content dumps.
+  if (
+    /^(?:ConvertTo-Html)\b/i.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:ForEach-Object|%|Where-Object)\b/i.test(command) &&
+    /(?:\.[\w]+|\bPath\b|\bLiteralPath\b|\bFile\b)/i.test(command)
+  ) {
+    const writesFile =
+      /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(command) || /(?:^|\s)>\s*\S+\s*$/.test(command);
+    return {
+      prefer: writesFile ? 'Write' : 'Read',
+      pattern: 'ConvertTo-Html',
+      message: writesFile
+        ? 'Use Write instead of PowerShell ConvertTo-Html for file dumps.'
+        : 'Use Read instead of PowerShell ConvertTo-Html for file content dumps.',
+    };
+  }
   // ConvertTo-Json / ConvertFrom-Json of a single file path / Get-Content dump → Read
   // (pipelines stay allowed for real shell composition).
   if (

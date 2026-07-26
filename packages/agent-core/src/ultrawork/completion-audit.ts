@@ -20,6 +20,7 @@ import {
   formatEvidenceHardGateNextActions,
   formatFailedNodeNextActions,
   formatHighResumeOscillationNextActions,
+  formatIncompleteNodeNextActions,
   formatLongRunningStageNextActions,
   formatNeedsIntegrationNextActions,
   formatOwnerlessRunningNextActions,
@@ -274,11 +275,7 @@ export function auditUltraworkCompletion(
     nextActions.push(
       ...formatHighResumeOscillationNextActions(countResumeCyclesFromHistory(run)),
       ...formatLongRunningStageNextActions(detectLongRunningStage(run)),
-    );
-    nextActions.push(
-      'Finish or re-open incomplete nodes with real evidence.',
-      'Do not call UpdateGoal(complete) until every AC node is done with verification.',
-      'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
+      ...formatIncompleteNodeNextActions(),
     );
     return reject(
       evidenceHits.length > 0 ? 'evidence_gate' : 'incomplete_nodes',
