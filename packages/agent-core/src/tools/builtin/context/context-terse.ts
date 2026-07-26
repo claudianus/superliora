@@ -296,6 +296,13 @@ function applyShellPatterns(text: string, command: string): string {
     /\bhelm\s+(?:list|status|get|template)\b/u.test(command) ||
     /\bkustomize\s+(?:build|cfg|edit)\b/u.test(command) ||
     /\bskaffold\s+(?:build|deploy|dev|render|diagnose)\b/u.test(command) ||
+    /\bistioctl\s+(?:proxy-status|analyze|proxy-config|bug-report)\b/u.test(command) ||
+    /\blinkerd\s+(?:check|diagnostics|viz)\b/u.test(command) ||
+    /\bargocd\s+(?:app|cluster|proj)\b/u.test(command) ||
+    /\bflux\s+(?:get|logs|reconcile|trace)\b/u.test(command) ||
+    /\bnomad\s+(?:job|alloc|status|logs)\b/u.test(command) ||
+    /\bconsul\s+(?:members|catalog|kv|intention)\b/u.test(command) ||
+    /\bvault\s+(?:status|kv|policy|auth)\b/u.test(command) ||
     /\b(?:terraform|tofu)\s+(?:plan|show|state|output|apply)\b/u.test(command) ||
     /\bpulumi\s+(?:preview|stack|up)\b/u.test(command) ||
     /\baws\s+\S+/u.test(command) ||

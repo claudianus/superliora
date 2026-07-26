@@ -264,6 +264,38 @@ export function suggestNextActions(
         .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
     );
   }
+  const verificationGaps =
+    run.workGraph?.nodes.filter((node) => {
+      if (node.status === 'cancelled' || node.status === 'failed') return false;
+      if (node.verificationStatus === 'failed' || node.verificationStatus === 'blocked') {
+        return true;
+      }
+      if (node.verificationStatus === 'pending' || node.verificationStatus === undefined) {
+        const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
+        if (required.length === 0) return false;
+        const evidence = new Set(node.evidenceIds ?? []);
+        return required.some((id) => !evidence.has(id));
+      }
+      return false;
+    }) ?? [];
+  if (verificationGaps.length > 0) {
+    actions.push(
+      `Close verification gaps on node(s): ${verificationGaps
+        .slice(0, 3)
+        .map((node) => {
+          const required = node.requiredEvidence?.filter((id) => id.length > 0) ?? [];
+          const missing =
+            required.length > 0
+              ? `; missing evidence: ${required
+                  .filter((id) => !(node.evidenceIds ?? []).includes(id))
+                  .slice(0, 3)
+                  .join(', ')}`
+              : '';
+          return `${node.id} (${node.title}${node.verificationStatus !== undefined ? `; verify=${node.verificationStatus}` : ''}${missing})`;
+        })
+        .join(', ')}${verificationGaps.length > 3 ? ', …' : ''} — attach required evidence before UpdateGoal(complete).`,
+    );
+  }
   if (
     progress.doneCount > 0 &&
     ultraworkStageIndex(effectiveStage) > ultraworkStageIndex('research') &&

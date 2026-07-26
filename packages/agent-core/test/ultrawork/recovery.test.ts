@@ -1188,6 +1188,53 @@ describe('suggestNextActions fallbacks', () => {
     expect(actions.some((a) => a.includes('dependsOn: node-dep'))).toBe(true);
   });
 
+  it('surfaces verification gaps with missing required evidence', async () => {
+    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const actions = suggestNextActions({
+      id: 'run-verify-gaps',
+      objective: 'Ship feature',
+      status: 'running',
+      stage: 'verify',
+      createdAt: '2026-07-06T00:00:00.000Z',
+      updatedAt: '2026-07-06T00:00:00.000Z',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-verify-gaps',
+        workDir: '/tmp',
+      },
+      workGraph: {
+        id: 'run-verify-gaps:work_graph',
+        runId: 'run-verify-gaps',
+        rootGoal: 'Ship feature',
+        nodes: [
+          {
+            id: 'node-verify',
+            title: 'AC1 runtime check',
+            stage: 'verify',
+            status: 'done',
+            verificationStatus: 'pending',
+            requiredEvidence: ['ev-runtime', 'ev-tests'],
+            evidenceIds: ['ev-tests'],
+          },
+          {
+            id: 'node-failed-verify',
+            title: 'AC2 surface check',
+            stage: 'verify',
+            status: 'done',
+            verificationStatus: 'failed',
+            requiredEvidence: ['ev-ui'],
+          },
+        ],
+      },
+    } as UltraworkRun);
+    expect(actions.some((a) => a.includes('Close verification gaps'))).toBe(true);
+    expect(actions.some((a) => a.includes('node-verify'))).toBe(true);
+    expect(actions.some((a) => a.includes('missing evidence: ev-runtime'))).toBe(true);
+    expect(actions.some((a) => a.includes('node-failed-verify'))).toBe(true);
+    expect(actions.some((a) => a.includes('verify=failed'))).toBe(true);
+  });
+
   it('flags ownerless running WorkGraph nodes in next actions', async () => {
     const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
     const actions = suggestNextActions({
