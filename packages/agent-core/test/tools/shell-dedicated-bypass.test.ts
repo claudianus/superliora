@@ -57,4 +57,26 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('tee out.txt <<EOF\nbody\nEOF')?.prefer).toBe('Write');
   });
 
+
+  it('blocks python/node/ruby one-liner file reads', () => {
+    expect(
+      detectShellDedicatedBypass("python -c \"print(open('src/a.ts').read())\"")?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass("python3 -c \"print(open(\'src/a.ts\').read())\"")?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass(
+        "node -e \"console.log(require('fs').readFileSync('src/a.ts','utf8'))\"",
+      )?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass("ruby -e \"puts File.read('src/a.ts')\"")?.prefer,
+    ).toBe('Read');
+    // writes stay allowed for shell (or other policies)
+    expect(
+      detectShellDedicatedBypass("python -c \"open('out.txt','w').write('x')\""),
+    ).toBeUndefined();
+  });
+
 });

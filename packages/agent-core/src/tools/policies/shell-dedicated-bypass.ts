@@ -49,6 +49,9 @@ export function detectShellDedicatedBypass(
   const readHit = matchReadLike(raw);
   if (readHit !== undefined) return readHit;
 
+  const langReadHit = matchLanguageReadLike(raw);
+  if (langReadHit !== undefined) return langReadHit;
+
   const writeHit = matchWriteLike(raw);
   if (writeHit !== undefined) return writeHit;
 
@@ -159,6 +162,60 @@ function matchSimpleHeredocWrite(command: string): ShellDedicatedBypassHit | und
       message: 'Use Write instead of tee heredoc for file content.',
     };
   }
+  return undefined;
+}
+
+
+/**
+ * Whole-command language one-liners that only read a file.
+ * Matches: python -c open('path'), node -e readFileSync('path'), etc.
+ * Skips: multi-statement scripts, network I/O, writes.
+ */
+function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undefined {
+  // Avoid multi-line scripts and shell composition (already mostly filtered).
+  if (/[|;&`\n]/.test(command)) return undefined;
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+
+  // python/python3 -c "...open('path')..."
+  if (/^(?:\/usr\/bin\/)?python3?(?:\d+(?:\.\d+)*)?\b/.test(command) && /(?:^|\s)-c(?:\s|$)/.test(command)) {
+    if (/\bopen\s*\(/.test(command) || /\bPath\s*\(/.test(command) || /\bread_text\s*\(/.test(command)) {
+      // Writing through python should not be forced to Read.
+      if (/\bopen\s*\([^)]*['"]\s*,\s*['"][wax+]/.test(command)) return undefined;
+      if (/\bwrite(?:_text|_bytes)?\s*\(/.test(command)) return undefined;
+      return {
+        prefer: 'Read',
+        pattern: 'python -c open(file)',
+        message: 'Use Read or LioraRead instead of python -c open(...) for file contents.',
+      };
+    }
+  }
+
+  // node/nodejs -e "...readFileSync('path')..."
+  if (/^(?:\/usr\/bin\/)?node(?:js)?\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
+    if (/readFile(?:Sync)?\s*\(/.test(command) || /promises\.readFile\s*\(/.test(command)) {
+      if (/writeFile(?:Sync)?\s*\(/.test(command) || /appendFile(?:Sync)?\s*\(/.test(command)) {
+        return undefined;
+      }
+      return {
+        prefer: 'Read',
+        pattern: 'node -e readFile',
+        message: 'Use Read or LioraRead instead of node -e readFile for file contents.',
+      };
+    }
+  }
+
+  // ruby -e "File.read('path')"
+  if (/^(?:\/usr\/bin\/)?ruby\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
+    if (/File\.read\s*\(/.test(command) || /IO\.read\s*\(/.test(command)) {
+      if (/File\.write\s*\(/.test(command) || /IO\.write\s*\(/.test(command)) return undefined;
+      return {
+        prefer: 'Read',
+        pattern: 'ruby -e File.read',
+        message: 'Use Read or LioraRead instead of ruby -e File.read for file contents.',
+      };
+    }
+  }
+
   return undefined;
 }
 
