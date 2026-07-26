@@ -190,6 +190,20 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('cp src/a.ts src/b.ts dest/')).toBeUndefined();
   });
 
+  it('strips leading process wrappers before dedicated-tool detection', () => {
+    expect(detectShellDedicatedBypass('command cat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('timeout 5 cat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('stdbuf -oL cat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('nice cat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('nohup cat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('\\cat src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('env cat src/a.ts')?.prefer).toBe('Read');
+    // real shell work / meta commands stay allowed
+    expect(detectShellDedicatedBypass('command -v cat')).toBeUndefined();
+    expect(detectShellDedicatedBypass('env -i PATH=/usr/bin cat src/a.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('timeout 5 pnpm test')).toBeUndefined();
+  });
+
   it('blocks empty redirect file creators', () => {
     expect(detectShellDedicatedBypass(': > out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('true > out.txt')?.prefer).toBe('Write');

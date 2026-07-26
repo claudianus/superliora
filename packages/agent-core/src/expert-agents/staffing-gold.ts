@@ -156,7 +156,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-backend-architect',
       'engineering-api-platform-engineer',
       'volt-01-core-development-backend-developer',
-      'volt-03-infrastructure-platform-engineer',
     ],
     labels: ['Engineering', 'Backend'],
   },
@@ -250,11 +249,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'docs-writer',
     query: 'documentation technical writer developer docs',
+    // Keep live top-ranked docs hits (drop deep-tail advocate).
     relevantIds: [
       'engineering-technical-writer',
       'agentcrow-technical-writer',
       'volt-06-developer-experience-documentation-engineer',
-      'specialized-developer-advocate',
     ],
     labels: ['Engineering', 'Docs'],
   },

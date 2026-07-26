@@ -35,47 +35,116 @@ export function detectShellDedicatedBypass(
     return undefined;
   }
 
+  // Strip leading process wrappers (`command`, `timeout`, `stdbuf`, …) so
+  // `timeout 5 cat file` still prefers Read. Real shell composition is checked later.
+  const unwrapped = stripLeadingShellUtilityWrappers(raw);
+
   // Simple echo/printf/cat redirects → Write (checked before generic composition).
-  const redirectWrite = matchSimpleRedirectWrite(raw);
+  const redirectWrite = matchSimpleRedirectWrite(unwrapped);
   if (redirectWrite !== undefined) return redirectWrite;
 
   // `: > file` / `true > file` / bare `> file` empty creators → Write
-  const emptyRedirect = matchEmptyRedirectWrite(raw);
+  const emptyRedirect = matchEmptyRedirectWrite(unwrapped);
   if (emptyRedirect !== undefined) return emptyRedirect;
 
   // cat/tee file <<EOF heredoc writers → Write (newlines make hasShellComposition true).
-  const heredocWrite = matchSimpleHeredocWrite(raw);
+  const heredocWrite = matchSimpleHeredocWrite(unwrapped);
   if (heredocWrite !== undefined) return heredocWrite;
 
   // Language -c/-e/-r file reads/writes before composition (perl open uses "<"/">" etc.).
-  const langWriteHit = matchLanguageWriteLike(raw);
+  const langWriteHit = matchLanguageWriteLike(unwrapped);
   if (langWriteHit !== undefined) return langWriteHit;
-  const langReadHit = matchLanguageReadLike(raw);
+  const langReadHit = matchLanguageReadLike(unwrapped);
   if (langReadHit !== undefined) return langReadHit;
 
   // Whole-command dd/install file copies (if=/of= use "=", not shell redirects).
-  const copyHit = matchSimpleFileCopyWrite(raw);
+  const copyHit = matchSimpleFileCopyWrite(unwrapped);
   if (copyHit !== undefined) return copyHit;
 
   // Multi-statement / pipeline / redirection chains → real shell work.
-  if (hasShellComposition(raw)) return undefined;
+  if (hasShellComposition(unwrapped)) return undefined;
 
-  const readHit = matchReadLike(raw);
+  const readHit = matchReadLike(unwrapped);
   if (readHit !== undefined) return readHit;
 
-  const writeHit = matchWriteLike(raw);
+  const writeHit = matchWriteLike(unwrapped);
   if (writeHit !== undefined) return writeHit;
 
-  const editHit = matchEditLike(raw);
+  const editHit = matchEditLike(unwrapped);
   if (editHit !== undefined) return editHit;
 
-  const grepHit = matchGrepLike(raw);
+  const grepHit = matchGrepLike(unwrapped);
   if (grepHit !== undefined) return grepHit;
 
-  const globHit = matchGlobLike(raw);
+  const globHit = matchGlobLike(unwrapped);
   if (globHit !== undefined) return globHit;
 
   return undefined;
+}
+
+/**
+ * Peel leading no-op / process wrappers so dedicated-tool detection still fires.
+ * Leaves `command -v`, `env -i`, multi-arg env assignments, etc. alone.
+ */
+function stripLeadingShellUtilityWrappers(command: string): string {
+  let next = command.trim();
+  // Leading backslash escapes alias lookup: `\cat file` → `cat file`.
+  if (next.startsWith('\\') && next.length > 1 && !next.startsWith('\\\\')) {
+    next = next.slice(1).trimStart();
+  }
+  for (let i = 0; i < 4; i += 1) {
+    const before = next;
+    // `command cat …` but not `command -v cat` / `command -p …`
+    if (/^command(?:\s+--)?\s+(?![-\/])/.test(next)) {
+      next = next.replace(/^command(?:\s+--)?\s+/, '').trimStart();
+    }
+    // bare `env cmd …` without KEY=val / -options
+    else if (/^env\s+(?![A-Za-z_][A-Za-z0-9_]*=)(?!-)\S/.test(next)) {
+      next = next.replace(/^env\s+/, '').trimStart();
+    }
+    // `timeout [opts] DURATION cmd` — duration is required before the utility
+    else if (/^timeout\b/.test(next)) {
+      const stripped = next
+        .replace(/^timeout\b/, '')
+        .replace(/^\s+(?:--foreground|--preserve-status|--verbose|-v)\b/g, '')
+        .replace(/^\s+--signal(?:=\S+|\s+\S+)/, '')
+        .replace(/^\s+-s(?:\s+\S+|=?\S+)/, '')
+        .replace(/^\s+--kill-after(?:=\S+|\s+\S+)/, '')
+        .replace(/^\s+-k(?:\s+\S+|=?\S+)/, '')
+        .trimStart();
+      // First token is duration (5, 5s, 1m, …); drop it if present.
+      const m = /^(\d+(?:\.\d+)?[smhd]?)\s+(.+)$/.exec(stripped);
+      if (m?.[2] !== undefined) next = m[2].trimStart();
+    }
+    // `stdbuf -oL cat …` / `stdbuf -i0 -o0 -e0 cat …`
+    else if (/^stdbuf\b/.test(next)) {
+      const stripped = next
+        .replace(/^stdbuf\b/, '')
+        .replace(/(?:\s+-[ioe](?:=\S+|\s+\S+))+/g, ' ')
+        .replace(/(?:\s+--(?:input|output|error)-buf(?:=\S+|\s+\S+))+/g, ' ')
+        .trimStart();
+      if (stripped.length > 0 && stripped !== next.replace(/^stdbuf\b/, '').trimStart()) {
+        next = stripped;
+      } else if (/^stdbuf(?:\s+-[ioe]\S*)+\s+\S/.test(next)) {
+        next = next.replace(/^stdbuf(?:\s+-[ioe]\S*)+\s+/, '').trimStart();
+      }
+    }
+    // `nice [-n N] cmd` / bare `nice cmd`
+    else if (/^nice\b/.test(next)) {
+      const stripped = next
+        .replace(/^nice\b/, '')
+        .replace(/^\s+-n(?:\s+\S+|=?\S+)/, '')
+        .replace(/^\s+--adjustment(?:=\S+|\s+\S+)/, '')
+        .trimStart();
+      if (stripped.length > 0) next = stripped;
+    }
+    // `nohup cmd`
+    else if (/^nohup\s+/.test(next)) {
+      next = next.replace(/^nohup\s+/, '').trimStart();
+    }
+    if (next === before) break;
+  }
+  return next.trim();
 }
 
 export function formatShellDedicatedBypassError(hit: ShellDedicatedBypassHit): string {
