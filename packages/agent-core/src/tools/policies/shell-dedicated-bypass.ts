@@ -306,6 +306,20 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       };
     }
   }
+  // Write-Output / Write-Host → Set-Content / Out-File / Add-Content / Tee-Object
+  // (plain `> path` is handled by matchSimpleRedirectWrite).
+  if (/^(?:Write-Output|Write-Host)\b/i.test(command)) {
+    if (
+      /\b(?:Set-Content|Out-File|Add-Content|sc|ac|Tee-Object|tee)\b/i.test(command) ||
+      /(?:^|\s)-(?:Path|LiteralPath)\s+\S+/i.test(command)
+    ) {
+      return {
+        prefer: 'Write',
+        pattern: 'Write-Output/Write-Host file',
+        message: 'Use Write instead of PowerShell Write-Output/Write-Host for file dumps.',
+      };
+    }
+  }
   // New-Item -ItemType File / ni … File → Write (Unix: touch). Directories stay allowed.
   if (
     /^(?:New-Item|ni)\b/i.test(command) &&
@@ -1125,7 +1139,7 @@ function matchWriteLike(command: string): ShellDedicatedBypassHit | undefined {
 
 /**
  * Whole-command file writes via shell redirect.
- * Matches: echo/printf/cat … > path | >> path
+ * Matches: echo/printf/cat/Write-Output/Write-Host … > path | >> path
  * Skips: pipes, &&, stderr redirects, multi-redirect, process substitution.
  */
 function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | undefined {
@@ -1137,7 +1151,7 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
   if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
   // Exactly one > or >> to a path (not << heredoc).
   if (/<</.test(command)) return undefined;
-  const m = /^(?:\/usr\/bin\/)?(echo|printf|cat)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/.exec(
+  const m = /^(?:\/usr\/bin\/)?(echo|printf|cat|Write-Output|Write-Host)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
     command,
   );
   if (m === null) return undefined;

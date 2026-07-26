@@ -198,6 +198,17 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('cat > out.txt')?.prefer).toBe('Write');
   });
 
+  it('blocks simple Write-Output/Write-Host redirects to files', () => {
+    expect(detectShellDedicatedBypass('Write-Output hello > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Host hi > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Write-Output hello >> out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('write-output x > ./notes.md')?.prefer).toBe('Write');
+    // stdout-only / real composition stay allowed
+    expect(detectShellDedicatedBypass('Write-Output hello')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Write-Output x | Set-Content out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-Process | Write-Output > out.txt')).toBeUndefined();
+  });
+
   it('allows pipelines, && chains, and real process work', () => {
     expect(detectShellDedicatedBypass('cat file | head')).toBeUndefined();
     expect(detectShellDedicatedBypass('cd src && cat index.ts')).toBeUndefined();
