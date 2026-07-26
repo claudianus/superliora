@@ -4,67 +4,93 @@ import {
   extractJsonFromText,
   extractTextFromLLMResponse,
   parseJsonFromLLMResponse,
-} from '../../../src/agent/plan/ultra-plan-llm-json';
+} from '#/agent/plan/ultra-plan-llm-json';
 
-describe('plan/ultra-plan-llm-json.ts — extractTextFromLLMResponse', () => {
-  it('returns the first text part of an LLM response', () => {
-    const r = {
-      message: {
-        content: [
-          { type: 'text', text: 'hello' },
-          { type: 'text', text: 'world' },
-        ],
-      },
-    };
-    expect(extractTextFromLLMResponse(r)).toBe('hello');
+describe('agent/plan/ultra-plan-llm-json — JSON extraction helpers', () => {
+  describe('extractTextFromLLMResponse', () => {
+    it('returns the first text part from a response', () => {
+      const response = {
+        message: {
+          content: [
+            { type: 'text', text: 'hello world' },
+            { type: 'text', text: 'ignored' },
+          ],
+        },
+      };
+      expect(extractTextFromLLMResponse(response)).toBe('hello world');
+    });
+
+    it('returns empty string when no message is present', () => {
+      expect(extractTextFromLLMResponse({})).toBe('');
+      expect(extractTextFromLLMResponse({ message: {} })).toBe('');
+    });
+
+    it('returns empty string when no text parts exist', () => {
+      const response = {
+        message: {
+          content: [{ type: 'image' }, { type: 'tool_use' }],
+        },
+      };
+      expect(extractTextFromLLMResponse(response)).toBe('');
+    });
   });
 
-  it('returns an empty string for a malformed response', () => {
-    expect(extractTextFromLLMResponse({})).toBe('');
-    expect(extractTextFromLLMResponse({ message: { content: [] } })).toBe('');
-    // `null` / `undefined` responses are not a documented input — the
-    // caller is expected to provide a valid LLM response shape.
-  });
-});
+  describe('extractJsonFromText', () => {
+    it('unwraps a ```json fenced block', () => {
+      const text = '```json\n{"a": 1, "b": [2, 3]}\n```';
+      expect(extractJsonFromText(text)).toBe('{"a": 1, "b": [2, 3]}');
+    });
 
-describe('plan/ultra-plan-llm-json.ts — extractJsonFromText', () => {
-  it('strips a leading and trailing ```json``` fence', () => {
-    const text = '```json\n{"a": 1}\n```';
-    expect(extractJsonFromText(text)).toBe('{"a": 1}');
-  });
+    it('unwraps a plain ``` fenced block (no language tag)', () => {
+      const text = '```\n{"k":"v"}\n```';
+      expect(extractJsonFromText(text)).toBe('{"k":"v"}');
+    });
 
-  it('strips a bare ``` fence too', () => {
-    const text = '```\n{"a": 1}\n```';
-    expect(extractJsonFromText(text)).toBe('{"a": 1}');
-  });
+    it('extracts a JSON object embedded in surrounding text', () => {
+      const text = 'noise before {"x": 1, "y": "z"} noise after';
+      expect(extractJsonFromText(text)).toBe('{"x": 1, "y": "z"}');
+    });
 
-  it('falls back to the first { ... } substring when no fence is present', () => {
-    const text = 'preface {"a": 1, "b": 2} trailing';
-    expect(extractJsonFromText(text)).toBe('{"a": 1, "b": 2}');
-  });
+    it('returns null when no JSON object braces are present', () => {
+      expect(extractJsonFromText('just plain text, no braces')).toBeNull();
+    });
 
-  it('returns null when no { ... } substring is found', () => {
-    expect(extractJsonFromText('plain text without braces')).toBeNull();
+    it('returns null when opening brace has no matching close', () => {
+      expect(extractJsonFromText('oops {')).toBeNull();
+    });
   });
 
-  it('returns null when the brace order is wrong (end < start)', () => {
-    expect(extractJsonFromText('}{')).toBeNull();
-  });
-});
+  describe('parseJsonFromLLMResponse', () => {
+    it('parses a valid JSON object out of a fenced response', () => {
+      const response = {
+        message: { content: [{ type: 'text', text: '```json\n{"answer": 42}\n```' }] },
+      };
+      expect(parseJsonFromLLMResponse(response)).toEqual({ answer: 42 });
+    });
 
-describe('plan/ultra-plan-llm-json.ts — parseJsonFromLLMResponse', () => {
-  it('returns the parsed object for a clean response', () => {
-    const r = { message: { content: [{ type: 'text', text: '{"k": 42}' }] } };
-    expect(parseJsonFromLLMResponse(r)).toEqual({ k: 42 });
-  });
+    it('parses a JSON object embedded in surrounding prose', () => {
+      const response = {
+        message: { content: [{ type: 'text', text: 'preface {"k": [1,2]} trailing' }] },
+      };
+      expect(parseJsonFromLLMResponse(response)).toEqual({ k: [1, 2] });
+    });
 
-  it('returns null when the embedded JSON is malformed', () => {
-    const r = { message: { content: [{ type: 'text', text: '{"k": }' }] } };
-    expect(parseJsonFromLLMResponse(r)).toBeNull();
-  });
+    it('returns null when no JSON object can be found', () => {
+      const response = {
+        message: { content: [{ type: 'text', text: 'no braces here' }] },
+      };
+      expect(parseJsonFromLLMResponse(response)).toBeNull();
+    });
 
-  it('returns null when no JSON can be found at all', () => {
-    const r = { message: { content: [{ type: 'text', text: 'no json' }] } };
-    expect(parseJsonFromLLMResponse(r)).toBeNull();
+    it('returns null when the extracted JSON is malformed', () => {
+      const response = {
+        message: { content: [{ type: 'text', text: '{"a": ,}' }] },
+      };
+      expect(parseJsonFromLLMResponse(response)).toBeNull();
+    });
+
+    it('returns null when the response has no text content', () => {
+      expect(parseJsonFromLLMResponse({ message: {} })).toBeNull();
+    });
   });
 });
