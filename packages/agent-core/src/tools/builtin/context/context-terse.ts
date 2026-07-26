@@ -306,6 +306,9 @@ function applyShellPatterns(text: string, command: string): string {
     /\b(?:psql|mysql|mysqldump|mongosh|mongo|redis-cli|sqlite3|clickhouse-client)\b/u.test(
       command,
     ) ||
+    /\b(?:promtool|logcli|amtool)\b/u.test(command) ||
+    /\b(?:elasticsearch|elasticdump|kibana-plugin)\b/u.test(command) ||
+    /\b(?:grafana-cli|jaeger|otelcol(?:-contrib)?)\b/u.test(command) ||
     /\b(?:terraform|tofu)\s+(?:plan|show|state|output|apply)\b/u.test(command) ||
     /\bpulumi\s+(?:preview|stack|up)\b/u.test(command) ||
     /\baws\s+\S+/u.test(command) ||

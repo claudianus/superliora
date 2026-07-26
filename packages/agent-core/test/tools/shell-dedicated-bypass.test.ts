@@ -90,13 +90,20 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('findstr foo src/a.ts')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('findstr.exe /s /i foo *.ts')?.prefer).toBe('Grep');
     expect(detectShellDedicatedBypass('Get-ChildItem | Select-String foo')).toBeUndefined();
-    // Windows recursive name listing prefers Glob; bare dir/gci navigation stays allowed.
+    // Windows recursive listing prefers Glob; bare dir/gci navigation stays allowed.
     expect(detectShellDedicatedBypass('Get-ChildItem -Recurse -Filter *.ts')?.prefer).toBe(
       'Glob',
     );
+    expect(detectShellDedicatedBypass('Get-ChildItem -Recurse')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('gci -Recurse -Filter *.ts')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('dir /s /b')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('dir /s /b *.ts')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('where /r . *.ts')?.prefer).toBe('Glob');
+    // tree / ls -R recursive listing → Glob.
+    expect(detectShellDedicatedBypass('tree')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('tree -L 3 src')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('ls -R packages')?.prefer).toBe('Glob');
+    expect(detectShellDedicatedBypass('ls -laR')?.prefer).toBe('Glob');
     // macOS Spotlight / Unix locate name search → Glob.
     expect(detectShellDedicatedBypass('mdfind -name "*.ts"')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('mdfind -onlyin . kMDItemFSName == "*.ts"')?.prefer).toBe(
@@ -105,6 +112,7 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('locate "*.ts"')?.prefer).toBe('Glob');
     expect(detectShellDedicatedBypass('Get-ChildItem src')).toBeUndefined();
     expect(detectShellDedicatedBypass('dir')).toBeUndefined();
+    expect(detectShellDedicatedBypass('ls packages')).toBeUndefined();
     expect(detectShellDedicatedBypass('where.exe python')).toBeUndefined();
   });
 

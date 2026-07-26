@@ -1159,17 +1159,33 @@ function matchGlobLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Glob for workspace file listing instead of git ls-files.',
     };
   }
-  // Windows recursive listing with name filters → Glob.
+  // Windows recursive listing → Glob.
   // Bare `dir` / `Get-ChildItem` of a single directory stays allowed for navigation.
+  // Recurse with or without -Filter/-Include floods context; prefer Glob.
   if (
     /^(?:Get-ChildItem|gci|dir)\b/i.test(command) &&
-    /(?:-Recurse|\s\/s\b)/i.test(command) &&
-    /(?:-Filter\s+\S+|-Include\s+\S+|\*\.\w{1,8}|\*\.\*)/i.test(command)
+    /(?:-Recurse|\s\/s\b)/i.test(command)
   ) {
     return {
       prefer: 'Glob',
       pattern: 'Get-ChildItem/dir recurse',
       message: 'Use Glob for recursive file-name search instead of Get-ChildItem/dir.',
+    };
+  }
+  // `tree` recursive dumps → Glob (workspace-capped listing). Pipelines stay allowed.
+  if (/^(?:\/usr\/bin\/)?tree(?:\s|$)/.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'tree',
+      message: 'Use Glob or LioraTree for directory trees instead of tree.',
+    };
+  }
+  // `ls -R` recursive listing (not plain `ls`).
+  if (/^(?:\/bin\/|\/usr\/bin\/)?ls\b/.test(command) && /(?:^|\s)-[A-Za-z]*R\b/.test(command)) {
+    return {
+      prefer: 'Glob',
+      pattern: 'ls -R',
+      message: 'Use Glob or LioraTree for recursive listings instead of ls -R.',
     };
   }
   // `where /r . *.ts` recursive file search (not `where.exe python` which is PATH lookup).
