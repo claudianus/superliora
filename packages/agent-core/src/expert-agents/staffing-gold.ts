@@ -168,14 +168,12 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'engineering-database-optimizer',
       'volt-05-data-ai-postgres-pro',
       'volt-02-language-specialists-sql-pro',
-      'engineering-database-reliability-engineer',
-      'ericgrill-general-database-sage',
     ],
     labels: ['Engineering', 'Database'],
   },
   {
     id: 'devops-ci',
-    query: 'devops automation CI CD pipeline infrastructure',
+    query: 'engineering devops automator CI CD pipeline infrastructure',
     relevantIds: [
       'engineering-devops-automator',
       'ericgrill-general-devops-dispatcher',
@@ -206,7 +204,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
       'volt-04-quality-security-performance-engineer',
       'testing-performance-benchmarker',
       'volt-09-meta-orchestration-performance-monitor',
-      'engineering-wordpress-performance',
       'support-infrastructure-maintainer',
     ],
     labels: ['Engineering', 'Performance'],
@@ -228,6 +225,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'design-ui-designer',
       'agentcrow-ui-designer',
+      'volt-06-developer-experience-powershell-ui-architect',
       'volt-04-quality-security-ui-ux-tester',
     ],
     labels: ['Design'],
@@ -277,6 +275,7 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'engineering-ai-engineer',
       'ericgrill-general-ml-model-whisperer',
+      'volt-05-data-ai-mlops-engineer',
       'engineering-llm-post-training-engineer',
     ],
     labels: ['Engineering', 'ML'],
@@ -324,7 +323,6 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'game-designer',
       'agentcrow-unreal-gas-specialist',
-      'game-audio-engineer',
       'volt-07-specialized-domains-game-developer',
     ],
     labels: ['Game Dev'],
@@ -388,8 +386,8 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     query: 'rust engineer systems embedded firmware refactoring',
     relevantIds: [
       'volt-02-language-specialists-rust-engineer',
-      'engineering-rust-refactoring-specialist',
       'engineering-embedded-firmware-engineer',
+      'volt-07-specialized-domains-embedded-systems',
     ],
     labels: ['Engineering', 'Rust'],
   },

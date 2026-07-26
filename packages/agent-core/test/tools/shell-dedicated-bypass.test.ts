@@ -124,6 +124,16 @@ describe('detectShellDedicatedBypass', () => {
     expect(
       detectShellDedicatedBypass("lua -e \"io.open('a.ts','w'):write('x')\"")?.prefer,
     ).toBe('Write');
+    expect(
+      detectShellDedicatedBypass(
+        "python -c \"from pathlib import Path; Path('a.ts').write_text('x')\"",
+      )?.prefer,
+    ).toBe('Write');
+    expect(
+      detectShellDedicatedBypass(
+        "node -e \"require('fs').promises.writeFile('a.ts','x')\"",
+      )?.prefer,
+    ).toBe('Write');
     // pipelines still allowed
     expect(
       detectShellDedicatedBypass("python -c \"open('a.ts','w').write('x')\" | cat"),
