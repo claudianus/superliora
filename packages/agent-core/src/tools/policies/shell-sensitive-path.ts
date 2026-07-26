@@ -67,6 +67,14 @@ function extractPathCandidates(command: string): string[] {
     push(token);
   }
 
+  // Language one-liners: open(".env"), Path('.ssh/id_rsa')
+  for (const match of command.matchAll(
+    /\b(?:open|Path|readFile(?:Sync)?|read_text|read_bytes)\s*\(\s*(['"])([^'"]+)\1/g,
+  )) {
+    const path = match[2];
+    if (path !== undefined) push(path);
+  }
+
   return out;
 }
 
@@ -75,6 +83,7 @@ function extractPathCandidates(command: string): string[] {
  * - strip outer quotes (already done upstream)
  * - peel `file=`, `--flag=`, `-f=` style values
  * - drop `file://` scheme
+ * - peel scp/rsync remote forms `user@host:path`
  * - expand a few common home prefixes for isSensitiveFile directory checks
  */
 function expandPathForms(raw: string): string[] {
@@ -89,6 +98,13 @@ function expandPathForms(raw: string): string[] {
 
   if (value.startsWith('file://')) {
     value = value.slice('file://'.length);
+  }
+
+  // scp/rsync remote: user@host:.env  host:/path/.ssh/id_rsa  [::1]:.env
+  // Prefer the path after the *last* unescaped colon when a host marker is present.
+  const remote = /^(?:[^\s/@]+@)?(?:\[[^\]]+\]|[^\s:/]+):(.+)$/.exec(value);
+  if (remote?.[1] !== undefined && remote[1].length > 0) {
+    value = stripOuterQuotes(remote[1]);
   }
 
   const forms = new Set<string>([value]);

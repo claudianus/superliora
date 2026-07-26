@@ -31,6 +31,13 @@ describe('detectShellSensitivePath', () => {
     expect(detectShellSensitivePath('cat file://.env')?.path).toBe('.env');
   });
 
+  it('blocks remote scp/rsync and language open() one-liners', () => {
+    expect(detectShellSensitivePath('scp user@host:.env ./')?.path).toBe('.env');
+    expect(detectShellSensitivePath('scp host:/home/u/.ssh/id_rsa ./key')?.path).toContain('id_rsa');
+    expect(detectShellSensitivePath('python -c "print(open(\'.env\').read())"')?.path).toBe('.env');
+    expect(detectShellSensitivePath("node -e \"require('fs').readFileSync('.env')\"")?.path).toBe('.env');
+  });
+
   it('blocks even with LIORA_FORCE_BASH escape', () => {
     expect(detectShellSensitivePath('LIORA_FORCE_BASH=1 cat .env')?.path).toBe('.env');
   });
