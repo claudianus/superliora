@@ -196,6 +196,44 @@ describe('Ultrawork goal completion', () => {
     });
   });
 
+  it('maybeFinishUltraworkRun rejects graphs with status=failed nodes', async () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    createUltraworkAtPlan(agent, 'run-finish-rejects-failed');
+    await agent.goal.createGoal({ objective: 'Ship feature' });
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
+      id: 'run-finish-rejects-failed:work_graph',
+      runId: 'run-finish-rejects-failed',
+      nodes: [
+        { id: 'node-ok', title: 'Done work', stage: 'integrate', status: 'done' },
+        { id: 'node-fail', title: 'Broken work', stage: 'implement', status: 'failed' },
+      ],
+    });
+    agent.ultrawork.syncWorkGraphFromStore();
+    void maybeFinishUltraworkRun(agent);
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+    expect(agent.goal.getGoal().goal).not.toBeNull();
+  });
+
+  it('maybeFinishUltraworkRun accepts cancelled nodes as success-terminal', async () => {
+    const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), 'uw-rec-'))) });
+    createUltraworkAtPlan(agent, 'run-finish-allows-cancelled');
+    await agent.goal.createGoal({ objective: 'Ship feature' });
+    agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
+      id: 'run-finish-allows-cancelled:work_graph',
+      runId: 'run-finish-allows-cancelled',
+      nodes: [
+        { id: 'node-ok', title: 'Done work', stage: 'integrate', status: 'done' },
+        { id: 'node-drop', title: 'Dropped scope', stage: 'swarm', status: 'cancelled' },
+      ],
+    });
+    agent.ultrawork.syncWorkGraphFromStore();
+    void maybeFinishUltraworkRun(agent);
+    expect(agent.ultrawork.getRun()?.status).toBe('done');
+    await vi.waitFor(() => {
+      expect(agent.goal.getGoal().goal).toBeNull();
+    });
+  });
+
   it('maybeAdvanceUltraworkOnGoalComplete does not force-finish blocked run without WorkGraph', async () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     createUltraworkAtPlan(agent, 'run-blocked-on-goal-complete');

@@ -55,29 +55,21 @@ export function maybeFinishUltraworkRun(agent: Agent): Promise<void> | undefined
   // Audit already requires a non-empty graph; keep defensive early returns.
   if (graph === undefined || graph.nodes.length === 0) return undefined;
 
-  // Circuit breaker: all terminal with some failed — finish so harness does not
-  // loop forever, but only when audit passed (verification_failed would block).
-  if (!graph.nodes.every((node) => node.status === 'done')) {
-    const allTerminal = graph.nodes.every(
-      (node) => node.status === 'done' || node.status === 'failed',
-    );
-    if (allTerminal) {
-      const failedIds = graph.nodes
-        .filter((node) => node.status === 'failed')
-        .map((node) => node.id);
-      agent.log?.warn?.('ultrawork run finishing with failed nodes', {
-        runId: run.id,
-        failedNodeIds: failedIds,
-      });
-      agent.telemetry?.track?.('ultrawork_finish_with_failures', {
-        run_id: run.id,
-        failed_nodes: failedIds.length,
-        total_nodes: graph.nodes.length,
-      });
-      ultrawork.completeLearnStage();
-      return completeUltraGoalForFinishedRun(agent);
-    }
+  // Success terminal = done (verified work) or cancelled (deliberate scope drop).
+  // status=failed is rejected by completion audit above — never finish around it.
+  const allSuccessTerminal = graph.nodes.every(
+    (node) => node.status === 'done' || node.status === 'cancelled',
+  );
+  if (!allSuccessTerminal) {
     return undefined;
+  }
+  const cancelledCount = graph.nodes.filter((node) => node.status === 'cancelled').length;
+  if (cancelledCount > 0) {
+    agent.telemetry?.track?.('ultrawork_finish_with_cancelled', {
+      run_id: run.id,
+      cancelled_nodes: cancelledCount,
+      total_nodes: graph.nodes.length,
+    });
   }
   ultrawork.completeLearnStage();
   return completeUltraGoalForFinishedRun(agent);
