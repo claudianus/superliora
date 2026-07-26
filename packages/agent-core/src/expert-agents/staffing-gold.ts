@@ -362,10 +362,10 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
     relevantIds: [
       'sales-deal-strategist',
       'sales-offer-lead-gen-strategist',
-      'sales-engineer',
-      'sales-account-strategist',
       'sales-outreach',
       'volt-08-business-product-sales-engineer',
+      'sales-engineer',
+      'sales-account-strategist',
     ],
     labels: ['Sales'],
   },
