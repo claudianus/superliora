@@ -116,6 +116,9 @@ describe('detectShellDedicatedBypass', () => {
     ).toBe('Write');
     expect(detectShellDedicatedBypass("ruby -e \"File.write('a.ts','x')\"")?.prefer).toBe('Write');
     expect(
+      detectShellDedicatedBypass("ruby -e \"File.open('a.ts','w'){|f|f.write('x')}\"")?.prefer,
+    ).toBe('Write');
+    expect(
       detectShellDedicatedBypass("php -r \"file_put_contents('a.ts','x');\"")?.prefer,
     ).toBe('Write');
     expect(

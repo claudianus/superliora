@@ -335,8 +335,11 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
  * Skips: multi-line scripts, pipelines, network I/O.
  */
 function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | undefined {
-  if (/[|`\n]/.test(command)) return undefined;
-  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  // Backticks / newlines are shell composition. Bare `|` also appears in ruby
+  // block params (`{|f| ...}`), so only reject whitespace-bounded shell pipes
+  // and shell OR/AND — not single-pipe language syntax.
+  if (/[`\n]/.test(command)) return undefined;
+  if (/\s\|\s/.test(command) || /\|\|/.test(command) || /\b(?:&&)\b/.test(command)) return undefined;
 
   // python/python3 -c write
   if (/^(?:\/usr\/bin\/)?python3?(?:\d+(?:\.\d+)*)?\b/.test(command) && /(?:^|\s)-c(?:\s|$)/.test(command)) {
@@ -364,9 +367,14 @@ function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit | unde
     }
   }
 
-  // ruby -e File.write
+  // ruby -e File.write / File.open(...,'w')
   if (/^(?:\/usr\/bin\/)?ruby\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
-    if (/File\.write\s*\(/.test(command) || /IO\.write\s*\(/.test(command) || /File\.open\s*\([^)]*['"][wax]/.test(command)) {
+    if (
+      /File\.write\s*\(/.test(command) ||
+      /IO\.write\s*\(/.test(command) ||
+      // File.open('path','w') or File.open("path", "a") — mode is the 2nd string arg
+      /File\.open\s*\(\s*['"][^'"]+['"]\s*,\s*['"][wax+]/.test(command)
+    ) {
       return {
         prefer: 'Write',
         pattern: 'ruby -e File.write',

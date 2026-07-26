@@ -144,6 +144,35 @@ describe('interrupted work resume intent', () => {
     expect(agent.ultrawork.getRun()?.status).toBe('running');
   });
 
+  it('resumes soft-interrupted still-running ultrawork from an explicit phrase', async () => {
+    const agent = new Agent({ kaos: testKaos });
+    const run = agent.ultrawork.create({
+      id: 'run-resume-soft',
+      objective: 'Ship game',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-resume-soft',
+        workDir: '/tmp',
+      },
+    });
+    // Soft interrupt: keep status running but attach an interrupt reason
+    // (e.g. mid-run agent replay / crash recovery before markBlocked).
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: { ...run, status: 'running' },
+      interruptReason: 'Paused after agent resume',
+    });
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+    expect(agent.ultrawork.getInterruptReason()).toBe('Paused after agent resume');
+
+    const transformed = await maybeTransformPromptForInterruptedWorkResume(agent, '이어서 작업해줘');
+    expect(transformed?.reason).toMatch(/resume|Explicit/i);
+    expect(transformed?.promptText.length).toBeGreaterThan(20);
+    expect(agent.ultrawork.getRun()?.status).toBe('running');
+    // Soft interrupt reason should be cleared after successful resume.
+    expect(agent.ultrawork.getInterruptReason()).toBeUndefined();
+  });
+
   it('parses multilingual resume intent from the classifier response', async () => {
     const intent = await detectInterruptedWorkResumeIntentWithLlm(
       {
