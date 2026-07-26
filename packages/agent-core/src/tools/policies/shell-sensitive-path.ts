@@ -48,12 +48,13 @@ function extractPathCandidates(command: string): string[] {
   const seen = new Set<string>();
 
   const push = (value: string): void => {
-    const cleaned = stripOuterQuotes(value.trim());
-    if (cleaned.length === 0) return;
-    if (!looksLikePathCandidate(cleaned)) return;
-    if (seen.has(cleaned)) return;
-    seen.add(cleaned);
-    out.push(cleaned);
+    for (const candidate of expandPathForms(value)) {
+      if (candidate.length === 0) continue;
+      if (!looksLikePathCandidate(candidate)) continue;
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
   };
 
   // Redirect targets: >file, >>file, <file (optional spaces).
@@ -69,25 +70,51 @@ function extractPathCandidates(command: string): string[] {
   return out;
 }
 
+/**
+ * Normalize shell path spellings agents actually type.
+ * - strip outer quotes (already done upstream)
+ * - peel `file=`, `--flag=`, `-f=` style values
+ * - drop `file://` scheme
+ * - expand a few common home prefixes for isSensitiveFile directory checks
+ */
+function expandPathForms(raw: string): string[] {
+  let value = stripOuterQuotes(raw.trim());
+  if (value.length === 0) return [];
+
+  // Long/short opt or env assignment: --env-file=.env, KEY=.env, -f=.ssh/id_rsa
+  const assigned = /^(?:--?[A-Za-z0-9][\w-]*|[A-Za-z_][A-Za-z0-9_]*)=(.+)$/.exec(value);
+  if (assigned?.[1] !== undefined) {
+    value = stripOuterQuotes(assigned[1]);
+  }
+
+  if (value.startsWith('file://')) {
+    value = value.slice('file://'.length);
+  }
+
+  const forms = new Set<string>([value]);
+
+  // `$HOME/.ssh/id_rsa` / `${HOME}/.ssh/id_rsa` → treat like `/home/*/.ssh/...` for dir rules
+  const homeExpanded = value
+    .replace(/^\$\{?HOME\}?(?=\/|\\|$)/, '/home/user')
+    .replace(/^\$\{?USERPROFILE\}?(?=\/|\\|$)/i, '/home/user');
+  if (homeExpanded !== value) forms.add(homeExpanded);
+
+  // `~/.ssh/config` already matches isSensitiveFile via directory parts.
+  return [...forms];
+}
+
 function looksLikePathCandidate(token: string): boolean {
-  // Reject pure flags and assignment-only env prefixes.
-  if (token.startsWith('-')) return false;
-  if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) return false;
-  // Path-like: has a separator, home, relative dot, or known secret basename.
+  // Reject pure flags (not `--flag=path` — those are peeled in expandPathForms).
+  if (token.startsWith('-') && !token.includes('/')) return false;
+  // Path-like: separator, home, relative dotfile, or absolute.
   if (token.includes('/') || token.includes('\\')) return true;
   if (token.startsWith('~')) return true;
   if (token.startsWith('.')) return true;
+  // Bare secret basenames that are unambiguous files (not English words like "credentials" alone).
   const base = token.split(/[/\\]/).pop() ?? token;
-  return (
-    base === '.env' ||
-    base.startsWith('.env.') ||
-    base === 'credentials' ||
-    base.startsWith('id_rsa') ||
-    base.startsWith('id_ed25519') ||
-    base.startsWith('id_ecdsa') ||
-    base === 'config.json' ||
-    base === 'config'
-  );
+  if (base.startsWith('.env')) return true;
+  if (/^id_(?:rsa|ed25519|ecdsa)(?:$|[-_.])/.test(base)) return true;
+  return false;
 }
 
 function stripOuterQuotes(value: string): string {
