@@ -650,6 +650,28 @@ describe('Ultrawork recovery', () => {
     expect(prompt).toContain('Reconcile Swarm staffing');
   });
 
+  it('seeds empty WorkGraph guidance in recovery prompt body', () => {
+    const prompt = buildUltraworkRecoveryPrompt({
+      run: sampleRun({
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-1:work_graph',
+          runId: 'run-1',
+          nodes: [],
+        },
+      }),
+      interruptReason: 'Paused after interruption',
+      orphanedWorkNodes: [],
+      orphanedExperts: [],
+      lostBackgroundTasks: [],
+      nextActions: ['Seed WorkGraph via UltraworkGraph'],
+    });
+    expect(prompt).toContain('WorkGraph empty or missing');
+    expect(prompt).toContain('seed via UltraworkGraph');
+    expect(prompt).toContain('requiredEvidence');
+    expect(prompt).not.toContain('Pending WorkGraph nodes');
+  });
+
   it('excludes cancelled WorkGraph nodes from recovery pending lists', () => {
     const prompt = buildUltraworkRecoveryPrompt({
       run: sampleRun({

@@ -194,6 +194,47 @@ Swarm decision: ENGAGE
     expect(quality.critical).toHaveLength(0);
   });
 
+  it('seeds empty WorkGraph guidance in compaction envelopes', () => {
+    const homedir = join(tmpdir(), `ultrawork-envelope-empty-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    agent.ultrawork.create({
+      id: 'run-envelope-empty',
+      objective: 'Seed empty graph',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-envelope-empty',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-envelope-empty:work_graph',
+          runId: 'run-envelope-empty',
+          rootGoal: 'Seed empty graph',
+          nodes: [],
+        },
+      },
+    });
+
+    const envelope = buildUltraworkCompactionEnvelope(agent, { compactionBoundary: true });
+    expect(envelope).toContain('workgraph_empty: true');
+    expect(envelope).toContain('WorkGraph empty or missing');
+    expect(envelope).toContain('seed via UltraworkGraph');
+    expect(envelope).toContain('requiredEvidence');
+    expect(envelope).not.toContain('pending_workgraph_nodes:');
+
+    const snapshot = captureUltraworkEnvelopeSnapshot(agent, { compactionBoundary: true });
+    expect(snapshot).not.toBeUndefined();
+    const runsSection = renderUltraworkRunsMemorySection(snapshot!);
+    expect(runsSection).toContain('empty_work_graph=true');
+  });
+
   it('excludes cancelled WorkGraph nodes from envelope pending lists', () => {
     const homedir = join(tmpdir(), `ultrawork-envelope-cancel-${String(Date.now())}`);
     mkdirSync(homedir, { recursive: true });

@@ -111,6 +111,15 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
 
   const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
   const verificationGaps = collectVerificationGapNodes(snapshot.run.workGraph?.nodes);
+  const graphNodeCount = snapshot.run.workGraph?.nodes.length ?? 0;
+  // Match injectors / recovery-prompt empty-graph seed so compaction envelopes
+  // do not silently resume product work without a WorkGraph ledger.
+  if (graphNodeCount === 0) {
+    lines.push('workgraph_empty: true');
+    lines.push(
+      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
+    );
+  }
   if (
     progress.doneCount > 0 ||
     progress.pendingCount > 0 ||
@@ -231,6 +240,10 @@ export function renderUltraworkRunsMemorySection(snapshot: UltraworkRunMirror): 
     lines.push(`  resume_node=${snapshot.resumeCursor.workGraphNodeId}`);
   }
   const progress = summarizeWorkGraphProgress(snapshot.run.workGraph);
+  const graphNodeCount = snapshot.run.workGraph?.nodes.length ?? 0;
+  if (graphNodeCount === 0) {
+    lines.push('  empty_work_graph=true');
+  }
   if (progress.pendingCount > 0) {
     lines.push(`  pending_nodes=${String(progress.pendingCount)}`);
   }

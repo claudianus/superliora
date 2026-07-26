@@ -128,6 +128,13 @@ export function buildUltraworkRecoveryPrompt(
   }
 
   const progress = summarizeWorkGraphProgress(report.run.workGraph);
+  const graphNodeCount = report.run.workGraph?.nodes.length ?? 0;
+  // Body-level seed (nextActions already prioritizes empty graphs) — match injectors/envelope.
+  if (graphNodeCount === 0) {
+    lines.push(
+      'WorkGraph empty or missing — seed via UltraworkGraph (acceptance criteria + verification nodes with requiredEvidence) before UpdateGoal(complete).',
+    );
+  }
   if (progress.doneCount > 0 || progress.pendingCount > 0) {
     lines.push(
       `WorkGraph progress: ${String(progress.doneCount)} done, ${String(progress.pendingCount)} pending.`,
