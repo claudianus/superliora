@@ -2,6 +2,11 @@ import type { Agent } from '..';
 import type { AgentReplayRecord, AgentReplayRecordPayload } from '../../rpc/resumed';
 import type { ContextMessage } from '../context';
 
+export {
+  limitReplayRecordsByTurn,
+  RESUME_REPLAY_TURN_LIMIT,
+} from './limit';
+
 export interface ReplayRangeOptions {
   readonly start?: number;
   readonly count?: number;

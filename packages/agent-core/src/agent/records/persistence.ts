@@ -53,7 +53,11 @@ export class InMemoryAgentRecordPersistence implements AgentRecordPersistence {
     records: readonly AgentRecord[] = [],
     private readonly options: InMemoryAgentRecordPersistenceOptions = {},
   ) {
-    this.records.push(...records);
+    // Avoid `push(...records)` — huge sessions can exceed the call-stack
+    // argument limit before any drain path runs.
+    for (const record of records) {
+      this.records.push(record);
+    }
   }
 
   async *read(): AsyncIterable<AgentRecord> {
@@ -68,7 +72,11 @@ export class InMemoryAgentRecordPersistence implements AgentRecordPersistence {
   }
 
   rewrite(records: readonly AgentRecord[]): void {
-    this.records.splice(0, this.records.length, ...records);
+    // Avoid `splice(0, n, ...records)` / spread — same call-stack limit.
+    this.records.length = 0;
+    for (const record of records) {
+      this.records.push(record);
+    }
   }
 
   async flush(): Promise<void> {}
@@ -231,7 +239,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     } catch (error) {
       // Re-queue so a subsequent resume attempt can retry; do NOT latch — a
       // crash-path failure should not brick future sessions.
-      this.pendingRecords.unshift(...batch);
+      prependPendingRecords(this.pendingRecords, batch);
       if (clearAtStart) this.shouldClear = true;
       this.options.onError?.(error);
     }
@@ -352,7 +360,7 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       }
       this.committedRecordCount = writable.length;
     } catch (error) {
-      this.pendingRecords.unshift(...batch);
+      prependPendingRecords(this.pendingRecords, batch);
       if (shouldClear) this.shouldClear = true;
       throw error;
     }
@@ -389,9 +397,26 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       }
       this.committedRecordCount += writable.length;
     } catch (error) {
-      this.pendingRecords.unshift(...batch);
+      prependPendingRecords(this.pendingRecords, batch);
       throw error;
     }
+  }
+}
+
+/**
+ * Re-queue a failed drain batch at the front of `pending` without
+ * `unshift(...batch)`, which throws "Maximum call stack size exceeded" once
+ * the batch approaches ~200k records (full-session rewrite failure path).
+ */
+function prependPendingRecords(pending: AgentRecord[], batch: readonly AgentRecord[]): void {
+  if (batch.length === 0) return;
+  const rest = pending.splice(0);
+  pending.length = 0;
+  for (const record of batch) {
+    pending.push(record);
+  }
+  for (const record of rest) {
+    pending.push(record);
   }
 }
 

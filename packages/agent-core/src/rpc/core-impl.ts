@@ -26,6 +26,10 @@ import { getCoreVersion } from '#/version';
 import { resolveThinkingLevel } from '../agent/config/thinking';
 import { Agent } from '../agent';
 import {
+  limitReplayRecordsByTurn,
+  RESUME_REPLAY_TURN_LIMIT,
+} from '../agent/replay';
+import {
   ensureLioraHome,
   loadRuntimeConfigSafe,
   mergeConfigPatch,
@@ -1673,7 +1677,10 @@ async function resumeSessionResult(
       type: agent.type,
       config,
       context,
-      replay: agent.replayBuilder.buildResult(),
+      replay: limitReplayRecordsByTurn(
+        agent.replayBuilder.buildResult(),
+        RESUME_REPLAY_TURN_LIMIT,
+      ),
       permission,
       plan,
       swarmMode,
