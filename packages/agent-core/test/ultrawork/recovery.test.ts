@@ -1171,6 +1171,7 @@ describe('suggestNextActions fallbacks', () => {
             title: 'Waiting on review',
             stage: 'integrate',
             status: 'blocked',
+            dependsOn: ['node-dep'],
           },
           {
             id: 'node-open',
@@ -1184,6 +1185,7 @@ describe('suggestNextActions fallbacks', () => {
     expect(actions.some((a) => a.includes('Unblock WorkGraph node'))).toBe(true);
     expect(actions.some((a) => a.includes('node-blocked'))).toBe(true);
     expect(actions.some((a) => a.includes('Waiting on review'))).toBe(true);
+    expect(actions.some((a) => a.includes('dependsOn: node-dep'))).toBe(true);
   });
 
   it('flags ownerless running WorkGraph nodes in next actions', async () => {

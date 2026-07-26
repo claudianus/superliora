@@ -294,7 +294,9 @@ function applyShellPatterns(text: string, command: string): string {
   if (
     /\bkubectl\s+(?:logs|get|describe|apply|diff)\b/u.test(command) ||
     /\bhelm\s+(?:list|status|get|template)\b/u.test(command) ||
-    /\bterraform\s+(?:plan|show|state)\b/u.test(command) ||
+    /\bkustomize\s+(?:build|cfg|edit)\b/u.test(command) ||
+    /\bskaffold\s+(?:build|deploy|dev|render|diagnose)\b/u.test(command) ||
+    /\b(?:terraform|tofu)\s+(?:plan|show|state|output|apply)\b/u.test(command) ||
     /\bpulumi\s+(?:preview|stack|up)\b/u.test(command) ||
     /\baws\s+\S+/u.test(command) ||
     /\bgcloud\s+\S+/u.test(command) ||

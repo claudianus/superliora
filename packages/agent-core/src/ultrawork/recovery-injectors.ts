@@ -75,6 +75,15 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
   const needsIntegrationNodes =
     run.workGraph?.nodes.filter((node) => node.status === 'needs_integration') ?? [];
+  const blockedNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'blocked') ?? [];
+  const ownerlessRunningNodes =
+    run.workGraph?.nodes.filter(
+      (node) =>
+        node.status === 'running' &&
+        (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
+        (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
+    ) ?? [];
   const interruptReason = agent.ultrawork?.getInterruptReason()?.trim();
   const lines = [
     '<ultrawork_post_swarm>',
@@ -111,6 +120,28 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     );
     lines.push(
       'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
+    );
+  }
+  if (blockedNodes.length > 0) {
+    lines.push(
+      `Blocked WorkGraph nodes (${String(blockedNodes.length)}): ${blockedNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
+    );
+  }
+  if (ownerlessRunningNodes.length > 0) {
+    lines.push(
+      `Ownerless running WorkGraph nodes (${String(ownerlessRunningNodes.length)}): ${ownerlessRunningNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
     );
   }
   if (pendingNodes.length > 0) {
@@ -176,6 +207,15 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
   const needsIntegrationNodes =
     run.workGraph?.nodes.filter((node) => node.status === 'needs_integration') ?? [];
+  const blockedNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'blocked') ?? [];
+  const ownerlessRunningNodes =
+    run.workGraph?.nodes.filter(
+      (node) =>
+        node.status === 'running' &&
+        (node.ownerExpertId === undefined || node.ownerExpertId.length === 0) &&
+        (node.ownerAgentId === undefined || node.ownerAgentId.length === 0),
+    ) ?? [];
   if (failedNodes.length > 0) {
     lines.push(
       `Failed WorkGraph nodes (${String(failedNodes.length)}): ${failedNodes
@@ -196,6 +236,28 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
     );
     lines.push(
       'needs_integration blocks UpdateGoal(complete) — merge specialist handoffs and mark nodes done only after integration evidence.',
+    );
+  }
+  if (blockedNodes.length > 0) {
+    lines.push(
+      `Blocked WorkGraph nodes (${String(blockedNodes.length)}): ${blockedNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${blockedNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Blocked nodes stall progress — resolve dependsOn, re-queue, or cancel only after deliberate scope drop.',
+    );
+  }
+  if (ownerlessRunningNodes.length > 0) {
+    lines.push(
+      `Ownerless running WorkGraph nodes (${String(ownerlessRunningNodes.length)}): ${ownerlessRunningNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${ownerlessRunningNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Running without owner stalls progress — assign ownerExpertId/ownerAgentId or re-queue.',
     );
   }
   if (pendingNodes.length > 0) {
