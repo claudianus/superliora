@@ -10,6 +10,8 @@ import {
   handlePlanCommand,
   handleThemeCommand,
   handleThinkingCommand,
+  showHarnessPanel,
+  showToolsInventory,
 } from '#/tui/commands/config';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
@@ -417,5 +419,94 @@ describe('context working-set command', () => {
     const host = makeContextHost();
     await handleContextCommand(host, '');
     expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+  });
+});
+
+describe('harness panel and tools inventory', () => {
+  function makeHarnessHost(options: {
+    session?: Record<string, unknown> | undefined;
+    activeSession?: Record<string, unknown> | undefined;
+  } = {}) {
+    return {
+      session: options.session,
+      activeSession: options.activeSession ?? options.session,
+      state: { appState: {} },
+      mountEditorReplacement: vi.fn(),
+      restoreEditor: vi.fn(),
+      showError: vi.fn(),
+      showNotice: vi.fn(),
+      showExtensionsModal: vi.fn(),
+      showExperimentsModal: vi.fn(),
+    } as unknown as SlashCommandHost & {
+      mountEditorReplacement: ReturnType<typeof vi.fn>;
+      restoreEditor: ReturnType<typeof vi.fn>;
+      showError: ReturnType<typeof vi.fn>;
+      showNotice: ReturnType<typeof vi.fn>;
+    };
+  }
+
+  it('opens the harness panel modal with live observation actions', () => {
+    const host = makeHarnessHost();
+    showHarnessPanel(host);
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    const [component] = host.mountEditorReplacement.mock.calls[0] as [unknown];
+    expect(component).toBeTruthy();
+  });
+
+  it('reports missing session for tools inventory', async () => {
+    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
+    await showToolsInventory(host);
+    expect(host.showError).toHaveBeenCalledWith(expect.stringMatching(/session/i));
+  });
+
+  it('reports when getTools is unavailable on the session', async () => {
+    const host = makeHarnessHost({ session: {} });
+    await showToolsInventory(host);
+    expect(host.showError).toHaveBeenCalledWith('Tools inventory is not available on this session.');
+  });
+
+  it('lists active and inactive tools from live getTools()', async () => {
+    const getTools = vi.fn(async () => [
+      {
+        name: 'Write',
+        description: 'Write a file',
+        source: 'builtin',
+        active: true,
+      },
+      {
+        name: 'Read',
+        description: 'Read a file',
+        source: 'builtin',
+        active: true,
+      },
+      {
+        name: 'LegacyTool',
+        description: 'old',
+        source: 'plugin',
+        active: false,
+      },
+    ]);
+    const host = makeHarnessHost({ session: { getTools } });
+    await showToolsInventory(host);
+    expect(getTools).toHaveBeenCalledOnce();
+    expect(host.showNotice).toHaveBeenCalledOnce();
+    const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+    expect(notice).toContain('Tools: 2 active / 3 registered');
+    expect(notice).toContain('Read');
+    expect(notice).toContain('Write');
+    expect(notice).toContain('Inactive (1): LegacyTool');
+    expect(notice).toContain('SearchTools');
+  });
+
+  it('surfaces getTools failures without crashing', async () => {
+    const host = makeHarnessHost({
+      session: {
+        getTools: vi.fn(async () => {
+          throw new Error('rpc down');
+        }),
+      },
+    });
+    await showToolsInventory(host);
+    expect(host.showError).toHaveBeenCalledWith('Failed to load tools: rpc down');
   });
 });
