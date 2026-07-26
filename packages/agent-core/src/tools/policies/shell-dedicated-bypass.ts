@@ -413,7 +413,7 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   }
   // wc -l path (line count only — still better as Read for agents? allow wc for process stats)
   // skip wc — useful for quick metrics
-  // skip file/stat/sha256sum/md5sum/cksum/realpath — metadata/hash, not content dumps
+  // skip file/stat/wc/realpath — pure metadata/metrics (hash dumps handled below as Read)
 
   // bat / batcat / tac / rev / pygmentize / highlight — pure file dumpers
   if (
@@ -1677,6 +1677,45 @@ function matchGrepLike(command: string): ShellDedicatedBypassHit | undefined {
       pattern: 'certutil -hashfile',
       message: 'Use Read (or a dedicated hash tool via package scripts) instead of certutil -hashfile for file dumps.',
     };
+  }
+  // Unix hash dumps of a single path → Read (parity with Get-FileHash / certutil).
+  // Skips: multi-file args, pipelines, recursive dir walks, openssl without a path.
+  if (
+    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:md5sum|sha1sum|sha224sum|sha256sum|sha384sum|sha512sum|shasum|cksum)\b/.test(
+      command,
+    ) &&
+    !/\s\|/.test(command) &&
+    // `-c` / `--check` verify mode stays allowed (not a pure single-file dump).
+    !/(?:^|\s)(?:-c|--check)(?:\s|=|$)/.test(command)
+  ) {
+    // Require a path-like argument; bare `md5sum` (stdin) stays allowed.
+    const hasPath =
+      /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/.test(command) ||
+      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/.test(command);
+    if (hasPath) {
+      return {
+        prefer: 'Read',
+        pattern: 'unix hash file',
+        message:
+          'Use Read (or package-script hash tooling) instead of md5sum/sha*sum/cksum for single-file dumps.',
+      };
+    }
+  }
+  if (
+    /^(?:\/usr\/bin\/)?openssl\s+dgst\b/.test(command) &&
+    !/\s\|/.test(command) &&
+    !/\b(?:-verify|-prverify|-sign)\b/.test(command)
+  ) {
+    const hasPath =
+      /(?:\.\/|\.\.\/|\/|[\w.-]+\/|[\w.-]+\\)[\w./\\-]+\.\w{1,8}\b/.test(command) ||
+      /(?:^|\s)[\w.-]+\.\w{1,8}(?:\s|$)/.test(command);
+    if (hasPath) {
+      return {
+        prefer: 'Read',
+        pattern: 'openssl dgst file',
+        message: 'Use Read (or package-script hash tooling) instead of openssl dgst for single-file dumps.',
+      };
+    }
   }
   // ConvertTo-Html path dumps → Read/Write (pipelines stay allowed).
   // -Path/-LiteralPath without -Fragment typically writes an HTML file → Write.

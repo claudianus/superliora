@@ -694,8 +694,17 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('fold -w 80 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('expand src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('column -t src/a.ts')?.prefer).toBe('Read');
-    // metrics / metadata stay allowed
+    // line/byte metrics stay allowed; single-file hash dumps prefer Read
     expect(detectShellDedicatedBypass('wc -l src/a.ts')).toBeUndefined();
-    expect(detectShellDedicatedBypass('sha256sum src/a.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('sha256sum src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('md5sum src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('sha1sum notes.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('cksum src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('shasum -a 256 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('openssl dgst -sha256 src/a.ts')?.prefer).toBe('Read');
+    // stdin / check modes / multi-pipe stay allowed
+    expect(detectShellDedicatedBypass('md5sum')).toBeUndefined();
+    expect(detectShellDedicatedBypass('sha256sum -c checksums.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cat src/a.ts | sha256sum')).toBeUndefined();
   });
 
