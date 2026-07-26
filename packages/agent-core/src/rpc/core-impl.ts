@@ -1677,7 +1677,8 @@ async function resumeSessionResult(
       agent.replayBuilder.buildResult(),
       RESUME_REPLAY_TURN_LIMIT,
     );
-    // Drop retained full-session UI replay now that the payload is capped.
+    // Cap the in-memory builder to the payload window without aliasing the
+    // returned array (keepOnly must not clear the payload view).
     agent.replayBuilder.keepOnly(replay);
     agents[agentId] = {
       type: agent.type,

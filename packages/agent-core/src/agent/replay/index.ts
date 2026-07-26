@@ -58,8 +58,12 @@ export class ReplayBuilder {
 
   /** Replace retained records (e.g. after payload truncation). */
   keepOnly(records: readonly AgentReplayRecord[]): void {
+    // Copy first — `records` is often the same array as `this.records`
+    // (limitReplayRecordsByTurn returns the input when under the turn cap).
+    // Clearing in place would wipe the source and leave an empty replay payload.
+    const kept = records === this.records ? records.slice() : [...records];
     this.records.length = 0;
-    for (const record of records) {
+    for (const record of kept) {
       this.records.push(record);
     }
     this.restoreUserTurnCount = 0;

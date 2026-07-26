@@ -95,6 +95,44 @@ describe('limitReplayRecordsByTurn', () => {
   });
 });
 
+describe('ReplayBuilder keepOnly', () => {
+  it('does not wipe replay when keepOnly receives the builder records array', async () => {
+    const agent = new Agent({
+      kaos: await LocalKaos.create(),
+      type: 'sub',
+    });
+    agent.records.restore({
+      type: 'context.append_message',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+        origin: { kind: 'user' },
+      },
+    });
+    agent.records.restore({
+      type: 'context.append_message',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'world' }],
+      },
+    });
+
+    const built = agent.replayBuilder.buildResult();
+    expect(built).toHaveLength(2);
+    // Same aliasing pattern as resumeSessionResult: limit under the cap returns
+    // a view derived from builder records, then keepOnly runs.
+    const limited = limitReplayRecordsByTurn(built, RESUME_REPLAY_TURN_LIMIT);
+    agent.replayBuilder.keepOnly(limited);
+
+    expect(limited).toHaveLength(2);
+    expect(agent.replayBuilder.buildResult()).toHaveLength(2);
+    expect(agent.replayBuilder.buildResult()[0]).toMatchObject({
+      type: 'message',
+      message: { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+    });
+  });
+});
+
 describe('ReplayBuilder restore turn window', () => {
   it('trims retained records while restoring past the turn limit', async () => {
     const agent = new Agent({
