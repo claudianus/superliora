@@ -71,6 +71,8 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     run.workGraph?.nodes.filter(
       (node) => node.status !== 'done' && node.status !== 'cancelled',
     ) ?? [];
+  const failedNodes =
+    run.workGraph?.nodes.filter((node) => node.status === 'failed') ?? [];
   const interruptReason = agent.ultrawork?.getInterruptReason()?.trim();
   const lines = [
     '<ultrawork_post_swarm>',
@@ -86,6 +88,17 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   }
   if (resumeCursor.workGraphNodeId !== undefined) {
     lines.push(`Resume node: ${resumeCursor.workGraphNodeId}`);
+  }
+  if (failedNodes.length > 0) {
+    lines.push(
+      `Failed WorkGraph nodes (${String(failedNodes.length)}): ${failedNodes
+        .slice(0, 4)
+        .map((node) => `${node.id} ${node.title}`)
+        .join(', ')}${failedNodes.length > 4 ? ', …' : ''}`,
+    );
+    lines.push(
+      'Failed nodes block UpdateGoal(complete) — repair, re-verify, or cancel only after deliberate scope drop.',
+    );
   }
   if (pendingNodes.length > 0) {
     lines.push(

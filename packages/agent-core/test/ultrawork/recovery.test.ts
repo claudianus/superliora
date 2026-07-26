@@ -861,6 +861,12 @@ describe('Ultrawork recovery', () => {
               stage: 'integrate',
               status: 'running',
             },
+            {
+              id: 'node-fail',
+              title: 'Broken specialist wave',
+              stage: 'swarm',
+              status: 'failed',
+            },
           ],
         },
       },
@@ -875,6 +881,9 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('Pending WorkGraph nodes');
     expect(text).toContain('node-1[running]');
     expect(text).toContain('Integrate API');
+    expect(text).toContain('Failed WorkGraph nodes');
+    expect(text).toContain('node-fail');
+    expect(text).toContain('Broken specialist wave');
     expect(text).toContain('Next actions:');
     expect(text).toContain('Interrupt reason: Context compacted mid-swarm');
     expect(text).toContain('run-post-swarm-graph');

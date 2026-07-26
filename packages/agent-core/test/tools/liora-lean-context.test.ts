@@ -291,6 +291,28 @@ describe('Liora lean context tools', () => {
     }
   });
 
+  it('compressShellOutput collapses long kubectl/helm/terraform dumps', () => {
+    const stdout = Array.from(
+      { length: 100 },
+      (_, i) => `pod/app-${String(i)}   1/1   Running   0   ${String(i)}m`,
+    ).join('\n');
+    for (const command of [
+      'kubectl get pods -A',
+      'kubectl logs deploy/app',
+      'helm list -A',
+      'terraform plan',
+      'pulumi preview',
+    ]) {
+      const compressed = compressShellOutput({
+        stdout,
+        stderr: '',
+        command,
+      });
+      expect(compressed.text.length, command).toBeLessThan(stdout.length);
+      expect(compressed.savedPercent, command).toBeGreaterThan(0);
+    }
+  });
+
   it('compressShellOutput collapses long next/vite/webpack build dumps', () => {
     const stdout = Array.from(
       { length: 100 },

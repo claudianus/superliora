@@ -51,6 +51,7 @@ describe('extractFileChangePaths', () => {
       [
         'Modified packages/agent-core/src/foo.ts',
         'Wrote 18 bytes to packages/agent-core/src/bar.ts',
+        'Appended 6 bytes to packages/agent-core/src/bar.ts',
         'Created packages/agent-core/test/baz.test.ts',
       ].join('\n'),
     );
