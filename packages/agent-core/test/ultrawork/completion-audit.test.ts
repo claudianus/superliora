@@ -479,4 +479,39 @@ describe('auditUltraworkCompletion', () => {
       expect(result.nextActions.some((a) => a.includes('ac_orphan'))).toBe(true);
     }
   });
+
+  it('hints queued dependsOn waits in incomplete nextActions', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'ac_dep',
+              kind: 'acceptance_criterion',
+              status: 'running',
+              ownerExpertId: 'expert-1',
+            }),
+            node({
+              id: 'ac_wait',
+              kind: 'acceptance_criterion',
+              status: 'queued',
+              dependsOn: ['ac_dep'],
+            }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('incomplete_nodes');
+      expect(result.nextActions.some((a) => /Queued node\(s\) waiting on dependsOn/i.test(a))).toBe(
+        true,
+      );
+      expect(result.nextActions.some((a) => /ac_wait/.test(a) && /dependsOn: ac_dep/.test(a))).toBe(
+        true,
+      );
+    }
+  });
 });

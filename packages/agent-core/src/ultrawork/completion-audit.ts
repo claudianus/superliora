@@ -219,6 +219,12 @@ export function auditUltraworkCompletion(
         (n.ownerExpertId === undefined || n.ownerExpertId.length === 0) &&
         (n.ownerAgentId === undefined || n.ownerAgentId.length === 0),
     );
+    // Match recovery-triangle dependsOn wait guidance when nothing is already blocked.
+    const waitingQueued = open.filter((n) => {
+      if (n.status !== 'queued') return false;
+      const deps = n.dependsOn?.filter((id) => id.length > 0) ?? [];
+      return deps.length > 0;
+    });
     const reasons = [
       `WorkGraph still has ${open.length} non-done node(s): ${openNodeIds.join(', ')}.`,
       ...evidenceHits.slice(0, 5),
@@ -230,6 +236,18 @@ export function auditUltraworkCompletion(
           .slice(0, 3)
           .map((n) => `${n.id} (${n.title})`)
           .join(', ')}${ownerlessRunning.length > 3 ? ', …' : ''} — running without owner stalls progress.`,
+      );
+    }
+    if (waitingQueued.length > 0) {
+      const waitHints = waitingQueued
+        .slice(0, 3)
+        .map((n) => {
+          const deps = n.dependsOn?.filter((id) => id.length > 0) ?? [];
+          return `${n.id} (${n.title}; dependsOn: ${deps.slice(0, 3).join(', ')}${deps.length > 3 ? ', …' : ''})`;
+        })
+        .join(', ');
+      nextActions.push(
+        `Queued node(s) waiting on dependsOn: ${waitHints}${waitingQueued.length > 3 ? ', …' : ''} — finish or cancel deps before forcing progress.`,
       );
     }
     nextActions.push(
