@@ -66,7 +66,7 @@ export function formatEvidenceHardGateNextActions(
     return `${v.nodeId}${missing}`;
   });
   return [
-    `Close evidence hard-gate on node(s): ${gateNodes.join(', ')}${violations.length > 3 ? ', …' : ''} — attach matching evidenceIds (and verificationSummary when useful), then set status=done only after checks.`,
+    `Close evidence hard-gate on node(s): ${gateNodes.join(', ')}${violations.length > 3 ? `, … +${String(violations.length - 3)} more` : ''} — attach matching evidenceIds (and verificationSummary when useful), then set status=done only after checks.`,
     formatEvidenceHardGateCompleteBan(),
   ];
 }
