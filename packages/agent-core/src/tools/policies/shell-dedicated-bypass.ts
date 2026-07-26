@@ -39,6 +39,10 @@ export function detectShellDedicatedBypass(
   const redirectWrite = matchSimpleRedirectWrite(raw);
   if (redirectWrite !== undefined) return redirectWrite;
 
+  // cat/tee file <<EOF heredoc writers → Write (newlines make hasShellComposition true).
+  const heredocWrite = matchSimpleHeredocWrite(raw);
+  if (heredocWrite !== undefined) return heredocWrite;
+
   // Multi-statement / pipeline / redirection chains → real shell work.
   if (hasShellComposition(raw)) return undefined;
 
@@ -106,6 +110,55 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   }
   // wc -l path (line count only — still better as Read for agents? allow wc for process stats)
   // skip wc — useful for quick metrics
+  return undefined;
+}
+
+
+/**
+ * Whole-command heredoc file writes.
+ * Matches: cat/tee … > path <<EOF / cat <<EOF > path / tee path <<EOF
+ * Skips: pipelines, && lists, process substitution.
+ */
+function matchSimpleHeredocWrite(command: string): ShellDedicatedBypassHit | undefined {
+  // Must include a heredoc opener.
+  if (!/<<\s*[-]?\s*['"]?\w+['"]?/.test(command)) return undefined;
+  // No pipes / lists / backticks / process substitution (newlines OK for body).
+  if (/[|`]/.test(command.split('\n')[0] ?? '')) return undefined;
+  if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
+  if (/\$\(|\$\{/.test(command)) return undefined;
+  // Reject stderr multi-redirect forms in the opener line.
+  const firstLine = (command.split('\n')[0] ?? '').trim();
+  if (/\d?>&|2\s*>/.test(firstLine)) return undefined;
+
+  // cat/tee with redirect-or-arg path + heredoc
+  const patterns = [
+    /^(?:\/usr\/bin\/)?(?:cat|tee)\b[\s\S]*?(?:>>?\s*(\S+)|\s+(\S+))\s*<<\s*[-]?\s*['"]?\w+['"]?/,
+    /^(?:\/usr\/bin\/)?(?:cat|tee)\b\s*<<\s*[-]?\s*['"]?\w+['"]?\s*>>?\s*(\S+)/,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(firstLine);
+    if (m === null) continue;
+    return {
+      prefer: 'Write',
+      pattern: 'heredoc > file',
+      message: 'Use Write (or Edit for patches) instead of shell heredocs for file content.',
+    };
+  }
+  // Multiline: first line may be `cat > out <<EOF` already covered; also `cat <<EOF > out`
+  if (/^(?:\/usr\/bin\/)?(?:cat|tee)\b/.test(firstLine) && /<</.test(firstLine) && />>?/.test(firstLine)) {
+    return {
+      prefer: 'Write',
+      pattern: 'heredoc > file',
+      message: 'Use Write (or Edit for patches) instead of shell heredocs for file content.',
+    };
+  }
+  if (/^(?:\/usr\/bin\/)?tee\b\s+\S+\s*<</.test(firstLine)) {
+    return {
+      prefer: 'Write',
+      pattern: 'tee heredoc',
+      message: 'Use Write instead of tee heredoc for file content.',
+    };
+  }
   return undefined;
 }
 

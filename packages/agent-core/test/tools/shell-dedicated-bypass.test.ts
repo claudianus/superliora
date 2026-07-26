@@ -50,4 +50,11 @@ describe('detectShellDedicatedBypass', () => {
     expect(msg).toContain('Read');
     expect(msg).toContain(SHELL_DEDICATED_BYPASS_FORCE_PREFIX);
   });
+
+  it('blocks simple cat/tee heredoc file writes', () => {
+    expect(detectShellDedicatedBypass('cat > out.txt <<EOF\nhello\nEOF')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass("cat <<'EOF' > out.txt\nx\nEOF")?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('tee out.txt <<EOF\nbody\nEOF')?.prefer).toBe('Write');
+  });
+
 });

@@ -1274,6 +1274,18 @@ describe('BashTool', () => {
   });
 
 
+  it('rejects simple cat/tee heredoc writers', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const result = await executeTool(
+      tool,
+      context({ command: 'cat > out.txt <<EOF\nhello\nEOF', timeout: 60 }),
+    );
+    expect(result).toMatchObject({ isError: true });
+    expect(String(result.output)).toContain('Write');
+    expect(execWithEnv).not.toHaveBeenCalled();
+  });
+
   it('rejects sensitive path access via Bash with hard deny', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
