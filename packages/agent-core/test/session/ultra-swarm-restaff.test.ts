@@ -166,6 +166,44 @@ describe('ultra-swarm restaff helpers', () => {
       ]),
     ).toBe('review');
   });
+
+  it('buckets plan-phase gaps into implement restaff (no plan restaff phase)', () => {
+    // Plan-phase experts cannot be restaffed as a separate phase (the return
+    // type only allows 'implement' | 'review'). Plan gaps therefore fall into
+    // the implement bucket so they still get restaffed as implementation
+    // work. Lock the behavior in so a future signature change is intentional.
+    expect(
+      restaffPhaseForGaps([
+        {
+          expertId: 'product-staff-engineer',
+          expertName: 'Planner',
+          phase: 'plan',
+          verdict: 'BLOCKED',
+          summary: 'Incomplete plan.',
+        },
+      ]),
+    ).toBe('implement');
+
+    // Mixed gaps with at least one implement/plan still resolve to implement.
+    expect(
+      restaffPhaseForGaps([
+        {
+          expertId: 'product-staff-engineer',
+          expertName: 'Planner',
+          phase: 'plan',
+          verdict: 'BLOCKED',
+          summary: 'Plan gap.',
+        },
+        {
+          expertId: 'testing-evidence-collector',
+          expertName: 'QA Collector',
+          phase: 'review',
+          verdict: 'BLOCKED',
+          summary: 'Missing tests.',
+        },
+      ]),
+    ).toBe('implement');
+  });
 });
 
 import {
