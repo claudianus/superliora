@@ -169,7 +169,11 @@ export function renderUltraworkCompactionEnvelope(snapshot: UltraworkRunMirror):
     }
   }
 
-  const pendingNodes = snapshot.run.workGraph?.nodes.filter((node) => node.status !== 'done') ?? [];
+  // cancelled is success-terminal (deliberate scope drop) — match injectors / resume-intent.
+  const pendingNodes =
+    snapshot.run.workGraph?.nodes.filter(
+      (node) => node.status !== 'done' && node.status !== 'cancelled',
+    ) ?? [];
   if (pendingNodes.length > 0) {
     lines.push(`pending_workgraph_nodes: ${String(pendingNodes.length)}`);
     for (const node of pendingNodes.slice(0, 12)) {

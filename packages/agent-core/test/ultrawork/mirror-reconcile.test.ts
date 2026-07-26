@@ -194,6 +194,68 @@ Swarm decision: ENGAGE
     expect(quality.critical).toHaveLength(0);
   });
 
+  it('excludes cancelled WorkGraph nodes from envelope pending lists', () => {
+    const homedir = join(tmpdir(), `ultrawork-envelope-cancel-${String(Date.now())}`);
+    mkdirSync(homedir, { recursive: true });
+    const agent = new Agent({ kaos: testKaos.withCwd(homedir), homedir });
+    agent.ultrawork.create({
+      id: 'run-envelope-cancel',
+      objective: 'Skip cancelled pending',
+      activation: {
+        source: 'manual',
+        replaceGoal: false,
+        evidenceRoot: '.superliora/evidence/ultrawork-runs/run-envelope-cancel',
+        workDir: '/tmp',
+      },
+    });
+    agent.ultrawork.applyMirrorRunQuiet({
+      run: {
+        ...agent.ultrawork.getRun()!,
+        status: 'running',
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-envelope-cancel:work_graph',
+          runId: 'run-envelope-cancel',
+          rootGoal: 'Skip cancelled pending',
+          nodes: [
+            {
+              id: 'node-done',
+              title: 'Finished AC',
+              stage: 'integrate',
+              status: 'done',
+            },
+            {
+              id: 'node-cancel',
+              title: 'Dropped scope',
+              stage: 'integrate',
+              status: 'cancelled',
+            },
+            {
+              id: 'node-run',
+              title: 'Still open',
+              stage: 'integrate',
+              status: 'running',
+            },
+            {
+              id: 'node-fail',
+              title: 'Broken verify',
+              stage: 'verify',
+              status: 'failed',
+            },
+          ],
+        },
+      },
+    });
+
+    const envelope = buildUltraworkCompactionEnvelope(agent, { compactionBoundary: true });
+    expect(envelope).toContain('pending_workgraph_nodes: 2');
+    expect(envelope).toContain('[running] node-run');
+    expect(envelope).toContain('[failed] node-fail');
+    expect(envelope).not.toContain('node-cancel');
+    expect(envelope).not.toContain('Dropped scope');
+    expect(envelope).not.toContain('[done] node-done');
+  });
+
   it('flushes ultrawork checkpoint before compaction begins', async () => {
     const homedir = join(tmpdir(), `ultrawork-flush-${String(Date.now())}`);
     mkdirSync(homedir, { recursive: true });

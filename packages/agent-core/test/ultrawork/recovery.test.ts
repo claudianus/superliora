@@ -650,6 +650,88 @@ describe('Ultrawork recovery', () => {
     expect(prompt).toContain('Reconcile Swarm staffing');
   });
 
+  it('excludes cancelled WorkGraph nodes from recovery pending lists', () => {
+    const prompt = buildUltraworkRecoveryPrompt({
+      run: sampleRun({
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-1:work_graph',
+          runId: 'run-1',
+          nodes: [
+            {
+              id: 'node-done',
+              title: 'Finished AC',
+              stage: 'integrate',
+              status: 'done',
+            },
+            {
+              id: 'node-cancel',
+              title: 'Dropped scope',
+              stage: 'integrate',
+              status: 'cancelled',
+            },
+            {
+              id: 'node-run',
+              title: 'Still open',
+              stage: 'integrate',
+              status: 'running',
+            },
+            {
+              id: 'node-fail',
+              title: 'Broken verify',
+              stage: 'verify',
+              status: 'failed',
+            },
+          ],
+        },
+      }),
+      interruptReason: 'Paused after interruption',
+      orphanedWorkNodes: [],
+      orphanedExperts: [],
+      lostBackgroundTasks: [],
+      nextActions: ['Resume WorkGraph node node-run'],
+    });
+    expect(prompt).toContain('Pending WorkGraph nodes (2)');
+    expect(prompt).toContain('[running] node-run');
+    expect(prompt).toContain('[failed] node-fail');
+    expect(prompt).not.toContain('node-cancel');
+    expect(prompt).not.toContain('Dropped scope');
+    expect(prompt).not.toContain('[done] node-done');
+  });
+
+  it('omits pending WorkGraph section when only done/cancelled remain', () => {
+    const prompt = buildUltraworkRecoveryPrompt({
+      run: sampleRun({
+        stage: 'integrate',
+        workGraph: {
+          id: 'run-1:work_graph',
+          runId: 'run-1',
+          nodes: [
+            {
+              id: 'node-done',
+              title: 'Finished AC',
+              stage: 'integrate',
+              status: 'done',
+            },
+            {
+              id: 'node-cancel',
+              title: 'Dropped scope',
+              stage: 'integrate',
+              status: 'cancelled',
+            },
+          ],
+        },
+      }),
+      interruptReason: 'Paused after interruption',
+      orphanedWorkNodes: [],
+      orphanedExperts: [],
+      lostBackgroundTasks: [],
+      nextActions: ['Continue Ultrawork'],
+    });
+    expect(prompt).not.toContain('Pending WorkGraph nodes');
+    expect(prompt).not.toContain('node-cancel');
+  });
+
   it('preserves interrupt reason in recovery prompt after resume', async () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({

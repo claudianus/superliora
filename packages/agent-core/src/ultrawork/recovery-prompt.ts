@@ -162,8 +162,11 @@ export function buildUltraworkRecoveryPrompt(
   }
 
   // Keep only the most actionable pending nodes / orphans; full graph is on disk.
+  // cancelled is success-terminal (deliberate scope drop) — match injectors / resume-intent.
   if (report.run.workGraph !== undefined && report.run.workGraph.nodes.length > 0) {
-    const pending = report.run.workGraph.nodes.filter((node) => node.status !== 'done');
+    const pending = report.run.workGraph.nodes.filter(
+      (node) => node.status !== 'done' && node.status !== 'cancelled',
+    );
     if (pending.length > 0) {
       lines.push(`Pending WorkGraph nodes (${String(pending.length)}):`);
       for (const node of pending.slice(0, 5)) {
