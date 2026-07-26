@@ -11,6 +11,8 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('cat src/index.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('head -n 20 foo.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('tail -50 bar.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('head -c 100 foo.bin')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('tail -c +10 bar.bin')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('less src/index.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('more README.md')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('most docs/guide.md')?.prefer).toBe('Read');
@@ -714,9 +716,11 @@ describe('detectShellDedicatedBypass', () => {
 
   it('blocks text formatter whole-file dumps', () => {
     expect(detectShellDedicatedBypass('fmt src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('fmt -w 80 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('pr -n src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('fold -w 80 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('expand src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('unexpand src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('column -t src/a.ts')?.prefer).toBe('Read');
     // line/byte metrics stay allowed; single-file hash dumps prefer Read
     expect(detectShellDedicatedBypass('wc -l src/a.ts')).toBeUndefined();

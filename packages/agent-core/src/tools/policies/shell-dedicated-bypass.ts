@@ -366,9 +366,10 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
     }
   }
   // head/tail [flags] path — not head of a pipeline (+ busybox/ghead/gtail)
-  // Flags may take a following value token: head -n 20 file, tail -50 file, head -n20 file
+  // Flags may take a following value token: head -n 20 file, tail -50 file,
+  // head -n20 file, tail -c +10 file (GNU byte offsets with leading +).
   if (
-    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?head|g?tail)(?:\s+-[A-Za-z0-9]+(?:\s+\d+)?)*(?:\s+\S+)\s*$/.test(
+    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?head|g?tail)(?:\s+-[A-Za-z0-9]+(?:\s+[+]?\d+)?)*(?:\s+\S+)\s*$/.test(
       command,
     )
   ) {
