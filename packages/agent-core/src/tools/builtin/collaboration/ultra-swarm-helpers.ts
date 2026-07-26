@@ -117,6 +117,13 @@ export function extractFileChangePaths(text: string): readonly string[] {
       if (path !== undefined) paths.add(path);
     }
   }
+  // Verb + path lines without colon: "Modified packages/foo.ts", "Wrote 5 bytes to path".
+  const verbPath =
+    /(?:^|[\n\r])\s*(?:Modified|Wrote|Edited|Created|Updated|Deleted|Touched)\b[^\n]*?((?:[\w.@+-]+\/)+[\w.@+-]+\.[A-Za-z0-9]{1,8})/gim;
+  while ((match = verbPath.exec(text)) !== null) {
+    const path = normalizeFileChangePath(match[1] ?? '');
+    if (path !== undefined) paths.add(path);
+  }
   // Inline path tokens with common source extensions (avoid bare words).
   const inline =
     /(?:^|[\s"'`(])((?:[\w.@+-]+\/)+[\w.@+-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|swift|md|json|yml|yaml|toml|css|scss|html|vue|svelte|sh|bash|zsh|rb|php|cs|cpp|c|h|hpp|sql|proto|graphql|gql))(?=[\s"'`),;:]|$)/gim;

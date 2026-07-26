@@ -18,9 +18,16 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('w3m index.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('lynx notes.html')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('elinks page.html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('zcat archive.gz')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('gzcat log.gz')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('bzcat data.bz2')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('xzcat data.xz')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('zstdcat data.zst')?.prefer).toBe('Read');
     // Real URLs stay allowed for text-browser browsing.
     expect(detectShellDedicatedBypass('w3m https://example.com')).toBeUndefined();
     expect(detectShellDedicatedBypass('lynx http://example.com/docs')).toBeUndefined();
+    // Pipelines stay allowed for real shell composition.
+    expect(detectShellDedicatedBypass('zcat archive.gz | head')).toBeUndefined();
   });
 
   it('blocks sed -i and grep/rg/find', () => {

@@ -45,4 +45,21 @@ describe('extractFileChangePaths', () => {
     );
     expect(paths).toEqual(['src/a.ts']);
   });
+
+  it('extracts verb+path lines without a colon label', () => {
+    const paths = extractFileChangePaths(
+      [
+        'Modified packages/agent-core/src/foo.ts',
+        'Wrote 18 bytes to packages/agent-core/src/bar.ts',
+        'Created packages/agent-core/test/baz.test.ts',
+      ].join('\n'),
+    );
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'packages/agent-core/src/foo.ts',
+        'packages/agent-core/src/bar.ts',
+        'packages/agent-core/test/baz.test.ts',
+      ]),
+    );
+  });
 });

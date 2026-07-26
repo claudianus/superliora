@@ -228,6 +228,19 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of w3m/lynx/elinks for local file contents.',
     };
   }
+  // zcat/gzcat/bzcat/xzcat — decompress-to-stdout of a single archive/path.
+  // Pipelines (zcat f | head) stay allowed for real shell composition.
+  if (
+    /^(?:\/usr\/bin\/)?(?:zcat|gzcat|bzcat|xzcat|lzcat|zstdcat)(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'zcat file',
+      message: 'Use Read (or a dedicated archive tool) instead of zcat/gzcat for file contents.',
+    };
+  }
   // wc -l path (line count only — still better as Read for agents? allow wc for process stats)
   // skip wc — useful for quick metrics
   // skip file/stat/sha256sum/md5sum/cksum/realpath — metadata/hash, not content dumps
