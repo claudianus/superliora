@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 
 import { testKaos } from '../fixtures/test-kaos';
-import { APIStatusError, type Message, type ToolCall } from '@superliora/kosong';
+import { APIProviderRateLimitError, APIStatusError, type Message, type ToolCall } from '@superliora/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent, AgentOptions } from '../../src/agent';
@@ -2079,3 +2079,47 @@ function createSessionRpc(): SDKSessionRPC {
     },
   ) as SDKSessionRPC;
 }
+
+import { __testing__ as hostTesting } from '../../src/session/subagent-host';
+
+const { providerRateLimitErrorFromPayload } = hostTesting;
+
+describe('providerRateLimitErrorFromPayload', () => {
+  // The batch uses the request-id on the typed error to attribute the
+  // rate-limit hit to the right call site when scheduling the quiet
+  // window. If requestId extraction drops a non-empty string (e.g. by
+  // using `?? 'fallback'` instead of a null guard), the batch cannot
+  // deduplicate concurrent rate-limit signals and would re-throttle the
+  // same provider hit twice.
+
+  it('extracts requestId from details when present', () => {
+    const err = providerRateLimitErrorFromPayload({
+      message: 'rate limit exceeded',
+      code: 'provider.rate_limit',
+      details: { requestId: 'req-abc-123' },
+    });
+    expect(err).toBeInstanceOf(APIProviderRateLimitError);
+    expect(err.message).toBe('rate limit exceeded');
+    expect(err.requestId).toBe('req-abc-123');
+  });
+
+  it('falls back to null when requestId is missing', () => {
+    const err = providerRateLimitErrorFromPayload({
+      message: 'rate limit',
+      code: 'provider.rate_limit',
+    });
+    expect(err.requestId).toBeNull();
+  });
+
+  it('falls back to null when requestId is the wrong type', () => {
+    // Defensive: some providers attach a numeric id, an object, or
+    // undefined under the `requestId` key. Only string values survive
+    // the type guard so the batch can safely compare them by reference.
+    const err = providerRateLimitErrorFromPayload({
+      message: 'rate limit',
+      code: 'provider.rate_limit',
+      details: { requestId: 42 },
+    });
+    expect(err.requestId).toBeNull();
+  });
+});

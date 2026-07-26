@@ -765,6 +765,13 @@ function providerRateLimitErrorFromPayload(error: LioraErrorPayload): APIProvide
   return new APIProviderRateLimitError(error.message, requestId);
 }
 
+/**
+ * Test-only export. Exposed so the request-id propagation path can be
+ * pinned without spinning up a full subagent-host mock. Production callers
+ * reach this through `runChildTurnToCompletion`.
+ */
+export const __testing__ = { providerRateLimitErrorFromPayload };
+
 function lastAssistantText(agent: Agent): string {
   for (const message of [...agent.context.history].toReversed()) {
     if (message.role !== 'assistant') continue;
