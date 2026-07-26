@@ -179,6 +179,21 @@ describe('built-in slash command registry', () => {
     expect(values('list')).toBeNull();
     expect(values('clear')).toBeNull();
     expect(values('unknown')).toBeNull();
+    expect(values('set ')).toEqual([
+      'set friendly',
+      'set professional',
+      'set concise',
+      'set creative',
+      'set mentor',
+      'set playful',
+    ]);
+    expect(values('set p')).toEqual(['set professional', 'set playful']);
+    expect(values('set professional')).toBeNull();
+    expect(values('preset m')).toEqual(['preset mentor']);
+    // Free-form second tokens for name/tone/instructions stay unclobbered.
+    expect(values('name ')).toBeNull();
+    expect(values('tone warm')).toBeNull();
+    expect(values('set extra token')).toBeNull();
     expect(findBuiltInSlashCommand('persona')?.completeArgs).toBe(personaArgumentCompletions);
     expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('persona')!, '')).toBe('always');
   });

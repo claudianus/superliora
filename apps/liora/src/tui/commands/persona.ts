@@ -7,10 +7,17 @@ import type { SlashCommandHost } from './dispatch';
 // Presets
 // ---------------------------------------------------------------------------
 
-const PRESET_NAMES = ['friendly', 'professional', 'concise', 'creative', 'mentor', 'playful'] as const;
-type PresetName = (typeof PRESET_NAMES)[number];
+export const PERSONA_PRESET_NAMES = [
+  'friendly',
+  'professional',
+  'concise',
+  'creative',
+  'mentor',
+  'playful',
+] as const;
+type PresetName = (typeof PERSONA_PRESET_NAMES)[number];
 
-const PRESET_DESCRIPTIONS: Record<PresetName, string> = {
+export const PERSONA_PRESET_DESCRIPTIONS: Record<PresetName, string> = {
   friendly: 'Warm, approachable, encouraging — a helpful expert friend',
   professional: 'Precise, thorough, dependable — formal and structured',
   concise: 'Efficient and minimal — fewest words, maximum accuracy',
@@ -105,7 +112,7 @@ export async function handlePersonaCommand(host: SlashCommandHost, args: string)
 
     default: {
       // Treat bare text as a preset name if it matches, otherwise as free-form instructions.
-      if (PRESET_NAMES.includes(subcmd?.toLowerCase() as PresetName)) {
+      if (PERSONA_PRESET_NAMES.includes(subcmd?.toLowerCase() as PresetName)) {
         await applyPreset(host, subcmd!.toLowerCase());
         return;
       }
@@ -144,8 +151,8 @@ async function showPersonaStatus(host: SlashCommandHost): Promise<void> {
 }
 
 function showPresetList(host: SlashCommandHost): void {
-  const lines = PRESET_NAMES.map(
-    (name) => `  ${name.padEnd(14)} ${PRESET_DESCRIPTIONS[name]}`,
+  const lines = PERSONA_PRESET_NAMES.map(
+    (name) => `  ${name.padEnd(14)} ${PERSONA_PRESET_DESCRIPTIONS[name]}`,
   );
   host.showNotice(
     'Persona Presets',
@@ -173,16 +180,16 @@ function showPersonaHelp(host: SlashCommandHost): void {
 }
 
 async function applyPreset(host: SlashCommandHost, presetName: string): Promise<void> {
-  if (!PRESET_NAMES.includes(presetName as PresetName)) {
+  if (!PERSONA_PRESET_NAMES.includes(presetName as PresetName)) {
     host.showError(
-      `Unknown preset: "${presetName}". Available: ${PRESET_NAMES.join(', ')}.`,
+      `Unknown preset: "${presetName}". Available: ${PERSONA_PRESET_NAMES.join(', ')}.`,
     );
     return;
   }
 
   await patchPersona(host, { preset: presetName as PresetName });
   host.showStatus(
-    `Persona preset "${presetName}" applied. ${PRESET_DESCRIPTIONS[presetName as PresetName]}.`,
+    `Persona preset "${presetName}" applied. ${PERSONA_PRESET_DESCRIPTIONS[presetName as PresetName]}.`,
     'success',
   );
 }

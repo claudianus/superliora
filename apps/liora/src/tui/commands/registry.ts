@@ -6,6 +6,7 @@ import type { AutocompleteItem } from '#/tui/renderer';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
 import { improveHarnessArgumentCompletions } from './improve-harness';
+import { PERSONA_PRESET_DESCRIPTIONS, PERSONA_PRESET_NAMES } from './persona';
 import { pluginsArgumentCompletions } from './plugins';
 import { rendererArgumentCompletions } from './renderer';
 import type { LioraSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from './types';
@@ -199,6 +200,13 @@ const PERSONA_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'help', description: 'Show persona command help' },
 ];
 
+const PERSONA_SET_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = PERSONA_PRESET_NAMES.map(
+  (name) => ({
+    value: name,
+    description: PERSONA_PRESET_DESCRIPTIONS[name],
+  }),
+);
+
 const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'stats', description: 'Show Liora Recall memory stats' },
   { value: 'list', description: 'List recent memories' },
@@ -380,8 +388,23 @@ export function addDirArgumentCompletions(argumentPrefix: string): AutocompleteI
   return completeLeadingArg(ADD_DIR_ARG_COMPLETIONS, argumentPrefix);
 }
 
-/** Argument autocompletion for the `/persona` command. */
+/**
+ * Completions for `/persona`.
+ * First token: subcommands. Second token for `set`/`preset`: fixed preset names
+ * so free-form name/tone/instructions text is never clobbered.
+ */
 export function personaArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  const setMatch = argumentPrefix.match(/^(set|preset)\s+(\S*)$/i);
+  if (setMatch !== null) {
+    const verb = (setMatch[1] ?? 'set').toLowerCase();
+    const valuePrefix = setMatch[2] ?? '';
+    return (
+      completeLeadingArg(PERSONA_SET_ARG_COMPLETIONS, valuePrefix)?.map((item) => ({
+        ...item,
+        value: `${verb} ${item.value}`,
+      })) ?? null
+    );
+  }
   return completeLeadingArg(PERSONA_ARG_COMPLETIONS, argumentPrefix);
 }
 
