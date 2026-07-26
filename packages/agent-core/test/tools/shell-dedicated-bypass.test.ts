@@ -238,6 +238,23 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('Get-Process | Write-Output > out.txt')).toBeUndefined();
   });
 
+  it('blocks pure identity/listing redirects to files', () => {
+    expect(detectShellDedicatedBypass('pwd > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('hostname > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('whoami > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('date > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('uname -a > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('ls > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('dir > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Get-Location > out.txt')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('Get-ChildItem > out.txt')?.prefer).toBe('Write');
+    // recursive/filter listings and real process work stay allowed
+    expect(detectShellDedicatedBypass('ls -R > out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('Get-ChildItem -Recurse > out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('git status > out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('pwd')).toBeUndefined();
+  });
+
   it('blocks pure file pipes into pagers/head/tail', () => {
     expect(detectShellDedicatedBypass('cat src/a.ts | less')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('type src\\a.ts | more')?.prefer).toBe('Read');

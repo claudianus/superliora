@@ -1428,8 +1428,10 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
   if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
   // Exactly one > or >> to a path (not << heredoc).
   if (/<</.test(command)) return undefined;
+  // Content producers + pure identity/listing dumps redirected to a file.
+  // Keep process-heavy left-hand sides (e.g. `git status > log`) allowed.
   const m =
-    /^(?:\/usr\/bin\/)?(echo|printf|cat|Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
+    /^(?:\/usr\/bin\/)?(echo|printf|cat|Write-Output|Write-Host|Write-Verbose|Write-Warning|Write-Error|Write-Information|Write-Debug|pwd|hostname|whoami|date|uname|ls|dir|Get-Location|gl|Get-ChildItem|gci)\b([\s\S]*?)\s*(>>?)\s*(\S+)\s*$/i.exec(
       command,
     );
   if (m === null) return undefined;
@@ -1438,9 +1440,14 @@ function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassHit | un
   // Left side should not contain another redirect.
   const left = m[2] ?? '';
   if (/[<>]/.test(left)) return undefined;
+  // Directory listings with recursive/filter work stay allowed (real shell work).
+  const producer = m[1] ?? 'echo';
+  if (/^(?:ls|dir|Get-ChildItem|gci)$/i.test(producer) && /(?:^|\s)-(?:R|Recurse|Force|Filter|Include|Exclude)\b/i.test(left)) {
+    return undefined;
+  }
   return {
     prefer: 'Write',
-    pattern: `${m[1] ?? 'echo'} ${op} file`,
+    pattern: `${producer} ${op} file`,
     message: 'Use Write (or Edit for patches) instead of shell redirects for file content.',
   };
 }
