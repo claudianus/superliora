@@ -97,11 +97,14 @@ describe('detectShellDedicatedBypass', () => {
   it('blocks bat/tac/sed -n/awk/base64 whole-file dumps', () => {
     expect(detectShellDedicatedBypass('bat src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('tac src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('rev src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('paste src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass("sed -n '1,20p' src/a.ts")?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('awk 1 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('base64 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('hexdump -C src/a.ts')?.prefer).toBe('Read');
-    // pipelines still allowed
+    // multi-file paste and pipelines stay allowed
+    expect(detectShellDedicatedBypass('paste src/a.ts src/b.ts')).toBeUndefined();
     expect(detectShellDedicatedBypass('cat src/a.ts | base64')).toBeUndefined();
   });
 

@@ -126,13 +126,30 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
   // skip wc — useful for quick metrics
   // skip file/stat/sha256sum/md5sum/cksum/realpath — metadata/hash, not content dumps
 
-  // bat / tac — pure file dumpers
-  if (/^(?:\/usr\/bin\/)?(?:bat|tac)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
+  // bat / tac / rev — pure file dumpers (rev is reverse-order dump, still whole-file I/O)
+  if (/^(?:\/usr\/bin\/)?(?:bat|tac|rev)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
     return {
       prefer: 'Read',
-      pattern: 'bat/tac file',
-      message: 'Use Read or LioraRead instead of bat/tac for file contents.',
+      pattern: 'bat/tac/rev file',
+      message: 'Use Read or LioraRead instead of bat/tac/rev for file contents.',
     };
+  }
+
+  // paste with a single path dumps file lines side-by-side / sequentially — prefer Read.
+  // Multi-file paste / paste with `-` stdin stays allowed for real shell work.
+  if (/^(?:\/usr\/bin\/)?paste\b/.test(command)) {
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?paste\b/, '')
+      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:\s+\S+)?/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
+      return {
+        prefer: 'Read',
+        pattern: 'paste file',
+        message: 'Use Read instead of paste for single-file content dumps.',
+      };
+    }
   }
 
   // Text formatters that dump a whole file to stdout (fmt/pr/fold/expand/…)

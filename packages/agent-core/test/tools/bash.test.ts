@@ -1287,6 +1287,19 @@ describe('BashTool', () => {
     expect(String(b64.output)).toContain('Read');
   });
 
+  it('rejects rev/paste single-file dumps', async () => {
+    const execWithEnv = vi.fn();
+    const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
+    const rev = await executeTool(tool, context({ command: 'rev src/a.ts', timeout: 60 }));
+    expect(rev).toMatchObject({ isError: true });
+    expect(String(rev.output)).toContain('Read');
+    expect(execWithEnv).not.toHaveBeenCalled();
+
+    const paste = await executeTool(tool, context({ command: 'paste src/a.ts', timeout: 60 }));
+    expect(paste).toMatchObject({ isError: true });
+    expect(String(paste.output)).toContain('Read');
+  });
+
   it('rejects php/perl file-read one-liners', async () => {
     const execWithEnv = vi.fn();
     const tool = bashTool(createFakeKaos({ execWithEnv, osEnv: posixEnv }), '/workspace');
