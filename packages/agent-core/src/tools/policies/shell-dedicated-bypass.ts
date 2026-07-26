@@ -43,14 +43,15 @@ export function detectShellDedicatedBypass(
   const heredocWrite = matchSimpleHeredocWrite(raw);
   if (heredocWrite !== undefined) return heredocWrite;
 
+  // Language -c/-e/-r file reads before composition (perl open uses "<" etc.).
+  const langReadHit = matchLanguageReadLike(raw);
+  if (langReadHit !== undefined) return langReadHit;
+
   // Multi-statement / pipeline / redirection chains → real shell work.
   if (hasShellComposition(raw)) return undefined;
 
   const readHit = matchReadLike(raw);
   if (readHit !== undefined) return readHit;
-
-  const langReadHit = matchLanguageReadLike(raw);
-  if (langReadHit !== undefined) return langReadHit;
 
   const writeHit = matchWriteLike(raw);
   if (writeHit !== undefined) return writeHit;
@@ -172,8 +173,9 @@ function matchSimpleHeredocWrite(command: string): ShellDedicatedBypassHit | und
  * Skips: multi-statement scripts, network I/O, writes.
  */
 function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undefined {
-  // Avoid multi-line scripts and shell composition (already mostly filtered).
-  if (/[|;&`\n]/.test(command)) return undefined;
+  // Avoid multi-line scripts and shell lists/pipes. Language one-liners often
+  // use `;` (php/perl) and `<` as open-mode strings — those are not shell composition.
+  if (/[|`\n]/.test(command)) return undefined;
   if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
 
   // python/python3 -c "...open('path')..."
@@ -212,6 +214,63 @@ function matchLanguageReadLike(command: string): ShellDedicatedBypassHit | undef
         prefer: 'Read',
         pattern: 'ruby -e File.read',
         message: 'Use Read or LioraRead instead of ruby -e File.read for file contents.',
+      };
+    }
+  }
+
+  // php -r "file_get_contents('path')"
+  if (/^(?:\/usr\/bin\/)?php\b/.test(command) && /(?:^|\s)-r(?:\s|$)/.test(command)) {
+    if (/file_get_contents\s*\(/.test(command) || /fopen\s*\(/.test(command) || /readfile\s*\(/.test(command)) {
+      if (/file_put_contents\s*\(/.test(command) || /fwrite\s*\(/.test(command)) return undefined;
+      return {
+        prefer: 'Read',
+        pattern: 'php -r file_get_contents',
+        message: 'Use Read or LioraRead instead of php -r file_get_contents for file contents.',
+      };
+    }
+  }
+
+  // perl -e/-ne/-pe reading a file (open/read_file or path arg)
+  if (/^(?:\/usr\/bin\/)?perl\b/.test(command)) {
+    if (/(?:^|\s)-(?:e|ne|pe|n|p)(?:\s|$)/.test(command)) {
+      if (
+        /\bopen\b/.test(command) ||
+        /read_file\s*\(/.test(command) ||
+        /File::Slurp/.test(command) ||
+        /Path::Tiny/.test(command)
+      ) {
+        return {
+          prefer: 'Read',
+          pattern: 'perl -e open/read',
+          message: 'Use Read or LioraRead instead of perl one-liners for file contents.',
+        };
+      }
+      // perl -ne 'print' path  (file arg, no pipe)
+      if (
+        /(?:^|\s)-(?:n|p|ne|pe)(?:\s|$)/.test(command) &&
+        /\s\S+\s*$/.test(command) &&
+        !/[|<>]/.test(command.replace(/-[a-z]+/g, ''))
+      ) {
+        // crude: trailing path token after -e script is hard; match `perl -ne '...' file`
+        if (/\s+\S+\.[A-Za-z0-9]+\s*$/.test(command) || /\s+\.?\/?[\w./-]+\s*$/.test(command)) {
+          return {
+            prefer: 'Read',
+            pattern: 'perl -ne file',
+            message: 'Use Read or LioraRead instead of perl -ne for file contents.',
+          };
+        }
+      }
+    }
+  }
+
+  // lua -e "io.open('path'):read"
+  if (/^(?:\/usr\/bin\/)?lua\b/.test(command) && /(?:^|\s)-e(?:\s|$)/.test(command)) {
+    if (/io\.open\s*\(/.test(command) || /\bread\s*\(/.test(command)) {
+      if (/:write\s*\(/.test(command)) return undefined;
+      return {
+        prefer: 'Read',
+        pattern: 'lua -e io.open',
+        message: 'Use Read or LioraRead instead of lua -e io.open for file contents.',
       };
     }
   }

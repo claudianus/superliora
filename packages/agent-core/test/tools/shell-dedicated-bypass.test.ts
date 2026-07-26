@@ -79,4 +79,18 @@ describe('detectShellDedicatedBypass', () => {
     ).toBeUndefined();
   });
 
+
+  it('blocks php/perl/lua file-read one-liners', () => {
+    expect(
+      detectShellDedicatedBypass("php -r \"echo file_get_contents('src/a.ts');\"")?.prefer,
+    ).toBe('Read');
+    expect(
+      detectShellDedicatedBypass("perl -e \"print File::Slurp::read_file('src/a.ts')\"")?.prefer,
+    ).toBe('Read');
+    expect(detectShellDedicatedBypass("perl -ne 'print' src/a.ts")?.prefer).toBe('Read');
+    expect(
+      detectShellDedicatedBypass("lua -e \"print(io.open('src/a.ts'):read('*a'))\"")?.prefer,
+    ).toBe('Read');
+  });
+
 });
