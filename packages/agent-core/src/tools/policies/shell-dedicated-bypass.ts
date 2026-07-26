@@ -245,6 +245,30 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read instead of highlight/source-highlight for file contents.',
     };
   }
+  // glow / mdcat / rich — markdown/pretty file viewers that dump whole files.
+  // Multi-path or piped forms stay allowed for real shell composition.
+  if (
+    /^(?:\/usr\/bin\/)?(?:glow|mdcat)(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(command)
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'glow/mdcat file',
+      message: 'Use Read instead of glow/mdcat for file contents.',
+    };
+  }
+  // `rich file.py` / `python -m rich.syntax file.py` pretty-print dumps.
+  if (
+    /^(?:\/usr\/bin\/)?rich(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(command) ||
+    /^(?:\/usr\/bin\/)?python(?:3(?:\.\d+)?)?\s+-m\s+rich(?:\.syntax)?(?:\s+-[A-Za-z0-9=]+)*\s+\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'rich file',
+      message: 'Use Read instead of rich for file contents.',
+    };
+  }
 
   // paste with a single path dumps file lines side-by-side / sequentially — prefer Read.
   // Multi-file paste / paste with `-` stdin stays allowed for real shell work.

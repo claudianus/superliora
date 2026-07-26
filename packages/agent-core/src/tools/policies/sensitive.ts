@@ -32,8 +32,20 @@ const SENSITIVE_BASENAMES = new Set<string>([
   '.pypirc',
   // Google ADC file name (often in cwd or ~/.config/gcloud/).
   'application_default_credentials.json',
+  // Extra auth blobs frequently left in home/cwd.
+  // Note: bare `credentials.json` stays allowed (common app config name);
+  // cloud CLI paths under ~/.azure / ~/.pulumi / etc. use path suffixes.
+  '.git-credentials',
+  '.gitcookies',
+  'token.json',
+  'client_secret.json',
+  'secrets.yaml',
+  'secrets.yml',
+  'secrets.toml',
+  'secrets.json',
 ]);
 
+// Path suffixes must be lowercase — matching uses comparable() paths.
 const SENSITIVE_PATH_SUFFIXES = [
   ['.aws', 'credentials'],
   ['.aws', 'config'],
@@ -43,6 +55,11 @@ const SENSITIVE_PATH_SUFFIXES = [
   ['.composer', 'auth.json'],
   ['.config', 'gh', 'hosts.yml'],
   ['.config', 'gcloud', 'application_default_credentials.json'],
+  ['.config', 'gcloud', 'credentials.db'],
+  ['.config', 'gh', 'hosts.yaml'],
+  ['.azure', 'accesstokens.json'],
+  ['.azure', 'msal_token_cache.json'],
+  ['.pulumi', 'credentials.json'],
 ];
 
 /**

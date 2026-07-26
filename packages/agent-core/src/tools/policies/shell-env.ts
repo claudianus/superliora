@@ -99,6 +99,23 @@ export const DEFAULT_SECRET_ENV_SUBSTRINGS = [
   'REGISTRY_AUTH',
   'PIP_INDEX_URL',
   'POETRY_HTTP_BASIC',
+  // Cloud / CI ambient credentials that often omit KEY/TOKEN in the name.
+  'AWS_SESSION',
+  'AZURE_CLIENT',
+  'GCLOUD_ACCESS',
+  'DOPPLER_TOKEN',
+  'VAULT_TOKEN',
+  'FLY_API_TOKEN',
+  'HEROKU_API_KEY',
+  'DIGITALOCEAN_ACCESS',
+  'CF_API',
+  'CLOUDFLARE_API',
+  'TERRAFORM_CLOUD',
+  'TF_TOKEN',
+  'PULUMI_ACCESS',
+  'SENTRY_AUTH',
+  'NPM_TOKEN',
+  'NODE_AUTH_TOKEN',
 ] as const;
 
 const CORE_ENV_EXACT = new Set([

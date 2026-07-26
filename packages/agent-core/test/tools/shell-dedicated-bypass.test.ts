@@ -183,8 +183,13 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('gtail -5 src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('batcat src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('pygmentize src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('glow README.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('mdcat docs/guide.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('rich src/a.py')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('python -m rich.syntax src/a.py')?.prefer).toBe('Read');
     // pipelines stay allowed
     expect(detectShellDedicatedBypass('cat src/a.ts | sponge out.txt')).toBeUndefined();
+    expect(detectShellDedicatedBypass('glow README.md | head')).toBeUndefined();
   });
 
   it('routes lua file-read one-liners to Read not Write', () => {

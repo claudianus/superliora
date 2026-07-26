@@ -55,6 +55,15 @@ describe('isSecretEnvKeyName', () => {
     expect(isSecretEnvKeyName('REGISTRY_AUTH_FILE')).toBe(true);
     expect(isSecretEnvKeyName('PIP_INDEX_URL')).toBe(true);
     expect(isSecretEnvKeyName('POETRY_HTTP_BASIC_PYPI_PASSWORD')).toBe(true);
+    expect(isSecretEnvKeyName('AWS_SESSION_TOKEN')).toBe(true);
+    expect(isSecretEnvKeyName('AZURE_CLIENT_SECRET')).toBe(true);
+    expect(isSecretEnvKeyName('DOPPLER_TOKEN')).toBe(true);
+    expect(isSecretEnvKeyName('VAULT_TOKEN')).toBe(true);
+    expect(isSecretEnvKeyName('FLY_API_TOKEN')).toBe(true);
+    expect(isSecretEnvKeyName('TF_TOKEN_app_terraform_io')).toBe(true);
+    expect(isSecretEnvKeyName('PULUMI_ACCESS_TOKEN')).toBe(true);
+    expect(isSecretEnvKeyName('NPM_TOKEN')).toBe(true);
+    expect(isSecretEnvKeyName('NODE_AUTH_TOKEN')).toBe(true);
   });
 
   it('does not match ordinary path-like keys', () => {

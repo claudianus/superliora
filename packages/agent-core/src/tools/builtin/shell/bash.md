@@ -1,7 +1,7 @@
 Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, processes, git, package managers, build/test runners, multi-step shell work.
 
 **Prefer dedicated tools:**
-- `cat`/`head`/`tail`/`gcat`/`bat`/`batcat`/`type`/`Get-Content` (known path) → `Read`
+- `cat`/`head`/`tail`/`gcat`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich` (known path) → `Read`
 - `sed`/`gsed`/`awk`/`perl -i`/`ruby -i` (in-place edit) → `Edit`
 - `echo > file` / heredoc / `sponge` / empty redirect → `Write`
 - simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
@@ -24,7 +24,7 @@ If `run_in_background=true`, start as a background task and return a task ID (pr
 **Commands available:** Common bins (confirm with `which`): `ls` `pwd` `cd` `stat` `file` `du` `df` `tree` `cp` `mv` `rm` `mkdir` `touch` `ln` `chmod` `chown` `wc` `sort` `uniq` `cut` `tr` `diff` `xargs` `tar` `gzip` `gunzip` `zip` `unzip` `curl` `wget` `ping` `ssh` `scp` `git` `ps` `kill` `top` `env` `date` `uname` `whoami` `node` `npm` `pnpm` `yarn` `python` `pip`.
 
 Simple whole-command file I/O shapes are **rejected** at runtime — use dedicated tools:
-- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`rev`/`paste` (single file)/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`
+- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`rev`/`paste` (single file)/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
 - writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed)
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**
@@ -33,4 +33,4 @@ Leading process wrappers (`command`/`timeout`/`stdbuf`/`nice`/`nohup`/`env`/`\cm
 
 Escape hatch: prefix with `LIORA_FORCE_BASH=1 ` only when shell semantics are truly required (does **not** override sensitive-path hard blocks).
 
-Commands that reference sensitive paths (`.env*`, SSH keys, cloud credentials, `.npmrc`/`.pypirc`/`.netrc`/`.pgpass`/`kubeconfig`, `~/.ssh/`, `~/.gnupg/`, `~/.composer/auth.json`, `~/.config/gh/hosts.yml`) are **hard-blocked** with no force escape — same policy as Read/Write/Edit.
+Commands that reference sensitive paths (`.env*`, SSH keys, cloud credentials, `.npmrc`/`.pypirc`/`.netrc`/`.pgpass`/`kubeconfig`/`.git-credentials`/`token.json`/`secrets.*`, `~/.ssh/`, `~/.gnupg/`, `~/.composer/auth.json`, `~/.config/gh/hosts.yml`, `~/.azure/accessTokens.json`, `~/.pulumi/credentials.json`) are **hard-blocked** with no force escape — same policy as Read/Write/Edit.

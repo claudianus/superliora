@@ -42,6 +42,17 @@ describe('isSensitiveFile', () => {
       '/home/user/.config/gcloud/application_default_credentials.json',
       '/home/user/.composer/auth.json',
       '/home/user/.config/gh/hosts.yml',
+      '.git-credentials',
+      '/home/user/.git-credentials',
+      '.gitcookies',
+      'token.json',
+      'client_secret.json',
+      'secrets.yaml',
+      'secrets.json',
+      '/home/user/.azure/accessTokens.json',
+      '/home/user/.azure/msal_token_cache.json',
+      '/home/user/.pulumi/credentials.json',
+      '/home/user/.config/gcloud/credentials.db',
     ]) {
       expect(isSensitiveFile(path), path).toBe(true);
     }
