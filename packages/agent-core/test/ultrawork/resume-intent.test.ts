@@ -111,6 +111,11 @@ describe('interrupted work resume intent', () => {
       'keep at it',
       '계속 해주세요',
       'pick up where we left off',
+      '이어서 작업해줘',
+      'continue working',
+      'resume the work',
+      'keep working',
+      '다시 시작해',
     ]) {
       const intent = matchExplicitResumePhrase(phrase);
       expect(shouldActOnResumeIntent(intent), phrase).toBe(true);

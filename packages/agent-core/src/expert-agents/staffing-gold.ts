@@ -214,7 +214,12 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'product-pm',
     query: 'product manager roadmap prioritization sprint feedback',
-    relevantIds: ['product-manager', 'product-sprint-prioritizer', 'product-feedback-synthesizer'],
+    relevantIds: [
+      'product-manager',
+      'product-sprint-prioritizer',
+      'product-feedback-synthesizer',
+      'volt-08-business-product-product-manager',
+    ],
     labels: ['Product'],
   },
   {
@@ -240,8 +245,13 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   },
   {
     id: 'mobile-apps',
-    query: 'mobile app builder iOS Android release engineer',
-    relevantIds: ['engineering-mobile-app-builder', 'ericgrill-general-mobile-nomad'],
+    query: 'mobile app builder mobile developer react native flutter',
+    relevantIds: [
+      'engineering-mobile-app-builder',
+      'volt-01-core-development-mobile-developer',
+      'volt-07-specialized-domains-mobile-app-developer',
+      'ericgrill-general-mobile-nomad',
+    ],
     labels: ['Engineering', 'Mobile'],
   },
   {
