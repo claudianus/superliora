@@ -58,6 +58,14 @@ const PREMIUM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'status', description: 'Show Premium Quality status' },
 ];
 
+const CONTEXT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'economy', description: 'Smallest working set (compact sooner)' },
+  { value: 'balanced', description: 'Default working-set balance' },
+  { value: 'deep', description: 'Larger working set for long tasks' },
+  { value: 'full', description: 'Maximum working set before compaction' },
+  { value: 'status', description: 'Show current working-set preset' },
+];
+
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'replace', description: 'Replace the current Ultrawork objective' },
 ];
@@ -153,6 +161,11 @@ export function planArgumentCompletions(argumentPrefix: string): AutocompleteIte
 
 export function premiumArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(PREMIUM_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Argument autocompletion for the `/context` working-set command. */
+export function contextArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(CONTEXT_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -292,6 +305,7 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Set context working-set size (when auto-compaction fires on large windows)',
     priority: 90,
     argumentHint: '[economy|balanced|deep|full|status]',
+    completeArgs: contextArgumentCompletions,
     visibility: 'advanced',
     availability: 'always',
   },

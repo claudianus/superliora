@@ -4,6 +4,7 @@ import {
   parseSlashInput,
   resolveSlashCommandAvailability,
   addDirArgumentCompletions,
+  contextArgumentCompletions,
   helpArgumentCompletions,
   memoryArgumentCompletions,
   personaArgumentCompletions,
@@ -168,6 +169,31 @@ describe('built-in slash command registry', () => {
     expect(values('unknown')).toBeNull();
     expect(findBuiltInSlashCommand('persona')?.completeArgs).toBe(personaArgumentCompletions);
     expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('persona')!, '')).toBe('always');
+  });
+
+  it('offers context working-set argument completions', () => {
+    const values = (prefix: string): string[] | null => {
+      const items = contextArgumentCompletions(prefix);
+      return items === null ? null : items.map((item) => item.value);
+    };
+
+    expect(values('')).toEqual(['economy', 'balanced', 'deep', 'full', 'status']);
+    expect(values('e')).toEqual(['economy']);
+    expect(values('b')).toEqual(['balanced']);
+    expect(values('d')).toEqual(['deep']);
+    expect(values('f')).toEqual(['full']);
+    expect(values('s')).toEqual(['status']);
+    expect(contextArgumentCompletions('ba')).toEqual([
+      { value: 'balanced', label: 'balanced', description: 'Default working-set balance' },
+    ]);
+    expect(values('economy')).toBeNull();
+    expect(values('status')).toBeNull();
+    expect(values('turbo')).toBeNull();
+    expect(findBuiltInSlashCommand('context')?.completeArgs).toBe(contextArgumentCompletions);
+    expect(findBuiltInSlashCommand('working-set')?.completeArgs).toBe(contextArgumentCompletions);
+    expect(resolveSlashCommandAvailability(findBuiltInSlashCommand('context')!, 'deep')).toBe(
+      'always',
+    );
   });
 
   it('keeps team mode changes and swarm tasks idle-only', () => {
