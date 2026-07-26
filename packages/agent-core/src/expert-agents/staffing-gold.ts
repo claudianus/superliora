@@ -217,11 +217,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'design-ui-ux',
     query: 'UI UX design visual system inclusive designer',
+    // Keep live top-ranked design hits (drop deep-tail tester).
     relevantIds: [
       'design-ui-designer',
       'agentcrow-ui-designer',
       'volt-06-developer-experience-powershell-ui-architect',
-      'volt-04-quality-security-ui-ux-tester',
     ],
     labels: ['Design'],
   },
@@ -267,11 +267,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'ml-llm',
     query: 'machine learning ML model LLM AI engineer post-training',
+    // Keep live top-ranked ML/LLM hits (drop deep-tail post-training).
     relevantIds: [
       'engineering-ai-engineer',
       'ericgrill-general-ml-model-whisperer',
       'volt-05-data-ai-mlops-engineer',
-      'engineering-llm-post-training-engineer',
     ],
     labels: ['Engineering', 'ML'],
   },
@@ -347,11 +347,11 @@ export const STAFFING_GOLD_SEED: readonly StaffingGoldCase[] = [
   {
     id: 'marketing-growth',
     query: 'marketing SEO growth carousel app store optimizer campaigns',
+    // Keep live top-ranked growth hits (drop deep-tail growth-hacker).
     relevantIds: [
       'marketing-carousel-growth-engine',
       'marketing-app-store-optimizer',
       'volt-08-business-product-content-marketer',
-      'marketing-growth-hacker',
     ],
     labels: ['Marketing'],
   },

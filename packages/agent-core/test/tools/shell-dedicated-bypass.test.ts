@@ -176,8 +176,18 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('sponge out.txt')?.prefer).toBe('Write');
     expect(detectShellDedicatedBypass('busybox cat src/a.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass("busybox sed -i 's/a/b/' src/a.ts")?.prefer).toBe('Edit');
+    expect(detectShellDedicatedBypass('busybox head -n 5 src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('busybox tail -5 src/a.ts')?.prefer).toBe('Read');
     // pipelines stay allowed
     expect(detectShellDedicatedBypass('cat src/a.ts | sponge out.txt')).toBeUndefined();
+  });
+
+  it('blocks simple cp workspace copies but allows mv and recursive cp', () => {
+    expect(detectShellDedicatedBypass('cp src/a.ts dest/a.ts')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('cp -p src/a.ts dest/a.ts')?.prefer).toBe('Write');
+    expect(detectShellDedicatedBypass('mv src/a.ts dest/a.ts')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cp -r src dest')).toBeUndefined();
+    expect(detectShellDedicatedBypass('cp src/a.ts src/b.ts dest/')).toBeUndefined();
   });
 
   it('blocks empty redirect file creators', () => {

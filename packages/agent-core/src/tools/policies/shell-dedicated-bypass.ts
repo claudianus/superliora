@@ -105,9 +105,13 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read (edit-ready bytes) or LioraRead (signatures/map/lines) instead of cat.',
     };
   }
-  // head/tail [flags] path — not head of a pipeline
+  // head/tail [flags] path — not head of a pipeline (+ busybox head/tail)
   // Flags may take a following value token: head -n 20 file, tail -50 file, head -n20 file
-  if (/^(?:\/usr\/bin\/)?(?:head|tail)(?:\s+-[A-Za-z0-9]+(?:\s+\d+)?)*(?:\s+\S+)\s*$/.test(command)) {
+  if (
+    /^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:head|tail)(?:\s+-[A-Za-z0-9]+(?:\s+\d+)?)*(?:\s+\S+)\s*$/.test(
+      command,
+    )
+  ) {
     return {
       prefer: 'Read',
       pattern: 'head/tail file',
@@ -508,6 +512,27 @@ function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassHit | un
         prefer: 'Write',
         pattern: 'install src dest',
         message: 'Use Write (or a dedicated copy) instead of install for workspace file copies.',
+      };
+    }
+  }
+
+  // cp SRC DEST — simple two-path workspace copy (not -r trees, not multi-source).
+  // mv stays allowed (rename has no dedicated tool).
+  if (/^(?:\/usr\/bin\/)?cp\b/.test(command)) {
+    if (/(?:^|\s)-(?:[a-zA-Z]*r[a-zA-Z]*|R|a|recursive)(?:\s|$)/.test(command)) {
+      return undefined;
+    }
+    const withoutOpts = command
+      .replace(/^(?:\/usr\/bin\/)?cp\b/, '')
+      .replace(/(?:^|\s)--\S+/g, ' ')
+      .replace(/(?:^|\s)-[A-Za-z]+/g, ' ')
+      .trim();
+    const args = withoutOpts.split(/\s+/).filter(Boolean);
+    if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
+      return {
+        prefer: 'Write',
+        pattern: 'cp src dest',
+        message: 'Use Read + Write instead of cp for simple workspace file copies.',
       };
     }
   }
