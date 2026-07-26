@@ -208,12 +208,24 @@ function matchReadLike(command: string): ShellDedicatedBypassHit | undefined {
       message: 'Use Read with line_offset/n_lines (or LioraRead mode=lines) instead of head/tail.',
     };
   }
-  // less/more/nl path
-  if (/^(?:\/usr\/bin\/)?(?:less|more|nl)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
+  // less/more/most/nl path — pure pagers dumping a single file.
+  if (/^(?:\/usr\/bin\/)?(?:less|more|most|nl)(?:\s+-[A-Za-z0-9]+)*\s+\S+\s*$/.test(command)) {
     return {
       prefer: 'Read',
       pattern: 'pager file',
       message: 'Use Read instead of a pager for file contents.',
+    };
+  }
+  // w3m/lynx/elinks file dumps (local path only; URLs stay allowed for real browsing).
+  if (
+    /^(?:\/usr\/bin\/)?(?:w3m|lynx|elinks)(?:\s+-[A-Za-z0-9=]+)*\s+(?!https?:\/\/)\S+\s*$/.test(
+      command,
+    )
+  ) {
+    return {
+      prefer: 'Read',
+      pattern: 'text-browser file',
+      message: 'Use Read instead of w3m/lynx/elinks for local file contents.',
     };
   }
   // wc -l path (line count only — still better as Read for agents? allow wc for process stats)

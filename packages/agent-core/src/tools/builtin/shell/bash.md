@@ -1,7 +1,7 @@
 Execute a `{{ SHELL_NAME }}` command for shell semantics — pipes, env, processes, git, package managers, build/test runners, multi-step shell work.
 
 **Prefer dedicated tools:**
-- `cat`/`head`/`tail`/`gcat`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich` (known path) → `Read`
+- `cat`/`head`/`tail`/`gcat`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich`/`less`/`more`/`most`/`w3m`/`lynx` (local path) → `Read`
 - `sed`/`gsed`/`awk`/`perl -i`/`ruby -i` (in-place edit) → `Edit`
 - `echo > file` / heredoc / `sponge` / empty redirect → `Write`
 - simple `cp`/`install`/`rsync`/`dd if= of=` workspace copies → `Read`+`Write`
@@ -24,7 +24,7 @@ If `run_in_background=true`, start as a background task and return a task ID (pr
 **Commands available:** Common bins (confirm with `which`): `ls` `pwd` `cd` `stat` `file` `du` `df` `tree` `cp` `mv` `rm` `mkdir` `touch` `ln` `chmod` `chown` `wc` `sort` `uniq` `cut` `tr` `diff` `xargs` `tar` `gzip` `gunzip` `zip` `unzip` `curl` `wget` `ping` `ssh` `scp` `git` `ps` `kill` `top` `env` `date` `uname` `whoami` `node` `npm` `pnpm` `yarn` `python` `pip`.
 
 Simple whole-command file I/O shapes are **rejected** at runtime — use dedicated tools:
-- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`rev`/`paste` (single file)/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`
+- reads: `cat`/`gcat`/`head`/`ghead`/`tail`/`bat`/`batcat`/`type`/`Get-Content`/`glow`/`mdcat`/`rich`/`python -m rich.syntax`/`less`/`more`/`most`/`nl`/`w3m`/`lynx`/`elinks` (local path)/`rev`/`paste` (single file)/`sed -n`/`awk`/`base64`/`hexdump`/`fmt`/`pr`/`fold`/`jq`/`yq`/`python -m json.tool`/`git show <rev>:<path>`/`svn cat`/`hg cat`
 - edits: `sed -i`/`gsed`/`perl -pi`/`ruby -i`/`busybox sed -i`
 - writes/copies: redirects, heredocs, `sponge`, empty redirect, `truncate -s 0`, `dd if= of=`, `install src dest`, simple `cp`/`rsync` (two local paths; recursive/`-a` stays allowed)
 - language one-liners: `python`/`node`/`ruby`/`php`/`perl`/`lua` file reads **and writes**

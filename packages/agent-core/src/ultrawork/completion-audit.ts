@@ -104,7 +104,8 @@ export function auditUltraworkCompletion(
 
   // Evidence hard gate: done without evidence becomes blocked in the gated view.
   const { nodes: gatedNodes, violations } = applyEvidenceHardGate(graph.nodes);
-  // cancelled is a deliberate terminal status (dropped scope) — treat like done/failed.
+  // cancelled is a deliberate terminal status (dropped scope) — treat like done.
+  // status=failed is NOT success: it still blocks goal complete (see failedNodes below).
   const open = gatedNodes.filter(
     (n) => n.status !== 'done' && n.status !== 'failed' && n.status !== 'cancelled',
   );
@@ -128,6 +129,25 @@ export function auditUltraworkCompletion(
         'Finish or re-open incomplete nodes with real evidence.',
         'Do not call UpdateGoal(complete) until every AC node is done with verification.',
         'If blocked on evidence, run tests/checks and attach paths in evidenceIds.',
+      ],
+      openNodeIds,
+    );
+  }
+
+  // Node status=failed means the work itself failed — not a dropped cancelled scope.
+  // Completing the goal while any node is failed would paper over broken ACs.
+  const failedNodes = gatedNodes.filter((n) => n.status === 'failed');
+  if (failedNodes.length > 0) {
+    const openNodeIds = failedNodes.map((n) => n.id);
+    return reject(
+      'verification_failed',
+      [
+        `WorkGraph nodes still status=failed: ${openNodeIds.join(', ')}.`,
+        'Failed nodes block goal complete — fix, re-run, or cancel only after deliberate scope drop.',
+      ],
+      [
+        'Repair the failed work, re-run checks, then set status=done with verificationStatus=passed.',
+        'If the node is out of scope, set status=cancelled (not failed) after an explicit decision.',
       ],
       openNodeIds,
     );

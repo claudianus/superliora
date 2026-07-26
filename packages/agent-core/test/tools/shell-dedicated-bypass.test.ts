@@ -11,6 +11,16 @@ describe('detectShellDedicatedBypass', () => {
     expect(detectShellDedicatedBypass('cat src/index.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('head -n 20 foo.ts')?.prefer).toBe('Read');
     expect(detectShellDedicatedBypass('tail -50 bar.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('less src/index.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('more README.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('most docs/guide.md')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('nl src/a.ts')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('w3m index.html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('lynx notes.html')?.prefer).toBe('Read');
+    expect(detectShellDedicatedBypass('elinks page.html')?.prefer).toBe('Read');
+    // Real URLs stay allowed for text-browser browsing.
+    expect(detectShellDedicatedBypass('w3m https://example.com')).toBeUndefined();
+    expect(detectShellDedicatedBypass('lynx http://example.com/docs')).toBeUndefined();
   });
 
   it('blocks sed -i and grep/rg/find', () => {

@@ -233,6 +233,26 @@ describe('auditUltraworkCompletion', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('rejects status=failed nodes (failed is not success or cancelled)', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({ id: 'research_1', kind: 'research', stage: 'research', status: 'done' }),
+            node({ id: 'impl_1', kind: 'implementation', stage: 'implement', status: 'failed' }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('verification_failed');
+      expect(result.openNodeIds).toContain('impl_1');
+    }
+  });
+
   it('still rejects needs_integration as incomplete', () => {
     const result = auditUltraworkCompletion({
       run: baseRun({
