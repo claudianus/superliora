@@ -569,6 +569,11 @@ export class NativeTerminalRenderer {
   private handleResize(size: NativeTerminalSize): void {
     const previousRows = this.frameRenderer.height;
     const previousCols = this.frameRenderer.width;
+    if (size.columns !== previousCols || size.rows !== previousRows) {
+      // The frame buffer is recreated on resize; rows composed into the old
+      // buffer must not be reused (skipped) when composing the new one.
+      this.compositionCache?.reset();
+    }
     this.frameRenderer.resize(size.columns, size.rows);
     this.clearStaleFrameRowsOnShrink(size.rows, previousRows);
     // Alternate-screen grow leaves the previous frame's pixels at top-left.
@@ -773,6 +778,11 @@ export class NativeTerminalRenderer {
     const qualityBeforeRender = this.qualityController.snapshot();
     const previousHeight = this.frameRenderer.height;
     const frameHeight = this.resolveFrameHeight(size);
+    if (size.columns !== this.frameRenderer.width || frameHeight !== previousHeight) {
+      // The frame buffer is recreated on resize; rows composed into the old
+      // buffer must not be reused (skipped) when composing the new one.
+      this.compositionCache?.reset();
+    }
     this.frameRenderer.resize(size.columns, frameHeight);
     if (!frame.causes.includes('start')) {
       this.clearStaleFrameRowsOnShrink(frameHeight, previousHeight);

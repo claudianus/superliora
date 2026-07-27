@@ -41,6 +41,34 @@ let hoverZone: PanelBorderZone | undefined;
 /** Last Kitty pointer shape we pushed (undefined = default / popped). */
 let activePointerShape: KittyPointerShape | undefined;
 
+/** Minimal terminal surface needed to pop a pushed Kitty pointer shape. */
+export interface ResizeMouseTerminalLike {
+  write(chunk: string): unknown;
+}
+
+/** Pop the active Kitty pointer shape (if any) and forget it. */
+function popPointerShape(terminal: ResizeMouseTerminalLike): void {
+  if (activePointerShape === undefined) return;
+  try {
+    terminal.write(ANSI_POP_POINTER_SHAPE);
+  } catch {
+    // Never let pointer shape OSC take down the input path.
+  }
+  activePointerShape = undefined;
+}
+
+/**
+ * Drop all stage-resize pointer state and pop any active Kitty pointer
+ * shape. Call on terminal resize: the grip geometry the shape was pushed
+ * for no longer matches the on-screen frame, so without this the resize
+ * cursor stays stuck until the next mouse move re-evaluates hover.
+ */
+export function resetStageResizePointerShape(terminal: ResizeMouseTerminalLike): void {
+  activeDrag = undefined;
+  hoverZone = undefined;
+  popPointerShape(terminal);
+}
+
 /** Test-only: drop any in-flight drag / hover so cases stay isolated. */
 export function resetStageResizeDragForTests(): void {
   activeDrag = undefined;
@@ -158,12 +186,10 @@ function updateHoverFromPoint(state: TUIState, x: number, y: number): void {
 }
 
 function clearHover(state: TUIState): void {
-  const had = hoverZone !== undefined || activePointerShape !== undefined;
   hoverZone = undefined;
-  applyPointerShape(state, undefined);
-  if (had) {
-    // Caller decides whether to re-render; clearHover itself is silent.
-  }
+  // The pointer left the grip while hovering: pop the resize cursor shape
+  // right away so it never lingers over non-grip content.
+  popPointerShape(state.terminal);
 }
 
 function hitTestGrab(band: StageFrameBand, x: number, y: number): PanelBorderZone {
@@ -211,14 +237,11 @@ function applyPointerShape(state: TUIState, shape: KittyPointerShape | undefined
   // sequence — unsupported terminals can misparse it and print garbage.
   if (!hasFeature(getTerminalProfile(), 'pointerShapes')) return;
   if (shape === activePointerShape) return;
+  if (shape === undefined || shape === 'default') {
+    popPointerShape(state.terminal);
+    return;
+  }
   try {
-    if (shape === undefined || shape === 'default') {
-      if (activePointerShape !== undefined) {
-        state.terminal.write(ANSI_POP_POINTER_SHAPE);
-      }
-      activePointerShape = undefined;
-      return;
-    }
     // Push replaces the previous shape; no need to pop first.
     state.terminal.write(ansiPushPointerShape(shape));
     activePointerShape = shape;

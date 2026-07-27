@@ -3770,9 +3770,11 @@ describe('NativeFrameRenderer', () => {
     const same = renderer.present();
 
     // Soft-force only emits "ok" (not trailing empties), so relative cursor
-    // motion is 1 cell back from the run end, not 3.
+    // motion is 1 cell back from the run end, not 3. DECSCUSR is stateful, so
+    // the moved frame reuses the shape emitted by the first frame and only
+    // carries the position change + show.
     expect(first.output).toContain('\u001B[6 q\u001B[D\u001B[?25h');
-    expect(moved.output).toBe('\u001B[6 q\u001B[C\u001B[?25h');
+    expect(moved.output).toBe('\u001B[C\u001B[?25h');
     expect(same.output).toBe('');
     expect(writes).toHaveLength(2);
   });

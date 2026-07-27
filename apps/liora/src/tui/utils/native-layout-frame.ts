@@ -99,7 +99,11 @@ import {
   createStageFrameOverlayRegions,
   stageFrameBundleRect,
 } from './stage-frame';
-import { getStageResizeHoverZone, isStageResizeDragging } from './stage-resize-mouse';
+import {
+  getStageResizeHoverZone,
+  isStageResizeDragging,
+  resetStageResizePointerShape,
+} from './stage-resize-mouse';
 import {
   cellSelectedAtColumn,
   shouldHoldTranscriptAnimation,
@@ -350,6 +354,11 @@ export function createTUIStateNativeRenderCallback(
   let transcriptLineCacheSelectionKey: string | undefined;
   return ({ frame, runtime, size, quality }) => {
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
+    if (frame.causes.includes('resize')) {
+      // Terminal resize invalidates the grip geometry the Kitty pointer shape
+      // was pushed for; drop drag/hover state so the cursor cannot get stuck.
+      resetStageResizePointerShape(state.terminal);
+    }
     advanceAppearanceAnimationClock(frame.timestamp);
     setAppearanceRenderQuality(quality.level);
     // The frame buffer may already be capped below the real terminal height

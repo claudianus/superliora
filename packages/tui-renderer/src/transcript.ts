@@ -73,6 +73,11 @@ interface RendererTranscriptOverflowRenderCache {
   childRenderRefs: (string[] | undefined)[];
 }
 
+interface RendererTranscriptLineCountCacheEntry {
+  counts: number[];
+  total: number;
+}
+
 export interface RendererTranscriptLineBlockOptions {
   readonly width: number;
   readonly lines: readonly string[];
@@ -165,6 +170,9 @@ export interface RendererTruncatedOutputOptions {
 export const DEFAULT_RENDERER_TRUNCATED_OUTPUT_LINES = 3;
 export const DEFAULT_RENDERER_TRUNCATED_OUTPUT_INDENT = 2;
 
+/** Max distinct widths kept in the per-child line-count LRU. */
+const LINE_COUNT_CACHE_CAP = 4;
+
 export class RendererTranscriptViewportComponent extends Container {
   private readonly viewport: RendererTranscriptViewport;
   private readonly getVisibleRows: (width: number) => number;
@@ -194,12 +202,12 @@ export class RendererTranscriptViewportComponent extends Container {
   // first render at a given width, subsequent renders only re-render the
   // children that actually changed (and only paint the visible ones).
   //
-  // The cache is invalidated on invalidate(), on width change, and on child
-  // count change.  Individual children that mutate call invalidate() which
-  // propagates up, so stale counts are never served.
-  private lineCountCacheWidth = -1;
-  private lineCountCacheEpoch = -1;
-  private lineCountCache: number[] = [];
+  // Counts live in a small LRU keyed by inner width + cache epoch + child
+  // count, so oscillating between widths (e.g. a terminal resize drag) keeps
+  // reusing every measured width instead of evicting the previous one.
+  // invalidate() drops the whole LRU, and children that mutate call
+  // invalidate() which propagates up, so stale counts are never served.
+  private lineCountCache = new Map<string, RendererTranscriptLineCountCacheEntry>();
   private overflowRenderCache: RendererTranscriptOverflowRenderCache | undefined;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
@@ -225,9 +233,7 @@ export class RendererTranscriptViewportComponent extends Container {
   override invalidate(): void {
     this.renderCache = undefined;
     this.overflowRenderCache = undefined;
-    this.lineCountCacheWidth = -1;
-    this.lineCountCacheEpoch = -1;
-    this.lineCountCache = [];
+    this.lineCountCache.clear();
     super.invalidate();
   }
 
@@ -245,7 +251,7 @@ export class RendererTranscriptViewportComponent extends Container {
    */
   contentRowCount(width: number): number {
     const inner = this.innerWidth(width);
-    return this.resolveChildLineCounts(inner).reduce((sum, c) => sum + c, 0);
+    return this.resolveChildLineCounts(inner).total;
   }
 
   renderWithVisibleRows(width: number, visibleRows: number): string[] {
@@ -263,8 +269,7 @@ export class RendererTranscriptViewportComponent extends Container {
     // Phase 1 — resolve per-child row counts (cached).  This is the only
     // place that may render *all* children, and only on a cache miss; once
     // cached, subsequent frames skip children whose render output is reused.
-    const childCounts = this.resolveChildLineCounts(inner);
-    const totalLines = childCounts.reduce((sum, c) => sum + c, 0);
+    const { counts: childCounts, total: totalLines } = this.resolveChildLineCounts(inner);
 
     // Phase 2 — sync the viewport with the total content size.
     const snapshot = this.viewport.sync(totalLines, visibleRows);
@@ -296,28 +301,37 @@ export class RendererTranscriptViewportComponent extends Container {
     return Math.max(1, safeWidth - this.leftPad - this.rightPad);
   }
 
-  private resolveChildLineCounts(inner: number): number[] {
+  private resolveChildLineCounts(inner: number): RendererTranscriptLineCountCacheEntry {
     const n = this.children.length;
     const cacheEpoch = this.getCacheEpoch();
-    if (
-      this.isCacheEnabled() &&
-      this.lineCountCacheWidth === inner &&
-      this.lineCountCacheEpoch === cacheEpoch &&
-      this.lineCountCache.length === n
-    ) {
-      return this.lineCountCache;
+    const cacheEnabled = this.isCacheEnabled();
+    const key = `${inner}:${cacheEpoch}:${n}`;
+    if (cacheEnabled) {
+      const hit = this.lineCountCache.get(key);
+      if (hit !== undefined) {
+        // Refresh LRU recency (Map iterates in insertion order).
+        this.lineCountCache.delete(key);
+        this.lineCountCache.set(key, hit);
+        return hit;
+      }
     }
 
     const counts: number[] = Array.from({ length: n });
+    let total = 0;
     for (let i = 0; i < n; i++) {
-      counts[i] = this.children[i]!.render(inner).length;
+      const count = this.children[i]!.render(inner).length;
+      counts[i] = count;
+      total += count;
     }
-    if (this.isCacheEnabled()) {
-      this.lineCountCacheWidth = inner;
-      this.lineCountCacheEpoch = cacheEpoch;
-      this.lineCountCache = counts;
+    const entry: RendererTranscriptLineCountCacheEntry = { counts, total };
+    if (cacheEnabled) {
+      this.lineCountCache.set(key, entry);
+      if (this.lineCountCache.size > LINE_COUNT_CACHE_CAP) {
+        const oldest = this.lineCountCache.keys().next();
+        if (oldest.done !== true) this.lineCountCache.delete(oldest.value);
+      }
     }
-    return counts;
+    return entry;
   }
 
   private formatCanvasLine(line: string, width: number): RendererRegionLine {

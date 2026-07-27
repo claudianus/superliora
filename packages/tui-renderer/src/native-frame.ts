@@ -58,6 +58,8 @@ export class NativeFrameRenderer {
   private forceNextPresent = true;
   private nextCursor: RendererCursorState | undefined;
   private previousCursor: RendererCursorState | undefined;
+  /** (shape, blinking) pair last emitted via DECSCUSR — see present(). */
+  private lastCursorShapeKey: string | undefined;
 
   constructor(private options: NativeFrameRendererOptions) {
     this.buffers = new RendererDoubleBuffer(options.width, options.height);
@@ -123,6 +125,8 @@ export class NativeFrameRenderer {
     this.buffers = new RendererDoubleBuffer(width, height);
     this.forceNextPresent = true;
     this.previousCursor = undefined;
+    // Terminals may reset the cursor style on resize; re-emit it next frame.
+    this.lastCursorShapeKey = undefined;
   }
 
   present(
@@ -173,7 +177,14 @@ export class NativeFrameRenderer {
       policy: this.options.outputPolicy,
     });
     const encodeStartedAt = this.now();
-    const encoded = encodeTerminalFrameWithMetrics(diff, { ...outputPolicy.options, cursor });
+    const encodedCursor = this.withDedupedCursorShape(
+      cursor,
+      options.force === true || options.rewriteUnchanged === true,
+    );
+    const encoded = encodeTerminalFrameWithMetrics(diff, {
+      ...outputPolicy.options,
+      cursor: encodedCursor,
+    });
     const output = encoded.output;
     const bytes = Buffer.byteLength(output);
     const encodeEndedAt = this.now();
@@ -199,6 +210,27 @@ export class NativeFrameRenderer {
 
   private now(): number {
     return this.options.now?.() ?? performance.now();
+  }
+
+  /**
+   * DECSCUSR (`ESC [ N q`) is stateful: the terminal keeps the last cursor
+   * style until it changes, so re-emitting it every frame is wasted bytes
+   * (every input frame carries one). Track the (shape, blinking) pair last
+   * emitted and strip it from the cursor state when unchanged; position and
+   * show/hide still emit every frame. Resync frames (force / rewriteUnchanged)
+   * always re-emit so a confused terminal recovers the correct style.
+   */
+  private withDedupedCursorShape(
+    cursor: RendererCursorState | undefined,
+    resync: boolean,
+  ): RendererCursorState | undefined {
+    if (cursor === undefined || cursor.visible === false) return cursor;
+    const key = `${cursor.shape ?? ''}:${cursor.blinking === false ? '0' : '1'}`;
+    if (!resync && key === this.lastCursorShapeKey) {
+      return { ...cursor, shape: undefined, blinking: undefined };
+    }
+    this.lastCursorShapeKey = key;
+    return cursor;
   }
 }
 

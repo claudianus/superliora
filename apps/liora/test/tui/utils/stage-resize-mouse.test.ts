@@ -11,6 +11,7 @@ import {
   isStageResizeDragging,
   pointerShapeForZone,
   resetStageResizeDragForTests,
+  resetStageResizePointerShape,
 } from '#/tui/utils/stage-resize-mouse';
 import { invalidateProfile } from '#/tui/utils/terminal-capability-profile';
 
@@ -219,5 +220,81 @@ describe('handleStageResizeMouseInput', () => {
     // No cached band: the handler resolves the layout itself. A press far from
     // the centered stage must not start a drag.
     expect(handleStageResizeMouseInput(state, mouse('press', 0, 0))).toBe(false);
+  });
+
+  it('pops the pointer shape when the pointer leaves the grip while hovering', () => {
+    const prevTerm = process.env['TERM'];
+    const prevCi = process.env['CI'];
+    const prevTty = process.stdin.isTTY;
+    process.env['TERM'] = 'kitty';
+    delete process.env['CI'];
+    process.stdin.isTTY = true;
+    invalidateProfile();
+    try {
+      const state = createState();
+      const writes: string[] = [];
+      state.terminal.write = (chunk: string) => {
+        writes.push(chunk);
+      };
+
+      expect(handleStageResizeMouseInput(state, mouse('move', GRAB_RIGHT, MID_Y, 'none'))).toBe(true);
+      expect(getStageResizeHoverZone()).toBe('resize-right');
+      writes.length = 0;
+
+      // Leave the grip for the stage interior: hover clears and the pushed
+      // shape is popped in the same move.
+      expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
+      expect(getStageResizeHoverZone()).toBeUndefined();
+      expect(writes.some((w) => w.includes('\u001B]22;<\u001B\\'))).toBe(true);
+    } finally {
+      if (prevTerm === undefined) delete process.env['TERM'];
+      else process.env['TERM'] = prevTerm;
+      if (prevCi === undefined) delete process.env['CI'];
+      else process.env['CI'] = prevCi;
+      process.stdin.isTTY = prevTty;
+      invalidateProfile();
+    }
+  });
+
+  it('resetStageResizePointerShape pops a pushed shape and clears drag/hover state', () => {
+    const prevTerm = process.env['TERM'];
+    const prevCi = process.env['CI'];
+    const prevTty = process.stdin.isTTY;
+    process.env['TERM'] = 'kitty';
+    delete process.env['CI'];
+    process.stdin.isTTY = true;
+    invalidateProfile();
+    try {
+      const state = createState();
+      const writes: string[] = [];
+      state.terminal.write = (chunk: string) => {
+        writes.push(chunk);
+      };
+
+      // Press on the right grip: pushes a shape and starts a drag.
+      expect(handleStageResizeMouseInput(state, mouse('press', GRAB_RIGHT, MID_Y))).toBe(true);
+      expect(isStageResizeDragging()).toBe(true);
+      expect(writes.some((w) => w.includes('\u001B]22;>ew-resize\u001B\\'))).toBe(true);
+      writes.length = 0;
+
+      // A terminal resize goes through this reset: the shape pops and the
+      // in-flight drag/hover state is dropped.
+      resetStageResizePointerShape(state.terminal);
+      expect(writes.some((w) => w.includes('\u001B]22;<\u001B\\'))).toBe(true);
+      expect(isStageResizeDragging()).toBe(false);
+      expect(getStageResizeHoverZone()).toBeUndefined();
+
+      // A second reset is a no-op (no duplicate pop).
+      writes.length = 0;
+      resetStageResizePointerShape(state.terminal);
+      expect(writes).toEqual([]);
+    } finally {
+      if (prevTerm === undefined) delete process.env['TERM'];
+      else process.env['TERM'] = prevTerm;
+      if (prevCi === undefined) delete process.env['CI'];
+      else process.env['CI'] = prevCi;
+      process.stdin.isTTY = prevTty;
+      invalidateProfile();
+    }
   });
 });

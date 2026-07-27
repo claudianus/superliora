@@ -303,7 +303,11 @@ function createTopologySignature(frame: RendererCompositionCacheFrame): string {
       ].join(':');
     })
     .join('|');
-  return `${String(frame.bufferWidth)}x${String(frame.bufferHeight)}|${layers}`;
+  // Buffer dimensions are deliberately not part of the signature: layer rects
+  // already encode the geometry changes that affect composed rows, and the
+  // cache owner resets this cache when the frame buffer itself is recreated
+  // (a fresh buffer holds none of the previously composed rows).
+  return layers;
 }
 
 function createRowId(region: RendererRegionLayer, index: number, y: number): string {
