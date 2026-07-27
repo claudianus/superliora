@@ -1302,6 +1302,8 @@ export class FullCompaction {
     readonly blockCount?: number;
     readonly blocksCompleted?: number;
     readonly fraction?: number;
+    readonly blockDurationMs?: number;
+    readonly blockTokens?: TokenUsage;
   }): void {
     this.agent.emitEvent({
       type: 'compaction.progress',
@@ -1311,6 +1313,8 @@ export class FullCompaction {
       blockCount: meta.blockCount,
       blocksCompleted: meta.blocksCompleted,
       fraction: meta.fraction,
+      blockDurationMs: meta.blockDurationMs,
+      blockTokens: meta.blockTokens,
     });
   }
 
@@ -1938,6 +1942,7 @@ export class FullCompaction {
       orderedBlocks,
       limiter,
       async (block, index) => {
+        const startedAt = performance.now();
         const messages = [
           ...this.agent.context.projectForCompaction(block),
           createUserMessage(blockPrompt),
@@ -1975,6 +1980,12 @@ export class FullCompaction {
             blockCount,
             blocksCompleted,
             fraction: this.fractionForBlocksCompleted(blocksCompleted, blockCount),
+            // Per-block observability: only this completion tick carries the
+            // block's own latency and usage. `blocksCompleted`/`fraction`
+            // stay live values (read at emit time above) so the monotonic
+            // getter design is preserved under concurrency.
+            blockDurationMs: performance.now() - startedAt,
+            blockTokens: response.usage ?? undefined,
           });
           return {
             summary: extractCompactionSummary(response),

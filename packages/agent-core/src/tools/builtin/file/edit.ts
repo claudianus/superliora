@@ -60,6 +60,158 @@ function replaceOnceLiteral(content: string, oldString: string, newString: strin
   return content.slice(0, index) + newString + content.slice(index + oldString.length);
 }
 
+// --- not-found diagnostics --------------------------------------------------
+// `old_string not found` is the most common Edit failure for LLM consumers.
+// These helpers append cheap hints to that error: the file's mtime (stale
+// Read detector) and up to three near-miss snippets from the current content.
+// Candidate search is one O(lines) anchor prefilter plus a bounded number of
+// small window comparisons — never O(n^2) over the whole file.
+
+const CANDIDATE_MAX_FILE_LINES = 20000;
+const CANDIDATE_MAX_ANCHORS = 24;
+const CANDIDATE_MAX_RESULTS = 3;
+const CANDIDATE_MIN_SCORE = 0.35;
+const CANDIDATE_SNIPPET_LINE_MAX = 200;
+const LEVENSHTEIN_CELL_BUDGET = 4_000_000;
+const TOKEN_PATTERN = /[\p{L}\p{N}_$]+/gu;
+
+function countLines(text: string): number {
+  let lines = 1;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) lines++;
+  }
+  return lines;
+}
+
+function tokenize(text: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const match of text.toLowerCase().matchAll(TOKEN_PATTERN)) {
+    tokens.add(match[0]);
+  }
+  return tokens;
+}
+
+function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection++;
+  }
+  return intersection / (a.size + b.size - intersection);
+}
+
+function levenshteinRatio(a: string, b: string): number {
+  if (a === b) return 1;
+  let short = a;
+  let long = b;
+  if (short.length > long.length) [short, long] = [long, short];
+  if (short.length === 0) return 0;
+  let prev = Array.from({ length: short.length + 1 }, (_, idx) => idx);
+  let curr = Array.from({ length: short.length + 1 }, () => 0);
+  for (let j = 1; j <= long.length; j++) {
+    curr[0] = j;
+    const code = long.charCodeAt(j - 1);
+    for (let i = 1; i <= short.length; i++) {
+      const cost = short.charCodeAt(i - 1) === code ? 0 : 1;
+      curr[i] = Math.min((prev[i] ?? 0) + 1, (curr[i - 1] ?? 0) + 1, (prev[i - 1] ?? 0) + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return 1 - (prev[short.length] ?? 0) / long.length;
+}
+
+/** Normalized similarity in [0, 1]; falls back to token overlap on big texts. */
+function textSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length * b.length > LEVENSHTEIN_CELL_BUDGET) {
+    return jaccard(tokenize(a), tokenize(b));
+  }
+  return levenshteinRatio(a, b);
+}
+
+/**
+ * Renders up to three near-miss snippets from `fileText` for a missing
+ * `oldText`, or '' when nothing plausible exists (huge file, no token
+ * overlap, every score below threshold). Line numbers are 1-based original
+ * file lines: CRLF-to-LF normalization preserves line indices.
+ */
+function similarCandidateBlock(fileText: string, oldText: string): string {
+  if (oldText.length === 0) return '';
+  if (countLines(fileText) > CANDIDATE_MAX_FILE_LINES) return '';
+  const oldLines = oldText.split('\n');
+  const firstTokens = tokenize(oldLines[0] ?? '');
+  const lastTokens = tokenize(oldLines[oldLines.length - 1] ?? '');
+  if (firstTokens.size === 0 && lastTokens.size === 0) return '';
+
+  const fileLines = fileText.split('\n');
+  const anchors: number[] = [];
+  for (let i = 0; i < fileLines.length && anchors.length < CANDIDATE_MAX_ANCHORS; i++) {
+    const tokens = tokenize(fileLines[i] ?? '');
+    if (tokens.size === 0) continue;
+    if (jaccard(tokens, firstTokens) >= 0.5 || jaccard(tokens, lastTokens) >= 0.5) {
+      anchors.push(i);
+    }
+  }
+  if (anchors.length === 0) return '';
+
+  const windowLength = Math.min(oldLines.length + 2, fileLines.length);
+  const maxStart = Math.max(0, fileLines.length - windowLength);
+  const seenStarts = new Set<number>();
+  const scored: Array<{ start: number; score: number }> = [];
+  for (const anchor of anchors) {
+    // The anchor may have matched old_string's first or last line, so try
+    // both alignments; each keeps +/-1 line of surrounding context.
+    for (const rawStart of [anchor - 1, anchor - oldLines.length]) {
+      const start = Math.min(Math.max(rawStart, 0), maxStart);
+      if (seenStarts.has(start)) continue;
+      seenStarts.add(start);
+      const windowText = fileLines.slice(start, start + windowLength).join('\n');
+      const score = textSimilarity(windowText, oldText);
+      if (score >= CANDIDATE_MIN_SCORE) scored.push({ start, score });
+    }
+  }
+  if (scored.length === 0) return '';
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored
+    .slice(0, CANDIDATE_MAX_RESULTS)
+    .map(({ start }) => {
+      const snippet = fileLines
+        .slice(start, start + windowLength)
+        .map((line) => {
+          const clean = line.endsWith('\r') ? line.slice(0, -1) : line;
+          const clipped =
+            clean.length > CANDIDATE_SNIPPET_LINE_MAX
+              ? `${clean.slice(0, CANDIDATE_SNIPPET_LINE_MAX)}...`
+              : clean;
+          return `    ${clipped}`;
+        })
+        .join('\n');
+      return `candidate near line ${String(start + 1)}:\n${snippet}\n`;
+    })
+    .join('\n');
+}
+
+async function notFoundDetail(
+  kaos: Kaos,
+  safePath: string,
+  shownPath: string,
+  fileText: string,
+  oldText: string,
+): Promise<string> {
+  let detail = `old_string not found in ${shownPath}, the file contents may be out of date. Please use the Read Tool to reload the content.\n`;
+  try {
+    const st = await kaos.stat(safePath);
+    if (Number.isFinite(st.stMtime) && st.stMtime > 0) {
+      detail += `file last modified: ${new Date(st.stMtime * 1000).toISOString()} — if your last Read predates this, re-read the file first.\n`;
+    }
+  } catch {
+    // stat unavailable (e.g. test fake without override); omit the hint.
+  }
+  detail += similarCandidateBlock(fileText, oldText);
+  return detail;
+}
+
 export class EditTool implements BuiltinTool<EditInput> {
   readonly name = 'Edit' as const;
   readonly description = EDIT_DESCRIPTION;
@@ -152,8 +304,10 @@ export class EditTool implements BuiltinTool<EditInput> {
         }
 
         if (count === 0) {
-          return { isError: true, output: `old_string not found in ${args.path}, the file contents may be out of date. Please use the Read Tool to reload the content.
-` };
+          return {
+            isError: true,
+            output: await notFoundDetail(this.kaos, safePath, args.path, content, args.old_string),
+          };
         }
         if (count > 1) {
           return {
@@ -175,8 +329,10 @@ export class EditTool implements BuiltinTool<EditInput> {
       const parts = content.split(args.old_string);
       const replacementCount = parts.length - 1;
       if (replacementCount === 0) {
-        return { isError: true, output: `old_string not found in ${args.path}, the file contents may be out of date. Please use the Read Tool to reload the content.
-` };
+        return {
+          isError: true,
+          output: await notFoundDetail(this.kaos, safePath, args.path, content, args.old_string),
+        };
       }
 
       const newContent = parts.join(args.new_string);

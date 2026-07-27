@@ -96,6 +96,16 @@ export interface LioraRecallStoreOptions {
   readonly now?: (() => number) | undefined;
 }
 
+export interface MemoryIntegrityOptions {
+  readonly repair?: boolean | undefined;
+}
+
+export interface MemoryIntegrityReport {
+  readonly ok: boolean;
+  readonly issues: string[];
+  readonly repaired?: boolean | undefined;
+}
+
 const SCHEMA_VERSION = 1;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_INJECTION_LIMIT = 6;
@@ -134,6 +144,7 @@ export class LioraRecallStore {
     this.db = this.openDatabaseWithRecovery();
     this.migrate();
     this.restoreMarkdownRecords();
+    this.verifyMirrorCountOnOpen();
   }
 
   /**
@@ -207,6 +218,50 @@ export class LioraRecallStore {
 
   isEnabled(): boolean {
     return this.config?.()?.enabled !== false;
+  }
+
+  /**
+   * Cross-check the SQLite database against the `records/` markdown mirror.
+   *
+   * Runs `PRAGMA quick_check`, compares the database row count with the number
+   * of mirror files, and checks mirror record ids against the database rows.
+   * With `repair: true`, records present in the mirror but missing from the
+   * database are restored through the same path used at open. `issues`
+   * describes what the check found and `repaired` reports the restore outcome;
+   * run a second check to confirm a clean state after a repair.
+   */
+  checkIntegrity(options: MemoryIntegrityOptions = {}): MemoryIntegrityReport {
+    const issues: string[] = [];
+    issues.push(...this.runQuickCheck());
+
+    const dbCount = this.countDatabaseRecords();
+    const mirrorFileCount = this.countMirrorFiles();
+    if (dbCount !== mirrorFileCount) {
+      issues.push(
+        `record count mismatch: database has ${dbCount} records but the records/ mirror has ${mirrorFileCount} markdown files`,
+      );
+    }
+
+    const missingIds = this.collectMirrorRecordIds().filter((id) => !this.hasRecord(id));
+    if (missingIds.length > 0) {
+      issues.push(
+        `missing database records: ${missingIds.length} mirror records absent from the database ` +
+          `(e.g. ${missingIds.slice(0, 3).join(', ')})`,
+      );
+    }
+
+    if (options.repair !== true) {
+      return { ok: issues.length === 0, issues };
+    }
+    if (missingIds.length === 0) {
+      return { ok: issues.length === 0, issues, repaired: false };
+    }
+    this.restoreMarkdownRecords();
+    const stillMissing = missingIds.filter((id) => !this.hasRecord(id));
+    if (stillMissing.length > 0) {
+      issues.push(`repair incomplete: ${stillMissing.length} records could not be restored`);
+    }
+    return { ok: issues.length === 0, issues, repaired: stillMissing.length === 0 };
   }
 
   runtimeForSession(context: MemoryRuntimeSessionContext): SessionMemoryRuntime {
@@ -768,6 +823,64 @@ export class LioraRecallStore {
   private hasRecord(id: string): boolean {
     const row = this.db.prepare('SELECT id FROM memories WHERE id = ? LIMIT 1').get(id);
     return typeof row === 'object' && row !== null;
+  }
+
+  /**
+   * Cheap count-only cross-check run once at open time, after migrate and the
+   * mirror restore. A mismatch never blocks startup: log a warning, retry the
+   * mirror restore once, and carry on.
+   */
+  private verifyMirrorCountOnOpen(): void {
+    try {
+      const dbCount = this.countDatabaseRecords();
+      const mirrorFileCount = this.countMirrorFiles();
+      if (dbCount === mirrorFileCount) return;
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[liora-recall] memory database at ${this.dbPath} has ${dbCount} records but the ` +
+          `records/ mirror has ${mirrorFileCount} markdown files; retrying mirror restore`,
+      );
+      this.restoreMarkdownRecords();
+    } catch {
+      // Integrity checks must never break open; checkIntegrity() surfaces details on demand.
+    }
+  }
+
+  /** `PRAGMA quick_check` as issue strings; never throws. */
+  private runQuickCheck(): string[] {
+    let rows: unknown[];
+    try {
+      rows = this.db.prepare('PRAGMA quick_check').all();
+    } catch (error) {
+      return [`sqlite quick_check error: ${corruptionErrorMessage(error)}`];
+    }
+    const first = rows[0] as { quick_check?: unknown } | undefined;
+    if (rows.length === 1 && first?.quick_check === 'ok') return [];
+    const detail = typeof first?.quick_check === 'string' ? first.quick_check : 'check failed';
+    return [`sqlite quick_check failed: ${detail}`];
+  }
+
+  private countDatabaseRecords(): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS count FROM memories').get() as
+      | { readonly count?: unknown }
+      | undefined;
+    return typeof row?.count === 'number' ? row.count : 0;
+  }
+
+  private countMirrorFiles(): number {
+    if (!existsSync(this.recordsDir)) return 0;
+    return readdirSync(this.recordsDir).filter((file) => file.endsWith('.md')).length;
+  }
+
+  private collectMirrorRecordIds(): readonly string[] {
+    if (!existsSync(this.recordsDir)) return [];
+    const ids: string[] = [];
+    for (const file of readdirSync(this.recordsDir)) {
+      if (!file.endsWith('.md')) continue;
+      const record = readMarkdownRecord(join(this.recordsDir, file));
+      if (record !== undefined) ids.push(record.id);
+    }
+    return ids;
   }
 }
 

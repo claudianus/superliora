@@ -437,4 +437,68 @@ describe('EditTool', () => {
     expect(result.isError).toBeFalsy();
     expect(writeAtomic).toHaveBeenCalledWith('/workspace-sneaky/test.txt', 'new');
   });
+
+  it('not-found error suggests a near-miss candidate and reports the file mtime', async () => {
+    const mtime = Date.UTC(2026, 0, 2, 3, 4, 5) / 1000;
+    const tool = new EditTool(
+      createFakeKaos({
+        readText: vi.fn().mockResolvedValue(
+          "import { foo } from './foo';\n\nexport function greet(name: string) {\n  return 'hi ' + name;\n}\n",
+        ),
+        stat: vi.fn().mockResolvedValue({
+          stMode: 33188,
+          stIno: 1,
+          stDev: 1,
+          stNlink: 1,
+          stUid: 0,
+          stGid: 0,
+          stSize: 96,
+          stAtime: mtime,
+          stMtime: mtime,
+          stCtime: mtime,
+        }),
+      }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    const result = await executeTool(tool,
+      context({
+        path: '/tmp/greet.ts',
+        old_string: "export function greet(name: string) {\n  return 'hello ' + name;\n}",
+        new_string: 'x',
+      }),
+    );
+
+    expect(result).toMatchObject({ isError: true });
+    expect(result.output).toContain('old_string not found');
+    expect(result.output).toContain('use the Read Tool to reload');
+    expect(result.output).toContain('file last modified: 2026-01-02T03:04:05.000Z');
+    expect(result.output).toContain('candidate near line 2:');
+    expect(result.output).toContain("return 'hi ' + name;");
+  });
+
+  it('not-found error skips candidates beyond the huge-file guard', async () => {
+    const filler = Array.from({ length: 20001 }, (_, i) => `filler line ${String(i)}`).join('\n');
+    const content = `${filler}\nexport function greet(name: string) {\n  return 'hi ' + name;\n}\n`;
+    const tool = new EditTool(
+      createFakeKaos({
+        readText: vi.fn().mockResolvedValue(content),
+      }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    const result = await executeTool(tool,
+      context({
+        path: '/tmp/huge.ts',
+        old_string: "export function greet(name: string) {\n  return 'hello ' + name;\n}",
+        new_string: 'x',
+      }),
+    );
+
+    expect(result).toMatchObject({ isError: true });
+    expect(result.output).toContain('old_string not found');
+    expect(result.output).toContain('use the Read Tool to reload');
+    expect(result.output).not.toContain('candidate near line');
+    expect(result.output).not.toContain('file last modified');
+  });
 });
