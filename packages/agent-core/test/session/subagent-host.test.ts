@@ -18,6 +18,10 @@ import { FLAG_DEFINITIONS, FlagResolver } from '../../src/flags';
 import { AGENT_WIRE_PROTOCOL_VERSION, InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SDKSessionRPC } from '../../src/rpc';
+import {
+  readSubagentCheckpoint,
+  writeSubagentCheckpoint,
+} from '../../src/session/subagent-checkpoint';
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {
@@ -278,9 +282,10 @@ describe('SessionSubagentHost', () => {
             childAgent: Agent,
             subagentId: string,
             profileName: string,
+            budgetMs: number,
           ): () => void;
         }
-      ).startProgressReporter(parent.agent, child.agent, 'agent-0', 'coder');
+      ).startProgressReporter(parent.agent, child.agent, 'agent-0', 'coder', 600_000);
 
       vi.advanceTimersByTime(5_000);
       expect(parent.allEvents).toContainEqual(
@@ -291,6 +296,9 @@ describe('SessionSubagentHost', () => {
             subagentId: 'agent-0',
             subagentName: 'coder',
             toolCount: 0,
+            budgetMs: 600_000,
+            budgetRemainingMs: 595_000,
+            finishing: false,
           }),
         }),
       );
@@ -306,6 +314,103 @@ describe('SessionSubagentHost', () => {
       reporter();
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('enters finishing mode when the budget window is reached', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+    const child = testAgent();
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    vi.useFakeTimers();
+    try {
+      const reporter = (
+        host as unknown as {
+          startProgressReporter(
+            parentAgent: Agent,
+            childAgent: Agent,
+            subagentId: string,
+            profileName: string,
+            budgetMs: number,
+          ): () => void;
+        }
+      ).startProgressReporter(parent.agent, child.agent, 'agent-0', 'coder', 360_000);
+
+      // 60s elapsed leaves exactly the 5-minute finishing window.
+      vi.advanceTimersByTime(60_000);
+      expect(parent.allEvents).toContainEqual(
+        expect.objectContaining({
+          type: '[rpc]',
+          event: 'subagent.progress',
+          args: expect.objectContaining({ finishing: true, budgetRemainingMs: 300_000 }),
+        }),
+      );
+      expect(JSON.stringify(child.agent.context.history)).toContain('finishing mode');
+      reporter();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('injects the recovered checkpoint reminder on resume and consumes it', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'subagent-resume-'));
+    const previousHome = process.env['SUPERLIORA_HOME'];
+    process.env['SUPERLIORA_HOME'] = home;
+    try {
+      writeSubagentCheckpoint('agent-0', {
+        toolCount: 12,
+        lastTool: 'Edit',
+        lastTarget: 'src/a.ts',
+        tokens: 5_000,
+        elapsedMs: 900_000,
+        todos: [
+          { title: 'fix bug', status: 'done' },
+          { title: 'add test', status: 'pending' },
+        ],
+        dirtyFiles: ['src/a.ts'],
+      });
+
+      const parent = testAgent();
+      parent.configure();
+      parent.newEvents();
+      const child = testAgent();
+      child.configure();
+      child.mockNextResponse({
+        type: 'text',
+        text:
+          'Resumed from the recovered checkpoint. Verified the state of the earlier work first, ' +
+          'ran the scoped verification for the touched package, and finished the remaining implementation ' +
+          'without repeating any of the steps recorded in the checkpoint snapshot.',
+      });
+      const session = fakeSession(parent.agent, child.agent, {
+        'agent-0': {
+          homedir: '/tmp/kimi-session/agents/agent-0',
+          type: 'sub',
+          parentAgentId: 'main',
+        },
+      });
+      const host = new SessionSubagentHost(session, 'main');
+
+      const handle = await host.resume('agent-0', {
+        parentToolCallId: 'call-1',
+        prompt: 'Continue',
+        description: 'cont',
+        runInBackground: false,
+        signal: new AbortController().signal,
+      });
+      await handle.completion;
+
+      const historyText = JSON.stringify(child.llmCalls[0]?.history ?? []);
+      expect(historyText).toContain('checkpoint from the previous run');
+      expect(historyText).toContain('[done] fix bug');
+      expect(readSubagentCheckpoint('agent-0')).toBeUndefined();
+    } finally {
+      if (previousHome === undefined) delete process.env['SUPERLIORA_HOME'];
+      else process.env['SUPERLIORA_HOME'] = previousHome;
+      await rm(home, { recursive: true, force: true });
     }
   });
 

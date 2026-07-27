@@ -345,6 +345,7 @@ export class SubagentBatch<T> {
       swarmIndex: task.swarmIndex,
       runInBackground: task.runInBackground,
       signal: attempt.controller.signal,
+      timeoutMs: task.timeout,
       onReady: () => {
         this.markAttemptReady(attempt);
       },

@@ -57,6 +57,12 @@ import { resolveSubagentModelAlias } from '../utils/cheap-model';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { collectGitContext } from './git-context';
 import {
+  buildCheckpointRecoveryReminder,
+  clearSubagentCheckpoint,
+  readSubagentCheckpoint,
+  writeSubagentCheckpoint,
+} from './subagent-checkpoint';
+import {
   buildSubagentResultContract,
   collectFilesChanged,
   deriveVerificationPackageDir,
@@ -110,6 +116,16 @@ const COMPLETION_VERIFICATION_TOTAL_MS = 600_000;
 const SUBAGENT_PROGRESS_INTERVAL_MS = 5_000;
 /** Silence window before a subagent is reported stalled (T3-7). */
 const SUBAGENT_STALL_MS = 300_000;
+/** Checkpoint cadence: snapshot every N completed tool calls (T4-5). */
+const CHECKPOINT_TOOL_DELTA = 10;
+/** Finishing mode starts when this much budget remains (T4-5). */
+const SUBAGENT_FINISHING_WINDOW_MS = 5 * 60 * 1000;
+const SUBAGENT_FINISHING_REMINDER = [
+  'Time budget is nearly exhausted — enter finishing mode now:',
+  '- do not start new implementation work',
+  '- run the verification still owed for completed work',
+  '- then write the final structured summary of what is done and what remains',
+].join('\n');
 const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const SUBAGENT_MAX_TOKENS_ERROR =
@@ -154,6 +170,8 @@ export interface RunSubagentOptions {
   readonly swarmItem?: string;
   readonly runInBackground: boolean;
   readonly signal: AbortSignal;
+  /** Wall-clock budget for the run; drives finishing mode and telemetry (T4-5). */
+  readonly timeoutMs?: number;
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }
@@ -302,6 +320,14 @@ export class SessionSubagentHost {
   async resume(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
     const { parent, child, profileName } = await this.ensureIdleSubagent(agentId);
+    const checkpoint = readSubagentCheckpoint(agentId);
+    if (checkpoint !== undefined) {
+      child.context.appendSystemReminder(buildCheckpointRecoveryReminder(checkpoint), {
+        kind: 'system_trigger',
+        name: 'subagent-checkpoint',
+      });
+      clearSubagentCheckpoint(agentId);
+    }
     const completion = this.runWithActiveChild(agentId, options, async (runOptions) => {
       const modelAlias = resolveSubagentModelAlias(
         profileName,
@@ -594,7 +620,13 @@ export class SessionSubagentHost {
     options: RunSubagentOptions,
     workSnapshot: GitWorkSnapshot,
   ): Promise<SubagentCompletion> {
-    const disposeProgress = this.startProgressReporter(parent, child, childId, profileName);
+    const disposeProgress = this.startProgressReporter(
+      parent,
+      child,
+      childId,
+      profileName,
+      options.timeoutMs ?? DEFAULT_SUBAGENT_TIMEOUT_MS,
+    );
     try {
       return await this.collectChildCompletion(
         parent,
@@ -654,6 +686,7 @@ export class SessionSubagentHost {
       contextTokens: child.context.tokenCount,
     });
     this.triggerSubagentStop(parent, profileName, result);
+    clearSubagentCheckpoint(childId);
     return { result, usage, contract };
   }
 
@@ -753,14 +786,21 @@ export class SessionSubagentHost {
     child: Agent,
     childId: string,
     profileName: string,
+    budgetMs: number,
   ): () => void {
     const startedAt = Date.now();
     let lastToolCount = -1;
     let lastChangeAt = startedAt;
     let stalledReported = false;
+    let finishingNotified = false;
+    let lastCheckpointToolCount = 0;
+    let checkpointInFlight = false;
     const timer = setInterval(() => {
       const stats = collectSubagentProgressStats(child);
       const now = Date.now();
+      const elapsedMs = now - startedAt;
+      const budgetRemainingMs = Math.max(0, budgetMs - elapsedMs);
+      const finishing = budgetRemainingMs <= SUBAGENT_FINISHING_WINDOW_MS;
       parent.emitEvent({
         type: 'subagent.progress',
         subagentId: childId,
@@ -768,9 +808,19 @@ export class SessionSubagentHost {
         lastTool: stats.lastTool,
         lastTarget: stats.lastTarget,
         toolCount: stats.toolCount,
-        elapsedMs: now - startedAt,
+        elapsedMs,
         tokens: stats.tokens,
+        budgetMs,
+        budgetRemainingMs,
+        finishing,
       });
+      if (finishing && !finishingNotified) {
+        finishingNotified = true;
+        child.context.appendSystemReminder(SUBAGENT_FINISHING_REMINDER, {
+          kind: 'system_trigger',
+          name: 'subagent-finishing',
+        });
+      }
       if (stats.toolCount !== lastToolCount) {
         lastToolCount = stats.toolCount;
         lastChangeAt = now;
@@ -785,10 +835,41 @@ export class SessionSubagentHost {
           toolCount: stats.toolCount,
         });
       }
+      if (
+        stats.toolCount - lastCheckpointToolCount >= CHECKPOINT_TOOL_DELTA &&
+        !checkpointInFlight
+      ) {
+        lastCheckpointToolCount = stats.toolCount;
+        checkpointInFlight = true;
+        void this.writeProgressCheckpoint(child, childId, stats, elapsedMs)
+          .catch(() => {})
+          .finally(() => {
+            checkpointInFlight = false;
+          });
+      }
     }, SUBAGENT_PROGRESS_INTERVAL_MS);
     // Progress reporting must never keep the event loop alive on its own.
     timer.unref?.();
     return () => clearInterval(timer);
+  }
+
+  private async writeProgressCheckpoint(
+    child: Agent,
+    childId: string,
+    stats: SubagentProgressStats,
+    elapsedMs: number,
+  ): Promise<void> {
+    const todos = normalizeTodoItems(child.tools.getStore().get(TODO_STORE_KEY));
+    const work = await this.snapshotChildWork(child);
+    writeSubagentCheckpoint(childId, {
+      toolCount: stats.toolCount,
+      lastTool: stats.lastTool,
+      lastTarget: stats.lastTarget,
+      tokens: stats.tokens,
+      elapsedMs,
+      todos,
+      dirtyFiles: work.dirtyFiles,
+    });
   }
 
   private async configureChild(

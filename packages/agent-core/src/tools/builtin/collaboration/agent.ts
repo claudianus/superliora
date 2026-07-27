@@ -199,6 +199,7 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         description: args.description,
         runInBackground,
         signal: controller.signal,
+        timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
       };
       let handle: SubagentHandle;
       try {

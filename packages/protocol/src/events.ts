@@ -780,6 +780,9 @@ export interface SubagentProgressEvent {
   readonly toolCount: number;
   readonly elapsedMs: number;
   readonly tokens: number;
+  readonly budgetMs?: number;
+  readonly budgetRemainingMs?: number;
+  readonly finishing?: boolean;
 }
 
 export interface SubagentStalledEvent {
@@ -1744,6 +1747,9 @@ export const subagentProgressEventSchema = z.object({
   toolCount: z.number(),
   elapsedMs: z.number(),
   tokens: z.number(),
+  budgetMs: z.number().optional(),
+  budgetRemainingMs: z.number().optional(),
+  finishing: z.boolean().optional(),
 }) satisfies z.ZodType<SubagentProgressEvent>;
 
 export const subagentStalledEventSchema = z.object({
