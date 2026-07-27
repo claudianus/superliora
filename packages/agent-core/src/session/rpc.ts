@@ -74,6 +74,13 @@ import {
 } from './response-language';
 import { detectResponseLanguageWithLlm } from './response-language-llm';
 import { maybeTransformPromptForInterruptedWorkResume } from '../ultrawork/interrupted-work-resume';
+import { sessionMediaOriginalsDir } from '../tools/support/image-originals';
+import {
+  DEFAULT_NON_VISION_FALLBACK,
+  isVisionMediaPart,
+  transformMediaForNonVisionModel,
+} from './vision-analyzer';
+import type { NonVisionFallbackPolicy } from './vision-analyzer';
 
 type AgentScopedPayload<T> = T & { agentId: string };
 
@@ -174,6 +181,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
       await this.updateResponseLanguagePreference(payload.input);
       payload = await this.maybeResumeInterruptedWorkPrompt(agentId, payload);
     }
+    const mediaTransformed = await this.maybeTransformNonVisionMedia(agentId, payload.input);
+    if (mediaTransformed !== undefined) {
+      payload = { ...payload, input: mediaTransformed };
+    }
     return (await this.getAgent(agentId)).prompt(payload);
   }
 
@@ -184,6 +195,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
       if (transformed !== undefined) {
         payload = { ...payload, input: transformed };
       }
+    }
+    const mediaTransformed = await this.maybeTransformNonVisionMedia(agentId, payload.input);
+    if (mediaTransformed !== undefined) {
+      payload = { ...payload, input: mediaTransformed };
     }
     return (await this.getAgent(agentId)).steer(payload);
   }
@@ -509,6 +524,56 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     });
     if (resumed === undefined) return undefined;
     return [{ type: 'text', text: resumed.promptText }];
+  }
+
+  /**
+   * Vision analyzer fallback: when the target agent's current model cannot
+   * consume attached media, replace media parts with analyzer text (policy
+   * 'analyze') or path-only notes ('path'). 'block' is enforced by clients
+   * before submission. Returns undefined when nothing was transformed.
+   * Analyzer failures degrade to path notes — never block the prompt.
+   */
+  private async maybeTransformNonVisionMedia(
+    agentId: string,
+    input: PromptPayload['input'],
+  ): Promise<PromptPayload['input'] | undefined> {
+    const providerManager = this.session.options.providerManager;
+    if (providerManager === undefined) return undefined;
+    if (!input.some(isVisionMediaPart)) return undefined;
+
+    const policy: NonVisionFallbackPolicy =
+      providerManager.currentConfig().media?.nonVisionFallback ?? DEFAULT_NON_VISION_FALLBACK;
+    if (policy === 'block') return undefined;
+
+    const agent = await this.session.ensureAgentResumed(agentId);
+    const result = await transformMediaForNonVisionModel(
+      {
+        generate: agent.generate,
+        providerManager,
+        currentModelAlias: agent.config.modelAlias,
+        currentCapabilities: agent.config.modelCapabilities,
+      },
+      input,
+      { policy, originalsDir: sessionMediaOriginalsDir(this.session.options.homedir) },
+    );
+    if (result.analyzedCount === 0 && result.pathOnlyCount === 0) return undefined;
+    if (result.analyzedCount > 0) {
+      await this.session.rpc.emitEvent({
+        type: 'warning',
+        agentId,
+        code: 'vision_analyzer.analyzed',
+        message: `Analyzed ${result.analyzedCount} media attachment(s) with ${result.analyzerModels.join(', ')} because the current model is text-only.`,
+        details: {
+          analyzerModel: result.analyzerModels.join(', '),
+          kind:
+            result.analyzedKinds.length === 1
+              ? (result.analyzedKinds[0] as string)
+              : 'mixed',
+          count: result.analyzedCount,
+        },
+      });
+    }
+    return result.parts;
   }
 
   private async updateResponseLanguagePreference(input: PromptPayload['input']): Promise<void> {

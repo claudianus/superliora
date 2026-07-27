@@ -99,6 +99,11 @@ export class ProviderManager implements ModelProvider {
     return this.resolveModelAlias(model);
   }
 
+  /** Live view of the runtime config (may be reloaded mid-session). */
+  currentConfig(): LioraConfig {
+    return this.config;
+  }
+
   resolveProviderRoute(model: string): ResolvedRuntimeProviderRoute | undefined {
     const alias = this.config.models?.[model];
     if (alias === undefined) {
@@ -983,7 +988,7 @@ function locationFromVertexAIBaseUrl(baseUrl: string | undefined): string | unde
   }
 }
 
-function providerHasAnyCredential(provider: ProviderConfig): boolean {
+export function providerHasAnyCredential(provider: ProviderConfig): boolean {
   if (typeof provider.apiKey === 'string' && provider.apiKey.trim().length > 0) return true;
   if (Array.isArray(provider.apiKeys) && provider.apiKeys.some((k) => typeof k === 'string' && k.trim().length > 0))
     return true;

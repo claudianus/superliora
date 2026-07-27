@@ -349,6 +349,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     onboarding: input.tuiConfig.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
     availableModels: {},
     availableProviders: {},
+    nonVisionFallbackPolicy: 'analyze',
     providerRouteStatus: null,
     lastProviderRouteSelection: null,
     lastModelRouteNotice: null,
@@ -1687,21 +1688,54 @@ export class LioraTUI {
     extraction: ReturnType<typeof extractMediaAttachments>,
   ): boolean {
     if (!extraction.hasMedia) return true;
-    if (
+    const imageUnsupported =
       extraction.imageAttachmentIds.length > 0 &&
-      !this.supportsCurrentModelCapability('image_in')
-    ) {
-      this.showError('Current model does not support image input.');
+      !this.supportsCurrentModelCapability('image_in');
+    const videoUnsupported =
+      extraction.videoAttachmentIds.length > 0 &&
+      !this.supportsCurrentModelCapability('video_in');
+    if (!imageUnsupported && !videoUnsupported) return true;
+
+    // 'block' keeps the legacy hard error. 'analyze'/'path' send anyway: the
+    // core transforms media (analyzer text or path note) before the model
+    // sees it, so the prompt is never lost.
+    if ((this.state.appState.nonVisionFallbackPolicy ?? 'analyze') === 'block') {
+      this.showError(
+        imageUnsupported
+          ? 'Current model does not support image input.'
+          : 'Current model does not support video input.',
+      );
       return false;
     }
-    if (
-      extraction.videoAttachmentIds.length > 0 &&
-      !this.supportsCurrentModelCapability('video_in')
-    ) {
-      this.showError('Current model does not support video input.');
-      return false;
+    if ((this.state.appState.nonVisionFallbackPolicy ?? 'analyze') === 'analyze') {
+      const analyzer = this.findVisionAnalyzerModel(videoUnsupported && !imageUnsupported);
+      if (analyzer !== undefined) {
+        this.showStatus(
+          `현재 모델은 텍스트 전용입니다 — 첨부 미디어를 ${analyzer}로 분석해 전송합니다.`,
+          'success',
+        );
+      }
     }
     return true;
+  }
+
+  /**
+   * Catalog heuristic for the pre-send toast: a vision-capable model whose
+   * provider entry exists, preferring the current model's provider. The core
+   * makes the authoritative (credential-aware) selection at send time.
+   */
+  private findVisionAnalyzerModel(video: boolean): string | undefined {
+    const models = this.state.appState.availableModels;
+    const wanted = video ? 'video_in' : 'image_in';
+    const currentProvider = models[this.state.appState.model]?.provider;
+    let first: string | undefined;
+    for (const alias of Object.keys(models).sort()) {
+      const entry = models[alias];
+      if (entry?.capabilities?.includes(wanted) !== true) continue;
+      if (currentProvider !== undefined && entry.provider === currentProvider) return alias;
+      first ??= alias;
+    }
+    return first;
   }
 
   private supportsCurrentModelCapability(capability: string): boolean {
