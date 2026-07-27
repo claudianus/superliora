@@ -192,6 +192,9 @@ function similarCandidateBlock(fileText: string, oldText: string): string {
     .join('\n');
 }
 
+/** Files modified within this window are treated as session-time changes. */
+const STALE_VIEW_WINDOW_MS = 10 * 60_000;
+
 async function notFoundDetail(
   kaos: Kaos,
   safePath: string,
@@ -203,6 +206,14 @@ async function notFoundDetail(
   try {
     const st = await kaos.stat(safePath);
     if (Number.isFinite(st.stMtime) && st.stMtime > 0) {
+      // Stale-replay detection (harness reform T1-2): a very recent mtime
+      // means the file changed during this session, so the model's
+      // in-context view almost certainly predates the change. Call it out
+      // instead of letting the caller retry old_string from memory.
+      const ageMs = Date.now() - st.stMtime * 1000;
+      if (ageMs >= 0 && ageMs < STALE_VIEW_WINDOW_MS) {
+        detail += `STALE VIEW: the file was modified ${String(Math.max(1, Math.round(ageMs / 1000)))}s ago — your in-context Read output predates that change, which is why old_string does not match. Re-Read ${shownPath} and rebuild old_string from fresh bytes; do not retry from memory.\n`;
+      }
       detail += `file last modified: ${new Date(st.stMtime * 1000).toISOString()} — if your last Read predates this, re-read the file first.\n`;
     }
   } catch {

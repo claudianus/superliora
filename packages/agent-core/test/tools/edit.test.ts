@@ -117,6 +117,60 @@ describe('EditTool', () => {
     expect(writeAtomic).toHaveBeenCalledWith('/home/test/notes/today.txt', 'alpha gamma');
   });
 
+  it('flags a stale view when the file changed moments ago (T1-2)', async () => {
+    const tool = new EditTool(
+      createFakeKaos({
+        readText: vi.fn().mockResolvedValue('current bytes'),
+        stat: vi.fn().mockResolvedValue({
+          isFile: true,
+          isDirectory: false,
+          isSymlink: false,
+          size: 13,
+          stMtime: Date.now() / 1000 - 30,
+          stMtimeNs: 0n,
+          stCtime: 0,
+          stBirthtime: 0,
+        }),
+      }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    const result = await executeTool(tool,
+      context({ path: '/tmp/a.txt', old_string: 'missing', new_string: 'x' }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('STALE VIEW');
+    expect(result.output).toContain('do not retry from memory');
+  });
+
+  it('omits the stale-view flag for files untouched this session (T1-2)', async () => {
+    const tool = new EditTool(
+      createFakeKaos({
+        readText: vi.fn().mockResolvedValue('current bytes'),
+        stat: vi.fn().mockResolvedValue({
+          isFile: true,
+          isDirectory: false,
+          isSymlink: false,
+          size: 13,
+          stMtime: Date.now() / 1000 - 24 * 3600,
+          stMtimeNs: 0n,
+          stCtime: 0,
+          stBirthtime: 0,
+        }),
+      }),
+      PERMISSIVE_WORKSPACE,
+    );
+
+    const result = await executeTool(tool,
+      context({ path: '/tmp/a.txt', old_string: 'missing', new_string: 'x' }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).not.toContain('STALE VIEW');
+    expect(result.output).toContain('file last modified');
+  });
+
   it('treats replacement dollar sequences literally for single edits', async () => {
     const writeAtomic = vi.fn().mockResolvedValue(0);
     const tool = new EditTool(
