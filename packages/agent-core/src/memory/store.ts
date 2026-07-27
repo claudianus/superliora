@@ -108,14 +108,35 @@ export interface MemoryIntegrityReport {
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_LIMIT = 20;
-const DEFAULT_INJECTION_LIMIT = 6;
-const DEFAULT_INJECTION_MIN_SCORE = 0.2;
+const DEFAULT_INJECTION_LIMIT = 2;
+const DEFAULT_INJECTION_MIN_SCORE = 0.35;
 const MAX_LIMIT = 100;
 const STORE_RELATIVE_PATH = 'memory/kimi-recall.sqlite';
 const RECORDS_DIR_NAME = 'records';
 const MARKDOWN_RECORD_SCHEMA_VERSION = 1;
 const MARKDOWN_RECORD_MARKER = 'kimi-recall-record-json-base64';
 const SYSTEM_MEMORY_SOURCE: MemorySourceRef = { kind: 'system' };
+
+// Recall precision (T2-5): governance/semantic memories are durable rules
+// and facts; episodic noise should not crowd them out of the tiny injection
+// cap. Candidates are fetched wide, boosted, re-ranked, then capped.
+const INJECTION_CANDIDATE_MULTIPLIER = 3;
+const INJECTION_CANDIDATE_FLOOR = 6;
+const KIND_PRIORITY_BOOST = 0.05;
+const PRIORITY_INJECTION_KINDS: ReadonlySet<MemoryKind> = new Set(['governance', 'semantic']);
+
+function prioritizeInjectionKinds(
+  results: readonly MemorySearchResult[],
+): readonly MemorySearchResult[] {
+  return results
+    .map((result) => ({
+      result,
+      boosted:
+        result.score + (PRIORITY_INJECTION_KINDS.has(result.memory.kind) ? KIND_PRIORITY_BOOST : 0),
+    }))
+    .toSorted((a, b) => b.boosted - a.boosted || b.result.score - a.result.score)
+    .map((entry) => entry.result);
+}
 
 const MEMORY_KINDS: readonly MemoryKind[] = [
   'semantic',
@@ -513,15 +534,19 @@ export class LioraRecallStore {
     if (!this.isEnabled()) return undefined;
     if (context.agentType !== 'main') return undefined;
     const hasQuery = query !== undefined && query.trim().length > 0;
+    const cap = this.config?.()?.maxRetrieved ?? DEFAULT_INJECTION_LIMIT;
+    // Recall precision (T2-5): fetch a wider candidate window, then let
+    // governance/semantic memories outrank marginal episodic hits before
+    // the cap is applied.
     const results = await this.search({
       query,
       workspaceKey: context.workDir,
       sessionId: context.sessionId,
-      limit: this.config?.()?.maxRetrieved ?? DEFAULT_INJECTION_LIMIT,
+      limit: Math.max(cap * INJECTION_CANDIDATE_MULTIPLIER, INJECTION_CANDIDATE_FLOOR),
       includeArchived: false,
       minScore: hasQuery ? (this.config?.()?.minInjectionScore ?? DEFAULT_INJECTION_MIN_SCORE) : undefined,
     });
-    return renderMemoryInjection(results);
+    return renderMemoryInjection(prioritizeInjectionKinds(results).slice(0, cap));
   }
 
   private migrate(): void {

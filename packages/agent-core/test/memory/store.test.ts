@@ -385,6 +385,66 @@ describe('LioraRecallStore', () => {
   });
 });
 
+describe('recall precision (T2-5)', () => {
+  it('caps injection at two memories even when more match', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    for (const subject of ['rollback runbook one', 'rollback runbook two', 'rollback runbook three']) {
+      await runtime.remember({
+        kind: 'procedural',
+        subject,
+        content: 'Deployment rollback runbook steps for the service.',
+        importance: 0.9,
+      });
+    }
+
+    const injection = await runtime.getInjection('deployment rollback runbook');
+
+    expect(injection).toBeDefined();
+    expect(injection?.split('<memory ').length ?? 0).toBe(2 + 1);
+  });
+
+  it('lets governance memories outrank marginal episodic hits', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    await runtime.remember({
+      kind: 'episodic',
+      subject: 'old incident chat',
+      content: 'Deployment rollback runbook discussion from an incident.',
+      importance: 0.6,
+    });
+    await runtime.remember({
+      kind: 'episodic',
+      subject: 'old standup note',
+      content: 'Deployment rollback runbook mentioned at standup.',
+      importance: 0.6,
+    });
+    await runtime.remember({
+      kind: 'governance',
+      subject: 'rollback policy',
+      content: 'Deployment rollback runbook is mandatory before release.',
+      importance: 0.55,
+    });
+
+    const injection = await runtime.getInjection('deployment rollback runbook');
+
+    expect(injection).toContain('rollback policy');
+  });
+
+  it('injects episodic memories as subject-only summaries', async () => {
+    const { runtime } = makeRuntime('s1', '/repo');
+    await runtime.remember({
+      kind: 'episodic',
+      subject: 'rollback request moment',
+      content: 'User asked to roll back the deployment because of zorbakat flakiness.',
+      importance: 0.9,
+    });
+
+    const injection = await runtime.getInjection('rollback request moment');
+
+    expect(injection).toContain('<episodic_summary>true</episodic_summary>');
+    expect(injection).not.toContain('zorbakat');
+  });
+});
+
 function makeRuntime(
   sessionId: string,
   workDir: string,

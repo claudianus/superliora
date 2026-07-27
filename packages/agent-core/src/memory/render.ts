@@ -21,9 +21,15 @@ export function renderMemoryInjection(results: readonly MemorySearchResult[]): s
     if (memory.tags.length > 0) {
       lines.push(`<tags>${escapeXml(memory.tags.join(', '))}</tags>`);
     }
-    lines.push('<untrusted_memory>');
-    lines.push(escapeXml(truncateMemoryContent(memory.content)));
-    lines.push('</untrusted_memory>');
+    if (memory.kind === 'episodic') {
+      // Recall precision (T2-5): episodic memories inject as subject-only
+      // summaries; full bodies stay in the store for explicit Memory reads.
+      lines.push('<episodic_summary>true</episodic_summary>');
+    } else {
+      lines.push('<untrusted_memory>');
+      lines.push(escapeXml(truncateMemoryContent(memory.content)));
+      lines.push('</untrusted_memory>');
+    }
     lines.push('</memory>');
   }
   lines.push('</liora_recall_memories>');
