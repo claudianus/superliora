@@ -7,7 +7,7 @@ Hot-path only: package map, hard constraints, and release/workflow gates every t
 ## Working Principles
 
 - Prefer code facts and verification over speculation. Do not scan ordinary product docs just to reverse-engineer implementation; read nested `AGENTS.md`, skills, and code that the task actually needs.
-- Keep changes focused. No drive-by refactors.
+- Keep changes focused. No drive-by code-logic refactors; TUI visual-quality reinforcement (motion, streaming visibility) is product work, not refactoring, and stays in scope.
 - Commits, PR text, and changesets must not reveal agent identity or add co-author attribution for the agent.
 
 ## Project Map
@@ -37,6 +37,7 @@ Hot-path only: package map, hard constraints, and release/workflow gates every t
 - **Agent standalone:** `packages/agent-core/src/agent` `Agent` must construct without a `Session`, `agentId`, or session lifecycle coupling. Optional `sessionId` may be a request-config hint only (e.g. `prompt_cache_key`); the instance must not store session graph state.
 - **Workspace membership:** `pnpm-workspace.yaml` globs cover most packages; `flake.nix` has **manual** `workspacePaths` / `workspaceNames`. On every package add/remove, update **both**. `scripts/check-nix-workspace.mjs` only checks the `@superliora/liora` transitive closure — a green check does not mean leaf packages are listed.
 - **Commit atomicity (MANDATORY):** Every commit touching `packages/agent-core` or `packages/node-sdk` MUST be self-contained — all new/modified types, interfaces, and modules referenced by committed code MUST be included in the same commit. Never leave uncommitted local files that committed code imports; this breaks source-install (`~/.superliora/source`) which builds from committed state only. Before committing, verify: `git stash && pnpm -C packages/node-sdk run build:dts && git stash pop`.
+- **TUI real-time visibility:** agent tool activity streams to the TUI live for main, subagent, and swarm runs alike; event conversion/truncation happens on the agent-core emitter side so every client benefits. Motion, frame-budget, and quality-level rules live in `apps/liora/AGENTS.md` ("Real-time and visual quality") and `apps/liora/src/tui/PREMIUM.md`.
 - Prefer existing tests for the module under change; add a new file when the area is new or the suite would become unreadable.
 - Do not weaken code quality for external compatibility unless asked. Breaking user-facing changes need an explicit major decision (below).
 
