@@ -338,6 +338,26 @@ export function renderUltraSwarmResults(
     '<coverage>Each expert row includes the assigned coverage lane and selection reason for auditability.</coverage>',
   ];
 
+  // Staffing preview (T4-7a): the whole team with selection rationale,
+  // emitted ahead of per-expert bodies so the staffing decision is auditable
+  // at a glance (also carried pre-spawn by the ultrawork.team.staffed event).
+  lines.push(`<staffing experts="${String(rendered.length)}">`);
+  for (const result of rendered) {
+    const lane = result.spec.coverageLane === undefined
+      ? ''
+      : ` coverage_lane="${escapeXml(result.spec.coverageLane)}"`;
+    const division = result.spec.division === undefined
+      ? ''
+      : ` division="${escapeXml(result.spec.division)}"`;
+    const reason = result.spec.selectionReason === undefined
+      ? ''
+      : ` reason="${escapeXml(result.spec.selectionReason)}"`;
+    lines.push(
+      `<staff expert_id="${escapeXml(result.spec.expertId)}" name="${escapeXml(result.spec.expertName)}" phase="${result.spec.phase}" focus="${result.spec.focus}" required_for_completion="${String(result.spec.requiredForCompletion)}"${lane}${division}${reason}/>`,
+    );
+  }
+  lines.push('</staffing>');
+
   for (const result of rendered) {
     const agentId = result.agentId === undefined ? '' : ` agent_id="${result.agentId}"`;
     const state = result.state === undefined ? '' : ` state="${result.state}"`;
@@ -449,7 +469,9 @@ export function buildInitialSpecs(input: {
       emoji: assignment.emoji,
       color: assignment.color,
       coverageLane: assignment.coverageLane,
-      selectionReason: assignment.selectionReason,
+      // Staffing audit (T4-7a): every expert carries a non-empty selection
+      // reason so auto-selected teams log why each specialist was chosen.
+      selectionReason: assignment.selectionReason ?? defaultSelectionReason(assignment, phase),
       runId: input.runId,
       // focus=full no longer marks every expert completion-critical; only required
       // ids, review-phase experts, and review-only focus do.
@@ -460,6 +482,15 @@ export function buildInitialSpecs(input: {
       workNodeIds: expertCount === 0 ? [] : (ownership[index] ?? []),
     };
   });
+}
+
+function defaultSelectionReason(assignment: ExpertAssignment, phase: string): string {
+  const lane =
+    assignment.coverageLane === undefined ? phase : `${phase}/${assignment.coverageLane}`;
+  const division = assignment.division ?? assignment.divisionLabel;
+  return division === undefined
+    ? `Catalog match for ${lane} coverage.`
+    : `Catalog match for ${lane} coverage (${division}).`;
 }
 
 /**
