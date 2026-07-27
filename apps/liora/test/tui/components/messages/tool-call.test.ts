@@ -2081,4 +2081,210 @@ describe('ToolCallComponent motion cues', () => {
     expect(component.render(100)).toEqual(flashed);
     expect(strip(flashed.join('\n'))).toContain(`${STATUS_BULLET}Used Read`);
   });
+
+  describe('staged Write/Edit preview reveal', () => {
+    // Collapsed previews cap at COMMAND_PREVIEW_LINES (4) + the "more lines"
+    // footer, so the settled Write preview below is 5 reveal items.
+    const revealLines = Array.from(
+      { length: 12 },
+      (_, i) => `const revealValue${String(i + 1)} = ${String(i + 1)};`,
+    );
+
+    function writePreviewArgs(): Record<string, unknown> {
+      return { file_path: 'reveal-demo.ts', content: revealLines.join('\n') };
+    }
+
+    it('shows a strict subset of lines at t0 and all lines after the cap (premium)', () => {
+      const start = Date.now();
+      advanceAppearanceAnimationClock(start);
+      const component = new ToolCallComponent(
+        { id: 'call_reveal_write', name: 'Write', args: writePreviewArgs() },
+        undefined,
+      );
+
+      const t0 = strip(component.render(100).join('\n'));
+      expect(t0).toContain('revealValue1');
+      expect(t0).not.toContain('revealValue3');
+      expect(t0).not.toContain('more lines');
+
+      // Mid-window: grown past the first line, still inside the 400ms cap.
+      vi.setSystemTime(new Date(start + 120));
+      advanceAppearanceAnimationClock(Date.now());
+      const mid = strip(component.render(100).join('\n'));
+      expect(mid).toContain('revealValue3');
+      expect(mid).not.toContain('more lines');
+
+      // Past the premium cap: every preview line plus the collapsed footer.
+      vi.setSystemTime(new Date(start + 450));
+      advanceAppearanceAnimationClock(Date.now());
+      const settled = strip(component.render(100).join('\n'));
+      expect(settled).toContain('revealValue4');
+      expect(settled).toContain('more lines');
+    });
+
+    it('reveals Edit diff rows in stages and settles to the full diff (premium)', () => {
+      const start = Date.now();
+      advanceAppearanceAnimationClock(start);
+      const oldLines = Array.from({ length: 6 }, (_, i) => `old-row-${String(i + 1)}`);
+      const newLines = Array.from({ length: 6 }, (_, i) => `new-row-${String(i + 1)}`);
+      const component = new ToolCallComponent(
+        {
+          id: 'call_reveal_edit',
+          name: 'Edit',
+          args: {
+            file_path: 'reveal-demo.ts',
+            old_string: oldLines.join('\n'),
+            new_string: newLines.join('\n'),
+          },
+        },
+        undefined,
+      );
+
+      // t0: only the diff meta header row (+6 -6 <path>) has staged in.
+      const t0 = strip(component.render(100).join('\n'));
+      expect(t0).toContain('+6 -6 reveal-demo.ts');
+      expect(t0).not.toContain('row-1');
+      expect(t0).not.toContain('row-6');
+
+      vi.setSystemTime(new Date(start + 450));
+      advanceAppearanceAnimationClock(Date.now());
+      const settled = strip(component.render(100).join('\n'));
+      expect(settled).toContain('old-row-6');
+      expect(settled).toContain('new-row-6');
+    });
+
+    it('bytes after the reveal equal the no-animation bytes', () => {
+      const start = Date.now();
+      advanceAppearanceAnimationClock(start);
+      const animated = new ToolCallComponent(
+        { id: 'call_reveal_bytes', name: 'Write', args: writePreviewArgs() },
+        undefined,
+      );
+      animated.setResult({
+        tool_call_id: 'call_reveal_bytes',
+        output: 'Wrote reveal-demo.ts',
+        is_error: false,
+      });
+
+      // Past reveal (400ms), entrance wash (560ms) and settle flash (420ms).
+      vi.setSystemTime(new Date(start + 1500));
+      advanceAppearanceAnimationClock(Date.now());
+      const settledBytes = animated.render(100);
+
+      // Same card with ambient motion off renders the identical bytes.
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off' as const,
+        particles: 'off' as const,
+      });
+      expect(animated.render(100)).toEqual(settledBytes);
+
+      // A fresh history card rendered with motion off builds the same
+      // preview lines the animated card settled on.
+      const previewLines = (lines: readonly string[]): string[] =>
+        lines.filter((line) => {
+          const plain = strip(line);
+          return plain.includes('revealValue') || plain.includes('more lines');
+        });
+      const staticCard = new ToolCallComponent(
+        { id: 'call_reveal_bytes_static', name: 'Write', args: writePreviewArgs() },
+        {
+          tool_call_id: 'call_reveal_bytes_static',
+          output: 'Wrote reveal-demo.ts',
+          is_error: false,
+        },
+      );
+      expect(previewLines(settledBytes)).toEqual(previewLines(staticCard.render(100)));
+    });
+
+    it('quality off renders the full preview immediately', () => {
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off' as const,
+        particles: 'off' as const,
+      });
+      const start = Date.now();
+      advanceAppearanceAnimationClock(start);
+      const component = new ToolCallComponent(
+        { id: 'call_reveal_off', name: 'Write', args: writePreviewArgs() },
+        undefined,
+      );
+
+      const t0 = strip(component.render(100).join('\n'));
+      expect(t0).toContain('revealValue4');
+      expect(t0).toContain('more lines');
+    });
+
+    it('history/resume cards never reveal even under premium motion', () => {
+      const start = Date.now();
+      advanceAppearanceAnimationClock(start);
+      const component = new ToolCallComponent(
+        { id: 'call_reveal_history', name: 'Write', args: writePreviewArgs() },
+        {
+          tool_call_id: 'call_reveal_history',
+          output: 'Wrote reveal-demo.ts',
+          is_error: false,
+        },
+      );
+
+      const t0 = strip(component.render(100).join('\n'));
+      expect(t0).toContain('revealValue4');
+      expect(t0).toContain('more lines');
+    });
+
+    it('remounting the same tool call does not restart the reveal', () => {
+      const start = Date.now();
+      advanceAppearanceAnimationClock(start);
+      const first = new ToolCallComponent(
+        { id: 'call_reveal_remount', name: 'Write', args: writePreviewArgs() },
+        undefined,
+      );
+      const t0 = strip(first.render(100).join('\n'));
+      expect(t0).toContain('revealValue1');
+      expect(t0).not.toContain('revealValue3');
+
+      // A remount mid-window (e.g. a streaming-delta rebuild) inherits the
+      // first-seen clock instead of collapsing back to the first line.
+      vi.setSystemTime(new Date(start + 200));
+      advanceAppearanceAnimationClock(Date.now());
+      const remounted = new ToolCallComponent(
+        { id: 'call_reveal_remount', name: 'Write', args: writePreviewArgs() },
+        undefined,
+      );
+      const mid = strip(remounted.render(100).join('\n'));
+      expect(mid).toContain('revealValue4');
+      expect(mid).toContain('more lines');
+    });
+
+    it('starts the reveal when streaming arguments settle, not per delta', () => {
+      const start = Date.now();
+      advanceAppearanceAnimationClock(start);
+      const component = new ToolCallComponent(
+        {
+          id: 'call_reveal_settle',
+          name: 'Write',
+          args: {},
+          streamingArguments: '{"file_path": "reveal-demo.ts", "content": "const partialLine = 1;',
+        },
+        undefined,
+      );
+      expect(strip(component.render(100).join('\n'))).toContain('partialLine');
+
+      // Args finalize: the settled preview mounts under a fresh reveal clock.
+      component.updateToolCall({
+        id: 'call_reveal_settle',
+        name: 'Write',
+        args: writePreviewArgs(),
+      });
+      const settledT0 = strip(component.render(100).join('\n'));
+      expect(settledT0).toContain('revealValue1');
+      expect(settledT0).not.toContain('revealValue3');
+
+      vi.setSystemTime(new Date(start + 450));
+      advanceAppearanceAnimationClock(Date.now());
+      const grown = strip(component.render(100).join('\n'));
+      expect(grown).toContain('revealValue4');
+      expect(grown).toContain('more lines');
+    });
+  });
 });

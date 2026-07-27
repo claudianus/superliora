@@ -171,6 +171,30 @@ export function computeRevealAdvance(options: {
 }
 
 /**
+ * Staged line reveal — time-bounded entrance for a settled block of lines.
+ *
+ * Grows the visible line count from 1 to `totalLines` over `durationMs` on
+ * the same ease-out curve as catch-up reveal, so a finished Write/Edit
+ * preview stages in instead of appearing all at once. Pure and total-bounded:
+ * `durationMs <= 0` (ambient motion off) or elapsed time past the cap returns
+ * every line, keeping the no-animation path byte-identical.
+ */
+export function computeStagedLineReveal(options: {
+  readonly totalLines: number;
+  readonly elapsedMs: number;
+  readonly durationMs: number;
+}): number {
+  const total = Math.max(0, Math.floor(options.totalLines));
+  if (total <= 0) return 0;
+  if (options.durationMs <= 0) return total;
+  const elapsed = Math.max(0, options.elapsedMs);
+  if (elapsed >= options.durationMs) return total;
+  const eased = Easing.easeOutCubic(elapsed / options.durationMs);
+  // Always lead with the first line so the block never mounts empty.
+  return Math.max(1, Math.min(total, Math.ceil(total * eased)));
+}
+
+/**
  * Advance the visible cursor by one animation tick.
  * Returns a new state; does not mutate the input.
  */

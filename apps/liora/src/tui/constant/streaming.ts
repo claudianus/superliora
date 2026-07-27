@@ -54,3 +54,16 @@ export const STREAM_REVEAL_CARET = '▌';
 
 /** How long the caret blinks on after each advance (ms). */
 export const STREAM_REVEAL_CARET_ON_MS = 110;
+
+// ---------------------------------------------------------------------------
+// Staged line reveal (settled Write/Edit preview entrance)
+// A finished tool preview grows line-by-line instead of dumping at once.
+// The whole entrance is time-bounded so long previews never wait on line
+// count; subtle stretches the same ease so it reads calmer, not shorter.
+// ---------------------------------------------------------------------------
+
+/** Total time budget for a settled tool preview to grow all of its lines. */
+export const STAGED_LINE_REVEAL_MS_PREMIUM = 400;
+
+/** Subtle profile duration — the premium curve stretched ×1.3. */
+export const STAGED_LINE_REVEAL_MS_SUBTLE = 520;

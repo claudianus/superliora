@@ -31,6 +31,8 @@ import {
   THINKING_PREVIEW_LINES,
 } from '#/tui/constant/rendering';
 import {
+  STAGED_LINE_REVEAL_MS_PREMIUM,
+  STAGED_LINE_REVEAL_MS_SUBTLE,
   STREAMING_ARGS_FIELD_RE,
   STREAMING_ARGS_PREVIEW_MAX_CHARS,
 } from '#/tui/constant/streaming';
@@ -55,11 +57,13 @@ import {
   renderPhaseChip,
   renderPulseText,
   renderToneSettleFlash,
+  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
   type MotionToolPhase,
 } from '#/tui/utils/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
+import { computeStagedLineReveal } from '#/tui/utils/streaming-text-reveal';
 import {
   applyToolHeaderEntrance,
   isTranscriptEntranceActive,
@@ -122,6 +126,41 @@ function toolHeaderEntranceStartedAt(toolCallId: string): number {
     toolHeaderFirstSeenMs.set(toolCallId, seen);
   }
   return seen;
+}
+
+/**
+ * First-seen timestamps for the staged preview reveal keyed by toolCallId.
+ * The settled Write/Edit preview is rebuilt whenever streaming args finalize
+ * or the result lands; the registry pins the reveal start to the first
+ * settled build so those rebuilds grow the preview in place instead of
+ * replaying the entrance. Same bounded-map sweep as the header registry.
+ */
+const previewRevealFirstSeenMs = new Map<string, number>();
+const PREVIEW_REVEAL_FIRST_SEEN_MAX_ENTRIES = 128;
+
+function previewRevealStartedAt(toolCallId: string): number {
+  const now = appearanceAnimationNow();
+  if (previewRevealFirstSeenMs.size >= PREVIEW_REVEAL_FIRST_SEEN_MAX_ENTRIES) {
+    // Generous expiry: the longest subtle-mode reveal plus margin.
+    const ttl = STAGED_LINE_REVEAL_MS_SUBTLE * 4;
+    for (const [id, seen] of previewRevealFirstSeenMs) {
+      if (now - seen > ttl) previewRevealFirstSeenMs.delete(id);
+    }
+  }
+  let seen = previewRevealFirstSeenMs.get(toolCallId);
+  if (seen === undefined) {
+    seen = now;
+    previewRevealFirstSeenMs.set(toolCallId, seen);
+  }
+  return seen;
+}
+
+/** Staged preview reveal TTL (0 when ambient motion is off; subtle stretches). */
+function stagedPreviewRevealDurationMs(): number {
+  const appearance = getActiveAppearancePreferences();
+  if (!shouldRenderAmbientEffects(appearance)) return 0;
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  return mode === 'subtle' ? STAGED_LINE_REVEAL_MS_SUBTLE : STAGED_LINE_REVEAL_MS_PREMIUM;
 }
 
 type SubagentTextKind = 'thinking' | 'text';
@@ -589,6 +628,17 @@ export class ToolCallComponent extends Container {
   private currentPlan: string | undefined;
   private headerText: Text;
   private callPreviewEndIndex = 0;
+  /**
+   * Staged preview reveal state. Cards constructed with a result already
+   * present (history/resume) never reveal; live cards grow the settled
+   * Write/Edit preview over the shared animation clock. `previewItemTotal`
+   * is the full item count of the current settled preview (0 while the
+   * streaming preview path or a non-preview tool owns the body) and
+   * `builtPreviewItemCount` is how many of those the last build added.
+   */
+  private readonly previewRevealEligible: boolean;
+  private previewItemTotal = 0;
+  private builtPreviewItemCount = 0;
 
   // ── Subagent state ───────────────────────────────────────────────
   //
@@ -707,6 +757,7 @@ export class ToolCallComponent extends Container {
     super();
     this.toolCall = toolCall;
     this.result = result;
+    this.previewRevealEligible = result === undefined;
     if (result !== undefined) {
       this.finishedAtMs = Date.now();
     }
@@ -758,6 +809,8 @@ export class ToolCallComponent extends Container {
     ) {
       return true;
     }
+    // Staged preview reveal still growing the settled Write/Edit preview.
+    if (this.isPreviewRevealActive()) return true;
     return isTranscriptEntranceActive(this.entranceStartedAtMs);
   }
 
@@ -806,6 +859,23 @@ export class ToolCallComponent extends Container {
    */
   private tickClockDrivenRefresh(): void {
     const now = appearanceAnimationNow();
+
+    // Staged reveal of the settled Write/Edit preview: grow the preview block
+    // line-by-line until the time budget is spent (PREMIUM.md §7.1). Only the
+    // preview block rebuilds, and only when the visible count actually
+    // changed, so the result body below keeps its cached encoding.
+    if (this.isPreviewRevealActive()) {
+      const startedAtMs = previewRevealFirstSeenMs.get(this.toolCall.id) ?? now;
+      const visible = computeStagedLineReveal({
+        totalLines: this.previewItemTotal,
+        elapsedMs: now - startedAtMs,
+        durationMs: stagedPreviewRevealDurationMs(),
+      });
+      if (visible !== this.builtPreviewItemCount) {
+        this.rebuildCallPreviewBlock();
+        this.ui?.requestRender();
+      }
+    }
 
     // Streaming-edit progress + live duration chip for long-running tools.
     const shouldTickToolProgress =
@@ -2202,6 +2272,8 @@ export class ToolCallComponent extends Container {
   }
 
   private buildCallPreview(): void {
+    this.previewItemTotal = 0;
+    this.builtPreviewItemCount = 0;
     const name = this.toolCall.name;
     if (name === 'ExitPlanMode') {
       this.buildPlanPreview();
@@ -2252,12 +2324,13 @@ export class ToolCallComponent extends Container {
       });
       const shown = preview.lines;
       const remaining = preview.hiddenLineCount;
+      const previewItems: Text[] = [];
       for (const [i, line] of shown.entries()) {
         const lineNum = currentTheme.dim(String(preview.startIndex + i + 1).padStart(4) + '  ');
-        this.addChild(new Text(lineNum + line, 2, 0));
+        previewItems.push(new Text(lineNum + line, 2, 0));
       }
       if (writeShouldCap && remaining > 0) {
-        this.addChild(
+        previewItems.push(
           new Text(
             currentTheme.dim(
               `... (${String(remaining)} more lines, ${String(totalLines)} total, ctrl+o to expand)`,
@@ -2267,6 +2340,7 @@ export class ToolCallComponent extends Container {
           ),
         );
       }
+      this.addCallPreviewItems(previewItems);
     } else if (name === 'Edit') {
       const oldStr = str(this.toolCall.args['old_string']);
       const newStr = str(this.toolCall.args['new_string']);
@@ -2278,10 +2352,12 @@ export class ToolCallComponent extends Container {
       });
       const addBg = diffLineBackground('add');
       const delBg = diffLineBackground('delete');
+      const previewItems: Text[] = [];
       for (const row of rows) {
         const bg = row.kind === 'add' ? addBg : row.kind === 'delete' ? delBg : undefined;
-        this.addChild(new Text(row.text, 2, 0, bg));
+        previewItems.push(new Text(row.text, 2, 0, bg));
       }
+      this.addCallPreviewItems(previewItems);
     } else if (name === 'Bash' && this.result === undefined) {
       // While a long-running Bash call is in-flight (args finalized, no result
       // yet), surface its command in the body so the user can see what is
@@ -2296,6 +2372,70 @@ export class ToolCallComponent extends Container {
           commandPreviewLines: this.expanded ? undefined : COMMAND_PREVIEW_LINES,
         }),
       );
+    }
+  }
+
+  /**
+   * Append settled call-preview lines through a brief staged reveal
+   * (PREMIUM.md §7). The first-seen registry pins the reveal clock to the
+   * first settled build of each tool call, so arg-finalize and result
+   * rebuilds grow the preview in place instead of replaying the entrance.
+   * History cards (constructed with a result) and no-motion environments
+   * add every line immediately — byte-identical to the pre-reveal output.
+   */
+  private addCallPreviewItems(items: readonly Text[]): void {
+    if (!this.previewRevealEligible) {
+      for (const item of items) this.addChild(item);
+      this.builtPreviewItemCount = items.length;
+      return;
+    }
+    const durationMs = stagedPreviewRevealDurationMs();
+    if (durationMs <= 0 || items.length <= 1) {
+      for (const item of items) this.addChild(item);
+      this.builtPreviewItemCount = items.length;
+      return;
+    }
+    this.previewItemTotal = items.length;
+    const startedAtMs = previewRevealStartedAt(this.toolCall.id);
+    const visible = computeStagedLineReveal({
+      totalLines: items.length,
+      elapsedMs: appearanceAnimationNow() - startedAtMs,
+      durationMs,
+    });
+    this.builtPreviewItemCount = visible;
+    for (const item of items.slice(0, visible)) this.addChild(item);
+  }
+
+  /**
+   * True while the staged preview reveal still has lines to add. The time
+   * budget only scales how much each tick reveals — the effect stays live
+   * until the final post-cap tick has added the remaining lines, so a
+   * render that lands after the window still completes the preview.
+   */
+  private isPreviewRevealActive(): boolean {
+    if (!this.previewRevealEligible || this.previewItemTotal <= 1) return false;
+    if (this.builtPreviewItemCount >= this.previewItemTotal) return false;
+    const durationMs = stagedPreviewRevealDurationMs();
+    if (durationMs <= 0) return false;
+    return previewRevealFirstSeenMs.has(this.toolCall.id);
+  }
+
+  /**
+   * Rebuild only the call-preview children for the staged reveal tick: the
+   * spacer + header stay, preview lines re-render with the grown visible
+   * count, and every child after the preview (progress, result body,
+   * subagent block) is re-attached untouched so only the preview re-encodes.
+   */
+  private rebuildCallPreviewBlock(): void {
+    this.renderCache.clear();
+    const tail = this.children.splice(this.callPreviewEndIndex);
+    while (this.children.length > 2) {
+      this.children.pop();
+    }
+    this.buildCallPreview();
+    this.callPreviewEndIndex = this.children.length;
+    for (const child of tail) {
+      this.addChild(child);
     }
   }
 
