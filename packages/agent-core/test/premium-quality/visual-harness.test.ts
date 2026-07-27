@@ -47,7 +47,8 @@ describe('Premium Quality guidance composition', () => {
   });
 
   it('keeps sparse guidance visually assertive', () => {
-    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('PRIMARY');
-    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('BrowserScreenshot before done');
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('ultra-premium bar');
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('on demand');
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).not.toContain('picsum.photos');
   });
 });

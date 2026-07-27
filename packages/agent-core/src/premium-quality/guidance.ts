@@ -1,12 +1,10 @@
-import { PREMIUM_VISUAL_SPARSE_CHECKPOINT } from './contract';
 import {
   PREMIUM_QUALITY_HYPE_BANNER,
   PREMIUM_QUALITY_HYPE_MANTRA,
-  PREMIUM_QUALITY_HYPE_SPARSE,
 } from './quality-hype';
 import { PREMIUM_VISUAL_HARNESS } from './visual-harness';
 
-export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
+const PREMIUM_QUALITY_CORE_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
 
 Premium Quality mode is ON. Treat ultra-super-premium, god-tier, world-#1 quality elevation as a continuous, non-negotiable, hyper-obsessive obligation — not a final polish pass.
 
@@ -37,14 +35,29 @@ Methodology (apply actively):
 Execution stance:
 - Propose upgrade paths when they materially improve outcomes; preserve user agency with baseline/defer options.
 - When Premium Quality conflicts with speed, surface the trade-off briefly, then execute the chosen ultra-premium quality bar with brutal relentlessness.
-- Record durable quality decisions in the plan, todos, or evidence ledger — not only in chat.
+- Record durable quality decisions in the plan, todos, or evidence ledger — not only in chat.`;
+
+export const PREMIUM_QUALITY_FULL_GUIDANCE = `${PREMIUM_QUALITY_CORE_GUIDANCE}
 
 ${PREMIUM_VISUAL_HARNESS}`;
 
+/**
+ * Prompt diet (harness reform T2-2): the ~3KB visual harness (rubric,
+ * playbook, refs) is on demand, not re-injected. Sessions keep the core
+ * quality bar plus a pointer to load the full craft guidance via skill.
+ */
+export const PREMIUM_VISUAL_ON_DEMAND_POINTER = [
+  'Premium Visual harness is on demand (T2-2): before first visual markup, SearchSkill → load the best premium frontend/visual skill — art direction, rubric, playbook, and refs live there.',
+  'Do not re-dump the full harness into context; hold the core bar below and verify visible surfaces with a real screenshot.',
+].join('\n');
+
+export const PREMIUM_QUALITY_VISUAL_INJECTION_GUIDANCE = `${PREMIUM_QUALITY_CORE_GUIDANCE}
+
+${PREMIUM_VISUAL_ON_DEMAND_POINTER}`;
+
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
-  'Premium Quality mode still ON — keep elevating visuals (PRIMARY ULTRA GOD-TIER), UX, code, performance, accessibility, and evidence before you claim done.',
-  PREMIUM_QUALITY_HYPE_SPARSE,
-  PREMIUM_VISUAL_SPARSE_CHECKPOINT,
+  'Premium Quality still ON (visual density) — hold the ultra-premium bar on user-visible surfaces; screenshot-verify before claiming done.',
+  'Full craft guidance is on demand: SearchSkill → premium frontend/visual skill before first markup.',
 ].join('\n');
 
 /**
@@ -98,7 +111,9 @@ export function resolvePremiumInjectionDensity(
 }
 
 export function selectPremiumFullGuidance(density: PremiumInjectionDensity): string {
-  return density === 'visual' ? PREMIUM_QUALITY_FULL_GUIDANCE : PREMIUM_QUALITY_CODE_FULL_GUIDANCE;
+  return density === 'visual'
+    ? PREMIUM_QUALITY_VISUAL_INJECTION_GUIDANCE
+    : PREMIUM_QUALITY_CODE_FULL_GUIDANCE;
 }
 
 export function selectPremiumSparseGuidance(density: PremiumInjectionDensity): string {

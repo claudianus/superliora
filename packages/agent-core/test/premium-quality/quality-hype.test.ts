@@ -27,10 +27,9 @@ describe('Premium Quality hype injection', () => {
   });
 
   it('keeps sparse turns quality-pressured with compact god-tier hype', () => {
-    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain(PREMIUM_QUALITY_HYPE_SPARSE);
-    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('ULTRA-SUPER-PREMIUM GOD-TIER');
-    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('screenshot-proof');
-    expect(PREMIUM_QUALITY_HYPE_SPARSE.length).toBeLessThan(280);
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).toContain('Premium Quality still ON');
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE).not.toContain(PREMIUM_QUALITY_HYPE_SPARSE);
+    expect(PREMIUM_QUALITY_SPARSE_GUIDANCE.length).toBeLessThan(280);
   });
 
   it('visual hype directives ban template cowardice and placeholder geometry vibes', () => {

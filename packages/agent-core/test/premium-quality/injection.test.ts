@@ -83,9 +83,9 @@ describe('PremiumQualityInjector', () => {
     expect(text).toContain('principal designer');
     expect(text).toContain('ULTRA SUPER PREMIUM KING-GOD-GENERAL');
     expect(text).toContain('SearchSkill');
-    expect(text).toContain('BrowserScreenshot');
-    expect(text).toContain('godly.website');
-    expect(text).toContain('picsum.photos/seed/');
+    expect(text).toContain('on demand (T2-2)');
+    expect(text).not.toContain('godly.website');
+    expect(text).not.toContain('picsum.photos/seed/');
   });
 
   it('injects code density for non-visual goal objectives', async () => {
@@ -117,8 +117,8 @@ describe('PremiumQualityInjector', () => {
     await injector.inject();
     const text = lastReminder(agent);
     expect(text).toContain(PREMIUM_QUALITY_FULL_GUIDANCE.slice(0, 40));
-    expect(text).toContain('BrowserScreenshot');
-    expect(text).toContain('godly.website');
+    expect(text).toContain('on demand (T2-2)');
+    expect(text).not.toContain('godly.website');
   });
 
   it('injects exit guidance when premium quality turns off', async () => {
