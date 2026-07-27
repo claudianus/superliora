@@ -40,6 +40,8 @@ export type {
   SubagentStartedEvent,
   SubagentSuspendedEvent,
   SubagentTodoUpdatedEvent,
+  SubagentToolCallEvent,
+  SubagentToolResultEvent,
   ThinkingDeltaEvent,
   ToolCallDeltaEvent,
   ToolCallStartedEvent,

@@ -9,6 +9,8 @@ import {
   agentStatusUpdatedEventSchema,
   assistantDeltaEventSchema,
   eventSchema,
+  subagentToolCallEventSchema,
+  subagentToolResultEventSchema,
   toolCallStartedEventSchema,
 } from '../events';
 import type { Event } from '../events';
@@ -594,5 +596,76 @@ describe('agentStatusUpdatedEventSchema', () => {
       },
     });
     expect(withDream.autoDream?.runs).toBe(1);
+  });
+});
+
+describe('subagent tool streaming event schemas', () => {
+  it('round-trips subagent.tool_call through its own schema and the union', () => {
+    const event = {
+      type: 'subagent.tool_call',
+      subagentId: 'agent-0',
+      subagentName: 'coder',
+      parentToolCallId: 'tc-1',
+      runId: 'run-1',
+      toolCallId: 'call-1',
+      name: 'Edit',
+      argsPreview: '{"path":"src/a.ts"}',
+    } as const;
+    expect(subagentToolCallEventSchema.parse(event)).toEqual(event);
+    expect(agentEventSchema.parse(event)).toEqual(event);
+    // Minimal payload (all optional fields omitted) stays valid.
+    expect(
+      agentEventSchema.safeParse({
+        type: 'subagent.tool_call',
+        subagentId: 'agent-0',
+        toolCallId: 'call-2',
+        name: 'Read',
+      }).success,
+    ).toBe(true);
+    expect(
+      subagentToolCallEventSchema.safeParse({ type: 'subagent.tool_call', subagentId: 'agent-0' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('round-trips subagent.tool_result through its own schema and the union', () => {
+    const event = {
+      type: 'subagent.tool_result',
+      subagentId: 'agent-0',
+      runId: 'run-1',
+      toolCallId: 'call-1',
+      name: 'Edit',
+      isError: true,
+      resultPreview: 'error: conflict',
+    } as const;
+    expect(subagentToolResultEventSchema.parse(event)).toEqual(event);
+    expect(agentEventSchema.parse(event)).toEqual(event);
+    expect(
+      agentEventSchema.safeParse({
+        type: 'subagent.tool_result',
+        subagentId: 'agent-0',
+        toolCallId: 'call-2',
+      }).success,
+    ).toBe(true);
+    expect(
+      subagentToolResultEventSchema.safeParse({
+        type: 'subagent.tool_result',
+        toolCallId: 'call-2',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('keeps subagent tool events parseable on the session envelope', () => {
+    const parsed = eventSchema.parse({
+      type: 'subagent.tool_call',
+      subagentId: 'agent-0',
+      toolCallId: 'call-1',
+      name: 'Bash',
+      argsPreview: 'pnpm test',
+      agentId: 'main',
+      sessionId: 'session-0',
+    });
+    expect(parsed.agentId).toBe('main');
+    expect(parsed.sessionId).toBe('session-0');
   });
 });

@@ -34,6 +34,7 @@ import {
   SubagentMaxTokensError,
   isSubagentMaxTokensError,
   type QueuedSubagentTask,
+  type RunSubagentOptions,
 } from '../../src/session/subagent-host';
 import { abortError, userCancellationReason } from '../../src/utils/abort';
 import { testAgent, type AgentTestContext } from '../agent/harness/agent';
@@ -320,6 +321,98 @@ describe('SessionSubagentHost', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('mirrors child tool events as truncated subagent.tool_call / subagent.tool_result', () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+    const child = testAgent();
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+    const options: RunSubagentOptions = {
+      parentToolCallId: 'tc-1',
+      prompt: 'work',
+      description: 'test subagent',
+      runInBackground: true,
+      signal,
+    };
+    const dispose = (
+      host as unknown as {
+        attachToolStreamBridge(
+          parentAgent: Agent,
+          childAgent: Agent,
+          subagentId: string,
+          profileName: string,
+          runOptions: RunSubagentOptions,
+        ): () => void;
+      }
+    ).attachToolStreamBridge(parent.agent, child.agent, 'agent-0', 'coder', options);
+
+    try {
+      child.agent.emitEvent({
+        type: 'tool.call.started',
+        turnId: 1,
+        toolCallId: 'call-1',
+        name: 'Edit',
+        args: { path: 'src/a.ts', blob: 'x'.repeat(600) },
+      });
+      const callEvent = parent.allEvents.find(
+        (entry) => entry.type === '[rpc]' && entry.event === 'subagent.tool_call',
+      );
+      expect(callEvent?.args).toEqual(
+        expect.objectContaining({
+          subagentId: 'agent-0',
+          subagentName: 'coder',
+          parentToolCallId: 'tc-1',
+          toolCallId: 'call-1',
+          name: 'Edit',
+        }),
+      );
+      const argsPreview = (callEvent?.args as { argsPreview?: string } | undefined)?.argsPreview;
+      expect(argsPreview).toContain('src/a.ts');
+      expect(argsPreview?.length).toBeLessThanOrEqual(400);
+      // Single-line preview: the JSON args are flattened, not multi-line.
+      expect(argsPreview).not.toContain('\n');
+
+      child.agent.emitEvent({
+        type: 'tool.result',
+        turnId: 1,
+        toolCallId: 'call-1',
+        output: `failed: ${'y'.repeat(700)}`,
+        isError: true,
+      });
+      const resultEvent = parent.allEvents.find(
+        (entry) => entry.type === '[rpc]' && entry.event === 'subagent.tool_result',
+      );
+      expect(resultEvent?.args).toEqual(
+        expect.objectContaining({
+          subagentId: 'agent-0',
+          toolCallId: 'call-1',
+          name: 'Edit',
+          isError: true,
+        }),
+      );
+      const resultPreview = (resultEvent?.args as { resultPreview?: string } | undefined)
+        ?.resultPreview;
+      expect(resultPreview).toContain('failed:');
+      expect(resultPreview?.length).toBeLessThanOrEqual(500);
+    } finally {
+      dispose();
+    }
+
+    // Disposed bridge stops mirroring child events onto the parent.
+    parent.newEvents();
+    child.agent.emitEvent({
+      type: 'tool.call.started',
+      turnId: 1,
+      toolCallId: 'call-2',
+      name: 'Read',
+      args: {},
+    });
+    expect(parent.newEvents()).not.toContainEqual(
+      expect.objectContaining({ type: '[rpc]', event: 'subagent.tool_call' }),
+    );
   });
 
   it('enters finishing mode when the budget window is reached', async () => {

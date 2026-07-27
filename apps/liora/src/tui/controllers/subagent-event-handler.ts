@@ -12,6 +12,7 @@ import {
   swarmProgressTitleForToolName,
   type UltraSwarmMemberMetadata,
 } from '../components/messages/agent-swarm-progress';
+import { SubagentActivityComponent } from '../components/subagents/subagent-activity';
 import { MAIN_AGENT_ID } from '../constant/liora-tui';
 import type {
   BackgroundAgentMetadata,
@@ -72,6 +73,7 @@ export class SubAgentEventHandler {
   private readonly agentSwarmProgress: Map<string, AgentSwarmProgressComponent> = new Map();
   private readonly ultraSwarmTeamsByToolCallId: Map<string, TeamPlan> = new Map();
   backgroundAgentMetadata: Map<string, BackgroundAgentMetadata> = new Map();
+  private subagentActivityPanel: SubagentActivityComponent | undefined;
 
   constructor(
     private readonly host: SessionEventHost,
@@ -83,6 +85,7 @@ export class SubAgentEventHandler {
     this.ultraSwarmTeamsByToolCallId.clear();
     this.backgroundAgentMetadata.clear();
     this.clearAgentSwarmProgress();
+    this.removeSubagentActivityPanel();
   }
 
   routeChildAgentEvent(event: Event): boolean {
@@ -177,6 +180,79 @@ export class SubAgentEventHandler {
       event.subagentId,
       event.todos.map((todo) => ({ title: todo.title, status: todo.status })),
     );
+    this.requestRender();
+  }
+
+  /**
+   * Live subagent tool feed (Phase 1-A): routes the parent-emitted
+   * `subagent.tool_call` / `subagent.tool_result` events into the background
+   * subagent activity panel. Foreground and swarm-orchestrated subagents are
+   * skipped — their existing surfaces already stream raw child tool events.
+   */
+  handleSubagentToolActivity(
+    event: Extract<Event, { type: 'subagent.tool_call' | 'subagent.tool_result' }>,
+  ): void {
+    const info = this.subagentInfo.get(event.subagentId);
+    if (
+      info !== undefined &&
+      this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
+    ) {
+      return;
+    }
+    if (event.type === 'subagent.tool_call') {
+      const panel = this.ensureSubagentActivityPanel();
+      panel.recordToolCall({
+        subagentId: event.subagentId,
+        subagentName: event.subagentName ?? info?.name,
+        toolCallId: event.toolCallId,
+        name: event.name,
+        argsPreview: event.argsPreview,
+      });
+      return;
+    }
+    const panel = this.subagentActivityPanel;
+    if (panel === undefined) return;
+    panel.recordToolResult({
+      subagentId: event.subagentId,
+      toolCallId: event.toolCallId,
+      name: event.name,
+      isError: event.isError,
+    });
+  }
+
+  private ensureSubagentActivityPanel(): SubagentActivityComponent {
+    const existing = this.subagentActivityPanel;
+    if (existing !== undefined) return existing;
+    const panel = new SubagentActivityComponent({
+      requestRender: () => {
+        this.requestRender();
+      },
+    });
+    this.subagentActivityPanel = panel;
+    this.host.state.transcriptContainer.addChild(panel);
+    this.requestRender();
+    return panel;
+  }
+
+  private removeSubagentActivityPanel(): void {
+    const panel = this.subagentActivityPanel;
+    if (panel === undefined) return;
+    this.subagentActivityPanel = undefined;
+    const children = this.host.state.transcriptContainer.children;
+    const index = children.indexOf(panel);
+    if (index >= 0) {
+      children.splice(index, 1);
+      this.host.state.transcriptContainer.invalidate();
+    }
+  }
+
+  private markSubagentActivityTerminal(
+    subagentId: string,
+    phase: 'completed' | 'failed',
+  ): void {
+    const panel = this.subagentActivityPanel;
+    if (panel === undefined) return;
+    panel.markTerminal(subagentId, phase);
     this.requestRender();
   }
 
@@ -498,6 +574,7 @@ export class SubAgentEventHandler {
       return;
     }
 
+    this.markSubagentActivityTerminal(event.subagentId, 'completed');
     const backgroundMeta = this.backgroundAgentMetadata.get(event.subagentId);
     if (backgroundMeta !== undefined) {
       const taskId = this.findAgentTaskId(
@@ -532,6 +609,7 @@ export class SubAgentEventHandler {
       return;
     }
 
+    this.markSubagentActivityTerminal(event.subagentId, 'failed');
     const backgroundMeta = this.backgroundAgentMetadata.get(event.subagentId);
     if (backgroundMeta !== undefined) {
       const taskId = this.findAgentTaskId(
