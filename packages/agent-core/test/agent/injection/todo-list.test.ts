@@ -185,11 +185,11 @@ describe('TodoListReminderInjector', () => {
     expect(lastReminderText(history)).toContain('TodoList not updated recently');
   });
 
-  it('injects a reminder when 3+ non-TodoList tool calls happen in a single turn', async () => {
+  it('injects a reminder when 3+ mutating tool calls happen in a single turn', async () => {
     const todos: TodoItem[] = [{ title: 'Read code', status: 'in_progress' }];
     const history = [
       todoListWrite(todos),
-      assistantWithToolCalls(['Read', 'Grep', 'Edit']),
+      assistantWithToolCalls(['Edit', 'Write', 'Bash']),
     ];
     const agent = todoAgent({ history, todos, todoListActive: true });
     const injector = new TodoListReminderInjector(agent);
@@ -197,6 +197,20 @@ describe('TodoListReminderInjector', () => {
     await injector.inject();
 
     expect(lastReminderText(history)).toContain('TodoList not updated recently');
+  });
+
+  it('does not count read-only exploration calls toward the reminder threshold', async () => {
+    const todos: TodoItem[] = [{ title: 'Read code', status: 'in_progress' }];
+    const history = [
+      todoListWrite(todos),
+      assistantWithToolCalls(['Read', 'Grep', 'Glob', 'LioraRead', 'WebSearch']),
+    ];
+    const agent = todoAgent({ history, todos, todoListActive: true });
+    const injector = new TodoListReminderInjector(agent);
+
+    await injector.inject();
+
+    expect(history).toHaveLength(2);
   });
 
   it('does not inject a reminder for only 2 non-TodoList tool calls in one turn', async () => {

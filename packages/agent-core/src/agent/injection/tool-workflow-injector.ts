@@ -10,8 +10,10 @@ import {
 } from './tool-workflow';
 
 /**
- * Full contract after first need / real user prompt; sparse checkpoints every
- * few assistant turns so long loops do not forget SearchSkill / WebSearch.
+ * Full contract on first need or capability change; sparse checkpoints on a
+ * real user prompt and every few assistant turns so long loops do not forget
+ * SearchSkill / WebSearch. The system prompt already carries the full
+ * contract, so later re-injections stay sparse.
  */
 const TOOL_WORKFLOW_SPARSE_REFRESH_TURNS = 3;
 
@@ -39,19 +41,17 @@ export class ToolWorkflowInjector extends DynamicInjector {
       return buildToolWorkflowGuidance(cap);
     }
 
-    const variant = this.getVariant();
-    if (variant === null) return undefined;
+    if (!this.shouldEmitSparseCheckpoint()) return undefined;
     this.lastCapKey = capKey;
-    return variant === 'full'
-      ? buildToolWorkflowGuidance(cap)
-      : buildToolWorkflowSparseGuidance(cap);
+    return buildToolWorkflowSparseGuidance(cap);
   }
 
-  private getVariant(): 'full' | 'sparse' | null {
-    if (this.injectedAt === null) return 'full';
+  private shouldEmitSparseCheckpoint(): boolean {
+    const anchor = this.injectedAt;
+    if (anchor === null) return true;
     const history = this.agent.context.history;
     let assistantTurnsSince = 0;
-    for (let i = this.injectedAt + 1; i < history.length; i++) {
+    for (let i = anchor + 1; i < history.length; i++) {
       const msg = history[i];
       if (msg === undefined) continue;
       if (msg.role === 'assistant') {
@@ -59,11 +59,10 @@ export class ToolWorkflowInjector extends DynamicInjector {
         continue;
       }
       if (msg.role === 'user' && isRealUserPromptOrigin(msg.origin)) {
-        return 'full';
+        return true;
       }
     }
-    if (assistantTurnsSince >= TOOL_WORKFLOW_SPARSE_REFRESH_TURNS) return 'sparse';
-    return null;
+    return assistantTurnsSince >= TOOL_WORKFLOW_SPARSE_REFRESH_TURNS;
   }
 }
 

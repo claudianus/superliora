@@ -9,6 +9,9 @@ const buildAgent = (toolNames: string[]): Agent =>
     context: { history: [] },
   }) as unknown as Agent;
 
+const callGetInjection = (injector: ToolWorkflowInjector): string | undefined =>
+  (injector as unknown as { getInjection(): string | undefined }).getInjection();
+
 const userMessage = { role: 'user', origin: { kind: 'user', source: 'user' }, content: [{ type: 'text', text: 'hi' }] } as const;
 const assistantMessage = { role: 'assistant', content: [{ type: 'text', text: 'ok' }] } as const;
 
@@ -29,6 +32,22 @@ describe('agent/injection/tool-workflow-injector — getInjection', () => {
     expect(injector.getInjection()).toBeDefined();
     injector.onContextClear();
     expect(injector.getInjection()).toBeDefined();
+  });
+
+  it('keeps re-injection sparse after a real user prompt (full contract stays in the system prompt)', () => {
+    const first = new ToolWorkflowInjector(buildAgent(['LioraRead']));
+    expect(callGetInjection(first)).toContain('Tool / Skill / Research Workflow');
+
+    const agent = {
+      tools: { loopTools: [{ name: 'LioraRead' }] },
+      context: { history: [assistantMessage, userMessage] },
+    } as unknown as Agent;
+    const injector = new ToolWorkflowInjector(agent);
+    callGetInjection(injector); // primes the capability key (full contract)
+    (injector as unknown as { injectedAt: number }).injectedAt = 0;
+    const afterPrompt = callGetInjection(injector);
+    expect(afterPrompt).toBeDefined();
+    expect(afterPrompt).not.toContain('Tool / Skill / Research Workflow');
   });
 
   it('returns sparse guidance after a few assistant turns with the same capability', () => {

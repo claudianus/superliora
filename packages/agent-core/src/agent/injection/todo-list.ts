@@ -71,18 +71,18 @@ function getTodoListReminderCounts(
     if (message === undefined) continue;
 
     if (message.role === 'assistant') {
-      const nonTodoCalls = countNonTodoToolCalls(message);
+      const mutatingCalls = countMutatingToolCalls(message);
       if (!foundWrite) {
         if (hasTodoListWrite(message)) {
           foundWrite = true;
         } else {
           turnsSinceLastWrite += 1;
-          callsSinceLastWrite += nonTodoCalls;
+          callsSinceLastWrite += mutatingCalls;
         }
       }
       if (!foundReminder) {
         turnsSinceLastReminder += 1;
-        callsSinceLastReminder += nonTodoCalls;
+        callsSinceLastReminder += mutatingCalls;
       }
       continue;
     }
@@ -102,10 +102,40 @@ function getTodoListReminderCounts(
   };
 }
 
-function countNonTodoToolCalls(message: ContextMessage): number {
+/**
+ * Observe-only tools. Pure exploration turns should not advance the
+ * "board is stale" call counters — only calls that can change state count.
+ */
+const READ_ONLY_TOOL_NAMES = new Set([
+  'Read',
+  'ReadMediaFile',
+  'Grep',
+  'Glob',
+  'LioraRead',
+  'LioraSymbol',
+  'LioraTree',
+  'LioraCallgraph',
+  'LioraExpand',
+  'WebSearch',
+  'FetchURL',
+  'Context7Resolve',
+  'Context7Docs',
+  'SearchSkill',
+  'SearchTools',
+  'SearchExpert',
+  'TaskList',
+  'TaskOutput',
+  'GetCurrentTime',
+  'GetGoal',
+  'AskUserQuestion',
+]);
+
+function countMutatingToolCalls(message: ContextMessage): number {
   let count = 0;
   for (const toolCall of message.toolCalls) {
-    if (toolCall.name !== TODO_LIST_TOOL_NAME) count += 1;
+    if (toolCall.name === TODO_LIST_TOOL_NAME) continue;
+    if (READ_ONLY_TOOL_NAMES.has(toolCall.name)) continue;
+    count += 1;
   }
   return count;
 }

@@ -131,7 +131,7 @@ describe('ToolWorkflowInjector', () => {
     expect(lastText(agent)).toContain('Tool workflow still ON');
   });
 
-  it('re-injects full guidance after a real user prompt', async () => {
+  it('re-injects sparse guidance after a real user prompt', async () => {
     const agent = workflowAgent();
     const injector = new ToolWorkflowInjector(agent);
     await injector.inject();
@@ -142,7 +142,8 @@ describe('ToolWorkflowInjector', () => {
     });
     await injector.inject();
     expect(history(agent)).toHaveLength(3);
-    expect(lastText(agent)).toContain('MANDATORY');
+    expect(lastText(agent)).toContain('Tool workflow still ON');
+    expect(lastText(agent)).not.toContain('Tool / Skill / Research Workflow');
   });
 
   it('skips when no workflow-relevant tools are active', async () => {
