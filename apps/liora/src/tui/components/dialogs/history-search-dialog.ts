@@ -91,7 +91,9 @@ export class HistorySearchDialogComponent extends Container implements Focusable
       const entry = items[i]!;
       const isSelected = i === view.selectedIndex;
       const pointer = isSelected ? renderSelectPointer('history:pointer') : ' ';
-      const prefix = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
+      const tone = isSelected ? 'primary' : 'textDim';
+      // Pointer is already ambient-styled; do not wrap it in chalk again.
+      const prefix = currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
       const maxEntryWidth = Math.max(1, width - 5);
       const displayEntry =
         visibleWidth(entry) <= maxEntryWidth ? entry : truncateToWidth(entry, maxEntryWidth, '…');

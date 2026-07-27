@@ -197,8 +197,10 @@ export class ErrorNavigatorComponent extends Container implements Focusable {
 
   private renderRow(item: TranscriptErrorItem, selected: boolean, innerWidth: number): string {
     const t = currentTheme;
-    const pointer = selected ? `${renderSelectPointer('error-navigator:pointer')} ` : '  ';
-    const pointerStyled = t.fg(selected ? 'primary' : 'textDim', pointer);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const pointerStyled = selected
+      ? `${renderSelectPointer('error-navigator:pointer')} `
+      : t.fg('textDim', '  ');
     const indexLabel = t.fg('textMuted', `#${String(item.index + 1)}`);
 
     let left: string;

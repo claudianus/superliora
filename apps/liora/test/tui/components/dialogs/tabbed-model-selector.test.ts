@@ -11,6 +11,7 @@ import { darkColors, lightColors } from '#/tui/theme/colors';
 
 const ESC = String.fromCodePoint(27);
 const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, 'g');
+const LEAKED_SGR_BODY = /(?<!\u001B)\[[0-9;]*38;2/;
 const strip = (s: string): string => s.replaceAll(SGR, '');
 const TAB = '\t';
 const RIGHT = `${ESC}[C`;
@@ -133,5 +134,11 @@ describe('TabbedModelSelectorComponent', () => {
     expect(hint).toContain('Tab toggle provider');
     // It comes first, before the navigation hint.
     expect(hint!.indexOf('Tab toggle provider')).toBeLessThan(hint!.indexOf('↑↓ navigate'));
+  });
+
+  it('never emits ESC-stripped SGR bodies in render output', () => {
+    const raw = make().component.render(120).join('\n');
+    expect(raw).toContain('\u001B[');
+    expect(raw).not.toMatch(LEAKED_SGR_BODY);
   });
 });

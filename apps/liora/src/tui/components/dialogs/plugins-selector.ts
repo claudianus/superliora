@@ -134,7 +134,9 @@ export class PluginMcpSelectorComponent extends Container implements Focusable {
     const selected = index === this.selectedIndex;
     const pointer = selected ? renderSelectPointer('plugins:pointer') : ' ';
     const labelStyle = selected ? chalk.hex(colors.primary).bold : chalk.hex(colors.text);
-    const prefix = chalk.hex(selected ? colors.primary : colors.textDim)(`  ${pointer} `);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const tone = selected ? colors.primary : colors.textDim;
+    const prefix = chalk.hex(tone)('  ') + pointer + chalk.hex(tone)(' ');
     let line = prefix + labelStyle(item.label);
     if (item.status !== undefined) {
       line += '  ' + statusStyle(item, colors)(item.status);
@@ -601,7 +603,9 @@ export class PluginsPanelComponent extends Container implements Focusable {
     const selected = index === this.selectedIndex;
     const pointer = selected ? renderSelectPointer('plugins:pointer') : ' ';
     const labelStyle = selected ? chalk.hex(colors.primary).bold : chalk.hex(colors.text);
-    const prefix = chalk.hex(selected ? colors.primary : colors.textDim)(`  ${pointer} `);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const tone = selected ? colors.primary : colors.textDim;
+    const prefix = chalk.hex(tone)('  ') + pointer + chalk.hex(tone)(' ');
     const status = pluginStatus(plugin);
     const update = this.installedUpdateStatus(plugin);
     let line = prefix + labelStyle(plugin.displayName);
@@ -666,7 +670,9 @@ export class PluginsPanelComponent extends Container implements Focusable {
     const selected = index === this.selectedIndex;
     const pointer = selected ? renderSelectPointer('plugins:pointer') : ' ';
     const labelStyle = selected ? chalk.hex(colors.primary).bold : chalk.hex(colors.text);
-    const prefix = chalk.hex(selected ? colors.primary : colors.textDim)(`  ${pointer} `);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const tone = selected ? colors.primary : colors.textDim;
+    const prefix = chalk.hex(tone)('  ') + pointer + chalk.hex(tone)(' ');
     const status = marketplaceEntryStatus(entry, this.installedVersions);
     const line =
       prefix + labelStyle(entry.displayName) + '  ' + marketplaceStatusStyle(status, colors)(status);

@@ -223,8 +223,10 @@ export class SearchResultsComponent extends Container implements Focusable {
       const header = t.fg('textMuted', `  ${row.path} (${String(row.count)})`);
       return fitLine(header, innerWidth);
     }
-    const pointer = selected ? `${renderSelectPointer('search:pointer')} ` : '  ';
-    const pointerStyled = t.fg(selected ? 'primary' : 'textDim', pointer);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const pointerStyled = selected
+      ? `${renderSelectPointer('search:pointer')} `
+      : t.fg('textDim', '  ');
     const lineNum = t.fg('textMuted', String(row.match.line).padStart(this.gutterWidth, ' '));
     const text = selected
       ? t.boldFg('primary', row.match.text)

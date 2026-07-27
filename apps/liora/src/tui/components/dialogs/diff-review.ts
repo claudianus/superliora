@@ -270,8 +270,10 @@ export class DiffReviewComponent extends Container implements Focusable {
 
   private renderFileRow(file: GitDiffFile, selected: boolean, innerWidth: number): string {
     const t = currentTheme;
-    const pointer = selected ? `${renderSelectPointer('diff-review:pointer')} ` : '  ';
-    const pointerStyled = t.fg(selected ? 'primary' : 'textDim', pointer);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const pointerStyled = selected
+      ? `${renderSelectPointer('diff-review:pointer')} `
+      : t.fg('textDim', '  ');
     const glyph = t.boldFg(STATUS_TOKEN[file.status], STATUS_GLYPH[file.status]);
 
     const addedText = t.fg(

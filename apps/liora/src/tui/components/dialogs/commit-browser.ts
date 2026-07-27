@@ -183,8 +183,10 @@ export class CommitBrowserComponent extends Container implements Focusable {
 
   private renderRow(commit: GitLogCommit, selected: boolean, innerWidth: number): string {
     const t = currentTheme;
-    const pointer = selected ? `${renderSelectPointer('commit-browser:pointer')} ` : '  ';
-    const pointerStyled = t.fg(selected ? 'primary' : 'textDim', pointer);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const pointerStyled = selected
+      ? `${renderSelectPointer('commit-browser:pointer')} `
+      : t.fg('textDim', '  ');
     const hashStyled = t.fg('accent', commit.hash.slice(0, 7));
 
     const addedText = t.fg(

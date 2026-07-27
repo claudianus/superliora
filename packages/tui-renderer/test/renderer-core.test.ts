@@ -800,6 +800,36 @@ describe('renderer overlays', () => {
     expect(regionLineText(region!.content[1]!)).toContain('+3 more');
   });
 
+  it('parses chalk SGR body lines instead of leaking escape bodies as glyphs', () => {
+    // Dock/status overlays may pass chalk truecolor strings. textToCells used
+    // to drop ESC (width 0) and leave `[38;2…m` visible in the panel body.
+    const chalkLine =
+      '\u001B[38;2;61;155;255m\u001B[1mmain\u001B[22m\u001B[39m \u001B[38;2;90;90;90m[+2]\u001B[39m';
+    const region = createRendererOverlayPanelRegion({
+      viewport: { x: 0, y: 0, width: 40, height: 10 },
+      title: 'Git',
+      lines: [chalkLine],
+      width: 24,
+      placement: 'top-right',
+      style: {
+        container: { fg: '#dddddd', bg: '#111111' },
+        border: { fg: '#77aaff' },
+        body: { fg: '#cccccc', bg: '#111111' },
+      },
+    });
+
+    expect(region).toBeDefined();
+    const body = regionLineText(region!.content[1]!);
+    expect(body).toContain('main');
+    expect(body).toContain('[+2]');
+    expect(body).not.toMatch(/(?<!\u001B)\[[0-9;]*38;2/);
+    expect(body).not.toContain('38;2;61;155;255');
+    const bodyCells = region!.content[1] as readonly RendererCell[];
+    const mainCell = bodyCells.find((cell) => cell.char === 'm');
+    expect(mainCell?.style?.fg).toBe('#3d9bff');
+    expect(mainCell?.style?.bold).toBe(true);
+  });
+
   it('creates severity-styled diagnostics overlay regions', () => {
     const stats = new NativeFrameStats({ windowSize: 4 });
     stats.record(frameMetrics({ durationMs: 16, targetFrameMs: 10, outputBytes: 70_000 }));

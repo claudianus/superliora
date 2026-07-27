@@ -98,7 +98,9 @@ export class TranscriptSearchDialogComponent extends Container implements Focusa
       const entry = items[i]!;
       const isSelected = i === view.selectedIndex;
       const pointer = isSelected ? renderSelectPointer('transcript:pointer') : ' ';
-      const prefix = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
+      const tone = isSelected ? 'primary' : 'textDim';
+      // Pointer is already ambient-styled; do not wrap it in chalk again.
+      const prefix = currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
       const maxTextWidth = Math.max(1, width - 5);
       const displayText =
         visibleWidth(entry.text) <= maxTextWidth

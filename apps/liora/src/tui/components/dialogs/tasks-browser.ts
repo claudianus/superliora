@@ -467,8 +467,10 @@ export class TasksBrowserApp extends Container implements Focusable {
   }
 
   private renderListRow(task: BackgroundTaskInfo, selected: boolean, innerWidth: number): string {
-    const pointer = selected ? `${renderSelectPointer('tasks:pointer')} ` : '  ';
-    const pointerStyled = currentTheme.fg(selected ? 'primary' : 'textDim', pointer);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const pointerStyled = selected
+      ? `${renderSelectPointer('tasks:pointer')} `
+      : currentTheme.fg('textDim', '  ');
 
     const idColor = selected
       ? 'primary'

@@ -144,7 +144,9 @@ export class GoalQueueManagerComponent extends Container implements Focusable {
   private renderGoal(goal: UpcomingGoal, index: number, selected: boolean, width: number): string {
     const moving = goal.id === this.movingGoalId;
     const pointer = selected ? renderSelectPointer('goal-queue:pointer') : ' ';
-    const prefix = currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `);
+    const tone = selected ? 'primary' : 'textDim';
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const prefix = currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
     const labelPrefix = `${String(index + 1)}. `;
     const stateLabel = moving ? '  selected' : '';
     const labelWidth = visibleWidth(labelPrefix);

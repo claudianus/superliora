@@ -355,7 +355,9 @@ export class SessionPickerComponent extends Container implements Focusable {
     const titleBudget = Math.max(8, width - headerPrefixWidth - trailingWidth);
     const shownTitle = truncateToWidth(singleLine(titleSource), titleBudget, ELLIPSIS);
 
-    let header = currentTheme.fg(isSelected ? 'primary' : 'textDim', pointer + ' ');
+    const tone = isSelected ? 'primary' : 'textDim';
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    let header = pointer + currentTheme.fg(tone, ' ');
     header += titleStyle(shownTitle);
     if (time.length > 0) header += '  ' + currentTheme.fg('textDim', time);
     if (badge.length > 0) header += '  ' + currentTheme.fg('success', badge);

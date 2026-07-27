@@ -102,11 +102,13 @@ export class UndoSelectorComponent extends Container implements Focusable {
     width: number,
   ): string {
     const pointer = isSelected ? renderSelectPointer('undo:pointer') : ' ';
-    const prefix = `  ${pointer} `;
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const tone = isSelected ? 'primary' : 'textDim';
+    const prefix = currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
     const labelBudget = Math.max(8, width - visibleWidth(prefix));
     const label = truncateToWidth(choice.label, labelBudget, '…');
     const token = isSelected ? 'primary' : inUndoRange ? 'textDim' : 'text';
-    let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', prefix);
+    let line = prefix;
     line += isSelected
       ? currentTheme.boldFg(token, label)
       : currentTheme.fg(token, label);

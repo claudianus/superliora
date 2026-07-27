@@ -179,6 +179,7 @@ function renderProviderRow(
   ctx: { isSelected: boolean; isCurrent: boolean; width: number; nameWidth: number },
 ): string[] {
   const { isSelected, isCurrent, nameWidth } = ctx;
+  // Pointer is already ambient-styled; do not wrap it in chalk again.
   const pointer = isSelected ? renderSelectPointer('provider:pointer') : ' ';
   const truncatedName = truncateToWidth(option.label, nameWidth, '…');
   const namePad = ' '.repeat(Math.max(0, nameWidth - visibleWidth(truncatedName)));
@@ -186,7 +187,8 @@ function renderProviderRow(
   const badge = AUTH_BADGE.get(option.authKind) ?? option.authKind;
   const badgeTone = AUTH_TONE.get(option.authKind) ?? 'textMuted';
 
-  let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
+  const tone = isSelected ? 'primary' : 'textDim';
+  let line = currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
   line += (isSelected ? currentTheme.boldFg('primary', truncatedName) : currentTheme.fg('text', truncatedName)) + namePad;
   line += '  ' + currentTheme.fg(badgeTone, badge);
   if (option.modelCount > 0) {

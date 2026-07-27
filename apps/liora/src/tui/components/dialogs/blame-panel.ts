@@ -200,8 +200,10 @@ export class BlamePanelComponent extends Container implements Focusable {
 
   private renderRow(line: BlameLine, selected: boolean, innerWidth: number): string {
     const t = currentTheme;
-    const pointer = selected ? `${renderSelectPointer('blame-panel:pointer')} ` : '  ';
-    const pointerStyled = t.fg(selected ? 'primary' : 'textDim', pointer);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const pointerStyled = selected
+      ? `${renderSelectPointer('blame-panel:pointer')} `
+      : t.fg('textDim', '  ');
     const uncommitted = isUncommittedBlameHash(line.commit.hash);
     const gutterToken = uncommitted ? 'warning' : 'textMuted';
     const hash = t.fg(gutterToken, line.commit.hash.slice(0, HASH_WIDTH));
