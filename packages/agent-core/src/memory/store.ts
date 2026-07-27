@@ -131,9 +131,74 @@ export class LioraRecallStore {
     this.dbPath = options.config?.()?.storePath ?? join(options.homeDir, STORE_RELATIVE_PATH);
     mkdirSync(dirname(this.dbPath), { recursive: true, mode: 0o700 });
     this.recordsDir = join(dirname(this.dbPath), RECORDS_DIR_NAME);
-    this.db = openDatabase(this.dbPath);
+    this.db = this.openDatabaseWithRecovery();
     this.migrate();
     this.restoreMarkdownRecords();
+  }
+
+  /**
+   * Open the database, healing on-disk corruption instead of failing forever.
+   *
+   * A damaged image (torn write, crashed WAL flush, failing disk) used to make
+   * every Liora Recall call throw "database disk image is malformed" until the
+   * user hand-deleted the file. The store now probes the file before trusting
+   * it: if opening throws a corruption-class error, or `PRAGMA quick_check`
+   * reports bad pages, the file (plus WAL/SHM sidecars) is renamed to
+   * `<name>.corrupt-<timestamp>` for forensics and a fresh database is opened.
+   * `restoreMarkdownRecords()` then repopulates it from the `records/`
+   * markdown mirror, so memories survive the quarantine.
+   */
+  private openDatabaseWithRecovery(): SqliteDatabase {
+    try {
+      const db = openDatabase(this.dbPath);
+      const problem = this.probeDatabaseHealth(db);
+      if (problem === undefined) return db;
+      this.quarantineCorruptDatabase(db, problem);
+    } catch (error) {
+      if (!isDatabaseCorruptionError(error)) throw error;
+      this.quarantineCorruptDatabase(undefined, corruptionErrorMessage(error));
+    }
+    return openDatabase(this.dbPath);
+  }
+
+  /** Returns a human-readable problem string when the file is unhealthy. */
+  private probeDatabaseHealth(db: SqliteDatabase): string | undefined {
+    let rows: unknown[];
+    try {
+      rows = db.prepare('PRAGMA quick_check').all();
+    } catch (error) {
+      if (isDatabaseCorruptionError(error)) return corruptionErrorMessage(error);
+      throw error;
+    }
+    const first = rows[0] as { quick_check?: unknown } | undefined;
+    if (rows.length === 1 && first?.quick_check === 'ok') return undefined;
+    const detail = typeof first?.quick_check === 'string' ? first.quick_check : 'check failed';
+    return `quick_check: ${detail}`;
+  }
+
+  private quarantineCorruptDatabase(db: SqliteDatabase | undefined, reason: string): void {
+    if (db !== undefined) {
+      try {
+        db.close();
+      } catch {
+        // Best effort — a corrupt handle may refuse to close cleanly.
+      }
+    }
+    const stamp = new Date(this.now()).toISOString().replace(/[:.]/gu, '-');
+    for (const suffix of ['', '-wal', '-shm']) {
+      const source = `${this.dbPath}${suffix}`;
+      if (!existsSync(source)) continue;
+      try {
+        renameSync(source, `${source}.corrupt-${stamp}`);
+      } catch {
+        // Leave it in place; the next open attempt surfaces it again.
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[liora-recall] memory database at ${this.dbPath} was corrupt (${reason}); ` +
+        `moved it aside as *.corrupt-${stamp} and rebuilding from the records/ mirror`,
+    );
   }
 
   getStorePath(): string {
@@ -906,6 +971,26 @@ function openDatabase(path: string): SqliteDatabase {
   const require = createRequire(import.meta.url);
   const sqlite = require('node:sqlite') as SqliteModule;
   return new sqlite.DatabaseSync(path);
+}
+
+/**
+ * True for SQLite corruption-class failures (SQLITE_CORRUPT / SQLITE_NOTADB).
+ * node:sqlite surfaces these as plain errors, so match on the message text.
+ * Transient errors (busy, locked, permission) must NOT match — quarantining a
+ * healthy database over them would discard recoverable data.
+ */
+function isDatabaseCorruptionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    /database disk image is malformed/iu.test(error.message) ||
+    /file is not a database/iu.test(error.message) ||
+    /SQLITE_CORRUPT\b/iu.test(error.message) ||
+    /SQLITE_NOTADB\b/iu.test(error.message)
+  );
+}
+
+function corruptionErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function rowToMemory(row: MemoryRow): MemoryRecord {
