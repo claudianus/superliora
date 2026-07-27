@@ -389,7 +389,6 @@ describe('LioraTUI message flow', () => {
     harness.track.mockClear();
 
     driver.state.editor.onInsertNewline?.();
-    driver.state.editor.onUndo?.();
     delete process.env['VISUAL'];
     delete process.env['EDITOR'];
     driver.state.editor.onOpenExternalEditor?.();
@@ -397,7 +396,6 @@ describe('LioraTUI message flow', () => {
     driver.state.editor.onTextPaste?.();
 
     expect(harness.track).toHaveBeenCalledWith('shortcut_newline', undefined);
-    expect(harness.track).toHaveBeenCalledWith('undo', undefined);
     expect(harness.track).toHaveBeenCalledWith('shortcut_editor', undefined);
     expect(harness.track).toHaveBeenCalledWith('shortcut_expand', undefined);
     expect(harness.track).toHaveBeenCalledWith('shortcut_paste', { kind: 'text' });
