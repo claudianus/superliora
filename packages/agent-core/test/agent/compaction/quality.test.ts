@@ -1,6 +1,14 @@
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { extractEvidenceIdsFromText } from '../../../src/agent/compaction/quality';
+import type { Message } from '@superliora/kosong';
+
+import {
+  extractEvidenceIdsFromText,
+  injectMissingDurableEvidenceIds,
+} from '../../../src/agent/compaction/quality';
 
 describe('extractEvidenceIdsFromText', () => {
   // Stable durable identifiers that must survive compaction. If the
@@ -73,5 +81,33 @@ describe('extractEvidenceIdsFromText', () => {
     expect(extractEvidenceIdsFromText('plain text with no markers')).toEqual(
       [],
     );
+  });
+});
+
+describe('injectMissingDurableEvidenceIds overflow', () => {
+  const ids = Array.from({ length: 8 }, (_, i) => `evidence${String(i)}zz`);
+  const messages = [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: `evidence_ids: ${ids.join(',')}` }],
+    },
+  ] as unknown as readonly Message[];
+
+  it('inlines at most five ids and notes the overflow total', () => {
+    const { summary, injectedIds } = injectMissingDurableEvidenceIds('plain summary', messages);
+    expect(injectedIds).toHaveLength(8);
+    const line = summary.split('\n').find((entry) => entry.startsWith('evidence_ids:'));
+    expect(line?.split(',')).toHaveLength(5);
+    expect(summary).toContain('evidence_ids_overflow: 8 total');
+  });
+
+  it('writes the full list to a sidecar when a dir is given', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'evidence-sidecar-'));
+    const { summary } = injectMissingDurableEvidenceIds('plain summary', messages, dir);
+    const files = readdirSync(dir).filter((name) => name.startsWith('evidence-ids-'));
+    expect(files).toHaveLength(1);
+    const body = readFileSync(join(dir, files[0] as string), 'utf8');
+    expect(body).toContain('evidence7zz');
+    expect(summary).toContain(`full list: ${join(dir, files[0] as string)}`);
   });
 });

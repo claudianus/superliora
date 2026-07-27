@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import {
   ErrorCodes,
   LioraError,
@@ -92,6 +94,7 @@ import {
   parseStructuredCompactionMemory,
   type ExtractedFact,
 } from './memory';
+import { persistCompactionSidecar } from './sidecar';
 import {
   type AnchorDocument,
   createAnchorDocument,
@@ -805,6 +808,7 @@ export class FullCompaction {
         finalResult.qualityWarnings = [...new Set(finalQualityWarnings)];
       }
       await this.agent.injection.injectAfterCompaction();
+      this.injectResumeRecheckReminder(finalResult.summary);
       this.syncCompactionBaseline();
       this.triggerPostCompactHook(data, finalResult);
       this.markCompleted();
@@ -1014,7 +1018,11 @@ export class FullCompaction {
         !usedEmergencyBackstop &&
         isMissingEvidenceQualityFailure(quality)
       ) {
-        const injected = injectMissingDurableEvidenceIds(summary, messagesToCompact);
+        const injected = injectMissingDurableEvidenceIds(
+          summary,
+          messagesToCompact,
+          this.agent.homedir !== undefined ? join(this.agent.homedir, 'compaction') : undefined,
+        );
         if (injected.injectedIds.length > 0) {
           this.agent.telemetry.track('compaction_evidence_ids_injected', {
             injected_count: injected.injectedIds.length,
@@ -2364,12 +2372,22 @@ export class FullCompaction {
     }
 
     const rawRefs = plan.rawRefs.map((ref) => refByStart.get(ref.messageStart) ?? ref);
-    const guidance =
-      archiveIds.length === 0
-        ? ''
-        : `\n\n<compaction-archives>Tool exchanges compacted above were archived. ` +
-          `Use LioraExpand(id=...) to recover a group's original content when the summary is insufficient. ` +
-          `archive_ids="${archiveIds.join(',')}"</compaction-archives>`;
+    let guidance = '';
+    if (archiveIds.length > 0) {
+      const inlineIds = archiveIds.slice(0, MAX_INLINE_ARCHIVE_IDS);
+      let overflowNote = '';
+      if (archiveIds.length > inlineIds.length) {
+        const sidecar = this.persistArchiveIdSidecar(archiveIds);
+        overflowNote =
+          sidecar !== undefined
+            ? ` Full list of ${String(archiveIds.length)} ids: ${sidecar}.`
+            : ` total=${String(archiveIds.length)}.`;
+      }
+      guidance =
+        `\n\n<compaction-archives>Tool exchanges compacted above were archived. ` +
+        `Use LioraExpand(id=...) to recover a group's original content when the summary is insufficient. ` +
+        `archive_ids="${inlineIds.join(',')}"${overflowNote}</compaction-archives>`;
+    }
     return { rawRefs, guidance };
   }
 
@@ -2400,13 +2418,41 @@ export class FullCompaction {
       instruction?.trim(),
       blockNote,
       'CONTEXT COMPACTION V2 OUTPUT CONTRACT:',
-      'Preserve task continuity over compression ratio. Use the exact sections: current_goal, last_known_state, decisions, files_touched, failed_attempts, open_questions, next_actions, raw_refs.',
+      'Preserve task continuity over compression ratio. Use the exact sections: current_goal, last_known_state, decisions, files_touched, failed_attempts, open_questions, next_actions, verified_claims, raw_refs.',
+      'For verified_claims, tag each done/verified item as: claim | evidence=<test id, log path, or command> | needs_revalidation=true|false. Anything not re-verified in this session is needs_revalidation=true.',
       'Mention uncertain facts as uncertain. Do not invent file paths, test results, or decisions.',
       languageDirective,
       `Compacted tokens: ${String(plan.compactedTokens)}. Retained recent tokens: ${String(plan.retainedTokens)}.`,
       `Raw refs available after compaction: ${plan.rawRefs.map(formatRawRef).join('; ') || 'none'}.`,
     ];
     return lines.filter((line): line is string => line !== undefined && line.length > 0).join('\n\n');
+  }
+
+  private persistArchiveIdSidecar(archiveIds: readonly string[]): string | undefined {
+    const homedir = this.agent.homedir;
+    if (homedir === undefined) return undefined;
+    return persistCompactionSidecar(
+      join(homedir, 'compaction'),
+      'archive-ids',
+      `${archiveIds.join('\n')}\n`,
+    );
+  }
+
+  private injectResumeRecheckReminder(summary: string): void {
+    const memory = parseStructuredCompactionMemory(summary);
+    const needsRevalidation = memory.verifiedClaims.filter((claim) =>
+      /needs_revalidation\s*[=:]\s*true/i.test(claim),
+    );
+    if (needsRevalidation.length === 0) return;
+    const lines = [
+      'Resume recheck (T1-5): the compacted summary carries verification claims flagged needs_revalidation.',
+      'Re-run their cheap evidence (tests, typecheck, git status) before treating them as done:',
+      ...needsRevalidation.slice(0, 8).map((claim) => `- ${claim}`),
+    ];
+    this.agent.context.appendSystemReminder(lines.join('\n'), {
+      kind: 'injection',
+      variant: 'compaction_resume_recheck',
+    });
   }
 
   private renderStructuredV2Summary(summary: string, plan: CompactionPlan): string {
@@ -2452,6 +2498,9 @@ export class FullCompaction {
       formatStringList(structuredMemory.openQuestions),
       'next_actions:',
       formatStringList(nextActions),
+      ...(structuredMemory.verifiedClaims.length > 0
+        ? ['verified_claims:', formatStringList(structuredMemory.verifiedClaims)]
+        : []),
       'raw_refs:',
       formatStringList(rawRefItems),
       'swarm_runs:',
@@ -2464,6 +2513,8 @@ export class FullCompaction {
     ].join('\n');
   }
 }
+
+const MAX_INLINE_ARCHIVE_IDS = 5;
 
 /**
  * Run async work with a fixed or adaptive concurrency limit.

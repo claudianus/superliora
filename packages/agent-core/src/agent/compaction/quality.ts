@@ -4,6 +4,7 @@ import {
   extractSwarmRunsFromMessages,
   extractSwarmRunsFromText,
 } from './swarm-memory-extract';
+import { persistCompactionSidecar } from './sidecar';
 import type { CompactionPlan } from './planner';
 import type {
   CompactionQualitySignals,
@@ -456,9 +457,12 @@ export function extractEvidenceIdsFromText(text: string): string[] {
  * Prefer this over hard-failing auto-compaction when the LLM drops load-bearing
  * evidence/node/archive identifiers after repair attempts.
  */
+const MAX_INLINE_EVIDENCE_IDS = 5;
+
 export function injectMissingDurableEvidenceIds(
   summary: string,
   compactedMessages: readonly Message[],
+  sidecarDir?: string,
 ): { summary: string; injectedIds: readonly string[] } {
   const sourceText = compactedMessages.map((message) => extractText(message, ' ')).join('\n');
   const expected = uniqueLower(extractEvidenceIdsFromText(sourceText));
@@ -475,8 +479,21 @@ export function injectMissingDurableEvidenceIds(
   const sourceIds = extractEvidenceIdsFromText(sourceText);
   const byLower = new Map(sourceIds.map((id) => [id.toLowerCase(), id] as const));
   const renderIds = missing.map((id) => byLower.get(id) ?? id);
-  const evidenceLine = `evidence_ids: ${renderIds.join(',')}`;
-  const archiveLines = renderIds
+  const inlineIds = renderIds.slice(0, MAX_INLINE_EVIDENCE_IDS);
+  const overflowLines: string[] = [];
+  if (renderIds.length > inlineIds.length) {
+    const sidecar =
+      sidecarDir !== undefined
+        ? persistCompactionSidecar(sidecarDir, 'evidence-ids', `${renderIds.join('\n')}\n`)
+        : undefined;
+    overflowLines.push(
+      sidecar !== undefined
+        ? `evidence_ids_overflow: ${String(renderIds.length)} total; full list: ${sidecar}`
+        : `evidence_ids_overflow: ${String(renderIds.length)} total`,
+    );
+  }
+  const evidenceLine = `evidence_ids: ${inlineIds.join(',')}`;
+  const archiveLines = inlineIds
     .filter((id) => /^[a-f0-9]+$/i.test(id) && id.length >= 8)
     .map((id) => `[liora-archived id=${id}]`);
 
@@ -485,6 +502,7 @@ export function injectMissingDurableEvidenceIds(
     '## Durable Evidence Continuity',
     'Deterministically restored identifiers that the summarizer omitted:',
     evidenceLine,
+    ...overflowLines,
     ...archiveLines,
   ].join('\n');
 

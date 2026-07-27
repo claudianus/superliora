@@ -8,6 +8,26 @@ import {
   parseStructuredCompactionMemory,
 } from '../../../src/agent/compaction/memory';
 
+describe('parseStructuredCompactionMemory verified_claims', () => {
+  it('captures verified_claims items and keeps later sections intact', () => {
+    const memory = parseStructuredCompactionMemory(
+      [
+        'current_goal:',
+        '- finish the thing',
+        'verified_claims:',
+        '- T2-2 pushed | evidence=gate 6w exit=0 | needs_revalidation=false',
+        '- T1-5 tests | evidence=vitest run | needs_revalidation=true',
+        'raw_refs:',
+        '- commit abc',
+      ].join('\n'),
+    );
+    expect(memory.verifiedClaims).toHaveLength(2);
+    expect(memory.verifiedClaims[0]).toContain('needs_revalidation=false');
+    expect(memory.verifiedClaims[1]).toContain('needs_revalidation=true');
+    expect(memory.rawRefs).toEqual(['commit abc']);
+  });
+});
+
 describe('isPlaceholderCompactionMemoryItem', () => {
   it('returns true for empty / whitespace / common placeholders', () => {
     expect(isPlaceholderCompactionMemoryItem('')).toBe(true);

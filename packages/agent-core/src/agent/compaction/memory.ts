@@ -20,6 +20,7 @@ export interface StructuredCompactionMemory {
   readonly failedAttempts: readonly string[];
   readonly openQuestions: readonly string[];
   readonly nextActions: readonly string[];
+  readonly verifiedClaims: readonly string[];
   readonly rawRefs: readonly string[];
   readonly swarmRuns: readonly string[];
   readonly ultraworkRuns: readonly string[];
@@ -35,6 +36,7 @@ type StructuredListKey =
   | 'failedAttempts'
   | 'openQuestions'
   | 'nextActions'
+  | 'verifiedClaims'
   | 'rawRefs'
   | 'swarmRuns'
   | 'ultraworkRuns';
@@ -48,6 +50,7 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
     failedAttempts: [],
     openQuestions: [],
     nextActions: [],
+    verifiedClaims: [],
     rawRefs: [],
     swarmRuns: [],
     ultraworkRuns: [],
@@ -86,6 +89,7 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
     failedAttempts: uniqueList(sections.failedAttempts),
     openQuestions: uniqueList(sections.openQuestions),
     nextActions: uniqueList(sections.nextActions),
+    verifiedClaims: uniqueList(sections.verifiedClaims),
     rawRefs: uniqueList(sections.rawRefs),
     swarmRuns: uniqueList(sections.swarmRuns),
     ultraworkRuns: uniqueList(sections.ultraworkRuns),
@@ -310,6 +314,10 @@ function sectionKeyForLabel(label: string): 'currentGoal' | StructuredListKey | 
     case 'raw_references':
     case 'references':
       return 'rawRefs';
+    case 'verified_claims':
+    case 'verification_claims':
+    case 'verified':
+      return 'verifiedClaims';
     case 'swarm_runs':
     case 'swarm_coordination':
     case 'ultra_swarm':

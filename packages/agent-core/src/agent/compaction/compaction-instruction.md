@@ -19,6 +19,8 @@ Your TODO list re-attaches from live source—do not transcribe it. Record reaso
 
 Be honest: if something was claimed done but unverified (tests "passing", fix "working"), say so and treat as unverified. Prefer deterministic re-check over trusting the summary's success claims.
 
+Verification claims: in the `verified_claims` section, tag each done/verified item as `- claim | evidence=<test id, log path, or command> | needs_revalidation=true|false`. Claims without concrete evidence in this session must carry `needs_revalidation=true` so resume can re-check them cheaply.
+
 Be concise and proportional—a nearly done exchange needs a sentence or two. Include identifiers needed for the next move; omit what does not change it.
 
 Respond with text only. Do not call any tools — you already have everything you need in the conversation history.
