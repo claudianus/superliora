@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSubagentResultContract,
   computeFilesChanged,
+  deriveVerificationPackageDir,
   formatSubagentResultEnvelope,
   renderSubagentCompletionText,
+  verdictFromCheckOutcomes,
   VERIFICATION_NOT_RUN,
 } from '../../src/session/subagent-result-contract';
 
@@ -81,5 +83,59 @@ describe('subagent-result-contract — build + format', () => {
     const rendered = renderSubagentCompletionText({ result: 'done', contract });
     expect(rendered.startsWith('done\n\n<subagent-result>')).toBe(true);
     expect(rendered).toContain('"x.ts"');
+  });
+
+  it('flags verification_failed when any verdict failed', () => {
+    const failed = buildSubagentResultContract({
+      agentId: 'agent-4',
+      profile: 'coder',
+      summary: 'done',
+      filesChanged: [],
+      verification: { tests: 'failed', typecheck: 'passed', lint: 'not_run' },
+    });
+    expect(failed.verification_failed).toBe(true);
+    const clean = buildSubagentResultContract({
+      agentId: 'agent-5',
+      profile: 'coder',
+      summary: 'done',
+      filesChanged: [],
+      verification: { tests: 'passed', typecheck: 'passed', lint: 'passed' },
+    });
+    expect(clean.verification_failed).toBe(false);
+  });
+});
+
+describe('subagent-result-contract — deriveVerificationPackageDir', () => {
+  it('returns the shared package dir for a single-package change set', () => {
+    expect(
+      deriveVerificationPackageDir(['packages/agent-core/src/a.ts', 'packages/agent-core/test/b.test.ts']),
+    ).toBe('packages/agent-core');
+    expect(deriveVerificationPackageDir(['apps/liora/src/tui/c.ts'])).toBe('apps/liora');
+  });
+
+  it('returns undefined for empty, multi-package, or out-of-layout change sets', () => {
+    expect(deriveVerificationPackageDir([])).toBeUndefined();
+    expect(
+      deriveVerificationPackageDir(['packages/agent-core/a.ts', 'packages/kaos/b.ts']),
+    ).toBeUndefined();
+    expect(deriveVerificationPackageDir(['packages/agent-core/a.ts', 'README.md'])).toBeUndefined();
+  });
+});
+
+describe('subagent-result-contract — verdictFromCheckOutcomes', () => {
+  const outcomes = [
+    { name: 'test', exitCode: 0 },
+    { name: 'typecheck', exitCode: 1 },
+    { name: 'lint', exitCode: 0, skipped: true },
+  ];
+
+  it('maps exit codes and skipped checks onto verdicts', () => {
+    expect(verdictFromCheckOutcomes(outcomes, 'test')).toBe('passed');
+    expect(verdictFromCheckOutcomes(outcomes, 'typecheck')).toBe('failed');
+    expect(verdictFromCheckOutcomes(outcomes, 'lint')).toBe('not_run');
+  });
+
+  it('returns not_run when the check is absent', () => {
+    expect(verdictFromCheckOutcomes([], 'test')).toBe('not_run');
   });
 });

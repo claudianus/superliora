@@ -27,6 +27,7 @@ export interface SubagentResultContract {
   readonly summary: string;
   readonly files_changed: readonly string[];
   readonly verification: SubagentVerificationStatus;
+  readonly verification_failed: boolean;
   readonly deviations: readonly string[];
 }
 
@@ -52,13 +53,18 @@ export function buildSubagentResultContract(options: {
   readonly verification?: SubagentVerificationStatus;
   readonly deviations?: readonly string[];
 }): SubagentResultContract {
+  const verification = options.verification ?? VERIFICATION_NOT_RUN;
   return {
     agent_id: options.agentId,
     profile: options.profile,
     status: 'completed',
     summary: options.summary,
     files_changed: [...options.filesChanged],
-    verification: options.verification ?? VERIFICATION_NOT_RUN,
+    verification,
+    verification_failed:
+      verification.tests === 'failed' ||
+      verification.typecheck === 'failed' ||
+      verification.lint === 'failed',
     deviations: [...(options.deviations ?? [])],
   };
 }
@@ -74,6 +80,7 @@ export function formatSubagentResultEnvelope(contract: SubagentResultContract): 
     status: contract.status,
     files_changed: contract.files_changed,
     verification: contract.verification,
+    verification_failed: contract.verification_failed,
     deviations: contract.deviations,
   };
   return `<subagent-result>\n${JSON.stringify(envelope, null, 2)}\n</subagent-result>`;
@@ -152,4 +159,45 @@ function parseStatusPorcelain(result: GitResult): string[] {
     if (path.length > 0) files.push(path);
   }
   return files;
+}
+
+/**
+ * Scope the completion gate to a single workspace package when every
+ * changed file lives under the same `packages/<name>/` or `apps/<name>/`
+ * prefix. Returns `undefined` when the change set is empty, spans multiple
+ * packages, or touches files outside the package layout — the gate skips
+ * rather than paying for a repo-wide run.
+ */
+export function deriveVerificationPackageDir(
+  filesChanged: readonly string[],
+): string | undefined {
+  if (filesChanged.length === 0) return undefined;
+  let scope: string | undefined;
+  for (const file of filesChanged) {
+    const match = /^(?:packages|apps)\/[^/]+\//.exec(file);
+    if (match === null) return undefined;
+    const dir = match[0].slice(0, -1);
+    if (scope === undefined) {
+      scope = dir;
+    } else if (scope !== dir) {
+      return undefined;
+    }
+  }
+  return scope;
+}
+
+export interface ProjectCheckOutcomeLike {
+  readonly name: string;
+  readonly exitCode: number;
+  readonly skipped?: boolean;
+}
+
+/** Map a run-project-checks outcome onto a single verification verdict. */
+export function verdictFromCheckOutcomes(
+  outcomes: readonly ProjectCheckOutcomeLike[],
+  kind: 'test' | 'typecheck' | 'lint',
+): VerificationVerdict {
+  const outcome = outcomes.find((entry) => entry.name === kind);
+  if (outcome === undefined || outcome.skipped === true) return 'not_run';
+  return outcome.exitCode === 0 ? 'passed' : 'failed';
 }

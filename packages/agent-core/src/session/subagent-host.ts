@@ -43,6 +43,7 @@ import {
   type TodoItem,
   updateSwarmOrchestrationTodoStatus,
 } from '../tools/builtin/state/todo-list';
+import { RunProjectChecksTool } from '../tools/builtin/ops/run-project-checks';
 import {
   DEFAULT_AGENT_PROFILES,
   prepareSystemPromptContext,
@@ -58,9 +59,14 @@ import { collectGitContext } from './git-context';
 import {
   buildSubagentResultContract,
   collectFilesChanged,
+  deriveVerificationPackageDir,
   snapshotGitWork,
+  verdictFromCheckOutcomes,
+  VERIFICATION_NOT_RUN,
   type GitWorkSnapshot,
+  type ProjectCheckOutcomeLike,
   type SubagentResultContract,
+  type SubagentVerificationStatus,
 } from './subagent-result-contract';
 import type { Session } from './index';
 import {
@@ -94,6 +100,11 @@ export type {
  * agent receives a technically complete handoff.
  */
 const SUMMARY_MIN_LENGTH = 200;
+
+/** Per-check timeout for the completion verification gate (T4-4). */
+const COMPLETION_CHECK_TIMEOUT_MS = 180_000;
+/** Overall ceiling for the completion verification gate (T4-4). */
+const COMPLETION_VERIFICATION_TOTAL_MS = 600_000;
 const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const SUBAGENT_MAX_TOKENS_ERROR =
@@ -605,6 +616,7 @@ export class SessionSubagentHost {
       profileName,
       result,
       workSnapshot,
+      options.signal,
     );
     parent.emitEvent({
       type: 'subagent.completed',
@@ -631,6 +643,7 @@ export class SessionSubagentHost {
     profileName: string,
     summary: string,
     workSnapshot: GitWorkSnapshot,
+    signal: AbortSignal | undefined,
   ): Promise<SubagentResultContract> {
     let filesChanged: string[] = [];
     try {
@@ -638,12 +651,67 @@ export class SessionSubagentHost {
     } catch {
       filesChanged = [];
     }
+    const verification = await this.runCompletionVerification(
+      child,
+      profileName,
+      filesChanged,
+      signal,
+    );
     return buildSubagentResultContract({
       agentId: childId,
       profile: profileName,
       summary,
       filesChanged,
+      verification,
     });
+  }
+
+  /**
+   * Completion gate (harness reform T4-4): when the child's change set is
+   * scoped to a single workspace package, run that package's test /
+   * typecheck / lint scripts ourselves and record the verdicts on the
+   * result contract. Read-only profiles and ambiguous scopes skip the gate
+   * (verdicts stay `not_run`) rather than paying for a repo-wide run.
+   */
+  private async runCompletionVerification(
+    child: Agent,
+    profileName: string,
+    filesChanged: readonly string[],
+    signal: AbortSignal | undefined,
+  ): Promise<SubagentVerificationStatus> {
+    if (profileName === 'explore') return VERIFICATION_NOT_RUN;
+    const packageDir = deriveVerificationPackageDir(filesChanged);
+    if (packageDir === undefined) return VERIFICATION_NOT_RUN;
+    try {
+      const tool = new RunProjectChecksTool(child.kaos, child.config.cwd);
+      const execution = await tool.resolveExecution({
+        checks: ['test', 'typecheck', 'lint'],
+        packageDir,
+        timeoutMs: COMPLETION_CHECK_TIMEOUT_MS,
+      });
+      if (execution.isError === true) return VERIFICATION_NOT_RUN;
+      const gateSignal =
+        signal === undefined
+          ? AbortSignal.timeout(COMPLETION_VERIFICATION_TOTAL_MS)
+          : AbortSignal.any([signal, AbortSignal.timeout(COMPLETION_VERIFICATION_TOTAL_MS)]);
+      const result = await execution.execute({
+        turnId: 'subagent-verification',
+        toolCallId: 'subagent-verification',
+        signal: gateSignal,
+      });
+      const text = typeof result.output === 'string' ? result.output : '';
+      const parsed = JSON.parse(text) as {
+        readonly checks?: readonly ProjectCheckOutcomeLike[];
+      };
+      const checks = parsed.checks ?? [];
+      return {
+        tests: verdictFromCheckOutcomes(checks, 'test'),
+        typecheck: verdictFromCheckOutcomes(checks, 'typecheck'),
+        lint: verdictFromCheckOutcomes(checks, 'lint'),
+      };
+    } catch {
+      return VERIFICATION_NOT_RUN;
+    }
   }
 
   private async configureChild(
