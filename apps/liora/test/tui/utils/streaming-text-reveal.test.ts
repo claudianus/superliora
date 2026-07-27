@@ -7,6 +7,7 @@ import {
 import {
   advanceCodePointIndex,
   computeRevealAdvance,
+  computeStagedLineReveal,
   countCodePoints,
   createStreamingTextRevealState,
   isRevealCaughtUp,
@@ -204,5 +205,43 @@ describe('tickReveal', () => {
     expect(isRevealCaughtUp(state)).toBe(true);
     state = tickReveal(state, 200);
     expect(visibleText(state)).toBe('abcdef');
+  });
+});
+
+describe('computeStagedLineReveal', () => {
+  it('shows a strict subset at t0+epsilon and every line after the cap', () => {
+    const first = computeStagedLineReveal({ totalLines: 12, elapsedMs: 1, durationMs: 400 });
+    expect(first).toBeGreaterThanOrEqual(1);
+    expect(first).toBeLessThan(12);
+
+    const mid = computeStagedLineReveal({ totalLines: 12, elapsedMs: 200, durationMs: 400 });
+    expect(mid).toBeGreaterThan(first);
+    expect(mid).toBeLessThan(12);
+
+    expect(computeStagedLineReveal({ totalLines: 12, elapsedMs: 400, durationMs: 400 })).toBe(12);
+    expect(computeStagedLineReveal({ totalLines: 12, elapsedMs: 10_000, durationMs: 400 })).toBe(12);
+  });
+
+  it('grows monotonically and lands exactly on the total', () => {
+    let previous = 0;
+    for (let elapsed = 0; elapsed <= 400; elapsed += 25) {
+      const visible = computeStagedLineReveal({
+        totalLines: 20,
+        elapsedMs: elapsed,
+        durationMs: 400,
+      });
+      expect(visible).toBeGreaterThanOrEqual(previous);
+      previous = visible;
+    }
+    expect(previous).toBe(20);
+  });
+
+  it('shows everything immediately when motion is off (duration 0)', () => {
+    expect(computeStagedLineReveal({ totalLines: 9, elapsedMs: 0, durationMs: 0 })).toBe(9);
+  });
+
+  it('handles empty and single-line blocks', () => {
+    expect(computeStagedLineReveal({ totalLines: 0, elapsedMs: 0, durationMs: 400 })).toBe(0);
+    expect(computeStagedLineReveal({ totalLines: 1, elapsedMs: 0, durationMs: 400 })).toBe(1);
   });
 });
