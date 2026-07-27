@@ -220,7 +220,7 @@ export class EditorKeyboardController {
       void this.openExternalEditor();
     };
 
-    // Ctrl-O / Ctrl-T are no longer main-prompt chords (Hub / programmatic only).
+    // Ctrl-O / Ctrl-T toggle transcript expansion (tool output, todo panel).
     editor.onToggleToolExpand = () => {
       host.track('shortcut_expand');
       host.toggleToolOutputExpansion();

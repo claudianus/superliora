@@ -52,6 +52,20 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     surface: 'always',
     category: 'edit',
   },
+  {
+    id: 'expand-tool-output',
+    key: 'Ctrl-O',
+    description: 'Toggle tool output and reasoning expansion',
+    surface: 'always',
+    category: 'navigate',
+  },
+  {
+    id: 'expand-todo',
+    key: 'Ctrl-T',
+    description: 'Expand or collapse the todo list',
+    surface: 'always',
+    category: 'navigate',
+  },
 ];
 
 /** Idle-only bindings (not while a turn is streaming). */

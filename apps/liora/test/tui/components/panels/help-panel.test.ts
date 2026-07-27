@@ -40,7 +40,9 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Shift-Enter/);
     expect(out).toMatch(/session undo/);
     expect(out).not.toMatch(/Ctrl-Shift-Tab/);
-    expect(out).not.toMatch(/Ctrl-O/);
+    expect(out).toMatch(/Ctrl-O/);
+    expect(out).toMatch(/Toggle tool output and reasoning expansion/);
+    expect(out).toMatch(/Ctrl-T/);
     expect(out).not.toMatch(/Ctrl-Y/);
     expect(out).toMatch(/Slash commands/);
     expect(out).toMatch(/\/exit \(\/quit, \/q\)/);

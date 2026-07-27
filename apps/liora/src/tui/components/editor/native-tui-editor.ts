@@ -450,6 +450,15 @@ export class NativeTUIEditor implements TUIEditor {
       this.onCtrlB?.();
       return true;
     }
+    // Ctrl-O: toggle tool output / reasoning expansion (advertised in card footers).
+    if (matchesKey(data, Key.ctrl('o'))) {
+      this.onToggleToolExpand?.();
+      return true;
+    }
+    // Ctrl-T: expand/collapse the todo panel; pass through when it has no overflow.
+    if (matchesKey(data, Key.ctrl('t')) && this.onToggleTodoExpand?.() === true) {
+      return true;
+    }
     if (matchesKey(data, 'shift+tab')) {
       this.onShiftTab?.();
       return true;

@@ -133,4 +133,42 @@ describe('app shortcut pre-handler (native path)', () => {
     expect(legacy).toBeDefined();
     expect(state.editor.tryHandleAppShortcut?.(legacy!)).toBe(false);
   });
+
+  it('toggles tool output expansion on Ctrl-O', () => {
+    const state = createState();
+    const toggle = vi.fn();
+    state.editor.onToggleToolExpand = toggle;
+    const legacy = encodeNativeInputAsLegacySequence({
+      type: 'key',
+      key: 'character',
+      raw: '\u000f',
+      text: 'o',
+      ctrl: true,
+      alt: false,
+      shift: false,
+    });
+    expect(legacy).toBeDefined();
+    expect(state.editor.tryHandleAppShortcut?.(legacy!)).toBe(true);
+    expect(toggle).toHaveBeenCalledOnce();
+  });
+
+  it('expands the todo panel on Ctrl-T only while it overflows', () => {
+    const state = createState();
+    const toggle = vi.fn().mockReturnValue(true);
+    state.editor.onToggleTodoExpand = toggle;
+    const legacy = encodeNativeInputAsLegacySequence({
+      type: 'key',
+      key: 'character',
+      raw: '\u0014',
+      text: 't',
+      ctrl: true,
+      alt: false,
+      shift: false,
+    });
+    expect(legacy).toBeDefined();
+    expect(state.editor.tryHandleAppShortcut?.(legacy!)).toBe(true);
+    toggle.mockReturnValue(false);
+    expect(state.editor.tryHandleAppShortcut?.(legacy!)).toBe(false);
+    expect(toggle).toHaveBeenCalledTimes(2);
+  });
 });
