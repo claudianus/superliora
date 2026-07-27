@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractFileChangePaths } from '../../../../src/tools/builtin/collaboration/ultra-swarm-helpers';
+import { extractFileChangePaths, hasCitedEvidence } from '../../../../src/tools/builtin/collaboration/ultra-swarm-helpers';
 
 describe('extractFileChangePaths', () => {
   it('extracts labeled file change lists', () => {
@@ -62,5 +62,20 @@ describe('extractFileChangePaths', () => {
         'packages/agent-core/test/baz.test.ts',
       ]),
     );
+  });
+});
+
+describe('hasCitedEvidence (T4-7b)', () => {
+  it('accepts evidence ids, changed paths, file:line, and log artifacts', () => {
+    expect(hasCitedEvidence('evidence_ids: ab12cd34ef56')).toBe(true);
+    expect(hasCitedEvidence('files_changed: src/session/host.ts')).toBe(true);
+    expect(hasCitedEvidence('The leak is at src/session/host.ts:702 — fixed.')).toBe(true);
+    expect(hasCitedEvidence('Captured output in .superliora/tmp/gate.log')).toBe(true);
+    expect(hasCitedEvidence('Added test/session/host.test.ts coverage')).toBe(true);
+  });
+
+  it('rejects bare claims with no citation', () => {
+    expect(hasCitedEvidence('VERDICT: PASS\nEverything works, all good.')).toBe(false);
+    expect(hasCitedEvidence('')).toBe(false);
   });
 });

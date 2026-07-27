@@ -1,4 +1,5 @@
 import { collapseForHandoff } from '../../../agent/compaction/handoff-collapse';
+import { hasCitedEvidence } from './ultra-swarm-helpers';
 
 const INTEGRATION_SECTION_MAX_CHARS = 480;
 const INTEGRATION_OPEN_GAPS_MAX_CHARS = 1_200;
@@ -87,10 +88,13 @@ export function buildUltraSwarmIntegrationReportXml(
     countPhaseVerdict(rendered, 'research', 'PASS_WITH_ADVICE');
   const reviewPass =
     countPhaseVerdict(rendered, 'review', 'PASS') + countPhaseVerdict(rendered, 'review', 'PASS_WITH_ADVICE');
+  // Evidence obligation (T4-7b): completed experts must cite file:line,
+  // changed paths, evidence ids, or test/log artifacts.
+  const missingEvidence = rendered.filter((entry) => isEvidenceMissing(entry)).length;
 
   const lines = [
     `<integration_report run_id="${escapeXml(runId)}">`,
-    `<overview completed="${String(completed)}" failed="${String(failed)}" aborted="${String(aborted)}" pass="${String(pass)}" pass_with_advice="${String(passWithAdvice)}" blocked="${String(blocked)}" fail_verdict="${String(failVerdict)}" implement_pass="${String(implementPass)}" implement_advice="${String(implementAdvice)}" plan_pass="${String(planPass)}" research_pass="${String(researchPass)}" review_pass="${String(reviewPass)}"/>`,
+    `<overview completed="${String(completed)}" failed="${String(failed)}" aborted="${String(aborted)}" pass="${String(pass)}" pass_with_advice="${String(passWithAdvice)}" blocked="${String(blocked)}" fail_verdict="${String(failVerdict)}" implement_pass="${String(implementPass)}" implement_advice="${String(implementAdvice)}" plan_pass="${String(planPass)}" research_pass="${String(researchPass)}" review_pass="${String(reviewPass)}" missing_evidence="${String(missingEvidence)}"/>`,
     `<headline>${escapeXml(
       buildHeadline({
         completed,
@@ -105,6 +109,7 @@ export function buildUltraSwarmIntegrationReportXml(
         planPass,
         researchPass,
         reviewPass,
+        missingEvidence,
       }),
     )}</headline>`,
   ];
@@ -132,9 +137,10 @@ export function buildUltraSwarmIntegrationReportXml(
       entry.evidenceIds.length === 0 && isImplementationPhase(entry.spec.phase)
         ? ' claims_implementation="true" artifacts_missing="true"'
         : '';
+    const evidenceFlag = isEvidenceMissing(entry) ? ' evidence="missing"' : '';
 
     lines.push(
-      `<agent expert_id="${escapeXml(entry.spec.expertId)}" name="${escapeXml(entry.spec.expertName)}" emoji="${escapeXml(entry.spec.emoji)}" phase="${escapeXml(entry.spec.phase)}" focus="${escapeXml(entry.spec.focus)}" outcome="${entry.status}" verdict="${escapeXml(entry.verdict)}"${coverageLane}${division}${workNodeIds}${evidenceIds}${artifactHint}>`,
+      `<agent expert_id="${escapeXml(entry.spec.expertId)}" name="${escapeXml(entry.spec.expertName)}" emoji="${escapeXml(entry.spec.emoji)}" phase="${escapeXml(entry.spec.phase)}" focus="${escapeXml(entry.spec.focus)}" outcome="${entry.status}" verdict="${escapeXml(entry.verdict)}"${coverageLane}${division}${workNodeIds}${evidenceIds}${artifactHint}${evidenceFlag}>`,
     );
     appendDigestXml(lines, digest);
     lines.push('</agent>');
@@ -157,6 +163,14 @@ export function buildUltraSwarmIntegrationReportXml(
 
   lines.push('</integration_report>');
   return lines.join('\n');
+}
+
+function isEvidenceMissing(entry: UltraSwarmIntegrationReportInput): boolean {
+  return (
+    entry.status === 'completed' &&
+    entry.evidenceIds.length === 0 &&
+    !hasCitedEvidence(entry.result ?? '')
+  );
 }
 
 function countPhaseVerdict(
@@ -186,6 +200,7 @@ function buildHeadline(input: {
   readonly planPass: number;
   readonly researchPass: number;
   readonly reviewPass: number;
+  readonly missingEvidence: number;
 }): string {
   const parts = [`${String(input.completed)} completed`];
   if (input.failed > 0) parts.push(`${String(input.failed)} failed`);
@@ -220,6 +235,9 @@ function buildHeadline(input: {
   }
   if (input.failVerdict > 0 && phaseParts.length > 0) {
     parts.push(`${String(input.failVerdict)} FAIL`);
+  }
+  if (input.missingEvidence > 0) {
+    parts.push(`${String(input.missingEvidence)} missing evidence`);
   }
   return parts.join(' · ');
 }

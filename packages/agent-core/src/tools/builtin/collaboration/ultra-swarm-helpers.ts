@@ -134,6 +134,22 @@ export function extractFileChangePaths(text: string): readonly string[] {
   return [...paths];
 }
 
+const FILE_LINE_CITATION = /[\w.@+-]+(?:\/[\w.@+-]+)*\.[A-Za-z0-9]{1,8}:\d+(?::\d+)?\b/u;
+const TEST_OR_LOG_PATH = /\b(?:tests?|specs?|__tests__)\/[\w./-]+|[\w./-]+\.(?:log|txt|snap|png)\b/iu;
+
+/**
+ * Evidence obligation (harness reform T4-7b): an expert result counts as
+ * evidenced when it cites evidence/artifact ids, changed file paths,
+ * file:line references, or test/log artifacts. Results without any of
+ * these are flagged in the integration report instead of being trusted.
+ */
+export function hasCitedEvidence(text: string): boolean {
+  if (extractEvidenceIds(text).length > 0) return true;
+  if (extractFileChangePaths(text).length > 0) return true;
+  if (FILE_LINE_CITATION.test(text)) return true;
+  return TEST_OR_LOG_PATH.test(text);
+}
+
 function normalizeFileChangePath(raw: string): string | undefined {
   const trimmed = raw
     .trim()

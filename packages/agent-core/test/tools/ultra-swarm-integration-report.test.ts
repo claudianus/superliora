@@ -75,4 +75,46 @@ describe('ultra-swarm integration report', () => {
     expect(xml).toContain('verdict="BLOCKED"');
     expect(xml).toContain('<open_gaps>');
   });
+
+  it('flags completed experts without cited evidence (T4-7b)', () => {
+    const xml = buildUltraSwarmIntegrationReportXml(
+      [
+        {
+          spec: {
+            expertId: 'bare-claim',
+            expertName: 'Bare Claim',
+            emoji: '🫥',
+            phase: 'implement',
+            focus: 'build',
+            workNodeIds: [],
+          },
+          status: 'completed',
+          verdict: 'PASS',
+          evidenceIds: [],
+          result: '## Summary\nEverything works now, trust me.',
+        },
+        {
+          spec: {
+            expertId: 'cited',
+            expertName: 'Cited Worker',
+            emoji: '📎',
+            phase: 'implement',
+            focus: 'build',
+            workNodeIds: [],
+          },
+          status: 'completed',
+          verdict: 'PASS',
+          evidenceIds: [],
+          result: '## Summary\nFixed the parser at src/parse/lexer.ts:42 and added a regression test.',
+        },
+      ],
+      'run-evidence',
+    );
+
+    expect(xml).toContain('expert_id="bare-claim"');
+    expect(xml).toMatch(/expert_id="bare-claim"[^>]*evidence="missing"/);
+    expect(xml).not.toMatch(/expert_id="cited"[^>]*evidence="missing"/);
+    expect(xml).toContain('missing_evidence="1"');
+    expect(xml).toContain('1 missing evidence');
+  });
 });
