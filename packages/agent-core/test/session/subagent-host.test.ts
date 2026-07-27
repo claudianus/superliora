@@ -22,6 +22,11 @@ import {
   readSubagentCheckpoint,
   writeSubagentCheckpoint,
 } from '../../src/session/subagent-checkpoint';
+import {
+  getDefaultSwarmFileLeaseRegistry,
+  normalizeLeasePath,
+  resetDefaultSwarmFileLeaseRegistry,
+} from '../../src/session/swarm-file-lease';
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {
@@ -411,6 +416,71 @@ describe('SessionSubagentHost', () => {
       if (previousHome === undefined) delete process.env['SUPERLIORA_HOME'];
       else process.env['SUPERLIORA_HOME'] = previousHome;
       await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  const leaseSummary =
+    'Completed the owned-file task end to end: implemented the change, ran the scoped verification, ' +
+    'and wrote the structured summary so the parent can integrate the result mechanically without ' +
+    're-reading the whole run transcript or re-running any of the completed steps.';
+
+  it('claims declared ownership at spawn and releases it on completion', async () => {
+    resetDefaultSwarmFileLeaseRegistry();
+    try {
+      const parent = testAgent();
+      parent.configure();
+      parent.newEvents();
+      const child = testAgent();
+      child.configure();
+      child.mockNextResponse({ type: 'text', text: leaseSummary });
+      const session = fakeSession(parent.agent, child.agent);
+      const host = new SessionSubagentHost(session, 'main');
+
+      const handle = await host.spawn({
+        profileName: 'coder',
+        parentToolCallId: 'call-lease',
+        prompt: 'Own a file',
+        description: 'lease',
+        runInBackground: false,
+        signal: new AbortController().signal,
+        ownership: ['src/owned.ts'],
+      });
+      const registry = getDefaultSwarmFileLeaseRegistry();
+      expect(registry.holder(normalizeLeasePath('src/owned.ts'))?.ownerId).toBe(handle.agentId);
+
+      await handle.completion;
+      expect(registry.holder(normalizeLeasePath('src/owned.ts'))).toBeUndefined();
+    } finally {
+      resetDefaultSwarmFileLeaseRegistry();
+    }
+  });
+
+  it('blocks fan-out when declared ownership overlaps another owner', async () => {
+    resetDefaultSwarmFileLeaseRegistry();
+    try {
+      getDefaultSwarmFileLeaseRegistry().claim('src/shared.ts', 'other-owner', 'other-run');
+
+      const parent = testAgent();
+      parent.configure();
+      parent.newEvents();
+      const child = testAgent();
+      child.configure();
+      const session = fakeSession(parent.agent, child.agent);
+      const host = new SessionSubagentHost(session, 'main');
+
+      await expect(
+        host.spawn({
+          profileName: 'coder',
+          parentToolCallId: 'call-conflict',
+          prompt: 'Overlap',
+          description: 'conflict',
+          runInBackground: false,
+          signal: new AbortController().signal,
+          ownership: ['src/shared.ts'],
+        }),
+      ).rejects.toThrow(/Ownership conflict/);
+    } finally {
+      resetDefaultSwarmFileLeaseRegistry();
     }
   });
 

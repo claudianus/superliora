@@ -63,6 +63,7 @@ import {
   readSubagentCheckpoint,
   writeSubagentCheckpoint,
 } from './subagent-checkpoint';
+import { getDefaultSwarmFileLeaseRegistry } from './swarm-file-lease';
 import {
   buildSubagentResultContract,
   collectFilesChanged,
@@ -175,6 +176,8 @@ export interface RunSubagentOptions {
   readonly timeoutMs?: number;
   /** Shared contract file that must compile before the subagent is spawned (T4-3). */
   readonly contractPath?: string;
+  /** File paths the subagent owns; claimed at spawn so overlaps fail fast (T4-2). */
+  readonly ownership?: readonly string[];
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }
@@ -293,6 +296,7 @@ export class SessionSubagentHost {
       },
       { parentAgentId: this.ownerAgentId, swarmItem: options.swarmItem },
     );
+    this.claimChildOwnership(agent, id, options);
     const completion = this.runWithActiveChild(id, options, async (runOptions) => {
       const modelAlias = resolveSubagentModelAlias(
         profile.name,
@@ -324,6 +328,7 @@ export class SessionSubagentHost {
   async resume(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
     const { parent, child, profileName } = await this.ensureIdleSubagent(agentId);
+    child.swarmFileLease = { ownerId: agentId, runId: options.parentToolCallId };
     const checkpoint = readSubagentCheckpoint(agentId);
     if (checkpoint !== undefined) {
       child.context.appendSystemReminder(buildCheckpointRecoveryReminder(checkpoint), {
@@ -691,7 +696,35 @@ export class SessionSubagentHost {
     });
     this.triggerSubagentStop(parent, profileName, result);
     clearSubagentCheckpoint(childId);
+    getDefaultSwarmFileLeaseRegistry().releaseAll(options.parentToolCallId);
     return { result, usage, contract };
+  }
+
+  /**
+   * All-mode file lease (harness reform T4-2): every spawned child gets a
+   * lease identity so its edits conflict-check against other owners, and any
+   * declared ownership is pre-claimed so overlaps fail at fan-out instead of
+   * mid-run.
+   */
+  private claimChildOwnership(
+    child: Agent,
+    childId: string,
+    options: RunSubagentOptions,
+  ): void {
+    const runId = options.parentToolCallId;
+    child.swarmFileLease = { ownerId: childId, runId };
+    const declared = options.ownership ?? [];
+    if (declared.length === 0) return;
+    const registry = getDefaultSwarmFileLeaseRegistry();
+    for (const rawPath of declared) {
+      const result = registry.claim(rawPath, childId, runId);
+      if (result.ok) continue;
+      registry.releaseAll(runId);
+      const holder = result.conflict.holder;
+      throw new Error(
+        `Ownership conflict on ${result.conflict.path}: already claimed by owner=${holder.ownerId} run=${holder.runId}. Resolve the overlap before fan-out.`,
+      );
+    }
   }
 
   /**
@@ -1090,6 +1123,7 @@ export class SessionSubagentHost {
     error: unknown,
     details?: SubagentFailedDetails,
   ): void {
+    getDefaultSwarmFileLeaseRegistry().releaseAll(options.parentToolCallId);
     if (shouldSuppressQueuedAttemptFailureEvent(options, error)) return;
     if (options.swarmItem !== undefined) {
       updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'pending');

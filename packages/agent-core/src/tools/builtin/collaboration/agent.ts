@@ -78,6 +78,13 @@ export const AgentToolInputSchema = z.preprocess(
       .describe(
         'Optional path to a shared contract file (types/events both sides import). It is type-checked before the subagent spawns; a failing contract blocks fan-out.',
       ),
+    ownership: z
+      .array(z.string().min(1))
+      .max(50)
+      .optional()
+      .describe(
+        'Optional file paths this subagent owns. They are claimed at spawn; an overlap with another owner blocks fan-out, and concurrent edits to claimed files conflict-check.',
+      ),
     run_in_background: z
       .boolean()
       .optional()
@@ -207,6 +214,7 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         signal: controller.signal,
         timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
         contractPath: args.contract,
+        ownership: args.ownership,
       };
       let handle: SubagentHandle;
       try {
