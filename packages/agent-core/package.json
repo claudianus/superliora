@@ -79,6 +79,7 @@
     "node-pty": "^1.1.0",
     "nunjucks": "^3.2.4",
     "open": "^10.2.0",
+    "oxc-parser": "^0.141.0",
     "pathe": "^2.0.3",
     "picomatch": "^4.0.4",
     "proper-lockfile": "^4.1.2",
