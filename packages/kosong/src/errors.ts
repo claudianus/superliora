@@ -113,6 +113,26 @@ export function isPermanentQuotaOrBillingError(error: unknown): boolean {
   return PERMANENT_QUOTA_OR_BILLING_MESSAGE.some((pattern) => pattern.test(error.message));
 }
 
+/**
+ * Gateways sometimes answer a valid request with a body-less `400` when the
+ * upstream stream dies mid-flight (proxy glitch, dropped connection) — the
+ * canonical signature is "400 status code (no body)". Only these narrow
+ * body-less / gateway-glitch 400s count as transient; ordinary validation
+ * errors (invalid request body, bad parameters) must stay non-retryable.
+ */
+const TRANSIENT_NO_BODY_MESSAGE_PATTERNS = [
+  /no body/,
+  /empty (?:response|body)/,
+  /gateway/,
+] as const;
+
+export function isTransientNoBodyStatusError(error: unknown): boolean {
+  if (!(error instanceof APIStatusError)) return false;
+  if (error.statusCode !== 400) return false;
+  const lowerMessage = error.message.toLowerCase();
+  return TRANSIENT_NO_BODY_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
+}
+
 export function isRetryableGenerateError(error: unknown): boolean {
   if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
     return true;
@@ -127,6 +147,10 @@ export function isRetryableGenerateError(error: unknown): boolean {
   // xAI-style capacity / high-demand often arrives as plain ChatProviderError
   // without a 5xx status — still worth retrying after backoff.
   if (isProviderCapacityError(error)) {
+    return true;
+  }
+  // Body-less 400 gateway glitches are transient even though 4xx normally is not.
+  if (isTransientNoBodyStatusError(error)) {
     return true;
   }
   return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);

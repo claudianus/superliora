@@ -26,6 +26,7 @@ import {
   isProviderCapacityError,
   isProviderRateLimitError,
   isRetryableGenerateError,
+  isTransientNoBodyStatusError,
   type ChatProvider,
   type GenerateCallbacks,
   type Message,
@@ -1181,6 +1182,11 @@ export function classifyProviderRouteFailure(
     return { kind: 'quota', cooldownMs: cooldownMs(DEFAULT_QUOTA_COOLDOWN_MS) };
   }
   if (error.statusCode >= 500 && error.statusCode <= 504) {
+    return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
+  }
+  // Body-less 400 gateway glitches fail over / cool down like a transient
+  // server blip instead of ending the route immediately.
+  if (isTransientNoBodyStatusError(error)) {
     return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
   }
   return undefined;

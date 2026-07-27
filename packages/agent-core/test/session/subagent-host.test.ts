@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 
 import { testKaos } from '../fixtures/test-kaos';
-import { APIProviderRateLimitError, APIStatusError, type Message, type ToolCall } from '@superliora/kosong';
+import {
+  APIProviderRateLimitError,
+  APIStatusError,
+  emptyUsage,
+  type Message,
+  type ToolCall,
+  type TokenUsage,
+} from '@superliora/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent, AgentOptions } from '../../src/agent';
@@ -21,6 +28,7 @@ import {
 } from '../../src/session/subagent-host';
 import { abortError, userCancellationReason } from '../../src/utils/abort';
 import { testAgent, type AgentTestContext } from '../agent/harness/agent';
+import { createScriptedGenerate } from '../agent/harness/scripted-generate';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { executeTool } from '../tools/fixtures/execute-tool';
 
@@ -1464,6 +1472,222 @@ describe('SessionSubagentHost', () => {
 
     expect(child.agent.config.modelAlias).toBe(parent.agent.config.modelAlias);
     expect(child.agent.config.modelAlias).not.toBe('cheap-haiku');
+  });
+
+  describe('model fallback on retryable provider failure', () => {
+    const testProviders = {
+      'test-provider': { type: 'kimi' as const, apiKey: 'test-key' },
+    };
+    const fallbackModels = {
+      'mock-model': {
+        provider: 'test-provider',
+        model: 'primary-model',
+        maxContextSize: 1_000_000,
+        fallbackModels: ['fallback-model'],
+      },
+      'fallback-model': {
+        provider: 'test-provider',
+        model: 'backup-model',
+        maxContextSize: 1_000_000,
+      },
+    };
+
+    function failedEvents(parent: AgentTestContext) {
+      return parent.allEvents.filter(
+        (entry) => entry.type === '[rpc]' && entry.event === 'subagent.failed',
+      );
+    }
+
+    function flattenedTransientFailure() {
+      // Mirrors how runChildTurnToCompletion flattens a failed turn payload:
+      // a plain Error carrying the provider HTTP status.
+      const failure = new Error('[provider_api_error] 400 status code (no body)');
+      (failure as Error & { statusCode?: number }).statusCode = 400;
+      return failure;
+    }
+
+    function stubRunPromptTurn(host: SessionSubagentHost) {
+      return vi.spyOn(
+        host as unknown as {
+          runPromptTurn: (...args: unknown[]) => Promise<{ result: string; usage: TokenUsage }>;
+        },
+        'runPromptTurn',
+      );
+    }
+
+    it('fails over the provider route to a fallback model candidate on a body-less 400', async () => {
+      const parent = testAgent();
+      parent.configure();
+
+      const summary =
+        'Completed the delegated subagent task on the fallback route candidate with enough concrete detail for the parent agent to continue without repeating the work. '.repeat(
+          2,
+        );
+      const scripted = createScriptedGenerate();
+      const attemptedModels: string[] = [];
+      const generate: GenerateFn = async (
+        provider,
+        systemPrompt,
+        tools,
+        history,
+        callbacks,
+        options,
+      ) => {
+        attemptedModels.push(provider.modelName);
+        if (provider.modelName === 'primary-model') {
+          options?.signal?.throwIfAborted();
+          throw new APIStatusError(400, '400 status code (no body)');
+        }
+        return scripted.generate(provider, systemPrompt, tools, history, callbacks, options);
+      };
+      const child = testAgent({
+        generate,
+        initialConfig: { providers: testProviders, models: fallbackModels },
+      });
+      scripted.mockNextResponse({ type: 'text', text: summary });
+      const session = fakeSession(parent.agent, child.agent);
+      const host = new SessionSubagentHost(session, 'main');
+
+      const handle = await host.spawn({
+        profileName: 'coder',
+        parentToolCallId: 'call_agent',
+        prompt: 'Implement the fix',
+        description: 'Fix bug',
+        runInBackground: false,
+        signal,
+      });
+      await expect(handle.completion).resolves.toMatchObject({ result: summary.trim() });
+
+      // The primary candidate's body-less 400 failed over to the fallback
+      // candidate inside the same turn instead of ending it.
+      expect(attemptedModels).toEqual(['primary-model', 'backup-model']);
+      expect(failedEvents(parent)).toHaveLength(0);
+    }, 30_000);
+
+    it('switches the spawned subagent to a fallback model after a retryable turn failure', async () => {
+      const parent = testAgent();
+      parent.configure();
+
+      const summary = 'Recovered on the fallback model.';
+      const child = testAgent({
+        initialConfig: { providers: testProviders, models: fallbackModels },
+      });
+      const session = fakeSession(parent.agent, child.agent);
+      const host = new SessionSubagentHost(session, 'main');
+      const runPromptTurn = stubRunPromptTurn(host);
+      runPromptTurn
+        .mockRejectedValueOnce(flattenedTransientFailure())
+        .mockResolvedValueOnce({ result: summary, usage: emptyUsage() });
+
+      const handle = await host.spawn({
+        profileName: 'coder',
+        parentToolCallId: 'call_agent',
+        prompt: 'Implement the fix',
+        description: 'Fix bug',
+        runInBackground: false,
+        signal,
+      });
+      await expect(handle.completion).resolves.toMatchObject({ result: summary });
+
+      expect(child.agent.config.modelAlias).toBe('fallback-model');
+      const failed = failedEvents(parent);
+      expect(failed).toHaveLength(1);
+      expect(failed[0]).toMatchObject({
+        args: expect.objectContaining({
+          subagentId: 'agent-0',
+          retryAttempt: 1,
+          retryLimit: 1,
+        }),
+      });
+    });
+
+    it('reports fellBackToModel when every fallback model also fails', async () => {
+      const parent = testAgent();
+      parent.configure();
+
+      const models = {
+        'mock-model': {
+          provider: 'test-provider',
+          model: 'primary-model',
+          maxContextSize: 1_000_000,
+          fallbackModels: ['fallback-model', 'last-resort-model'],
+        },
+        'fallback-model': {
+          provider: 'test-provider',
+          model: 'backup-model',
+          maxContextSize: 1_000_000,
+        },
+        'last-resort-model': {
+          provider: 'test-provider',
+          model: 'tertiary-model',
+          maxContextSize: 1_000_000,
+        },
+      };
+      const child = testAgent({
+        initialConfig: { providers: testProviders, models },
+      });
+      const session = fakeSession(parent.agent, child.agent);
+      const host = new SessionSubagentHost(session, 'main');
+      const runPromptTurn = stubRunPromptTurn(host);
+      runPromptTurn.mockRejectedValue(flattenedTransientFailure());
+
+      const handle = await host.spawn({
+        profileName: 'coder',
+        parentToolCallId: 'call_agent',
+        prompt: 'Implement the fix',
+        description: 'Fix bug',
+        runInBackground: false,
+        signal,
+      });
+      await expect(handle.completion).rejects.toThrow('400 status code (no body)');
+
+      expect(child.agent.config.modelAlias).toBe('last-resort-model');
+      const failed = failedEvents(parent);
+      expect(failed).toHaveLength(3);
+      expect(failed[0]).toMatchObject({
+        args: expect.objectContaining({ retryAttempt: 1, retryLimit: 2 }),
+      });
+      expect(failed[1]).toMatchObject({
+        args: expect.objectContaining({ retryAttempt: 2, retryLimit: 2 }),
+      });
+      expect(failed[2]).toMatchObject({
+        args: expect.objectContaining({ fellBackToModel: 'last-resort-model' }),
+      });
+      expect(failed[2]?.args).not.toHaveProperty('retryAttempt');
+    });
+
+    it('keeps the single-failure behavior for non-retryable errors', async () => {
+      const parent = testAgent();
+      parent.configure();
+
+      const child = testAgent({
+        generate: async (_chat, _systemPrompt, _tools, _history, _callbacks, options) => {
+          options?.signal?.throwIfAborted();
+          throw new APIStatusError(400, 'Invalid request body: messages is required');
+        },
+        initialConfig: { providers: testProviders, models: fallbackModels },
+      });
+      const session = fakeSession(parent.agent, child.agent);
+      const host = new SessionSubagentHost(session, 'main');
+
+      const handle = await host.spawn({
+        profileName: 'coder',
+        parentToolCallId: 'call_agent',
+        prompt: 'Implement the fix',
+        description: 'Fix bug',
+        runInBackground: false,
+        signal,
+      });
+      await expect(handle.completion).rejects.toThrow('Invalid request body');
+
+      // No fallback hop happened: the child stays on the inherited parent alias
+      // and exactly one plain failed event was emitted.
+      expect(child.agent.config.modelAlias).toBe('mock-model');
+      const failed = failedEvents(parent);
+      expect(failed).toHaveLength(1);
+      expect(failed[0]?.args).not.toHaveProperty('retryAttempt');
+      expect(failed[0]?.args).not.toHaveProperty('fellBackToModel');
+    });
   });
 });
 

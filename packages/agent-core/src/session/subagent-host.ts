@@ -1,6 +1,8 @@
 import {
   APIProviderRateLimitError,
+  APIStatusError,
   isProviderRateLimitError,
+  isRetryableGenerateError,
   type ContentPart,
   type TokenUsage,
 } from '@superliora/kosong';
@@ -14,7 +16,11 @@ import {
   resolveCompactionBlockRatio,
 } from '../agent/compaction';
 import type { PromptOrigin } from '../agent/context';
-import { ErrorCodes, type LioraErrorPayload } from '../errors';
+import {
+  isRetryableProviderFailure,
+  listSwitchableFailoverModels,
+} from '../agent/provider-failover';
+import { ErrorCodes, toKimiErrorPayload, type LioraErrorPayload } from '../errors';
 import { DenyAllPermissionPolicy } from '../agent/permission/policies/deny-all';
 import { InMemoryAgentRecordPersistence } from '../agent/records';
 import { isAbortError } from '../loop/errors';
@@ -61,6 +67,12 @@ import SUMMARY_CONTINUATION_PROMPT from './summary-continuation.md?raw';
 
 export const DEFAULT_SUBAGENT_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_SUBAGENT_TIMEOUT_DESCRIPTION = '30 minutes';
+
+/**
+ * How many fallback-model hops a spawned subagent may take after a retryable
+ * provider failure exhausts the in-loop retries (A -> B -> C at most).
+ */
+const SUBAGENT_MODEL_FALLBACK_HOPS = 2;
 
 export type {
   SubagentResult as QueuedSubagentRunResult,
@@ -126,6 +138,13 @@ export interface RunSubagentOptions {
 export interface SpawnSubagentOptions extends RunSubagentOptions {
   readonly profileName: string;
   readonly profileBaseName?: string;
+}
+
+/** Optional model-fallback progress attached to `subagent.failed` events. */
+interface SubagentFailedDetails {
+  readonly retryAttempt?: number;
+  readonly retryLimit?: number;
+  readonly fellBackToModel?: string;
 }
 
 type SubagentCompletion = {
@@ -242,11 +261,11 @@ export class SessionSubagentHost {
       this.emitSubagentSpawned(parent, id, profile.name, runOptions, modelAlias);
       try {
         await this.configureChild(parent, agent, profile, id, runOptions, options.profileBaseName);
-        return await this.runPromptTurn(parent, id, agent, profile.name, runOptions);
       } catch (error) {
         this.emitSubagentFailed(parent, id, runOptions, error);
         throw error;
       }
+      return await this.runPromptTurnWithModelFallback(parent, id, agent, profile.name, runOptions);
     });
     return {
       agentId: id,
@@ -459,6 +478,53 @@ export class SessionSubagentHost {
       unlinkAbortSignal();
       this.activeChildren.delete(childId);
     });
+  }
+
+  /**
+   * Run the child prompt turn, hopping through the child model's configured
+   * `fallbackModels` when a turn fails with a retryable provider failure
+   * (transient 5xx / body-less 400 gateway glitches, rate limits) — at most
+   * {@link SUBAGENT_MODEL_FALLBACK_HOPS} hops. Each intermediate failure emits
+   * `subagent.failed` with `retryAttempt` / `retryLimit`; the final failure
+   * carries `fellBackToModel` when at least one hop happened, then rethrows.
+   * Without candidates or for non-retryable failures this behaves exactly like
+   * a single failed emit + rethrow.
+   */
+  private async runPromptTurnWithModelFallback(
+    parent: Agent,
+    childId: string,
+    child: Agent,
+    profileName: string,
+    options: RunSubagentOptions,
+  ): Promise<SubagentCompletion> {
+    const fallbackAliases = listSwitchableFailoverModels(child).map((option) => option.alias);
+    const maxFallbackHops = Math.min(SUBAGENT_MODEL_FALLBACK_HOPS, fallbackAliases.length);
+    let lastAttemptedAlias = child.config.modelAlias;
+
+    for (let hop = 0; ; hop += 1) {
+      try {
+        return await this.runPromptTurn(parent, childId, child, profileName, options);
+      } catch (error) {
+        const nextAlias =
+          hop < maxFallbackHops && isRetryableSubagentProviderFailure(error)
+            ? fallbackAliases[hop]
+            : undefined;
+        if (nextAlias === undefined) {
+          this.emitSubagentFailed(parent, childId, options, error, {
+            ...(hop > 0 && lastAttemptedAlias !== undefined
+              ? { fellBackToModel: lastAttemptedAlias }
+              : {}),
+          });
+          throw error;
+        }
+        this.emitSubagentFailed(parent, childId, options, error, {
+          retryAttempt: hop + 1,
+          retryLimit: maxFallbackHops,
+        });
+        child.config.update({ modelAlias: nextAlias });
+        lastAttemptedAlias = nextAlias;
+      }
+    }
   }
 
   private async runPromptTurn(
@@ -718,6 +784,7 @@ export class SessionSubagentHost {
     childId: string,
     options: RunSubagentOptions,
     error: unknown,
+    details?: SubagentFailedDetails,
   ): void {
     if (shouldSuppressQueuedAttemptFailureEvent(options, error)) return;
     if (options.swarmItem !== undefined) {
@@ -727,6 +794,9 @@ export class SessionSubagentHost {
       type: 'subagent.failed',
       subagentId: childId,
       error: error instanceof Error ? error.message : String(error),
+      ...(details?.retryAttempt !== undefined ? { retryAttempt: details.retryAttempt } : {}),
+      ...(details?.retryLimit !== undefined ? { retryLimit: details.retryLimit } : {}),
+      ...(details?.fellBackToModel !== undefined ? { fellBackToModel: details.fellBackToModel } : {}),
     });
   }
 }
@@ -810,6 +880,23 @@ function shouldSuppressQueuedAttemptFailureEvent(
   if (options.suppressRateLimitFailureEvent !== true) return false;
   if (isProviderRateLimitError(error)) return true;
   return isAbortError(error) || options.signal.aborted;
+}
+
+/**
+ * Whether a subagent turn failure deserves a model-fallback hop. Direct
+ * provider errors (rate limit, status errors thrown before flattening) are
+ * judged through their wire payload. Flattened turn failures arrive as plain
+ * `Error`s with the provider HTTP status copied on, so rebuild a status error
+ * and let kosong's classifier judge transient cases (e.g. body-less 400
+ * gateway glitches) exactly the same way.
+ */
+function isRetryableSubagentProviderFailure(error: unknown): boolean {
+  if (isAbortError(error)) return false;
+  if (isRetryableProviderFailure(toKimiErrorPayload(error))) return true;
+  if (!(error instanceof Error)) return false;
+  const statusCode = (error as Error & { statusCode?: unknown }).statusCode;
+  if (typeof statusCode !== 'number') return false;
+  return isRetryableGenerateError(new APIStatusError(statusCode, error.message));
 }
 
 function createExpertSubagentProfile(

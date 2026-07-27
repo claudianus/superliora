@@ -12,6 +12,7 @@ import {
   isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,
+  isTransientNoBodyStatusError,
   isTransientProviderError,
   normalizeAPIStatusError,
 } from '#/errors';
@@ -176,6 +177,47 @@ describe('isRetryableGenerateError', () => {
     const billing = new APIStatusError(402, 'payment required');
     expect(isProviderCapacityError(billing)).toBe(false);
     expect(isRetryableGenerateError(billing)).toBe(false);
+  });
+
+  it('retries body-less 400 gateway glitches but not ordinary 400 validation errors', () => {
+    expect(isRetryableGenerateError(new APIStatusError(400, '400 status code (no body)'))).toBe(
+      true,
+    );
+    expect(
+      isRetryableGenerateError(new APIStatusError(400, 'empty response from upstream gateway')),
+    ).toBe(true);
+    expect(
+      isRetryableGenerateError(new APIStatusError(400, 'Invalid request body: model is required')),
+    ).toBe(false);
+    expect(isRetryableGenerateError(new APIStatusError(400, 'non-retryable'))).toBe(false);
+  });
+});
+
+describe('isTransientNoBodyStatusError', () => {
+  it('matches only body-less / gateway-glitch 400 status errors', () => {
+    expect(isTransientNoBodyStatusError(new APIStatusError(400, '400 status code (no body)'))).toBe(
+      true,
+    );
+    expect(isTransientNoBodyStatusError(new APIStatusError(400, 'empty response'))).toBe(true);
+    expect(isTransientNoBodyStatusError(new APIStatusError(400, 'empty body from proxy'))).toBe(
+      true,
+    );
+    expect(isTransientNoBodyStatusError(new APIStatusError(400, 'bad gateway'))).toBe(true);
+  });
+
+  it('rejects ordinary 400s, other statuses, and non-status errors', () => {
+    expect(isTransientNoBodyStatusError(new APIStatusError(400, 'Invalid request body'))).toBe(
+      false,
+    );
+    expect(
+      isTransientNoBodyStatusError(new APIStatusError(500, '400 status code (no body)')),
+    ).toBe(false);
+    expect(isTransientNoBodyStatusError(new APIStatusError(502, 'bad gateway'))).toBe(false);
+    expect(isTransientNoBodyStatusError(new ChatProviderError('400 status code (no body)'))).toBe(
+      false,
+    );
+    expect(isTransientNoBodyStatusError(new Error('400 status code (no body)'))).toBe(false);
+    expect(isTransientNoBodyStatusError('400 status code (no body)')).toBe(false);
   });
 });
 

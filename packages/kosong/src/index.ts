@@ -73,6 +73,7 @@ export {
   isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,
+  isTransientNoBodyStatusError,
   isTransientProviderError,
 } from './errors';
 

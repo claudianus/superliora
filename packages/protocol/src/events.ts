@@ -783,6 +783,12 @@ export interface SubagentFailedEvent {
   readonly type: 'subagent.failed';
   readonly subagentId: string;
   readonly error: string;
+  /** 1-based model-fallback attempt count when the host is retrying on a fallback model. */
+  readonly retryAttempt?: number;
+  /** Maximum model-fallback hops configured for this spawn. */
+  readonly retryLimit?: number;
+  /** Last model alias attempted before the final failure (only after >=1 fallback hop). */
+  readonly fellBackToModel?: string;
 }
 
 export interface TodoItemPayload {
@@ -866,6 +872,19 @@ export interface CompactionProgressEvent {
    * to phase bases when absent. Monotonic within a compaction session.
    */
   readonly fraction?: number;
+  /**
+   * Wall-clock milliseconds the completed block's summarize LLM call took.
+   * Only present on block-completion ticks (`streamKind: 'block'` ticks that
+   * carry `blocksCompleted` and no `delta`); absent on streaming deltas and
+   * on summary/merge/repair ticks. Optional so older consumers are unaffected.
+   */
+  readonly blockDurationMs?: number;
+  /**
+   * Token usage reported by the completed block's summarize call, when the
+   * provider returned usage. Emitted alongside `blockDurationMs` so clients
+   * can attribute latency and cost per parallel block.
+   */
+  readonly blockTokens?: TokenUsage;
 }
 
 export interface BackgroundTaskStartedEvent {
@@ -1707,6 +1726,9 @@ export const subagentFailedEventSchema = z.object({
   type: z.literal('subagent.failed'),
   subagentId: z.string(),
   error: z.string(),
+  retryAttempt: z.number().optional(),
+  retryLimit: z.number().optional(),
+  fellBackToModel: z.string().optional(),
 }) satisfies z.ZodType<SubagentFailedEvent>;
 
 const todoItemPayloadSchema = z.object({
@@ -1770,6 +1792,8 @@ export const compactionProgressEventSchema = z.object({
   streamKind: compactionStreamKindSchema.optional(),
   blockIndex: z.number().int().positive().optional(),
   blockCount: z.number().int().positive().optional(),
+  blockDurationMs: z.number().nonnegative().optional(),
+  blockTokens: tokenUsageSchema.optional(),
 }) satisfies z.ZodType<CompactionProgressEvent>;
 
 export const backgroundTaskStartedEventSchema = z.object({

@@ -4,6 +4,7 @@ import {
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
+  isTransientNoBodyStatusError,
 } from '@superliora/kosong';
 
 import { LioraError } from './classes';
@@ -103,7 +104,9 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
           ? true
           : resolvedCode === ErrorCodes.PROVIDER_API_ERROR && error.statusCode >= 500
             ? true
-            : KIMI_ERROR_INFO[resolvedCode].retryable;
+            : isTransientNoBodyStatusError(error)
+              ? true
+              : KIMI_ERROR_INFO[resolvedCode].retryable;
     return {
       code: resolvedCode,
       message,
