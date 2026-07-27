@@ -132,7 +132,7 @@ export function resolveSlashCommandInput(options: ResolveSlashCommandInput): Sla
 /** Short aliases for builtin skills that users invoke frequently. */
 const SKILL_ALIASES: Readonly<Record<string, string>> = {
   improve: 'recursive-improve',
-  slop: 'no-ai-slop',
+  slop: 'avoid-ai-writing',
   goal: 'write-goal',
 };
 

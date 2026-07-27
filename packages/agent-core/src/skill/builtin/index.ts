@@ -9,15 +9,7 @@ import {
   SUB_SKILL_REVIEW,
 } from './sub-skill';
 import { UPDATE_CONFIG_SKILL } from './update-config';
-import {
-  AVOID_AI_WRITING_SKILL,
-  NO_AI_SLOP_BUILTIN_SKILLS,
-  NO_AI_SLOP_CHANGELOG_SKILL,
-  NO_AI_SLOP_KOREAN_SKILL,
-  NO_AI_SLOP_META_PROMPT_SKILL,
-  NO_AI_SLOP_SKILL,
-  NO_AI_SLOP_UI_SKILL,
-} from './no-ai-slop';
+import { AVOID_AI_WRITING_SKILL } from './avoid-ai-writing';
 import { ULTRAWORK_SKILL } from './ultrawork';
 import { WRITE_GOAL_SKILL } from './write-goal';
 import { registerCatalogSkills as loadCatalogSkills } from '../catalog-loader';
@@ -30,9 +22,7 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(WRITE_GOAL_SKILL);
   registry.registerBuiltinSkill(RECURSIVE_IMPROVE_SKILL);
   registry.registerBuiltinSkill(ULTRAWORK_SKILL);
-  for (const skill of NO_AI_SLOP_BUILTIN_SKILLS) {
-    registry.registerBuiltinSkill(skill);
-  }
+  registry.registerBuiltinSkill(AVOID_AI_WRITING_SKILL);
   registry.registerBuiltinSkill(SUB_SKILL_PARENT);
   registry.registerBuiltinSkill(SUB_SKILL_REVIEW);
   registry.registerBuiltinSkill(SUB_SKILL_CONSOLIDATE);
@@ -47,12 +37,6 @@ export {
   CUSTOM_THEME_SKILL,
   IMPORT_FROM_CC_CODEX_SKILL,
   MCP_CONFIG_SKILL,
-  NO_AI_SLOP_BUILTIN_SKILLS,
-  NO_AI_SLOP_CHANGELOG_SKILL,
-  NO_AI_SLOP_KOREAN_SKILL,
-  NO_AI_SLOP_META_PROMPT_SKILL,
-  NO_AI_SLOP_SKILL,
-  NO_AI_SLOP_UI_SKILL,
   RECURSIVE_IMPROVE_SKILL,
   SUB_SKILL_CONSOLIDATE,
   SUB_SKILL_PARENT,
