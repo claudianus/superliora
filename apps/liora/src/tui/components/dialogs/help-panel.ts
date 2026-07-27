@@ -15,6 +15,7 @@ import {
   type Focusable,
   renderRendererScrollablePanelChromeRows,
 } from '#/tui/renderer';
+import { keymapAsHelpShortcuts } from '#/tui/keymap';
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
@@ -31,40 +32,13 @@ export interface HelpPanelCommand {
   readonly description: string;
 }
 
-/** Static list — keep in sync with the global editor bindings. */
-function ultraworkPlanningShortcut(): KeyboardShortcut {
-  return {
-    keys: 'Shift-Tab',
-    description: ttui('tui.help.shortcut.shiftTab'),
-  };
-}
-
+/** Sourced from `keymap.ts` — do not maintain a parallel list here. */
 export function defaultKeyboardShortcuts(): readonly KeyboardShortcut[] {
-  return [
-    ultraworkPlanningShortcut(),
-    { keys: 'Ctrl-G', description: ttui('tui.help.shortcut.ctrlG') },
-    { keys: 'Ctrl-O', description: ttui('tui.help.shortcut.ctrlO') },
-    { keys: 'Ctrl-B', description: ttui('tui.help.shortcut.ctrlB') },
-    { keys: 'Ctrl-T', description: ttui('tui.help.shortcut.ctrlT') },
-    { keys: 'Ctrl-S', description: ttui('tui.help.shortcut.ctrlS') },
-    { keys: 'Ctrl-X', description: ttui('tui.help.shortcut.ctrlX') },
-    { keys: 'Shift-Enter / Ctrl-J', description: ttui('tui.help.shortcut.newline') },
-    { keys: 'Ctrl-C', description: ttui('tui.help.shortcut.ctrlC') },
-    { keys: 'Ctrl-D', description: ttui('tui.help.shortcut.ctrlD') },
-    { keys: 'Esc', description: ttui('tui.help.shortcut.esc') },
-    { keys: 'Esc Esc', description: ttui('tui.help.shortcut.escEsc') },
-    { keys: '↑ / ↓', description: ttui('tui.help.shortcut.history') },
-    { keys: 'Enter', description: ttui('tui.help.shortcut.enter') },
-  ];
+  return keymapAsHelpShortcuts();
 }
 
 export function advancedKeyboardShortcuts(): readonly KeyboardShortcut[] {
-  const defaults = defaultKeyboardShortcuts();
-  return [
-    ultraworkPlanningShortcut(),
-    { keys: 'Ctrl-Shift-Tab', description: ttui('tui.help.shortcut.ctrlShiftTab') },
-    ...defaults.slice(1),
-  ];
+  return keymapAsHelpShortcuts();
 }
 
 export function defaultHelpIntro(): string {

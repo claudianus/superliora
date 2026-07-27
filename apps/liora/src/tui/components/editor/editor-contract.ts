@@ -32,12 +32,14 @@ export interface TUIEditor
   onEscape?: () => void;
   onCtrlD?: () => void;
   onCtrlC?: () => void;
-  onToggleToolExpand?: () => void;
   onOpenExternalEditor?: () => void;
   onCtrlS?: () => void;
-  onCtrlB?: () => boolean;
+  /** Return true when backgrounding ran; false/void when only a tip was shown. */
+  onCtrlB?: () => boolean | void;
+  /** Programmatic tool-output expand (no longer a main-prompt chord; use Hub). */
+  onToggleToolExpand?: () => void;
+  /** Programmatic todo expand (no longer a main-prompt chord). */
   onToggleTodoExpand?: () => boolean;
-  onUndo?: () => void;
   onNonEscapeInput?: () => void;
   onInsertNewline?: () => void;
   onTextPaste?: () => void;
@@ -48,7 +50,6 @@ export interface TUIEditor
   onTranscriptTop?: () => boolean;
   onTranscriptBottom?: () => boolean;
   onShiftTab?: () => void;
-  onShiftTabUltra?: () => void;
   onInputModeChange?: (mode: TUIEditorInputMode) => void;
   onPasteImage?: () => Promise<boolean>;
   /** History recall adapter (used by the native editor's history browse). */
@@ -57,14 +58,17 @@ export interface TUIEditor
   onHistoryDraftRestore?: (state: unknown) => void;
   /** Opens the input-history fuzzy-search dialog (Ctrl-R). */
   onHistorySearch?: () => void;
-  /** Opens the command palette (Ctrl-Space). */
+  /** Opens the Command Hub (Ctrl-K / ? when empty). */
   onCommandPalette?: () => void;
   /** Opens the transcript search overlay (Ctrl-F). */
   onTranscriptSearch?: () => void;
-  /** Re-sends the last failed user turn (Ctrl-Y when idle + last turn failed). */
-  onRetryLastTurn?: () => void;
   /** Stashes the current draft, or restores the latest stash when the editor is empty (Ctrl-X). */
   onStashToggle?: () => void;
+  /**
+   * App shortcuts that must run before native text mutation (`?` → Hub).
+   * Wired via the native input router's `handlePreEditorInput`.
+   */
+  tryHandleAppShortcut?(data: string): boolean;
   /**
    * Ghost text (prompt intelligence) callbacks. `onAcceptGhost` fires when Tab
    * confirms the visible ghost text; `onCycleGhost` fires when ↑/↓ rotates the

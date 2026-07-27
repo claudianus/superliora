@@ -45,14 +45,12 @@ export interface EditorKeyboardHost {
   hideExtensionsModal(): void;
   openUndoSelector(): void;
   stop(exitCode?: number): Promise<void>;
-  handlePlanToggle(next: boolean, ultra?: boolean): void;
   handleUltraworkModeToggle(next: boolean): void;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   clearQueuedMessages(): void;
   showHistorySearch(): void;
   showCommandPalette(): void;
   showTranscriptSearch(): void;
-  retryLastTurn(): Promise<void>;
   stashPromptToggle(): void;
   setExternalEditorRunning(running: boolean): void;
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
@@ -213,17 +211,6 @@ export class EditorKeyboardController {
       host.handleUltraworkModeToggle(false);
     };
 
-    editor.onShiftTabUltra = () => {
-      if (host.session === undefined) {
-        host.showError(NO_ACTIVE_SESSION_MESSAGE);
-        return;
-      }
-      const next = !host.state.appState.planMode;
-      host.track('shortcut_plan_toggle', { enabled: next, ultra: true });
-      host.track('shortcut_mode_switch', { to_mode: next ? 'ultra-plan' : 'agent' });
-      host.handlePlanToggle(next, true);
-    };
-
     editor.onInputModeChange = (mode) => {
       host.handleInputModeChange(mode);
     };
@@ -233,15 +220,13 @@ export class EditorKeyboardController {
       void this.openExternalEditor();
     };
 
+    // Ctrl-O / Ctrl-T are no longer main-prompt chords (Hub / programmatic only).
     editor.onToggleToolExpand = () => {
       host.track('shortcut_expand');
       host.toggleToolOutputExpansion();
     };
-
     editor.onToggleTodoExpand = (): boolean => {
       if (!host.state.todoPanel.hasOverflow()) return false;
-      // Disarm a pending double-press exit confirmation so expanding the
-      // todo list in between two Ctrl-C presses does not accidentally exit.
       this.clearPendingExit();
       host.track('shortcut_todo_expand');
       host.toggleTodoPanelExpansion();
@@ -253,8 +238,10 @@ export class EditorKeyboardController {
         host.state.appState.streamingPhase === 'idle' ||
         host.state.appState.streamingPhase === 'shell' ||
         host.state.appState.isCompacting
-      )
+      ) {
+        host.state.toast.show('Steer works while a turn is running', 2200);
         return;
+      }
       const text = editor.getText().trim();
       const editorIsBash = editor.inputMode === 'bash';
 
@@ -271,14 +258,16 @@ export class EditorKeyboardController {
       }
       if (!editorIsBash && text.length > 0) parts.push(text);
 
-      if (parts.length > 0) {
-        if (!editorIsBash) editor.setText('');
-        const session = host.session;
-        if (host.state.appState.model.trim().length === 0 || session === undefined) {
-          host.showError(LLM_NOT_SET_MESSAGE);
-        } else {
-          host.steerMessage(session, parts);
-        }
+      if (parts.length === 0) {
+        host.state.toast.show('Type a steer message first, then Ctrl-S', 2200);
+        return;
+      }
+      if (!editorIsBash) editor.setText('');
+      const session = host.session;
+      if (host.state.appState.model.trim().length === 0 || session === undefined) {
+        host.showError(LLM_NOT_SET_MESSAGE);
+      } else {
+        host.steerMessage(session, parts);
       }
       host.updateQueueDisplay();
       requestTUILayoutRender(host.state);
@@ -286,17 +275,14 @@ export class EditorKeyboardController {
 
     editor.onCtrlB = (): boolean => {
       // Shell command execution is treated as a streaming phase ('shell'), so
-      // this gate already covers it; only idle + not-compacting falls through.
+      // this gate already covers it; idle gets a tip instead of a silent miss.
       if (host.state.appState.streamingPhase === 'idle' || host.state.appState.isCompacting) {
+        host.state.toast.show('Background works while a turn is running', 2200);
         return false;
       }
       host.track('shortcut_background_task');
       host.detachCurrentForegroundTask();
       return true;
-    };
-
-    editor.onUndo = () => {
-      host.track('undo');
     };
 
     editor.onInsertNewline = () => {
@@ -376,21 +362,28 @@ export class EditorKeyboardController {
     editor.onPasteImage = async () => this.handleClipboardImagePaste();
 
     editor.onHistorySearch = () => {
-      if (this.host.state.appState.streamingPhase !== 'idle') return;
-      this.host.showHistorySearch();
+      if (editor.getText().length > 0) {
+        host.state.toast.show('Clear the prompt first (Ctrl-R searches history)', 2200);
+        return;
+      }
+      if (host.state.appState.streamingPhase !== 'idle') {
+        host.state.toast.show('Wait for the turn to finish, or Ctrl-C to stop', 2200);
+        return;
+      }
+      host.showHistorySearch();
     };
     editor.onCommandPalette = () => {
-      if (this.host.state.appState.streamingPhase !== 'idle') return;
-      this.host.showCommandPalette();
+      if (host.state.appState.streamingPhase !== 'idle') {
+        host.state.toast.show('Wait for the turn to finish, or Ctrl-C to stop', 2200);
+        return;
+      }
+      host.showCommandPalette();
     };
     editor.onTranscriptSearch = () => {
-      this.host.showTranscriptSearch();
-    };
-    editor.onRetryLastTurn = () => {
-      void this.host.retryLastTurn();
+      host.showTranscriptSearch();
     };
     editor.onStashToggle = () => {
-      this.host.stashPromptToggle();
+      host.stashPromptToggle();
     };
   }
 

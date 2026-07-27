@@ -76,7 +76,7 @@ export function hasUltraworkAdvancedHelpContract(output) {
   return [
     /\bUltrawork is one workflow:\s*UltraPlan,\s*UltraGoal,\s*Research,\s*Swarm decision,\s*Integrate,\s*Verify,\s*Learn\.?/i,
     /\bShift-Tab toggles Ultrawork\/off\b/i,
-    /\bexplicit steering controls below\.?/i,
+    /(?:^|[\s;])\/plan steers UltraPlan from Hub or slash\.?/i,
     /\bAdvanced Ultrawork controls\b/i,
     /\bAdvanced steering for UltraPlan;\s*Ultrawork auto-enables it\b/i,
     /\bAdvanced steering for UltraSwarm;\s*Ultrawork decides after UltraGoal\b/i,

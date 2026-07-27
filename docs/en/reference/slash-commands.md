@@ -1,5 +1,7 @@
 # Slash Commands
 
+Prefer the **Command Hub** dashboard for everyday use: press `Ctrl-K` or `?` on an empty prompt (or run `/help`). Space flips modes in place; Enter applies and returns to chat; `1`–`9` jump to a row. Nested pickers stack with Esc back (Esc clears a filter first). Retry is under Hub → Chat (or `/retry`). Slash commands remain for power users and scripting.
+
 Slash commands are built-in control commands provided by SuperLiora CLI in the interactive TUI, covering account configuration, session management, mode switching, information queries, and more. Type `/` in the input box to trigger command completion — the candidate list filters in real time as you continue typing; command aliases are also matched.
 
 After typing the full command name, press `Enter` to execute. If the `/`-prefixed input does not match any built-in or Skill command, it is sent to the Agent as a regular message.

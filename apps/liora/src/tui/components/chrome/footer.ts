@@ -753,10 +753,16 @@ export class FooterComponent implements Component {
     const leftLine = left.join('  ');
     const leftWidth = visibleWidth(leftLine);
 
-    // Rotating hint tips, fill remaining space on line 1.
+    // Persistent Command Hub hotzone + rotating tips on the right of line 1.
+    const menuBadge = shouldRenderAmbientEffects(appearance)
+      ? renderPulseText('Menu ?', 'footer:menu-hub', 'accent', appearance)
+      : chalk.hex(colors.accent)('Menu ?');
+    const menuPlain = 'Menu ?';
+    const menuGap = '  ';
+    const afterLeft = leftWidth + visibleWidth(menuGap) + visibleWidth(menuPlain);
     const { primary, pair } = tipsForIndex(currentTipIndex());
-    const gap = 2;
-    const remaining = Math.max(0, width - leftWidth - gap);
+    const tipGap = 2;
+    const remaining = Math.max(0, width - afterLeft - tipGap);
     let tipText = '';
     if (pair && visibleWidth(pair) <= remaining) {
       tipText = pair;
@@ -775,20 +781,21 @@ export class FooterComponent implements Component {
           ? renderTypewriterLine(tipText, this.tipChangedAtMs, appearance)
           : chalk.hex(colors.textMuted)(tipText);
 
+    const menuBlock = leftLine + menuGap + menuBadge;
     let line1: string;
     if (tipStyled) {
       // Reserve the full tip slot so the typewriter reveals in place — the slot
       // is right-anchored and the text grows left→right instead of sliding as
       // its visible width changes mid-animation.
       const slotWidth = visibleWidth(tipText);
-      const pad = width - leftWidth - slotWidth;
+      const pad = width - afterLeft - slotWidth;
       const fill = Math.max(0, slotWidth - visibleWidth(tipStyled));
       line1 =
-        leftLine + ' '.repeat(Math.max(0, pad)) + tipStyled + ' '.repeat(fill);
-    } else if (leftWidth <= width) {
-      line1 = leftLine;
+        menuBlock + ' '.repeat(Math.max(0, pad)) + tipStyled + ' '.repeat(fill);
+    } else if (afterLeft <= width) {
+      line1 = menuBlock;
     } else {
-      line1 = truncateToWidth(leftLine, width, '…');
+      line1 = truncateToWidth(menuBlock, width, '…');
     }
 
     // ── Line 2: transient hint (bottom-left) + context (right) ──

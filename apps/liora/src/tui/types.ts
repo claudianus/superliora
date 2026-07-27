@@ -13,7 +13,12 @@ import type {
 
 import type { TerminalRenderer } from '#/tui/renderer';
 
-import type { AppearancePreferences, NotificationsConfig, UpgradePreferences } from './config';
+import type {
+  AppearancePreferences,
+  NotificationsConfig,
+  OnboardingPreferences,
+  UpgradePreferences,
+} from './config';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { ColorToken, ThemeName } from './theme';
 
@@ -125,6 +130,8 @@ export interface AppState {
   notifications: NotificationsConfig;
   upgrade: UpgradePreferences;
   appearance?: AppearancePreferences;
+  /** Persisted first-run flags from `tui.toml` `[onboarding]`. */
+  onboarding?: OnboardingPreferences;
   availableModels: Record<string, ModelAlias>;
   availableProviders: Record<string, ProviderConfig>;
   providerRouteStatus?: ProviderRouteStatus | null;

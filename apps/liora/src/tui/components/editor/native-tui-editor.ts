@@ -48,12 +48,11 @@ export class NativeTUIEditor implements TUIEditor {
   onEscape?: () => void;
   onCtrlD?: () => void;
   onCtrlC?: () => void;
-  onToggleToolExpand?: () => void;
   onOpenExternalEditor?: () => void;
   onCtrlS?: () => void;
-  onCtrlB?: () => boolean;
+  onCtrlB?: () => boolean | void;
+  onToggleToolExpand?: () => void;
   onToggleTodoExpand?: () => boolean;
-  onUndo?: () => void;
   onNonEscapeInput?: () => void;
   onInsertNewline?: () => void;
   onTextPaste?: () => void;
@@ -64,7 +63,6 @@ export class NativeTUIEditor implements TUIEditor {
   onTranscriptTop?: () => boolean;
   onTranscriptBottom?: () => boolean;
   onShiftTab?: () => void;
-  onShiftTabUltra?: () => void;
   onInputModeChange?: (mode: TUIEditorInputMode) => void;
   onPasteImage?: () => Promise<boolean>;
   onRecall?: (entry: string) => string | undefined;
@@ -73,7 +71,6 @@ export class NativeTUIEditor implements TUIEditor {
   onHistorySearch?: () => void;
   onCommandPalette?: () => void;
   onTranscriptSearch?: () => void;
-  onRetryLastTurn?: () => void;
   onStashToggle?: () => void;
   onAcceptGhost?: () => void;
   onCycleGhost?: (direction: -1 | 1) => void;
@@ -419,6 +416,15 @@ export class NativeTUIEditor implements TUIEditor {
     return this.autocomplete.overlayLines(contentWidth, styles);
   }
 
+  /**
+   * App-level shortcuts that must run before native text mutation.
+   * Used by the native input router's `handlePreEditorInput` so `?` / Ctrl-K
+   * reach Command Hub instead of being inserted as characters.
+   */
+  tryHandleAppShortcut(data: string): boolean {
+    return this.handleAppShortcut(data);
+  }
+
   private handleAppShortcut(data: string): boolean {
     if (matchesKey(data, Key.ctrl('d'))) {
       if (this.getText().length === 0) {
@@ -435,47 +441,37 @@ export class NativeTUIEditor implements TUIEditor {
       this.onOpenExternalEditor?.();
       return true;
     }
-    if (matchesKey(data, Key.ctrl('o'))) {
-      this.onToggleToolExpand?.();
-      return true;
-    }
     if (matchesKey(data, Key.ctrl('s'))) {
       this.onCtrlS?.();
       return true;
     }
-    if (matchesKey(data, Key.ctrl('b')) && this.onCtrlB?.() === true) return true;
-    if (matchesKey(data, Key.ctrl('t')) && this.onToggleTodoExpand?.() === true) return true;
-    if (matchesKey(data, 'ctrl+shift+tab')) {
-      this.onShiftTabUltra?.();
+    // Ctrl-B: always consume so idle presses can toast instead of emacs backward-char.
+    if (matchesKey(data, Key.ctrl('b'))) {
+      this.onCtrlB?.();
       return true;
     }
     if (matchesKey(data, 'shift+tab')) {
       this.onShiftTab?.();
       return true;
     }
-    if (matchesKey(data, Key.ctrl('-'))) {
-      this.onUndo?.();
-      return true;
-    }
-    // Ctrl-R: history fuzzy-search (only when the editor is empty so it does
-    // not clobber in-progress typing or readline-style history recall).
-    if (matchesKey(data, Key.ctrl('r')) && this.getText().length === 0) {
+    // Ctrl-R: always consume; host toasts when the prompt is non-empty.
+    if (matchesKey(data, Key.ctrl('r'))) {
       this.onHistorySearch?.();
       return true;
     }
-    // Ctrl-Space: command palette.
-    if (matchesKey(data, Key.ctrl(Key.space))) {
+    // Ctrl-K / Ctrl-Space: Command Hub menu.
+    if (matchesKey(data, Key.ctrl('k')) || matchesKey(data, Key.ctrl(Key.space))) {
+      this.onCommandPalette?.();
+      return true;
+    }
+    // "?": open Command Hub when the editor is empty (native pre-handler path).
+    if (this.getText().length === 0 && printableChar(data) === '?') {
       this.onCommandPalette?.();
       return true;
     }
     // Ctrl-F: transcript search.
     if (matchesKey(data, Key.ctrl('f'))) {
       this.onTranscriptSearch?.();
-      return true;
-    }
-    // Ctrl-Y: retry the last failed turn (host decides whether it applies).
-    if (matchesKey(data, Key.ctrl('y'))) {
-      this.onRetryLastTurn?.();
       return true;
     }
     // Ctrl-X: stash the current draft, or pop the latest stash when empty.

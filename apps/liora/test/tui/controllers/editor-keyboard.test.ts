@@ -10,12 +10,15 @@ import type { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
 
 interface Harness {
   readonly host: EditorKeyboardHost;
-  readonly editor: Record<string, ((...args: never[]) => unknown) | undefined>;
+  readonly editor: Record<string, unknown>;
   readonly openUndoSelector: ReturnType<typeof vi.fn>;
   readonly cancelRunningShellCommand: ReturnType<typeof vi.fn>;
   readonly handlePlanToggle: ReturnType<typeof vi.fn>;
   readonly handleUltraworkModeToggle: ReturnType<typeof vi.fn>;
   readonly scrollTranscriptViewport: ReturnType<typeof vi.fn>;
+  readonly toastShow: ReturnType<typeof vi.fn>;
+  readonly showCommandPalette: ReturnType<typeof vi.fn>;
+  readonly showHistorySearch: ReturnType<typeof vi.fn>;
 }
 
 function createHarness(
@@ -24,9 +27,20 @@ function createHarness(
     isCompacting?: boolean;
     planMode?: boolean;
     ultraworkMode?: boolean;
+    editorText?: string;
   } = {},
 ): Harness {
-  const editor: Record<string, ((...args: never[]) => unknown) | undefined> = {};
+  let editorText = options.editorText ?? '';
+  const toastShow = vi.fn();
+  const showCommandPalette = vi.fn();
+  const showHistorySearch = vi.fn();
+  const editor: Record<string, unknown> = {
+    getText: () => editorText,
+    setText: (text: string) => {
+      editorText = text;
+    },
+    inputMode: 'prompt',
+  };
   const openUndoSelector = vi.fn();
   const cancelRunningShellCommand = vi.fn();
   const handlePlanToggle = vi.fn();
@@ -44,18 +58,27 @@ function createHarness(
         isBackgroundCompacting: false,
         planMode: options.planMode ?? false,
         ultraworkMode: options.ultraworkMode ?? false,
+        model: 'test-model',
       },
       footer: { setTransientHint: vi.fn() },
       ui: { requestRender: vi.fn() },
+      toast: { show: toastShow },
+      queuedMessages: [],
     },
     session,
     track: vi.fn(),
     handlePlanToggle,
     handleUltraworkModeToggle,
     scrollTranscriptViewport,
-    btwPanelController: { closeOrCancel: vi.fn(() => false) },
+    btwPanelController: { closeOrCancel: vi.fn(() => false), scroll: vi.fn(() => false) },
     openUndoSelector,
     cancelRunningShellCommand,
+    showCommandPalette,
+    showHistorySearch,
+    showError: vi.fn(),
+    updateQueueDisplay: vi.fn(),
+    steerMessage: vi.fn(),
+    detachCurrentForegroundTask: vi.fn(),
   } as unknown as EditorKeyboardHost;
 
   const controller = new EditorKeyboardController(
@@ -72,30 +95,33 @@ function createHarness(
     handlePlanToggle,
     handleUltraworkModeToggle,
     scrollTranscriptViewport,
+    toastShow,
+    showCommandPalette,
+    showHistorySearch,
   };
 }
 
 function pressEscape(editor: Harness['editor']): void {
   const handler = editor['onEscape'];
-  if (handler === undefined) throw new Error('onEscape handler not installed');
+  if (typeof handler !== 'function') throw new Error('onEscape handler not installed');
   (handler as () => void)();
 }
 
 function pressNonEscape(editor: Harness['editor']): void {
   const handler = editor['onNonEscapeInput'];
-  if (handler === undefined) throw new Error('onNonEscapeInput handler not installed');
+  if (typeof handler !== 'function') throw new Error('onNonEscapeInput handler not installed');
   (handler as () => void)();
 }
 
 function pressShiftTab(editor: Harness['editor']): void {
   const handler = editor['onShiftTab'];
-  if (handler === undefined) throw new Error('onShiftTab handler not installed');
+  if (typeof handler !== 'function') throw new Error('onShiftTab handler not installed');
   (handler as () => void)();
 }
 
 function pressTranscriptPageUp(editor: Harness['editor']): void {
   const handler = editor['onTranscriptPageUp'];
-  if (handler === undefined) throw new Error('onTranscriptPageUp handler not installed');
+  if (typeof handler !== 'function') throw new Error('onTranscriptPageUp handler not installed');
   (handler as () => void)();
 }
 
@@ -199,5 +225,59 @@ describe('EditorKeyboardController double-Esc undo', () => {
     expect(cancelRunningShellCommand).toHaveBeenCalled();
     const session = host.session as unknown as { cancel: ReturnType<typeof vi.fn> };
     expect(session.cancel).toHaveBeenCalled();
+  });
+});
+
+describe('EditorKeyboardController gated shortcut toasts', () => {
+  it('toasts instead of opening Hub while streaming', () => {
+    const { editor, toastShow, showCommandPalette } = createHarness({
+      streamingPhase: 'waiting',
+    });
+
+    const handler = editor['onCommandPalette'];
+    if (typeof handler !== 'function') throw new Error('onCommandPalette not installed');
+    (handler as () => void)();
+
+    expect(showCommandPalette).not.toHaveBeenCalled();
+    expect(toastShow).toHaveBeenCalledWith(
+      'Wait for the turn to finish, or Ctrl-C to stop',
+      2200,
+    );
+  });
+
+  it('toasts when Ctrl-R is pressed with a non-empty prompt', () => {
+    const { editor, toastShow, showHistorySearch } = createHarness({
+      editorText: 'draft',
+    });
+
+    const handler = editor['onHistorySearch'];
+    if (typeof handler !== 'function') throw new Error('onHistorySearch not installed');
+    (handler as () => void)();
+
+    expect(showHistorySearch).not.toHaveBeenCalled();
+    expect(toastShow).toHaveBeenCalledWith(
+      'Clear the prompt first (Ctrl-R searches history)',
+      2200,
+    );
+  });
+
+  it('toasts when Ctrl-S is pressed while idle', () => {
+    const { editor, toastShow } = createHarness({ streamingPhase: 'idle' });
+
+    const handler = editor['onCtrlS'];
+    if (typeof handler !== 'function') throw new Error('onCtrlS not installed');
+    (handler as () => void)();
+
+    expect(toastShow).toHaveBeenCalledWith('Steer works while a turn is running', 2200);
+  });
+
+  it('toasts when Ctrl-B is pressed while idle', () => {
+    const { editor, toastShow } = createHarness({ streamingPhase: 'idle' });
+
+    const handler = editor['onCtrlB'];
+    if (typeof handler !== 'function') throw new Error('onCtrlB not installed');
+    (handler as () => boolean)();
+
+    expect(toastShow).toHaveBeenCalledWith('Background works while a turn is running', 2200);
   });
 });

@@ -3,6 +3,7 @@ import { join, relative, sep } from 'node:path';
 
 import chalk from 'chalk';
 import {
+  encodeNativeInputAsLegacySequence,
   encodeRendererClearInlineImages,
   LioraNativeRootUI,
   NativeTerminalSession,
@@ -82,6 +83,20 @@ import {
 } from './components/dialogs/approval-preview';
 import { CompactionComponent } from './components/dialogs/compaction';
 import { CommandPaletteComponent, type PaletteEntry } from './components/dialogs/command-palette';
+import {
+  buildDefaultCommandHubItems,
+  commandHubKeepsOpen,
+  commandHubNestsPicker,
+  CommandHubComponent,
+  cyclePermissionMode,
+  isCommandHubCycleId,
+  type CommandHubItem,
+  type CommandHubSelectMode,
+} from './components/dialogs/command-hub';
+import { ShortcutsPanelComponent } from './components/dialogs/shortcuts-panel';
+import { commandHubActionToSlash } from './utils/command-hub-actions';
+import { noteHubActionUse } from './utils/hub-recents';
+import { noteSuccessFeedback } from './utils/feedback-vfx';
 import { HistorySearchDialogComponent } from './components/dialogs/history-search-dialog';
 import { TranscriptSearchDialogComponent } from './components/dialogs/transcript-search';
 import {
@@ -134,7 +149,12 @@ import {
   queuePaneSelectionIdentity,
   resolveHostOwnedQueueSettleStartedAtMs,
 } from './components/panes/queue-pane';
-import { DEFAULT_APPEARANCE_PREFERENCES, type TuiConfig } from './config';
+import {
+  DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_ONBOARDING_PREFERENCES,
+  saveTuiConfig,
+  type TuiConfig,
+} from './config';
 import {
   LLM_NOT_SET_MESSAGE,
   MAIN_AGENT_ID,
@@ -193,6 +213,7 @@ import { isDeadTerminalError } from './utils/dead-terminal';
 import { DisposableRegistry } from './utils/disposables';
 import { formatErrorMessage } from './utils/event-payload';
 import { contextWorkingSetSnapshotFromLoopControl } from './utils/context-working-set';
+import type { CenterModalMountOptions } from './utils/center-modal';
 import {
   flushSuppressedTUIFrame,
   requestTUIContentRender,
@@ -325,6 +346,7 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
     notifications: input.tuiConfig.notifications,
     upgrade: input.tuiConfig.upgrade,
     appearance: input.tuiConfig.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+    onboarding: input.tuiConfig.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
     availableModels: {},
     availableProviders: {},
     providerRouteStatus: null,
@@ -413,6 +435,9 @@ export class LioraTUI {
   private nativeInputRouter: TUIStateNativeInputRouter | undefined;
   private nativeInputModalDispose: (() => void) | undefined;
   private nativeInputModalSequence = 0;
+  private centerModalSequence = 0;
+  /** Live Command Hub instance while the center-modal stack owns it. */
+  private openCommandHub: CommandHubComponent | undefined;
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   private readonly sessionStartTime = Date.now();
 
@@ -423,7 +448,7 @@ export class LioraTUI {
   private queueSettleSelectionIdentity: string | undefined;
   private queueSettleStartedAtMs: number | undefined;
 
-  /** Last user-submitted text, for `/retry` (Ctrl-Y). */
+  /** Last user-submitted text, for `/retry` / Hub → Chat → Retry. */
   private lastUserInput: string | undefined;
   /** True when the most recent turn ended in an error; cleared on a clean turn. */
   private lastTurnFailed = false;
@@ -798,33 +823,41 @@ export class LioraTUI {
     const hasProvider =
       config.defaultModel !== undefined ||
       Object.keys(config.providers ?? {}).length > 0;
-    if (hasProvider) return;
-
-    // Auto-detect Qwen Token Plan: when the env key is set and no provider
-    // exists yet, configure it silently so the user gets a working setup
-    // without any interaction.
-    const qwenKey = process.env['QWEN_TOKEN_PLAN_API_KEY']?.trim();
-    if (qwenKey !== undefined && qwenKey.length > 0) {
-      const { applyQwenTokenPlanProvider } = await import('#/tui/utils/qwen-token-plan');
-      applyQwenTokenPlanProvider(config, qwenKey);
-      await this.harness.setConfig({
-        providers: config.providers,
-        models: config.models,
-        defaultModel: config.defaultModel,
-        defaultThinking: config.defaultThinking,
-      });
-      await this.authFlow.refreshConfigAfterLogin();
-      this.showStatus(
-        'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
-        'Text, image, and video generation enabled; harness tools run server-side on qwen3.7/3.8 models.',
-        'success',
-      );
-      return;
+    if (!hasProvider) {
+      // Auto-detect Qwen Token Plan: when the env key is set and no provider
+      // exists yet, configure it silently so the user gets a working setup
+      // without any interaction.
+      const qwenKey = process.env['QWEN_TOKEN_PLAN_API_KEY']?.trim();
+      if (qwenKey !== undefined && qwenKey.length > 0) {
+        const { applyQwenTokenPlanProvider } = await import('#/tui/utils/qwen-token-plan');
+        applyQwenTokenPlanProvider(config, qwenKey);
+        await this.harness.setConfig({
+          providers: config.providers,
+          models: config.models,
+          defaultModel: config.defaultModel,
+          defaultThinking: config.defaultThinking,
+        });
+        await this.authFlow.refreshConfigAfterLogin();
+        this.showStatus(
+          'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
+            'Text, image, and video generation enabled; harness tools run server-side on qwen3.7/3.8 models.',
+          'success',
+        );
+      } else {
+        // Route through the normal slash-command dispatch so /login's unified
+        // provider picker opens on first run.
+        slashCommands.dispatchInput(this, '/login');
+        return;
+      }
     }
 
-    // Route through the normal slash-command dispatch so /login's unified
-    // provider picker opens on first run.
-    slashCommands.dispatchInput(this, '/login');
+    // One-shot Command Hub intro after login/provider is sorted.
+    // Skip when the user already typed something — don't steal the prompt.
+    const onboarding = this.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
+    const editorBusy = (this.state.editor.getText?.() ?? '').trim().length > 0;
+    if (!onboarding.hubIntroSeen && !editorBusy) {
+      this.showCommandHub({ intro: true });
+    }
   }
 
   private attachNativeRendererCallback(): void {
@@ -988,6 +1021,13 @@ export class LioraTUI {
   private ensureNativeInputRouter(): void {
     this.nativeInputRouter ??= createTUIStateNativeInputRouter(this.state, {
       scrollTranscriptViewport: (action) => this.scrollTranscriptViewport(action),
+      // App shortcuts (especially `?` → Hub) must run before native text mutation.
+      handlePreEditorInput: (event) => {
+        if (event.type !== 'key' || event.eventType === 'release') return false;
+        const legacy = encodeNativeInputAsLegacySequence(event);
+        if (legacy === undefined) return false;
+        return this.state.editor.tryHandleAppShortcut?.(legacy) === true;
+      },
     });
   }
 
@@ -1810,7 +1850,7 @@ export class LioraTUI {
       timestamp: Date.now(),
     });
 
-    // Track the last user input for `/retry` (Ctrl-Y).
+    // Track the last user input for `/retry` / Hub → Chat → Retry.
     if (options?.displayText === undefined) this.lastUserInput = input;
 
     this.beginSessionRequest();
@@ -1963,6 +2003,20 @@ export class LioraTUI {
     Object.assign(this.state.appState, patch);
     if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
     if ('appearance' in patch) this.appearanceController.apply();
+    if (
+      this.openCommandHub !== undefined &&
+      ('planMode' in patch ||
+        'swarmMode' in patch ||
+        'ultraworkMode' in patch ||
+        'premiumQualityMode' in patch ||
+        'permissionMode' in patch ||
+        'model' in patch ||
+        'thinkingLevel' in patch ||
+        'streamingPhase' in patch ||
+        'isCompacting' in patch)
+    ) {
+      this.refreshOpenCommandHub();
+    }
     const theatreActive = isMotionTheatreActive(this.state.appState);
     for (const beat of modeBeats) {
       const planBeat = beat.name === 'plan_enter' || beat.name === 'plan_exit';
@@ -3562,6 +3616,8 @@ export class LioraTUI {
   }
 
   mountEditorReplacement(panel: Component & Focusable): void {
+    // Center modals own the input stack — close them before editor takeover.
+    if (this.state.centerModalStack.length > 0) this.closeAllCenterModals();
     this.state.editorContainer.clear();
     this.state.editorContainer.addChild(panel);
     this.state.ui.setFocus(panel);
@@ -3572,6 +3628,120 @@ export class LioraTUI {
     // Keep session-loading sticky so restore paths cannot silently drop the lock.
     if (this.state.activeDialog === null) this.state.activeDialog = 'command';
     requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Float a PREMIUM panel in the viewport center (Command Hub, Settings, …).
+   * Does not replace the editor strip. See PREMIUM.md §8.2.
+   */
+  mountCenterModal(
+    panel: Component & Focusable,
+    options: CenterModalMountOptions = {},
+  ): void {
+    const mode = options.mode ?? 'push';
+    if (mode === 'replace' && this.state.centerModalStack.length > 0) {
+      this.closeCenterModal();
+    }
+    // Block only true full-page takeovers (not center-modal dialog ids).
+    switch (this.state.activeDialog) {
+      case 'session-loading':
+      case 'files':
+      case 'file-viewer':
+      case 'diff-review':
+      case 'commit-browser':
+      case 'blame':
+      case 'error-navigator':
+      case 'search':
+      case 'agent-dashboard':
+        return;
+      default:
+        break;
+    }
+    const inputRouter = this.nativeInputRouter;
+    if (inputRouter === undefined || panel.handleInput === undefined) return;
+    const id = `center-modal:${String(++this.centerModalSequence)}`;
+    const handleInput = panel.handleInput.bind(panel);
+    const disposeInput = inputRouter.pushLegacyModalTarget(
+      {
+        id,
+        handleInput: (data) => {
+          handleInput(data);
+        },
+      },
+      { restoreFocus: false },
+    );
+    this.state.centerModalStack.push({
+      id,
+      panel,
+      disposeInput,
+      label: options.label,
+    });
+    this.state.activeDialog = 'center-modal';
+    this.state.ui.setFocus(panel);
+    requestTUIContentRender(this.state);
+  }
+
+  /** Pop the top center modal. Restores editor focus when the stack is empty. */
+  closeCenterModal(): void {
+    const top = this.state.centerModalStack.pop();
+    if (top === undefined) return;
+    if (top.panel === this.openCommandHub) {
+      this.openCommandHub = undefined;
+    }
+    top.disposeInput();
+    if (this.state.centerModalStack.length === 0) {
+      this.clearCenterModalDialogMarker();
+      this.nativeInputRouter?.focusEditor();
+      this.state.ui.setFocus(this.state.editor);
+      this.flushDeferredReverseRpcPanels();
+    } else {
+      const next = this.state.centerModalStack.at(-1)!;
+      this.state.ui.setFocus(next.panel);
+      if (next.panel instanceof CommandHubComponent) {
+        this.refreshOpenCommandHub();
+      }
+    }
+    requestTUIContentRender(this.state);
+  }
+
+  closeAllCenterModals(): void {
+    while (this.state.centerModalStack.length > 0) {
+      const top = this.state.centerModalStack.pop();
+      top?.disposeInput();
+    }
+    this.openCommandHub = undefined;
+    this.clearCenterModalDialogMarker();
+    this.nativeInputRouter?.focusEditor();
+    this.state.ui.setFocus(this.state.editor);
+    requestTUIContentRender(this.state);
+    this.flushDeferredReverseRpcPanels();
+  }
+
+  private clearCenterModalDialogMarker(): void {
+    switch (this.state.activeDialog) {
+      case 'center-modal':
+      case 'help':
+      case 'extensions':
+      case 'session-picker':
+        this.state.activeDialog = null;
+        break;
+      default:
+        break;
+    }
+  }
+
+  private flushDeferredReverseRpcPanels(): void {
+    const approval = this.deferredApproval;
+    if (approval !== undefined) {
+      this.deferredApproval = undefined;
+      this.showApprovalPanel(approval);
+      return;
+    }
+    const question = this.deferredQuestion;
+    if (question !== undefined) {
+      this.deferredQuestion = undefined;
+      this.showQuestionDialog(question);
+    }
   }
 
   restoreEditor(): void {
@@ -3665,12 +3835,12 @@ export class LioraTUI {
   }
 
   // =========================================================================
-  // History search (Ctrl-R), command palette (Ctrl-Space),
-  // transcript search (Ctrl-F), retry last turn (Ctrl-Y)
+  // History search (Ctrl-R), Command Hub (? / Ctrl-K),
+  // transcript search (Ctrl-F)
   // =========================================================================
 
   showHistorySearch(): void {
-    if (this.state.activeDialog !== null) return;
+    if (this.state.activeDialog !== null && this.state.activeDialog !== 'center-modal') return;
     void this.openHistorySearch();
   }
 
@@ -3698,37 +3868,194 @@ export class LioraTUI {
     this.mountEditorReplacement(dialog);
   }
 
+  /** Open the beginner Command Hub (replaces the old Ctrl-Space palette). */
   showCommandPalette(): void {
-    if (this.state.activeDialog !== null) return;
-    const commands = this.getSlashCommands('primary');
-    const entries: PaletteEntry[] = commands
-      .filter((cmd) => cmd.visibility !== 'hidden')
-      .map((cmd) => ({
-        kind: 'command' as const,
-        value: cmd.name,
-        label: `/${cmd.name}`,
-        description: cmd.description,
-      }));
-    // A few high-value session actions.
-    const actions: PaletteEntry[] = [
-      { kind: 'action', value: 'new', label: '/new', description: 'Start a new session' },
-      { kind: 'action', value: 'sessions', label: '/sessions', description: 'Switch session' },
-      { kind: 'action', value: 'model', label: '/model', description: 'Switch model' },
-      { kind: 'action', value: 'help', label: '/help', description: 'Show help' },
-    ];
-    const palette = new CommandPaletteComponent({
-      entries: [...entries, ...actions],
-      onSelect: (entry) => {
-        this.restoreEditor();
-        const text = entry.kind === 'action' ? `/${entry.value}` : `/${entry.value}`;
-        // Run the command through the normal dispatch path.
-        slashCommands.dispatchInput(this, text);
+    this.showCommandHub();
+  }
+
+  showCommandHub(
+    options: { readonly initialQuery?: string; readonly intro?: boolean } = {},
+  ): void {
+    if (
+      this.state.activeDialog !== null &&
+      this.state.activeDialog !== 'center-modal' &&
+      this.state.activeDialog !== 'help'
+    ) {
+      return;
+    }
+    this.closeAllCenterModals();
+    const hub = new CommandHubComponent({
+      items: this.buildCommandHubItems(),
+      initialQuery: options.initialQuery,
+      intro: options.intro === true,
+      onIntroDismiss: () => {
+        void this.markHubIntroSeen();
+      },
+      onSelect: (item, mode) => {
+        this.handleCommandHubSelect(item, mode);
       },
       onCancel: () => {
-        this.restoreEditor();
+        this.closeCenterModal();
       },
     });
-    this.mountEditorReplacement(palette);
+    this.openCommandHub = hub;
+    this.mountCenterModal(hub, { mode: 'push', label: 'Hub' });
+    if (options.intro === true) {
+      noteSuccessFeedback();
+      this.state.toast.show('Command Hub — Space toggles modes · type to search', 3200);
+    }
+  }
+
+  private buildCommandHubItems(): CommandHubItem[] {
+    const signedIn =
+      this.state.appState.model.trim().length > 0 ||
+      Object.keys(this.state.appState.availableProviders).length > 0;
+    return buildDefaultCommandHubItems({
+      planMode: this.state.appState.planMode,
+      swarmMode: this.state.appState.swarmMode,
+      ultraworkMode: this.state.appState.ultraworkMode,
+      premiumQualityMode: this.state.appState.premiumQualityMode,
+      permissionMode: this.state.appState.permissionMode,
+      model: this.state.appState.model,
+      thinkingLevel: this.state.appState.thinkingLevel,
+      streamingPhase: this.state.appState.streamingPhase,
+      isCompacting: this.state.appState.isCompacting,
+      signedIn,
+    });
+  }
+
+  private refreshOpenCommandHub(): void {
+    const hub = this.openCommandHub;
+    if (hub === undefined) return;
+    hub.setItems(this.buildCommandHubItems());
+    requestTUIContentRender(this.state);
+  }
+
+  private async markHubIntroSeen(): Promise<void> {
+    const previous = this.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
+    if (previous.hubIntroSeen) return;
+    const onboarding = { ...previous, hubIntroSeen: true };
+    this.setAppState({ onboarding });
+    try {
+      await saveTuiConfig({
+        theme: this.state.appState.theme,
+        permissionMode: this.state.appState.permissionMode,
+        disablePasteBurst: this.state.appState.disablePasteBurst ?? false,
+        editorCommand: this.state.appState.editorCommand,
+        notifications: this.state.appState.notifications,
+        upgrade: this.state.appState.upgrade,
+        appearance: this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+        onboarding,
+      });
+    } catch {
+      // Best-effort persistence; intro still dismissed in-session.
+    }
+  }
+
+  private handleCommandHubSelect(item: CommandHubItem, mode: CommandHubSelectMode): void {
+    noteHubActionUse(item.id);
+
+    // Permission: Space cycles in place; Enter opens the picker (nested).
+    if (isCommandHubCycleId(item.id)) {
+      if (mode === 'space') {
+        const next = cyclePermissionMode(this.state.appState.permissionMode);
+        slashCommands.dispatchInput(this, `/permission ${next}`);
+        this.openCommandHub?.noteToggleFlash(item.id);
+        noteSuccessFeedback();
+        this.state.toast.show(`Permission → ${next}`, 1600);
+        return;
+      }
+      slashCommands.dispatchInput(this, '/permission');
+      return;
+    }
+
+    if (commandHubKeepsOpen(item.id)) {
+      const slash = commandHubActionToSlash(item.id);
+      if (slash !== undefined) {
+        slashCommands.dispatchInput(this, slash);
+      }
+      const label = item.label;
+      const nextOn = item.badge !== 'ON';
+      noteSuccessFeedback();
+      this.state.toast.show(`${label} → ${nextOn ? 'ON' : 'off'}`, 1400);
+      // Space: stay in Hub and flip more. Enter: apply and return to chat.
+      if (mode === 'enter') {
+        this.closeCenterModal();
+      } else {
+        this.openCommandHub?.noteToggleFlash(item.id);
+      }
+      return;
+    }
+
+    if (item.id === 'now.steer') {
+      this.closeAllCenterModals();
+      this.state.footer.setTransientHint('Steer: type, then Ctrl-S');
+      this.state.toast.show('Type steer text · Ctrl-S to send', 2800);
+      requestTUIContentRender(this.state);
+      return;
+    }
+    if (item.id === 'now.stop') {
+      this.closeAllCenterModals();
+      this.cancelRunningShellCommand();
+      void this.session?.cancel({ source: 'ctrl-c' });
+      noteSuccessFeedback();
+      this.state.toast.show('Stopped', 1400);
+      return;
+    }
+
+    if (commandHubNestsPicker(item.id)) {
+      this.handleCommandHubAction(item, { nest: true });
+      return;
+    }
+
+    this.closeCenterModal();
+    this.handleCommandHubAction(item, { nest: false });
+  }
+
+  private handleCommandHubAction(
+    item: CommandHubItem,
+    options: { readonly nest: boolean },
+  ): void {
+    if (item.id === 'help.shortcuts') {
+      this.mountCenterModal(
+        new ShortcutsPanelComponent({
+          onClose: () => this.closeCenterModal(),
+        }),
+        { mode: 'push', label: 'Shortcuts' },
+      );
+      return;
+    }
+    if (item.id === 'help.commands') {
+      // Nest under Hub so Esc returns (don't wipe the stack).
+      this.mountCenterModal(
+        new HelpPanelComponent({
+          commands: this.getSlashCommands('advanced'),
+          intro: advancedHelpIntro(),
+          commandSectionTitle: 'All slash commands',
+          shortcuts: advancedKeyboardShortcuts(),
+          onClose: () => {
+            this.closeCenterModal();
+          },
+        }),
+        { mode: options.nest ? 'push' : 'replace', label: 'Commands' },
+      );
+      return;
+    }
+    if (item.id === 'workspace.search') {
+      this.restoreInputText('/search ');
+      this.state.toast.show('Type a search pattern after /search', 2200);
+      return;
+    }
+    if (item.id === 'chat.btw') {
+      this.restoreInputText('/btw ');
+      this.state.toast.show('Type your side question after /btw', 2200);
+      return;
+    }
+
+    const slash = commandHubActionToSlash(item.id);
+    if (slash !== undefined) {
+      slashCommands.dispatchInput(this, slash);
+    }
   }
 
   showTranscriptSearch(): void {
@@ -3802,31 +4129,31 @@ export class LioraTUI {
 
   showHelpPanel(args = ''): void {
     const mode = this.helpModeFromArgs(args);
-    this.state.activeDialog = 'help';
-    this.mountEditorReplacement(
+    // Beginner path: `/help` opens the Command Hub, not a wall of slash names.
+    if (mode === 'primary') {
+      this.showCommandHub();
+      return;
+    }
+    this.closeAllCenterModals();
+    this.mountCenterModal(
       new HelpPanelComponent({
         commands: this.getSlashCommands(mode),
         intro: mode === 'diagnostics'
           ? 'Advanced QA commands for SuperLiora harness development.'
-          : mode === 'advanced'
-            ? advancedHelpIntro()
-          : undefined,
+          : advancedHelpIntro(),
         commandSectionTitle: mode === 'diagnostics'
           ? 'Diagnostic commands'
-          : mode === 'advanced'
-            ? 'Advanced Ultrawork controls'
-            : undefined,
+          : 'All slash commands',
         shortcuts: mode === 'advanced' ? advancedKeyboardShortcuts() : undefined,
         onClose: () => {
-          this.hideHelpPanel();
+          this.closeCenterModal();
         },
       }),
     );
   }
 
   private hideHelpPanel(): void {
-    this.state.activeDialog = null;
-    this.restoreEditor();
+    this.closeCenterModal();
   }
 
   showFileExplorer(): void {
@@ -4253,8 +4580,7 @@ export class LioraTUI {
       // Still open empty modal so operators can reach Claude import (i).
     }
 
-    this.state.activeDialog = 'extensions';
-    this.mountEditorReplacement(
+    this.mountCenterModal(
       new ExtensionsModalComponent({
         snapshot,
         initialTab,
@@ -4267,7 +4593,9 @@ export class LioraTUI {
           this.hideExtensionsModal();
         },
       }),
+      { mode: 'replace' },
     );
+    this.state.activeDialog = 'extensions';
   }
 
   hideExtensionsModal(): void {
@@ -4275,6 +4603,10 @@ export class LioraTUI {
       this.state.activeDialog = null;
     }
     this.editorKeyboard.clearPendingExit();
+    if (this.state.centerModalStack.length > 0) {
+      this.closeAllCenterModals();
+      return;
+    }
     this.restoreEditor();
   }
 
@@ -4490,6 +4822,10 @@ export class LioraTUI {
     this.sessionPickerScopeRequestToken += 1;
     this.editorKeyboard.clearPendingExit();
     this.state.activeDialog = null;
+    if (this.state.centerModalStack.length > 0) {
+      this.closeAllCenterModals();
+      return;
+    }
     this.restoreEditor();
   }
 
@@ -4507,8 +4843,7 @@ export class LioraTUI {
     // session's own persisted modes.
     readonly applyStartupModes?: boolean;
   }): void {
-    this.state.activeDialog = 'session-picker';
-    this.mountEditorReplacement(
+    this.mountCenterModal(
       new SessionPickerComponent({
         sessions: this.state.sessions,
         loading: this.state.loadingSessions,
@@ -4530,7 +4865,9 @@ export class LioraTUI {
           void this.toggleSessionPickerScope(selectedSessionId);
         },
       }),
+      { mode: 'replace' },
     );
+    this.state.activeDialog = 'session-picker';
   }
 
   private async handleSessionPickerSelect(
@@ -4556,7 +4893,11 @@ export class LioraTUI {
     // If a command-driven dialog (API-key input, provider picker, …) owns the
     // editor area, defer the approval so we don't clobber the in-flight command
     // flow (BUG-7). It is shown once the dialog closes via restoreEditor().
-    if (this.state.activeDialog === 'command') {
+    if (
+      this.state.activeDialog === 'command' ||
+      this.state.activeDialog === 'center-modal' ||
+      this.state.centerModalStack.length > 0
+    ) {
       this.deferredApproval = payload;
       return;
     }
@@ -4637,7 +4978,11 @@ export class LioraTUI {
 
   private showQuestionDialog(payload: QuestionPanelData): void {
     // Defer while a command-driven dialog is open (BUG-7, same as approval).
-    if (this.state.activeDialog === 'command') {
+    if (
+      this.state.activeDialog === 'command' ||
+      this.state.activeDialog === 'center-modal' ||
+      this.state.centerModalStack.length > 0
+    ) {
       this.deferredQuestion = payload;
       return;
     }

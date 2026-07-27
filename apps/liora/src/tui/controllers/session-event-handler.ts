@@ -1238,8 +1238,8 @@ export class SessionEventHandler {
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
     // Desktop notification on error
     notifyError(event.message ?? '세션 오류 발생');
-    // Mark the last turn as failed so the user can re-send it with `/retry`
-    // (Ctrl-Y).
+    // Mark the last turn as failed so the user can re-send it with Hub Retry
+    // or `/retry`.
     this.host.setLastTurnFailed(true);
     if (event.code === OAUTH_LOGIN_REQUIRED_CODE) {
       this.host.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE);

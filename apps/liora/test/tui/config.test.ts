@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_ONBOARDING_PREFERENCES,
   DEFAULT_TUI_CONFIG,
   INVALID_TUI_CONFIG_MESSAGE,
   loadTuiConfig,
@@ -50,6 +51,8 @@ describe('TUI config', () => {
     expect(text).toContain('[notifications]');
     expect(text).toContain('enabled = true');
     expect(text).toContain('notification_condition = "unfocused"');
+    expect(text).toContain('[onboarding]');
+    expect(text).toContain('hub_intro_seen = false');
   });
 
   it('parses valid TOML', () => {
@@ -93,7 +96,16 @@ terminal_palette = true
         terminalPalette: true,
         showTimestamps: true,
       },
+      onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });
+  });
+
+  it('parses onboarding.hub_intro_seen', () => {
+    const config = parseTuiConfig(`
+[onboarding]
+hub_intro_seen = true
+`);
+    expect(config.onboarding?.hubIntroSeen).toBe(true);
   });
 
   it('honors an explicit show_timestamps = false', () => {
@@ -141,6 +153,7 @@ command = "   "
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: true },
       appearance: DEFAULT_APPEARANCE_PREFERENCES,
+      onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });
   });
 
@@ -150,6 +163,7 @@ command = "   "
     expect(config.notifications).toEqual({ enabled: true, condition: 'unfocused' });
     expect(config.upgrade).toEqual({ autoInstall: true });
     expect(config.appearance).toEqual(DEFAULT_APPEARANCE_PREFERENCES);
+    expect(config.onboarding).toEqual(DEFAULT_ONBOARDING_PREFERENCES);
   });
 
   it('throws TuiConfigParseError with fallback when parsing fails, leaving the file untouched', async () => {
@@ -196,6 +210,7 @@ command = "   "
         profile: 'subtle',
         animationFps: 10,
       },
+      onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });
   });
 

@@ -19,8 +19,10 @@ import { ThemeSelectorComponent } from '../components/dialogs/theme-selector';
 import { UpdatePreferenceSelectorComponent } from '../components/dialogs/update-preference-selector';
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_ONBOARDING_PREFERENCES,
   saveTuiConfig,
   type AppearancePreferences,
+  type OnboardingPreferences,
   type TuiConfig,
 } from '../config';
 import type { ThemeName } from '#/tui/theme';
@@ -28,6 +30,7 @@ import { currentTheme, isBuiltInTheme, lightColors, loadCustomThemeMerged } from
 import { importThemeSource } from '#/tui/theme/importer';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
 import {
   contextWorkingSetPresetById,
   contextWorkingSetSnapshotFromLoopControl,
@@ -472,15 +475,15 @@ export async function handleModelCommand(host: SlashCommandHost, args: string): 
 
 function showEditorPicker(host: SlashCommandHost): void {
   const currentValue = host.state.appState.editorCommand ?? '';
-  host.mountEditorReplacement(
+  mountPickerDialog(host, 
     new EditorSelectorComponent({
       currentValue,
       onSelect: (value) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         void applyEditorChoice(host, value);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
   );
@@ -558,7 +561,8 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
     host.state.appState.thinkingLevel !== 'on'
       ? host.state.appState.thinkingLevel
       : undefined;
-  host.mountEditorReplacement(
+  mountPickerDialog(
+    host,
     new TabbedModelSelectorComponent({
       models: host.state.appState.availableModels,
       currentValue: host.state.appState.model,
@@ -566,17 +570,18 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
       currentThinking: host.state.appState.thinking,
       currentEffort,
       onSelect: ({ alias, thinking, effort }) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         void performModelSwitch(host, alias, thinking, true, effort);
       },
       onSessionOnlySelect: ({ alias, thinking, effort }) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         void performModelSwitch(host, alias, thinking, false, effort);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
+    { label: 'Model' },
   );
 }
 
@@ -675,17 +680,19 @@ async function persistModelSelection(host: SlashCommandHost, alias: string, thin
 }
 
 function showThemePicker(host: SlashCommandHost): void {
-  host.mountEditorReplacement(
+  mountPickerDialog(
+    host,
     new ThemeSelectorComponent({
       currentValue: host.state.appState.theme,
       onSelect: (value) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         void applyThemeChoice(host, value);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
+    { label: 'Theme' },
   );
 }
 
@@ -728,17 +735,19 @@ async function applyThemeChoice(host: SlashCommandHost, theme: ThemeName): Promi
 }
 
 export function showPermissionPicker(host: SlashCommandHost): void {
-  host.mountEditorReplacement(
+  mountPickerDialog(
+    host,
     new PermissionSelectorComponent({
       currentValue: host.state.appState.permissionMode,
       onSelect: (value) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         void applyPermissionChoice(host, value);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
+    { label: 'Permission' },
   );
 }
 
@@ -769,15 +778,15 @@ export async function handlePermissionCommand(
 }
 
 export function showUpdatePreferencePicker(host: SlashCommandHost): void {
-  host.mountEditorReplacement(
+  mountPickerDialog(host, 
     new UpdatePreferenceSelectorComponent({
       currentValue: host.state.appState.upgrade.autoInstall,
       onSelect: (value) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         void applyUpdatePreferenceChoice(host, value);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
   );
@@ -816,7 +825,7 @@ export async function applyExperimentalFeatureChanges(
     const features = await host.harness.getExperimentalFeatures();
     setExperimentalFeatures(features);
     host.refreshSlashCommandAutocomplete();
-    host.restoreEditor();
+    dismissPickerDialog(host);
     if (host.session !== undefined) {
       await host.session.reloadSession();
       await host.reloadCurrentSessionView(
@@ -836,14 +845,14 @@ function mountExperimentsPanel(
   host: SlashCommandHost,
   features: readonly ExperimentalFeatureState[],
 ): void {
-  host.mountEditorReplacement(
+  mountPickerDialog(host, 
     new ExperimentsSelectorComponent({
       features,
       onApply: (changes) => {
         void applyExperimentalFeatureChanges(host, changes);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
   );
@@ -905,20 +914,22 @@ async function applyPermissionChoice(host: SlashCommandHost, mode: PermissionMod
 }
 
 export function showSettingsSelector(host: SlashCommandHost): void {
-  host.mountEditorReplacement(
+  mountPickerDialog(
+    host,
     new SettingsSelectorComponent({
       onSelect: (value) => {
         handleSettingsSelection(host, value);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
+    { label: 'Settings' },
   );
 }
 
 function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelection): void {
-  host.restoreEditor();
+  dismissPickerDialog(host);
   switch (value) {
     case 'model': showModelPicker(host); return;
     case 'permission': showPermissionPicker(host); return;
@@ -944,7 +955,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
  * (tools inventory, premium, MCP, experiments).
  */
 export function showHarnessPanel(host: SlashCommandHost): void {
-  host.mountEditorReplacement(
+  mountPickerDialog(host, 
     new ChoicePickerComponent({
       title: 'Harness',
       hint: '↑↓ · Enter · Esc',
@@ -982,7 +993,7 @@ export function showHarnessPanel(host: SlashCommandHost): void {
         },
       ],
       onSelect: (value) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         switch (value) {
           case 'tools':
             void showToolsInventory(host);
@@ -1007,7 +1018,7 @@ export function showHarnessPanel(host: SlashCommandHost): void {
         }
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
   );
@@ -1114,16 +1125,16 @@ export async function showContextWorkingSetPicker(host: SlashCommandHost): Promi
     return;
   }
 
-  host.mountEditorReplacement(
+  mountPickerDialog(host, 
     new ContextWorkingSetSelectorComponent({
       currentPresetId,
       maxContextTokens,
       onSelect: (presetId) => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
         void applyContextWorkingSetPreset(host, presetId);
       },
       onCancel: () => {
-        host.restoreEditor();
+        dismissPickerDialog(host);
       },
     }),
   );
@@ -1232,7 +1243,10 @@ function tuiConfigFromHost(
       readonly appState: Pick<
         SlashCommandHost['state']['appState'],
         'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst' | 'permissionMode'
-      > & { readonly appearance?: AppearancePreferences };
+      > & {
+        readonly appearance?: AppearancePreferences;
+        readonly onboarding?: OnboardingPreferences;
+      };
     };
   },
   patch: Partial<TuiConfig> = {},
@@ -1245,6 +1259,7 @@ function tuiConfigFromHost(
     notifications: host.state.appState.notifications,
     upgrade: host.state.appState.upgrade,
     appearance: currentAppearance(host),
+    onboarding: host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
     ...patch,
   };
 }

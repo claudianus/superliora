@@ -538,12 +538,13 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('editor')?.completeArgs).toBe(editorArgumentCompletions);
   });
 
-  it('keeps team mode changes and swarm tasks idle-only', () => {
+  it('keeps swarm task starts idle-only while War Room controls stay available', () => {
     const swarm = findBuiltInSlashCommand('swarm');
     expect(swarm).toBeDefined();
     expect((swarm as LioraSlashCommand).experimentalFlag).toBeUndefined();
-    expect(resolveSlashCommandAvailability(swarm!, 'on')).toBe('idle-only');
-    expect(resolveSlashCommandAvailability(swarm!, 'off')).toBe('idle-only');
+    expect(resolveSlashCommandAvailability(swarm!, 'on')).toBe('always');
+    expect(resolveSlashCommandAvailability(swarm!, 'off')).toBe('always');
+    expect(resolveSlashCommandAvailability(swarm!, 'pause')).toBe('always');
     expect(resolveSlashCommandAvailability(swarm!, 'Ship feature X')).toBe('idle-only');
   });
 
@@ -560,24 +561,32 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('ultrawork');
     expect(primaryNames).not.toContain('ultraswarm');
     expect(primaryNames).not.toContain('experiments');
-    expect(primaryNames).not.toContain('permission');
+    expect(primaryNames).toContain('permission');
+    expect(primaryNames).toContain('settings');
+    expect(primaryNames).not.toContain('yolo');
+    expect(primaryNames).not.toContain('auto');
+    expect(primaryNames).not.toContain('plugins');
     expect(primaryNames).not.toContain('reload');
     expect(primaryNames).not.toContain('reload-tui');
-    expect(primaryNames).not.toContain('settings');
     expect(primaryNames).not.toContain('export-debug-zip');
     expect(advancedNames).toEqual(
       expect.arrayContaining([
+        'auto',
         'experiments',
-        'permission',
+        'plugins',
+        'quota',
         'reload',
         'reload-tui',
-        'settings',
         'ultragoal',
         'ultraswarm',
         'ultraplan',
         'ultrawork',
+        'usage',
+        'yolo',
       ]),
     );
+    expect(advancedNames).not.toContain('permission');
+    expect(advancedNames).not.toContain('settings');
     expect(diagnosticNames).not.toContain('ultraswarm');
     const ultrawork = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').find(
       (command) => command.name === 'ultrawork',
@@ -655,15 +664,16 @@ describe('built-in slash command registry', () => {
       (command) => command.name,
     );
 
+    // Highest-priority primary commands sort first (then alphabetically).
     expect(primaryNames.slice(0, 8)).toEqual([
-      'auto',
+      'help',
       'model',
+      'permission',
       'premium',
-      'quota',
+      'settings',
       'status',
       'thinking',
-      'usage',
-      'yolo',
+      'btw',
     ]);
   });
 
