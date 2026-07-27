@@ -12,6 +12,7 @@ import {
   pointerShapeForZone,
   resetStageResizeDragForTests,
 } from '#/tui/utils/stage-resize-mouse';
+import { invalidateProfile } from '#/tui/utils/terminal-capability-profile';
 
 function fakeInitialAppState(): AppState {
   return {
@@ -57,7 +58,7 @@ function createState(): TUIState {
   });
   Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => ROWS });
   Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => COLS });
-  // Swallow Kitty pointer-shape CSI so tests never leak control sequences.
+  // Swallow Kitty pointer-shape OSC so tests never leak control sequences.
   state.terminal.write = () => {};
   state.cachedStageBand = { ...BAND };
   return state;
@@ -92,21 +93,58 @@ describe('handleStageResizeMouseInput', () => {
   });
 
   it('lights the resize grip and reports a pointer shape on hover move', () => {
-    const state = createState();
-    const writes: string[] = [];
-    state.terminal.write = (chunk: string) => {
-      writes.push(chunk);
-    };
+    const prevTerm = process.env['TERM'];
+    const prevCi = process.env['CI'];
+    const prevTty = process.stdin.isTTY;
+    process.env['TERM'] = 'kitty';
+    delete process.env['CI'];
+    process.stdin.isTTY = true;
+    invalidateProfile();
+    try {
+      const state = createState();
+      const writes: string[] = [];
+      state.terminal.write = (chunk: string) => {
+        writes.push(chunk);
+      };
 
-    // Move over the right edge grip (button=none for any-event tracking).
-    expect(handleStageResizeMouseInput(state, mouse('move', GRAB_RIGHT, MID_Y, 'none'))).toBe(true);
-    expect(getStageResizeHoverZone()).toBe('resize-right');
-    expect(isStageResizeDragging()).toBe(false);
-    expect(writes.some((w) => w.includes('ew-resize'))).toBe(true);
+      // Move over the right edge grip (button=none for any-event tracking).
+      expect(handleStageResizeMouseInput(state, mouse('move', GRAB_RIGHT, MID_Y, 'none'))).toBe(true);
+      expect(getStageResizeHoverZone()).toBe('resize-right');
+      expect(isStageResizeDragging()).toBe(false);
+      // OSC 22 push — never the legacy CSI form that leaked "s-resize" text.
+      expect(writes.some((w) => w.includes('\u001B]22;>ew-resize\u001B\\'))).toBe(true);
+      expect(writes.some((w) => w.includes('\u001B[22;'))).toBe(false);
 
-    // Leave the grip — hover clears and pointer pops.
-    expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
-    expect(getStageResizeHoverZone()).toBeUndefined();
+      // Leave the grip — hover clears and pointer pops via OSC 22.
+      expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
+      expect(getStageResizeHoverZone()).toBeUndefined();
+      expect(writes.some((w) => w.includes('\u001B]22;<\u001B\\'))).toBe(true);
+    } finally {
+      if (prevTerm === undefined) delete process.env['TERM'];
+      else process.env['TERM'] = prevTerm;
+      if (prevCi === undefined) delete process.env['CI'];
+      else process.env['CI'] = prevCi;
+      process.stdin.isTTY = prevTty;
+      invalidateProfile();
+    }
+  });
+
+  it('never writes pointer shape sequences for unsupported terminals', () => {
+    // Default vitest env is non-interactive, so pointerShapes must be off.
+    invalidateProfile();
+    try {
+      const state = createState();
+      const writes: string[] = [];
+      state.terminal.write = (chunk: string) => {
+        writes.push(chunk);
+      };
+      expect(handleStageResizeMouseInput(state, mouse('move', GRAB_RIGHT, MID_Y, 'none'))).toBe(true);
+      expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
+      expect(writes.filter((w) => w.includes('\u001B]22'))).toEqual([]);
+      expect(writes.filter((w) => w.includes('resize'))).toEqual([]);
+    } finally {
+      invalidateProfile();
+    }
   });
 
   it('maps resize zones to Kitty pointer shapes', () => {

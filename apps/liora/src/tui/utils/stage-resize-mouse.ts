@@ -18,6 +18,7 @@ import {
 import type { TUIState } from '../tui-state';
 import { requestTUILayoutRender } from './frame-render';
 import { stageFrameVisible, type StageFrameBand } from './stage-frame';
+import { getTerminalProfile, hasFeature } from './terminal-capability-profile';
 
 /**
  * Live corner/edge drag state. Module-level (mirrors `stage-frame.ts`) because
@@ -206,6 +207,9 @@ export function pointerShapeForZone(zone: PanelBorderZone): KittyPointerShape {
 }
 
 function applyPointerShape(state: TUIState, shape: KittyPointerShape | undefined): void {
+  // Only terminals known to implement OSC 22 pointer shapes may receive the
+  // sequence — unsupported terminals can misparse it and print garbage.
+  if (!hasFeature(getTerminalProfile(), 'pointerShapes')) return;
   if (shape === activePointerShape) return;
   try {
     if (shape === undefined || shape === 'default') {
@@ -219,7 +223,7 @@ function applyPointerShape(state: TUIState, shape: KittyPointerShape | undefined
     state.terminal.write(ansiPushPointerShape(shape));
     activePointerShape = shape;
   } catch {
-    // Never let pointer CSI take down the input path.
+    // Never let pointer shape OSC take down the input path.
   }
 }
 

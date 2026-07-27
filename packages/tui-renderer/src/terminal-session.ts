@@ -110,11 +110,18 @@ export type KittyPointerShape =
   | 'grab'
   | 'grabbing';
 
+// Kitty pointer shape protocol (kitty >= 0.31, Ghostty, WezTerm): OSC 22.
+// Push: ESC ] 22 ; >name ESC \   Pop: ESC ] 22 ; < ESC \
+// https://sw.kovidgoyal.net/kitty/pointer-shapes/
+// The sequence is OSC-based on purpose: terminals without support discard an
+// unknown OSC wholesale. The earlier `CSI 22 ; <name> u` form put alphabetic
+// bytes in CSI parameter position, so strict VT parsers aborted the sequence
+// at the first letter and printed the tail (e.g. "s-resize u") into the frame.
 export function ansiPushPointerShape(shape: KittyPointerShape): string {
-  return `\u001B[22;${shape}u`;
+  return `\u001B]22;>${shape}\u001B\\`;
 }
 
-export const ANSI_POP_POINTER_SHAPE = '\u001B[23u';
+export const ANSI_POP_POINTER_SHAPE = '\u001B]22;<\u001B\\';
 export const ANSI_DISABLE_AUTO_WRAP = '\u001B[?7l';
 export const ANSI_ENABLE_AUTO_WRAP = '\u001B[?7h';
 

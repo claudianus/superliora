@@ -68,6 +68,8 @@ export interface TerminalFeatureFlags {
   readonly extendedAttributes: boolean;
   /** Cursor shape control (DECSCUSR). */
   readonly cursorShape: boolean;
+  /** Kitty pointer shape protocol (OSC 22) — hover cursor affordances. */
+  readonly pointerShapes: boolean;
   /** Cursor color change (OSC 12). */
   readonly cursorColor: boolean;
   /** Window title setting (OSC 0/2). */
@@ -134,7 +136,7 @@ const TERMINAL_DB: Record<string, TerminalDbEntry> = {
       synchronizedOutput: true, mouseTracking: true, focusEvents: true,
       bracketedPaste: true, osc52Clipboard: true, osc99Notify: true,
       styledUnderlines: true, hyperlinks: true, unicodeWide: true,
-      extendedAttributes: true, cursorShape: true, cursorColor: true,
+      extendedAttributes: true, cursorShape: true, pointerShapes: true, cursorColor: true,
       windowTitle: true, alternateScreen: true,
     },
   },
@@ -148,7 +150,7 @@ const TERMINAL_DB: Record<string, TerminalDbEntry> = {
       synchronizedOutput: true, mouseTracking: true, focusEvents: true,
       bracketedPaste: true, osc52Clipboard: true,
       styledUnderlines: true, hyperlinks: true, unicodeWide: true,
-      extendedAttributes: true, cursorShape: true, cursorColor: true,
+      extendedAttributes: true, cursorShape: true, pointerShapes: true, cursorColor: true,
       windowTitle: true, alternateScreen: true,
     },
   },
@@ -162,7 +164,7 @@ const TERMINAL_DB: Record<string, TerminalDbEntry> = {
       synchronizedOutput: true, mouseTracking: true, focusEvents: true,
       bracketedPaste: true, osc52Clipboard: true,
       styledUnderlines: true, hyperlinks: true, unicodeWide: true,
-      extendedAttributes: true, cursorShape: true, cursorColor: true,
+      extendedAttributes: true, cursorShape: true, pointerShapes: true, cursorColor: true,
       windowTitle: true, alternateScreen: true,
     },
   },
@@ -244,7 +246,7 @@ const DEFAULT_FEATURES: TerminalFeatureFlags = {
   mouseTracking: false, focusEvents: false, bracketedPaste: false,
   osc52Clipboard: false, osc99Notify: false, styledUnderlines: false,
   hyperlinks: false, unicodeWide: false, extendedAttributes: false,
-  cursorShape: true, cursorColor: false, windowTitle: true,
+  cursorShape: true, pointerShapes: false, cursorColor: false, windowTitle: true,
   alternateScreen: true,
 };
 
@@ -372,6 +374,8 @@ export function buildCapabilityProfile(
       keyboardProtocol = 'modify-other-keys';
       features = { ...features, kittyKeyboard: false };
     }
+    // Pointer shape OSC 22 does not pass through multiplexers by default
+    features = { ...features, pointerShapes: false };
   }
 
   // SSH degradation: some features unreliable over SSH
@@ -384,7 +388,7 @@ export function buildCapabilityProfile(
     features = {
       ...features,
       mouseTracking: false, focusEvents: false, bracketedPaste: false,
-      synchronizedOutput: false, kittyKeyboard: false, cursorShape: false,
+      synchronizedOutput: false, kittyKeyboard: false, cursorShape: false, pointerShapes: false,
     };
     keyboardProtocol = 'legacy';
   }
