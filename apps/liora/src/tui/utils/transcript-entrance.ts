@@ -80,6 +80,56 @@ export function isTranscriptEntranceActive(
   return transcriptEntranceProgress(startedAtMs, appearance, nowMs) < 0.999;
 }
 
+/** Tool header entrance settle length — a quick highlight fade, not a wash. */
+export const TOOL_HEADER_ENTRANCE_MS = 280;
+
+/** Header entrance TTL (0 when motion is off; subtle stretches ×1.2). */
+export function toolHeaderEntranceDurationMs(
+  appearance: AppearancePreferences = getActiveAppearancePreferences(),
+): number {
+  if (!shouldRenderAmbientEffects(appearance)) return 0;
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  return mode === 'subtle' ? TOOL_HEADER_ENTRANCE_MS * 1.2 : TOOL_HEADER_ENTRANCE_MS;
+}
+
+/**
+ * Brief highlight settle for a freshly mounted tool header. Blends every
+ * styled run toward a brand highlight that decays over the entrance window,
+ * preserving the header's internal ANSI structure (bullet, verb, chips) —
+ * unlike a plain-text flash. Returns the line untouched once settled or when
+ * ambient motion is off, so settled headers stay byte-stable for the cache.
+ */
+export function applyToolHeaderEntrance(
+  line: string,
+  startedAtMs: number,
+  appearance: AppearancePreferences = getActiveAppearancePreferences(),
+  nowMs: number = appearanceAnimationNow(),
+): string {
+  if (line.length === 0) return line;
+  const duration = toolHeaderEntranceDurationMs(appearance);
+  if (duration <= 0 || startedAtMs < 0) return line;
+  const p = easeOutCubic((nowMs - startedAtMs) / duration);
+  if (p >= 1) return line;
+  const cells = ansiTextToCells(line);
+  if (cells.length === 0) return line;
+  const highlight = mixHexColor(
+    currentTheme.color('primary'),
+    currentTheme.color('glow'),
+    0.4,
+  );
+  const intensity = 1 - p;
+  const next = cells.map((cell) => {
+    if (cell.char === ' ' && cell.style === undefined) return cell;
+    return {
+      ...cell,
+      style: mixStyle(cell.style, highlight, intensity * 0.65, {
+        towardBold: intensity > 0.5,
+      }),
+    };
+  });
+  return cellsToAnsi(next);
+}
+
 function mutedBlendHex(kind: TranscriptEntranceKind): string {
   // Soft start color — brand-tinted for assistant/tool, mute for status.
   switch (kind) {

@@ -725,6 +725,112 @@ export function renderSettleFlash(
   return currentTheme.boldFg('primary', plain);
 }
 
+/** True while `renderToneSettleFlash` is still animating at this clock. */
+export function isToneSettleFlashActive(
+  startedAtMs: number,
+  appearance: AppearancePreferences = activeAppearance,
+  nowMs: number = appearanceAnimationNow(),
+): boolean {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') return false;
+  const duration = mode === 'subtle' ? SETTLE_FLASH_MS * 1.4 : SETTLE_FLASH_MS;
+  return nowMs - startedAtMs < duration;
+}
+
+/**
+ * Tone-preserving settle flash: same spectacular → pulse → bold stages as
+ * `renderSettleFlash`, but the resting color is the given theme tone
+ * (success/error/warning/…) instead of plain text — the mark's meaning
+ * survives the flash. Off profile returns the static tone-colored text.
+ */
+export function renderToneSettleFlash(
+  text: string,
+  seed: string,
+  startedAtMs: number,
+  tone: ColorToken,
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const plain = stripAnsiControls(text);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') {
+    return currentTheme.fg(tone, plain);
+  }
+  const p = motionProgress(startedAtMs, mode === 'subtle' ? SETTLE_FLASH_MS * 1.4 : SETTLE_FLASH_MS);
+  if (p >= 1) return currentTheme.fg(tone, plain);
+  // ≥4 visual steps via spectacular → pulse → bold tone → tone
+  if (p < 0.35) {
+    return renderSpectacularText(plain, seed, appearance, {
+      intense: mode === 'premium',
+      pace: 'fast',
+    });
+  }
+  if (p < 0.7) return renderPulseText(plain, seed, tone, appearance);
+  return currentTheme.boldFg(tone, plain);
+}
+
+/** Full enter→exit emphasis window for transient status lines. */
+export const STATUS_FLASH_MS = 1600;
+
+/** Status flash TTL (0 when motion is off; subtle stretches ×1.2). */
+export function statusFlashDurationMs(
+  appearance: AppearancePreferences = activeAppearance,
+): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  if (!motionEffectsAllowed() || mode === 'off') return 0;
+  return mode === 'subtle' ? STATUS_FLASH_MS * 1.2 : STATUS_FLASH_MS;
+}
+
+/** True while `renderStatusFlashLine` is still inside its emphasis window. */
+export function isStatusFlashActive(
+  startedAtMs: number,
+  appearance: AppearancePreferences = activeAppearance,
+  nowMs: number = appearanceAnimationNow(),
+): boolean {
+  const duration = statusFlashDurationMs(appearance);
+  return duration > 0 && nowMs - startedAtMs < duration;
+}
+
+/**
+ * Enter/exit emphasis for transient status lines (session errors/warnings,
+ * slash-command feedback): spectacular flash → pulse → bold tone → shimmer
+ * hold → dimmed shimmer fade-out → static tone. Settles to byte-stable
+ * tone-colored text once the window expires or when motion is off, so the
+ * transcript line stays calm after the message has landed.
+ */
+export function renderStatusFlashLine(
+  text: string,
+  seed: string,
+  startedAtMs: number,
+  tone: ColorToken = 'textDim',
+  appearance: AppearancePreferences = activeAppearance,
+): string {
+  const plain = stripAnsiControls(text);
+  const duration = statusFlashDurationMs(appearance);
+  if (duration <= 0 || plain.length === 0) {
+    return currentTheme.fg(tone, plain);
+  }
+  const p = motionProgress(startedAtMs, duration);
+  if (p >= 1) return currentTheme.fg(tone, plain);
+  // ≥5 visual steps: spectacular → pulse → bold → shimmer → dimmed fade-out
+  if (p < 0.25) {
+    return renderSpectacularText(plain, seed, appearance, {
+      intense: true,
+      pace: 'fast',
+    });
+  }
+  if (p < 0.45) {
+    return renderPulseText(
+      plain,
+      seed,
+      tone === 'error' || tone === 'warning' ? tone : 'primary',
+      appearance,
+    );
+  }
+  if (p < 0.65) return currentTheme.boldFg(tone, plain);
+  if (p < 0.85) return `${renderShimmerPrefix(appearance)}${currentTheme.fg(tone, plain)}`;
+  return `${currentTheme.dim(renderShimmerPrefix(appearance))}${currentTheme.dimFg(tone, plain)}`;
+}
+
 export function renderPhaseChip(
   label: string,
   phase: MotionToolPhase,

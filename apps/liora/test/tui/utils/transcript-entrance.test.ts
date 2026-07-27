@@ -5,11 +5,14 @@ import { currentTheme } from '#/tui/theme';
 import { setActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
 import {
   applyStreamTailGlow,
+  applyToolHeaderEntrance,
   applyTranscriptEntrance,
   isTranscriptEntranceActive,
   polishTranscriptLines,
+  toolHeaderEntranceDurationMs,
   transcriptEntranceProgress,
   visibleTranscriptPayload,
+  TOOL_HEADER_ENTRANCE_MS,
   TRANSCRIPT_ENTRANCE_MS_PREMIUM,
 } from '#/tui/utils/transcript-entrance';
 
@@ -104,4 +107,48 @@ describe('transcript-entrance', () => {
     expect(visible.includes('👍 b') || visible.includes('a 👍')).toBe(false);
   });
 
+  describe('tool header entrance settle', () => {
+    it('highlights the header at t0 and settles byte-identical after the window', () => {
+      const line = currentTheme.dim('(foo.ts)');
+      const started = 5000;
+      const active = applyToolHeaderEntrance(line, started, undefined, started);
+      expect(visibleTranscriptPayload(active)).toContain('(foo.ts)');
+      expect(active).not.toBe(line);
+      // Previously unbolded runs gain a bold truecolor highlight while the
+      // settle decays; the settled line is the untouched input.
+      expect(active).toContain('\u001B[0;1;38;2');
+      expect(line).not.toContain('\u001B[0;1;38;2');
+
+      const settled = applyToolHeaderEntrance(
+        line,
+        started,
+        undefined,
+        started + TOOL_HEADER_ENTRANCE_MS + 20,
+      );
+      expect(settled).toBe(line);
+    });
+
+    it('stretches the settle under subtle but keeps it under the 400ms cue ceiling', () => {
+      const subtle = {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'subtle' as const,
+        particles: 'ambient' as const,
+      };
+      const duration = toolHeaderEntranceDurationMs(subtle);
+      expect(duration).toBeGreaterThan(TOOL_HEADER_ENTRANCE_MS);
+      expect(duration).toBeLessThanOrEqual(400);
+      expect(toolHeaderEntranceDurationMs()).toBe(TOOL_HEADER_ENTRANCE_MS);
+    });
+
+    it('returns the line untouched when motion is off', () => {
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        particles: 'off',
+      });
+      const line = currentTheme.fg('primary', 'Using Read');
+      expect(applyToolHeaderEntrance(line, 1000, undefined, 1000)).toBe(line);
+      expect(toolHeaderEntranceDurationMs()).toBe(0);
+    });
+  });
 });

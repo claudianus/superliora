@@ -1,11 +1,19 @@
 import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
 import chalk from 'chalk';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
-import { advanceAppearanceAnimationClock } from '#/tui/utils/appearance-effects';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+  SETTLE_FLASH_MS,
+} from '#/tui/utils/appearance-effects';
 
 import { captureProcessWrite } from '../../../helpers/process';
 
@@ -1917,5 +1925,160 @@ describe('ToolCallComponent', () => {
     } finally {
       stderr.restore();
     }
+  });
+});
+
+describe('ToolCallComponent motion cues', () => {
+  const previousEnv = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+  };
+  const previousChalkLevel = chalk.level;
+  const premium = {
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium' as const,
+    particles: 'premium' as const,
+  };
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    chalk.level = 3;
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences(premium);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    chalk.level = previousChalkLevel;
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  function headerLine(component: ToolCallComponent): string {
+    const lines = component.render(100);
+    const index = lines.findIndex(
+      (line) => strip(line).includes('Using Read') || strip(line).includes('Used Read'),
+    );
+    return index >= 0 ? (lines[index] ?? '') : lines.join('\n');
+  }
+
+  it('header entrance highlight is active at t0 and expired after the window (premium)', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const component = new ToolCallComponent(
+      { id: 'call_entrance_premium', name: 'Read', args: { path: 'foo.ts' } },
+      undefined,
+    );
+
+    const t0 = headerLine(component);
+    expect(strip(t0)).toContain('Using Read');
+    // The entrance blends dim arg runs toward a bold truecolor highlight —
+    // a dim+bold+truecolor SGR only occurs while the settle is animating.
+    expect(t0).toContain('\u001B[0;1;2;38;2');
+
+    // Past both the header settle (280ms) and the block wash (560ms).
+    vi.setSystemTime(new Date(start + 700));
+    advanceAppearanceAnimationClock(Date.now());
+    const settled = headerLine(component);
+    expect(strip(settled)).toContain('Using Read');
+    expect(settled).not.toContain('\u001B[0;1;2;38;2');
+  });
+
+  it('result completion flashes the status mark, then settles to the success tone', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const component = new ToolCallComponent(
+      { id: 'call_settle_success', name: 'Read', args: { path: 'foo.ts' } },
+      undefined,
+    );
+    // Move past the entrance window so only the result flash animates.
+    const settleAt = start + 700;
+    vi.setSystemTime(new Date(settleAt));
+    advanceAppearanceAnimationClock(settleAt);
+    component.setResult({
+      tool_call_id: 'call_settle_success',
+      output: 'content',
+      is_error: false,
+    });
+
+    const staticBullet = currentTheme.fg('success', STATUS_BULLET);
+    const flashing = headerLine(component);
+    expect(strip(flashing)).toContain('Used Read');
+    expect(flashing).not.toContain(staticBullet);
+
+    vi.setSystemTime(new Date(settleAt + SETTLE_FLASH_MS + 60));
+    advanceAppearanceAnimationClock(Date.now());
+    const settled = headerLine(component);
+    expect(strip(settled)).toContain('Used Read');
+    expect(settled).toContain(staticBullet);
+  });
+
+  it('error results settle to the error tone', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const component = new ToolCallComponent(
+      { id: 'call_settle_error', name: 'Read', args: { path: 'foo.ts' } },
+      undefined,
+    );
+    const settleAt = start + 700;
+    vi.setSystemTime(new Date(settleAt));
+    advanceAppearanceAnimationClock(settleAt);
+    component.setResult({
+      tool_call_id: 'call_settle_error',
+      output: 'boom',
+      is_error: true,
+    });
+
+    const staticBullet = currentTheme.fg('error', '✗ ');
+    const flashing = headerLine(component);
+    expect(strip(flashing)).toContain('Used Read');
+    expect(flashing).not.toContain(staticBullet);
+
+    vi.setSystemTime(new Date(settleAt + SETTLE_FLASH_MS + 60));
+    advanceAppearanceAnimationClock(Date.now());
+    const settled = headerLine(component);
+    expect(settled).toContain(staticBullet);
+  });
+
+  it('quality off keeps headers byte-stable (no entrance, no result flash)', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off' as const,
+      particles: 'off' as const,
+    });
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const component = new ToolCallComponent(
+      { id: 'call_motion_off', name: 'Read', args: { path: 'foo.ts' } },
+      undefined,
+    );
+
+    const t0 = component.render(100);
+    vi.setSystemTime(new Date(start + 900));
+    advanceAppearanceAnimationClock(Date.now());
+    expect(component.render(100)).toEqual(t0);
+
+    component.setResult({ tool_call_id: 'call_motion_off', output: 'x', is_error: false });
+    const flashed = component.render(100);
+    vi.setSystemTime(new Date(start + 1600));
+    advanceAppearanceAnimationClock(Date.now());
+    expect(component.render(100)).toEqual(flashed);
+    expect(strip(flashed.join('\n'))).toContain(`${STATUS_BULLET}Used Read`);
   });
 });
