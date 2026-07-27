@@ -1,6 +1,10 @@
 import type { Session } from '@superliora/sdk';
 
-import { ClipboardMediaError, readClipboardMedia } from '#/utils/clipboard/clipboard-image';
+import {
+  ClipboardMediaError,
+  readClipboardMedia,
+  readMediaPath,
+} from '#/utils/clipboard/clipboard-image';
 import { parseImageMeta } from '#/utils/image/image-mime';
 import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/external-editor';
 
@@ -15,6 +19,7 @@ import {
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import type { ImageAttachmentStore } from '../utils/image-attachment-store';
+import { parseDroppedFilePaths } from '../utils/media-drop';
 import { copyTranscriptSelectionToClipboard } from '../utils/transcript-selection';
 import type { PendingExit, QueuedMessage } from '../types';
 import type { TranscriptScrollAction } from '../utils/transcript-viewport';
@@ -361,6 +366,8 @@ export class EditorKeyboardController {
 
     editor.onPasteImage = async () => this.handleClipboardImagePaste();
 
+    editor.onPasteText = (text) => this.handleDroppedMediaPaste(text);
+
     editor.onHistorySearch = () => {
       if (editor.getText().length > 0) {
         host.state.toast.show('Clear the prompt first (Ctrl-R searches history)', 2200);
@@ -475,6 +482,61 @@ export class EditorKeyboardController {
     this.host.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
     requestTUILayoutRender(this.host.state);
     this.host.track('shortcut_paste', { kind: 'image' });
+    return true;
+  }
+
+  /**
+   * Attach images/videos dropped onto the terminal. Terminals deliver drops
+   * as pasted path text; `parseDroppedFilePaths` only returns a list when
+   * the entire paste resolves to existing files, so ordinary text pastes
+   * never reach the attachment path. Non-media files in a mixed drop keep
+   * their path in the prompt; if nothing attachable was dropped the paste
+   * falls through to normal text insertion.
+   */
+  private handleDroppedMediaPaste(text: string): boolean {
+    const paths = parseDroppedFilePaths(text);
+    if (paths === null || paths.length === 0) return false;
+
+    const segments: string[] = [];
+    let attached = 0;
+    for (const path of paths) {
+      let media;
+      try {
+        media = readMediaPath(path);
+      } catch (error) {
+        if (error instanceof ClipboardMediaError) {
+          this.host.showError(error.message);
+        }
+        media = null;
+      }
+      if (media === null) {
+        segments.push(path);
+        continue;
+      }
+      if (media.kind === 'video') {
+        const attachment = this.imageStore.addVideo(
+          media.mimeType,
+          media.sourcePath,
+          media.filename,
+        );
+        segments.push(attachment.placeholder);
+        attached += 1;
+        continue;
+      }
+      const meta = parseImageMeta(media.bytes);
+      if (meta === null) {
+        segments.push(path);
+        continue;
+      }
+      const attachment = this.imageStore.addImage(media.bytes, meta.mime, meta.width, meta.height);
+      segments.push(attachment.placeholder);
+      attached += 1;
+    }
+
+    if (attached === 0) return false;
+    this.host.state.editor.insertTextAtCursor?.(`${segments.join(' ')} `);
+    requestTUILayoutRender(this.host.state);
+    this.host.track('shortcut_paste', { kind: 'drop', count: attached });
     return true;
   }
 

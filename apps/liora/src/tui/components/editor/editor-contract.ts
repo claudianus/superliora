@@ -52,6 +52,12 @@ export interface TUIEditor
   onShiftTab?: () => void;
   onInputModeChange?: (mode: TUIEditorInputMode) => void;
   onPasteImage?: () => Promise<boolean>;
+  /**
+   * Intercepts bracketed-paste text before it is inserted. Return `true`
+   * when the paste was consumed (e.g. dropped file paths were attached as
+   * media); `false` falls through to the normal text insertion.
+   */
+  onPasteText?: (text: string) => boolean;
   /** History recall adapter (used by the native editor's history browse). */
   onRecall?: (entry: string) => string | undefined;
   onHistoryDraftSave?: () => unknown;

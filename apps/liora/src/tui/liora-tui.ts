@@ -4204,14 +4204,6 @@ export class LioraTUI {
     this.restoreEditor();
   }
 
-  /**
-   * Handle files dropped onto the terminal via Kitty DnD protocol.
-   * Opens the file explorer focused on the dropped file's directory.
-   */
-  private handleFileDrop(_paths: readonly string[]): void {
-    // Workspace docks removed — file drops are ignored in pure center TUI.
-  }
-
   private lastDiffReport: GitDiffReport | undefined;
   private lastDiffFilter = '';
 
