@@ -14,6 +14,7 @@ import { darkColors } from '#/tui/theme/colors';
 import * as appearanceEffects from '#/tui/utils/appearance-effects';
 import {
   advanceAppearanceAnimationClock,
+  appearanceAnimationNow,
   SETTLE_FLASH_MS,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
@@ -767,5 +768,130 @@ describe('TodoPanelComponent change flash kinship', () => {
     const settled = panel.render(100).map(strip).join('\n');
     expect(settled).not.toMatch(/flow 1 done/);
     expect(settleSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('TodoPanelComponent board motion cues', () => {
+  beforeEach(() => {
+    chalk.level = 3;
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+  });
+
+  afterEach(() => {
+    chalk.level = previousChalkLevel;
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('shows directional move cues when cards reorder, then settles to identical bytes', () => {
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'alpha', status: 'pending' },
+      { title: 'beta', status: 'pending' },
+      { title: 'gamma', status: 'pending' },
+    ]);
+    // Let the entrance window expire so the baseline is fully at rest.
+    advanceAppearanceAnimationClock(Date.now() + SETTLE_FLASH_MS + 80);
+    const baseline = panel.render(100).map(strip).join('\n');
+
+    panel.setTodos([
+      { title: 'gamma', status: 'pending' },
+      { title: 'alpha', status: 'pending' },
+      { title: 'beta', status: 'pending' },
+    ]);
+    const moving = panel.render(100).map(strip).join('\n');
+    // gamma jumped two rows up; alpha and beta each slid one row down.
+    expect(moving).toContain('▴');
+    expect(moving).toContain('▾');
+    expect(moving).not.toBe(baseline);
+
+    // Past the shared settle window the board is byte-stable again and the
+    // memo serves the identical lines array.
+    advanceAppearanceAnimationClock(appearanceAnimationNow() + SETTLE_FLASH_MS + 80);
+    const settled = panel.render(100);
+    expect(settled.map(strip).join('\n')).not.toMatch(/▴|▾/);
+    expect(panel.render(100)).toBe(settled);
+
+    // The same final state on a fresh panel renders byte-identical lines.
+    const reference = new TodoPanelComponent();
+    reference.setTodos([
+      { title: 'gamma', status: 'pending' },
+      { title: 'alpha', status: 'pending' },
+      { title: 'beta', status: 'pending' },
+    ]);
+    advanceAppearanceAnimationClock(appearanceAnimationNow() + 10_000);
+    expect(settled.join('\n')).toBe(reference.render(100).join('\n'));
+  });
+
+  it('settle-flashes a card entering the visible window without a change kind', () => {
+    const settleSpy = vi.spyOn(appearanceEffects, 'renderSettleFlash');
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'wip', status: 'in_progress' },
+      { title: 'p1', status: 'pending' },
+      { title: 'p2', status: 'pending' },
+      { title: 'p3', status: 'pending' },
+      { title: 'p4', status: 'pending' },
+      { title: 'p5', status: 'pending' },
+    ]);
+    // p5 is hidden by the collapsed cap; let the entrance window expire.
+    advanceAppearanceAnimationClock(Date.now() + SETTLE_FLASH_MS + 80);
+    panel.render(100);
+    settleSpy.mockClear();
+
+    // p1 is pruned, so p5 slides into the visible window without being new.
+    panel.setTodos([
+      { title: 'wip', status: 'in_progress' },
+      { title: 'p2', status: 'pending' },
+      { title: 'p3', status: 'pending' },
+      { title: 'p4', status: 'pending' },
+      { title: 'p5', status: 'pending' },
+    ]);
+    panel.render(100);
+    const flashed = settleSpy.mock.calls.map((call) => String(call[0]));
+    expect(flashed).toContain('p5');
+    expect(flashed).not.toContain('p2');
+
+    settleSpy.mockClear();
+    advanceAppearanceAnimationClock(appearanceAnimationNow() + SETTLE_FLASH_MS + 80);
+    panel.render(100);
+    expect(settleSpy).not.toHaveBeenCalled();
+  });
+
+  it('flashes lane counts when they change, then settles the header', () => {
+    const toneSpy = vi.spyOn(appearanceEffects, 'renderToneSettleFlash');
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      { title: 'a', status: 'in_progress' },
+      { title: 'b', status: 'pending' },
+    ]);
+    advanceAppearanceAnimationClock(Date.now() + SETTLE_FLASH_MS + 80);
+    panel.render(100);
+    toneSpy.mockClear();
+
+    // b hops into the Doing lane: Doing 1 -> 2, Next 1 -> 0.
+    panel.setTodos([
+      { title: 'a', status: 'in_progress' },
+      { title: 'b', status: 'in_progress' },
+    ]);
+    const flashing = panel.render(100);
+    const flashedCounts = toneSpy.mock.calls.map((call) => String(call[0]));
+    expect(flashedCounts).toContain('(2)');
+    expect(flashedCounts).toContain('(0)');
+    expect(flashing.map(strip).join('\n')).toContain('Doing (2)');
+
+    toneSpy.mockClear();
+    advanceAppearanceAnimationClock(appearanceAnimationNow() + SETTLE_FLASH_MS + 80);
+    const settled = panel.render(100);
+    expect(toneSpy).not.toHaveBeenCalled();
+    expect(settled.map(strip).join('\n')).toContain('Doing (2)');
   });
 });

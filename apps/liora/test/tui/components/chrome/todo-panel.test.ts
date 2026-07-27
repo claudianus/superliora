@@ -83,6 +83,47 @@ describe('TodoPanelComponent', () => {
     expect(shrunk.length).toBeLessThan(tallHeight);
   });
 
+  it('renders a reordered board byte-stable immediately when motion is off (CI)', () => {
+    advanceAppearanceAnimationClock(500_000);
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      todo('alpha', 'pending'),
+      todo('beta', 'pending'),
+      todo('gamma', 'pending'),
+    ]);
+    advanceAppearanceAnimationClock(510_000);
+    panel.render(WIDTH);
+
+    panel.setTodos([
+      todo('gamma', 'pending'),
+      todo('alpha', 'pending'),
+      todo('beta', 'pending'),
+    ]);
+    // CI forces motion off: no directional glyphs, and consecutive renders at
+    // the same clock are byte-identical — nothing time-driven leaks in.
+    const first = panel.render(WIDTH);
+    expect(stripAnsi(first.join('\n'))).not.toMatch(/▴|▾/);
+    expect(panel.render(WIDTH).join('\n')).toBe(first.join('\n'));
+
+    // A panel with the same history and change instant matches exactly.
+    const reference = new TodoPanelComponent();
+    reference.setTodos([
+      todo('alpha', 'pending'),
+      todo('beta', 'pending'),
+      todo('gamma', 'pending'),
+    ]);
+    reference.setTodos([
+      todo('gamma', 'pending'),
+      todo('alpha', 'pending'),
+      todo('beta', 'pending'),
+    ]);
+    expect(reference.render(WIDTH).join('\n')).toBe(first.join('\n'));
+
+    // Past the summary window both settle to the same resting bytes.
+    advanceAppearanceAnimationClock(520_000);
+    expect(panel.render(WIDTH).join('\n')).toBe(reference.render(WIDTH).join('\n'));
+  });
+
   it('grows the board immediately when a lane gains cards', () => {
     advanceAppearanceAnimationClock(300_000);
     const panel = new TodoPanelComponent();

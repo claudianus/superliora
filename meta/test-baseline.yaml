@@ -37,7 +37,6 @@ packages:
       - "PromptIntelligenceController sets promptIntelligencePhase while inline request runs"
       - "PromptIntelligenceController shows pending ghost then paints short completions"
       - "TUI handleInput — printable-key guard forbids bare-literal printable comparisons on `data` (use printableChar)"
-      - "TodoPanelComponent change flash kinship settle-flashes changed titles and expires after SETTLE_FLASH_MS"
       - "UpgradeDialogComponent dismisses up-to-date with Enter or Esc"
       - "UpgradeDialogComponent offers Install and Later when an update can auto-install"
       - "UpgradeDialogComponent shows a manual command when auto-install is unavailable"
@@ -51,7 +50,6 @@ packages:
       - "resolveSlashCommandInput blocks model and session pickers while compacting"
       - "update preference commands saves automatic update preference changes to tui.toml"
       - "updateActivityPane terminal progress moves the moon spinner into the AgentSwarm progress row while active"
-    # Determinism debt: this suite flips between runs (ANSI/frame timing). Fix the product non-determinism, then remove from unstable.
     unstable:
       - "model selector native frame ANSI safety ModelSelector.render keeps ESC on SGR and never emits stripped bodies"
       - "model selector native frame ANSI safety paints ModelSelector editor-replacement cells without leaked SGR bodies"
