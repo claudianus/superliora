@@ -45,9 +45,11 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  isToneSettleFlashActive,
   renderPulseGlyph,
   renderSettleFlash,
   renderShimmerPrefix,
+  renderToneSettleFlash,
   resolveQualityAdjustedAmbientEffectMode,
   SETTLE_FLASH_MS,
   shouldRenderAmbientEffects,
@@ -79,6 +81,60 @@ function changeFlashMs(): number {
   return mode === 'subtle' ? SETTLE_FLASH_MS * 1.4 : SETTLE_FLASH_MS;
 }
 const EMPTY_HIGHLIGHTS: ReadonlyMap<string, TodoChangeKind> = new Map();
+
+/**
+ * Card-motion transition budget. A true vertical FLIP offset is not viable
+ * in this grid: every board row joins all three lane cells, so a card
+ * sliding through a neighbour's row would either overwrite that card or
+ * flash a `No cards` gap, and it would fight the shrink-hold padding. The
+ * rearrangement instead reads as motion through cues that stay inside the
+ * card's own cell — a decaying slide-in indent (absorbed by the cell's
+ * right padding), a directional brand glyph, and a brand title fade.
+ */
+const BOARD_MOVE_CUE_MS = 320;
+const MOVE_SLIDE_MAX_INDENT = 2;
+const MOVE_GLYPH_UP = '▴';
+const MOVE_GLYPH_DOWN = '▾';
+
+const TODO_STATUSES: readonly TodoStatus[] = ['pending', 'in_progress', 'done'];
+
+function moveCueMs(): number {
+  const mode = resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences());
+  return mode === 'subtle' ? BOARD_MOVE_CUE_MS * 1.4 : BOARD_MOVE_CUE_MS;
+}
+
+/** Clock-driven 0→1 decay; shared by the slide, glyph, and title-fade stages. */
+function cueProgress(startedAtMs: number, durationMs: number): number {
+  if (durationMs <= 0) return 1;
+  return Math.min(1, Math.max(0, (appearanceAnimationNow() - startedAtMs) / durationMs));
+}
+
+interface CardPosition {
+  readonly lane: TodoStatus;
+  readonly row: number;
+}
+
+interface CardMotionCue {
+  readonly kind: 'move' | 'enter';
+  /** Row travel direction for moves; undefined for lane hops on the same row. */
+  readonly direction?: 'up' | 'down';
+  readonly startedAtMs: number;
+}
+
+const EMPTY_MOTIONS: ReadonlyMap<string, CardMotionCue> = new Map();
+const EMPTY_LANE_FLASHES: Readonly<Partial<Record<TodoStatus, number>>> = {};
+
+/** Lane row of each rendered card, keyed by title (same identity as diffTodos). */
+function cardPositions(todos: readonly TodoItem[]): Map<string, CardPosition> {
+  const laneRows: Record<TodoStatus, number> = { done: 0, in_progress: 0, pending: 0 };
+  const positions = new Map<string, CardPosition>();
+  for (const todo of todos) {
+    const row = laneRows[todo.status];
+    laneRows[todo.status] = row + 1;
+    positions.set(todo.title, { lane: todo.status, row });
+  }
+  return positions;
+}
 
 export interface VisibleTodos {
   readonly rows: readonly TodoItem[];
@@ -190,6 +246,19 @@ export class TodoPanelComponent implements Component {
   private goalChangedAtMs: number | undefined;
   private lastBoardRows = 0;
   private boardShrinkRequestedAtMs: number | undefined;
+  /**
+   * Card-motion tracking. Both maps are rebuilt from the currently rendered
+   * cards on every list update, so titles that left the board drop out
+   * automatically (no unbounded growth).
+   */
+  private lastPositions = new Map<string, CardPosition>();
+  private motionCues = new Map<string, CardMotionCue>();
+  /** State the motion cues were captured for; identity-checked per render. */
+  private positionBase:
+    | { readonly todos: readonly TodoItem[]; readonly expanded: boolean }
+    | undefined;
+  private lastLaneCounts: Record<TodoStatus, number> = { done: 0, in_progress: 0, pending: 0 };
+  private laneCountFlashes: Partial<Record<TodoStatus, number>> = {};
   /** Frame memo: identical state yields the same lines array so the renderer diff skips the panel. */
   private lastRender:
     | {
@@ -210,6 +279,13 @@ export class TodoPanelComponent implements Component {
     this.recentChanges = diff.highlights;
     this.changeSummary = diff.summary;
     this.callsSinceUpdate = 0;
+    this.updateLaneCountFlashes(next);
+    if (next.length === 0) {
+      // An empty board has no layout; the next batch enters fresh.
+      this.lastPositions = new Map();
+      this.motionCues = new Map();
+      this.positionBase = undefined;
+    }
   }
 
   /**
@@ -259,6 +335,11 @@ export class TodoPanelComponent implements Component {
     this.goalChangedAtMs = undefined;
     this.lastBoardRows = 0;
     this.boardShrinkRequestedAtMs = undefined;
+    this.lastPositions = new Map();
+    this.motionCues = new Map();
+    this.positionBase = undefined;
+    this.lastLaneCounts = { done: 0, in_progress: 0, pending: 0 };
+    this.laneCountFlashes = {};
     this.lastRender = undefined;
   }
 
@@ -340,11 +421,11 @@ export class TodoPanelComponent implements Component {
     }
 
     if (profile === 'tiny') {
-      return this.memoizeRender(
-        width,
-        secondBucket,
-        lines.map((line) => truncateToWidth(line, width)),
-      );
+      const tinyLines = lines.map((line) => truncateToWidth(line, width));
+      // Time-driven frames must not be memoized: a render after the cues
+      // expire but inside the same second bucket would otherwise reuse the
+      // still-flashing bytes instead of settling.
+      return animating ? tinyLines : this.memoizeRender(width, secondBucket, tinyLines);
     }
 
     const counts = countTodos(this.todos);
@@ -357,18 +438,17 @@ export class TodoPanelComponent implements Component {
     const borderToken =
       liveGoal !== null ? goalMonitorBorderToken(liveGoal.status) : 'border';
 
-    return this.memoizeRender(
+    const panelLines = renderRoundedPanel({
+      title,
+      content: lines,
       width,
-      secondBucket,
-      renderRoundedPanel({
-        title,
-        content: lines,
-        width,
-        borderToken,
-        leftMargin: 2,
-        minBoxWidth: profile === 'compact' ? 60 : BOARD_MIN_WIDTH,
-      }),
-    );
+      borderToken,
+      leftMargin: 2,
+      minBoxWidth: profile === 'compact' ? 60 : BOARD_MIN_WIDTH,
+    });
+    // See the tiny path: animating frames stay out of the memo so expired
+    // cues settle to resting bytes on the very next render.
+    return animating ? panelLines : this.memoizeRender(width, secondBucket, panelLines);
   }
 
   private goalWallClockMs(goal: GoalSnapshot): number {
@@ -388,9 +468,20 @@ export class TodoPanelComponent implements Component {
     const highlights = this.currentHighlights();
     const changedAtMs = this.currentChangeSummary()?.changedAtMs;
     const stabilizeRows = (rows: number): number => this.stabilizeBoardRows(rows);
+    const laneFlashes = this.currentLaneFlashes();
     if (this.expanded) {
+      this.refreshMotionCues(this.todos, changedAtMs);
       lines.push(
-        ...renderTodos(this.todos, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
+        ...renderTodos(
+          this.todos,
+          contentWidth,
+          highlights,
+          changedAtMs,
+          profile,
+          stabilizeRows,
+          this.currentMotionCues(),
+          laneFlashes,
+        ),
       );
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
@@ -399,8 +490,18 @@ export class TodoPanelComponent implements Component {
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
+      this.refreshMotionCues(rows, changedAtMs);
       lines.push(
-        ...renderTodos(rows, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
+        ...renderTodos(
+          rows,
+          contentWidth,
+          highlights,
+          changedAtMs,
+          profile,
+          stabilizeRows,
+          this.currentMotionCues(),
+          laneFlashes,
+        ),
       );
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
@@ -432,6 +533,76 @@ export class TodoPanelComponent implements Component {
 
   private currentHighlights(): ReadonlyMap<string, TodoChangeKind> {
     return this.currentChangeSummary() === undefined ? EMPTY_HIGHLIGHTS : this.recentChanges;
+  }
+
+  private currentMotionCues(): ReadonlyMap<string, CardMotionCue> {
+    if (this.motionCues.size === 0) return EMPTY_MOTIONS;
+    return shouldRenderAmbientEffects(getActiveAppearancePreferences())
+      ? this.motionCues
+      : EMPTY_MOTIONS;
+  }
+
+  private currentLaneFlashes(): Readonly<Partial<Record<TodoStatus, number>>> {
+    return shouldRenderAmbientEffects(getActiveAppearancePreferences())
+      ? this.laneCountFlashes
+      : EMPTY_LANE_FLASHES;
+  }
+
+  private updateLaneCountFlashes(next: readonly TodoItem[]): void {
+    const counts = countTodos(next);
+    const now = appearanceAnimationNow();
+    for (const status of TODO_STATUSES) {
+      if (counts[status] !== this.lastLaneCounts[status]) {
+        this.laneCountFlashes[status] = now;
+      }
+    }
+    this.lastLaneCounts = counts;
+  }
+
+  /**
+   * Diff rendered card positions once per (list, expanded) state and derive
+   * motion cues: `enter` for cards newly visible (first appearance or
+   * overflow window shift), `move` with a row direction for lane/index
+   * travel. Expand/collapse recaptures positions silently — a viewport
+   * change is not a card move.
+   */
+  private refreshMotionCues(
+    rendered: readonly TodoItem[],
+    changedAtMs: number | undefined,
+  ): void {
+    const base = this.positionBase;
+    if (base !== undefined && base.todos === this.todos && base.expanded === this.expanded) {
+      return;
+    }
+    const nextPositions = cardPositions(rendered);
+    const stateChanged = base !== undefined && base.todos !== this.todos;
+    if (stateChanged && changedAtMs !== undefined) {
+      const cues = new Map<string, CardMotionCue>();
+      for (const [title, position] of nextPositions) {
+        const previous = this.lastPositions.get(title);
+        if (previous === undefined) {
+          cues.set(title, { kind: 'enter', startedAtMs: changedAtMs });
+          continue;
+        }
+        if (previous.lane !== position.lane || previous.row !== position.row) {
+          cues.set(title, {
+            kind: 'move',
+            direction:
+              position.row > previous.row
+                ? 'down'
+                : position.row < previous.row
+                  ? 'up'
+                  : undefined,
+            startedAtMs: changedAtMs,
+          });
+        }
+      }
+      this.motionCues = cues;
+    } else {
+      this.motionCues = new Map();
+    }
+    this.lastPositions = nextPositions;
+    this.positionBase = { todos: this.todos, expanded: this.expanded };
   }
 
   private memoizeRender(width: number, secondBucket: number, lines: string[]): string[] {
@@ -474,13 +645,15 @@ function renderTodos(
   changedAtMs: number | undefined,
   profile: ReturnType<typeof resolveResponsiveLayout> = 'standard',
   stabilizeRows?: (rows: number) => number,
+  motions: ReadonlyMap<string, CardMotionCue> = EMPTY_MOTIONS,
+  laneFlashes: Readonly<Partial<Record<TodoStatus, number>>> = EMPTY_LANE_FLASHES,
 ): string[] {
   if (profile === 'tiny') {
-    return renderLanes(todos, width, highlights, changedAtMs);
+    return renderLanes(todos, width, highlights, changedAtMs, motions);
   }
   return width >= BOARD_MIN_WIDTH
-    ? renderBoard(todos, width, highlights, changedAtMs, stabilizeRows)
-    : renderLanes(todos, width, highlights, changedAtMs);
+    ? renderBoard(todos, width, highlights, changedAtMs, stabilizeRows, motions, laneFlashes)
+    : renderLanes(todos, width, highlights, changedAtMs, motions);
 }
 
 function renderBoard(
@@ -489,6 +662,8 @@ function renderBoard(
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
   stabilizeRows?: (rows: number) => number,
+  motions: ReadonlyMap<string, CardMotionCue> = EMPTY_MOTIONS,
+  laneFlashes: Readonly<Partial<Record<TodoStatus, number>>> = EMPTY_LANE_FLASHES,
 ): string[] {
   const availableWidth = Math.max(1, width - visibleWidth(BOARD_INDENT));
   const columnWidth = Math.floor(
@@ -496,7 +671,7 @@ function renderBoard(
       TODO_LANES.length,
   );
   if (columnWidth < BOARD_COLUMN_MIN_WIDTH) {
-    return renderLanes(todos, width, highlights, changedAtMs);
+    return renderLanes(todos, width, highlights, changedAtMs, motions);
   }
 
   const lanes = TODO_LANES.map((lane) => ({
@@ -513,7 +688,12 @@ function renderBoard(
   });
   const lines = [
     BOARD_INDENT + lanes
-      .map((lane) => padCell(renderLaneHeader(lane.label, lane.todos.length, lane.status), columnWidth))
+      .map((lane) =>
+        padCell(
+          renderLaneHeader(lane.label, lane.todos.length, lane.status, laneFlashes[lane.status]),
+          columnWidth,
+        ),
+      )
       .join(separator),
     BOARD_INDENT + lanes
       .map(() => columnRule)
@@ -525,12 +705,17 @@ function renderBoard(
       BOARD_INDENT + lanes
         .map((lane) => {
           const todo = lane.todos[row];
-          return padCell(
-            todo === undefined
-              ? currentTheme.fg('textMuted', 'No cards')
-              : renderCell(todo, highlights.get(todo.title), changedAtMs),
-            columnWidth,
-          );
+          if (todo === undefined) {
+            return padCell(currentTheme.fg('textMuted', 'No cards'), columnWidth);
+          }
+          const cue = motions.get(todo.title);
+          const indent = motionSlideIndent(cue);
+          const cell = renderCell(todo, highlights.get(todo.title), changedAtMs, cue);
+          // The slide indent borrows from the cell's own right padding, so
+          // neighbouring columns never shift.
+          return indent === 0
+            ? padCell(cell, columnWidth)
+            : ' '.repeat(indent) + padCell(cell, columnWidth - indent);
         })
         .join(separator),
     );
@@ -543,6 +728,7 @@ function renderLanes(
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
+  motions: ReadonlyMap<string, CardMotionCue> = EMPTY_MOTIONS,
 ): string[] {
   const lines: string[] = [];
   for (const lane of TODO_LANES) {
@@ -551,7 +737,7 @@ function renderLanes(
     lines.push(currentTheme.fg('textDim', `  ${lane.label}`));
     for (const todo of laneTodos) {
       lines.push(
-        ...renderWrappedCell(todo, highlights.get(todo.title), changedAtMs, width),
+        ...renderWrappedCell(todo, highlights.get(todo.title), changedAtMs, width, motions.get(todo.title)),
       );
     }
   }
@@ -602,15 +788,38 @@ function renderLaneHeader(
   label: string,
   count: number,
   status: TodoStatus,
+  countFlashStartedAtMs: number | undefined,
 ): string {
+  const token = laneHeaderToken(status);
   const text = `${label} (${String(count)})`;
+  const appearance = getActiveAppearancePreferences();
+  // Count micro-feedback: a changed lane count briefly re-settles in its own
+  // header tone. Resting bytes stay a single bold run when nothing flashes.
+  if (
+    countFlashStartedAtMs !== undefined &&
+    shouldRenderAmbientEffects(appearance) &&
+    isToneSettleFlashActive(countFlashStartedAtMs, appearance)
+  ) {
+    const countText = `(${String(count)})`;
+    return `${currentTheme.boldFg(token, label)} ${renderToneSettleFlash(
+      countText,
+      `todo:lane-count:${status}`,
+      countFlashStartedAtMs,
+      token,
+      appearance,
+    )}`;
+  }
+  return currentTheme.boldFg(token, text);
+}
+
+function laneHeaderToken(status: TodoStatus): 'primary' | 'success' | 'textStrong' {
   switch (status) {
     case 'in_progress':
-      return currentTheme.boldFg('primary', text);
+      return 'primary';
     case 'done':
-      return currentTheme.boldFg('success', text);
+      return 'success';
     case 'pending':
-      return currentTheme.boldFg('textStrong', text);
+      return 'textStrong';
   }
 }
 
@@ -618,10 +827,11 @@ function renderCell(
   todo: TodoItem,
   change: TodoChangeKind | undefined,
   changedAtMs: number | undefined,
+  cue: CardMotionCue | undefined,
 ): string {
-  const badge = changeBadge(change);
+  const badge = changeBadge(change, cue);
   const marker = statusMarker(todo.status);
-  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs);
+  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs, cue);
   return `${badge}${marker} ${titleStyled}`;
 }
 
@@ -630,23 +840,26 @@ function renderWrappedCell(
   change: TodoChangeKind | undefined,
   changedAtMs: number | undefined,
   width: number,
+  cue: CardMotionCue | undefined,
 ): string[] {
-  const badge = changeBadge(change);
+  const badge = changeBadge(change, cue);
   const marker = statusMarker(todo.status);
-  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs);
+  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs, cue);
   const firstPrefix = `${badge}${marker} `;
   const prefixWidth = visibleWidth(firstPrefix);
+  const indent = motionSlideIndent(cue);
   const availableWidth = Math.max(
     1,
-    width - visibleWidth(BOARD_INDENT) - prefixWidth,
+    width - visibleWidth(BOARD_INDENT) - prefixWidth - indent,
   );
   const titleLines =
     visibleWidth(titleStyled) <= availableWidth
       ? [titleStyled]
       : wrapTextWithAnsi(titleStyled, availableWidth);
+  const slide = indent === 0 ? '' : ' '.repeat(indent);
   return titleLines.map((line, index) => {
     const prefix = index === 0 ? firstPrefix : ' '.repeat(prefixWidth);
-    return `${BOARD_INDENT}${prefix}${line}`;
+    return `${BOARD_INDENT}${slide}${prefix}${line}`;
   });
 }
 
@@ -671,15 +884,30 @@ function styleTitle(
   status: TodoStatus,
   change: TodoChangeKind | undefined,
   changedAtMs: number | undefined,
+  cue: CardMotionCue | undefined,
 ): string {
   const appearance = getActiveAppearancePreferences();
+  const animatable = shouldRenderAmbientEffects(appearance);
   if (
     change !== undefined &&
     changedAtMs !== undefined &&
-    shouldRenderAmbientEffects(appearance) &&
+    animatable &&
     appearanceAnimationNow() - changedAtMs < changeFlashMs()
   ) {
     return renderSettleFlash(title, `todo:${change}:${title}`, changedAtMs, appearance);
+  }
+  if (cue !== undefined && animatable) {
+    // Entrance settle for cards that surfaced without a change kind (e.g. an
+    // overflow window shift); the change flash above already covers 'added'.
+    if (cue.kind === 'enter' && isToneSettleFlashActive(cue.startedAtMs, appearance)) {
+      return renderSettleFlash(title, `todo:enter:${title}`, cue.startedAtMs, appearance);
+    }
+    // Move transition: brand-color fade that decays into the resting style.
+    if (cue.kind === 'move') {
+      const p = cueProgress(cue.startedAtMs, moveCueMs());
+      if (p < 0.35) return currentTheme.boldFg('primary', title);
+      if (p < 0.7) return currentTheme.fg('primary', title);
+    }
   }
   switch (status) {
     case 'in_progress':
@@ -691,7 +919,11 @@ function styleTitle(
   }
 }
 
-function changeBadge(change: TodoChangeKind | undefined): string {
+function changeBadge(change: TodoChangeKind | undefined, cue: CardMotionCue | undefined): string {
+  const motion = motionBadge(cue);
+  // A live directional badge subsumes the static moved arrow and is the only
+  // badge for pure reorders (no change kind); semantic badges keep priority.
+  if (motion !== '' && (change === undefined || change === 'moved')) return motion;
   if (change === undefined) return '';
   switch (change) {
     case 'added':
@@ -703,6 +935,35 @@ function changeBadge(change: TodoChangeKind | undefined): string {
     case 'reopened':
       return `${currentTheme.fg('warning', TODO_REOPENED)} `;
   }
+}
+
+/** Decaying directional glyph for moved cards; '' once settled or gated off. */
+function motionBadge(cue: CardMotionCue | undefined): string {
+  if (cue === undefined || cue.kind !== 'move') return '';
+  const appearance = getActiveAppearancePreferences();
+  if (!shouldRenderAmbientEffects(appearance)) return '';
+  const p = cueProgress(cue.startedAtMs, moveCueMs());
+  if (p >= 1) return '';
+  const glyph =
+    cue.direction === 'down'
+      ? MOVE_GLYPH_DOWN
+      : cue.direction === 'up'
+        ? MOVE_GLYPH_UP
+        : TODO_MOVED;
+  return p < 0.5
+    ? `${currentTheme.boldFg('primary', glyph)} `
+    : `${currentTheme.fg('primary', glyph)} `;
+}
+
+/** Decaying slide-in indent (columns); 0 once settled or gated off. */
+function motionSlideIndent(cue: CardMotionCue | undefined): number {
+  if (cue === undefined) return 0;
+  const appearance = getActiveAppearancePreferences();
+  if (!shouldRenderAmbientEffects(appearance)) return 0;
+  const p = cueProgress(cue.startedAtMs, moveCueMs());
+  if (p < 0.35) return MOVE_SLIDE_MAX_INDENT;
+  if (p < 0.7) return MOVE_SLIDE_MAX_INDENT - 1;
+  return 0;
 }
 
 function countTodos(todos: readonly TodoItem[]): Record<TodoStatus, number> {
