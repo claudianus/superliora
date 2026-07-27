@@ -31,6 +31,7 @@ import {
   reasoningEffortToThinkingEffort,
   toolToOpenAI,
 } from './openai-common';
+import { isQwenCacheEndpoint, markQwenCacheBoundaries } from './qwen-cache';
 import {
   mergeRequestHeaders,
   requireProviderApiKey,
@@ -96,6 +97,16 @@ interface OpenAIMessage {
   name?: string | undefined;
   reasoning_content?: string | undefined;
 }
+
+// Qwen/DashScope explicit context-cache markers live in a shared module so
+// the OpenAI-compatible provider (the actual Qwen Token Plan path) and this
+// provider apply identical boundary placement.
+export {
+  QWEN_CACHE_CONTROL,
+  isQwenCacheEndpoint,
+  markCacheBoundary,
+  markQwenCacheBoundaries,
+} from './qwen-cache';
 
 interface OpenAIToolCallOut {
   type: string;
@@ -441,6 +452,9 @@ export class KimiChatProvider implements ChatProvider {
     const normalizedHistory = normalizeToolCallIdsForProvider(history, KIMI_TOOL_CALL_ID_POLICY);
     for (const msg of normalizedHistory) {
       messages.push(convertMessage(msg));
+    }
+    if (isQwenCacheEndpoint(this._baseUrl, this._model)) {
+      markQwenCacheBoundaries(messages);
     }
 
     const kwargs: Record<string, unknown> = {

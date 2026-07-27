@@ -133,7 +133,8 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
       expect(names).not.toContain('VisualDiff');
 
       density.mockReturnValue('visual');
-      names = loopToolNames(agent);
+      loopToolNames(agent); // hysteresis observation 1 — block stays put
+      names = loopToolNames(agent); // observation 2 — density flip applies
       expect(names).toContain('GenerateImage');
       expect(names).toContain('VerifySurface');
 
@@ -144,5 +145,20 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
       if (prevKey === undefined) delete process.env['OPENAI_API_KEY'];
       else process.env['OPENAI_API_KEY'] = prevKey;
     }
+  });
+
+  it('ignores a single transient density flap so the tool block stays cache-stable', () => {
+    const agent = makeAgent();
+    const density = resolveActivePremiumDensity as Mock;
+    agent.premiumQuality.setEnabled(true);
+    density.mockReturnValue('code');
+    loopToolNames(agent);
+    expect(loopToolNames(agent)).not.toContain('VisualDiff');
+
+    // One transient 'visual' reading must not rewrite the tool block.
+    density.mockReturnValue('visual');
+    loopToolNames(agent);
+    density.mockReturnValue('code');
+    expect(loopToolNames(agent)).not.toContain('VisualDiff');
   });
 });

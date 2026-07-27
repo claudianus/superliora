@@ -814,9 +814,33 @@ export class ToolManager {
       .filter((tool) => !!tool);
   }
 
+  private lastVisualGateDensity: 'visual' | 'code' | undefined;
+  private pendingVisualGateDensityCount = 0;
+
+  /**
+   * Hide visual-surface tools only under a *stable* premium code density.
+   * The density is re-derived per turn and can flap on borderline objective
+   * text; each flip would rewrite the tool block and bust the provider's
+   * prefix cache, so a change must be observed twice before it applies.
+   */
   private hideVisualDensityTools(): boolean {
-    if (!this.agent.premiumQuality.isEnabled()) return false;
-    return resolveActivePremiumDensity(this.agent) === 'code';
+    if (!this.agent.premiumQuality.isEnabled()) {
+      this.lastVisualGateDensity = undefined;
+      this.pendingVisualGateDensityCount = 0;
+      return false;
+    }
+    const density = resolveActivePremiumDensity(this.agent);
+    if (density === this.lastVisualGateDensity) {
+      this.pendingVisualGateDensityCount = 0;
+    } else {
+      this.pendingVisualGateDensityCount += 1;
+      if (this.pendingVisualGateDensityCount >= VISUAL_DENSITY_HYSTERESIS) {
+        this.lastVisualGateDensity = density;
+        this.pendingVisualGateDensityCount = 0;
+      }
+    }
+    const effective = this.lastVisualGateDensity ?? density;
+    return effective === 'code';
   }
 }
 
@@ -831,6 +855,9 @@ const VISUAL_DENSITY_TOOLS = new Set([
   'VerifySurface',
   'VisualDiff',
 ]);
+
+/** Consecutive observations required before a density flip moves the tool block. */
+const VISUAL_DENSITY_HYSTERESIS = 2;
 
 function nonEmptyEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
