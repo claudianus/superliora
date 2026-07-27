@@ -138,13 +138,17 @@ export class TUIStateNativeInputRouter {
     });
   }
 
-  pushLegacyModalTarget(target: NativeLegacyInputTarget): () => void {
+  pushLegacyModalTarget(
+    target: NativeLegacyInputTarget,
+    options: { readonly restoreFocus?: boolean } = {},
+  ): () => void {
     const unregister = this.registerLegacyTarget(target);
     const popModal = this.router.pushModal(target.id);
+    const restoreFocus = options.restoreFocus !== false;
     return () => {
       popModal();
       unregister();
-      this.focusEditor();
+      if (restoreFocus) this.focusEditor();
     };
   }
 

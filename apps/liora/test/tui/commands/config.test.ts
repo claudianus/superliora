@@ -36,6 +36,7 @@ function makeHost(options: { planMode?: boolean; planPath?: string | undefined }
   const host = {
     session,
     state: {
+      centerModalStack: [],
       appState: {
         planMode: options.planMode ?? false,
       },
@@ -59,6 +60,7 @@ function makeThemeHost() {
   };
   const host = {
     state: {
+      centerModalStack: [],
       appState,
     },
     applyTheme: vi.fn(async (theme: string) => {
@@ -104,6 +106,7 @@ function makeThinkingHost(
   const host = {
     session: options.hasSession === false ? undefined : session,
     state: {
+      centerModalStack: [],
       appState,
     },
     setAppState: vi.fn((patch: Record<string, unknown>) => Object.assign(appState, patch)),
@@ -362,6 +365,7 @@ describe('context working-set command', () => {
     const host = {
       harness: { getConfig, setConfig },
       state: {
+        centerModalStack: [],
         appState: {
           model: 'big-model',
           availableModels: {
@@ -370,6 +374,8 @@ describe('context working-set command', () => {
         },
       },
       mountEditorReplacement: vi.fn(),
+      mountCenterModal: vi.fn(),
+      closeCenterModal: vi.fn(),
       restoreEditor: vi.fn(),
       setAppState: vi.fn(),
       showError: vi.fn(),
@@ -420,7 +426,7 @@ describe('context working-set command', () => {
   it('opens the picker when args are empty', async () => {
     const host = makeContextHost();
     await handleContextCommand(host, '');
-    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
   });
 });
 
@@ -451,6 +457,7 @@ describe('harness panel and tools inventory', () => {
       }),
       motionBeats: { play: vi.fn() },
       state: {
+        centerModalStack: [],
         appState: {
           premiumQualityMode: options.premiumQualityMode === true,
           model: 'big-model',
@@ -473,6 +480,8 @@ describe('harness panel and tools inventory', () => {
         setConfig: vi.fn(async () => undefined),
       },
       mountEditorReplacement: vi.fn(),
+      mountCenterModal: vi.fn(),
+      closeCenterModal: vi.fn(),
       restoreEditor: vi.fn(),
       showError: vi.fn(),
       showNotice: vi.fn(),
@@ -482,6 +491,8 @@ describe('harness panel and tools inventory', () => {
       track: vi.fn(),
     } as unknown as SlashCommandHost & {
       mountEditorReplacement: ReturnType<typeof vi.fn>;
+      mountCenterModal: ReturnType<typeof vi.fn>;
+      closeCenterModal: ReturnType<typeof vi.fn>;
       restoreEditor: ReturnType<typeof vi.fn>;
       showError: ReturnType<typeof vi.fn>;
       showNotice: ReturnType<typeof vi.fn>;
@@ -494,6 +505,7 @@ describe('harness panel and tools inventory', () => {
         getConfig: ReturnType<typeof vi.fn>;
       };
       state: {
+        centerModalStack: [],
         appState: {
           premiumQualityMode?: boolean;
           model: string;
@@ -509,11 +521,11 @@ describe('harness panel and tools inventory', () => {
   }
 
   async function selectHarnessOption(
-    host: { mountEditorReplacement: ReturnType<typeof vi.fn> },
+    host: { mountCenterModal: ReturnType<typeof vi.fn> },
     optionIndex: number,
   ): Promise<void> {
     showHarnessPanel(host as unknown as SlashCommandHost);
-    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+    const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < optionIndex; i++) {
@@ -527,8 +539,8 @@ describe('harness panel and tools inventory', () => {
   it('opens the harness panel modal with live observation actions', () => {
     const host = makeHarnessHost();
     showHarnessPanel(host);
-    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
-    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+    const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     expect(component).toBeTruthy();
@@ -547,7 +559,7 @@ describe('harness panel and tools inventory', () => {
     ]);
     const host = makeHarnessHost({ session: { getTools } });
     showHarnessPanel(host);
-    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+    const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     // First option is tools; Enter selects it.
@@ -564,7 +576,7 @@ describe('harness panel and tools inventory', () => {
   it('routes harness panel eyes selection to eyes readiness report', async () => {
     const host = makeHarnessHost();
     showHarnessPanel(host);
-    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+    const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     // Move to eyes (second option) then Enter.
@@ -689,7 +701,7 @@ describe('harness panel and tools inventory', () => {
     // picker remounts via mountEditorReplacement after restore
     await vi.waitFor(() => {
       expect(host.harness.getConfig).toHaveBeenCalled();
-      expect(host.mountEditorReplacement.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(host.mountCenterModal.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -736,8 +748,8 @@ describe('harness panel and tools inventory', () => {
   it('lists Eyes readiness in the settings selector', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
-    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
-    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+    const [component] = host.mountCenterModal.mock.calls[0] as [
       { render: (width: number) => string[] },
     ];
     const body = component.render(120).join('\n');
@@ -749,7 +761,7 @@ describe('harness panel and tools inventory', () => {
   it('routes settings eyes selection to eyes readiness report', async () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
-    const [component] = host.mountEditorReplacement.mock.calls[0] as [
+    const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     // Settings options order: model, permission, accounts, context, harness, tools, eyes, ...

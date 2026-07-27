@@ -42,6 +42,7 @@ import {
   type TranscriptEntry,
   type TUIStartupState,
 } from './types';
+import type { CenterModalEntry } from './utils/center-modal';
 
 export interface TUIState {
   renderer: TerminalRenderer;
@@ -88,7 +89,10 @@ export interface TUIState {
     | 'error-navigator'
     | 'search'
     | 'command' // any command-driven editor-replacement dialog (api-key, provider picker, etc.)
+    | 'center-modal'
     | null;
+  /** Stack of floating center modals (top is visible + receives input). */
+  centerModalStack: CenterModalEntry[];
   tasksBrowser: TasksBrowserState | undefined;
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];
@@ -241,6 +245,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     loadingSessions: false,
     sessionsScope: 'cwd',
     activeDialog: null,
+    centerModalStack: [],
     tasksBrowser: undefined,
     externalEditorRunning: false,
     queuedMessages: [],

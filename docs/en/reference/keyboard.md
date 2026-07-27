@@ -1,75 +1,73 @@
 # Keyboard Shortcuts
 
-SuperLiora CLI's TUI interactive mode supports a set of keyboard shortcuts. The shortcuts are organized into five groups by usage context: general input, mode switching, during streaming, tool output control, the approval panel, and popup navigation. Type `/help` in the TUI at any time to open the built-in shortcut reference.
+SuperLiora CLI's TUI interactive mode keeps a small main-prompt keymap and routes most discovery through the Command Hub. Type `Ctrl-K` or `?` (empty prompt), or `/help`, for the built-in reference. The live cheatsheet is sourced from the TUI keymap — this page mirrors that list.
 
-## General Shortcuts
-
-The following keys are always available in the input box:
+## Always
 
 | Shortcut | Function |
 | --- | --- |
+| `Ctrl-K` | Open the Command Hub menu (`Ctrl-Space` also works) |
 | `Enter` | Submit the current input |
-| `Shift-Enter` / `Ctrl-J` | Insert a newline in the input |
-| `↑` / `↓` | Browse input history |
-| `Esc` | Close a popup / cancel completion / interrupt streaming output or context compaction |
-| `Ctrl-C` | Interrupt the current streaming output, or clear the input box |
-| `Ctrl-D` | Exit SuperLiora CLI when the input box is empty |
-| `Ctrl-T` | Expand or collapse the todo list when it is truncated |
+| `Shift-Enter` / `Ctrl-J` | Insert a newline |
+| `Esc` | Close a popup / cancel completion / interrupt streaming; press twice while idle for **session undo** |
+| `Ctrl-C` | Stop the current turn, or clear input / confirm exit when idle |
 
 Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirmation needed.
 
-**Exiting the program** (pressing `Ctrl-C` with an empty input box, or pressing `Ctrl-D`) uses a double-press confirmation mechanism: after the first press, a prompt appears in the status bar; a second press of the same key actually exits. Pressing any other key in between clears the confirmation state.
+**Exiting** (empty input + `Ctrl-C`, or `Ctrl-D`) uses double-press confirmation: the status bar prompts after the first press; a second press of the same key exits. Any other key clears the confirmation.
 
-## Mode Switching
+## Idle only
 
 | Shortcut | Function |
 | --- | --- |
+| `?` | Open Command Hub (empty prompt only) |
+| `Ctrl-R` | Search input history (empty prompt) |
+| `Ctrl-F` | Search the transcript |
+| `Ctrl-X` | Stash or restore the draft prompt |
+| `Ctrl-G` | Edit the current input in an external editor |
 | `Shift-Tab` | Toggle Ultrawork mode |
-| `!` | Enter shell mode (in an empty input box) |
+| `↑` / `↓` | Browse input history (empty prompt) |
+| `PgUp` / `PgDn` | Scroll the transcript (empty prompt) |
+| `!` | Enter shell mode (empty prompt) |
+
+If a gated key cannot run (for example Hub while a turn is streaming, or `Ctrl-R` with a non-empty prompt), the TUI shows a short toast instead of doing nothing.
 
 Press `Shift-Tab` to enable or disable Ultrawork mode. When enabled, the next normal prompt is routed through a read-only research prelude first, then UltraPlan interview, a verifiable UltraGoal, Swarm decision, integration, verification, and learning. Plain prompts do not enter this workflow unless Ultrawork mode is on or the prompt explicitly asks for UltraWork.
 
-Type `!` in an empty input box to enter shell mode and run terminal commands directly; while a command is running, press `Ctrl+B` to move it to a background task. See [Interaction and input](../guides/interaction.md#shell-mode).
+Type `!` in an empty input box to enter shell mode and run terminal commands directly; while a command is running, press `Ctrl-B` to move it to a background task. See [Interaction and input](../guides/interaction.md#shell-mode).
 
-## Input & Editing
+## During Streaming
+
+| Shortcut | Function |
+| --- | --- |
+| `Ctrl-S` | Steer: inject the current input into the running turn |
+| `Ctrl-B` | Background the current work |
+| `Esc` / `Ctrl-C` | Interrupt the current streaming output |
+
+## Undo naming
+
+| Action | Shortcut |
+| --- | --- |
+| **Edit undo** (buffer) | `Ctrl-Z` in the editor |
+| **Session undo** (turn / message) | `Esc` `Esc` while idle |
+
+Retry a failed turn from Command Hub → Chat → Retry, or with `/retry`.
+
+## External editor & paste
 
 | Shortcut | Function |
 | --- | --- |
 | `Ctrl-G` | Edit the current input in an external editor |
 | `Ctrl-V` | Paste an image or video from the clipboard (Unix / macOS) |
 | `Alt-V` | Paste an image or video from the clipboard (Windows) |
-| `Ctrl--` | Undo |
-| `Esc` `Esc` | Open the undo selector (double-press while idle) |
 
-Pressing `Ctrl-G` opens an external editor, selected according to the following priority:
+`Ctrl-G` picks an editor in this order: `/editor` config, `$VISUAL`, then `$EDITOR`. After save-and-exit, the edited content replaces the input box; exiting without saving leaves the input unchanged.
 
-1. The editor configured via the `/editor` command
-2. The `$VISUAL` environment variable
-3. The `$EDITOR` environment variable
+When pasting an image or video, a placeholder is shown in the input box — the actual media data is sent to the model when the message is submitted.
 
-After saving and exiting, the edited content replaces the input box; exiting without saving leaves the input unchanged.
+## Hub & slash (not main chords)
 
-When pasting an image or video, a placeholder is shown in the input box — the actual media data is sent to the model when the message is submitted. The system clipboard is read first; on Linux, Wayland and X11 are tried; on WSL, PowerShell is also used as a fallback to read the Windows clipboard.
-
-## During Streaming
-
-While streaming output is active, the input box can still receive input and supports the following additional operations:
-
-| Shortcut | Function |
-| --- | --- |
-| `Ctrl-S` | Steer: inject the current input directly into the running turn |
-| `Esc` | Interrupt the current streaming output |
-| `Ctrl-C` | Interrupt the current streaming output |
-
-Pressing `Ctrl-S` causes the model to see your message at the next interruptible point, without waiting for the current turn to finish.
-
-## Tool Output
-
-| Shortcut | Function |
-| --- | --- |
-| `Ctrl-O` | Expand or collapse tool output |
-
-When collapsed tool call results exist in the history, press `Ctrl-O` to toggle between collapsed and expanded views.
+Tool-output expansion, todo expansion, UltraPlan steering, and retry live in Command Hub or slash commands (`/plan`, `/retry`, …) — not as separate main-prompt chords.
 
 ## Approval Panel
 
@@ -82,13 +80,12 @@ When the Agent initiates a tool call that requires confirmation, the TUI display
 | `1` ~ `9` | Directly select the option at the corresponding index |
 | `Esc` / `Ctrl-C` / `Ctrl-D` | Reject the current request |
 | `Ctrl-E` | Expand or collapse the full content when the panel contains a diff or file preview |
-| `Ctrl-O` | Toggle the collapsed state of other tool output |
 
 Options that require feedback (such as "Reject" or "Revise") switch to a feedback input state after confirmation: type the feedback text and press `Enter` to submit; press `Esc` to exit feedback input and return to the candidate list.
 
 ## Popup Mode
 
-After opening the help panel with `/help`, use the following keys to navigate and close it:
+After opening help with `/help` or the Command Hub shortcuts panel, use:
 
 | Shortcut | Function |
 | --- | --- |

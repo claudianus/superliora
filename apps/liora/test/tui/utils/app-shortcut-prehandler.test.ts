@@ -1,0 +1,136 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { encodeNativeInputAsLegacySequence, type NativeInputEvent } from '#/tui/renderer';
+import type { AppState } from '#/tui/types';
+import { createTUIState } from '#/tui/tui-state';
+import { createTUIStateNativeInputRouter } from '#/tui/utils/native-input-router';
+
+function fakeInitialAppState(): AppState {
+  return {
+    model: 'test-model',
+    workDir: '/tmp/liora-test',
+    additionalDirs: [],
+    sessionId: 'sess-1',
+    permissionMode: 'manual',
+    planMode: false,
+    inputMode: 'prompt',
+    swarmMode: false,
+    thinking: false,
+    contextUsage: 0,
+    contextTokens: 0,
+    maxContextTokens: 0,
+    isCompacting: false,
+    isBackgroundCompacting: false,
+    isReplaying: false,
+    streamingPhase: 'idle',
+    streamingStartTime: 0,
+    theme: 'dark',
+    version: '0.0.0-test',
+    editorCommand: null,
+    notifications: { enabled: true, condition: 'unfocused' },
+    upgrade: { autoInstall: true },
+    availableModels: {},
+    availableProviders: {},
+    sessionTitle: null,
+    mcpServersSummary: null,
+  };
+}
+
+function createState() {
+  return createTUIState({
+    initialAppState: fakeInitialAppState(),
+    startup: { continueLast: false, yolo: false, auto: false, plan: false },
+  });
+}
+
+function withPreHandler(state: ReturnType<typeof createState>) {
+  return createTUIStateNativeInputRouter(state, {
+    requestRender: false,
+    handlePreEditorInput: (event) => {
+      if (event.type !== 'key' || event.eventType === 'release') return false;
+      const legacy = encodeNativeInputAsLegacySequence(event);
+      if (legacy === undefined) return false;
+      return state.editor.tryHandleAppShortcut?.(legacy) === true;
+    },
+  });
+}
+
+describe('app shortcut pre-handler (native path)', () => {
+  it('opens Command Hub on ? when the editor is empty', () => {
+    const state = createState();
+    const openHub = vi.fn();
+    state.editor.onCommandPalette = openHub;
+    const router = withPreHandler(state);
+
+    const event: NativeInputEvent = {
+      type: 'key',
+      key: 'character',
+      raw: '?',
+      text: '?',
+      ctrl: false,
+      alt: false,
+      shift: false,
+    };
+    expect(router.dispatch(event).handled).toBe(true);
+    expect(openHub).toHaveBeenCalledOnce();
+    expect(state.editor.getText()).toBe('');
+    router.dispose();
+  });
+
+  it('inserts ? when the editor is non-empty', () => {
+    const state = createState();
+    state.editor.setText('hello');
+    const openHub = vi.fn();
+    state.editor.onCommandPalette = openHub;
+    const router = withPreHandler(state);
+
+    const event: NativeInputEvent = {
+      type: 'key',
+      key: 'character',
+      raw: '?',
+      text: '?',
+      ctrl: false,
+      alt: false,
+      shift: false,
+    };
+    router.dispatch(event);
+    expect(openHub).not.toHaveBeenCalled();
+    expect(state.editor.getText()).toContain('?');
+    router.dispose();
+  });
+
+  it('opens Command Hub on Ctrl-K via pre-handler', () => {
+    const state = createState();
+    const openHub = vi.fn();
+    state.editor.onCommandPalette = openHub;
+    const router = withPreHandler(state);
+
+    const event: NativeInputEvent = {
+      type: 'key',
+      key: 'character',
+      raw: '\u000b',
+      text: 'k',
+      ctrl: true,
+      alt: false,
+      shift: false,
+    };
+    router.dispatch(event);
+    expect(openHub).toHaveBeenCalledOnce();
+    router.dispose();
+  });
+
+  it('does not treat Ctrl-Y as an app retry shortcut', () => {
+    const state = createState();
+    const legacy = encodeNativeInputAsLegacySequence({
+      type: 'key',
+      key: 'character',
+      raw: '\u0019',
+      text: 'y',
+      ctrl: true,
+      alt: false,
+      shift: false,
+    });
+    expect(legacy).toBeDefined();
+    expect(state.editor.tryHandleAppShortcut?.(legacy!)).toBe(false);
+  });
+});

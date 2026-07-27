@@ -41,8 +41,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.search.noMatches': 'No matches',
   'tui.search.placeholder': 'Type to search the conversation',
 
-  // ── Retry last failed turn (Ctrl-Y / /retry) ─────────────────────────────
-  'tui.retry.hint': 'Press Ctrl-Y (or /retry) to resend your last message',
+  // ── Retry last failed turn (Hub → Chat / /retry) ─────────────────────────
+  'tui.retry.hint': 'Use Hub → Chat → Retry (or /retry) to resend your last message',
   'tui.retry.resending': 'Resending last message…',
   'tui.retry.none': 'Nothing to retry yet.',
 
@@ -248,7 +248,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.help.intro.default':
     'Shift-Tab toggles Ultrawork and off.\n/status shows media, web/Context7, ZDR, LioraBench readiness.\nNormal messages stay lightweight unless Ultrawork is on.',
   'tui.help.intro.advanced':
-    'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.\nShift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.\n/status shows media, web/Context7, ZDR, LioraBench readiness.',
+    'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.\nShift-Tab toggles Ultrawork/off; /plan steers UltraPlan from Hub or slash.\n/status shows media, web/Context7, ZDR, LioraBench readiness.',
   'tui.help.shortcut.shiftTab': 'Toggle Ultrawork / off',
   'tui.help.shortcut.ctrlG': 'Edit in external editor ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': 'Toggle tool output expansion (recent turns)',
@@ -341,7 +341,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.shiftTab': 'shift-tab toggles Ultrawork and off',
   'tui.tip.mention': '@: mention files',
   'tui.tip.shell': '! to run a shell command',
-  'tui.tip.ctrlO': 'ctrl-o toggles clean chat vs full tool history to audit what Liora did',
+  'tui.tip.ctrlO': 'Command Hub → Workspace: toggle clean chat vs full tool history',
   'tui.tip.ctrlB': 'ctrl-b backgrounds a long shell task; /tasks shows progress',
   'tui.tip.shiftEnter': 'shift+enter: newline',
   'tui.tip.ctrlC': 'ctrl+c: cancel',
@@ -350,7 +350,9 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.feed': '/feed drops food into the visible Jewel Tank (or click it)',
   'tui.tip.auto': '/auto lets Liora handle approvals and keep going unattended',
   'tui.tip.yolo': '/yolo skips most approvals for trusted batch work — only in repos you trust',
-  'tui.tip.help': '/help: show commands',
+  'tui.tip.menuHub': 'Menu ?: Command Hub (empty prompt) — Space flips modes',
+  'tui.tip.ctrlK': 'Ctrl-K: open Command Hub — modes, model, sessions',
+  'tui.tip.help': 'Ctrl-K or ?: Command Hub (slash commands still work)',
   'tui.tip.compact': '/compact compresses context when it gets long',
   'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · LioraBench',
   'tui.tip.context': '/context: memory continuity + privacy (ZDR)',
@@ -429,8 +431,8 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.search.noMatches': '일치 항목 없음',
   'tui.search.placeholder': '대화 내용을 검색하려면 입력',
 
-  // ── Retry last failed turn (Ctrl-Y / /retry) ─────────────────────────────
-  'tui.retry.hint': 'Ctrl-Y(또는 /retry)를 눌러 마지막 메시지를 다시 보내세요',
+  // ── Retry last failed turn (Hub → Chat / /retry) ─────────────────────────
+  'tui.retry.hint': 'Hub → Chat → Retry(또는 /retry)로 마지막 메시지를 다시 보내세요',
   'tui.retry.resending': '마지막 메시지를 다시 보내는 중…',
   'tui.retry.none': '다시 보낼 메시지가 없습니다.',
 
@@ -633,7 +635,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.help.intro.default':
     'Shift-Tab으로 Ultrawork 켜기/끄기.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.\nUltrawork가 꺼져 있으면 일반 메시지는 가볍게 유지됩니다.',
   'tui.help.intro.advanced':
-    'Ultrawork는 하나의 워크플로: UltraPlan, UltraGoal, Research, Swarm 결정, Integrate, Verify, Learn.\nShift-Tab으로 Ultrawork 켜기/끄기; /plan과 Ctrl-Shift-Tab은 아래의 명시적 조향 컨트롤입니다.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.',
+    'Ultrawork는 하나의 워크플로: UltraPlan, UltraGoal, Research, Swarm 결정, Integrate, Verify, Learn.\nShift-Tab으로 Ultrawork 켜기/끄기; /plan은 Hub 또는 슬래시로 UltraPlan 조향.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.',
   'tui.help.shortcut.shiftTab': 'Ultrawork 켜기/끄기',
   'tui.help.shortcut.ctrlG': '외부 에디터에서 편집 ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': '도구 출력 확장 토글 (최근 턴)',
@@ -724,7 +726,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.shiftTab': 'shift-tab으로 Ultrawork 켜기/끄기',
   'tui.tip.mention': '@: 파일 멘션',
   'tui.tip.shell': '!: 셸 명령 실행',
-  'tui.tip.ctrlO': 'ctrl-o로 깔끔한 채팅 ↔ 전체 도구 기록 전환',
+  'tui.tip.ctrlO': 'Command Hub → Workspace: 깔끔한 채팅 ↔ 전체 도구 기록',
   'tui.tip.ctrlB': 'ctrl-b로 긴 셸 작업을 백그라운드; /tasks로 진행 확인',
   'tui.tip.shiftEnter': 'shift+enter: 줄바꿈',
   'tui.tip.ctrlC': 'ctrl+c: 취소',
@@ -733,7 +735,9 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.feed': '/feed로 보이는 Jewel Tank에 먹이 투하 (클릭도 가능)',
   'tui.tip.auto': '/auto로 승인을 맡기고 무인 진행',
   'tui.tip.yolo': '/yolo는 신뢰하는 저장소에서 대부분 승인을 건너뜁니다',
-  'tui.tip.help': '/help: 명령 목록',
+  'tui.tip.menuHub': 'Menu ?: Command Hub (빈 프롬프트) — Space로 모드 토글',
+  'tui.tip.ctrlK': 'Ctrl-K: Command Hub — 모드, 모델, 세션',
+  'tui.tip.help': 'Ctrl-K 또는 ?: Command Hub (슬래시도 그대로 동작)',
   'tui.tip.compact': '/compact로 길어지면 컨텍스트 압축',
   'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · LioraBench',
   'tui.tip.context': '/context: 메모리 연속성 + 프라이버시 (ZDR)',

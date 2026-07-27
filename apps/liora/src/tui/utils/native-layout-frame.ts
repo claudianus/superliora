@@ -40,6 +40,7 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { createCenterModalOverlayRegion } from '#/tui/utils/center-modal';
 import { feedbackBorderGlowHex } from '#/tui/utils/feedback-vfx';
 import {
   advanceAppearanceAnimationClock,
@@ -939,6 +940,13 @@ function buildTUIStateNativeFrame(
         height,
       );
   if (diagnosticsOverlay !== undefined) regions.push(diagnosticsOverlay);
+  const centerModalOverlay = createCenterModalOverlayRegion(state.centerModalStack, {
+    x: 0,
+    y: 0,
+    width,
+    height,
+  });
+  if (centerModalOverlay !== undefined) regions.push(centerModalOverlay);
   const editorTopY = layout?.regions?.find((region) => region.id === 'editor')?.rect?.y;
   const toastOverlay = createTUIToastOverlayRegion(state, width, height, editorTopY);
   if (toastOverlay !== undefined) regions.push(toastOverlay);

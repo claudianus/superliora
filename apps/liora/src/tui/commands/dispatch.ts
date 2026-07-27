@@ -160,9 +160,16 @@ export interface SlashCommandHost {
   appendTranscriptEntry(entry: TranscriptEntry): void;
   track(event: string, props?: Record<string, unknown>): void;
   mountEditorReplacement(panel: Component & Focusable): void;
+  mountCenterModal(
+    panel: Component & Focusable,
+    options?: { readonly mode?: 'push' | 'replace'; readonly label?: string },
+  ): void;
+  closeCenterModal(): void;
+  closeAllCenterModals?(): void;
   restoreEditor(): void;
   restoreInputText(text: string): void;
   refreshSlashCommandAutocomplete(): void;
+  showCommandHub?(options?: { readonly initialQuery?: string; readonly intro?: boolean }): void;
 
   // Session
   requireSession(): Session;

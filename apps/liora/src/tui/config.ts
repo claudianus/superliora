@@ -78,6 +78,15 @@ export const TuiConfigFileSchema = z.object({
       show_timestamps: z.boolean().optional(),
     })
     .optional(),
+  onboarding: z
+    .object({
+      hub_intro_seen: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+export const OnboardingPreferencesSchema = z.object({
+  hubIntroSeen: z.boolean(),
 });
 
 export const TuiConfigSchema = z.object({
@@ -88,6 +97,7 @@ export const TuiConfigSchema = z.object({
   notifications: NotificationsConfigSchema,
   upgrade: UpgradePreferencesSchema,
   appearance: AppearancePreferencesSchema.optional(),
+  onboarding: OnboardingPreferencesSchema.optional(),
 });
 
 export type TuiConfigFileShape = z.infer<typeof TuiConfigFileSchema>;
@@ -95,10 +105,15 @@ export type TuiConfig = z.infer<typeof TuiConfigSchema>;
 export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
 export type UpgradePreferences = z.infer<typeof UpgradePreferencesSchema>;
 export type AppearancePreferences = z.infer<typeof AppearancePreferencesSchema>;
+export type OnboardingPreferences = z.infer<typeof OnboardingPreferencesSchema>;
 
 export const DEFAULT_NOTIFICATIONS_CONFIG: NotificationsConfig = {
   enabled: true,
   condition: 'unfocused',
+};
+
+export const DEFAULT_ONBOARDING_PREFERENCES: OnboardingPreferences = {
+  hubIntroSeen: false,
 };
 
 export const DEFAULT_UPGRADE_PREFERENCES: UpgradePreferences = {
@@ -124,6 +139,7 @@ export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
   notifications: DEFAULT_NOTIFICATIONS_CONFIG,
   upgrade: DEFAULT_UPGRADE_PREFERENCES,
   appearance: DEFAULT_APPEARANCE_PREFERENCES,
+  onboarding: DEFAULT_ONBOARDING_PREFERENCES,
 });
 
 /**
@@ -206,11 +222,16 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
       showTimestamps:
         config.appearance?.show_timestamps ?? DEFAULT_APPEARANCE_PREFERENCES.showTimestamps,
     },
+    onboarding: {
+      hubIntroSeen:
+        config.onboarding?.hub_intro_seen ?? DEFAULT_ONBOARDING_PREFERENCES.hubIntroSeen,
+    },
   });
 }
 
 export function renderTuiConfig(config: TuiConfig): string {
   const appearance = config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+  const onboarding = config.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
   return `# ~/.superliora/tui.toml
 # Client preferences for kimi-code.
 # Agent/runtime settings stay in ~/.superliora/config.toml.
@@ -238,6 +259,9 @@ canvas_background = ${String(appearance.canvasBackground)} # Fill TUI-owned cell
 terminal_background = "${appearance.terminalBackground}" # "off" | "session"
 terminal_palette = ${String(appearance.terminalPalette)} # true applies terminal palette until exit
 show_timestamps = ${String(appearance.showTimestamps)} # true shows HH:MM on user messages
+
+[onboarding]
+hub_intro_seen = ${String(onboarding.hubIntroSeen)} # true skips the first-run Command Hub intro
 `;
 }
 

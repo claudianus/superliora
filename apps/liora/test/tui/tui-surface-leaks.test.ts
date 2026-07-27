@@ -148,7 +148,7 @@ describe('TUI surface leak checks', () => {
       hasUltraworkAdvancedHelpContract(
         [
           'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.',
-          'Shift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.',
+          'Shift-Tab toggles Ultrawork/off; /plan steers UltraPlan from Hub or slash.',
           'Advanced Ultrawork controls',
           '/plan Advanced steering for UltraPlan; Ultrawork auto-enables it',
           '/swarm Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal',
@@ -160,7 +160,7 @@ describe('TUI surface leak checks', () => {
       hasUltraworkAdvancedHelpContract(
         [
           'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.',
-          'Shift-Tab toggles Ultrawork/off; /plan and Ctrl-Shift-Tab are explicit steering controls below.',
+          'Shift-Tab toggles Ultrawork/off; /plan steers UltraPlan from Hub or slash.',
           'Advanced Ultrawork controls',
           '/plan Steer UltraPlan stage; Ultrawork enables it automatically',
           '/swarm Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal',

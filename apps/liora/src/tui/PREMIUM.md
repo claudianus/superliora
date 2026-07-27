@@ -241,6 +241,35 @@ not floating panels:
 
 ---
 
+## 8.2 Center Modal
+
+Floating menus (Command Hub, Settings, model/session pickers, Extensions,
+shortcuts) use a **center modal**, not the bottom editor-replacement strip.
+
+- **Placement.** Host mounts via `mountCenterModal` → compositor region
+  `liora-center-modal` with `placement: 'center'` (`utils/center-modal.ts`).
+  Max content width 72 cols; margin 2 from viewport edges.
+- **Chrome.** The panel owns its own PREMIUM list chrome (§3). The overlay
+  region uses `border: false` so chrome is not doubled.
+- **Input.** `pushLegacyModalTarget` with a dedicated stack (not the single
+  editor-replacement dispose slot). Esc closes the top modal via the panel
+  `onCancel` → `closeCenterModal()`.
+- **Nesting.** `mode: 'push'` stacks; `mode: 'replace'` swaps the top entry
+  (Settings → child picker). Only the top panel renders and receives keys.
+  Pickers opened under an existing center modal default to `push` so Esc
+  returns (breadcrumb `Hub › Model` when entries carry `label`).
+- **Command Hub.** Status strip + Space flips modes in place; Enter flips and
+  closes (return to chat). `1`–`9` hotkeys when not filtering; Esc clears
+  filter then closes. Nested pickers push; Stop interrupts; Recent pins;
+  first-run intro uses `tui.toml` `[onboarding] hub_intro_seen`.
+- **Z-order.** Center modal (~8000) sits above stage/toast chrome and below
+  diagnostics HUD (~10000).
+- **Do not use center modal for:** approval/question/credential, session
+  loading overlay, or full-page browsers (tasks/files) — those keep
+  `mountEditorReplacement` / root takeover.
+
+---
+
 ## 9. Architecture Discipline
 
 - `LioraTUI` (`liora-tui.ts`) is a **coordinator** — it wires state, layout,

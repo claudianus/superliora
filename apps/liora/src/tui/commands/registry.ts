@@ -239,6 +239,22 @@ export function swarmArgumentCompletions(argumentPrefix: string): AutocompleteIt
   return completeLeadingArg(SWARM_ARG_COMPLETIONS, argumentPrefix);
 }
 
+/** War Room controls stay usable while a swarm turn is streaming. */
+/** War Room dock controls stay usable while a swarm turn is streaming. */
+function swarmControlAvailability(args: string): SlashCommandAvailability {
+  const head = args.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  switch (head) {
+    case 'pause':
+    case 'restaff':
+    case 'raw':
+    case 'on':
+    case 'off':
+      return 'always';
+    default:
+      return 'idle-only';
+  }
+}
+
 export function thinkingArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(THINKING_ARG_COMPLETIONS, argumentPrefix);
 }
@@ -506,19 +522,21 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'yolo',
     aliases: ['yes'],
-    description: 'Toggle auto-approve mode',
-    priority: 100,
+    description: 'Toggle auto-approve mode (prefer Menu → Permission)',
+    priority: 50,
     argumentHint: '[on|off]',
     completeArgs: toggleOnOffArgumentCompletions,
+    visibility: 'advanced',
     availability: 'always',
   },
   {
     name: 'auto',
     aliases: [],
-    description: 'Toggle auto permission mode',
-    priority: 100,
+    description: 'Toggle auto permission mode (prefer Menu → Permission)',
+    priority: 50,
     argumentHint: '[on|off]',
     completeArgs: toggleOnOffArgumentCompletions,
+    visibility: 'advanced',
     availability: 'always',
   },
   {
@@ -528,15 +546,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     priority: 100,
     argumentHint: '[manual|auto|yolo]',
     completeArgs: permissionArgumentCompletions,
-    visibility: 'advanced',
     availability: 'always',
   },
   {
     name: 'settings',
     aliases: ['config'],
-    description: 'Open TUI settings',
+    description: 'Open TUI settings (also: ? / Ctrl-K → menu)',
     priority: 100,
-    visibility: 'advanced',
     availability: 'always',
   },
   {
@@ -572,9 +588,9 @@ export const BUILTIN_SLASH_COMMANDS = [
     aliases: [],
     description: 'Parallel delegation: send task to specialist subagents (model decides split)',
     priority: 80,
-    argumentHint: '[on|off] | <task>',
+    argumentHint: '[on|off|pause|restaff|raw] | <task>',
     completeArgs: swarmArgumentCompletions,
-    availability: 'idle-only',
+    availability: swarmControlAvailability,
   },
   {
     name: 'ultrawork',
@@ -602,9 +618,9 @@ export const BUILTIN_SLASH_COMMANDS = [
     description: 'Specialist delegation: lane analysis, coverage matrix, ENGAGE/DEFER decision',
     priority: 100,
     visibility: 'advanced',
-    argumentHint: '[on|off] | <task>',
+    argumentHint: '[on|off|pause|restaff|raw] | <task>',
     completeArgs: swarmArgumentCompletions,
-    availability: 'idle-only',
+    availability: swarmControlAvailability,
   },
   {
     name: 'ultraplan',
@@ -669,9 +685,9 @@ export const BUILTIN_SLASH_COMMANDS = [
   },
   {
     name: 'help',
-    aliases: ['h', '?'],
-    description: 'Show available commands and shortcuts',
-    priority: 80,
+    aliases: ['h'],
+    description: 'Open the Command Hub menu (? / Ctrl-K)',
+    priority: 100,
     completeArgs: helpArgumentCompletions,
     availability: 'always',
   },
@@ -757,8 +773,9 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'plugins',
     aliases: [],
-    description: 'Manage plugins',
+    description: 'Manage plugins (prefer Menu → Extensions)',
     priority: 60,
+    visibility: 'advanced',
     availability: 'always',
     argumentHint: '[list|install|marketplace|info|mcp|enable|disable|remove|reload]',
     completeArgs: pluginsArgumentCompletions,
@@ -861,14 +878,16 @@ export const BUILTIN_SLASH_COMMANDS = [
     name: 'usage',
     aliases: [],
     description: 'Show session tokens + context window + plan quotas',
-    priority: 100,
+    priority: 80,
+    visibility: 'advanced',
     availability: 'always',
   },
   {
     name: 'quota',
     aliases: [],
     description: 'Show live provider subscription quotas and API credits',
-    priority: 100,
+    priority: 80,
+    visibility: 'advanced',
     availability: 'always',
   },
   {
@@ -988,7 +1007,7 @@ export const BUILTIN_SLASH_COMMANDS = [
   {
     name: 'retry',
     aliases: [],
-    description: 'Resend your last message (same as Ctrl-Y)',
+    description: 'Resend your last message (also: Hub → Chat → Retry)',
     priority: 80,
     availability: 'idle-only',
   },
