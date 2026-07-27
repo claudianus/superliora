@@ -240,11 +240,22 @@ export class CompactionComponent extends Container {
   /** Live stream source (summary / block N / merge / repair) for progress label. */
   setStreamMeta(meta: CompactionStreamMeta): void {
     if (this.done || this.canceled) return;
+    const blockCount = meta.blockCount ?? this.streamMeta.blockCount;
+    const incomingCompleted = meta.blocksCompleted ?? this.streamMeta.blocksCompleted;
+    const previousCompleted = this.streamMeta.blocksCompleted;
     const next: CompactionStreamMeta = {
       streamKind: meta.streamKind ?? this.streamMeta.streamKind,
       blockIndex: meta.blockIndex ?? this.streamMeta.blockIndex,
-      blockCount: meta.blockCount ?? this.streamMeta.blockCount,
-      blocksCompleted: meta.blocksCompleted ?? this.streamMeta.blocksCompleted,
+      blockCount,
+      // Within one round the completed count only moves forward; out-of-order
+      // stream events must not rewind the "block n/N" label. A changed
+      // blockCount starts a new round and resets the clamp.
+      blocksCompleted:
+        blockCount === this.streamMeta.blockCount &&
+        previousCompleted !== undefined &&
+        incomingCompleted !== undefined
+          ? Math.max(incomingCompleted, previousCompleted)
+          : incomingCompleted,
       fraction: meta.fraction ?? this.streamMeta.fraction,
     };
     // Engine fraction is monotonic within a session — never rewind the floor.

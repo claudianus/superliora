@@ -1252,14 +1252,20 @@ export class FullCompaction {
   /**
    * Stream every compaction LLM call into `compaction.progress` so TUI can
    * show live summary text (main, parallel blocks, merge, and repair).
+   *
+   * `blocksCompleted` and `fraction` accept getters because parallel blocks
+   * run concurrently: a snapshot taken when the callback is created goes stale
+   * the moment another block finishes, and the slow block's next delta would
+   * rewind the TUI's "block n/N" counter. Getters are resolved at emit time,
+   * so every delta carries the live count.
    */
   private compactionStreamCallbacks(meta: {
     readonly phase: 'summarizing' | 'repairing' | 'finalizing';
     readonly streamKind: 'summary' | 'block' | 'merge' | 'repair';
     readonly blockIndex?: number;
     readonly blockCount?: number;
-    readonly blocksCompleted?: number;
-    readonly fraction?: number;
+    readonly blocksCompleted?: number | (() => number);
+    readonly fraction?: number | (() => number);
   }): {
     readonly onMessagePart: (part: {
       readonly type: string;
@@ -1277,8 +1283,11 @@ export class FullCompaction {
           streamKind: meta.streamKind,
           blockIndex: meta.blockIndex,
           blockCount: meta.blockCount,
-          blocksCompleted: meta.blocksCompleted,
-          fraction: meta.fraction,
+          blocksCompleted:
+            typeof meta.blocksCompleted === 'function'
+              ? meta.blocksCompleted()
+              : meta.blocksCompleted,
+          fraction: typeof meta.fraction === 'function' ? meta.fraction() : meta.fraction,
           delta: text,
         });
       },
@@ -1943,8 +1952,11 @@ export class FullCompaction {
               streamKind: 'block',
               blockIndex: index + 1,
               blockCount,
-              blocksCompleted,
-              fraction: this.fractionForBlocksCompleted(blocksCompleted, blockCount),
+              // Live getters, not snapshots: under concurrency a captured
+              // count goes stale the moment another block finishes, and this
+              // block's next delta would rewind the TUI's "block n/N" counter.
+              blocksCompleted: () => blocksCompleted,
+              fraction: () => this.fractionForBlocksCompleted(blocksCompleted, blockCount),
             }),
             retryCountRef,
             onRateLimit: () => {

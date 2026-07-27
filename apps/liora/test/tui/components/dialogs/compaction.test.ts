@@ -343,6 +343,44 @@ describe('CompactionComponent', () => {
     }
   });
 
+  it('never rewinds the block counter when out-of-order stream events arrive', () => {
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      // A completion tick moves the counter forward (2 of 4 blocks done).
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockIndex: 3,
+        blockCount: 4,
+        blocksCompleted: 2,
+      });
+      // A stale delta from a slower block arrives late with an old count.
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockIndex: 1,
+        blockCount: 4,
+        blocksCompleted: 0,
+      });
+
+      const text = component.render(120).map(strip).join('\n');
+      expect(text).toContain('block 2/4');
+      expect(text).not.toContain('block 0/4');
+
+      // A new round (different blockCount) resets the clamp.
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockIndex: 1,
+        blockCount: 2,
+        blocksCompleted: 0,
+      });
+      const next = component.render(120).map(strip).join('\n');
+      expect(next).toContain('block 0/2');
+    } finally {
+      component.dispose();
+    }
+  });
+
   it('advances the bar from blocksCompleted / blockCount instead of time creep', () => {
     const component = new CompactionComponent();
 
