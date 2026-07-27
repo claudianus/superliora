@@ -1,8 +1,10 @@
+import { ansiTextToCells } from './ansi-text';
 import type { RendererCell, RendererCellStyle } from './cell-buffer';
 import { renderRendererDividerRow } from './component-primitives';
 import type { RendererRect, RendererRegionLine } from './compositor';
 import type { RendererFrameRegion } from './layout-frame';
-import { measureDisplayWidth, textToCells, truncateDisplayText } from './text-metrics';
+import { truncateToWidth, visibleWidth } from './text-component';
+import { textToCells } from './text-metrics';
 
 export type RendererOverlayPlacement =
   | 'top-left'
@@ -119,6 +121,23 @@ export function createRendererOverlayPanelRegion(
   };
 }
 
+/**
+ * Parse chalk/ANSI payload into cells, then merge panel chrome styles.
+ * Never use {@link textToCells} on chalk strings — ESC is zero-width and SGR
+ * bodies leak as visible `[38;2…m` glyphs.
+ */
+function styledAnsiCells(
+  text: string,
+  style: RendererCellStyle | undefined,
+): readonly RendererCell[] {
+  const cells = ansiTextToCells(text);
+  if (style === undefined) return cells;
+  return cells.map((cell) => ({
+    ...cell,
+    style: cell.style === undefined ? style : { ...style, ...cell.style },
+  }));
+}
+
 function renderBorderedPanelLines(
   lines: readonly string[],
   options: RendererOverlayPanelOptions,
@@ -142,7 +161,7 @@ function renderBodyLines(
   contentWidth: number,
   truncateMark: string,
 ): readonly RendererRegionLine[] {
-  return lines.map((line, index) => textToCells(
+  return lines.map((line, index) => styledAnsiCells(
     fitOverlayLine(line, contentWidth, truncateMark),
     panelBodyStyle(options.style, options.lineStyle?.(line, index)),
   ));
@@ -163,11 +182,11 @@ function renderPanelTopBorder(
     );
   }
 
-  const label = truncateDisplayText(` ${titleText} `, contentWidth, truncateMark);
-  const labelWidth = measureDisplayWidth(label);
+  const label = truncateToWidth(` ${titleText} `, contentWidth, truncateMark);
+  const labelWidth = visibleWidth(label);
   return [
     ...textToCells('╭', borderStyle),
-    ...textToCells(label, panelTitleStyle(style)),
+    ...styledAnsiCells(label, panelTitleStyle(style)),
     ...textToCells(
       renderRendererDividerRow({ width: Math.max(0, contentWidth - labelWidth) }),
       borderStyle,
@@ -186,7 +205,7 @@ function renderPanelBodyLine(
   const line = regionLineToString(rawLine);
   return [
     ...textToCells('│', panelBorderStyle(options.style)),
-    ...textToCells(
+    ...styledAnsiCells(
       fitOverlayLine(line, contentWidth, truncateMark),
       panelBodyStyle(options.style, options.lineStyle?.(line, index)),
     ),
@@ -209,9 +228,9 @@ function measurePanelWidth(
 ): number {
   const titleWidth = title === undefined || title.trim().length === 0
     ? 0
-    : measureDisplayWidth(` ${title.trim()} `);
+    : visibleWidth(` ${title.trim()} `);
   const bodyWidth = lines.reduce(
-    (maxWidth, line) => Math.max(maxWidth, measureDisplayWidth(line)),
+    (maxWidth, line) => Math.max(maxWidth, visibleWidth(line)),
     0,
   );
   return Math.max(1, Math.max(titleWidth, bodyWidth)) + (border ? 2 : 0);
@@ -250,8 +269,8 @@ function mergeCellStyles(
 }
 
 function fitOverlayLine(line: string, width: number, truncateMark: string): string {
-  const fitted = truncateDisplayText(line, width, truncateMark);
-  return fitted + ' '.repeat(Math.max(0, width - measureDisplayWidth(fitted)));
+  const fitted = truncateToWidth(line, width, truncateMark);
+  return fitted + ' '.repeat(Math.max(0, width - visibleWidth(fitted)));
 }
 
 function regionLineToString(line: RendererRegionLine): string {

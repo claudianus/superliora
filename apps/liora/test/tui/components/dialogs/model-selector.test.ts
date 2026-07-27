@@ -1,14 +1,18 @@
 import type { ModelAlias } from '@superliora/sdk';
 import { visibleWidth } from '#/tui/renderer';
+import chalk from 'chalk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 
-const ANSI = /\[[0-9;]*m/g;
-const strip = (s: string): string => s.replaceAll(ANSI, '');
 const ESC = String.fromCodePoint(27);
+const ANSI = new RegExp(`${ESC}\\[[0-9;]*m`, 'g');
+/** ESC-stripped SGR bodies — the modal garbage pattern. */
+const LEAKED_SGR_BODY = /(?<!\u001B)\[[0-9;]*38;2/;
+const strip = (s: string): string => s.replaceAll(ANSI, '');
 const UP = `${ESC}[A`;
 const DOWN = `${ESC}[B`;
 const LEFT = `${ESC}[D`;
@@ -45,6 +49,35 @@ describe('ModelSelectorComponent', () => {
     expect(out).toContain('← current');
     // Provider is no longer inlined in parentheses next to the name.
     expect(out).not.toContain('Kimi K2 (SuperLiora)');
+  });
+
+  it('keeps the select pointer outside chalk so nested SGR never leaks', () => {
+    // Force non-ambient pointer (plain SELECT_POINTER) so the concatenation
+    // pattern is deterministic without pulse frames.
+    const previousCi = process.env['CI'];
+    const previousChalkLevel = chalk.level;
+    process.env['CI'] = '1';
+    chalk.level = 3;
+    try {
+      const picker = new ModelSelectorComponent({
+        models: { kimi: model('Kimi K2') },
+        currentValue: 'kimi',
+        currentThinking: true,
+        onSelect: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      const raw = picker.render(120).join('\n');
+      expect(raw).not.toMatch(LEAKED_SGR_BODY);
+      // Pointer sits between separately styled gutters, not inside one chalk wrap.
+      expect(raw).toContain(
+        currentTheme.fg('primary', '  ') + SELECT_POINTER + currentTheme.fg('primary', ' '),
+      );
+      expect(raw).not.toContain(currentTheme.fg('primary', `  ${SELECT_POINTER} `));
+    } finally {
+      chalk.level = previousChalkLevel;
+      if (previousCi === undefined) delete process.env['CI'];
+      else process.env['CI'] = previousCi;
+    }
   });
 
   it('toggles thinking with Left/Right (not with "/")', () => {

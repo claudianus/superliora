@@ -298,10 +298,13 @@ export class ModelSelectorComponent extends Container implements Focusable {
         if (choice === undefined) continue;
         const isSelected = i === view.selectedIndex;
         const isCurrent = choice.alias === this.opts.currentValue;
+        // Pointer is already ambient-styled; do not wrap it in chalk again.
         const pointer = isSelected ? renderSelectPointer('model:pointer') : ' ';
         const truncatedName = truncateToWidth(choice.name, nameWidth, '…');
         const namePad = ' '.repeat(Math.max(0, nameWidth - visibleWidth(truncatedName)));
-        let line = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
+        const tone = isSelected ? 'primary' : 'textDim';
+        let line =
+          currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
         line += (isSelected ? currentTheme.boldFg('primary', truncatedName) : currentTheme.fg('text', truncatedName)) + namePad;
         line += '  ' + currentTheme.fg('textMuted', choice.provider);
         if (choice.priceLabel !== undefined) {

@@ -12,11 +12,6 @@ import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import type { ColorPalette } from '#/tui/theme/colors';
-import {
-  getActiveAppearancePreferences,
-  renderPulseText,
-  shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
 
 export interface RenderTabStripOptions {
   readonly labels: readonly string[];
@@ -30,11 +25,8 @@ export interface RenderTabStripOptions {
 function styleTab(label: string, isActive: boolean, colors: ColorPalette): string {
   const cell = ` ${label} `;
   if (!isActive) return chalk.hex(colors.textMuted)(cell);
-  const appearance = getActiveAppearancePreferences();
-  if (shouldRenderAmbientEffects(appearance)) {
-    // Keep bg fill + pulsed label so tab width stays stable while ambient chrome demos.
-    return chalk.bgHex(colors.primary)(renderPulseText(cell, `tab:${label}`, 'text'));
-  }
+  // Paint filled active tab from plain text only. Never chalk.bgHex(pulsedANSI)
+  // — nested SGR drops ESC in plain-text sinks and leaks `[38;2…` glyphs.
   return chalk.bgHex(colors.primary).hex(colors.text).bold(cell);
 }
 

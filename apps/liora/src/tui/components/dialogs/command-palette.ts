@@ -104,7 +104,9 @@ export class CommandPaletteComponent extends Container implements Focusable {
       const isSelected = i === view.selectedIndex;
       const pointer = isSelected ? renderSelectPointer('palette:pointer') : ' ';
       const category = currentTheme.fg('accent', CATEGORY_LABEL[entry.kind]);
-      const prefix = currentTheme.fg(isSelected ? 'primary' : 'textDim', `  ${pointer} `);
+      const tone = isSelected ? 'primary' : 'textDim';
+      // Pointer is already ambient-styled; do not wrap it in chalk again.
+      const prefix = currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
       const label = currentTheme.fg(isSelected ? 'primary' : 'text', entry.label);
       const maxDescWidth = Math.max(1, width - 5 - visibleWidth(entry.label) - visibleWidth(CATEGORY_LABEL[entry.kind]) - 3);
       const desc =

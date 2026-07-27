@@ -163,7 +163,9 @@ export class ExperimentsSelectorComponent extends Container implements Focusable
     width: number,
   ): string[] {
     const pointer = selected ? renderSelectPointer('experiments:pointer') : ' ';
-    const prefix = currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `);
+    const tone = selected ? 'primary' : 'textDim';
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const prefix = currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ');
     const label = selected ? currentTheme.boldFg('primary', feature.title) : currentTheme.fg('text', feature.title);
     const enabled = this.effectiveEnabled(feature);
     const status = enabled ? 'enabled' : 'disabled';

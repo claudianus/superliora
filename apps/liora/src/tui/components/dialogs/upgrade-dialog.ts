@@ -109,7 +109,9 @@ export class UpgradeDialogComponent extends Container implements Focusable {
       const label = selected
         ? currentTheme.boldFg('primary', action.label)
         : currentTheme.fg('text', action.label);
-      body.push(currentTheme.fg(selected ? 'primary' : 'textDim', `  ${pointer} `) + label);
+      const tone = selected ? 'primary' : 'textDim';
+      // Pointer is already ambient-styled; do not wrap it in chalk again.
+      body.push(currentTheme.fg(tone, '  ') + pointer + currentTheme.fg(tone, ' ') + label);
     }
 
     return renderRendererPanelChromeRows({

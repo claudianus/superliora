@@ -322,7 +322,9 @@ export class AgentDashboardComponent extends Container implements Focusable {
     const titleBudget = Math.max(8, width - headerPrefixWidth - trailingWidth);
     const shownTitle = truncateToWidth(singleLine(rawTitle), titleBudget, ELLIPSIS);
 
-    let header = currentTheme.fg(isSelected ? 'primary' : 'textDim', pointer + ' ');
+    const tone = isSelected ? 'primary' : 'textDim';
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    let header = pointer + currentTheme.fg(tone, ' ');
     header += titleStyle(shownTitle);
     for (const part of trailingParts) {
       header += '  ' + part;

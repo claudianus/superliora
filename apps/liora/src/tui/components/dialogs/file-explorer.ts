@@ -348,8 +348,10 @@ export class FileExplorerComponent extends Container implements Focusable {
   }
 
   private renderRow(row: FlatTreeRow, selected: boolean, innerWidth: number): string {
-    const pointer = selected ? `${renderSelectPointer('files:pointer')} ` : '  ';
-    const pointerStyled = currentTheme.fg(selected ? 'primary' : 'textDim', pointer);
+    // Pointer is already ambient-styled; do not wrap it in chalk again.
+    const pointerStyled = selected
+      ? `${renderSelectPointer('files:pointer')} `
+      : currentTheme.fg('textDim', '  ');
     const indent = '  '.repeat(row.depth);
 
     const isDir = row.node.kind === 'directory';
