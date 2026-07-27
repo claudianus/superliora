@@ -240,7 +240,6 @@ export function swarmArgumentCompletions(argumentPrefix: string): AutocompleteIt
 }
 
 /** War Room controls stay usable while a swarm turn is streaming. */
-/** War Room dock controls stay usable while a swarm turn is streaming. */
 function swarmControlAvailability(args: string): SlashCommandAvailability {
   const head = args.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
   switch (head) {
@@ -1094,17 +1093,18 @@ export const BUILTIN_SLASH_COMMANDS = [
   },
 ] as const satisfies readonly LioraSlashCommand[];
 
-export type BuiltinSlashCommand = (typeof BUILTIN_SLASH_COMMANDS)[number];
-export type BuiltinSlashCommandName = BuiltinSlashCommand['name'];
+export type BuiltinSlashCommandName = (typeof BUILTIN_SLASH_COMMANDS)[number]['name'];
+/** Widened so optional fields like `completeArgs` stay optional across the registry union. */
+export type BuiltinSlashCommand = LioraSlashCommand<BuiltinSlashCommandName>;
 
 export function findBuiltInSlashCommand(commandName: string): BuiltinSlashCommand | undefined {
-  const commands = BUILTIN_SLASH_COMMANDS as readonly LioraSlashCommand<BuiltinSlashCommandName>[];
+  const commands = BUILTIN_SLASH_COMMANDS as readonly BuiltinSlashCommand[];
   return commands.find(
     (command) =>
       command.name === commandName ||
       command.aliases.includes(commandName) ||
       (command.hiddenAliases?.includes(commandName) ?? false),
-  ) as BuiltinSlashCommand | undefined;
+  );
 }
 
 export function resolveSlashCommandAvailability(

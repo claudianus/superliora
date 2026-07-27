@@ -82,7 +82,6 @@ import {
   type ApprovalPreviewBlock,
 } from './components/dialogs/approval-preview';
 import { CompactionComponent } from './components/dialogs/compaction';
-import { CommandPaletteComponent, type PaletteEntry } from './components/dialogs/command-palette';
 import {
   buildDefaultCommandHubItems,
   commandHubKeepsOpen,
