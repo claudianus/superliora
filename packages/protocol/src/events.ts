@@ -771,6 +771,25 @@ export interface SubagentSuspendedEvent {
   readonly reason: string;
 }
 
+export interface SubagentProgressEvent {
+  readonly type: 'subagent.progress';
+  readonly subagentId: string;
+  readonly subagentName?: string;
+  readonly lastTool?: string;
+  readonly lastTarget?: string;
+  readonly toolCount: number;
+  readonly elapsedMs: number;
+  readonly tokens: number;
+}
+
+export interface SubagentStalledEvent {
+  readonly type: 'subagent.stalled';
+  readonly subagentId: string;
+  readonly subagentName?: string;
+  readonly silentMs: number;
+  readonly toolCount: number;
+}
+
 export interface SubagentCompletedEvent {
   readonly type: 'subagent.completed';
   readonly subagentId: string;
@@ -984,6 +1003,8 @@ export type AgentEvent =
   | SubagentSpawnedEvent
   | SubagentStartedEvent
   | SubagentSuspendedEvent
+  | SubagentProgressEvent
+  | SubagentStalledEvent
   | SubagentCompletedEvent
   | SubagentFailedEvent
   | SubagentTodoUpdatedEvent
@@ -1714,6 +1735,25 @@ export const subagentSuspendedEventSchema = z.object({
   reason: z.string(),
 }) satisfies z.ZodType<SubagentSuspendedEvent>;
 
+export const subagentProgressEventSchema = z.object({
+  type: z.literal('subagent.progress'),
+  subagentId: z.string(),
+  subagentName: z.string().optional(),
+  lastTool: z.string().optional(),
+  lastTarget: z.string().optional(),
+  toolCount: z.number(),
+  elapsedMs: z.number(),
+  tokens: z.number(),
+}) satisfies z.ZodType<SubagentProgressEvent>;
+
+export const subagentStalledEventSchema = z.object({
+  type: z.literal('subagent.stalled'),
+  subagentId: z.string(),
+  subagentName: z.string().optional(),
+  silentMs: z.number(),
+  toolCount: z.number(),
+}) satisfies z.ZodType<SubagentStalledEvent>;
+
 export const subagentCompletedEventSchema = z.object({
   type: z.literal('subagent.completed'),
   subagentId: z.string(),
@@ -1896,6 +1936,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   subagentSpawnedEventSchema,
   subagentStartedEventSchema,
   subagentSuspendedEventSchema,
+  subagentProgressEventSchema,
+  subagentStalledEventSchema,
   subagentCompletedEventSchema,
   subagentFailedEventSchema,
   subagentTodoUpdatedEventSchema,

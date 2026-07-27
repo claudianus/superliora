@@ -261,6 +261,54 @@ describe('SessionSubagentHost', () => {
     );
   });
 
+  it('emits subagent.progress on an interval and subagent.stalled after a silent window', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+    const child = testAgent();
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    vi.useFakeTimers();
+    try {
+      const reporter = (
+        host as unknown as {
+          startProgressReporter(
+            parentAgent: Agent,
+            childAgent: Agent,
+            subagentId: string,
+            profileName: string,
+          ): () => void;
+        }
+      ).startProgressReporter(parent.agent, child.agent, 'agent-0', 'coder');
+
+      vi.advanceTimersByTime(5_000);
+      expect(parent.allEvents).toContainEqual(
+        expect.objectContaining({
+          type: '[rpc]',
+          event: 'subagent.progress',
+          args: expect.objectContaining({
+            subagentId: 'agent-0',
+            subagentName: 'coder',
+            toolCount: 0,
+          }),
+        }),
+      );
+
+      vi.advanceTimersByTime(300_000);
+      expect(parent.allEvents).toContainEqual(
+        expect.objectContaining({
+          type: '[rpc]',
+          event: 'subagent.stalled',
+          args: expect.objectContaining({ subagentId: 'agent-0' }),
+        }),
+      );
+      reporter();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('emits subagent.todo.updated when a child updates its todo store', async () => {
     const parent = testAgent();
     parent.configure();

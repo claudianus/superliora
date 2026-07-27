@@ -105,6 +105,11 @@ const SUMMARY_MIN_LENGTH = 200;
 const COMPLETION_CHECK_TIMEOUT_MS = 180_000;
 /** Overall ceiling for the completion verification gate (T4-4). */
 const COMPLETION_VERIFICATION_TOTAL_MS = 600_000;
+
+/** Cadence for subagent.progress telemetry (T3-7). */
+const SUBAGENT_PROGRESS_INTERVAL_MS = 5_000;
+/** Silence window before a subagent is reported stalled (T3-7). */
+const SUBAGENT_STALL_MS = 300_000;
 const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const SUBAGENT_MAX_TOKENS_ERROR =
@@ -589,6 +594,29 @@ export class SessionSubagentHost {
     options: RunSubagentOptions,
     workSnapshot: GitWorkSnapshot,
   ): Promise<SubagentCompletion> {
+    const disposeProgress = this.startProgressReporter(parent, child, childId, profileName);
+    try {
+      return await this.collectChildCompletion(
+        parent,
+        child,
+        childId,
+        profileName,
+        options,
+        workSnapshot,
+      );
+    } finally {
+      disposeProgress();
+    }
+  }
+
+  private async collectChildCompletion(
+    parent: Agent,
+    child: Agent,
+    childId: string,
+    profileName: string,
+    options: RunSubagentOptions,
+    workSnapshot: GitWorkSnapshot,
+  ): Promise<SubagentCompletion> {
     await runChildTurnToCompletion(child, options.signal);
 
     await child.fullCompaction.ensureBelowHandoffThreshold(options.signal);
@@ -712,6 +740,55 @@ export class SessionSubagentHost {
     } catch {
       return VERIFICATION_NOT_RUN;
     }
+  }
+
+  /**
+   * Live telemetry for background subagents (harness reform T3-7): emits
+   * `subagent.progress` every few seconds with the last tool, tool count,
+   * elapsed time, and token spend, plus a one-shot `subagent.stalled` when
+   * no tool call has happened for the stall window.
+   */
+  private startProgressReporter(
+    parent: Agent,
+    child: Agent,
+    childId: string,
+    profileName: string,
+  ): () => void {
+    const startedAt = Date.now();
+    let lastToolCount = -1;
+    let lastChangeAt = startedAt;
+    let stalledReported = false;
+    const timer = setInterval(() => {
+      const stats = collectSubagentProgressStats(child);
+      const now = Date.now();
+      parent.emitEvent({
+        type: 'subagent.progress',
+        subagentId: childId,
+        subagentName: profileName,
+        lastTool: stats.lastTool,
+        lastTarget: stats.lastTarget,
+        toolCount: stats.toolCount,
+        elapsedMs: now - startedAt,
+        tokens: stats.tokens,
+      });
+      if (stats.toolCount !== lastToolCount) {
+        lastToolCount = stats.toolCount;
+        lastChangeAt = now;
+        stalledReported = false;
+      } else if (!stalledReported && now - lastChangeAt >= SUBAGENT_STALL_MS) {
+        stalledReported = true;
+        parent.emitEvent({
+          type: 'subagent.stalled',
+          subagentId: childId,
+          subagentName: profileName,
+          silentMs: now - lastChangeAt,
+          toolCount: stats.toolCount,
+        });
+      }
+    }, SUBAGENT_PROGRESS_INTERVAL_MS);
+    // Progress reporting must never keep the event loop alive on its own.
+    timer.unref?.();
+    return () => clearInterval(timer);
   }
 
   private async configureChild(
@@ -1035,4 +1112,50 @@ function createExpertSubagentProfile(
     tools: [...baseProfile.tools],
     subagents: baseProfile.subagents,
   };
+}
+
+
+export interface SubagentProgressStats {
+  readonly toolCount: number;
+  readonly lastTool: string | undefined;
+  readonly lastTarget: string | undefined;
+  readonly tokens: number;
+}
+
+/** Aggregate live progress stats for a running subagent (T3-7 telemetry). */
+export function collectSubagentProgressStats(child: Agent): SubagentProgressStats {
+  let toolCount = 0;
+  let lastTool: string | undefined;
+  let lastTarget: string | undefined;
+  for (const message of child.context.history) {
+    if (message.role !== 'assistant') continue;
+    for (const toolCall of message.toolCalls) {
+      toolCount += 1;
+      lastTool = toolCall.name;
+      lastTarget = summarizeToolTarget(toolCall.arguments ?? undefined);
+    }
+  }
+  const total = child.usage.data().total;
+  const tokens =
+    total === undefined
+      ? 0
+      : total.inputOther + total.output + total.inputCacheRead + total.inputCacheCreation;
+  return { toolCount, lastTool, lastTarget, tokens };
+}
+
+function summarizeToolTarget(argsJson: string | undefined): string | undefined {
+  if (argsJson === undefined || argsJson.length === 0) return undefined;
+  try {
+    const parsed = JSON.parse(argsJson) as Record<string, unknown>;
+    for (const key of ['path', 'command', 'pattern', 'query', 'url', 'description']) {
+      const value = parsed[key];
+      if (typeof value === 'string' && value.length > 0) {
+        return value.length > 80 ? `${value.slice(0, 80)}…` : value;
+      }
+    }
+  } catch {
+    // Fall through to the raw snippet below.
+  }
+  const raw = argsJson.trim();
+  return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
 }
