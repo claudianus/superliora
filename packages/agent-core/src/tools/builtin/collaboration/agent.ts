@@ -29,6 +29,7 @@ import {
   type SessionSubagentHost,
   type SubagentHandle,
 } from '../../../session/subagent-host';
+import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../session/spawn-agents';
 import { isUserCancellation } from '../../../utils/abort';
 import { AgentBackgroundTask, type BackgroundManager } from '../../../agent/background';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -206,25 +207,25 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
       }
 
       const operation = resumeAgentId !== undefined && resumeAgentId.length > 0 ? 'resume' : 'spawn';
-      const runOptions = {
-        parentToolCallId: toolCallId,
+      const task: FanoutTask = {
         prompt: args.prompt,
         description: args.description,
+        profileName: requestedProfileName ?? 'coder',
+        ownership: args.ownership,
+        resumeAgentId: operation === 'resume' ? resumeAgentId : undefined,
+      };
+      const spec: FanoutSpec = {
+        mode: 'manual',
+        parentToolCallId: toolCallId,
         runInBackground,
         signal: controller.signal,
-        timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
         contractPath: args.contract,
-        ownership: args.ownership,
+        timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
+        tasks: [task],
       };
       let handle: SubagentHandle;
       try {
-        handle =
-          operation === 'resume'
-            ? await this.subagentHost.resume(resumeAgentId!, runOptions)
-            : await this.subagentHost.spawn({
-                profileName: requestedProfileName ?? 'coder',
-                ...runOptions,
-              });
+        handle = await spawnOneAgent(this.subagentHost, spec, task);
       } catch (error) {
         signal.removeEventListener('abort', abortBeforeRegister);
         this.log?.warn('subagent launch failed', {
