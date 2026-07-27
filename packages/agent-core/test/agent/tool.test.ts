@@ -363,12 +363,14 @@ describe('Agent tools', () => {
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'SearchExpert')).toBe(true);
   });
 
-  it('exposes UltraworkGraph as a standard builtin tool', () => {
+  it('exposes UltraworkGraph as a standard builtin tool gated on an active run', () => {
     const ctx = testAgent({
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
     });
     ctx.configure({ tools: ['UltraworkGraph'] });
 
+    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(false);
+    vi.spyOn(ctx.agent.ultrawork, 'getRun').mockReturnValue({ objective: 'x' } as never);
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(true);
   });
 

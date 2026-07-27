@@ -3,6 +3,7 @@ import type { ChatProvider, Tool } from '@superliora/kosong';
 import picomatch from 'picomatch';
 
 import type { Agent } from '..';
+import { resolveActivePremiumDensity } from '../injection/premium-quality';
 import { makeErrorPayload } from '../../errors';
 import type { ExecutableTool, ToolUpdate } from '../../loop';
 import { createMcpAuthTool } from '../../mcp/auth-tool';
@@ -777,15 +778,32 @@ export class ToolManager {
     const mcpNames = [...this.mcpTools.keys()].filter((name) => this.isMcpToolEnabled(name));
     // Mutation goal tools are only offered to the model while a goal exists.
     const hideGoalMutationTools = this.agent.goal.getGoal().goal === null;
+    // Mode-gated schemas (T2-3): tools that only pay off inside a specific
+    // mode are withheld until that mode is active. Launch tools (EnterPlanMode,
+    // UltraSwarm, CreateGoal, ...) stay ungated — calling them is what enters
+    // the mode. Withheld tools remain discoverable via SearchTools.
+    const planActive = this.agent.planMode.isActive;
+    const ultraPlanActive = this.agent.planMode.isUltraMode;
+    const ultraworkRun = this.agent.ultrawork.getRun();
+    const ultraworkRunning = ultraworkRun !== null && ultraworkRun !== undefined;
+    const hideVisualTools = this.hideVisualDensityTools();
     return uniq([...this.enabledTools, ...mcpNames])
       // Byte-wise (locale-independent) sort so the serialized tool order is
       // identical across environments/ICU versions, keeping the prompt-cache
       // tools block stable instead of varying with the host locale.
       .toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0))
-      .filter(
-        (name) =>
-          !(hideGoalMutationTools && (name === 'SetGoalBudget' || name === 'UpdateGoal')),
-      )
+      .filter((name) => {
+        if (hideGoalMutationTools && (name === 'SetGoalBudget' || name === 'UpdateGoal')) {
+          return false;
+        }
+        if (!ultraPlanActive && (name === 'NextPhase' || name === 'RecordInterviewFinding')) {
+          return false;
+        }
+        if (!planActive && name === 'ExitPlanMode') return false;
+        if (!ultraworkRunning && name === 'UltraworkGraph') return false;
+        if (hideVisualTools && VISUAL_DENSITY_TOOLS.has(name)) return false;
+        return true;
+      })
       .map(
         (name) =>
           this.userTools.get(name) ??
@@ -795,7 +813,24 @@ export class ToolManager {
       )
       .filter((tool) => !!tool);
   }
+
+  private hideVisualDensityTools(): boolean {
+    if (!this.agent.premiumQuality.isEnabled()) return false;
+    return resolveActivePremiumDensity(this.agent) === 'code';
+  }
 }
+
+/**
+ * Visual-surface tools gated on Premium density (T2-3). With Premium ON and a
+ * non-visual (code) objective these schemas only add tokens; they reappear as
+ * soon as the objective turns visual or Premium is switched off.
+ */
+const VISUAL_DENSITY_TOOLS = new Set([
+  'GenerateImage',
+  'GenerateVideo',
+  'VerifySurface',
+  'VisualDiff',
+]);
 
 function nonEmptyEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
