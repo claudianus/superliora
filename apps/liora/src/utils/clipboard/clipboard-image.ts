@@ -215,7 +215,12 @@ function readVideoPath(path: string): ClipboardVideo | null {
   };
 }
 
-function readMediaPath(path: string): ClipboardMedia | null {
+/**
+ * Read the media (image or video) at a filesystem path. Exported for the
+ * terminal file-drop path, which attaches dropped/pasted files the same way
+ * the clipboard paste path attaches clipboard media.
+ */
+export function readMediaPath(path: string): ClipboardMedia | null {
   // Video files are never opened as images.
   const video = readVideoPath(path);
   if (video !== null) return video;

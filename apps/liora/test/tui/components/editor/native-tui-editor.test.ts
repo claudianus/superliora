@@ -3,6 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import type { AutocompleteItem, AutocompleteProvider } from '#/tui/renderer';
 import type { TUIEditor } from '#/tui/components/editor/editor-contract';
+import { readClipboardText } from '#/utils/clipboard/clipboard-text';
+
+vi.mock('#/utils/clipboard/clipboard-text', () => ({
+  readClipboardText: vi.fn(async () => null),
+  copyTextToClipboard: vi.fn(async () => {}),
+}));
 
 function makeEditor(): NativeTUIEditor {
   return new NativeTUIEditor();
@@ -495,4 +501,52 @@ describe('NativeTUIEditor ghost text', () => {
     expect(editor.isShowingAutocomplete()).toBe(false);
   });
 
+});
+
+describe('NativeTUIEditor image paste binding', () => {
+  const ESC = String.fromCharCode(0x1b);
+  // Windows terminals reserve Ctrl+V for their own paste, so the binding is
+  // Alt+V there and Ctrl+V everywhere else (mirrors handleAppShortcut).
+  const pasteRaw = process.platform === 'win32' ? `${ESC}v` : String.fromCharCode(0x16);
+
+  it('invokes onPasteImage and consumes the paste key', async () => {
+    const editor = makeEditor();
+    editor.setText('draft');
+    const onPasteImage = vi.fn(async () => true);
+    editor.onPasteImage = onPasteImage;
+
+    expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
+    await vi.waitFor(() => expect(onPasteImage).toHaveBeenCalledTimes(1));
+    // Consumed by the image handler: no text mutation.
+    expect(editor.getText()).toBe('draft');
+  });
+
+  it('falls back to a clipboard text paste when no image is available', async () => {
+    vi.mocked(readClipboardText).mockResolvedValueOnce('from clipboard');
+    const editor = makeEditor();
+    editor.onPasteImage = async () => false;
+
+    expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
+    await vi.waitFor(() => expect(editor.getText()).toBe('from clipboard'));
+  });
+
+  it('gives onPasteText first claim on bracketed paste (terminal file drops)', () => {
+    const editor = makeEditor();
+    const onPasteText = vi.fn(() => true);
+    editor.onPasteText = onPasteText;
+
+    editor.handleInput(`${ESC}[200~/tmp/dropped.png${ESC}[201~`);
+
+    expect(onPasteText).toHaveBeenCalledWith('/tmp/dropped.png');
+    expect(editor.getText()).toBe('');
+  });
+
+  it('inserts pasted text normally when onPasteText declines', () => {
+    const editor = makeEditor();
+    editor.onPasteText = () => false;
+
+    editor.handleInput(`${ESC}[200~hello world${ESC}[201~`);
+
+    expect(editor.getText()).toBe('hello world');
+  });
 });

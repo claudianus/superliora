@@ -24,6 +24,7 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
+import { readClipboardText } from '#/utils/clipboard/clipboard-text';
 
 import type { TUIEditor, TUIEditorGhostKind, TUIEditorInputMode } from './editor-contract';
 
@@ -65,6 +66,7 @@ export class NativeTUIEditor implements TUIEditor {
   onShiftTab?: () => void;
   onInputModeChange?: (mode: TUIEditorInputMode) => void;
   onPasteImage?: () => Promise<boolean>;
+  onPasteText?: (text: string) => boolean;
   onRecall?: (entry: string) => string | undefined;
   onHistoryDraftSave?: () => unknown;
   onHistoryDraftRestore?: (state: unknown) => void;
@@ -256,6 +258,14 @@ export class NativeTUIEditor implements TUIEditor {
 
     for (const event of events) {
       if (event.type === 'paste') {
+        // Terminal file drops arrive as a bracketed paste of file paths
+        // (iTerm2 / Ghostty / WezTerm / Kitty default mode all insert the
+        // dropped paths as text). Give the host first claim on the paste so
+        // dropped media becomes attachments instead of raw path text.
+        if (this.onPasteText?.(event.text) === true) {
+          this.pasteBurst.reset();
+          continue;
+        }
         this.onTextPaste?.();
         this.pasteBurst.reset();
         this.applyPromptAwareMutation(() => this.input.handleInput(event), event.text);
@@ -426,6 +436,15 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private handleAppShortcut(data: string): boolean {
+    // Ctrl+V (Alt+V on Windows, where terminals reserve Ctrl+V for their own
+    // paste): paste an image from the OS clipboard. Falls through to a text
+    // paste when the clipboard holds no image so the key never dead-ends.
+    // Restores the binding the legacy editor had before the native rewrite.
+    const pasteMediaKey = process.platform === 'win32' ? Key.alt('v') : Key.ctrl('v');
+    if (matchesKey(data, pasteMediaKey)) {
+      void this.handlePasteMediaKey(data);
+      return true;
+    }
     if (matchesKey(data, Key.ctrl('d'))) {
       if (this.getText().length === 0) {
         this.onCtrlD?.();
@@ -497,6 +516,44 @@ export class NativeTUIEditor implements TUIEditor {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Ctrl+V / Alt+V handler. Pastes a clipboard image when one is available
+   * (the host reads the OS clipboard natively); otherwise pastes clipboard
+   * text so the shortcut still behaves like a paste. Clipboard text also
+   * passes through the drop detector, so a copied file list attaches as
+   * media exactly like a terminal drop.
+   */
+  private async handlePasteMediaKey(raw: string): Promise<void> {
+    const handler = this.onPasteImage;
+    if (handler !== undefined) {
+      try {
+        if ((await handler()) === true) return;
+      } catch {
+        // Fall through to a text paste below.
+      }
+    }
+
+    let text: string | null = null;
+    try {
+      text = await readClipboardText();
+    } catch {
+      text = null;
+    }
+    if (text === null || text.length === 0) return;
+    const pasteText = text;
+
+    if (this.onPasteText?.(pasteText) === true) return;
+
+    this.onTextPaste?.();
+    this.pasteBurst.reset();
+    this.applyPromptAwareMutation(
+      () => this.input.handleInput({ type: 'paste', raw, text: pasteText }),
+      pasteText,
+    );
+    this.options.requestRender?.();
+    void this.requestAutocomplete({ force: this.inputMode === 'bash' });
   }
 
   private handleEmptyPromptNavigation(key: string): boolean {

@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { DOUBLE_ESC_WINDOW_MS } from '#/tui/constant/liora-tui';
 import {
@@ -6,7 +9,7 @@ import {
   nextShiftTabModeTarget,
   type EditorKeyboardHost,
 } from '#/tui/controllers/editor-keyboard';
-import type { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
+import { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
 
 interface Harness {
   readonly host: EditorKeyboardHost;
@@ -28,6 +31,7 @@ function createHarness(
     planMode?: boolean;
     ultraworkMode?: boolean;
     editorText?: string;
+    imageStore?: ImageAttachmentStore;
   } = {},
 ): Harness {
   let editorText = options.editorText ?? '';
@@ -39,6 +43,7 @@ function createHarness(
     setText: (text: string) => {
       editorText = text;
     },
+    insertTextAtCursor: vi.fn(),
     inputMode: 'prompt',
   };
   const openUndoSelector = vi.fn();
@@ -83,7 +88,7 @@ function createHarness(
 
   const controller = new EditorKeyboardController(
     host,
-    undefined as unknown as ImageAttachmentStore,
+    options.imageStore ?? (undefined as unknown as ImageAttachmentStore),
   );
   controller.install();
 
@@ -279,5 +284,93 @@ describe('EditorKeyboardController gated shortcut toasts', () => {
     (handler as () => boolean)();
 
     expect(toastShow).toHaveBeenCalledWith('Background works while a turn is running', 2200);
+  });
+});
+
+describe('EditorKeyboardController dropped media paste', () => {
+  // 1x1 transparent PNG.
+  const PNG_BASE64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+  let dir: string;
+  let pngPath: string;
+  let videoPath: string;
+  let textPath: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'editor-drop-'));
+    pngPath = join(dir, 'shot.png');
+    videoPath = join(dir, 'clip.mp4');
+    textPath = join(dir, 'notes.txt');
+    writeFileSync(pngPath, Buffer.from(PNG_BASE64, 'base64'));
+    writeFileSync(videoPath, 'not really mp4 bytes');
+    writeFileSync(textPath, 'hello');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function createDropHarness(): {
+    store: ImageAttachmentStore;
+    harness: Harness;
+    paste: (text: string) => boolean;
+    insertTextAtCursor: ReturnType<typeof vi.fn>;
+  } {
+    const store = new ImageAttachmentStore();
+    const harness = createHarness({ imageStore: store });
+    const state = harness.host.state as unknown as Record<string, unknown>;
+    state['transcriptContainer'] = { isBatchMounting: false };
+    state['renderer'] = { invalidateFrame: vi.fn() };
+    const onPasteText = harness.editor['onPasteText'];
+    if (typeof onPasteText !== 'function') throw new Error('onPasteText not installed');
+    return {
+      store,
+      harness,
+      paste: onPasteText as (text: string) => boolean,
+      insertTextAtCursor: harness.editor['insertTextAtCursor'] as ReturnType<typeof vi.fn>,
+    };
+  }
+
+  it('attaches a dropped image and inserts its placeholder', () => {
+    const { store, paste, insertTextAtCursor } = createDropHarness();
+
+    expect(paste(`${pngPath}\n`)).toBe(true);
+
+    expect(store.size()).toBe(1);
+    expect(insertTextAtCursor).toHaveBeenCalledWith('[image #1 (1×1)] ');
+  });
+
+  it('attaches a dropped video file', () => {
+    const { store, paste, insertTextAtCursor } = createDropHarness();
+
+    expect(paste(videoPath)).toBe(true);
+
+    expect(store.size()).toBe(1);
+    expect(insertTextAtCursor).toHaveBeenCalledWith('[video #1 clip.mp4] ');
+  });
+
+  it('keeps non-media paths next to media placeholders in a mixed drop', () => {
+    const { paste, insertTextAtCursor } = createDropHarness();
+
+    expect(paste(`${pngPath}\n${textPath}`)).toBe(true);
+
+    expect(insertTextAtCursor).toHaveBeenCalledWith(`[image #1 (1×1)] ${textPath} `);
+  });
+
+  it('declines non-media drops so the paste stays plain text', () => {
+    const { store, paste, insertTextAtCursor } = createDropHarness();
+
+    expect(paste(textPath)).toBe(false);
+
+    expect(store.size()).toBe(0);
+    expect(insertTextAtCursor).not.toHaveBeenCalled();
+  });
+
+  it('declines ordinary pasted prose', () => {
+    const { paste, insertTextAtCursor } = createDropHarness();
+
+    expect(paste('please review the screenshot')).toBe(false);
+    expect(insertTextAtCursor).not.toHaveBeenCalled();
   });
 });
