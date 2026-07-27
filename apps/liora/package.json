@@ -82,7 +82,9 @@
   },
   "dependencies": {
     "cloakbrowser": "0.4.5",
-    "playwright-core": "^1.61.1"
+    "playwright-core": "^1.61.1",
+    "shiki": "^3.23.0",
+    "slice-ansi": "^8.0.0"
   },
   "devDependencies": {
     "@harness-kit/tui-renderer": "workspace:^",

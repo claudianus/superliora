@@ -205,4 +205,43 @@ describe('renderDiffLinesClustered', () => {
     expect(plain).toContain('const a = 1');
     expect(plain).toContain('const a = 2');
   });
+
+  it('tints added and removed rows with distinct truecolor backgrounds', () => {
+    const previous = chalk.level;
+    chalk.level = 3;
+    try {
+      const out = renderDiffLinesClustered('const a = 1;', 'const a = 2;', 'sample.ts', {
+        syntaxHighlight: false,
+      });
+      const backgrounds = new Set(out.join('\n').match(/\u001B\[48;2;[0-9;]+m/g) ?? []);
+      // One tint for the removed row, another for the added row.
+      expect(backgrounds.size).toBeGreaterThanOrEqual(2);
+    } finally {
+      chalk.level = previous;
+    }
+  });
+
+  it('highlights the exact changed words inside paired rows', () => {
+    const previous = chalk.level;
+    chalk.level = 3;
+    try {
+      const out = renderDiffLinesClustered(
+        'const total = 100;',
+        'const total = 250;',
+        'sample.ts',
+        { syntaxHighlight: false },
+      );
+      const joined = out.join('\n');
+      const backgrounds = new Set(joined.match(/\u001B\[48;2;[0-9;]+m/g) ?? []);
+      // Line tints plus stronger word tints on both sides.
+      expect(backgrounds.size).toBeGreaterThanOrEqual(3);
+      // The changed word carries its own background; the unchanged prefix
+      // ("const total") does not.
+      const wordBg = [...backgrounds].find((seq) => joined.includes(`${seq}250`));
+      expect(wordBg).toBeDefined();
+      expect(joined.includes(`${wordBg}const`)).toBe(false);
+    } finally {
+      chalk.level = previous;
+    }
+  });
 });

@@ -12,6 +12,11 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 
+import {
+  __forceShikiFallbackForTest,
+  warmShikiHighlighter,
+} from '#/tui/components/media/shiki-ansi';
+
 import { captureProcessWrite } from '../../../helpers/process';
 
 function stripAnsi(text: string): string {
@@ -49,28 +54,48 @@ describe('code-highlight', () => {
   });
 
   it('uses syntax color tokens from the active TUI theme', () => {
-    chalk.level = 3;
-    currentTheme.setPalette({
-      ...darkColors,
-      syntaxKeyword: '#123456',
-    });
+    // Palette token routing lives in the cli-highlight fallback engine.
+    __forceShikiFallbackForTest(true);
+    try {
+      chalk.level = 3;
+      currentTheme.setPalette({
+        ...darkColors,
+        syntaxKeyword: '#123456',
+      });
 
-    const highlighted = highlightLines('const value = "kimi";', 'typescript').join('\n');
+      const highlighted = highlightLines('const value = "kimi";', 'typescript').join('\n');
 
-    expect(highlighted).toContain('\u001B[38;2;18;52;86m');
+      expect(highlighted).toContain('\u001B[38;2;18;52;86m');
+    } finally {
+      __forceShikiFallbackForTest(false);
+    }
   });
 
   it('can highlight with an explicit palette without changing the active theme', () => {
+    __forceShikiFallbackForTest(true);
+    try {
+      chalk.level = 3;
+      currentTheme.setPalette(darkColors);
+
+      const highlighted = highlightLines('const value = "kimi";', 'typescript', {
+        ...darkColors,
+        syntaxKeyword: '#654321',
+      }).join('\n');
+
+      expect(highlighted).toContain('\u001B[38;2;101;67;33m');
+      expect(currentTheme.palette).toBe(darkColors);
+    } finally {
+      __forceShikiFallbackForTest(false);
+    }
+  });
+
+  it('prefers Shiki TextMate tokenization once warmed up', async () => {
     chalk.level = 3;
-    currentTheme.setPalette(darkColors);
-
-    const highlighted = highlightLines('const value = "kimi";', 'typescript', {
-      ...darkColors,
-      syntaxKeyword: '#654321',
-    }).join('\n');
-
-    expect(highlighted).toContain('\u001B[38;2;101;67;33m');
-    expect(currentTheme.palette).toBe(darkColors);
+    await warmShikiHighlighter();
+    const highlighted = highlightLines('const value = "kimi";', 'typescript').join('\n');
+    // Truecolor foreground sequences over the untouched source text.
+    expect(highlighted).toContain('\u001B[38;2;');
+    expect(highlighted.replace(/\u001B\[[0-9;]*m/g, '')).toContain('const value = "kimi";');
   });
 
   it('windowed highlight only tokenizes the requested range for large files', () => {

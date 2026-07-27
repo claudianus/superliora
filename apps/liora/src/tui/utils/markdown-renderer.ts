@@ -16,9 +16,11 @@
  * Design principles:
  * - Readable at 80 columns
  * - Theme-aware (all colors via callback)
- * - No external dependencies (pure string processing)
+ * - Code blocks syntax-highlighted through the shared media highlighter
  * - Streaming-friendly (can render partial markdown)
  */
+
+import { highlightLines } from '#/tui/components/media/code-highlight';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -265,13 +267,15 @@ export class MarkdownRenderer {
     const headerRight = lang ? dimFg('textMuted', ` ${lang} `) : '';
     lines.push(fg('textMuted', `┌${'─'.repeat(Math.min(width - 4, 50))}┐${headerRight}`));
 
-    // Code lines
+    // Code lines — syntax-highlighted when a language is known; the
+    // highlighter falls back to plain lines for unknown languages.
+    const highlighted = highlightLines(block.content, lang);
     for (let i = 0; i < codeLines.length; i++) {
       const lineNo = codeLineNumbers
         ? dimFg('textMuted', String(i + 1).padStart(3) + ' │ ')
         : fg('textMuted', '│ ');
-      const code = codeLines[i] ?? '';
-      lines.push(`${fg('textMuted', '│')} ${lineNo}${fg('text', code)}`);
+      const code = highlighted[i] ?? '';
+      lines.push(`${fg('textMuted', '│')} ${lineNo}${code}`);
     }
 
     // Footer

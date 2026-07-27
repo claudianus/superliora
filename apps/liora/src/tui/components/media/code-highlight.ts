@@ -17,6 +17,8 @@ import { buildSyntaxHighlightTheme } from '#/tui/theme/syntax-highlight-theme';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme';
 
+import { shikiHighlightLines, shikiReady, warmShikiHighlighter } from './shiki-ansi';
+
 const EXT_LANG_MAP: Record<string, string> = {
   ts: 'typescript',
   tsx: 'typescript',
@@ -159,11 +161,23 @@ export function highlightLines(
   palette?: ColorPalette,
 ): string[] {
   const normalizedLang = lang?.trim().toLowerCase();
-  if (!normalizedLang || !supportsLanguage(normalizedLang)) return code.split('\n');
+  if (!normalizedLang) return code.split('\n');
 
-  const key = `${normalizedLang}\0${paletteCacheKey(palette)}\0${code.length}\0${hashText(code)}`;
+  // Engine tag keeps cli-highlight and Shiki results from colliding in the
+  // same cache generation when the async Shiki singleton comes online.
+  const engine = shikiReady() ? 's' : 'c';
+  const key = `${engine}\0${normalizedLang}\0${paletteCacheKey(palette)}\0${code.length}\0${hashText(code)}`;
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
+
+  // Preferred path: Shiki's TextMate tokenization rendered to ANSI.
+  const shikiLines = shikiHighlightLines(code, normalizedLang, palette);
+  if (shikiLines !== undefined) {
+    cacheSet(key, shikiLines);
+    return shikiLines;
+  }
+
+  if (!supportsLanguage(normalizedLang)) return code.split('\n');
 
   try {
     const lines = highlight(code, {
@@ -517,3 +531,9 @@ export function formatShellCommandPreview(
     return currentTheme.dim(prefix) + line;
   });
 }
+
+
+// Kick the async Shiki warm-up on first import; until it resolves (and for
+// grammars it rejects) highlightLines serves the synchronous cli-highlight
+// fallback, so no render path ever waits on initialization.
+void warmShikiHighlighter();

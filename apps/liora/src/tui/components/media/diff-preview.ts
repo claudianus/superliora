@@ -6,6 +6,7 @@
  */
 
 import chalk from 'chalk';
+import sliceAnsi from 'slice-ansi';
 
 import { projectRendererLineWindow } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
@@ -15,6 +16,14 @@ import { highlightLines, langFromPath } from './code-highlight';
 
 export type DiffLineKind = 'context' | 'add' | 'delete';
 
+/**
+ * Diff styles applied to already-rendered code strings.
+ *
+ * Two tiers: a low-chroma line tint marks added/removed rows at a glance, and
+ * a stronger word background pinpoints the exact changed spans inside paired
+ * rows. Both tiers are alpha-blended against the theme background so they read
+ * as material, not neon.
+ */
 interface DiffStyles {
   add: (s: string) => string;
   del: (s: string) => string;
@@ -22,10 +31,34 @@ interface DiffStyles {
   delBold: (s: string) => string;
   gutter: (s: string) => string;
   meta: (s: string) => string;
+  addLineBg: (s: string) => string;
+  delLineBg: (s: string) => string;
+  addWordBg: (s: string) => string;
+  delWordBg: (s: string) => string;
+}
+
+/** Linear blend of two #RRGGBB colors; `t` is the weight of `b`. */
+function mixHex(a: string, b: string, t: number): string {
+  const parse = (hex: string): [number, number, number] => {
+    const raw = hex.replace('#', '');
+    return [
+      Number.parseInt(raw.slice(0, 2), 16),
+      Number.parseInt(raw.slice(2, 4), 16),
+      Number.parseInt(raw.slice(4, 6), 16),
+    ];
+  };
+  const [ar, ag, ab] = parse(a);
+  const [br, bg, bb] = parse(b);
+  const channel = (x: number, y: number): string =>
+    Math.round(x + (y - x) * t)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${channel(ar, br)}${channel(ag, bg)}${channel(ab, bb)}`;
 }
 
 function makeDiffStyles(): DiffStyles {
   const palette = currentTheme.palette;
+  const canvas = palette.background;
   return {
     add: (s) => chalk.hex(palette.diffAdded)(s),
     del: (s) => chalk.hex(palette.diffRemoved)(s),
@@ -33,7 +66,111 @@ function makeDiffStyles(): DiffStyles {
     delBold: (s) => chalk.bold.hex(palette.diffRemovedStrong)(s),
     gutter: (s) => chalk.hex(palette.diffGutter)(s),
     meta: (s) => chalk.hex(palette.diffMeta)(s),
+    // ~16% tint of the semantic color over the canvas.
+    addLineBg: (s) => chalk.bgHex(mixHex(palette.diffAdded, canvas, 0.84))(s),
+    delLineBg: (s) => chalk.bgHex(mixHex(palette.diffRemoved, canvas, 0.84))(s),
+    // ~45% tint for the exact changed words inside a paired row.
+    addWordBg: (s) => chalk.bgHex(mixHex(palette.diffAddedStrong, canvas, 0.55))(s),
+    delWordBg: (s) => chalk.bgHex(mixHex(palette.diffRemovedStrong, canvas, 0.55))(s),
   };
+}
+
+/** One run of tokens inside a changed line; `changed` marks the exact edit. */
+interface WordSpan {
+  readonly text: string;
+  readonly changed: boolean;
+}
+
+/** Tokenize into word runs, whitespace runs, and single punctuation symbols. */
+function tokenizeWords(line: string): string[] {
+  return line.match(/[A-Za-z0-9_]+|\s+|[^\sA-Za-z0-9_]/gu) ?? [];
+}
+
+/**
+ * Word-level spans for a paired delete/add line. Returns undefined when the
+ * pair is too dissimilar (word highlighting would just add noise) or too
+ * large for the quadratic token LCS.
+ */
+function computeWordSpans(
+  oldLine: string,
+  newLine: string,
+): { del: WordSpan[]; add: WordSpan[] } | undefined {
+  // Word slicing assumes one column per unit; bail on wide characters.
+  if (/[^\u0000-\u00ff]/u.test(oldLine) || /[^\u0000-\u00ff]/u.test(newLine)) return undefined;
+  const a = tokenizeWords(oldLine);
+  const b = tokenizeWords(newLine);
+  if (a.length === 0 || b.length === 0) return undefined;
+  if (a.length * b.length > 4096) return undefined;
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      dp[i]![j] =
+        a[i] === b[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+    }
+  }
+  const common = dp[0]![0]!;
+  if (common / Math.max(a.length, b.length) < 0.4) return undefined;
+  const del: WordSpan[] = [];
+  const add: WordSpan[] = [];
+  const push = (target: WordSpan[], text: string, changed: boolean): void => {
+    const last = target[target.length - 1];
+    if (last !== undefined && last.changed === changed) {
+      target[target.length - 1] = { text: last.text + text, changed };
+    } else {
+      target.push({ text, changed });
+    }
+  };
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      push(del, a[i]!, false);
+      push(add, b[j]!, false);
+      i++;
+      j++;
+    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
+      push(del, a[i]!, true);
+      i++;
+    } else {
+      push(add, b[j]!, true);
+      j++;
+    }
+  }
+  while (i < a.length) push(del, a[i++]!, true);
+  while (j < b.length) push(add, b[j++]!, true);
+  const hasChange = del.some((span) => span.changed) || add.some((span) => span.changed);
+  return hasChange ? { del, add } : undefined;
+}
+
+/**
+ * Pair consecutive delete/add runs so changed rows can show word-level
+ * highlights. Only rows with a partner get spans; pure inserts and removals
+ * keep the plain line tint.
+ */
+function pairWordSpans(diffLines: readonly DiffLine[]): Map<DiffLine, WordSpan[]> {
+  const spans = new Map<DiffLine, WordSpan[]>();
+  let i = 0;
+  while (i < diffLines.length) {
+    if (diffLines[i]!.kind !== 'delete') {
+      i++;
+      continue;
+    }
+    let delEnd = i;
+    while (delEnd < diffLines.length && diffLines[delEnd]!.kind === 'delete') delEnd++;
+    let addEnd = delEnd;
+    while (addEnd < diffLines.length && diffLines[addEnd]!.kind === 'add') addEnd++;
+    const pairCount = Math.min(delEnd - i, addEnd - delEnd);
+    for (let k = 0; k < pairCount; k++) {
+      const result = computeWordSpans(diffLines[i + k]!.code, diffLines[delEnd + k]!.code);
+      if (result === undefined) continue;
+      spans.set(diffLines[i + k]!, result.del);
+      spans.set(diffLines[delEnd + k]!, result.add);
+    }
+    i = addEnd > delEnd ? addEnd : delEnd;
+  }
+  return spans;
 }
 
 export interface DiffLine {
@@ -138,8 +275,9 @@ export function renderDiffLines(
   });
 
   const syntaxByCode = buildSyntaxLookup(changedLines, path, true);
+  const wordSpans = pairWordSpans(preview.lines);
   for (const line of preview.lines) {
-    output.push(formatDiffRow(line, s, syntaxByCode));
+    output.push(formatDiffRow(line, s, syntaxByCode, wordSpans.get(line)));
   }
 
   const hidden = preview.hiddenLineCount;
@@ -268,18 +406,50 @@ function formatDiffRow(
   line: DiffLine,
   s: DiffStyles,
   syntaxByCode?: ReadonlyMap<string, string>,
+  wordSpans?: WordSpan[],
 ): string {
   const gutter = s.gutter(String(line.lineNum).padStart(4) + ' ');
-  const code =
-    syntaxByCode !== undefined ? (syntaxByCode.get(line.code) ?? line.code) : line.code;
+  if (line.kind === 'context') {
+    const code =
+      syntaxByCode !== undefined ? (syntaxByCode.get(line.code) ?? line.code) : line.code;
+    return gutter + '  ' + code;
+  }
+  const code = renderCodeWithSpans(line, syntaxByCode, wordSpans, s);
+  // The marker shares the line tint so the whole row reads as one surface.
   if (line.kind === 'add') {
-    // Marker colored as add; code keeps syntax colors when available.
-    return gutter + s.add('+ ') + code;
+    return gutter + s.addLineBg(s.add('+ ') + code);
   }
-  if (line.kind === 'delete') {
-    return gutter + s.del('- ') + code;
+  return gutter + s.delLineBg(s.del('- ') + code);
+}
+
+/**
+ * Render a changed line's code, layering word-level backgrounds over syntax
+ * highlighting. slice-ansi cuts by visible column so escape sequences in the
+ * highlighted string survive the slicing.
+ */
+function renderCodeWithSpans(
+  line: DiffLine,
+  syntaxByCode: ReadonlyMap<string, string> | undefined,
+  wordSpans: WordSpan[] | undefined,
+  s: DiffStyles,
+): string {
+  const highlighted = syntaxByCode?.get(line.code);
+  if (wordSpans === undefined) {
+    return highlighted ?? line.code;
   }
-  return gutter + '  ' + code;
+  const wordBg = line.kind === 'add' ? s.addWordBg : s.delWordBg;
+  if (highlighted === undefined) {
+    return wordSpans.map((span) => (span.changed ? wordBg(span.text) : span.text)).join('');
+  }
+  let out = '';
+  let start = 0;
+  for (const span of wordSpans) {
+    const end = start + span.text.length;
+    const slice = sliceAnsi(highlighted, start, end);
+    out += span.changed ? wordBg(slice) : slice;
+    start = end;
+  }
+  return out;
 }
 
 /**
@@ -322,6 +492,7 @@ export function renderClusteredDiffBody(
     syntaxHighlight,
     opts.palette,
   );
+  const wordSpans = pairWordSpans(diffLines);
   const { clusters, changedCount, addedCount, removedCount } = buildClusters(
     diffLines,
     contextLines,
@@ -350,7 +521,7 @@ export function renderClusteredDiffBody(
     }
     for (let i = cluster.start; i <= cluster.end; i++) {
       const line = diffLines[i]!;
-      bodyRows.push({ text: formatDiffRow(line, s, syntaxByCode), line });
+      bodyRows.push({ text: formatDiffRow(line, s, syntaxByCode, wordSpans.get(line)), line });
     }
     prevEnd = cluster.end;
   }
