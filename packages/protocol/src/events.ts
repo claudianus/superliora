@@ -799,6 +799,51 @@ export interface SubagentStalledEvent {
 }
 
 /**
+ * Structured per-tool detail for `subagent.tool_call` (Phase 1-B realtime
+ * overhaul). Computed from the FULL child args at the emitter and attached
+ * for the common file/shell tools only, so clients can render the same
+ * numeric chips the main agent's tool stream shows without shipping full
+ * args. Unknown tools omit detail entirely.
+ */
+export type SubagentToolDetail =
+  | SubagentToolEditDetail
+  | SubagentToolWriteDetail
+  | SubagentToolReadDetail
+  | SubagentToolBashDetail
+  | SubagentToolSearchDetail;
+
+export interface SubagentToolEditDetail {
+  readonly kind: 'edit';
+  readonly path: string;
+  readonly addedLines: number;
+  readonly removedLines: number;
+}
+
+export interface SubagentToolWriteDetail {
+  readonly kind: 'write';
+  readonly path: string;
+  readonly lines: number;
+  readonly bytes: number;
+}
+
+export interface SubagentToolReadDetail {
+  readonly kind: 'read';
+  readonly path: string;
+}
+
+export interface SubagentToolBashDetail {
+  readonly kind: 'bash';
+  /** Command flattened to a single line and truncated at the emitter (~120 chars). */
+  readonly command: string;
+}
+
+export interface SubagentToolSearchDetail {
+  /** Grep / Glob share one variant; the event `name` tells them apart. */
+  readonly kind: 'search';
+  readonly pattern: string;
+}
+
+/**
  * Live tool-call telemetry for a running subagent (Phase 1-A realtime
  * overhaul). Emitted on the PARENT agent when a child tool call starts, so
  * clients can render a per-subagent live feed without routing every raw
@@ -817,6 +862,8 @@ export interface SubagentToolCallEvent {
   readonly name: string;
   /** Single-line args preview, truncated at the emitter (~400 chars). */
   readonly argsPreview?: string;
+  /** Structured chip detail for common tools (Phase 1-B); absent otherwise. */
+  readonly detail?: SubagentToolDetail;
 }
 
 /**
@@ -1806,6 +1853,24 @@ export const subagentStalledEventSchema = z.object({
   toolCount: z.number(),
 }) satisfies z.ZodType<SubagentStalledEvent>;
 
+export const subagentToolDetailSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('edit'),
+    path: z.string(),
+    addedLines: z.number(),
+    removedLines: z.number(),
+  }),
+  z.object({
+    kind: z.literal('write'),
+    path: z.string(),
+    lines: z.number(),
+    bytes: z.number(),
+  }),
+  z.object({ kind: z.literal('read'), path: z.string() }),
+  z.object({ kind: z.literal('bash'), command: z.string() }),
+  z.object({ kind: z.literal('search'), pattern: z.string() }),
+]) satisfies z.ZodType<SubagentToolDetail>;
+
 export const subagentToolCallEventSchema = z.object({
   type: z.literal('subagent.tool_call'),
   subagentId: z.string(),
@@ -1815,6 +1880,7 @@ export const subagentToolCallEventSchema = z.object({
   toolCallId: z.string(),
   name: z.string(),
   argsPreview: z.string().optional(),
+  detail: subagentToolDetailSchema.optional(),
 }) satisfies z.ZodType<SubagentToolCallEvent>;
 
 export const subagentToolResultEventSchema = z.object({

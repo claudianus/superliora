@@ -370,6 +370,44 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).not.toContain('implement phase started');
   });
 
+  it('appends structured tool activity to the owning member lane', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+        focus: 'build',
+      },
+    ]);
+    component.markInputComplete();
+    component.registerSubagent({ agentId: 'agent-1', description: 'task one' });
+
+    component.appendMemberToolFeed({ agentId: 'agent-1', body: 'Edit src/a.ts +3 -1' });
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: '✗ Bash pnpm test · exit 1',
+      isError: true,
+    });
+    // Unknown members do not create feed noise.
+    component.appendMemberToolFeed({ agentId: 'agent-ghost', body: 'Read src/ghost.ts' });
+
+    const output = renderText(component, 120);
+    const feedSection = output.split('feed')[1]?.split('╰')[0] ?? '';
+    expect(feedSection).toContain('001: Edit src/a.ts +3 -1');
+    expect(feedSection).toContain('001: ✗ Bash pnpm test · exit 1');
+    expect(feedSection).not.toContain('ghost');
+  });
+
+  it('ignores member tool feed entries outside UltraSwarm', () => {
+    const component = createComponent();
+    registerSubagents(component, 1);
+    startSubagents(component, 1);
+    component.appendMemberToolFeed({ agentId: 'agent-1', body: 'Edit src/a.ts +3 -1' });
+    expect(renderText(component, 120)).not.toContain('Edit src/a.ts +3 -1');
+  });
+
   it('collapses consecutive feed messages from the same thread', () => {
     const component = createComponent({ title: 'UltraSwarm' });
     component.applyUltraSwarmTeam([

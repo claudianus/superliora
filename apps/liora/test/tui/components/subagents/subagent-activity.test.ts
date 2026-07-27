@@ -1,7 +1,10 @@
 import { visibleWidth } from '#/tui/renderer';
 import { describe, expect, it } from 'vitest';
 
-import { SubagentActivityComponent } from '#/tui/components/subagents/subagent-activity';
+import {
+  SubagentActivityComponent,
+  describeSubagentToolFeedBody,
+} from '#/tui/components/subagents/subagent-activity';
 
 // Fixed clock keeps settle-flash / pulse assertions deterministic; the
 // component reads time through the injectable `now` option. Renders happen
@@ -150,5 +153,119 @@ describe('SubagentActivityComponent', () => {
         expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
     }
+  });
+
+  it('renders structured detail targets and chips for common tools', () => {
+    const component = createComponent();
+    component.recordToolCall({
+      subagentId: 'agent-0',
+      subagentName: 'coder',
+      toolCallId: 'call-edit',
+      name: 'Edit',
+      detail: { kind: 'edit', path: 'src/a.ts', addedLines: 3, removedLines: 1 },
+    });
+    component.recordToolCall({
+      subagentId: 'agent-0',
+      toolCallId: 'call-write',
+      name: 'Write',
+      detail: { kind: 'write', path: 'src/b.ts', lines: 12, bytes: 340 },
+    });
+    component.recordToolCall({
+      subagentId: 'agent-1',
+      subagentName: 'explore',
+      toolCallId: 'call-bash',
+      name: 'Bash',
+      detail: { kind: 'bash', command: 'pnpm test' },
+    });
+    component.recordToolCall({
+      subagentId: 'agent-1',
+      toolCallId: 'call-grep',
+      name: 'Grep',
+      detail: { kind: 'search', pattern: 'foo\\d+' },
+    });
+    component.recordToolCall({
+      subagentId: 'agent-1',
+      toolCallId: 'call-read',
+      name: 'Read',
+      detail: { kind: 'read', path: 'src/c.ts' },
+    });
+
+    const lines = plainLines(component);
+    expect(lines.some((line) => line.includes('▸ Edit src/a.ts +3 -1'))).toBe(true);
+    expect(lines.some((line) => line.includes('▸ Write src/b.ts 12 lines'))).toBe(true);
+    expect(lines.some((line) => line.includes('▸ Bash pnpm test'))).toBe(true);
+    expect(lines.some((line) => line.includes('▸ Grep foo\\d+'))).toBe(true);
+    expect(lines.some((line) => line.includes('▸ Read src/c.ts'))).toBe(true);
+    // Detail replaces the raw args preview on the same row.
+    expect(lines.some((line) => line.includes('{'))).toBe(false);
+  });
+
+  it('keeps chips on settled rows and falls back to args preview without detail', () => {
+    const component = createComponent();
+    component.recordToolCall({
+      subagentId: 'agent-0',
+      subagentName: 'coder',
+      toolCallId: 'call-1',
+      name: 'Edit',
+      detail: { kind: 'edit', path: 'src/a.ts', addedLines: 2, removedLines: 0 },
+    });
+    component.recordToolCall({
+      subagentId: 'agent-0',
+      toolCallId: 'call-2',
+      name: 'FetchURL',
+      argsPreview: 'https://example.com',
+    });
+    component.recordToolResult({ subagentId: 'agent-0', toolCallId: 'call-1' });
+    component.recordToolResult({ subagentId: 'agent-0', toolCallId: 'call-2', isError: true });
+
+    const lines = plainLines(component);
+    expect(lines.some((line) => line.includes('✓ Edit src/a.ts +2'))).toBe(true);
+    expect(lines.some((line) => line.includes('✗ FetchURL https://example.com'))).toBe(true);
+  });
+
+  it('omits the edit chip when nothing changed', () => {
+    const component = createComponent();
+    component.recordToolCall({
+      subagentId: 'agent-0',
+      subagentName: 'coder',
+      toolCallId: 'call-1',
+      name: 'Edit',
+      detail: { kind: 'edit', path: 'src/a.ts', addedLines: 0, removedLines: 0 },
+    });
+
+    const lines = plainLines(component);
+    expect(lines.some((line) => line.includes('▸ Edit src/a.ts'))).toBe(true);
+    expect(lines.some((line) => line.includes('+0'))).toBe(false);
+  });
+});
+
+describe('describeSubagentToolFeedBody', () => {
+  it('composes name, target, and chip into one compact line', () => {
+    expect(
+      describeSubagentToolFeedBody(
+        'Edit',
+        { kind: 'edit', path: 'src/a.ts', addedLines: 3, removedLines: 1 },
+        undefined,
+      ),
+    ).toBe('Edit src/a.ts +3 -1');
+    expect(
+      describeSubagentToolFeedBody('Write', { kind: 'write', path: 'src/b.ts', lines: 1, bytes: 2 }, undefined),
+    ).toBe('Write src/b.ts 1 line');
+    expect(
+      describeSubagentToolFeedBody('Read', { kind: 'read', path: 'src/c.ts' }, undefined),
+    ).toBe('Read src/c.ts');
+    expect(
+      describeSubagentToolFeedBody('Bash', { kind: 'bash', command: 'pnpm test' }, undefined),
+    ).toBe('Bash pnpm test');
+    expect(
+      describeSubagentToolFeedBody('Grep', { kind: 'search', pattern: 'foo.*' }, undefined),
+    ).toBe('Grep foo.*');
+  });
+
+  it('falls back to the args preview and bare name', () => {
+    expect(describeSubagentToolFeedBody('FetchURL', undefined, '{"url":"x"}')).toBe(
+      'FetchURL {"url":"x"}',
+    );
+    expect(describeSubagentToolFeedBody('Tool', undefined, undefined)).toBe('Tool');
   });
 });

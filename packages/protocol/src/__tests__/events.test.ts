@@ -668,4 +668,49 @@ describe('subagent tool streaming event schemas', () => {
     expect(parsed.agentId).toBe('main');
     expect(parsed.sessionId).toBe('session-0');
   });
+
+  it('parses every subagent.tool_call detail variant and keeps detail optional', () => {
+    const base = {
+      type: 'subagent.tool_call',
+      subagentId: 'agent-0',
+      toolCallId: 'call-1',
+      name: 'Edit',
+    } as const;
+    const details = [
+      { kind: 'edit', path: 'src/a.ts', addedLines: 3, removedLines: 1 },
+      { kind: 'write', path: 'src/b.ts', lines: 12, bytes: 340 },
+      { kind: 'read', path: 'src/c.ts' },
+      { kind: 'bash', command: 'pnpm test' },
+      { kind: 'search', pattern: 'foo.*' },
+    ] as const;
+    for (const detail of details) {
+      const event = { ...base, detail };
+      expect(subagentToolCallEventSchema.parse(event)).toEqual(event);
+      expect(agentEventSchema.parse(event)).toEqual(event);
+    }
+    // 1-A payloads without detail stay valid.
+    expect(subagentToolCallEventSchema.parse(base)).toEqual(base);
+  });
+
+  it('rejects malformed subagent.tool_call detail payloads', () => {
+    const base = {
+      type: 'subagent.tool_call',
+      subagentId: 'agent-0',
+      toolCallId: 'call-1',
+      name: 'Edit',
+    } as const;
+    // Unknown discriminator.
+    expect(
+      subagentToolCallEventSchema.safeParse({ ...base, detail: { kind: 'fetch', url: 'x' } })
+        .success,
+    ).toBe(false);
+    // Known discriminator with missing fields.
+    expect(
+      subagentToolCallEventSchema.safeParse({ ...base, detail: { kind: 'edit', path: 'src/a.ts' } })
+        .success,
+    ).toBe(false);
+    expect(
+      subagentToolCallEventSchema.safeParse({ ...base, detail: { kind: 'bash' } }).success,
+    ).toBe(false);
+  });
 });

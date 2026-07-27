@@ -1,6 +1,8 @@
 import { truncateToWidth, type Component } from '#/tui/renderer';
+import type { Event } from '@superliora/sdk';
 
 import { FAILURE_MARK, STATUS_BULLET, SUCCESS_MARK } from '#/tui/constant/symbols';
+import { formatEditChip, formatWriteChip } from '#/tui/components/messages/tool-renderers/chip';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
@@ -9,6 +11,11 @@ import {
   renderSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
+
+type SubagentToolCallEventPayload = Extract<Event, { type: 'subagent.tool_call' }>;
+
+/** Structured chip detail attached to `subagent.tool_call` (Phase 1-B). */
+export type SubagentToolDetail = NonNullable<SubagentToolCallEventPayload['detail']>;
 
 /** Tool entries rendered per agent — the live "last N calls" feed. */
 const MAX_VISIBLE_TOOL_ENTRIES = 3;
@@ -25,6 +32,7 @@ export interface SubagentToolCallInput {
   readonly toolCallId: string;
   readonly name: string;
   readonly argsPreview?: string;
+  readonly detail?: SubagentToolDetail;
 }
 
 export interface SubagentToolResultInput {
@@ -38,6 +46,7 @@ interface ToolFeedEntry {
   readonly toolCallId: string;
   name: string;
   argsPreview: string | undefined;
+  detail: SubagentToolDetail | undefined;
   status: 'running' | 'ok' | 'error';
   settledAtMs: number | undefined;
 }
@@ -79,6 +88,7 @@ export class SubagentActivityComponent implements Component {
     if (existing !== undefined) {
       existing.name = input.name;
       if (input.argsPreview !== undefined) existing.argsPreview = input.argsPreview;
+      if (input.detail !== undefined) existing.detail = input.detail;
       existing.status = 'running';
       existing.settledAtMs = undefined;
     } else {
@@ -86,6 +96,7 @@ export class SubagentActivityComponent implements Component {
         toolCallId: input.toolCallId,
         name: input.name,
         argsPreview: input.argsPreview,
+        detail: input.detail,
         status: 'running',
         settledAtMs: undefined,
       });
@@ -111,6 +122,7 @@ export class SubagentActivityComponent implements Component {
         toolCallId: input.toolCallId,
         name: input.name ?? 'tool',
         argsPreview: undefined,
+        detail: undefined,
         status,
         settledAtMs,
       });
@@ -226,27 +238,38 @@ export class SubagentActivityComponent implements Component {
     appearance: ReturnType<typeof getActiveAppearancePreferences>,
   ): string {
     const indent = '    ';
+    // Structured detail (Phase 1-B) wins over the raw args preview: a compact
+    // `target` (path / command / pattern) plus a numeric chip reusing the main
+    // agent's header formatters.
+    const { target, chip } = subagentToolDetailParts(entry.detail);
+    const targetText = target ?? entry.argsPreview;
     const args =
-      entry.argsPreview !== undefined && entry.argsPreview.length > 0
-        ? currentTheme.fg('textDim', ` ${entry.argsPreview}`)
+      targetText !== undefined && targetText.length > 0
+        ? currentTheme.fg('textDim', ` ${targetText}`)
         : '';
+    const chipSuffix =
+      chip !== undefined && chip.length > 0 ? currentTheme.dim(` ${chip}`) : '';
     if (entry.status === 'running') {
       const mark =
         animated && agentActive
           ? renderPulseText('▸ ', `subagent-tool:${entry.toolCallId}`, 'primary', appearance)
           : currentTheme.fg(agentActive ? 'primary' : 'textDim', '▸ ');
-      return indent + mark + currentTheme.fg('text', entry.name) + args;
+      return indent + mark + currentTheme.fg('text', entry.name) + args + chipSuffix;
     }
     if (entry.status === 'error') {
       return (
         indent +
         currentTheme.fg('error', '✗ ') +
         currentTheme.fg('error', entry.name) +
-        args
+        args +
+        chipSuffix
       );
     }
     const okMark = currentTheme.fg('success', '✓ ');
-    const body = entry.name + (entry.argsPreview !== undefined ? ` ${entry.argsPreview}` : '');
+    const body =
+      entry.name +
+      (targetText !== undefined && targetText.length > 0 ? ` ${targetText}` : '') +
+      (chip !== undefined && chip.length > 0 ? ` ${chip}` : '');
     const recent =
       entry.settledAtMs !== undefined && this.now() - entry.settledAtMs < SETTLE_FLASH_RECENT_MS;
     if (animated && recent && entry.settledAtMs !== undefined) {
@@ -256,10 +279,54 @@ export class SubagentActivityComponent implements Component {
         renderSettleFlash(body, `subagent-settle:${entry.toolCallId}`, entry.settledAtMs, appearance)
       );
     }
-    return indent + okMark + currentTheme.fg('text', entry.name) + args;
+    return indent + okMark + currentTheme.fg('text', entry.name) + args + chipSuffix;
   }
 
   private now(): number {
     return this.options.now?.() ?? appearanceAnimationNow();
   }
+}
+
+/**
+ * Plain rendering parts for a structured tool detail (Phase 1-B). `target` is
+ * the compact object of the call (path / command / pattern); `chip` reuses
+ * the main agent's header formatters so both streams show identical stats.
+ */
+export function subagentToolDetailParts(detail: SubagentToolDetail | undefined): {
+  target: string | undefined;
+  chip: string | undefined;
+} {
+  if (detail === undefined) return { target: undefined, chip: undefined };
+  switch (detail.kind) {
+    case 'edit': {
+      const chip = formatEditChip({ added: detail.addedLines, removed: detail.removedLines });
+      return { target: detail.path, chip: chip.length > 0 ? chip : undefined };
+    }
+    case 'write':
+      return { target: detail.path, chip: formatWriteChip({ lines: detail.lines }) };
+    case 'read':
+      return { target: detail.path, chip: undefined };
+    case 'bash':
+      return { target: detail.command, chip: undefined };
+    case 'search':
+      return { target: detail.pattern, chip: undefined };
+  }
+}
+
+/**
+ * Compact single-line feed body for surfaces that render plain text (e.g.
+ * the UltraSwarm ops feed): `Edit src/a.ts +3 -1`, `Bash pnpm test`. Falls
+ * back to the raw args preview when no structured detail is present.
+ */
+export function describeSubagentToolFeedBody(
+  name: string,
+  detail: SubagentToolDetail | undefined,
+  argsPreview: string | undefined,
+): string {
+  const { target, chip } = subagentToolDetailParts(detail);
+  const suffix = target ?? argsPreview;
+  const parts = [name];
+  if (suffix !== undefined && suffix.length > 0) parts.push(suffix);
+  if (chip !== undefined && chip.length > 0) parts.push(chip);
+  return parts.join(' ');
 }

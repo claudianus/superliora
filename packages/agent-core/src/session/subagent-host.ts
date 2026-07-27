@@ -8,7 +8,7 @@ import {
 } from '@superliora/kosong';
 
 import type { Agent } from '../agent';
-import type { AgentEvent } from '@superliora/protocol';
+import type { AgentEvent, SubagentToolDetail } from '@superliora/protocol';
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
@@ -126,6 +126,10 @@ const CHECKPOINT_TOOL_DELTA = 10;
 const SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH = 400;
 /** Result summary cap for `subagent.tool_result` payloads (Phase 1-A). */
 const SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH = 500;
+/** Bash command cap for structured `subagent.tool_call` detail (Phase 1-B). */
+const SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH = 120;
+/** LCS line-diff bound for Edit detail; larger edits fall back to raw counts. */
+const SUBAGENT_EDIT_DIFF_LINE_CAP = 300;
 /** Finishing mode starts when this much budget remains (T4-5). */
 const SUBAGENT_FINISHING_WINDOW_MS = 5 * 60 * 1000;
 const SUBAGENT_FINISHING_REMINDER = [
@@ -955,6 +959,9 @@ export class SessionSubagentHost {
       originalEmitEvent(event);
       if (event.type === 'tool.call.started') {
         toolNames.set(event.toolCallId, event.name);
+        // Structured chip detail (Phase 1-B) is computed from the FULL child
+        // args before the preview truncation below.
+        const detail = describeSubagentToolDetail(event.name, event.args);
         parent.emitEvent({
           type: 'subagent.tool_call',
           subagentId: childId,
@@ -964,6 +971,7 @@ export class SessionSubagentHost {
           toolCallId: event.toolCallId,
           name: event.name,
           argsPreview: previewSubagentToolArgs(event.args),
+          ...(detail !== undefined ? { detail } : {}),
         });
         return;
       }
@@ -1425,4 +1433,103 @@ function previewSubagentToolResult(output: unknown): string | undefined {
     stringifyToolPayloadPreview(output),
     SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH,
   );
+}
+
+/**
+ * Structured chip detail for the common child tools (Phase 1-B realtime
+ * overhaul). Computed from the FULL child args before preview truncation so
+ * clients can render the same numeric chips the main agent's tool stream
+ * shows. Unknown tools and missing/invalid args yield `undefined`, keeping
+ * the `subagent.tool_call` payload strictly additive.
+ */
+export function describeSubagentToolDetail(
+  name: string,
+  args: unknown,
+): SubagentToolDetail | undefined {
+  if (typeof args !== 'object' || args === null) return undefined;
+  const record = args as Record<string, unknown>;
+  switch (name) {
+    case 'Edit': {
+      const path = toolDetailStringArg(record, 'path');
+      if (path === undefined) return undefined;
+      const oldString = typeof record['old_string'] === 'string' ? record['old_string'] : '';
+      const newString = typeof record['new_string'] === 'string' ? record['new_string'] : '';
+      const { added, removed } = countEditLineChanges(oldString, newString);
+      return { kind: 'edit', path, addedLines: added, removedLines: removed };
+    }
+    case 'Write': {
+      const path = toolDetailStringArg(record, 'path');
+      const content = typeof record['content'] === 'string' ? record['content'] : undefined;
+      if (path === undefined || content === undefined) return undefined;
+      const normalized = content.endsWith('\n') ? content.slice(0, -1) : content;
+      const lines = normalized.length > 0 ? normalized.split('\n').length : 0;
+      return { kind: 'write', path, lines, bytes: Buffer.byteLength(content, 'utf8') };
+    }
+    case 'Read': {
+      const path = toolDetailStringArg(record, 'path');
+      return path === undefined ? undefined : { kind: 'read', path };
+    }
+    case 'Bash': {
+      const command = toolDetailStringArg(record, 'command');
+      if (command === undefined) return undefined;
+      const flat = command.replace(/\s+/g, ' ').trim();
+      if (flat.length === 0) return undefined;
+      return {
+        kind: 'bash',
+        command: truncateToolPayloadPreview(flat, SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH) ?? flat,
+      };
+    }
+    case 'Grep':
+    case 'Glob': {
+      const pattern = toolDetailStringArg(record, 'pattern');
+      return pattern === undefined ? undefined : { kind: 'search', pattern };
+    }
+    default:
+      return undefined;
+  }
+}
+
+function toolDetailStringArg(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Added / removed line counts between Edit `old_string` and `new_string`.
+ * Uses an LCS line diff (same approach as the TUI chip) bounded by
+ * {@link SUBAGENT_EDIT_DIFF_LINE_CAP}; larger edits fall back to raw line
+ * counts so the emitter never runs an unbounded matrix.
+ */
+function countEditLineChanges(
+  oldString: string,
+  newString: string,
+): { added: number; removed: number } {
+  if (oldString.length === 0 && newString.length === 0) return { added: 0, removed: 0 };
+  // Empty side counts as zero lines (matches the TUI diff chip semantics).
+  const oldLines = oldString.length > 0 ? oldString.split('\n') : [];
+  const newLines = newString.length > 0 ? newString.split('\n') : [];
+  if (
+    oldLines.length > SUBAGENT_EDIT_DIFF_LINE_CAP ||
+    newLines.length > SUBAGENT_EDIT_DIFF_LINE_CAP
+  ) {
+    return { added: newLines.length, removed: oldLines.length };
+  }
+  const oldCount = oldLines.length;
+  const newCount = newLines.length;
+  const dp: number[][] = Array.from({ length: oldCount + 1 }, () =>
+    new Array<number>(newCount + 1).fill(0),
+  );
+  for (let i = 1; i <= oldCount; i++) {
+    for (let j = 1; j <= newCount; j++) {
+      dp[i]![j] =
+        oldLines[i - 1] === newLines[j - 1]
+          ? dp[i - 1]![j - 1]! + 1
+          : Math.max(dp[i - 1]![j]!, dp[i]![j - 1]!);
+    }
+  }
+  const common = dp[oldCount]![newCount]!;
+  return { added: newCount - common, removed: oldCount - common };
 }

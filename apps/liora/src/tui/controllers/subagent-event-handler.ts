@@ -12,7 +12,10 @@ import {
   swarmProgressTitleForToolName,
   type UltraSwarmMemberMetadata,
 } from '../components/messages/agent-swarm-progress';
-import { SubagentActivityComponent } from '../components/subagents/subagent-activity';
+import {
+  SubagentActivityComponent,
+  describeSubagentToolFeedBody,
+} from '../components/subagents/subagent-activity';
 import { MAIN_AGENT_ID } from '../constant/liora-tui';
 import type {
   BackgroundAgentMetadata,
@@ -186,8 +189,10 @@ export class SubAgentEventHandler {
   /**
    * Live subagent tool feed (Phase 1-A): routes the parent-emitted
    * `subagent.tool_call` / `subagent.tool_result` events into the background
-   * subagent activity panel. Foreground and swarm-orchestrated subagents are
-   * skipped — their existing surfaces already stream raw child tool events.
+   * subagent activity panel. Swarm-orchestrated subagents are routed into
+   * their swarm lane's ops feed instead (Phase 1-B). Foreground subagents
+   * are skipped — their existing surfaces already stream raw child tool
+   * events.
    */
   handleSubagentToolActivity(
     event: Extract<Event, { type: 'subagent.tool_call' | 'subagent.tool_result' }>,
@@ -197,6 +202,7 @@ export class SubAgentEventHandler {
       info !== undefined &&
       this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
     ) {
+      this.routeToolActivityToSwarmProgress(event, info.parentToolCallId);
       return;
     }
     if (event.type === 'subagent.tool_call') {
@@ -207,6 +213,7 @@ export class SubAgentEventHandler {
         toolCallId: event.toolCallId,
         name: event.name,
         argsPreview: event.argsPreview,
+        detail: event.detail,
       });
       return;
     }
@@ -218,6 +225,41 @@ export class SubAgentEventHandler {
       name: event.name,
       isError: event.isError,
     });
+  }
+
+  /**
+   * Swarm lane tool activity (Phase 1-B): mirrors structured tool calls into
+   * the owning member's ops feed so each parallel lane shows live work with
+   * the same chip detail as the background panel. Successful results are
+   * skipped — the member grid already pulses on them — while failures land
+   * as `fail` feed entries.
+   */
+  private routeToolActivityToSwarmProgress(
+    event: Extract<Event, { type: 'subagent.tool_call' | 'subagent.tool_result' }>,
+    parentToolCallId: string,
+  ): void {
+    const progress = this.agentSwarmProgress.get(parentToolCallId);
+    if (progress === undefined) return;
+    if (event.type === 'subagent.tool_call') {
+      progress.appendMemberToolFeed({
+        agentId: event.subagentId,
+        body: describeSubagentToolFeedBody(event.name, event.detail, event.argsPreview),
+      });
+      this.requestRender();
+      return;
+    }
+    if (event.isError !== true) return;
+    const preview =
+      event.resultPreview === undefined || event.resultPreview.length === 0
+        ? ''
+        // Bound the failure note; the emitter already caps at ~500 chars.
+        : ` · ${event.resultPreview.slice(0, 120)}`;
+    progress.appendMemberToolFeed({
+      agentId: event.subagentId,
+      body: `✗ ${event.name ?? 'tool'}${preview}`,
+      isError: true,
+    });
+    this.requestRender();
   }
 
   private ensureSubagentActivityPanel(): SubagentActivityComponent {

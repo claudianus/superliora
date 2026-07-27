@@ -66,6 +66,9 @@ const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>([
   // War-room dock / orchestrator signals (pause, restaff).
   'stop',
   'staff',
+  // Live per-member tool activity (Phase 1-B realtime overhaul).
+  'tool',
+  'fail',
 ]);
 const SWARM_FEED_BODY_MIN_WIDTH = 24;
 const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
@@ -863,6 +866,31 @@ export class AgentSwarmProgressComponent implements Component {
     }
     this.promoteToRunning(member);
     this.startAnimationIfNeeded();
+  }
+
+  /**
+   * Live tool activity in the ops feed (Phase 1-B realtime overhaul):
+   * appends a compact `Name target chip` line attributed to the member that
+   * owns `agentId`, so each parallel lane shows the same structured tool
+   * detail the background activity panel renders. Error results use the
+   * `fail` tag so failures stand out in the lane.
+   */
+  appendMemberToolFeed(input: {
+    readonly agentId: string;
+    readonly body: string;
+    readonly isError?: boolean;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const member = this.findMemberByAgentId(input.agentId);
+    if (member === undefined) return;
+    this.appendConversationFeed({
+      tag: input.isError === true ? 'fail' : 'tool',
+      fromExpertId: member.ultraSwarm?.expertId ?? member.agentId,
+      fromName: member.ultraSwarm?.name,
+      fromEmoji: member.ultraSwarm?.emoji,
+      body: input.body,
+    });
+    this.requestRender?.();
   }
 
   appendModelDelta(input: {
