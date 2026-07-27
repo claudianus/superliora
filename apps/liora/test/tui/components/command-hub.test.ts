@@ -210,4 +210,60 @@ describe('CommandHubComponent', () => {
     expect(diffAt).toBeGreaterThanOrEqual(0);
     if (modelAt >= 0) expect(diffAt).toBeLessThan(modelAt);
   });
+
+  it('frames the hub in a rounded box with the title in the border', () => {
+    const hub = new CommandHubComponent({
+      items: buildDefaultCommandHubItems({}),
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const lines = stripAnsi(hub.render(72).join('\n')).split('\n');
+    const top = lines.find((line) => line.includes('╭')) ?? '';
+    const bottom = lines.find((line) => line.includes('╰')) ?? '';
+    expect(top).toContain('Command Hub');
+    expect(top.trim().endsWith('╮')).toBe(true);
+    expect(bottom.trim().endsWith('╯')).toBe(true);
+    expect(lines.some((line) => line.includes('│'))).toBe(true);
+  });
+
+  it('embeds the live filter and match count in the bottom border', () => {
+    const hub = new CommandHubComponent({
+      items: buildDefaultCommandHubItems({}),
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    for (const ch of 'model') hub.handleInput(ch);
+    const lines = stripAnsi(hub.render(72).join('\n')).split('\n');
+    const bottom = lines.find((line) => line.includes('╰')) ?? '';
+    expect(bottom).toContain('filter: model');
+    expect(bottom).toMatch(/\d+\/\d+/);
+  });
+
+  it('pulses the empty state when nothing matches', () => {
+    const hub = new CommandHubComponent({
+      items: buildDefaultCommandHubItems({}),
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    for (const ch of 'zzzz') hub.handleInput(ch);
+    const text = stripAnsi(hub.render(72).join('\n'));
+    expect(text).toContain('No matches');
+  });
+
+  it('renders a deterministic static frame when motion is disallowed', () => {
+    vi.stubEnv('TERM', 'dumb');
+    try {
+      const hub = new CommandHubComponent({
+        items: buildDefaultCommandHubItems({}),
+        onSelect: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      const first = hub.render(72).join('\n');
+      const second = hub.render(72).join('\n');
+      expect(stripAnsi(first)).toContain('╭');
+      expect(first).toBe(second);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

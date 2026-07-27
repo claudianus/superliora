@@ -249,8 +249,15 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
 - **Placement.** Host mounts via `mountCenterModal` → compositor region
   `liora-center-modal` with `placement: 'center'` (`utils/center-modal.ts`).
   Max content width 72 cols; margin 2 from viewport edges.
-- **Chrome.** The panel owns its own PREMIUM list chrome (§3). The overlay
-  region uses `border: false` so chrome is not doubled.
+- **Chrome.** The overlay region uses `border: false`; the panel owns its
+  chrome so nothing doubles. List pickers keep the §3 two-line chrome. The
+  Command Hub floats in a rounded box drawn by `renderPremiumBoxFrame`
+  (`utils/appearance-effects.ts`): a gradient-breathing perimeter with a
+  clockwise comet chase, jewel-bright corners, the title and the live
+  filter/match count embedded in the borders, an entry bloom + scale-in,
+  and a staggered row reveal with a pointer slide-in. Reduced motion / SSH
+  / `NO_COLOR` degrade to a static `borderFocus` frame with the same
+  layout.
 - **Input.** `pushLegacyModalTarget` with a dedicated stack (not the single
   editor-replacement dispose slot). Esc closes the top modal via the panel
   `onCancel` → `closeCenterModal()`.

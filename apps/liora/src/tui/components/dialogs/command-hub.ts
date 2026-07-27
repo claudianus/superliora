@@ -9,7 +9,6 @@ import {
   Container,
   Key,
   matchesKey,
-  renderRendererPanelChromeRows,
   truncateToWidth,
   type Focusable,
 } from '#/tui/renderer';
@@ -17,10 +16,12 @@ import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
-  renderEnterBeat,
+  renderParticleDivider,
+  renderPremiumBoxFrame,
   renderPremiumHeadline,
   renderPulseText,
   renderSettleFlash,
+  renderShimmerPrefix,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { hubRecencyScore, listRecentHubActionIds } from '#/tui/utils/hub-recents';
@@ -101,6 +102,21 @@ const SECTION_ORDER = [
 ] as const;
 
 const PAGE_SIZE = 8;
+
+/** Entry scale-in settles fast — the list must be readable almost at once. */
+const HUB_ENTRY_MS = 240;
+const HUB_ENTRY_MIN_RATIO = 0.86;
+/** Pointer slide-in after a selection move. */
+const HUB_SLIDE_MS = 140;
+
+function hubClamp01(t: number): number {
+  return Math.min(1, Math.max(0, t));
+}
+
+function hubEaseOutCubic(t: number): number {
+  const c = hubClamp01(t);
+  return 1 - Math.pow(1 - c, 3);
+}
 
 const TOGGLE_IDS = new Set<CommandHubActionId>([
   'modes.plan',
@@ -420,6 +436,8 @@ export class CommandHubComponent extends Container implements Focusable {
   private readonly openedAtMs = appearanceAnimationNow();
   private flashId: string | null = null;
   private flashAtMs = 0;
+  /** Last selection move — drives the pointer slide-in micro-interaction. */
+  private selectionMovedAtMs = 0;
 
   constructor(opts: CommandHubOptions) {
     super();
@@ -485,33 +503,27 @@ export class CommandHubComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.up) || matchesKey(data, Key.ctrl('p'))) {
-      this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-      this.invalidate();
+      this.moveSelection(this.selectedIndex - 1);
       return;
     }
     if (matchesKey(data, Key.down) || matchesKey(data, Key.ctrl('n'))) {
-      this.selectedIndex = Math.min(this.filtered.length - 1, this.selectedIndex + 1);
-      this.invalidate();
+      this.moveSelection(this.selectedIndex + 1);
       return;
     }
     if (matchesKey(data, Key.pageUp)) {
-      this.selectedIndex = Math.max(0, this.selectedIndex - PAGE_SIZE);
-      this.invalidate();
+      this.moveSelection(this.selectedIndex - PAGE_SIZE);
       return;
     }
     if (matchesKey(data, Key.pageDown)) {
-      this.selectedIndex = Math.min(this.filtered.length - 1, this.selectedIndex + PAGE_SIZE);
-      this.invalidate();
+      this.moveSelection(this.selectedIndex + PAGE_SIZE);
       return;
     }
     if (matchesKey(data, Key.home)) {
-      this.selectedIndex = 0;
-      this.invalidate();
+      this.moveSelection(0);
       return;
     }
     if (matchesKey(data, Key.end)) {
-      this.selectedIndex = Math.max(0, this.filtered.length - 1);
-      this.invalidate();
+      this.moveSelection(this.filtered.length - 1);
       return;
     }
     if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
@@ -542,36 +554,56 @@ export class CommandHubComponent extends Container implements Focusable {
     const theme = currentTheme;
     const appearance = getActiveAppearancePreferences();
     const ambient = shouldRenderAmbientEffects(appearance);
+    const now = appearanceAnimationNow();
+    const regionWidth = Math.max(24, width);
+
+    // Entry: the box scales in from ~86% while rows cascade right after.
+    const entryT = ambient ? hubEaseOutCubic((now - this.openedAtMs) / HUB_ENTRY_MS) : 1;
+    const minWidth = Math.min(
+      regionWidth,
+      Math.max(36, Math.round(regionWidth * HUB_ENTRY_MIN_RATIO)),
+    );
+    const boxWidth = Math.min(
+      regionWidth,
+      Math.max(22, Math.round(minWidth + (regionWidth - minWidth) * entryT)),
+    );
+    const padLeft = Math.max(0, Math.floor((regionWidth - boxWidth) / 2));
+    const inner = boxWidth - 2;
+
     const hint =
       this.query.length > 0
-        ? `filter: ${this.query} · Esc clear`
-        : '↑↓ · Space flip · Enter go · 1-9 · type · Esc';
-    const body: string[] = [];
-
-    // Enter-beat only (rail lives inside the beat) — avoid a permanent second rail.
-    if (ambient) {
-      const beat = renderEnterBeat(this.title, width - 2, 'command-hub', this.openedAtMs, appearance);
-      for (const line of beat) {
-        body.push(truncateToWidth(`  ${line}`, width));
-      }
-    }
-
-    body.push(truncateToWidth(`  ${this.renderStatusStrip(width - 4)}`, width));
-    body.push('');
+        ? '↑↓ navigate · Enter go · Esc clear filter'
+        : '↑↓ navigate · Space flip · Enter go · 1-9 hotkeys · type search · Esc cancel';
+    const body: string[] = [
+      truncateToWidth(theme.fg('textMuted', ` ${hint}`), inner),
+      truncateToWidth(` ${this.renderStatusStrip(inner - 1, appearance)}`, inner),
+      truncateToWidth(renderParticleDivider(inner, 'hub:strip', appearance), inner),
+      '',
+    ];
 
     if (this.intro) {
       body.push(
         truncateToWidth(
-          `  ${renderPulseText('Your home base — flip a mode, then type', 'hub:intro', 'accent', appearance)}`,
-          width,
+          ` ${renderPulseText('Your home base — flip a mode, then type', 'hub:intro', 'accent', appearance)}`,
+          inner,
         ),
       );
-      body.push(theme.fg('textMuted', '  Space stays here · Enter applies & returns · Esc dismiss'));
+      body.push(
+        truncateToWidth(
+          theme.fg('textMuted', ' Space stays here · Enter applies & returns · Esc dismiss'),
+          inner,
+        ),
+      );
       body.push('');
     }
 
     if (this.filtered.length === 0) {
-      body.push(theme.fg('textMuted', '  No matches. Esc clears the filter.'));
+      body.push(
+        truncateToWidth(
+          ` ${renderPulseText('No matches — Esc clears the filter', 'hub:empty', 'accent', appearance)}`,
+          inner,
+        ),
+      );
     } else {
       let lastSection = '';
       const showHotkeys = this.query.length === 0;
@@ -583,10 +615,20 @@ export class CommandHubComponent extends Container implements Focusable {
             item.section === 'Now' || item.section === 'Recent'
               ? renderPulseText(item.section, `hub:sec:${item.section}`, 'accent', appearance)
               : theme.boldFg('accent', item.section);
-          body.push(truncateToWidth(`  ${sectionLabel}`, width));
+          body.push(truncateToWidth(` ${sectionLabel}`, inner));
         }
         const selected = index === this.selectedIndex;
+        // Entry cascade: rows brighten in a stagger, top to bottom.
+        const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - index * 24) / 200) : 1;
         const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+        // Pointer slides in one cell after a move — the row "catches" the cursor.
+        const slidePad =
+          selected &&
+          ambient &&
+          this.selectionMovedAtMs > 0 &&
+          now - this.selectionMovedAtMs < HUB_SLIDE_MS
+            ? ' '
+            : '';
         const hotkey =
           showHotkeys && index < 9
             ? theme.fg('textMuted', `${String(index + 1)} `)
@@ -594,28 +636,64 @@ export class CommandHubComponent extends Container implements Focusable {
               ? '  '
               : '';
         const badge = this.renderBadge(item, appearance);
-        const label = selected
-          ? theme.boldFg('primary', item.label)
-          : theme.fg('text', item.label);
+        const flashing = this.flashId === item.id;
+        const label = flashing
+          ? renderSettleFlash(item.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
+          : selected
+            ? theme.boldFg('primary', item.label)
+            : reveal < 1
+              ? theme.fg('textMuted', item.label)
+              : theme.fg('text', item.label);
         const kindHint =
           item.kind === 'toggle' || item.kind === 'cycle'
             ? theme.fg('textMuted', item.kind === 'cycle' ? ' ↻' : ' ⚡')
             : '';
-        const desc = theme.fg('textMuted', `  ${item.description}`);
-        body.push(truncateToWidth(` ${pointer}${hotkey}${label}${kindHint}${badge}`, width));
-        if (selected) body.push(truncateToWidth(desc, width));
+        body.push(
+          truncateToWidth(`${slidePad} ${pointer}${hotkey}${label}${kindHint}${badge}`, inner),
+        );
+        if (selected) {
+          body.push(
+            truncateToWidth(
+              `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', item.description)}`,
+              inner,
+            ),
+          );
+        }
       }
     }
 
-    return renderRendererPanelChromeRows({
-      width,
-      title: ` ${this.title}`,
-      hint: ` ${hint}`,
-      body,
-      dividerStyle: (text) => theme.fg('primary', text),
-      titleStyle: (text) => renderPremiumHeadline(text.trim(), 'command-hub:title'),
-      hintStyle: (text) => theme.fg('textMuted', text),
+    const filtering = this.query.length > 0;
+    const titleStyled =
+      renderPulseText('•', 'hub:orn:l', 'accent', appearance) +
+      ` ${renderPremiumHeadline(this.title, 'command-hub:title', appearance)} ` +
+      renderPulseText('•', 'hub:orn:r', 'accent', appearance);
+    const footerLeftPlain = filtering ? `filter: ${this.query}` : undefined;
+    const footerRightPlain = filtering
+      ? `${String(this.filtered.length)}/${String(this.items.length)}`
+      : undefined;
+    const frame = renderPremiumBoxFrame(body, {
+      width: boxWidth,
+      title: titleStyled,
+      titlePlain: `• ${this.title} •`,
+      footerLeft: footerLeftPlain === undefined ? undefined : theme.fg('textMuted', footerLeftPlain),
+      footerLeftPlain,
+      footerRight:
+        footerRightPlain === undefined ? undefined : theme.boldFg('primary', footerRightPlain),
+      footerRightPlain,
+      appearance,
+      openedAtMs: this.openedAtMs,
     });
+    if (padLeft === 0) return frame.map((row) => truncateToWidth(row, regionWidth));
+    return frame.map((row) => truncateToWidth(' '.repeat(padLeft) + row, regionWidth));
+  }
+
+  private moveSelection(next: number): void {
+    const clamped = Math.max(0, Math.min(this.filtered.length - 1, next));
+    if (clamped !== this.selectedIndex) {
+      this.selectionMovedAtMs = appearanceAnimationNow();
+    }
+    this.selectedIndex = clamped;
+    this.invalidate();
   }
 
   private activate(mode: CommandHubSelectMode): void {
@@ -626,16 +704,23 @@ export class CommandHubComponent extends Container implements Focusable {
     this.onSelect(item, mode);
   }
 
-  private renderStatusStrip(width: number): string {
+  private renderStatusStrip(
+    width: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+  ): string {
     const theme = currentTheme;
-    const appearance = getActiveAppearancePreferences();
     const chips: string[] = [];
-    const push = (label: string, on: boolean): void => {
+    const push = (label: string, on: boolean, id: CommandHubActionId): void => {
       const text = on ? label.toUpperCase() : label;
+      const chip = `[${text}]`;
+      if (this.flashId === id) {
+        chips.push(renderSettleFlash(chip, `hub:chip:${label}`, this.flashAtMs, appearance));
+        return;
+      }
       chips.push(
         on
-          ? renderPulseText(`[${text}]`, `hub:chip:${label}`, 'glow', appearance)
-          : theme.fg('textMuted', `[${text}]`),
+          ? renderPulseText(chip, `hub:chip:${label}`, 'glow', appearance)
+          : theme.fg('textMuted', chip),
       );
     };
     const plan = this.items.find((i) => i.id === 'modes.plan');
@@ -643,13 +728,15 @@ export class CommandHubComponent extends Container implements Focusable {
     const ultra = this.items.find((i) => i.id === 'modes.ultrawork');
     const premium = this.items.find((i) => i.id === 'modes.premium');
     const perm = this.items.find((i) => i.id === 'modes.permission');
-    push('plan', plan?.badge === 'ON');
-    push('swarm', swarm?.badge === 'ON');
-    push('ultra', ultra?.badge === 'ON');
-    push('pq', premium?.badge === 'ON');
-    const permBadge = perm?.badge ?? '—';
+    push('plan', plan?.badge === 'ON', 'modes.plan');
+    push('swarm', swarm?.badge === 'ON', 'modes.swarm');
+    push('ultra', ultra?.badge === 'ON', 'modes.ultrawork');
+    push('pq', premium?.badge === 'ON', 'modes.premium');
+    const permChip = `[${perm?.badge ?? '—'}]`;
     chips.push(
-      renderPulseText(`[${permBadge}]`, 'hub:chip:perm', 'primary', appearance),
+      this.flashId === 'modes.permission'
+        ? renderSettleFlash(permChip, 'hub:chip:perm', this.flashAtMs, appearance)
+        : renderPulseText(permChip, 'hub:chip:perm', 'primary', appearance),
     );
     return truncateToWidth(chips.join(' '), Math.max(8, width));
   }

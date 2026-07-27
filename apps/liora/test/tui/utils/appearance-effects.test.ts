@@ -18,6 +18,7 @@ import {
   renderParticleDivider,
   renderParticleRail,
   renderPhaseChip,
+  renderPremiumBoxFrame,
   renderSettleFlash,
   renderSpectacularText,
   renderTypewriterLine,
@@ -470,5 +471,93 @@ describe('premium motion vocabulary', () => {
     // Older motion paths painted these with the shared mint success token.
     expect(exit).not.toContain(`38;2;${successRgb}`);
     expect(done).not.toContain(`38;2;${successRgb}`);
+  });
+});
+
+describe('premium box frame', () => {
+  const previous = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  it('draws a static rounded frame with uniform rows when motion is off', () => {
+    process.env['TERM'] = 'dumb';
+    const rows = renderPremiumBoxFrame(['hello', 'world'], { width: 20 });
+    expect(strip(rows[0]!)).toMatch(/^╭─+╮$/);
+    expect(strip(rows.at(-1)!)).toMatch(/^╰─+╯$/);
+    expect(strip(rows[1]!)).toBe('│hello             │');
+    for (const row of rows) expect(visibleWidth(row)).toBe(20);
+  });
+
+  it('embeds title and live footer text in the borders', () => {
+    process.env['TERM'] = 'dumb';
+    const rows = renderPremiumBoxFrame(['x'], {
+      width: 30,
+      title: 'Hub',
+      footerLeft: 'filter: mo',
+      footerRight: '3/9',
+    });
+    expect(strip(rows[0]!)).toContain('─ Hub ─');
+    const bottom = strip(rows.at(-1)!);
+    expect(bottom).toContain('filter: mo');
+    expect(bottom).toContain('3/9');
+  });
+
+  it('truncates an oversized footer embed instead of breaking the frame', () => {
+    process.env['TERM'] = 'dumb';
+    const rows = renderPremiumBoxFrame(['x'], {
+      width: 16,
+      footerLeft: 'filter: a-very-long-query',
+    });
+    expect(visibleWidth(rows.at(-1)!)).toBe(16);
+    expect(strip(rows.at(-1)!)).toMatch(/^╰─.*╯$/);
+  });
+
+  it('animates a comet chase around the perimeter under premium motion', () => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const premiumMotion = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    };
+    const openedAt = Date.now();
+    const first = renderPremiumBoxFrame(['body'], {
+      width: 40,
+      appearance: premiumMotion,
+      openedAtMs: openedAt,
+    });
+    // The top border carries several distinct hues (breath base + chase head/trail).
+    const codes = new Set(first[0]!.match(/\u001B\[[0-9;]*m/g) ?? []);
+    expect(codes.size).toBeGreaterThan(2);
+    // The chase travels: a later frame differs while geometry stays stable.
+    vi.setSystemTime(new Date('2026-07-01T00:00:02Z'));
+    advanceAppearanceAnimationClock(Date.now());
+    const second = renderPremiumBoxFrame(['body'], {
+      width: 40,
+      appearance: premiumMotion,
+      openedAtMs: openedAt,
+    });
+    expect(second[0]).not.toBe(first[0]);
+    for (const row of second) expect(visibleWidth(row)).toBe(40);
   });
 });
