@@ -137,18 +137,26 @@ export function buildNativeNotificationCommand(
   if (title.length === 0 && body.length === 0) return undefined;
 
   if (platform === 'darwin') {
+    // Pass the text as argv, not via env vars read with `system attribute`:
+    // AppleScript decodes environment bytes as MacRoman regardless of locale,
+    // which mojibakes non-ASCII text (Korean, emoji) and can even fail with
+    // error -1700 on characters like the em dash. argv round-trips UTF-8
+    // cleanly even when no locale is set in the environment.
     return {
       command: 'osascript',
       args: [
         '-e',
-        'display notification (system attribute "SUPERLIORA_NOTIFICATION_BODY") with title (system attribute "SUPERLIORA_NOTIFICATION_TITLE") sound name "Glass"',
+        'on run argv',
+        '-e',
+        'display notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"',
         '-e',
         'delay 0.1',
+        '-e',
+        'end run',
+        '--',
+        title.length > 0 ? title : 'SuperLiora',
+        body.length > 0 ? body : title,
       ],
-      env: {
-        SUPERLIORA_NOTIFICATION_TITLE: title.length > 0 ? title : 'SuperLiora',
-        SUPERLIORA_NOTIFICATION_BODY: body.length > 0 ? body : title,
-      },
     };
   }
 
@@ -240,8 +248,16 @@ export function isInsideTmux(env: NodeJS.ProcessEnv = process.env): boolean {
   return tmux.length > 0;
 }
 
+/**
+ * ANSI escape sequences (CSI, OSC, and two-byte Fe escapes). Stripped whole
+ * before control-character mapping — replacing only the leading ESC would
+ * leave `[32m`-style parameter garbage visible in the notification.
+ */
+const ANSI_SEQUENCE_PATTERN =
+  /\u001B\[[0-9;?]*[ -/]*[@-~]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)?|\u001B[@-_]/g;
+
 function sanitizeNotificationText(value: string): string {
-  return Array.from(value)
+  return Array.from(value.replaceAll(ANSI_SEQUENCE_PATTERN, ''))
     .map((ch) => (isControlCharacter(ch) ? ' ' : ch))
     .join('')
     .replaceAll(/\s+/g, ' ')

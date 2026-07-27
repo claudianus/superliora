@@ -210,15 +210,36 @@ describe('terminal notification helpers', () => {
       command: 'osascript',
       args: [
         '-e',
-        'display notification (system attribute "SUPERLIORA_NOTIFICATION_BODY") with title (system attribute "SUPERLIORA_NOTIFICATION_TITLE") sound name "Glass"',
+        'on run argv',
+        '-e',
+        'display notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"',
         '-e',
         'delay 0.1',
+        '-e',
+        'end run',
+        '--',
+        'Approval',
+        'Run tests?',
       ],
-      env: {
-        SUPERLIORA_NOTIFICATION_TITLE: 'Approval',
-        SUPERLIORA_NOTIFICATION_BODY: 'Run tests?',
-      },
     });
+  });
+
+  it('passes non-ASCII macOS notification text verbatim through argv', () => {
+    // Env vars read via `system attribute` are decoded as MacRoman and
+    // mojibake Korean/emoji; argv must carry the exact UTF-8 text.
+    const command = buildNativeNotificationCommand(
+      { title: '작업 완료 ✅', body: '에이전트 — 응답이 완료됐어요' },
+      'darwin',
+    );
+    expect(command?.args.slice(-2)).toEqual(['작업 완료 ✅', '에이전트 — 응답이 완료됐어요']);
+  });
+
+  it('strips ANSI escape sequences from notification text', () => {
+    const command = buildNativeNotificationCommand(
+      { title: '\u001B[1mDone\u001B[0m', body: '\u001B[32mbuild\u001B[0m ok\u001B]9;x\u0007' },
+      'linux',
+    );
+    expect(command?.args.slice(-2)).toEqual(['Done', 'build ok']);
   });
 
   it('builds a Linux notify-send command', () => {
@@ -253,8 +274,6 @@ describe('terminal notification helpers', () => {
       detached: true,
       env: {
         PATH: '/bin',
-        SUPERLIORA_NOTIFICATION_TITLE: 'Done',
-        SUPERLIORA_NOTIFICATION_BODY: 'Ready',
       },
       stdio: 'ignore',
     });
