@@ -42,6 +42,16 @@ User-facing features that operators need during an interactive session must be r
 - **CLI-only exceptions** (document when adding more): non-interactive scripting (`liora provider …` batch/doctor/route dumps), install/update plumbing, headless export/CI helpers, and one-shot auth that cannot complete inside a mounted editor.
 - Shared config mutations (e.g. OAuth pool rewrite/promote/label/remove) live in pure modules (`@superliora/oauth` or `src/utils/`) — CLI and TUI both call them; do not fork private rewrite logic in either surface.
 
+## Real-time and visual quality (mandatory)
+
+- All agent work (main, subagent, swarm) streams its tool calls to the TUI live. No silent processing without progress display.
+- Code-producing tools (Write/Edit and the like) render live diff/syntax-highlighted previews through the same components, whichever agent runs them.
+- Every state transition (kanban card moves, dialogs, stream start/end, test results) gets a 150–400ms motion cue.
+- The kanban board is a live surface: card movement, WIP pulse, and swarm synchronization stay visible.
+- Frame budget: a single event repaint under 8ms; batch bulk updates through renderer invalidation. Do not debounce events in ways that hurt real-time feel.
+- Motion reuses the shared animation clock and ambient tick (`src/tui/utils/appearance-effects.ts`, `src/tui/PREMIUM.md` §7): no raw `setInterval`/`setTimeout`, quality levels off/subtle/premium, forced off under SSH/NO_COLOR/CI.
+- New TUI features include a visual verification path (visual smoke or VerifySurface).
+
 ## Hard rules (CI-guarded)
 
 - In `handleInput(data)`, never compare printable keys with literals (`data === 'q'`). Kitty/CSI-u breaks that. Use `printableChar(data)` from `src/tui/utils/printable-key.ts`; function keys via `matchesKey` / `Key.*`; control chars (codepoint < 32) may use raw `data`. Guard: `test/tui/printable-key-guard.test.ts`.
