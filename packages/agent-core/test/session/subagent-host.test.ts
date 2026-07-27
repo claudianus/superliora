@@ -32,6 +32,7 @@ import { collectGitContext } from '../../src/session/git-context';
 import {
   SessionSubagentHost,
   SubagentMaxTokensError,
+  describeSubagentToolDetail,
   isSubagentMaxTokensError,
   type QueuedSubagentTask,
   type RunSubagentOptions,
@@ -413,6 +414,129 @@ describe('SessionSubagentHost', () => {
     expect(parent.newEvents()).not.toContainEqual(
       expect.objectContaining({ type: '[rpc]', event: 'subagent.tool_call' }),
     );
+  });
+
+  it('attaches structured detail to subagent.tool_call from the full child args', () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+    const child = testAgent();
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+    const options: RunSubagentOptions = {
+      parentToolCallId: 'tc-1',
+      prompt: 'work',
+      description: 'test subagent',
+      runInBackground: true,
+      signal,
+    };
+    const dispose = (
+      host as unknown as {
+        attachToolStreamBridge(
+          parentAgent: Agent,
+          childAgent: Agent,
+          subagentId: string,
+          profileName: string,
+          runOptions: RunSubagentOptions,
+        ): () => void;
+      }
+    ).attachToolStreamBridge(parent.agent, child.agent, 'agent-0', 'coder', options);
+
+    try {
+      child.agent.emitEvent({
+        type: 'tool.call.started',
+        turnId: 1,
+        toolCallId: 'call-1',
+        name: 'Edit',
+        args: { path: 'src/a.ts', old_string: 'a\nb', new_string: 'a\nc\nd' },
+      });
+      child.agent.emitEvent({
+        type: 'tool.call.started',
+        turnId: 1,
+        toolCallId: 'call-2',
+        name: 'FetchURL',
+        args: { url: 'https://example.com' },
+      });
+      const events = parent.allEvents.filter(
+        (entry) => entry.type === '[rpc]' && entry.event === 'subagent.tool_call',
+      );
+      const editArgs = events[0]?.args as { detail?: unknown } | undefined;
+      expect(editArgs?.detail).toEqual({
+        kind: 'edit',
+        path: 'src/a.ts',
+        addedLines: 2,
+        removedLines: 1,
+      });
+      // Unknown tools carry no detail (payload stays additive).
+      const fetchArgs = events[1]?.args as { detail?: unknown } | undefined;
+      expect(fetchArgs?.detail).toBeUndefined();
+    } finally {
+      dispose();
+    }
+  });
+
+  describe('describeSubagentToolDetail', () => {
+    it('counts edit line diffs from old_string / new_string', () => {
+      expect(
+        describeSubagentToolDetail('Edit', {
+          path: 'src/a.ts',
+          old_string: 'a\nb',
+          new_string: 'a\nc\nd',
+        }),
+      ).toEqual({ kind: 'edit', path: 'src/a.ts', addedLines: 2, removedLines: 1 });
+      // Pure insertion against an empty old_string.
+      expect(
+        describeSubagentToolDetail('Edit', { path: 'src/a.ts', new_string: 'x\ny' }),
+      ).toEqual({ kind: 'edit', path: 'src/a.ts', addedLines: 2, removedLines: 0 });
+    });
+
+    it('counts write lines and bytes', () => {
+      expect(
+        describeSubagentToolDetail('Write', { path: 'src/w.ts', content: 'a\nb\n' }),
+      ).toEqual({ kind: 'write', path: 'src/w.ts', lines: 2, bytes: 4 });
+      expect(describeSubagentToolDetail('Write', { path: 'src/w.ts', content: '' })).toEqual({
+        kind: 'write',
+        path: 'src/w.ts',
+        lines: 0,
+        bytes: 0,
+      });
+    });
+
+    it('keeps read paths, flattens and caps bash commands', () => {
+      expect(describeSubagentToolDetail('Read', { path: 'src/r.ts' })).toEqual({
+        kind: 'read',
+        path: 'src/r.ts',
+      });
+      const command = `pnpm test ${'x'.repeat(200)}`;
+      const detail = describeSubagentToolDetail('Bash', { command });
+      expect(detail?.kind).toBe('bash');
+      if (detail?.kind === 'bash') {
+        expect(detail.command).not.toContain('\n');
+        expect(detail.command.length).toBeLessThanOrEqual(120);
+        expect(detail.command.endsWith('…')).toBe(true);
+      }
+      expect(
+        describeSubagentToolDetail('Bash', { command: 'pnpm\n  test' }),
+      ).toEqual({ kind: 'bash', command: 'pnpm test' });
+    });
+
+    it('maps Grep and Glob to the search variant', () => {
+      expect(describeSubagentToolDetail('Grep', { pattern: 'foo.*' })).toEqual({
+        kind: 'search',
+        pattern: 'foo.*',
+      });
+      expect(describeSubagentToolDetail('Glob', { pattern: '**/*.ts' })).toEqual({
+        kind: 'search',
+        pattern: '**/*.ts',
+      });
+    });
+
+    it('returns undefined for unknown tools and missing args', () => {
+      expect(describeSubagentToolDetail('FetchURL', { url: 'https://example.com' })).toBeUndefined();
+      expect(describeSubagentToolDetail('Edit', {})).toBeUndefined();
+      expect(describeSubagentToolDetail('Edit', null)).toBeUndefined();
+      expect(describeSubagentToolDetail('Bash', { command: '   ' })).toBeUndefined();
+    });
   });
 
   it('enters finishing mode when the budget window is reached', async () => {
