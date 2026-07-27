@@ -5,6 +5,7 @@ import {
   type BackgroundTaskSink,
 } from './task';
 import type { SessionSubagentHost, SubagentHandle } from '../../session/subagent-host';
+import { renderSubagentCompletionText } from '../../session/subagent-result-contract';
 
 export interface AgentBackgroundTaskInfo extends BackgroundTaskInfoBase {
   readonly kind: 'agent';
@@ -42,7 +43,7 @@ export class AgentBackgroundTask implements BackgroundTask {
 
     try {
       const outcome = await this.handle.completion;
-      sink.appendOutput(outcome.result);
+      sink.appendOutput(renderSubagentCompletionText(outcome));
       await sink.settle({ status: 'completed' });
     } catch (error: unknown) {
       if (sink.signal.aborted && (isAbortError(error) || error === sink.signal.reason)) {

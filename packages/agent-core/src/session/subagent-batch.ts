@@ -11,6 +11,7 @@ import type {
   SubagentHandle,
 } from './subagent-host';
 import { isSubagentMaxTokensError } from './subagent-host';
+import { renderSubagentCompletionText } from './subagent-result-contract';
 import { isUserCancellation } from '../utils/abort';
 
 /*
@@ -389,7 +390,7 @@ export class SubagentBatch<T> {
           task,
           agentId: handle.agentId,
           status: 'completed',
-          result: completion.result,
+          result: renderSubagentCompletionText(completion),
           usage: completion.usage,
         };
       } catch (error) {

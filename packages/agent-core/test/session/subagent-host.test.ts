@@ -37,6 +37,7 @@ import { executeTool } from '../tools/fixtures/execute-tool';
 // wiring (explore subagents get the block prepended, others do not).
 vi.mock('../../src/session/git-context', () => ({
   collectGitContext: vi.fn(async () => ''),
+  runGit: vi.fn(async () => ({ ok: false, kind: 'spawn-error' })),
 }));
 
 const signal = new AbortController().signal;
@@ -237,7 +238,14 @@ describe('SessionSubagentHost', () => {
       signal,
     });
 
-    await expect(handle.completion).resolves.toMatchObject({ result: summary.trim() });
+    const completion = await handle.completion;
+    expect(completion.result).toBe(summary.trim());
+    expect(completion.contract).toMatchObject({
+      status: 'completed',
+      profile: 'coder',
+      files_changed: [],
+      verification: { tests: 'not_run', typecheck: 'not_run', lint: 'not_run' },
+    });
     expect(parent.allEvents).toContainEqual(
       expect.objectContaining({
         type: '[rpc]',
@@ -1167,7 +1175,7 @@ describe('SessionSubagentHost', () => {
       {
         agentId: 'agent-0',
         status: 'completed',
-        result: summary.trim(),
+        result: expect.stringContaining(summary.trim()),
       },
     ]);
 
@@ -1201,7 +1209,7 @@ describe('SessionSubagentHost', () => {
       {
         agentId: 'agent-0',
         status: 'completed',
-        result: summary.trim(),
+        result: expect.stringContaining(summary.trim()),
       },
     ]);
 

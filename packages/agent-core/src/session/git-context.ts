@@ -202,7 +202,7 @@ type GitFailure =
   | { readonly kind: 'spawn-error' }
   | { readonly kind: 'command-failed'; readonly exitCode?: number; readonly stderr?: string };
 
-type GitResult =
+export type GitResult =
   | { readonly ok: true; readonly stdout: string }
   | ({ readonly ok: false } & GitFailure);
 
@@ -238,7 +238,7 @@ function logGitFailure(cwd: string, args: readonly string[], failure: GitFailure
  * backend. Both stdout and stderr are captured so callers can tell "not a
  * git repository" (exit 128 + telltale stderr) apart from other failures.
  */
-async function runGit(kaos: Kaos, cwd: string, args: readonly string[]): Promise<GitResult> {
+export async function runGit(kaos: Kaos, cwd: string, args: readonly string[]): Promise<GitResult> {
   let proc: KaosProcess | undefined;
   try {
     proc = await kaos.exec('git', '-C', cwd, ...args);

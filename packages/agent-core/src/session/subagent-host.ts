@@ -55,6 +55,13 @@ import {
 import { resolveSubagentModelAlias } from '../utils/cheap-model';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { collectGitContext } from './git-context';
+import {
+  buildSubagentResultContract,
+  collectFilesChanged,
+  snapshotGitWork,
+  type GitWorkSnapshot,
+  type SubagentResultContract,
+} from './subagent-result-contract';
 import type { Session } from './index';
 import {
   SubagentBatch,
@@ -150,6 +157,7 @@ interface SubagentFailedDetails {
 type SubagentCompletion = {
   readonly result: string;
   readonly usage?: TokenUsage;
+  readonly contract?: SubagentResultContract;
 };
 
 export type SubagentHandle = {
@@ -329,12 +337,20 @@ export class SessionSubagentHost {
           ),
         });
         this.emitSubagentStarted(parent, agentId, runOptions);
+        const workSnapshot = await this.snapshotChildWork(child);
         const turnId = child.turn.retry('agent-host');
         if (turnId === null) {
           throw new Error(`Agent instance "${agentId}" could not start a retry turn`);
         }
         this.observeFirstRequest(child, runOptions);
-        return await this.waitForChildCompletion(parent, agentId, child, profileName, runOptions);
+        return await this.waitForChildCompletion(
+          parent,
+          agentId,
+          child,
+          profileName,
+          runOptions,
+          workSnapshot,
+        );
       } catch (error) {
         this.emitSubagentFailed(parent, agentId, runOptions, error);
         throw error;
@@ -545,12 +561,13 @@ export class SessionSubagentHost {
     }
 
     this.emitSubagentStarted(parent, childId, options);
+    const workSnapshot = await this.snapshotChildWork(child);
     const turnId = child.turn.prompt([{ type: 'text', text: childPrompt }], SUBAGENT_PROMPT_ORIGIN);
     if (turnId === null) {
       throw new Error(`Agent instance "${childId}" could not start a turn`);
     }
     this.observeFirstRequest(child, options);
-    return this.waitForChildCompletion(parent, childId, child, profileName, options);
+    return this.waitForChildCompletion(parent, childId, child, profileName, options, workSnapshot);
   }
 
   private async waitForChildCompletion(
@@ -559,6 +576,7 @@ export class SessionSubagentHost {
     child: Agent,
     profileName: string,
     options: RunSubagentOptions,
+    workSnapshot: GitWorkSnapshot,
   ): Promise<SubagentCompletion> {
     await runChildTurnToCompletion(child, options.signal);
 
@@ -581,6 +599,13 @@ export class SessionSubagentHost {
     if (options.swarmItem !== undefined) {
       updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'done');
     }
+    const contract = await this.buildChildResultContract(
+      child,
+      childId,
+      profileName,
+      result,
+      workSnapshot,
+    );
     parent.emitEvent({
       type: 'subagent.completed',
       subagentId: childId,
@@ -589,7 +614,36 @@ export class SessionSubagentHost {
       contextTokens: child.context.tokenCount,
     });
     this.triggerSubagentStop(parent, profileName, result);
-    return { result, usage };
+    return { result, usage, contract };
+  }
+
+  private async snapshotChildWork(child: Agent): Promise<GitWorkSnapshot> {
+    try {
+      return await snapshotGitWork(child.kaos, child.config.cwd);
+    } catch {
+      return { head: undefined, dirtyFiles: [] };
+    }
+  }
+
+  private async buildChildResultContract(
+    child: Agent,
+    childId: string,
+    profileName: string,
+    summary: string,
+    workSnapshot: GitWorkSnapshot,
+  ): Promise<SubagentResultContract> {
+    let filesChanged: string[] = [];
+    try {
+      filesChanged = await collectFilesChanged(child.kaos, child.config.cwd, workSnapshot);
+    } catch {
+      filesChanged = [];
+    }
+    return buildSubagentResultContract({
+      agentId: childId,
+      profile: profileName,
+      summary,
+      filesChanged,
+    });
   }
 
   private async configureChild(
