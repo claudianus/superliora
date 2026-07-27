@@ -1,4 +1,7 @@
 import type { ContentPart, Message } from '@superliora/kosong';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -727,6 +730,46 @@ describe('MicroCompaction', () => {
     });
     expect(textOf(tool, { raw: true })).toContain('large rich output');
     expect(tool?.content.length).toBeGreaterThan(1);
+  });
+
+  it('persists a recoverable receipt when a family-overflow clear fires (T1-4)', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'micro-t14-'));
+    try {
+      vi.useFakeTimers();
+      const ctx = testAgent({
+        homedir: home,
+        microCompaction: {
+          keepRecentMessages: 0,
+          minContentTokens: 1,
+          cacheMissedThresholdMs: 60 * MINUTE,
+          minContextUsageRatio: 0,
+        },
+      });
+
+      vi.setSystemTime(0);
+      for (let i = 1; i <= MICRO_TOOL_RESULT_FAMILY_KEEP + 2; i += 1) {
+        appendMicroToolExchange(ctx, i, { output: `family dump ${String(i)}` });
+      }
+      vi.setSystemTime(61 * MINUTE);
+
+      ctx.agent.microCompaction.detect();
+      const compacted = ctx.agent.microCompaction.compact(ctx.agent.context.history);
+      vi.useRealTimers();
+
+      const cleared = compacted.find(
+        (message) => message.role === 'tool' && message.toolCallId === 'call_micro_1',
+      );
+      const marker = textOf(cleared, { raw: true });
+      expect(marker).toContain('policyReason=family_budget_overflow');
+      expect(marker).toContain('sha256=');
+      const receiptPath = /receipt=(.+\.txt)/u.exec(marker)?.[1];
+      expect(receiptPath).toBeDefined();
+      const restored = await readFile(receiptPath as string, 'utf8');
+      expect(restored).toContain('family dump 1');
+    } finally {
+      vi.useRealTimers();
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
 

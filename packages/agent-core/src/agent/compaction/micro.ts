@@ -1,11 +1,15 @@
 import type { ContentPart } from '@superliora/kosong';
 
+import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import type { Agent } from '..';
 import type { ContextMessage } from '../context';
 import {
   estimateTokensForContentParts,
   estimateTokensForMessages,
 } from '../../utils/tokens';
+import { buildToolOutputReceipt } from '../turn/tool-result-budget';
 import { isSwarmToolResult, maskStaleSwarmToolResult } from './boundary-compaction';
 import {
   DEFAULT_MICRO_WORKING_SET_TOKENS,
@@ -381,8 +385,46 @@ export class MicroCompaction {
     if (archiveId !== undefined) {
       lines.push(`archiveId=${archiveId}`);
       lines.push('recover=LioraExpand');
+    } else if (policyReason === 'family_budget_overflow') {
+      // Harness reform T1-4: a family-overflow clear used to destroy the
+      // payload outright. Persist it under the Liora home and leave a
+      // receipt so the cleared output stays recoverable via line-ranged
+      // Read instead of forcing a blind re-run.
+      const receipt = this.persistClearedReceipt(fullText, toolCallId, toolName);
+      if (receipt !== undefined) lines.push(receipt);
     }
     return lines.join('\n');
+  }
+
+  private persistClearedReceipt(
+    fullText: string,
+    toolCallId: string,
+    toolName: string,
+  ): string | undefined {
+    const homedir = this.agent.homedir;
+    if (homedir === undefined || fullText.trim().length === 0) return undefined;
+    try {
+      const dir = join(homedir, 'tool-results');
+      mkdirSync(dir, { recursive: true });
+      const receipt = buildToolOutputReceipt({
+        tool: toolName,
+        path: `tool-call/${toolCallId}`,
+        text: fullText,
+      });
+      const stem = toolName.replace(/[^\w-]+/gu, '_');
+      const file = join(dir, `cleared-${stem}-${receipt.sha256.slice(0, 12)}.txt`);
+      writeFileSync(file, fullText);
+      pruneClearedReceipts(dir);
+      return [
+        `receipt=${file}`,
+        `sha256=${receipt.sha256}`,
+        `captured_at=${receipt.captured_at}`,
+        `summary1=${receipt.summary1}`,
+        'recover=Read the receipt path (line-ranged) to restore the cleared output',
+      ].join('\n');
+    } catch {
+      return undefined;
+    }
   }
 
   private decideToolResultPolicy(
@@ -588,4 +630,29 @@ function maskSwarmToolResultIfStale(
     ...message,
     content: [{ type: 'text', text: masked } satisfies ContentPart],
   };
+}
+
+
+/** Max cleared-output receipts kept under `<homedir>/tool-results` (T1-4 LRU). */
+const MAX_CLEARED_RECEIPTS = 64;
+
+function pruneClearedReceipts(dir: string): void {
+  try {
+    const entries = readdirSync(dir)
+      .filter((name) => name.startsWith('cleared-'))
+      .map((name) => {
+        try {
+          return { name, mtimeMs: statSync(join(dir, name)).mtimeMs };
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((entry): entry is { name: string; mtimeMs: number } => entry !== undefined)
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    for (const entry of entries.slice(MAX_CLEARED_RECEIPTS)) {
+      rmSync(join(dir, entry.name), { force: true });
+    }
+  } catch {
+    // Pruning is best-effort; never let it break compaction.
+  }
 }
