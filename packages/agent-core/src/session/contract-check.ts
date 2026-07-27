@@ -28,12 +28,41 @@ export async function checkContractFile(
   contractPath: string,
 ): Promise<ContractCheckOutcome> {
   const absolute = isAbsolute(contractPath) ? contractPath : resolve(baseDir, contractPath);
-  const packageDir = findPackageDir(absolute);
+  const packageDir = findPackageDirFromDir(dirname(absolute));
   const args =
     packageDir === undefined
       ? ['exec', 'tsc', '--noEmit', '--skipLibCheck', absolute]
       : ['-C', packageDir, 'exec', 'tsc', '--noEmit', '--skipLibCheck'];
+  return runTypecheckCommand(kaos, args);
+}
 
+/**
+ * Rolling integration guard (harness reform T3-3d): type-check the package
+ * owning `baseDir` without targeting a single file. Fan-out runs invoke it
+ * after each subagent completion so cross-agent type leaks surface
+ * incrementally instead of at the final gate. No owning package means there
+ * is nothing to enforce.
+ */
+export async function checkPackageTypecheck(
+  kaos: Kaos,
+  baseDir: string,
+): Promise<ContractCheckOutcome> {
+  const packageDir = findPackageDirFromDir(resolve(baseDir));
+  if (packageDir === undefined) return { ok: true };
+  return runTypecheckCommand(kaos, [
+    '-C',
+    packageDir,
+    'exec',
+    'tsc',
+    '--noEmit',
+    '--skipLibCheck',
+  ]);
+}
+
+async function runTypecheckCommand(
+  kaos: Kaos,
+  args: readonly string[],
+): Promise<ContractCheckOutcome> {
   let proc: KaosProcess | undefined;
   try {
     proc = await kaos.exec('pnpm', ...args);
@@ -92,8 +121,8 @@ export async function checkContractFile(
   return { ok: true };
 }
 
-function findPackageDir(filePath: string): string | undefined {
-  let dir = dirname(filePath);
+function findPackageDirFromDir(startDir: string): string | undefined {
+  let dir = startDir;
   for (let depth = 0; depth < 12; depth += 1) {
     if (existsSync(join(dir, 'package.json'))) return dir;
     const parent = dirname(dir);

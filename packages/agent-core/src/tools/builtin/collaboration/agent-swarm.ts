@@ -7,6 +7,7 @@ import {
   type QueuedSubagentTask,
   type SessionSubagentHost,
 } from '../../../session/subagent-host';
+import { takeRollingIntegrationWarning } from '../../../session/rolling-integration';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -181,7 +182,10 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
       results.map(({ task, ...result }) => ({ spec: task.data, ...result })),
     );
     const compacted = compactSwarmToolResult(this.store, rawResult);
-    return compacted.output;
+    const rollingWarning = takeRollingIntegrationWarning(toolCallId);
+    return rollingWarning === undefined
+      ? compacted.output
+      : `${compacted.output}\n\n${rollingWarning}`;
   }
 }
 

@@ -56,6 +56,7 @@ import {
 import { resolveSubagentModelAlias } from '../utils/cheap-model';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { checkContractFile } from './contract-check';
+import { maybeRunRollingCheck, recordChildCompletion } from './rolling-integration';
 import { collectGitContext } from './git-context';
 import {
   buildCheckpointRecoveryReminder,
@@ -697,6 +698,14 @@ export class SessionSubagentHost {
     this.triggerSubagentStop(parent, profileName, result);
     clearSubagentCheckpoint(childId);
     getDefaultSwarmFileLeaseRegistry().releaseAll(options.parentToolCallId);
+    if (options.swarmItem !== undefined) {
+      recordChildCompletion(options.parentToolCallId, contract.files_changed);
+      try {
+        await maybeRunRollingCheck(options.parentToolCallId, parent.kaos, parent.config.cwd);
+      } catch {
+        /* rolling integration must never break completion */
+      }
+    }
     return { result, usage, contract };
   }
 
