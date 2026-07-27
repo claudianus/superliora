@@ -72,7 +72,11 @@ export class LioraReadTool implements BuiltinTool<LioraReadInput> {
     try {
       const content = await this.kaos.readText(safePath, { errors: 'strict' });
       const displayPath = relativeDisplayPath(safePath, this.workspace);
-      if (input.raw === true || input.mode === 'full') {
+      // Harness reform T1-3: signature compression only makes sense for code.
+      // Non-code text (docs, logs, data) auto-routes to full so LioraRead on
+      // a .md/.log/.json never returns a useless "API surface".
+      const effectiveMode = input.mode ?? (isNonCodeTextPath(safePath) ? 'full' : 'auto');
+      if (input.raw === true || effectiveMode === 'full') {
         const rendered = renderTerseRead({
           content,
           displayPath,
@@ -89,7 +93,7 @@ export class LioraReadTool implements BuiltinTool<LioraReadInput> {
       const rendered = renderTerseRead({
         content,
         displayPath,
-        mode: input.mode ?? 'auto',
+        mode: effectiveMode,
         startLine: input.start_line,
         limit: input.limit,
       });
@@ -161,6 +165,28 @@ function normalizeLioraReadInput(input: LioraReadInput): LioraReadInput {
     start_line: input.start_line ?? input.line_offset,
     limit: input.limit ?? input.n_lines,
   };
+}
+
+const NON_CODE_TEXT_EXTENSIONS = new Set([
+  '.md',
+  '.mdx',
+  '.log',
+  '.txt',
+  '.json',
+  '.jsonl',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.ini',
+  '.csv',
+  '.tsv',
+  '.xml',
+]);
+
+function isNonCodeTextPath(path: string): boolean {
+  const dot = path.lastIndexOf('.');
+  if (dot < 0) return false;
+  return NON_CODE_TEXT_EXTENSIONS.has(path.slice(dot).toLowerCase());
 }
 
 function relativeDisplayPath(path: string, workspace: WorkspaceConfig): string {

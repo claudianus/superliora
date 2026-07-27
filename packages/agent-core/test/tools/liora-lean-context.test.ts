@@ -91,6 +91,26 @@ describe('Liora lean context tools', () => {
     expect(output).not.toContain('filler150');
   });
 
+  it('LioraRead auto mode returns full bodies for non-code text (T1-3)', async () => {
+    const doc = [
+      '# Design note',
+      ...Array.from({ length: 200 }, (_, index) => `Paragraph ${index} of the design note.`),
+    ].join('\n');
+    const { store } = makeStore();
+    const tool = new LioraReadTool(
+      makeKaos({ '/workspace/docs/design.md': doc }),
+      workspace,
+      store,
+    );
+
+    const result = await executeTool(tool, context({ path: 'docs/design.md' }));
+    const output = toolContentString(result);
+
+    expect(result.isError).toBeFalsy();
+    expect(output).toContain('<liora_read mode="full"');
+    expect(output).toContain('Paragraph 0 of the design note.');
+  });
+
   it('compressShellOutput collapses repetitive passing test lines', () => {
     const stdout = [
       'PASS test/a',
