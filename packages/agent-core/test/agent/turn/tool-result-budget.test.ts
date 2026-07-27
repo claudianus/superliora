@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
-import { buildToolResultPreview, budgetToolResultForModel } from '#/agent/turn/tool-result-budget';
+import { join } from 'pathe';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { buildToolOutputReceipt, budgetToolResultForModel } from '#/agent/turn/tool-result-budget';
 import type { ExecutableToolResult } from '#/loop';
 
 const text = (s: string): ExecutableToolResult => ({
@@ -8,23 +13,24 @@ const text = (s: string): ExecutableToolResult => ({
   output: s,
 });
 
-describe('turn/tool-result-budget — buildToolResultPreview', () => {
-  it('returns the input verbatim when shorter than the head+tail+20 threshold', () => {
-    const body = 'short text';
-    expect(buildToolResultPreview(body)).toBe(body);
+const outputString = (result: ExecutableToolResult): string =>
+  typeof result.output === 'string' ? result.output : '';
+
+describe('turn/tool-result-budget — buildToolOutputReceipt', () => {
+  it('captures sha256, bytes, lines, summary1, and captured_at', () => {
+    const body = `FAIL packages/foo.test.ts\n${'x'.repeat(200)}\nlast line`;
+    const receipt = buildToolOutputReceipt({ tool: 'Bash', path: '/tmp/out.txt', text: body });
+    expect(receipt.sha256).toBe(createHash('sha256').update(body).digest('hex'));
+    expect(receipt.bytes).toBe(Buffer.byteLength(body, 'utf8'));
+    expect(receipt.lines).toBe(3);
+    expect(receipt.summary1).toBe('FAIL packages/foo.test.ts');
+    expect(Number.isNaN(Date.parse(receipt.captured_at))).toBe(false);
   });
 
-  it('returns the input verbatim when at exactly the head+tail+20 threshold', () => {
-    const body = 'x'.repeat(160 + 160 + 20);
-    expect(buildToolResultPreview(body)).toBe(body);
-  });
-
-  it('keeps head + "..." + tail when longer than the threshold', () => {
-    const body = 'A'.repeat(160) + 'B'.repeat(300) + 'C'.repeat(160);
-    const preview = buildToolResultPreview(body);
-    expect(preview.startsWith('A'.repeat(160))).toBe(true);
-    expect(preview).toContain('...');
-    expect(preview.endsWith('C'.repeat(160))).toBe(true);
+  it('truncates summary1 to 120 chars with an ellipsis', () => {
+    const body = `${'y'.repeat(200)}\nrest`;
+    const receipt = buildToolOutputReceipt({ tool: 'Read', path: '/tmp/out.txt', text: body });
+    expect(receipt.summary1).toBe(`${'y'.repeat(120)}…`);
   });
 });
 
@@ -88,5 +94,53 @@ describe('turn/tool-result-budget — budgetToolResultForModel (no-archive paths
     });
     // 5000 <= 12000, so it should not archive.
     expect(out).toBe(result);
+  });
+});
+
+describe('turn/tool-result-budget — budgetToolResultForModel (receipt archive)', () => {
+  let homedir: string;
+
+  beforeEach(async () => {
+    homedir = await mkdtemp(join(tmpdir(), 'tool-result-receipt-'));
+  });
+
+  afterEach(async () => {
+    await rm(homedir, { recursive: true, force: true });
+  });
+
+  it('replaces overflowing output with a receipt whose hash matches the byte-identical persisted file', async () => {
+    const big = `first summary line\n${'z'.repeat(5000)}`;
+    const out = await budgetToolResultForModel({
+      toolName: 'Bash',
+      toolCallId: 'call-receipt',
+      result: text(big),
+      homedir,
+    });
+    const rendered = outputString(out);
+    expect(rendered).toContain('receipt: true');
+    expect(rendered).toContain(`sha256: ${createHash('sha256').update(big).digest('hex')}`);
+    expect(rendered).toContain(`output_size_bytes: ${String(Buffer.byteLength(big, 'utf8'))}`);
+    expect(rendered).toContain('output_lines: 2');
+    expect(rendered).toContain('summary1: first summary line');
+    expect(rendered).not.toContain('z'.repeat(100));
+
+    const persistedPath = /^output_path: (.+)$/m.exec(rendered)?.[1];
+    expect(persistedPath).toBeDefined();
+    // Re-acquisition yields byte-identical content.
+    expect(await readFile(persistedPath as string, 'utf8')).toBe(big);
+    const capturedAt = /^captured_at: (.+)$/m.exec(rendered)?.[1];
+    expect(Number.isNaN(Date.parse(capturedAt as string))).toBe(false);
+  });
+
+  it('preserves isError while archiving', async () => {
+    const big = `error head\n${'e'.repeat(5000)}`;
+    const out = await budgetToolResultForModel({
+      toolName: 'Bash',
+      toolCallId: 'call-err',
+      result: { isError: true, output: big },
+      homedir,
+    });
+    expect(out.isError).toBe(true);
+    expect(outputString(out)).toContain('receipt: true');
   });
 });

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -513,9 +514,13 @@ describe('Agent tools', () => {
       const toolText = ctx.compactHistory().find((message) => message.role === 'tool')?.text ?? '';
       const outputPath = /^output_path: (.+)$/m.exec(toolText)?.[1];
       expect(toolText).toContain('Tool output exceeded 12000 characters');
-      // Head+tail preview keeps EOF markers visible without embedding the full body.
-      expect(toolText).toContain('tail survives');
-      expect(toolText).toContain('...');
+      // Receipt model: the context carries only metadata; the body stays on disk.
+      expect(toolText).toContain('receipt: true');
+      expect(toolText).toContain(
+        `sha256: ${createHash('sha256').update(largeOutput).digest('hex')}`,
+      );
+      expect(toolText).toContain('output_lines: 1');
+      expect(toolText).not.toContain('tail survives');
       expect(toolText.length).toBeLessThan(largeOutput.length);
       expect(outputPath).toBeTruthy();
       expect(readFileSync(outputPath!, 'utf8')).toBe(largeOutput);

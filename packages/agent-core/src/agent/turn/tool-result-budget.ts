@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 import type { ContentPart } from '@superliora/kosong';
@@ -8,10 +8,8 @@ import type { ExecutableToolResult } from '../../loop';
 
 const TOOL_RESULT_MAX_CHARS = 4_000;
 const TOOL_RESULT_LARGE_WINDOW_MAX_CHARS = 12_000;
-/** Head chars kept in the in-context preview after archive. */
-const TOOL_RESULT_PREVIEW_HEAD_CHARS = 160;
-/** Tail chars kept so error/status lines at EOF remain visible. */
-const TOOL_RESULT_PREVIEW_TAIL_CHARS = 160;
+/** Max length of the one-line summary carried by a tool-output receipt. */
+const TOOL_OUTPUT_SUMMARY1_LIMIT = 120;
 
 interface BudgetToolResultOptions {
   readonly homedir?: string;
@@ -81,32 +79,61 @@ function renderPersistedToolResult(
   outputPath: string,
   maxChars: number,
 ): string {
+  const receipt = buildToolOutputReceipt({ tool: toolName, path: outputPath, text });
   const lines = [
-    `Tool output exceeded ${String(maxChars)} characters; showing a preview only.`,
+    `Tool output exceeded ${String(maxChars)} characters; full output persisted to disk.`,
     `tool_name: ${toolName}`,
     `tool_call_id: ${toolCallId}`,
+    'receipt: true',
+    `sha256: ${receipt.sha256}`,
     `output_size_chars: ${String(text.length)}`,
-    `output_size_bytes: ${String(Buffer.byteLength(text, 'utf8'))}`,
+    `output_size_bytes: ${String(receipt.bytes)}`,
+    `output_lines: ${String(receipt.lines)}`,
+    `captured_at: ${receipt.captured_at}`,
     `output_path: ${outputPath}`,
-    'next_step: Use Read with output_path to page through the full output.',
+    `summary1: ${receipt.summary1}`,
+    'next_step: Re-acquire precisely with Read(output_path, line_offset, n_lines) — the full output is on disk; do not re-run the tool.',
   ];
-  lines.push('', '[preview]', buildToolResultPreview(text));
   return lines.join('\n');
 }
 
 /**
- * Prefer head + tail over head-only so failure lines near EOF survive the
- * archive stub (common for test runners and build logs).
+ * Structured receipt for a persisted tool output. The context carries only
+ * the receipt; the model re-acquires exact ranges from `path` via Read.
+ * `sha256`/`captured_at` let downstream consumers (stale-replay detection,
+ * LRU demotion) verify freshness without re-reading the payload.
  */
-export function buildToolResultPreview(text: string): string {
-  const headBudget = TOOL_RESULT_PREVIEW_HEAD_CHARS;
-  const tailBudget = TOOL_RESULT_PREVIEW_TAIL_CHARS;
-  if (text.length <= headBudget + tailBudget + 20) {
-    return text;
-  }
-  const head = text.slice(0, headBudget);
-  const tail = text.slice(-tailBudget);
-  return `${head}\n...\n${tail}`;
+export interface ToolOutputReceipt {
+  tool: string;
+  path: string;
+  sha256: string;
+  bytes: number;
+  lines: number;
+  summary1: string;
+  captured_at: string;
+}
+
+export function buildToolOutputReceipt(options: {
+  tool: string;
+  path: string;
+  text: string;
+}): ToolOutputReceipt {
+  const { tool, path, text } = options;
+  const textLines = text.split('\n');
+  const firstLine = textLines.find((line) => line.trim().length > 0)?.trim() ?? '';
+  const summary1 =
+    firstLine.length > TOOL_OUTPUT_SUMMARY1_LIMIT
+      ? `${firstLine.slice(0, TOOL_OUTPUT_SUMMARY1_LIMIT)}…`
+      : firstLine;
+  return {
+    tool,
+    path,
+    sha256: createHash('sha256').update(text).digest('hex'),
+    bytes: Buffer.byteLength(text, 'utf8'),
+    lines: text.length === 0 ? 0 : textLines.length,
+    summary1,
+    captured_at: new Date().toISOString(),
+  };
 }
 
 /**
