@@ -55,6 +55,7 @@ import {
 } from '../utils/abort';
 import { resolveSubagentModelAlias } from '../utils/cheap-model';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
+import { checkContractFile } from './contract-check';
 import { collectGitContext } from './git-context';
 import {
   buildCheckpointRecoveryReminder,
@@ -172,6 +173,8 @@ export interface RunSubagentOptions {
   readonly signal: AbortSignal;
   /** Wall-clock budget for the run; drives finishing mode and telemetry (T4-5). */
   readonly timeoutMs?: number;
+  /** Shared contract file that must compile before the subagent is spawned (T4-3). */
+  readonly contractPath?: string;
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }
@@ -268,6 +271,7 @@ export class SessionSubagentHost {
     options.signal.throwIfAborted();
 
     const parent = await this.session.ensureAgentResumed(this.ownerAgentId);
+    await this.assertContractCompiles(parent, options);
     const profile = this.resolveProfile(parent, options.profileName, options.profileBaseName);
     /** Subagent windows compact earlier than parent (MapReduce-style handoff). */
     const subTriggerRatio = 0.65;
@@ -688,6 +692,26 @@ export class SessionSubagentHost {
     this.triggerSubagentStop(parent, profileName, result);
     clearSubagentCheckpoint(childId);
     return { result, usage, contract };
+  }
+
+  /**
+   * Contract-first guard (harness reform T4-3): refuse fan-out while the
+   * shared contract file no longer compiles, so conflicting type changes are
+   * caught by the compiler before agents diverge.
+   */
+  private async assertContractCompiles(
+    parent: Agent,
+    options: RunSubagentOptions,
+  ): Promise<void> {
+    const contractPath = options.contractPath?.trim();
+    if (contractPath === undefined || contractPath.length === 0) return;
+    const check = await checkContractFile(parent.kaos, parent.config.cwd, contractPath);
+    if (check.ok) return;
+    const detail =
+      check.output !== undefined && check.output.length > 0 ? `\n${check.output}` : '';
+    throw new Error(
+      `Contract file did not compile (${check.kind}) — fix it before fan-out: ${contractPath}${detail}`,
+    );
   }
 
   private async snapshotChildWork(child: Agent): Promise<GitWorkSnapshot> {

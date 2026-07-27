@@ -72,6 +72,12 @@ export const AgentToolInputSchema = z.preprocess(
       .describe(
         'Optional agent ID to resume instead of creating a new instance. When set, do not also pass subagent_type — the resumed agent keeps its own type, and supplying both is rejected.',
       ),
+    contract: z
+      .string()
+      .optional()
+      .describe(
+        'Optional path to a shared contract file (types/events both sides import). It is type-checked before the subagent spawns; a failing contract blocks fan-out.',
+      ),
     run_in_background: z
       .boolean()
       .optional()
@@ -200,6 +206,7 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         runInBackground,
         signal: controller.signal,
         timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
+        contractPath: args.contract,
       };
       let handle: SubagentHandle;
       try {

@@ -58,6 +58,12 @@ export const AgentSwarmToolInputSchema = z
       .describe(
         'Map of existing subagent agent_id to the prompt used to resume that subagent. These resumed subagents are launched before new item-based subagents.',
       ),
+    contract: z
+      .string()
+      .optional()
+      .describe(
+        'Optional path to a shared contract file (types/events every subagent imports). It is type-checked before each spawn; a failing contract blocks fan-out.',
+      ),
   })
   .strict();
 
@@ -156,6 +162,7 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
         swarmItem: spec.item,
         signal,
         timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
+        contractPath: args.contract,
       };
       if (spec.kind === 'resume') {
         return {

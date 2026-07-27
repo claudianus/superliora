@@ -72,6 +72,7 @@ type BaseQueuedSubagentTask<T> = {
   readonly swarmItem?: string;
   readonly runInBackground: boolean;
   readonly timeout?: number;
+  readonly contractPath?: string;
   readonly signal?: AbortSignal;
 };
 
@@ -346,6 +347,7 @@ export class SubagentBatch<T> {
       runInBackground: task.runInBackground,
       signal: attempt.controller.signal,
       timeoutMs: task.timeout,
+      contractPath: task.contractPath,
       onReady: () => {
         this.markAttemptReady(attempt);
       },
