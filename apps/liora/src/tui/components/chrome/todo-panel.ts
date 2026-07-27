@@ -59,6 +59,12 @@ const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
 const BOARD_SEPARATOR = ' │ ';
 const STALE_TOOL_CALLS = 2;
+/**
+ * Grace period before the board may shrink. Cards hop between lanes on
+ * updates; shrinking instantly would bounce the panel height and flicker,
+ * so shrinks are delayed while growth stays instant.
+ */
+const BOARD_SHRINK_HOLD_MS = 1500;
 
 function changeFlashMs(): number {
   const mode = resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences());
@@ -174,6 +180,20 @@ export class TodoPanelComponent implements Component {
   private goalObservedAtMs = Date.now();
   private goalSnapshotKey: string | null = null;
   private goalChangedAtMs: number | undefined;
+  private lastBoardRows = 0;
+  private boardShrinkRequestedAtMs: number | undefined;
+  /** Frame memo: identical state yields the same lines array so the renderer diff skips the panel. */
+  private lastRender:
+    | {
+        readonly width: number;
+        readonly expanded: boolean;
+        readonly todos: readonly TodoItem[];
+        readonly goal: GoalSnapshot | null;
+        readonly calls: number;
+        readonly secondBucket: number;
+        readonly lines: string[];
+      }
+    | undefined;
 
   setTodos(todos: readonly TodoItem[]): void {
     const next = todos.map((t) => ({ title: t.title, status: t.status }));
@@ -229,6 +249,9 @@ export class TodoPanelComponent implements Component {
     this.goal = null;
     this.goalSnapshotKey = null;
     this.goalChangedAtMs = undefined;
+    this.lastBoardRows = 0;
+    this.boardShrinkRequestedAtMs = undefined;
+    this.lastRender = undefined;
   }
 
   isEmpty(): boolean {
@@ -258,7 +281,33 @@ export class TodoPanelComponent implements Component {
     const liveGoal = isLiveGoal(this.goal) ? this.goal : null;
     if (this.todos.length === 0 && liveGoal === null) return [];
 
+    // While the change flash is active the frame is time-driven; otherwise
+    // unchanged state must yield byte-identical lines so the renderer's line
+    // diff can skip this panel during ambient ticks.
+    const animating = this.currentChangeSummary() !== undefined;
+    // The goal wall-clock label advances once per second; bucketing keeps the
+    // memo valid within that second.
+    const secondBucket = Math.floor(appearanceAnimationNow() / 1000);
+    const memo = this.lastRender;
+    if (
+      !animating &&
+      memo !== undefined &&
+      memo.width === width &&
+      memo.expanded === this.expanded &&
+      memo.todos === this.todos &&
+      memo.goal === this.goal &&
+      memo.calls === this.callsSinceUpdate &&
+      memo.secondBucket === secondBucket
+    ) {
+      return memo.lines;
+    }
+
     const profile = resolveResponsiveLayout({ width });
+    if (profile === 'tiny') {
+      // Not the board path: drop hysteresis so a later board render starts clean.
+      this.lastBoardRows = 0;
+      this.boardShrinkRequestedAtMs = undefined;
+    }
     const contentWidth = this.interiorWidth(width, profile);
     const colors = currentTheme.palette;
     const lines: string[] = [];
@@ -285,7 +334,11 @@ export class TodoPanelComponent implements Component {
     }
 
     if (profile === 'tiny') {
-      return lines.map((line) => truncateToWidth(line, width));
+      return this.memoizeRender(
+        width,
+        secondBucket,
+        lines.map((line) => truncateToWidth(line, width)),
+      );
     }
 
     const counts = countTodos(this.todos);
@@ -298,14 +351,18 @@ export class TodoPanelComponent implements Component {
     const borderToken =
       liveGoal !== null ? goalMonitorBorderToken(liveGoal.status) : 'border';
 
-    return renderRoundedPanel({
-      title,
-      content: lines,
+    return this.memoizeRender(
       width,
-      borderToken,
-      leftMargin: 2,
-      minBoxWidth: profile === 'compact' ? 60 : BOARD_MIN_WIDTH,
-    });
+      secondBucket,
+      renderRoundedPanel({
+        title,
+        content: lines,
+        width,
+        borderToken,
+        leftMargin: 2,
+        minBoxWidth: profile === 'compact' ? 60 : BOARD_MIN_WIDTH,
+      }),
+    );
   }
 
   private goalWallClockMs(goal: GoalSnapshot): number {
@@ -325,8 +382,11 @@ export class TodoPanelComponent implements Component {
 
     const highlights = this.currentHighlights();
     const changedAtMs = this.currentChangeSummary()?.changedAtMs;
+    const stabilizeRows = (rows: number): number => this.stabilizeBoardRows(rows);
     if (this.expanded) {
-      lines.push(...renderTodos(this.todos, c, contentWidth, highlights, changedAtMs, profile));
+      lines.push(
+        ...renderTodos(this.todos, c, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
+      );
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
           chalk.hex(c.textDim)(`  all ${String(this.todos.length)} items · ctrl+t to collapse`),
@@ -334,7 +394,9 @@ export class TodoPanelComponent implements Component {
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-      lines.push(...renderTodos(rows, c, contentWidth, highlights, changedAtMs, profile));
+      lines.push(
+        ...renderTodos(rows, c, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
+      );
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
         const suffix = distribution.length > 0 ? ` (${distribution})` : '';
@@ -366,6 +428,38 @@ export class TodoPanelComponent implements Component {
   private currentHighlights(): ReadonlyMap<string, TodoChangeKind> {
     return this.currentChangeSummary() === undefined ? EMPTY_HIGHLIGHTS : this.recentChanges;
   }
+
+  private memoizeRender(width: number, secondBucket: number, lines: string[]): string[] {
+    this.lastRender = {
+      width,
+      expanded: this.expanded,
+      todos: this.todos,
+      goal: this.goal,
+      calls: this.callsSinceUpdate,
+      secondBucket,
+      lines,
+    };
+    return lines;
+  }
+
+  /** Grow instantly, but hold shrinks for BOARD_SHRINK_HOLD_MS to stop height bounce. */
+  private stabilizeBoardRows(rows: number): number {
+    if (rows >= this.lastBoardRows) {
+      this.lastBoardRows = rows;
+      this.boardShrinkRequestedAtMs = undefined;
+      return rows;
+    }
+    if (this.boardShrinkRequestedAtMs === undefined) {
+      this.boardShrinkRequestedAtMs = appearanceAnimationNow();
+      return this.lastBoardRows;
+    }
+    if (appearanceAnimationNow() - this.boardShrinkRequestedAtMs >= BOARD_SHRINK_HOLD_MS) {
+      this.lastBoardRows = rows;
+      this.boardShrinkRequestedAtMs = undefined;
+      return rows;
+    }
+    return this.lastBoardRows;
+  }
 }
 
 function renderTodos(
@@ -375,12 +469,13 @@ function renderTodos(
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
   profile: ReturnType<typeof resolveResponsiveLayout> = 'standard',
+  stabilizeRows?: (rows: number) => number,
 ): string[] {
   if (profile === 'tiny') {
     return renderLanes(todos, colors, width, highlights, changedAtMs);
   }
   return width >= BOARD_MIN_WIDTH
-    ? renderBoard(todos, colors, width, highlights, changedAtMs)
+    ? renderBoard(todos, colors, width, highlights, changedAtMs, stabilizeRows)
     : renderLanes(todos, colors, width, highlights, changedAtMs);
 }
 
@@ -390,6 +485,7 @@ function renderBoard(
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
+  stabilizeRows?: (rows: number) => number,
 ): string[] {
   const availableWidth = Math.max(1, width - visibleWidth(BOARD_INDENT));
   const columnWidth = Math.floor(
@@ -404,7 +500,9 @@ function renderBoard(
     ...lane,
     todos: todos.filter((todo) => todo.status === lane.status),
   }));
-  const maxRows = Math.max(1, ...lanes.map((lane) => lane.todos.length));
+  const rawMaxRows = Math.max(1, ...lanes.map((lane) => lane.todos.length));
+  // Hysteresis: grow instantly but delay shrinks so lane hops do not bounce the height.
+  const maxRows = stabilizeRows === undefined ? rawMaxRows : stabilizeRows(rawMaxRows);
   const separator = chalk.hex(colors.border)(BOARD_SEPARATOR);
   const columnRule = renderRendererDividerRow({
     width: columnWidth,
