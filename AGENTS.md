@@ -46,7 +46,7 @@ Hot-path only: package map, hard constraints, and release/workflow gates every t
 - Public text and fixtures: no real internal hosts/keys — use `example.com`, `example.test`, `YOUR_API_KEY`.
 - PR titles: Conventional Commits (e.g. `fix(liora): …`). Fill `.github/pull_request_template.md` with the problem and what changed; no placeholder or vague AI summary.
 - User-visible prose (PR body, changeset, docs): light no-slop pass; skill at `.agents/skills/no-ai-slop/SKILL.md` when needed.
-- Before opening a PR: run `.agents/skills/gen-changesets/SKILL.md` and add `.changeset/` as required.
+- Before opening a PR: run `.agents/skills/gen-changesets/SKILL.md` and add `.changeset/` as required. `pnpm run check:changeset` enforces presence against `origin/main` (product code without a changeset fails).
   - **Never write `major` without explicit user approval.** Default `minor`, else `patch` if impact is unclear.
 
 ## Source-install gate
@@ -58,6 +58,7 @@ Touches to `packages/agent-core`, `packages/node-sdk`, `packages/acp-adapter`, o
 3. `pnpm run check:imports`
 4. `pnpm -C apps/liora run build`
 5. `pnpm -C apps/liora run smoke`
+6. `pnpm run check:test-baseline` — test ratchet against `meta/test-baseline.yaml`; new failures or fixed-but-still-pinned failures fail the gate. After deliberately fixing pinned failures, refresh with `node scripts/check-test-baseline.mjs --update` and commit the smaller baseline.
 
 Upstream ports (e.g. Kimi Code): split imports by ownership (`@superliora/sdk` vs `@superliora/agent-core`); grep leftovers like `@kimi-code/` / `@superliora/superliora-`.
 
