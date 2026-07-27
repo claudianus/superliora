@@ -19,7 +19,10 @@ import {
 } from '#/tui/renderer';
 import type { RendererRootUI } from '#/tui/renderer';
 import { highlightLines, langFromPath, highlightLinesWindow } from '#/tui/components/media/code-highlight';
-import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
+import {
+  diffLineBackground,
+  renderDiffLinesClusteredRows,
+} from '#/tui/components/media/diff-preview';
 import {
   BRAILLE_SPINNER_FRAMES,
   BRAILLE_SPINNER_INTERVAL_MS,
@@ -616,6 +619,13 @@ export class ToolCallComponent extends Container {
   private finishedAtMs: number | undefined;
   private subagentEndedAtMs: number | undefined;
   private subagentSpinnerFrame = 0;
+  /**
+   * Child index where `buildSubagentBlock()` starts appending. The animation
+   * tick truncates back to here and rebuilds only the subagent block so
+   * spinner frames / pulse marks keep moving without rebuilding the rest of
+   * the card (call preview, result body).
+   */
+  private subagentBlockStartIndex = 0;
 
   // ── Live progress lines ──────────────────────────────────────────
   //
@@ -681,6 +691,13 @@ export class ToolCallComponent extends Container {
 
   private readonly renderCache = new RendererChildrenRenderCache();
   private lastHeaderAnimationEpoch = -1;
+
+  /**
+   * Reused across streaming deltas so the Bash command preview updates in
+   * place — rebuilding the component per delta restarted its entrance wash
+   * and render cache every frame, which read as flicker.
+   */
+  private streamingShellPreview: ShellExecutionComponent | undefined;
 
   /**
    * True while any part of this block still animates — streaming result,
@@ -762,18 +779,25 @@ export class ToolCallComponent extends Container {
       this.lastStreamingProgressTickMs = 0;
     }
 
-    // Subagent elapsed timer.
+    // Subagent elapsed timer + spinner/pulse motion. Single subagent views
+    // tick once started; multi-subagent views (e.g. AgentSwarm/UltraSwarm
+    // phase chips and ongoing sub-call rows) tick while any sub-call is live
+    // so their spinner frames keep moving too.
     const phase = this.getDerivedSubagentPhase();
-    const subagentShouldTick =
-      this.isSingleSubagentView() &&
-      this.subagentStartedAtMs !== undefined &&
-      (phase === 'queued' || phase === 'spawning' || phase === 'running');
+    const subagentShouldTick = this.isSingleSubagentView()
+      ? this.subagentStartedAtMs !== undefined &&
+        (phase === 'queued' || phase === 'spawning' || phase === 'running')
+      : this.subagentPhase === 'queued' ||
+        this.subagentPhase === 'spawning' ||
+        this.subagentPhase === 'running' ||
+        this.ongoingSubCalls.size > 0;
     if (subagentShouldTick) {
       if (now - this.lastSubagentElapsedTickMs >= SUBAGENT_ELAPSED_INTERVAL_MS) {
         this.lastSubagentElapsedTickMs = now;
         this.subagentSpinnerFrame =
           (this.subagentSpinnerFrame + 1) % BRAILLE_SPINNER_FRAMES.length;
         this.headerText.setText(this.buildHeader());
+        this.rebuildSubagentBlock();
         this.notifySnapshotChange();
         this.ui?.requestRender();
       }
@@ -1711,6 +1735,9 @@ export class ToolCallComponent extends Container {
   }
 
   private buildSubagentBlock(): void {
+    // Remember where the block starts so the animation tick can rebuild just
+    // this tail (spinner frames / pulse marks) without touching the rest.
+    this.subagentBlockStartIndex = this.children.length;
     if (
       this.subagentAgentId === undefined &&
       this.ongoingSubCalls.size === 0 &&
@@ -1768,11 +1795,12 @@ export class ToolCallComponent extends Container {
       const keyArg = extractKeyArgument(call.name, call.args, this.workspaceDir);
       const nameCol = currentTheme.fg('primary', call.name);
       const argCol = keyArg ? currentTheme.dim(` (${keyArg})`) : '';
-      void id;
+      const mark = renderPulseText('…', `tool:${this.toolCall.id}:subcall:${id}`, 'primary');
+      const verb = renderPulseText('Using', `tool:${this.toolCall.id}:subcall-verb:${id}`, 'text');
       this.addChild(new Text(
         renderRendererToolActivityHeader({
-          marker: `    ${currentTheme.dim('…')} `,
-          action: 'Using',
+          marker: `    ${mark} `,
+          action: verb,
           label: nameCol,
           detail: argCol,
         }),
@@ -1813,6 +1841,20 @@ export class ToolCallComponent extends Container {
   }
 
   /**
+   * Rebuild only the subagent block children off the shared animation clock
+   * (PREMIUM.md §7.1) so spinner frames and pulse-colored marks stay in
+   * motion while a subagent is live. Settled cards never reach this — the
+   * tick gate in `tickClockDrivenRefresh` only fires for active phases.
+   */
+  private rebuildSubagentBlock(): void {
+    this.renderCache.clear();
+    while (this.children.length > this.subagentBlockStartIndex) {
+      this.children.pop();
+    }
+    this.buildSubagentBlock();
+  }
+
+  /**
    * Header phase/token chip. No chip is shown when phase is undefined.
    *   queued        -> queued
    *   spawning      -> starting
@@ -1829,10 +1871,10 @@ export class ToolCallComponent extends Container {
         parts.push(`${PENDING_GLYPH} queued`);
         break;
       case 'spawning':
-        parts.push(`${SPINNER_GLYPH} starting…`);
+        parts.push(this.renderSubagentPhaseSpinner('starting…', 'spawning'));
         break;
       case 'running':
-        parts.push(`${SPINNER_GLYPH} running`);
+        parts.push(this.renderSubagentPhaseSpinner('running', 'running'));
         break;
       case 'done': {
         parts.push(currentTheme.fg('success', '✓ done'));
@@ -1852,6 +1894,18 @@ export class ToolCallComponent extends Container {
         break;
     }
     return parts.length > 0 ? currentTheme.dim(` · ${parts.join(' · ')}`) : '';
+  }
+
+  /**
+   * Spinner segment for active phase chips: braille frame from the shared
+   * animation clock + pulse color (PREMIUM.md §7.3 spinner treatment),
+   * matching the single-subagent marker instead of a frozen `↻`.
+   */
+  private renderSubagentPhaseSpinner(label: string, kind: string): string {
+    const frame =
+      BRAILLE_SPINNER_FRAMES[this.subagentSpinnerFrame % BRAILLE_SPINNER_FRAMES.length] ??
+      SPINNER_GLYPH;
+    return renderPulseText(`${frame} ${label}`, `tool:${this.toolCall.id}:phase:${kind}`, 'primary');
   }
 
   private formatAgentId(): string {
@@ -1924,8 +1978,16 @@ export class ToolCallComponent extends Container {
     if (phase === 'failed') return currentTheme.fg('error', '✗ ');
     if (phase === 'done') return currentTheme.fg('success', STATUS_BULLET);
     if (phase === 'backgrounded') return currentTheme.dim('◐ ');
-    const frame = BRAILLE_SPINNER_FRAMES[this.subagentSpinnerFrame] ?? BRAILLE_SPINNER_FRAMES[0];
-    return currentTheme.fg('primary', `${frame} `);
+    const frame =
+      BRAILLE_SPINNER_FRAMES[this.subagentSpinnerFrame % BRAILLE_SPINNER_FRAMES.length] ??
+      SPINNER_GLYPH;
+    // Pulse the spinner color while actively spawning/running (PREMIUM.md
+    // §7.3: spinner = braille cycle + pulse color); queued waits quietly.
+    const spinner =
+      phase === 'running' || phase === 'spawning'
+        ? renderPulseText(frame, `tool:${this.toolCall.id}:subagent-spinner`, 'primary')
+        : currentTheme.fg('primary', frame);
+    return `${spinner} `;
   }
 
   private formatSingleSubagentStatus(phase: SubagentPhase | undefined): string {
@@ -1935,14 +1997,14 @@ export class ToolCallComponent extends Container {
       case 'failed':
         return currentTheme.fg('error', 'Failed');
       case 'running':
-        return currentTheme.fg('primary', 'Running');
+        return renderPulseText('Running', `tool:${this.toolCall.id}:subagent-status`, 'primary');
       case 'backgrounded':
-        return 'Backgrounded';
+        return currentTheme.fg('textMuted', 'Backgrounded');
       case 'queued':
-        return currentTheme.fg('primary', 'Queued');
+        return renderPulseText('Queued', `tool:${this.toolCall.id}:subagent-status`, 'primary', undefined, 'slow');
       case 'spawning':
       case undefined:
-        return currentTheme.fg('primary', 'Starting');
+        return renderPulseText('Starting', `tool:${this.toolCall.id}:subagent-status`, 'primary');
     }
   }
 
@@ -1975,8 +2037,11 @@ export class ToolCallComponent extends Container {
           ? currentTheme.fg('error', '✗')
           : activity.phase === 'done'
             ? currentTheme.fg('success', '•')
-            : currentTheme.fg('text', '•');
-      const verb = activity.phase === 'ongoing' ? 'Using' : 'Used';
+            : renderPulseText('•', `tool:${this.toolCall.id}:subtool:${activity.orderSeq}`, 'primary');
+      const verb =
+        activity.phase === 'ongoing'
+          ? renderPulseText('Using', `tool:${this.toolCall.id}:subtool-verb:${activity.orderSeq}`, 'text')
+          : 'Used';
       this.addChild(new Text(this.formatSubToolActivityRow(`  ${mark} `, verb, activity), 0, 0));
       this.addSubToolOutputPreview(activity);
     }
@@ -2136,12 +2201,15 @@ export class ToolCallComponent extends Container {
       const newStr = str(this.toolCall.args['new_string']);
       if (oldStr.length === 0 && newStr.length === 0) return;
       const filePath = str(this.toolCall.args['file_path'] ?? this.toolCall.args['path']);
-      const lines = renderDiffLinesClustered(oldStr, newStr, filePath, {
+      const rows = renderDiffLinesClusteredRows(oldStr, newStr, filePath, {
         contextLines: 3,
         ...(shouldCap ? { maxLines: COMMAND_PREVIEW_LINES } : {}),
       });
-      for (const line of lines) {
-        this.addChild(new Text(line, 2, 0));
+      const addBg = diffLineBackground('add');
+      const delBg = diffLineBackground('delete');
+      for (const row of rows) {
+        const bg = row.kind === 'add' ? addBg : row.kind === 'delete' ? delBg : undefined;
+        this.addChild(new Text(row.text, 2, 0, bg));
       }
     } else if (name === 'Bash' && this.result === undefined) {
       // While a long-running Bash call is in-flight (args finalized, no result
@@ -2220,14 +2288,20 @@ export class ToolCallComponent extends Container {
       this.addChild(new Text(currentTheme.dim(progress), 2, 0));
       // Live incomplete diff once either side has content — syntax-colored.
       if (oldStr.length > 0 || newStr.length > 0) {
-        const lines = renderDiffLinesClustered(oldStr, newStr, filePath, {
+        const rows = renderDiffLinesClusteredRows(oldStr, newStr, filePath, {
           contextLines: 2,
           maxLines: COMMAND_PREVIEW_LINES,
           isIncomplete: true,
           syntaxHighlight: true,
+          // Follow the live edit edge: the viewport tracks the code being
+          // written instead of staying pinned to the hunk start.
+          tail: true,
         });
-        for (const line of lines) {
-          this.addChild(new Text(line, 2, 0));
+        const addBg = diffLineBackground('add');
+        const delBg = diffLineBackground('delete');
+        for (const row of rows) {
+          const bg = row.kind === 'add' ? addBg : row.kind === 'delete' ? delBg : undefined;
+          this.addChild(new Text(row.text, 2, 0, bg));
         }
       }
       return;
@@ -2235,13 +2309,21 @@ export class ToolCallComponent extends Container {
     if (name === 'Bash') {
       const cmd = extractPartialStringField(previewText, 'command');
       if (cmd === undefined || cmd.length === 0) return;
-      this.addChild(
-        new ShellExecutionComponent({
+      const shell = this.streamingShellPreview;
+      if (shell === undefined) {
+        const created = new ShellExecutionComponent({
           command: cmd,
           showCommand: true,
           commandPreviewLines: COMMAND_PREVIEW_LINES,
-        }),
-      );
+        });
+        this.streamingShellPreview = created;
+        this.addChild(created);
+      } else {
+        // Update in place so the entrance clock and caches stay warm;
+        // rebuildBody may have popped the node, so re-attach when missing.
+        shell.setCommand(cmd, COMMAND_PREVIEW_LINES);
+        if (!this.children.includes(shell)) this.addChild(shell);
+      }
     }
     // Unknown tools: nothing sensible to stream without a schema, so
     // leave the body blank and let the header do the talking.

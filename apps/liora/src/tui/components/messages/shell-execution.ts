@@ -34,6 +34,8 @@ export interface ShellExecutionOptions {
 
 export class ShellExecutionComponent extends Container {
   private readonly entranceStartedAtMs = appearanceAnimationNow();
+  /** Command-preview Text nodes, kept so streaming deltas can reuse them. */
+  private readonly commandPreviewTexts: Text[] = [];
   constructor(options: ShellExecutionOptions) {
     super();
 
@@ -61,8 +63,43 @@ export class ShellExecutionComponent extends Container {
       maxLines: previewLines,
     }).lines;
     for (const line of lines) {
-      this.addChild(new Text(line, 2, 0));
+      const text = new Text(line, 2, 0);
+      this.commandPreviewTexts.push(text);
+      this.addChild(text);
     }
+  }
+
+  /**
+   * Update the command preview in place while arguments stream in. Reusing
+   * the existing Text nodes (instead of rebuilding the component per delta)
+   * keeps the entrance clock and render cache stable — that churn was the
+   * visible flicker during Bash command streaming.
+   */
+  setCommand(command: string, previewLines: number | undefined): void {
+    if (command.length === 0) return;
+    const highlighted = formatShellCommandPreview(command);
+    const lines = projectRendererLineWindow({
+      lines: highlighted,
+      maxLines: previewLines,
+    }).lines;
+    for (const [i, line] of lines.entries()) {
+      const existing = this.commandPreviewTexts[i];
+      if (existing !== undefined) {
+        existing.setText(line);
+      } else {
+        const text = new Text(line, 2, 0);
+        this.commandPreviewTexts.push(text);
+        this.addChild(text);
+      }
+    }
+    // Drop surplus nodes left over from a previously longer command.
+    while (this.commandPreviewTexts.length > lines.length) {
+      const surplus = this.commandPreviewTexts.pop();
+      if (surplus === undefined) break;
+      const idx = this.children.indexOf(surplus);
+      if (idx >= 0) this.children.splice(idx, 1);
+    }
+    this.invalidate();
   }
 
   private addResultPreview(

@@ -16,6 +16,7 @@ import {
 
 import { tln } from '#/cli/i18n';
 import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';
+import { refreshShikiPalette } from '#/tui/components/media/shiki-ansi';
 import type { TuiConfig } from '#/tui/config';
 import { loadTuiConfig, TuiConfigParseError } from '#/tui/config';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
@@ -47,6 +48,7 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
   // Initialise the global Theme singleton before pi-tui grabs stdin.
   const palette = await getColorPalette(tuiConfig.theme);
   currentTheme.setPalette(palette);
+  refreshShikiPalette(palette);
 
   // Probe runtime kitty graphics support in the same pre-raw-mode window —
   // once the TUI owns stdin the probe reply would be eaten by the input loop.

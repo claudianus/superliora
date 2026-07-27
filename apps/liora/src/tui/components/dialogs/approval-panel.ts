@@ -128,6 +128,8 @@ function renderDisplayBlock(
         contextLines: 3,
         expandKeyHint: 'ctrl+e to preview',
         maxLines: DIFF_SUMMARY_MAX_LINES,
+        fullRowBackground: true,
+        width: contentWidth,
       });
     case 'file_content': {
       const lang = block.language ?? langFromPath(block.path);

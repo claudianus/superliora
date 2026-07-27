@@ -182,6 +182,7 @@ import { createQuestionAskHandler } from './reverse-rpc/question/handler';
 import { createContext7CredentialHandler } from './reverse-rpc/credential/handler';
 import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
 import { currentTheme, getColorPalette, getBuiltInPalette, isBuiltInTheme } from './theme';
+import { refreshShikiPalette } from './components/media/shiki-ansi';
 import type { ColorToken, ResolvedTheme, ThemeName } from './theme';
 import { createTUIState, type TUIState } from './tui-state';
 import {
@@ -3399,6 +3400,7 @@ export class LioraTUI {
   async applyTheme(themeName: ThemeName, resolved?: ResolvedTheme): Promise<void> {
     const palette = await getColorPalette(themeName === 'auto' ? (resolved ?? 'dark') : themeName);
     currentTheme.setPalette(palette);
+    refreshShikiPalette(palette);
     this.setAppState({ theme: themeName });
     this.appearanceController.apply();
     this.updateEditorBorderHighlight();
@@ -3427,6 +3429,7 @@ export class LioraTUI {
     const palette = getBuiltInPalette(resolved);
     if (currentTheme.palette === palette) return;
     currentTheme.setPalette(palette);
+    refreshShikiPalette(palette);
     this.appearanceController.apply();
     this.updateEditorBorderHighlight();
     // Repaint already-rendered transcript entries (status/markdown caches hold

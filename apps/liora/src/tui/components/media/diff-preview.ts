@@ -8,7 +8,7 @@
 import chalk from 'chalk';
 import sliceAnsi from 'slice-ansi';
 
-import { projectRendererLineWindow } from '#/tui/renderer';
+import { projectRendererLineWindow, visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme';
 
@@ -304,6 +304,20 @@ export interface ClusteredDiffOptions {
    */
   readonly syntaxHighlight?: boolean;
   readonly palette?: ColorPalette;
+  /**
+   * Paint changed rows across the gutter+marker+code span instead of hugging
+   * the code text. When `width` is set, the tint is padded to that many
+   * visible columns so short rows still read as one edge-to-edge surface.
+   */
+  readonly fullRowBackground?: boolean;
+  /** Target visible column count for `fullRowBackground` padding. */
+  readonly width?: number;
+  /**
+   * Anchor the preview window to the newest changes instead of the first
+   * ones — the streaming "follow the edit" mode. Mirrors Write's live tail
+   * window so the viewport tracks the code currently being written.
+   */
+  readonly tail?: boolean;
 }
 
 interface Cluster {
@@ -313,6 +327,7 @@ interface Cluster {
 
 interface DiffBodyRow {
   readonly text: string;
+  readonly kind: DiffPreviewRowKind;
   readonly line?: DiffLine;
 }
 
@@ -407,6 +422,7 @@ function formatDiffRow(
   s: DiffStyles,
   syntaxByCode?: ReadonlyMap<string, string>,
   wordSpans?: WordSpan[],
+  fullRow?: { readonly width?: number },
 ): string {
   const gutter = s.gutter(String(line.lineNum).padStart(4) + ' ');
   if (line.kind === 'context') {
@@ -415,11 +431,18 @@ function formatDiffRow(
     return gutter + '  ' + code;
   }
   const code = renderCodeWithSpans(line, syntaxByCode, wordSpans, s);
-  // The marker shares the line tint so the whole row reads as one surface.
-  if (line.kind === 'add') {
-    return gutter + s.addLineBg(s.add('+ ') + code);
+  const lineBg = line.kind === 'add' ? s.addLineBg : s.delLineBg;
+  const marker = line.kind === 'add' ? s.add('+ ') : s.del('- ');
+  if (fullRow === undefined) {
+    // The marker shares the line tint so the whole row reads as one surface.
+    return gutter + lineBg(marker + code);
   }
-  return gutter + s.delLineBg(s.del('- ') + code);
+  // Full-row paint: the gutter joins the tinted surface and the tint extends
+  // to the target width, so short rows span the column like material diffs.
+  const inner = gutter + marker + code;
+  const target = fullRow.width;
+  const pad = target !== undefined && target > 0 ? Math.max(0, target - visibleWidth(inner)) : 0;
+  return lineBg(inner + ' '.repeat(pad));
 }
 
 /**
@@ -452,6 +475,25 @@ function renderCodeWithSpans(
   return out;
 }
 
+/** Semantic kind of a rendered diff row; `meta` covers headers and footers. */
+export type DiffPreviewRowKind = DiffLineKind | 'meta';
+
+/** One rendered diff row plus its kind, so callers can paint full lines. */
+export interface DiffPreviewRow {
+  readonly text: string;
+  readonly kind: DiffPreviewRowKind;
+}
+
+/**
+ * Line background painter for diff rows rendered through `Text`'s
+ * `customBgFn`: the component pads every visual line to full width, and this
+ * paints the padded span with the same material tint the inline row carries.
+ */
+export function diffLineBackground(kind: 'add' | 'delete'): (text: string) => string {
+  const s = makeDiffStyles();
+  return kind === 'add' ? s.addLineBg : s.delLineBg;
+}
+
 /**
  * Render a diff with surrounding context, eliding unchanged middle
  * regions between change clusters with a `… N unchanged lines …`
@@ -467,8 +509,21 @@ export function renderDiffLinesClustered(
   path: string,
   opts: ClusteredDiffOptions = {},
 ): string[] {
+  return renderDiffLinesClusteredRows(oldText, newText, path, opts).map((row) => row.text);
+}
+
+/**
+ * Like {@link renderDiffLinesClustered}, but keeps each row's diff kind so
+ * callers (e.g. the Edit tool card) can paint the full terminal line.
+ */
+export function renderDiffLinesClusteredRows(
+  oldText: string,
+  newText: string,
+  path: string,
+  opts: ClusteredDiffOptions = {},
+): DiffPreviewRow[] {
   const diffLines = computeDiffLines(oldText, newText, 1, 1, opts.isIncomplete ?? false);
-  return renderClusteredDiffBody(diffLines, path, opts);
+  return renderClusteredDiffRows(diffLines, path, opts);
 }
 
 /**
@@ -482,6 +537,15 @@ export function renderClusteredDiffBody(
   path: string,
   opts: ClusteredDiffOptions = {},
 ): string[] {
+  return renderClusteredDiffRows(diffLines, path, opts).map((row) => row.text);
+}
+
+/** Row-kind-aware core behind {@link renderClusteredDiffBody}. */
+export function renderClusteredDiffRows(
+  diffLines: DiffLine[],
+  path: string,
+  opts: ClusteredDiffOptions = {},
+): DiffPreviewRow[] {
   const s = makeDiffStyles();
   const contextLines = opts.contextLines ?? 3;
   const maxLines = opts.maxLines;
@@ -493,17 +557,18 @@ export function renderClusteredDiffBody(
     opts.palette,
   );
   const wordSpans = pairWordSpans(diffLines);
+  const fullRow = opts.fullRowBackground === true ? { width: opts.width } : undefined;
   const { clusters, changedCount, addedCount, removedCount } = buildClusters(
     diffLines,
     contextLines,
   );
 
-  const output: string[] = [];
+  const output: DiffPreviewRow[] = [];
   let header = '';
   if (addedCount > 0) header += s.addBold(`+${String(addedCount)} `);
   if (removedCount > 0) header += s.delBold(`-${String(removedCount)} `);
   header += path;
-  output.push(header);
+  output.push({ text: header, kind: 'meta' });
 
   if (clusters.length === 0) return output;
 
@@ -516,12 +581,17 @@ export function renderClusteredDiffBody(
       if (gap > 0) {
         bodyRows.push({
           text: s.meta(`     … ${String(gap)} unchanged line${gap > 1 ? 's' : ''} …`),
+          kind: 'meta',
         });
       }
     }
     for (let i = cluster.start; i <= cluster.end; i++) {
       const line = diffLines[i]!;
-      bodyRows.push({ text: formatDiffRow(line, s, syntaxByCode, wordSpans.get(line)), line });
+      bodyRows.push({
+        text: formatDiffRow(line, s, syntaxByCode, wordSpans.get(line), fullRow),
+        kind: line.kind,
+        line,
+      });
     }
     prevEnd = cluster.end;
   }
@@ -529,19 +599,21 @@ export function renderClusteredDiffBody(
   const preview = projectRendererLineWindow({
     lines: bodyRows,
     maxLines: maxLines !== undefined && maxLines >= 0 ? maxLines : undefined,
+    tail: opts.tail === true,
   });
-  output.push(...preview.lines.map((row) => row.text));
+  output.push(...preview.lines.map((row) => ({ text: row.text, kind: row.kind })));
 
   if (preview.hiddenLineCount > 0) {
     const shownChanges = preview.lines.filter((row) => row.line?.kind !== 'context').length;
     const hidden = changedCount - shownChanges;
     if (hidden > 0) {
       const hint = opts.expandKeyHint ?? 'ctrl+o';
-      output.push(
-        s.meta(
+      output.push({
+        text: s.meta(
           `     … ${String(hidden)} more change${hidden > 1 ? 's' : ''} hidden (${hint} to expand)`,
         ),
-      );
+        kind: 'meta',
+      });
     }
   }
 

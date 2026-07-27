@@ -12,7 +12,8 @@ import { createHighlighter } from 'shiki';
 import type { BundledLanguage } from 'shiki';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
-import type { ColorPalette } from '#/tui/theme';
+import { currentTheme, type ColorPalette } from '#/tui/theme';
+import { buildShikiPaletteTheme, SHIKI_PALETTE_THEME_NAME } from '#/tui/theme/shiki-theme';
 
 /** Common languages seen in transcripts; loaded eagerly at warm-up. */
 const SHIKI_LANGS = [
@@ -56,6 +57,42 @@ type ShikiInstance = Awaited<ReturnType<typeof createHighlighter>>;
 let highlighter: ShikiInstance | undefined;
 let warmPromise: Promise<void> | undefined;
 let forceFallback = false;
+/** Signature of the palette currently loaded into the highlighter. */
+let activePaletteKey: string | undefined;
+
+const PALETTE_KEY_TOKENS = [
+  'syntaxText',
+  'syntaxKeyword',
+  'syntaxFunction',
+  'syntaxType',
+  'syntaxString',
+  'syntaxNumber',
+  'syntaxComment',
+  'syntaxOperator',
+  'syntaxTag',
+  'syntaxMeta',
+  'background',
+] as const;
+
+function paletteKey(palette: ColorPalette): string {
+  return PALETTE_KEY_TOKENS.map((token) => palette[token]).join('\u0000');
+}
+
+/**
+ * Re-bind Shiki's colors to a new palette after a theme switch. Safe to call
+ * before warm-up finishes — completion compares keys and catches up, and
+ * {@link shikiHighlightLines} also calls this lazily on every miss.
+ */
+export function refreshShikiPalette(palette: ColorPalette): void {
+  const key = paletteKey(palette);
+  if (key === activePaletteKey) return;
+  activePaletteKey = key;
+  const instance = highlighter;
+  if (instance === undefined) return;
+  void instance.loadTheme(buildShikiPaletteTheme(palette)).catch(() => {
+    // Theme load failed; keep the previous palette colors.
+  });
+}
 
 /**
  * Test-only: force the cli-highlight fallback path so palette-driven
@@ -73,12 +110,22 @@ export function __forceShikiFallbackForTest(value: boolean): void {
 export function warmShikiHighlighter(): Promise<void> {
   if (warmPromise === undefined) {
     warmPromise = createHighlighter({
-      themes: ['dark-plus', 'light-plus'],
+      // A bundled placeholder keeps creation free of app-module state:
+      // reading currentTheme at import time is unsafe in the production
+      // bundle (module cycles can leave the palette uninitialized). The
+      // palette theme is loaded on completion instead.
+      themes: ['dark-plus'],
       langs: [...SHIKI_LANGS],
       engine: createJavaScriptRegexEngine({ forgiving: true }),
     })
       .then((instance) => {
         highlighter = instance;
+        const live = currentTheme.palette;
+        activePaletteKey = paletteKey(live);
+        void instance.loadTheme(buildShikiPaletteTheme(live)).catch(() => {
+          // Keep the placeholder theme; cli-highlight fallback still matches
+          // the palette, so colors are never wrong for long.
+        });
       })
       .catch(() => {
         // Leave highlighter undefined; callers keep the cli-highlight path.
@@ -97,15 +144,6 @@ function resolveLangId(lang: string): string {
   return LANG_ALIASES[normalized] ?? normalized;
 }
 
-function paletteIsDark(palette?: ColorPalette): boolean {
-  const raw = (palette?.background ?? '#0B0F14').replace('#', '');
-  const r = Number.parseInt(raw.slice(0, 2), 16) / 255;
-  const g = Number.parseInt(raw.slice(2, 4), 16) / 255;
-  const b = Number.parseInt(raw.slice(4, 6), 16) / 255;
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance <= 0.55;
-}
-
 /**
  * Highlight `code` with Shiki, returning one ANSI string per line.
  * Returns undefined when the singleton is not ready, the language is not
@@ -120,11 +158,13 @@ export function shikiHighlightLines(
   if (instance === undefined || forceFallback) return undefined;
   const langId = resolveLangId(lang);
   if (!instance.getLoadedLanguages().includes(langId)) return undefined;
+  // Lazy re-bind so a theme switch is reflected even without an explicit
+  // refreshShikiPalette hook on the switching code path.
+  if (palette !== undefined) refreshShikiPalette(palette);
   try {
-    const theme = paletteIsDark(palette) ? 'dark-plus' : 'light-plus';
     const { tokens } = instance.codeToTokens(code, {
       lang: langId as BundledLanguage,
-      theme,
+      theme: SHIKI_PALETTE_THEME_NAME,
     });
     return tokens.map((line) =>
       line

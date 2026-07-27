@@ -12,6 +12,7 @@ import { currentTheme } from '../../theme';
 import {
   getActiveAppearancePreferences,
   renderPremiumHeadline,
+  renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '../../utils/appearance-effects';
@@ -195,7 +196,12 @@ export class BtwPanelComponent implements Component {
       }).lines;
       lines.push(...visibleThinking);
     } else if (turn.error === undefined) {
-      lines.push(currentTheme.fg('textDim', 'Waiting for answer...'));
+      const appearance = getActiveAppearancePreferences();
+      lines.push(
+        shouldRenderAmbientEffects(appearance)
+          ? renderPulseText('Waiting for answer...', 'btw:waiting', 'textDim', appearance)
+          : currentTheme.fg('textDim', 'Waiting for answer...'),
+      );
     }
     if (turn.error !== undefined) {
       const error = currentTheme.fg('error', turn.error);

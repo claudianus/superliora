@@ -5,6 +5,7 @@ import {
   computeDiffLines,
   renderDiffLines,
   renderDiffLinesClustered,
+  renderDiffLinesClusteredRows,
 } from '#/tui/components/media/diff-preview';
 
 function stripAnsi(text: string): string {
@@ -243,5 +244,118 @@ describe('renderDiffLinesClustered', () => {
     } finally {
       chalk.level = previous;
     }
+  });
+});
+
+describe('renderDiffLinesClusteredRows', () => {
+  it('tags header rows as meta and body rows by diff kind', () => {
+    const rows = renderDiffLinesClusteredRows('A\nB\nC', 'A\nX\nC', 'foo.ts', {
+      contextLines: 1,
+      syntaxHighlight: false,
+    });
+    expect(rows[0]!.kind).toBe('meta');
+    const kinds = rows.slice(1).map((row) => row.kind);
+    expect(kinds).toContain('add');
+    expect(kinds).toContain('delete');
+    expect(kinds).toContain('context');
+  });
+
+  it('keeps text output identical to renderDiffLinesClustered', () => {
+    const plain = renderDiffLinesClustered('A\nB', 'A\nZ', 'f.ts', { syntaxHighlight: false });
+    const rows = renderDiffLinesClusteredRows('A\nB', 'A\nZ', 'f.ts', { syntaxHighlight: false });
+    expect(rows.map((row) => row.text)).toEqual(plain);
+  });
+});
+
+describe('fullRowBackground', () => {
+  it('pads changed rows to the target visible width', () => {
+    const rows = renderDiffLinesClusteredRows('short', 'tiny', 'f.txt', {
+      fullRowBackground: true,
+      width: 60,
+      syntaxHighlight: false,
+    });
+    const changed = rows.filter((row) => row.kind === 'add' || row.kind === 'delete');
+    expect(changed.length).toBeGreaterThan(0);
+    for (const row of changed) {
+      expect(stripAnsi(row.text).length).toBe(60);
+    }
+  });
+
+  it('leaves rows longer than the target width unpadded', () => {
+    const rows = renderDiffLinesClusteredRows('x'.repeat(80), 'y', 'f.txt', {
+      fullRowBackground: true,
+      width: 40,
+      syntaxHighlight: false,
+    });
+    const del = rows.find((row) => row.kind === 'delete');
+    expect(del).toBeDefined();
+    expect(stripAnsi(del!.text).length).toBeGreaterThan(40);
+  });
+
+  it('paints the trailing padding inside the background escape', () => {
+    const previous = chalk.level;
+    chalk.level = 3;
+    try {
+      const rows = renderDiffLinesClusteredRows('a', 'b', 'f.txt', {
+        fullRowBackground: true,
+        width: 50,
+        syntaxHighlight: false,
+      });
+      const add = rows.find((row) => row.kind === 'add');
+      expect(add).toBeDefined();
+      // Trailing spaces sit before the background reset, i.e. they are
+      // painted, and the plain-text row spans the full target width.
+      expect(add!.text).toMatch(/ +\u001B\[49m$/);
+      expect(stripAnsi(add!.text).length).toBe(50);
+    } finally {
+      chalk.level = previous;
+    }
+  });
+
+  it('tints the gutter inside the full-row background', () => {
+    const previous = chalk.level;
+    chalk.level = 3;
+    try {
+      const rows = renderDiffLinesClusteredRows('a', 'b', 'f.txt', {
+        fullRowBackground: true,
+        width: 50,
+        syntaxHighlight: false,
+      });
+      const add = rows.find((row) => row.kind === 'add');
+      expect(add).toBeDefined();
+      // The row opens with a truecolor background before the gutter digits.
+      expect(add!.text).toMatch(/^\u001B\[48;2;[0-9;]+m/);
+    } finally {
+      chalk.level = previous;
+    }
+  });
+});
+
+describe('tail follow mode', () => {
+  it('keeps the newest changes visible instead of the hunk start', () => {
+    const oldLines = Array.from({ length: 30 }, (_, i) => `L${String(i + 1)}`);
+    const newLines = oldLines.map((line) => `${line}X`);
+    const rows = renderDiffLinesClusteredRows(oldLines.join('\n'), newLines.join('\n'), 'f.txt', {
+      maxLines: 5,
+      tail: true,
+      syntaxHighlight: false,
+    });
+    const text = rows.map((row) => stripAnsi(row.text)).join('\n');
+    expect(text).toContain('L30X');
+    expect(text).not.toContain('L1X');
+    // Hidden changes are reported in the footer.
+    expect(text).toContain('hidden');
+  });
+
+  it('head mode (default) keeps the hunk start visible', () => {
+    const oldLines = Array.from({ length: 30 }, (_, i) => `L${String(i + 1)}`);
+    const newLines = oldLines.map((line) => `${line}X`);
+    const rows = renderDiffLinesClusteredRows(oldLines.join('\n'), newLines.join('\n'), 'f.txt', {
+      maxLines: 5,
+      syntaxHighlight: false,
+    });
+    const text = rows.map((row) => stripAnsi(row.text)).join('\n');
+    expect(text).toContain('L1');
+    expect(text).not.toContain('L30X');
   });
 });

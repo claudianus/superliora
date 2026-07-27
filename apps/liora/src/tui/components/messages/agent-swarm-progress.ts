@@ -25,8 +25,9 @@ import {
 } from '#/tui/components/chrome/todo-panel';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
+import type { ColorToken } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { renderAnimatedGradientText, renderPulseGlyph } from '#/tui/utils/appearance-effects';
+import { renderAnimatedGradientText, renderPulseGlyph, renderPulseText } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
@@ -1644,7 +1645,9 @@ export class AgentSwarmProgressComponent implements Component {
   private renderProgressStatusLine(width: number, status: TotalStatus): string {
     const label = renderStatusLabel(
       totalStatusLabel(status),
-      totalStatusLabelColor(status, this.members, this.colors),
+      totalStatusLabelToken(status, this.members),
+      status === 'working',
+      `agent-swarm:status:${status}`,
     );
     if (this.members.length === 0) return truncateToWidth(label, width);
     const barWidth = Math.max(0, width - visibleWidth(label) - TOTAL_STATUS_BAR_GAP);
@@ -1658,15 +1661,18 @@ export class AgentSwarmProgressComponent implements Component {
   private renderOrchestratingStatusLine(width: number): string {
     if (this.itemsStarted) {
       return truncateToWidth(
-        renderStatusLabel(ORCHESTRATING_LABEL, this.colors.primary),
+        renderStatusLabel(ORCHESTRATING_LABEL, 'primary', true, 'agent-swarm:status:orchestrating'),
         width,
       );
     }
 
     const promptTemplate = collapseWhitespace(this.promptTemplateText);
+    const prompting = promptTemplate.length > 0;
     const label = renderStatusLabel(
-      promptTemplate.length > 0 ? PROMPTING_LABEL : ORCHESTRATING_LABEL,
-      this.colors.primary,
+      prompting ? PROMPTING_LABEL : ORCHESTRATING_LABEL,
+      'primary',
+      true,
+      prompting ? 'agent-swarm:status:prompting' : 'agent-swarm:status:orchestrating',
     );
     if (promptTemplate.length === 0) return truncateToWidth(label, width);
 
@@ -2576,8 +2582,17 @@ function renderStatusPipBar(
   });
 }
 
-function renderStatusLabel(label: string, color: string): string {
-  return ` ${chalk.hex(color)(label)}`;
+/**
+ * Status label with premium motion (PREMIUM.md §7.2): active states
+ * (Working…/Orchestrating…/Prompting…) pulse on the shared animation clock;
+ * terminal states stay static. Falls back to plain themed text when motion
+ * is unavailable.
+ */
+function renderStatusLabel(label: string, token: ColorToken, active: boolean, seed: string): string {
+  const styled = active
+    ? renderPulseText(label, seed, token)
+    : currentTheme.fg(token, label);
+  return ` ${styled}`;
 }
 
 function activityPrefixForTotalStatus(status: TotalStatus, colors: ColorPalette): string {
@@ -2674,15 +2689,24 @@ function totalStatusColor(status: TotalStatus, colors: ColorPalette): string {
   return map[status];
 }
 
-function totalStatusLabelColor(
+function totalStatusLabelToken(
   status: TotalStatus,
   members: readonly AgentSwarmMember[],
-  colors: ColorPalette,
-): string {
+): ColorToken {
   if (status === 'working' && !members.some((member) => member.phase === 'completed')) {
-    return colors.primary;
+    return 'primary';
   }
-  return totalStatusColor(status, colors);
+  switch (status) {
+    case 'working':
+    case 'completed':
+      return 'success';
+    case 'suspended':
+      return 'textDim';
+    case 'failed':
+      return 'error';
+    case 'aborted':
+      return 'warning';
+  }
 }
 
 function renderCellLabel(
