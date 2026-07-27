@@ -9,6 +9,7 @@ export type SettingsSelection =
   | 'permission'
   | 'accounts'
   | 'context'
+  | 'media'
   | 'harness'
   | 'tools'
   | 'eyes'
@@ -38,6 +39,11 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     value: 'context',
     label: 'Context',
     description: 'Set when auto-compaction reclaims context on large windows.',
+  },
+  {
+    value: 'media',
+    label: 'Media fallback',
+    description: 'What happens when the current model cannot see attached images/videos.',
   },
   {
     value: 'harness',
@@ -111,6 +117,7 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'permission' ||
     value === 'accounts' ||
     value === 'context' ||
+    value === 'media' ||
     value === 'harness' ||
     value === 'tools' ||
     value === 'eyes' ||

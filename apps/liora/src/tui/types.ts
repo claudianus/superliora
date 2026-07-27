@@ -134,6 +134,13 @@ export interface AppState {
   onboarding?: OnboardingPreferences;
   availableModels: Record<string, ModelAlias>;
   availableProviders: Record<string, ProviderConfig>;
+  /**
+   * Media policy when the current chat model is text-only (config.toml
+   * `[media] nonVisionFallback`). 'analyze' renders attached images/videos
+   * to text with a vision-capable catalog model; 'path' leaves a pointer
+   * note; 'block' refuses the send. Fail-open default: 'analyze'.
+   */
+  nonVisionFallbackPolicy?: 'analyze' | 'path' | 'block';
   providerRouteStatus?: ProviderRouteStatus | null;
   /**
    * Last successful step-level provider route selection (effective model +

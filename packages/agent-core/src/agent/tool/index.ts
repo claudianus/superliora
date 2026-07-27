@@ -1,5 +1,5 @@
 import { uniq } from '@antfu/utils';
-import type { ChatProvider, Tool } from '@superliora/kosong';
+import type { ChatProvider, ContentPart, Tool } from '@superliora/kosong';
 import picomatch from 'picomatch';
 
 import type { Agent } from '..';
@@ -12,6 +12,8 @@ import { mcpResultToExecutableOutput } from '../../mcp/output';
 import { isMcpToolName, qualifyMcpToolName } from '../../mcp/tool-naming';
 import type { MCPClient } from '../../mcp/types';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
+import { ProviderManager } from '../../session/provider-manager';
+import { analyzeMediaPart } from '../../session/vision-analyzer';
 import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
 import * as b from '../../tools/builtin';
 import { createVisualDiffTool } from '../../tools/visual-diff-tool';
@@ -555,6 +557,7 @@ export class ToolManager {
     modelCapabilities: Agent['config']['modelCapabilities'],
     videoUploader: b.VideoUploader | undefined,
   ): Array<BuiltinTool | false | undefined> {
+    const readMediaVisionFallback = this.buildReadMediaVisionFallback();
     return [
       this.shouldCreateBuiltin('Read') && new b.ReadTool(kaos, workspace),
       this.shouldCreateBuiltin('Write') &&
@@ -586,8 +589,16 @@ export class ToolManager {
       this.shouldCreateBuiltin('RunProjectChecks') &&
         new b.RunProjectChecksTool(kaos, cwd, { store: this.toolStore }),
       this.shouldCreateBuiltin('ReadMediaFile') &&
-        (modelCapabilities.image_in || modelCapabilities.video_in) &&
-        new b.ReadMediaFileTool(kaos, workspace, modelCapabilities, videoUploader),
+        (modelCapabilities.image_in ||
+          modelCapabilities.video_in ||
+          readMediaVisionFallback !== undefined) &&
+        new b.ReadMediaFileTool(
+          kaos,
+          workspace,
+          modelCapabilities,
+          videoUploader,
+          readMediaVisionFallback,
+        ),
       this.shouldCreateBuiltin('GenerateImage') &&
         b.isGenerateImageAvailable(this.resolveMediaProviderEnv()) &&
         new b.GenerateImageTool(kaos, workspace, this.resolveMediaProviderEnv()),
@@ -597,6 +608,37 @@ export class ToolManager {
       this.shouldCreateBuiltin('LioraReview') && b.createLioraReviewTool(kaos, this.agent),
       this.shouldCreateBuiltin('VisualDiff') && createVisualDiffTool(kaos),
     ];
+  }
+
+  /**
+   * Vision analyzer fallback for ReadMediaFile on text-only models.
+   * Undefined when policy is 'block' or no provider manager is attached;
+   * 'path' returns a closure that yields undefined so the tool emits a
+   * path-only note; 'analyze' renders the media with a vision model.
+   */
+  private buildReadMediaVisionFallback(): b.ReadMediaVisionFallback | undefined {
+    const agent = this.agent;
+    const providerManager = agent.modelProvider;
+    if (!(providerManager instanceof ProviderManager)) return undefined;
+    const policy = agent.kimiConfig?.media?.nonVisionFallback ?? 'analyze';
+    if (policy === 'block') return undefined;
+    return async ({ kind, dataUrl }) => {
+      if (policy !== 'analyze') return undefined;
+      const part: ContentPart =
+        kind === 'video'
+          ? { type: 'video_url', videoUrl: { url: dataUrl } }
+          : { type: 'image_url', imageUrl: { url: dataUrl } };
+      const result = await analyzeMediaPart(
+        {
+          generate: agent.generate,
+          providerManager,
+          currentModelAlias: agent.config.modelAlias,
+          currentCapabilities: agent.config.modelCapabilities,
+        },
+        part,
+      );
+      return result?.text;
+    };
   }
 
   private resolveMediaProviderEnv(): b.GenerateImageProviderEnv & b.GenerateVideoProviderEnv {

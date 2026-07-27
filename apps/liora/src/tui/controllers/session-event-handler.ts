@@ -1262,6 +1262,28 @@ export class SessionEventHandler {
   }
 
   private handleSessionWarning(event: WarningEvent): void {
+    if (event.code === 'vision_analyzer.analyzed') {
+      const details = event.details ?? {};
+      const analyzerModel = details['analyzerModel'];
+      const kind = details['kind'];
+      const model =
+        typeof analyzerModel === 'string' && analyzerModel.length > 0
+          ? analyzerModel
+          : undefined;
+      const noun =
+        kind === 'video'
+          ? '비디오를'
+          : kind === 'image'
+            ? '이미지를'
+            : '첨부 미디어를';
+      this.host.showStatus(
+        model !== undefined
+          ? `${noun} ${model}로 분석했습니다.`
+          : '첨부 미디어를 비전 모델로 분석했습니다.',
+        'success',
+      );
+      return;
+    }
     this.host.showStatus(`Warning: ${event.message}`, 'warning');
   }
 

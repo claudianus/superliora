@@ -59,6 +59,23 @@ export type VideoUploadInput = ProviderVideoUploadInput;
 
 export type VideoUploader = (input: VideoUploadInput) => Promise<VideoURLPart>;
 
+export interface ReadMediaVisionFallbackInput {
+  readonly kind: 'image' | 'video';
+  /** Data URL of the media payload read from disk. */
+  readonly dataUrl: string;
+  readonly mimeType: string;
+  readonly path: string;
+}
+
+/**
+ * Renders media into text when the current model lacks the required input
+ * capability. Returns replacement text, or undefined to fall back to a
+ * path-only note. Must never throw.
+ */
+export type ReadMediaVisionFallback = (
+  input: ReadMediaVisionFallbackInput,
+) => Promise<string | undefined>;
+
 // ── Input schema ─────────────────────────────────────────────────────
 
 export const ReadMediaFileInputSchema = z.object({
@@ -217,13 +234,24 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
     private readonly workspace: WorkspaceConfig,
     private readonly capabilities: ModelCapability,
     private readonly videoUploader?: VideoUploader | undefined,
+    private readonly visionFallback?: ReadMediaVisionFallback | undefined,
   ) {
-    if (!capabilities.image_in && !capabilities.video_in) {
+    if (
+      !capabilities.image_in &&
+      !capabilities.video_in &&
+      visionFallback === undefined
+    ) {
       const skip = new Error('ReadMediaFile requires image_in or video_in capability');
       skip.name = 'SkipThisTool';
       throw skip;
     }
-    this.description = buildDescription(capabilities);
+    this.description =
+      visionFallback === undefined
+        ? buildDescription(capabilities)
+        : `${buildDescription(capabilities)}\n` +
+          'When the current model cannot consume the media, a vision fallback ' +
+          'renders it to text with a vision-capable model (or leaves a path ' +
+          'note) instead of failing.';
   }
 
   resolveExecution(args: ReadMediaFileInput): ToolExecution {
@@ -245,6 +273,56 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
           homeDir: this.kaos.gethome(),
         }),
       execute: () => this.execution(args, path),
+    };
+  }
+
+  /**
+   * Capability-missing path: analyze the media with the injected vision
+   * fallback, or leave a path-only note when no fallback exists or it
+   * fails. Never errors — the tool stays useful on text-only models.
+   */
+  private async runVisionFallback(
+    kind: 'image' | 'video',
+    mimeType: string,
+    safePath: string,
+  ): Promise<ExecutableToolResult> {
+    const fallback = this.visionFallback;
+    if (fallback === undefined) {
+      // Legacy behavior when the feature is not wired (policy 'block' or no
+      // provider manager): keep the explicit capability error.
+      const capability = kind === 'video' ? 'video' : 'image';
+      return {
+        isError: true,
+        output:
+          `The current model does not support ${capability} input. ` +
+          `Tell the user to use a model with ${capability} input capability.`,
+      };
+    }
+    {
+      let analysis: string | undefined;
+      try {
+        const stat = await this.kaos.stat(safePath);
+        if (stat.stSize > 0 && stat.stSize <= MAX_MEDIA_BYTES) {
+          const data = await this.kaos.readBytes(safePath);
+          const dataUrl = `data:${mimeType};base64,${Buffer.from(data).toString('base64')}`;
+          analysis = await fallback({ kind, dataUrl, mimeType, path: safePath });
+        }
+      } catch {
+        analysis = undefined;
+      }
+      if (analysis !== undefined && analysis.trim().length > 0) {
+        return { output: [{ type: 'text', text: analysis }], isError: false };
+      }
+    }
+    const noun = kind === 'video' ? 'Video' : 'Image';
+    return {
+      output: [
+        {
+          type: 'text',
+          text: `[${noun} attached but model is text-only: ${safePath} — analyze with a vision-capable tool]`,
+        },
+      ],
+      isError: false,
     };
   }
 
@@ -278,20 +356,10 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
       }
 
       if (fileType.kind === 'image' && !this.capabilities.image_in) {
-        return {
-          isError: true,
-          output:
-            'The current model does not support image input. ' +
-            'Tell the user to use a model with image input capability.',
-        };
+        return await this.runVisionFallback('image', fileType.mimeType, safePath);
       }
       if (fileType.kind === 'video' && !this.capabilities.video_in) {
-        return {
-          isError: true,
-          output:
-            'The current model does not support video input. ' +
-            'Tell the user to use a model with video input capability.',
-        };
+        return await this.runVisionFallback('video', fileType.mimeType, safePath);
       }
 
       const stat = await this.kaos.stat(safePath);

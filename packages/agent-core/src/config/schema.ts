@@ -190,6 +190,22 @@ export const BackgroundConfigSchema = z.object({
 
 export type BackgroundConfig = z.infer<typeof BackgroundConfigSchema>;
 
+export const NonVisionFallbackPolicySchema = z.enum(['analyze', 'path', 'block']);
+
+export type NonVisionFallbackPolicyConfig = z.infer<typeof NonVisionFallbackPolicySchema>;
+
+export const MediaConfigSchema = z.object({
+  /**
+   * What happens when the current chat model cannot consume attached
+   * images/videos: 'analyze' renders them to text with a vision-capable
+   * catalog model (default), 'path' leaves a pointer note, 'block' refuses
+   * the send like before.
+   */
+  nonVisionFallback: NonVisionFallbackPolicySchema.optional(),
+});
+
+export type MediaConfig = z.infer<typeof MediaConfigSchema>;
+
 export const MemoryConfigSchema = z.object({
   enabled: z.boolean().optional(),
   storePath: z.string().min(1).optional(),
@@ -502,6 +518,7 @@ export const LioraConfigSchema = z.object({
   skillPromptMode: z.enum(['search', 'legacy-list']).optional(),
   loopControl: LoopControlSchema.optional(),
   background: BackgroundConfigSchema.optional(),
+  media: MediaConfigSchema.optional(),
   memory: MemoryConfigSchema.optional(),
   research: ResearchConfigSchema.optional(),
   modelCatalog: ModelCatalogConfigSchema.optional(),
@@ -521,6 +538,7 @@ const ThinkingConfigPatchSchema = ThinkingConfigSchema.partial();
 const PermissionConfigPatchSchema = PermissionConfigSchema.partial();
 const LoopControlPatchSchema = LoopControlSchema.partial();
 const BackgroundConfigPatchSchema = BackgroundConfigSchema.partial();
+const MediaConfigPatchSchema = MediaConfigSchema.partial();
 const MemoryConfigPatchSchema = MemoryConfigSchema.partial();
 const ResearchLocalDirectSourcesPatchSchema = ResearchLocalDirectSourcesSchema.partial();
 const ResearchLocalSearchConfigPatchSchema = ResearchLocalSearchConfigSchema.extend({
@@ -564,6 +582,7 @@ export const LioraConfigPatchSchema = z
     skillPromptMode: z.enum(['search', 'legacy-list']).optional(),
     loopControl: LoopControlPatchSchema.optional(),
     background: BackgroundConfigPatchSchema.optional(),
+    media: MediaConfigPatchSchema.optional(),
     memory: MemoryConfigPatchSchema.optional(),
     research: ResearchConfigPatchSchema.optional(),
     modelCatalog: ModelCatalogConfigPatchSchema.optional(),

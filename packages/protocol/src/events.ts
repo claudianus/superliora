@@ -604,6 +604,11 @@ export interface WarningEvent {
   readonly type: 'warning';
   readonly message: string;
   readonly code?: string;
+  /**
+   * Machine-readable supplement for code-specific handling (for example
+   * `vision_analyzer.analyzed` toasts that render model/count details).
+   */
+  readonly details?: Record<string, unknown>;
 }
 
 export interface TurnStartedEvent {
@@ -1582,6 +1587,7 @@ export const warningEventSchema = z.object({
   type: z.literal('warning'),
   message: z.string(),
   code: z.string().optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
 }) satisfies z.ZodType<WarningEvent>;
 
 export const turnStartedEventSchema = z.object({

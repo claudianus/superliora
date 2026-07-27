@@ -44,6 +44,7 @@ export class AuthFlowController {
     this.host.setAppState({
       availableModels: config.models ?? {},
       availableProviders: config.providers ?? {},
+      nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
     });
   }
 
@@ -129,7 +130,11 @@ export class AuthFlowController {
     const selected = defaultModel !== undefined ? availableModels[defaultModel] : undefined;
 
     if (defaultModel === undefined || selected === undefined) {
-      host.setAppState({ availableModels, availableProviders });
+      host.setAppState({
+        availableModels,
+        availableProviders,
+        nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
+      });
       return;
     }
 
@@ -137,6 +142,7 @@ export class AuthFlowController {
     const appStatePatch: Partial<AppState> = {
       availableModels,
       availableProviders,
+      nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
       model: defaultModel,
       maxContextTokens: selected.maxContextSize,
       workingSet: contextWorkingSetSnapshotFromLoopControl({
@@ -156,6 +162,7 @@ export class AuthFlowController {
     this.host.setAppState({
       availableModels: config.models ?? {},
       availableProviders: config.providers ?? {},
+      nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
       model: '',
       thinking: false,
       thinkingLevel: 'off',

@@ -310,6 +310,23 @@ export type {
   OAuthTokenProviderResolver,
   ResolvedRuntimeProvider,
 } from './session/provider-manager';
+export {
+  analyzeMediaPart,
+  DEFAULT_NON_VISION_FALLBACK,
+  formatAnalysisText,
+  isVisionMediaPart,
+  mediaKind,
+  modelSupportsMediaKind,
+  pathOnlyText,
+  selectVisionModel,
+  transformMediaForNonVisionModel,
+} from './session/vision-analyzer';
+export type {
+  AnalyzeMediaResult,
+  MediaKind,
+  NonVisionFallbackPolicy,
+  VisionAnalyzerDeps,
+} from './session/vision-analyzer';
 
 // ─── Wire records (for in-monorepo consumers like apps/vis) ────────────────
 export type {

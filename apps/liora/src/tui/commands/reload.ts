@@ -61,5 +61,6 @@ function applyRuntimeConfig(host: SlashCommandHost, config: LioraConfig): void {
   host.setAppState({
     availableModels: config.models ?? {},
     availableProviders: config.providers ?? {},
+    nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
   });
 }
