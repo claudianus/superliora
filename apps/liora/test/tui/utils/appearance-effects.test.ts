@@ -8,6 +8,7 @@ import {
   appearanceAnimationFrameIntervalMs,
   BRAND_MOTION_TOKENS,
   SPECTACULAR_TOKENS,
+  isStatusFlashActive,
   paintUltraworkEditorBorderGlow,
   renderAmbientDrift,
   renderCrossfadeLine,
@@ -21,13 +22,19 @@ import {
   renderPremiumBoxFrame,
   renderSettleFlash,
   renderSpectacularText,
+  renderStatusFlashLine,
+  renderToneSettleFlash,
   renderTypewriterLine,
   resolveUltraworkBorderGlowHex,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  SETTLE_FLASH_MS,
+  STATUS_FLASH_MS,
+  statusFlashDurationMs,
   TYPEWRITER_MS,
 } from '#/tui/utils/appearance-effects';
+import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 
 function strip(text: string): string {
@@ -350,6 +357,75 @@ describe('premium motion vocabulary', () => {
     const b = strip(renderSettleFlash('selected', 'settle', start, off));
     expect(a).toBe('selected');
     expect(b).toBe('selected');
+  });
+
+  it('renderToneSettleFlash is active at t0 and settles to the given tone', () => {
+    const start = Date.now();
+    const settledSuccess = currentTheme.fg('success', 'done');
+    const t0 = renderToneSettleFlash('done', 'tone:t0', start, 'success', premium);
+    expect(strip(t0)).toContain('done');
+    expect(t0).not.toBe(settledSuccess);
+
+    vi.setSystemTime(start + SETTLE_FLASH_MS + 40);
+    advanceAppearanceAnimationClock(Date.now());
+    expect(renderToneSettleFlash('done', 'tone:settled', start, 'success', premium)).toBe(
+      settledSuccess,
+    );
+  });
+
+  it('renderToneSettleFlash returns the static tone text when profile is off', () => {
+    const off = { ...premium, profile: 'off' as const, particles: 'off' as const };
+    const start = Date.now();
+    const settledError = currentTheme.fg('error', 'failed');
+    expect(renderToneSettleFlash('failed', 'tone:off', start, 'error', off)).toBe(settledError);
+    vi.setSystemTime(start + SETTLE_FLASH_MS);
+    advanceAppearanceAnimationClock(Date.now());
+    expect(renderToneSettleFlash('failed', 'tone:off', start, 'error', off)).toBe(settledError);
+  });
+
+  it('renderToneSettleFlash produces ≥4 distinct frames across the flash', () => {
+    const frames = new Set<string>();
+    const start = Date.now();
+    for (let t = 0; t <= SETTLE_FLASH_MS; t += 30) {
+      vi.setSystemTime(start + t);
+      advanceAppearanceAnimationClock(Date.now());
+      frames.add(renderToneSettleFlash('completed', 'tone:frames', start, 'error', premium));
+    }
+    expect(frames.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('renderStatusFlashLine enters at t0 and exits to static text after the window', () => {
+    const start = Date.now();
+    const message = 'Warning: disk almost full';
+    const staticLine = currentTheme.fg('warning', message);
+    const t0 = renderStatusFlashLine(message, 'status:w', start, 'warning', premium);
+    expect(strip(t0)).toContain('Warning:');
+    expect(t0).not.toBe(staticLine);
+    expect(isStatusFlashActive(start, premium, start)).toBe(true);
+
+    vi.setSystemTime(start + STATUS_FLASH_MS + 40);
+    advanceAppearanceAnimationClock(Date.now());
+    expect(renderStatusFlashLine(message, 'status:w', start, 'warning', premium)).toBe(staticLine);
+    expect(isStatusFlashActive(start, premium, Date.now())).toBe(false);
+  });
+
+  it('renderStatusFlashLine is static when profile is off', () => {
+    const off = { ...premium, profile: 'off' as const, particles: 'off' as const };
+    const start = Date.now();
+    const staticLine = currentTheme.fg('error', 'Error: boom');
+    expect(statusFlashDurationMs(off)).toBe(0);
+    expect(renderStatusFlashLine('Error: boom', 'status:e', start, 'error', off)).toBe(staticLine);
+  });
+
+  it('renderStatusFlashLine cycles ≥4 distinct frames across enter + exit', () => {
+    const frames = new Set<string>();
+    const start = Date.now();
+    for (let t = 0; t <= STATUS_FLASH_MS; t += 80) {
+      vi.setSystemTime(start + t);
+      advanceAppearanceAnimationClock(Date.now());
+      frames.add(renderStatusFlashLine('Saved', 'status:frames', start, 'success', premium));
+    }
+    expect(frames.size).toBeGreaterThanOrEqual(4);
   });
 
   it('renderPhaseChip distinguishes running vs done (plain text)', () => {

@@ -1,5 +1,6 @@
 import { Container, Spacer, Text } from '#/tui/renderer';
 
+import type { AppearancePreferences } from '#/tui/config';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
@@ -8,6 +9,7 @@ import {
   renderPremiumHeadline,
   renderShimmerPrefix,
   renderSpectacularText,
+  renderStatusFlashLine,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
@@ -61,21 +63,37 @@ export class StatusMessageComponent extends Container {
   // so CRLF provider error pages cannot overwrite the visible line in the TUI.
   private renderText(): string {
     const appearance = getActiveAppearancePreferences();
-    const shimmer =
-      shouldRenderAmbientEffects(appearance) &&
-      (this.color === undefined ||
-        this.color === 'success' ||
-        this.color === 'warning' ||
-        this.color === 'primary' ||
-        this.color === 'error')
-        ? renderShimmerPrefix(appearance)
-        : '';
-    const content = shimmer + this.content;
-    const colored =
-      this.color === undefined
-        ? currentTheme.fg('textDim', content)
-        : currentTheme.fg(this.color, content);
-    return colored.replaceAll('\r', '').split('\n').map((line) => `  ${line}`).join('\n');
+    const tone: ColorToken = this.color ?? 'textDim';
+    const clean = this.content.replaceAll('\r', '');
+    // Single-line statuses get a finite enter→exit flash (spectacular → pulse
+    // → bold → shimmer → dim fade → static) driven by the shared animation
+    // clock. Multi-line payloads (live `!` shell output) keep the ambient
+    // shimmer instead: restarting the flash on every streaming delta would
+    // flicker, and the block entrance wash already covers their arrival.
+    const styled = clean.includes('\n')
+      ? currentTheme.fg(tone, this.statusShimmerPrefix(appearance) + clean)
+      : renderStatusFlashLine(
+          clean,
+          `status:${clean}`,
+          this.entranceStartedAtMs,
+          tone,
+          appearance,
+        );
+    return styled.split('\n').map((line) => `  ${line}`).join('\n');
+  }
+
+  private statusShimmerPrefix(appearance: AppearancePreferences): string {
+    if (!shouldRenderAmbientEffects(appearance)) return '';
+    if (
+      this.color !== undefined &&
+      this.color !== 'success' &&
+      this.color !== 'warning' &&
+      this.color !== 'primary' &&
+      this.color !== 'error'
+    ) {
+      return '';
+    }
+    return renderShimmerPrefix(appearance);
   }
 }
 

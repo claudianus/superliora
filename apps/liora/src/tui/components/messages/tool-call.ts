@@ -50,17 +50,21 @@ import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  isToneSettleFlashActive,
   renderAnimatedGradientText,
   renderPhaseChip,
   renderPulseText,
+  renderToneSettleFlash,
   shouldRenderAmbientEffects,
   type MotionToolPhase,
 } from '#/tui/utils/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 import {
+  applyToolHeaderEntrance,
   isTranscriptEntranceActive,
   polishTranscriptLines,
+  TOOL_HEADER_ENTRANCE_MS,
 } from '#/tui/utils/transcript-entrance';
 
 import {
@@ -92,6 +96,33 @@ const MAX_LIVE_OUTPUT_CHARS = 50_000;
 /** Delay before a long-running foreground Bash/Agent card advertises Ctrl+B. */
 const DETACH_HINT_DELAY_MS = 6_000;
 const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /tasks to inspect';
+
+/**
+ * First-seen header timestamps keyed by toolCallId. Streaming deltas can
+ * remount a ToolCallComponent (see `streamingShellPreview`), which would
+ * restart a per-instance entrance clock every frame and read as flicker —
+ * the registry pins the entrance start to the first render of each tool call.
+ * Swept once it outgrows the live window so long sessions stay bounded.
+ */
+const toolHeaderFirstSeenMs = new Map<string, number>();
+const TOOL_HEADER_FIRST_SEEN_MAX_ENTRIES = 128;
+
+function toolHeaderEntranceStartedAt(toolCallId: string): number {
+  const now = appearanceAnimationNow();
+  if (toolHeaderFirstSeenMs.size >= TOOL_HEADER_FIRST_SEEN_MAX_ENTRIES) {
+    // Generous expiry: the longest subtle-mode entrance plus margin.
+    const ttl = TOOL_HEADER_ENTRANCE_MS * 4;
+    for (const [id, seen] of toolHeaderFirstSeenMs) {
+      if (now - seen > ttl) toolHeaderFirstSeenMs.delete(id);
+    }
+  }
+  let seen = toolHeaderFirstSeenMs.get(toolCallId);
+  if (seen === undefined) {
+    seen = now;
+    toolHeaderFirstSeenMs.set(toolCallId, seen);
+  }
+  return seen;
+}
 
 type SubagentTextKind = 'thinking' | 'text';
 type SubagentPhase = 'queued' | 'spawning' | 'running' | 'done' | 'failed' | 'backgrounded';
@@ -660,6 +691,13 @@ export class ToolCallComponent extends Container {
   /** Entrance fade clock — tool cards wash in when they first mount. */
   private readonly entranceStartedAtMs = appearanceAnimationNow();
 
+  /**
+   * Set when a live result lands (`setResult`). Drives the status-mark settle
+   * flash in `composeHeader`; left undefined for cards constructed with a
+   * result (history replay) so resumed sessions do not flash on startup.
+   */
+  private resultSettledAtMs: number | undefined;
+
   constructor(
     toolCall: ToolCallBlockData,
     result: ToolResultBlockData | undefined,
@@ -711,6 +749,14 @@ export class ToolCallComponent extends Container {
     if (this.isSingleSubagentView()) {
       const phase = this.getDerivedSubagentPhase();
       if (phase === 'queued' || phase === 'spawning' || phase === 'running') return true;
+    }
+    // Result settle flash: keep re-encoding until the status mark finishes
+    // flashing so the completion cue actually moves.
+    if (
+      this.resultSettledAtMs !== undefined &&
+      isToneSettleFlashActive(this.resultSettledAtMs)
+    ) {
+      return true;
     }
     return isTranscriptEntranceActive(this.entranceStartedAtMs);
   }
@@ -827,6 +873,10 @@ export class ToolCallComponent extends Container {
   setResult(result: ToolResultBlockData): void {
     this.result = result;
     this.finishedAtMs ??= Date.now();
+    // Completion cue: the status mark flashes and settles from the shared
+    // animation clock (PREMIUM.md §7.1) instead of snapping to the final
+    // bullet on the next render.
+    this.resultSettledAtMs = appearanceAnimationNow();
     // Result supersedes any live progress chatter; the result body is the
     // authoritative final state. Without this clear, a finished tool would
     // show both the streamed status lines and the final output stacked.
@@ -1492,6 +1542,18 @@ export class ToolCallComponent extends Container {
   }
 
   private buildHeader(): string {
+    const header = this.composeHeader();
+    // Brief highlight settle while the card first appears in started state —
+    // mirrors the todo-panel change flash (PREMIUM.md §7.3). Skipped once a
+    // result has landed: the result settle flash owns the header from then.
+    if (this.result === undefined) {
+      const startedAtMs = toolHeaderEntranceStartedAt(this.toolCall.id);
+      return applyToolHeaderEntrance(header, startedAtMs);
+    }
+    return header;
+  }
+
+  private composeHeader(): string {
     const { toolCall, result } = this;
     const isFinished = result !== undefined;
     const isError = result?.is_error ?? false;
@@ -1504,7 +1566,16 @@ export class ToolCallComponent extends Container {
 
     let bullet: string;
     if (phase === 'succeeded' || phase === 'failed') {
-      bullet = isError ? currentTheme.fg('error', '✗ ') : currentTheme.fg('success', STATUS_BULLET);
+      const settledAt = this.resultSettledAtMs;
+      if (settledAt !== undefined && isToneSettleFlashActive(settledAt)) {
+        // Completion cue: the status mark flashes, then settles to the
+        // success/error tone (theme colors reused, no new tokens).
+        const mark = isError ? '✗' : STATUS_BULLET.trimEnd();
+        const tone = isError ? 'error' : 'success';
+        bullet = `${renderToneSettleFlash(mark, `tool:${toolCall.id}:result-mark`, settledAt, tone)} `;
+      } else {
+        bullet = isError ? currentTheme.fg('error', '✗ ') : currentTheme.fg('success', STATUS_BULLET);
+      }
     } else if (phase === 'truncated') {
       bullet = currentTheme.fg('error', '✗ ');
     } else {
