@@ -6,7 +6,6 @@ import {
   estimateTokensForContentParts,
   estimateTokensForMessages,
 } from '../../utils/tokens';
-import { extractArchiveIdFromToolOutput } from '../../lean-context/postprocess/tool-result';
 import { isSwarmToolResult, maskStaleSwarmToolResult } from './boundary-compaction';
 import {
   DEFAULT_MICRO_WORKING_SET_TOKENS,
@@ -376,7 +375,9 @@ export class MicroCompaction {
       .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
       .map((part) => part.text)
       .join('\n');
-    const archiveId = extractArchiveIdFromToolOutput(fullText);
+    // Archive ids come from the context-archive marker; keep them recoverable
+    // across micro-compaction so LioraExpand still works on cleared results.
+    const archiveId = /\[liora-archived id=([a-f0-9]{12})\]/u.exec(fullText)?.[1];
     if (archiveId !== undefined) {
       lines.push(`archiveId=${archiveId}`);
       lines.push('recover=LioraExpand');

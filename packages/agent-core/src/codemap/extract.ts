@@ -1,7 +1,23 @@
 // Code indexer — symbol extraction (T5-1).
 // Parses a source file with oxc and extracts top-level declarations as compact
 // symbol records. Pure and synchronous; no I/O, no AST retention (extract -> return -> discard).
-import { parseSync } from 'oxc-parser';
+// oxc-parser loads lazily so a missing native binding degrades to a catchable
+// error instead of crashing the importing process (bundled CLI safety).
+import { createRequire } from 'node:module';
+
+type OxcParseResult = { readonly program: unknown; readonly errors: ReadonlyArray<unknown> };
+type OxcParseSync = (fileName: string, source: string, options: { lang: string }) => OxcParseResult;
+
+let cachedParseSync: OxcParseSync | undefined;
+
+function loadParseSync(): OxcParseSync {
+  if (!cachedParseSync) {
+    const require = createRequire(import.meta.url);
+    const mod = require('oxc-parser') as { parseSync: OxcParseSync };
+    cachedParseSync = mod.parseSync;
+  }
+  return cachedParseSync;
+}
 
 export type IndexedSymbolKind = 'function' | 'class' | 'interface' | 'type' | 'enum' | 'variable';
 
@@ -77,7 +93,7 @@ const DECLARATION_KINDS: Record<string, IndexedSymbolKind> = {
 };
 
 export function extractSymbols(fileName: string, source: string): ExtractResult {
-  const parsed = parseSync(fileName, source, { lang: langForFile(fileName) });
+  const parsed = loadParseSync()(fileName, source, { lang: langForFile(fileName) });
   const lineStarts = buildLineStarts(source);
   const symbols: IndexedSymbol[] = [];
 

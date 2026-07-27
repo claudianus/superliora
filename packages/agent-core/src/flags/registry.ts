@@ -23,15 +23,6 @@ export const FLAG_DEFINITIONS = [
     surface: 'core',
   },
   {
-    id: 'lean_codegraph_v2',
-    title: 'Lean CodeGraph v2',
-    description:
-      'SQLite + tree-sitter code graph index for LioraSymbol/LioraCallgraph. Replaces JSON BM25 with FTS5 and call-graph traversal.',
-    env: 'SUPERLIORA_EXPERIMENTAL_LEAN_CODEGRAPH_V2',
-    default: true,
-    surface: 'core',
-  },
-  {
     id: 'anthropic_oauth',
     title: 'Anthropic OAuth login',
     description:

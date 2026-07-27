@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { IndexedSymbol } from '#/indexer/extract';
-import { SymbolIndexStore } from '#/indexer/store';
+import type { IndexedSymbol } from '#/codemap/extract';
+import { SymbolIndexStore } from '#/codemap/store';
 
 function sym(name: string, line: number, exported = true): IndexedSymbol {
   return { name, kind: 'function', line, exported, defaultExport: false };

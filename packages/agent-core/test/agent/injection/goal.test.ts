@@ -101,7 +101,7 @@ describe('GoalInjector content', () => {
     expect(body!.length).toBeLessThanOrEqual(1_600 + 48);
   });
 
-  it('keeps active goal reminders focused on the goal contract without lean-context routing', async () => {
+  it('keeps active goal reminders focused on the goal contract without extra tool routing', async () => {
     const store = makeStore();
     await store.createGoal({ objective: 'Ship feature X' });
     const text = (await injectOnce(store))!;

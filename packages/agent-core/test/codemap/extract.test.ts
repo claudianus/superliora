@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractSymbols, langForFile } from '#/indexer/extract';
+import { extractSymbols, langForFile } from '#/codemap/extract';
 
 describe('langForFile', () => {
   it('maps extensions to parser langs', () => {

@@ -44,7 +44,6 @@ import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { ToolCallDeduplicator } from './tool-dedup';
 import { budgetToolResultForModel } from './tool-result-budget';
-import { postprocessLeanToolResult } from '../../lean-context/postprocess/tool-result';
 import {
   isRetryableProviderFailure,
   resolveProviderRecovery,
@@ -975,18 +974,12 @@ export class TurnFlow {
                   toolOutput: isError === true ? undefined : toolOutputText(output).slice(0, 2000),
                 },
               });
-              let budgeted = await budgetToolResultForModel({
+              const budgeted = await budgetToolResultForModel({
                 homedir: this.agent.homedir,
                 toolName: ctx.toolCall.name,
                 toolCallId: ctx.toolCall.id,
                 result: finalResult,
                 contextWindowTokens: this.agent.config.modelCapabilities.max_context_tokens,
-              });
-              budgeted = await postprocessLeanToolResult({
-                agent: this.agent,
-                toolName: ctx.toolCall.name,
-                args: ctx.args,
-                result: budgeted,
               });
               return budgeted;
             },

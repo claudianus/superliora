@@ -20,7 +20,7 @@ export type LioraExpandInput = z.infer<typeof LioraExpandInputSchema>;
 export const LIORA_EXPAND_DEFAULT_LIMIT = 120;
 
 const DESCRIPTION = [
-  'Recover reversibly archived lean-context bytes.',
+  'Recover reversibly archived compressed output bytes.',
   'Use when LioraRead/Bash compressed output and you need the omitted section.',
 ].join(' ');
 

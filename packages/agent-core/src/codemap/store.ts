@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 
-import type { IndexedSymbol, IndexedSymbolKind } from '#/indexer/extract';
+import type { IndexedSymbol, IndexedSymbolKind } from '#/codemap/extract';
 
 interface SqliteRunResult {
   readonly changes: number;

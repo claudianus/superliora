@@ -4,7 +4,7 @@
 
 import type { Message } from '@superliora/kosong';
 import type { MemoryCreateInput, MemoryKind, MemoryScope } from '../../memory';
-import { surpriseScore } from '../../lean-context/gate/density';
+import { surpriseScore } from './density';
 import type { CompactionPlan } from './planner';
 import type {
   CompactionContextMemoryTier,

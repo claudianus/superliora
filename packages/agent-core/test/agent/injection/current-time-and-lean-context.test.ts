@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { CurrentTimeInjector } from '#/agent/injection/current-time';
-import { buildLeanContextGuidance } from '#/agent/injection/lean-context';
 import type { ContextMessage } from '#/agent/context';
 
 class TestableCurrentTimeInjector extends CurrentTimeInjector {
@@ -18,16 +17,6 @@ const makeMessage = (overrides: Partial<ContextMessage> = {}): ContextMessage =>
     content: [{ type: 'text', text: 'hi' }],
     ...overrides,
   }) as ContextMessage;
-
-describe('agent/injection/lean-context — buildLeanContextGuidance', () => {
-  it('returns a stable, multi-line guidance block', () => {
-    const text = buildLeanContextGuidance();
-    expect(text).toContain('Liora Lean Context:');
-    expect(text).toContain('LioraRead(signatures|map|lines)');
-    expect(text).toContain('Never shell-read secret files');
-    expect(text.split('\n').length).toBeGreaterThanOrEqual(5);
-  });
-});
 
 describe('agent/injection/current-time — getInjection', () => {
   const originalVitest = process.env['VITEST'];

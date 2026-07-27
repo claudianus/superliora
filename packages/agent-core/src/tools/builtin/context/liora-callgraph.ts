@@ -7,12 +7,8 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
-import { collectContextFiles } from './context-discovery';
 import { buildCallgraph, renderCallgraph } from './context-callgraph';
-import { isLeanCodegraphV2Enabled } from '../../../lean-context/graph/enabled';
-import { buildIndexedCallgraph } from '../../../lean-context/graph/callgraph';
-import { ensureWorkspaceIndexBudgeted } from '../../../lean-context/index/ensure';
-import { getGraphDatabase } from '../../../lean-context/graph/pipeline';
+import { collectContextFiles } from './context-discovery';
 
 export const LIORA_CALLGRAPH_TOOL_NAME = 'LioraCallgraph';
 
@@ -73,20 +69,9 @@ export class LioraCallgraphTool implements BuiltinTool<LioraCallgraphInput> {
     explicitPaths: readonly string[] | undefined,
   ): Promise<ExecutableToolResult> {
     try {
-      if (isLeanCodegraphV2Enabled() && explicitPaths === undefined) {
-        // Wait for the index only within the build budget; if it is not ready
-        // yet, fall through to the direct-discovery callgraph below instead of
-        // blocking the turn on a cold/stale build.
-        const ensured = await ensureWorkspaceIndexBudgeted(this.kaos, this.workspace);
-        if (ensured.ready) {
-          const graph = buildIndexedCallgraph(
-            getGraphDatabase(this.workspace),
-            input.symbol,
-            input.direction ?? 'both',
-          );
-          return { output: renderCallgraph(graph) };
-        }
-      }
+      // Direct-discovery callgraph: grep-grade caller/callee evidence from the
+      // files that reference the symbol. (The indexed graph backend was
+      // removed together with the legacy lean context subsystem.)
       const files = await collectContextFiles({
         kaos: this.kaos,
         workspace: this.workspace,

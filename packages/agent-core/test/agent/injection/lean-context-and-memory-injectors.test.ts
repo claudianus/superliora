@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '#/agent';
 import type { ContextMessage } from '#/agent/context';
-import { LeanContextInjector } from '#/agent/injection/lean-context-injector';
 import { MemoryInjector } from '#/agent/injection/memory';
 
 const makeUserMessage = (overrides: Partial<ContextMessage> = {}): ContextMessage =>
@@ -12,33 +11,6 @@ const makeUserMessage = (overrides: Partial<ContextMessage> = {}): ContextMessag
     content: [{ type: 'text', text: 'hi' }],
     ...overrides,
   }) as ContextMessage;
-
-describe('agent/injection/lean-context-injector — getInjection', () => {
-  it('returns undefined when no lean tool is exposed', () => {
-    const injector = new LeanContextInjector({
-      tools: { loopTools: [{ name: 'Bash' }, { name: 'Read' }] },
-    } as unknown as Agent);
-    expect(injector.getInjection()).toBeUndefined();
-  });
-
-  it('returns the guidance block when at least one lean tool is exposed', () => {
-    const injector = new LeanContextInjector({
-      tools: { loopTools: [{ name: 'Bash' }, { name: 'LioraRead' }] },
-    } as unknown as Agent);
-    const result = injector.getInjection();
-    expect(result).toContain('Liora Lean Context:');
-  });
-
-  it('keeps emitting when the lean tool set is stable (base-class injection gate)', () => {
-    const injector = new LeanContextInjector({
-      tools: { loopTools: [{ name: 'LioraRead' }] },
-    } as unknown as Agent);
-    expect(injector.getInjection()).toBeDefined();
-    // Direct getInjection() does not promote injectedAt, so a second call
-    // also returns — this matches the gating we test for memory too.
-    expect(injector.getInjection()).toBeDefined();
-  });
-});
 
 describe('agent/injection/memory — getInjection', () => {
   it('returns undefined when agent.type is not "main"', async () => {

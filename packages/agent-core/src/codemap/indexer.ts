@@ -7,8 +7,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
-import { extractSymbols } from '#/indexer/extract';
-import { SymbolIndexStore, type SymbolHit } from '#/indexer/store';
+import { extractSymbols } from '#/codemap/extract';
+import { SymbolIndexStore, type SymbolHit } from '#/codemap/store';
 
 export interface CodeIndexerOptions {
   /** Repository root; git traversal runs here and relative paths resolve against it. */
