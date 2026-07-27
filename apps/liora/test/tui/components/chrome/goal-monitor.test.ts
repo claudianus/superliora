@@ -10,7 +10,6 @@ import {
   isLiveGoalStatus,
   renderGoalMonitorLines,
 } from '#/tui/components/chrome/goal-monitor';
-import { darkColors } from '#/tui/theme/colors';
 import type { GoalSnapshot } from '@superliora/sdk';
 
 const previousChalkLevel = chalk.level;
@@ -93,7 +92,6 @@ describe('renderGoalMonitorLines', () => {
     if (!isLiveGoal(g)) throw new Error('expected live goal');
     const joined = renderGoalMonitorLines({
       goal: g,
-      colors: darkColors,
       width: 80,
       wallClockMs: g.wallClockMs,
       profile: 'standard',
@@ -115,7 +113,6 @@ describe('renderGoalMonitorLines', () => {
     if (!isLiveGoal(g)) throw new Error('expected live goal');
     const joined = renderGoalMonitorLines({
       goal: g,
-      colors: darkColors,
       width: 80,
       wallClockMs: g.wallClockMs,
     })
@@ -130,7 +127,6 @@ describe('renderGoalMonitorLines', () => {
     if (!isLiveGoal(g)) throw new Error('expected live goal');
     const joined = renderGoalMonitorLines({
       goal: g,
-      colors: darkColors,
       width: 40,
       wallClockMs: g.wallClockMs,
       profile: 'tiny',

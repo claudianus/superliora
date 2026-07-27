@@ -13,6 +13,7 @@ import type { Component } from '#/tui/renderer';
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { HEADER_DIAMOND } from '#/tui/constant/symbols';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
@@ -22,7 +23,7 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
-const BRAND_MARK = '◆ SuperLiora';
+const BRAND_MARK = `${HEADER_DIAMOND} SuperLiora`;
 const CLOCK_INTERVAL_MS = 1_000;
 const CLOCK_GAP = '  ';
 

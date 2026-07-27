@@ -11,11 +11,17 @@ import {
   wrapTextWithAnsi,
 } from '#/tui/renderer';
 import type { GoalSnapshot, GoalStatus } from '@superliora/sdk';
-import chalk from 'chalk';
 
 import { formatGoalElapsed } from '#/tui/components/messages/goal-format';
-import type { ColorPalette } from '#/tui/theme/colors';
-import type { ColorToken } from '#/tui/theme';
+import {
+  BLOCKED_GLYPH,
+  GOAL_DOT,
+  PENDING_GLYPH,
+  PULSE_ACTIVE_FRAMES,
+  PULSE_BLOCKED_FRAMES,
+  PULSE_PAUSED_FRAMES,
+} from '#/tui/constant/symbols';
+import { currentTheme, type ColorToken } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
@@ -81,13 +87,12 @@ export function goalMonitorTitle(
  */
 export function renderGoalMonitorLines(options: {
   readonly goal: GoalSnapshot & { readonly status: LiveGoalStatus };
-  readonly colors: ColorPalette;
   readonly width: number;
   readonly wallClockMs: number;
   readonly changedAtMs?: number;
   readonly profile?: 'tiny' | 'compact' | 'standard' | 'wide' | 'ultrawide';
 }): string[] {
-  const { goal, colors, width, wallClockMs } = options;
+  const { goal, width, wallClockMs } = options;
   const profile = options.profile ?? 'standard';
   const appearance = getActiveAppearancePreferences();
   const ambient = shouldRenderAmbientEffects(appearance);
@@ -96,33 +101,37 @@ export function renderGoalMonitorLines(options: {
   const lines: string[] = [];
 
   // Status row: pulse glyph + status label + elapsed · turns
+  const fallbackGlyph =
+    goal.status === 'blocked'
+      ? BLOCKED_GLYPH
+      : goal.status === 'paused'
+        ? PENDING_GLYPH
+        : GOAL_DOT;
   const statusGlyph = ambient
     ? renderPulseGlyph(
         goal.status === 'active'
-          ? ['●', '◆', '✦', '◆']
+          ? PULSE_ACTIVE_FRAMES
           : goal.status === 'blocked'
-            ? ['⚠', '●', '⚠', '●']
-            : ['○', '◌', '○', '◌'],
+            ? PULSE_BLOCKED_FRAMES
+            : PULSE_PAUSED_FRAMES,
         `goal:lifecycle:${goal.status}`,
-        goal.status === 'blocked' ? '⚠' : goal.status === 'paused' ? '○' : '●',
+        fallbackGlyph,
         statusToken,
         appearance,
       )
-    : chalk.hex(colors[statusToken])(
-        goal.status === 'blocked' ? '⚠' : goal.status === 'paused' ? '○' : '●',
-      );
+    : currentTheme.fg(statusToken, fallbackGlyph);
 
   const statusLabel = ambient
     ? renderPulseText(goal.status, `goal:lifecycle:label:${goal.status}`, statusToken, appearance)
-    : chalk.hex(colors[statusToken]).bold(goal.status);
+    : currentTheme.boldFg(statusToken, goal.status);
 
   const elapsed = formatGoalElapsed(wallClockMs);
   const turns =
     goal.budget.turnBudget !== null
       ? `${goal.turnsUsed}/${goal.budget.turnBudget} turns`
       : `${goal.turnsUsed} ${goal.turnsUsed === 1 ? 'turn' : 'turns'}`;
-  const meta = chalk.hex(colors.textDim)(`${elapsed} · ${turns}`);
-  const statusRow = `  ${statusGlyph} ${statusLabel} ${chalk.hex(colors.textMuted)('·')} ${meta}`;
+  const meta = currentTheme.fg('textDim', `${elapsed} · ${turns}`);
+  const statusRow = `  ${statusGlyph} ${statusLabel} ${currentTheme.fg('textMuted', '·')} ${meta}`;
   lines.push(truncateToWidth(statusRow, contentWidth, '…'));
 
   // Objective (spectacular on active, settle-flash on lifecycle change)
@@ -145,21 +154,21 @@ export function renderGoalMonitorLines(options: {
       pace: 'slow',
     });
   } else {
-    objectiveText = chalk.hex(colors.text).bold(goal.objective);
+    objectiveText = currentTheme.boldFg('text', goal.objective);
   }
 
-  const bar = chalk.hex(colors[statusToken])('▌');
+  const bar = currentTheme.fg(statusToken, '▌');
   const objectiveIndent = `  ${bar} `;
   const objectiveWrapWidth = Math.max(1, contentWidth - visibleWidth(objectiveIndent));
   const objectiveLines = wrapAndCap(objectiveText, objectiveWrapWidth, MAX_OBJECTIVE_LINES);
   for (const [index, line] of objectiveLines.entries()) {
-    const prefix = index === 0 ? objectiveIndent : `  ${chalk.hex(colors[statusToken])('│')} `;
+    const prefix = index === 0 ? objectiveIndent : `  ${currentTheme.fg(statusToken, '│')} `;
     lines.push(truncateToWidth(`${prefix}${line}`, contentWidth, '…'));
   }
 
   if (goal.completionCriterion !== undefined && goal.completionCriterion.length > 0) {
-    const criterionPrefix = `  ${chalk.hex(colors[statusToken])('▌')} `;
-    const criterionBody = chalk.hex(colors.textDim)(`✓ ${goal.completionCriterion}`);
+    const criterionPrefix = `  ${currentTheme.fg(statusToken, '▌')} `;
+    const criterionBody = currentTheme.fg('textDim', `✓ ${goal.completionCriterion}`);
     const criterionWrap = Math.max(1, contentWidth - visibleWidth(criterionPrefix));
     for (const line of wrapAndCap(criterionBody, criterionWrap, MAX_CRITERION_LINES)) {
       lines.push(truncateToWidth(`${criterionPrefix}${line}`, contentWidth, '…'));
@@ -171,16 +180,18 @@ export function renderGoalMonitorLines(options: {
   }
 
   // Progress + budget strip
-  lines.push(renderGoalProgressStrip(goal, colors, wallClockMs, contentWidth, ambient));
+  lines.push(renderGoalProgressStrip(goal, wallClockMs, contentWidth, ambient));
 
   if (goal.status === 'blocked' && goal.terminalReason !== undefined) {
-    const reason = chalk.hex(colors.warning)(
-      `  ⚠ ${truncateToWidth(goal.terminalReason, Math.max(8, contentWidth - 4), '…')}`,
+    const reason = currentTheme.fg(
+      'warning',
+      `  ${BLOCKED_GLYPH} ${truncateToWidth(goal.terminalReason, Math.max(8, contentWidth - 4), '…')}`,
     );
     lines.push(reason);
   } else if (goal.status === 'paused' && goal.terminalReason !== undefined) {
     lines.push(
-      chalk.hex(colors.textDim)(
+      currentTheme.dimFg(
+        'textDim',
         `  paused — ${truncateToWidth(goal.terminalReason, Math.max(8, contentWidth - 12), '…')}`,
       ),
     );
@@ -191,7 +202,6 @@ export function renderGoalMonitorLines(options: {
 
 function renderGoalProgressStrip(
   goal: GoalSnapshot,
-  colors: ColorPalette,
   wallClockMs: number,
   width: number,
   ambient: boolean,
@@ -221,27 +231,27 @@ function renderGoalProgressStrip(
     ]) ?? (turnRatio !== null ? { key: 'turns' as const, ratio: turnRatio } : null);
 
   if (primary !== null) {
-    const barColor =
-      primary.ratio >= 0.9 ? colors.warning : primary.ratio >= 0.7 ? colors.accent : colors.primary;
+    const barToken: ColorToken =
+      primary.ratio >= 0.9 ? 'warning' : primary.ratio >= 0.7 ? 'accent' : 'primary';
     const bar = renderRendererRatioProgressBar({
       ratio: primary.ratio,
       width: PROGRESS_BAR_WIDTH,
-      filledStyle: (text) => chalk.hex(barColor)(text),
-      emptyStyle: (text) => chalk.hex(colors.textMuted)(text),
+      filledStyle: (text) => currentTheme.fg(barToken, text),
+      emptyStyle: (text) => currentTheme.fg('textMuted', text),
     });
-    const pct = chalk.hex(colors.textDim)(` ${String(Math.round(primary.ratio * 100))}%`);
+    const pct = currentTheme.fg('textDim', ` ${String(Math.round(primary.ratio * 100))}%`);
     const label = ambient
       ? renderPremiumAccentLine(primary.key, `goal:progress:${primary.key}`)
-      : chalk.hex(colors.primary)(primary.key);
+      : currentTheme.fg('primary', primary.key);
     parts.push(`${label} ${bar}${pct}`);
   }
 
   // Remaining budget chips
   if (budget.remainingTurns !== null) {
-    parts.push(chalk.hex(colors.textDim)(`${budget.remainingTurns} turns left`));
+    parts.push(currentTheme.fg('textDim', `${budget.remainingTurns} turns left`));
   }
   if (budget.remainingTokens !== null) {
-    parts.push(chalk.hex(colors.textDim)(`${formatTokenCount(budget.remainingTokens)} tok left`));
+    parts.push(currentTheme.fg('textDim', `${formatTokenCount(budget.remainingTokens)} tok left`));
   }
   if (budget.remainingWallClockMs !== null) {
     const remaining = Math.max(0, budget.remainingWallClockMs - Math.max(0, wallClockMs - goal.wallClockMs));
@@ -250,19 +260,19 @@ function renderGoalProgressStrip(
       budget.wallClockBudgetMs !== null
         ? Math.max(0, budget.wallClockBudgetMs - wallClockMs)
         : remaining;
-    parts.push(chalk.hex(colors.textDim)(`${formatGoalElapsed(liveRemaining)} left`));
+    parts.push(currentTheme.fg('textDim', `${formatGoalElapsed(liveRemaining)} left`));
   }
 
   // Always show token spend for context even without a budget.
   if (budget.tokenBudget === null) {
-    parts.push(chalk.hex(colors.textDim)(`${formatTokenCount(goal.tokensUsed)} tok`));
+    parts.push(currentTheme.fg('textDim', `${formatTokenCount(goal.tokensUsed)} tok`));
   }
 
   if (budget.overBudget) {
-    parts.push(chalk.hex(colors.warning).bold('over budget'));
+    parts.push(currentTheme.boldFg('warning', 'over budget'));
   }
 
-  const joined = `  ${parts.join(chalk.hex(colors.textMuted)(' · '))}`;
+  const joined = `  ${parts.join(currentTheme.fg('textMuted', ' · '))}`;
   return truncateToWidth(joined, width, '…');
 }
 

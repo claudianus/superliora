@@ -271,7 +271,6 @@ describe('FooterComponent — context NaN resilience', () => {
             url: 'https://github.com/acme/repo/pull/6',
           },
         },
-        darkColors,
       );
 
       const primaryIndex = out.indexOf(hexToSgr(darkColors.primary));

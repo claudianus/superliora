@@ -851,6 +851,65 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).not.toContain('Failed:');
   });
 
+  it('shows the model badge for registered subagents in queued and running cells', () => {
+    const component = createComponent();
+
+    component.registerSubagent({ agentId: 'agent-1', modelAlias: 'kimi-k2' });
+    component.markInputComplete();
+
+    expect(renderText(component)).toContain('Queued... · kimi-k2');
+
+    component.markStarted('agent-1');
+
+    const running = renderText(component);
+    expect(running).toContain('Running');
+    expect(running).toContain('· kimi-k2');
+    expect(running).not.toContain('Queued...');
+  });
+
+  it('shows per-member elapsed time in running cells after the clock advances', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-07T00:00:00.000Z'));
+
+    const component = createComponent();
+    registerSubagents(component, 1);
+    startSubagents(component, 1);
+
+    vi.setSystemTime(new Date('2026-07-07T00:00:12.000Z'));
+    const output = renderText(component);
+
+    expect(output).toContain('(12s)');
+
+    vi.useRealTimers();
+  });
+
+  it('renders retry notes after failure text when provided', () => {
+    const component = createComponent();
+
+    registerSubagents(component, 1);
+    component.markFailed('agent-1', 'Provider request failed', {
+      retryNote: 'retrying (2/3)',
+    });
+
+    const output = renderText(component);
+
+    expect(output).toContain('✗ Provider request failed · retrying (2/3)');
+  });
+
+  it('shows fallback notes and the model badge in failed cells', () => {
+    const component = createComponent();
+
+    component.registerSubagent({ agentId: 'agent-1', modelAlias: 'kimi-k2' });
+    component.markInputComplete();
+    component.markFailed('agent-1', 'Model overloaded', {
+      retryNote: 'fell back to gpt-5',
+    });
+
+    const output = renderText(component);
+
+    expect(output).toContain('✗ Model overloaded · fell back to gpt-5 · kimi-k2');
+  });
+
   it('renders suspended subagents as rate limited and clears the state when they start again', () => {
     const component = createComponent();
 

@@ -31,7 +31,14 @@ import {
   STREAMING_ARGS_FIELD_RE,
   STREAMING_ARGS_PREVIEW_MAX_CHARS,
 } from '#/tui/constant/streaming';
-import { FAILURE_MARK, STATUS_BULLET, SUCCESS_MARK } from '#/tui/constant/symbols';
+import {
+  BACKGROUND_GLYPH,
+  FAILURE_MARK,
+  PENDING_GLYPH,
+  SPINNER_GLYPH,
+  STATUS_BULLET,
+  SUCCESS_MARK,
+} from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
@@ -1819,13 +1826,13 @@ export class ToolCallComponent extends Container {
     const parts: string[] = [];
     switch (this.subagentPhase) {
       case 'queued':
-        parts.push('○ queued');
+        parts.push(`${PENDING_GLYPH} queued`);
         break;
       case 'spawning':
-        parts.push('↻ starting…');
+        parts.push(`${SPINNER_GLYPH} starting…`);
         break;
       case 'running':
-        parts.push('↻ running');
+        parts.push(`${SPINNER_GLYPH} running`);
         break;
       case 'done': {
         parts.push(currentTheme.fg('success', '✓ done'));
@@ -1841,7 +1848,7 @@ export class ToolCallComponent extends Container {
         parts.push(currentTheme.fg('error', '✗ failed'));
         break;
       case 'backgrounded':
-        parts.push('◐ backgrounded');
+        parts.push(`${BACKGROUND_GLYPH} backgrounded`);
         break;
     }
     return parts.length > 0 ? currentTheme.dim(` · ${parts.join(' · ')}`) : '';

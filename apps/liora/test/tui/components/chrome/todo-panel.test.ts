@@ -8,6 +8,8 @@ import {
   setActiveAppearancePreferences,
 } from '#/tui/utils/appearance-effects';
 
+import { assertSettledFrameStable, stripAnsi } from '../../utils/frame-stability-helpers';
+
 // Force CI mode to disable ambient effects for deterministic rendering.
 process.env['CI'] = '1';
 
@@ -19,10 +21,6 @@ const previousEnv = {
 
 // Standard profile, wide enough for the 3-column board (interior 94 >= 72).
 const WIDTH = 100;
-
-function strip(text: string): string {
-  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
-}
 
 function todo(title: string, status: TodoItem['status']): TodoItem {
   return { title, status };
@@ -48,15 +46,14 @@ describe('TodoPanelComponent', () => {
     const panel = new TodoPanelComponent();
     panel.setTodos([todo('ship fix', 'in_progress'), todo('write tests', 'pending')]);
 
-    // Past the settle flash window so the panel is no longer animating, but
-    // still inside the same wall-clock second bucket.
-    advanceAppearanceAnimationClock(100_800);
-    const first = panel.render(WIDTH);
-    const second = panel.render(WIDTH);
+    // Settling moves past the flash window; both renders then share the same
+    // wall-clock second bucket and must reuse the memoized lines array.
+    const lines = assertSettledFrameStable((renderWidth) => panel.render(renderWidth), {
+      width: WIDTH,
+    });
 
-    expect(first.length).toBeGreaterThan(0);
-    expect(strip(first.join('\n'))).toContain('Todo Board');
-    expect(second).toBe(first);
+    expect(lines.length).toBeGreaterThan(0);
+    expect(stripAnsi(lines.join('\n'))).toContain('Todo Board');
   });
 
   it('holds board height when cards leave a lane, then shrinks after the hold', () => {
@@ -78,7 +75,7 @@ describe('TodoPanelComponent', () => {
     const held = panel.render(WIDTH);
     expect(held.length).toBe(tallHeight);
     // Held rows are padded with empty cells rather than real cards.
-    expect(strip(held.join('\n'))).toContain('No cards');
+    expect(stripAnsi(held.join('\n'))).toContain('No cards');
 
     // Once the hold window elapses the board may shrink.
     advanceAppearanceAnimationClock(200_100 + 1_500);

@@ -12,12 +12,10 @@ import {
   truncateToWidth,
   visibleWidth,
 } from '#/tui/renderer';
-import chalk from 'chalk';
-
+import { GOAL_DOT } from '#/tui/constant/symbols';
 import { ALL_TIPS, type ToolbarTip } from '#/tui/constant/tips';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import type { ColorPalette } from '#/tui/theme/colors';
-import { currentTheme } from '#/tui/theme/theme';
+import { currentTheme, type ColorToken } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 import {
@@ -127,7 +125,6 @@ function tipsForIndex(index: number): { primary: string; pair: string | null } {
  */
 function formatGoalBadge(
   goal: AppState['goal'],
-  colors: ColorPalette,
   wallClockMs?: number,
   appearance = DEFAULT_APPEARANCE_PREFERENCES,
 ): string | null {
@@ -147,12 +144,12 @@ function formatGoalBadge(
   const isSotaGoal = SOTA_GOAL_OBJECTIVE_PATTERN.test(goal.objective);
   const statusTick = shouldRenderAmbientEffects(appearance)
     ? renderPulseText(goal.status, `footer:goal:${goal.status}`, statusToken, appearance)
-    : chalk.hex(colors[statusToken])(goal.status);
+    : currentTheme.fg(statusToken, goal.status);
   // Keep statusTick/dot pulsed; elapsed · turns stay muted chrome meta.
-  const label = statusTick + chalk.hex(colors.textMuted)(` · ${elapsed} · ${turns}`);
+  const label = statusTick + currentTheme.fg('textMuted', ` · ${elapsed} · ${turns}`);
   const dot = shouldRenderAmbientEffects(appearance)
-    ? renderPulseText('●', 'footer:goal:dot', statusToken, appearance)
-    : chalk.hex(colors[statusToken])('●');
+    ? renderPulseText(GOAL_DOT, 'footer:goal:dot', statusToken, appearance)
+    : currentTheme.fg(statusToken, GOAL_DOT);
   if (isSotaGoal) {
     // Easter egg: goals matching SOTA_GOAL_OBJECTIVE_PATTERN light the whole
     // badge label up with the brand gradient wave (static bold primary when
@@ -163,23 +160,23 @@ function formatGoalBadge(
           `footer:sota:${goal.objective}`,
           appearance,
         )
-      : chalk.hex(colors.primary).bold('SuperLiora SOTA');
+      : currentTheme.boldFg('primary', 'SuperLiora SOTA');
     return (
-      chalk.hex(colors.textMuted)('[goal ') +
+      currentTheme.fg('textMuted', '[goal ') +
       dot +
-      chalk.hex(colors.textMuted)(' ') +
+      currentTheme.fg('textMuted', ' ') +
       sotaLabel +
-      chalk.hex(colors.textMuted)(' / ') +
+      currentTheme.fg('textMuted', ' / ') +
       label +
-      chalk.hex(colors.textMuted)(']')
+      currentTheme.fg('textMuted', ']')
     );
   }
   return (
-    chalk.hex(colors.textMuted)('[goal ') +
+    currentTheme.fg('textMuted', '[goal ') +
     dot +
-    chalk.hex(colors.textMuted)(' ') +
+    currentTheme.fg('textMuted', ' ') +
     label +
-    chalk.hex(colors.textMuted)(']')
+    currentTheme.fg('textMuted', ']')
   );
 }
 
@@ -321,19 +318,18 @@ export interface FooterBadge {
 
 function styleFooterBadge(
   badge: FooterBadge,
-  colors: ColorPalette,
   appearance: AppState['appearance'] | undefined,
 ): string {
   if (badge.severity === 'danger') {
     return renderPulseText(badge.text, `footer:badge:${badge.text}`, 'error', appearance);
   }
-  const hex =
+  const token: ColorToken =
     badge.severity === 'warning'
-      ? colors.warning
+      ? 'warning'
       : badge.severity === 'info'
-        ? colors.primary
-        : colors.textMuted;
-  return chalk.hex(hex).bold(badge.text);
+        ? 'primary'
+        : 'textMuted';
+  return currentTheme.boldFg(token, badge.text);
 }
 
 /** Evidence-missing badge for Context OS continuity (T4 durable IDs). */
@@ -479,11 +475,10 @@ export function contextUsageSeverity(usage: number): FooterBadgeSeverity {
 
 function formatTranscriptViewportBadge(
   viewport: FooterTranscriptViewportSnapshot | undefined,
-  colors: ColorPalette,
 ): string | null {
   const status = projectRendererViewportHistoryStatus(viewport);
   if (status === undefined) return null;
-  return chalk.hex(colors.warning).bold(`[${status.label}]`);
+  return currentTheme.boldFg('warning', `[${status.label}]`);
 }
 
 function footerNextAction(state: AppState, git: GitStatus | null): string | null {
@@ -514,11 +509,12 @@ function footerNextAction(state: AppState, git: GitStatus | null): string | null
   return ttui('tui.footer.next.default');
 }
 
-export function formatFooterGitBadge(status: GitStatus, colors: ColorPalette): string {
-  const base = chalk.hex(colors.textDim)(formatGitBadgeBase(status));
+export function formatFooterGitBadge(status: GitStatus): string {
+  const base = currentTheme.fg('textDim', formatGitBadgeBase(status));
   if (status.pullRequest === null) return base;
 
-  const pullRequest = chalk.hex(colors.primary)(
+  const pullRequest = currentTheme.fg(
+    'primary',
     formatPullRequestBadge(status.pullRequest, { linkPullRequest: true }),
   );
   return `${base} ${pullRequest}`;
@@ -603,7 +599,6 @@ export class FooterComponent implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    const colors = currentTheme.palette;
     const state = this.state;
     const appearance = state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
 
@@ -619,14 +614,14 @@ export class FooterComponent implements Component {
           : undefined;
     const withModeBeat = (title: string, body: string): string =>
       modeBeatTitle === title ? renderShimmerPrefix(appearance) + body : body;
-    if (state.permissionMode === 'auto') modes.push(chalk.hex(colors.warning).bold('auto'));
+    if (state.permissionMode === 'auto') modes.push(currentTheme.boldFg('warning', 'auto'));
     if (state.permissionMode === 'yolo') {
       modes.push(
         withModeBeat(
           'yolo',
           modeBeatTitle === 'yolo'
             ? renderPulseText('yolo', 'footer:yolo', 'warning', appearance)
-            : chalk.hex(colors.warning).bold('yolo'),
+            : currentTheme.boldFg('warning', 'yolo'),
         ),
       );
     }
@@ -675,13 +670,11 @@ export class FooterComponent implements Component {
 
     const transcriptViewportBadge = formatTranscriptViewportBadge(
       this.getTranscriptViewport?.(),
-      colors,
     );
     if (transcriptViewportBadge !== null) left.push(transcriptViewportBadge);
 
     const goalBadge = formatGoalBadge(
       state.goal,
-      colors,
       this.goalWallClockMs(state.goal),
       appearance,
     );
@@ -706,7 +699,7 @@ export class FooterComponent implements Component {
               modelHot ? 'glow' : 'text',
               appearance,
             )
-          : chalk.hex(colors.text)(modelLabel),
+          : currentTheme.fg('text', modelLabel),
       );
       const routeBadge = formatModelRouteBadge(state);
       if (routeBadge !== undefined) {
@@ -743,11 +736,11 @@ export class FooterComponent implements Component {
     }
 
     const cwd = shortenCwd(state.workDir);
-    if (cwd) left.push(chalk.hex(colors.textDim)(cwd));
+    if (cwd) left.push(currentTheme.fg('textDim', cwd));
 
     const git = this.gitCache.getStatus();
     if (git !== null) {
-      left.push(formatFooterGitBadge(git, colors));
+      left.push(formatFooterGitBadge(git));
     }
 
     const leftLine = left.join('  ');
@@ -756,7 +749,7 @@ export class FooterComponent implements Component {
     // Persistent Command Hub hotzone + rotating tips on the right of line 1.
     const menuBadge = shouldRenderAmbientEffects(appearance)
       ? renderPulseText('Menu ?', 'footer:menu-hub', 'accent', appearance)
-      : chalk.hex(colors.accent)('Menu ?');
+      : currentTheme.fg('accent', 'Menu ?');
     const menuPlain = 'Menu ?';
     const menuGap = '  ';
     const afterLeft = leftWidth + visibleWidth(menuGap) + visibleWidth(menuPlain);
@@ -779,7 +772,7 @@ export class FooterComponent implements Component {
         ? ''
         : ambientTips
           ? renderTypewriterLine(tipText, this.tipChangedAtMs, appearance)
-          : chalk.hex(colors.textMuted)(tipText);
+          : currentTheme.fg('textMuted', tipText);
 
     const menuBlock = leftLine + menuGap + menuBadge;
     let line1: string;
@@ -812,15 +805,15 @@ export class FooterComponent implements Component {
     );
     const usageSeverity = contextUsageSeverity(state.contextUsage);
     const contextParts: string[] = [
-      styleFooterBadge({ text: contextBase, severity: usageSeverity }, colors, appearance),
+      styleFooterBadge({ text: contextBase, severity: usageSeverity }, appearance),
     ];
     if (workingSetBadge !== null) {
-      contextParts.push(styleFooterBadge(workingSetBadge, colors, appearance));
+      contextParts.push(styleFooterBadge(workingSetBadge, appearance));
     }
     if (quotaBadge !== null) {
-      contextParts.push(styleFooterBadge(quotaBadge, colors, appearance));
+      contextParts.push(styleFooterBadge(quotaBadge, appearance));
     }
-    const contextText = contextParts.join(chalk.hex(colors.textMuted)(' · '));
+    const contextText = contextParts.join(currentTheme.fg('textMuted', ' · '));
     const contextWidth = visibleWidth(contextText);
     const nextAction = footerNextAction(state, git);
     const resumeBeat =
@@ -862,8 +855,8 @@ export class FooterComponent implements Component {
       const hintWidth = visibleWidth(shownHint);
       const pad = Math.max(0, width - hintWidth - contextWidth);
       const hintStyle = this.transientHint !== null
-        ? chalk.hex(colors.warning).bold
-        : chalk.hex(colors.textDim);
+        ? (text: string) => currentTheme.boldFg('warning', text)
+        : (text: string) => currentTheme.fg('textDim', text);
       line2 = hintStyle(shownHint) + ' '.repeat(pad) + contextText;
     } else {
       const leftPad = Math.max(0, width - contextWidth);

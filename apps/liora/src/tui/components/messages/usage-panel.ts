@@ -6,11 +6,8 @@
 
 import type { Component } from '#/tui/renderer';
 import {
-  fitRendererFrameTitle,
-  renderRendererFrameRows,
   renderRendererRatioProgressBar,
   truncateToWidth,
-  visibleWidth,
 } from '#/tui/renderer';
 import type { SessionUsage, TokenUsage, ContextComposition, AllProvidersUsageSnapshot } from '@superliora/sdk';
 
@@ -33,6 +30,7 @@ import {
   effectiveSoftWorkingSetTokens,
   workingSetUsageRatio,
 } from '#/tui/utils/context-working-set';
+import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 
 const LEFT_MARGIN = 2;
 const SIDE_PADDING = 1;
@@ -763,40 +761,30 @@ export class UsagePanelComponent implements Component {
     if (safeWidth <= 0) return [''];
 
     const appearance = getActiveAppearancePreferences();
-    const paint = (s: string): string => currentTheme.fg(this.borderToken, s);
     const availableInterior = safeWidth - BOX_OVERHEAD;
     const titleText =
       this.phase === 'loading' && shouldRenderAmbientEffects(appearance)
         ? renderPulseText(this.title, 'usage-panel:title', this.borderToken)
         : this.title;
     if (availableInterior < 1) {
+      // Too narrow for a box: flat title + lines without the left indent.
       return [
         truncateToWidth(this.title.trim(), safeWidth, '…'),
         ...this.lines.map((line) => truncateToWidth(line, safeWidth, '…')),
       ];
     }
 
-    const indent = ' '.repeat(LEFT_MARGIN);
-    const longestLine = this.lines.reduce((max, line) => Math.max(max, visibleWidth(line)), 0);
-    const contentWidth = Math.max(
-      1,
-      Math.min(availableInterior, Math.max(longestLine, visibleWidth(this.title))),
-    );
-    const horzLen = contentWidth + 2 * SIDE_PADDING;
-    const title = fitRendererFrameTitle(titleText, horzLen, '…');
-    const frame = renderRendererFrameRows({
-      title,
-      titlePlacement: 'flush',
-      borderKind: 'rounded',
+    const body = renderRoundedPanel({
+      title: titleText,
       content: this.lines,
-      width: horzLen + 2,
-      height: this.lines.length + 2,
-      paddingX: SIDE_PADDING,
-      borderStyle: paint,
-      titleStyle: paint,
-      ellipsis: '…',
+      width: safeWidth,
+      borderToken: this.borderToken,
+      leftMargin: LEFT_MARGIN,
+      sidePadding: SIDE_PADDING,
+      // The flat fallback above owns the too-narrow case; disable the shared
+      // default so narrow widths keep drawing a box exactly as before.
+      minBoxWidth: 0,
     });
-    const body = frame.map((line) => truncateToWidth(indent + line, safeWidth, '…'));
     if (!this.isEnterBeatActive(appearance)) return body;
     const beat = renderEnterBeat(
       this.title.trim() || 'Panel',

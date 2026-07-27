@@ -16,14 +16,12 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
 
+import { stripAnsi } from '../../utils/frame-stability-helpers';
+
 afterEach(() => {
   currentTheme.setPalette(darkColors);
   setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
 });
-
-function strip(text: string): string {
-  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
-}
 
 describe('UsagePanelComponent', () => {
   it('formats session, context, and managed usage sections', () => {
@@ -50,7 +48,7 @@ describe('UsagePanelComponent', () => {
         },
         limits: [],
       },
-    }).map(strip);
+    }).map(stripAnsi);
 
     expect(lines).toContain('Session usage');
     expect(lines).toContain('  kimi  input 2.0K  output 250  total 2.3K');
@@ -79,7 +77,7 @@ describe('UsagePanelComponent', () => {
         asyncWorkingSetTokens: 220_000,
         presetId: 'balanced',
       },
-    }).map(strip);
+    }).map(stripAnsi);
 
     const body = lines.join('\n');
     expect(lines).toContain('Working set');
@@ -95,7 +93,7 @@ describe('UsagePanelComponent', () => {
       contextUsage: 0,
       contextTokens: 0,
       maxContextTokens: 10000,
-    }).map(strip);
+    }).map(stripAnsi);
 
     expect(lines).toContain('Session usage');
     expect(lines).toContain('  No token usage recorded yet. Send a message to start tracking.');
@@ -115,7 +113,7 @@ describe('UsagePanelComponent', () => {
       contextUsage: 0.9,
       contextTokens: 9000,
       maxContextTokens: 10000,
-    }).map(strip);
+    }).map(stripAnsi);
 
     expect(lines.join('\n')).toContain('90.0%');
     expect(lines.join('\n')).toMatch(/Remaining\s+1\.0K tokens/);
@@ -124,7 +122,7 @@ describe('UsagePanelComponent', () => {
 
   it('wraps preformatted usage lines in a bordered panel', () => {
     const component = new UsagePanelComponent(() => ['Session usage'], 'primary');
-    const output = component.render(80).map(strip);
+    const output = component.render(80).map(stripAnsi);
 
     expect(output[0]).toContain(' Usage ');
     expect(output[1]).toContain('Session usage');
@@ -157,7 +155,7 @@ describe('UsagePanelComponent', () => {
     // regardless of chalk's colour level in the test environment.
     const component = new UsagePanelComponent(() => [`text=${currentTheme.color('text')}`], 'primary');
     const bodyOf = (): string => {
-      const line = component.render(80).map(strip).find((l) => l.includes('text='));
+      const line = component.render(80).map(stripAnsi).find((l) => l.includes('text='));
       if (line === undefined) throw new Error('body line not found');
       return line;
     };
@@ -192,7 +190,7 @@ describe('UsagePanelComponent', () => {
           },
         ],
       },
-    }).map(strip);
+    }).map(stripAnsi);
 
     expect(lines[0]).toBe('Plan usage');
     expect(lines).toContain('  work · primary');
@@ -226,7 +224,7 @@ describe('UsagePanelComponent', () => {
           },
         ],
       },
-    }).map(strip);
+    }).map(stripAnsi);
 
     expect(lines.join('\n')).toContain('work');
     expect(lines.join('\n')).toContain('20% used');
@@ -240,7 +238,7 @@ describe('UsagePanelComponent', () => {
         summary: { label: 'daily', used: 20, limit: 100, resetHint: 'resets tomorrow' },
         limits: [],
       },
-    }).map(strip);
+    }).map(stripAnsi);
 
     expect(lines).toContain('Plan usage');
     expect(lines.join('\n')).toContain('20% used');
@@ -264,7 +262,7 @@ describe('UsagePanelComponent', () => {
         ],
       },
       managedUsageFillProgress: 0.5,
-    }).map(strip);
+    }).map(stripAnsi);
 
     expect(lines).toContain('Plan usage');
     expect(lines.join('\n')).toMatch(/loading/);
@@ -314,13 +312,13 @@ describe('UsagePanelComponent', () => {
         enterBeatSeed: 'usage',
         openedAtMs,
       });
-      const early = component.render(80).map(strip);
+      const early = component.render(80).map(stripAnsi);
       expect(early.some((line) => line.includes('Usage'))).toBe(true);
       expect(early.length).toBeGreaterThan(3);
 
       vi.setSystemTime(openedAtMs + 900);
       advanceAppearanceAnimationClock(Date.now());
-      const settled = component.render(80).map(strip);
+      const settled = component.render(80).map(stripAnsi);
       expect(settled[0]).toContain(' Usage ');
       expect(settled.length).toBeLessThan(early.length);
     });

@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 
-function strip(text: string): string {
-  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
-}
+import { stripAnsi } from './frame-stability-helpers';
 
 describe('renderRoundedPanel', () => {
   it('renders a rounded box with title and content', () => {
@@ -14,7 +12,7 @@ describe('renderRoundedPanel', () => {
       width: 40,
     });
 
-    const output = strip(lines.join('\n'));
+    const output = stripAnsi(lines.join('\n'));
     expect(output).toContain('╭');
     expect(output).toContain('╯');
     expect(output).toContain('Panel');
@@ -30,7 +28,7 @@ describe('renderRoundedPanel', () => {
       minBoxWidth: 24,
     });
 
-    const output = strip(lines.join('\n'));
+    const output = stripAnsi(lines.join('\n'));
     expect(output).not.toContain('╭');
     expect(output).toContain('alpha');
   });

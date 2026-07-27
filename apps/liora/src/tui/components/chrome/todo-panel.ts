@@ -22,7 +22,6 @@ import {
   type Component,
 } from '#/tui/renderer';
 import type { GoalSnapshot } from '@superliora/sdk';
-import chalk from 'chalk';
 
 import {
   goalMonitorBorderToken,
@@ -31,6 +30,15 @@ import {
   isLiveGoal,
   renderGoalMonitorLines,
 } from '#/tui/components/chrome/goal-monitor';
+import {
+  GOAL_DOT,
+  PENDING_GLYPH,
+  PULSE_ACTIVE_FRAMES,
+  TODO_ADDED,
+  TODO_COMPLETED,
+  TODO_MOVED,
+  TODO_REOPENED,
+} from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
@@ -309,7 +317,6 @@ export class TodoPanelComponent implements Component {
       this.boardShrinkRequestedAtMs = undefined;
     }
     const contentWidth = this.interiorWidth(width, profile);
-    const colors = currentTheme.palette;
     const lines: string[] = [];
 
     if (liveGoal !== null) {
@@ -317,7 +324,6 @@ export class TodoPanelComponent implements Component {
       lines.push(
         ...renderGoalMonitorLines({
           goal: liveGoal,
-          colors,
           width: contentWidth,
           wallClockMs,
           changedAtMs: this.goalChangedAtMs,
@@ -325,7 +331,7 @@ export class TodoPanelComponent implements Component {
         }),
       );
       if (this.todos.length > 0) {
-        lines.push(chalk.hex(colors.border)(`  ${'─'.repeat(Math.max(4, Math.min(24, contentWidth - 2)))}`));
+        lines.push(currentTheme.fg('border', `  ${'─'.repeat(Math.max(4, Math.min(24, contentWidth - 2)))}`));
       }
     }
 
@@ -374,10 +380,9 @@ export class TodoPanelComponent implements Component {
     width: number,
     profile: ReturnType<typeof resolveResponsiveLayout>,
   ): string[] {
-    const c = currentTheme.palette;
     const contentWidth = this.interiorWidth(width, profile);
     const lines: string[] = [
-      renderBoardMeta(this.todos, c, this.currentChangeSummary(), this.callsSinceUpdate),
+      renderBoardMeta(this.todos, this.currentChangeSummary(), this.callsSinceUpdate),
     ];
 
     const highlights = this.currentHighlights();
@@ -385,23 +390,23 @@ export class TodoPanelComponent implements Component {
     const stabilizeRows = (rows: number): number => this.stabilizeBoardRows(rows);
     if (this.expanded) {
       lines.push(
-        ...renderTodos(this.todos, c, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
+        ...renderTodos(this.todos, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
       );
       if (this.todos.length > MAX_VISIBLE) {
         lines.push(
-          chalk.hex(c.textDim)(`  all ${String(this.todos.length)} items · ctrl+t to collapse`),
+          currentTheme.fg('textDim', `  all ${String(this.todos.length)} items · ctrl+t to collapse`),
         );
       }
     } else {
       const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
       lines.push(
-        ...renderTodos(rows, c, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
+        ...renderTodos(rows, contentWidth, highlights, changedAtMs, profile, stabilizeRows),
       );
       if (hidden > 0) {
         const distribution = formatHiddenCounts(hiddenCounts);
         const suffix = distribution.length > 0 ? ` (${distribution})` : '';
         lines.push(
-          chalk.hex(c.textDim)(`  … +${hidden} more${suffix} · ctrl+t to expand`),
+          currentTheme.fg('textDim', `  … +${hidden} more${suffix} · ctrl+t to expand`),
         );
       }
     }
@@ -464,7 +469,6 @@ export class TodoPanelComponent implements Component {
 
 function renderTodos(
   todos: readonly TodoItem[],
-  colors: ColorPalette,
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
@@ -472,16 +476,15 @@ function renderTodos(
   stabilizeRows?: (rows: number) => number,
 ): string[] {
   if (profile === 'tiny') {
-    return renderLanes(todos, colors, width, highlights, changedAtMs);
+    return renderLanes(todos, width, highlights, changedAtMs);
   }
   return width >= BOARD_MIN_WIDTH
-    ? renderBoard(todos, colors, width, highlights, changedAtMs, stabilizeRows)
-    : renderLanes(todos, colors, width, highlights, changedAtMs);
+    ? renderBoard(todos, width, highlights, changedAtMs, stabilizeRows)
+    : renderLanes(todos, width, highlights, changedAtMs);
 }
 
 function renderBoard(
   todos: readonly TodoItem[],
-  colors: ColorPalette,
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
@@ -493,7 +496,7 @@ function renderBoard(
       TODO_LANES.length,
   );
   if (columnWidth < BOARD_COLUMN_MIN_WIDTH) {
-    return renderLanes(todos, colors, width, highlights, changedAtMs);
+    return renderLanes(todos, width, highlights, changedAtMs);
   }
 
   const lanes = TODO_LANES.map((lane) => ({
@@ -503,14 +506,14 @@ function renderBoard(
   const rawMaxRows = Math.max(1, ...lanes.map((lane) => lane.todos.length));
   // Hysteresis: grow instantly but delay shrinks so lane hops do not bounce the height.
   const maxRows = stabilizeRows === undefined ? rawMaxRows : stabilizeRows(rawMaxRows);
-  const separator = chalk.hex(colors.border)(BOARD_SEPARATOR);
+  const separator = currentTheme.fg('border', BOARD_SEPARATOR);
   const columnRule = renderRendererDividerRow({
     width: columnWidth,
-    style: (text) => chalk.hex(colors.border)(text),
+    style: (text) => currentTheme.fg('border', text),
   });
   const lines = [
     BOARD_INDENT + lanes
-      .map((lane) => padCell(renderLaneHeader(lane.label, lane.todos.length, lane.status, colors), columnWidth))
+      .map((lane) => padCell(renderLaneHeader(lane.label, lane.todos.length, lane.status), columnWidth))
       .join(separator),
     BOARD_INDENT + lanes
       .map(() => columnRule)
@@ -524,8 +527,8 @@ function renderBoard(
           const todo = lane.todos[row];
           return padCell(
             todo === undefined
-              ? chalk.hex(colors.textMuted)('No cards')
-              : renderCell(todo, colors, highlights.get(todo.title), changedAtMs),
+              ? currentTheme.fg('textMuted', 'No cards')
+              : renderCell(todo, highlights.get(todo.title), changedAtMs),
             columnWidth,
           );
         })
@@ -537,7 +540,6 @@ function renderBoard(
 
 function renderLanes(
   todos: readonly TodoItem[],
-  colors: ColorPalette,
   width: number,
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
@@ -546,10 +548,10 @@ function renderLanes(
   for (const lane of TODO_LANES) {
     const laneTodos = todos.filter((todo) => todo.status === lane.status);
     if (laneTodos.length === 0) continue;
-    lines.push(chalk.hex(colors.textDim)(`  ${lane.label}`));
+    lines.push(currentTheme.fg('textDim', `  ${lane.label}`));
     for (const todo of laneTodos) {
       lines.push(
-        ...renderWrappedCell(todo, colors, highlights.get(todo.title), changedAtMs, width),
+        ...renderWrappedCell(todo, highlights.get(todo.title), changedAtMs, width),
       );
     }
   }
@@ -558,7 +560,6 @@ function renderLanes(
 
 function renderBoardMeta(
   todos: readonly TodoItem[],
-  colors: ColorPalette,
   summary: TodoPanelChangeSummary | undefined,
   callsSinceUpdate: number,
 ): string {
@@ -568,74 +569,71 @@ function renderBoardMeta(
   const wipText = `wip ${String(counts.in_progress)}/1`;
   const wip =
     counts.in_progress > 1
-      ? chalk.hex(colors.warning).bold(wipText)
-      : chalk.hex(colors.textDim)(wipText);
+      ? currentTheme.boldFg('warning', wipText)
+      : currentTheme.fg('textDim', wipText);
   const progress =
     total > 0
       ? `${renderRendererRatioProgressBar({
           ratio,
           width: 8,
-          filledStyle: (text) => chalk.hex(colors.success)(text),
-          emptyStyle: (text) => chalk.hex(colors.textMuted)(text),
-        })}${chalk.hex(colors.textDim)(` ${String(Math.round(ratio * 100))}%`)}`
+          filledStyle: (text) => currentTheme.fg('success', text),
+          emptyStyle: (text) => currentTheme.fg('textMuted', text),
+        })}${currentTheme.fg('textDim', ` ${String(Math.round(ratio * 100))}%`)}`
       : undefined;
   const parts = [
     ...(progress !== undefined ? [progress] : []),
     wip,
-    chalk.hex(colors.textDim)(`next ${String(counts.pending)}`),
-    chalk.hex(colors.textDim)(`done ${String(counts.done)}`),
+    currentTheme.fg('textDim', `next ${String(counts.pending)}`),
+    currentTheme.fg('textDim', `done ${String(counts.done)}`),
   ];
   const flow = summary === undefined ? undefined : formatChangeSummary(summary);
   if (flow !== undefined) {
-    parts.unshift(chalk.hex(colors.primary)(`${renderShimmerPrefix()}flow ${flow}`));
+    parts.unshift(currentTheme.fg('primary', `${renderShimmerPrefix()}flow ${flow}`));
   }
   if (callsSinceUpdate >= STALE_TOOL_CALLS) {
     parts.push(
-      chalk.hex(colors.warning).bold(`stale · ${String(callsSinceUpdate)} calls since update`),
+      currentTheme.boldFg('warning', `stale · ${String(callsSinceUpdate)} calls since update`),
     );
   }
-  return `  ${parts.join(chalk.hex(colors.textMuted)(' · '))}`;
+  return `  ${parts.join(currentTheme.fg('textMuted', ' · '))}`;
 }
 
 function renderLaneHeader(
   label: string,
   count: number,
   status: TodoStatus,
-  colors: ColorPalette,
 ): string {
   const text = `${label} (${String(count)})`;
   switch (status) {
     case 'in_progress':
-      return chalk.hex(colors.primary).bold(text);
+      return currentTheme.boldFg('primary', text);
     case 'done':
-      return chalk.hex(colors.success).bold(text);
+      return currentTheme.boldFg('success', text);
     case 'pending':
-      return chalk.hex(colors.textStrong).bold(text);
+      return currentTheme.boldFg('textStrong', text);
   }
 }
 
 function renderCell(
   todo: TodoItem,
-  colors: ColorPalette,
   change: TodoChangeKind | undefined,
   changedAtMs: number | undefined,
 ): string {
-  const badge = changeBadge(change, colors);
-  const marker = statusMarker(todo.status, colors);
-  const titleStyled = styleTitle(todo.title, todo.status, colors, change, changedAtMs);
+  const badge = changeBadge(change);
+  const marker = statusMarker(todo.status);
+  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs);
   return `${badge}${marker} ${titleStyled}`;
 }
 
 function renderWrappedCell(
   todo: TodoItem,
-  colors: ColorPalette,
   change: TodoChangeKind | undefined,
   changedAtMs: number | undefined,
   width: number,
 ): string[] {
-  const badge = changeBadge(change, colors);
-  const marker = statusMarker(todo.status, colors);
-  const titleStyled = styleTitle(todo.title, todo.status, colors, change, changedAtMs);
+  const badge = changeBadge(change);
+  const marker = statusMarker(todo.status);
+  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs);
   const firstPrefix = `${badge}${marker} `;
   const prefixWidth = visibleWidth(firstPrefix);
   const availableWidth = Math.max(
@@ -657,21 +655,20 @@ function padCell(content: string, width: number): string {
   return truncated + ' '.repeat(Math.max(0, width - visibleWidth(truncated)));
 }
 
-function statusMarker(status: TodoStatus, colors: ColorPalette): string {
+function statusMarker(status: TodoStatus): string {
   switch (status) {
     case 'in_progress':
-      return renderPulseGlyph(['●', '◆', '✦', '◆'], 'todo:in-progress', '●', 'primary');
+      return renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'todo:in-progress', GOAL_DOT, 'primary');
     case 'done':
-      return chalk.hex(colors.success)('✓');
+      return currentTheme.fg('success', '✓');
     case 'pending':
-      return chalk.hex(colors.textDim)('○');
+      return currentTheme.fg('textDim', PENDING_GLYPH);
   }
 }
 
 function styleTitle(
   title: string,
   status: TodoStatus,
-  colors: ColorPalette,
   change: TodoChangeKind | undefined,
   changedAtMs: number | undefined,
 ): string {
@@ -686,25 +683,25 @@ function styleTitle(
   }
   switch (status) {
     case 'in_progress':
-      return chalk.hex(colors.text).bold(title);
+      return currentTheme.boldFg('text', title);
     case 'done':
-      return chalk.hex(colors.textDim).strikethrough(title);
+      return currentTheme.strikethroughFg('textDim', title);
     case 'pending':
-      return chalk.hex(colors.text)(title);
+      return currentTheme.fg('text', title);
   }
 }
 
-function changeBadge(change: TodoChangeKind | undefined, colors: ColorPalette): string {
+function changeBadge(change: TodoChangeKind | undefined): string {
   if (change === undefined) return '';
   switch (change) {
     case 'added':
-      return `${renderPulseGlyph(['＋', '+'], 'todo:added', '+', 'accent')} `;
+      return `${renderPulseGlyph([TODO_ADDED, '+'], 'todo:added', '+', 'accent')} `;
     case 'completed':
-      return `${chalk.hex(colors.success)('↘')} `;
+      return `${currentTheme.fg('success', TODO_COMPLETED)} `;
     case 'moved':
-      return `${chalk.hex(colors.primary)('→')} `;
+      return `${currentTheme.fg('primary', TODO_MOVED)} `;
     case 'reopened':
-      return `${chalk.hex(colors.warning)('↟')} `;
+      return `${currentTheme.fg('warning', TODO_REOPENED)} `;
   }
 }
 
@@ -809,7 +806,8 @@ export function formatHiddenCounts(counts: Record<TodoStatus, number>): string {
 export function formatSwarmMemberTodoLines(
   todos: readonly TodoItem[],
   width: number,
-  colors: ColorPalette,
+  // Palette now comes from currentTheme; the parameter stays for cross-component callers.
+  _colors: ColorPalette,
   _memberLabel?: string,
 ): string[] {
   if (todos.length === 0) return [];
@@ -820,16 +818,16 @@ export function formatSwarmMemberTodoLines(
   const lines: string[] = [];
   if (doing !== undefined) {
     lines.push(
-      ` ${chalk.hex(colors.primary)('▸')} doing: ${truncateToWidth(doing.title, Math.max(8, width - 11), '…')}`,
+      ` ${currentTheme.fg('primary', '▸')} doing: ${truncateToWidth(doing.title, Math.max(8, width - 11), '…')}`,
     );
   }
   if (next !== undefined) {
     lines.push(
-      ` ${chalk.hex(colors.textDim)('○')} next: ${truncateToWidth(next.title, Math.max(8, width - 9), '…')}`,
+      ` ${currentTheme.fg('textDim', PENDING_GLYPH)} next: ${truncateToWidth(next.title, Math.max(8, width - 9), '…')}`,
     );
   }
   if (doneCount > 0) {
-    lines.push(` ${chalk.hex(colors.success)('✓')} done: ${String(doneCount)}`);
+    lines.push(` ${currentTheme.fg('success', '✓')} done: ${String(doneCount)}`);
   }
   return lines.slice(0, 3);
 }

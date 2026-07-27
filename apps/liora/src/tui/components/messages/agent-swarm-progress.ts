@@ -26,7 +26,7 @@ import {
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
+import { renderAnimatedGradientText, renderPulseGlyph } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
@@ -95,6 +95,11 @@ const QUEUED_LABEL = 'Queued...';
 const SUSPENDED_LABEL = 'Rate limited...';
 const RESUMED_ITEM_LABEL = '(resumed)';
 const CANCELLED_LABEL_DARKEN_FACTOR = 0.72;
+/** Pulse glyph cycle prefixed to running grid cells. */
+const RUNNING_CELL_PULSE_GLYPHS = ['●', '◆', '✦', '◆'];
+const RUNNING_CELL_PULSE_FALLBACK = '●';
+/** Max visible width of the per-cell model alias badge (` · <alias>`). */
+const MODEL_ALIAS_BADGE_MAX_WIDTH = 16;
 
 const STATUS_BAR_ORDER = [
   'completed',
@@ -118,7 +123,8 @@ type ClearableMemberKey =
   | 'cancelledMarkColor'
   | 'cancelledBarColor'
   | 'suspendedReason'
-  | 'activeToolName';
+  | 'activeToolName'
+  | 'retryNote';
 
 const COMPLETED_CLEAR_KEYS = [
   'failedAtMs',
@@ -129,6 +135,7 @@ const COMPLETED_CLEAR_KEYS = [
   'cancelledBarColor',
   'suspendedReason',
   'activeToolName',
+  'retryNote',
 ] as const satisfies readonly ClearableMemberKey[];
 const FAILED_CLEAR_KEYS = [
   'completedAtMs',
@@ -151,6 +158,7 @@ const TERMINAL_CLEAR_KEYS = [
   'cancelledBarColor',
   'suspendedReason',
   'activeToolName',
+  'retryNote',
 ] as const satisfies readonly ClearableMemberKey[];
 const CANCELLED_CLEAR_KEYS = [
   'completedAtMs',
@@ -159,6 +167,7 @@ const CANCELLED_CLEAR_KEYS = [
   'failureText',
   'suspendedReason',
   'activeToolName',
+  'retryNote',
 ] as const satisfies readonly ClearableMemberKey[];
 
 export interface UltraSwarmMemberMetadata {
@@ -247,6 +256,7 @@ interface AgentSwarmMember {
   ticks: number;
   itemText: string;
   latestModelText: string;
+  modelAlias?: string;
   activeToolName?: string;
   ultraSwarm?: UltraSwarmMemberMetadata;
   verdict?: string;
@@ -260,6 +270,10 @@ interface AgentSwarmMember {
   suspendedReason?: string;
   completedAtMs?: number;
   failedAtMs?: number;
+  /** First moment the member entered running; drives the per-cell elapsed badge. */
+  startedAtMs?: number;
+  /** Optional dim note after failure text (retry attempt / model fallback). */
+  retryNote?: string;
   todos: TodoItem[];
 }
 
@@ -771,10 +785,15 @@ export class AgentSwarmProgressComponent implements Component {
     readonly agentId: string;
     readonly swarmIndex?: number;
     readonly description?: string | undefined;
+    readonly modelAlias?: string | undefined;
   }): void {
     const member = this.findMemberForSubagent(input.agentId, input.swarmIndex);
     if (member === undefined) return;
     member.agentId = input.agentId;
+    if (input.modelAlias !== undefined) {
+      const alias = collapseWhitespace(input.modelAlias);
+      if (alias.length > 0) member.modelAlias = alias;
+    }
     if (member.phase === 'pending') member.phase = 'queued';
     this.startAnimationIfNeeded();
   }
@@ -784,6 +803,7 @@ export class AgentSwarmProgressComponent implements Component {
     if (member === undefined) return;
     const nowMs = Date.now();
     this.progressEstimator.markStarted(member.id, nowMs);
+    member.startedAtMs ??= nowMs;
     member.ticks = Math.max(member.ticks, 1);
     this.promoteToRunning(member, nowMs);
     this.startAnimationIfNeeded();
@@ -881,11 +901,15 @@ export class AgentSwarmProgressComponent implements Component {
     this.startAnimationIfNeeded();
   }
 
-  markFailed(agentId: string, failureText?: string): void {
+  markFailed(
+    agentId: string,
+    failureText?: string,
+    meta?: { readonly retryNote?: string | undefined },
+  ): void {
     const member = this.findMemberByAgentId(agentId);
     if (member === undefined) return;
     const nowMs = Date.now();
-    this.failMember(member, nowMs, failureText);
+    this.failMember(member, nowMs, failureText, meta?.retryNote);
     this.startAnimationIfNeeded();
   }
 
@@ -1726,7 +1750,7 @@ export class AgentSwarmProgressComponent implements Component {
     );
     const prefix = `${id} ${bar} `;
     const labelWidth = Math.max(1, width - visibleWidth(prefix));
-    const label = renderCellLabel(member, snapshot, labelWidth, this.colors);
+    const label = renderCellLabel(member, snapshot, labelWidth, this.colors, nowMs);
     return prefix + label;
   }
 
@@ -1876,6 +1900,7 @@ export class AgentSwarmProgressComponent implements Component {
   private promoteToRunning(member: AgentSwarmMember, nowMs?: number, setTicks = false): void {
     if (member.phase === 'pending' || member.phase === 'queued' || member.phase === 'suspended') {
       member.phase = 'running';
+      member.startedAtMs ??= nowMs ?? Date.now();
       if (nowMs !== undefined) {
         this.ensureSwarmStartedAt(nowMs);
         this.progressEstimator.markStarted(member.id, nowMs);
@@ -1900,13 +1925,20 @@ export class AgentSwarmProgressComponent implements Component {
     clearMemberState(member, ...COMPLETED_CLEAR_KEYS);
   }
 
-  private failMember(member: AgentSwarmMember, nowMs: number, failureText?: string): void {
+  private failMember(
+    member: AgentSwarmMember,
+    nowMs: number,
+    failureText?: string,
+    retryNote?: string,
+  ): void {
     if (member.phase !== 'failed') {
       this.progressEstimator.markFailed(member.id, nowMs);
       member.failedAtMs = nowMs;
     }
     const normalizedFailureText = normalizeFailureText(failureText);
     if (normalizedFailureText !== undefined) member.failureText = normalizedFailureText;
+    const normalizedRetryNote = normalizeFailureText(retryNote);
+    if (normalizedRetryNote !== undefined) member.retryNote = normalizedRetryNote;
     member.phase = 'failed';
     clearMemberState(member, ...FAILED_CLEAR_KEYS);
   }
@@ -2658,16 +2690,18 @@ function renderCellLabel(
   snapshot: AgentSwarmSnapshot,
   width: number,
   colors: ColorPalette,
+  nowMs: number,
 ): string {
   const latestLine = latestNonEmptyLine(snapshot.latestModelText);
   if (snapshot.phase === 'running') {
-    return truncateWithColor(runningCellLabelText(member), width, colors.textDim);
+    return renderRunningCellLabel(member, width, colors, nowMs);
   }
   if (snapshot.phase === 'failed' && member.failureText !== undefined) {
-    return truncateWithColor(`${FAILURE_MARK}${member.failureText}`, width, colors.error);
+    return renderFailedCellLabel(member, width, colors);
   }
   if (snapshot.phase === 'completed') {
     return renderCompletedCellLabel(
+      member,
       completedCellText(member, member.completedText ?? latestLine),
       width,
       colors,
@@ -2677,6 +2711,75 @@ function renderCellLabel(
     return renderCancelledCellLabel(member, width, colors);
   }
   return truncateWithColor(PHASE_LABELS[snapshot.phase], width, phaseColor(snapshot.phase, colors));
+}
+
+/**
+ * Running cell label: a time-seeded pulse glyph, the latest activity text,
+ * then dim suffixes for per-member elapsed time and the model alias. The
+ * suffixes reserve their width first so they survive narrow-cell truncation.
+ */
+function renderRunningCellLabel(
+  member: AgentSwarmMember,
+  width: number,
+  colors: ColorPalette,
+  nowMs: number,
+): string {
+  const pulse = `${renderPulseGlyph(
+    RUNNING_CELL_PULSE_GLYPHS,
+    `agent-swarm-cell:${member.id}`,
+    RUNNING_CELL_PULSE_FALLBACK,
+    'primary',
+  )} `;
+  const suffix = `${runningElapsedSuffix(member, nowMs)}${modelAliasSuffix(member)}`;
+  const textWidth = Math.max(1, width - visibleWidth(pulse) - visibleWidth(suffix));
+  const text = truncateWithColor(runningCellLabelText(member), textWidth, colors.textDim);
+  return truncateToWidth(`${pulse}${text}${suffix}`, width);
+}
+
+function renderFailedCellLabel(
+  member: AgentSwarmMember,
+  width: number,
+  colors: ColorPalette,
+): string {
+  const mainText = `${FAILURE_MARK}${member.failureText ?? ''}`;
+  const suffix = `${retryNoteSuffix(member)}${modelAliasSuffix(member)}`;
+  return renderMainWithDimSuffix(mainText, suffix, width, colors.error);
+}
+
+function runningElapsedSuffix(member: AgentSwarmMember, nowMs: number): string {
+  if (member.startedAtMs === undefined) return '';
+  return currentTheme.dimFg('textMuted', ` (${formatElapsedTime(member.startedAtMs, nowMs)})`);
+}
+
+function retryNoteSuffix(member: AgentSwarmMember): string {
+  if (member.retryNote === undefined) return '';
+  return currentTheme.dimFg('textMuted', ` · ${member.retryNote}`);
+}
+
+function modelAliasSuffix(member: AgentSwarmMember): string {
+  if (member.modelAlias === undefined) return '';
+  const alias = truncateToWidth(member.modelAlias, MODEL_ALIAS_BADGE_MAX_WIDTH, '…');
+  return currentTheme.dimFg('textMuted', ` · ${alias}`);
+}
+
+/**
+ * Render a colored main label followed by a pre-styled dim suffix, shrinking
+ * the main text (with an ellipsis) so the suffix stays intact when possible.
+ */
+function renderMainWithDimSuffix(
+  mainText: string,
+  dimSuffix: string,
+  width: number,
+  mainColor: string,
+): string {
+  if (dimSuffix.length === 0) return truncateWithColor(mainText, width, mainColor);
+  const suffixWidth = visibleWidth(dimSuffix);
+  if (suffixWidth >= width) {
+    return truncateToWidth(dimSuffix, width, currentTheme.dimFg('textMuted', '…'));
+  }
+  const colorize = chalk.hex(mainColor);
+  const mainWidth = Math.max(1, width - suffixWidth);
+  return truncateToWidth(colorize(mainText), mainWidth, colorize('…')) + dimSuffix;
 }
 
 function runningCellLabelText(member: AgentSwarmMember): string {
@@ -2779,13 +2882,14 @@ function renderCancelledCellLabel(
 }
 
 function renderCompletedCellLabel(
+  member: AgentSwarmMember,
   text: string,
   width: number,
   colors: ColorPalette,
 ): string {
   const finalText = normalizeFinalOutputText(text);
   const label = finalText === undefined ? SUCCESS_MARK.trimEnd() : `${SUCCESS_MARK}${finalText}`;
-  return truncateWithColor(label, width, colors.success);
+  return renderMainWithDimSuffix(label, modelAliasSuffix(member), width, colors.success);
 }
 
 function compactTerminalMark(
@@ -2821,10 +2925,11 @@ function renderQueuedCell(
 ): string {
   const id = chalk.hex(colors.primary)(member.id);
   const prefix = `${id} `;
-  const labelWidth = Math.max(1, width - visibleWidth(prefix));
+  const suffix = modelAliasSuffix(member);
+  const labelWidth = Math.max(1, width - visibleWidth(prefix) - visibleWidth(suffix));
   const itemText = collapseWhitespace(member.itemText);
   const label = member.ultraSwarm !== undefined && itemText.length > 0 ? itemText : QUEUED_LABEL;
-  return prefix + truncateWithColor(label, labelWidth, colors.textDim);
+  return truncateToWidth(prefix + truncateWithColor(label, labelWidth, colors.textDim) + suffix, width);
 }
 
 function renderCancelledUnstartedCell(

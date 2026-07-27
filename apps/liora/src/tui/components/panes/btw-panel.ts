@@ -7,8 +7,6 @@ import {
   projectRendererLineWindow,
   renderRendererStableScrollableFrameRows,
 } from '#/tui/renderer';
-import chalk from 'chalk';
-
 import { THINKING_PREVIEW_LINES } from '../../constant/rendering';
 import { currentTheme } from '../../theme';
 import {
@@ -109,7 +107,7 @@ export class BtwPanelComponent implements Component {
     const safeWidth = Math.max(4, width);
     const contentWidth = Math.max(1, safeWidth - 4);
     const body = this.renderBody(contentWidth);
-    const paint = (s: string): string => chalk.hex(currentTheme.palette.border)(s);
+    const paint = (s: string): string => currentTheme.fg('border', s);
     return [...renderRendererStableScrollableFrameRows({
       viewport: this.bodyViewport,
       body,
@@ -130,17 +128,17 @@ export class BtwPanelComponent implements Component {
   private renderTitle(width: number, truncated: boolean): string {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
-    const paint = (s: string): string => chalk.hex(currentTheme.palette.border)(s);
+    const paint = (s: string): string => currentTheme.fg('border', s);
     const hint = truncated && this.options.canUseScrollKeys()
       ? 'Esc close · ↑↓ scroll · /btw '
       : 'Esc close · /btw ';
     const titleLabel = animated
       ? renderPremiumHeadline('BTW', 'btw:title', appearance)
-      : chalk.hex(currentTheme.palette.accent).bold(' BTW ');
+      : currentTheme.boldFg('accent', ' BTW ');
     const title =
       titleLabel +
       paint('─ ') +
-      chalk.hex(currentTheme.palette.textMuted)(hint);
+      currentTheme.fg('textMuted', hint);
     return fitRendererFrameTitle(title, width, '');
   }
 
@@ -151,7 +149,7 @@ export class BtwPanelComponent implements Component {
       lines.push(...this.renderTurn(turn, width));
     }
     if (this.turns.length === 0) {
-      lines.push(chalk.hex(currentTheme.palette.textDim)('Ready for a side question...'));
+      lines.push(currentTheme.fg('textDim', 'Ready for a side question...'));
     }
     lines.push(...this.renderTransientNotices(width));
     return lines;
@@ -160,7 +158,7 @@ export class BtwPanelComponent implements Component {
   private renderTransientNotices(width: number): string[] {
     const lines: string[] = [];
     for (const notice of this.transientNotices) {
-      lines.push(...new Text(chalk.hex(currentTheme.palette.textDim)(notice), 0, 0).render(width));
+      lines.push(...new Text(currentTheme.fg('textDim', notice), 0, 0).render(width));
     }
     return lines;
   }
@@ -179,7 +177,7 @@ export class BtwPanelComponent implements Component {
       ? renderSpectacularText(`Q: ${turn.prompt}`, `btw:prompt:${turn.prompt}`, appearance, {
           intense: true,
         })
-      : chalk.hex(currentTheme.palette.accent)(`Q: ${turn.prompt}`);
+      : currentTheme.fg('accent', `Q: ${turn.prompt}`);
     const prompt = promptText;
     const lines = [...new Text(prompt, 0, 0).render(width)];
     const answer = turn.answer.trim();
@@ -187,7 +185,7 @@ export class BtwPanelComponent implements Component {
     if (answer.length > 0) {
       lines.push(...new Markdown(answer, 0, 0, this.options.markdownTheme).render(width));
     } else if (thinking.length > 0) {
-      const thinkingLines = new Text(chalk.hex(currentTheme.palette.textDim)(thinking), 0, 0).render(
+      const thinkingLines = new Text(currentTheme.fg('textDim', thinking), 0, 0).render(
         width,
       );
       const visibleThinking = projectRendererLineWindow({
@@ -197,10 +195,10 @@ export class BtwPanelComponent implements Component {
       }).lines;
       lines.push(...visibleThinking);
     } else if (turn.error === undefined) {
-      lines.push(chalk.hex(currentTheme.palette.textDim)('Waiting for answer...'));
+      lines.push(currentTheme.fg('textDim', 'Waiting for answer...'));
     }
     if (turn.error !== undefined) {
-      const error = chalk.hex(currentTheme.palette.error)(turn.error);
+      const error = currentTheme.fg('error', turn.error);
       lines.push(...new Text(error, 0, 0).render(width));
     }
     return lines;

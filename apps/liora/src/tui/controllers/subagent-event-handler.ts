@@ -653,6 +653,7 @@ export class SubAgentEventHandler {
       progress.registerSubagent({
         agentId: event.subagentId,
         swarmIndex: event.swarmIndex,
+        modelAlias: event.modelAlias,
       });
     })) {
       return;
@@ -735,7 +736,7 @@ export class SubAgentEventHandler {
   ): void {
     const { parentToolCallId } = info;
     if (this.updateAgentSwarmProgress(parentToolCallId, (progress) => {
-      this.markAgentSwarmFailedOrCancelled(progress, event.subagentId, event.error);
+      this.markAgentSwarmFailedOrCancelled(progress, event.subagentId, event.error, event);
     })) {
       this.host.streamingUI.removeToolComponentIfInactive(parentToolCallId);
       return;
@@ -919,11 +920,17 @@ export class SubAgentEventHandler {
     progress: AgentSwarmProgressComponent,
     subagentId: string,
     error: string,
+    event?: SubagentLifecycleEventOf<'subagent.failed'>,
   ): void {
     if (isUserCancelledSubagentError(error)) {
       progress.markCancelled(subagentId);
     } else {
-      progress.markFailed(subagentId, error);
+      const retryNote = event === undefined ? undefined : subagentFailureRetryNote(event);
+      progress.markFailed(
+        subagentId,
+        error,
+        retryNote === undefined ? undefined : { retryNote },
+      );
     }
   }
 
@@ -969,6 +976,32 @@ function isSubagentLifecycleEvent(event: Event): event is SubagentLifecycleEvent
     event.type === 'subagent.completed' ||
     event.type === 'subagent.failed'
   );
+}
+
+/**
+ * Retry / fallback hints are not part of the protocol schema yet, so read
+ * them defensively. When a server starts emitting them the swarm failure
+ * cell shows a dim note such as ` · retrying (2/3)` or ` · fell back to …`.
+ */
+function subagentFailureRetryNote(
+  event: SubagentLifecycleEventOf<'subagent.failed'>,
+): string | undefined {
+  const extras = event as unknown as Record<string, unknown>;
+  const parts: string[] = [];
+  const retryAttempt = extras['retryAttempt'];
+  if (typeof retryAttempt === 'number' && Number.isFinite(retryAttempt) && retryAttempt > 0) {
+    const retryLimit = extras['retryLimit'];
+    parts.push(
+      typeof retryLimit === 'number' && Number.isFinite(retryLimit) && retryLimit > 0
+        ? `retrying (${String(retryAttempt)}/${String(retryLimit)})`
+        : `retrying (attempt ${String(retryAttempt)})`,
+    );
+  }
+  const fellBackToModel = extras['fellBackToModel'];
+  if (typeof fellBackToModel === 'string' && fellBackToModel.trim().length > 0) {
+    parts.push(`fell back to ${fellBackToModel.trim()}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : undefined;
 }
 
 function ultraSwarmMembersFromTeam(team: TeamPlan): UltraSwarmMemberMetadata[] {
