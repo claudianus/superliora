@@ -53,6 +53,7 @@
     "prebuild": "node scripts/sync-upstream-baseline.mjs && node scripts/build-vis-asset.mjs",
     "catalog:update": "node scripts/update-catalog.mjs --out dist/built-in-catalog.json",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:visual": "node scripts/visual-smoke.mjs",
     "build:native:js": "node scripts/native/01-bundle.mjs",
     "build:native:sea": "node scripts/native/build.mjs --profile=local",
     "build:native:release": "node scripts/native/build.mjs --profile=release",
