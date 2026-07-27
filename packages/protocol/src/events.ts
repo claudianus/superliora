@@ -798,6 +798,44 @@ export interface SubagentStalledEvent {
   readonly toolCount: number;
 }
 
+/**
+ * Live tool-call telemetry for a running subagent (Phase 1-A realtime
+ * overhaul). Emitted on the PARENT agent when a child tool call starts, so
+ * clients can render a per-subagent live feed without routing every raw
+ * child event. Args are truncated to a short single-line preview at the
+ * emitter; the wire payload stays small by construction.
+ */
+export interface SubagentToolCallEvent {
+  readonly type: 'subagent.tool_call';
+  readonly subagentId: string;
+  readonly subagentName?: string;
+  /** Parent tool call that spawned the subagent; correlates panel state. */
+  readonly parentToolCallId?: string;
+  /** UltraSwarm run id when the subagent is part of a swarm run. */
+  readonly runId?: string;
+  readonly toolCallId: string;
+  readonly name: string;
+  /** Single-line args preview, truncated at the emitter (~400 chars). */
+  readonly argsPreview?: string;
+}
+
+/**
+ * Completion counterpart to {@link SubagentToolCallEvent}. Emitted on the
+ * parent agent when a child tool call finishes; the result summary is
+ * truncated at the emitter (~500 chars).
+ */
+export interface SubagentToolResultEvent {
+  readonly type: 'subagent.tool_result';
+  readonly subagentId: string;
+  readonly runId?: string;
+  readonly toolCallId: string;
+  /** Tool name tracked from the matching `subagent.tool_call`, when seen. */
+  readonly name?: string;
+  readonly isError?: boolean;
+  /** Single-line result summary, truncated at the emitter (~500 chars). */
+  readonly resultPreview?: string;
+}
+
 export interface SubagentCompletedEvent {
   readonly type: 'subagent.completed';
   readonly subagentId: string;
@@ -1013,6 +1051,8 @@ export type AgentEvent =
   | SubagentSuspendedEvent
   | SubagentProgressEvent
   | SubagentStalledEvent
+  | SubagentToolCallEvent
+  | SubagentToolResultEvent
   | SubagentCompletedEvent
   | SubagentFailedEvent
   | SubagentTodoUpdatedEvent
@@ -1766,6 +1806,27 @@ export const subagentStalledEventSchema = z.object({
   toolCount: z.number(),
 }) satisfies z.ZodType<SubagentStalledEvent>;
 
+export const subagentToolCallEventSchema = z.object({
+  type: z.literal('subagent.tool_call'),
+  subagentId: z.string(),
+  subagentName: z.string().optional(),
+  parentToolCallId: z.string().optional(),
+  runId: z.string().optional(),
+  toolCallId: z.string(),
+  name: z.string(),
+  argsPreview: z.string().optional(),
+}) satisfies z.ZodType<SubagentToolCallEvent>;
+
+export const subagentToolResultEventSchema = z.object({
+  type: z.literal('subagent.tool_result'),
+  subagentId: z.string(),
+  runId: z.string().optional(),
+  toolCallId: z.string(),
+  name: z.string().optional(),
+  isError: z.boolean().optional(),
+  resultPreview: z.string().optional(),
+}) satisfies z.ZodType<SubagentToolResultEvent>;
+
 export const subagentCompletedEventSchema = z.object({
   type: z.literal('subagent.completed'),
   subagentId: z.string(),
@@ -1950,6 +2011,8 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   subagentSuspendedEventSchema,
   subagentProgressEventSchema,
   subagentStalledEventSchema,
+  subagentToolCallEventSchema,
+  subagentToolResultEventSchema,
   subagentCompletedEventSchema,
   subagentFailedEventSchema,
   subagentTodoUpdatedEventSchema,

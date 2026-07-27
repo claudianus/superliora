@@ -8,6 +8,7 @@ import {
 } from '@superliora/kosong';
 
 import type { Agent } from '../agent';
+import type { AgentEvent } from '@superliora/protocol';
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
@@ -121,6 +122,10 @@ const SUBAGENT_PROGRESS_INTERVAL_MS = 5_000;
 const SUBAGENT_STALL_MS = 300_000;
 /** Checkpoint cadence: snapshot every N completed tool calls (T4-5). */
 const CHECKPOINT_TOOL_DELTA = 10;
+/** Args preview cap for `subagent.tool_call` payloads (Phase 1-A). */
+const SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH = 400;
+/** Result summary cap for `subagent.tool_result` payloads (Phase 1-A). */
+const SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH = 500;
 /** Finishing mode starts when this much budget remains (T4-5). */
 const SUBAGENT_FINISHING_WINDOW_MS = 5 * 60 * 1000;
 const SUBAGENT_FINISHING_REMINDER = [
@@ -637,6 +642,13 @@ export class SessionSubagentHost {
       profileName,
       options.timeoutMs ?? DEFAULT_SUBAGENT_TIMEOUT_MS,
     );
+    const disposeToolStream = this.attachToolStreamBridge(
+      parent,
+      child,
+      childId,
+      profileName,
+      options,
+    );
     try {
       return await this.collectChildCompletion(
         parent,
@@ -648,6 +660,7 @@ export class SessionSubagentHost {
       );
     } finally {
       disposeProgress();
+      disposeToolStream();
     }
   }
 
@@ -917,6 +930,70 @@ export class SessionSubagentHost {
     // Progress reporting must never keep the event loop alive on its own.
     timer.unref?.();
     return () => clearInterval(timer);
+  }
+
+  /**
+   * Live tool-call telemetry (Phase 1-A realtime overhaul): mirrors the
+   * child's `tool.call.started` / `tool.result` agent events onto the parent
+   * agent as truncated `subagent.tool_call` / `subagent.tool_result` events,
+   * so clients can render a live per-subagent tool feed without subscribing
+   * to every raw child event (and without huge wire payloads). Uses the same
+   * instance-patch pattern as `attachSubagentTodoBridge`; the returned
+   * disposer restores the original emitter.
+   */
+  private attachToolStreamBridge(
+    parent: Agent,
+    child: Agent,
+    childId: string,
+    profileName: string,
+    options: RunSubagentOptions,
+  ): () => void {
+    const originalEmitEvent = child.emitEvent.bind(child);
+    const runId = this.resolveToolStreamRunId(parent, options);
+    const toolNames = new Map<string, string>();
+    child.emitEvent = (event: AgentEvent) => {
+      originalEmitEvent(event);
+      if (event.type === 'tool.call.started') {
+        toolNames.set(event.toolCallId, event.name);
+        parent.emitEvent({
+          type: 'subagent.tool_call',
+          subagentId: childId,
+          subagentName: profileName,
+          parentToolCallId: options.parentToolCallId,
+          ...(runId !== undefined ? { runId } : {}),
+          toolCallId: event.toolCallId,
+          name: event.name,
+          argsPreview: previewSubagentToolArgs(event.args),
+        });
+        return;
+      }
+      if (event.type === 'tool.result') {
+        const name = toolNames.get(event.toolCallId);
+        if (name !== undefined) toolNames.delete(event.toolCallId);
+        parent.emitEvent({
+          type: 'subagent.tool_result',
+          subagentId: childId,
+          ...(runId !== undefined ? { runId } : {}),
+          toolCallId: event.toolCallId,
+          ...(name !== undefined ? { name } : {}),
+          isError: event.isError,
+          resultPreview: previewSubagentToolResult(event.output),
+        });
+      }
+    };
+    return () => {
+      child.emitEvent = originalEmitEvent;
+    };
+  }
+
+  private resolveToolStreamRunId(
+    parent: Agent,
+    options: RunSubagentOptions,
+  ): string | undefined {
+    const run = parent.ultraSwarmRun;
+    if (run === undefined) return undefined;
+    if (options.parentToolCallId !== run.parentToolCallId) return undefined;
+    return run.runId;
   }
 
   private async writeProgressCheckpoint(
@@ -1306,4 +1383,46 @@ function summarizeToolTarget(argsJson: string | undefined): string | undefined {
   }
   const raw = argsJson.trim();
   return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
+}
+
+/**
+ * Flatten a tool payload into a single-line preview and bound it, so
+ * `subagent.tool_call` / `subagent.tool_result` events stay small on the
+ * wire (Phase 1-A). The TUI never receives the full args / result.
+ */
+function stringifyToolPayloadPreview(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  let text: string;
+  if (typeof value === 'string') text = value;
+  else {
+    try {
+      const json = JSON.stringify(value);
+      if (json === undefined) return undefined;
+      text = json;
+    } catch {
+      text = String(value);
+    }
+  }
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > 0 ? flat : undefined;
+}
+
+function truncateToolPayloadPreview(text: string | undefined, maxLength: number): string | undefined {
+  if (text === undefined) return undefined;
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+function previewSubagentToolArgs(args: unknown): string | undefined {
+  return truncateToolPayloadPreview(
+    stringifyToolPayloadPreview(args),
+    SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH,
+  );
+}
+
+function previewSubagentToolResult(output: unknown): string | undefined {
+  return truncateToolPayloadPreview(
+    stringifyToolPayloadPreview(output),
+    SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH,
+  );
 }

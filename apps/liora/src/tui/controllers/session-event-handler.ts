@@ -361,6 +361,9 @@ export class SessionEventHandler {
                 break;
       case 'subagent.todo.updated':
         this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
+      case 'subagent.tool_call':
+      case 'subagent.tool_result':
+        this.subAgentEventHandler.handleSubagentToolActivity(event); break;
       case 'tools.update_store':
         this.handleToolsUpdateStore(event); break;
       case 'background.task.started':
