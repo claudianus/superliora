@@ -675,6 +675,22 @@ export class ToolCallComponent extends Container {
   private readonly renderCache = new RendererChildrenRenderCache();
   private lastHeaderAnimationEpoch = -1;
 
+  /**
+   * True while any part of this block still animates — streaming result,
+   * active subagents, or the entrance wash. Settled blocks are byte-stable
+   * and may cache across ambient ticks.
+   */
+  private hasLiveAnimation(): boolean {
+    if (this.result === undefined) return true;
+    // Subagent views keep animating (spinner + elapsed chip) while the call
+    // is queued/spawning/running — same gate as tickClockDrivenRefresh().
+    if (this.isSingleSubagentView()) {
+      const phase = this.getDerivedSubagentPhase();
+      if (phase === 'queued' || phase === 'spawning' || phase === 'running') return true;
+    }
+    return isTranscriptEntranceActive(this.entranceStartedAtMs);
+  }
+
   override render(width: number): string[] {
     // Clock-driven periodic refresh: advance the streaming-progress and
     // subagent-elapsed counters from the shared animation clock instead of
@@ -683,7 +699,13 @@ export class ToolCallComponent extends Container {
     this.syncAnimatedHeader();
     const lines = this.renderCache.render({
       width,
-      cacheEpoch: renderCacheEpoch(),
+      // In-flight blocks animate (gradient header, streaming tail glow,
+      // entrance wash, subagent pulse) and repaint every ambient tick.
+      // Settled blocks are byte-stable: dropping the epoch lets the cache
+      // absorb idle ticks instead of re-encoding every finished block each
+      // frame — that per-frame churn is what made the transcript shimmer.
+      // Mirrors AssistantMessageComponent's animated-epoch gate.
+      cacheEpoch: this.hasLiveAnimation() ? renderCacheEpoch() : undefined,
       children: this.children,
       isCacheEnabled: isRenderCacheEnabled,
     });
@@ -1598,7 +1620,8 @@ export class ToolCallComponent extends Container {
   private formatToolDurationChip(): string | undefined {
     const startedAtMs = this.toolCall.streamingStartedAtMs;
     if (startedAtMs === undefined) return undefined;
-    const endedAtMs = this.finishedAtMs ?? (this.result === undefined ? Date.now() : undefined);
+    const endedAtMs =
+      this.finishedAtMs ?? (this.result === undefined ? Date.now() : undefined);
     if (endedAtMs === undefined) return undefined;
     const elapsedSeconds = Math.max(0, Math.floor((endedAtMs - startedAtMs) / 1000));
     // Keep sub-second tools quiet; duration noise hurts glanceability.
@@ -1607,6 +1630,7 @@ export class ToolCallComponent extends Container {
   }
 
   private rebuildContent(): void {
+    this.renderCache.clear();
     while (this.children.length > this.callPreviewEndIndex) {
       this.children.pop();
     }
@@ -1618,6 +1642,7 @@ export class ToolCallComponent extends Container {
   }
 
   private rebuildBody(): void {
+    this.renderCache.clear();
     while (this.children.length > 2) {
       this.children.pop();
     }

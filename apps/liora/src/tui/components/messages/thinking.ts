@@ -114,7 +114,14 @@ export class ThinkingComponent implements Component {
     }
     return this.renderCache.render({
       width,
-      cacheEpoch: renderCacheEpoch(),
+      // Live/entrance frames animate and repaint every ambient tick (the
+      // branch above already clears the cache for them). Finalized blocks
+      // are byte-stable, so drop the epoch and let the cache absorb idle
+      // ticks instead of re-encoding the block every frame.
+      cacheEpoch:
+        this.mode === 'live' || isTranscriptEntranceActive(this.entranceStartedAtMs)
+          ? renderCacheEpoch()
+          : undefined,
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
         const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);

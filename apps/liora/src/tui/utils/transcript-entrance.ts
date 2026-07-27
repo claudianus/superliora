@@ -269,8 +269,9 @@ export function applyStreamTailGlow(
       style: {
         ...cell.style,
         fg: mixHexColor(baseFg, toward, intensity),
-        bold: local > 0.32 ? true : cell.style?.bold,
-        dim: local < 0.12 ? true : undefined,
+        // Only the very tip goes bold. A lower threshold made whole spans
+        // pop between bold/regular as the wave moved — visible flicker.
+        bold: local > 0.86 ? true : cell.style?.bold,
       },
     };
   });
