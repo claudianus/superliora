@@ -7,7 +7,17 @@ export const STREAMING_ARGS_FIELD_RE =
 export const STREAMING_ARGS_PREVIEW_MAX_CHARS = 64 * 1024;
 
 // Coalesces high-frequency model/tool deltas before rebuilding TUI components.
+// Doubles as the floor/default interval for the adaptive flush throttle.
 export const STREAMING_UI_FLUSH_MS = 50;
+
+// Upper bound of the adaptive flush interval. Sustained delta bursts stretch
+// the window up to this far to coalesce repaints; light traffic stays at the
+// floor and semantic boundaries flush immediately regardless.
+export const STREAMING_UI_FLUSH_MAX_MS = 80;
+
+// Pending dirty marks within one flush cycle at or above which the throttle
+// stretches from STREAMING_UI_FLUSH_MS toward STREAMING_UI_FLUSH_MAX_MS.
+export const STREAMING_UI_FLUSH_BURST_DELTAS = 6;
 
 // ---------------------------------------------------------------------------
 // Smooth stream reveal (client-side catch-up interpolation)

@@ -9,7 +9,12 @@ import { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
 import { isGenericToolResult } from '../components/messages/tool-renderers/registry';
-import { STREAM_REVEAL_TICK_MS, STREAMING_UI_FLUSH_MS } from '../constant/streaming';
+import {
+  STREAM_REVEAL_TICK_MS,
+  STREAMING_UI_FLUSH_BURST_DELTAS,
+  STREAMING_UI_FLUSH_MAX_MS,
+  STREAMING_UI_FLUSH_MS,
+} from '../constant/streaming';
 import { shouldAnimate } from './appearance';
 import {
   appearanceAnimationNow,
@@ -18,6 +23,7 @@ import {
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
 import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
+import { nextStreamingFlushDelay } from '../utils/streaming-flush-schedule';
 import {
   createStreamingTextRevealState,
   isRevealCaughtUp,
@@ -61,6 +67,10 @@ export interface StreamingUIHost {
 export class StreamingUIController {
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private lastFlushAt: number | undefined;
+  /** Scheduled fire time (ms epoch) of the pending flushTimer, if any. */
+  private scheduledFlushAt: number | undefined;
+  /** Dirty marks since the last flush; drives adaptive burst coalescing. */
+  private dirtyMarksSinceFlush = 0;
   private pendingAssistantFlush = false;
   private pendingThinkingFlush = false;
   readonly pendingToolCallFlushIds = new Set<string>();
@@ -132,6 +142,7 @@ export class StreamingUIController {
   appendThinkingDelta(delta: string): void {
     this._thinkingDraft += delta;
     this.pendingThinkingFlush = true;
+    this.dirtyMarksSinceFlush += 1;
   }
 
   appendAssistantDelta(delta: string): void {
@@ -140,6 +151,7 @@ export class StreamingUIController {
     }
     this._assistantDraft += delta;
     this.pendingAssistantFlush = true;
+    this.dirtyMarksSinceFlush += 1;
   }
 
   hasThinkingDraft(): boolean {
@@ -362,6 +374,7 @@ export class StreamingUIController {
     const startedAtMs = existing?.startedAtMs ?? Date.now();
     this._streamingToolCallArguments.set(id, { name, argumentsText, startedAtMs });
     this.pendingToolCallFlushIds.add(id);
+    this.dirtyMarksSinceFlush += 1;
   }
 
   getStreamingToolCallPreview(
@@ -470,11 +483,13 @@ export class StreamingUIController {
     if (this.flushTimer === undefined) return;
     clearTimeout(this.flushTimer);
     this.flushTimer = undefined;
+    this.scheduledFlushAt = undefined;
   }
 
   private clearFlushTimerIfIdle(): void {
     if (this.hasPending()) return;
     this.clearFlushTimer();
+    this.dirtyMarksSinceFlush = 0;
   }
 
   discardPending(): void {
@@ -483,17 +498,31 @@ export class StreamingUIController {
     this.pendingAssistantFlush = false;
     this.pendingThinkingFlush = false;
     this.pendingToolCallFlushIds.clear();
+    this.dirtyMarksSinceFlush = 0;
   }
 
   scheduleFlush(): void {
     if (!this.hasPending()) return;
-    if (this.flushTimer !== undefined) return;
-    const delay =
-      this.lastFlushAt === undefined
-        ? 0
-        : Math.max(0, STREAMING_UI_FLUSH_MS - (Date.now() - this.lastFlushAt));
+    const now = Date.now();
+    const delay = nextStreamingFlushDelay({
+      now,
+      lastFlushAt: this.lastFlushAt,
+      pendingDeltaCount: this.dirtyMarksSinceFlush,
+      baseMs: STREAMING_UI_FLUSH_MS,
+      maxMs: STREAMING_UI_FLUSH_MAX_MS,
+      burstThreshold: STREAMING_UI_FLUSH_BURST_DELTAS,
+    });
+    const fireAt = now + delay;
+    if (this.flushTimer !== undefined) {
+      // A burst may stretch the window later; never pull a scheduled flush
+      // earlier than the fire time we already promised.
+      if (fireAt <= (this.scheduledFlushAt ?? Number.POSITIVE_INFINITY)) return;
+      this.clearFlushTimer();
+    }
+    this.scheduledFlushAt = fireAt;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = undefined;
+      this.scheduledFlushAt = undefined;
       this.flush();
     }, delay);
   }
@@ -512,6 +541,7 @@ export class StreamingUIController {
     this.pendingThinkingFlush = false;
     this.pendingAssistantFlush = false;
     this.pendingToolCallFlushIds.clear();
+    this.dirtyMarksSinceFlush = 0;
 
     if (shouldFlushThinking && this._thinkingDraft.length > 0) {
       this.onThinkingUpdate(this._thinkingDraft);
