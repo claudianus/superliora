@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS symbols (
   PRIMARY KEY (path, name, line)
 );
 CREATE INDEX IF NOT EXISTS symbols_name ON symbols(name);
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `;
 
 export class SymbolIndexStore {
@@ -70,6 +74,11 @@ export class SymbolIndexStore {
     }
     this.db = new (loadSqlite().DatabaseSync)(dbPath);
     this.db.exec(SCHEMA);
+    // WAL keeps concurrent-session readers smooth while one indexer writes;
+    // busy_timeout avoids SQLITE_BUSY snaps on overlapping access. Both are
+    // no-ops for :memory: stores.
+    this.db.exec('PRAGMA journal_mode = WAL');
+    this.db.exec('PRAGMA busy_timeout = 2000');
   }
 
   getFileHash(path: string): string | undefined {
@@ -143,6 +152,21 @@ export class SymbolIndexStore {
   symbolCount(): number {
     const row = this.db.prepare('SELECT COUNT(*) AS n FROM symbols').get();
     return Number(row?.['n'] ?? 0);
+  }
+
+  getMeta(key: string): string | undefined {
+    const row = this.db.prepare('SELECT value FROM meta WHERE key = ?').get(key);
+    const value = row?.['value'];
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  setMeta(key: string, value: string): void {
+    this.db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(key, value);
+  }
+
+  /** Drop all indexed data; used on schema or repo-identity mismatch. */
+  clearAll(): void {
+    this.db.exec('DELETE FROM symbols; DELETE FROM files;');
   }
 
   close(): void {

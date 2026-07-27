@@ -33,11 +33,26 @@ export function hashSource(source: string): string {
   return createHash('sha256').update(source).digest('hex');
 }
 
+/** Bump to force a full re-index of every persisted db on next open. */
+const CODEMAP_SCHEMA_VERSION = '1';
+
 export class CodeIndexer {
   private readonly store: SymbolIndexStore;
 
   constructor(private readonly options: CodeIndexerOptions) {
     this.store = new SymbolIndexStore(options.dbPath);
+    // A persistent db can outlive a schema revision or — via a digest-scheme
+    // change — point at another repo; wipe instead of serving stale rows.
+    if (options.dbPath !== ':memory:') {
+      if (
+        this.store.getMeta('schema_version') !== CODEMAP_SCHEMA_VERSION ||
+        this.store.getMeta('workspace_root') !== options.root
+      ) {
+        this.store.clearAll();
+        this.store.setMeta('schema_version', CODEMAP_SCHEMA_VERSION);
+        this.store.setMeta('workspace_root', options.root);
+      }
+    }
   }
 
   update(): IndexReport {

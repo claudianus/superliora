@@ -1,10 +1,25 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { CodeMap, getCodeMapForWorkspace } from '#/codemap/code-map';
+
+// Keep getCodeMapForWorkspace's persistent db inside a throwaway home so
+// tests never touch the real ~/.superliora.
+let savedSuperlioraHome: string | undefined;
+let testHome: string;
+beforeAll(() => {
+  savedSuperlioraHome = process.env['SUPERLIORA_HOME'];
+  testHome = mkdtempSync(join(tmpdir(), 'codemap-home-'));
+  process.env['SUPERLIORA_HOME'] = testHome;
+});
+afterAll(() => {
+  if (savedSuperlioraHome === undefined) delete process.env['SUPERLIORA_HOME'];
+  else process.env['SUPERLIORA_HOME'] = savedSuperlioraHome;
+  rmSync(testHome, { recursive: true, force: true });
+});
 
 describe('getCodeMapForWorkspace', () => {
   it('caches one CodeMap per workspace dir', () => {
@@ -90,5 +105,60 @@ describe('CodeMap', () => {
     const codemap = new CodeMap(dir, ':memory:');
     expect(codemap.outlineFile(join(dir, 'nope.ts'))).toEqual([]);
     codemap.close();
+  });
+});
+
+describe('CodeMap persistent db', () => {
+  function makeGitWorkspace(files: Record<string, string>): string {
+    const ws = mkdtempSync(join(tmpdir(), 'codemap-persist-'));
+    for (const [name, content] of Object.entries(files)) {
+      writeFileSync(join(ws, name), content, 'utf8');
+    }
+    spawnSync('git', ['init'], { cwd: ws });
+    spawnSync('git', ['add', '-A'], { cwd: ws });
+    return ws;
+  }
+
+  it('stores the index under the Liora home and warm-starts a new instance', () => {
+    const ws = makeGitWorkspace({ 'lib.ts': 'export function persistedFn() { return 1; }\n' });
+    try {
+      const before = new Set(readdirSync(join(testHome, 'codemap')));
+      const first = getCodeMapForWorkspace(ws);
+      expect(first.ensureReady()).toBe(true);
+      const created = readdirSync(join(testHome, 'codemap')).filter(
+        (f) => !before.has(f) && f.endsWith('.sqlite'),
+      );
+      expect(created.length).toBe(1);
+      const dbPath = join(testHome, 'codemap', created[0]!);
+      first.close();
+      // A fresh instance over the same db serves symbols from the persisted index.
+      const second = new CodeMap(ws, dbPath);
+      expect(second.ensureReady()).toBe(true);
+      expect(second.findSymbol('persistedFn', 10).length).toBeGreaterThan(0);
+      second.close();
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it('wipes stale rows when the workspace identity changes', () => {
+    const wsA = makeGitWorkspace({ 'a.ts': 'export const alpha = 1;\n' });
+    const wsB = makeGitWorkspace({ 'b.ts': 'export const beta = 2;\n' });
+    const dbPath = join(testHome, 'codemap', 'identity.sqlite');
+    try {
+      const a = new CodeMap(wsA, dbPath);
+      expect(a.ensureReady()).toBe(true);
+      expect(a.findSymbol('alpha', 10).length).toBeGreaterThan(0);
+      a.close();
+      const b = new CodeMap(wsB, dbPath);
+      expect(b.ensureReady()).toBe(true);
+      // Stale rows from repo A are gone; only repo B is searchable.
+      expect(b.findSymbol('alpha', 10)).toEqual([]);
+      expect(b.findSymbol('beta', 10).length).toBeGreaterThan(0);
+      b.close();
+    } finally {
+      rmSync(wsA, { recursive: true, force: true });
+      rmSync(wsB, { recursive: true, force: true });
+    }
   });
 });

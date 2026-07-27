@@ -3,13 +3,14 @@
 // symbol index on first use (git workspaces only), degrades to "not ready"
 // instead of throwing, and offers a live per-file outline that needs no index.
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { accessSync, constants, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { extractSymbols } from '#/codemap/extract';
 import { CodeIndexer } from '#/codemap/indexer';
 import type { SymbolHit } from '#/codemap/store';
+import { resolveLioraHome } from '#/config/path';
 
 export interface CodeMapHit {
   readonly filePath: string;
@@ -104,13 +105,29 @@ function toCodeMapHit(hit: SymbolHit): CodeMapHit {
 
 const workspaceMaps = new Map<string, CodeMap>();
 
-/** Process-level singleton per workspace; the sqlite file lives under tmpdir. */
+/**
+ * Process-level singleton per workspace. The sqlite file persists under the
+ * Liora home (`<home>/codemap/<digest>.sqlite`) so later sessions warm-start
+ * from the previous index; it falls back to tmpdir when the home is not
+ * writable.
+ */
 export function getCodeMapForWorkspace(workspaceDir: string): CodeMap {
   const existing = workspaceMaps.get(workspaceDir);
   if (existing !== undefined) return existing;
-  const digest = createHash('sha256').update(workspaceDir).digest('hex').slice(0, 16);
-  const dbPath = join(tmpdir(), 'superliora-codemap', `${digest}.sqlite`);
-  const codemap = new CodeMap(workspaceDir, dbPath);
+  const codemap = new CodeMap(workspaceDir, resolveCodemapDbPath(workspaceDir));
   workspaceMaps.set(workspaceDir, codemap);
   return codemap;
+}
+
+function resolveCodemapDbPath(workspaceDir: string): string {
+  const digest = createHash('sha256').update(workspaceDir).digest('hex').slice(0, 16);
+  const fileName = `${digest}.sqlite`;
+  try {
+    const dir = join(resolveLioraHome(), 'codemap');
+    mkdirSync(dir, { recursive: true });
+    accessSync(dir, constants.W_OK);
+    return join(dir, fileName);
+  } catch {
+    return join(tmpdir(), 'superliora-codemap', fileName);
+  }
 }
