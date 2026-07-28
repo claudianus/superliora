@@ -72,9 +72,6 @@ const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>([
   // War-room dock / orchestrator signals (pause, restaff).
   'stop',
   'staff',
-  // Live per-member tool activity (Phase 1-B realtime overhaul).
-  'tool',
-  'fail',
 ]);
 const SWARM_FEED_BODY_MIN_WIDTH = 24;
 const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
@@ -417,6 +414,7 @@ export class AgentSwarmProgressComponent implements Component {
   private swarmStartedAtMs: number | undefined;
   private lastFrameTickMs = 0;
   private readonly opsFeed: SwarmOpsFeedEntry[] = [];
+  private readonly opsToolFeed: SwarmOpsFeedEntry[] = [];
   /** Dedupe collaboration feed lines even when message + mention both fire. */
   private readonly seenCollaborationMessageIds = new Set<string>();
   private readonly expertSlotById = new Map<string, string>();
@@ -912,7 +910,7 @@ export class AgentSwarmProgressComponent implements Component {
     const member = this.findMemberByAgentId(input.agentId);
     if (member === undefined) return;
     this.trackMemberCodeWriteActivity(member, input);
-    this.appendConversationFeed({
+    this.appendToolFeed({
       tag: input.isError === true ? 'fail' : 'tool',
       fromExpertId: member.ultraSwarm?.expertId ?? member.agentId,
       fromName: member.ultraSwarm?.name,
@@ -1160,6 +1158,7 @@ export class AgentSwarmProgressComponent implements Component {
       '',
       feedHeader,
       ...feedContent,
+      ...this.renderToolFeed(width),
       ...(actionDock.length > 0 ? ['', ...actionDock] : []),
     ];
 
@@ -1343,6 +1342,7 @@ export class AgentSwarmProgressComponent implements Component {
   private isWarRoomActive(): boolean {
     if (this.members.some((member) => member.ultraSwarm !== undefined)) return true;
     if (this.opsFeed.length > 0) return true;
+    if (this.opsToolFeed.length > 0) return true;
     if (this.debateReel.length > 0) return true;
     if (this.fileLeases.size > 0) return true;
     if (this.itemsStarted) return true;
@@ -1467,6 +1467,48 @@ export class AgentSwarmProgressComponent implements Component {
       ...this.renderOpsFeedContent(width, SWARM_OPS_FEED_RENDER_LINES, true),
     ];
     return lines;
+  }
+
+  private renderToolFeed(width: number): string[] {
+    if (!this.isUltraSwarmOpsFeedEnabled() || this.opsToolFeed.length === 0) return [];
+    const profile = resolveResponsiveLayout({ width });
+    const maxLines = profile === 'tiny'
+      ? SWARM_OPS_FEED_RENDER_LINES_TINY
+      : SWARM_OPS_FEED_RENDER_LINES;
+    const dividerStyle = (text: string): string => chalk.hex(this.colors.primary)(text);
+    return [
+      '',
+      renderRendererLabeledDividerRow({
+        width,
+        label: chalk.hex(this.colors.accent)('TOOL ACTIVITY'),
+        dividerStyle,
+      }),
+      ...this.renderToolFeedContent(width, maxLines),
+    ];
+  }
+
+  private renderToolFeedContent(
+    width: number,
+    maxLines = SWARM_OPS_FEED_RENDER_LINES,
+  ): string[] {
+    return this.opsToolFeed
+      .slice(-maxLines)
+      .map((entry) => this.renderToolFeedEntry(entry, width));
+  }
+
+  private renderToolFeedEntry(entry: SwarmOpsFeedEntry, width: number): string {
+    const isFailure = entry.tag === 'fail';
+    const tagStyle = chalk.hex(isFailure ? this.colors.warning : this.colors.primary);
+    const bodyStyle = chalk.hex(isFailure ? this.colors.warning : this.colors.text);
+    const source = chalk.hex(this.colors.textDim)(
+      this.formatExpertLabel(entry.fromExpertId, entry.fromName, entry.fromEmoji),
+    );
+    const glyph = tagStyle(isFailure ? '✗' : '›');
+    const separator = chalk.hex(this.colors.textDim)(':');
+    return truncateToWidth(
+      `${glyph} ${source}${separator} ${bodyStyle(this.resolveFeedEntryBody(entry))}`,
+      width,
+    );
   }
 
   private renderOpsFeedContent(
@@ -1676,6 +1718,39 @@ export class AgentSwarmProgressComponent implements Component {
     });
     if (this.opsFeed.length > SWARM_OPS_FEED_MAX_ENTRIES) {
       this.opsFeed.splice(0, this.opsFeed.length - SWARM_OPS_FEED_MAX_ENTRIES);
+    }
+  }
+
+  private appendToolFeed(input: {
+    readonly tag: 'tool' | 'fail';
+    readonly fromExpertId?: string;
+    readonly fromName?: string;
+    readonly fromEmoji?: string;
+    readonly body: string;
+  }): void {
+    if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const body = collapseWhitespace(input.body);
+    if (body.length === 0) return;
+    const last = this.opsToolFeed.at(-1);
+    if (
+      last !== undefined &&
+      last.tag === input.tag &&
+      last.fromExpertId === input.fromExpertId &&
+      last.fromName === input.fromName &&
+      last.body === body
+    ) {
+      return;
+    }
+    this.opsToolFeed.push({
+      atMs: Date.now(),
+      tag: input.tag,
+      fromExpertId: input.fromExpertId,
+      fromName: input.fromName,
+      fromEmoji: input.fromEmoji,
+      body,
+    });
+    if (this.opsToolFeed.length > SWARM_OPS_FEED_MAX_ENTRIES) {
+      this.opsToolFeed.splice(0, this.opsToolFeed.length - SWARM_OPS_FEED_MAX_ENTRIES);
     }
   }
 
