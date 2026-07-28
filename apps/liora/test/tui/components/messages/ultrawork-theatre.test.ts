@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 import { UltraworkTheatreComponent } from '#/tui/components/messages/ultrawork-theatre';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { currentTheme } from '#/tui/theme';
+import {
+  advanceAppearanceAnimationClock,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+  setActiveAppearancePreferences,
+  SETTLE_FLASH_MS,
+} from '#/tui/utils/appearance-effects';
 
 const researchStageEvent = {
   type: 'ultrawork.stage.changed' as const,
@@ -94,5 +103,116 @@ describe('UltraworkTheatreComponent', () => {
     expect(output).toContain('research');
     // Should contain progress ratio
     expect(output).toMatch(/\d+\/\d+/);
+  });
+});
+
+describe('UltraworkTheatreComponent stage motion', () => {
+  const previousEnv = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+  };
+
+  function stripAnsi(text: string): string {
+    return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+  }
+
+  /** The stage progress line is the only row carrying the progress bar. */
+  function stageLineOf(output: string[]): string {
+    const line = output.find((row) => stripAnsi(row).includes('█'));
+    expect(line).toBeDefined();
+    return line!;
+  }
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    });
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
+  it('flashes the stage line on entrance, then settles to static bytes', () => {
+    const t0 = 1_000_000;
+    advanceAppearanceAnimationClock(t0);
+    const theatre = new UltraworkTheatreComponent(researchStageEvent as never);
+
+    const active = stageLineOf(theatre.render(100));
+
+    advanceAppearanceAnimationClock(t0 + SETTLE_FLASH_MS + 200);
+    const settledA = stageLineOf(theatre.render(100));
+    advanceAppearanceAnimationClock(t0 + SETTLE_FLASH_MS + 9000);
+    const settledB = stageLineOf(theatre.render(100));
+
+    // Active cue at t0 differs from the resting line; once settled the line
+    // is clock-independent static bytes forever after.
+    expect(active).not.toBe(settledA);
+    expect(settledA).toBe(settledB);
+    expect(stripAnsi(settledA)).toContain('research');
+  });
+
+  it('re-arms on a real phase change but not on duplicate stage events', () => {
+    const t0 = 2_000_000;
+    advanceAppearanceAnimationClock(t0);
+    const theatre = new UltraworkTheatreComponent(researchStageEvent as never);
+
+    advanceAppearanceAnimationClock(t0 + SETTLE_FLASH_MS + 300);
+    const settled = stageLineOf(theatre.render(100));
+
+    // Same-stage event at a later clock must not restart the cue.
+    advanceAppearanceAnimationClock(t0 + SETTLE_FLASH_MS + 400);
+    theatre.applyEvent({ ...researchStageEvent } as never);
+    expect(stageLineOf(theatre.render(100))).toBe(settled);
+
+    // A genuine phase transition re-arms the settle flash.
+    advanceAppearanceAnimationClock(t0 + SETTLE_FLASH_MS + 500);
+    theatre.applyEvent({
+      ...researchStageEvent,
+      run: { ...researchStageEvent.run, stage: 'plan' as const },
+      from: 'research' as const,
+      to: 'plan' as const,
+    } as never);
+    const reactivated = stageLineOf(theatre.render(100));
+    expect(reactivated).not.toBe(settled);
+    expect(stripAnsi(reactivated)).toContain('plan');
+  });
+
+  it('off profile renders byte-identical static output at any clock', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off' as const,
+      particles: 'off' as const,
+    });
+    const t0 = 3_000_000;
+    advanceAppearanceAnimationClock(t0);
+    const theatre = new UltraworkTheatreComponent(researchStageEvent as never);
+
+    const a = theatre.render(100);
+    advanceAppearanceAnimationClock(t0 + 12_345);
+    const b = theatre.render(100);
+
+    expect(a).toEqual(b);
+    // The stage line is plain single-tone text — no animation codes.
+    const stageLine = stageLineOf(a);
+    expect(stageLine).toBe(currentTheme.fg('textDim', stripAnsi(stageLine)));
   });
 });

@@ -6,7 +6,11 @@ import {Container, matchesKey, Key, renderRendererPanelChromeRows, truncateToWid
 import {CURRENT_MARK} from '#/tui/constant/symbols';
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {currentTheme} from '#/tui/theme';
-import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {
+  getActiveAppearancePreferences,
+  renderPremiumHeadline,
+  renderShimmerPrefix,
+} from '#/tui/utils/appearance-effects';
 import {SearchableList} from '#/tui/utils/searchable-list';
 
 export interface SessionRow {
@@ -210,7 +214,7 @@ export class SessionPickerComponent extends Container implements Focusable {
     if (this.loading) {
       return this.renderChromeRows(width, {
         title,
-        hint: 'Loading sessions...',
+        hint: this.loadingHint(),
         bodyTopGap: false,
         footerTopGap: false,
       });
@@ -299,6 +303,15 @@ export class SessionPickerComponent extends Container implements Focusable {
       footer: footerRows,
       footerTopGap: footerRows.length > 0,
     });
+  }
+
+  /**
+   * Clock-driven shimmer on the loading line while the session scan runs.
+   * `renderShimmerPrefix` returns '' when ambient effects are unavailable
+   * (off / SSH / NO_COLOR / CI), leaving the exact static hint bytes.
+   */
+  private loadingHint(): string {
+    return `${renderShimmerPrefix(getActiveAppearancePreferences())}Loading sessions...`;
   }
 
   private renderChromeRows(
