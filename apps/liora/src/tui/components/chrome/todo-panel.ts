@@ -83,6 +83,35 @@ export interface SubagentStripEntry {
   readonly total: number;
 }
 
+/**
+ * Virtual-scroll input for the collapsed board. Line actions move one board
+ * row (wheel ticks, alt+arrows); page actions move a viewport minus one so
+ * consecutive pages overlap by a row; top / bottom jump to the edges.
+ */
+export type TodoBoardScrollAction =
+  | 'line-up'
+  | 'line-down'
+  | 'page-up'
+  | 'page-down'
+  | 'top'
+  | 'bottom';
+
+/** Scroll position of the windowed board, for tests / inspection. */
+export interface TodoBoardScrollSnapshot {
+  readonly offset: number;
+  readonly viewport: number;
+  readonly total: number;
+}
+
+/**
+ * Host environment for the board's virtual scroll. `terminalRows` lends the
+ * panel a height budget; without it (tests, headless callers) the collapsed
+ * board keeps the legacy MAX_VISIBLE selection byte-for-byte.
+ */
+export interface TodoPanelOptions {
+  readonly terminalRows?: () => number;
+}
+
 const MAX_VISIBLE = 5;
 /**
  * Cap on tracked subagent rows. Finished subagents leave via lifecycle
@@ -102,6 +131,18 @@ const STALE_TOOL_CALLS = 2;
  * so shrinks are delayed while growth stays instant.
  */
 const BOARD_SHRINK_HOLD_MS = 1500;
+
+/**
+ * Virtual-scroll budget. The collapsed board windows its lanes inside a
+ * third of the terminal (the same share the BTW panel takes) once chrome is
+ * reserved: rounded frame top/bottom, board meta, lane header, lane
+ * divider, and the scroll indicator line. The clamp keeps tiny terminals
+ * near the legacy 5-row cap and huge terminals from turning the board into
+ * a full-screen takeover.
+ */
+const BOARD_VIEWPORT_CHROME_ROWS = 6;
+const BOARD_MIN_VIEWPORT_ROWS = 4;
+const BOARD_MAX_VIEWPORT_ROWS = 12;
 
 function changeFlashMs(): number {
   const mode = resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences());
@@ -273,6 +314,7 @@ export function selectVisibleTodos(todos: readonly TodoItem[]): VisibleTodos {
 }
 
 export class TodoPanelComponent implements Component {
+  private readonly options: TodoPanelOptions;
   private todos: readonly TodoItem[] = [];
   private expanded = false;
   private recentChanges = new Map<string, TodoChangeKind>();
@@ -316,9 +358,22 @@ export class TodoPanelComponent implements Component {
         readonly calls: number;
         readonly subagents: number;
         readonly secondBucket: number;
+        readonly scroll: number;
+        readonly budget: number;
         readonly lines: string[];
       }
     | undefined;
+  /**
+   * First visible board row when the collapsed board is windowed. Kept
+   * across list updates (cards hopping lanes should not jump the view) and
+   * clamped lazily at render / scroll time; the memo key carries it so a
+   * moved viewport never serves stale bytes.
+   */
+  private scrollOffset = 0;
+
+  constructor(options: TodoPanelOptions = {}) {
+    this.options = options;
+  }
 
   setTodos(todos: readonly TodoItem[]): void {
     const next = todos.map((t) => ({ title: t.title, status: t.status }));
@@ -452,6 +507,7 @@ export class TodoPanelComponent implements Component {
     this.subagentRows = new Map();
     this.subagentStripFlashAtMs = undefined;
     this.lastRender = undefined;
+    this.scrollOffset = 0;
   }
 
   isEmpty(): boolean {
@@ -475,6 +531,73 @@ export class TodoPanelComponent implements Component {
     this.expanded = !this.expanded;
   }
 
+  /**
+   * Move the collapsed board's viewport. Returns true only when the window
+   * actually shifted, so input handlers consume wheel / key events solely
+   * while the board has overflow to scroll — at the edges (or without a
+   * height budget) the event falls through to its previous owner.
+   */
+  scrollBoard(action: TodoBoardScrollAction): boolean {
+    const total = this.laneMaxRows();
+    const viewport = this.viewportBoardRows(total);
+    if (viewport === undefined || viewport >= total) return false;
+    const maxOffset = total - viewport;
+    const next = this.nextScrollOffset(action, viewport);
+    const clamped = Math.min(maxOffset, Math.max(0, next));
+    if (clamped === this.scrollOffset) return false;
+    this.scrollOffset = clamped;
+    return true;
+  }
+
+  /** Current window position; offset is clamped, viewport falls back to total. */
+  getScrollSnapshot(): TodoBoardScrollSnapshot {
+    const total = this.laneMaxRows();
+    const viewport = this.viewportBoardRows(total) ?? total;
+    const offset = Math.min(this.scrollOffset, Math.max(0, total - viewport));
+    return { offset, viewport, total };
+  }
+
+  private nextScrollOffset(action: TodoBoardScrollAction, viewport: number): number {
+    switch (action) {
+      case 'line-up':
+        return this.scrollOffset - 1;
+      case 'line-down':
+        return this.scrollOffset + 1;
+      case 'page-up':
+        return this.scrollOffset - Math.max(1, viewport - 1);
+      case 'page-down':
+        return this.scrollOffset + Math.max(1, viewport - 1);
+      case 'top':
+        return 0;
+      case 'bottom':
+        return Number.MAX_SAFE_INTEGER;
+    }
+  }
+
+  /** Longest lane in cards; the board grid has this many rows. */
+  private laneMaxRows(): number {
+    const counts = countTodos(this.todos);
+    return Math.max(counts.done, counts.in_progress, counts.pending);
+  }
+
+  /**
+   * Board rows the stage can lend the panel, or undefined when the host
+   * gave no terminal height (legacy callers). A third of the terminal —
+   * the BTW panel's share — minus chrome, clamped to a calm range.
+   */
+  private boardRowBudget(): number | undefined {
+    const rows = this.options.terminalRows?.();
+    if (rows === undefined || !Number.isFinite(rows) || rows <= 0) return undefined;
+    const budget = Math.floor(rows / 3) - BOARD_VIEWPORT_CHROME_ROWS;
+    return Math.min(BOARD_MAX_VIEWPORT_ROWS, Math.max(BOARD_MIN_VIEWPORT_ROWS, budget));
+  }
+
+  /** Rows the collapsed board may paint; undefined keeps the legacy selection. */
+  private viewportBoardRows(total: number): number | undefined {
+    const budget = this.boardRowBudget();
+    return budget === undefined ? undefined : Math.min(total, budget);
+  }
+
   invalidate(): void {}
 
   render(width: number): string[] {
@@ -489,6 +612,7 @@ export class TodoPanelComponent implements Component {
     // The goal wall-clock label advances once per second; bucketing keeps the
     // memo valid within that second.
     const secondBucket = Math.floor(appearanceAnimationNow() / 1000);
+    const budget = this.boardRowBudget() ?? -1;
     const memo = this.lastRender;
     if (
       !animating &&
@@ -499,7 +623,9 @@ export class TodoPanelComponent implements Component {
       memo.goal === this.goal &&
       memo.calls === this.callsSinceUpdate &&
       memo.subagents === this.subagentVersion &&
-      memo.secondBucket === secondBucket
+      memo.secondBucket === secondBucket &&
+      memo.scroll === this.scrollOffset &&
+      memo.budget === budget
     ) {
       return memo.lines;
     }
@@ -548,7 +674,7 @@ export class TodoPanelComponent implements Component {
       // Time-driven frames must not be memoized: a render after the cues
       // expire but inside the same second bucket would otherwise reuse the
       // still-flashing bytes instead of settling.
-      return animating ? tinyLines : this.memoizeRender(width, secondBucket, tinyLines);
+      return animating ? tinyLines : this.memoizeRender(width, secondBucket, budget, tinyLines);
     }
 
     const counts = countTodos(this.todos);
@@ -571,7 +697,7 @@ export class TodoPanelComponent implements Component {
     });
     // See the tiny path: animating frames stay out of the memo so expired
     // cues settle to resting bytes on the very next render.
-    return animating ? panelLines : this.memoizeRender(width, secondBucket, panelLines);
+    return animating ? panelLines : this.memoizeRender(width, secondBucket, budget, panelLines);
   }
 
   private goalWallClockMs(goal: GoalSnapshot): number {
@@ -612,26 +738,53 @@ export class TodoPanelComponent implements Component {
         );
       }
     } else {
-      const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
-      this.refreshMotionCues(rows, changedAtMs);
-      lines.push(
-        ...renderTodos(
-          rows,
-          contentWidth,
-          highlights,
-          changedAtMs,
-          profile,
-          stabilizeRows,
-          this.currentMotionCues(),
-          laneFlashes,
-        ),
-      );
-      if (hidden > 0) {
-        const distribution = formatHiddenCounts(hiddenCounts);
-        const suffix = distribution.length > 0 ? ` (${distribution})` : '';
+      const laneRows = this.laneMaxRows();
+      const viewport = this.viewportBoardRows(laneRows);
+      if (viewport !== undefined) {
+        // Windowed board: the full list stays in state; only the visible
+        // row range renders. Boards that fit the budget paint every card
+        // with no indicator — byte-identical to the unwindowed render.
+        const offset = Math.min(this.scrollOffset, Math.max(0, laneRows - viewport));
+        this.scrollOffset = offset;
+        const rows = windowTodos(this.todos, offset, viewport);
+        this.refreshMotionCues(rows, changedAtMs);
         lines.push(
-          currentTheme.fg('textDim', `  … +${hidden} more${suffix} · ctrl+t to expand`),
+          ...renderTodos(
+            rows,
+            contentWidth,
+            highlights,
+            changedAtMs,
+            profile,
+            stabilizeRows,
+            this.currentMotionCues(),
+            laneFlashes,
+          ),
         );
+        if (viewport < laneRows) {
+          lines.push(renderBoardScrollIndicator(this.todos, offset, viewport));
+        }
+      } else {
+        const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
+        this.refreshMotionCues(rows, changedAtMs);
+        lines.push(
+          ...renderTodos(
+            rows,
+            contentWidth,
+            highlights,
+            changedAtMs,
+            profile,
+            stabilizeRows,
+            this.currentMotionCues(),
+            laneFlashes,
+          ),
+        );
+        if (hidden > 0) {
+          const distribution = formatHiddenCounts(hiddenCounts);
+          const suffix = distribution.length > 0 ? ` (${distribution})` : '';
+          lines.push(
+            currentTheme.fg('textDim', `  … +${hidden} more${suffix} · ctrl+t to expand`),
+          );
+        }
       }
     }
 
@@ -728,7 +881,7 @@ export class TodoPanelComponent implements Component {
     this.positionBase = { todos: this.todos, expanded: this.expanded };
   }
 
-  private memoizeRender(width: number, secondBucket: number, lines: string[]): string[] {
+  private memoizeRender(width: number, secondBucket: number, budget: number, lines: string[]): string[] {
     this.lastRender = {
       width,
       expanded: this.expanded,
@@ -737,6 +890,8 @@ export class TodoPanelComponent implements Component {
       calls: this.callsSinceUpdate,
       subagents: this.subagentVersion,
       secondBucket,
+      scroll: this.scrollOffset,
+      budget,
       lines,
     };
     return lines;
@@ -1294,6 +1449,63 @@ export function formatHiddenCounts(counts: Record<TodoStatus, number>): string {
   return STATUS_LABELS.filter(({ status }) => counts[status] > 0)
     .map(({ status, label }) => `${counts[status]} ${label}`)
     .join(' · ');
+}
+
+/**
+ * Slice every lane to its own `[offset, offset + viewport)` row range.
+ * Original order is preserved so renderBoard / renderLanes regroup the
+ * window exactly like the full list; lanes shorter than the offset simply
+ * contribute no cards.
+ */
+function windowTodos(
+  todos: readonly TodoItem[],
+  offset: number,
+  viewport: number,
+): readonly TodoItem[] {
+  const laneSeen: Record<TodoStatus, number> = { done: 0, in_progress: 0, pending: 0 };
+  const rows: TodoItem[] = [];
+  for (const todo of todos) {
+    const index = laneSeen[todo.status];
+    laneSeen[todo.status] = index + 1;
+    if (index >= offset && index < offset + viewport) rows.push(todo);
+  }
+  return rows;
+}
+
+/**
+ * One calm footer line under a windowed board: directional hidden counts —
+ * `↑ 3 more · ↓ 5 more (2 done · 3 pending)` — in the legacy overflow
+ * footer's dim tone, keeping the ctrl+t escape hatch advertised. Present
+ * exactly while the board is windowed, so the panel height never varies
+ * mid-scroll; at the very end only the `↑` half remains.
+ */
+function renderBoardScrollIndicator(
+  todos: readonly TodoItem[],
+  offset: number,
+  viewport: number,
+): string {
+  const laneSeen: Record<TodoStatus, number> = { done: 0, in_progress: 0, pending: 0 };
+  const hiddenBelow: Record<TodoStatus, number> = { done: 0, in_progress: 0, pending: 0 };
+  let above = 0;
+  let below = 0;
+  for (const todo of todos) {
+    const index = laneSeen[todo.status];
+    laneSeen[todo.status] = index + 1;
+    if (index < offset) {
+      above += 1;
+    } else if (index >= offset + viewport) {
+      below += 1;
+      hiddenBelow[todo.status] += 1;
+    }
+  }
+  const parts: string[] = [];
+  if (above > 0) parts.push(`↑ ${String(above)} more`);
+  if (below > 0) {
+    const distribution = formatHiddenCounts(hiddenBelow);
+    const suffix = distribution.length > 0 ? ` (${distribution})` : '';
+    parts.push(`↓ ${String(below)} more${suffix}`);
+  }
+  return currentTheme.fg('textDim', `  ${parts.join(' · ')} · ctrl+t to expand`);
 }
 
 export function formatSwarmMemberTodoLines(

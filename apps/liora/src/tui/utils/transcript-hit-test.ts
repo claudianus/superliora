@@ -67,6 +67,7 @@ export function resolveTranscriptHitTestContext(
     state.cachedTranscriptColumns = frameWidth;
     state.cachedTranscriptRows = frameHeight;
     state.cachedTranscriptLineCount = editorLineCount;
+    state.cachedTodoRect = plan.layout.regions.find((region) => region.id === 'todo')?.rect;
   }
   if (rect === undefined) return undefined;
 
@@ -96,6 +97,20 @@ export function getTUIStateNativeTranscriptRect(
   height = state.terminal.rows,
 ): RendererRect | undefined {
   return resolveTranscriptHitTestContext(state, width, height)?.rect;
+}
+
+/**
+ * Rect of the todo board region, reused from the transcript hit-test cache
+ * (same stage plan, same invalidation key). Wheel events landing inside it
+ * scroll the board instead of the transcript.
+ */
+export function getTUIStateNativeTodoRect(
+  state: TUIState,
+  width = state.terminal.columns,
+  height = state.terminal.rows,
+): RendererRect | undefined {
+  resolveTranscriptHitTestContext(state, width, height);
+  return state.cachedTodoRect;
 }
 
 export function transcriptPointForMouse(
