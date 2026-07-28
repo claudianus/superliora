@@ -47,6 +47,22 @@ export interface MicroCompactionPolicyDecision {
  * micro-clearable window; older same-family results clear first (AC-B2).
  */
 export const MICRO_TOOL_RESULT_FAMILY_KEEP = 3;
+export const MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE = 6;
+
+export function resolveMicroToolResultFamilyKeep(
+  compactableTokens: number,
+  maxWorkingSetTokens: number,
+): number {
+  if (!Number.isFinite(compactableTokens) || compactableTokens < 0) {
+    return MICRO_TOOL_RESULT_FAMILY_KEEP;
+  }
+  if (!Number.isFinite(maxWorkingSetTokens) || maxWorkingSetTokens <= 0) {
+    return MICRO_TOOL_RESULT_FAMILY_KEEP;
+  }
+  return compactableTokens < maxWorkingSetTokens * 0.5
+    ? MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE
+    : MICRO_TOOL_RESULT_FAMILY_KEEP;
+}
 
 /** Defaults favor tool-result clearing as the primary context mechanism (cheap, reversible). */
 const DEFAULT_CONFIG: MicroCompactionConfig = {
@@ -267,10 +283,15 @@ export class MicroCompaction {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return messages;
 
     const latestSwarmToolCallId = findLatestSwarmToolCallId(messages);
+    const highValueReplayKeep = resolveMicroToolResultFamilyKeep(
+      estimateTokensForMessages(messages.slice(0, this.cutoff)),
+      this.config.maxWorkingSetTokens,
+    );
     const familyOverflowIds = computeFamilyBudgetOverflowToolCallIds(
       messages,
       this.cutoff,
       MICRO_TOOL_RESULT_FAMILY_KEEP,
+      highValueReplayKeep,
     );
     const result: ContextMessage[] = [];
     let i = 0;
@@ -318,10 +339,15 @@ export class MicroCompaction {
     let truncatedToolResultTokensBefore = 0;
     let truncatedToolResultTokensAfter = 0;
     const clearedPolicyReasons = new Set<MicroCompactionPolicyDecision['reason']>();
+    const highValueReplayKeep = resolveMicroToolResultFamilyKeep(
+      estimateTokensForMessages(messages.slice(0, cutoff)),
+      this.config.maxWorkingSetTokens,
+    );
     const familyOverflowIds = computeFamilyBudgetOverflowToolCallIds(
       messages,
       cutoff,
       MICRO_TOOL_RESULT_FAMILY_KEEP,
+      highValueReplayKeep,
     );
     for (let i = 0; i < messages.length && i < cutoff; i++) {
       const message = messages[i];
@@ -545,6 +571,21 @@ const KNOWN_MUTATING_TOOLS = new Set([
 ]);
 
 
+const HIGH_VALUE_REPLAY_TOOL_FAMILIES = new Set([
+  'Context7Docs',
+  'Context7Resolve',
+  'FetchURL',
+  'Glob',
+  'Grep',
+  'LioraRead',
+  'Read',
+  'SearchExpert',
+  'SearchSkill',
+  'SearchTools',
+  'TaskOutput',
+  'WebSearch',
+]);
+
 /**
  * Within the micro-clearable prefix [0, cutoff), keep the newest `keep` tool
  * results per tool name; older same-family toolCallIds are overflow (AC-B2).
@@ -554,8 +595,10 @@ export function computeFamilyBudgetOverflowToolCallIds(
   messages: readonly ContextMessage[],
   cutoff: number,
   keep: number = MICRO_TOOL_RESULT_FAMILY_KEEP,
+  highValueReplayKeep: number = keep,
 ): ReadonlySet<string> {
   const keepN = Math.max(0, Math.floor(keep));
+  const highValueReplayKeepN = Math.max(keepN, Math.floor(highValueReplayKeep));
   // toolName -> toolCallIds in chronological order within the clearable window
   const byFamily = new Map<string, string[]>();
   const limit = Math.min(messages.length, Math.max(0, cutoff));
@@ -570,10 +613,13 @@ export function computeFamilyBudgetOverflowToolCallIds(
     byFamily.set(toolName, list);
   }
   const overflow = new Set<string>();
-  for (const ids of byFamily.values()) {
-    if (ids.length <= keepN) continue;
-    // Keep the newest `keepN` (tail); older prefix overflows.
-    for (const id of ids.slice(0, ids.length - keepN)) {
+  for (const [toolName, ids] of byFamily) {
+    const familyKeep = HIGH_VALUE_REPLAY_TOOL_FAMILIES.has(toolName)
+      ? highValueReplayKeepN
+      : keepN;
+    if (ids.length <= familyKeep) continue;
+    // Keep the newest family budget (tail); older prefix overflows.
+    for (const id of ids.slice(0, ids.length - familyKeep)) {
       overflow.add(id);
     }
   }
