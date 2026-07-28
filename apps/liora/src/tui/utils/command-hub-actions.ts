@@ -57,6 +57,7 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'workspace.search':
     case 'help.shortcuts':
     case 'help.commands':
+    case 'help.palette':
     case 'now.steer':
     case 'now.stop':
       return undefined;

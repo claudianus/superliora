@@ -60,7 +60,8 @@ export type CommandHubActionId =
   | 'account.accounts'
   | 'account.upgrade'
   | 'help.shortcuts'
-  | 'help.commands';
+  | 'help.commands'
+  | 'help.palette';
 
 /** How activation behaves in the Hub. */
 export type CommandHubItemKind = 'toggle' | 'cycle' | 'open';
@@ -150,6 +151,7 @@ export function commandHubNestsPicker(id: CommandHubActionId): boolean {
     case 'appearance.appearance':
     case 'help.shortcuts':
     case 'help.commands':
+    case 'help.palette':
       return true;
     default:
       return false;
@@ -404,6 +406,12 @@ export function buildDefaultCommandHubItems(state: {
       section: 'Account',
       label: 'Upgrade',
       description: 'Check for CLI updates',
+    },
+    {
+      id: 'help.palette',
+      section: 'Help',
+      label: 'Command palette',
+      description: 'Fuzzy search · run any command or skill',
     },
     {
       id: 'help.shortcuts',

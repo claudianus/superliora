@@ -93,8 +93,13 @@ import {
   type CommandHubSelectMode,
 } from './components/dialogs/command-hub';
 import { ShortcutsPanelComponent } from './components/dialogs/shortcuts-panel';
+import {
+  CommandPaletteComponent,
+  rankPaletteEntries,
+  type PaletteEntry,
+} from './components/dialogs/command-palette';
 import { commandHubActionToSlash } from './utils/command-hub-actions';
-import { noteHubActionUse } from './utils/hub-recents';
+import { hubRecencyScore, noteHubActionUse } from './utils/hub-recents';
 import { noteSuccessFeedback } from './utils/feedback-vfx';
 import { HistorySearchDialogComponent } from './components/dialogs/history-search-dialog';
 import { TranscriptSearchDialogComponent } from './components/dialogs/transcript-search';
@@ -3909,6 +3914,108 @@ export class LioraTUI {
     this.showCommandHub();
   }
 
+  /**
+   * Power-user omnibox: fuzzy-search every slash command, skill, and a few
+   * session actions, then run the selection. Opened from the Hub
+   * (Help → Command palette); Esc returns to the Hub when it is stacked
+   * below. Recently run entries float to the top via Hub recency scoring.
+   */
+  showCommandPaletteOmnibox(): void {
+    if (
+      this.state.activeDialog !== null &&
+      this.state.activeDialog !== 'center-modal' &&
+      this.state.activeDialog !== 'help'
+    ) {
+      return;
+    }
+    const entries = rankPaletteEntries(this.buildPaletteEntries(), (entry) =>
+      hubRecencyScore(this.paletteRecencyKey(entry)),
+    );
+    const palette = new CommandPaletteComponent({
+      entries,
+      onSelect: (entry) => {
+        this.closeAllCenterModals();
+        this.runPaletteEntry(entry);
+      },
+      onCancel: () => {
+        this.closeCenterModal();
+      },
+    });
+    this.mountCenterModal(palette, { mode: 'push', label: 'Palette' });
+  }
+
+  private buildPaletteEntries(): PaletteEntry[] {
+    const skillNames = new Set(this.skillCommands.map((command) => command.name));
+    const commands: PaletteEntry[] = this.getSlashCommands('advanced').map((command) => ({
+      kind: skillNames.has(command.name) ? 'skill' : 'command',
+      value: command.name,
+      label: `/${command.name}`,
+      description: command.description,
+      aliases: command.aliases,
+    }));
+    const actions: PaletteEntry[] = [
+      {
+        kind: 'action',
+        value: 'hub',
+        label: 'Command Hub',
+        description: 'Open the guided dashboard',
+      },
+      {
+        kind: 'action',
+        value: 'shortcuts',
+        label: 'Keyboard shortcuts',
+        description: 'Keybinding cheatsheet',
+      },
+      {
+        kind: 'action',
+        value: 'transcript-search',
+        label: 'Search transcript',
+        description: 'Find text in this chat',
+      },
+      {
+        kind: 'action',
+        value: 'history',
+        label: 'Input history',
+        description: 'Reuse a past prompt',
+      },
+    ];
+    return [...actions, ...commands];
+  }
+
+  private runPaletteEntry(entry: PaletteEntry): void {
+    noteHubActionUse(this.paletteRecencyKey(entry));
+    noteSuccessFeedback();
+    if (entry.kind === 'action') {
+      switch (entry.value) {
+        case 'hub':
+          this.showCommandHub();
+          return;
+        case 'shortcuts':
+          this.mountCenterModal(
+            new ShortcutsPanelComponent({
+              onClose: () => this.closeCenterModal(),
+            }),
+            { mode: 'push', label: 'Shortcuts' },
+          );
+          return;
+        case 'transcript-search':
+          this.showTranscriptSearch();
+          return;
+        case 'history':
+          void this.openHistorySearch();
+          return;
+        default:
+          return;
+      }
+    }
+    slashCommands.dispatchInput(this, `/${entry.value}`);
+  }
+
+  /** Namespaced so palette runs never match Hub item ids in recency lookups. */
+  private paletteRecencyKey(entry: PaletteEntry): string {
+    return `palette:${entry.kind}:${entry.value}`;
+  }
+
   showCommandHub(
     options: { readonly initialQuery?: string; readonly intro?: boolean } = {},
   ): void {
@@ -4052,6 +4159,10 @@ export class LioraTUI {
     item: CommandHubItem,
     options: { readonly nest: boolean },
   ): void {
+    if (item.id === 'help.palette') {
+      this.showCommandPaletteOmnibox();
+      return;
+    }
     if (item.id === 'help.shortcuts') {
       this.mountCenterModal(
         new ShortcutsPanelComponent({
