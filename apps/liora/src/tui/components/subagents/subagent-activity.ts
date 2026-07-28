@@ -2,6 +2,7 @@ import { truncateToWidth, type Component } from '#/tui/renderer';
 import type { Event } from '@superliora/sdk';
 
 import { FAILURE_MARK, STATUS_BULLET, SUCCESS_MARK } from '#/tui/constant/symbols';
+import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { formatEditChip, formatWriteChip } from '#/tui/components/messages/tool-renderers/chip';
 import { currentTheme } from '#/tui/theme';
 import {
@@ -19,6 +20,10 @@ export type SubagentToolDetail = NonNullable<SubagentToolCallEventPayload['detai
 
 /** Tool entries rendered per agent — the live "last N calls" feed. */
 const MAX_VISIBLE_TOOL_ENTRIES = 3;
+/** Syntax-colored code rows under the newest Write/Edit entry (Phase 6-A). */
+const MAX_HIGHLIGHT_PREVIEW_LINES = 3;
+/** Entry rows + highlighted preview rows share this budget per agent. */
+const MAX_AGENT_FEED_BODY_LINES = MAX_VISIBLE_TOOL_ENTRIES + MAX_HIGHLIGHT_PREVIEW_LINES;
 /** Entries tracked per agent so late results can still resolve their call. */
 const MAX_TRACKED_TOOL_ENTRIES = 8;
 /** Settle-flash window after a tool result lands (motion modes only). */
@@ -183,6 +188,13 @@ export class SubagentActivityComponent implements Component {
       for (const entry of visible) {
         lines.push(this.renderToolLine(entry, feed.phase === 'active', animated, appearance));
       }
+      // Phase 6-A: the newest Write/Edit entry gets a syntax-colored mini
+      // preview whose rows count toward the shared per-agent line budget.
+      const latest = visible[visible.length - 1];
+      if (latest !== undefined) {
+        const budget = Math.max(0, MAX_AGENT_FEED_BODY_LINES - visible.length);
+        lines.push(...this.renderCodePreviewLines(latest, budget));
+      }
     }
     return lines.map((line) => truncateToWidth(line, safeWidth, '…'));
   }
@@ -282,6 +294,38 @@ export class SubagentActivityComponent implements Component {
     return indent + okMark + currentTheme.fg('text', entry.name) + args + chipSuffix;
   }
 
+  /**
+   * Compact syntax-colored preview under the newest Write/Edit feed row
+   * (Phase 6-A). Reuses the main tool card's highlighter (`highlightLines` +
+   * `langFromPath` from the shared code-highlight module) on the first few
+   * lines of the emitter's args preview, detected from `detail.path`. Like
+   * the main renderer, highlighting is static color and stays on under
+   * quality off — only motion degrades. Returns no rows for non-code tools,
+   * missing detail/path, or previews without extractable content.
+   */
+  private renderCodePreviewLines(entry: ToolFeedEntry, budget: number): string[] {
+    const detail = entry.detail;
+    if (budget <= 0 || detail === undefined || entry.argsPreview === undefined) return [];
+    if (detail.kind !== 'write' && detail.kind !== 'edit') return [];
+    const content =
+      detail.kind === 'write'
+        ? extractArgsPreviewField(entry.argsPreview, 'content')
+        : (extractArgsPreviewField(entry.argsPreview, 'new_string') ??
+          extractArgsPreviewField(entry.argsPreview, 'old_string'));
+    if (content === undefined || content.trim().length === 0) return [];
+    const take = Math.min(MAX_HIGHLIGHT_PREVIEW_LINES, budget);
+    const plain = content.split('\n').slice(0, take);
+    let last = plain[plain.length - 1];
+    while (last !== undefined && last.trim().length === 0) {
+      plain.pop();
+      last = plain[plain.length - 1];
+    }
+    if (plain.length === 0) return [];
+    const highlighted = highlightLines(plain.join('\n'), langFromPath(detail.path)).slice(0, take);
+    const indent = '      ';
+    return highlighted.map((line) => indent + line);
+  }
+
   private now(): number {
     return this.options.now?.() ?? appearanceAnimationNow();
   }
@@ -329,4 +373,68 @@ export function describeSubagentToolFeedBody(
   if (suffix !== undefined && suffix.length > 0) parts.push(suffix);
   if (chip !== undefined && chip.length > 0) parts.push(chip);
   return parts.join(' ');
+}
+
+/**
+ * Pull a JSON string field value out of the emitter's flattened args preview
+ * (`subagent.tool_call.argsPreview`, truncated at ~400 chars), tolerating a
+ * cut mid-string. Mirrors the partial-JSON extraction the main tool card
+ * uses for streaming args, so `\n` escapes become real newlines before the
+ * content goes to the highlighter.
+ */
+function extractArgsPreviewField(text: string, key: string): string | undefined {
+  const opener = new RegExp(`"${key}"\\s*:\\s*"`);
+  const match = opener.exec(text);
+  if (match === null) return undefined;
+  let out = '';
+  let i = match.index + match[0].length;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\') {
+      const next = text[i + 1];
+      if (next === undefined) break;
+      switch (next) {
+        case 'n':
+          out += '\n';
+          break;
+        case 't':
+          out += '\t';
+          break;
+        case 'r':
+          out += '\r';
+          break;
+        case 'b':
+          out += '\b';
+          break;
+        case 'f':
+          out += '\f';
+          break;
+        case '"':
+          out += '"';
+          break;
+        case '\\':
+          out += '\\';
+          break;
+        case '/':
+          out += '/';
+          break;
+        case 'u': {
+          if (i + 5 >= text.length) return out;
+          const code = Number.parseInt(text.slice(i + 2, i + 6), 16);
+          if (Number.isNaN(code)) return out;
+          out += String.fromCodePoint(code);
+          i += 6;
+          continue;
+        }
+        default:
+          out += next;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '"') break;
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
