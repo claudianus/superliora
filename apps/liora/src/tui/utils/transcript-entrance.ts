@@ -82,6 +82,8 @@ export function isTranscriptEntranceActive(
 
 /** Tool header entrance settle length — a quick highlight fade, not a wash. */
 export const TOOL_HEADER_ENTRANCE_MS = 280;
+/** Turn boundary cue length — same quick-settle family, marks turn start/end. */
+export const TURN_BOUNDARY_CUE_MS = 300;
 
 /** Header entrance TTL (0 when motion is off; subtle stretches ×1.2). */
 export function toolHeaderEntranceDurationMs(
@@ -90,6 +92,26 @@ export function toolHeaderEntranceDurationMs(
   if (!shouldRenderAmbientEffects(appearance)) return 0;
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   return mode === 'subtle' ? TOOL_HEADER_ENTRANCE_MS * 1.2 : TOOL_HEADER_ENTRANCE_MS;
+}
+
+/** Turn boundary cue TTL (0 when motion is off; subtle stretches ×1.2, ≤ 400ms). */
+export function turnBoundaryCueDurationMs(
+  appearance: AppearancePreferences = getActiveAppearancePreferences(),
+): number {
+  if (!shouldRenderAmbientEffects(appearance)) return 0;
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  return mode === 'subtle' ? TURN_BOUNDARY_CUE_MS * 1.2 : TURN_BOUNDARY_CUE_MS;
+}
+
+/** True while a turn boundary cue is still animating at this clock. */
+export function isTurnBoundaryCueActive(
+  startedAtMs: number | undefined,
+  appearance: AppearancePreferences = getActiveAppearancePreferences(),
+  nowMs: number = appearanceAnimationNow(),
+): boolean {
+  if (startedAtMs === undefined || startedAtMs < 0) return false;
+  const duration = turnBoundaryCueDurationMs(appearance);
+  return duration > 0 && nowMs - startedAtMs < duration;
 }
 
 /**
@@ -105,10 +127,36 @@ export function applyToolHeaderEntrance(
   appearance: AppearancePreferences = getActiveAppearancePreferences(),
   nowMs: number = appearanceAnimationNow(),
 ): string {
+  return applyHighlightSettle(line, startedAtMs, toolHeaderEntranceDurationMs(appearance), nowMs);
+}
+
+/**
+ * Brief highlight settle marking a turn boundary on a single rendered line —
+ * turn start paints the incoming response's first visible line, turn end
+ * paints the final block's last line (PREMIUM.md §7.3). Same ANSI-preserving
+ * blend as the tool header entrance; returns the line untouched once settled
+ * or when ambient motion is off, so settled transcripts stay byte-stable.
+ */
+export function applyTurnBoundaryCue(
+  line: string,
+  startedAtMs: number | undefined,
+  appearance: AppearancePreferences = getActiveAppearancePreferences(),
+  nowMs: number = appearanceAnimationNow(),
+): string {
+  if (startedAtMs === undefined) return line;
+  return applyHighlightSettle(line, startedAtMs, turnBoundaryCueDurationMs(appearance), nowMs);
+}
+
+/** Shared brand-highlight decay behind the header/turn settles. */
+function applyHighlightSettle(
+  line: string,
+  startedAtMs: number,
+  durationMs: number,
+  nowMs: number,
+): string {
   if (line.length === 0) return line;
-  const duration = toolHeaderEntranceDurationMs(appearance);
-  if (duration <= 0 || startedAtMs < 0) return line;
-  const p = easeOutCubic((nowMs - startedAtMs) / duration);
+  if (durationMs <= 0 || startedAtMs < 0) return line;
+  const p = easeOutCubic((nowMs - startedAtMs) / durationMs);
   if (p >= 1) return line;
   const cells = ansiTextToCells(line);
   if (cells.length === 0) return line;
