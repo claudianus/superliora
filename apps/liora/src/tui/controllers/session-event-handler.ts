@@ -100,6 +100,7 @@ import { errorReportHintLine } from '../constant/feedback';
 import { formatStepDebugTiming } from '#/utils/usage/debug-timing';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 import { computeSessionCostUsd } from '#/tui/utils/session-cost';
+import { transcriptRevealActive } from '#/tui/utils/transcript-expansion';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { ttui } from '../utils/tui-i18n';
 import { nextTranscriptId } from '../utils/transcript-id';
@@ -1084,7 +1085,7 @@ export class SessionEventHandler {
     } else if (change.kind === 'lifecycle') {
       this.pendingModelBlockedFallback = undefined;
     }
-    const marker = buildGoalMarker(change, state.toolOutputExpanded, change.actor);
+    const marker = buildGoalMarker(change, transcriptRevealActive(state), change.actor);
     if (marker !== null) {
       state.transcriptContainer.addChild(marker);
       requestTUILayoutRender(state);
@@ -1096,7 +1097,7 @@ export class SessionEventHandler {
     if (change === undefined) return;
     this.pendingModelBlockedFallback = undefined;
     const { state } = this.host;
-    const marker = buildGoalMarker(change, state.toolOutputExpanded, 'model');
+    const marker = buildGoalMarker(change, transcriptRevealActive(state), 'model');
     if (marker !== null) {
       state.transcriptContainer.addChild(marker);
       requestTUILayoutRender(state);

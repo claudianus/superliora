@@ -261,6 +261,10 @@ import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
 import { resolveTranscriptEntryLineOffset } from './utils/transcript-entry-layout';
+import {
+  nextScrollRevealState,
+  transcriptRevealActive,
+} from './utils/transcript-expansion';
 import { resolveTranscriptHitTestContext, getTUIStateNativeTodoRect } from './utils/transcript-hit-test';
 import {
   TRANSCRIPT_EXPAND_TURNS,
@@ -1475,9 +1479,30 @@ export class LioraTUI {
   }
 
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
-    const changed = applyTranscriptViewportScroll(this.state.transcriptViewport, action);
-    if (changed) requestTUIScrollRender(this.state);
-    return changed;
+    const viewport = this.state.transcriptViewport;
+    const changed = applyTranscriptViewportScroll(viewport, action);
+    // Scroll reveal: an upward gesture expands every truncated transcript
+    // block so the full output is readable by scrolling alone — including
+    // no-op scrolls when the content fits the viewport. Returning to the
+    // tail collapses the previews again.
+    const nextReveal = nextScrollRevealState({
+      action,
+      changed,
+      followOutput: viewport.followOutput,
+      offsetFromBottom: viewport.offsetFromBottom,
+      previousReveal: this.state.scrollReveal,
+    });
+    const revealChanged = nextReveal !== this.state.scrollReveal;
+    this.state.scrollReveal = nextReveal;
+    if (revealChanged) {
+      this.syncTranscriptExpansion();
+      // Expansion changes content height; a scroll-only frame would misalign
+      // the viewport window until the next content pass.
+      requestTUIContentRender(this.state);
+    } else if (changed) {
+      requestTUIScrollRender(this.state);
+    }
+    return changed || revealChanged;
   }
 
   /**
@@ -2642,7 +2667,7 @@ export class LioraTUI {
           return new GoalSetMessageComponent();
         }
         if (entry.goalData?.kind === 'lifecycle') {
-          return buildGoalMarker(entry.goalData.change, this.state.toolOutputExpanded);
+          return buildGoalMarker(entry.goalData.change, transcriptRevealActive(this.state));
         }
         return null;
       case 'assistant': {
@@ -2655,7 +2680,7 @@ export class LioraTUI {
       }
       case 'thinking': {
         const thinking = new ThinkingComponent(entry.content, true);
-        if (this.state.toolOutputExpanded) thinking.setExpanded(true);
+        if (transcriptRevealActive(this.state)) thinking.setExpanded(true);
         return thinking;
       }
       case 'tool_call':
@@ -2666,7 +2691,7 @@ export class LioraTUI {
             this.state.ui,
             this.state.appState.workDir,
           );
-          if (this.state.toolOutputExpanded) tc.setExpanded(true);
+          if (transcriptRevealActive(this.state)) tc.setExpanded(true);
           return tc;
         }
         if (entry.backgroundAgentStatus !== undefined) {
@@ -3341,29 +3366,48 @@ export class LioraTUI {
 
   toggleToolOutputExpansion(): void {
     this.state.toolOutputExpanded = !this.state.toolOutputExpanded;
+    this.syncTranscriptExpansion();
+    requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Apply the effective expansion state to every expandable transcript child.
+   *
+   * Two independent sources feed it: the ctrl+o pin (`toolOutputExpanded`),
+   * which covers the most recent `TRANSCRIPT_EXPAND_TURNS` turns, and scroll
+   * reveal (`scrollReveal`), which expands everything while the user reads
+   * history so no shortcut is needed to reach the full output.
+   */
+  private syncTranscriptExpansion(): void {
     const children = this.state.transcriptContainer.children;
-
-    // A component is expandable only if it sits at or after the start of the
-    // (totalTurns - expandTurns)-th turn — i.e. it belongs to one of the most
-    // recent `expandTurns` turns. Position-based so it also covers streaming
-    // components that have no entry in the metadata map.
-    const boundaries: number[] = [];
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) boundaries.push(i);
+    if (this.state.scrollReveal) {
+      for (const child of children) {
+        if (isExpandable(child)) child.setExpanded(true);
+      }
+      return;
     }
-    const expandCutoff =
-      TRANSCRIPT_EXPAND_TURNS <= 0
-        ? children.length
-        : boundaries.length > TRANSCRIPT_EXPAND_TURNS
-          ? boundaries[boundaries.length - TRANSCRIPT_EXPAND_TURNS]!
-          : 0;
-
+    const expandCutoff = this.resolveExpansionCutoff(children);
     for (let i = 0; i < children.length; i++) {
       const child = children[i]!;
       if (!isExpandable(child)) continue;
       child.setExpanded(this.state.toolOutputExpanded && i >= expandCutoff);
     }
-    requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Index of the first component belonging to one of the most recent
+   * `TRANSCRIPT_EXPAND_TURNS` turns. Position-based so it also covers
+   * streaming components that have no entry in the metadata map.
+   */
+  private resolveExpansionCutoff(children: readonly Component[]): number {
+    if (TRANSCRIPT_EXPAND_TURNS <= 0) return children.length;
+    const boundaries: number[] = [];
+    for (let i = 0; i < children.length; i++) {
+      if (this.isTurnBoundaryComponent(children[i]!)) boundaries.push(i);
+    }
+    return boundaries.length > TRANSCRIPT_EXPAND_TURNS
+      ? boundaries[boundaries.length - TRANSCRIPT_EXPAND_TURNS]!
+      : 0;
   }
 
   toggleTodoPanelExpansion(): void {
@@ -4310,6 +4354,7 @@ export class LioraTUI {
       const line = resolveTranscriptEntryLineOffset(this.state, entry.id, context.stageWidth);
       if (line !== undefined) {
         jumpTranscriptViewportToLine(this.state.transcriptViewport, line);
+        this.syncScrollRevealFromViewport();
         requestTUIContentRender(this.state);
         return;
       }
@@ -4326,7 +4371,20 @@ export class LioraTUI {
     for (let i = 0; i < entriesAfter * 3; i++) {
       this.state.transcriptViewport.scroll('line-up');
     }
+    this.syncScrollRevealFromViewport();
     requestTUIContentRender(this.state);
+  }
+
+  /**
+   * Search jumps that land off the tail count as reading history, so scroll
+   * reveal follows the resulting viewport state (jumping back to the newest
+   * entry collapses the previews again).
+   */
+  private syncScrollRevealFromViewport(): void {
+    const nextReveal = !this.state.transcriptViewport.followOutput;
+    if (nextReveal === this.state.scrollReveal) return;
+    this.state.scrollReveal = nextReveal;
+    this.syncTranscriptExpansion();
   }
 
   async retryLastTurn(): Promise<void> {

@@ -160,6 +160,13 @@ export interface RendererTruncatedOutputOptions {
   readonly expandHint?: boolean;
   readonly tail?: boolean;
   readonly truncateMark?: string;
+  /**
+   * Wording of the hidden-lines footer. `'key'` (default) advertises the
+   * ctrl+o expansion hotkey and keeps the historical bytes; `'scroll'`
+   * advertises scroll-to-reveal for transcripts whose viewport expands
+   * truncated blocks while the user scrolls back through history.
+   */
+  readonly hintMode?: 'key' | 'scroll';
   readonly formatText?: (
     text: string,
     context: RendererTruncatedOutputFormatContext,
@@ -536,6 +543,7 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
   private readonly expandHint: boolean;
   private readonly tail: boolean;
   private readonly truncateMark: string;
+  private readonly hintMode: 'key' | 'scroll';
   private readonly formatText: (
     text: string,
     context: RendererTruncatedOutputFormatContext,
@@ -551,6 +559,7 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
     this.expandHint = options.expandHint ?? true;
     this.tail = options.tail ?? false;
     this.truncateMark = options.truncateMark ?? '…';
+    this.hintMode = options.hintMode ?? 'key';
     this.formatText = options.formatText ?? ((text) => text);
     this.formatHint = options.formatHint ?? ((hint) => hint);
     this.textComponent = new Text(this.renderOutputText(), this.indent, 0);
@@ -574,9 +583,11 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
 
     const hint = this.tail
       ? `... (${String(preview.hiddenLineCount)} earlier lines)`
-      : this.expandHint
-        ? `... (${String(preview.hiddenLineCount)} more lines, ctrl+o to expand)`
-        : `... (${String(preview.hiddenLineCount)} more lines)`;
+      : !this.expandHint
+        ? `... (${String(preview.hiddenLineCount)} more lines)`
+        : this.hintMode === 'scroll'
+          ? `⋯ ${String(preview.hiddenLineCount)} more lines — scroll to expand`
+          : `... (${String(preview.hiddenLineCount)} more lines, ctrl+o to expand)`;
     const hintLine = this.renderHint(width, hint);
     return preview.hintPosition === 'before'
       ? [hintLine, ...preview.lines]
