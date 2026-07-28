@@ -13,7 +13,7 @@ import {
   type TranscriptSelectionPoint,
 } from './transcript-selection-model';
 
-export interface TranscriptHitTestContext {
+export interface TranscriptLayoutContext {
   readonly rect: RendererRect;
   readonly viewportStart: number;
   readonly visibleRows: number;
@@ -21,14 +21,17 @@ export interface TranscriptHitTestContext {
   readonly leftPad: number;
   readonly rightPad: number;
   readonly contentWidth: number;
+}
+
+export interface TranscriptHitTestContext extends TranscriptLayoutContext {
   readonly visibleLines: readonly RendererRegionLine[];
 }
 
-export function resolveTranscriptHitTestContext(
+export function resolveTranscriptLayoutContext(
   state: TUIState,
   width = state.terminal.columns,
   height = state.terminal.rows,
-): TranscriptHitTestContext | undefined {
+): TranscriptLayoutContext | undefined {
   const frameWidth = normalizeFrameSize(width);
   const frameHeight = normalizeFrameSize(height);
   // Cheap editor line-count probe for cache invalidation (same key as the
@@ -73,12 +76,6 @@ export function resolveTranscriptHitTestContext(
 
   const leftPad = CHROME_GUTTER;
   const rightPad = CHROME_GUTTER;
-  const visibleLines = state.transcriptContainer.renderWithVisibleRegionLines(
-    stageWidth,
-    visibleRows,
-  );
-  const contentWidth = Math.max(1, stageWidth - leftPad - rightPad);
-
   return {
     rect,
     viewportStart: state.transcriptViewport.start(),
@@ -86,8 +83,23 @@ export function resolveTranscriptHitTestContext(
     stageWidth,
     leftPad,
     rightPad,
-    contentWidth,
-    visibleLines,
+    contentWidth: Math.max(1, stageWidth - leftPad - rightPad),
+  };
+}
+
+export function resolveTranscriptHitTestContext(
+  state: TUIState,
+  width = state.terminal.columns,
+  height = state.terminal.rows,
+): TranscriptHitTestContext | undefined {
+  const layout = resolveTranscriptLayoutContext(state, width, height);
+  if (layout === undefined) return undefined;
+  return {
+    ...layout,
+    visibleLines: state.transcriptContainer.renderWithVisibleRegionLines(
+      layout.stageWidth,
+      layout.visibleRows,
+    ),
   };
 }
 

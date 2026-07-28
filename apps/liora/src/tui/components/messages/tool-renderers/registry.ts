@@ -12,7 +12,6 @@
 
 import { readMediaSummary } from './media';
 import { goalSummary } from './goal';
-import { shellExecutionResultRenderer } from '../shell-execution';
 import {
   agentSummary,
   agentSwarmSummary,
@@ -70,12 +69,12 @@ import type { ResultRenderer } from './types';
 
 /**
  * True when a tool has no dedicated renderer and falls back to the generic
- * truncated output (every MCP tool and any tool not listed below). Used to
- * decide whether subagent sub-tool output should be previewed the same way
- * the main agent previews it.
+ * truncated output (every MCP tool and any tool not listed below). `Bash`
+ * deliberately shares the raw fallback renderer but remains a known tool so
+ * its header and subagent treatment stay specialized.
  */
 export function isGenericToolResult(toolName: string): boolean {
-  return pickResultRenderer(toolName) === renderTruncated;
+  return toolName !== 'Bash' && pickResultRenderer(toolName) === renderTruncated;
 }
 
 export function pickResultRenderer(toolName: string): ResultRenderer {
@@ -175,7 +174,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
     case 'TodoList':
       return todoListSummary;
     case 'Bash':
-      return shellExecutionResultRenderer;
+      return renderTruncated;
     case 'Think':
       return thinkSummary;
     case 'Edit':

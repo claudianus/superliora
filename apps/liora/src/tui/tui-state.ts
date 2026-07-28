@@ -33,6 +33,7 @@ import {
   createTranscriptViewportState,
   type TranscriptViewportState,
 } from './utils/transcript-viewport';
+import type { ToolOutputViewportState } from './utils/tool-output-viewport';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -72,12 +73,8 @@ export interface TUIState {
   terminalState: TerminalState;
   activitySpinner: { instance: MoonLoader; style: SpinnerStyle } | null;
   toolOutputExpanded: boolean;
-  /**
-   * Scroll reveal: true while the user is reading transcript history (any
-   * upward scroll gesture). Truncated tool/thinking blocks expand so the full
-   * content is reachable by scrolling alone; returning to the tail clears it.
-   */
-  scrollReveal: boolean;
+  /** Per-call viewport state retained for the lifetime of the current SDK session. */
+  toolOutputViewports: Map<string, ToolOutputViewportState>;
   sessions: SessionRow[];
   loadingSessions: boolean;
   sessionsScope: 'cwd' | 'all';
@@ -253,7 +250,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     terminalState: createTerminalState(),
     activitySpinner: null,
     toolOutputExpanded: false,
-    scrollReveal: false,
+    toolOutputViewports: new Map(),
     sessions: [],
     loadingSessions: false,
     sessionsScope: 'cwd',

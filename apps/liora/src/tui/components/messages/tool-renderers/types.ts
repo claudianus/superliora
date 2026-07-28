@@ -5,6 +5,8 @@ import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 export interface RendererContext {
   readonly expanded: boolean;
+  /** Shell-only: show the executed command in addition to the full result. */
+  readonly showCommand?: boolean;
 }
 
 export type ResultRenderer = (
