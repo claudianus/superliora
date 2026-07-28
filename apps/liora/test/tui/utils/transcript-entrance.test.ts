@@ -7,13 +7,17 @@ import {
   applyStreamTailGlow,
   applyToolHeaderEntrance,
   applyTranscriptEntrance,
+  applyTurnBoundaryCue,
   isTranscriptEntranceActive,
+  isTurnBoundaryCueActive,
   polishTranscriptLines,
   toolHeaderEntranceDurationMs,
+  turnBoundaryCueDurationMs,
   transcriptEntranceProgress,
   visibleTranscriptPayload,
   TOOL_HEADER_ENTRANCE_MS,
   TRANSCRIPT_ENTRANCE_MS_PREMIUM,
+  TURN_BOUNDARY_CUE_MS,
 } from '#/tui/utils/transcript-entrance';
 
 describe('transcript-entrance', () => {
@@ -149,6 +153,63 @@ describe('transcript-entrance', () => {
       const line = currentTheme.fg('primary', 'Using Read');
       expect(applyToolHeaderEntrance(line, 1000, undefined, 1000)).toBe(line);
       expect(toolHeaderEntranceDurationMs()).toBe(0);
+    });
+  });
+
+  describe('turn boundary cue', () => {
+    it('highlights the line at t0 and settles byte-identical after the window', () => {
+      const line = currentTheme.fg('text', 'First answer line');
+      const started = 9000;
+      const active = applyTurnBoundaryCue(line, started, undefined, started);
+      expect(visibleTranscriptPayload(active)).toContain('First answer line');
+      expect(active).not.toBe(line);
+      expect(active).toContain('\u001B[0;1;38;2');
+      expect(line).not.toContain('\u001B[0;1;38;2');
+
+      const settled = applyTurnBoundaryCue(
+        line,
+        started,
+        undefined,
+        started + TURN_BOUNDARY_CUE_MS + 20,
+      );
+      expect(settled).toBe(line);
+    });
+
+    it('tracks the cue window through isTurnBoundaryCueActive', () => {
+      const started = 9000;
+      expect(isTurnBoundaryCueActive(started, undefined, started)).toBe(true);
+      expect(
+        isTurnBoundaryCueActive(started, undefined, started + TURN_BOUNDARY_CUE_MS - 1),
+      ).toBe(true);
+      expect(
+        isTurnBoundaryCueActive(started, undefined, started + TURN_BOUNDARY_CUE_MS + 1),
+      ).toBe(false);
+      // Never armed → never active.
+      expect(isTurnBoundaryCueActive(undefined, undefined, started)).toBe(false);
+    });
+
+    it('stretches the cue under subtle but keeps it under the 400ms ceiling', () => {
+      const subtle = {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'subtle' as const,
+        particles: 'ambient' as const,
+      };
+      const duration = turnBoundaryCueDurationMs(subtle);
+      expect(duration).toBeGreaterThan(TURN_BOUNDARY_CUE_MS);
+      expect(duration).toBeLessThanOrEqual(400);
+      expect(turnBoundaryCueDurationMs()).toBe(TURN_BOUNDARY_CUE_MS);
+    });
+
+    it('returns the line untouched when motion is off', () => {
+      setActiveAppearancePreferences({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        particles: 'off',
+      });
+      const line = currentTheme.fg('text', 'Turn begins');
+      expect(applyTurnBoundaryCue(line, 1000, undefined, 1000)).toBe(line);
+      expect(turnBoundaryCueDurationMs()).toBe(0);
+      expect(isTurnBoundaryCueActive(1000, undefined, 1000)).toBe(false);
     });
   });
 });

@@ -1,10 +1,19 @@
 import { Markdown, visibleWidth } from '#/tui/renderer';
+import chalk from 'chalk';
 import * as cliHighlight from 'cli-highlight';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
+import { TURN_BOUNDARY_CUE_MS } from '#/tui/utils/transcript-entrance';
 
 import { captureProcessWrite } from '../../../helpers/process';
 
@@ -185,5 +194,129 @@ describe('AssistantMessageComponent', () => {
         else process.env[key] = value;
       }
     }
+  });
+});
+
+describe('AssistantMessageComponent turn boundary cues', () => {
+  const previousEnv = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+  };
+  const previousChalkLevel = chalk.level;
+  const premium = {
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium' as const,
+    particles: 'premium' as const,
+  };
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    chalk.level = 3;
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences(premium);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    advanceAppearanceAnimationClock(Date.now());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    chalk.level = previousChalkLevel;
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  function mountedPair(text: string): {
+    withCue: AssistantMessageComponent;
+    plain: AssistantMessageComponent;
+  } {
+    // Same clock tick → identical entrance wash; only the cue may differ.
+    const withCue = new AssistantMessageComponent();
+    const plain = new AssistantMessageComponent();
+    withCue.updateContent(text);
+    plain.updateContent(text);
+    return { withCue, plain };
+  }
+
+  function firstVisibleIndex(lines: readonly string[]): number {
+    return lines.findIndex((line) => line.trim().length > 0);
+  }
+
+  function lastVisibleIndex(lines: readonly string[]): number {
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i]!.trim().length > 0) return i;
+    }
+    return -1;
+  }
+
+  it('turn start cue is active at t0 and settles byte-identical after the window', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const { withCue, plain } = mountedPair('line one\n\nline two');
+    withCue.markTurnStartCue(start);
+
+    const active = withCue.render(80);
+    const baseline = plain.render(80);
+    expect(strip(active.join('\n'))).toContain('line one');
+    expect(active).not.toEqual(baseline);
+
+    // The cue lands on the first visible line only; the rest matches the
+    // baseline wash byte-for-byte at the same clock.
+    const first = firstVisibleIndex(active);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(active[first]).not.toBe(baseline[first]);
+    expect(active.slice(first + 1)).toEqual(baseline.slice(first + 1));
+
+    // Past the bounded window the block is byte-stable again.
+    vi.setSystemTime(new Date(start + TURN_BOUNDARY_CUE_MS + 60));
+    advanceAppearanceAnimationClock(Date.now());
+    expect(withCue.render(80)).toEqual(plain.render(80));
+  });
+
+  it('turn end cue settles the last visible line only', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const { withCue, plain } = mountedPair('line one\n\nline two');
+    withCue.markTurnEndCue(start);
+
+    const active = withCue.render(80);
+    const baseline = plain.render(80);
+    const last = lastVisibleIndex(active);
+    expect(last).toBeGreaterThan(firstVisibleIndex(active));
+    expect(active[last]).not.toBe(baseline[last]);
+    expect(active.slice(0, last)).toEqual(baseline.slice(0, last));
+
+    vi.setSystemTime(new Date(start + TURN_BOUNDARY_CUE_MS + 60));
+    advanceAppearanceAnimationClock(Date.now());
+    expect(withCue.render(80)).toEqual(plain.render(80));
+  });
+
+  it('quality off renders no cue bytes (byte-identical to an unarmed block)', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+      animationFps: 0,
+    });
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const { withCue, plain } = mountedPair('line one\n\nline two');
+    withCue.markTurnStartCue(start);
+    withCue.markTurnEndCue(start);
+
+    expect(withCue.render(80)).toEqual(plain.render(80));
   });
 });

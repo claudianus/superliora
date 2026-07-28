@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   STREAMING_UI_FLUSH_BURST_DELTAS,
@@ -14,6 +15,14 @@ import {
   nextStreamingFlushDelay,
   type StreamingFlushScheduleInput,
 } from '#/tui/utils/streaming-flush-schedule';
+
+vi.mock('#/tui/utils/terminal-notification', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/utils/terminal-notification')>();
+  return {
+    ...actual,
+    notifyUserAttentionOnce: vi.fn(),
+  };
+});
 
 function fakeAppState(overrides: Partial<AppState> = {}): AppState {
   return {
@@ -294,5 +303,81 @@ describe('StreamingUIController adaptive flush throttle', () => {
     ui.scheduleFlush();
     expect(ui.hasPending()).toBe(false);
     expect(vi.getTimerCount()).toBe(timersBefore);
+  });
+});
+
+describe('StreamingUIController turn boundary cues', () => {
+  let startCueSpy: ReturnType<typeof vi.spyOn>;
+  let endCueSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    startCueSpy = vi.spyOn(AssistantMessageComponent.prototype, 'markTurnStartCue');
+    endCueSpy = vi.spyOn(AssistantMessageComponent.prototype, 'markTurnEndCue');
+  });
+
+  afterEach(() => {
+    startCueSpy.mockRestore();
+    endCueSpy.mockRestore();
+  });
+
+  it('arms the start cue on the first assistant block of a turn only', () => {
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+
+    ui.setTurnId('7');
+    ui.appendAssistantDelta('first block');
+    expect(startCueSpy).toHaveBeenCalledTimes(1);
+
+    // A second block inside the same turn (text → tool → text) gets no cue:
+    // the boundary was already marked by the first block.
+    ui.finalizeAssistantStream();
+    ui.appendAssistantDelta('second block');
+    expect(startCueSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-arms the start cue when a new turn begins', () => {
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+
+    ui.setTurnId('7');
+    ui.appendAssistantDelta('turn one');
+    expect(startCueSpy).toHaveBeenCalledTimes(1);
+
+    // Turn boundary: the previous turn finalizes (nulling its block), then
+    // the next turn's first delta mounts a fresh, re-armed block.
+    ui.finalizeTurn(vi.fn());
+    ui.setTurnId('8');
+    ui.appendAssistantDelta('turn two');
+    expect(startCueSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('disarms the cue when the turn context clears', () => {
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+
+    ui.setTurnId('7');
+    ui.setTurnId(undefined);
+    ui.appendAssistantDelta('orphan block');
+    expect(startCueSpy).not.toHaveBeenCalled();
+  });
+
+  it('marks the end settle on the turn\'s last assistant block at finalize', () => {
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+
+    ui.setTurnId('9');
+    ui.appendAssistantDelta('final answer');
+    ui.flushNow();
+    ui.finalizeTurn(vi.fn());
+    expect(endCueSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the end settle when the turn produced no assistant block', () => {
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+
+    ui.setTurnId('10');
+    ui.finalizeTurn(vi.fn());
+    expect(endCueSpy).not.toHaveBeenCalled();
   });
 });

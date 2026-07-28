@@ -30,6 +30,7 @@ import type {
   TurnStartedEvent,
   TurnStepCompletedEvent,
   TurnStepInterruptedEvent,
+  TurnStepRetryingEvent,
   TurnStepStartedEvent,
   WarningEvent,
 } from '@superliora/sdk';
@@ -329,7 +330,7 @@ export class SessionEventHandler {
       case 'turn.step.started': this.handleStepBegin(event); break;
       case 'turn.step.interrupted': this.handleStepInterrupted(event); break;
       case 'turn.step.completed': this.handleStepCompleted(event); break;
-      case 'turn.step.retrying': break;
+      case 'turn.step.retrying': this.handleStepRetrying(event); break;
       case 'tool.progress': this.handleToolProgress(event); break;
       case 'shell.output': this.host.handleShellOutput(event); break;
       case 'shell.started': this.host.handleShellStarted(event); break;
@@ -590,6 +591,28 @@ export class SessionEventHandler {
       color: 'textDim',
       bullet: '',
     });
+  }
+
+  private handleStepRetrying(event: TurnStepRetryingEvent): void {
+    // The payload carries no model/route info — build the cue from the error
+    // identity, attempt counts, and backoff delay only (no invented fields).
+    const name = event.errorName.trim();
+    const detail = event.errorMessage.trim().replaceAll(/\s+/g, ' ');
+    const shortDetail = detail.length > 90 ? `${detail.slice(0, 89)}…` : detail;
+    const reason =
+      name.length > 0
+        ? shortDetail.length > 0
+          ? `${name}: ${shortDetail}`
+          : name
+        : shortDetail.length > 0
+          ? shortDetail
+          : 'a transient error';
+    const delay =
+      event.delayMs > 0 ? ` — next attempt in ${formatRetryDelay(event.delayMs)}` : '';
+    this.host.showStatus(
+      `Retrying step ${String(event.step)} (attempt ${String(event.nextAttempt)}/${String(event.maxAttempts)}) after ${reason}${delay}`,
+      'warning',
+    );
   }
 
   private handleStepBegin(event: TurnStepStartedEvent): void {
@@ -1650,6 +1673,11 @@ function formatTurnDuration(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m${seconds.toString().padStart(2, '0')}s`;
+}
+
+function formatRetryDelay(delayMs: number): string {
+  if (delayMs >= 1000) return `${(delayMs / 1000).toFixed(1)}s`;
+  return `${String(Math.max(0, Math.round(delayMs)))}ms`;
 }
 
 function addTokenUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {

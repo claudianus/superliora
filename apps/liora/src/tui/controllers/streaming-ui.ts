@@ -89,6 +89,8 @@ export class StreamingUIController {
 
   private _currentTurnId: string | undefined = undefined;
   private _currentStep = 0;
+  /** Consumed by the first assistant block mounted for the current turn. */
+  private turnStartCueArmed = false;
   private _assistantDraft = '';
   private _thinkingDraft = '';
   private _streamingBlock: { component: AssistantMessageComponent; entry: TranscriptEntry } | null = null;
@@ -124,7 +126,11 @@ export class StreamingUIController {
   }
 
   setTurnId(turnId: string | undefined): void {
+    if (turnId === this._currentTurnId) return;
     this._currentTurnId = turnId;
+    // A fresh turn re-arms the entrance cue; the first assistant block mounted
+    // for this turn consumes it so turn boundaries stay visible (Gap 5).
+    this.turnStartCueArmed = turnId !== undefined;
   }
 
   setStep(step: number): void {
@@ -618,7 +624,13 @@ export class StreamingUIController {
     this.host.deferUserMessages = false;
     const completedTurnKey =
       this._currentTurnId ?? `local:${String(state.appState.streamingStartTime)}`;
+    // Capture before finalize nulls the block: the closing settle lands on the
+    // turn's last assistant block (the usage/footer line keeps its own flash).
+    const closingAssistantBlock = this.getStreamingBlockComponent();
     this.finalizeLiveTextBuffers('idle');
+    if (closingAssistantBlock !== undefined) {
+      closingAssistantBlock.markTurnEndCue(appearanceAnimationNow());
+    }
     this.resetToolCallState();
     this._currentTurnId = undefined;
 
@@ -658,6 +670,10 @@ export class StreamingUIController {
       content: '',
     };
     const component = new AssistantMessageComponent();
+    if (this.turnStartCueArmed) {
+      this.turnStartCueArmed = false;
+      component.markTurnStartCue(appearanceAnimationNow());
+    }
     this._streamingBlock = { component, entry };
     this.host.pushTranscriptEntry(entry);
     state.transcriptContainer.addChild(component);

@@ -14,6 +14,7 @@ import {
   type Component,
 } from '#/tui/renderer';
 
+import type { AppearancePreferences } from '#/tui/config';
 import { MESSAGE_INDENT } from '#/tui/constant/rendering';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
@@ -32,7 +33,9 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 import {
+  applyTurnBoundaryCue,
   isTranscriptEntranceActive,
+  isTurnBoundaryCueActive,
   polishTranscriptLines,
 } from '#/tui/utils/transcript-entrance';
 
@@ -49,6 +52,9 @@ export class AssistantMessageComponent implements Component {
   private showBullet: boolean;
   /** Wall-clock mount time — drives the entrance fade wash. */
   private readonly entranceStartedAtMs = appearanceAnimationNow();
+  /** Turn-boundary cue anchors set by StreamingUIController (Gap 5). */
+  private turnStartCueAtMs: number | undefined;
+  private turnEndCueAtMs: number | undefined;
 
   private readonly renderCache = new RendererWidthRenderCache();
 
@@ -64,6 +70,18 @@ export class AssistantMessageComponent implements Component {
   setShowBullet(show: boolean): void {
     if (this.showBullet === show) return;
     this.showBullet = show;
+    this.markRenderDirty();
+  }
+
+  /** Arm the turn-start settle — paints the first visible line briefly. */
+  markTurnStartCue(startedAtMs: number): void {
+    this.turnStartCueAtMs = startedAtMs;
+    this.markRenderDirty();
+  }
+
+  /** Arm the turn-end settle — paints the last visible line briefly. */
+  markTurnEndCue(startedAtMs: number): void {
+    this.turnEndCueAtMs = startedAtMs;
     this.markRenderDirty();
   }
 
@@ -125,7 +143,10 @@ export class AssistantMessageComponent implements Component {
     // When finalized and entrance is done, drop the epoch for O(1) cached renders.
     const streaming = this.lastTransient && caretActive();
     const entranceActive = isTranscriptEntranceActive(this.entranceStartedAtMs);
-    const animated = streaming || entranceActive;
+    const cueActive =
+      isTurnBoundaryCueActive(this.turnStartCueAtMs) ||
+      isTurnBoundaryCueActive(this.turnEndCueAtMs);
+    const animated = streaming || entranceActive || cueActive;
     return this.renderCache.render({
       width: safeWidth,
       cacheEpoch: animated ? renderCacheEpoch() : undefined,
@@ -164,15 +185,53 @@ export class AssistantMessageComponent implements Component {
           truncateMark: '…',
         });
 
-        return polishTranscriptLines(blocked, {
-          startedAtMs: this.entranceStartedAtMs,
-          kind: 'assistant',
-          streaming: this.lastTransient,
+        return this.applyTurnBoundaryCues(
+          polishTranscriptLines(blocked, {
+            startedAtMs: this.entranceStartedAtMs,
+            kind: 'assistant',
+            streaming: this.lastTransient,
+            appearance,
+          }),
           appearance,
-        });
+        );
       },
     });
   }
+
+  /** Turn boundary settles: first line on start, last line on end (Gap 5). */
+  private applyTurnBoundaryCues(lines: string[], appearance: AppearancePreferences): string[] {
+    const startActive = isTurnBoundaryCueActive(this.turnStartCueAtMs, appearance);
+    const endActive = isTurnBoundaryCueActive(this.turnEndCueAtMs, appearance);
+    if (!startActive && !endActive) return lines;
+    const next = [...lines];
+    if (startActive) {
+      const first = firstVisibleLineIndex(next);
+      if (first >= 0) {
+        next[first] = applyTurnBoundaryCue(next[first]!, this.turnStartCueAtMs, appearance);
+      }
+    }
+    if (endActive) {
+      const last = lastVisibleLineIndex(next);
+      if (last >= 0) {
+        next[last] = applyTurnBoundaryCue(next[last]!, this.turnEndCueAtMs, appearance);
+      }
+    }
+    return next;
+  }
+}
+
+function firstVisibleLineIndex(lines: readonly string[]): number {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]!.trim().length > 0) return i;
+  }
+  return -1;
+}
+
+function lastVisibleLineIndex(lines: readonly string[]): number {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i]!.trim().length > 0) return i;
+  }
+  return -1;
 }
 
 /** Whether the streaming caret should render in the current environment. */
