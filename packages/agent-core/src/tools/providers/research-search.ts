@@ -1,11 +1,11 @@
 /**
  * Multi-provider deep-research search engine.
  *
- * Cost-first design (agent research best practices):
+ * Quality-first adaptive design:
  *   1. Snippets first, full page body only on explicit include_content.
- *   2. Cascade (auto) not fan-out — one cheap provider, escalate only if thin.
+ *   2. Auto fuses two ready remote providers when the call budget allows.
  *   3. Hard budget caps: max paid calls / content pages / content chars.
- *   4. Free fallback last; never paid+free parallel by default.
+ *   4. Escalate to remaining/free providers only while result quality is thin.
  *   5. Cache-friendly local stack remains available for zero-config.
  *
  * Composes paid/free backends (Brave, Tavily, Exa, Serper, SearXNG,
@@ -28,6 +28,12 @@ import type { UrlFetcher } from '../builtin/web/fetch-url';
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
 import { LocalWebSearchProvider, type LocalWebSearchProviderOptions } from './local-web-search';
 import { MoonshotWebSearchProvider } from './moonshot-web-search';
+import {
+  canonicalizeSearchUrl,
+  fuseSearchResults,
+  needsSearchEscalation,
+  type SearchProviderBatch,
+} from './research-search-fusion';
 
 // ── Public types ─────────────────────────────────────────────────────
 
@@ -253,7 +259,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
         results = await this.searchParallel(ready, trimmed, metadataOptions, limit);
         break;
       case 'auto':
-        results = await this.searchCascade(ready, trimmed, metadataOptions, limit);
+        results = await this.searchAdaptive(ready, trimmed, metadataOptions, limit);
         break;
       case 'fallback':
         results = await this.searchFallback(ready, trimmed, metadataOptions, limit);
@@ -271,7 +277,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
         results = await this.searchOne(this.pickRateLimitAware(ready), trimmed, metadataOptions, limit, ready);
         break;
       default:
-        results = await this.searchCascade(ready, trimmed, metadataOptions, limit);
+        results = await this.searchAdaptive(ready, trimmed, metadataOptions, limit);
         break;
     }
 
@@ -279,47 +285,62 @@ export class ResearchSearchEngine implements WebSearchProvider {
   }
 
   /**
-   * Cost-aware cascade (default `auto`):
-   * paid providers ordered by cost rank → stop when enough good results → free last.
-   * At most `maxProviderCalls` paid/remote calls per invocation.
+   * Quality-first adaptive routing (default `auto`):
+   * fuse at least two ready remote slots when the call budget allows, then
+   * escalate only while unique URL, query coverage, or domain diversity is thin.
    */
-  private async searchCascade(
+  private async searchAdaptive(
     slots: readonly ProviderSlot[],
     query: string,
     options: { limit?: number; includeContent?: boolean; toolCallId?: string } | undefined,
     limit: number,
   ): Promise<WebSearchResult[]> {
-    const paid = orderByCost(
-      slots.filter((s) => s.kind !== 'duckduckgo' && s.source !== 'local'),
+    const remote = orderByCost(
+      slots.filter((slot) => slot.kind !== 'duckduckgo' && slot.source !== 'local'),
     );
-    const free = slots.filter((s) => s.kind === 'duckduckgo' || s.source === 'local');
-    const stopAt = Math.min(limit, this.minResultsToStop);
-    const collected: WebSearchResult[] = [];
-    let paidCalls = 0;
+    const free = slots.filter((slot) => slot.kind === 'duckduckgo' || slot.source === 'local');
+    const targetCount = Math.min(limit, this.minResultsToStop);
+    const batches: SearchProviderBatch[] = [];
+    const initialCount = Math.min(remote.length, this.maxProviderCalls, 2);
+    const initial = remote.slice(0, initialCount);
 
-    for (const slot of paid) {
-      if (paidCalls >= this.maxProviderCalls) break;
-      const batch = await this.searchSlot(slot, query, options, limit);
-      paidCalls += 1;
-      collected.push(...batch);
-      const ranked = rankAndDedupe(collected, query);
-      if (ranked.length >= stopAt) {
-        return ranked.slice(0, limit);
+    if (initial.length > 0) {
+      const initialBatches = await runWithConcurrency(
+        initial.map((slot) => async (): Promise<SearchProviderBatch> => ({
+          providerId: slot.id,
+          results: await this.searchSlot(slot, query, options, limit),
+        })),
+        this.concurrency,
+      );
+      batches.push(...initialBatches);
+    }
+
+    let fusion = fuseSearchResults(batches, query, limit);
+    let remoteCalls = initial.length;
+    for (const slot of remote.slice(initial.length)) {
+      if (remoteCalls >= this.maxProviderCalls || !needsSearchEscalation(fusion, targetCount)) {
+        break;
+      }
+      batches.push({
+        providerId: slot.id,
+        results: await this.searchSlot(slot, query, options, limit),
+      });
+      remoteCalls += 1;
+      fusion = fuseSearchResults(batches, query, limit);
+    }
+
+    if (this.freeFallback && needsSearchEscalation(fusion, targetCount)) {
+      for (const slot of free) {
+        batches.push({
+          providerId: slot.id,
+          results: await this.searchSlot(slot, query, options, limit),
+        });
+        fusion = fuseSearchResults(batches, query, limit);
+        if (!needsSearchEscalation(fusion, targetCount)) break;
       }
     }
 
-    if (this.freeFallback && free.length > 0) {
-      if (rankAndDedupe(collected, query).length < stopAt) {
-        for (const slot of free) {
-          const batch = await this.searchSlot(slot, query, options, limit);
-          collected.push(...batch);
-          const ranked = rankAndDedupe(collected, query);
-          if (ranked.length >= stopAt) break;
-        }
-      }
-    }
-
-    return rankAndDedupe(collected, query).slice(0, limit);
+    return fusion.results;
   }
 
   private async searchParallel(
@@ -415,7 +436,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
         toolCallId: options?.toolCallId,
       });
       slot.useCount += 1;
-      return results.map((result) => annotateSource(result, slot.label));
+      return results;
     } catch (error) {
       if (isRateLimitError(error)) {
         slot.cooldownUntil = this.now() + this.cooldownMs;
@@ -904,14 +925,6 @@ function truncateResultContent(result: WebSearchResult, maxChars: number): WebSe
   };
 }
 
-function annotateSource(result: WebSearchResult, source: string): WebSearchResult {
-  if (result.snippet.startsWith(`[${source}]`)) return result;
-  return {
-    ...result,
-    snippet: result.snippet.length > 0 ? `[${source}] ${result.snippet}` : `[${source}]`,
-  };
-}
-
 function buildResult(input: {
   readonly title: string;
   readonly url: string;
@@ -941,10 +954,10 @@ function hasUsableUrl(result: WebSearchResult): boolean {
 function rankAndDedupe(results: readonly WebSearchResult[], query: string): WebSearchResult[] {
   const seen = new Set<string>();
   const scored = results
+    .map((result) => ({ ...result, url: canonicalizeSearchUrl(result.url) }))
     .filter((result) => {
-      const key = canonicalUrl(result.url);
-      if (seen.has(key)) return false;
-      seen.add(key);
+      if (seen.has(result.url)) return false;
+      seen.add(result.url);
       return true;
     })
     .map((result) => ({ result, score: scoreResult(result, query) }));
@@ -961,16 +974,6 @@ function scoreResult(result: WebSearchResult, query: string): number {
   }
   if (result.content !== undefined && result.content.length > 0) score += 0.5;
   return score;
-}
-
-function canonicalUrl(rawUrl: string): string {
-  try {
-    const url = new URL(rawUrl);
-    url.hash = '';
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return rawUrl;
-  }
 }
 
 function stringValue(value: unknown): string | undefined {
