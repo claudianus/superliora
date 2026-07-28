@@ -89,6 +89,7 @@ export class SubAgentEventHandler {
     this.backgroundAgentMetadata.clear();
     this.clearAgentSwarmProgress();
     this.removeSubagentActivityPanel();
+    this.host.state.todoPanel.clearSubagents();
   }
 
   routeChildAgentEvent(event: Event): boolean {
@@ -177,12 +178,21 @@ export class SubAgentEventHandler {
   handleSubagentTodoUpdated(
     event: Extract<Event, { type: 'subagent.todo.updated' }>,
   ): void {
+    // Phase 5-B: mirror child todo progress onto the Todo Board's subagents
+    // strip so foreground and background subagents stay visible even when
+    // no swarm grid owns the parent tool call.
+    this.host.state.todoPanel.setSubagentTodos({
+      subagentId: event.subagentId,
+      name: event.subagentName,
+      todos: event.todos.map((todo) => ({ title: todo.title, status: todo.status })),
+    });
     const progress = this.agentSwarmProgress.get(event.parentToolCallId);
-    if (progress === undefined) return;
-    progress.applyMemberTodos(
-      event.subagentId,
-      event.todos.map((todo) => ({ title: todo.title, status: todo.status })),
-    );
+    if (progress !== undefined) {
+      progress.applyMemberTodos(
+        event.subagentId,
+        event.todos.map((todo) => ({ title: todo.title, status: todo.status })),
+      );
+    }
     this.requestRender();
   }
 
@@ -609,6 +619,11 @@ export class SubAgentEventHandler {
   private handleSubagentCompleted(
     event: SubagentLifecycleEventOf<'subagent.completed'>,
   ): void {
+    // Phase 5-B: finished subagents leave the Todo Board strip regardless of
+    // which surface (swarm grid, background panel) owned their run.
+    if (this.host.state.todoPanel.removeSubagent(event.subagentId)) {
+      this.requestRender();
+    }
     const info = this.subagentInfo.get(event.subagentId);
     if (
       info !== undefined &&
@@ -644,6 +659,11 @@ export class SubAgentEventHandler {
   private handleSubagentFailed(
     event: SubagentLifecycleEventOf<'subagent.failed'>,
   ): void {
+    // Phase 5-B: failed subagents leave the strip too; the removal flash is
+    // the only trace, matching the completed path.
+    if (this.host.state.todoPanel.removeSubagent(event.subagentId)) {
+      this.requestRender();
+    }
     const info = this.subagentInfo.get(event.subagentId);
     if (
       info !== undefined &&

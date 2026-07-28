@@ -6,6 +6,9 @@ import { currentTheme, darkColors } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+  SETTLE_FLASH_MS,
 } from '#/tui/utils/appearance-effects';
 
 import { assertSettledFrameStable, stripAnsi } from '../../utils/frame-stability-helpers';
@@ -17,6 +20,9 @@ const previousEnv = {
   TERM: process.env['TERM'],
   CI: process.env['CI'],
   NO_COLOR: process.env['NO_COLOR'],
+  SSH_TTY: process.env['SSH_TTY'],
+  SSH_CONNECTION: process.env['SSH_CONNECTION'],
+  SSH_CLIENT: process.env['SSH_CLIENT'],
 };
 
 // Standard profile, wide enough for the 3-column board (interior 94 >= 72).
@@ -24,6 +30,23 @@ const WIDTH = 100;
 
 function todo(title: string, status: TodoItem['status']): TodoItem {
   return { title, status };
+}
+
+/** Switch the process into a local premium session (motion allowed). */
+function enablePremiumAmbient(): void {
+  process.env['TERM'] = 'xterm-256color';
+  delete process.env['CI'];
+  delete process.env['NO_COLOR'];
+  delete process.env['SSH_TTY'];
+  delete process.env['SSH_CONNECTION'];
+  delete process.env['SSH_CLIENT'];
+  setAppearanceRenderHealth('healthy');
+  setAppearanceRenderQuality('full');
+  setActiveAppearancePreferences({
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium',
+    particles: 'premium',
+  });
 }
 
 beforeEach(() => {
@@ -140,5 +163,195 @@ describe('TodoPanelComponent', () => {
     ]);
     const grownHeight = panel.render(WIDTH).length;
     expect(grownHeight).toBeGreaterThan(smallHeight);
+  });
+});
+
+describe('TodoPanelComponent subagents strip', () => {
+  it('renders one row per active subagent with live counts below the lanes', () => {
+    advanceAppearanceAnimationClock(600_000);
+    const panel = new TodoPanelComponent();
+    panel.setTodos([todo('main work', 'in_progress')]);
+    panel.setSubagentTodos({
+      subagentId: 'sub-1',
+      name: 'explore',
+      todos: [
+        { title: 'a', status: 'done' },
+        { title: 'b', status: 'done' },
+        { title: 'c', status: 'in_progress' },
+        { title: 'd', status: 'pending' },
+        { title: 'e', status: 'pending' },
+      ],
+    });
+    panel.setSubagentTodos({
+      subagentId: 'sub-2',
+      name: 'code-reviewer',
+      todos: [{ title: 'review', status: 'pending' }],
+    });
+
+    expect(panel.getSubagentStrip()).toEqual([
+      { subagentId: 'sub-1', name: 'explore', done: 2, total: 5 },
+      { subagentId: 'sub-2', name: 'code-reviewer', done: 0, total: 1 },
+    ]);
+
+    // Settled strip frames memoize like the rest of the board.
+    const lines = assertSettledFrameStable((renderWidth) => panel.render(renderWidth), {
+      width: WIDTH,
+    });
+    const text = stripAnsi(lines.join('\n'));
+    expect(text).toContain('subagents (2)');
+    expect(text).toContain('explore');
+    expect(text).toContain('2/5');
+    expect(text).toContain('code-reviewer');
+    expect(text).toContain('0/1');
+    // The strip sits below the lane headers, inside the board frame.
+    expect(text.indexOf('subagents (2)')).toBeGreaterThan(text.indexOf('Doing'));
+  });
+
+  it('updates counts in place without adding rows', () => {
+    advanceAppearanceAnimationClock(610_000);
+    const panel = new TodoPanelComponent();
+    panel.setTodos([todo('main work', 'in_progress')]);
+    panel.setSubagentTodos({
+      subagentId: 'sub-1',
+      name: 'explore',
+      todos: [
+        { title: 'a', status: 'pending' },
+        { title: 'b', status: 'pending' },
+      ],
+    });
+    panel.setSubagentTodos({
+      subagentId: 'sub-1',
+      name: 'explore',
+      todos: [
+        { title: 'a', status: 'done' },
+        { title: 'b', status: 'done' },
+      ],
+    });
+
+    expect(panel.getSubagentStrip()).toEqual([
+      { subagentId: 'sub-1', name: 'explore', done: 2, total: 2 },
+    ]);
+    const text = stripAnsi(
+      assertSettledFrameStable((renderWidth) => panel.render(renderWidth), { width: WIDTH }).join(
+        '\n',
+      ),
+    );
+    expect(text).toContain('subagents (1)');
+    expect(text).toContain('2/2');
+    expect(text).not.toContain('0/2');
+  });
+
+  it('removes finished subagents and stays byte-static when effects are off', () => {
+    advanceAppearanceAnimationClock(620_000);
+    const panel = new TodoPanelComponent();
+    panel.setTodos([todo('main work', 'in_progress')]);
+    panel.setSubagentTodos({
+      subagentId: 'sub-1',
+      name: 'explore',
+      todos: [{ title: 'a', status: 'done' }],
+    });
+    panel.setSubagentTodos({
+      subagentId: 'sub-2',
+      name: 'reviewer',
+      todos: [{ title: 'b', status: 'pending' }],
+    });
+    advanceAppearanceAnimationClock(622_000);
+
+    expect(panel.removeSubagent('sub-1')).toBe(true);
+    expect(panel.removeSubagent('sub-1')).toBe(false);
+
+    // CI forces effects off: removal feedback adds zero animation bytes —
+    // the frame right after removal and well past any flash window match.
+    const immediate = panel.render(WIDTH);
+    advanceAppearanceAnimationClock(628_000);
+    expect(panel.render(WIDTH).join('\n')).toBe(immediate.join('\n'));
+
+    const text = stripAnsi(immediate.join('\n'));
+    expect(text).toContain('subagents (1)');
+    expect(text).not.toContain('explore');
+    expect(text).toContain('reviewer');
+  });
+
+  it('bounds the strip when completions never arrive', () => {
+    advanceAppearanceAnimationClock(630_000);
+    const panel = new TodoPanelComponent();
+    panel.setTodos([todo('main work', 'in_progress')]);
+    for (let i = 0; i < 10; i++) {
+      panel.setSubagentTodos({
+        subagentId: `sub-${i}`,
+        name: `agent-${i}`,
+        todos: [{ title: 'task', status: 'pending' }],
+      });
+    }
+
+    const strip = panel.getSubagentStrip();
+    expect(strip).toHaveLength(6);
+    // Earliest-entered rows are evicted; the newest six survive.
+    expect(strip.map((row) => row.subagentId)).toEqual([
+      'sub-4',
+      'sub-5',
+      'sub-6',
+      'sub-7',
+      'sub-8',
+      'sub-9',
+    ]);
+    const text = stripAnsi(panel.render(WIDTH).join('\n'));
+    expect(text).toContain('subagents (6)');
+    expect(text).not.toContain('agent-0');
+    expect(text).toContain('agent-9');
+  });
+
+  it('follows board visibility: no strip while the board itself is hidden', () => {
+    const panel = new TodoPanelComponent();
+    panel.setSubagentTodos({
+      subagentId: 'sub-1',
+      name: 'explore',
+      todos: [{ title: 'a', status: 'done' }],
+    });
+    expect(panel.render(WIDTH)).toEqual([]);
+  });
+
+  it('settles new rows with the entrance flash at premium and statically at off', () => {
+    // Off (CI): identical bytes immediately and after the flash window —
+    // the entrance settle is skipped entirely.
+    advanceAppearanceAnimationClock(640_000);
+    const staticPanel = new TodoPanelComponent();
+    staticPanel.setTodos([todo('main work', 'pending')]);
+    // Let the board's own add summary expire so the comparison isolates the
+    // strip (semantic badges are time-gated even with motion off).
+    advanceAppearanceAnimationClock(641_000);
+    staticPanel.setSubagentTodos({
+      subagentId: 'sub-1',
+      name: 'explore',
+      todos: [{ title: 'a', status: 'pending' }],
+    });
+    const staticFrame = staticPanel.render(WIDTH).join('\n');
+    advanceAppearanceAnimationClock(643_000);
+    expect(staticPanel.render(WIDTH).join('\n')).toBe(staticFrame);
+
+    // Premium: the entrance flash makes early frames time-driven, then the
+    // row settles to resting bytes and memoizes again.
+    enablePremiumAmbient();
+    advanceAppearanceAnimationClock(650_000);
+    const premiumPanel = new TodoPanelComponent();
+    premiumPanel.setTodos([todo('main work', 'pending')]);
+    // Let the board's own add flash expire before the strip enters.
+    advanceAppearanceAnimationClock(652_000);
+    premiumPanel.setSubagentTodos({
+      subagentId: 'sub-1',
+      name: 'explore',
+      todos: [{ title: 'a', status: 'pending' }],
+    });
+    const flashFrame = premiumPanel.render(WIDTH).join('\n');
+    advanceAppearanceAnimationClock(652_000 + SETTLE_FLASH_MS * 3);
+    const settled = premiumPanel.render(WIDTH);
+    const settledText = stripAnsi(settled.join('\n'));
+    // The flash is color-driven: raw bytes differ mid-flash, stripped text
+    // stays the same word, and resting bytes return once it expires.
+    expect(flashFrame).not.toBe(settled.join('\n'));
+    expect(stripAnsi(flashFrame)).toContain('explore');
+    expect(settledText).toContain('explore');
+    // Resting frames are no longer time-driven once the flash expires.
+    expect(premiumPanel.render(WIDTH)).toBe(settled);
   });
 });
