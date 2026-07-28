@@ -1,7 +1,7 @@
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SessionPickerComponent } from '#/tui/components/dialogs/session-picker';
+import { SessionPickerComponent, type SessionRow } from '#/tui/components/dialogs/session-picker';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,
@@ -517,13 +517,13 @@ describe('SessionPickerComponent', () => {
     expect(searchOutput).not.toContain('Sessions  (type to search)');
   });
 
-  it('fuzzy-filters by session name only when typing', () => {
+  it('fuzzy-filters across title, last prompt, and working directory when typing', () => {
     const component = new SessionPickerComponent({
       sessions: [
         {
           id: 'ses_alpha',
           title: 'Alpha session',
-          last_prompt: 'needleprompt do not match',
+          last_prompt: 'needleprompt matches via prompt',
           work_dir: '/tmp/needleprompt',
           updated_at: 1,
         },
@@ -559,7 +559,8 @@ describe('SessionPickerComponent', () => {
 
     expect(output).toContain('Search: needle');
     expect(output).toContain('N1e2e3d4l5e session');
-    expect(output).not.toContain('Alpha session');
+    // Prompt and work_dir carry 'needleprompt', so Alpha matches as well.
+    expect(output).toContain('Alpha session');
     expect(output).not.toContain('Beta session');
   });
 
@@ -822,5 +823,168 @@ describe('SessionPickerComponent loading motion', () => {
     const output = renderPlain(component);
     expect(output).toContain('Loaded session');
     expect(output).not.toContain('Loading sessions');
+  });
+});
+
+describe('SessionPickerComponent search coverage and inline rename', () => {
+  const CTRL_R = '\u0012';
+
+  function renameSessions(): SessionRow[] {
+    return [
+      {
+        id: 'ses_one',
+        title: 'Keep me',
+        last_prompt: 'fix the login bug',
+        work_dir: '/tmp/one',
+        updated_at: 1000,
+      },
+      {
+        id: 'ses_two',
+        title: 'Second',
+        last_prompt: 'ship the docs',
+        work_dir: '/tmp/zephyr-app',
+        updated_at: 1000,
+      },
+    ];
+  }
+
+  function pickerWithRename(
+    onRename: (session: SessionRow, newTitle: string) => Promise<void> | void = vi.fn(),
+  ): SessionPickerComponent {
+    return new SessionPickerComponent({
+      sessions: renameSessions(),
+      loading: false,
+      currentSessionId: '',
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+      onRename,
+    });
+  }
+
+  it('search matches the last prompt, not just the title', () => {
+    const component = pickerWithRename();
+
+    for (const ch of 'login') component.handleInput(ch);
+
+    const output = renderPlain(component);
+    expect(output).toContain('Keep me');
+    expect(output).not.toContain('Second');
+  });
+
+  it('search matches the working directory', () => {
+    const component = pickerWithRename();
+
+    for (const ch of 'zephyr') component.handleInput(ch);
+
+    const output = renderPlain(component);
+    expect(output).toContain('Second');
+    expect(output).not.toContain('Keep me');
+  });
+
+  it('advertises Ctrl+R rename in the hint only when onRename is provided', () => {
+    expect(renderPlain(pickerWithRename())).toContain('Ctrl+R rename');
+
+    const plain = new SessionPickerComponent({
+      sessions: renameSessions(),
+      loading: false,
+      currentSessionId: '',
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    expect(renderPlain(plain)).not.toContain('Ctrl+R rename');
+  });
+
+  it('Ctrl+R opens the inline rename editor prefilled with the current title', () => {
+    const component = pickerWithRename();
+
+    component.handleInput(CTRL_R);
+
+    const output = renderPlain(component);
+    expect(output).toContain('Rename: Keep me');
+    expect(output).toContain('Enter save · Esc cancel · Backspace edit');
+    expect(output).toContain('id ses_one');
+  });
+
+  it('routes typing to the draft, not the search query, while renaming', () => {
+    const component = pickerWithRename();
+
+    component.handleInput(CTRL_R);
+    component.handleInput('z');
+
+    const output = renderPlain(component);
+    expect(output).toContain('Rename: Keep mez');
+    expect(output).not.toContain('Search: ');
+  });
+
+  it('Backspace deletes the draft one code point at a time', () => {
+    const component = pickerWithRename();
+
+    component.handleInput(CTRL_R);
+    for (let i = 0; i < 'Keep me'.length; i++) component.handleInput(BACKSPACE);
+    for (const ch of 'New name') component.handleInput(ch);
+
+    expect(renderPlain(component)).toContain('Rename: New name');
+  });
+
+  it('Enter saves via onRename and renders the new title', async () => {
+    const onRename = vi.fn().mockResolvedValue(undefined);
+    const component = pickerWithRename(onRename);
+
+    component.handleInput(CTRL_R);
+    for (let i = 0; i < 'Keep me'.length; i++) component.handleInput(BACKSPACE);
+    for (const ch of 'Renamed!') component.handleInput(ch);
+    component.handleInput('\r');
+
+    expect(onRename).toHaveBeenCalledOnce();
+    expect(onRename.mock.calls[0]![0].id).toBe('ses_one');
+    expect(onRename.mock.calls[0]![1]).toBe('Renamed!');
+    await vi.waitFor(() => {
+      const output = renderPlain(component);
+      expect(output).toContain('Renamed!');
+      expect(output).not.toContain('Rename: ');
+    });
+  });
+
+  it('Esc cancels rename mode without saving and keeps the dialog open', () => {
+    const onRename = vi.fn();
+    const component = pickerWithRename(onRename);
+
+    component.handleInput(CTRL_R);
+    component.handleInput('x');
+    component.handleInput(ESC);
+
+    expect(onRename).not.toHaveBeenCalled();
+    const output = renderPlain(component);
+    expect(output).not.toContain('Rename: ');
+    expect(output).toContain('Keep me');
+  });
+
+  it('keeps the previous title when onRename rejects', async () => {
+    const onRename = vi.fn().mockRejectedValue(new Error('boom'));
+    const component = pickerWithRename(onRename);
+
+    component.handleInput(CTRL_R);
+    for (let i = 0; i < 'Keep me'.length; i++) component.handleInput(BACKSPACE);
+    for (const ch of 'Nope') component.handleInput(ch);
+    component.handleInput('\r');
+
+    await vi.waitFor(() => {
+      expect(renderPlain(component)).toContain('Keep me');
+    });
+    expect(renderPlain(component)).not.toContain('Nope');
+  });
+
+  it('does not call onRename for an empty or unchanged title', () => {
+    const onRename = vi.fn();
+    const component = pickerWithRename(onRename);
+
+    component.handleInput(CTRL_R);
+    for (let i = 0; i < 'Keep me'.length; i++) component.handleInput(BACKSPACE);
+    component.handleInput('\r');
+    expect(onRename).not.toHaveBeenCalled();
+
+    component.handleInput(CTRL_R);
+    component.handleInput('\r');
+    expect(onRename).not.toHaveBeenCalled();
   });
 });

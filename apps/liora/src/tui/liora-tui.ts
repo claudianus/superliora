@@ -4889,6 +4889,8 @@ export class LioraTUI {
         onCancel: options.onCancel,
         onCtrlC: options.onCtrlC,
         onCtrlD: options.onCtrlD,
+        onRename: (session: SessionRow, newTitle: string) =>
+          this.renameSessionFromPicker(session, newTitle),
         onToggleScope: (selectedSessionId: string) => {
           void this.toggleSessionPickerScope(selectedSessionId);
         },
@@ -4915,6 +4917,34 @@ export class LioraTUI {
       this.applyStartupPermissionAndPlanToAppState();
     }
     this.hideSessionPicker();
+  }
+
+  /**
+   * Rename a session straight from the picker (Ctrl+R). Mirrors the `/title`
+   * command's cap and error handling, then patches the cached picker rows so
+   * the new title shows without a refetch. Rethrows so the picker keeps the
+   * old title on failure.
+   */
+  private async renameSessionFromPicker(session: SessionRow, newTitle: string): Promise<void> {
+    const title = newTitle.slice(0, 200);
+    try {
+      await this.harness.renameSession({ id: session.id, title });
+    } catch (error) {
+      this.showError(`Failed to rename session: ${formatErrorMessage(error)}`);
+      throw error;
+    }
+    const index = this.state.sessions.findIndex((row) => row.id === session.id);
+    if (index >= 0) {
+      const previous = this.state.sessions[index];
+      if (previous !== undefined) {
+        this.state.sessions[index] = { ...previous, title };
+      }
+    }
+    if (session.id === this.state.appState.sessionId) {
+      this.setAppState({ sessionTitle: title });
+      this.updateTerminalTitle();
+    }
+    this.showStatus(`Session renamed to: ${title}`);
   }
 
   private showApprovalPanel(payload: ApprovalPanelData): void {
