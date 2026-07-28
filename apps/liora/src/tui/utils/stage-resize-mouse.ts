@@ -265,8 +265,20 @@ function applyPointerShape(state: TUIState, shape: KittyPointerShape | undefined
     popPointerShape(state.terminal);
     return;
   }
+  // The Kitty pointer shape protocol (OSC 22) is stack-based: each push adds
+  // an entry, and each pop removes one. When switching between resize shapes
+  // (e.g. ew-resize → ns-resize while moving around a corner), we must pop
+  // the previous shape before pushing the new one. Otherwise the stack grows
+  // and a single pop on hover-off leaves a stale shape active, leaving the
+  // cursor stuck in a resize form.
+  if (activePointerShape !== undefined) {
+    try {
+      state.terminal.write(ANSI_POP_POINTER_SHAPE);
+    } catch {
+      // Never let pointer shape OSC take down the input path.
+    }
+  }
   try {
-    // Push replaces the previous shape; no need to pop first.
     state.terminal.write(ansiPushPointerShape(shape));
     activePointerShape = shape;
   } catch {
