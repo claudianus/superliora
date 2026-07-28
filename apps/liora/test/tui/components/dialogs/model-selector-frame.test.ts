@@ -9,6 +9,7 @@ import type { RendererCell, RendererRegionLine } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
+import { advanceAppearanceAnimationClock } from '#/tui/utils/appearance-effects';
 import { createTUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';
 
@@ -88,6 +89,11 @@ describe('model selector native frame ANSI safety', () => {
     process.env['TERM'] = 'xterm-256color';
     delete process.env['NO_COLOR'];
     delete process.env['CI'];
+    // Pin the shared appearance clock. With motion allowed (CI/NO_COLOR cleared
+    // above), the premium headline sparkle replaces spaces in "Select a model"
+    // with particle glyphs on wall-clock ticks, which used to flip these
+    // assertions between runs. t=0 sits well inside a sparkle-free window.
+    advanceAppearanceAnimationClock(0);
   });
 
   afterEach(() => {
