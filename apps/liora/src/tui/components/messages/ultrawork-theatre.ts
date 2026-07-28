@@ -16,8 +16,10 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme, type ColorToken } from '#/tui/theme';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderParticleRail,
+  renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -104,6 +106,10 @@ export class UltraworkTheatreComponent implements Component {
     'learn',
   ] as const;
 
+  // Arms the stage-line settle cue on first sight and on every real phase
+  // change; ambient re-renders read it but never restart it.
+  private stageChangedAtMs = appearanceAnimationNow();
+
   constructor(initialEvent: UltraworkTheatreEvent) {
     this.applyEvent(initialEvent);
   }
@@ -120,7 +126,10 @@ export class UltraworkTheatreComponent implements Component {
       case 'ultrawork.stage.changed':
         this.run = event.run;
         this.objective = event.run.objective;
-        this.stage = event.to;
+        if (event.to !== this.stage) {
+          this.stage = event.to;
+          this.stageChangedAtMs = appearanceAnimationNow();
+        }
         break;
       case 'ultrawork.research.started':
         this.objective ??= event.topic;
@@ -207,7 +216,7 @@ export class UltraworkTheatreComponent implements Component {
     const objective = this.objective ?? this.run?.objective ?? 'pending';
     const lines = [
       this.plainLine(objective, width, 'text'),
-      this.plainLine(this.stageProgressLine(), width, 'textDim'),
+      this.renderStageProgressLine(width),
       this.plainLine(this.progressSummary(), width, 'textDim'),
     ];
     // Debate streaming: show recent debate turns and user steering
@@ -238,6 +247,16 @@ export class UltraworkTheatreComponent implements Component {
     const progressBar = '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
     const stageLabel = currentStage.replaceAll('_', ' ');
     return `${progressBar} ${stageLabel} (${currentIndex + 1}/${totalStages})`;
+  }
+
+  /**
+   * Stage line with a bounded settle flash on entrance and phase change.
+   * Rests on the same `textDim` bytes as the old static line; off / SSH /
+   * NO_COLOR / CI skip the flash entirely (byte-identical static).
+   */
+  private renderStageProgressLine(width: number): string {
+    const text = truncateToWidth(this.stageProgressLine(), width, '…');
+    return renderToneSettleFlash(text, 'ultrawork:theatre:stage', this.stageChangedAtMs, 'textDim');
   }
 
   private progressSummary(): string {

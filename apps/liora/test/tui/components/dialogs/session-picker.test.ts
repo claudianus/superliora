@@ -1,7 +1,14 @@
 import { visibleWidth } from '#/tui/renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionPickerComponent } from '#/tui/components/dialogs/session-picker';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 function stripAnsi(text: string): string {
   return text.replaceAll(/\[[0-?]*[ -/]*[@-~]/g, '');
@@ -711,5 +718,109 @@ describe('SessionPickerComponent', () => {
 
     expect(onToggleScope).toHaveBeenCalledOnce();
     expect(onToggleScope).toHaveBeenCalledWith('ses_beta');
+  });
+});
+
+describe('SessionPickerComponent loading motion', () => {
+  const previousEnv = {
+    TERM: process.env['TERM'],
+    CI: process.env['CI'],
+    NO_COLOR: process.env['NO_COLOR'],
+    SSH_TTY: process.env['SSH_TTY'],
+    SSH_CONNECTION: process.env['SSH_CONNECTION'],
+    SSH_CLIENT: process.env['SSH_CLIENT'],
+  };
+
+  function loadingComponent(): SessionPickerComponent {
+    return new SessionPickerComponent({
+      sessions: [],
+      loading: true,
+      currentSessionId: '',
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+  }
+
+  function hintLineOf(output: string[]): string {
+    const line = output.find((row) => row.includes('Loading sessions'));
+    expect(line).toBeDefined();
+    return line!;
+  }
+
+  beforeEach(() => {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium' as const,
+      particles: 'premium' as const,
+    });
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
+  it('cycles a shimmer prefix on the loading line while sessions scan', () => {
+    const component = loadingComponent();
+    const hintLines = new Set<string>();
+    for (let tick = 0; tick < 6; tick++) {
+      advanceAppearanceAnimationClock(180 * tick);
+      hintLines.add(hintLineOf(component.render(120)));
+    }
+    expect(hintLines.size).toBeGreaterThan(1);
+    for (const line of hintLines) {
+      expect(stripAnsi(line)).toContain('Loading sessions...');
+    }
+  });
+
+  it('off profile renders byte-identical static output at any clock', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off' as const,
+      particles: 'off' as const,
+    });
+    const component = loadingComponent();
+
+    advanceAppearanceAnimationClock(0);
+    const a = component.render(120);
+    advanceAppearanceAnimationClock(54_321);
+    const b = component.render(120);
+
+    expect(a).toEqual(b);
+    expect(stripAnsi(a.join('\n'))).toContain('Loading sessions...');
+  });
+
+  it('settles to the static list once loading completes', () => {
+    const now = new Date('2026-05-11T12:00:00.000Z').getTime();
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    const component = new SessionPickerComponent({
+      sessions: [
+        {
+          id: 'ses_done',
+          title: 'Loaded session',
+          work_dir: '/tmp/project',
+          updated_at: now - 1000,
+        },
+      ],
+      loading: false,
+      currentSessionId: '',
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    const output = renderPlain(component);
+    expect(output).toContain('Loaded session');
+    expect(output).not.toContain('Loading sessions');
   });
 });
