@@ -12,6 +12,7 @@ import {
   renderShimmerPrefix,
 } from '#/tui/utils/appearance-effects';
 import {SearchableList} from '#/tui/utils/searchable-list';
+import {isPrintableChar, printableChar} from '#/tui/utils/printable-key';
 
 export interface SessionRow {
   readonly id: string;
@@ -73,8 +74,15 @@ function singleLine(text: string): string {
 }
 
 function sessionSearchText(session: SessionRow): string {
-  return singleLine((session.title ?? session.id).trim() || session.id);
+  // Match against the title, the last prompt, and the working directory so a
+  // session can be found by what was asked or where it ran — not only by name.
+  return singleLine(
+    [session.title ?? session.id, session.last_prompt ?? '', session.work_dir].join(' '),
+  );
 }
+
+/** Same cap as the `/title` command keeps server-side. */
+const MAX_TITLE_LENGTH = 200;
 
 export class SessionPickerComponent extends Container implements Focusable {
   private sessions: SessionRow[];
@@ -88,6 +96,10 @@ export class SessionPickerComponent extends Container implements Focusable {
   private scope: 'cwd' | 'all';
   private loading: boolean;
   private list: SearchableList<SessionRow>;
+  private onRename?: (session: SessionRow, newTitle: string) => Promise<void> | void;
+  /** Non-null while the inline rename editor owns the keyboard. */
+  private renaming: {sessionId: string; draft: string} | null = null;
+  private renamePending = false;
 
   focused = false;
 
@@ -103,6 +115,12 @@ export class SessionPickerComponent extends Container implements Focusable {
     onCtrlC?: () => void;
     onCtrlD?: () => void;
     onToggleScope?: (selectedSessionId: string) => void;
+    /**
+     * Persist a new title for the given session. Rejecting (or throwing)
+     * signals failure — the picker keeps the previous title and assumes the
+     * host already surfaced the error.
+     */
+    onRename?: (session: SessionRow, newTitle: string) => Promise<void> | void;
     maxVisibleSessions?: number;
   }) {
     super();
@@ -113,6 +131,7 @@ export class SessionPickerComponent extends Container implements Focusable {
     this.onSelect = opts.onSelect;
     this.onCancel = opts.onCancel;
     this.onToggleScope = opts.onToggleScope;
+    this.onRename = opts.onRename;
     this.maxVisibleSessions = opts.maxVisibleSessions ?? 4;
     this.pageSize = Math.max(1, opts.pageSize ?? 50);
     const initialIndex = this.resolveInitialSelectedIndex(opts.initialSelectedSessionId);
@@ -168,8 +187,16 @@ export class SessionPickerComponent extends Container implements Focusable {
       this.onCtrlD?.();
       return;
     }
+    if (this.renaming !== null) {
+      this.handleRenameInput(data);
+      return;
+    }
     if (matchesKey(data, Key.ctrl('a'))) {
       this.onToggleScope?.(this.list.selected()?.id ?? this.currentSessionId);
+      return;
+    }
+    if (matchesKey(data, Key.ctrl('r'))) {
+      this.beginRename();
       return;
     }
     if (matchesKey(data, Key.escape)) {
@@ -190,6 +217,72 @@ export class SessionPickerComponent extends Container implements Focusable {
     if (this.list.handleKey(data)) {
       this.syncVisibleCount(previousQuery);
     }
+  }
+
+  private beginRename(): void {
+    if (this.onRename === undefined || this.loading || this.renamePending) return;
+    const selected = this.list.selected();
+    if (selected === undefined) return;
+    this.renaming = {sessionId: selected.id, draft: selected.title ?? ''};
+  }
+
+  private handleRenameInput(data: string): void {
+    const renaming = this.renaming;
+    if (renaming === null) return;
+    if (matchesKey(data, Key.escape)) {
+      this.renaming = null;
+      return;
+    }
+    if (matchesKey(data, Key.enter)) {
+      void this.commitRename(renaming);
+      return;
+    }
+    if (matchesKey(data, Key.backspace)) {
+      // Operate on code points so astral characters delete in one keystroke.
+      const chars = [...renaming.draft];
+      chars.pop();
+      renaming.draft = chars.join('');
+      return;
+    }
+    const ch = printableChar(data);
+    if (isPrintableChar(ch) && renaming.draft.length < MAX_TITLE_LENGTH) {
+      renaming.draft += ch;
+    }
+  }
+
+  private async commitRename(renaming: {sessionId: string; draft: string}): Promise<void> {
+    const newTitle = singleLine(renaming.draft).slice(0, MAX_TITLE_LENGTH);
+    this.renaming = null;
+    const session = this.sessions.find((item) => item.id === renaming.sessionId);
+    if (session === undefined || this.onRename === undefined) return;
+    if (newTitle.length === 0 || newTitle === (session.title ?? '')) return;
+    this.renamePending = true;
+    try {
+      await this.onRename(session, newTitle);
+      this.applyRenamedTitle(session.id, newTitle);
+    } catch {
+      // The host surfaced the failure; keep the previous title.
+    } finally {
+      this.renamePending = false;
+    }
+  }
+
+  private applyRenamedTitle(sessionId: string, newTitle: string): void {
+    const index = this.sessions.findIndex((item) => item.id === sessionId);
+    if (index < 0) return;
+    const previous = this.sessions[index];
+    if (previous === undefined) return;
+    this.sessions[index] = {...previous, title: newTitle};
+    // SearchableList items are immutable, so rebuild the search index over the
+    // updated rows. The cursor lands on the renamed row; an active query clears.
+    this.list = new SearchableList({
+      items: this.sessions,
+      toSearchText: sessionSearchText,
+      pageSize: this.pageSize,
+      initialIndex: index,
+      searchable: true,
+    });
+    this.visibleCount = Math.min(this.sessions.length, this.pageSize);
   }
 
   override render(width: number): string[] {
@@ -220,6 +313,10 @@ export class SessionPickerComponent extends Container implements Focusable {
       });
     }
 
+    if (this.renaming !== null) {
+      return this.renderRenameRows(width, title);
+    }
+
     if (this.sessions.length === 0) {
       const hintParts = [scopeHint, 'Esc cancel'].filter(
         (item): item is string => item !== undefined,
@@ -239,6 +336,7 @@ export class SessionPickerComponent extends Container implements Focusable {
       ...(view.query.length > 0 ? ['Backspace clear'] : []),
       '↑↓ navigate',
       scopeHint,
+      ...(this.onRename !== undefined ? ['Ctrl+R rename'] : []),
       'Enter select',
       'Esc cancel',
     ].filter((item): item is string => item !== undefined);
@@ -302,6 +400,32 @@ export class SessionPickerComponent extends Container implements Focusable {
       body,
       footer: footerRows,
       footerTopGap: footerRows.length > 0,
+    });
+  }
+
+  /**
+   * Inline rename editor. Replaces the list body while active; the static
+   * block cursor is a glyph, not an animation, so no clock is involved.
+   */
+  private renderRenameRows(width: number, title: string): string[] {
+    const renaming = this.renaming;
+    if (renaming === null) return [];
+    const session = this.sessions.find((item) => item.id === renaming.sessionId);
+    const draftPart =
+      renaming.draft.length > 0
+        ? currentTheme.fg('text', renaming.draft)
+        : currentTheme.fg('textDim', 'new title');
+    const body: string[] = [
+      currentTheme.fg('primary', 'Rename: ') + draftPart + currentTheme.fg('primary', '▌'),
+    ];
+    if (session !== undefined) {
+      body.push(currentTheme.fg('textMuted', `id ${session.id}`));
+    }
+    return this.renderChromeRows(width, {
+      title,
+      hint: 'Enter save · Esc cancel · Backspace edit',
+      body,
+      footerTopGap: false,
     });
   }
 
