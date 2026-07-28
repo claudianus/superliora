@@ -5,7 +5,12 @@ import type { ModelAlias } from '@superliora/sdk';
 
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
 import { TabbedModelSelectorComponent } from '#/tui/components/dialogs/tabbed-model-selector';
-import type { RendererCell, RendererRegionLine } from '#/tui/renderer';
+import type {
+  RendererCell,
+  RendererFrameRegionContent,
+  RendererLineSource,
+  RendererRegionLine,
+} from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
@@ -80,6 +85,30 @@ function assertNoLeakedSgr(lines: readonly RendererRegionLine[]): void {
   }
 }
 
+/**
+ * Frame regions may carry lazy content — a render callback or a
+ * `RendererLineSource` — so resolve the `RendererFrameRegionContent` union
+ * the same way tui-renderer's internal `resolveRegionContent` does before
+ * asserting on concrete lines.
+ */
+function resolveRegionLines(
+  content: RendererFrameRegionContent,
+  width: number,
+): readonly RendererRegionLine[] {
+  if (typeof content === 'function') return content(width);
+  if (isRendererLineSource(content)) return content.render(width);
+  return content;
+}
+
+function isRendererLineSource(value: unknown): value is RendererLineSource {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'render' in value &&
+    typeof (value as { render?: unknown }).render === 'function'
+  );
+}
+
 describe('model selector native frame ANSI safety', () => {
   const previousChalkLevel = chalk.level;
 
@@ -130,11 +159,12 @@ describe('model selector native frame ANSI safety', () => {
     const regions = buildTUIStateNativeFrameRegions(state, width, height);
     const editor = regions.find((region) => region.id === 'editor');
     expect(editor).toBeDefined();
-    expect(editor!.content.length).toBeGreaterThan(0);
+    const editorLines = resolveRegionLines(editor!.content, width);
+    expect(editorLines.length).toBeGreaterThan(0);
 
-    assertNoLeakedSgr(editor!.content);
+    assertNoLeakedSgr(editorLines);
 
-    const plain = regionPlainText(editor!.content);
+    const plain = regionPlainText(editorLines);
     expect(plain).toContain('Select a model');
     expect(plain).toContain('Kimi K2.6');
     expect(plain).toContain('Thinking');
@@ -171,9 +201,10 @@ describe('model selector native frame ANSI safety', () => {
     const regions = buildTUIStateNativeFrameRegions(state, width, height);
     const editor = regions.find((region) => region.id === 'editor');
     expect(editor).toBeDefined();
-    assertNoLeakedSgr(editor!.content);
+    const editorLines = resolveRegionLines(editor!.content, width);
+    assertNoLeakedSgr(editorLines);
 
-    const plain = regionPlainText(editor!.content);
+    const plain = regionPlainText(editorLines);
     expect(plain).toContain('Select a model');
     expect(plain).toContain('Kimi K2.6');
   });
