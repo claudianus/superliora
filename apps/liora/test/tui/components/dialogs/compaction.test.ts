@@ -460,4 +460,119 @@ describe('CompactionComponent', () => {
       component.dispose();
     }
   });
+
+  it('drives the progress marker and preview cursor on the shared clock (premium)', () => {
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    const base = Date.now();
+    advanceAppearanceAnimationClock(base);
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      component.appendSummaryDelta('streamed summary line\n');
+
+      const progressAt = (clock: number): string => {
+        advanceAppearanceAnimationClock(clock);
+        const line = component
+          .render(120)
+          .find((l) => strip(l).includes('Summarizing conversation'));
+        if (line === undefined) throw new Error('progress line not found');
+        return line;
+      };
+      const p0 = progressAt(base);
+      // 700ms later: the shimmer marker frame and the bar sweep have moved
+      // while the phase label stays — the delta is pure clock-driven motion.
+      const p1 = progressAt(base + 700);
+      expect(strip(p1)).toContain('Summarizing conversation');
+      expect(p1).not.toBe(p0);
+
+      // The preview cursor blinks on the same clock (500ms cadence): solid
+      // on the even epoch boundary, gone half a second later, back at 1s.
+      const previewAt = (clock: number): string => {
+        advanceAppearanceAnimationClock(clock);
+        const line = component
+          .render(120)
+          .map(strip)
+          .find((l) => l.includes('streamed summary line'));
+        if (line === undefined) throw new Error('preview line not found');
+        return line;
+      };
+      expect(previewAt(base)).toContain('▌');
+      expect(previewAt(base + 500)).not.toContain('▌');
+      expect(previewAt(base + 1000)).toContain('▌');
+    } finally {
+      component.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops every progress cue once compaction settles (premium)', () => {
+    enablePremiumAmbient();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    const base = Date.now();
+    advanceAppearanceAnimationClock(base);
+    const component = new CompactionComponent();
+
+    try {
+      component.setPhase('summarizing');
+      component.appendSummaryDelta('partial summary\n');
+      component.markDone(1000, 500);
+
+      // Past the exit beat (640ms): no bar, no shimmer marker, no cursor —
+      // the live surface is gone and never revives on later clocks.
+      advanceAppearanceAnimationClock(base + 800);
+      const settled = component.render(120).map(strip).join('\n');
+      expect(settled).toContain('Compaction complete');
+      expect(settled).not.toMatch(/░|█|▓/);
+      expect(settled).not.toContain('Summarizing conversation');
+      expect(settled).not.toContain('▌');
+
+      advanceAppearanceAnimationClock(base + 2000);
+      const later = component.render(120).map(strip).join('\n');
+      expect(later).not.toMatch(/░|█|▓/);
+      expect(later).not.toContain('▌');
+    } finally {
+      component.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('renders byte-identical progress across clock advances when motion is gated off', () => {
+    // CI=1 is forced at module scope → motionEffectsAllowed() is false.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
+    const base = Date.now();
+    advanceAppearanceAnimationClock(base);
+    const component = new CompactionComponent();
+    try {
+      component.setPhase('summarizing');
+      component.appendSummaryDelta('deterministic line\n');
+      const atT0 = component.render(120);
+      // 5000ms is a whole number of blink periods, so even the pre-existing
+      // clock-derived bullet blink lands on the same phase.
+      advanceAppearanceAnimationClock(base + 5000);
+      expect(component.render(120)).toEqual(atT0);
+    } finally {
+      component.dispose();
+    }
+
+    // NO_COLOR gates motion the same way (with CI cleared).
+    delete process.env['CI'];
+    process.env['NO_COLOR'] = '1';
+    const noColor = new CompactionComponent();
+    try {
+      noColor.setPhase('summarizing');
+      noColor.appendSummaryDelta('deterministic line\n');
+      advanceAppearanceAnimationClock(base);
+      const atT0 = noColor.render(120);
+      advanceAppearanceAnimationClock(base + 5000);
+      expect(noColor.render(120)).toEqual(atT0);
+    } finally {
+      noColor.dispose();
+      vi.useRealTimers();
+    }
+  });
 });

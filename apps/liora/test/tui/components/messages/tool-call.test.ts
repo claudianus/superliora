@@ -2082,6 +2082,136 @@ describe('ToolCallComponent motion cues', () => {
     expect(strip(flashed.join('\n'))).toContain(`${STATUS_BULLET}Used Read`);
   });
 
+  function agentLine(component: ToolCallComponent, needle: string): string {
+    const lines = component.render(100);
+    const index = lines.findIndex((line) => strip(line).includes(needle));
+    return index >= 0 ? (lines[index] ?? '') : lines.join('\n');
+  }
+
+  it('subagent spawn entrance settles once on the single agent card (premium)', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_spawn_entrance_single',
+        name: 'Agent',
+        args: { description: 'explore spawn motion' },
+      },
+      undefined,
+    );
+    // Pin the card's own mount entrance at mount time; it has settled by
+    // the time the spawn arrives 700ms later.
+    component.render(100);
+    const spawnAt = start + 700;
+    vi.setSystemTime(new Date(spawnAt));
+    advanceAppearanceAnimationClock(spawnAt);
+    component.onSubagentSpawned({
+      agentId: 'sub_spawn_single',
+      agentName: 'explore',
+      runInBackground: false,
+    });
+
+    const t0 = agentLine(component, 'Explore Agent');
+    expect(strip(t0)).toContain('Explore Agent Queued');
+    // The spawn settle blends dim chip runs toward a bold truecolor
+    // highlight — the dim+bold+truecolor SGR only occurs while animating.
+    expect(t0).toContain('\u001B[0;1;2;38;2');
+
+    // Past the 280ms settle the highlight is gone — and re-renders at later
+    // clocks never restart it (first-seen guard).
+    vi.setSystemTime(new Date(spawnAt + 400));
+    advanceAppearanceAnimationClock(spawnAt + 400);
+    expect(agentLine(component, 'Explore Agent')).not.toContain('\u001B[0;1;2;38;2');
+    vi.setSystemTime(new Date(spawnAt + 900));
+    advanceAppearanceAnimationClock(spawnAt + 900);
+    expect(agentLine(component, 'Explore Agent')).not.toContain('\u001B[0;1;2;38;2');
+  });
+
+  it('subagent spawn entrance settles on the multi-agent chip row (backgrounded, premium)', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    // Non-Agent tool name → multi-subagent view with the `↳` chip row.
+    const component = new ToolCallComponent(
+      { id: 'call_spawn_entrance_multi', name: 'AgentSwarm', args: {} },
+      undefined,
+    );
+    component.onSubagentSpawned({
+      agentId: 'sub_spawn_multi',
+      agentName: 'worker',
+      // 'backgrounded' has no phase tick of its own — the spawn-entrance
+      // gate must keep rebuilds coming until the highlight settles.
+      runInBackground: true,
+    });
+
+    const chipLine = (clock: number): string => {
+      vi.setSystemTime(new Date(clock));
+      advanceAppearanceAnimationClock(clock);
+      return agentLine(component, '↳ subagent worker');
+    };
+
+    const t0 = chipLine(start);
+    expect(strip(t0)).toContain('↳ subagent worker');
+    expect(t0).toContain('\u001B[0;1;2;38;2');
+
+    // In-window render drives the tick-gated rebuild so the backgrounded
+    // chip row decays even though its phase never ticks on its own.
+    expect(strip(chipLine(start + 300))).toContain('↳ subagent worker');
+
+    // Past the entrance TTL and the transcript wash (560ms) the row is
+    // settled; later re-renders stay settled instead of replaying either.
+    expect(chipLine(start + 700)).not.toContain('\u001B[0;1;2;38;2');
+    expect(chipLine(start + 1200)).not.toContain('\u001B[0;1;2;38;2');
+  });
+
+  it('quality off keeps subagent spawn renders byte-stable (no entrance)', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off' as const,
+      particles: 'off' as const,
+    });
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    // Multi-view card: the single-agent header carries a clock-driven
+    // braille marker that advances even with motion off (pre-existing), so
+    // byte stability is pinned on the chip-row surface this change touches.
+    const component = new ToolCallComponent(
+      { id: 'call_spawn_motion_off', name: 'AgentSwarm', args: {} },
+      undefined,
+    );
+    component.onSubagentSpawned({
+      agentId: 'sub_spawn_off',
+      agentName: 'worker',
+      runInBackground: true,
+    });
+
+    const t0 = component.render(100);
+    vi.setSystemTime(new Date(start + 400));
+    advanceAppearanceAnimationClock(start + 400);
+    expect(component.render(100)).toEqual(t0);
+  });
+
+  it('replayed subagent cards render without the spawn entrance (premium)', () => {
+    const start = Date.now();
+    advanceAppearanceAnimationClock(start);
+    const component = new ToolCallComponent(
+      {
+        id: 'call_spawn_replay',
+        name: 'Agent',
+        args: { description: 'replayed agent' },
+        subagent: { id: 'sub_replay_1', name: 'explore', text: 'done work', toolCalls: [] },
+      },
+      { tool_call_id: 'call_spawn_replay', output: 'agent_id: sub_replay_1', is_error: false },
+    );
+
+    // Past the transcript entrance wash so only a spawn entrance could add
+    // the highlight SGR — replay never calls onSubagentSpawned, so none.
+    vi.setSystemTime(new Date(start + 700));
+    advanceAppearanceAnimationClock(start + 700);
+    const out = component.render(100);
+    expect(strip(out.join('\n'))).toContain('Explore Agent');
+    expect(out.join('\n')).not.toContain('\u001B[0;1;2;38;2');
+  });
+
   describe('staged Write/Edit preview reveal', () => {
     // Collapsed previews cap at COMMAND_PREVIEW_LINES (4) + the "more lines"
     // footer, so the settled Write preview below is 5 reveal items.
