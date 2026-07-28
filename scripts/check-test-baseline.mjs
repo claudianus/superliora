@@ -118,7 +118,7 @@ for (const pkg of baseline.packages) {
   console.log(`[${pkg.dir}] ${totals.passed}/${totals.total} passed, ${failed.length} failed (baseline ${expected.size}, unstable ${unstable.size})`);
   if (regressions.length > 0) {
     problems++;
-    console.error(`  NEW FAILURES (${reggressions.length}) — fix the code, then re-run:`);
+    console.error(`  NEW FAILURES (${regressions.length}) — fix the code, then re-run:`);
     for (const f of regressions) console.error(`    + ${f}`);
   }
   if (fixed.length > 0) {
