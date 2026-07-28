@@ -355,3 +355,171 @@ describe('TodoPanelComponent subagents strip', () => {
     expect(premiumPanel.render(WIDTH)).toBe(settled);
   });
 });
+
+describe('TodoPanelComponent virtual scroll', () => {
+  // 48 terminal rows -> floor(48 / 3) - 6 chrome = 10 board rows viewport.
+  function scrollPanel(): TodoPanelComponent {
+    return new TodoPanelComponent({ terminalRows: () => 48 });
+  }
+
+  function pendingCards(count: number): TodoItem[] {
+    return Array.from({ length: count }, (_, i) =>
+      todo(`c${String(i).padStart(2, '0')}`, 'pending'),
+    );
+  }
+
+  it('windows lanes past the height budget and summarizes hidden cards', () => {
+    advanceAppearanceAnimationClock(700_000);
+    const panel = scrollPanel();
+    panel.setTodos(pendingCards(14));
+
+    const text = stripAnsi(panel.render(WIDTH).join('\n'));
+    for (let i = 0; i < 10; i++) {
+      expect(text).toContain(`c${String(i).padStart(2, '0')}`);
+    }
+    for (let i = 10; i < 14; i++) {
+      expect(text).not.toContain(`c${String(i).padStart(2, '0')}`);
+    }
+    expect(text).toContain('↓ 4 more (4 pending)');
+    expect(text).toContain('ctrl+t to expand');
+    expect(text).not.toContain('↑');
+    expect(panel.getScrollSnapshot()).toEqual({ offset: 0, viewport: 10, total: 14 });
+  });
+
+  it('moves the anchor one row per wheel line delta and pages by viewport', () => {
+    advanceAppearanceAnimationClock(710_000);
+    const panel = scrollPanel();
+    panel.setTodos(pendingCards(14));
+    panel.render(WIDTH);
+
+    // Wheel down tick: the first row scrolls out, the eleventh scrolls in.
+    expect(panel.scrollBoard('line-down')).toBe(true);
+    let text = stripAnsi(panel.render(WIDTH).join('\n'));
+    expect(text).not.toContain('c00');
+    expect(text).toContain('c01');
+    expect(text).toContain('c10');
+    expect(text).toContain('↑ 1 more');
+    expect(text).toContain('↓ 3 more (3 pending)');
+    expect(panel.getScrollSnapshot().offset).toBe(1);
+
+    // Wheel up tick restores the first row.
+    expect(panel.scrollBoard('line-up')).toBe(true);
+    text = stripAnsi(panel.render(WIDTH).join('\n'));
+    expect(text).toContain('c00');
+    expect(text).not.toContain('c10');
+
+    // Keyboard: page-down jumps a viewport minus one (clamped to the end),
+    // page-up back to the top, and bottom / top reach the edges.
+    expect(panel.scrollBoard('page-down')).toBe(true);
+    expect(panel.getScrollSnapshot().offset).toBe(4);
+    expect(panel.scrollBoard('page-up')).toBe(true);
+    expect(panel.getScrollSnapshot().offset).toBe(0);
+    expect(panel.scrollBoard('bottom')).toBe(true);
+    expect(panel.getScrollSnapshot().offset).toBe(4);
+    expect(panel.scrollBoard('top')).toBe(true);
+    expect(panel.getScrollSnapshot().offset).toBe(0);
+  });
+
+  it('reports per-direction hidden counts across uneven lanes', () => {
+    advanceAppearanceAnimationClock(720_000);
+    const panel = scrollPanel();
+    panel.setTodos([...pendingCards(12), todo('d0', 'done'), todo('d1', 'done')]);
+
+    // Offset 0: the pending lane overflows by two; the done lane (2 rows)
+    // fits the viewport, so the floor summary carries no ↑ half.
+    let text = stripAnsi(panel.render(WIDTH).join('\n'));
+    expect(text).toContain('↓ 2 more (2 pending)');
+    expect(text).not.toContain('↑');
+
+    // At the very end nothing hides below. The pending lane hides two
+    // above and the short done lane (rows 0-1) scrolled out entirely, so
+    // the ceiling summary counts four.
+    expect(panel.scrollBoard('bottom')).toBe(true);
+    text = stripAnsi(panel.render(WIDTH).join('\n'));
+    expect(text).toContain('↑ 4 more');
+    expect(text).not.toContain('↓');
+    expect(text).toContain('ctrl+t to expand');
+  });
+
+  it('clamps at both scroll ends and refuses to consume input there', () => {
+    advanceAppearanceAnimationClock(730_000);
+    const panel = scrollPanel();
+    panel.setTodos(pendingCards(14));
+    panel.render(WIDTH);
+
+    expect(panel.scrollBoard('top')).toBe(false);
+    expect(panel.scrollBoard('line-up')).toBe(false);
+    expect(panel.getScrollSnapshot().offset).toBe(0);
+
+    expect(panel.scrollBoard('bottom')).toBe(true);
+    expect(panel.scrollBoard('bottom')).toBe(false);
+    expect(panel.scrollBoard('line-down')).toBe(false);
+    expect(panel.getScrollSnapshot().offset).toBe(4);
+  });
+
+  it('keeps legacy bytes when cards fit the budget or no budget exists', () => {
+    advanceAppearanceAnimationClock(740_000);
+    const cards = pendingCards(4);
+
+    // 4 cards fit any viewport: the windowed panel and the legacy panel
+    // render identical bytes, with no scroll indicator on either.
+    const windowed = new TodoPanelComponent({ terminalRows: () => 48 });
+    windowed.setTodos(cards);
+    const legacy = new TodoPanelComponent();
+    legacy.setTodos(cards);
+    const windowedLines = windowed.render(WIDTH);
+    expect(windowedLines.join('\n')).toBe(legacy.render(WIDTH).join('\n'));
+    expect(stripAnsi(windowedLines.join('\n'))).not.toMatch(/↑|↓|more/);
+
+    // Without a height budget the legacy +N more footer stays, arrow-free.
+    const unbudgeted = new TodoPanelComponent();
+    unbudgeted.setTodos(pendingCards(8));
+    const legacyText = stripAnsi(unbudgeted.render(WIDTH).join('\n'));
+    expect(legacyText).toContain('+3 more (3 pending)');
+    expect(legacyText).not.toMatch(/↑|↓/);
+  });
+
+  it('keeps anchor and indicator bytes stable with quality off', () => {
+    advanceAppearanceAnimationClock(750_000);
+    const panel = scrollPanel();
+    panel.setTodos(pendingCards(14));
+    advanceAppearanceAnimationClock(751_000);
+    expect(panel.scrollBoard('line-down')).toBe(true);
+    expect(panel.scrollBoard('line-down')).toBe(true);
+
+    // CI forces effects off: a scrolled frame memoizes like a resting one,
+    // and the indicator counts match the anchor exactly.
+    const lines = assertSettledFrameStable((renderWidth) => panel.render(renderWidth), {
+      width: WIDTH,
+    });
+    const text = stripAnsi(lines.join('\n'));
+    expect(text).toContain('↑ 2 more');
+    expect(text).toContain('↓ 2 more (2 pending)');
+    expect(text).not.toMatch(/▴|▾/);
+  });
+
+  it('settles #568 move cues after scrolling once the motion window expires', () => {
+    enablePremiumAmbient();
+    advanceAppearanceAnimationClock(760_000);
+    const panel = scrollPanel();
+    const base = pendingCards(12);
+    panel.setTodos(base);
+    advanceAppearanceAnimationClock(762_000);
+    panel.render(WIDTH);
+
+    // Move c00 to the bottom of the pending lane and scroll to the end in
+    // the same beat; the moved card stays inside the window.
+    panel.setTodos([...base.slice(1), todo('c00', 'pending')]);
+    expect(panel.scrollBoard('bottom')).toBe(true);
+    expect(stripAnsi(panel.render(WIDTH).join('\n'))).toContain('c00');
+
+    // Past the move / flash window the board settles: no directional glyphs
+    // and resting bytes memoize again, scroll offset included.
+    advanceAppearanceAnimationClock(762_000 + SETTLE_FLASH_MS * 3);
+    const settled = panel.render(WIDTH);
+    const settledText = stripAnsi(settled.join('\n'));
+    expect(settledText).not.toMatch(/▴|▾/);
+    expect(settledText).toContain('c00');
+    expect(panel.render(WIDTH)).toBe(settled);
+  });
+});

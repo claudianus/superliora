@@ -9,6 +9,8 @@ import {
   NativeTerminalSession,
   type Component,
   type Focusable,
+  type NativeInputEvent,
+  type NativeInputKey,
   Spacer,
 } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
@@ -70,6 +72,7 @@ import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
 import { IdleStageComponent } from './components/chrome/idle-stage';
 import { SplashComponent, shouldPlaySplash } from './components/chrome/splash';
+import type { TodoBoardScrollAction } from './components/chrome/todo-panel';
 import { buildSplashMorphScene } from './utils/splash-reveal-preview';
 import { WelcomeComponent } from './components/chrome/welcome';
 import { pickRandomWorkingTip, tipText } from './components/chrome/working-tips';
@@ -253,7 +256,7 @@ import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
 import { resolveTranscriptEntryLineOffset } from './utils/transcript-entry-layout';
-import { resolveTranscriptHitTestContext } from './utils/transcript-hit-test';
+import { resolveTranscriptHitTestContext, getTUIStateNativeTodoRect } from './utils/transcript-hit-test';
 import {
   TRANSCRIPT_EXPAND_TURNS,
   TRANSCRIPT_HYSTERESIS,
@@ -1022,9 +1025,13 @@ export class LioraTUI {
   private ensureNativeInputRouter(): void {
     this.nativeInputRouter ??= createTUIStateNativeInputRouter(this.state, {
       scrollTranscriptViewport: (action) => this.scrollTranscriptViewport(action),
+      scrollTodoPanel: (event) => this.scrollTodoPanelAtMouse(event),
       // App shortcuts (especially `?` → Hub) must run before native text mutation.
       handlePreEditorInput: (event) => {
         if (event.type !== 'key' || event.eventType === 'release') return false;
+        // Alt+navigation scrolls the todo board while it overflows; when the
+        // board cannot scroll the event keeps its previous editor meaning.
+        if (event.alt && this.scrollTodoPanelByKey(event.key)) return true;
         const legacy = encodeNativeInputAsLegacySequence(event);
         if (legacy === undefined) return false;
         return this.state.editor.tryHandleAppShortcut?.(legacy) === true;
@@ -1466,6 +1473,70 @@ export class LioraTUI {
     const changed = applyTranscriptViewportScroll(this.state.transcriptViewport, action);
     if (changed) requestTUIScrollRender(this.state);
     return changed;
+  }
+
+  /**
+   * Wheel scrolls that land on the todo board move the board's viewport.
+   * Returns false when the pointer is outside the board or the board has
+   * no overflow to scroll, so the transcript viewport keeps its current
+   * behavior for every other wheel event.
+   */
+  private scrollTodoPanelAtMouse(event: NativeInputEvent): boolean {
+    if (event.type !== 'mouse') return false;
+    const rect = getTUIStateNativeTodoRect(this.state);
+    if (rect === undefined) return false;
+    if (
+      event.x < rect.x ||
+      event.x >= rect.x + rect.width ||
+      event.y < rect.y ||
+      event.y >= rect.y + rect.height
+    ) {
+      return false;
+    }
+    const action: TodoBoardScrollAction | undefined =
+      event.button === 'wheel-up'
+        ? 'line-up'
+        : event.button === 'wheel-down'
+          ? 'line-down'
+          : undefined;
+    if (action === undefined) return false;
+    if (!this.state.todoPanel.scrollBoard(action)) return false;
+    requestTUILayoutRender(this.state);
+    return true;
+  }
+
+  /**
+   * Alt+↑/↓ scrolls the board one row; Alt+PageUp/PageDown page it;
+   * Alt+Home/End jump to the edges. Only consumed while the board actually
+   * moves, so unbound alt keys keep reaching the editor untouched.
+   */
+  private scrollTodoPanelByKey(key: NativeInputKey): boolean {
+    let action: TodoBoardScrollAction | undefined;
+    switch (key) {
+      case 'up':
+        action = 'line-up';
+        break;
+      case 'down':
+        action = 'line-down';
+        break;
+      case 'pageup':
+        action = 'page-up';
+        break;
+      case 'pagedown':
+        action = 'page-down';
+        break;
+      case 'home':
+        action = 'top';
+        break;
+      case 'end':
+        action = 'bottom';
+        break;
+      default:
+        return false;
+    }
+    if (!this.state.todoPanel.scrollBoard(action)) return false;
+    requestTUILayoutRender(this.state);
+    return true;
   }
 
   // Footer is the only chrome with content before a session is ready, so

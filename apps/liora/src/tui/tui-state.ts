@@ -119,6 +119,12 @@ export interface TUIState {
   cachedTranscriptRows?: number;
   cachedTranscriptLineCount?: number;
   /**
+   * Cached todo board region rect from the same stage plan that fills the
+   * transcript cache above. Wheel events hit-test against it so scrolls
+   * landing on the board move the board, not the transcript.
+   */
+  cachedTodoRect?: RendererRect;
+  /**
    * User-chosen stage size from a corner/edge drag-resize. When set, the stage
    * holds this size (clamped to the terminal) instead of the responsive reading
    * cap. `undefined` = follow the default cap.
@@ -159,7 +165,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   );
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
-  const todoPanel = new TodoPanelComponent();
+  const todoPanel = new TodoPanelComponent({ terminalRows: () => terminal.rows });
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const btwPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editorContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);

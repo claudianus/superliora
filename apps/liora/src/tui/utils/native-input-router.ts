@@ -21,6 +21,7 @@ import type { TranscriptScrollAction } from './transcript-viewport';
 export const TUI_NATIVE_EDITOR_INPUT_TARGET_ID = 'editor';
 const TUI_NATIVE_STAGE_RESIZE_HANDLER_ID = 'stage-resize';
 const TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID = 'transcript-selection';
+const TUI_NATIVE_TODO_SCROLL_HANDLER_ID = 'todo-scroll';
 const TUI_NATIVE_TRANSCRIPT_SCROLL_HANDLER_ID = 'transcript-scroll';
 
 export interface NativeLegacyInputTarget {
@@ -44,6 +45,15 @@ export interface TUIStateNativeInputRouterOptions {
   readonly handlePreEditorInput?: (event: NativeInputEvent) => boolean;
   readonly requestRender?: boolean;
   readonly scrollTranscriptViewport?: (action: TranscriptScrollAction) => boolean;
+  /**
+   * Offered wheel events before the transcript viewport consumes them.
+   * The callback hit-tests the pointer against the todo board and scrolls
+   * it; returning true consumes the event. Returning false (pointer
+   * elsewhere, board at rest / not windowed) lets the transcript scroll
+   * handler run exactly as before. Like the transcript callback, the
+   * handler owns its own render request.
+   */
+  readonly scrollTodoPanel?: (event: NativeInputEvent) => boolean;
 }
 
 export class TUIStateNativeInputRouter {
@@ -92,6 +102,21 @@ export class TUIStateNativeInputRouter {
         },
       }),
     );
+    if (options.scrollTodoPanel !== undefined) {
+      // Registered before transcript scroll: global handlers dispatch in
+      // registration order and the first one that handles wins, so wheel
+      // ticks over the board move the board while every other wheel event
+      // still falls through to the transcript viewport.
+      this.disposers.push(
+        this.router.registerGlobalHandler({
+          id: TUI_NATIVE_TODO_SCROLL_HANDLER_ID,
+          onInput: (event) => {
+            if (event.type !== 'mouse' || event.action !== 'wheel') return false;
+            return options.scrollTodoPanel?.(event) === true;
+          },
+        }),
+      );
+    }
     if (options.scrollTranscriptViewport !== undefined) {
       this.disposers.push(
         this.router.registerGlobalHandler({
