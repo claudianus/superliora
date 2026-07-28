@@ -329,7 +329,13 @@ export class ResearchSearchEngine implements WebSearchProvider {
       fusion = fuseSearchResults(batches, query, limit);
     }
 
-    if (this.freeFallback && needsSearchEscalation(fusion, targetCount)) {
+    // If no remote calls were made (e.g., no remote slots available), always try free slots
+    // regardless of freeFallback setting to avoid returning empty results.
+    const shouldTryFree =
+      (this.freeFallback && needsSearchEscalation(fusion, targetCount)) ||
+      (initial.length === 0 && free.length > 0);
+
+    if (shouldTryFree) {
       for (const slot of free) {
         batches.push({
           providerId: slot.id,

@@ -763,6 +763,8 @@ export class ToolCallComponent extends Container {
   private liveOutputTruncated = false;
   private toolOutputViewport: ToolOutputViewportComponent | undefined;
   private toolOutputViewportState = createToolOutputViewportState();
+  private toolOutputHovered = false;
+  private toolOutputDragging = false;
 
   /**
    * Advertises `Ctrl+B` on a foreground Bash/Agent card that has been running
@@ -1008,10 +1010,12 @@ export class ToolCallComponent extends Container {
   }
 
   setToolOutputHovered(hovered: boolean): void {
+    this.toolOutputHovered = hovered;
     this.toolOutputViewport?.setHovered(hovered);
   }
 
   setToolOutputDragging(dragging: boolean): void {
+    this.toolOutputDragging = dragging;
     this.toolOutputViewport?.setDragging(dragging);
   }
 
@@ -2007,6 +2011,9 @@ export class ToolCallComponent extends Container {
       expanded: this.expanded,
       initialFollowEnd,
     });
+    // Restore hover/drag state after viewport rebuild
+    viewport.setHovered(this.toolOutputHovered);
+    viewport.setDragging(this.toolOutputDragging);
     this.toolOutputViewport = viewport;
     this.addChild(viewport);
   }

@@ -71,10 +71,10 @@ describe('tool-result registry', () => {
     expect(out).toContain('... (2 more lines, ctrl+o to expand)');
   });
 
-  it('uses truncated renderer for Bash to preserve raw output UX', () => {
+  it('renders Bash command before truncated output to preserve visibility', () => {
     const renderer = pickResultRenderer('Bash');
-    const out = strip(joinRender(renderer(call('Bash'), result('one\ntwo\nthree\nfour'), ctx)));
-    expect(renderer).toBe(renderTruncated);
+    const out = strip(joinRender(renderer(call('Bash', { command: 'ls -la' }), result('one\ntwo\nthree\nfour'), ctx)));
+    expect(out).toContain('$ ls -la');
     expect(out).toContain('one');
     expect(out).toContain('... (1 more lines, ctrl+o to expand)');
   });

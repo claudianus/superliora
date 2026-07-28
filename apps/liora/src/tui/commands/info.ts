@@ -29,7 +29,7 @@ import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { formatErrorMessage } from '../utils/event-payload';
-import { type LoopModelRoutingConfig } from '../utils/loop-model-routing';
+import { type LoopModelRoutingConfig } from '#/tui/utils/loop-model-routing';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { isMotionTheatreActive } from '../utils/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';

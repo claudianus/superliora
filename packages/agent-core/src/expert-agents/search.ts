@@ -125,7 +125,7 @@ export class ExpertSearchEngine {
     let results = fused
       .map((result) => ({
         ...result,
-        score: applyTaskProfileScore(result, taskProfile, options),
+        score: applyTaskProfileScore(result, taskProfile, options, normalizedDivision),
       }))
       .filter((result) => result.score >= minScore)
       .sort((a, b) => b.score - a.score);
@@ -270,12 +270,13 @@ function applyTaskProfileScore(
   result: ExpertSearchResult,
   taskProfile: ExpertTaskProfile,
   options: ExpertSearchOptions,
+  normalizedDivision: string | undefined,
 ): number {
   let score = result.score;
   const division = result.expert.division;
   if (taskProfile.preferredDivisions.includes(division)) score *= 1.35;
   if (taskProfile.excludedDivisions.includes(division)) score *= 0.12;
-  if (options.division !== undefined && division === options.division) score *= 1.2;
+  if (normalizedDivision !== undefined && division.toLowerCase() === normalizedDivision) score *= 1.2;
   // Staffing outcome prior (MVP): light multiplicative boost from hire history.
   score *= staffingOutcomeScoreBoost(result.expert.id);
   return score;

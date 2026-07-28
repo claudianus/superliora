@@ -34,6 +34,10 @@ export class ToolOutputViewportComponent implements Component {
   private dragging = false;
   private lastRenderedRows = 0;
   private lastOverflow = false;
+  // child render cache: 같은 width와 invalidate가 없으면 재사용
+  private cachedChildWidth = -1;
+  private cachedChildLines: string[] = [];
+  private cachedChildInvalid = true;
 
   constructor(options: ToolOutputViewportComponentOptions) {
     this.child = options.child;
@@ -89,19 +93,35 @@ export class ToolOutputViewportComponent implements Component {
 
   invalidate(): void {
     this.child.invalidate?.();
+    this.cachedChildInvalid = true;
   }
 
   render(width: number): string[] {
     const safeWidth = Math.max(1, Math.floor(width));
     let contentWidth = safeWidth;
-    let lines = this.child.render(contentWidth);
-    let state = this.syncContentRows(lines.length);
+    let lines: string[];
 
-    if (!this.expanded && lines.length > state.height && safeWidth > 1) {
-      contentWidth = safeWidth - 1;
-      lines = this.child.render(contentWidth);
-      state = this.syncContentRows(lines.length);
+    if (!this.expanded && safeWidth > 1) {
+      // collapsed 상태: rail 공간을 위해 safeWidth - 1로 render하되 cache 활용
+      const collapsedWidth = safeWidth - 1;
+      if (this.cachedChildInvalid || this.cachedChildWidth !== collapsedWidth) {
+        this.cachedChildLines = this.child.render(collapsedWidth);
+        this.cachedChildWidth = collapsedWidth;
+        this.cachedChildInvalid = false;
+      }
+      contentWidth = collapsedWidth;
+      lines = this.cachedChildLines;
+    } else {
+      // expanded 상태: full width로 render하되 cache 활용
+      if (this.cachedChildInvalid || this.cachedChildWidth !== safeWidth) {
+        this.cachedChildLines = this.child.render(safeWidth);
+        this.cachedChildWidth = safeWidth;
+        this.cachedChildInvalid = false;
+      }
+      lines = this.cachedChildLines;
     }
+
+    const state = this.syncContentRows(lines.length);
 
     const projection = projectToolOutputViewport(state, this.expanded);
     const visible = lines.slice(projection.startRow, projection.endRow);
