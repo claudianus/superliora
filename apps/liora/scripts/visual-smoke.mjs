@@ -20,8 +20,13 @@ const COLS = 120;
 const ROWS = 32;
 const SETTLE_MS = 4_000;
 const STEP_MS = 600;
+const STATUS_SETTLE_MS = 1_000;
+const STRESS_STEP_MS = 35;
+const STRESS_SETTLE_MS = 800;
 const EXIT_GRACE_MS = 8_000;
 const PROMPT_TEXT = 'hello visual smoke';
+const WHEEL_UP = '\x1b[<64;60;15M';
+const WHEEL_DOWN = '\x1b[<65;60;15M';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -30,6 +35,51 @@ function stripAnsi(text) {
     .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '')
     .replace(/\x1b\][^\u0007]*(\u0007|\x1b\\)/g, '')
     .replace(/\x1b[=>]/g, '');
+}
+
+function countOccurrences(text, needle) {
+  let count = 0;
+  let offset = 0;
+  while ((offset = text.indexOf(needle, offset)) !== -1) {
+    count++;
+    offset += needle.length;
+  }
+  return count;
+}
+
+function countEraseDisplays(text) {
+  return (
+    countOccurrences(text, '\x1b[2J') +
+    countOccurrences(text, '\x1b[3J') +
+    countOccurrences(text, '\x1b[0J')
+  );
+}
+
+function inspectSynchronizedFrames(text) {
+  const begin = '\x1b[?2026h';
+  const end = '\x1b[?2026l';
+  const bodies = [];
+  let outside = '';
+  let offset = 0;
+
+  while (offset < text.length) {
+    const beginOffset = text.indexOf(begin, offset);
+    if (beginOffset === -1) {
+      outside += text.slice(offset);
+      break;
+    }
+    outside += text.slice(offset, beginOffset);
+    const bodyOffset = beginOffset + begin.length;
+    const endOffset = text.indexOf(end, bodyOffset);
+    if (endOffset === -1) {
+      outside += text.slice(beginOffset);
+      return { balanced: false, bodies, outside };
+    }
+    bodies.push(text.slice(bodyOffset, endOffset));
+    offset = endOffset + end.length;
+  }
+
+  return { balanced: true, bodies, outside };
 }
 
 async function main() {
@@ -61,10 +111,27 @@ async function main() {
     pty.onExit((event) => resolve(event));
   });
 
-  // Let the initial screen paint, then drive a minimal scenario.
+  // Let the initial screen paint, then create a real transcript surface.
   await sleep(SETTLE_MS);
   pty.write(PROMPT_TEXT);
   await sleep(STEP_MS);
+  pty.write('\u0015'); // Ctrl-U: clear the editor before the local command.
+  pty.write('/status\r');
+  await sleep(STATUS_SETTLE_MS);
+
+  // Exercise resize and high-rate SGR wheel input against the live PTY. The
+  // stress segment excludes initial alternate-screen setup. Resize may erase
+  // the display, but that erase must stay inside a synchronized redraw frame.
+  const stressStart = frames.length;
+  for (let index = 0; index < 12; index++) {
+    const narrow = index % 2 === 0;
+    pty.resize(narrow ? 96 : 132, narrow ? 27 : 36);
+    pty.write((narrow ? WHEEL_DOWN : WHEEL_UP).repeat(8));
+    await sleep(STRESS_STEP_MS);
+  }
+  await sleep(STRESS_SETTLE_MS);
+  const stressFrames = frames.slice(stressStart);
+
   pty.write('\u0003'); // Ctrl-C: interrupt/cancel
   await sleep(STEP_MS);
   pty.write('\u0003'); // Ctrl-C again: exit
@@ -82,10 +149,23 @@ async function main() {
   await rm(home, { recursive: true, force: true });
 
   const plain = stripAnsi(frames);
+  const stressSyncStarts = countOccurrences(stressFrames, '\x1b[?2026h');
+  const stressSyncEnds = countOccurrences(stressFrames, '\x1b[?2026l');
+  const stressEraseDisplays = countEraseDisplays(stressFrames);
+  const stressInspection = inspectSynchronizedFrames(stressFrames);
+  const outsideEraseDisplays = countEraseDisplays(stressInspection.outside);
+  const eraseTransactions = stressInspection.bodies.filter((body) => countEraseDisplays(body) > 0);
+  const eraseTransactionsWithRedraw = eraseTransactions.filter((body) =>
+    /[!-~]/.test(stripAnsi(body)),
+  );
   const checks = [
     ['rendered terminal chrome', plain.includes('Directory:') || plain.includes('SuperLiora')],
     ['echoed typed input', plain.includes(PROMPT_TEXT)],
     ['substantial frame output', frames.length > 500],
+    ['resize/wheel stress produced frames', stressFrames.length > 500 && stressSyncStarts > 0],
+    ['stress synchronized frames are balanced', stressInspection.balanced && stressSyncStarts === stressSyncEnds],
+    ['stress emitted no erase outside synchronized frame', outsideEraseDisplays === 0],
+    ['stress erase transactions included a redraw', eraseTransactions.length === 0 || eraseTransactionsWithRedraw.length === eraseTransactions.length],
   ];
 
   await mkdir(snapshotDir, { recursive: true });
@@ -96,6 +176,9 @@ async function main() {
   for (const [name, ok] of checks) {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}`);
   }
+  console.log(
+    `visual-smoke: stress frames=${String(stressSyncStarts)}, erase-display=${String(stressEraseDisplays)}, outside-erase=${String(outsideEraseDisplays)}, erase-tx=${String(eraseTransactions.length)}`,
+  );
   console.log(`visual-smoke: snapshots at ${snapshotDir} (latest.ansi, latest.txt)`);
   if (exitEvent === null) {
     console.log('visual-smoke: WARN  TUI did not exit on Ctrl-C within the grace window (killed)');

@@ -1,13 +1,18 @@
 import {
+  FrameInvalidationCoordinator,
   isFocusable,
   NativeRendererTerminalHost,
   NativeTerminalRenderer,
   renderNativeRootChildren,
   resolveNativePremiumRendererDefaults,
   type Component,
+  type FrameInvalidation,
+  type FrameInvalidationRequest,
+  type FrameInvalidationStatsSnapshot,
   type NativeInputEvent,
   type NativeRootUIOptions,
   type NativeRenderCause,
+  type NativeTerminalRendererFrame,
   type NativeTerminalRendererRender,
   type RendererInputListener,
   type RendererInputListenerResult,
@@ -37,8 +42,14 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
   readonly children: TComponent[] = [];
 
   private readonly inputListeners: RendererInputListener[] = [];
+  private readonly frameInvalidation: FrameInvalidationCoordinator;
   private focusedComponent: TComponent | undefined;
   private inputRouter: { dispatch(event: NativeInputEvent): void } | undefined;
+  private currentNativeFrame: NativeTerminalRendererFrame | undefined;
+  private currentRenderResult: ReturnType<NativeTerminalRendererRender> = undefined;
+  private pendingInvalidationFlush: (() => void) | undefined;
+  private pendingRequestedCauseMask = 0;
+  private lastFrameInvalidationValue: FrameInvalidation | undefined;
   private renderCallback: NativeTerminalRendererRender = ({ renderer, size }) => {
     renderNativeRootChildren(renderer.frame, this.children, size.columns, size.rows);
   };
@@ -50,6 +61,28 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
       synchronized: options.synchronized,
       environment: process.env,
     });
+    this.frameInvalidation = new FrameInvalidationCoordinator({
+      schedule: (flush) => {
+        this.pendingInvalidationFlush = flush;
+        return () => {
+          if (this.pendingInvalidationFlush === flush) {
+            this.pendingInvalidationFlush = undefined;
+          }
+        };
+      },
+      // App frame construction performs layout and cell rendering together.
+      layout: () => {},
+      render: (invalidation) => {
+        const frame = this.currentNativeFrame;
+        if (frame === undefined) {
+          throw new Error('Liora native invalidation flushed outside a native frame');
+        }
+        this.lastFrameInvalidationValue = invalidation;
+        this.currentRenderResult = this.renderCallback(frame);
+      },
+      // NativeTerminalRenderer presents after this facade callback returns.
+      present: () => {},
+    });
     this.renderer = new NativeTerminalRenderer({
       ...options,
       adaptiveQuality: false,
@@ -60,8 +93,20 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
       onInputEvent: (event) => {
         this.inputRouter?.dispatch(event);
       },
-      render: (frame) => this.renderCallback(frame),
+      render: (frame) => this.renderNativeFrame(frame),
     });
+  }
+
+  get frameInvalidationStats(): FrameInvalidationStatsSnapshot {
+    return this.frameInvalidation.stats.snapshot();
+  }
+
+  get lastFrameInvalidation(): FrameInvalidation | undefined {
+    return this.lastFrameInvalidationValue;
+  }
+
+  resetFrameInvalidationStats(): void {
+    this.frameInvalidation.stats.reset();
   }
 
   setRenderCallback(callback: NativeTerminalRendererRender): void {
@@ -77,28 +122,34 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
   }
 
   stop(): void {
+    this.frameInvalidation.cancelPending();
+    this.pendingInvalidationFlush = undefined;
+    this.pendingRequestedCauseMask = 0;
     this.renderer.stop();
   }
 
   requestRender(force?: boolean | NativeRenderCause): void {
-    if (force === true) {
-      this.renderer.requestRender('manual');
-    } else if (force === false || force === undefined) {
-      this.renderer.requestRender('request');
-    } else {
-      this.renderer.requestRender(force);
-    }
+    const cause = normalizeLioraNativeRenderCause(force);
+    this.requestFrame(lioraFrameInvalidationForCause(cause, false), cause);
+  }
+
+  requestLayout(cause?: boolean | NativeRenderCause): void {
+    const normalizedCause = normalizeLioraNativeRenderCause(cause);
+    this.requestFrame(
+      lioraFrameInvalidationForCause(normalizedCause, true),
+      normalizedCause,
+    );
   }
 
   addChild(component: TComponent): void {
     this.children.push(component);
-    this.requestRender();
+    this.requestLayout();
   }
 
   clear(): void {
     this.children.length = 0;
     this.focusedComponent = undefined;
-    this.requestRender(true);
+    this.requestLayout(true);
   }
 
   setFocus(component: TComponent): void {
@@ -122,13 +173,58 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
     };
   }
 
+  private requestFrame(
+    invalidation: FrameInvalidationRequest,
+    cause: NativeRenderCause,
+  ): void {
+    this.frameInvalidation.request(invalidation);
+    this.pendingRequestedCauseMask |= LIORA_NATIVE_RENDER_CAUSE_MASKS[cause];
+    this.renderer.requestRender(cause);
+  }
+
+  private renderNativeFrame(
+    frame: NativeTerminalRendererFrame,
+  ): ReturnType<NativeTerminalRendererRender> {
+    this.currentNativeFrame = frame;
+    this.currentRenderResult = undefined;
+    try {
+      for (const cause of frame.frame.causes) {
+        const causeMask = LIORA_NATIVE_RENDER_CAUSE_MASKS[cause];
+        if ((this.pendingRequestedCauseMask & causeMask) !== 0) {
+          this.pendingRequestedCauseMask &= ~causeMask;
+        } else {
+          this.frameInvalidation.request(lioraFrameInvalidationForCause(cause));
+        }
+      }
+      if (!this.frameInvalidation.hasPendingFrame) {
+        this.frameInvalidation.request({
+          source: 'state',
+          requiresLayout: true,
+          priority: 'normal',
+        });
+      }
+
+      const flush = this.pendingInvalidationFlush;
+      if (flush === undefined) {
+        throw new Error('Liora native frame rendered without a pending invalidation');
+      }
+      this.pendingInvalidationFlush = undefined;
+      // The app callback must synchronously build the same frame buffer before
+      // NativeTerminalRenderer evaluates diff/output policy and presents it.
+      flush();
+      return this.currentRenderResult;
+    } finally {
+      this.currentNativeFrame = undefined;
+    }
+  }
+
   private handleRawInput(data: string): void {
     let next = data;
     for (const listener of this.inputListeners) {
       const result = listener(next);
       next = applyListenerResult(next, result);
       if (result?.consume === true) {
-        this.requestRender();
+        this.requestInputLayout();
         return;
       }
     }
@@ -138,8 +234,57 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
       return;
     }
     this.focusedComponent?.handleInput?.(next);
-    this.requestRender();
+    this.requestInputLayout();
   }
+
+  private requestInputLayout(): void {
+    this.requestFrame(
+      { source: 'input', requiresLayout: true, priority: 'interactive' },
+      'input',
+    );
+  }
+}
+
+const LIORA_NATIVE_RENDER_CAUSE_MASKS: Readonly<Record<NativeRenderCause, number>> = {
+  start: 1,
+  request: 1 << 1,
+  input: 1 << 2,
+  resize: 1 << 3,
+  animation: 1 << 4,
+  manual: 1 << 5,
+  quality: 1 << 6,
+  'transcript-scroll': 1 << 7,
+};
+
+function normalizeLioraNativeRenderCause(
+  cause: boolean | NativeRenderCause | undefined,
+): NativeRenderCause {
+  if (cause === true) return 'manual';
+  if (cause === false || cause === undefined) return 'request';
+  return cause;
+}
+
+function lioraFrameInvalidationForCause(
+  cause: NativeRenderCause,
+  requiresLayout = cause === 'start' || cause === 'resize',
+): FrameInvalidationRequest {
+  if (cause === 'input') {
+    return { source: 'input', requiresLayout, priority: 'interactive' };
+  }
+  if (cause === 'resize') {
+    return { source: 'resize', requiresLayout: true, priority: 'interactive' };
+  }
+  if (cause === 'animation') {
+    return { source: 'animation', requiresLayout, priority: 'ambient' };
+  }
+  if (requiresLayout) {
+    return { source: 'layout', requiresLayout: true, priority: 'normal' };
+  }
+  return {
+    source: 'state',
+    requiresLayout: false,
+    priority: cause === 'transcript-scroll' ? 'interactive' : 'normal',
+  };
 }
 
 function applyListenerResult(

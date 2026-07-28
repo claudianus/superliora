@@ -4,8 +4,15 @@ import type { RendererCell, RendererCellBuffer, RendererCellStyle } from './cell
 import { projectRendererCursorMarkerLine } from './cursor-marker';
 import {
   NativeTerminalRenderer,
+  type NativeTerminalRendererFrame,
   type NativeTerminalRendererOptions,
 } from './native-renderer';
+import {
+  FrameInvalidationCoordinator,
+  type FrameInvalidation,
+  type FrameInvalidationRequest,
+} from './frame-invalidation';
+import type { FrameInvalidationStatsSnapshot } from './frame-stats';
 import type { NativeRenderCause } from './render-loop';
 import type {
   NativeTerminalInput,
@@ -69,58 +76,107 @@ export class NativeRootUI<TComponent extends Component = Component>
   readonly renderer: NativeTerminalRenderer;
 
   private readonly inputListeners: RendererInputListener[] = [];
+  private readonly frameInvalidation: FrameInvalidationCoordinator;
   private focusedComponent: TComponent | undefined;
   private readonly requestRenderOnInput: boolean;
+  private currentNativeFrame: NativeTerminalRendererFrame | undefined;
+  private pendingInvalidationFlush: (() => void) | undefined;
+  private pendingRequestedCauseMask = 0;
+  private lastFrameInvalidationValue: FrameInvalidation | undefined;
+  private disposed = false;
 
   constructor(options: NativeRootUIOptions) {
     this.terminal = new NativeRendererTerminalHost(options.output, options.input);
     this.requestRenderOnInput = options.requestRenderOnInput !== false;
+    this.frameInvalidation = new FrameInvalidationCoordinator({
+      schedule: (flush) => {
+        this.pendingInvalidationFlush = flush;
+        return () => {
+          if (this.pendingInvalidationFlush === flush) {
+            this.pendingInvalidationFlush = undefined;
+          }
+        };
+      },
+      // Component.render() combines layout and cell rendering. The logical
+      // layout phase is still counted, but the component tree is visited once.
+      layout: () => {},
+      render: (invalidation) => {
+        this.lastFrameInvalidationValue = invalidation;
+        this.renderCurrentNativeFrame();
+      },
+      // NativeTerminalRenderer presents immediately after its render callback.
+      present: () => {},
+    });
     this.renderer = new NativeTerminalRenderer({
       ...options,
       renderOnStart: options.renderOnStart ?? true,
       onInput: (data) => {
         this.handleRawInput(data);
       },
-      render: ({ renderer, size }) => {
-        const cursor = renderNativeRootChildren(
-          renderer.frame,
-          this.children,
-          size.columns,
-          size.rows,
-        );
-        if (cursor === undefined) renderer.hideCursor();
-        else renderer.setCursor(cursor);
+      render: (frame) => {
+        this.renderNativeFrame(frame);
       },
     });
   }
 
+  get frameInvalidationStats(): FrameInvalidationStatsSnapshot {
+    return this.frameInvalidation.stats.snapshot();
+  }
+
+  get lastFrameInvalidation(): FrameInvalidation | undefined {
+    return this.lastFrameInvalidationValue;
+  }
+
+  resetFrameInvalidationStats(): void {
+    this.frameInvalidation.stats.reset();
+  }
+
   start(): void {
+    if (this.disposed) return;
     this.renderer.start();
   }
 
   stop(): void {
+    this.frameInvalidation.cancelPending();
+    this.pendingInvalidationFlush = undefined;
+    this.pendingRequestedCauseMask = 0;
+    this.renderer.stop();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.frameInvalidation.dispose();
+    this.pendingInvalidationFlush = undefined;
+    this.pendingRequestedCauseMask = 0;
     this.renderer.stop();
   }
 
   requestRender(cause?: boolean | NativeRenderCause): void {
-    if (cause === true) {
-      this.renderer.requestRender('manual');
-    } else if (cause === false || cause === undefined) {
-      this.renderer.requestRender('request');
-    } else {
-      this.renderer.requestRender(cause);
-    }
+    const normalizedCause = normalizeNativeRootRenderCause(cause);
+    this.requestFrame(
+      nativeRootInvalidationForCause(normalizedCause, false),
+      normalizedCause,
+    );
+  }
+
+  requestLayout(cause?: boolean | NativeRenderCause): void {
+    const normalizedCause = normalizeNativeRootRenderCause(cause);
+    this.requestFrame(
+      nativeRootInvalidationForCause(normalizedCause, true),
+      normalizedCause,
+    );
   }
 
   addChild(component: TComponent): void {
     this.children.push(component);
-    this.requestRender();
+    this.requestLayout();
   }
 
   clear(): void {
     this.children.length = 0;
     this.focusedComponent = undefined;
-    this.requestRender(true);
+    this.requestLayout(true);
   }
 
   setFocus(component: TComponent): void {
@@ -141,20 +197,128 @@ export class NativeRootUI<TComponent extends Component = Component>
     };
   }
 
+  private requestFrame(
+    invalidation: FrameInvalidationRequest,
+    cause: NativeRenderCause,
+  ): void {
+    if (this.disposed) return;
+    this.frameInvalidation.request(invalidation);
+    this.pendingRequestedCauseMask |= NATIVE_RENDER_CAUSE_MASKS[cause];
+    this.renderer.requestRender(cause);
+  }
+
+  private renderNativeFrame(frame: NativeTerminalRendererFrame): void {
+    this.currentNativeFrame = frame;
+    try {
+      for (const cause of frame.frame.causes) {
+        const causeMask = NATIVE_RENDER_CAUSE_MASKS[cause];
+        if ((this.pendingRequestedCauseMask & causeMask) !== 0) {
+          this.pendingRequestedCauseMask &= ~causeMask;
+        } else {
+          this.frameInvalidation.request(nativeRootInvalidationForCause(cause));
+        }
+      }
+      if (!this.frameInvalidation.hasPendingFrame) {
+        this.frameInvalidation.request({
+          source: 'state',
+          requiresLayout: true,
+          priority: 'normal',
+        });
+      }
+
+      const flush = this.pendingInvalidationFlush;
+      if (flush === undefined) {
+        throw new Error('Native root frame rendered without a pending invalidation');
+      }
+      this.pendingInvalidationFlush = undefined;
+      // This is the intentional sync fast path: the cell buffer must be ready
+      // before NativeTerminalRenderer presents the same frame.
+      flush();
+    } finally {
+      this.currentNativeFrame = undefined;
+    }
+  }
+
+  private renderCurrentNativeFrame(): void {
+    const frame = this.currentNativeFrame;
+    if (frame === undefined) {
+      throw new Error('Native root invalidation flushed outside a native frame');
+    }
+    const cursor = renderNativeRootChildren(
+      frame.renderer.frame,
+      this.children,
+      frame.size.columns,
+      frame.size.rows,
+    );
+    if (cursor === undefined) frame.renderer.hideCursor();
+    else frame.renderer.setCursor(cursor);
+  }
+
   private handleRawInput(data: string | Buffer): void {
     let next = Buffer.isBuffer(data) ? data.toString('utf8') : data;
     for (const listener of this.inputListeners) {
       const result = listener(next);
       if (result?.data !== undefined) next = result.data;
       if (result?.consume === true) {
-        if (this.requestRenderOnInput) this.requestRender();
+        if (this.requestRenderOnInput) this.requestInputFrame();
         return;
       }
     }
 
     this.focusedComponent?.handleInput?.(next);
-    if (this.requestRenderOnInput) this.requestRender();
+    if (this.requestRenderOnInput) this.requestInputFrame();
   }
+
+  private requestInputFrame(): void {
+    // Preserve the existing observable render cause while carrying interactive
+    // priority and layout intent through the invalidation coordinator.
+    this.requestFrame(
+      { source: 'input', requiresLayout: true, priority: 'interactive' },
+      'request',
+    );
+  }
+}
+
+const NATIVE_RENDER_CAUSE_MASKS: Readonly<Record<NativeRenderCause, number>> = {
+  start: 1,
+  request: 1 << 1,
+  input: 1 << 2,
+  resize: 1 << 3,
+  animation: 1 << 4,
+  manual: 1 << 5,
+  quality: 1 << 6,
+  'transcript-scroll': 1 << 7,
+};
+
+function normalizeNativeRootRenderCause(
+  cause: boolean | NativeRenderCause | undefined,
+): NativeRenderCause {
+  if (cause === true) return 'manual';
+  if (cause === false || cause === undefined) return 'request';
+  return cause;
+}
+
+function nativeRootInvalidationForCause(
+  cause: NativeRenderCause,
+  requiresLayout = cause === 'start' || cause === 'resize',
+): FrameInvalidationRequest {
+  if (cause === 'input') {
+    return { source: 'input', requiresLayout, priority: 'interactive' };
+  }
+  if (cause === 'resize') {
+    return { source: 'resize', requiresLayout: true, priority: 'interactive' };
+  }
+  if (cause === 'animation') {
+    return { source: 'animation', requiresLayout, priority: 'ambient' };
+  }
+  if (requiresLayout) {
+    return { source: 'layout', requiresLayout: true, priority: 'normal' };
+  }
+  return {
+    source: 'state',
+    requiresLayout: false,
+    priority: cause === 'transcript-scroll' ? 'interactive' : 'normal',
+  };
 }
 
 export function createNativeRootUI<TComponent extends Component = Component>(

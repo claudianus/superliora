@@ -14,6 +14,7 @@ export * from './effects';
 export * from './editor-autocomplete';
 export * from './editor-chrome';
 export * from './editor-text-input';
+export * from './frame-invalidation';
 export * from './frame-output-policy';
 export * from './frame-stats';
 export * from './fuzzy';

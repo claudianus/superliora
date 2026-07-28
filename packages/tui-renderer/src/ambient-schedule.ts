@@ -1,3 +1,4 @@
+import type { FrameInvalidationRequest } from './frame-invalidation';
 import type { NativeFrameStatsHealth } from './frame-stats';
 import type { RendererQualityLevel } from './quality';
 import type { NativeRenderLoopScheduler } from './render-loop';
@@ -21,6 +22,12 @@ export interface RendererAmbientScheduleOptions {
   readonly beforeTick?: () => void;
 }
 
+const AMBIENT_FRAME_INVALIDATION: FrameInvalidationRequest = {
+  source: 'animation',
+  requiresLayout: false,
+  priority: 'ambient',
+};
+
 export class RendererAmbientSchedule {
   private ticker: RendererTicker | undefined;
 
@@ -29,6 +36,7 @@ export class RendererAmbientSchedule {
       readonly scheduler?: NativeRenderLoopScheduler;
       readonly unrefTimers?: boolean;
       readonly requestRender: () => void;
+      readonly requestInvalidation?: (request: FrameInvalidationRequest) => void;
       readonly getContext: () => RendererAmbientScheduleContext;
     },
   ) {}
@@ -48,7 +56,13 @@ export class RendererAmbientSchedule {
       shouldTick: options.shouldTick,
       beforeTick: options.beforeTick,
       resolveIntervalMs: () => options.resolveIntervalMs(this.deps.getContext()),
-      onTick: () => this.deps.requestRender(),
+      onTick: () => {
+        if (this.deps.requestInvalidation === undefined) {
+          this.deps.requestRender();
+        } else {
+          this.deps.requestInvalidation(AMBIENT_FRAME_INVALIDATION);
+        }
+      },
     });
   }
 
