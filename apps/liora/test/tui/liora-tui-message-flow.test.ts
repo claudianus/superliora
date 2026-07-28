@@ -49,6 +49,9 @@ interface MessageDriver {
     handleEvent(event: Event, sendQueued: (item: QueuedMessage) => void): void;
   };
   init(): Promise<boolean>;
+  // Mirrors initMainTui() wiring so center-modal dialogs (e.g. the /model
+  // picker) mount in tests that drive LioraTUI via init() alone.
+  ensureNativeInputRouter(): void;
   handleUserInput(text: string): void;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
   persistInputHistory(text: string): Promise<void>;
@@ -101,6 +104,9 @@ function makeStartupInput(): LioraTUIStartupInput {
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
     id: 'ses-1',
+    // Session.workDir is a required field of the SDK contract; LioraTUI syncs
+    // appState.workDir from it on setSession (worktree alignment).
+    workDir: '/tmp/proj-a',
     model: 'k2',
     summary: { title: null },
     prompt: vi.fn(async () => {}),
@@ -246,6 +252,9 @@ async function makeDriver(
   vi.spyOn(driver.state.terminal, 'setProgress').mockImplementation(() => {});
   driver.persistInputHistory = vi.fn(async () => {});
   await driver.init();
+  // initMainTui() wires the native input router after init(); center-modal
+  // mounts (/model picker, …) no-op without it.
+  driver.ensureNativeInputRouter();
   // Dispose the animation scheduler so the RendererTicker does not infinitely
   // re-schedule under vi.useFakeTimers() + vi.runAllTimersAsync() in tests
   // that advance fake timers.
@@ -255,6 +264,15 @@ async function makeDriver(
 
 function renderTranscript(driver: MessageDriver): string {
   return driver.state.transcriptContainer.render(120).join('\n');
+}
+
+/**
+ * /model and the other beginner menus mount as floating center modals
+ * (PREMIUM.md §8.2) instead of replacing the editor strip; tests read the
+ * mounted panel from the top of the center-modal stack.
+ */
+function topCenterModalPanel(driver: MessageDriver): unknown {
+  return driver.state.centerModalStack.at(-1)?.panel;
 }
 
 async function confirmUndoSelection(driver: MessageDriver): Promise<void> {
@@ -2723,7 +2741,7 @@ command = "vim"
     expect(transcript).not.toContain('/export-debug-zip');
   });
 
-  it('shows ExitPlanMode plan only in the current-plan card during approval', async () => {
+  it('shows ExitPlanMode plan in the current-plan card and the review approval dialog', async () => {
     const planContent = '# No Duplicate Plan\n\n- Do the non-duplicated plan work';
     const session = makeSession({
       getPlan: vi.fn(async () => ({
@@ -2772,8 +2790,12 @@ command = "vim"
     await vi.waitFor(() => {
       const approval = stripSgr(driver.state.editorContainer.render(120).join('\n'));
       expect(approval).toContain('Ready to build with this plan?');
-      expect(approval).not.toContain('non-duplicated plan work');
-      expect(approval).not.toContain('/tmp/no-duplicate-plan.md');
+      // The review dialog intentionally re-renders the numbered plan with its
+      // path so operators can leave "L12: …" line comments (AC6); before the
+      // dialog opens, the transcript keeps a single current-plan card.
+      expect(approval).toContain('경로: /tmp/no-duplicate-plan.md');
+      expect(approval).toContain('non-duplicated plan work');
+      expect(approval).toContain('라인 코멘트: L12');
     });
   });
 
@@ -4212,9 +4234,9 @@ command = "vim"
     driver.handleUserInput('/model turbo');
 
     await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(TabbedModelSelectorComponent);
+      expect(topCenterModalPanel(driver)).toBeInstanceOf(TabbedModelSelectorComponent);
     });
-    const picker = driver.state.editorContainer.children[0];
+    const picker = topCenterModalPanel(driver);
     const pickerOutput = stripSgr((picker as TabbedModelSelectorComponent).render(120).join('\n'));
     expect(pickerOutput).toMatch(/Kimi K2\s+SuperLiora ← current/);
     expect(pickerOutput).toMatch(/❯ Kimi Turbo\s+SuperLiora/);
@@ -4230,7 +4252,10 @@ command = "vim"
 
     await vi.waitFor(() => {
       expect(session.setModel).toHaveBeenCalledWith('turbo');
-      expect(session.setThinking).toHaveBeenCalledWith('on');
+      // Thinking applies as a concrete effort, not the abstract "on":
+      // kimi-family models without declared supportEfforts default to "high"
+      // (see thinking-effort.ts defaultEffortForModel).
+      expect(session.setThinking).toHaveBeenCalledWith('high');
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'turbo',
         defaultThinking: true,
@@ -4270,15 +4295,16 @@ command = "vim"
     driver.handleUserInput('/model turbo');
 
     await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(TabbedModelSelectorComponent);
+      expect(topCenterModalPanel(driver)).toBeInstanceOf(TabbedModelSelectorComponent);
     });
-    const picker = driver.state.editorContainer.children[0];
+    const picker = topCenterModalPanel(driver);
     // /model turbo preselects turbo; Alt+S applies it to the current session only.
     (picker as TabbedModelSelectorComponent).handleInput(`${ESC}s`);
 
     await vi.waitFor(() => {
       expect(session.setModel).toHaveBeenCalledWith('turbo');
-      expect(session.setThinking).toHaveBeenCalledWith('on');
+      // Concrete effort level ("high") like the persisting path above.
+      expect(session.setThinking).toHaveBeenCalledWith('high');
     });
     expect(setConfig).not.toHaveBeenCalled();
     expect(driver.state.appState.model).toBe('turbo');
@@ -4317,14 +4343,16 @@ command = "vim"
     driver.handleUserInput('/model turbo');
 
     await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(TabbedModelSelectorComponent);
+      expect(topCenterModalPanel(driver)).toBeInstanceOf(TabbedModelSelectorComponent);
     });
-    const picker = driver.state.editorContainer.children[0];
+    const picker = topCenterModalPanel(driver);
     (picker as TabbedModelSelectorComponent).handleInput('\r');
 
     await vi.waitFor(() => {
       expect(session.setModel).toHaveBeenCalledWith('turbo');
-      expect(session.setThinking).toHaveBeenCalledWith('on');
+      // Thinking stays enabled across thinking-capable models, applied as the
+      // target model's declared default effort ("low" for turbo).
+      expect(session.setThinking).toHaveBeenCalledWith('low');
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'turbo',
         defaultThinking: true,
@@ -4357,9 +4385,9 @@ command = "vim"
     driver.handleUserInput('/model k2');
 
     await vi.waitFor(() => {
-      expect(driver.state.editorContainer.children[0]).toBeInstanceOf(TabbedModelSelectorComponent);
+      expect(topCenterModalPanel(driver)).toBeInstanceOf(TabbedModelSelectorComponent);
     });
-    const picker = driver.state.editorContainer.children[0];
+    const picker = topCenterModalPanel(driver);
     (picker as TabbedModelSelectorComponent).handleInput('\r');
 
     await vi.waitFor(() => {
@@ -4414,7 +4442,7 @@ command = "vim"
     driver.handleUserInput('/model');
 
     await vi.waitFor(() => {
-      const picker = driver.state.editorContainer.children[0];
+      const picker = topCenterModalPanel(driver);
       expect(picker).toBeInstanceOf(TabbedModelSelectorComponent);
       const output = stripSgr((picker as TabbedModelSelectorComponent).render(120).join('\n'));
       expect(output).toContain('Fresh Kimi K2');
@@ -4452,13 +4480,13 @@ command = "vim"
       await Promise.resolve();
 
       expect(refreshOAuthProviderModels).toHaveBeenCalledOnce();
-      expect(driver.state.editorContainer.children[0]).not.toBeInstanceOf(TabbedModelSelectorComponent);
+      expect(topCenterModalPanel(driver)).not.toBeInstanceOf(TabbedModelSelectorComponent);
 
       await vi.advanceTimersByTimeAsync(1_999);
-      expect(driver.state.editorContainer.children[0]).not.toBeInstanceOf(TabbedModelSelectorComponent);
+      expect(topCenterModalPanel(driver)).not.toBeInstanceOf(TabbedModelSelectorComponent);
 
       await vi.advanceTimersByTimeAsync(1);
-      const picker = driver.state.editorContainer.children[0];
+      const picker = topCenterModalPanel(driver);
       expect(picker).toBeInstanceOf(TabbedModelSelectorComponent);
       const output = stripSgr((picker as TabbedModelSelectorComponent).render(120).join('\n'));
       expect(output).toContain('Kimi K2');
