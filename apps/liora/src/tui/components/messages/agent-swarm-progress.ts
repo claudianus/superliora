@@ -27,7 +27,13 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { renderAnimatedGradientText, renderPulseGlyph, renderPulseText } from '#/tui/utils/appearance-effects';
+import {
+  getActiveAppearancePreferences,
+  renderAnimatedGradientText,
+  renderPulseGlyph,
+  renderPulseText,
+  shouldRenderAmbientEffects,
+} from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
@@ -102,6 +108,16 @@ const CANCELLED_LABEL_DARKEN_FACTOR = 0.72;
 /** Pulse glyph cycle prefixed to running grid cells. */
 const RUNNING_CELL_PULSE_GLYPHS = ['●', '◆', '✦', '◆'];
 const RUNNING_CELL_PULSE_FALLBACK = '●';
+/**
+ * Code-write pulse (Phase 5-A): appended to running cells whose latest tool
+ * activity is Write/Edit so parallel code writing is visible at a glance.
+ */
+const CODE_WRITE_PULSE_GLYPHS = ['✎', '✐', '✎', '✐'];
+const CODE_WRITE_PULSE_FALLBACK = '✎';
+/** Quiet window after the last write tool before the ✎ pulse fades. */
+export const CODE_WRITE_QUIET_MS = 4_000;
+const CODE_WRITE_TOOL_NAMES = new Set(['write', 'edit']);
+const CODE_WRITE_BODY_TOKEN = /^(?:write|edit)\b/i;
 /** Max visible width of the per-cell model alias badge (` · <alias>`). */
 const MODEL_ALIAS_BADGE_MAX_WIDTH = 16;
 
@@ -128,6 +144,7 @@ type ClearableMemberKey =
   | 'cancelledBarColor'
   | 'suspendedReason'
   | 'activeToolName'
+  | 'codeWriteAtMs'
   | 'retryNote';
 
 const COMPLETED_CLEAR_KEYS = [
@@ -139,6 +156,7 @@ const COMPLETED_CLEAR_KEYS = [
   'cancelledBarColor',
   'suspendedReason',
   'activeToolName',
+  'codeWriteAtMs',
   'retryNote',
 ] as const satisfies readonly ClearableMemberKey[];
 const FAILED_CLEAR_KEYS = [
@@ -150,6 +168,7 @@ const FAILED_CLEAR_KEYS = [
   'cancelledBarColor',
   'suspendedReason',
   'activeToolName',
+  'codeWriteAtMs',
 ] as const satisfies readonly ClearableMemberKey[];
 const TERMINAL_CLEAR_KEYS = [
   'completedAtMs',
@@ -162,6 +181,7 @@ const TERMINAL_CLEAR_KEYS = [
   'cancelledBarColor',
   'suspendedReason',
   'activeToolName',
+  'codeWriteAtMs',
   'retryNote',
 ] as const satisfies readonly ClearableMemberKey[];
 const CANCELLED_CLEAR_KEYS = [
@@ -171,6 +191,7 @@ const CANCELLED_CLEAR_KEYS = [
   'failureText',
   'suspendedReason',
   'activeToolName',
+  'codeWriteAtMs',
   'retryNote',
 ] as const satisfies readonly ClearableMemberKey[];
 
@@ -276,6 +297,8 @@ interface AgentSwarmMember {
   failedAtMs?: number;
   /** First moment the member entered running; drives the per-cell elapsed badge. */
   startedAtMs?: number;
+  /** Last moment a Write/Edit tool started in this lane; drives the ✎ code-write pulse. */
+  codeWriteAtMs?: number;
   /** Optional dim note after failure text (retry attempt / model fallback). */
   retryNote?: string;
   todos: TodoItem[];
@@ -874,15 +897,21 @@ export class AgentSwarmProgressComponent implements Component {
    * owns `agentId`, so each parallel lane shows the same structured tool
    * detail the background activity panel renders. Error results use the
    * `fail` tag so failures stand out in the lane.
+   *
+   * Phase 5-A: the optional `toolName` also drives the per-member code-write
+   * pulse — Write/Edit marks the member as actively writing code; any other
+   * tool (or an error result) clears the mark.
    */
   appendMemberToolFeed(input: {
     readonly agentId: string;
     readonly body: string;
     readonly isError?: boolean;
+    readonly toolName?: string;
   }): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
     const member = this.findMemberByAgentId(input.agentId);
     if (member === undefined) return;
+    this.trackMemberCodeWriteActivity(member, input);
     this.appendConversationFeed({
       tag: input.isError === true ? 'fail' : 'tool',
       fromExpertId: member.ultraSwarm?.expertId ?? member.agentId,
@@ -891,6 +920,27 @@ export class AgentSwarmProgressComponent implements Component {
       body: input.body,
     });
     this.requestRender?.();
+  }
+
+  /**
+   * Phase 5-A parallel write visibility: timestamp the member's latest
+   * code-writing tool so the grid cell can pulse ✎ while writes are in
+   * flight. Non-write tools and error results clear the mark immediately;
+   * the renderer expires it after CODE_WRITE_QUIET_MS of quiet.
+   */
+  private trackMemberCodeWriteActivity(
+    member: AgentSwarmMember,
+    input: {
+      readonly body: string;
+      readonly isError?: boolean;
+      readonly toolName?: string;
+    },
+  ): void {
+    if (input.isError !== true && isCodeWriteToolActivity(input.toolName, input.body)) {
+      member.codeWriteAtMs = Date.now();
+    } else {
+      delete member.codeWriteAtMs;
+    }
   }
 
   appendModelDelta(input: {
@@ -2769,6 +2819,9 @@ function renderCellLabel(
  * Running cell label: a time-seeded pulse glyph, the latest activity text,
  * then dim suffixes for per-member elapsed time and the model alias. The
  * suffixes reserve their width first so they survive narrow-cell truncation.
+ * While the member's latest tool activity is a code write (Phase 5-A), a
+ * clock-driven ✎ pulse joins the cell glyph and the action text picks up a
+ * brand-tone emphasis so parallel writes stand out at a glance.
  */
 function renderRunningCellLabel(
   member: AgentSwarmMember,
@@ -2776,6 +2829,8 @@ function renderRunningCellLabel(
   colors: ColorPalette,
   nowMs: number,
 ): string {
+  const writePulse = isMemberWritingCode(member, nowMs) ? renderCodeWritePulseGlyph(member) : '';
+  const writePrefix = writePulse.length > 0 ? `${writePulse} ` : '';
   const pulse = `${renderPulseGlyph(
     RUNNING_CELL_PULSE_GLYPHS,
     `agent-swarm-cell:${member.id}`,
@@ -2783,9 +2838,53 @@ function renderRunningCellLabel(
     'primary',
   )} `;
   const suffix = `${runningElapsedSuffix(member, nowMs)}${modelAliasSuffix(member)}`;
-  const textWidth = Math.max(1, width - visibleWidth(pulse) - visibleWidth(suffix));
-  const text = truncateWithColor(runningCellLabelText(member), textWidth, colors.textDim);
-  return truncateToWidth(`${pulse}${text}${suffix}`, width);
+  const textWidth = Math.max(
+    1,
+    width - visibleWidth(pulse) - visibleWidth(writePrefix) - visibleWidth(suffix),
+  );
+  const textColor = writePrefix.length > 0 ? colors.primary : colors.textDim;
+  const text = truncateWithColor(runningCellLabelText(member), textWidth, textColor);
+  return truncateToWidth(`${pulse}${writePrefix}${text}${suffix}`, width);
+}
+
+/**
+ * Phase 5-A: whether the member's latest tool activity is a code write that
+ * is still fresh (inside the quiet window) and not in a terminal phase.
+ */
+function isMemberWritingCode(member: AgentSwarmMember, nowMs: number): boolean {
+  return (
+    member.codeWriteAtMs !== undefined &&
+    !isTerminalPhase(member.phase) &&
+    nowMs - member.codeWriteAtMs <= CODE_WRITE_QUIET_MS
+  );
+}
+
+/**
+ * Clock-driven ✎ glyph for members actively writing code (Phase 5-A).
+ * Reuses the shared pulse primitive on the ambient animation clock and
+ * renders nothing when motion is gated (off / SSH / NO_COLOR / CI) so
+ * static output stays byte-identical.
+ */
+function renderCodeWritePulseGlyph(member: AgentSwarmMember): string {
+  if (!shouldRenderAmbientEffects(getActiveAppearancePreferences())) return '';
+  return renderPulseGlyph(
+    CODE_WRITE_PULSE_GLYPHS,
+    `agent-swarm-write:${member.id}`,
+    CODE_WRITE_PULSE_FALLBACK,
+    'primary',
+  );
+}
+
+/**
+ * Phase 5-A write detection: prefer the explicit tool name carried by the
+ * feed event; fall back to the leading body token (`Edit src/a.ts +3 -1`)
+ * for callers that only pass a rendered body.
+ */
+function isCodeWriteToolActivity(toolName: string | undefined, body: string): boolean {
+  if (toolName !== undefined && toolName.length > 0) {
+    return CODE_WRITE_TOOL_NAMES.has(toolName.trim().toLowerCase());
+  }
+  return CODE_WRITE_BODY_TOKEN.test(body.trim());
 }
 
 function renderFailedCellLabel(
