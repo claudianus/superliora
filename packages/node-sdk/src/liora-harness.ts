@@ -12,6 +12,7 @@ import type { SDKRpcClientBase } from '#/rpc';
 import type {
   ConfigDiagnostics,
   CreateSessionOptions,
+  DeleteConfigFieldPath,
   ExportSessionInput,
   ExportSessionResult,
   ForkSessionInput,
@@ -273,6 +274,10 @@ export class LioraHarness {
 
   async setConfig(patch: LioraConfigPatch): Promise<LioraConfig> {
     return this.rpc.setConfig(patch);
+  }
+
+  async deleteConfigFields(paths: readonly DeleteConfigFieldPath[]): Promise<LioraConfig> {
+    return this.rpc.deleteConfigFields(paths);
   }
 
   async removeProvider(providerId: string): Promise<LioraConfig> {

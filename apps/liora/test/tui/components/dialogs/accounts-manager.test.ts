@@ -100,6 +100,7 @@ describe('accounts-manager dialogs', () => {
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
+    settings.handleInput('\u001B[C'); // → Eyes readiness is on page 2
     const out = settings.render(120).map(strip);
     expect(out.some((line) => line.includes('Eyes readiness'))).toBe(true);
     expect(out.some((line) => line.includes('browser-use') || line.includes('computer-use'))).toBe(

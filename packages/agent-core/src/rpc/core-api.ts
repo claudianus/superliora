@@ -608,6 +608,13 @@ export interface RemoveKimiProviderPayload {
   readonly providerId: string;
 }
 
+export type DeleteConfigFieldPath =
+  `loopControl.${'compaction' | 'completion' | 'exploration' | 'coding' | 'planning' | 'debugging'}Model`;
+
+export interface DeleteConfigFieldsPayload {
+  readonly paths: readonly DeleteConfigFieldPath[];
+}
+
 export type {
   MemoryConsolidateResult,
   MemoryCreateInput,
@@ -747,6 +754,7 @@ export interface CoreAPI extends SessionAPIWithId {
   getConfigDiagnostics: (payload: EmptyPayload) => ConfigDiagnostics;
   setKimiConfig: (payload: SetKimiConfigPayload) => LioraConfig;
   removeKimiProvider: (payload: RemoveKimiProviderPayload) => LioraConfig;
+  deleteConfigFields: (payload: DeleteConfigFieldsPayload) => LioraConfig;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   archiveSession: (payload: ArchiveSessionPayload) => void;

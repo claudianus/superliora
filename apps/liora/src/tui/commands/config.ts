@@ -44,6 +44,13 @@ import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
 } from '#/tui/utils/thinking-effort';
+import {
+  loopModelRoutingDeletePath,
+  loopModelRoutingPatch,
+  loopModelRoutingRows,
+  type LoopModelRoutingConfig,
+  type LoopModelRoutingRole,
+} from '#/tui/utils/loop-model-routing';
 import { handleAccountsCommand } from './accounts';
 import { showMcpServers, showUsage } from './info';
 import { handlePremiumQualityCommand } from './premium';
@@ -546,6 +553,134 @@ async function applyEditorChoice(host: SlashCommandHost, value: string): Promise
   );
 }
 
+export async function showLoopModelRoutingPicker(host: SlashCommandHost): Promise<void> {
+  try {
+    const config = await host.harness.getConfig({ reload: true });
+    mountLoopModelRoutingPicker(host, config as LoopModelRoutingConfig);
+  } catch (error) {
+    host.showError(`Failed to load model routing: ${formatErrorMessage(error)}`);
+  }
+}
+
+function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRoutingConfig): void {
+  const rows = loopModelRoutingRows(config);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Model routing',
+      hint: '↑↓ navigate · Enter select · Esc cancel',
+      notice: 'Overrides apply to future resolution; the current session is unchanged.',
+      noticeTone: 'warning',
+      options: rows.map((row) => ({
+        value: row.key,
+        label: row.label,
+        description: row.model === undefined
+          ? 'default (no explicit override)'
+          : `override · ${row.model}`,
+      })),
+      onSelect: (value) => {
+        const row = rows.find((candidate) => candidate.key === value);
+        if (row === undefined) return;
+        dismissPickerDialog(host);
+        showLoopRoleModelPicker(host, row);
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Model routing' },
+  );
+}
+
+function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingRole & { readonly model?: string }): void {
+  if (Object.keys(host.state.appState.availableModels).length === 0) {
+    host.showNotice(
+      'No models configured',
+      'Run /login to sign in or add a provider, then choose a routing override.',
+    );
+    return;
+  }
+
+  mountPickerDialog(
+    host,
+    new TabbedModelSelectorComponent({
+      models: host.state.appState.availableModels,
+      currentValue: role.model ?? '',
+      selectedValue: role.model,
+      currentThinking: false,
+      onSelect: ({ alias }) => {
+        dismissPickerDialog(host);
+        void applyLoopModelRoutingChoice(host, role, alias);
+      },
+      onReset: () => {
+        dismissPickerDialog(host);
+        void resetLoopModelRoutingChoice(host, role);
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+      notice: `${role.label} override · applies to future resolution only.`,
+    }),
+    { label: `${role.label} model routing` },
+  );
+}
+
+export async function applyLoopModelRoutingChoice(
+  host: SlashCommandHost,
+  role: LoopModelRoutingRole,
+  alias: string,
+): Promise<void> {
+  try {
+    await host.harness.setConfig(loopModelRoutingPatch(role, alias));
+  } catch (error) {
+    host.showError(`Failed to set ${role.label} routing override: ${formatErrorMessage(error)}`);
+    return;
+  }
+
+  let config: LoopModelRoutingConfig;
+  try {
+    config = (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig;
+  } catch (error) {
+    host.showError(
+      `Saved ${role.label} routing override, but failed to reload it: ${formatErrorMessage(error)}`,
+    );
+    return;
+  }
+
+  host.showStatus(
+    `${role.label} routing override set to ${alias}. Future resolution will use it; the current session is unchanged.`,
+    'success',
+  );
+  mountLoopModelRoutingPicker(host, config);
+}
+
+export async function resetLoopModelRoutingChoice(
+  host: SlashCommandHost,
+  role: LoopModelRoutingRole & { readonly model?: string },
+): Promise<void> {
+  if (role.model === undefined) {
+    host.showStatus(`${role.label} routing already uses the default.`);
+    void showLoopModelRoutingPicker(host);
+    return;
+  }
+
+  let config: LoopModelRoutingConfig;
+  try {
+    config = (await host.harness.deleteConfigFields([
+      loopModelRoutingDeletePath(role),
+    ])) as LoopModelRoutingConfig;
+  } catch (error) {
+    host.showError(`Failed to reset ${role.label} routing override: ${formatErrorMessage(error)}`);
+    return;
+  }
+
+  host.showStatus(
+    `${role.label} routing reset to default. Future resolution will use the default; the current session is unchanged.`,
+    'success',
+  );
+  mountLoopModelRoutingPicker(host, config);
+}
+
 export function showModelPicker(host: SlashCommandHost, selectedValue: string = host.state.appState.model): void {
   const entries = Object.entries(host.state.appState.availableModels);
   if (entries.length === 0) {
@@ -988,6 +1123,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
   dismissPickerDialog(host);
   switch (value) {
     case 'model': showModelPicker(host); return;
+    case 'model-routing': void showLoopModelRoutingPicker(host); return;
     case 'permission': showPermissionPicker(host); return;
     case 'accounts': void handleAccountsCommand(host); return;
     case 'context': void showContextWorkingSetPicker(host); return;

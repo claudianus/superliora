@@ -35,6 +35,7 @@ import type {
   BackgroundTaskInfo,
   ConfigDiagnostics,
   CreateSessionOptions,
+  DeleteConfigFieldPath,
   ExportSessionInput,
   ExportSessionResult,
   CreateGoalInput,
@@ -310,6 +311,11 @@ export abstract class SDKRpcClientBase {
   async setConfig(input: LioraConfigPatch): Promise<LioraConfig> {
     const rpc = await this.getRpc();
     return rpc.setKimiConfig(input);
+  }
+
+  async deleteConfigFields(paths: readonly DeleteConfigFieldPath[]): Promise<LioraConfig> {
+    const rpc = await this.getRpc();
+    return rpc.deleteConfigFields({ paths });
   }
 
   async removeProvider(providerId: string): Promise<LioraConfig> {

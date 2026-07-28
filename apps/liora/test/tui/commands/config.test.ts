@@ -5,16 +5,20 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  applyLoopModelRoutingChoice,
   handleAppearanceCommand,
   handleContextCommand,
   handlePlanCommand,
   handleThemeCommand,
   handleThinkingCommand,
+  resetLoopModelRoutingChoice,
   showHarnessPanel,
   showToolsInventory,
   showHarnessEyesReadiness,
+  showLoopModelRoutingPicker,
   showSettingsSelector,
 } from '#/tui/commands/config';
+import { LOOP_MODEL_ROUTING_ROLES } from '#/tui/utils/loop-model-routing';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
 import {
@@ -462,7 +466,11 @@ describe('harness panel and tools inventory', () => {
           premiumQualityMode: options.premiumQualityMode === true,
           model: 'big-model',
           availableModels: {
-            'big-model': { maxContextSize: 1_000_000 },
+            'big-model': {
+              provider: 'managed:kimi-api',
+              model: 'big-model',
+              maxContextSize: 1_000_000,
+            },
           },
         },
         transcriptContainer,
@@ -478,6 +486,7 @@ describe('harness panel and tools inventory', () => {
           },
         })),
         setConfig: vi.fn(async () => undefined),
+        deleteConfigFields: vi.fn(async () => ({ loopControl: {} })),
       },
       mountEditorReplacement: vi.fn(),
       mountCenterModal: vi.fn(),
@@ -503,6 +512,8 @@ describe('harness panel and tools inventory', () => {
       harness: {
         getExperimentalFeatures: ReturnType<typeof vi.fn>;
         getConfig: ReturnType<typeof vi.fn>;
+        setConfig: ReturnType<typeof vi.fn>;
+        deleteConfigFields: ReturnType<typeof vi.fn>;
       };
       state: {
         centerModalStack: [],
@@ -745,17 +756,20 @@ describe('harness panel and tools inventory', () => {
   });
 
 
-  it('lists Eyes readiness in the settings selector', () => {
+  it('lists model routing and Eyes readiness in the settings selector', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
     const [component] = host.mountCenterModal.mock.calls[0] as [
-      { render: (width: number) => string[] },
+      { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
-    const body = component.render(120).join('\n');
-    expect(body).toContain('Eyes readiness');
-    expect(body).toContain('Tools');
-    expect(body).toContain('Harness');
+    const firstPage = component.render(120).join('\n');
+    expect(firstPage).toContain('Model routing');
+    expect(firstPage).toContain('Tools');
+    expect(firstPage).toContain('Harness');
+
+    for (let i = 0; i < 8; i++) component.handleInput('\u001B[B');
+    expect(component.render(120).join('\n')).toContain('Eyes readiness');
   });
 
   it('routes settings eyes selection to eyes readiness report', async () => {
@@ -764,9 +778,9 @@ describe('harness panel and tools inventory', () => {
     const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // Settings options order: model, permission, accounts, context, harness, tools, eyes, ...
-    // eyes is index 6
-    for (let i = 0; i < 6; i++) {
+    // Settings options order: model, model routing, permission, accounts, context, media, harness, tools, eyes, ...
+    // eyes is index 8
+    for (let i = 0; i < 8; i++) {
       component.handleInput('\u001B[B');
     }
     component.handleInput('\r');
@@ -788,6 +802,91 @@ describe('harness panel and tools inventory', () => {
     await showHarnessEyesReadiness(host);
     // either notice or error is acceptable; never throw
     expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it('routes a selected loop role model through setConfig and reloads the routing picker', async () => {
+    const host = makeHarnessHost();
+    await showLoopModelRoutingPicker(host);
+
+    expect(host.harness.getConfig).toHaveBeenCalledWith({ reload: true });
+    const [routingPicker] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void; render: (width: number) => string[] },
+    ];
+    const routingBody = routingPicker.render(120).join('\n');
+    for (const label of ['Compaction', 'Completion', 'Exploration', 'Coding', 'Planning', 'Debugging']) {
+      expect(routingBody).toContain(label);
+    }
+    expect(routingBody).toContain('default (no explicit override)');
+
+    for (let i = 0; i < 3; i++) routingPicker.handleInput('\u001B[B');
+    routingPicker.handleInput('\r');
+    const [modelPicker] = host.mountCenterModal.mock.calls[1] as [
+      { handleInput: (data: string) => void },
+    ];
+    modelPicker.handleInput('\r');
+
+    await vi.waitFor(() => {
+      expect(host.harness.setConfig).toHaveBeenCalledWith({
+        loopControl: { codingModel: 'big-model' },
+      });
+    });
+    await vi.waitFor(() => {
+      expect(host.harness.getConfig).toHaveBeenLastCalledWith({ reload: true });
+      expect(host.showStatus).toHaveBeenCalledWith(
+        expect.stringContaining('Coding routing override set to big-model'),
+        'success',
+      );
+    });
+  });
+
+  it('does not mutate loop routing when the role model picker is cancelled', async () => {
+    const host = makeHarnessHost();
+    await showLoopModelRoutingPicker(host);
+    const [routingPicker] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    routingPicker.handleInput('\r');
+    const [modelPicker] = host.mountCenterModal.mock.calls[1] as [
+      { handleInput: (data: string) => void },
+    ];
+    modelPicker.handleInput('\u001B');
+
+    expect(host.harness.setConfig).not.toHaveBeenCalled();
+    expect(host.harness.deleteConfigFields).not.toHaveBeenCalled();
+  });
+
+  it('routes Alt+R from a configured role to deleteConfigFields', async () => {
+    const host = makeHarnessHost();
+    host.harness.getConfig.mockResolvedValue({ loopControl: { codingModel: 'code-pro' } });
+    await showLoopModelRoutingPicker(host);
+    const [routingPicker] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < 3; i++) routingPicker.handleInput('\u001B[B');
+    routingPicker.handleInput('\r');
+    const [modelPicker] = host.mountCenterModal.mock.calls[1] as [
+      { handleInput: (data: string) => void },
+    ];
+    modelPicker.handleInput('\u001Br');
+
+    await vi.waitFor(() => {
+      expect(host.harness.deleteConfigFields).toHaveBeenCalledWith(['loopControl.codingModel']);
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      expect.stringContaining('Coding routing reset to default'),
+      'success',
+    );
+  });
+
+  it('surfaces loop routing save and reset errors without remounting a result', async () => {
+    const host = makeHarnessHost();
+    host.harness.setConfig.mockRejectedValueOnce(new Error('write denied'));
+    await applyLoopModelRoutingChoice(host, LOOP_MODEL_ROUTING_ROLES[3], 'code-pro');
+    expect(host.showError).toHaveBeenCalledWith('Failed to set Coding routing override: write denied');
+
+    host.harness.deleteConfigFields.mockRejectedValueOnce(new Error('delete denied'));
+    await resetLoopModelRoutingChoice(host, { ...LOOP_MODEL_ROUTING_ROLES[3], model: 'code-pro' });
+    expect(host.showError).toHaveBeenCalledWith('Failed to reset Coding routing override: delete denied');
   });
 
 });

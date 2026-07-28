@@ -28,6 +28,10 @@ import {
 } from '#/tui/utils/appearance-effects';
 import { resolveThinkingDisplay } from '#/tui/utils/thinking-effort';
 import {
+  loopModelRoutingRows,
+  type LoopModelRoutingConfig,
+} from '#/tui/utils/loop-model-routing';
+import {
   formatTokenCount,
   ratioSeverity,
   safeUsageRatio,
@@ -137,6 +141,10 @@ export interface StatusReportOptions {
   readonly privacyTelemetryEnabled?: boolean;
   /** Active tool names from the session (for research/media readiness). */
   readonly activeToolNames?: readonly string[];
+  /** Explicit loop-role model overrides loaded from persisted harness config. */
+  readonly loopModelRouting?: LoopModelRoutingConfig;
+  /** Error while loading explicit loop-role model overrides. */
+  readonly loopModelRoutingError?: string;
   /** Optional field-value crossfade tracker across rebuilds. */
   readonly fieldMotion?: StatusFieldMotionState;
 }
@@ -969,6 +977,35 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
       warningStyle,
       options.fieldMotion,
     );
+  }
+
+  if (options.loopModelRouting !== undefined || options.loopModelRoutingError !== undefined) {
+    lines.push('');
+    lines.push(accent('Loop model routing'));
+    if (options.loopModelRouting !== undefined) {
+      addFieldRows(
+        lines,
+        loopModelRoutingRows(options.loopModelRouting).map((role) => ({
+          label: role.label,
+          value: role.state,
+        })),
+        muted,
+        value,
+        errorStyle,
+        warningStyle,
+        options.fieldMotion,
+      );
+    } else {
+      addFieldRows(
+        lines,
+        [{ label: 'Overrides', value: options.loopModelRoutingError!, severity: 'error' }],
+        muted,
+        value,
+        errorStyle,
+        warningStyle,
+        options.fieldMotion,
+      );
+    }
   }
 
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {

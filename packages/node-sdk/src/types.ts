@@ -29,6 +29,7 @@ export type {
   ContextCompositionSegment,
   ContextMessage,
   CouncilDecision,
+  DeleteConfigFieldPath,
   ExperimentalFeatureState,
   ExperimentalFlagMap,
   ExperimentalFlagSource,

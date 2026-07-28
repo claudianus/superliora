@@ -29,6 +29,7 @@ import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../utils/appearance-effects';
 import { formatErrorMessage } from '../utils/event-payload';
+import { type LoopModelRoutingConfig } from '../utils/loop-model-routing';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { isMotionTheatreActive } from '../utils/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';
@@ -61,6 +62,11 @@ interface RuntimeStatusResult {
 
 interface ManagedUsageResult {
   readonly usage?: ManagedUsageReport;
+  readonly error?: string;
+}
+
+interface LoopModelRoutingResult {
+  readonly config?: LoopModelRoutingConfig;
   readonly error?: string;
 }
 
@@ -195,7 +201,7 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
 }
 
 export async function showStatusReport(host: SlashCommandHost): Promise<void> {
-  const [runtimeStatus, managedUsage, ultraworkRun, activeToolNames] = await Promise.all([
+  const [runtimeStatus, managedUsage, ultraworkRun, activeToolNames, loopModelRouting] = await Promise.all([
     loadRuntimeStatusReport(host),
     loadManagedUsageReport(host),
     (async () => {
@@ -208,6 +214,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
       }
     })(),
     loadActiveToolNames(host),
+    loadLoopModelRouting(host),
   ]);
   const appState = host.state.appState;
   const humanWriting = loadPreflightHumanWriting(appState.workDir);
@@ -253,6 +260,8 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     recovery,
     managedUsage: managedUsage?.usage,
     managedUsageError: managedUsage?.error,
+    loopModelRouting: loopModelRouting.config,
+    loopModelRoutingError: loopModelRouting.error,
     upstreamBaseline: formatUpstreamBaselineSummary(),
     fieldMotion,
     activeToolNames,
@@ -443,6 +452,16 @@ async function loadRuntimeStatusReport(host: SlashCommandHost): Promise<RuntimeS
     return { status: await host.requireSession().getStatus() };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+async function loadLoopModelRouting(host: SlashCommandHost): Promise<LoopModelRoutingResult> {
+  try {
+    return {
+      config: (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig,
+    };
+  } catch (error) {
+    return { error: formatErrorMessage(error) };
   }
 }
 
