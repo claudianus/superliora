@@ -210,6 +210,10 @@ static fallbacks.
 | Progress bars | `renderRendererSegmentedProgressBar` / `renderRendererRatioProgressBar` |
 | Gradient text | `theme/gradient-text.ts` → `gradientText` |
 | Ambient effects | `utils/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
+| Settle flashes (change → rest on a final tone) | `utils/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
+| Entrance highlights (tool headers, turn boundaries) | `utils/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
+| Staged line reveal (Write/Edit previews) | `utils/streaming-text-reveal.ts` → `computeStagedLineReveal` |
+| Adaptive streaming flush schedule | `utils/streaming-flush-schedule.ts` → `nextStreamingFlushDelay` |
 
 New list components **must reuse `SearchableList`** and manually align to
 §3–§6 of this document.
