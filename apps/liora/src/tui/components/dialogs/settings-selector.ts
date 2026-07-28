@@ -3,6 +3,7 @@ import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 export type SettingsSelection =
   | 'model'
   | 'model-routing'
+  | 'model-fallback'
   | 'theme'
   | 'appearance'
   | 'persona'
@@ -30,6 +31,11 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     value: 'model-routing',
     label: 'Model routing',
     description: 'Set future loop-role model overrides without changing this session.',
+  },
+  {
+    value: 'model-fallback',
+    label: 'Model fallback',
+    description: 'Configure fallback models for automatic failover on errors.',
   },
   {
     value: 'permission',
@@ -117,6 +123,7 @@ function isSettingsSelection(value: string): value is SettingsSelection {
   return (
     value === 'model' ||
     value === 'model-routing' ||
+    value === 'model-fallback' ||
     value === 'theme' ||
     value === 'appearance' ||
     value === 'persona' ||

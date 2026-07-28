@@ -172,6 +172,32 @@ describe('handleStageResizeMouseInput', () => {
     expect(state.userStageSize).toBeUndefined();
   });
 
+  it('clears lingering hover when pressing outside a resize grip', () => {
+    const state = createState();
+    // Hover over the right edge to set the resize cursor.
+    expect(handleStageResizeMouseInput(state, mouse('move', GRAB_RIGHT, MID_Y, 'none'))).toBe(true);
+    expect(getStageResizeHoverZone()).toBe('resize-right');
+
+    // Press inside the stage body (not a resize zone): hover must clear
+    // so the resize cursor does not stay stuck.
+    expect(handleStageResizeMouseInput(state, mouse('press', MID_X, MID_Y))).toBe(false);
+    expect(getStageResizeHoverZone()).toBeUndefined();
+  });
+
+  it('recovers from a lost release when a hover move arrives during drag', () => {
+    const state = createState();
+    // Start a drag on the right edge.
+    expect(handleStageResizeMouseInput(state, mouse('press', GRAB_RIGHT, MID_Y))).toBe(true);
+    expect(isStageResizeDragging()).toBe(true);
+
+    // The user released the mouse button outside the terminal so no release
+    // event was received. A subsequent hover move (button=none) must clear
+    // the stale drag state so the cursor resets.
+    expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
+    expect(isStageResizeDragging()).toBe(false);
+    expect(getStageResizeHoverZone()).toBeUndefined();
+  });
+
   it('grows the width by 2*dx when dragging the right edge (center stays fixed)', () => {
     const state = createState();
     expect(handleStageResizeMouseInput(state, mouse('press', GRAB_RIGHT, MID_Y))).toBe(true);

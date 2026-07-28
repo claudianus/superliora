@@ -12,6 +12,7 @@ import {
   ExperimentsSelectorComponent,
   type ExperimentalFeatureDraftChange,
 } from '../components/dialogs/experiments-selector';
+import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../components/dialogs/model-fallback-selector';
 import { TabbedModelSelectorComponent } from '../components/dialogs/tabbed-model-selector';
 import { PermissionSelectorComponent } from '../components/dialogs/permission-selector';
 import { SettingsSelectorComponent, type SettingsSelection } from '../components/dialogs/settings-selector';
@@ -51,6 +52,12 @@ import {
   type LoopModelRoutingConfig,
   type LoopModelRoutingRole,
 } from '#/tui/utils/loop-model-routing';
+import {
+  getFallbackModels,
+  fallbackModelsPatch,
+  clearFallbackModelsPatch,
+  type ModelFallbackConfig,
+} from '#/tui/utils/model-fallback';
 import { handleAccountsCommand } from './accounts';
 import { showMcpServers, showUsage } from './info';
 import { handlePremiumQualityCommand } from './premium';
@@ -681,6 +688,196 @@ export async function resetLoopModelRoutingChoice(
   mountLoopModelRoutingPicker(host, config);
 }
 
+export async function showModelFallbackPicker(host: SlashCommandHost): Promise<void> {
+  const primaryAlias = host.state.appState.model;
+  if (!primaryAlias) {
+    host.showNotice('No model selected', 'Select a model first with /model.');
+    return;
+  }
+
+  const primaryModel = host.state.appState.availableModels[primaryAlias];
+  if (!primaryModel) {
+    host.showError(`Model "${primaryAlias}" not found.`);
+    return;
+  }
+
+  try {
+    const config = (await host.harness.getConfig({ reload: true })) as ModelFallbackConfig;
+    const fallbacks = getFallbackModels(config, primaryAlias);
+    const fallbackItems: ModelFallbackItem[] = fallbacks.map((alias) => {
+      const model = host.state.appState.availableModels[alias];
+      return {
+        alias,
+        displayName: model?.displayName ?? alias,
+        provider: model?.provider ?? 'unknown',
+      };
+    });
+
+    mountFallbackEditor(host, primaryAlias, primaryModel.displayName ?? primaryAlias, fallbackItems);
+  } catch (error) {
+    host.showError(`Failed to load fallback config: ${formatErrorMessage(error)}`);
+  }
+}
+
+function mountFallbackEditor(
+  host: SlashCommandHost,
+  primaryAlias: string,
+  primaryDisplayName: string,
+  fallbackItems: ModelFallbackItem[],
+): void {
+  mountPickerDialog(
+    host,
+    new ModelFallbackSelectorComponent({
+      primaryModel: primaryAlias,
+      primaryDisplayName,
+      fallbacks: fallbackItems,
+      onSelect: (action: ModelFallbackAction) => {
+        void handleFallbackAction(host, primaryAlias, fallbackItems, action);
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Model fallback' },
+  );
+}
+
+async function handleFallbackAction(
+  host: SlashCommandHost,
+  primaryAlias: string,
+  fallbackItems: ModelFallbackItem[],
+  action: ModelFallbackAction,
+): Promise<void> {
+  const currentFallbacks = fallbackItems.map((item) => item.alias);
+
+  switch (action.type) {
+    case 'edit': {
+      const currentAlias = fallbackItems[action.index]?.alias;
+      showFallbackModelPicker(host, primaryAlias, currentFallbacks, (newAlias) => {
+        const updated = [...currentFallbacks];
+        updated[action.index] = newAlias;
+        void saveFallbacksAndRefresh(host, primaryAlias, updated);
+      });
+      break;
+    }
+
+    case 'add': {
+      showFallbackModelPicker(host, primaryAlias, currentFallbacks, (newAlias) => {
+        const updated = [...currentFallbacks, newAlias];
+        void saveFallbacksAndRefresh(host, primaryAlias, updated);
+      });
+      break;
+    }
+
+    case 'remove': {
+      const updated = currentFallbacks.filter((_, i) => i !== action.index);
+      await saveFallbacksAndRefresh(host, primaryAlias, updated);
+      break;
+    }
+
+    case 'moveUp': {
+      if (action.index > 0) {
+        const updated = [...currentFallbacks];
+        const temp = updated[action.index - 1];
+        updated[action.index - 1] = updated[action.index]!;
+        updated[action.index] = temp!;
+        await saveFallbacksAndRefresh(host, primaryAlias, updated);
+      }
+      break;
+    }
+
+    case 'moveDown': {
+      if (action.index < currentFallbacks.length - 1) {
+        const updated = [...currentFallbacks];
+        const temp = updated[action.index];
+        updated[action.index] = updated[action.index + 1]!;
+        updated[action.index + 1] = temp!;
+        await saveFallbacksAndRefresh(host, primaryAlias, updated);
+      }
+      break;
+    }
+
+    case 'clear': {
+      await saveFallbacksAndRefresh(host, primaryAlias, []);
+      break;
+    }
+  }
+}
+
+function showFallbackModelPicker(
+  host: SlashCommandHost,
+  primaryAlias: string,
+  currentFallbacks: readonly string[],
+  onSelect: (alias: string) => void,
+): void {
+  const availableModels = Object.entries(host.state.appState.availableModels)
+    .filter(([alias]) => alias !== primaryAlias && !currentFallbacks.includes(alias))
+    .reduce<Record<string, ModelAlias>>((acc, [alias, model]) => {
+      acc[alias] = model;
+      return acc;
+    }, {});
+
+  if (Object.keys(availableModels).length === 0) {
+    host.showNotice('No models available', 'All models are already in the fallback list or selected as primary.');
+    return;
+  }
+
+  mountPickerDialog(
+    host,
+    new TabbedModelSelectorComponent({
+      models: availableModels,
+      currentValue: '',
+      currentThinking: false,
+      onSelect: ({ alias }) => {
+        dismissPickerDialog(host);
+        onSelect(alias);
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+      notice: 'Select a fallback model.',
+    }),
+    { label: 'Select fallback model' },
+  );
+}
+
+async function saveFallbacksAndRefresh(
+  host: SlashCommandHost,
+  primaryAlias: string,
+  fallbacks: readonly string[],
+): Promise<void> {
+  try {
+    const patch = fallbacks.length > 0
+      ? fallbackModelsPatch(primaryAlias, fallbacks)
+      : clearFallbackModelsPatch(primaryAlias);
+
+    await host.harness.setConfig(patch);
+
+    const config = (await host.harness.getConfig({ reload: true })) as ModelFallbackConfig;
+    const updatedFallbacks = getFallbackModels(config, primaryAlias);
+    const updatedItems: ModelFallbackItem[] = updatedFallbacks.map((alias) => {
+      const model = host.state.appState.availableModels[alias];
+      return {
+        alias,
+        displayName: model?.displayName ?? alias,
+        provider: model?.provider ?? 'unknown',
+      };
+    });
+
+    const primaryModel = host.state.appState.availableModels[primaryAlias];
+    mountFallbackEditor(host, primaryAlias, primaryModel?.displayName ?? primaryAlias, updatedItems);
+
+    host.showStatus(
+      fallbacks.length > 0
+        ? `Fallback list updated (${fallbacks.length} model${fallbacks.length > 1 ? 's' : ''}).`
+        : 'Fallback list cleared.',
+      'success',
+    );
+  } catch (error) {
+    host.showError(`Failed to save fallback config: ${formatErrorMessage(error)}`);
+  }
+}
+
 export function showModelPicker(host: SlashCommandHost, selectedValue: string = host.state.appState.model): void {
   const entries = Object.entries(host.state.appState.availableModels);
   if (entries.length === 0) {
@@ -1124,6 +1321,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
   switch (value) {
     case 'model': showModelPicker(host); return;
     case 'model-routing': void showLoopModelRoutingPicker(host); return;
+    case 'model-fallback': void showModelFallbackPicker(host); return;
     case 'permission': showPermissionPicker(host); return;
     case 'accounts': void handleAccountsCommand(host); return;
     case 'context': void showContextWorkingSetPicker(host); return;

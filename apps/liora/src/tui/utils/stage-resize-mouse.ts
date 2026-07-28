@@ -129,10 +129,19 @@ function handleStageResizeMouseEvent(
 
   if (event.action === 'press') {
     const band = resolveStageBand(state);
-    if (band === undefined) return false;
-    if (!stageFrameVisible(band, state.terminal.columns, state.terminal.rows)) return false;
+    if (band === undefined || !stageFrameVisible(band, state.terminal.columns, state.terminal.rows)) {
+      // Click outside the visible stage frame — clear any lingering hover
+      // so the resize cursor doesn't stay stuck.
+      clearHover(state);
+      return false;
+    }
     const zone = hitTestGrab(band, event.x, event.y);
-    if (!isResizeZone(zone)) return false;
+    if (!isResizeZone(zone)) {
+      // Click inside the stage area but not on a resize grip — clear any
+      // lingering hover so the resize cursor doesn't stay stuck.
+      clearHover(state);
+      return false;
+    }
     activeDrag = {
       zone,
       pressX: event.x,
@@ -159,7 +168,18 @@ function handleStageResizeMouseEvent(
 
 function handleHoverMove(state: TUIState, event: NativeInputMouseEvent): boolean {
   // While dragging, motion is delivered as 'drag' — ignore stray moves.
-  if (activeDrag !== undefined) return false;
+  // However, a hover move with no button pressed while a drag is active
+  // means the release event was lost (e.g. the user released the mouse
+  // button outside the terminal window). Clear the stale drag state so
+  // the cursor can reset instead of staying stuck in resize form.
+  if (activeDrag !== undefined) {
+    if (event.button === 'none') {
+      activeDrag = undefined;
+      // Fall through to re-evaluate hover at the current position.
+    } else {
+      return false;
+    }
+  }
   const prev = hoverZone;
   updateHoverFromPoint(state, event.x, event.y);
   if (hoverZone === prev) {
