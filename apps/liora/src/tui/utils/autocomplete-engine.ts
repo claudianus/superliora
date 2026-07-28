@@ -37,6 +37,8 @@ export interface CompletionItem {
   /** The range in the input to replace. */
   readonly replaceStart: number;
   readonly replaceEnd: number;
+  /** For snippet items: the template body to expand on accept. */
+  readonly expansion?: string;
 }
 
 export interface CompletionContext {
@@ -68,6 +70,27 @@ export interface CompletionProvider {
   getCompletions(context: CompletionContext): CompletionItem[];
 }
 
+/** A user-facing snippet/template that expands into a prompt body. */
+export interface Snippet {
+  /** Trigger word typed in the input, e.g. `"fix"`. */
+  readonly prefix: string;
+  /**
+   * Template body. Supports VSCode-style tabstops:
+   * `${1:default text}` or bare `$1`. The cursor lands at the
+   * lowest-numbered tabstop after expansion.
+   */
+  readonly body: string;
+  readonly description?: string;
+}
+
+/** Result of expanding a snippet body. */
+export interface SnippetExpansion {
+  /** The expanded text with all tabstop defaults filled in. */
+  readonly text: string;
+  /** Character offset where the cursor should be placed. */
+  readonly cursorOffset: number;
+}
+
 export interface AutocompleteRenderOptions {
   readonly maxWidth: number;
   readonly maxVisible: number;
@@ -91,6 +114,30 @@ const SOURCE_ICONS: Record<CompletionSource, string> = {
   snippet: '✂',
   slash: '⌘',
 };
+
+/** Built-in snippets available without configuration. */
+export const DEFAULT_SNIPPETS: readonly Snippet[] = [
+  {
+    prefix: 'fix',
+    body: 'Fix: ${1:issue description}\n\nExpected: ${2:expected behavior}\nActual: ${3:actual behavior}',
+    description: 'Bug report template',
+  },
+  {
+    prefix: 'test',
+    body: 'Write tests for ${1:module}\n\nCover:\n- ${2:happy path}\n- ${3:edge cases}',
+    description: 'Test request template',
+  },
+  {
+    prefix: 'review',
+    body: 'Review ${1:file or module} for:\n- ${2:bugs}\n- ${3:performance}',
+    description: 'Code review template',
+  },
+  {
+    prefix: 'explain',
+    body: 'Explain ${1:concept or code}\n\nContext: ${2:what I already know}',
+    description: 'Explanation request template',
+  },
+];
 
 // ---------------------------------------------------------------------------
 // AutocompleteEngine
@@ -227,6 +274,35 @@ export class AutocompleteEngine {
     const newInput = context.input.slice(0, context.cursor) + this.state.inlinePreview + context.input.slice(context.cursor);
     this.dismiss();
     return newInput;
+  }
+
+  /**
+   * Accept the selected item and return the new input plus cursor position.
+   * For snippet items the template body is expanded and the cursor is placed
+   * at the first tabstop. For all other items the cursor lands after the
+   * inserted text.
+   */
+  acceptWithExpansion(): { text: string; cursor: number } | null {
+    if (!this.state.active || this.state.items.length === 0) return null;
+
+    const item = this.state.items[this.state.selectedIndex];
+    const context = this.state.context;
+    if (!item || !context) return null;
+
+    const count = this.recentCompletions.get(item.text) ?? 0;
+    this.recentCompletions.set(item.text, count + 1);
+
+    const before = context.input.slice(0, context.wordStart);
+    const after = context.input.slice(context.cursor);
+
+    if (item.expansion !== undefined) {
+      const expanded = expandSnippetBody(item.expansion);
+      this.dismiss();
+      return { text: before + expanded.text + after, cursor: before.length + expanded.cursorOffset };
+    }
+
+    this.dismiss();
+    return { text: before + item.text + after, cursor: before.length + item.text.length };
   }
 
   // ─── Navigation ──────────────────────────────────────────────────
@@ -419,9 +495,79 @@ export function createFileProvider(getFiles: (prefix: string) => string[]): Comp
   };
 }
 
+/**
+ * Snippet / template provider.
+ *
+ * Matches snippet prefixes against the current word in general or command
+ * context (not path or slash). Each item carries `expansion` so that
+ * `acceptWithExpansion()` can expand the template body and place the cursor
+ * at the first tabstop.
+ */
+export function createSnippetProvider(getSnippets: () => readonly Snippet[]): CompletionProvider {
+  return {
+    source: 'snippet',
+    priority: 70,
+    getCompletions(context: CompletionContext): CompletionItem[] {
+      if (context.contextType === 'slash' || context.contextType === 'path') return [];
+      const query = context.word.toLowerCase();
+      if (query.length === 0) return [];
+
+      return getSnippets()
+        .filter((s) => s.prefix.toLowerCase().includes(query))
+        .map((s) => ({
+          text: s.prefix,
+          display: s.prefix,
+          source: 'snippet' as const,
+          description: s.description ?? 'snippet',
+          score: s.prefix.toLowerCase().startsWith(query) ? 85 : 35,
+          replaceStart: context.wordStart,
+          replaceEnd: context.cursor,
+          expansion: s.body,
+        }));
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
+
+const TABSTOP_RE = /\$\{(\d+)(?::([^}]*))?\}|\$(\d+)/g;
+
+/**
+ * Expand a snippet template body into plain text.
+ *
+ * Tabstop syntax (VSCode-compatible subset):
+ * - `${1:default text}` → inserts `default text`
+ * - `$1`                → inserts empty string
+ *
+ * The cursor is placed at the start of the lowest-numbered tabstop.
+ * If there are no tabstops the cursor lands at the end of the text.
+ */
+export function expandSnippetBody(body: string): SnippetExpansion {
+  let text = '';
+  let lastIndex = 0;
+  let lowestNum = Infinity;
+  let lowestPos = -1;
+
+  const re = new RegExp(TABSTOP_RE.source, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    text += body.slice(lastIndex, m.index);
+    const num = Number(m[1] ?? m[3] ?? '0');
+    const defaultVal = m[2] ?? '';
+    const insertPos = text.length;
+    text += defaultVal;
+    if (num > 0 && num < lowestNum) {
+      lowestNum = num;
+      lowestPos = insertPos;
+    }
+    lastIndex = re.lastIndex;
+  }
+  text += body.slice(lastIndex);
+
+  return { text, cursorOffset: lowestPos >= 0 ? lowestPos : text.length };
+}
 
 function deduplicateItems(items: CompletionItem[]): CompletionItem[] {
   const seen = new Set<string>();
