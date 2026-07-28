@@ -69,6 +69,7 @@ import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
   TOOL_HEADER_ENTRANCE_MS,
+  toolHeaderEntranceDurationMs,
 } from '#/tui/utils/transcript-entrance';
 
 import {
@@ -161,6 +162,34 @@ function stagedPreviewRevealDurationMs(): number {
   if (!shouldRenderAmbientEffects(appearance)) return 0;
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   return mode === 'subtle' ? STAGED_LINE_REVEAL_MS_SUBTLE : STAGED_LINE_REVEAL_MS_PREMIUM;
+}
+
+/**
+ * First-seen spawn timestamps keyed by `${toolCallId}:${agentId}`. Pins the
+ * subagent spawn entrance to the first spawn render so streaming remounts
+ * and clock-driven rebuilds decay the settle in place instead of replaying
+ * it. Replayed subagents never pass through `onSubagentSpawned`, so history
+ * never animates. Same bounded-map sweep as the header registry.
+ */
+const subagentSpawnFirstSeenMs = new Map<string, number>();
+const SUBAGENT_SPAWN_FIRST_SEEN_MAX_ENTRIES = 128;
+
+function subagentSpawnEntranceStartedAt(toolCallId: string, agentId: string): number {
+  const now = appearanceAnimationNow();
+  if (subagentSpawnFirstSeenMs.size >= SUBAGENT_SPAWN_FIRST_SEEN_MAX_ENTRIES) {
+    // Generous expiry: the longest subtle-mode entrance plus margin.
+    const ttl = TOOL_HEADER_ENTRANCE_MS * 4;
+    for (const [key, seen] of subagentSpawnFirstSeenMs) {
+      if (now - seen > ttl) subagentSpawnFirstSeenMs.delete(key);
+    }
+  }
+  const key = `${toolCallId}:${agentId}`;
+  let seen = subagentSpawnFirstSeenMs.get(key);
+  if (seen === undefined) {
+    seen = now;
+    subagentSpawnFirstSeenMs.set(key, seen);
+  }
+  return seen;
 }
 
 type SubagentTextKind = 'thinking' | 'text';
@@ -697,6 +726,13 @@ export class ToolCallComponent extends Container {
   private lastStreamingProgressTickMs = 0;
   private lastSubagentElapsedTickMs = 0;
   private subagentStartedAtMs: number | undefined;
+  /**
+   * First-seen spawn clock for the subagent entrance settle (shared
+   * animation clock, never a private timer). Undefined for replayed
+   * subagents — `applySubagentReplay` bypasses `onSubagentSpawned` — so
+   * history renders without the entrance.
+   */
+  private subagentSpawnEntranceAtMs: number | undefined;
   private finishedAtMs: number | undefined;
   private subagentEndedAtMs: number | undefined;
   private subagentSpinnerFrame = 0;
@@ -900,13 +936,24 @@ export class ToolCallComponent extends Container {
     // phase chips and ongoing sub-call rows) tick while any sub-call is live
     // so their spinner frames keep moving too.
     const phase = this.getDerivedSubagentPhase();
+    // Spawn entrance settle still decaying on a multi-view chip row: the row
+    // is a rebuilt child (not the epoch-driven header), so it needs the tick
+    // to finish its highlight even when the phase itself does not tick
+    // (e.g. backgrounded). The ×2 margin guarantees one rebuild after the
+    // entrance TTL so the row lands on settled bytes, then the gate flips
+    // back off. Single views decay via syncAnimatedHeader() instead.
+    const spawnEntranceAtMs = this.subagentSpawnEntranceAtMs;
+    const spawnEntranceLive =
+      spawnEntranceAtMs !== undefined &&
+      now - spawnEntranceAtMs <= toolHeaderEntranceDurationMs() * 2;
     const subagentShouldTick = this.isSingleSubagentView()
       ? this.subagentStartedAtMs !== undefined &&
         (phase === 'queued' || phase === 'spawning' || phase === 'running')
       : this.subagentPhase === 'queued' ||
         this.subagentPhase === 'spawning' ||
         this.subagentPhase === 'running' ||
-        this.ongoingSubCalls.size > 0;
+        this.ongoingSubCalls.size > 0 ||
+        spawnEntranceLive;
     if (subagentShouldTick) {
       if (now - this.lastSubagentElapsedTickMs >= SUBAGENT_ELAPSED_INTERVAL_MS) {
         this.lastSubagentElapsedTickMs = now;
@@ -1296,6 +1343,12 @@ export class ToolCallComponent extends Container {
     this.subagentModelAlias = meta.modelAlias;
     this.subagentPhase = meta.runInBackground ? 'backgrounded' : 'queued';
     this.subagentStartedAtMs = Date.now();
+    // Bounded entrance settle for the freshly appeared subagent chip/card —
+    // first-seen guarded so remounts / clock-driven rebuilds never restart it.
+    this.subagentSpawnEntranceAtMs = subagentSpawnEntranceStartedAt(
+      this.toolCall.id,
+      meta.agentId,
+    );
     this.subagentEndedAtMs = undefined;
     this.syncSubagentElapsedTimer();
     this.headerText.setText(this.buildHeader());
@@ -1618,7 +1671,16 @@ export class ToolCallComponent extends Container {
     // result has landed: the result settle flash owns the header from then.
     if (this.result === undefined) {
       const startedAtMs = toolHeaderEntranceStartedAt(this.toolCall.id);
-      return applyToolHeaderEntrance(header, startedAtMs);
+      const entered = applyToolHeaderEntrance(header, startedAtMs);
+      // A fresh subagent spawn gets its own bounded settle on the single
+      // subagent card header — the mount entrance has settled by spawn time,
+      // so the chip/card appearance reads as a distinct beat. Replayed
+      // subagents leave the timestamp undefined and never animate.
+      const spawnAtMs = this.subagentSpawnEntranceAtMs;
+      if (spawnAtMs !== undefined && this.isSingleSubagentView()) {
+        return applyToolHeaderEntrance(entered, spawnAtMs);
+      }
+      return entered;
     }
     return header;
   }
@@ -1900,7 +1962,18 @@ export class ToolCallComponent extends Container {
       this.subagentAgentName !== undefined
         ? `subagent ${this.subagentAgentName} (${this.formatAgentId()})`
         : `subagent (${this.formatAgentId()})`;
-    this.addChild(new Text(`  ${currentTheme.dim(`↳ ${headerLabel}`)}${phaseChip}`, 0, 0));
+    // Spawn entrance settle on the freshly mounted chip row (multi-subagent
+    // cards). The timestamp is first-seen guarded, so clock-driven rebuilds
+    // decay the highlight in place; replay leaves it undefined → no motion.
+    const chipRow = `  ${currentTheme.dim(`↳ ${headerLabel}`)}${phaseChip}`;
+    const spawnAtMs = this.subagentSpawnEntranceAtMs;
+    this.addChild(
+      new Text(
+        spawnAtMs === undefined ? chipRow : applyToolHeaderEntrance(chipRow, spawnAtMs),
+        0,
+        0,
+      ),
+    );
 
     if (this.hiddenSubCallCount > 0) {
       const suffix = this.hiddenSubCallCount > 1 ? 's' : '';

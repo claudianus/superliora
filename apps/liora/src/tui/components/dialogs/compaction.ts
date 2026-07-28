@@ -11,6 +11,9 @@
  *
  * Under premium ambient, enter/exit beats replace the blink-only header with a
  * short particle-rail theatre while preserving token-delta copy on complete.
+ * While in flight, the progress line carries a bar shimmer, a shimmer-frame
+ * activity marker, and a blinking preview cursor — all off the shared
+ * animation clock, all gone once the block settles.
  */
 
 import type { CompactionPhase } from '@superliora/sdk';
@@ -27,6 +30,7 @@ import {
   renderEnterBeat,
   renderExitBeat,
   renderPremiumHeadline,
+  renderShimmerPrefix,
   shouldRenderAmbientEffects,
 } from '#/tui/utils/appearance-effects';
 
@@ -406,7 +410,12 @@ export class CompactionComponent extends Container {
       }
     }
     const pct = currentTheme.fg('textDim', `${String(Math.round(fraction * 100)).padStart(3)}%`);
-    return `  ${bar} ${pct} ${currentTheme.fg('textMuted', status)}`;
+    // Clock-driven activity marker in front of the phase label: the shared
+    // shimmer frames keep the in-flight surface visibly alive and disappear
+    // with the whole line once compaction settles (PREMIUM.md §7.1). Empty
+    // string when ambient motion is off, so static renders stay byte-stable.
+    const marker = animated ? renderShimmerPrefix(appearance) : '';
+    return `  ${bar} ${pct} ${marker}${currentTheme.fg('textMuted', status)}`;
   }
 
   private buildSummaryPreviewLines(): string[] {
@@ -424,9 +433,17 @@ export class CompactionComponent extends Container {
       });
     if (lines.length === 0) return lines;
     // Live cursor on the last preview line while summarizing / repairing.
+    // Under ambient motion the cursor blinks on the shared animation clock
+    // (same cadence as the header bullet); with motion off it stays solidly
+    // on so quality-gated renders remain byte-stable.
     if (!this.done && !this.canceled && (this.phase === 'summarizing' || this.phase === 'repairing')) {
-      const last = lines[lines.length - 1] ?? '';
-      lines[lines.length - 1] = `${last}${currentTheme.fg('accent', '▌')}`;
+      const blinkOn = shouldRenderAmbientEffects(getActiveAppearancePreferences())
+        ? Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0
+        : true;
+      if (blinkOn) {
+        const last = lines[lines.length - 1] ?? '';
+        lines[lines.length - 1] = `${last}${currentTheme.fg('accent', '▌')}`;
+      }
     }
     return lines;
   }
