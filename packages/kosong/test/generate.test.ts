@@ -1,5 +1,5 @@
-import { APIEmptyResponseError } from '#/errors';
-import { generate } from '#/generate';
+import { APIEmptyResponseError, APITimeoutError } from '#/errors';
+import { generate, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from '#/generate';
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
 import type { ChatProvider, StreamedMessage, ThinkingEffort } from '#/provider';
 import type { Tool } from '#/tool';
@@ -1022,6 +1022,125 @@ describe('generate()', () => {
       expect(stats).toBeDefined();
       expect(stats!.serverDecodeMs).toBeGreaterThan(stats!.clientConsumeMs);
       expect(stats!.serverDecodeMs).toBeGreaterThanOrEqual(40);
+    });
+  });
+
+  describe('stream idle timeout', () => {
+    it('throws APITimeoutError when the stream stalls beyond streamIdleTimeoutMs', async () => {
+      const stream: StreamedMessage = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          // Stall longer than the idle timeout before yielding anything.
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          yield { type: 'text', text: 'too late' };
+        },
+      };
+      const provider = createMockProvider(stream);
+
+      await expect(
+        generate(provider, '', [], [], undefined, { streamIdleTimeoutMs: 50 }),
+      ).rejects.toMatchObject({ name: 'APITimeoutError' });
+    });
+
+    it('resets the idle timer on each received part', async () => {
+      const stream: StreamedMessage = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          // Each part arrives within the timeout window, so the stream
+          // completes even though total duration exceeds one window.
+          for (let i = 0; i < 3; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 30));
+            yield { type: 'text', text: `part${String(i)}` };
+          }
+        },
+      };
+      const provider = createMockProvider(stream);
+
+      const result = await generate(provider, '', [], [], undefined, {
+        streamIdleTimeoutMs: 80,
+      });
+
+      expect(result.message.content).toEqual([
+        { type: 'text', text: 'part0part1part2' },
+      ]);
+    });
+
+    it('disables the watchdog when streamIdleTimeoutMs is 0', async () => {
+      const stream: StreamedMessage = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          yield { type: 'text', text: 'slow but allowed' };
+        },
+      };
+      const provider = createMockProvider(stream);
+
+      const result = await generate(provider, '', [], [], undefined, {
+        streamIdleTimeoutMs: 0,
+      });
+
+      expect(result.message.content).toEqual([
+        { type: 'text', text: 'slow but allowed' },
+      ]);
+    });
+
+    it('cancels the underlying stream on idle timeout', async () => {
+      const cancelFn = vi.fn();
+      const stream = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        cancel: cancelFn,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          yield { type: 'text', text: 'never' };
+        },
+      };
+      const provider = createMockProvider(stream as unknown as StreamedMessage);
+
+      await expect(
+        generate(provider, '', [], [], undefined, { streamIdleTimeoutMs: 50 }),
+      ).rejects.toMatchObject({ name: 'APITimeoutError' });
+
+      expect(cancelFn).toHaveBeenCalled();
+    });
+
+    it('idle timeout error is retryable', () => {
+      const error = new APITimeoutError('Stream idle timeout: no data received for 300000ms.');
+      expect(error.name).toBe('APITimeoutError');
+      // isRetryableGenerateError treats APITimeoutError as retryable —
+      // verified in errors.test.ts; here we confirm the class is correct.
+      expect(error).toBeInstanceOf(APITimeoutError);
+    });
+
+    it('exports a sensible default idle timeout', () => {
+      expect(DEFAULT_STREAM_IDLE_TIMEOUT_MS).toBe(300_000);
     });
   });
 });

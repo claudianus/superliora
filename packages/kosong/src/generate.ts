@@ -1,4 +1,4 @@
-import { APIEmptyResponseError } from './errors';
+import { APIEmptyResponseError, APITimeoutError } from './errors';
 import {
   isContentPart,
   isToolCall,
@@ -17,6 +17,15 @@ import type {
 } from './provider';
 import type { Tool } from './tool';
 import type { TokenUsage } from './usage';
+
+/**
+ * Default maximum silence (ms) between streamed parts before the generate
+ * loop treats the stream as stalled and aborts. Five minutes is generous
+ * enough for extended-thinking models that pause before the first token,
+ * yet catches genuinely dead connections far sooner than the 30-minute
+ * hangs users have observed.
+ */
+export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
 
 /** Snapshot of a ToolCall excluding the internal `_streamIndex` routing field. */
 type StoredToolCall = Omit<ToolCall, '_streamIndex'>;
@@ -124,61 +133,87 @@ export async function generate(
   let firstPartAt: number | undefined;
   let lastResumeAt = 0;
 
-  for await (const part of stream) {
-    const arrivedAt = Date.now();
-    if (firstPartAt === undefined) {
-      firstPartAt = arrivedAt;
-    } else {
-      serverDecodeMs += arrivedAt - lastResumeAt;
-    }
+  // Idle watchdog: race each iterator.next() against a timeout so a stalled
+  // stream (server stops sending tokens without closing the connection)
+  // cannot block the agent loop indefinitely. The timer resets on every
+  // received part; only complete silence triggers the abort.
+  const idleTimeoutMs = options?.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+  const iterator = stream[Symbol.asyncIterator]();
 
-    try {
-      await throwIfAborted(options?.signal, stream);
+  try {
+    while (true) {
+      const nextPromise = iterator.next();
+      // Swallow rejection on the pending next() when the idle timeout wins
+      // the race — prevents an unhandled rejection after stream cancellation.
+      nextPromise.catch(() => {});
 
-      // Notify raw part callback (deep copy to avoid aliasing mutations).
-      if (callbacks?.onMessagePart !== undefined) {
-        await callbacks.onMessagePart(deepCopyPart(part));
+      const iterResult = await raceStreamIdleTimeout(nextPromise, idleTimeoutMs, provider);
+      if (iterResult.done) break;
+      const part = iterResult.value;
+
+      const arrivedAt = Date.now();
+      if (firstPartAt === undefined) {
+        firstPartAt = arrivedAt;
+      } else {
+        serverDecodeMs += arrivedAt - lastResumeAt;
+      }
+
+      try {
         await throwIfAborted(options?.signal, stream);
-      }
 
-      // Index-based routing for parallel tool call argument deltas.
-      // When a ToolCallPart arrives with an index referring to a tool call
-      // that is NOT the currently-pending one, append it directly to the
-      // correct ToolCall in message.toolCalls instead of relying on sequential
-      // merging. This prevents argument cross-contamination across parallel calls.
-      if (
-        isToolCallPart(part) &&
-        part.index !== undefined &&
-        !isPendingToolCallAtIndex(pendingPart, part.index)
-      ) {
-        const arrayIdx = toolCallIndexMap.get(part.index);
-        if (arrayIdx !== undefined) {
-          const target = message.toolCalls[arrayIdx];
-          if (target !== undefined && part.argumentsPart !== null) {
-            target.arguments =
-              target.arguments === null
-                ? part.argumentsPart
-                : target.arguments + part.argumentsPart;
-          }
-          continue;
+        // Notify raw part callback (deep copy to avoid aliasing mutations).
+        if (callbacks?.onMessagePart !== undefined) {
+          await callbacks.onMessagePart(deepCopyPart(part));
+          await throwIfAborted(options?.signal, stream);
         }
-        // Unknown index — fall through to the sequential logic as a safety net.
-      }
 
-      if (pendingPart === null) {
-        pendingPart = part;
-      } else if (!mergeInPlace(pendingPart, part)) {
-        // Could not merge — flush the pending part and start a new one.
-        // For parallel tool calls this happens when a new ToolCall header arrives
-        // while a previous ToolCall is still pending; the flush finalizes the
-        // previous tool call into `message.toolCalls`.
-        flushPart(message, pendingPart, toolCallIndexMap);
-        pendingPart = part;
+        // Index-based routing for parallel tool call argument deltas.
+        // When a ToolCallPart arrives with an index referring to a tool call
+        // that is NOT the currently-pending one, append it directly to the
+        // correct ToolCall in message.toolCalls instead of relying on sequential
+        // merging. This prevents argument cross-contamination across parallel calls.
+        if (
+          isToolCallPart(part) &&
+          part.index !== undefined &&
+          !isPendingToolCallAtIndex(pendingPart, part.index)
+        ) {
+          const arrayIdx = toolCallIndexMap.get(part.index);
+          if (arrayIdx !== undefined) {
+            const target = message.toolCalls[arrayIdx];
+            if (target !== undefined && part.argumentsPart !== null) {
+              target.arguments =
+                target.arguments === null
+                  ? part.argumentsPart
+                  : target.arguments + part.argumentsPart;
+            }
+            continue;
+          }
+          // Unknown index — fall through to the sequential logic as a safety net.
+        }
+
+        if (pendingPart === null) {
+          pendingPart = part;
+        } else if (!mergeInPlace(pendingPart, part)) {
+          // Could not merge — flush the pending part and start a new one.
+          // For parallel tool calls this happens when a new ToolCall header arrives
+          // while a previous ToolCall is still pending; the flush finalizes the
+          // previous tool call into `message.toolCalls`.
+          flushPart(message, pendingPart, toolCallIndexMap);
+          pendingPart = part;
+        }
+      } finally {
+        lastResumeAt = Date.now();
+        clientConsumeMs += lastResumeAt - arrivedAt;
       }
-    } finally {
-      lastResumeAt = Date.now();
-      clientConsumeMs += lastResumeAt - arrivedAt;
     }
+  } catch (error) {
+    // On idle timeout, actively cancel the underlying HTTP stream so the
+    // connection is released promptly rather than lingering until the OS
+    // reclaims it.
+    if (error instanceof APITimeoutError) {
+      await cancelStream(stream);
+    }
+    throw error;
   }
 
   await throwIfAborted(options?.signal, stream);
@@ -340,4 +375,36 @@ function formatFinishReasonHint(stream: StreamedMessage): string {
  */
 function deepCopyPart(part: StreamedMessagePart): StreamedMessagePart {
   return structuredClone(part);
+}
+
+/**
+ * Race an async iterator step against an idle timeout.
+ *
+ * If `timeoutMs` is positive and the promise does not settle within the
+ * window, the returned promise rejects with an {@link APITimeoutError}.
+ * The timer is always cleaned up, whether the data promise wins or the
+ * timeout fires.
+ */
+function raceStreamIdleTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  provider: ChatProvider,
+): Promise<T> {
+  if (timeoutMs <= 0) return promise;
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new APITimeoutError(
+          `Stream idle timeout: no data received for ${String(timeoutMs)}ms. ` +
+            `Provider: ${provider.name}, model: ${provider.modelName}`,
+        ),
+      );
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
 }

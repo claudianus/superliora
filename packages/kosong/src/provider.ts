@@ -142,6 +142,16 @@ export interface GenerateOptions {
    * accounting when at least one streamed part was observed.
    */
   onStreamEnd?: (stats?: StreamDecodeStats) => void;
+  /**
+   * Maximum time (ms) to wait for the next streamed part before treating the
+   * stream as stalled and aborting with an {@link APITimeoutError}. The timer
+   * resets on every received part, so a healthy slow stream is never killed —
+   * only a completely silent one.
+   *
+   * Defaults to {@link DEFAULT_STREAM_IDLE_TIMEOUT_MS} (5 minutes). Set to `0`
+   * to disable the watchdog entirely.
+   */
+  streamIdleTimeoutMs?: number;
 }
 
 export interface ContextManagementCapability {
