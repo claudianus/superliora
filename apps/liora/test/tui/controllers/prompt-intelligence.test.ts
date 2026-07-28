@@ -101,7 +101,7 @@ describe('PromptIntelligenceController', () => {
     editor.setText('please help me');
     editor.onChange?.(editor.getText());
 
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(500);
     await Promise.resolve();
     // pending placeholder while RPC is outstanding
     expect(editor.getGhostText()).toBe('…');
@@ -126,7 +126,7 @@ describe('PromptIntelligenceController', () => {
 
     editor.setText('enough chars here');
     editor.onChange?.(editor.getText());
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(500);
     await Promise.resolve();
 
     expect(appState.promptIntelligencePhase).toBe('inline');
