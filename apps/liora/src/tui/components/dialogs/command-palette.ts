@@ -1,10 +1,12 @@
 /**
- * CommandPalette — unified fuzzy-search omnibox (Ctrl-Space).
+ * CommandPalette — unified fuzzy-search omnibox for power users.
  *
- * Merges slash commands, skills, and a small set of session actions into one
- * searchable list. Reuses {@link SearchableList} like the other pickers. On
- * select, the host receives either a slash-command name (executed as `/<name>`)
- * or an action id (handled by the host directly).
+ * Opened from the Command Hub (Help → Command palette); Esc returns to the
+ * Hub when it is stacked below. Merges slash commands, skills, and a small
+ * set of session actions into one searchable list. Reuses
+ * {@link SearchableList} like the other pickers. On select, the host receives
+ * either a slash-command name (executed as `/<name>`) or an action id
+ * (handled by the host directly).
  */
 
 import {Container, Key, matchesKey, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
@@ -22,6 +24,8 @@ export interface PaletteEntry {
   readonly value: string;
   readonly label: string;
   readonly description?: string;
+  /** Extra search-only tokens (e.g. slash command aliases); never rendered. */
+  readonly aliases?: readonly string[];
 }
 
 export interface CommandPaletteOptions {
@@ -36,6 +40,17 @@ const CATEGORY_LABEL: Readonly<Record<PaletteEntryKind, string>> = {
   action: ttui('tui.palette.category.actions'),
 };
 
+/**
+ * Order palette entries by a caller-supplied score (descending). The sort is
+ * stable, so equal-score entries keep their authored order.
+ */
+export function rankPaletteEntries(
+  entries: readonly PaletteEntry[],
+  score: (entry: PaletteEntry) => number,
+): PaletteEntry[] {
+  return entries.toSorted((a, b) => score(b) - score(a));
+}
+
 export class CommandPaletteComponent extends Container implements Focusable {
   focused = false;
   private readonly opts: CommandPaletteOptions;
@@ -46,7 +61,8 @@ export class CommandPaletteComponent extends Container implements Focusable {
     this.opts = opts;
     this.list = new SearchableList({
       items: opts.entries,
-      toSearchText: (entry) => `${entry.label} ${entry.description ?? ''} ${entry.value}`,
+      toSearchText: (entry) =>
+        `${entry.label} ${entry.description ?? ''} ${entry.value} ${(entry.aliases ?? []).join(' ')}`,
       initialIndex: 0,
       searchable: true,
     });
