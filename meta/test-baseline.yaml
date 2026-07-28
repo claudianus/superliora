@@ -50,7 +50,4 @@ packages:
       - "resolveSlashCommandInput blocks model and session pickers while compacting"
       - "update preference commands saves automatic update preference changes to tui.toml"
       - "updateActivityPane terminal progress moves the moon spinner into the AgentSwarm progress row while active"
-    unstable:
-      - "model selector native frame ANSI safety ModelSelector.render keeps ESC on SGR and never emits stripped bodies"
-      - "model selector native frame ANSI safety paints ModelSelector editor-replacement cells without leaked SGR bodies"
-      - "model selector native frame ANSI safety paints TabbedModelSelector editor-replacement cells without leaked SGR bodies"
+    unstable: []
