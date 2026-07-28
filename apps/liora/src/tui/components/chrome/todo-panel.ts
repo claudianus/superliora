@@ -41,6 +41,7 @@ import {
 } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
+import type { AppearancePreferences } from '#/tui/config';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import {
   appearanceAnimationNow,
@@ -63,7 +64,33 @@ export interface TodoItem {
   readonly status: TodoStatus;
 }
 
+/**
+ * Live subagent progress input for the board's subagents strip (Phase 5-B).
+ * Mirrors the `subagent.todo.updated` payload: identity plus the child's
+ * full todo list, reduced to done/total counts on the strip.
+ */
+export interface SubagentTodosInput {
+  readonly subagentId: string;
+  readonly name: string;
+  readonly todos: readonly TodoItem[];
+}
+
+/** One rendered row of the subagents strip. */
+export interface SubagentStripEntry {
+  readonly subagentId: string;
+  readonly name: string;
+  readonly done: number;
+  readonly total: number;
+}
+
 const MAX_VISIBLE = 5;
+/**
+ * Cap on tracked subagent rows. Finished subagents leave via lifecycle
+ * events; the cap bounds the strip when completions are missed or many
+ * children run at once — the earliest-entered rows are evicted first.
+ */
+const MAX_SUBAGENT_ROWS = 6;
+const SUBAGENT_BAR_WIDTH = 6;
 const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
 const BOARD_INDENT = '  ';
@@ -119,6 +146,17 @@ interface CardMotionCue {
   /** Row travel direction for moves; undefined for lane hops on the same row. */
   readonly direction?: 'up' | 'down';
   readonly startedAtMs: number;
+}
+
+/** Mutable strip row; rebuilt in place on each `subagent.todo.updated`. */
+interface SubagentStripRow {
+  readonly subagentId: string;
+  name: string;
+  done: number;
+  total: number;
+  readonly enteredAtMs: number;
+  /** Last count change; drives the count settle flash. */
+  updatedAtMs: number;
 }
 
 const EMPTY_MOTIONS: ReadonlyMap<string, CardMotionCue> = new Map();
@@ -259,6 +297,15 @@ export class TodoPanelComponent implements Component {
     | undefined;
   private lastLaneCounts: Record<TodoStatus, number> = { done: 0, in_progress: 0, pending: 0 };
   private laneCountFlashes: Partial<Record<TodoStatus, number>> = {};
+  /**
+   * Subagents strip (Phase 5-B). Insertion-ordered map keyed by subagent id;
+   * bounded by MAX_SUBAGENT_ROWS and swept on lifecycle completion / reset.
+   */
+  private subagentRows = new Map<string, SubagentStripRow>();
+  /** Bumped on every strip mutation; joins the render memo key. */
+  private subagentVersion = 0;
+  /** Removal feedback: the strip header re-settles when a row leaves. */
+  private subagentStripFlashAtMs: number | undefined;
   /** Frame memo: identical state yields the same lines array so the renderer diff skips the panel. */
   private lastRender:
     | {
@@ -267,6 +314,7 @@ export class TodoPanelComponent implements Component {
         readonly todos: readonly TodoItem[];
         readonly goal: GoalSnapshot | null;
         readonly calls: number;
+        readonly subagents: number;
         readonly secondBucket: number;
         readonly lines: string[];
       }
@@ -316,6 +364,67 @@ export class TodoPanelComponent implements Component {
     return this.todos;
   }
 
+  /**
+   * Track one subagent's live todo progress on the strip below the lanes
+   * (Phase 5-B). Idempotent per subagent id: new ids enter with the board's
+   * entrance settle, count changes flash the count cell. Rows are bounded by
+   * MAX_SUBAGENT_ROWS; lifecycle completion removes them explicitly.
+   */
+  setSubagentTodos(input: SubagentTodosInput): void {
+    const done = input.todos.filter((todo) => todo.status === 'done').length;
+    const total = input.todos.length;
+    const now = appearanceAnimationNow();
+    const existing = this.subagentRows.get(input.subagentId);
+    if (existing !== undefined) {
+      existing.name = input.name;
+      if (existing.done !== done || existing.total !== total) {
+        existing.done = done;
+        existing.total = total;
+        existing.updatedAtMs = now;
+      }
+    } else {
+      this.subagentRows.set(input.subagentId, {
+        subagentId: input.subagentId,
+        name: input.name,
+        done,
+        total,
+        enteredAtMs: now,
+        updatedAtMs: now,
+      });
+      this.evictExcessSubagentRows();
+    }
+    this.subagentVersion += 1;
+  }
+
+  /**
+   * Drop a finished subagent's strip row. Returns true when a row left, so
+   * callers can request a frame; the removal flashes the strip header with
+   * the board's settle-flash feedback.
+   */
+  removeSubagent(subagentId: string): boolean {
+    if (!this.subagentRows.delete(subagentId)) return false;
+    this.subagentStripFlashAtMs = appearanceAnimationNow();
+    this.subagentVersion += 1;
+    return true;
+  }
+
+  clearSubagents(): void {
+    if (this.subagentRows.size === 0 && this.subagentStripFlashAtMs === undefined) return;
+    this.subagentRows = new Map();
+    this.subagentStripFlashAtMs = undefined;
+    this.subagentVersion += 1;
+  }
+
+  /** Strip snapshot in display order (insertion order), for tests/inspection. */
+  getSubagentStrip(): readonly SubagentStripEntry[] {
+    return [...this.subagentRows.values()].map(({ subagentId, name, done, total }) => ({
+      subagentId,
+      name,
+      done,
+      total,
+    }));
+  }
+
   bumpActivity(): void {
     this.callsSinceUpdate += 1;
   }
@@ -340,6 +449,8 @@ export class TodoPanelComponent implements Component {
     this.positionBase = undefined;
     this.lastLaneCounts = { done: 0, in_progress: 0, pending: 0 };
     this.laneCountFlashes = {};
+    this.subagentRows = new Map();
+    this.subagentStripFlashAtMs = undefined;
     this.lastRender = undefined;
   }
 
@@ -373,7 +484,8 @@ export class TodoPanelComponent implements Component {
     // While the change flash is active the frame is time-driven; otherwise
     // unchanged state must yield byte-identical lines so the renderer's line
     // diff can skip this panel during ambient ticks.
-    const animating = this.currentChangeSummary() !== undefined;
+    const animating =
+      this.currentChangeSummary() !== undefined || this.subagentStripAnimating();
     // The goal wall-clock label advances once per second; bucketing keeps the
     // memo valid within that second.
     const secondBucket = Math.floor(appearanceAnimationNow() / 1000);
@@ -386,6 +498,7 @@ export class TodoPanelComponent implements Component {
       memo.todos === this.todos &&
       memo.goal === this.goal &&
       memo.calls === this.callsSinceUpdate &&
+      memo.subagents === this.subagentVersion &&
       memo.secondBucket === secondBucket
     ) {
       return memo.lines;
@@ -418,6 +531,16 @@ export class TodoPanelComponent implements Component {
 
     if (this.todos.length > 0) {
       lines.push(...this.buildTodoContent(width, profile));
+      // Subagents strip (Phase 5-B): live child progress below the lanes.
+      // It follows the board's visibility — rendered only while the board
+      // itself is on screen, inside the same panel frame.
+      const stripLines = this.renderSubagentStrip(contentWidth);
+      if (stripLines.length > 0) {
+        lines.push(
+          currentTheme.fg('border', `  ${'─'.repeat(Math.max(4, Math.min(24, contentWidth - 2)))}`),
+        );
+        lines.push(...stripLines);
+      }
     }
 
     if (profile === 'tiny') {
@@ -612,6 +735,7 @@ export class TodoPanelComponent implements Component {
       todos: this.todos,
       goal: this.goal,
       calls: this.callsSinceUpdate,
+      subagents: this.subagentVersion,
       secondBucket,
       lines,
     };
@@ -635,6 +759,114 @@ export class TodoPanelComponent implements Component {
       return rows;
     }
     return this.lastBoardRows;
+  }
+
+  /** Keep the strip bounded: drop earliest-entered rows past the cap. */
+  private evictExcessSubagentRows(): void {
+    while (this.subagentRows.size > MAX_SUBAGENT_ROWS) {
+      // Map iterates in insertion order; updates never reorder, so the first
+      // key is the earliest-entered row.
+      const oldest = this.subagentRows.keys().next();
+      if (oldest.done === true) break;
+      this.subagentRows.delete(oldest.value);
+    }
+  }
+
+  /**
+   * True while any strip settle flash is live. Gated on ambient effects so
+   * off / SSH / NO_COLOR / CI sessions never emit time-driven frames — the
+   * strip stays information-only there.
+   */
+  private subagentStripAnimating(): boolean {
+    if (this.subagentRows.size === 0 && this.subagentStripFlashAtMs === undefined) return false;
+    const appearance = getActiveAppearancePreferences();
+    if (!shouldRenderAmbientEffects(appearance)) return false;
+    if (
+      this.subagentStripFlashAtMs !== undefined &&
+      isToneSettleFlashActive(this.subagentStripFlashAtMs, appearance)
+    ) {
+      return true;
+    }
+    for (const row of this.subagentRows.values()) {
+      if (isToneSettleFlashActive(row.enteredAtMs, appearance)) return true;
+      if (isToneSettleFlashActive(row.updatedAtMs, appearance)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Compact strip under the three lanes: header plus one row per tracked
+   * subagent (short name, mini ratio bar, done/total). Reuses the board's
+   * settle flash for entrance, count changes, and removal feedback; with
+   * ambient effects gated off every byte is static.
+   */
+  private renderSubagentStrip(contentWidth: number): string[] {
+    if (this.subagentRows.size === 0) return [];
+    const appearance = getActiveAppearancePreferences();
+    const animatable = shouldRenderAmbientEffects(appearance);
+    const headerText = `subagents (${String(this.subagentRows.size)})`;
+    const header =
+      animatable &&
+      this.subagentStripFlashAtMs !== undefined &&
+      isToneSettleFlashActive(this.subagentStripFlashAtMs, appearance)
+        ? renderToneSettleFlash(
+            headerText,
+            'todo:subagent-strip',
+            this.subagentStripFlashAtMs,
+            'primary',
+            appearance,
+          )
+        : currentTheme.boldFg('textStrong', headerText);
+    const lines = [`${BOARD_INDENT}${header}`];
+    for (const row of this.subagentRows.values()) {
+      lines.push(this.renderSubagentStripRow(row, contentWidth, animatable, appearance));
+    }
+    return lines;
+  }
+
+  private renderSubagentStripRow(
+    row: SubagentStripRow,
+    contentWidth: number,
+    animatable: boolean,
+    appearance: AppearancePreferences,
+  ): string {
+    const ratio = row.total > 0 ? row.done / row.total : 0;
+    const bar = renderRendererRatioProgressBar({
+      ratio,
+      width: SUBAGENT_BAR_WIDTH,
+      filledStyle: (text) => currentTheme.fg('success', text),
+      emptyStyle: (text) => currentTheme.fg('textMuted', text),
+    });
+    const countText = `${String(row.done)}/${String(row.total)}`;
+    const count =
+      animatable && isToneSettleFlashActive(row.updatedAtMs, appearance)
+        ? renderToneSettleFlash(
+            countText,
+            `todo:subagent-count:${row.subagentId}`,
+            row.updatedAtMs,
+            'primary',
+            appearance,
+          )
+        : row.total > 0 && row.done === row.total
+          ? currentTheme.fg('success', countText)
+          : currentTheme.fg('textDim', countText);
+    // ` ▸ ` before the name, then ` <bar> <count>` after it.
+    const suffixWidth = 1 + SUBAGENT_BAR_WIDTH + 1 + countText.length;
+    const nameWidth = Math.max(
+      8,
+      contentWidth - visibleWidth(BOARD_INDENT) - 2 - suffixWidth,
+    );
+    const displayName = truncateToWidth(row.name, nameWidth, '…');
+    const name =
+      animatable && isToneSettleFlashActive(row.enteredAtMs, appearance)
+        ? renderSettleFlash(
+            displayName,
+            `todo:subagent:${row.subagentId}`,
+            row.enteredAtMs,
+            appearance,
+          )
+        : currentTheme.fg('text', displayName);
+    return `${BOARD_INDENT}${currentTheme.fg('primary', '▸')} ${name} ${bar} ${count}`;
   }
 }
 
