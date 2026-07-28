@@ -244,6 +244,8 @@ export class SubAgentEventHandler {
       progress.appendMemberToolFeed({
         agentId: event.subagentId,
         body: describeSubagentToolFeedBody(event.name, event.detail, event.argsPreview),
+        // Phase 5-A: drives the per-member ✎ code-write pulse in the grid.
+        toolName: event.name,
       });
       this.requestRender();
       return;

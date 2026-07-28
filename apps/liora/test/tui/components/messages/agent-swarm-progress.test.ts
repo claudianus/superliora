@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import {
   AgentSwarmProgressComponent,
+  CODE_WRITE_QUIET_MS,
   type AgentSwarmProgressOptions,
   agentSwarmDescriptionFromArgs,
   agentSwarmGridHeightForTerminalRows,
@@ -13,7 +14,14 @@ import {
   calculateAgentSwarmGridLayout,
 } from '#/tui/components/messages/agent-swarm-progress';
 import { AgentSwarmProgressEstimator } from '#/tui/components/messages/agent-swarm-progress-estimator';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
+import {
+  advanceAppearanceAnimationClock,
+  setActiveAppearancePreferences,
+  setAppearanceRenderHealth,
+  setAppearanceRenderQuality,
+} from '#/tui/utils/appearance-effects';
 
 const DEFAULT_DESCRIPTION = 'Review changed files';
 
@@ -1500,6 +1508,190 @@ describe('AgentSwarmProgressComponent', () => {
 
     expect(agentSwarmDescriptionFromArgs(args)).toBe('Review changed files');
     expect(agentSwarmItemsFromArgs(args)).toEqual(['src/a.ts', '123']);
+  });
+});
+
+describe('AgentSwarmProgressComponent code-write pulse (Phase 5-A)', () => {
+  const AMBIENT_ENV_KEYS = [
+    'TERM',
+    'CI',
+    'NO_COLOR',
+    'SSH_TTY',
+    'SSH_CONNECTION',
+    'SSH_CLIENT',
+  ] as const;
+  const WRITE_PULSE_GLYPH = /[✎✐]/;
+  const savedEnv = new Map<string, string | undefined>();
+
+  function enableAmbientMotion(): void {
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+    delete process.env['SSH_TTY'];
+    delete process.env['SSH_CONNECTION'];
+    delete process.env['SSH_CLIENT'];
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'premium',
+      particles: 'premium',
+    });
+  }
+
+  function createWritingSwarm(memberCount: number): AgentSwarmProgressComponent {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam(
+      Array.from({ length: memberCount }, (_item, index) => ({
+        expertId: `expert-${String(index + 1)}`,
+        name: `Expert ${String(index + 1)}`,
+        emoji: '🔧',
+        coverageLane: 'implement',
+        focus: 'build',
+      })),
+    );
+    component.markInputComplete();
+    for (let index = 1; index <= memberCount; index += 1) {
+      component.registerSubagent({
+        agentId: `agent-${String(index)}`,
+        description: `task ${String(index)}`,
+      });
+      component.markStarted(`agent-${String(index)}`);
+    }
+    return component;
+  }
+
+  beforeEach(() => {
+    for (const key of AMBIENT_ENV_KEYS) savedEnv.set(key, process.env[key]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-07T00:00:00.000Z'));
+    advanceAppearanceAnimationClock(Date.now());
+  });
+
+  afterEach(() => {
+    for (const key of AMBIENT_ENV_KEYS) {
+      const value = savedEnv.get(key);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    setAppearanceRenderQuality('full');
+    setAppearanceRenderHealth('healthy');
+  });
+
+  it('marks a member writing and renders the ✎ pulse at t0', () => {
+    enableAmbientMotion();
+    const component = createWritingSwarm(1);
+
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: 'Edit src/a.ts +3 -1',
+      toolName: 'Edit',
+    });
+    advanceAppearanceAnimationClock(Date.now());
+
+    expect(renderText(component, 120)).toMatch(WRITE_PULSE_GLYPH);
+  });
+
+  it('detects write activity from the feed body when no tool name is passed', () => {
+    enableAmbientMotion();
+    const component = createWritingSwarm(1);
+
+    component.appendMemberToolFeed({ agentId: 'agent-1', body: 'Write src/new.ts 42 lines' });
+    advanceAppearanceAnimationClock(Date.now());
+
+    expect(renderText(component, 120)).toMatch(WRITE_PULSE_GLYPH);
+  });
+
+  it('clears the pulse when a non-write tool arrives', () => {
+    enableAmbientMotion();
+    const component = createWritingSwarm(1);
+
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: 'Edit src/a.ts +3 -1',
+      toolName: 'Edit',
+    });
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: 'Bash pnpm test',
+      toolName: 'Bash',
+    });
+    advanceAppearanceAnimationClock(Date.now());
+
+    expect(renderText(component, 120)).not.toMatch(WRITE_PULSE_GLYPH);
+  });
+
+  it('expires the pulse after the quiet window', () => {
+    enableAmbientMotion();
+    const component = createWritingSwarm(1);
+    const startMs = Date.now();
+
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: 'Edit src/a.ts +3 -1',
+      toolName: 'Edit',
+    });
+
+    vi.setSystemTime(startMs + CODE_WRITE_QUIET_MS - 100);
+    advanceAppearanceAnimationClock(Date.now());
+    expect(renderText(component, 120)).toMatch(WRITE_PULSE_GLYPH);
+
+    vi.setSystemTime(startMs + CODE_WRITE_QUIET_MS + 1);
+    advanceAppearanceAnimationClock(Date.now());
+    expect(renderText(component, 120)).not.toMatch(WRITE_PULSE_GLYPH);
+  });
+
+  it('clears the pulse when the member reaches a terminal phase', () => {
+    enableAmbientMotion();
+    const component = createWritingSwarm(1);
+
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: 'Edit src/a.ts +3 -1',
+      toolName: 'Edit',
+    });
+    component.markCompleted('agent-1', 'patch landed');
+    advanceAppearanceAnimationClock(Date.now());
+
+    expect(renderText(component, 120)).not.toMatch(WRITE_PULSE_GLYPH);
+  });
+
+  it('shows the pulse on every member writing simultaneously', () => {
+    enableAmbientMotion();
+    const component = createWritingSwarm(2);
+
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: 'Edit src/a.ts +3 -1',
+      toolName: 'Edit',
+    });
+    component.appendMemberToolFeed({
+      agentId: 'agent-2',
+      body: 'Write src/b.ts 42 lines',
+      toolName: 'Write',
+    });
+    advanceAppearanceAnimationClock(Date.now());
+
+    const output = renderText(component, 120);
+    expect(output.match(/[✎✐]/g) ?? []).toHaveLength(2);
+  });
+
+  it('renders no pulse bytes when ambient motion is gated (byte-identical static)', () => {
+    process.env['CI'] = '1';
+    const component = createWritingSwarm(1);
+
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: 'Edit src/a.ts +3 -1',
+      toolName: 'Edit',
+    });
+    const first = renderText(component, 120);
+    expect(first).not.toMatch(WRITE_PULSE_GLYPH);
+
+    // Ambient ticks keep advancing; gated output must not gain or lose bytes.
+    advanceAppearanceAnimationClock(Date.now() + 5_000);
+    expect(renderText(component, 120)).toBe(first);
   });
 });
 
