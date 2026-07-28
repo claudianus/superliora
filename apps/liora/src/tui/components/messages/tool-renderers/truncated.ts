@@ -32,6 +32,11 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
       // When true, collapsed rendering keeps the latest visual rows instead of
       // the first rows. This is useful for live output from a running command.
       tail?: boolean;
+      // Footer wording. Defaults to 'scroll': every app usage lives inside the
+      // transcript viewport, where scrolling back auto-expands truncated blocks
+      // (scroll reveal), so the hint promises the gesture that actually works
+      // there. 'key' restores the legacy ctrl+o wording.
+      hintMode?: 'key' | 'scroll';
     },
   ) {
     super(output, {
@@ -41,6 +46,7 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
       indent: options.indent ?? DEFAULT_INDENT,
       expandHint: options.expandHint,
       tail: options.tail,
+      hintMode: options.hintMode ?? 'scroll',
       formatText: (text, context) =>
         context.isError ? currentTheme.fg('error', text) : currentTheme.dim(text),
       formatHint: (hint) => currentTheme.dim(hint),
