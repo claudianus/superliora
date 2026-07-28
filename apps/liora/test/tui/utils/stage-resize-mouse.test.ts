@@ -193,7 +193,8 @@ describe('handleStageResizeMouseInput', () => {
     // The user released the mouse button outside the terminal so no release
     // event was received. A subsequent hover move (button=none) must clear
     // the stale drag state so the cursor resets.
-    expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
+    // Returns false because the mouse is now outside the resize zone.
+    expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(false);
     expect(isStageResizeDragging()).toBe(false);
     expect(getStageResizeHoverZone()).toBeUndefined();
   });

@@ -175,7 +175,8 @@ function handleHoverMove(state: TUIState, event: NativeInputMouseEvent): boolean
   if (activeDrag !== undefined) {
     if (event.button === 'none') {
       activeDrag = undefined;
-      // Fall through to re-evaluate hover at the current position.
+      // Clear hover state immediately so the cursor resets before re-evaluating
+      clearHover(state);
     } else {
       return false;
     }
