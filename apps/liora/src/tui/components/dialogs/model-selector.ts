@@ -74,6 +74,10 @@ export interface ModelSelectorOptions {
   /** When provided, Alt+S invokes this instead of onSelect — used to apply the
    * choice to the current session only, without persisting it as the default. */
   readonly onSessionOnlySelect?: (selection: ModelSelection) => void;
+  /** When provided, Alt+R clears the selected routing override. */
+  readonly onReset?: () => void;
+  /** Optional note for settings-specific model selections. */
+  readonly notice?: string;
   readonly onCancel: () => void;
 }
 
@@ -186,6 +190,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
       return;
     }
 
+    if (matchesKey(data, Key.alt('r')) && this.opts.onReset !== undefined) {
+      this.opts.onReset();
+      return;
+    }
+
     // Left/Right toggle the thinking draft for models that support it.
     // Handled before search so arrow keys never become filter characters.
     if (matchesKey(data, Key.left) || matchesKey(data, Key.right)) {
@@ -272,6 +281,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
     }
     hintParts.push('Enter select');
     if (this.opts.onSessionOnlySelect !== undefined) hintParts.push('Alt+S session-only');
+    if (this.opts.onReset !== undefined) hintParts.push('Alt+R reset');
     hintParts.push('Esc cancel');
 
     const body: string[] = [];
@@ -356,6 +366,9 @@ export class ModelSelectorComponent extends Container implements Focusable {
       footer.push('');
     } else {
       footer.push('');
+    }
+    if (this.opts.notice !== undefined) {
+      footer.push(currentTheme.fg('textMuted', ` ${this.opts.notice}`));
     }
     return renderRendererPanelChromeRows({
       width,

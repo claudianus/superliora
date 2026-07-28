@@ -713,11 +713,25 @@ function serviceToToml(service: MoonshotServiceConfig): Record<string, unknown> 
   return out;
 }
 
+const LOOP_CONTROL_MODEL_FIELDS = [
+  'compactionModel',
+  'completionModel',
+  'explorationModel',
+  'codingModel',
+  'planningModel',
+  'debuggingModel',
+] as const satisfies readonly (keyof LoopControl)[];
+
 function loopControlToToml(
   loopControl: LoopControl,
   rawLoopControl: unknown,
 ): Record<string, unknown> {
   const out = cloneRecord(rawLoopControl);
+  for (const key of LOOP_CONTROL_MODEL_FIELDS) {
+    if (loopControl[key] === undefined) {
+      delete out[camelToSnake(key)];
+    }
+  }
   for (const [key, value] of Object.entries(loopControl)) {
     setDefined(out, camelToSnake(key), value);
   }

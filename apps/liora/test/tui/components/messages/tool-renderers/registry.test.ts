@@ -5,6 +5,7 @@ import {
   isGenericToolResult,
   pickResultRenderer,
 } from '#/tui/components/messages/tool-renderers/registry';
+import { renderTruncated } from '#/tui/components/messages/tool-renderers/truncated';
 import { darkColors } from '#/tui/theme/colors';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
@@ -61,6 +62,7 @@ describe('tool-result registry', () => {
   it('falls back to truncated renderer for unknown tools', () => {
     const renderer = pickResultRenderer('SomethingUnknown');
     const out = strip(joinRender(renderer(call('SomethingUnknown'), result('a\nb\nc\nd\ne'), ctx)));
+    expect(renderer).toBe(renderTruncated);
     expect(out).toContain('a');
     expect(out).toContain('b');
     expect(out).toContain('c');
@@ -69,9 +71,10 @@ describe('tool-result registry', () => {
     expect(out).toContain('... (2 more lines, ctrl+o to expand)');
   });
 
-  it('uses truncated renderer for Bash to preserve raw output UX', () => {
+  it('renders Bash command before truncated output to preserve visibility', () => {
     const renderer = pickResultRenderer('Bash');
-    const out = strip(joinRender(renderer(call('Bash'), result('one\ntwo\nthree\nfour'), ctx)));
+    const out = strip(joinRender(renderer(call('Bash', { command: 'ls -la' }), result('one\ntwo\nthree\nfour'), ctx)));
+    expect(out).toContain('$ ls -la');
     expect(out).toContain('one');
     expect(out).toContain('... (1 more lines, ctrl+o to expand)');
   });

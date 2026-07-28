@@ -101,6 +101,7 @@ import type {
   CreateSessionPayload,
   DetachBackgroundPayload,
   ClientTelemetryInfo,
+  DeleteConfigFieldsPayload,
   EmptyPayload,
   DiagnoseContextOSPayload,
   EnterPlanPayload,
@@ -194,6 +195,77 @@ type SessionScopedPayload<T> = T & { readonly sessionId: string };
 type SessionAgentPayload<T> = SessionScopedPayload<AgentScopedPayload<T>>;
 type RenameSessionRequest = SessionScopedPayload<RenameSessionPayload>;
 type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMetadataPayload>;
+type DeleteConfigFieldPath = DeleteConfigFieldsPayload['paths'][number];
+
+const DELETE_CONFIG_FIELD_PATHS = new Set<DeleteConfigFieldPath>([
+  'loopControl.compactionModel',
+  'loopControl.completionModel',
+  'loopControl.explorationModel',
+  'loopControl.codingModel',
+  'loopControl.planningModel',
+  'loopControl.debuggingModel',
+]);
+const CONFIG_PATH_SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/;
+
+function validateDeleteConfigFields(
+  input: DeleteConfigFieldsPayload,
+): readonly DeleteConfigFieldPath[] {
+  const rawInput = input as unknown;
+  if (
+    typeof rawInput !== 'object' ||
+    rawInput === null ||
+    Array.isArray(rawInput) ||
+    !Object.hasOwn(rawInput, 'paths')
+  ) {
+    throw new LioraError(ErrorCodes.CONFIG_INVALID, 'Invalid config field deletion request.');
+  }
+
+  const rawPaths = (rawInput as { readonly paths: unknown }).paths;
+  if (!Array.isArray(rawPaths)) {
+    throw new LioraError(
+      ErrorCodes.CONFIG_INVALID,
+      'Config field deletion paths must be a list of dot-delimited strings.',
+    );
+  }
+
+  return rawPaths.map((path) => {
+    if (typeof path !== 'string') {
+      throw new LioraError(
+        ErrorCodes.CONFIG_INVALID,
+        'Config field deletion paths must be dot-delimited strings.',
+      );
+    }
+
+    const segments = path.split('.');
+    if (
+      segments.length !== 2 ||
+      segments.some(
+        (segment) =>
+          segment === '__proto__' ||
+          segment === 'constructor' ||
+          !CONFIG_PATH_SEGMENT.test(segment),
+      )
+    ) {
+      throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid config field path "${path}".`);
+    }
+
+    if (!DELETE_CONFIG_FIELD_PATHS.has(path as DeleteConfigFieldPath)) {
+      throw new LioraError(ErrorCodes.CONFIG_INVALID, `Unknown config field path "${path}".`);
+    }
+
+    return path as DeleteConfigFieldPath;
+  });
+}
+
+function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): boolean {
+  const loopControl = config.loopControl;
+  if (loopControl === undefined) return false;
+
+  const field = path.slice('loopControl.'.length) as keyof typeof loopControl;
+  if (!Object.hasOwn(loopControl, field)) return false;
+  delete loopControl[field];
+  return true;
+}
 
 export interface LioraCoreOptions {
   readonly homeDir?: string | undefined;
@@ -752,6 +824,19 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   async setKimiConfig(input: SetKimiConfigPayload): Promise<LioraConfig> {
     const config = mergeConfigPatch(this.readConfigForWrite(), input);
     await writeConfigFile(this.configPath, config);
+    return this.reloadRuntimeConfig();
+  }
+
+  async deleteConfigFields(input: DeleteConfigFieldsPayload): Promise<LioraConfig> {
+    const paths = validateDeleteConfigFields(input);
+    const config = this.readConfigForWrite();
+    let deleted = false;
+    for (const path of paths) {
+      deleted = deleteConfigField(config, path) || deleted;
+    }
+    if (deleted) {
+      await writeConfigFile(this.configPath, config);
+    }
     return this.reloadRuntimeConfig();
   }
 

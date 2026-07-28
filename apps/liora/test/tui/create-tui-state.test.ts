@@ -970,16 +970,35 @@ describe('createTUIState', () => {
 
     expect(renderer.frameRenderer.height).toBe(7);
 
+    const writesBeforeResize = output.writes.length;
+    output.columns = 12;
+    output.rows = 5;
+    output.emit('resize');
+    scheduler.advance(0);
+
+    expect(renderer.lastFrame?.frame.causes).toContain('resize');
+    expect(renderer.lastFrame?.size).toEqual({ columns: 12, rows: 5 });
+    expect(renderer.frameRenderer.width).toBe(12);
+    expect(renderer.frameRenderer.height).toBe(5);
+    const resizeWrites = output.writes.slice(writesBeforeResize);
+    expect(resizeWrites).toHaveLength(1);
+    expect(resizeWrites[0]).toContain(encodeTerminalClearBelowRow(5));
+    expect(resizeWrites[0]).toContain('t5');
+
     const writesBeforeShrink = output.writes.length;
     state.transcriptContainer.children.length = 0;
     state.transcriptContainer.addChild(fixedLines(['t1']));
     state.transcriptContainer.invalidate();
     renderer.requestRender('manual');
-    scheduler.advance(17);
+    // The immediate resize consumes the current 60fps frame slot.
+    scheduler.advance(34);
 
+    expect(renderer.lastFrame?.frame.causes).toContain('manual');
     expect(renderer.frameRenderer.height).toBe(3);
     const shrinkWrites = output.writes.slice(writesBeforeShrink);
-    expect(shrinkWrites).toContain(encodeTerminalClearBelowRow(3));
+    expect(shrinkWrites).toHaveLength(1);
+    expect(shrinkWrites[0]).toContain(encodeTerminalClearBelowRow(3));
+    expect(shrinkWrites[0]).toContain('t1');
     renderer.stop();
   });
 

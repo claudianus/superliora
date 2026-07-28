@@ -96,6 +96,66 @@ export interface NativeFrameStatsBudget {
   readonly avgDirtyRowRatio: number;
 }
 
+export interface FrameInvalidationStatsSnapshot {
+  readonly requestCount: number;
+  readonly coalescedRequestCount: number;
+  readonly flushCount: number;
+  readonly layoutCount: number;
+  readonly renderCount: number;
+  readonly presentCount: number;
+}
+
+/** Scalar counters for the frame-invalidation hot path. */
+export class FrameInvalidationStats {
+  private requestCount = 0;
+  private coalescedRequestCount = 0;
+  private flushCount = 0;
+  private layoutCount = 0;
+  private renderCount = 0;
+  private presentCount = 0;
+
+  recordRequest(coalesced: boolean): void {
+    this.requestCount++;
+    if (coalesced) this.coalescedRequestCount++;
+  }
+
+  recordFlush(): void {
+    this.flushCount++;
+  }
+
+  recordLayout(): void {
+    this.layoutCount++;
+  }
+
+  recordRender(): void {
+    this.renderCount++;
+  }
+
+  recordPresent(): void {
+    this.presentCount++;
+  }
+
+  reset(): void {
+    this.requestCount = 0;
+    this.coalescedRequestCount = 0;
+    this.flushCount = 0;
+    this.layoutCount = 0;
+    this.renderCount = 0;
+    this.presentCount = 0;
+  }
+
+  snapshot(): FrameInvalidationStatsSnapshot {
+    return {
+      requestCount: this.requestCount,
+      coalescedRequestCount: this.coalescedRequestCount,
+      flushCount: this.flushCount,
+      layoutCount: this.layoutCount,
+      renderCount: this.renderCount,
+      presentCount: this.presentCount,
+    };
+  }
+}
+
 export class NativeFrameStats {
   private readonly windowSize: number;
   private readonly recent: NativeTerminalRendererFrameMetrics[] = [];

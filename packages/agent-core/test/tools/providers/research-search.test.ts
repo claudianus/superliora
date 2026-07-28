@@ -157,7 +157,7 @@ describe('ResearchSearchEngine', () => {
         url: 'https://example.com/tavily',
       }),
     ]);
-    expect(results[0]?.snippet).toContain('[tavily]');
+    expect(results[0]?.snippet).toBe('A useful snippet');
   });
 
   it('fans out in parallel and dedupes URLs', async () => {
@@ -210,7 +210,7 @@ describe('ResearchSearchEngine', () => {
     expect(urls.filter((u) => u === 'https://example.com/shared')).toHaveLength(1);
   });
 
-  it('auto cascade uses only one paid provider when results are sufficient', async () => {
+  it('auto calls two paid providers and fuses them even when the first returns three hits', async () => {
     let braveCalls = 0;
     let tavilyCalls = 0;
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
@@ -221,9 +221,13 @@ describe('ResearchSearchEngine', () => {
           JSON.stringify({
             web: {
               results: [
-                { title: 'Brave 1', url: 'https://example.com/a', description: 'alpha' },
-                { title: 'Brave 2', url: 'https://example.com/b', description: 'beta' },
-                { title: 'Brave 3', url: 'https://example.com/c', description: 'gamma' },
+                {
+                  title: 'Adaptive fusion shared',
+                  url: 'https://example.com/shared?utm_source=brave',
+                  description: 'adaptive fusion',
+                },
+                { title: 'Brave 2', url: 'https://brave.example/b', description: 'adaptive result' },
+                { title: 'Brave 3', url: 'https://docs.example/c', description: 'fusion result' },
               ],
             },
           }),
@@ -234,7 +238,18 @@ describe('ResearchSearchEngine', () => {
         tavilyCalls += 1;
         return new Response(
           JSON.stringify({
-            results: [{ title: 'Tavily', url: 'https://example.com/t', content: 'should not call' }],
+            results: [
+              {
+                title: 'Shared from Tavily',
+                url: 'https://example.com/shared#section',
+                content: 'adaptive fusion consensus',
+              },
+              {
+                title: 'Tavily only',
+                url: 'https://tavily.example/t',
+                content: 'adaptive fusion',
+              },
+            ],
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -254,10 +269,182 @@ describe('ResearchSearchEngine', () => {
       },
     });
 
-    const results = await engine.search('alpha beta gamma', { limit: 3 });
-    expect(results.length).toBeGreaterThanOrEqual(3);
+    const results = await engine.search('adaptive fusion', { limit: 3 });
     expect(braveCalls).toBe(1);
-    expect(tavilyCalls).toBe(0);
+    expect(tavilyCalls).toBe(1);
+    expect(results[0]?.url).toBe('https://example.com/shared');
+    expect(results.map((result) => result.url)).toContain('https://tavily.example/t');
+    expect(results.every((result) => !result.snippet.startsWith('['))).toBe(true);
+  });
+
+  it('auto preserves partial results when one provider rejects', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.search.brave.com')) {
+        return new Response('{}', { status: 500 });
+      }
+      if (url.includes('api.tavily.com')) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: 'Adaptive one',
+                url: 'https://one.example/a',
+                content: 'adaptive fusion',
+              },
+              {
+                title: 'Fusion two',
+                url: 'https://two.example/b',
+                content: 'adaptive fusion',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: {
+        strategy: 'auto',
+        freeFallback: false,
+        providers: [
+          { kind: 'brave', apiKey: 'b' },
+          { kind: 'tavily', apiKey: 't' },
+        ],
+      },
+    });
+
+    const results = await engine.search('adaptive fusion', { limit: 3 });
+    expect(results.map((result) => result.url)).toEqual([
+      'https://one.example/a',
+      'https://two.example/b',
+    ]);
+  });
+
+  it('auto escalates to free fallback when fused paid results are thin', async () => {
+    let freeCalls = 0;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.search.brave.com')) {
+        return new Response(
+          JSON.stringify({
+            web: {
+              results: [
+                {
+                  title: 'Adaptive paid one',
+                  url: 'https://paid.example/a',
+                  description: 'adaptive fusion',
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.includes('api.tavily.com')) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: 'Fusion paid two',
+                url: 'https://paid.example/b',
+                content: 'adaptive fusion',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.includes('duckduckgo.com/html')) {
+        freeCalls += 1;
+        return new Response(
+          [
+            '<html><body>',
+            '<div class="result">',
+            '<a class="result__a" href="https://free.example/c">Adaptive free result</a>',
+            '<a class="result__snippet">adaptive fusion fallback</a>',
+            '</div>',
+            '</body></html>',
+          ].join(''),
+          { status: 200, headers: { 'content-type': 'text/html' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: {
+        strategy: 'auto',
+        freeFallback: true,
+        providers: [
+          { kind: 'brave', apiKey: 'b' },
+          { kind: 'tavily', apiKey: 't' },
+        ],
+      },
+      local: {
+        searchUrl: 'https://duckduckgo.com/html/',
+        directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+      },
+    });
+
+    const results = await engine.search('adaptive fusion', { limit: 3 });
+    expect(freeCalls).toBe(1);
+    expect(results.map((result) => result.url)).toContain('https://free.example/c');
+  });
+
+  it('preserves explicit round-robin routing', async () => {
+    let braveCalls = 0;
+    let tavilyCalls = 0;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.search.brave.com')) {
+        braveCalls += 1;
+        return new Response(
+          JSON.stringify({
+            web: {
+              results: [
+                { title: 'Brave explicit', url: 'https://brave.example/explicit', description: 'query' },
+              ],
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.includes('api.tavily.com')) {
+        tavilyCalls += 1;
+        return new Response(
+          JSON.stringify({
+            results: [
+              { title: 'Tavily explicit', url: 'https://tavily.example/explicit', content: 'query' },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: {
+        strategy: 'round_robin',
+        freeFallback: false,
+        providers: [
+          { kind: 'brave', apiKey: 'b' },
+          { kind: 'tavily', apiKey: 't' },
+        ],
+      },
+    });
+
+    const first = await engine.search('query', { limit: 1 });
+    const second = await engine.search('query', { limit: 1 });
+    expect(first[0]?.url).toBe('https://brave.example/explicit');
+    expect(second[0]?.url).toBe('https://tavily.example/explicit');
+    expect({ braveCalls, tavilyCalls }).toEqual({ braveCalls: 1, tavilyCalls: 1 });
   });
 
   it('does not request provider-native full content during metadata search', async () => {

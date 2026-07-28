@@ -301,6 +301,36 @@ describe('LioraHarness config API', () => {
     expect(text).toContain('claim_stale_after_ms = 15000');
   });
 
+  it('forwards config field deletions through the harness RPC', async () => {
+    const homeDir = await makeTempDir();
+    const configPath = join(homeDir, 'config.toml');
+    await writeFile(
+      configPath,
+      COMPLETE_TOML.replace(
+        'compaction_trigger_ratio = 0.85',
+        'compaction_trigger_ratio = 0.85\ncompaction_model = "compact"\ncompletion_model = "complete"',
+      ),
+      'utf-8',
+    );
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
+
+    const deleted = await harness.deleteConfigFields([
+      'loopControl.compactionModel',
+      'loopControl.completionModel',
+    ]);
+
+    expect(deleted.loopControl?.maxRetriesPerStep).toBe(3);
+    expect(deleted.loopControl).not.toHaveProperty('compactionModel');
+    expect(deleted.loopControl).not.toHaveProperty('completionModel');
+
+    const reloaded = await harness.getConfig({ reload: true });
+    expect(reloaded.loopControl).not.toHaveProperty('compactionModel');
+    expect(reloaded.loopControl).not.toHaveProperty('completionModel');
+    const text = await readFile(configPath, 'utf-8');
+    expect(text).not.toContain('compaction_model');
+    expect(text).not.toContain('completion_model');
+  });
+
   it('does not write invalid config patches', async () => {
     const homeDir = await makeTempDir();
     const configPath = join(homeDir, 'config.toml');

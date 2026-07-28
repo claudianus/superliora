@@ -13,11 +13,13 @@ import {
   ANSI_HIDE_CURSOR,
   ANSI_DISABLE_MOUSE_TRACKING,
   ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING,
+  ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING,
   ANSI_DISABLE_SGR_MOUSE_MODE,
   ANSI_ENABLE_BRACKETED_PASTE,
   ANSI_ENABLE_FOCUS_EVENTS,
   ANSI_ENABLE_MOUSE_TRACKING,
   ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING,
+  ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING,
   ANSI_ENABLE_SGR_MOUSE_MODE,
   ANSI_POP_KITTY_KEYBOARD_PROTOCOL,
   ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
@@ -130,9 +132,10 @@ describe('NativeTerminalRenderer', () => {
     output.emit('resize');
     scheduler.advance(0);
 
-    expect(output.writes.slice(writesBeforeShrink, writesBeforeShrink + 1)).toEqual([
-      encodeTerminalClearBelowRow(20),
-    ]);
+    const shrinkWrites = output.writes.slice(writesBeforeShrink, writesBeforeShrink + 1);
+    expect(shrinkWrites).toHaveLength(1);
+    expect(shrinkWrites[0]).toContain(encodeTerminalClearBelowRow(20));
+    expect(shrinkWrites[0]).toContain('tail');
     expect(renderer.frameRenderer.height).toBe(20);
     expect(renderer.lastFrame?.size).toEqual({ columns: 80, rows: 20 });
   });
@@ -171,6 +174,7 @@ describe('NativeTerminalRenderer', () => {
       scheduler,
       screenMode: 'alternate',
       clearOnStart: true,
+      synchronized: true,
       render: ({ renderer: frameRenderer, size }) => {
         frameRenderer.writeText(0, 0, `${size.columns}x${size.rows}`);
       },
@@ -186,7 +190,12 @@ describe('NativeTerminalRenderer', () => {
     scheduler.advance(0);
 
     const growWrites = output.writes.slice(writesBeforeGrow);
-    expect(growWrites).toContain(ANSI_CLEAR_SCREEN);
+    expect(growWrites).toHaveLength(1);
+    const [resizeFrame] = growWrites;
+    expect(resizeFrame).toMatch(/^\u001B\[\?2026h/);
+    expect(resizeFrame).toContain(ANSI_CLEAR_SCREEN);
+    expect(resizeFrame).toContain('120x40');
+    expect(resizeFrame).toMatch(/\u001B\[\?2026l$/);
     expect(renderer.lastFrame?.frame.causes).toEqual(['resize']);
   });
 
@@ -540,8 +549,10 @@ describe('NativeTerminalRenderer', () => {
     expect(output.writes).toEqual([
       ANSI_ENABLE_MOUSE_TRACKING,
       ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING,
+      ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING,
       ANSI_ENABLE_SGR_MOUSE_MODE,
       ANSI_DISABLE_SGR_MOUSE_MODE,
+      ANSI_DISABLE_MOUSE_ANY_EVENT_TRACKING,
       ANSI_DISABLE_MOUSE_BUTTON_EVENT_TRACKING,
       ANSI_DISABLE_MOUSE_TRACKING,
     ]);
@@ -564,7 +575,7 @@ describe('NativeTerminalRenderer', () => {
     renderer.start();
     scheduler.advance(0);
 
-    expect(output.writes.slice(0, 10)).toEqual([
+    expect(output.writes.slice(0, 11)).toEqual([
       ANSI_ENTER_ALTERNATE_SCREEN,
       ANSI_CLEAR_SCREEN,
       ANSI_DISABLE_AUTO_WRAP,
@@ -573,6 +584,7 @@ describe('NativeTerminalRenderer', () => {
       ANSI_ENABLE_FOCUS_EVENTS,
       ANSI_ENABLE_MOUSE_TRACKING,
       ANSI_ENABLE_MOUSE_BUTTON_EVENT_TRACKING,
+      ANSI_ENABLE_MOUSE_ANY_EVENT_TRACKING,
       ANSI_ENABLE_SGR_MOUSE_MODE,
       ANSI_PUSH_KITTY_KEYBOARD_PROTOCOL,
     ]);

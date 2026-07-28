@@ -35,6 +35,24 @@ describe('ExpertSearchEngine', () => {
     expect(results.some((result) => result.expert.id === 'sales-coach')).toBe(false);
   });
 
+  it('preserves division recall for broad technical harness queries', async () => {
+    await globalExpertSearchEngine.initialize();
+    const query = 'AI agent harness architecture context engineering orchestration tools reliability';
+    const results = globalExpertSearchEngine.search({
+      query,
+      division: 'Engineering',
+      topK: 8,
+      taskDescription: query,
+    });
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((result) => result.expert.division === 'engineering')).toBe(true);
+    expect(results.some((result) => [
+      'volt-06-developer-experience-mcp-developer',
+      'engineering-multi-agent-systems-architect',
+    ].includes(result.expert.id))).toBe(true);
+  });
+
   it('applies staffing outcome priors to search ranking scores', async () => {
     await globalExpertSearchEngine.initialize();
     const query = 'Improve terminal dashboard renderer TypeScript components';

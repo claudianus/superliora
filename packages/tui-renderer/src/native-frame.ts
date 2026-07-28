@@ -17,11 +17,14 @@ import {
   type RendererFrameOutputPolicyInput,
 } from './frame-output-policy';
 import {
+  ANSI_BEGIN_SYNCHRONIZED_UPDATE,
+  ANSI_END_SYNCHRONIZED_UPDATE,
   encodeTerminalFrameWithMetrics,
   type RendererCursorState,
   type RendererCursorMotionMetrics,
   type RendererTerminalOutputOptions,
 } from './terminal-output';
+import { ANSI_CLEAR_SCREEN } from './terminal-session';
 
 export interface RendererOutputTarget {
   write(chunk: string): unknown;
@@ -60,6 +63,8 @@ export class NativeFrameRenderer {
   private previousCursor: RendererCursorState | undefined;
   /** (shape, blinking) pair last emitted via DECSCUSR — see present(). */
   private lastCursorShapeKey: string | undefined;
+  /** Terminal operations that must be emitted atomically with the next frame. */
+  private pendingTerminalPrefix = '';
 
   constructor(private options: NativeFrameRendererOptions) {
     this.buffers = new RendererDoubleBuffer(options.width, options.height);
@@ -129,6 +134,12 @@ export class NativeFrameRenderer {
     this.lastCursorShapeKey = undefined;
   }
 
+  /** Queues terminal control output to precede the next frame atomically. */
+  queueTerminalPrefix(prefix: string): void {
+    if (prefix.length === 0) return;
+    this.pendingTerminalPrefix += prefix;
+  }
+
   present(
     options: {
       readonly force?: boolean;
@@ -185,12 +196,18 @@ export class NativeFrameRenderer {
       ...outputPolicy.options,
       cursor: encodedCursor,
     });
-    const output = encoded.output;
+    const terminalPrefix = this.pendingTerminalPrefix;
+    const output = terminalPrefix.length === 0
+      ? encoded.output
+      : prependTerminalPrefix(encoded.output, terminalPrefix, outputPolicy.options.synchronized === true);
     const bytes = Buffer.byteLength(output);
     const encodeEndedAt = this.now();
     this.previousCursor = this.nextCursor;
     const writeStartedAt = this.now();
     const writeResult = output.length > 0 ? this.options.output.write(output) : undefined;
+    if (terminalPrefix.length > 0 && output.length > 0) {
+      this.pendingTerminalPrefix = '';
+    }
     const endedAt = this.now();
     return {
       diff,
@@ -289,4 +306,14 @@ function cursorStatesEqual(
 function normalizeCursorCoordinate(value: number): number {
   if (!Number.isFinite(value) || value < 0) return 0;
   return Math.floor(value);
+}
+
+function prependTerminalPrefix(output: string, prefix: string, synchronized: boolean): string {
+  if (output.startsWith(ANSI_BEGIN_SYNCHRONIZED_UPDATE)) {
+    return `${ANSI_BEGIN_SYNCHRONIZED_UPDATE}${prefix}${output.slice(ANSI_BEGIN_SYNCHRONIZED_UPDATE.length)}`;
+  }
+  if (synchronized) {
+    return `${ANSI_BEGIN_SYNCHRONIZED_UPDATE}${prefix}${output}${ANSI_END_SYNCHRONIZED_UPDATE}`;
+  }
+  return `${prefix}${output}`;
 }

@@ -17,8 +17,13 @@ import {
   RendererPrefixedWrappedLine,
   renderRendererToolActivityHeader,
 } from '#/tui/renderer';
-import type { RendererRootUI } from '#/tui/renderer';
+import type { Component, RendererRootUI } from '#/tui/renderer';
 import { highlightLines, langFromPath, highlightLinesWindow } from '#/tui/components/media/code-highlight';
+import { ToolOutputViewportComponent } from '#/tui/components/messages/tool-output-viewport';
+import {
+  createToolOutputViewportState,
+  type ToolOutputViewportState,
+} from '#/tui/utils/tool-output-viewport';
 import {
   diffLineBackground,
   renderDiffLinesClusteredRows,
@@ -756,6 +761,10 @@ export class ToolCallComponent extends Container {
   private static readonly MAX_PROGRESS_LINES = 24;
   private liveOutput = '';
   private liveOutputTruncated = false;
+  private toolOutputViewport: ToolOutputViewportComponent | undefined;
+  private toolOutputViewportState = createToolOutputViewportState();
+  private toolOutputHovered = false;
+  private toolOutputDragging = false;
 
   /**
    * Advertises `Ctrl+B` on a foreground Bash/Agent card that has been running
@@ -789,6 +798,7 @@ export class ToolCallComponent extends Container {
     result: ToolResultBlockData | undefined,
     ui?: RendererRootUI,
     private readonly workspaceDir?: string,
+    private readonly toolOutputViewports?: Map<string, ToolOutputViewportState>,
   ) {
     super();
     this.toolCall = toolCall;
@@ -985,6 +995,54 @@ export class ToolCallComponent extends Container {
     // children and would leave the call preview stuck at its initial
     // collapsed size.
     this.rebuildBody();
+  }
+
+  get toolCallId(): string {
+    return this.toolCall.id;
+  }
+
+  scrollToolOutput(deltaRows: number): boolean {
+    return this.toolOutputViewport?.scroll(deltaRows) ?? false;
+  }
+
+  resizeToolOutput(requestedHeight: number, maxHeight: number): boolean {
+    return this.toolOutputViewport?.resize(requestedHeight, maxHeight) ?? false;
+  }
+
+  setToolOutputHovered(hovered: boolean): void {
+    this.toolOutputHovered = hovered;
+    this.toolOutputViewport?.setHovered(hovered);
+  }
+
+  setToolOutputDragging(dragging: boolean): void {
+    this.toolOutputDragging = dragging;
+    this.toolOutputViewport?.setDragging(dragging);
+  }
+
+  toolOutputHitAt(
+    localRow: number,
+    localColumn: number,
+    width: number,
+  ): { readonly onRail: boolean; readonly onGrip: boolean; readonly viewportRow: number } | undefined {
+    const viewport = this.toolOutputViewport;
+    if (viewport === undefined || localRow < 0) return undefined;
+
+    let startRow = 0;
+    for (const child of this.children) {
+      const rowCount = child.render(width).length;
+      if (child === viewport) {
+        const viewportRow = localRow - startRow;
+        if (viewportRow < 0 || viewportRow >= rowCount) return undefined;
+        const onRail = viewport.overflowing && localColumn === Math.max(0, width - 1);
+        return {
+          onRail,
+          onGrip: onRail && viewport.isGripRow(viewportRow),
+          viewportRow,
+        };
+      }
+      startRow += rowCount;
+    }
+    return undefined;
   }
 
   setResult(result: ToolResultBlockData): void {
@@ -1865,6 +1923,7 @@ export class ToolCallComponent extends Container {
 
   private rebuildContent(): void {
     this.renderCache.clear();
+    this.toolOutputViewport = undefined;
     while (this.children.length > this.callPreviewEndIndex) {
       this.children.pop();
     }
@@ -1877,6 +1936,7 @@ export class ToolCallComponent extends Container {
 
   private rebuildBody(): void {
     this.renderCache.clear();
+    this.toolOutputViewport = undefined;
     while (this.children.length > 2) {
       this.children.pop();
     }
@@ -1922,19 +1982,55 @@ export class ToolCallComponent extends Container {
   private buildLiveOutputBlock(): void {
     if (this.result !== undefined) return;
     if (this.liveOutput.length === 0) return;
-    this.addChild(
+    this.addToolOutputViewport([
       new ShellExecutionComponent({
         result: {
           tool_call_id: this.toolCall.id,
           output: this.liveOutput,
           is_error: false,
         },
-        expanded: this.expanded,
+        expanded: true,
         resultPreviewLines: RESULT_PREVIEW_LINES,
-        tailOutput: true,
+        tailOutput: false,
         expandHint: false,
       }),
-    );
+    ], true);
+  }
+
+  private addToolOutputViewport(
+    components: readonly Component[],
+    initialFollowEnd = false,
+  ): void {
+    if (components.length === 0) return;
+    const child = new Container();
+    for (const component of components) child.addChild(component);
+    const viewport = new ToolOutputViewportComponent({
+      child,
+      getState: () => this.getToolOutputViewportState(),
+      setState: (state) => this.setToolOutputViewportState(state),
+      expanded: this.expanded,
+      initialFollowEnd,
+    });
+    // Restore hover/drag state after viewport rebuild
+    viewport.setHovered(this.toolOutputHovered);
+    viewport.setDragging(this.toolOutputDragging);
+    this.toolOutputViewport = viewport;
+    this.addChild(viewport);
+  }
+
+  private getToolOutputViewportState(): ToolOutputViewportState {
+    const stored = this.toolOutputViewports?.get(this.toolCall.id);
+    if (stored !== undefined) {
+      this.toolOutputViewportState = stored;
+      return stored;
+    }
+    this.toolOutputViewports?.set(this.toolCall.id, this.toolOutputViewportState);
+    return this.toolOutputViewportState;
+  }
+
+  private setToolOutputViewportState(state: ToolOutputViewportState): void {
+    this.toolOutputViewportState = state;
+    this.toolOutputViewports?.set(this.toolCall.id, state);
   }
 
   private buildSubagentBlock(): void {
@@ -2718,11 +2814,10 @@ export class ToolCallComponent extends Container {
 
     const renderer = pickResultRenderer(this.toolCall.name);
     const components = renderer(this.toolCall, result, {
-      expanded: this.expanded,
+      expanded: true,
+      showCommand: this.expanded,
     });
-    for (const component of components) {
-      this.addChild(component);
-    }
+    this.addToolOutputViewport(components);
   }
 
   private buildAgentSwarmResultSummary(result: ToolResultBlockData): void {

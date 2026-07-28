@@ -60,6 +60,7 @@ export const renderTruncated: ResultRenderer = (_toolCall, result, ctx) => {
     new TruncatedOutputComponent(result.output, {
       expanded: ctx.expanded,
       isError: result.is_error ?? false,
+      hintMode: 'key',
     }),
   ];
 };

@@ -99,6 +99,40 @@ describe('RendererAmbientSchedule', () => {
     schedule.dispose();
   });
 
+  it('forwards ambient invalidation without allocating per tick when configured', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const requestRender = vi.fn();
+    const requestInvalidation = vi.fn();
+    const schedule = new RendererAmbientSchedule({
+      scheduler,
+      requestRender,
+      requestInvalidation,
+      getContext: () => ({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    });
+
+    schedule.set({
+      enabled: true,
+      resolveIntervalMs: () => 33,
+    });
+    scheduler.advance(66);
+
+    expect(requestRender).not.toHaveBeenCalled();
+    expect(requestInvalidation).toHaveBeenCalledTimes(2);
+    expect(requestInvalidation.mock.calls[0]?.[0]).toEqual({
+      source: 'animation',
+      requiresLayout: false,
+      priority: 'ambient',
+    });
+    expect(requestInvalidation.mock.calls[1]?.[0]).toBe(
+      requestInvalidation.mock.calls[0]?.[0],
+    );
+    schedule.dispose();
+  });
+
   it('passes live context into resolveIntervalMs', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const contexts: Array<{ backpressure: boolean }> = [];

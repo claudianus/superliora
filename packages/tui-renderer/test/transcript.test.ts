@@ -84,4 +84,42 @@ describe('RendererTranscriptViewportComponent line-count cache', () => {
     expect(afterSecond - afterFirst).toBe(2);
     expect(afterThird - afterSecond).toBe(1);
   });
+
+  it('resolves child and local rows from cached logical transcript ranges', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 3,
+      leftPad: 2,
+      rightPad: 2,
+    });
+    const first = new CountingComponent(['a', 'b']);
+    const second = new CountingComponent(['c', 'd', 'e']);
+    component.addChild(first);
+    component.addChild(second);
+
+    expect(component.childRowRangeAt(20, 0)).toEqual({
+      child: first,
+      childIndex: 0,
+      renderWidth: 16,
+      startRow: 0,
+      endRow: 2,
+      localRow: 0,
+    });
+    expect(component.childRowRangeAt(20, 1)?.localRow).toBe(1);
+    expect(component.childRowRangeAt(20, 2)).toEqual({
+      child: second,
+      childIndex: 1,
+      renderWidth: 16,
+      startRow: 2,
+      endRow: 5,
+      localRow: 0,
+    });
+    expect(component.childRowRangeAt(20, 4)?.localRow).toBe(2);
+    expect(component.childRowRangeAt(20, -1)).toBeUndefined();
+    expect(component.childRowRangeAt(20, 5)).toBeUndefined();
+
+    expect(first.renderWidths).toEqual([16]);
+    expect(second.renderWidths).toEqual([16]);
+  });
 });

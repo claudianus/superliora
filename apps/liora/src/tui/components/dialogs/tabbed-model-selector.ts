@@ -49,6 +49,10 @@ export interface TabbedModelSelectorOptions {
   /** Forwarded to each inner selector; when set, Alt+S applies the choice to
    * the current session only without persisting it as the default. */
   readonly onSessionOnlySelect?: (selection: ModelSelection) => void;
+  /** Forwarded to each inner selector; Alt+R invokes it. */
+  readonly onReset?: () => void;
+  /** Optional note rendered below the model controls. */
+  readonly notice?: string;
   readonly onCancel: () => void;
 }
 
@@ -187,6 +191,8 @@ function makeSelector(
     providerSwitchHint: true,
     onSelect: opts.onSelect,
     onSessionOnlySelect: opts.onSessionOnlySelect,
+    onReset: opts.onReset,
+    notice: opts.notice,
     onCancel: opts.onCancel,
   };
   return new ModelSelectorComponent(inner);

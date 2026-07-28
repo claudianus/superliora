@@ -80,19 +80,27 @@ export function createNativeTerminalRenderer(options: {
       nativeRuntime.releaseHeldAutoFrames();
     },
     start: () => {
-      nativeRuntime.start();
+      ui.start();
     },
     stop: () => {
-      nativeRuntime.stop();
+      ui.stop();
     },
     requestRender: (force?: boolean | NativeRenderCause) => {
       if (autoFrameHold !== undefined) {
         nativeRuntime.setAutoFrameHold(autoFrameHold());
       }
-      nativeRuntime.requestRender(nativeRenderCause(force));
+      ui.requestRender(nativeRenderCause(force));
     },
     invalidateFrame: (intent: FrameInvalidationIntent) => {
-      renderer.requestRender(frameInvalidationIntentToCause(intent));
+      if (autoFrameHold !== undefined) {
+        nativeRuntime.setAutoFrameHold(autoFrameHold());
+      }
+      const cause = frameInvalidationIntentToCause(intent);
+      if (intent === 'layout' || intent === 'palette') {
+        ui.requestLayout(cause);
+      } else {
+        ui.requestRender(cause);
+      }
     },
     drainInput: () => terminal.drainInput?.() ?? Promise.resolve(),
   };

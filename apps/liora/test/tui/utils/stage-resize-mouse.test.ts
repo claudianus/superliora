@@ -256,6 +256,28 @@ describe('handleStageResizeMouseInput', () => {
     }
   });
 
+  it('clears drag and hover on release outside the stage frame', () => {
+    const state = createState();
+    expect(handleStageResizeMouseInput(state, mouse('press', GRAB_RIGHT, MID_Y))).toBe(true);
+    expect(isStageResizeDragging()).toBe(true);
+    expect(getStageResizeHoverZone()).toBe('resize-right');
+
+    expect(handleStageResizeMouseInput(state, mouse('release', -20, -20))).toBe(true);
+    expect(isStageResizeDragging()).toBe(false);
+    expect(getStageResizeHoverZone()).toBeUndefined();
+  });
+
+  it('clears drag and hover when terminal focus is lost', () => {
+    const state = createState();
+    expect(handleStageResizeMouseInput(state, mouse('press', GRAB_RIGHT, MID_Y))).toBe(true);
+
+    expect(
+      handleStageResizeMouseInput(state, { type: 'focus', raw: '', focused: false }),
+    ).toBe(true);
+    expect(isStageResizeDragging()).toBe(false);
+    expect(getStageResizeHoverZone()).toBeUndefined();
+  });
+
   it('resetStageResizePointerShape pops a pushed shape and clears drag/hover state', () => {
     const prevTerm = process.env['TERM'];
     const prevCi = process.env['CI'];

@@ -973,4 +973,34 @@ describe('status panel report lines', () => {
     expect(output).toContain('ghost complete');
   });
 
+  it('projects explicit loop model routing overrides without inventing provider defaults', () => {
+    const lines = buildStatusReportLines({
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      availableModels: {},
+      loopModelRouting: {
+        loopControl: {
+          codingModel: 'code-pro',
+          debuggingModel: 'debug-pro',
+        },
+      },
+    }).map(strip);
+    const output = lines.join('\n');
+
+    expect(output).toContain('Loop model routing');
+    expect(lines.find((line) => line.includes('Coding'))).toContain('override · code-pro');
+    expect(lines.find((line) => line.includes('Debugging'))).toContain('override · debug-pro');
+    expect(lines.find((line) => line.includes('Completion'))).toContain('default');
+    expect(output).not.toContain('completion: auto');
+  });
+
 });

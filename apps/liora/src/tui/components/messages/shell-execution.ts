@@ -145,7 +145,7 @@ export const shellExecutionResultRenderer: ResultRenderer = (
     // Header truncates long bash commands to 60 chars. When the user expands
     // the card with ctrl+o, reveal the full command (no line cap) so they
     // can read what actually ran.
-    showCommand: ctx.expanded,
+    showCommand: ctx.showCommand ?? ctx.expanded,
     commandPreviewLines: undefined,
   }),
 ];

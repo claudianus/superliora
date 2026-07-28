@@ -137,10 +137,19 @@ describe('ChoicePickerComponent', () => {
     const settingsOutput = settings.render(120).map(strip);
     expect(settingsOutput).toContain('  ❯ Model');
     expect(settingsOutput).toContain('    Switch the active model and thinking mode.');
-    // The list paginates at 8 items per page; "Automatic updates" is on page 2.
-    settings.handleInput('\u001B[C'); // → pages forward
+    expect(settingsOutput).toContain('    Model routing');
+    expect(settingsOutput).toContain(
+      '    Set future loop-role model overrides without changing this session.',
+    );
+    // The list paginates at 8 items per page; Eyes readiness is on page 2 and
+    // Automatic updates is on page 3.
+    settings.handleInput('\u001B[C'); // → page 2
     const settingsPage2 = settings.render(120).map(strip);
-    expect(settingsPage2).toContain('    Turn automatic CLI updates on or off.');
+    expect(settingsPage2).toContain('  ❯ Eyes readiness');
+    expect(settingsPage2).toContain('    Browser-use / computer-use runtime status.');
+    settings.handleInput('\u001B[C'); // → page 3
+    const settingsPage3 = settings.render(120).map(strip);
+    expect(settingsPage3).toContain('    Turn automatic CLI updates on or off.');
 
     const upgradePreference = new UpdatePreferenceSelectorComponent({
       currentValue: true,

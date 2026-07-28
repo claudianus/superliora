@@ -577,13 +577,14 @@ export class NativeTerminalRenderer {
     this.frameRenderer.resize(size.columns, size.rows);
     this.clearStaleFrameRowsOnShrink(size.rows, previousRows);
     // Alternate-screen grow leaves the previous frame's pixels at top-left.
-    // Soft buffers reset empty, so equal-cell skips never overwrite that ghost
-    // unless we wipe the terminal surface before the next present.
+    // Soft buffers reset empty, so equal-cell skips never overwrite that ghost.
+    // Queue the clear inside the next present transaction so terminals with
+    // synchronized output never reveal the empty surface between writes.
     if (
       this.options.screenMode === 'alternate' &&
       (size.columns !== previousCols || size.rows !== previousRows)
     ) {
-      this.session.write(ANSI_CLEAR_SCREEN);
+      this.frameRenderer.queueTerminalPrefix(ANSI_CLEAR_SCREEN);
     }
     this.trace.recordResize({
       timestampMs: this.loop.now(),
@@ -602,7 +603,7 @@ export class NativeTerminalRenderer {
 
   private clearStaleFrameRowsOnShrink(height: number, previousHeight: number): void {
     if (this.options.screenMode === 'alternate' || height >= previousHeight) return;
-    this.session.write(
+    this.frameRenderer.queueTerminalPrefix(
       encodeTerminalClearBelowRow(height, this.options.originX ?? 0, this.options.originY ?? 0),
     );
   }

@@ -12,7 +12,6 @@
 
 import { readMediaSummary } from './media';
 import { goalSummary } from './goal';
-import { shellExecutionResultRenderer } from '../shell-execution';
 import {
   agentSummary,
   agentSwarmSummary,
@@ -67,16 +66,33 @@ import {
 } from './summary';
 import { renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
+import { strArg } from './types';
+import { currentTheme } from '#/tui/theme';
+import { Text } from '#/tui/renderer';
 
 /**
  * True when a tool has no dedicated renderer and falls back to the generic
- * truncated output (every MCP tool and any tool not listed below). Used to
- * decide whether subagent sub-tool output should be previewed the same way
- * the main agent previews it.
+ * truncated output (every MCP tool and any tool not listed below). `Bash`
+ * deliberately shares the raw fallback renderer but remains a known tool so
+ * its header and subagent treatment stay specialized.
  */
 export function isGenericToolResult(toolName: string): boolean {
-  return pickResultRenderer(toolName) === renderTruncated;
+  return toolName !== 'Bash' && pickResultRenderer(toolName) === renderTruncated;
 }
+
+/**
+ * Bash result renderer: shows the command followed by the output.
+ * Preserves command visibility after result arrival.
+ */
+const bashResultSummary: ResultRenderer = (toolCall, result, ctx) => {
+  const components = [];
+  const command = strArg(toolCall.args, 'command');
+  if (command) {
+    components.push(new Text(currentTheme.dim(`$ ${command}`), 0, 0));
+  }
+  components.push(...renderTruncated(toolCall, result, ctx));
+  return components;
+};
 
 export function pickResultRenderer(toolName: string): ResultRenderer {
   switch (toolName) {
@@ -175,7 +191,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
     case 'TodoList':
       return todoListSummary;
     case 'Bash':
-      return shellExecutionResultRenderer;
+      return bashResultSummary;
     case 'Think':
       return thinkSummary;
     case 'Edit':

@@ -378,7 +378,7 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).not.toContain('implement phase started');
   });
 
-  it('appends structured tool activity to the owning member lane', () => {
+  it('keeps tool call and result activity out of the War Room conversation', () => {
     const component = createComponent({ title: 'UltraSwarm' });
     component.applyUltraSwarmTeam([
       {
@@ -392,20 +392,107 @@ describe('AgentSwarmProgressComponent', () => {
     component.markInputComplete();
     component.registerSubagent({ agentId: 'agent-1', description: 'task one' });
 
-    component.appendMemberToolFeed({ agentId: 'agent-1', body: 'Edit src/a.ts +3 -1' });
-    component.appendMemberToolFeed({
-      agentId: 'agent-1',
-      body: '✗ Bash pnpm test · exit 1',
-      isError: true,
+    const conversationBody = 'I added tests for the auth flow';
+    const toolCallBody = 'Edit src/a.ts +3 -1';
+    const toolResultBody = 'Edit src/a.ts completed';
+    component.applySwarmCollaborationMessage({
+      from: { expertId: 'impl-engineer', name: 'Impl Engineer', emoji: '🔧' },
+      channel: 'lane',
+      body: conversationBody,
     });
+    component.appendMemberToolFeed({ agentId: 'agent-1', body: toolCallBody });
+    component.appendMemberToolFeed({ agentId: 'agent-1', body: toolResultBody });
     // Unknown members do not create feed noise.
     component.appendMemberToolFeed({ agentId: 'agent-ghost', body: 'Read src/ghost.ts' });
 
     const output = renderText(component, 120);
-    const feedSection = output.split('feed')[1]?.split('╰')[0] ?? '';
-    expect(feedSection).toContain('001: Edit src/a.ts +3 -1');
-    expect(feedSection).toContain('001: ✗ Bash pnpm test · exit 1');
-    expect(feedSection).not.toContain('ghost');
+    const warRoomIndex = output.indexOf('war room · team feed');
+    const toolActivityIndex = output.indexOf('TOOL ACTIVITY');
+    const conversationSection = output.slice(warRoomIndex, toolActivityIndex);
+    const toolSection = output.slice(toolActivityIndex);
+
+    expect(warRoomIndex).toBeGreaterThanOrEqual(0);
+    expect(toolActivityIndex).toBeGreaterThan(warRoomIndex);
+    expect(conversationSection).toContain('001: I added tests for the auth flow');
+    expect(conversationSection).not.toContain(toolCallBody);
+    expect(conversationSection).not.toContain(toolResultBody);
+    expect(toolSection).toContain(toolCallBody);
+    expect(toolSection).toContain(toolResultBody);
+    expect(output.indexOf(toolCallBody)).toBe(output.lastIndexOf(toolCallBody));
+    expect(output.indexOf(toolResultBody)).toBe(output.lastIndexOf(toolResultBody));
+    expect(output.indexOf('TOOL ACTIVITY')).toBe(output.lastIndexOf('TOOL ACTIVITY'));
+    expect(output).not.toContain('ghost');
+  });
+
+  it('renders failed tool activity only in the tool section', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+      },
+    ]);
+    component.markInputComplete();
+    component.registerSubagent({ agentId: 'agent-1', description: 'task one' });
+
+    const conversationBody = 'Please rerun the focused suite';
+    const failedToolBody = 'Bash pnpm test · exit 1';
+    component.applySwarmCollaborationMessage({
+      from: { expertId: 'impl-engineer', name: 'Impl Engineer', emoji: '🔧' },
+      channel: 'lane',
+      body: conversationBody,
+    });
+    component.appendMemberToolFeed({
+      agentId: 'agent-1',
+      body: failedToolBody,
+      isError: true,
+    });
+
+    const output = renderText(component, 120);
+    const toolActivityIndex = output.indexOf('TOOL ACTIVITY');
+    const conversationSection = output.slice(output.indexOf('war room · team feed'), toolActivityIndex);
+    const toolSection = output.slice(toolActivityIndex);
+
+    expect(conversationSection).toContain('001: Please rerun the focused suite');
+    expect(conversationSection).not.toContain(failedToolBody);
+    expect(toolSection).toContain('✗');
+    expect(toolSection).toContain(failedToolBody);
+    expect(output.indexOf(failedToolBody)).toBe(output.lastIndexOf(failedToolBody));
+  });
+
+  it('bounds retained tool entries and truncates each tool row to the available width', () => {
+    const component = createComponent({ title: 'UltraSwarm' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'impl-engineer',
+        name: 'Impl Engineer',
+        emoji: '🔧',
+        coverageLane: 'implement',
+      },
+    ]);
+    component.markInputComplete();
+    component.registerSubagent({ agentId: 'agent-1', description: 'task one' });
+
+    for (let index = 0; index < 56; index += 1) {
+      const suffix = index === 55 ? ` ${'x'.repeat(160)}` : '';
+      component.appendMemberToolFeed({
+        agentId: 'agent-1',
+        body: `tool-entry-${String(index)}${suffix}`,
+      });
+    }
+
+    const output = renderText(component, 120);
+    const toolSection = output.slice(output.indexOf('TOOL ACTIVITY'));
+
+    expect(toolSection).not.toContain('tool-entry-0');
+    expect(toolSection).toContain('tool-entry-55');
+    expect(toolSection.match(/tool-entry-/g)).toHaveLength(8);
+    expect(toolSection).toContain('…');
+    for (const line of renderLines(component, 120)) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(120);
+    }
   });
 
   it('ignores member tool feed entries outside UltraSwarm', () => {

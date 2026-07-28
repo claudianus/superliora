@@ -57,6 +57,17 @@ export interface RendererTranscriptViewportComponentOptions {
   readonly getCacheEpoch?: () => number;
 }
 
+export interface RendererTranscriptChildRowRange {
+  readonly child: Component;
+  readonly childIndex: number;
+  /** Width used to render this child inside transcript chrome. */
+  readonly renderWidth: number;
+  readonly startRow: number;
+  /** Exclusive logical transcript row. */
+  readonly endRow: number;
+  readonly localRow: number;
+}
+
 interface RendererTranscriptViewportRenderCache {
   width: number;
   cacheEpoch: number;
@@ -259,6 +270,39 @@ export class RendererTranscriptViewportComponent extends Container {
   contentRowCount(width: number): number {
     const inner = this.innerWidth(width);
     return this.resolveChildLineCounts(inner).total;
+  }
+
+  /**
+   * Resolve one logical transcript row to its child without repainting the
+   * transcript. The per-child line-count LRU makes pointer hit-tests cheap
+   * after the current width has been measured by render().
+   */
+  childRowRangeAt(
+    width: number,
+    logicalRow: number,
+  ): RendererTranscriptChildRowRange | undefined {
+    if (!Number.isFinite(logicalRow) || logicalRow < 0) return undefined;
+    const row = Math.floor(logicalRow);
+    const inner = this.innerWidth(width);
+    const { counts, total } = this.resolveChildLineCounts(inner);
+    if (row >= total) return undefined;
+
+    let startRow = 0;
+    for (let childIndex = 0; childIndex < counts.length; childIndex++) {
+      const endRow = startRow + counts[childIndex]!;
+      if (row < endRow) {
+        return {
+          child: this.children[childIndex]!,
+          childIndex,
+          renderWidth: inner,
+          startRow,
+          endRow,
+          localRow: row - startRow,
+        };
+      }
+      startRow = endRow;
+    }
+    return undefined;
   }
 
   renderWithVisibleRows(width: number, visibleRows: number): string[] {

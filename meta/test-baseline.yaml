@@ -24,8 +24,6 @@ packages:
       - "LioraTUI startup syncs configured thinking after OAuth login refreshes an active session"
       - "LioraTUI startup toggles the sessions picker from all sessions back to current cwd with Ctrl+A"
       - "LioraTUI startup toggles the sessions picker from current cwd to all sessions with Ctrl+A"
-      - "PromptIntelligenceController sets promptIntelligencePhase while inline request runs"
-      - "PromptIntelligenceController shows pending ghost then paints short completions"
       - "TUI handleInput — printable-key guard forbids bare-literal printable comparisons on `data` (use printableChar)"
       - "UpgradeDialogComponent dismisses up-to-date with Enter or Esc"
       - "UpgradeDialogComponent offers Install and Later when an update can auto-install"

@@ -63,10 +63,12 @@ function popPointerShape(terminal: ResizeMouseTerminalLike): void {
  * for no longer matches the on-screen frame, so without this the resize
  * cursor stays stuck until the next mouse move re-evaluates hover.
  */
-export function resetStageResizePointerShape(terminal: ResizeMouseTerminalLike): void {
+export function resetStageResizePointerShape(terminal: ResizeMouseTerminalLike): boolean {
+  const changed = activeDrag !== undefined || hoverZone !== undefined || activePointerShape !== undefined;
   activeDrag = undefined;
   hoverZone = undefined;
   popPointerShape(terminal);
+  return changed;
 }
 
 /** Test-only: drop any in-flight drag / hover so cases stay isolated. */
@@ -90,6 +92,11 @@ export function handleStageResizeMouseInput(
   state: TUIState,
   event: NativeInputEvent,
 ): boolean {
+  if (event.type === 'focus' && !event.focused) {
+    const changed = resetStageResizePointerShape(state.terminal);
+    if (changed) requestTUILayoutRender(state);
+    return changed;
+  }
   if (event.type !== 'mouse') return false;
   return handleStageResizeMouseEvent(state, event);
 }
@@ -115,13 +122,9 @@ function handleStageResizeMouseEvent(
   }
 
   if (event.action === 'release') {
-    if (activeDrag === undefined) return false;
-    activeDrag = undefined;
-    // Re-evaluate hover under the release point so the grip stays lit if
-    // the pointer is still on the frame.
-    updateHoverFromPoint(state, event.x, event.y);
-    requestTUILayoutRender(state);
-    return true;
+    const changed = resetStageResizePointerShape(state.terminal);
+    if (changed) requestTUILayoutRender(state);
+    return changed;
   }
 
   if (event.action === 'press') {

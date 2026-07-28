@@ -9,6 +9,8 @@ import {
   MicroCompaction,
   MicroTriggerTracker,
   MICRO_TOOL_RESULT_FAMILY_KEEP,
+  MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE,
+  resolveMicroToolResultFamilyKeep,
 } from '../../../src/agent/compaction/micro';
 
 import type { AgentRecord } from '../../../src/agent';
@@ -1266,6 +1268,31 @@ describe('computeFamilyBudgetOverflowToolCallIds', () => {
     expect(overflow.has('g1')).toBe(false);
     expect(MICRO_TOOL_RESULT_FAMILY_KEEP).toBe(3);
   });
+
+  it('uses the larger replay budget only for high-value read families', () => {
+    const toolCalls = Array.from({ length: 7 }, (_, index) => ({
+      id: `r${index + 1}`,
+      name: 'Read',
+      arguments: {},
+    }));
+    const messages = [
+      { role: 'assistant' as const, content: [], toolCalls },
+      ...toolCalls.map(({ id }, index) => ({
+        role: 'tool' as const,
+        toolCallId: id,
+        content: [{ type: 'text' as const, text: String(index).repeat(200) }],
+      })),
+    ] as any;
+
+    const overflow = computeFamilyBudgetOverflowToolCallIds(
+      messages,
+      messages.length,
+      MICRO_TOOL_RESULT_FAMILY_KEEP,
+      MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE,
+    );
+
+    expect([...overflow]).toEqual(['r1']);
+  });
 });
 
 describe('MicroCompaction.apply monotonicity', () => {
@@ -1308,5 +1335,31 @@ describe('MicroCompaction.apply monotonicity', () => {
     micro.apply(15);
     micro.reset(0);
     expect((micro as unknown as { cutoff: number }).cutoff).toBe(0);
+  });
+});
+
+describe('resolveMicroToolResultFamilyKeep', () => {
+  it('keeps more tool-family results below half of the working-set budget', () => {
+    expect(resolveMicroToolResultFamilyKeep(4_999, 10_000)).toBe(
+      MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE,
+    );
+  });
+
+  it('uses the compact default at or above half pressure', () => {
+    expect(resolveMicroToolResultFamilyKeep(5_000, 10_000)).toBe(
+      MICRO_TOOL_RESULT_FAMILY_KEEP,
+    );
+    expect(resolveMicroToolResultFamilyKeep(10_000, 10_000)).toBe(
+      MICRO_TOOL_RESULT_FAMILY_KEEP,
+    );
+  });
+
+  it('falls back conservatively for invalid inputs', () => {
+    expect(resolveMicroToolResultFamilyKeep(-1, 10_000)).toBe(
+      MICRO_TOOL_RESULT_FAMILY_KEEP,
+    );
+    expect(resolveMicroToolResultFamilyKeep(1_000, 0)).toBe(
+      MICRO_TOOL_RESULT_FAMILY_KEEP,
+    );
   });
 });

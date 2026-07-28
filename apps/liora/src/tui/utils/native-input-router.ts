@@ -14,12 +14,21 @@ import {
 } from './native-editor-text-input';
 import { noteTUIInputInteraction } from './input-interaction';
 import { getTUIStateNativeEditorRect } from './native-layout-frame';
-import { handleStageResizeMouseInput } from './stage-resize-mouse';
+import {
+  handleStageResizeMouseInput,
+  resetStageResizePointerShape,
+} from './stage-resize-mouse';
+import {
+  handleToolOutputMouse,
+  resetToolOutputMouseState,
+} from './tool-output-mouse';
 import { handleTranscriptSelectionMouseInput } from './transcript-selection-mouse';
 import type { TranscriptScrollAction } from './transcript-viewport';
 
 export const TUI_NATIVE_EDITOR_INPUT_TARGET_ID = 'editor';
+const TUI_NATIVE_POINTER_CLEANUP_HANDLER_ID = 'pointer-cleanup';
 const TUI_NATIVE_STAGE_RESIZE_HANDLER_ID = 'stage-resize';
+const TUI_NATIVE_TOOL_OUTPUT_HANDLER_ID = 'tool-output';
 const TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID = 'transcript-selection';
 const TUI_NATIVE_TODO_SCROLL_HANDLER_ID = 'todo-scroll';
 const TUI_NATIVE_TRANSCRIPT_SCROLL_HANDLER_ID = 'transcript-scroll';
@@ -79,14 +88,39 @@ export class TUIStateNativeInputRouter {
         },
       }),
     );
-    // Registered before transcript selection: global handlers dispatch in
-    // registration order and the first one that handles wins. A press on the
-    // stage frame border starts a resize drag instead of a text selection.
+    // Global handlers dispatch in registration order. Release/focus cleanup
+    // runs first, then stage resize wins over tool output and transcript
+    // selection when multiple pointer regions overlap.
+    this.disposers.push(
+      this.router.registerGlobalHandler({
+        id: TUI_NATIVE_POINTER_CLEANUP_HANDLER_ID,
+        onInput: (event) => {
+          const shouldCleanup =
+            (event.type === 'focus' && !event.focused) ||
+            (event.type === 'mouse' && event.action === 'release');
+          if (!shouldCleanup) return false;
+          const changed = resetNativePointerInteractionState(state);
+          if (changed) this.requestRenderAfterInput();
+          return event.type === 'mouse' && changed;
+        },
+      }),
+    );
     this.disposers.push(
       this.router.registerGlobalHandler({
         id: TUI_NATIVE_STAGE_RESIZE_HANDLER_ID,
         onInput: (event) => {
           const handled = handleStageResizeMouseInput(state, event);
+          if (handled) this.requestRenderAfterInput();
+          return handled;
+        },
+      }),
+    );
+    this.disposers.push(
+      this.router.registerGlobalHandler({
+        id: TUI_NATIVE_TOOL_OUTPUT_HANDLER_ID,
+        onInput: (event) => {
+          if (event.type !== 'mouse') return false;
+          const handled = handleToolOutputMouse(state, event);
           if (handled) this.requestRenderAfterInput();
           return handled;
         },
@@ -151,6 +185,13 @@ export class TUIStateNativeInputRouter {
       focusable: target.focusable,
       enabled: target.enabled,
       onInput: (event) => {
+        if (
+          target.id === TUI_NATIVE_EDITOR_INPUT_TARGET_ID &&
+          event.type === 'mouse' &&
+          (event.button === 'wheel-up' || event.button === 'wheel-down')
+        ) {
+          return false;
+        }
         if (target.handleNativeInput?.(event) === true) {
           this.requestRenderAfterInput();
           return true;
@@ -178,6 +219,7 @@ export class TUIStateNativeInputRouter {
   }
 
   dispose(): void {
+    resetNativePointerInteractionState(this.state);
     for (const dispose of this.disposers.splice(0).toReversed()) dispose();
   }
 
@@ -199,6 +241,12 @@ export class TUIStateNativeInputRouter {
     noteTUIInputInteraction();
     if (this.options.requestRender !== false) this.state.renderer.requestRender('input');
   }
+}
+
+function resetNativePointerInteractionState(state: TUIState): boolean {
+  const stageChanged = resetStageResizePointerShape(state.terminal);
+  const toolChanged = resetToolOutputMouseState();
+  return stageChanged || toolChanged;
 }
 
 export function createTUIStateNativeInputRouter(

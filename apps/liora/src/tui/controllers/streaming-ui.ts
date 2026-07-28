@@ -47,7 +47,6 @@ import type {
 } from '../types';
 import type { TUIState } from '../tui-state';
 import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/frame-render';
-import { transcriptRevealActive } from '#/tui/utils/transcript-expansion';
 
 export interface StreamingUIHost {
   state: TUIState;
@@ -832,7 +831,7 @@ export class StreamingUIController {
           'live',
           state.ui,
         );
-        if (transcriptRevealActive(state)) this._activeThinkingComponent.setExpanded(true);
+        if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
         state.transcriptContainer.addChild(this._activeThinkingComponent);
         requestTUILayoutRender(state);
         this.rescheduleRevealTimer();
@@ -852,7 +851,7 @@ export class StreamingUIController {
       this._pendingAgentGroup = null;
       this._pendingReadGroup = null;
       this._activeThinkingComponent = new ThinkingComponent(shown, true, 'live', state.ui);
-      if (transcriptRevealActive(state)) this._activeThinkingComponent.setExpanded(true);
+      if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
       state.transcriptContainer.addChild(this._activeThinkingComponent);
       requestTUILayoutRender(state);
       this.rescheduleRevealTimer();
@@ -889,8 +888,9 @@ export class StreamingUIController {
       undefined,
       state.ui,
       state.appState.workDir,
+      state.toolOutputViewports,
     );
-    if (transcriptRevealActive(state)) tc.setExpanded(true);
+    if (state.toolOutputExpanded) tc.setExpanded(true);
     this._pendingToolComponents.set(toolCall.id, tc);
 
     if (toolCall.name !== 'Agent') this._pendingAgentGroup = null;
@@ -946,7 +946,7 @@ export class StreamingUIController {
         state.ui,
         state.appState.workDir,
       );
-      if (transcriptRevealActive(state)) completed.setExpanded(true);
+      if (state.toolOutputExpanded) completed.setExpanded(true);
       state.transcriptContainer.addChild(completed);
       requestTUILayoutRender(state);
     }

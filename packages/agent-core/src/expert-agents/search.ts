@@ -92,22 +92,30 @@ export class ExpertSearchEngine {
     const useEmbedding = options.useEmbedding !== false && this.embeddingCache !== undefined && this.embeddingCache.size > 0;
     // Staffing 2.0: rewrite Hangul/noise queries into English technical tokens.
     const query = rewriteExpertSearchQuery(options.query);
+    const normalizedDivision = options.division?.trim().toLowerCase();
+    const matchesExplicitFilters = (expert: ExpertCatalogEntry): boolean =>
+      (normalizedDivision === undefined || expert.division.toLowerCase() === normalizedDivision)
+      && (options.filter === undefined || options.filter(expert));
 
-    // 1. Sparse search (MiniSearch)
+    // 1. Sparse search (MiniSearch). Apply explicit filters before reciprocal-rank
+    // truncation so a requested division cannot disappear behind higher-ranked
+    // candidates from other divisions.
     const miniResults = this.index.search(query, {
       fuzzy: query.trim().length <= 3 ? 0.05 : 0.2,
     }).map((r) => {
       const expert = this.expertById.get(r.id);
       if (expert === undefined) return undefined;
       return { expert, score: r.score };
-    }).filter((r): r is ExpertSearchResult => r !== undefined);
+    }).filter((r): r is ExpertSearchResult => r !== undefined)
+      .filter(({ expert }) => matchesExplicitFilters(expert));
 
     // 2. Optional secondary lexical pass over experts that have real embedding
     // vectors cached. Catalog currently ships zero embeddings, so this path is
     // inactive unless embeddings are added later — not a cosine hybrid ranker.
     let denseResults: ExpertSearchResult[] = [];
     if (useEmbedding) {
-      denseResults = this.secondaryLexicalSearch(query, topK * 2, taskProfile);
+      denseResults = this.secondaryLexicalSearch(query, topK * 2, taskProfile)
+        .filter(({ expert }) => matchesExplicitFilters(expert));
     }
 
     // 3. RRF fusion (dense half is empty when no embeddings)
@@ -117,16 +125,11 @@ export class ExpertSearchEngine {
     let results = fused
       .map((result) => ({
         ...result,
-        score: applyTaskProfileScore(result, taskProfile, options),
+        score: applyTaskProfileScore(result, taskProfile, options, normalizedDivision),
       }))
       .filter((result) => result.score >= minScore)
       .sort((a, b) => b.score - a.score);
-    if (options.division !== undefined) {
-      results = results.filter((r) => r.expert.division === options.division);
-    }
-    if (options.filter !== undefined) {
-      results = results.filter((r) => options.filter!(r.expert));
-    }
+    results = results.filter(({ expert }) => matchesExplicitFilters(expert));
     if (taskProfile.excludedDivisions.length > 0) {
       results = results.filter((r) => !taskProfile.excludedDivisions.includes(r.expert.division));
     }
@@ -267,12 +270,13 @@ function applyTaskProfileScore(
   result: ExpertSearchResult,
   taskProfile: ExpertTaskProfile,
   options: ExpertSearchOptions,
+  normalizedDivision: string | undefined,
 ): number {
   let score = result.score;
   const division = result.expert.division;
   if (taskProfile.preferredDivisions.includes(division)) score *= 1.35;
   if (taskProfile.excludedDivisions.includes(division)) score *= 0.12;
-  if (options.division !== undefined && division === options.division) score *= 1.2;
+  if (normalizedDivision !== undefined && division.toLowerCase() === normalizedDivision) score *= 1.2;
   // Staffing outcome prior (MVP): light multiplicative boost from hire history.
   score *= staffingOutcomeScoreBoost(result.expert.id);
   return score;
