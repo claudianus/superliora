@@ -63,6 +63,7 @@ import { IdleStageComponent } from '../components/chrome/idle-stage';
 import {
   isLiveGoalChromeActive,
   isPureInputFrame,
+  isPureTranscriptScrollFrame,
   resolveTUIStateNativeFramePolicy,
   shouldForceNativeCursor,
   shouldForceTUIStateNativeLayoutFrame,
@@ -482,9 +483,19 @@ export function createTUIStateNativeRenderCallback(
     // the layout has not shifted. The editor is the only region that changes.
     // Mouse clicks that alter the transcript selection invalidate the cache
     // so the selection overlay is repainted immediately.
+    //
+    // Pure-scroll fast path: the transcript content has not changed — only
+    // the viewport offset moved. Reuse the cached lines so we do not
+    // regenerate the entire transcript (ANSI conversion, markdown rendering,
+    // syntax highlighting) on every wheel tick.
     const selectionKey = transcriptSelectionCacheKey(state);
+    const pureScrollFrame = isPureTranscriptScrollFrame(
+      frame.causes,
+      layoutShift.viewportScrolled,
+      layoutShift.structuralShift,
+    );
     const canReuseTranscript =
-      pureInputFrame &&
+      (pureInputFrame || pureScrollFrame) &&
       transcriptLineCache !== undefined &&
       transcriptLineCacheWidth === size.columns &&
       transcriptLineCacheSelectionKey === selectionKey;
@@ -493,9 +504,9 @@ export function createTUIStateNativeRenderCallback(
       diagnostics: runtime.diagnostics,
       reuseChrome,
       workspaceCenter,
-      // Skip Ultrawork perimeter repaint on pure-input frames; animation frames
-      // still paint it so the border chase stays smooth while typing.
-      skipDecorativeEditorEffects: pureInputFrame,
+      // Skip Ultrawork perimeter repaint on pure-input and pure-scroll frames;
+      // animation frames still paint it so the border chase stays smooth.
+      skipDecorativeEditorEffects: pureInputFrame || pureScrollFrame,
       // Damage-only stage paint on ambient ticks — see ambientDamageOnly.
       ambientDamageOnly,
       // Reuse transcript lines when the transcript has not changed.
