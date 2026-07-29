@@ -212,6 +212,7 @@ import {
   type LivePaneState,
   type LoginProgressSpinnerHandle,
   type QueuedMessage,
+  type TranscriptDetailLevel,
   type TranscriptEntry,
   type TUIStartupOptions,
   type TUIStartupState,
@@ -547,6 +548,10 @@ export class LioraTUI {
       shouldRenderAnimation: () => this.shouldRenderAmbientAnimationFrame(),
       forceAmbientSchedule: () => this.splashForcesAmbient,
     });
+    // Transcript density is session-live: seed from tui.toml
+    // (`appearance.transcript_detail`); /transcript and Settings mutate it.
+    this.state.transcriptDetail =
+      this.state.appState.appearance?.transcriptDetail ?? 'standard';
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
@@ -2670,6 +2675,7 @@ export class LioraTUI {
             this.state.toolOutputViewports,
           );
           if (this.state.toolOutputExpanded) tc.setExpanded(true);
+          tc.setDetail(this.state.transcriptDetail);
           return tc;
         }
         if (entry.backgroundAgentStatus !== undefined) {
@@ -3357,6 +3363,20 @@ export class LioraTUI {
       if (!isExpandable(child)) continue;
       child.setExpanded(this.state.toolOutputExpanded && i >= expandCutoff);
     }
+  }
+
+  /**
+   * Switch transcript density live (PREMIUM.md §7.9). Re-projects every
+   * mounted tool card — including replayed history — and re-renders.
+   * `/transcript` and the Settings appearance selector call this.
+   */
+  setTranscriptDetail(level: TranscriptDetailLevel): void {
+    if (this.state.transcriptDetail === level) return;
+    this.state.transcriptDetail = level;
+    for (const child of this.state.transcriptContainer.children) {
+      if (child instanceof ToolCallComponent) child.setDetail(level);
+    }
+    requestTUIContentRender(this.state);
   }
 
   /**

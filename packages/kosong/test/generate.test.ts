@@ -1140,7 +1140,7 @@ describe('generate()', () => {
     });
 
     it('exports a sensible default idle timeout', () => {
-      expect(DEFAULT_STREAM_IDLE_TIMEOUT_MS).toBe(300_000);
+      expect(DEFAULT_STREAM_IDLE_TIMEOUT_MS).toBe(120_000);
     });
   });
 });

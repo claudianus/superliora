@@ -530,7 +530,7 @@ describe('ReadMediaFileTool', () => {
     // pointer to the text-file tool for non-media content. TS renames the
     // sibling tool to `Read` (py was `ReadFile`).
     expect(tool.description).toContain('100MB');
-    expect(tool.description).toContain('Read tool');
+    expect(tool.description).toContain('text files use Read');
     expect(tool.description).toContain('supports image and video files for the current model');
   });
 

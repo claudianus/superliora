@@ -75,6 +75,7 @@ function makeThemeHost() {
     showError: vi.fn(),
     showNotice: vi.fn(),
     showStatus: vi.fn(),
+    setTranscriptDetail: vi.fn(),
     track: vi.fn(),
   };
   return host as unknown as SlashCommandHost & typeof host;
@@ -250,6 +251,23 @@ describe('handleAppearanceCommand', () => {
         'success',
       );
     });
+  });
+
+  it('sets transcript detail, persists it, and applies it live', async () => {
+    await withTempHome(async () => {
+      const host = makeThemeHost();
+      await handleAppearanceCommand(host, 'transcript-detail compact');
+      expect(host.state.appState.appearance.transcriptDetail).toBe('compact');
+      expect((await loadTuiConfig()).appearance?.transcriptDetail).toBe('compact');
+      expect(host.setTranscriptDetail).toHaveBeenCalledWith('compact');
+    });
+  });
+
+  it('rejects unknown transcript detail values', async () => {
+    const host = makeThemeHost();
+    await handleAppearanceCommand(host, 'transcript-detail dense');
+    expect(host.showError).toHaveBeenCalled();
+    expect(host.setTranscriptDetail).not.toHaveBeenCalled();
   });
 
   it('toggles timestamps off and persists the preference', async () => {
@@ -765,10 +783,10 @@ describe('harness panel and tools inventory', () => {
     ];
     const firstPage = component.render(120).join('\n');
     expect(firstPage).toContain('Model routing');
-    expect(firstPage).toContain('Tools');
     expect(firstPage).toContain('Harness');
 
-    for (let i = 0; i < 8; i++) component.handleInput('\u001B[B');
+    // Tools and Eyes readiness live on page 2 (8 items per page).
+    component.handleInput('\u001B[C');
     expect(component.render(120).join('\n')).toContain('Eyes readiness');
   });
 
@@ -778,9 +796,9 @@ describe('harness panel and tools inventory', () => {
     const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // Settings options order: model, model routing, permission, accounts, context, media, harness, tools, eyes, ...
-    // eyes is index 8
-    for (let i = 0; i < 8; i++) {
+    // Settings options order: model, model routing, model fallback, permission, accounts, context, media, harness, tools, eyes, ...
+    // eyes is index 9 (Model fallback shifted it by one)
+    for (let i = 0; i < 9; i++) {
       component.handleInput('\u001B[B');
     }
     component.handleInput('\r');

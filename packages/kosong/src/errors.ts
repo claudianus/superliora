@@ -106,11 +106,43 @@ const PERMANENT_QUOTA_OR_BILLING_MESSAGE = [
   /add\s+a\s+payment\s+method/i,
   /payment\s+required/i,
   /payment\s+method/i,
+  // Subscription / plan exhaustion — gateways report lapsed accounts in many
+  // shapes ("subscription has expired", "plan expired, renew to continue",
+  // "trial ended"). Retrying never fixes these; fail fast instead.
+  /subscription.*(?:expired|ended|cancelled|canceled|inactive|lapsed)/i,
+  /(?:expired|ended|lapsed).*subscription/i,
+  /plan.*(?:expired|inactive|ended|lapsed)/i,
+  /trial.*(?:expired|ended|over)/i,
+  /renew.*(?:subscription|plan)/i,
 ] as const;
 
 export function isPermanentQuotaOrBillingError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return PERMANENT_QUOTA_OR_BILLING_MESSAGE.some((pattern) => pattern.test(error.message));
+}
+
+/**
+ * Permanent authentication / authorization failures: invalid or revoked
+ * credentials, suspended accounts, and HTTP 401/403 responses. These never
+ * recover by retrying — classifying them as permanent lets hosts fail fast
+ * and surface an actionable billing/credentials message instead of burning
+ * retry attempts or hanging on a gateway that refuses the handshake.
+ */
+const PERMANENT_AUTH_MESSAGE_PATTERNS = [
+  /unauthorized/i,
+  /invalid.*api.*key/i,
+  /api.*key.*(?:invalid|expired|revoked|rejected)/i,
+  /authentication.*(?:failed|failure|error|required)/i,
+  /access.*(?:denied|revoked|forbidden)/i,
+  /account.*(?:suspended|disabled|terminated|closed|deactivated|blocked)/i,
+  /\bforbidden\b/i,
+] as const;
+
+export function isPermanentAuthError(error: unknown): boolean {
+  const statusCode = getStatusCode(error);
+  if (statusCode === 401 || statusCode === 403) return true;
+  if (!(error instanceof Error)) return false;
+  return PERMANENT_AUTH_MESSAGE_PATTERNS.some((pattern) => pattern.test(error.message));
 }
 
 /**
@@ -134,15 +166,17 @@ export function isTransientNoBodyStatusError(error: unknown): boolean {
 }
 
 export function isRetryableGenerateError(error: unknown): boolean {
+  // Permanent account/auth/billing failures never recover with retries —
+  // fail fast so hosts surface them instead of burning attempts or hanging
+  // on a gateway that keeps refusing the handshake. Checked first so a
+  // connection/timeout wrapper around an auth refusal stays non-retryable.
+  if (isPermanentAuthError(error)) return false;
+  if (isPermanentQuotaOrBillingError(error)) return false;
   if (error instanceof APIConnectionError || error instanceof APITimeoutError) {
     return true;
   }
   if (error instanceof APIEmptyResponseError) {
     return true;
-  }
-  // Account/plan exhaustion is not a transient blip — do not burn retries.
-  if (isPermanentQuotaOrBillingError(error)) {
-    return false;
   }
   // xAI-style capacity / high-demand often arrives as plain ChatProviderError
   // without a 5xx status — still worth retrying after backoff.
@@ -337,6 +371,8 @@ const TRANSIENT_PROVIDER_MESSAGE_PATTERNS = [
  * any other permanent error.
  */
 export function isTransientProviderError(error: unknown): boolean {
+  if (isPermanentAuthError(error)) return false;
+  if (isPermanentQuotaOrBillingError(error)) return false;
   if (isProviderRateLimitError(error)) return false;
   if (error instanceof APIConnectionError) return true;
 

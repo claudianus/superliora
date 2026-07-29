@@ -235,23 +235,24 @@ describe('ToolCallComponent', () => {
       },
       {
         tool_call_id: 'call_shell',
-        output: ['line1', 'line2', 'line3', 'line4', 'line5'].join('\n'),
+        output: ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'line7'].join('\n'),
         is_error: false,
       },
     );
 
     const collapsed = strip(component.render(100).join('\n'));
+    // Standard detail level: the `$ printf output` command row plus the first
+    // 4 output lines fill the 5-line viewport; line5+ waits for ctrl+o.
     expect(collapsed).toContain('line1');
-    expect(collapsed).toContain('line2');
-    expect(collapsed).toContain('line3');
-    expect(collapsed).not.toContain('line4');
+    expect(collapsed).toContain('line4');
+    expect(collapsed).not.toContain('line5');
     expect(collapsed).not.toContain('⋯ 2 more lines — scroll to expand');
 
     component.setExpanded(true);
 
     const expanded = strip(component.render(100).join('\n'));
-    expect(expanded).toContain('line4');
     expect(expanded).toContain('line5');
+    expect(expanded).toContain('line7');
     expect(expanded).not.toContain('ctrl+o to expand');
   });
 
@@ -270,7 +271,7 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Bash');
-    // Live bash shows a short tail of streaming output (RESULT_PREVIEW_LINES=3).
+    // Live bash shows a short tail of streaming output (RESULT_PREVIEW_LINES=5).
     expect(out).toContain('line1');
     expect(out).toContain('line2');
   });
@@ -333,12 +334,12 @@ describe('ToolCallComponent', () => {
 
       component.setResult({ tool_call_id: 'call_bash_done', output: 'done', is_error: false });
 
-      // Collapsed result view delegates to shellExecutionResultRenderer, which
-      // hides the command — so the in-flight buildCallPreview preview must be
-      // gone, otherwise the command would render twice when expanded.
+      // The result renderer (bashResultSummary) now owns command visibility:
+      // the command renders exactly once — the in-flight preview must be gone,
+      // otherwise the command would render twice when expanded.
       const out = strip(component.render(100).join('\n'));
       expect(out).toContain('Used Bash');
-      expect(out).not.toContain('$ echo step1');
+      expect(out.match(/\$ echo step1/g)?.length ?? 0).toBe(1);
     });
   });
 
@@ -1278,9 +1279,9 @@ describe('ToolCallComponent', () => {
     let out = strip(component.render(120).join('\n'));
     expect(out).toContain('Used Bash (ls -la)');
     expect(out).toContain('bash-line-0');
-    expect(out).toContain('bash-line-1');
-    expect(out).toContain('bash-line-2');
-    expect(out).toContain('... (7 more lines)');
+    expect(out).toContain('bash-line-4');
+    expect(out).not.toContain('bash-line-5');
+    expect(out).toContain('... (5 more lines)');
     // Subagent output is fixed-truncated: no ctrl+o promise.
     expect(out).not.toContain('ctrl+o');
 
@@ -1288,7 +1289,7 @@ describe('ToolCallComponent', () => {
     component.setExpanded(true);
     out = strip(component.render(120).join('\n'));
     expect(out).not.toContain('bash-line-9');
-    expect(out).toContain('... (7 more lines)');
+    expect(out).toContain('... (5 more lines)');
   });
 
   it('truncates unknown subagent tool output but leaves recognized tools as rows', () => {
@@ -1322,7 +1323,7 @@ describe('ToolCallComponent', () => {
       name: 'mcp__server__do',
       args: {},
     });
-    const mcpOut = Array.from({ length: 5 }, (_, i) => `mcp-line-${String(i)}`).join('\n');
+    const mcpOut = Array.from({ length: 8 }, (_, i) => `mcp-line-${String(i)}`).join('\n');
     component.finishSubToolCall({ tool_call_id: 'sub_mixed:mcp', output: mcpOut, is_error: false });
 
     const out = strip(component.render(120).join('\n'));
@@ -1331,9 +1332,9 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('recognized-read-body');
     // Unknown/MCP tool: truncated output body, no ctrl+o promise.
     expect(out).toContain('mcp-line-0');
-    expect(out).toContain('mcp-line-1');
-    expect(out).toContain('mcp-line-2');
-    expect(out).toContain('... (2 more lines)');
+    expect(out).toContain('mcp-line-4');
+    expect(out).not.toContain('mcp-line-5');
+    expect(out).toContain('... (3 more lines)');
     expect(out).not.toContain('ctrl+o');
   });
 
@@ -2415,6 +2416,116 @@ describe('ToolCallComponent motion cues', () => {
       const grown = strip(component.render(100).join('\n'));
       expect(grown).toContain('revealValue4');
       expect(grown).toContain('more lines');
+    });
+  });
+
+  describe('transcript density (one-line compact/minimal mode)', () => {
+    function bashComponent(result?: { output: string; is_error: boolean }): ToolCallComponent {
+      return new ToolCallComponent(
+        {
+          id: 'call_density_bash',
+          name: 'Bash',
+          args: { command: 'echo density-fixture-token' },
+        },
+        result === undefined
+          ? undefined
+          : {
+              tool_call_id: 'call_density_bash',
+              output: result.output,
+              is_error: result.is_error,
+            },
+      );
+    }
+
+    it('compact collapses the body to the header line', () => {
+      const component = bashComponent({
+        output: 'density-output-token\nsecond line',
+        is_error: false,
+      });
+      const standard = strip(component.render(100).join('\n'));
+      expect(standard).toContain('Used Bash');
+      expect(standard).toContain('density-output-token');
+
+      component.setDetail('compact');
+      const compact = strip(component.render(100).join('\n'));
+      expect(compact).toContain('Used Bash');
+      expect(compact).not.toContain('density-output-token');
+      expect(component.isOneLineCollapsed).toBe(true);
+    });
+
+    it('minimal collapses standalone cards the same way', () => {
+      const component = bashComponent({ output: 'density-output-token', is_error: false });
+      component.setDetail('minimal');
+      const out = strip(component.render(100).join('\n'));
+      expect(out).toContain('Used Bash');
+      expect(out).not.toContain('density-output-token');
+    });
+
+    it('failed tools punch through the collapse with a one-line error', () => {
+      const component = bashComponent({
+        output: 'density-error-first\nnoise line two',
+        is_error: true,
+      });
+      component.setDetail('compact');
+      const out = strip(component.render(100).join('\n'));
+      expect(out).toContain('density-error-first');
+      expect(out).not.toContain('noise line two');
+    });
+
+    it('click toggle reopens a collapsed card and closes it again', () => {
+      const component = bashComponent({ output: 'density-output-token', is_error: false });
+      component.setDetail('compact');
+      expect(component.isOneLineCollapsed).toBe(true);
+
+      component.toggleDetailOverride();
+      expect(component.isOneLineCollapsed).toBe(false);
+      expect(strip(component.render(100).join('\n'))).toContain('density-output-token');
+
+      component.toggleDetailOverride();
+      expect(component.isOneLineCollapsed).toBe(true);
+      expect(strip(component.render(100).join('\n'))).not.toContain('density-output-token');
+    });
+
+    it('global expand (Ctrl+O) wins over one-line density', () => {
+      const component = bashComponent({ output: 'density-output-token', is_error: false });
+      component.setDetail('compact');
+      component.setExpanded(true);
+      expect(component.isOneLineCollapsed).toBe(false);
+      expect(strip(component.render(100).join('\n'))).toContain('density-output-token');
+    });
+
+    it('switching density clears the local click override', () => {
+      const component = bashComponent({ output: 'density-output-token', is_error: false });
+      component.setDetail('compact');
+      component.toggleDetailOverride();
+      expect(component.isOneLineCollapsed).toBe(false);
+      component.setDetail('standard');
+      component.setDetail('compact');
+      expect(component.isOneLineCollapsed).toBe(true);
+    });
+
+    it('a result arriving while collapsed keeps the failure visible', () => {
+      const component = bashComponent(undefined);
+      component.setDetail('compact');
+      component.setResult({
+        tool_call_id: 'call_density_bash',
+        output: 'late-error-line\ntrailing detail',
+        is_error: true,
+      });
+      const out = strip(component.render(100).join('\n'));
+      expect(out).toContain('late-error-line');
+      expect(out).not.toContain('trailing detail');
+    });
+
+    it('full expands every card and leaving it restores collapse', () => {
+      const component = bashComponent({ output: 'density-output-token', is_error: false });
+      component.setDetail('full');
+      expect(component.isOneLineCollapsed).toBe(false);
+      expect(strip(component.render(100).join('\n'))).toContain('density-output-token');
+
+      component.setDetail('compact');
+      expect(component.isOneLineCollapsed).toBe(true);
+      expect(strip(component.render(100).join('\n'))).not.toContain('density-output-token');
     });
   });
 });

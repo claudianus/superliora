@@ -1,3 +1,3 @@
-When `run_in_background=true`, the subagent runs detached. Completion arrives later as a synthetic user-role message — do not poll, sleep, or predict the result; continue other work.
+When `run_in_background=true`, the subagent runs detached. Completion arrives later as a synthetic user-role message — do not poll or predict; continue other work.
 
-Default to a foreground subagent (omit `run_in_background`) when your next step needs its result. Use background only for independent work you do not need to proceed. Never background-launch then wait with `TaskOutput` — use foreground instead.
+Default to foreground (omit `run_in_background`) when your next step needs its result. Use background only for independent work. Never background-launch then wait with `TaskOutput`.

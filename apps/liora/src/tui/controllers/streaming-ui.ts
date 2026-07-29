@@ -7,6 +7,8 @@ import { CompactionComponent } from '../components/dialogs/compaction';
 import { ReadGroupComponent } from '../components/messages/read-group';
 import { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call';
+import { ToolChainSummaryComponent } from '../components/messages/tool-chain-summary';
+import { UserMessageComponent } from '../components/messages/user-message';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
 import { isGenericToolResult } from '../components/messages/tool-renderers/registry';
 import {
@@ -102,6 +104,14 @@ export class StreamingUIController {
     { name?: string; argumentsText: string; startedAtMs: number }
   >();
   private _pendingToolComponents = new Map<string, ToolCallComponent>();
+  /**
+   * Per-turn tool chain summary for `minimal` transcript density
+   * (PREMIUM.md §7.9). Mounted when the turn's first tool starts; settled
+   * when the assistant answer begins or a new user-message boundary shows
+   * up. `null` outside minimal density or after settle.
+   */
+  private _activeChainSummary: ToolChainSummaryComponent | null = null;
+  private _chainSummaryTurnIndex = -1;
   private _pendingAgentGroup: {
     readonly turnId: string | undefined;
     readonly step: number;
@@ -658,6 +668,9 @@ export class StreamingUIController {
 
   onStreamingTextStart(): void {
     const { state } = this.host;
+    // The answer phase begins: the minimal-density tool chain summary (if
+    // any) switches to its settled past-tense form.
+    this.settleActiveChainSummary();
     this._pendingAgentGroup = null;
     this._pendingReadGroup = null;
     this.assistantReveal = resetRevealState(Date.now());
@@ -891,7 +904,13 @@ export class StreamingUIController {
       state.toolOutputViewports,
     );
     if (state.toolOutputExpanded) tc.setExpanded(true);
+    tc.setDetail(state.transcriptDetail);
     this._pendingToolComponents.set(toolCall.id, tc);
+    if (state.transcriptDetail === 'minimal') {
+      // Mounts before this tool card is appended, so the aggregate line
+      // leads the turn's one-line tool block.
+      this.ensureChainSummary(state).setCurrentLabel(toolCall.name);
+    }
 
     if (toolCall.name !== 'Agent') this._pendingAgentGroup = null;
     if (toolCall.name !== 'Read') this._pendingReadGroup = null;
@@ -923,6 +942,20 @@ export class StreamingUIController {
     if (tc) {
       tc.setResult(result);
       this._pendingToolComponents.delete(toolCallId);
+      if (state.transcriptDetail === 'minimal' && this._activeChainSummary !== null) {
+        const args = matchedCall?.args ?? {};
+        const file =
+          typeof args['file_path'] === 'string'
+            ? (args['file_path'] as string)
+            : typeof args['path'] === 'string'
+              ? (args['path'] as string)
+              : undefined;
+        this._activeChainSummary.record({
+          isError: result.is_error === true,
+          errorText: result.is_error === true ? result.output : undefined,
+          file,
+        });
+      }
       const toolName = matchedCall?.name;
       if (toolName !== undefined && isGenericToolResult(toolName)) {
         this.host.motionBeats.play({
@@ -947,10 +980,47 @@ export class StreamingUIController {
         state.appState.workDir,
       );
       if (state.toolOutputExpanded) completed.setExpanded(true);
+      completed.setDetail(state.transcriptDetail);
       state.transcriptContainer.addChild(completed);
       requestTUILayoutRender(state);
     }
     this.host.mergeCurrentTurnSteps();
+  }
+
+  /**
+   * Minimal-density chain summary lifecycle: one summary per turn. A new
+   * user message (turn boundary index change) or a prior settle closes the
+   * active summary before a fresh one mounts.
+   */
+  private ensureChainSummary(state: TUIState): ToolChainSummaryComponent {
+    const children = state.transcriptContainer.children;
+    let lastUserIndex = -1;
+    for (let i = children.length - 1; i >= 0; i--) {
+      if (children[i] instanceof UserMessageComponent) {
+        lastUserIndex = i;
+        break;
+      }
+    }
+    if (
+      this._activeChainSummary !== null &&
+      (this._activeChainSummary.isSettled() || this._chainSummaryTurnIndex !== lastUserIndex)
+    ) {
+      this._activeChainSummary.settle();
+      this._activeChainSummary = null;
+    }
+    if (this._activeChainSummary === null) {
+      this._activeChainSummary = new ToolChainSummaryComponent();
+      this._chainSummaryTurnIndex = lastUserIndex;
+      state.transcriptContainer.addChild(this._activeChainSummary);
+      requestTUILayoutRender(state);
+    }
+    return this._activeChainSummary;
+  }
+
+  private settleActiveChainSummary(): void {
+    if (this._activeChainSummary === null) return;
+    this._activeChainSummary.settle();
+    this._activeChainSummary = null;
   }
 
   setTodoList(todos: readonly TodoItem[]): void {

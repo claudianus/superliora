@@ -215,7 +215,7 @@ describe('AnthropicChatProvider', () => {
 
       expect(body['messages']).toEqual([
         { role: 'user', content: [{ type: 'text', text: 'What is 2+2?' }] },
-        { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.', cache_control: { type: 'ephemeral' } }] },
         {
           role: 'user',
           content: [{ type: 'text', text: 'And 3+3?', cache_control: { type: 'ephemeral' } }],
@@ -239,7 +239,7 @@ describe('AnthropicChatProvider', () => {
       ]);
       expect(body['messages']).toEqual([
         { role: 'user', content: [{ type: 'text', text: 'What is 2+2?' }] },
-        { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.' }] },
+        { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.', cache_control: { type: 'ephemeral' } }] },
         {
           role: 'user',
           content: [{ type: 'text', text: 'And 3+3?', cache_control: { type: 'ephemeral' } }],
@@ -336,8 +336,9 @@ describe('AnthropicChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       // Snapshot of the expected wire format:
-      // user message has NO cache_control, assistant has tool_use blocks,
-      // final user message's tool_result carries cache_control (last block).
+      // user message has NO cache_control, assistant has tool_use blocks with
+      // cache_control on the last block (penultimate breakpoint), final user
+      // message's tool_result carries cache_control (last block).
       expect(body['messages']).toEqual([
         {
           role: 'user',
@@ -347,7 +348,7 @@ describe('AnthropicChatProvider', () => {
           role: 'assistant',
           content: [
             { type: 'text', text: "I'll add those numbers for you." },
-            { type: 'tool_use', id: 'call_abc123', name: 'add', input: { a: 2, b: 3 } },
+            { type: 'tool_use', id: 'call_abc123', name: 'add', input: { a: 2, b: 3 }, cache_control: { type: 'ephemeral' } },
           ],
         },
         {
@@ -421,6 +422,7 @@ describe('AnthropicChatProvider', () => {
               id: 'Write_6',
               name: 'Write',
               input: { path: '/tmp/a', content: 'ok' },
+              cache_control: { type: 'ephemeral' },
             },
           ],
         },
@@ -626,7 +628,7 @@ describe('AnthropicChatProvider', () => {
           content: [
             { type: 'text', text: "I'll calculate both." },
             { type: 'tool_use', id: 'call_add', name: 'add', input: { a: 2, b: 3 } },
-            { type: 'tool_use', id: 'call_mul', name: 'multiply', input: { a: 4, b: 5 } },
+            { type: 'tool_use', id: 'call_mul', name: 'multiply', input: { a: 4, b: 5 }, cache_control: { type: 'ephemeral' } },
           ],
         },
         {
@@ -869,7 +871,7 @@ describe('AnthropicChatProvider', () => {
           role: 'assistant',
           content: [
             { type: 'thinking', thinking: 'Let me think...', signature: 'sig_abc123' },
-            { type: 'text', text: 'The answer is 4.' },
+            { type: 'text', text: 'The answer is 4.', cache_control: { type: 'ephemeral' } },
           ],
         },
         {
@@ -904,7 +906,7 @@ describe('AnthropicChatProvider', () => {
         role: 'assistant',
         content: [
           { type: 'thinking', thinking: 'Thinking...' },
-          { type: 'text', text: 'Hello!' },
+          { type: 'text', text: 'Hello!', cache_control: { type: 'ephemeral' } },
         ],
       });
     });
@@ -934,7 +936,7 @@ describe('AnthropicChatProvider', () => {
 
         expect(messages[1]!.role).toBe('assistant');
         expect(messages[1]!.content).toEqual([
-          { type: 'tool_use', id: 'toolu_1', name: 'Grep', input: { pattern: '429' } },
+          { type: 'tool_use', id: 'toolu_1', name: 'Grep', input: { pattern: '429' }, cache_control: { type: 'ephemeral' } },
         ]);
       },
     );
@@ -992,7 +994,7 @@ describe('AnthropicChatProvider', () => {
         role: 'assistant',
         content: [
           { type: 'thinking', thinking: '', signature: 'enc_redacted_sig_xyz' },
-          { type: 'text', text: '4.' },
+          { type: 'text', text: '4.', cache_control: { type: 'ephemeral' } },
         ],
       });
     });
@@ -1025,7 +1027,7 @@ describe('AnthropicChatProvider', () => {
       expect(messages[1]!.role).toBe('assistant');
       expect(messages[1]!.content).toEqual([
         { type: 'thinking', thinking: 'Let me grep for 429.' },
-        { type: 'tool_use', id: 'toolu_1', name: 'Grep', input: { pattern: '429' } },
+        { type: 'tool_use', id: 'toolu_1', name: 'Grep', input: { pattern: '429' }, cache_control: { type: 'ephemeral' } },
       ]);
     });
   });

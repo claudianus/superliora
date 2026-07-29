@@ -95,6 +95,7 @@ terminal_palette = true
         terminalBackground: 'session',
         terminalPalette: true,
         showTimestamps: true,
+        transcriptDetail: 'standard',
       },
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });

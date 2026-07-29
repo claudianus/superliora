@@ -41,6 +41,6 @@ describe('ReadMediaFileTool description by capabilities', () => {
     expect(tool.description).toContain('parallel');
     // TS renamed the sibling tool to `Read` (py was `ReadFile`); the
     // description must still point readers at the text-file tool.
-    expect(tool.description).toContain('Read tool');
+    expect(tool.description).toContain('text files use Read');
   });
 });

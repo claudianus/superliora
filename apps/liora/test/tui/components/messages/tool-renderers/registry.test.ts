@@ -61,19 +61,28 @@ function goalOutput(overrides: Record<string, unknown> = {}): string {
 describe('tool-result registry', () => {
   it('falls back to truncated renderer for unknown tools', () => {
     const renderer = pickResultRenderer('SomethingUnknown');
-    const out = strip(joinRender(renderer(call('SomethingUnknown'), result('a\nb\nc\nd\ne'), ctx)));
+    const out = strip(
+      joinRender(renderer(call('SomethingUnknown'), result('a\nb\nc\nd\ne\nf\ng'), ctx)),
+    );
     expect(renderer).toBe(renderTruncated);
     expect(out).toContain('a');
-    expect(out).toContain('b');
-    expect(out).toContain('c');
-    // Letter "d" appears in "expand"; assert the 4th content line is hidden.
-    expect(out.split('\n').some((line) => line.trim() === 'd')).toBe(false);
+    expect(out).toContain('e');
+    // Standard detail level shows 5 lines; the 6th content line stays hidden.
+    expect(out.split('\n').some((line) => line.trim() === 'f')).toBe(false);
     expect(out).toContain('... (2 more lines, ctrl+o to expand)');
   });
 
   it('renders Bash command before truncated output to preserve visibility', () => {
     const renderer = pickResultRenderer('Bash');
-    const out = strip(joinRender(renderer(call('Bash', { command: 'ls -la' }), result('one\ntwo\nthree\nfour'), ctx)));
+    const out = strip(
+      joinRender(
+        renderer(
+          call('Bash', { command: 'ls -la' }),
+          result('one\ntwo\nthree\nfour\nfive\nsix'),
+          ctx,
+        ),
+      ),
+    );
     expect(out).toContain('$ ls -la');
     expect(out).toContain('one');
     expect(out).toContain('... (1 more lines, ctrl+o to expand)');

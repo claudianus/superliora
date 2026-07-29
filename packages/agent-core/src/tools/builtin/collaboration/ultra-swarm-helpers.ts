@@ -10,6 +10,7 @@ import type {
   ExpertCatalogEntry,
   ExpertSwarmPlan,
 } from '../../../expert-agents/types';
+import { isPermanentProviderFailureMessage } from '../../../session/subagent-host';
 
 export const MAX_ULTRA_SWARM_SUBAGENTS = 128;
 
@@ -329,6 +330,7 @@ export function capPlan(plan: ExpertSwarmPlan, maxExperts: number): ExpertSwarmP
 export interface UltraSwarmReviewResultLike {
   readonly status: string;
   readonly verdict: string;
+  readonly error?: string;
   readonly spec: {
     readonly expertId: string;
     readonly phase: string;
@@ -337,6 +339,10 @@ export interface UltraSwarmReviewResultLike {
 }
 
 export function needsReviewRetry(result: UltraSwarmReviewResultLike): boolean {
+  // Permanent provider failures (revoked credentials, expired billing) fail
+  // the same way on every retry: re-running the review would burn another
+  // full subagent turn just to hit the same wall. Surface the failure as-is.
+  if (isPermanentProviderFailureMessage(result.error)) return false;
   return (
     result.spec.phase === 'review' &&
     result.spec.requiredForCompletion &&

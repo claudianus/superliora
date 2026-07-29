@@ -1,5 +1,5 @@
 Search the expert catalog for UltraSwarm candidates. Call it directly — not as an expert name.
 
-Returns metadata; pass IDs via `required_experts` or let UltraSwarm auto-select. Use 3–12 English keywords (translate non-English intent). Broaden once or raise top_k to 12 if weak. Instructions begin only after UltraSwarm launches experts.
+Returns metadata; pass IDs via `required_experts` or let UltraSwarm auto-select. Use 3–12 English keywords (translate non-English intent). Broaden once or raise top_k to 12 if weak.
 
-Use when Ultrawork coverage matrix has material lanes, you need IDs before `required_experts`, or multi-domain product/architecture/UX/security/performance/testing/review work. For engineering/TUI/CLI tasks, prefer English technical keywords (`terminal`, `typescript`, `tui`, `component`, `renderer`) and optionally set `division` to `engineering` or `design`. Avoid vague words like `coach`/`growth`/`pipeline` (sales/marketing noise).
+Use when Ultrawork coverage matrix has material lanes, or multi-domain work. For engineering/TUI/CLI tasks, prefer English technical keywords and optionally set `division` to `engineering` or `design`. Avoid vague words like `coach`/`growth`/`pipeline`.

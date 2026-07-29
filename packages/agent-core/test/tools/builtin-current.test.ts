@@ -134,11 +134,16 @@ function mockUltraSwarmAgent(
       getRun: vi.fn(() => null),
       syncWorkGraphFromStore: vi.fn(() => undefined),
       completeLearnStage: vi.fn(() => null),
+      isModeEnabled: vi.fn(() => true),
+      getInterruptReason: vi.fn(() => undefined),
     },
     goal: {
       getGoal: vi.fn(() => ({ goal: null })),
       markComplete: vi.fn(async () => null),
     },
+    planMode: { isActive: false, isUltraMode: false },
+    swarmMode: { isActive: false },
+    records: { recordCount: vi.fn(() => 0), logRecord: vi.fn() },
     tools: store === undefined ? undefined : { getStore: () => store },
     turn: { hasActiveTurn: false },
     context: { appendSystemReminder: vi.fn() },
@@ -502,7 +507,7 @@ describe('current builtin collaboration tools', () => {
       },
     });
     expect(Object.keys(tool.parameters['properties'] as Record<string, unknown>).at(-1)).toBe(
-      'resume_agent_ids',
+      'contract',
     );
 
     const result = await executeTool(tool, context(input, 'call_swarm'));
@@ -578,7 +583,6 @@ describe('current builtin collaboration tools', () => {
     expect(description.toLowerCase()).toContain('distinct');
     expect(description).toContain('Context7Resolve/Context7Docs');
     expect(description).toContain('WebSearch/FetchURL');
-    expect(description).toContain('source URLs');
   });
 
   it('AgentSwarm rejects more than 128 subagents at execution time', async () => {

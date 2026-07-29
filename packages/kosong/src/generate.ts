@@ -1,4 +1,5 @@
 import { APIEmptyResponseError, APITimeoutError } from './errors';
+import { DEFAULT_LLM_IDLE_TIMEOUT_MS, resolveIdleTimeoutMs, withIdleTimeout } from './idle-timeout';
 import {
   isContentPart,
   isToolCall,
@@ -20,12 +21,11 @@ import type { TokenUsage } from './usage';
 
 /**
  * Default maximum silence (ms) between streamed parts before the generate
- * loop treats the stream as stalled and aborts. Five minutes is generous
- * enough for extended-thinking models that pause before the first token,
- * yet catches genuinely dead connections far sooner than the 30-minute
- * hangs users have observed.
+ * loop treats the stream as stalled and aborts. Delegates to the shared
+ * idle-timeout default (2 minutes); override per request with
+ * `streamIdleTimeoutMs` or globally via `SUPERLIORA_LLM_IDLE_TIMEOUT_MS`.
  */
-export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
+export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = DEFAULT_LLM_IDLE_TIMEOUT_MS;
 
 /** Snapshot of a ToolCall excluding the internal `_streamIndex` routing field. */
 type StoredToolCall = Omit<ToolCall, '_streamIndex'>;
@@ -133,21 +133,23 @@ export async function generate(
   let firstPartAt: number | undefined;
   let lastResumeAt = 0;
 
-  // Idle watchdog: race each iterator.next() against a timeout so a stalled
-  // stream (server stops sending tokens without closing the connection)
-  // cannot block the agent loop indefinitely. The timer resets on every
-  // received part; only complete silence triggers the abort.
-  const idleTimeoutMs = options?.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
-  const iterator = stream[Symbol.asyncIterator]();
+  // Idle watchdog: wrap the provider stream so a stalled stream (server
+  // stops sending tokens without closing the connection) cannot block the
+  // agent loop indefinitely. The timer resets on every received part; only
+  // complete silence triggers the abort. The per-request
+  // `streamIdleTimeoutMs` option wins; otherwise the
+  // SUPERLIORA_LLM_IDLE_TIMEOUT_MS env var, then the shared default.
+  const idleTimeoutMs = resolveIdleTimeoutMs(options?.streamIdleTimeoutMs);
+  const watchedStream = withIdleTimeout(stream, {
+    idleMs: idleTimeoutMs,
+    label: `Provider: ${provider.name}, model: ${provider.modelName}`,
+    signal: options?.signal,
+  });
+  const iterator = watchedStream[Symbol.asyncIterator]();
 
   try {
     while (true) {
-      const nextPromise = iterator.next();
-      // Swallow rejection on the pending next() when the idle timeout wins
-      // the race — prevents an unhandled rejection after stream cancellation.
-      nextPromise.catch(() => {});
-
-      const iterResult = await raceStreamIdleTimeout(nextPromise, idleTimeoutMs, provider);
+      const iterResult = await iterator.next();
       if (iterResult.done) break;
       const part = iterResult.value;
 
@@ -207,10 +209,11 @@ export async function generate(
       }
     }
   } catch (error) {
-    // On idle timeout, actively cancel the underlying HTTP stream so the
+    // On idle timeout — or a caller abort that fired while the chunk wait
+    // was stuck — actively cancel the underlying HTTP stream so the
     // connection is released promptly rather than lingering until the OS
     // reclaims it.
-    if (error instanceof APITimeoutError) {
+    if (error instanceof APITimeoutError || (error instanceof DOMException && error.name === 'AbortError')) {
       await cancelStream(stream);
     }
     throw error;
@@ -375,36 +378,4 @@ function formatFinishReasonHint(stream: StreamedMessage): string {
  */
 function deepCopyPart(part: StreamedMessagePart): StreamedMessagePart {
   return structuredClone(part);
-}
-
-/**
- * Race an async iterator step against an idle timeout.
- *
- * If `timeoutMs` is positive and the promise does not settle within the
- * window, the returned promise rejects with an {@link APITimeoutError}.
- * The timer is always cleaned up, whether the data promise wins or the
- * timeout fires.
- */
-function raceStreamIdleTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  provider: ChatProvider,
-): Promise<T> {
-  if (timeoutMs <= 0) return promise;
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(
-        new APITimeoutError(
-          `Stream idle timeout: no data received for ${String(timeoutMs)}ms. ` +
-            `Provider: ${provider.name}, model: ${provider.modelName}`,
-        ),
-      );
-    }, timeoutMs);
-  });
-
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer !== undefined) clearTimeout(timer);
-  });
 }

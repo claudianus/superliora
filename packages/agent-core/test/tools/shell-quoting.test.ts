@@ -81,15 +81,16 @@ function captureCommandRewrite(
 // Helpers above test the same defensive rewrite the standalone util tests
 // exercise: the windows-only nul redirect rewrite must survive composition
 // inside the BashTool argv pipeline.
+// Commands use LIORA_FORCE_BASH=1 to bypass the dedicated-tool redirect check.
 describe('shell command nul-redirect rewrite (Windows Git Bash)', () => {
   it.each([
-    ['ls >nul', 'ls >/dev/null'],
-    ['ls > NUL', 'ls > /dev/null'],
+    ['LIORA_FORCE_BASH=1 ls >nul', 'LIORA_FORCE_BASH=1 ls >/dev/null'],
+    ['LIORA_FORCE_BASH=1 ls > NUL', 'LIORA_FORCE_BASH=1 ls > /dev/null'],
     ['ls 2>nul', 'ls 2>/dev/null'],
     ['ls &>nul', 'ls &>/dev/null'],
-    ['ls >>nul', 'ls >>/dev/null'],
-    ['ls >Nul', 'ls >/dev/null'],
-    ['ls >NUL', 'ls >/dev/null'],
+    ['LIORA_FORCE_BASH=1 ls >>nul', 'LIORA_FORCE_BASH=1 ls >>/dev/null'],
+    ['LIORA_FORCE_BASH=1 ls >Nul', 'LIORA_FORCE_BASH=1 ls >/dev/null'],
+    ['LIORA_FORCE_BASH=1 ls >NUL', 'LIORA_FORCE_BASH=1 ls >/dev/null'],
     ['ls 2>nul | grep foo', 'ls 2>/dev/null | grep foo'],
     ['ls 2>nul; echo done', 'ls 2>/dev/null; echo done'],
     ['ls 2>nul && echo ok', 'ls 2>/dev/null && echo ok'],
@@ -104,21 +105,21 @@ describe('shell command nul-redirect rewrite (Windows Git Bash)', () => {
 
 describe('shell command nul-redirect non-rewrites (Windows Git Bash)', () => {
   it.each([
-    'ls >null',
-    'ls >nullable',
-    'ls >nul.txt',
-    'cat nul.txt',
-    'echo nul',
-    "echo 'nul'",
-    'ls > nul_file',
-    'ls >nulX',
+    'LIORA_FORCE_BASH=1 ls >null',
+    'LIORA_FORCE_BASH=1 ls >nullable',
+    'LIORA_FORCE_BASH=1 ls >nul.txt',
+    'LIORA_FORCE_BASH=1 cat nul.txt',
+    'LIORA_FORCE_BASH=1 echo nul',
+    "LIORA_FORCE_BASH=1 echo 'nul'",
+    'LIORA_FORCE_BASH=1 ls > nul_file',
+    'LIORA_FORCE_BASH=1 ls >nulX',
   ])('leaves %s unchanged', async (command) => {
     const { rewritten } = await captureCommandRewrite(windowsBashEnv, command);
     expect(rewritten).toBe(command);
   });
 
   it('does not rewrite quoted >nul with trailing double-quote', async () => {
-    const command = 'echo ">nul"';
+    const command = 'LIORA_FORCE_BASH=1 echo ">nul"';
     const { rewritten } = await captureCommandRewrite(windowsBashEnv, command);
     expect(rewritten).toBe(command);
   });
@@ -141,11 +142,11 @@ describe('shell command unchanged paths (Windows Git Bash)', () => {
 
 describe('shell command nul-redirect — non-Windows passthrough', () => {
   it.each([
-    'ls >nul',
-    'ls 2>nul',
-    'ls &>nul',
-    'ls >>nul',
-    'foo >nul; bar 2>nul',
+    'LIORA_FORCE_BASH=1 ls >nul',
+    'LIORA_FORCE_BASH=1 ls 2>nul',
+    'LIORA_FORCE_BASH=1 ls &>nul',
+    'LIORA_FORCE_BASH=1 ls >>nul',
+    'LIORA_FORCE_BASH=1 foo >nul; bar 2>nul',
   ])('does not rewrite %s on Linux', async (command) => {
     const { rewritten } = await captureCommandRewrite(linuxEnv, command);
     expect(rewritten).toBe(command);

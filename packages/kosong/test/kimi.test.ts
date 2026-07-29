@@ -143,7 +143,7 @@ describe('KimiChatProvider', () => {
       const body = await captureRequestBody(provider, 'You are helpful.', [], history);
 
       expect(body['messages']).toEqual([
-        { role: 'system', content: 'You are helpful.' },
+        { role: 'system', content: [{ type: 'text', text: 'You are helpful.', cache_control: { type: 'ephemeral' } }] },
         { role: 'user', content: 'Hello!' },
       ]);
     });
@@ -159,7 +159,7 @@ describe('KimiChatProvider', () => {
 
       expect(body['messages']).toEqual([
         { role: 'user', content: 'What is 2+2?' },
-        { role: 'assistant', content: '2+2 equals 4.' },
+        { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.', cache_control: { type: 'ephemeral' } }] },
         { role: 'user', content: 'And 3+3?' },
       ]);
     });
@@ -174,9 +174,9 @@ describe('KimiChatProvider', () => {
       const body = await captureRequestBody(provider, 'You are a math tutor.', [], history);
 
       expect(body['messages']).toEqual([
-        { role: 'system', content: 'You are a math tutor.' },
+        { role: 'system', content: [{ type: 'text', text: 'You are a math tutor.', cache_control: { type: 'ephemeral' } }] },
         { role: 'user', content: 'What is 2+2?' },
-        { role: 'assistant', content: '2+2 equals 4.' },
+        { role: 'assistant', content: [{ type: 'text', text: '2+2 equals 4.', cache_control: { type: 'ephemeral' } }] },
         { role: 'user', content: 'And 3+3?' },
       ]);
     });
@@ -345,7 +345,7 @@ describe('KimiChatProvider', () => {
         { role: 'user', content: 'Add 2 and 3' },
         {
           role: 'assistant',
-          content: "I'll add those numbers for you.",
+          content: [{ type: 'text', text: "I'll add those numbers for you.", cache_control: { type: 'ephemeral' } }],
           tool_calls: [
             {
               type: 'function',
@@ -509,7 +509,7 @@ describe('KimiChatProvider', () => {
               type: 'text',
               text: '<system-reminder>This is a system reminder</system-reminder>',
             },
-            { type: 'text', text: '5' },
+            { type: 'text', text: '5', cache_control: { type: 'ephemeral' } },
           ],
           tool_call_id: 'call_add',
         },
@@ -566,7 +566,7 @@ describe('KimiChatProvider', () => {
         { role: 'user', content: 'What is 2+2?' },
         {
           role: 'assistant',
-          content: 'The answer is 4.',
+          content: [{ type: 'text', text: 'The answer is 4.', cache_control: { type: 'ephemeral' } }],
           reasoning_content: 'Let me think...',
         },
         { role: 'user', content: 'Thanks!' },

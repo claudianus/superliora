@@ -9,6 +9,7 @@ import {
   isProviderRateLimitError,
   isProviderCapacityError,
   isRecoverableRequestStructureError,
+  isPermanentAuthError,
   isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,
@@ -138,6 +139,63 @@ describe('isPermanentQuotaOrBillingError / permanent quota retryability', () => 
       isRetryableGenerateError(new APIStatusError(429, 'You exceeded your current quota')),
     ).toBe(false);
     expect(isRetryableGenerateError(new APIStatusError(429, 'Too Many Requests'))).toBe(true);
+  });
+
+  it('detects expired subscription / plan messages as permanent billing failures', () => {
+    expect(
+      isPermanentQuotaOrBillingError(
+        new APIStatusError(402, 'Your subscription has expired. Please renew to continue.'),
+      ),
+    ).toBe(true);
+    expect(
+      isPermanentQuotaOrBillingError(new APIStatusError(403, 'Plan expired; renew subscription')),
+    ).toBe(true);
+    expect(
+      isPermanentQuotaOrBillingError(new ChatProviderError('Error: trial ended, upgrade to keep going')),
+    ).toBe(true);
+  });
+
+  it('does not retry a 429 that actually carries an expired-subscription message', () => {
+    expect(
+      isRetryableGenerateError(new APIStatusError(429, 'subscription expired, renew your plan')),
+    ).toBe(false);
+  });
+});
+
+describe('isPermanentAuthError / auth fail-fast', () => {
+  it('treats HTTP 401 and 403 as permanent regardless of message', () => {
+    expect(isPermanentAuthError(new APIStatusError(401, 'non-retryable'))).toBe(true);
+    expect(isPermanentAuthError(new APIStatusError(403, 'non-retryable'))).toBe(true);
+  });
+
+  it('detects credential / account refusal messages', () => {
+    expect(isPermanentAuthError(new ChatProviderError('Error: Unauthorized'))).toBe(true);
+    expect(isPermanentAuthError(new ChatProviderError('Invalid API key provided'))).toBe(true);
+    expect(isPermanentAuthError(new ChatProviderError('Access denied for this account'))).toBe(true);
+    expect(isPermanentAuthError(new ChatProviderError('account suspended, contact support'))).toBe(
+      true,
+    );
+    expect(isPermanentAuthError(new ChatProviderError('authentication failed'))).toBe(true);
+  });
+
+  it('does not flag transient or unrelated errors as permanent auth failures', () => {
+    expect(isPermanentAuthError(new APIStatusError(429, 'Too Many Requests'))).toBe(false);
+    expect(isPermanentAuthError(new APIStatusError(500, 'internal server error'))).toBe(false);
+    expect(isPermanentAuthError(new APIConnectionError('connection reset'))).toBe(false);
+    expect(isPermanentAuthError(new Error('boom'))).toBe(false);
+    expect(isPermanentAuthError('unauthorized')).toBe(false);
+  });
+
+  it('keeps auth refusals non-retryable even when wrapped as connection/429 errors', () => {
+    expect(
+      isRetryableGenerateError(new APIStatusError(429, 'unauthorized: invalid api key')),
+    ).toBe(false);
+    expect(
+      isRetryableGenerateError(new APIConnectionError('connection closed: unauthorized')),
+    ).toBe(false);
+    expect(
+      isTransientProviderError(new ChatProviderError('connection terminated: unauthorized')),
+    ).toBe(false);
   });
 });
 

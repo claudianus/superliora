@@ -152,11 +152,16 @@ describe('e2e: kimi adapter', () => {
         reasoning_effort: 'high',
         thinking: { type: 'enabled' },
         messages: [
-          { role: 'system', content: 'You are helpful.' },
+          {
+            role: 'system',
+            content: [{ type: 'text', text: 'You are helpful.', cache_control: { type: 'ephemeral' } }],
+          },
           { role: 'user', content: 'Check the weather.' },
           {
             role: 'assistant',
-            content: 'I will look it up.',
+            content: [
+              { type: 'text', text: 'I will look it up.', cache_control: { type: 'ephemeral' } },
+            ],
             reasoning_content: 'I should call a tool.',
             tool_calls: [
               {

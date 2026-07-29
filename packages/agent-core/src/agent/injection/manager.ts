@@ -22,6 +22,11 @@ const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 3_500;
 
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];
+  /** Injectors whose getInjection() depends on the trailing context shape.
+   * These run AFTER the main batch append so they observe the batch message
+   * in the history (mirroring the old sequential behaviour where earlier
+   * injectors' messages were already visible to later ones). */
+  private readonly contextDependentInjectors: DynamicInjector[];
   // Goal context is injected at continuation boundaries (turn start, each
   // continuation, after compaction) via `injectGoal()`, NOT in the per-step
   // `inject()` loop. Boundary-cadence append-only injection keeps one fresh copy
@@ -35,18 +40,45 @@ export class InjectionManager {
       new PluginSessionStartInjector(agent),
       new MemoryInjector(agent),
       new ToolWorkflowInjector(agent),
-      new ContextOSInjector(agent),
       new TodoListReminderInjector(agent),
       new PlanModeInjector(agent),
       new PremiumQualityInjector(agent),
       new PermissionModeInjector(agent),
       new ResponseLanguageInjector(agent),
     ];
+    this.contextDependentInjectors = [
+      new ContextOSInjector(agent),
+    ];
     this.goalInjector = agent.type === 'main' ? new GoalInjector(agent) : null;
   }
 
   async inject(): Promise<void> {
+    // Batch all per-step injections into a single system-reminder message.
+    // This reduces conversation-structure volatility (1 message instead of up
+    // to 10) so the provider's prefix cache sees a stable tail shape and only
+    // the newest batch content is processed as new input.
+    const parts: string[] = [];
+    const contributors: DynamicInjector[] = [];
     for (const injector of this.injectors) {
+      const text = await injector.collectForBatch();
+      if (text !== undefined) {
+        parts.push(text);
+        contributors.push(injector);
+      }
+    }
+    if (parts.length > 0) {
+      const index = this.agent.context.history.length;
+      this.agent.context.appendSystemReminder(parts.join('\n\n'), {
+        kind: 'injection',
+        variant: 'batch',
+      });
+      for (const injector of contributors) {
+        injector.markBatchInjected(index);
+      }
+    }
+    // Context-dependent injectors run after the batch so they observe the
+    // batch message in the trailing history (preserves their guard semantics).
+    for (const injector of this.contextDependentInjectors) {
       await injector.inject();
     }
   }
@@ -92,8 +124,9 @@ export class InjectionManager {
 
   /** Per-step injectors plus the boundary goal injector, for lifecycle events. */
   private lifecycleInjectors(): DynamicInjector[] {
+    const all = [...this.contextDependentInjectors, ...this.injectors];
     const goalInjector = this.activeGoalInjector();
-    return goalInjector === null ? this.injectors : [goalInjector, ...this.injectors];
+    return goalInjector === null ? all : [goalInjector, ...all];
   }
 
   private activeGoalInjector(): GoalInjector | null {

@@ -38,7 +38,7 @@ import {
   resolveAuthBackedClient,
 } from './request-auth';
 import { awaitWithResponseHeaders } from './response-headers';
-import { isQwenCacheEndpoint, markQwenCacheBoundaries } from './qwen-cache';
+import { supportsCacheBoundaries, markQwenCacheBoundaries } from './qwen-cache';
 import {
   normalizeToolCallIdsForProvider,
   sanitizeToolCallId,
@@ -637,7 +637,7 @@ export class OpenAILegacyChatProvider implements ChatProvider {
     // Qwen/DashScope: mark explicit context-cache boundaries (the static
     // system prompt plus a sliding marker before the last message) so the
     // growing conversation prefix bills at the explicit-cache rate.
-    if (isQwenCacheEndpoint(this._baseUrl, this._model)) {
+    if (supportsCacheBoundaries(this._baseUrl, this._model)) {
       markQwenCacheBoundaries(messages);
     }
 

@@ -1,4 +1,4 @@
-import type { UsageStatus } from '#/rpc';
+import type { CacheDiagnostics, UsageStatus } from '#/rpc';
 import { addUsage, cacheHitRate as computeCacheHitRate, type TokenUsage } from '@superliora/kosong';
 
 import type { Agent } from '..';
@@ -9,9 +9,29 @@ function copyUsage(usage: TokenUsage): TokenUsage {
   return { ...usage };
 }
 
+/**
+ * Fast deterministic hash for the serialized tool block. Uses a simple
+ * FNV-1a-style hash over the concatenated tool names + description lengths
+ * (full JSON serialization is too expensive per-step; name+length catches
+ * additions, removals, and description rewrites with negligible collision).
+ */
+function hashToolBlock(tools: readonly { name: string; description: string }[]): string {
+  let h = 0x811c9dc5;
+  for (const tool of tools) {
+    const key = `${tool.name}:${String(tool.description.length)}`;
+    for (let i = 0; i < key.length; i++) {
+      h ^= key.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
 export class UsageRecorder {
   private readonly byModel: Record<string, TokenUsage> = {};
   private currentTurn: TokenUsage | undefined;
+  private lastToolBlockHash: string | undefined;
+  private lastCacheDiagnostics: CacheDiagnostics | undefined;
 
   constructor(protected readonly agent?: Agent) {}
 
@@ -40,6 +60,23 @@ export class UsageRecorder {
     this.agent?.emitStatusUpdated();
   }
 
+  /** Update cache-prefix stability diagnostics (called per step). */
+  recordCacheDiagnostics(
+    tools: readonly { name: string; description: string }[],
+    injectionCount: number,
+    messageCount: number,
+  ): void {
+    const toolBlockHash = hashToolBlock(tools);
+    const toolBlockChanged = this.lastToolBlockHash !== undefined && this.lastToolBlockHash !== toolBlockHash;
+    this.lastToolBlockHash = toolBlockHash;
+    this.lastCacheDiagnostics = {
+      toolBlockHash,
+      toolBlockChanged,
+      injectionCount,
+      messageCount,
+    };
+  }
+
   data(): UsageStatus {
     const byModel = this.byModelSnapshot();
     const hasByModel = Object.keys(byModel).length > 0;
@@ -66,6 +103,7 @@ export class UsageRecorder {
       // tokens. A byte-stable cached prefix approaches 1 at steady state; a
       // volatile segment in the prefix keeps this near 0.
       cacheHitRate: status.total === undefined ? undefined : computeCacheHitRate(status.total),
+      cacheDiagnostics: this.lastCacheDiagnostics,
     };
   }
 

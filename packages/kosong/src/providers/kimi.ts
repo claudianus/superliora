@@ -31,7 +31,7 @@ import {
   reasoningEffortToThinkingEffort,
   toolToOpenAI,
 } from './openai-common';
-import { isQwenCacheEndpoint, markQwenCacheBoundaries } from './qwen-cache';
+import { supportsCacheBoundaries, markQwenCacheBoundaries } from './qwen-cache';
 import {
   mergeRequestHeaders,
   requireProviderApiKey,
@@ -103,9 +103,11 @@ interface OpenAIMessage {
 // provider apply identical boundary placement.
 export {
   QWEN_CACHE_CONTROL,
+  isKimiCacheEndpoint,
   isQwenCacheEndpoint,
   markCacheBoundary,
   markQwenCacheBoundaries,
+  supportsCacheBoundaries,
 } from './qwen-cache';
 
 interface OpenAIToolCallOut {
@@ -453,7 +455,7 @@ export class KimiChatProvider implements ChatProvider {
     for (const msg of normalizedHistory) {
       messages.push(convertMessage(msg));
     }
-    if (isQwenCacheEndpoint(this._baseUrl, this._model)) {
+    if (supportsCacheBoundaries(this._baseUrl, this._model)) {
       markQwenCacheBoundaries(messages);
     }
 

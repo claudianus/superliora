@@ -30,10 +30,15 @@ import {
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {
+  DEFAULT_SUBAGENT_DEADLINE_MS,
+  SUBAGENT_DEADLINE_ENV,
   SessionSubagentHost,
+  SubagentDeadlineError,
   SubagentMaxTokensError,
   describeSubagentToolDetail,
+  isSubagentDeadlineError,
   isSubagentMaxTokensError,
+  resolveSubagentDeadlineMs,
   type QueuedSubagentTask,
   type RunSubagentOptions,
 } from '../../src/session/subagent-host';
@@ -863,6 +868,8 @@ describe('SessionSubagentHost', () => {
       'LioraSymbol',
       'LioraTree',
       'Read',
+      'ReadMediaFile',
+      'SearchTools',
       'TodoList',
     ]);
     expect(userTextMessages(child.llmCalls[0]?.history ?? [])).toEqual(['Find the cause']);
@@ -917,6 +924,8 @@ describe('SessionSubagentHost', () => {
       'LioraSymbol',
       'LioraTree',
       'Read',
+      'ReadMediaFile',
+      'SearchTools',
       'TodoList',
     ]);
     expect(parent.allEvents).toContainEqual(
@@ -1034,7 +1043,9 @@ describe('SessionSubagentHost', () => {
       'LioraSymbol',
       'LioraTree',
       'Read',
+      'ReadMediaFile',
       'RunProjectChecks',
+      'SearchTools',
       'TodoList',
       'VerifySurface',
       'VisualDiff',
@@ -1241,6 +1252,78 @@ describe('SessionSubagentHost', () => {
     const output = childBashToolResultOutput(child);
     expect(output).toBe('Tool "Bash" was aborted');
     expect(output).not.toContain('manually interrupted');
+  });
+
+  it('aborts a wedged child with SubagentDeadlineError once the wall-clock deadline elapses', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    process.env[SUBAGENT_DEADLINE_ENV] = '250';
+    try {
+      const handle = await host.spawn({
+        profileName: 'explore',
+        parentToolCallId: 'call_agent',
+        prompt: 'Keep working',
+        description: 'Long task',
+        runInBackground: false,
+        signal,
+      });
+
+      await child.untilApprovalRequest();
+      // The child now sits on an unanswered approval request; only the
+      // wall-clock deadline can end the run.
+      await expect(handle.completion).rejects.toBeInstanceOf(SubagentDeadlineError);
+      await expect(handle.completion).rejects.toMatchObject({
+        code: 'subagent_deadline',
+        deadlineMs: 250,
+      });
+      await child.untilTurnEnd();
+    } finally {
+      delete process.env[SUBAGENT_DEADLINE_ENV];
+    }
+  });
+
+  it('keeps a wedged child alive when SUPERLIORA_SUBAGENT_DEADLINE_MS=0 disables the deadline', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const controller = new AbortController();
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    process.env[SUBAGENT_DEADLINE_ENV] = '0';
+    try {
+      const handle = await host.spawn({
+        profileName: 'explore',
+        parentToolCallId: 'call_agent',
+        prompt: 'Keep working',
+        description: 'Long task',
+        runInBackground: false,
+        signal: controller.signal,
+      });
+      void handle.completion.catch(() => {});
+
+      await child.untilApprovalRequest();
+      // Longer than the tiny deadline the fail-fast test uses: with the kill
+      // switch off, nothing may abort the wedged child on its own.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(child.agent.turn.hasActiveTurn).toBe(true);
+
+      controller.abort(abortError());
+      await expect(handle.completion).rejects.toThrow();
+      await child.untilTurnEnd();
+    } finally {
+      delete process.env[SUBAGENT_DEADLINE_ENV];
+    }
   });
 
   it('cancelAll leaves background children running until their task signal aborts', async () => {
@@ -2793,5 +2876,35 @@ describe('providerRateLimitErrorFromPayload', () => {
       details: { requestId: 42 },
     });
     expect(err.requestId).toBeNull();
+  });
+});
+
+describe('resolveSubagentDeadlineMs', () => {
+  afterEach(() => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+  });
+
+  it('lets the environment override win, including 0 (deadline disabled)', () => {
+    process.env[SUBAGENT_DEADLINE_ENV] = '0';
+    expect(resolveSubagentDeadlineMs()).toBe(0);
+    expect(resolveSubagentDeadlineMs(1234)).toBe(0);
+
+    process.env[SUBAGENT_DEADLINE_ENV] = '250';
+    expect(resolveSubagentDeadlineMs()).toBe(250);
+    expect(resolveSubagentDeadlineMs(9999)).toBe(250);
+  });
+
+  it('falls back to the explicit budget, then the default, when the override is unusable', () => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    expect(resolveSubagentDeadlineMs(1234)).toBe(1234);
+    expect(resolveSubagentDeadlineMs()).toBe(DEFAULT_SUBAGENT_DEADLINE_MS);
+
+    // Unparsable or negative values must fall back instead of silently
+    // disabling the deadline.
+    process.env[SUBAGENT_DEADLINE_ENV] = 'not-a-number';
+    expect(resolveSubagentDeadlineMs(1234)).toBe(1234);
+
+    process.env[SUBAGENT_DEADLINE_ENV] = '-5';
+    expect(resolveSubagentDeadlineMs(1234)).toBe(1234);
   });
 });

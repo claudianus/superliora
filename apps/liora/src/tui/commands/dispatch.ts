@@ -21,6 +21,7 @@ import type {
   AppState,
   LoginProgressSpinnerHandle,
   QueuedMessage,
+  TranscriptDetailLevel,
   TranscriptEntry,
 } from '../types';
 import { formatErrorMessage } from '../utils/event-payload';
@@ -90,6 +91,7 @@ import {
 import { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
 import { handleLoopCommand } from './loop';
 import { handleRewindCommand } from './rewind';
+import { handleTranscriptCommand } from './transcript';
 import { handleUndoCommand } from './undo';
 import { handleUpgradeCommand } from './upgrade';
 
@@ -158,6 +160,8 @@ export interface SlashCommandHost {
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
   showNotice(title: string, detail?: string, options?: ShowNoticeOptions): void;
+  /** Apply transcript density live (PREMIUM.md §7.9); /appearance persists it. */
+  setTranscriptDetail(level: TranscriptDetailLevel): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   track(event: string, props?: Record<string, unknown>): void;
   mountEditorReplacement(panel: Component & Focusable): void;
@@ -482,6 +486,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'renderer':
       handleRendererCommand(host, args);
+      return;
+    case 'transcript':
+      await handleTranscriptCommand(host, args);
       return;
     case 'title':
       await handleTitleCommand(host, args);

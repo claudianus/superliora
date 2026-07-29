@@ -1,4 +1,6 @@
 import {
+  isPermanentAuthError,
+  isPermanentQuotaOrBillingError,
   isProviderRateLimitError,
   isTransientProviderError,
   type TokenUsage,
@@ -33,6 +35,7 @@ Rate-limit phase:
 Results and cancellation:
 - Completed, failed, aborted, and timed-out attempts occupy their input slots; when all slots have results, return the ordered list. A task timeout fails only that task and does not enter rate-limit phase or stop others.
 - A transient provider failure (HTTP 5xx, provider overloaded/server_error, connection-level network error) retries the same task in place up to 2 extra attempts with 1000 ms / 2000 ms backoff before failing it; this budget is separate from the rate-limit phase. Timeouts, rate limits, aborts, and permanent errors never use this path.
+- A permanent auth/quota/billing failure (401/403, invalid credentials, expired subscription, exhausted credit) fails only that task immediately; it never enters rate-limit phase, requeues, or uses the transient retry budget, even when the provider reports it with a rate-limit-shaped payload.
 - The first task signal is the batch signal. User cancellation preserves existing results, marks ready or agent-known unfinished tasks aborted/started, and marks never-started tasks aborted/not_started. Non-user cancellation rejects.
 */
 
@@ -397,6 +400,15 @@ export class SubagentBatch<T> {
           usage: completion.usage,
         };
       } catch (error) {
+        // Permanent auth/quota failures (401/403, expired subscription,
+        // exhausted credit) never recover by waiting. Checked before the
+        // rate-limit branch so a quota error reported with a rate-limit
+        // shaped payload (e.g. 429 "exceeded your current quota") fails
+        // fast instead of being requeued into rate-limit phase; the failed
+        // outcome flows through the regular failure path.
+        if (isPermanentAuthError(error) || isPermanentQuotaOrBillingError(error)) {
+          return this.failedAttemptOutcome(attempt, error);
+        }
         if (isProviderRateLimitError(error)) {
           return {
             type: 'rate_limited',

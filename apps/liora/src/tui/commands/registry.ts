@@ -9,6 +9,7 @@ import { improveHarnessArgumentCompletions } from './improve-harness';
 import { PERSONA_PRESET_DESCRIPTIONS, PERSONA_PRESET_NAMES } from './persona';
 import { pluginsArgumentCompletions } from './plugins';
 import { rendererArgumentCompletions } from './renderer';
+import { transcriptArgumentCompletions } from './transcript';
 import type { LioraSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from './types';
 
 /** Subcommands offered when autocompleting `/goal <…>`. */
@@ -688,6 +689,15 @@ export const BUILTIN_SLASH_COMMANDS = [
     visibility: 'diagnostic',
     argumentHint: 'diagnostics [on|off|toggle|status] | trace [status|reset|export]',
     completeArgs: rendererArgumentCompletions,
+    availability: 'always',
+  },
+  {
+    name: 'transcript',
+    aliases: [],
+    description: 'Set transcript detail density (minimal, compact, standard, full)',
+    priority: 80,
+    argumentHint: '[minimal|compact|standard|full]',
+    completeArgs: transcriptArgumentCompletions,
     availability: 'always',
   },
   {

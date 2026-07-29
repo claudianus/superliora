@@ -998,6 +998,13 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
   private _client: OpenAI | undefined;
   private _httpClient: unknown;
   private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
+  /**
+   * Server-side conversation chaining: when store is enabled, the previous
+   * response ID is forwarded so the API can reuse its cached prefix instead
+   * of re-processing the full input array. Controlled by SUPERLIORA_OPENAI_STORE.
+   */
+  private _previousResponseId: string | null = null;
+  private readonly _storeEnabled: boolean;
 
   constructor(options: OpenAIResponsesOptions) {
     const apiKey = options.apiKey ?? process.env['OPENAI_API_KEY'];
@@ -1016,6 +1023,7 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
     }
 
     this._client = this._apiKey === undefined ? undefined : this._buildClient(this._apiKey);
+    this._storeEnabled = process.env['SUPERLIORA_OPENAI_STORE'] === '1';
   }
 
   get modelName(): string {
@@ -1076,12 +1084,17 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
         model: this._model,
         input,
         tools: tools.map((t) => convertTool(t)),
-        store: false,
+        store: this._storeEnabled,
         stream: this._stream,
         ...kwargs,
       };
       if (systemPrompt) {
         createParams['instructions'] = systemPrompt;
+      }
+      // Server-side prefix caching: chain to the previous response so the API
+      // reuses its cached context instead of re-processing the full input.
+      if (this._storeEnabled && this._previousResponseId !== null) {
+        createParams['previous_response_id'] = this._previousResponseId;
       }
 
       if (
@@ -1102,7 +1115,15 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
       const { data, responseHeaders } = await awaitWithResponseHeaders(
         create(createParams, options?.signal ? { signal: options.signal } : undefined),
       );
-      return new OpenAIResponsesStreamedMessage(data, this._stream, responseHeaders);
+      const streamed = new OpenAIResponsesStreamedMessage(data, this._stream, responseHeaders);
+      // Capture the response ID for next-request chaining (store mode).
+      if (this._storeEnabled) {
+        const responseId = streamed.id;
+        if (responseId !== null) {
+          this._previousResponseId = responseId;
+        }
+      }
+      return streamed;
     } catch (error: unknown) {
       throw convertOpenAIError(error);
     }
