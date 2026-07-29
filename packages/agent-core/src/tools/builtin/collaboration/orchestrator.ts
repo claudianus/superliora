@@ -62,6 +62,10 @@ export interface OrchestratorWorker {
   readonly ownership: string[];
   /** Worker IDs this worker depends on. Spawning is deferred until all complete. */
   readonly dependsOn: string[];
+  /** Git branch name for the worker's worktree (e.g. liora/orch-worker-1). */
+  branch?: string;
+  /** Repository root path for merge operations. */
+  repoRoot?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,12 +142,16 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
 
     // Create an isolated worktree for this worker.
     let worktreePath: string | undefined;
+    let worktreeBranch: string | undefined;
+    let worktreeRepoRoot: string | undefined;
     try {
       const worktree = await createSessionWorktree(this.kaos, {
         repoPath: this.repoPath,
         name: workerId,
       });
       worktreePath = worktree.workDir;
+      worktreeBranch = worktree.meta.branch;
+      worktreeRepoRoot = worktree.meta.repoRoot;
     } catch {
       // Worktree creation failed — fall back to shared workspace.
     }
@@ -172,6 +180,8 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
       taskQueue: [],
       ownership: args.ownership ?? [],
       dependsOn: args.dependsOn ?? [],
+      branch: worktreeBranch,
+      repoRoot: worktreeRepoRoot,
     };
     this.workers.set(workerId, worker);
 
@@ -403,6 +413,79 @@ export class EnqueueWorkerTaskTool implements BuiltinTool<EnqueueWorkerTaskInput
     return {
       output: `Task queued for ${args.workerId} (position ${String(position)}). ` +
         `It will run after the current task and ${String(position - 1)} queued task(s) complete.`,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MergeWorkerTool
+// ---------------------------------------------------------------------------
+
+const MergeWorkerInputSchema = z.object({
+  workerId: z.string().describe('The completed worker whose worktree branch should be merged.'),
+});
+
+type MergeWorkerInput = z.infer<typeof MergeWorkerInputSchema>;
+
+export class MergeWorkerTool implements BuiltinTool<MergeWorkerInput> {
+  readonly name = 'MergeWorker';
+  readonly description =
+    'Merge a completed worker\'s worktree branch back into the main branch. ' +
+    'Use this after a worker finishes to integrate its changes. ' +
+    'Reports merge conflicts if any files were modified by multiple workers.';
+  readonly parameters: Record<string, unknown> = toInputJsonSchema(MergeWorkerInputSchema);
+
+  constructor(
+    private readonly kaos: Kaos,
+    private readonly workers: Map<string, OrchestratorWorker>,
+  ) {}
+
+  async resolveExecution(args: MergeWorkerInput): Promise<ToolExecution> {
+    return {
+      description: `Merge ${args.workerId}`,
+      accesses: ToolAccesses.none(),
+      approvalRule: this.name,
+      execute: () => this.execution(args),
+    };
+  }
+
+  private async execution(args: MergeWorkerInput): Promise<ExecutableToolResult> {
+    const worker = this.workers.get(args.workerId);
+
+    if (worker === undefined) {
+      return {
+        output: `Worker "${args.workerId}" not found. Use QueryWorker to list workers.`,
+        isError: true,
+      };
+    }
+
+    if (worker.status !== 'completed') {
+      return {
+        output: `Worker "${args.workerId}" is ${worker.status}. Only completed workers can be merged.`,
+        isError: true,
+      };
+    }
+
+    if (worker.branch === undefined || worker.repoRoot === undefined) {
+      return {
+        output: `Worker "${args.workerId}" has no worktree branch. It may have run in the shared workspace.`,
+        isError: true,
+      };
+    }
+
+    const { runGit } = await import('#/autopilot/git');
+    const result = await runGit(this.kaos, worker.repoRoot, ['merge', worker.branch, '--no-edit']);
+
+    if (result.ok) {
+      return {
+        output: `Successfully merged ${worker.branch} into the main branch.\n${result.stdout}`,
+      };
+    }
+
+    return {
+      output: `Merge conflict detected for ${worker.branch}:\n${result.stderr}\n` +
+        'Resolve conflicts manually or use SteerWorker to have the worker rebase.',
+      isError: true,
     };
   }
 }

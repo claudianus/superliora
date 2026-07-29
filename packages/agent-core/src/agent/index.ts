@@ -30,6 +30,7 @@ import { estimateTokens } from '../utils/tokens';
 import type { McpConnectionManager } from '../mcp';
 import {
   EnqueueWorkerTaskTool,
+  MergeWorkerTool,
   QueryWorkerTool,
   SpawnWorkerTool,
   SteerWorkerTool,
@@ -370,6 +371,7 @@ export class Agent {
       this.tools.detachEphemeralBuiltin('SteerWorker');
       this.tools.detachEphemeralBuiltin('QueryWorker');
       this.tools.detachEphemeralBuiltin('EnqueueWorkerTask');
+      this.tools.detachEphemeralBuiltin('MergeWorker');
     }
 
     this.emitStatusUpdated();
@@ -438,6 +440,7 @@ export class Agent {
     this.tools.attachEphemeralBuiltin(new SteerWorkerTool(host, workers));
     this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
     this.tools.attachEphemeralBuiltin(new EnqueueWorkerTaskTool(workers));
+    this.tools.attachEphemeralBuiltin(new MergeWorkerTool(this.kaos, workers));
   }
 
   getAdditionalDirs(): readonly string[] {
