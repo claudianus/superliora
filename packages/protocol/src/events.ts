@@ -67,6 +67,22 @@ export interface UsageStatus {
    * segment inside the prefix keeps this near 0.
    */
   readonly cacheHitRate?: number;
+  /**
+   * Cache-prefix stability diagnostics. Present once the agent has recorded
+   * at least one step; used by TUI/status to surface cache-busting events.
+   */
+  readonly cacheDiagnostics?: CacheDiagnostics;
+}
+
+export interface CacheDiagnostics {
+  /** Deterministic hash of the serialized tool block (name+description+schema). */
+  readonly toolBlockHash: string;
+  /** True when the tool block changed since the previous step. */
+  readonly toolBlockChanged: boolean;
+  /** Number of injection messages appended in the last step. */
+  readonly injectionCount: number;
+  /** Total conversation message count at the last step. */
+  readonly messageCount: number;
 }
 
 export type PermissionMode = 'manual' | 'yolo' | 'auto';
@@ -1144,11 +1160,19 @@ export const finishReasonSchema = z.enum([
   'other',
 ]) satisfies z.ZodType<FinishReason>;
 
+export const cacheDiagnosticsSchema = z.object({
+  toolBlockHash: z.string(),
+  toolBlockChanged: z.boolean(),
+  injectionCount: z.number(),
+  messageCount: z.number(),
+}) satisfies z.ZodType<CacheDiagnostics>;
+
 export const usageStatusSchema = z.object({
   byModel: z.record(z.string(), tokenUsageSchema).optional(),
   currentTurn: tokenUsageSchema.optional(),
   total: tokenUsageSchema.optional(),
   cacheHitRate: z.number().optional(),
+  cacheDiagnostics: cacheDiagnosticsSchema.optional(),
 }) satisfies z.ZodType<UsageStatus>;
 
 export const permissionModeSchema = z.enum(['manual', 'yolo', 'auto']) satisfies z.ZodType<PermissionMode>;

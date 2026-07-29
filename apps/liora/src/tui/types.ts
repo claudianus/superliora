@@ -254,6 +254,13 @@ export type GoalTranscriptData =
   | { readonly kind: 'created' }
   | { readonly kind: 'lifecycle'; readonly change: GoalChange };
 
+/**
+ * How much detail the transcript renders for tool activity. See
+ * `src/tui/config.ts` (`TranscriptDetailSchema`) for the persisted setting;
+ * this type is the runtime handle used by transcript projection/rendering.
+ */
+export type TranscriptDetailLevel = 'minimal' | 'compact' | 'standard' | 'full';
+
 export type TranscriptEntryKind =
   | 'welcome'
   | 'user'

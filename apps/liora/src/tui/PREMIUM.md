@@ -320,6 +320,13 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
       searchable), `D` delete, `Space` toggle.
 - [ ] Printable char comparisons go through `printableChar()`.
 
+### Transcript output
+- [ ] Tool results / diffs / logs highlight incrementally while streaming —
+      no batch paint only on completion.
+- [ ] Highlighting routes through `components/media/code-highlight.ts`
+      (LRU + shiki warmup); unsupported languages fall back to plain.
+- [ ] No new raw-dump render path bypasses formatting / highlighting.
+
 ### Motion
 - [ ] No raw `setInterval` / `setTimeout` for animation — use the renderer
       ambient schedule / `RendererTicker`.
@@ -370,3 +377,56 @@ See `src/tui/utils/tab-strip.ts` for the shared renderer.
   terminals never overflow.
 
   checks; a contrast guard test should be added when new tokens are introduced.
+
+---
+
+### 7.9 Transcript density (minimal / compact / standard / full)
+
+Four density levels for the tool transcript, switchable live without a
+restart:
+
+- `/transcript <minimal|compact|standard|full>` — quick switch.
+- `/appearance transcript-detail <level>` — same path, shown in the
+  Appearance status block.
+- `tui.toml` → `[appearance] transcript_detail = "compact"` — persisted
+  default; seeded into session state at startup.
+
+Levels:
+
+- `standard` (default): current behavior — full tool cards.
+- `compact`: every tool card collapses to its header line (status mark,
+  tool name, key argument, result chip). Click a card to expand it
+  locally; click the header again to close. Ctrl+O global expand wins
+  over the collapse.
+- `minimal`: same one-line cards plus one aggregate chain summary per
+  turn (`⚙ Edit src/foo.ts · 7 tools · +42/−10` while running,
+  `Worked for 10m 4s · 7 tools · 2 failed` once the turn settles).
+- `full`: every card expanded (Ctrl+O semantics without the toggle).
+
+Rules:
+
+- **Rule 10 — approval panel is density-independent.** Approval panels
+  render through their own components; density never hides, collapses,
+  or restyles them.
+- **Rule 11 — failure punch-through.** At any density, a failed tool
+  shows a one-line error under its header. Failures are never invisible.
+- **Rule 12 — click-to-expand.** One-line cards toggle on left click
+  (whole line when collapsed, header row when locally opened so body
+  text stays selectable). Wheel, drag, and release pass through to
+  selection and tool-output scrolling.
+
+Implementation map:
+
+- `src/tui/utils/transcript-density.ts` — pure projections (levels,
+  chain stats, summary formatters).
+- `src/tui/components/messages/tool-call.ts` — `setDetail()`,
+  `toggleDetailOverride()`, `isOneLineCollapsed`, failure punch-through.
+- `src/tui/components/messages/tool-chain-summary.ts` — per-turn
+  aggregate line for `minimal`.
+- `src/tui/utils/transcript-density-mouse.ts` — click routing.
+- `src/tui/commands/transcript.ts` + `commands/config.ts` — slash
+  command and appearance key.
+
+Replay/resume applies the seeded density to replayed cards through the
+same `setDetail()` path, so a session reopened at `compact` reads the
+same way live and in history.

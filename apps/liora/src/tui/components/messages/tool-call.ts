@@ -51,7 +51,8 @@ import {
 } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
-import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
+import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
+import { isOneLineToolLevel } from '#/tui/utils/transcript-density';
 import type { TokenUsage } from '@superliora/sdk';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import {
@@ -647,6 +648,17 @@ function tailNonEmptyLines(text: string, maxLines: number): string[] {
 
 export class ToolCallComponent extends Container {
   private expanded = false;
+  /**
+   * Transcript density applied to this card. One-line levels (`compact`, or
+   * `minimal` for standalone cards that escape chain grouping) collapse the
+   * body — the header already carries status mark, tool name, key argument,
+   * and result chip. A header click flips `detailOverrideExpanded` for a
+   * local standard view, and Ctrl+O's global `expanded` also wins over the
+   * collapse. Failed tools punch through with a one-line error at any
+   * density (PREMIUM.md rule 11).
+   */
+  private detail: TranscriptDetailLevel = 'standard';
+  private detailOverrideExpanded = false;
   private toolCall: ToolCallBlockData;
   private readonly markdownTheme = createMarkdownTheme();
   private result: ToolResultBlockData | undefined;
@@ -813,12 +825,7 @@ export class ToolCallComponent extends Container {
     this.addChild(new Spacer(1));
     this.headerText = new Text(this.buildHeader(), 0, 0);
     this.addChild(this.headerText);
-    this.buildCallPreview();
-    this.callPreviewEndIndex = this.children.length;
-    this.buildProgressBlock();
-    this.buildLiveOutputBlock();
-    this.buildContent();
-    this.buildSubagentBlock();
+    this.rebuildBody();
     this.syncStreamingProgressTimer();
     this.syncSubagentElapsedTimer();
     this.startDetachHintTimer();
@@ -995,6 +1002,43 @@ export class ToolCallComponent extends Container {
     // children and would leave the call preview stuck at its initial
     // collapsed size.
     this.rebuildBody();
+  }
+
+  /**
+   * Apply a transcript density level to this card. One-line levels drop the
+   * body; anything else restores it. Switching levels clears the local click
+   * override so the new density reads consistently across the transcript.
+   */
+  setDetail(detail: TranscriptDetailLevel): void {
+    if (this.detail === detail) return;
+    const wasFull = this.detail === 'full';
+    this.detail = detail;
+    this.detailOverrideExpanded = false;
+    // `full` means every card expanded (Ctrl+O semantics without the global
+    // toggle); leaving `full` restores collapsed bodies.
+    if (detail === 'full') this.expanded = true;
+    else if (wasFull) this.expanded = false;
+    this.rebuildBody();
+  }
+
+  getDetail(): TranscriptDetailLevel {
+    return this.detail;
+  }
+
+  /**
+   * Click toggle while a one-line density is active: open this card to its
+   * body (or close it back). Returns the new collapsed state so hit-test
+   * callers can update their bookkeeping.
+   */
+  toggleDetailOverride(): boolean {
+    this.detailOverrideExpanded = !this.detailOverrideExpanded;
+    this.rebuildBody();
+    return this.isOneLineCollapsed;
+  }
+
+  /** True while a one-line density hides the body. */
+  get isOneLineCollapsed(): boolean {
+    return isOneLineToolLevel(this.detail) && !this.detailOverrideExpanded && !this.expanded;
   }
 
   get toolCallId(): string {
@@ -1927,6 +1971,10 @@ export class ToolCallComponent extends Container {
     while (this.children.length > this.callPreviewEndIndex) {
       this.children.pop();
     }
+    if (this.isOneLineCollapsed) {
+      this.buildCompactErrorLine();
+      return;
+    }
     this.buildProgressBlock();
     this.buildDetachHintBlock();
     this.buildLiveOutputBlock();
@@ -1940,6 +1988,11 @@ export class ToolCallComponent extends Container {
     while (this.children.length > 2) {
       this.children.pop();
     }
+    if (this.isOneLineCollapsed) {
+      this.buildCompactErrorLine();
+      this.callPreviewEndIndex = this.children.length;
+      return;
+    }
     this.buildCallPreview();
     this.callPreviewEndIndex = this.children.length;
     this.buildProgressBlock();
@@ -1947,6 +2000,22 @@ export class ToolCallComponent extends Container {
     this.buildLiveOutputBlock();
     this.buildContent();
     this.buildSubagentBlock();
+  }
+
+  /**
+   * Failure punch-through for one-line densities: a single error line so a
+   * failed tool is never invisible under density settings (PREMIUM.md
+   * rule 11). No error → no body at all.
+   */
+  private buildCompactErrorLine(): void {
+    if (this.result === undefined || this.result.is_error !== true) return;
+    const firstLine = this.result.output
+      .split('\n')
+      .find((line) => line.trim().length > 0);
+    if (firstLine === undefined) return;
+    const trimmed = firstLine.trim();
+    const text = trimmed.length > 120 ? `${trimmed.slice(0, 119)}…` : trimmed;
+    this.addChild(new Text(currentTheme.fg('error', text), 2, 0));
   }
 
   /**

@@ -86,24 +86,24 @@ function loopToolNames(agent: Agent): string[] {
 }
 
 describe('ToolManager mode-gated schemas (T2-3)', () => {
-  it('hides mode-bound tools outside their modes but keeps launch tools', () => {
+  it('cache-gated tools are always present for prefix cache stability', () => {
     const names = loopToolNames(makeAgent());
-    expect(names).not.toContain('NextPhase');
-    expect(names).not.toContain('RecordInterviewFinding');
-    expect(names).not.toContain('ExitPlanMode');
-    expect(names).not.toContain('UltraworkGraph');
+    // CACHE_GATED_TOOLS are never filtered — always present, sorted to tail.
+    expect(names).toContain('NextPhase');
+    expect(names).toContain('RecordInterviewFinding');
+    expect(names).toContain('ExitPlanMode');
+    expect(names).toContain('UltraworkGraph');
     expect(names).toContain('EnterPlanMode');
     expect(names).toContain('CreateGoal');
-    // Premium is off by default, so visual tools stay available.
     expect(names).toContain('VisualDiff');
   });
 
-  it('shows ExitPlanMode in plan mode and NextPhase only in ultra plan mode', () => {
+  it('cache-gated tools remain present in plan mode and ultra plan mode', () => {
     const agent = makeAgent();
     vi.spyOn(agent.planMode, 'isActive', 'get').mockReturnValue(true);
     let names = loopToolNames(agent);
     expect(names).toContain('ExitPlanMode');
-    expect(names).not.toContain('NextPhase');
+    expect(names).toContain('NextPhase');
 
     vi.spyOn(agent.planMode, 'isUltraMode', 'get').mockReturnValue(true);
     names = loopToolNames(agent);
@@ -111,14 +111,14 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
     expect(names).toContain('RecordInterviewFinding');
   });
 
-  it('shows UltraworkGraph only while an ultrawork run is active', () => {
+  it('UltraworkGraph is always present regardless of ultrawork run state', () => {
     const agent = makeAgent();
-    expect(loopToolNames(agent)).not.toContain('UltraworkGraph');
+    expect(loopToolNames(agent)).toContain('UltraworkGraph');
     vi.spyOn(agent.ultrawork, 'getRun').mockReturnValue({ objective: 'ship it' } as never);
     expect(loopToolNames(agent)).toContain('UltraworkGraph');
   });
 
-  it('hides visual tools under premium code density and restores them otherwise', () => {
+  it('visual tools are always present regardless of premium code density', () => {
     const prevKey = process.env['OPENAI_API_KEY'];
     process.env['OPENAI_API_KEY'] = 'test-key';
     try {
@@ -128,13 +128,13 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
       agent.premiumQuality.setEnabled(true);
       density.mockReturnValue('code');
       let names = loopToolNames(agent);
-      expect(names).not.toContain('GenerateImage');
-      expect(names).not.toContain('VerifySurface');
-      expect(names).not.toContain('VisualDiff');
+      // CACHE_GATED_TOOLS never filtered.
+      expect(names).toContain('GenerateImage');
+      expect(names).toContain('VerifySurface');
+      expect(names).toContain('VisualDiff');
 
       density.mockReturnValue('visual');
-      loopToolNames(agent); // hysteresis observation 1 — block stays put
-      names = loopToolNames(agent); // observation 2 — density flip applies
+      names = loopToolNames(agent);
       expect(names).toContain('GenerateImage');
       expect(names).toContain('VerifySurface');
 
@@ -147,18 +147,18 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
     }
   });
 
-  it('ignores a single transient density flap so the tool block stays cache-stable', () => {
+  it('tool block stays cache-stable across density flaps', () => {
     const agent = makeAgent();
     const density = resolveActivePremiumDensity as Mock;
     agent.premiumQuality.setEnabled(true);
     density.mockReturnValue('code');
     loopToolNames(agent);
-    expect(loopToolNames(agent)).not.toContain('VisualDiff');
+    expect(loopToolNames(agent)).toContain('VisualDiff');
 
     // One transient 'visual' reading must not rewrite the tool block.
     density.mockReturnValue('visual');
     loopToolNames(agent);
     density.mockReturnValue('code');
-    expect(loopToolNames(agent)).not.toContain('VisualDiff');
+    expect(loopToolNames(agent)).toContain('VisualDiff');
   });
 });

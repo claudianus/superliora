@@ -109,6 +109,21 @@ export interface ProviderRequestAuth {
   headers?: Record<string, string>;
 }
 
+/**
+ * Layered system prompt for cache optimization.
+ * Providers that support multi-block system prompts (e.g., Anthropic)
+ * can use this to maximize cache hit rates by placing cache_control
+ * on the static layer.
+ */
+export interface LayeredSystemPrompt {
+  /** Static core instructions - cacheable across all requests */
+  readonly layer1Static: string;
+  /** Session-static context - fixed within a session */
+  readonly layer2Session: string;
+  /** Dynamic context - may change per request */
+  readonly layer3Dynamic: string;
+}
+
 export interface GenerateOptions {
   /**
    * An {@link AbortSignal} that, when aborted, requests cancellation of the
@@ -148,10 +163,18 @@ export interface GenerateOptions {
    * resets on every received part, so a healthy slow stream is never killed —
    * only a completely silent one.
    *
-   * Defaults to {@link DEFAULT_STREAM_IDLE_TIMEOUT_MS} (5 minutes). Set to `0`
-   * to disable the watchdog entirely.
+   * When omitted, falls back to the `SUPERLIORA_LLM_IDLE_TIMEOUT_MS`
+   * environment variable, then to {@link DEFAULT_STREAM_IDLE_TIMEOUT_MS}
+   * (2 minutes). Set to `0` to disable the watchdog entirely.
    */
   streamIdleTimeoutMs?: number;
+  /**
+   * Layered system prompt for cache-optimized providers.
+   * When provided, providers that support multi-block system prompts
+   * (e.g., Anthropic) will use this instead of the string systemPrompt
+   * to maximize cache hit rates.
+   */
+  layeredSystemPrompt?: LayeredSystemPrompt;
 }
 
 export interface ContextManagementCapability {

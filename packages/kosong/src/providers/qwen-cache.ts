@@ -19,6 +19,28 @@ export function isQwenCacheEndpoint(baseUrl: string | undefined, model: string):
   );
 }
 
+/**
+ * True when the endpoint/model is Kimi/Moonshot and benefits from explicit
+ * cache boundary markers. Kimi's prefix cache is implicit (like OpenAI's)
+ * but the `prompt_cache_key` + boundary markers improve hit rate by giving
+ * the server stable anchor points.
+ */
+export function isKimiCacheEndpoint(baseUrl: string | undefined, model: string): boolean {
+  const url = (baseUrl ?? '').toLowerCase();
+  const name = model.toLowerCase();
+  return (
+    name.startsWith('kimi') ||
+    name.startsWith('moonshot') ||
+    url.includes('moonshot') ||
+    url.includes('kimi')
+  );
+}
+
+/** True when the endpoint benefits from explicit cache boundary markers. */
+export function supportsCacheBoundaries(baseUrl: string | undefined, model: string): boolean {
+  return isQwenCacheEndpoint(baseUrl, model) || isKimiCacheEndpoint(baseUrl, model);
+}
+
 /** Minimal message shape shared by the Chat Completions-style providers. */
 export interface QwenCacheableMessage {
   role: string;

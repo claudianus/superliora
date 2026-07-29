@@ -29,6 +29,7 @@ import {
   isTransientNoBodyStatusError,
   type ChatProvider,
   type GenerateCallbacks,
+  type LayeredSystemPrompt,
   type Message,
   type ModelCapability,
   type StreamDecodeStats,
@@ -138,6 +139,12 @@ export interface ProviderRouteSuccessMetrics {
 export interface KosongLLMConfig {
   readonly provider: ChatProvider;
   readonly systemPrompt: string;
+  /**
+   * Layered system prompt for cache-optimized providers (Anthropic).
+   * When provided, the provider will use multi-block system with
+   * cache_control on the static layer for maximum cache hit rate.
+   */
+  readonly layeredSystemPrompt?: LayeredSystemPrompt | undefined;
   readonly capability?: ModelCapability | undefined;
   /**
    * Optional override for the kosong `generate()` entry point. Lets the
@@ -164,6 +171,7 @@ export interface KosongLLMConfig {
 
 export class KosongLLM implements LLM {
   readonly systemPrompt: string;
+  readonly layeredSystemPrompt: LayeredSystemPrompt | undefined;
   readonly modelName: string;
   readonly capability?: ModelCapability | undefined;
 
@@ -180,6 +188,7 @@ export class KosongLLM implements LLM {
     this.provider = config.provider;
     this.modelName = config.provider.modelName;
     this.systemPrompt = config.systemPrompt;
+    this.layeredSystemPrompt = config.layeredSystemPrompt;
     this.capability = config.capability;
     this.generate = config.generate ?? kosongGenerate;
     this.completionBudgetConfig = config.completionBudgetConfig;
@@ -365,6 +374,7 @@ export class KosongLLM implements LLM {
       requestLogFields: params.requestLogFields,
       runtimeModelAlias: candidate.modelAlias,
       runtimeCredentialLabel: candidate.credentialLabel,
+      layeredSystemPrompt: this.layeredSystemPrompt,
     };
 
     const result = await this.generate(

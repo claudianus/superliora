@@ -45,30 +45,30 @@ describe('ShellExecutionComponent', () => {
     const collapsed = new ShellExecutionComponent({
       result: {
         tool_call_id: 'call_shell',
-        output: ['line1', 'line2', 'line3', 'line4', 'line5'].join('\n'),
+        output: ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'line7'].join('\n'),
         is_error: false,
       },
     });
 
     const collapsedOutput = collapsed.render(100).map(strip).join('\n');
     expect(collapsedOutput).toContain('line1');
-    expect(collapsedOutput).toContain('line2');
-    expect(collapsedOutput).toContain('line3');
-    expect(collapsedOutput).not.toContain('line4');
+    expect(collapsedOutput).toContain('line4');
+    expect(collapsedOutput).toContain('line5');
+    expect(collapsedOutput).not.toContain('line6');
     expect(collapsedOutput).toContain('⋯ 2 more lines — scroll to expand');
 
     const expanded = new ShellExecutionComponent({
       result: {
         tool_call_id: 'call_shell',
-        output: ['line1', 'line2', 'line3', 'line4', 'line5'].join('\n'),
+        output: ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'line7'].join('\n'),
         is_error: false,
       },
       expanded: true,
     });
 
     const expandedOutput = expanded.render(100).map(strip).join('\n');
-    expect(expandedOutput).toContain('line4');
-    expect(expandedOutput).toContain('line5');
+    expect(expandedOutput).toContain('line6');
+    expect(expandedOutput).toContain('line7');
     expect(expandedOutput).not.toContain('ctrl+o to expand');
   });
 
@@ -108,7 +108,7 @@ describe('ShellExecutionComponent', () => {
       },
     });
 
-    // Collapsed preview is RESULT_PREVIEW_LINES (3): internal blank + b stay visible.
+    // Collapsed preview is RESULT_PREVIEW_LINES (5): internal blank + b stay visible.
     const collapsedOut = collapsed.render(100).map(strip).join('\n');
     expect(collapsedOut).toContain('a');
     expect(collapsedOut).toContain('b');

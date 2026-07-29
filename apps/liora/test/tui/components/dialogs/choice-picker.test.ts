@@ -141,14 +141,17 @@ describe('ChoicePickerComponent', () => {
     expect(settingsOutput).toContain(
       '    Set future loop-role model overrides without changing this session.',
     );
-    // The list paginates at 8 items per page; Eyes readiness is on page 2 and
-    // Automatic updates is on page 3.
+    // The list paginates at 8 items per page; Model fallback pushed Tools and
+    // Eyes readiness to page 2 (Tools first) and Usage/Telemetry to page 3.
     settings.handleInput('\u001B[C'); // → page 2
     const settingsPage2 = settings.render(120).map(strip);
-    expect(settingsPage2).toContain('  ❯ Eyes readiness');
-    expect(settingsPage2).toContain('    Browser-use / computer-use runtime status.');
+    expect(settingsPage2).toContain('  ❯ Tools');
+    expect(settingsPage2).toContain('    Eyes readiness');
+    expect(settingsPage2).toContain('    List active agent tools (SearchTools inventory).');
     settings.handleInput('\u001B[C'); // → page 3
     const settingsPage3 = settings.render(120).map(strip);
+    expect(settingsPage3).toContain('  ❯ Experiments');
+    expect(settingsPage3).toContain('    Automatic updates');
     expect(settingsPage3).toContain('    Turn automatic CLI updates on or off.');
 
     const upgradePreference = new UpdatePreferenceSelectorComponent({

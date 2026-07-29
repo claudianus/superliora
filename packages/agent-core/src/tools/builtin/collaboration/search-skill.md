@@ -1,5 +1,5 @@
-Search the skill catalog. SearchSkill is a top-level tool — call directly. Do not call `Skill` with `search`, `search-skill`, or `SearchSkill`.
+Search the skill catalog. Call directly — not via `Skill` with `search`.
 
-Returns metadata — enough to decide skip; load with `Skill` (exact name) only when the workflow would improve quality. Call SearchSkill with 3-12 concise English task keywords (translate non-English intent). Broaden once or raise top_k if weak. After `<kimi-skill-loaded>`: apply selectively — keep quality-improving steps; skip redundant, mismatched, or unsafe parts. AGENTS.md and repo evidence override the skill text.
+Returns metadata — enough to decide skip; load with `Skill` (exact name) only when quality improves. Call with 3-12 concise English keywords. Broaden once or raise top_k if weak. After `<kimi-skill-loaded>`: apply selectively; skip redundant or unsafe parts. AGENTS.md and repo evidence override skill text.
 
-Use SearchSkill before improvising a domain workflow (TUI, commit, changeset, design, PDF, research, …) when a skill likely exists — progressive disclosure beats guessing from pretrained memory.
+Use before improvising a domain workflow when a skill likely exists.

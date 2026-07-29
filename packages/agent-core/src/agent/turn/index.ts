@@ -874,6 +874,11 @@ export class TurnFlow {
             },
             afterStep: async ({ usage }) => {
               this.agent.usage.record(stepUsageModel, usage, 'turn');
+              this.agent.usage.recordCacheDiagnostics(
+                this.agent.tools.loopTools,
+                0, // injection count tracked by batch injector
+                this.agent.context.history.length,
+              );
               await this.agent.fullCompaction.afterStep();
               deduper.endStep();
               return stopForGoalBudget ? { stopTurn: true } : undefined;

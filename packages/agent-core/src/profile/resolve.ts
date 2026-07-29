@@ -1,11 +1,18 @@
 import { renderPrompt } from '../utils/render-prompt';
 import type {
+  LayeredSystemPrompt,
+  LayeredSystemPromptRenderer,
   RawAgentProfile,
   RawSubagentProfile,
   ResolvedAgentProfile,
   SystemPromptContext,
   SystemPromptRenderer,
 } from './types';
+
+// Layer templates for cache-optimized system prompts
+import layer1StaticTemplate from './default/layer1-static.md?raw';
+import layer2SessionTemplate from './default/layer2-session.md?raw';
+import layer3DynamicTemplate from './default/layer3-dynamic.md?raw';
 
 interface MergedAgentProfile {
   readonly name: string;
@@ -111,6 +118,7 @@ function toResolvedProfile(merged: MergedAgentProfile): ResolvedAgentProfile {
     name: merged.name,
     description: merged.description,
     systemPrompt: createSystemPromptRenderer(merged),
+    layeredSystemPrompt: createLayeredSystemPromptRenderer(merged),
     tools: [...merged.tools],
     whenToUse: merged.whenToUse,
   };
@@ -137,6 +145,44 @@ function createSystemPromptRenderer(merged: MergedAgentProfile): SystemPromptRen
   };
 }
 
+/**
+ * Build a layered renderer for cache-optimized providers (Anthropic).
+ * Returns separate layers that can be sent as multiple system blocks
+ * with cache_control on the static layer.
+ */
+function createLayeredSystemPromptRenderer(merged: MergedAgentProfile): LayeredSystemPromptRenderer {
+  return (context: SystemPromptContext): LayeredSystemPrompt => {
+    const vars = buildTemplateVars(context, merged.promptVars, merged.tools);
+    try {
+      // Layer 1: Static core (no template vars needed)
+      const layer1Static = renderPrompt(layer1StaticTemplate, vars);
+
+      // Layer 2: Session-static (OS, shell, cwd)
+      const layer2Session = renderPrompt(layer2SessionTemplate, vars);
+
+      // Layer 3: Dynamic (AGENTS.md, skills, listing)
+      const layer3Dynamic = renderPrompt(layer3DynamicTemplate, vars);
+
+      // Combined for backward compatibility
+      const combined = renderPrompt(merged.systemPromptTemplate, vars);
+
+      return {
+        layer1Static,
+        layer2Session,
+        layer3Dynamic,
+        combined,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to render layered system prompt for agent profile "${merged.name}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error },
+      );
+    }
+  };
+}
+
 function buildTemplateVars(
   context: SystemPromptContext,
   promptVars: Record<string, string>,
@@ -152,16 +198,11 @@ function buildTemplateVars(
             ''
           )
         : (context.skills?.getModelSkillListing() ?? '');
-  const now =
-    context.now instanceof Date
-      ? context.now.toISOString()
-      : (context.now ?? new Date().toISOString());
 
   return {
     ...promptVars,
     KIMI_OS: context.osEnv.osKind,
     KIMI_SHELL: `${context.osEnv.shellName} (\`${context.osEnv.shellPath}\`)`,
-    KIMI_NOW: now,
     KIMI_WORK_DIR: context.cwd,
     KIMI_WORK_DIR_LS: context.cwdListing ?? '',
     KIMI_AGENTS_MD: context.agentsMd ?? '',

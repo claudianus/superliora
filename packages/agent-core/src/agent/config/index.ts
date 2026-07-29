@@ -2,6 +2,7 @@ import {
   createProvider,
   UNKNOWN_CAPABILITY,
   type ChatProvider,
+  type LayeredSystemPrompt,
   type ModelCapability,
   type ProviderConfig,
 } from '@superliora/kosong';
@@ -31,6 +32,7 @@ export class ConfigState {
   private _profileName: string | undefined;
   private _thinkingLevel: ThinkingEffort = 'off';
   private _systemPrompt: string = '';
+  private _layeredSystemPrompt: LayeredSystemPrompt | undefined;
   private _systemPromptMeta: SystemPromptMeta | undefined;
 
   constructor(protected readonly agent: Agent) {
@@ -69,6 +71,9 @@ export class ConfigState {
     if (changed.systemPrompt !== undefined) {
       this._systemPrompt = changed.systemPrompt;
     }
+    if (changed.layeredSystemPrompt !== undefined) {
+      this._layeredSystemPrompt = changed.layeredSystemPrompt;
+    }
     if (this.hasProvider && (changed.cwd !== undefined || changed.modelAlias)) {
       this.agent.tools.initializeBuiltinTools();
     }
@@ -93,6 +98,7 @@ export class ConfigState {
       profileName: this.profileName,
       thinkingLevel: this.thinkingLevel,
       systemPrompt: this.systemPrompt,
+      layeredSystemPrompt: this._layeredSystemPrompt,
       roleModels: hasRoleModels
         ? {
             compaction: loopControl?.compactionModel,
@@ -192,6 +198,10 @@ export class ConfigState {
 
   get systemPrompt(): string {
     return this._systemPrompt;
+  }
+
+  get layeredSystemPrompt(): LayeredSystemPrompt | undefined {
+    return this._layeredSystemPrompt;
   }
 
   get systemPromptMeta(): SystemPromptMeta | undefined {

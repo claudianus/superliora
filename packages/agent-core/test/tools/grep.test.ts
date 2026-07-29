@@ -290,7 +290,7 @@ describe('GrepTool', () => {
       const tool = new GrepTool(createFakeKaos(), workspace);
       expect(tool.description).toContain('include_ignored');
       expect(tool.description.toLowerCase()).toContain('hidden/dotfiles');
-      expect(tool.description).toContain('.env');
+      expect(tool.description.toLowerCase()).toContain('sensitive files');
     });
   });
 

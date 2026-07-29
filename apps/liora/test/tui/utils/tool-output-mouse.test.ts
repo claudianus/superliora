@@ -150,8 +150,8 @@ describe('tool output mouse routing', () => {
     const gripA = pointInOutput(toolA, 'grip');
     expect(handleToolOutputMouse(currentState, mouse('press', gripA.x, gripA.y))).toBe(true);
     expect(handleToolOutputMouse(currentState, mouse('drag', -20, gripA.y + 8))).toBe(true);
-    expect(currentState.toolOutputViewports.get('call-a')?.height).toBeGreaterThan(3);
-    expect(currentState.toolOutputViewports.get('call-b')?.height).toBe(3);
+    expect(currentState.toolOutputViewports.get('call-a')?.height).toBeGreaterThan(5);
+    expect(currentState.toolOutputViewports.get('call-b')?.height).toBe(5);
     expect(handleToolOutputMouse(currentState, mouse('release', -20, -20))).toBe(true);
     expect(handleToolOutputMouse(currentState, mouse('drag', -20, -10))).toBe(false);
   });

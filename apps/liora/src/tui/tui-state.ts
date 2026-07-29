@@ -40,6 +40,7 @@ import {
   type LioraTUIOptions,
   type LivePaneState,
   type QueuedMessage,
+  type TranscriptDetailLevel,
   type TranscriptEntry,
   type TUIStartupState,
 } from './types';
@@ -73,6 +74,12 @@ export interface TUIState {
   terminalState: TerminalState;
   activitySpinner: { instance: MoonLoader; style: SpinnerStyle } | null;
   toolOutputExpanded: boolean;
+  /**
+   * Active transcript density (PREMIUM.md §7.9). Seeded from
+   * `appearance.transcript_detail` in tui.toml; `/transcript` and the
+   * Settings selector mutate it live for the session.
+   */
+  transcriptDetail: TranscriptDetailLevel;
   /** Per-call viewport state retained for the lifetime of the current SDK session. */
   toolOutputViewports: Map<string, ToolOutputViewportState>;
   sessions: SessionRow[];
@@ -250,6 +257,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     terminalState: createTerminalState(),
     activitySpinner: null,
     toolOutputExpanded: false,
+    transcriptDetail: 'standard',
     toolOutputViewports: new Map(),
     sessions: [],
     loadingSessions: false,

@@ -71,6 +71,7 @@ import {
 } from '#/tui/utils/harness-eyes-readiness';
 import { getHostPackageRoot } from '#/cli/version';
 import { ttui } from '#/tui/utils/tui-i18n';
+import { isTranscriptDetailLevel } from '#/tui/utils/transcript-density';
 
 // ---------------------------------------------------------------------------
 // Plan / Config commands
@@ -88,6 +89,7 @@ const APPEARANCE_KEYS = [
   'canvas-background',
   'terminal-background',
   'terminal-palette',
+  'transcript-detail',
 ] as const;
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -465,6 +467,10 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
   }
 
   host.setAppState({ appearance: next });
+  if (key === 'transcript-detail') {
+    // Live re-projection of mounted tool cards; the save above persists.
+    host.setTranscriptDetail(next.transcriptDetail);
+  }
   host.track('appearance_changed', { key, value });
   host.showStatus(`Appearance ${key} set to ${value}.`, 'success');
 }
@@ -1665,6 +1671,7 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
     `canvas-background: ${appearance.canvasBackground ? 'on' : 'off'}`,
     `terminal-background: ${appearance.terminalBackground}`,
     `terminal-palette: ${appearance.terminalPalette ? 'on' : 'off'}`,
+    `transcript-detail: ${appearance.transcriptDetail}`,
   ].join('\n');
 }
 
@@ -1718,6 +1725,10 @@ function parseAppearancePatch(
         next.terminalPalette = enabled;
         return next;
       }
+    case 'transcript-detail':
+      if (!isTranscriptDetailLevel(value)) return null;
+      next.transcriptDetail = value;
+      return next;
     default:
       return null;
   }

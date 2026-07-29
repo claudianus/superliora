@@ -363,13 +363,14 @@ describe('Agent tools', () => {
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'SearchExpert')).toBe(true);
   });
 
-  it('exposes UltraworkGraph as a standard builtin tool gated on an active run', () => {
+  it('exposes UltraworkGraph as a cache-gated builtin tool always present', () => {
     const ctx = testAgent({
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
     });
     ctx.configure({ tools: ['UltraworkGraph'] });
 
-    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(false);
+    // CACHE_GATED_TOOLS are never filtered — always present for prefix cache stability.
+    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(true);
     vi.spyOn(ctx.agent.ultrawork, 'getRun').mockReturnValue({ objective: 'x' } as never);
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(true);
   });
@@ -411,8 +412,7 @@ describe('Agent tools', () => {
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Look up moon" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Look up moon" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<current-time-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "current_time" } }, "time": "<time>" }
-      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<auto-mode-enter-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "permission_mode" } }, "time": "<time>" }
+      [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "<current-time-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "batch" } }, "time": "<time>" }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-1>", "turnId": "0", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 1, "stepId": "<uuid-1>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "I will look it up." }
@@ -428,25 +428,24 @@ describe('Agent tools', () => {
       messages:
         user: text "Look up moon"
         user: text <current-time-reminder>
-        user: text <auto-mode-enter-reminder>
     `);
 
     ctx.mockNextResponse({ type: 'text', text: 'The lookup result is moon-result.' });
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] context.append_loop_event   { "event": { "type": "tool.result", "parentUuid": "call_lookup", "toolCallId": "call_lookup", "result": { "output": "moon-result" } }, "time": "<time>" }
       [emit] tool.result                 { "turnId": 0, "toolCallId": "call_lookup", "output": "moon-result" }
-      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 239, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
-      [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 239, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
-      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 239, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 255, "maxContextTokens": 1000000, "contextUsage": 0.000255, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 239, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 239, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 239, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
+      [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
+      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 245, "maxContextTokens": 1000000, "contextUsage": 0.000245, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "The lookup result is moon-result." }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-4>", "turnId": "0", "step": 2, "stepUuid": "<uuid-3>", "part": { "type": "text", "text": "The lookup result is moon-result." } }, "time": "<time>" }
-      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 259, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
-      [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 259, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
-      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 259, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 271, "maxContextTokens": 1000000, "contextUsage": 0.000271, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 498, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 498, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 498, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 249, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
+      [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 249, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
+      [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 249, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 261, "maxContextTokens": 1000000, "contextUsage": 0.000261, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "576b24bc", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
@@ -465,15 +464,15 @@ describe('Agent tools', () => {
       [wire] turn.prompt                  { "input": [ { "type": "text", "text": "Can you still use Lookup?" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                 { "turnId": 1, "origin": { "kind": "user" } }
       [wire] context.append_message       { "message": { "role": "user", "content": [ { "type": "text", "text": "Can you still use Lookup?" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
-      [wire] context.append_message       { "message": { "role": "user", "content": [ { "type": "text", "text": "<current-time-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "current_time" } }, "time": "<time>" }
+      [wire] context.append_message       { "message": { "role": "user", "content": [ { "type": "text", "text": "<current-time-reminder>" } ], "toolCalls": [], "origin": { "kind": "injection", "variant": "batch" } }, "time": "<time>" }
       [wire] context.append_loop_event    { "event": { "type": "step.begin", "uuid": "<uuid-5>", "turnId": "1", "step": 1 }, "time": "<time>" }
       [emit] turn.step.started            { "turnId": 1, "step": 1, "stepId": "<uuid-5>" }
       [emit] assistant.delta              { "turnId": 1, "delta": "No lookup tool is available." }
       [wire] context.append_loop_event    { "event": { "type": "content.part", "uuid": "<uuid-6>", "turnId": "1", "step": 1, "stepUuid": "<uuid-5>", "part": { "type": "text", "text": "No lookup tool is available." } }, "time": "<time>" }
-      [wire] context.append_loop_event    { "event": { "type": "step.end", "uuid": "<uuid-5>", "turnId": "1", "step": 1, "usage": { "inputOther": 351, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
-      [emit] turn.step.completed          { "turnId": 1, "step": 1, "stepId": "<uuid-5>", "usage": { "inputOther": 351, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
-      [wire] usage.record                 { "model": "mock-model", "usage": { "inputOther": 351, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated         { "model": "mock-model", "contextTokens": 361, "maxContextTokens": 1000000, "contextUsage": 0.000361, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 849, "output": 38, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 849, "output": 38, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 351, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [wire] context.append_loop_event    { "event": { "type": "step.end", "uuid": "<uuid-5>", "turnId": "1", "step": 1, "usage": { "inputOther": 341, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
+      [emit] turn.step.completed          { "turnId": 1, "step": 1, "stepId": "<uuid-5>", "usage": { "inputOther": 341, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
+      [wire] usage.record                 { "model": "mock-model", "usage": { "inputOther": 341, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
+      [emit] agent.status.updated         { "model": "mock-model", "contextTokens": 351, "maxContextTokens": 1000000, "contextUsage": 0.000351, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 819, "output": 38, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 819, "output": 38, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 341, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "576b24bc", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 5 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] turn.ended                   { "turnId": 1, "reason": "completed" }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`

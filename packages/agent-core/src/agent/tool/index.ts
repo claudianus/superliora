@@ -818,33 +818,22 @@ export class ToolManager {
   get loopTools(): readonly ExecutableTool[] {
     if (this.loopToolsOverride !== undefined) return this.loopToolsOverride;
     const mcpNames = [...this.mcpTools.keys()].filter((name) => this.isMcpToolEnabled(name));
-    // Mutation goal tools are only offered to the model while a goal exists.
-    const hideGoalMutationTools = this.agent.goal.getGoal().goal === null;
-    // Mode-gated schemas (T2-3): tools that only pay off inside a specific
-    // mode are withheld until that mode is active. Launch tools (EnterPlanMode,
-    // UltraSwarm, CreateGoal, ...) stay ungated — calling them is what enters
-    // the mode. Withheld tools remain discoverable via SearchTools.
-    const planActive = this.agent.planMode.isActive;
-    const ultraPlanActive = this.agent.planMode.isUltraMode;
-    const ultraworkRun = this.agent.ultrawork.getRun();
-    const ultraworkRunning = ultraworkRun !== null && ultraworkRun !== undefined;
-    const hideVisualTools = this.hideVisualDensityTools();
+    // Cache-stability: mode-gated tools are ALWAYS included in the serialized
+    // tool block regardless of active mode. Removing/adding tools between turns
+    // rewrites the tool block bytes and busts the provider's prefix cache for
+    // all subsequent messages. The model is guided by mode injections
+    // (PlanModeInjector, GoalInjector, etc.) to avoid calling inactive tools;
+    // the execution layer returns a clear error if called out-of-mode.
+    // Gated tools are sorted to the tail so the stable prefix is maximized.
     return uniq([...this.enabledTools, ...mcpNames])
-      // Byte-wise (locale-independent) sort so the serialized tool order is
-      // identical across environments/ICU versions, keeping the prompt-cache
-      // tools block stable instead of varying with the host locale.
-      .toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0))
-      .filter((name) => {
-        if (hideGoalMutationTools && (name === 'SetGoalBudget' || name === 'UpdateGoal')) {
-          return false;
-        }
-        if (!ultraPlanActive && (name === 'NextPhase' || name === 'RecordInterviewFinding')) {
-          return false;
-        }
-        if (!planActive && name === 'ExitPlanMode') return false;
-        if (!ultraworkRunning && name === 'UltraworkGraph') return false;
-        if (hideVisualTools && VISUAL_DENSITY_TOOLS.has(name)) return false;
-        return true;
+      .toSorted((a, b) => {
+        const aGated = CACHE_GATED_TOOLS.has(a) ? 1 : 0;
+        const bGated = CACHE_GATED_TOOLS.has(b) ? 1 : 0;
+        if (aGated !== bGated) return aGated - bGated;
+        // Byte-wise (locale-independent) sort so the serialized tool order is
+        // identical across environments/ICU versions, keeping the prompt-cache
+        // tools block stable instead of varying with the host locale.
+        return a < b ? -1 : a > b ? 1 : 0;
       })
       .map(
         (name) =>
@@ -860,10 +849,8 @@ export class ToolManager {
   private pendingVisualGateDensityCount = 0;
 
   /**
-   * Hide visual-surface tools only under a *stable* premium code density.
-   * The density is re-derived per turn and can flap on borderline objective
-   * text; each flip would rewrite the tool block and bust the provider's
-   * prefix cache, so a change must be observed twice before it applies.
+   * Visual density hysteresis is retained for telemetry but no longer gates
+   * tool inclusion — all tools are always present for cache stability.
    */
   private hideVisualDensityTools(): boolean {
     if (!this.agent.premiumQuality.isEnabled()) {
@@ -887,9 +874,8 @@ export class ToolManager {
 }
 
 /**
- * Visual-surface tools gated on Premium density (T2-3). With Premium ON and a
- * non-visual (code) objective these schemas only add tokens; they reappear as
- * soon as the objective turns visual or Premium is switched off.
+ * Visual-surface tools previously gated on Premium density. Now always
+ * included for cache stability; kept as a reference set for telemetry.
  */
 const VISUAL_DENSITY_TOOLS = new Set([
   'GenerateImage',
@@ -898,8 +884,27 @@ const VISUAL_DENSITY_TOOLS = new Set([
   'VisualDiff',
 ]);
 
-/** Consecutive observations required before a density flip moves the tool block. */
-const VISUAL_DENSITY_HYSTERESIS = 2;
+/**
+ * Mode-gated tools sorted to the tail of the tool block. Their presence is
+ * constant across turns (never filtered) so the prefix cache is preserved;
+ * sorting them last maximizes the stable prefix length for providers that
+ * cache the tools array head.
+ */
+const CACHE_GATED_TOOLS = new Set([
+  'ExitPlanMode',
+  'GenerateImage',
+  'GenerateVideo',
+  'NextPhase',
+  'RecordInterviewFinding',
+  'SetGoalBudget',
+  'UltraworkGraph',
+  'UpdateGoal',
+  'VerifySurface',
+  'VisualDiff',
+]);
+
+/** Consecutive observations required before a density flip is recorded. */
+const VISUAL_DENSITY_HYSTERESIS = 3;
 
 function nonEmptyEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();

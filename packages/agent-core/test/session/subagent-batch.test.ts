@@ -1,5 +1,5 @@
 import { createControlledPromise } from '@antfu/utils';
-import { APIConnectionError, APIProviderRateLimitError } from '@superliora/kosong';
+import { APIConnectionError, APIProviderRateLimitError, APIStatusError } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -1061,6 +1061,99 @@ describe('SubagentBatch transient provider retry', () => {
       expect(results).toHaveLength(1);
       expect(results[0]!.status).toBe('failed');
       expect(results[0]!.error).toBe('[provider.api_error] 400 Bad Request');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('SubagentBatch permanent provider failure fail-fast', () => {
+  it('fails a permanent auth error immediately without requeue or suspended event', async () => {
+    vi.useFakeTimers();
+    try {
+      const suspended: SubagentSuspendedEvent[] = [];
+      const { runBatch, attempts } = createMockBatchRunner({
+        onSuspended: (event) => {
+          suspended.push(event);
+        },
+      });
+      const running = runBatch(Array.from({ length: 3 }, (_, index) => queuedTask(index + 1)));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(3);
+
+      attempts[0]!.outcome.reject(new APIStatusError(401, 'Unauthorized', 'req-1'));
+      // Plenty of time for both a transient backoff and a rate-limit requeue;
+      // neither may relaunch a permanently failing task.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(attempts).toHaveLength(3);
+      expect(suspended).toHaveLength(0);
+
+      attempts[1]!.outcome.resolve({
+        task: attempts[1]!.task,
+        agentId: 'agent-2',
+        status: 'completed',
+        result: 'ok 2',
+      });
+      attempts[2]!.outcome.resolve({
+        task: attempts[2]!.task,
+        agentId: 'agent-3',
+        status: 'completed',
+        result: 'ok 3',
+      });
+      const results = await running;
+      expect(results).toHaveLength(3);
+      expect(results[0]!.status).toBe('failed');
+      expect(results[0]!.error).toBe('Unauthorized');
+      expect(results[0]!.failureReason).toBe('other');
+      // Sibling tasks are unaffected and complete normally.
+      expect(results[1]!.status).toBe('completed');
+      expect(results[2]!.status).toBe('completed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('treats quota exhaustion behind a rate-limit payload as permanent, not requeued', async () => {
+    vi.useFakeTimers();
+    try {
+      const suspended: SubagentSuspendedEvent[] = [];
+      const { runBatch, attempts } = createMockBatchRunner({
+        onSuspended: (event) => {
+          suspended.push(event);
+        },
+      });
+      const running = runBatch(Array.from({ length: 3 }, (_, index) => queuedTask(index + 1)));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(3);
+
+      // Gateways often report exhausted credit as a 429: the permanent
+      // classifier must win over the rate-limit requeue path, or the batch
+      // would keep retrying an account that can never succeed.
+      attempts[0]!.outcome.reject(
+        new APIProviderRateLimitError('You exceeded your current quota', 'req-2'),
+      );
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(attempts).toHaveLength(3);
+      expect(suspended).toHaveLength(0);
+
+      attempts[1]!.outcome.resolve({
+        task: attempts[1]!.task,
+        agentId: 'agent-2',
+        status: 'completed',
+        result: 'ok 2',
+      });
+      attempts[2]!.outcome.resolve({
+        task: attempts[2]!.task,
+        agentId: 'agent-3',
+        status: 'completed',
+        result: 'ok 3',
+      });
+      const results = await running;
+      expect(results).toHaveLength(3);
+      expect(results[0]!.status).toBe('failed');
+      expect(results[0]!.error).toBe('You exceeded your current quota');
+      expect(results[1]!.status).toBe('completed');
+      expect(results[2]!.status).toBe('completed');
     } finally {
       vi.useRealTimers();
     }

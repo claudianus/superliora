@@ -393,6 +393,26 @@ function injectCacheControlOnLastBlock(messages: MessageParam[]): void {
 }
 
 /**
+ * Inject a cache breakpoint on the penultimate message's last content block.
+ * This keeps the growing conversation prefix cached turn-over-turn: everything
+ * up to the penultimate message is a stable prefix that the provider can serve
+ * from cache, while only the final (new) message incurs full input cost.
+ * Requires >= 3 messages (system is separate; at least 2 conversation turns).
+ */
+function injectCacheControlOnPenultimateBlock(messages: MessageParam[]): void {
+  if (messages.length < 3) return;
+  const penultimate = messages.at(-2);
+  if (penultimate === undefined) return;
+  const content = penultimate.content;
+  if (!Array.isArray(content) || content.length === 0) return;
+  const lastBlock = content.at(-1) as CacheableBlock | undefined;
+  if (lastBlock === undefined) return;
+  if (CACHEABLE_TYPES.has(lastBlock.type)) {
+    lastBlock.cache_control = CACHE_CONTROL;
+  }
+}
+
+/**
  * Check whether a MessageParam is a user message whose content consists
  * entirely of `tool_result` blocks.
  *
@@ -956,16 +976,37 @@ export class AnthropicChatProvider implements ChatProvider {
     history: Message[],
     options?: GenerateOptions,
   ): Promise<StreamedMessage> {
-    // Build system param
-    const system: TextBlockParam[] | undefined = systemPrompt
-      ? [
-          {
-            type: 'text',
-            text: systemPrompt,
-            cache_control: CACHE_CONTROL,
-          } as TextBlockParam,
-        ]
-      : undefined;
+    // Build system param - use layered prompt if available for cache optimization
+    const layered = options?.layeredSystemPrompt;
+    let system: TextBlockParam[] | undefined;
+
+    if (layered !== undefined) {
+      // Multi-block system with cache_control on static layer
+      system = [
+        {
+          type: 'text',
+          text: layered.layer1Static,
+          cache_control: CACHE_CONTROL,
+        } as TextBlockParam,
+        {
+          type: 'text',
+          text: layered.layer2Session,
+        } as TextBlockParam,
+        {
+          type: 'text',
+          text: layered.layer3Dynamic,
+        } as TextBlockParam,
+      ];
+    } else if (systemPrompt) {
+      // Fallback to single-block system
+      system = [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: CACHE_CONTROL,
+        } as TextBlockParam,
+      ];
+    }
 
     // Convert messages, then merge consecutive user-role wire turns. Strict
     // Anthropic-compatible backends reject adjacent user messages, while native
@@ -987,8 +1028,11 @@ export class AnthropicChatProvider implements ChatProvider {
       },
     );
 
-    // Inject cache_control on last content block of last message (after merge,
-    // so it lands on the final tool_result block in the merged user message).
+    // Inject cache_control on the penultimate message (stable conversation
+    // prefix) and the last message (current turn boundary). The penultimate
+    // breakpoint keeps all prior turns cached; the last breakpoint caches the
+    // full request up to the newest content for retry/follow-up hits.
+    injectCacheControlOnPenultimateBlock(messages);
     injectCacheControlOnLastBlock(messages);
 
     // Build generation kwargs (excluding betaFeatures)

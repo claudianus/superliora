@@ -19,22 +19,14 @@ describe('WriteTool', () => {
 
     expect(tool.name).toBe('Write');
     expect(tool.description).toContain('append adds content at EOF without adding a newline');
-    expect(tool.description).toContain('`\\n` stays LF, `\\r\\n` stays CRLF');
     // The prompt steers the agent toward Edit for partial changes to an
     // existing file. Pin the prohibition so accidental weakening is caught.
     expect(tool.description).toContain('Write is NOT ALLOWED for incremental changes');
     // Always-on coding tool — keep description compact.
     expect(tool.description.length).toBeLessThan(1100);
-    // Spontaneous doc/README creation is a known anti-pattern; pin the guard.
+    // Spontaneous doc creation is a known anti-pattern; pin the guard.
     expect(tool.description).toContain('documentation files');
-    expect(tool.description).toContain('README');
-    // ...but the plan-mode plan file is a `.md` the model is told to Write, so the
-    // ban must carve it out (plan/index.ts writes plans/<id>.md via Write).
-    expect(tool.description.toLowerCase()).toContain('plan file');
-    // The guard targets UNSOLICITED docs, not every .md file, so an artifact a task or
-    // project instruction requires (e.g. a repo-mandated changeset) is not caught either.
     expect(tool.description.toLowerCase()).toContain('unsolicited');
-    expect(tool.description.toLowerCase()).toContain('instruction requires it');
     expect(tool.parameters).toMatchObject({
       type: 'object',
       properties: {

@@ -46,6 +46,7 @@ User-facing features that operators need during an interactive session must be r
 
 - All agent work (main, subagent, swarm) streams its tool calls to the TUI live. No silent processing without progress display.
 - Code-producing tools (Write/Edit and the like) render live diff/syntax-highlighted previews through the same components, whichever agent runs them.
+- Every transcript output (tool results, diffs, shell logs, errors) is syntax-highlighted and formatted incrementally during streaming — never batch-painted only after completion. Route highlighting through `src/tui/components/media/code-highlight.ts` (LRU + shiki warmup, frame budget below); unsupported languages fall back to plain. Do not add raw-dump render paths that bypass highlighting/formatting.
 - Every state transition (kanban card moves, dialogs, stream start/end, test results) gets a 150–400ms motion cue.
 - The kanban board is a live surface: card movement, WIP pulse, and swarm synchronization stay visible.
 - Frame budget: a single event repaint under 8ms; batch bulk updates through renderer invalidation. Do not debounce events in ways that hurt real-time feel.

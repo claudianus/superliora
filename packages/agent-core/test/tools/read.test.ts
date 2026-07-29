@@ -104,9 +104,8 @@ describe('ReadTool', () => {
 
     expect(tool.name).toBe('Read');
     expect(tool.description).toContain('concrete text-file path');
-    expect(tool.description).toContain('Pure CRLF files are displayed with LF');
+    expect(tool.description).toContain('Pure CRLF files display as LF');
     expect(tool.description).not.toContain('skip the verification re-read');
-    expect(tool.description).toContain('final external contract');
     // Always-on default-profile tool — keep the schema description compact.
     expect(tool.description.length).toBeLessThan(1600);
     expect(tool.parameters).toMatchObject({
@@ -975,7 +974,7 @@ describe('ReadTool description and schema parity', () => {
 
     expect(tool.description).toContain('<tool_meta');
     // The TS implementation appends the status block after the content.
-    expect(tool.description).toMatch(/after the file content/i);
+    expect(tool.description).toContain('not part of the file');
   });
 
   it('describes the path parameter with accurate working-directory semantics', () => {

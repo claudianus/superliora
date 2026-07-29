@@ -62,7 +62,7 @@ describe('TodoListTool', () => {
     // must not present TodoList as the plan-mode mechanism.
     expect(tool.description).toContain('plan file');
     // Query mode triggers on `args.todos === undefined`, not on zero args.
-    expect(tool.description).toContain('no `todos` argument');
+    expect(tool.description).toContain('Omit `todos` to query');
     // Heavy in plan/ultrawork — keep description under a hard size budget.
     expect(tool.description.length).toBeLessThan(1650);
     expect(TodoListInputSchema.safeParse({}).success).toBe(true);
@@ -77,18 +77,14 @@ describe('TodoListTool', () => {
     });
   });
 
-  it('description includes an Avoid churn section with the anti-spin guardrails', () => {
+  it('description includes anti-churn guardrails', () => {
     const { tool } = makeTool();
     const { description } = tool;
 
-    expect(description).toContain('**Avoid churn:**');
     // (1) do not re-call the tool when nothing meaningful changed between calls.
     expect(description).toMatch(/nothing meaningful changed/i);
-    expect(description).toMatch(/scope or priority change/i);
     // (2) when unsure of the current state, use query mode first.
     expect(description).toMatch(/query mode/i);
-    // (3) when stuck, tell the user instead of repeatedly re-ordering todos.
-    expect(description).toMatch(/tell the user/i);
   });
 
   it('description encourages proactive progress updates without allowing churn', () => {
@@ -96,11 +92,8 @@ describe('TodoListTool', () => {
     const { description } = tool;
 
     expect(description).toMatch(/proactively/i);
-    expect(description).toMatch(/immediately after finishing/i);
     expect(description).toMatch(/exactly one/i);
     expect(description).toMatch(/in_progress/i);
-    expect(description).toMatch(/tests are failing/i);
-    expect(description).toContain('**Avoid churn:**');
   });
 
   it('query mode renders the current list without mutating it', async () => {

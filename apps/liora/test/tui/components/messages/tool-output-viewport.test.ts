@@ -45,20 +45,22 @@ describe('ToolOutputViewportComponent', () => {
     expect(component.overflowing).toBe(false);
   });
 
-  it('keeps the collapsed preview at three rows and adds no vertical row', () => {
-    const { component } = setup(['one', 'two', 'three', 'four', 'five']);
+  it('keeps the collapsed preview at five rows and adds no vertical row', () => {
+    const { component } = setup(['one', 'two', 'three', 'four', 'five', 'six', 'seven']);
     const rendered = component.render(8);
-    expect(rendered).toHaveLength(3);
+    expect(rendered).toHaveLength(5);
     expect(rendered.map((line) => line.replace(ANSI_PATTERN, '').slice(0, -1))).toEqual([
       'one    ',
       'two    ',
       'three  ',
+      'four   ',
+      'five   ',
     ]);
     expect(rendered.at(-1)?.replace(ANSI_PATTERN, '').endsWith('╂')).toBe(true);
   });
 
   it('scrolls its line window independently and paints thumb/grip on the rail', () => {
-    const { component, state } = setup(['one', 'two', 'three', 'four', 'five']);
+    const { component, state } = setup(['one', 'two', 'three', 'four', 'five', 'six', 'seven']);
     component.render(8);
     expect(component.scroll(1)).toBe(true);
     component.setHovered(true);
@@ -66,7 +68,7 @@ describe('ToolOutputViewportComponent', () => {
     expect(state().offset).toBe(1);
     expect(rendered[0]?.replace(ANSI_PATTERN, '').startsWith('two')).toBe(true);
     expect(rendered.some((line) => line.replace(ANSI_PATTERN, '').endsWith('┃'))).toBe(true);
-    expect(component.isGripRow(2)).toBe(true);
+    expect(rendered.some((_, row) => component.isGripRow(row))).toBe(true);
   });
 
   it('bypasses slicing and the rail when explicitly expanded', () => {
@@ -83,11 +85,11 @@ describe('ToolOutputViewportComponent', () => {
       'stuvwx',
     ]);
     const rendered = component.render(4);
-    expect(rendered).toHaveLength(3);
+    expect(rendered).toHaveLength(4);
     expect(rendered.every((line) => visibleWidth(line) === 4)).toBe(true);
 
     const narrow = component.render(1);
-    expect(narrow).toHaveLength(3);
+    expect(narrow).toHaveLength(4);
     expect(narrow.every((line) => visibleWidth(line) <= 1)).toBe(true);
   });
 });

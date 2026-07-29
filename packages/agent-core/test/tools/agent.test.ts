@@ -127,9 +127,6 @@ describe('AgentTool', () => {
     expect(tool.description).toContain('fixed 30-minute timeout');
     expect(tool.description).not.toContain('operator-configured background timeout');
     expect(tool.description).not.toContain('no time limit');
-    // Background guidance must steer foreground-by-default, so the model doesn't
-    // background-launch a result it needs and then block waiting on it.
-    expect(tool.description).toContain('Default to a foreground subagent');
   });
 
   it('does not expose a model parameter in the JSON schema', () => {
@@ -172,7 +169,6 @@ describe('AgentTool', () => {
     expect(tool.description.toLowerCase()).toContain('out of your context');
     expect(tool.description).toContain('Context7Resolve/Context7Docs');
     expect(tool.description).toContain('WebSearch/FetchURL');
-    expect(tool.description).toContain('open-source implementations');
   });
 
   it('normalizes the default subagent type into tool args', () => {

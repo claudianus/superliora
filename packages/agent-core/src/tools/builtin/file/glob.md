@@ -1,3 +1,3 @@
-Find files by glob, mtime newest first. Honors `.gitignore`; `include_ignored` for build outputs (secrets filtered).
+Find files by glob, mtime newest first. Honors `.gitignore`; `include_ignored` for build outputs.
 
-Patterns: `*.ts`, `src/**/*.ts`, `**/*.py`, `*.{ts,tsx}` (brace expansion), `{src,test}/**/*.ts`. Cap 100 — refine if truncated. Avoid broad `node_modules/**`/`.venv/**`/`target/**`; prefer anchored subpaths.
+Patterns: `*.ts`, `src/**/*.ts`, `**/*.py`, `*.{ts,tsx}` (brace expansion). Cap 100 — refine if truncated. Avoid broad `node_modules/**`/`.venv/**`; prefer anchored subpaths.

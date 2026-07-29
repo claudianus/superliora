@@ -6,6 +6,7 @@ export type {
   AssistantDeltaEvent,
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
+  CacheDiagnostics,
   CompactionBlockedEvent,
   CompactionCancelledEvent,
   CompactionCompletedEvent,

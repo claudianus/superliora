@@ -63,7 +63,7 @@ it('smoke: a compressed-image prompt reaches the model with the caption as a sys
   expect(history.map(({ role, origin }) => ({ role, origin }))).toEqual([
     { role: 'user', origin: { kind: 'injection', variant: 'image_compression' } },
     { role: 'user', origin: { kind: 'user' } },
-    { role: 'user', origin: { kind: 'injection', variant: 'current_time' } },
+    { role: 'user', origin: { kind: 'injection', variant: 'batch' } },
     { role: 'assistant', origin: undefined },
   ]);
   const userText = history[1]!.content
@@ -113,7 +113,7 @@ it('smoke: multiple compressed images in one prompt each announce via their own 
     { role: 'user', origin: { kind: 'injection', variant: 'image_compression' } },
     { role: 'user', origin: { kind: 'injection', variant: 'image_compression' } },
     { role: 'user', origin: { kind: 'user' } },
-    { role: 'user', origin: { kind: 'injection', variant: 'current_time' } },
+    { role: 'user', origin: { kind: 'injection', variant: 'batch' } },
     { role: 'assistant', origin: undefined },
   ]);
   const userMessage = history[2]!;
@@ -143,7 +143,7 @@ it('smoke: a steered prompt with a caption is split the same way', async () => {
   expect(history.map(({ role, origin }) => ({ role, origin }))).toEqual([
     { role: 'user', origin: { kind: 'injection', variant: 'image_compression' } },
     { role: 'user', origin: { kind: 'user' } },
-    { role: 'user', origin: { kind: 'injection', variant: 'current_time' } },
+    { role: 'user', origin: { kind: 'injection', variant: 'batch' } },
     { role: 'assistant', origin: undefined },
   ]);
   const userText = history[1]!.content
@@ -165,7 +165,7 @@ it('smoke: a prompt without images is completely untouched', async () => {
   const history = ctx.agent.context.history;
   expect(history.map(({ role, origin }) => ({ role, origin }))).toEqual([
     { role: 'user', origin: { kind: 'user' } },
-    { role: 'user', origin: { kind: 'injection', variant: 'current_time' } },
+    { role: 'user', origin: { kind: 'injection', variant: 'batch' } },
     { role: 'assistant', origin: undefined },
   ]);
   const userText = history[0]!.content

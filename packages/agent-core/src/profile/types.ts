@@ -47,10 +47,31 @@ export interface SystemPromptContext {
 
 export type SystemPromptRenderer = (context: SystemPromptContext) => string;
 
+/**
+ * Layered system prompt for cache optimization.
+ * Layer 1 (static): Never changes - core instructions
+ * Layer 2 (session): Fixed per session - OS, shell, cwd
+ * Layer 3 (dynamic): Can change per request - AGENTS.md, skills, listing
+ */
+export interface LayeredSystemPrompt {
+  /** Static core instructions - cacheable across all requests */
+  readonly layer1Static: string;
+  /** Session-static context - fixed within a session */
+  readonly layer2Session: string;
+  /** Dynamic context - may change per request */
+  readonly layer3Dynamic: string;
+  /** Combined prompt for providers without multi-block support */
+  readonly combined: string;
+}
+
+export type LayeredSystemPromptRenderer = (context: SystemPromptContext) => LayeredSystemPrompt;
+
 export interface ResolvedAgentProfile {
   name: string;
   description?: string;
   systemPrompt: SystemPromptRenderer;
+  /** Layered renderer for cache-optimized providers (Anthropic) */
+  layeredSystemPrompt?: LayeredSystemPromptRenderer;
   tools: string[];
   whenToUse?: string;
   subagents?: Record<string, ResolvedAgentProfile>;

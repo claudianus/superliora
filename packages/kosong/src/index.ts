@@ -50,6 +50,15 @@ export type { Catalog, CatalogModel, CatalogModelEntry, CatalogProviderEntry } f
 export { generate, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from './generate';
 export type { GenerateCallbacks, GenerateResult } from './generate';
 
+// Stream idle timeout guard
+export {
+  DEFAULT_LLM_IDLE_TIMEOUT_MS,
+  LLM_IDLE_TIMEOUT_ENV,
+  resolveIdleTimeoutMs,
+  withIdleTimeout,
+} from './idle-timeout';
+export type { IdleTimeoutOptions } from './idle-timeout';
+
 // Tool wire schema
 export type { Tool } from './tool';
 
@@ -70,6 +79,7 @@ export {
   isProviderCapacityError,
   isProviderRateLimitError,
   isRecoverableRequestStructureError,
+  isPermanentAuthError,
   isPermanentQuotaOrBillingError,
   isRetryableGenerateError,
   isToolExchangeAdjacencyError,

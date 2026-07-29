@@ -99,14 +99,11 @@ describe('WebSearchTool', () => {
     expect(content).not.toContain('Summary:');
   });
 
-  it('describes every returned field (date and content) in the tool description', () => {
+  it('describes the search behavior in the tool description', () => {
     const tool = new WebSearchTool(fakeProvider());
     const description = tool.description.toLowerCase();
-    expect(description).toContain('title');
-    expect(description).toContain('url');
     expect(description).toContain('snippet');
-    expect(description).toContain('date');
-    expect(description).toContain('content');
+    expect(description).toContain('include_content');
   });
 
   it('does not promise page content unconditionally for every result', () => {
@@ -118,14 +115,11 @@ describe('WebSearchTool', () => {
     expect(description).not.toContain('for each result');
   });
 
-  it('instructs the model to cite source URLs in its description', () => {
+  it('instructs the model to use FetchURL for cite targets in its description', () => {
     const tool = new WebSearchTool(fakeProvider());
     const description = tool.description.toLowerCase();
     expect(description).toContain('cite');
-    expect(description).toContain('source');
-    expect(description).toContain('local search provider');
     expect(description).toContain('fetchurl');
-    expect(description).toContain('primary source urls');
   });
 
   it('returns no results message when provider returns empty', async () => {

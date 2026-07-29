@@ -43,6 +43,22 @@ export abstract class DynamicInjector {
     }
   }
 
+  /**
+   * Collect this injector's contribution for a batched injection cycle.
+   * Returns the injection text (triggering internal side effects like
+   * deduplication tracking) without appending to the context. The caller
+   * is responsible for calling {@link markBatchInjected} after appending.
+   */
+  async collectForBatch(): Promise<string | undefined> {
+    const injection = await this.getInjection();
+    return injection || undefined;
+  }
+
+  /** Mark this injector as having participated in a batch append at `index`. */
+  markBatchInjected(index: number): void {
+    this.injectedAt = index;
+  }
+
   protected abstract readonly injectionVariant: string;
 
   protected abstract getInjection(): string | Promise<string | undefined> | undefined;

@@ -157,9 +157,9 @@ describe('SetGoalBudgetTool', () => {
     // set-goal-budget.ts rejects time budgets < 1s or > 24h (MIN/MAX_REASONABLE_TIME_BUDGET_MS).
     expect(description).toContain('1 second');
     expect(description).toContain('24 hours');
-    // turn/token budgets are floored at 1 and rounded to the nearest whole number
+    // turn/token budgets are floored at 1 and rounded to nearest whole number
     // (Math.max(1, Math.round(value))) — the description must not claim "rounded up".
-    expect(description).toContain('rounded to the nearest whole number');
+    expect(description).toContain('rounded to nearest whole number');
     expect(description).not.toContain('rounded up');
   });
 
@@ -358,7 +358,8 @@ describe('ToolManager goal tool registration', () => {
   it('exposes goal tools to the main agent', () => {
     const names = loopToolNames('main');
     expect(names).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal']));
-    expect(names).not.toContain('SetGoalBudget');
+    // SetGoalBudget is always present for cache stability (CACHE_GATED_TOOLS).
+    expect(names).toContain('SetGoalBudget');
   });
 
   it('does not expose goal tools to subagents even when enabled', () => {
@@ -368,7 +369,7 @@ describe('ToolManager goal tool registration', () => {
     expect(names).not.toContain('SetGoalBudget');
   });
 
-  it('hides goal mutation tools until a goal exists, then exposes them', async () => {
+  it('goal mutation tools are always present for cache stability', async () => {
     const store = makeStore();
     const ctxAgent = testAgent({
       type: 'main',
@@ -376,17 +377,17 @@ describe('ToolManager goal tool registration', () => {
     });
     ctxAgent.configure({ tools: ['Read', 'CreateGoal', 'GetGoal', 'SetGoalBudget', 'UpdateGoal'] });
     ctxAgent.agent.tools.initializeBuiltinTools();
-    // No goal yet -> mutation tools are filtered out of the model's tool list.
-    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).not.toContain('UpdateGoal');
-    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).not.toContain('SetGoalBudget');
-    // Once a goal exists, it appears.
+    // CACHE_GATED_TOOLS are never filtered — always present for prefix cache stability.
+    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).toContain('UpdateGoal');
+    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).toContain('SetGoalBudget');
+    // Still present after goal creation.
     await store.createGoal({ objective: 'work' });
     expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).toContain('UpdateGoal');
     expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).toContain('SetGoalBudget');
 
     await store.markComplete({}, 'model');
-    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).not.toContain('UpdateGoal');
-    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).not.toContain('SetGoalBudget');
+    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).toContain('UpdateGoal');
+    expect(ctxAgent.agent.tools.loopTools.map((t) => t.name)).toContain('SetGoalBudget');
   });
 });
 

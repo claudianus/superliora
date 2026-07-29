@@ -35,6 +35,16 @@ export const AppearanceDensitySchema = z.enum(['auto', 'compact', 'comfortable',
 export const AppearanceParticlesSchema = z.enum(['auto', 'off', 'ambient', 'events', 'premium']);
 export const TerminalBackgroundSchema = z.enum(['off', 'session']);
 
+/**
+ * How much detail the transcript shows for tool activity:
+ * - `minimal`: collapse each tool chain into one live summary line until the
+ *   assistant replies; on turn end it becomes a `Worked for …` line.
+ * - `compact`: one line per tool (name · target · ±stats), input/output hidden.
+ * - `standard`: per-tool preview (up to 5 lines) with highlighting — default.
+ * - `full`: no truncation, equivalent to the Ctrl+O expanded state.
+ */
+export const TranscriptDetailSchema = z.enum(['minimal', 'compact', 'standard', 'full']);
+
 export const AppearancePreferencesSchema = z.object({
   profile: AppearanceProfileSchema,
   density: AppearanceDensitySchema,
@@ -44,6 +54,7 @@ export const AppearancePreferencesSchema = z.object({
   terminalBackground: TerminalBackgroundSchema,
   terminalPalette: z.boolean(),
   showTimestamps: z.boolean(),
+  transcriptDetail: TranscriptDetailSchema,
 });
 
 export const TuiConfigFileSchema = z.object({
@@ -76,6 +87,7 @@ export const TuiConfigFileSchema = z.object({
       terminal_background: TerminalBackgroundSchema.optional(),
       terminal_palette: z.boolean().optional(),
       show_timestamps: z.boolean().optional(),
+      transcript_detail: TranscriptDetailSchema.optional(),
     })
     .optional(),
   onboarding: z
@@ -129,6 +141,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   terminalBackground: 'off',
   terminalPalette: false,
   showTimestamps: true,
+  transcriptDetail: 'standard',
 };
 
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
@@ -221,6 +234,8 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
         config.appearance?.terminal_palette ?? DEFAULT_APPEARANCE_PREFERENCES.terminalPalette,
       showTimestamps:
         config.appearance?.show_timestamps ?? DEFAULT_APPEARANCE_PREFERENCES.showTimestamps,
+      transcriptDetail:
+        config.appearance?.transcript_detail ?? DEFAULT_APPEARANCE_PREFERENCES.transcriptDetail,
     },
     onboarding: {
       hubIntroSeen:
@@ -259,6 +274,7 @@ canvas_background = ${String(appearance.canvasBackground)} # Fill TUI-owned cell
 terminal_background = "${appearance.terminalBackground}" # "off" | "session"
 terminal_palette = ${String(appearance.terminalPalette)} # true applies terminal palette until exit
 show_timestamps = ${String(appearance.showTimestamps)} # true shows HH:MM on user messages
+transcript_detail = "${appearance.transcriptDetail}" # "minimal" | "compact" | "standard" | "full"
 
 [onboarding]
 hub_intro_seen = ${String(onboarding.hubIntroSeen)} # true skips the first-run Command Hub intro

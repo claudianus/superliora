@@ -623,6 +623,7 @@ export class Agent {
     return new KosongLLM({
       provider,
       systemPrompt: this.config.systemPrompt,
+      layeredSystemPrompt: this.config.layeredSystemPrompt,
       capability: this.config.modelCapabilities,
       generate: this.generate,
       completionBudgetConfig,
@@ -666,7 +667,7 @@ export class Agent {
       profile.tools.includes('Skill')
         ? (this.skills?.registry?.getModelSkillListing?.() ?? '')
         : '';
-    const systemPrompt = profile.systemPrompt({
+    const promptContext = {
       osEnv: this.kaos.osEnv,
       cwd: this.config.cwd,
       skills: this.skills?.registry,
@@ -675,7 +676,11 @@ export class Agent {
       agentsMd: context?.agentsMd,
       additionalDirsInfo: context?.additionalDirsInfo,
       roleAdditional: this.type === 'main' ? buildPersonaRoleAdditional(this.kimiConfig?.persona) : undefined,
-    });
+    };
+    const systemPrompt = profile.systemPrompt(promptContext);
+
+    // Render layered system prompt for cache-optimized providers (Anthropic)
+    const layeredSystemPrompt = profile.layeredSystemPrompt?.(promptContext);
 
     // In orchestrator mode, prepend delegation instructions so the agent
     // classifies user intent and routes work to background workers instead
@@ -684,7 +689,11 @@ export class Agent {
       ? ORCHESTRATOR_SYSTEM_PREFIX + systemPrompt
       : systemPrompt;
 
-    this.config.update({ profileName: profile.name, systemPrompt: effectiveSystemPrompt });
+    this.config.update({
+      profileName: profile.name,
+      systemPrompt: effectiveSystemPrompt,
+      layeredSystemPrompt,
+    });
     this.config.setSystemPromptMeta({
       agentsMdTokens: estimateTokens(context?.agentsMd ?? ''),
       cwdListingTokens: estimateTokens(context?.cwdListing ?? ''),

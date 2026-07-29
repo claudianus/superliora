@@ -9,7 +9,9 @@ export const CHROME_GUTTER = 1;
 
 // Shared preview caps used by thinking, tool results, and shell snippets.
 // Research-aligned glances: enough context without densify 1-line thrash.
-export const RESULT_PREVIEW_LINES = 3;
+// Tool results use the `standard` transcript detail level (plan: 4-level
+// density model) — 5 highlighted lines is the agreed per-tool glance.
+export const RESULT_PREVIEW_LINES = 5;
 export const THINKING_PREVIEW_LINES = 4;
 export const COMMAND_PREVIEW_LINES = 4;
 

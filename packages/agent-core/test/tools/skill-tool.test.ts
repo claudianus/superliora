@@ -143,7 +143,6 @@ describe('SkillTool metadata and schema', () => {
     // reused with new inputs must be called again, because the loaded block froze the
     // earlier args (it was expanded with them).
     expect(tool.description).toContain('with the same `args`');
-    expect(tool.description.toLowerCase()).toContain('different arguments');
     // The recursion depth cap is never seeded in production (currentDepth is
     // always 0), so the description must not advertise it as a hard limit.
     expect(tool.description).not.toMatch(/recursive depth|capped at/i);
@@ -151,15 +150,13 @@ describe('SkillTool metadata and schema', () => {
 });
 
 describe('SearchSkillTool execution', () => {
-  it('presents SearchSkill as a top-level discovery tool', () => {
+  it('presents SearchSkill as a discovery tool', () => {
     const tool = searchSkillTool(registry([skill('write-tui')]));
 
     expect(tool.name).toBe('SearchSkill');
-    expect(tool.description).toContain('top-level tool');
-    expect(tool.description).toContain(
-      'Do not call `Skill` with `search`, `search-skill`, or `SearchSkill`',
-    );
-    expect(tool.description).toContain('concise English task keywords');
+    expect(tool.description).toContain('Call directly');
+    expect(tool.description).toContain('not via `Skill` with `search`');
+    expect(tool.description).toContain('concise English keywords');
     expect(SearchSkillInputSchema.safeParse({ query: 'tui approval dialogs' }).success).toBe(
       true,
     );
