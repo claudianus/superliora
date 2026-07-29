@@ -37,6 +37,8 @@
     "#/tui/renderer": "./src/tui/renderer/index.ts",
     "#/cli/sub/server": "./src/cli/sub/server/index.ts",
     "#/cli/sub/server/*": "./src/cli/sub/server/*.ts",
+    "#/cli/sub/provider": "./src/cli/sub/provider/index.ts",
+    "#/cli/sub/provider/*": "./src/cli/sub/provider/*.ts",
     "#/cli/i18n": "./src/cli/i18n/index.ts",
     "#/*": [
       "./src/*.ts",
