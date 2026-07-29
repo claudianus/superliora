@@ -60,6 +60,8 @@ export interface OrchestratorWorker {
   taskQueue: string[];
   /** Declared file/directory ownership for conflict detection. */
   readonly ownership: string[];
+  /** Worker IDs this worker depends on. Spawning is deferred until all complete. */
+  readonly dependsOn: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +73,8 @@ const SpawnWorkerInputSchema = z.object({
   description: z.string().describe('Short task description (3-5 words) for display.'),
   ownership: z.array(z.string()).optional()
     .describe('File paths this worker owns. Other workers will not touch them.'),
+  dependsOn: z.array(z.string()).optional()
+    .describe('Worker IDs that must complete before this worker starts. Enables DAG scheduling.'),
 });
 
 type SpawnWorkerInput = z.infer<typeof SpawnWorkerInputSchema>;
@@ -105,6 +109,32 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
     ctx: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
     const workerId = `worker-${String(this.workers.size + 1)}`;
+
+    // Check dependencies — defer spawning if any dependency is not yet completed.
+    const deps = args.dependsOn ?? [];
+    const unmet = deps.filter((depId) => {
+      const dep = this.workers.get(depId);
+      return dep === undefined || dep.status !== 'completed';
+    });
+    if (unmet.length > 0) {
+      // Register as a pending worker; the completion handler will spawn it
+      // once all dependencies resolve.
+      const pending: OrchestratorWorker = {
+        id: workerId,
+        agentId: '',
+        description: args.description,
+        status: 'running',
+        createdAt: Date.now(),
+        taskQueue: [],
+        ownership: args.ownership ?? [],
+        dependsOn: deps,
+      };
+      this.workers.set(workerId, pending);
+      return {
+        output: `Worker ${workerId} registered but deferred — waiting for: ${unmet.join(', ')}. ` +
+          'It will start automatically when all dependencies complete.',
+      };
+    }
 
     // Create an isolated worktree for this worker.
     let worktreePath: string | undefined;
@@ -141,6 +171,7 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
       handle,
       taskQueue: [],
       ownership: args.ownership ?? [],
+      dependsOn: args.dependsOn ?? [],
     };
     this.workers.set(workerId, worker);
 

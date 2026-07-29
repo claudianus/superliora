@@ -408,6 +408,30 @@ export class Agent {
             }
           });
         }
+        // Resolve pending workers whose dependencies are now all completed.
+        for (const [, pending] of workers) {
+          if (pending.agentId !== '' || pending.dependsOn.length === 0) continue;
+          const allMet = pending.dependsOn.every((depId) => {
+            const dep = workers.get(depId);
+            return dep !== undefined && dep.status === 'completed';
+          });
+          if (!allMet) continue;
+          log.info(`Orchestrator resolving deferred worker ${pending.id}`);
+          const spawner = new SpawnWorkerTool(host, this.kaos, this.kaos.getcwd(), workers);
+          void spawner.resolveExecution({
+            prompt: pending.description,
+            description: pending.description,
+            ownership: pending.ownership.length > 0 ? pending.ownership : undefined,
+          }).then((execution) => {
+            if ('execute' in execution) {
+              return execution.execute({
+                turnId: '0',
+                toolCallId: `dag-${pending.id}-${Date.now()}`,
+                signal: new AbortController().signal,
+              });
+            }
+          });
+        }
         this.emitStatusUpdated();
       }),
     );
