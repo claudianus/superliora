@@ -66,6 +66,8 @@ export interface OrchestratorWorker {
   branch?: string;
   /** Repository root path for merge operations. */
   repoRoot?: string;
+  /** Token usage accumulated by this worker. */
+  tokenUsage?: { input: number; output: number; cacheRead: number; cacheCreation: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +192,14 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
       worker.status = 'completed';
       worker.result = completion.result;
       worker.structuredResult = parseWorkerResult(completion.result, true);
+      if (completion.usage !== undefined) {
+        worker.tokenUsage = {
+          input: completion.usage.inputOther,
+          output: completion.usage.output,
+          cacheRead: completion.usage.inputCacheRead,
+          cacheCreation: completion.usage.inputCacheCreation,
+        };
+      }
       this.onWorkerComplete?.(worker);
     }).catch(() => {
       worker.status = 'failed';
@@ -322,6 +332,9 @@ export class QueryWorkerTool implements BuiltinTool<QueryWorkerInput> {
         worker.worktreePath !== undefined ? `Worktree: ${worker.worktreePath}` : null,
         worker.ownership.length > 0 ? `Ownership: ${worker.ownership.join(', ')}` : null,
         worker.taskQueue.length > 0 ? `Queued tasks: ${String(worker.taskQueue.length)}` : null,
+        worker.tokenUsage !== undefined
+          ? `Tokens: ${String(worker.tokenUsage.input)} in / ${String(worker.tokenUsage.output)} out / ${String(worker.tokenUsage.cacheRead)} cached`
+          : null,
         worker.result !== undefined ? `Result: ${worker.result.slice(0, 2000)}` : null,
       ].filter(Boolean);
       return { output: lines.join('\n') };
