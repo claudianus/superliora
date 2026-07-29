@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   hasPendingUltraSwarmRestaff,
   requestUltraSwarmRestaff,
@@ -7,8 +6,7 @@ import {
 import { join } from 'pathe';
 
 import { normalizeAdditionalDirs } from '../config';
-import type { PersonaConfig } from '../config';
-import { ErrorCodes, LioraError, makeErrorPayload } from '#/errors';
+import { ErrorCodes, makeErrorPayload } from '#/errors';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import type {
@@ -21,20 +19,11 @@ import type {
 } from '#/rpc';
 import { generate } from '@superliora/kosong';
 
-import { expandCommandArguments } from '../plugin/commands';
 import type { EnabledPluginSessionStart, PluginCommandDef } from '#/plugin';
 import type { AgentMemoryRuntime } from '#/memory';
-import type { PluginCommandOrigin } from './context';
 import { estimateTokens } from '../utils/tokens';
 
 import type { McpConnectionManager } from '../mcp';
-import {
-  EnqueueWorkerTaskTool,
-  MergeWorkerTool,
-  QueryWorkerTool,
-  SpawnWorkerTool,
-  SteerWorkerTool,
-} from '../tools/builtin/collaboration/orchestrator';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
 import type { PreparedSystemPromptContext, ResolvedAgentProfile } from '../profile';
 import type { FileSnapshotStore } from '../session/file-snapshot';
@@ -56,16 +45,7 @@ import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
 import { UltraworkMode } from '../ultrawork';
-import {
-  detectUltraworkAutoActivationWithLlm,
-  shouldActOnUltraworkAutoActivation,
-} from '../ultrawork/auto-activate-llm';
 import { UltraworkObjectiveProfileCache } from '../ultrawork/objective-profile-cache';
-import {
-  detectUltraworkObjectiveProfileWithLlm,
-  fallbackUltraworkObjectiveProfile,
-  resolveUltraworkObjectiveProfile,
-} from '../ultrawork/objective-profile-llm';
 import { AutoDreamService } from './dream/auto-dream';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
 import { AutopilotMode } from '../autopilot';
@@ -97,15 +77,18 @@ import {
   InMemoryProviderRouteState,
   KosongLLM,
   type KosongLLMRoute,
-  type KosongLLMRouteCandidate,
 } from './turn/kosong-llm';
-import { runSideGenerateWithSharedFailover } from './side-generate-failover';
 import { UsageRecorder } from './usage';
-import { LlmRequestLogger, splitGenerateOptions } from './llm-request-logger';
+import { LlmRequestLogger } from './llm-request-logger';
 import { resolveCompletionBudget } from '../utils/completion-budget';
 import type { Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';
 import type { ResponseLanguagePreference } from '../session/response-language';
+
+import { createRpcMethods } from './rpc-methods';
+import { buildPersonaRoleAdditional } from './persona';
+import { ORCHESTRATOR_SYSTEM_PREFIX, registerOrchestratorTools as registerOrchestratorToolsImpl } from './orchestrator';
+import { createGenerateProxy, buildLLMRoute as buildLLMRouteImpl } from './generate-facade';
 
 export type { AgentRecord } from './records';
 export type { ModeActivationSource } from './mode-activation';
@@ -153,41 +136,6 @@ export interface AgentOptions {
    */
   readonly orchestratorMode?: boolean;
 }
-
-/**
- * System prompt prefix injected when orchestratorMode is enabled.
- * Instructs the agent to classify intent, delegate implementation work
- * to background workers, and respond to the user immediately.
- */
-const ORCHESTRATOR_SYSTEM_PREFIX = `# Orchestrator Mode
-
-You are running in orchestrator mode. Your role is to classify user intent,
-delegate implementation work to background workers, and respond immediately.
-
-## Rules
-
-1. **Never perform long-running file operations yourself.** Do not edit files,
-   run builds, execute tests, or perform any task that takes more than a few
-   seconds. Delegate all such work to workers.
-
-2. **Use SpawnWorker** to create background workers for implementation tasks.
-   Each worker runs in an isolated git worktree. Provide a clear, specific
-   prompt describing exactly what the worker should do.
-
-3. **Use QueryWorker** to check on worker progress and retrieve results.
-   Poll workers periodically or when the user asks about status.
-
-4. **Use SteerWorker** to redirect a worker that is going off track or to
-   provide additional guidance mid-task.
-
-5. **Respond to the user immediately** after spawning workers. Acknowledge
-   what you delegated and let the user know you will report back when workers
-   complete. Do not wait for workers to finish before responding.
-
-6. **Merge results** when workers complete. Review their output, resolve any
-   conflicts, and present a unified summary to the user.
-
-`;
 
 export class Agent {
   readonly type: AgentType;
@@ -379,68 +327,7 @@ export class Agent {
 
   /** Register the three orchestrator tools with a worker-completion callback. */
   private registerOrchestratorTools(host: SessionSubagentHost): void {
-    const workers = this.orchestratorWorkers;
-    this.tools.attachEphemeralBuiltin(
-      new SpawnWorkerTool(host, this.kaos, this.kaos.getcwd(), workers, (worker) => {
-        log.info(
-          `Orchestrator worker ${worker.id} (${worker.description}) ${worker.status}` +
-            (worker.result !== undefined ? `: ${worker.result.slice(0, 200)}` : ''),
-        );
-        // Auto-spawn the next queued task if any.
-        const nextTask = worker.taskQueue.shift();
-        if (nextTask !== undefined && worker.status === 'completed') {
-          log.info(`Orchestrator auto-spawning queued task for ${worker.id}`);
-          const spawner = new SpawnWorkerTool(host, this.kaos, this.kaos.getcwd(), workers);
-          const context = worker.structuredResult !== undefined
-            ? `\n\nPrevious task result:\n${worker.structuredResult.summary}` +
-              (worker.structuredResult.filesModified.length > 0
-                ? `\nFiles modified: ${worker.structuredResult.filesModified.join(', ')}`
-                : '')
-            : '';
-          void spawner.resolveExecution({
-            prompt: nextTask + context,
-            description: `${worker.description} (follow-up)`,
-          }).then((execution) => {
-            if ('execute' in execution) {
-              return execution.execute({
-                turnId: '0',
-                toolCallId: `queue-${worker.id}-${Date.now()}`,
-                signal: new AbortController().signal,
-              });
-            }
-          });
-        }
-        // Resolve pending workers whose dependencies are now all completed.
-        for (const [, pending] of workers) {
-          if (pending.agentId !== '' || pending.dependsOn.length === 0) continue;
-          const allMet = pending.dependsOn.every((depId) => {
-            const dep = workers.get(depId);
-            return dep !== undefined && dep.status === 'completed';
-          });
-          if (!allMet) continue;
-          log.info(`Orchestrator resolving deferred worker ${pending.id}`);
-          const spawner = new SpawnWorkerTool(host, this.kaos, this.kaos.getcwd(), workers);
-          void spawner.resolveExecution({
-            prompt: pending.description,
-            description: pending.description,
-            ownership: pending.ownership.length > 0 ? pending.ownership : undefined,
-          }).then((execution) => {
-            if ('execute' in execution) {
-              return execution.execute({
-                turnId: '0',
-                toolCallId: `dag-${pending.id}-${Date.now()}`,
-                signal: new AbortController().signal,
-              });
-            }
-          });
-        }
-        this.emitStatusUpdated();
-      }),
-    );
-    this.tools.attachEphemeralBuiltin(new SteerWorkerTool(host, workers));
-    this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
-    this.tools.attachEphemeralBuiltin(new EnqueueWorkerTaskTool(workers));
-    this.tools.attachEphemeralBuiltin(new MergeWorkerTool(this.kaos, workers));
+    registerOrchestratorToolsImpl(this, host);
   }
 
   getAdditionalDirs(): readonly string[] {
@@ -459,156 +346,7 @@ export class Agent {
   }
 
   get generate(): typeof generate {
-    return async (provider, systemPrompt, tools, history, callbacks, options) => {
-      const { requestLogFields, runtimeModelAlias, runtimeCredentialLabel, generateOptions } =
-        splitGenerateOptions(options);
-      const modelAlias = runtimeModelAlias ?? this.config.modelAlias;
-      const run = (
-        requestProvider: typeof provider,
-        requestModelAlias: string | undefined,
-        requestOptions: Parameters<typeof generate>[5],
-      ) => {
-        this.llmRequestLogger.logRequest({
-          provider: requestProvider,
-          modelAlias: requestModelAlias,
-          systemPrompt,
-          tools,
-          messages: history,
-          fields: requestLogFields,
-        });
-        return this.rawGenerate(
-          requestProvider,
-          systemPrompt,
-          tools,
-          history,
-          callbacks,
-          requestOptions,
-        );
-      };
-
-      // Explicit auth: caller owns credential selection (including KosongLLM
-      // after it already picked a candidate). Do not open a second failover loop.
-      if (generateOptions?.auth !== undefined || runtimeCredentialLabel !== undefined) {
-        if (generateOptions?.auth !== undefined) {
-          return run(provider, modelAlias, generateOptions);
-        }
-        const withAuth =
-          modelAlias === undefined
-            ? undefined
-            : this.modelProvider?.resolveAuth?.(modelAlias, {
-                log: this.log,
-                credentialLabel: runtimeCredentialLabel,
-              });
-        if (withAuth === undefined) {
-          return run(provider, modelAlias, generateOptions);
-        }
-        return withAuth((auth) => run(provider, modelAlias, { ...generateOptions, auth }));
-      }
-
-      // Side LLM path (Ultra Plan Seed Spec, ambiguity, classifiers, dream…):
-      // share the main-turn candidate order + routeState so a quota-exhausted
-      // primary account fails over to the next healthy credential.
-      const route = this.buildLLMRoute(this.kimiConfig?.loopControl?.reservedContextSize);
-      if (route === undefined || route.candidates.length <= 1) {
-        const withAuth =
-          modelAlias === undefined
-            ? undefined
-            : this.modelProvider?.resolveAuth?.(modelAlias, {
-                log: this.log,
-              });
-        if (withAuth === undefined) {
-          return run(provider, modelAlias, generateOptions);
-        }
-        return withAuth((auth) => run(provider, modelAlias, { ...generateOptions, auth }));
-      }
-
-      return this.generateWithSharedFailover({
-        route,
-        fallbackProvider: provider,
-        fallbackModelAlias: modelAlias,
-        systemPrompt,
-        tools,
-        history,
-        callbacks,
-        generateOptions,
-        requestLogFields,
-        signal: generateOptions?.signal,
-      });
-    };
-  }
-
-  /**
-   * Run a non-streaming generate across provider-route candidates using the
-   * same orderCandidates / recordFailure / recordSuccess bookkeeping as the
-   * main chat turn. Used by side LLM calls that go through {@link generate}.
-   */
-  private async generateWithSharedFailover(params: {
-    readonly route: KosongLLMRoute;
-    readonly fallbackProvider: Parameters<typeof generate>[0];
-    readonly fallbackModelAlias: string | undefined;
-    readonly systemPrompt: string;
-    readonly tools: Parameters<typeof generate>[2];
-    readonly history: Parameters<typeof generate>[3];
-    readonly callbacks: Parameters<typeof generate>[4];
-    readonly generateOptions: Parameters<typeof generate>[5];
-    readonly requestLogFields: ReturnType<typeof splitGenerateOptions>['requestLogFields'];
-    readonly signal?: AbortSignal;
-  }): Promise<Awaited<ReturnType<typeof generate>>> {
-    const attempts = params.route.candidates.map((candidate) => {
-      const candidateAlias = candidate.modelAlias ?? params.fallbackModelAlias;
-      return {
-        candidate,
-        run: async () => {
-          const withAuth =
-            candidateAlias === undefined
-              ? undefined
-              : this.modelProvider?.resolveAuth?.(candidateAlias, {
-                  log: this.log,
-                  credentialLabel: candidate.credentialLabel,
-                });
-
-          const runOnce = (requestOptions: Parameters<typeof generate>[5]) => {
-            this.llmRequestLogger.logRequest({
-              provider: candidate.provider,
-              modelAlias: candidateAlias,
-              systemPrompt: params.systemPrompt,
-              tools: params.tools,
-              messages: params.history,
-              fields: params.requestLogFields,
-            });
-            return this.rawGenerate(
-              candidate.provider,
-              params.systemPrompt,
-              params.tools,
-              params.history,
-              params.callbacks,
-              requestOptions,
-            );
-          };
-
-          if (withAuth === undefined) {
-            return runOnce(params.generateOptions);
-          }
-          return withAuth((auth) => runOnce({ ...params.generateOptions, auth }));
-        },
-      };
-    });
-
-    return runSideGenerateWithSharedFailover({
-      route: params.route,
-      routeState: this.providerRouteState,
-      attempts,
-      signal: params.signal,
-      onRouteStatusChanged: () => this.emitStatusUpdated(),
-      onCandidateFailed: ({ candidate, failure, hasNext }) => {
-        if (!hasNext) return;
-        this.log.warn('side generate credential failed; trying next candidate', {
-          failedCredential: candidate.credentialLabel,
-          failedModel: candidate.modelAlias,
-          kind: failure.kind,
-        });
-      },
-    });
+    return createGenerateProxy(this);
   }
 
   get llm(): KosongLLM {
@@ -636,30 +374,7 @@ export class Agent {
   }
 
   private buildLLMRoute(reservedContextSize: number | undefined): KosongLLMRoute | undefined {
-    const route = this.config.providerRoute;
-    if (route === undefined || route.candidates.length === 0) return undefined;
-    return {
-      key: route.modelAlias,
-      strategy: route.strategy,
-      cooldownMs: route.cooldownMs,
-      sessionAffinity: route.sessionAffinity,
-      preferredCredential: route.preferredCredential,
-      candidates: route.candidates.map((candidate): KosongLLMRouteCandidate => {
-        return {
-          modelAlias: candidate.modelAlias,
-          providerName: candidate.providerName,
-          credentialLabel: candidate.credentialLabel,
-          weight: candidate.weight,
-          localLimits: candidate.localLimits,
-          provider: this.config.createRuntimeProvider(candidate),
-          capability: candidate.modelCapabilities,
-          completionBudgetConfig: resolveCompletionBudget({
-            maxOutputSize: candidate.maxOutputSize,
-            reservedContextSize,
-          }),
-        };
-      }),
-    };
+    return buildLLMRouteImpl(this, reservedContextSize);
   }
 
   useProfile(profile: ResolvedAgentProfile, context?: PreparedSystemPromptContext): void {
@@ -773,7 +488,7 @@ export class Agent {
    * boundary). The phase-checkpoint queue stays as the fallback for children
    * spawned after the steer.
    */
-  private forwardSteerToRunningChildren(input: string): void {
+  forwardSteerToRunningChildren(input: string): void {
     if (this.subagentHost === undefined) return;
     const forwarded = this.subagentHost.steerRunningChildren([{ type: 'text', text: input }]);
     if (forwarded > 0) {
@@ -782,313 +497,7 @@ export class Agent {
   }
 
   get rpcMethods(): PromisableMethods<AgentAPI> {
-    return {
-      prompt: (payload) => {
-        this.turn.prompt(payload.input);
-      },
-      runShellCommand: (payload) => this.tools.runShellCommand(payload.command, payload.commandId),
-      cancelShellCommand: (payload) => this.tools.cancelShellCommand(payload.commandId),
-      steer: (payload) => {
-        this.telemetry.track('input_steer', { parts: payload.input.length });
-        // During UltraSwarm, route steers into the swarm checkpoint queue.
-        if (this.ultraSwarmRun !== undefined) {
-          const text = payload.input
-            .map((part) => ('text' in part ? String(part.text ?? '') : ''))
-            .join('\n')
-            .trim();
-          if (requestUltraSwarmSteer(this.ultraSwarmRun, text)) {
-            this.records.logRecord({ type: 'swarm.steer', input: text });
-            // Restaff steers force a restaff wave — do not pause the phase loop.
-            if (hasPendingUltraSwarmRestaff(this.ultraSwarmRun)) {
-              this.telemetry.track('ultra_swarm_restaff_requested', {
-                run_id: this.ultraSwarmRun.runId,
-                source: 'steer',
-              });
-              this.emitEvent({
-                type: 'ultrawork.swarm.restaff_requested',
-                runId: this.ultraSwarmRun.runId,
-                reason: text,
-              } as any);
-              return;
-            }
-            this.forwardSteerToRunningChildren(text);
-            void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
-            this.emitEvent({
-              type: 'ultrawork.swarm.paused',
-              runId: this.ultraSwarmRun.runId,
-              reason: 'User steering requested',
-              input: text,
-            } as any);
-            return;
-          }
-        }
-        this.turn.steer(payload.input);
-      },
-      cancel: (payload) => {
-        if (this.turn.hasActiveTurn) {
-          this.telemetry.track('cancel', { from: payload.source ?? 'streaming' });
-        }
-        this.turn.cancel(payload.turnId, undefined, payload.source);
-      },
-      undoHistory: (payload) => {
-        this.context.undo(payload.count);
-      },
-      setThinking: (payload) => {
-        const wasEnabled = this.config.thinkingLevel !== 'off';
-        this.config.update({ thinkingLevel: payload.level });
-        const enabled = this.config.thinkingLevel !== 'off';
-        if (enabled !== wasEnabled) {
-          this.telemetry.track('thinking_toggle', { enabled });
-        }
-      },
-      setPermission: (payload) => {
-        const wasYolo = this.permission.mode === 'yolo';
-        const wasAuto = this.permission.mode === 'auto';
-        this.permission.setMode(payload.mode);
-        const enabled = this.permission.mode === 'yolo';
-        if (enabled !== wasYolo) {
-          this.telemetry.track('yolo_toggle', { enabled });
-        }
-        const afkEnabled = this.permission.mode === 'auto';
-        if (afkEnabled !== wasAuto) {
-          this.telemetry.track('afk_toggle', { enabled: afkEnabled });
-        }
-      },
-      setModel: (payload) => {
-        // Validate the alias resolves before recording it so resume / runtime
-        // callers fail fast on missing aliases instead of deferring to the
-        // next prompt.
-        const resolved = this.modelProvider?.resolveProviderConfig(payload.model);
-        if (this.config.modelAlias !== payload.model) {
-          this.config.update({ modelAlias: payload.model });
-          this.telemetry.track('model_switch', { model: payload.model });
-        }
-        return {
-          model: payload.model,
-          providerName: resolved?.providerName,
-        };
-      },
-      getModel: () => {
-        return this.config.modelAlias ?? '';
-      },
-      enterPlan: async (payload) => {
-        await this.planMode.enter(
-          undefined,
-          false,
-          true,
-          payload.ultra ?? false,
-          payload.initialContext ?? '',
-          payload.source ?? 'standalone',
-        );
-      },
-      cancelPlan: (payload) => {
-        this.planMode.cancel(payload.id);
-      },
-      clearPlan: () => this.planMode.clear(),
-      enterSwarm: (payload) => {
-        this.swarmMode.enter(payload.trigger);
-      },
-      exitSwarm: () => {
-        this.swarmMode.exit();
-      },
-      getSwarmMode: () => {
-        return this.swarmMode.isActive;
-      },
-      setPremiumQuality: (payload) => {
-        this.premiumQuality.setEnabled(payload.enabled);
-      },
-      getPremiumQuality: () => {
-        return this.premiumQuality.isEnabled();
-      },
-      setOrchestratorMode: (payload) => {
-        this.setOrchestratorMode(payload.enabled);
-      },
-      getOrchestratorMode: () => {
-        return this._orchestratorMode;
-      },
-      beginCompaction: (payload) => {
-        this.fullCompaction.begin({ source: 'manual', instruction: payload.instruction });
-      },
-      cancelCompaction: () => {
-        if (this.fullCompaction.isCompacting) {
-          this.telemetry.track('cancel', { from: 'compacting' });
-        }
-        this.fullCompaction.cancel();
-      },
-      registerTool: (payload) => {
-        this.tools.registerUserTool(payload);
-      },
-      unregisterTool: (payload) => {
-        this.tools.unregisterUserTool(payload.name);
-      },
-      setActiveTools: (payload) => {
-        this.tools.setActiveTools(payload.names);
-      },
-      stopBackground: (payload) => {
-        void this.background.stop(payload.taskId, payload.reason);
-      },
-      detachBackground: (payload) => this.background.detach(payload.taskId),
-      clearContext: () => {
-        this.context.clear();
-      },
-      activateSkill: async (payload) => {
-        if (this.skills === null) {
-          throw new LioraError(ErrorCodes.SKILL_NOT_FOUND, `Skill "${payload.name}" was not found`);
-        }
-        await this.skills.activate(payload);
-      },
-      activatePluginCommand: (payload) => {
-        const def = this.pluginCommands.find(
-          (command) =>
-            command.pluginId === payload.pluginId && command.name === payload.commandName,
-        );
-        if (def === undefined) {
-          throw new LioraError(
-            ErrorCodes.REQUEST_INVALID,
-            `Plugin command "${payload.pluginId}:${payload.commandName}" was not found`,
-          );
-        }
-        const commandArgs = payload.args ?? '';
-        const origin: PluginCommandOrigin = {
-          kind: 'plugin_command',
-          activationId: randomUUID(),
-          pluginId: payload.pluginId,
-          commandName: payload.commandName,
-          commandArgs: payload.args,
-          trigger: 'user-slash',
-        };
-        this.emitEvent({
-          type: 'plugin_command.activated',
-          activationId: origin.activationId,
-          pluginId: origin.pluginId,
-          commandName: origin.commandName,
-          commandArgs: origin.commandArgs,
-          trigger: origin.trigger,
-        });
-        this.turn.prompt(
-          [{ type: 'text', text: expandCommandArguments(def.body, commandArgs) }],
-          origin,
-        );
-      },
-      startBtw: () => this.subagentHost!.startBtw(),
-      createGoal: (payload) => this.goal.createGoal(payload),
-      getGoal: () => this.goal.getGoal(),
-      pauseGoal: () => this.goal.pauseGoal(),
-      resumeGoal: () => this.goal.resumeGoal(),
-      cancelGoal: () => this.goal.cancelGoal(),
-      createUltraworkRun: (payload) =>
-        this.ultrawork.create({
-          id: payload.id,
-          objective: payload.objective,
-          activation: {
-            source: payload.source,
-            replaceGoal: payload.replaceGoal,
-            evidenceRoot: payload.evidenceRoot,
-            workDir: payload.workDir,
-          },
-        }),
-      getUltraworkRun: () => this.ultrawork.getRun(),
-      pauseUltrawork: (payload) => {
-        // War-room / action-dock pause must also stop UltraSwarm phase advancement.
-        if (this.ultraSwarmRun !== undefined) {
-          this.ultraSwarmRun.pausedForSteer = true;
-          this.telemetry.track('ultra_swarm_pause_requested', {
-            run_id: this.ultraSwarmRun.runId,
-            source: 'pause_ultrawork',
-            reason:
-              typeof payload.reason === 'string' && payload.reason.trim().length > 0
-                ? payload.reason.trim().slice(0, 240)
-                : undefined,
-          });
-          this.emitEvent({
-            type: 'ultrawork.swarm.paused',
-            runId: this.ultraSwarmRun.runId,
-            reason:
-              typeof payload.reason === 'string' && payload.reason.trim().length > 0
-                ? payload.reason
-                : 'Paused from Ultrawork pause',
-          } as any);
-        }
-        return this.ultrawork.pause(payload);
-      },
-      resumeUltrawork: () => {
-        // Clear UltraSwarm phase pause when Ultrawork resumes so the next wave can run.
-        if (this.ultraSwarmRun !== undefined) {
-          this.ultraSwarmRun.pausedForSteer = false;
-        }
-        return this.ultrawork.resume();
-      },
-      cancelUltrawork: (payload) => this.ultrawork.cancel(payload.reason),
-      swarmRestaff: (payload) =>
-        this.swarmRestaff(
-          typeof payload.reason === 'string' && payload.reason.trim().length > 0
-            ? payload.reason
-            : 'User requested restaff',
-        ),
-      classifyUltraworkAutoActivation: async (payload) => {
-        const text = payload.text.trim();
-        if (text.length === 0) {
-          return { activate: false, confidence: 1, reason: 'Empty prompt' };
-        }
-        const provider = this.config.provider;
-        if (provider === undefined || typeof this.generate !== 'function') {
-          return {
-            activate: false,
-            confidence: 0,
-            reason: 'LLM provider unavailable for Ultrawork auto-activation',
-          };
-        }
-        const intent = await detectUltraworkAutoActivationWithLlm(
-          { generate: this.generate, provider },
-          { text, signal: AbortSignal.timeout(8_000) },
-        );
-        const activate = shouldActOnUltraworkAutoActivation(intent);
-        return {
-          activate,
-          confidence: intent?.confidence ?? 0,
-          reason: intent?.reason ?? 'Ultrawork auto-activation declined or unavailable',
-        };
-      },
-      classifyUltraworkObjectiveProfile: async (payload) => {
-        const text = payload.text.trim();
-        if (text.length === 0) {
-          return fallbackUltraworkObjectiveProfile('');
-        }
-        const provider = this.config.provider;
-        if (provider === undefined || typeof this.generate !== 'function') {
-          const fallback = fallbackUltraworkObjectiveProfile(
-            text,
-            'LLM provider unavailable for Ultrawork objective profile',
-          );
-          this.ultraworkObjectiveProfile.set(text, fallback);
-          return fallback;
-        }
-        const detected = await detectUltraworkObjectiveProfileWithLlm(
-          { generate: this.generate, provider },
-          { text, signal: AbortSignal.timeout(8_000) },
-        );
-        const profile = resolveUltraworkObjectiveProfile(detected, text);
-        this.ultraworkObjectiveProfile.set(text, profile);
-        return profile;
-      },
-      getBackgroundOutput: (payload) => this.background.readOutput(payload.taskId, payload.tail),
-      getContext: () => this.context.data(),
-      getContextComposition: () => this.context.composition(),
-      diagnoseContextOS: (payload) =>
-        this.contextOS.diagnose(payload.query ?? '', payload.limit),
-      getConfig: () => this.config.data(),
-      getPermission: () => this.permission.data(),
-      getPlan: () => this.planMode.data(),
-      getUsage: () => this.usage.data(),
-      getProviderRouteStatus: () => this.providerRouteStatus(),
-      resetProviderRouteStatus: () => this.resetProviderRouteStatus(),
-      getTools: () => this.tools.data(),
-      getBackground: (payload) => this.background.list(payload.activeOnly ?? false, payload.limit),
-      inlineComplete: (payload, options) =>
-        this.intelligence.inlineComplete({ ...payload, signal: options?.signal }),
-      suggestPrompts: (_payload, options) =>
-        this.intelligence.suggestPrompts({ signal: options?.signal }),
-    };
+    return createRpcMethods(this);
   }
 
   emitEvent(event: AgentEvent): void {
@@ -1205,69 +614,4 @@ function durableTraceRecordType(
   if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
   if (eventType.startsWith('ultrawork.')) return 'ultrawork.event';
   return undefined;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Persona → ROLE_ADDITIONAL                                          */
-/* ------------------------------------------------------------------ */
-
-const PERSONA_PRESETS: Record<string, { personality: string; tone: string }> = {
-  friendly: {
-    personality: 'Warm, approachable, and encouraging. Uses gentle humor and celebrates progress.',
-    tone: 'Casual and supportive, like a helpful friend who happens to be an expert.',
-  },
-  professional: {
-    personality: 'Precise, thorough, and dependable. Prioritizes clarity and correctness.',
-    tone: 'Formal but not stiff; direct and business-like with structured responses.',
-  },
-  concise: {
-    personality: 'Efficient and to-the-point. Values the user\'s time above all.',
-    tone: 'Terse and minimal; answers in the fewest words that preserve accuracy.',
-  },
-  creative: {
-    personality: 'Imaginative and curious. Suggests unconventional angles and novel approaches.',
-    tone: 'Expressive and vivid; uses analogies, metaphors, and occasional wit.',
-  },
-  mentor: {
-    personality: 'Patient and Socratic. Guides understanding rather than giving answers outright.',
-    tone: 'Encouraging and educational; explains the "why" behind recommendations.',
-  },
-  playful: {
-    personality: 'Witty and energetic. Makes interactions fun while staying helpful.',
-    tone: 'Light-hearted with puns and playful remarks; never at the expense of correctness.',
-  },
-};
-
-function buildPersonaRoleAdditional(persona: PersonaConfig | undefined): string | undefined {
-  if (persona === undefined) return undefined;
-
-  const parts: string[] = [];
-
-  // Resolve preset first as a base layer.
-  if (persona.preset !== undefined && persona.preset !== 'none') {
-    const preset = PERSONA_PRESETS[persona.preset];
-    if (preset !== undefined) {
-      parts.push(`Personality: ${preset.personality}`);
-      parts.push(`Tone: ${preset.tone}`);
-    }
-  }
-
-  // User overrides layer on top of the preset.
-  if (persona.personality !== undefined && persona.personality.trim().length > 0) {
-    parts.push(`Personality: ${persona.personality.trim()}`);
-  }
-  if (persona.tone !== undefined && persona.tone.trim().length > 0) {
-    parts.push(`Tone: ${persona.tone.trim()}`);
-  }
-  if (persona.instructions !== undefined && persona.instructions.trim().length > 0) {
-    parts.push(persona.instructions.trim());
-  }
-
-  if (parts.length === 0) return undefined;
-
-  const header = persona.name !== undefined && persona.name.trim().length > 0
-    ? `# Persona: ${persona.name.trim()}`
-    : '# Persona';
-
-  return `${header}\n\n${parts.join('\n')}`;
 }
