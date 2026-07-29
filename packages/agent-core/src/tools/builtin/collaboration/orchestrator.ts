@@ -32,6 +32,18 @@ import type { Kaos } from '@superliora/kaos';
 // Shared worker tracking
 // ---------------------------------------------------------------------------
 
+/** Structured result from a completed worker. */
+export interface WorkerResult {
+  /** Short summary of what was accomplished. */
+  readonly summary: string;
+  /** Files that were created or modified. */
+  readonly filesModified: string[];
+  /** Whether the worker considers its task successful. */
+  readonly success: boolean;
+  /** Raw result text from the subagent completion. */
+  readonly raw: string;
+}
+
 /** Runtime worker record tracked by the orchestrator. */
 export interface OrchestratorWorker {
   readonly id: string;
@@ -41,6 +53,8 @@ export interface OrchestratorWorker {
   status: 'running' | 'completed' | 'failed';
   readonly createdAt: number;
   result?: string;
+  /** Parsed structured result, populated on completion. */
+  structuredResult?: WorkerResult;
   handle?: SubagentHandle;
   /** Queued follow-up tasks to execute after the current one completes. */
   taskQueue: string[];
@@ -134,9 +148,11 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
     void handle.completion.then((completion) => {
       worker.status = 'completed';
       worker.result = completion.result;
+      worker.structuredResult = parseWorkerResult(completion.result, true);
       this.onWorkerComplete?.(worker);
     }).catch(() => {
       worker.status = 'failed';
+      worker.structuredResult = parseWorkerResult(undefined, false);
       this.onWorkerComplete?.(worker);
     });
 
@@ -282,6 +298,32 @@ export class QueryWorkerTool implements BuiltinTool<QueryWorkerInput> {
 
     return { output: `Workers (${String(this.workers.size)}):\n${lines.join('\n')}` };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Result parsing
+// ---------------------------------------------------------------------------
+
+/** Extract file paths mentioned in the result text. */
+const FILE_PATH_RE = /(?:^|\s)([\w./-]+\.\w{1,6})(?:\s|$|[,;:])/g;
+
+/**
+ * Parse a raw worker completion result into a structured summary.
+ * File paths are extracted heuristically from the result text.
+ */
+function parseWorkerResult(raw: string | undefined, success: boolean): WorkerResult {
+  const text = raw ?? '';
+  const filesModified: string[] = [];
+  for (const match of text.matchAll(FILE_PATH_RE)) {
+    const candidate = match[1];
+    if (candidate !== undefined && !filesModified.includes(candidate)) {
+      filesModified.push(candidate);
+    }
+  }
+  const summary = text.length > 0
+    ? text.slice(0, 300).replace(/\n/g, ' ').trim()
+    : success ? 'Completed successfully.' : 'Worker failed.';
+  return { summary, filesModified, success, raw: text };
 }
 
 // ---------------------------------------------------------------------------

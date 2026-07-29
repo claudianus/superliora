@@ -389,8 +389,14 @@ export class Agent {
         if (nextTask !== undefined && worker.status === 'completed') {
           log.info(`Orchestrator auto-spawning queued task for ${worker.id}`);
           const spawner = new SpawnWorkerTool(host, this.kaos, this.kaos.getcwd(), workers);
+          const context = worker.structuredResult !== undefined
+            ? `\n\nPrevious task result:\n${worker.structuredResult.summary}` +
+              (worker.structuredResult.filesModified.length > 0
+                ? `\nFiles modified: ${worker.structuredResult.filesModified.join(', ')}`
+                : '')
+            : '';
           void spawner.resolveExecution({
-            prompt: nextTask,
+            prompt: nextTask + context,
             description: `${worker.description} (follow-up)`,
           }).then((execution) => {
             if ('execute' in execution) {
