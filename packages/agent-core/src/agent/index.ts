@@ -28,6 +28,11 @@ import type { PluginCommandOrigin } from './context';
 import { estimateTokens } from '../utils/tokens';
 
 import type { McpConnectionManager } from '../mcp';
+import {
+  QueryWorkerTool,
+  SpawnWorkerTool,
+  SteerWorkerTool,
+} from '../tools/builtin/collaboration/orchestrator';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
 import type { PreparedSystemPromptContext, ResolvedAgentProfile } from '../profile';
 import type { FileSnapshotStore } from '../session/file-snapshot';
@@ -139,10 +144,20 @@ export interface AgentOptions {
   readonly fileSnapshots?: FileSnapshotStore | undefined;
   /** Path sandbox profile for file tools (`off` | `workspace` | `read-only`). */
   readonly sandboxProfile?: SandboxProfile | undefined;
+  /**
+   * When true, the agent operates as a meta-orchestrator: it classifies user
+   * intent, spawns/steers/queries background workers, and never performs
+   * long-running file operations itself.
+   */
+  readonly orchestratorMode?: boolean;
 }
 
 export class Agent {
   readonly type: AgentType;
+  /** Meta-orchestrator mode: delegate work to workers, never do long tasks directly. */
+  readonly orchestratorMode: boolean;
+  /** Worker registry for orchestrator mode. */
+  readonly orchestratorWorkers = new Map<string, import('../tools/builtin/collaboration/orchestrator').OrchestratorWorker>();
   private _kaos: Kaos;
 
   get kaos(): Kaos {
@@ -218,6 +233,7 @@ export class Agent {
 
   constructor(options: AgentOptions) {
     this.type = options.type ?? 'main';
+    this.orchestratorMode = options.orchestratorMode ?? false;
     this._kaos = options.kaos;
     this.kimiConfig = options.config;
     this.homedir = options.homedir;
@@ -286,6 +302,16 @@ export class Agent {
     this.ultraworkObjectiveProfile = new UltraworkObjectiveProfileCache();
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
+
+    // Register orchestrator tools when in orchestrator mode.
+    if (this.orchestratorMode && options.subagentHost !== undefined) {
+      const workers = this.orchestratorWorkers;
+      this.tools.attachEphemeralBuiltin(
+        new SpawnWorkerTool(options.subagentHost, this.kaos, this.kaos.getcwd(), workers),
+      );
+      this.tools.attachEphemeralBuiltin(new SteerWorkerTool(workers));
+      this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
+    }
   }
 
   setKaos(kaos: Kaos) {
