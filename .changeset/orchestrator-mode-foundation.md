@@ -2,4 +2,4 @@
 '@superliora/liora': minor
 ---
 
-Add orchestrator mode foundation for async parallel coding: `orchestratorMode` flag on Agent, plus three orchestrator tools (SpawnWorker, SteerWorker, QueryWorker) that delegate work to background agents in isolated git worktrees. The orchestrator never performs long-running file operations itself — it classifies intent, spawns/steers/queries workers, and reports status.
+Add orchestrator mode for async parallel coding. `orchestratorMode` flag on Agent activates delegation behavior: the system prompt instructs the agent to classify intent, route work to background workers via SpawnWorker/SteerWorker/QueryWorker tools, and respond immediately without performing long-running file operations itself. Workers run in isolated git worktrees. The TUI footer shows an "orchestrator" badge when the mode is active, and the `agent.status.updated` event carries `orchestratorMode` for real-time sync.

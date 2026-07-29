@@ -643,6 +643,9 @@ export class FooterComponent implements Component {
     if (state.premiumQualityMode) {
       modes.push(renderAnimatedGradientText('premium', 'footer:premium', appearance));
     }
+    if (state.orchestratorMode) {
+      modes.push(renderPulseText('orchestrator', 'footer:orchestrator', 'accent', appearance));
+    }
     if (state.isBackgroundCompacting) {
       modes.push(renderPulseText('compact-bg', 'footer:compact-bg', 'warning', appearance));
     } else if (state.isCompacting) {

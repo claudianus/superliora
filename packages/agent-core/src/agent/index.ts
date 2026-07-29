@@ -152,6 +152,41 @@ export interface AgentOptions {
   readonly orchestratorMode?: boolean;
 }
 
+/**
+ * System prompt prefix injected when orchestratorMode is enabled.
+ * Instructs the agent to classify intent, delegate implementation work
+ * to background workers, and respond to the user immediately.
+ */
+const ORCHESTRATOR_SYSTEM_PREFIX = `# Orchestrator Mode
+
+You are running in orchestrator mode. Your role is to classify user intent,
+delegate implementation work to background workers, and respond immediately.
+
+## Rules
+
+1. **Never perform long-running file operations yourself.** Do not edit files,
+   run builds, execute tests, or perform any task that takes more than a few
+   seconds. Delegate all such work to workers.
+
+2. **Use SpawnWorker** to create background workers for implementation tasks.
+   Each worker runs in an isolated git worktree. Provide a clear, specific
+   prompt describing exactly what the worker should do.
+
+3. **Use QueryWorker** to check on worker progress and retrieve results.
+   Poll workers periodically or when the user asks about status.
+
+4. **Use SteerWorker** to redirect a worker that is going off track or to
+   provide additional guidance mid-task.
+
+5. **Respond to the user immediately** after spawning workers. Acknowledge
+   what you delegated and let the user know you will report back when workers
+   complete. Do not wait for workers to finish before responding.
+
+6. **Merge results** when workers complete. Review their output, resolve any
+   conflicts, and present a unified summary to the user.
+
+`;
+
 export class Agent {
   readonly type: AgentType;
   /** Meta-orchestrator mode: delegate work to workers, never do long tasks directly. */
@@ -551,7 +586,15 @@ export class Agent {
       additionalDirsInfo: context?.additionalDirsInfo,
       roleAdditional: this.type === 'main' ? buildPersonaRoleAdditional(this.kimiConfig?.persona) : undefined,
     });
-    this.config.update({ profileName: profile.name, systemPrompt });
+
+    // In orchestrator mode, prepend delegation instructions so the agent
+    // classifies user intent and routes work to background workers instead
+    // of performing long-running file operations itself.
+    const effectiveSystemPrompt = this.orchestratorMode
+      ? ORCHESTRATOR_SYSTEM_PREFIX + systemPrompt
+      : systemPrompt;
+
+    this.config.update({ profileName: profile.name, systemPrompt: effectiveSystemPrompt });
     this.config.setSystemPromptMeta({
       agentsMdTokens: estimateTokens(context?.agentsMd ?? ''),
       cwdListingTokens: estimateTokens(context?.cwdListing ?? ''),
@@ -994,6 +1037,7 @@ export class Agent {
       planMode: this.planMode.isActive,
       swarmMode: this.swarmMode.isActive,
       premiumQualityMode: this.premiumQuality.isEnabled(),
+      orchestratorMode: this.orchestratorMode || undefined,
       permission: this.permission.mode,
       usage,
       providerRoute,

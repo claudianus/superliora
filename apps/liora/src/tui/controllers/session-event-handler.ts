@@ -1002,6 +1002,9 @@ export class SessionEventHandler {
     if (event.premiumQualityMode !== undefined) {
       patch.premiumQualityMode = event.premiumQualityMode;
     }
+    if (event.orchestratorMode !== undefined) {
+      patch.orchestratorMode = event.orchestratorMode;
+    }
     if (event.permission !== undefined) {
       patch.permissionMode = event.permission;
     }

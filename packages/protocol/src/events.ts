@@ -406,6 +406,8 @@ export interface AgentStatusUpdatedEvent {
   /** Present when micro-compaction has fired; null clears prior badge. */
   readonly microCompaction?: AgentStatusMicroCompaction | null;
   readonly autoDream?: AgentStatusAutoDream | null;
+  /** True when the agent is running in orchestrator mode (delegates work to workers). */
+  readonly orchestratorMode?: boolean;
 }
 
 export interface SessionMetaUpdatedEvent {
@@ -1475,6 +1477,7 @@ export const agentStatusUpdatedEventSchema = z.object({
   contextOS: agentStatusContextOSSchema.nullable().optional(),
   microCompaction: agentStatusMicroCompactionSchema.nullable().optional(),
   autoDream: agentStatusAutoDreamSchema.nullable().optional(),
+  orchestratorMode: z.boolean().optional(),
 }) satisfies z.ZodType<AgentStatusUpdatedEvent>;
 
 export const sessionMetaUpdatedEventSchema = z.object({

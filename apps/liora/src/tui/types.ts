@@ -55,6 +55,8 @@ export interface AppState {
   } | null;
   /** Visual-first premium harness: art direction, anti-slop visuals, skill routing, screenshot proof. */
   premiumQualityMode?: boolean;
+  /** True when the agent runs in orchestrator mode (delegates to background workers). */
+  orchestratorMode?: boolean;
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
   swarmMode: boolean;
