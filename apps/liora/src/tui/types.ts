@@ -57,6 +57,8 @@ export interface AppState {
   premiumQualityMode?: boolean;
   /** True when the agent runs in orchestrator mode (delegates to background workers). */
   orchestratorMode?: boolean;
+  /** Active orchestrator worker summaries for the status board. */
+  orchestratorWorkers?: readonly { id: string; description: string; status: string; tokenOutput?: number }[];
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
   swarmMode: boolean;

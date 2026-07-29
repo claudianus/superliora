@@ -645,6 +645,17 @@ export class FooterComponent implements Component {
     }
     if (state.orchestratorMode) {
       modes.push(renderPulseText('orchestrator', 'footer:orchestrator', 'accent', appearance));
+      const workers = state.orchestratorWorkers;
+      if (workers !== undefined && workers.length > 0) {
+        const running = workers.filter((w) => w.status === 'running').length;
+        const done = workers.filter((w) => w.status === 'completed').length;
+        const failed = workers.filter((w) => w.status === 'failed').length;
+        const parts: string[] = [];
+        if (running > 0) parts.push(`${String(running)}▸`);
+        if (done > 0) parts.push(`${String(done)}✓`);
+        if (failed > 0) parts.push(`${String(failed)}✗`);
+        modes.push(renderPulseText(`w:${parts.join(' ')}`, 'footer:workers', 'primary', appearance));
+      }
     }
     if (state.isBackgroundCompacting) {
       modes.push(renderPulseText('compact-bg', 'footer:compact-bg', 'warning', appearance));

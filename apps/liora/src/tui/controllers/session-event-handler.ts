@@ -1005,6 +1005,9 @@ export class SessionEventHandler {
     if (event.orchestratorMode !== undefined) {
       patch.orchestratorMode = event.orchestratorMode;
     }
+    if (event.orchestratorWorkers !== undefined) {
+      patch.orchestratorWorkers = event.orchestratorWorkers;
+    }
     if (event.permission !== undefined) {
       patch.permissionMode = event.permission;
     }

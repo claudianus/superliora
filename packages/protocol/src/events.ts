@@ -408,6 +408,16 @@ export interface AgentStatusUpdatedEvent {
   readonly autoDream?: AgentStatusAutoDream | null;
   /** True when the agent is running in orchestrator mode (delegates work to workers). */
   readonly orchestratorMode?: boolean;
+  /** Summary of active orchestrator workers for TUI display. */
+  readonly orchestratorWorkers?: readonly AgentStatusOrchestratorWorker[];
+}
+
+/** Compact worker summary for the TUI status board. */
+export interface AgentStatusOrchestratorWorker {
+  readonly id: string;
+  readonly description: string;
+  readonly status: 'running' | 'completed' | 'failed';
+  readonly tokenOutput?: number;
 }
 
 export interface SessionMetaUpdatedEvent {
@@ -1478,6 +1488,12 @@ export const agentStatusUpdatedEventSchema = z.object({
   microCompaction: agentStatusMicroCompactionSchema.nullable().optional(),
   autoDream: agentStatusAutoDreamSchema.nullable().optional(),
   orchestratorMode: z.boolean().optional(),
+  orchestratorWorkers: z.array(z.object({
+    id: z.string(),
+    description: z.string(),
+    status: z.enum(['running', 'completed', 'failed']),
+    tokenOutput: z.number().optional(),
+  })).optional(),
 }) satisfies z.ZodType<AgentStatusUpdatedEvent>;
 
 export const sessionMetaUpdatedEventSchema = z.object({

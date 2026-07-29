@@ -1134,6 +1134,14 @@ export class Agent {
       swarmMode: this.swarmMode.isActive,
       premiumQualityMode: this.premiumQuality.isEnabled(),
       orchestratorMode: this.orchestratorMode || undefined,
+      orchestratorWorkers: this.orchestratorMode && this.orchestratorWorkers.size > 0
+        ? [...this.orchestratorWorkers.values()].map((w) => ({
+            id: w.id,
+            description: w.description,
+            status: w.status,
+            tokenOutput: w.tokenUsage?.output,
+          }))
+        : undefined,
       permission: this.permission.mode,
       usage,
       providerRoute,
