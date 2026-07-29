@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'pathe';
-import { KaosFileNotFoundError, type Kaos } from '@superliora/kaos';
+import { type Kaos } from '@superliora/kaos';
 import type { SessionWarning } from '@superliora/protocol';
 
 import { ErrorCodes, LioraError } from '#/errors';
@@ -10,13 +10,7 @@ import type { LioraConfig, SDKSessionRPC } from '#/rpc';
 import { proxyWithExtraPayload } from '#/rpc/types';
 
 import { Agent, type AgentOptions, type AgentType } from '../agent';
-import {
-  createConversationLoop,
-  type ConversationLoopController,
-  type ConversationLoopState,
-  DEFAULT_LOOP_INTERVAL_MS,
-  DEFAULT_LOOP_MAX_ITERATIONS,
-} from '../agent/conversation-loop';
+import { type ConversationLoopState } from '../agent/conversation-loop';
 import { renderPluginSessionStartReminder } from '../agent/injection/plugin-session-start';
 import { HookEngine, type HookDef } from './hooks';
 import type { PermissionManagerOptions, PermissionRule } from '../agent/permission';
@@ -65,6 +59,8 @@ import { abortError } from '../utils/abort';
 import type { SessionMemoryRuntime } from '../memory';
 import type { LioraRecallStore } from '../memory/store';
 import { responseLanguagePreferenceFromUnknown } from './response-language';
+import { SessionMetadataPersistence } from './metadata-persistence';
+import { ConversationLoopManager } from './conversation-loops';
 
 export interface SessionOptions {
   readonly kaos: Kaos;
@@ -189,8 +185,8 @@ export class Session {
   private additionalDirs: readonly string[];
   private agentIdCounter = 0;
   private readonly skillsReady: Promise<void>;
-  private readonly conversationLoops = new Map<string, ConversationLoopController>();
-  private conversationLoopSeq = 0;
+  private readonly metadataPersistence: SessionMetadataPersistence;
+  private readonly conversationLoopManager: ConversationLoopManager;
   metadata: SessionMeta = {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -199,7 +195,6 @@ export class Session {
     agents: {},
     custom: {},
   };
-  private writeMetadataPromise = Promise.resolve();
   private agentsMdWarning: string | undefined;
 
   constructor(public readonly options: SessionOptions) {
@@ -229,6 +224,17 @@ export class Session {
     this.fileSnapshots = new FileSnapshotStore({
       kaos: this.toolKaos,
       snapshotDir: FileSnapshotStore.snapshotDirForSession(options.homedir),
+    });
+    this.metadataPersistence = new SessionMetadataPersistence({
+      sessionHomedir: options.homedir,
+      kaos: this.persistenceKaos,
+      log: this.log,
+    });
+    this.conversationLoopManager = new ConversationLoopManager((prompt) => {
+      const agent = this.getReadyAgent('main');
+      if (agent !== undefined) {
+        agent.turn.prompt([{ type: 'text', text: prompt }]);
+      }
     });
     this.skills = new SessionSkillRegistry({
       sessionId: options.id,
@@ -678,101 +684,18 @@ export class Session {
     return false;
   }
 
-  protected get metadataPath() {
-    return join(this.options.homedir, 'state.json');
-  }
-
-  protected get metadataBackupPath() {
-    return join(this.options.homedir, 'state.json.bak');
-  }
-
-  protected get metadataTempPath() {
-    return join(this.options.homedir, 'state.json.tmp');
-  }
-
   writeMetadata() {
-    const text = JSON.stringify(this.metadata, null, 2);
-    const kaos = this.persistenceKaos;
-    const tmp = this.metadataTempPath;
-    const dest = this.metadataPath;
-    const backup = this.metadataBackupPath;
-    const write = async () => {
-      await kaos.mkdir(this.options.homedir, { parents: true, existOk: true });
-      // Stage the new content in a temp file, then atomically rename it into
-      // place. A crash between writing and renaming leaves `state.json` at
-      // its previous (complete) value rather than truncated mid-write.
-      await kaos.writeText(tmp, text);
-      // Preserve the prior good file as `.bak` so a corrupt future read can
-      // fall back to it. Only rotate when the current target already exists
-      // — the first write in a fresh homedir has nothing to back up.
-      let hadExisting = false;
-      try {
-        await kaos.stat(dest);
-        hadExisting = true;
-      } catch {
-        hadExisting = false;
-      }
-      if (hadExisting) {
-        // Best-effort rotation: if rename-to-backup fails (e.g. a stray
-        // stale backup we can't replace), keep going — the atomic rename
-        // below is what guarantees a consistent target.
-        await kaos.rename(dest, backup).catch(() => {});
-      }
-      await kaos.rename(tmp, dest);
-    };
-    this.writeMetadataPromise = this.writeMetadataPromise.then(write, write);
-    return this.writeMetadataPromise;
+    return this.metadataPersistence.write(this.metadata);
   }
 
   async readMetadata() {
-    const kaos = this.persistenceKaos;
-    const dest = this.metadataPath;
-    const backup = this.metadataBackupPath;
-    const parse = (text: string): SessionMeta => JSON.parse(text) as SessionMeta;
-
-    try {
-      const text = await kaos.readText(dest);
-      this.metadata = parse(text);
-      return this.metadata;
-    } catch (error) {
-      // A truncated/empty `state.json` (crash mid-write) must not abort
-      // resume. Fall back to the rotated backup first; only if that is
-      // also unreadable do we start fresh with the default metadata.
-      // Also try the backup when `state.json` is missing entirely — a crash
-      // after rotating to `.bak` but before renaming the temp file leaves
-      // the backup as the only copy of the prior metadata.
-      const isMissing = isNotFoundError(error);
-      if (isMissing || !isNotFoundError(error)) {
-        try {
-          const backupText = await kaos.readText(backup);
-          this.metadata = parse(backupText);
-          if (!isMissing) {
-            this.log.warn('state.json was corrupt; recovered session metadata from state.json.bak', {
-              error: error instanceof Error ? error.message : String(error),
-            });
-          } else {
-            this.log.warn('state.json missing; recovered session metadata from state.json.bak');
-          }
-          return this.metadata;
-        } catch {
-          // Backup also missing/unreadable — fall through to default below.
-        }
-      }
-      if (!isMissing) {
-        this.log.warn(
-          'state.json and state.json.bak are both unreadable; starting with default session metadata',
-          { error: error instanceof Error ? error.message : String(error) },
-        );
-      }
-      // ENOENT (first run, no backup) or unrecoverable corruption: keep the
-      // default metadata initialized in the constructor.
-      return this.metadata;
-    }
+    this.metadata = await this.metadataPersistence.read(this.metadata);
+    return this.metadata;
   }
 
   async flushMetadata() {
     await this.skillsReady;
-    await this.writeMetadataPromise;
+    await this.metadataPersistence.flush();
     await Promise.all(Array.from(this.readyAgents()).map((agent) => agent.records.flush()));
   }
 
@@ -946,53 +869,19 @@ export class Session {
     maxIterations?: number | undefined;
     expiresAt?: number | undefined;
   }): ConversationLoopState {
-    const prompt = options.prompt.trim();
-    if (prompt.length === 0) {
-      throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'Conversation loop prompt cannot be empty');
-    }
-    const id = `loop-${++this.conversationLoopSeq}`;
-    const controller = createConversationLoop(id, {
-      prompt,
-      intervalMs: options.intervalMs ?? DEFAULT_LOOP_INTERVAL_MS,
-      maxIterations: options.maxIterations ?? DEFAULT_LOOP_MAX_ITERATIONS,
-      expiresAt: options.expiresAt,
-    });
-    this.conversationLoops.set(id, controller);
-    return controller.getState();
+    return this.conversationLoopManager.start(options);
   }
 
   stopConversationLoop(loopId?: string): ConversationLoopState | undefined {
-    if (loopId !== undefined) {
-      const controller = this.conversationLoops.get(loopId);
-      if (controller === undefined) return undefined;
-      return controller.stop('user_stop');
-    }
-    // Stop the most recently created still-active/paused loop.
-    let last: ConversationLoopController | undefined;
-    for (const controller of this.conversationLoops.values()) {
-      const status = controller.getState().status;
-      if (status === 'active' || status === 'paused') last = controller;
-    }
-    return last?.stop('user_stop');
+    return this.conversationLoopManager.stop(loopId);
   }
 
   listConversationLoops(): readonly ConversationLoopState[] {
-    return Array.from(this.conversationLoops.values()).map((c) => c.getState());
+    return this.conversationLoopManager.list();
   }
 
-  /** Evaluate and fire due conversation loops by prompting the main agent. */
   tickConversationLoops(): readonly ConversationLoopState[] {
-    const fired: ConversationLoopState[] = [];
-    for (const controller of this.conversationLoops.values()) {
-      const result = controller.tick();
-      if (!result.shouldFire) continue;
-      const agent = this.getReadyAgent('main');
-      if (agent !== undefined) {
-        agent.turn.prompt([{ type: 'text', text: result.state.config.prompt }]);
-      }
-      fired.push(result.state);
-    }
-    return fired;
+    return this.conversationLoopManager.tick();
   }
 
   private instantiateAgent(
@@ -1172,16 +1061,3 @@ function initCompletionReminder(agentsMd: string): string {
   ].join('\n');
 }
 
-/**
- * Return true iff `error` represents a "file does not exist" failure from
- * either the local Kaos (raw `node:fs` `ENOENT`) or the SSH Kaos
- * (`KaosFileNotFoundError`). Used by {@link Session.readMetadata} to
- * distinguish "first run, no state.json yet" from a corrupt read.
- */
-function isNotFoundError(error: unknown): boolean {
-  if (error instanceof KaosFileNotFoundError) return true;
-  if (error !== null && typeof error === 'object' && 'code' in error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT';
-  }
-  return false;
-}
