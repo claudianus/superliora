@@ -1,24 +1,14 @@
-import { createHash } from 'node:crypto';
-
 import { createControlledPromise, type ControlledPromise } from '@antfu/utils';
 import {
-  APIConnectionError,
   APIContextOverflowError,
-  APIEmptyResponseError,
-  APIStatusError,
-  APITimeoutError,
   grandTotal,
-  inputTotal,
-  isContextOverflowStatusError,
   type ContentPart,
-  type TokenUsage,
 } from '@superliora/kosong';
 import { basename } from 'pathe';
 
 import type { Agent } from '..';
 import {
   ErrorCodes,
-  type LioraErrorPayload,
   isKimiError,
   makeErrorPayload,
   toKimiErrorPayload,
@@ -27,10 +17,8 @@ import { isAbortError, isMaxStepsExceededError } from '../../loop/errors';
 import {
   createLoopEventDispatcher,
   runTurn,
-  type ExecutableToolResult,
   type LoopEvent,
   type LoopRecordedEvent,
-  type LoopTurnInterruptedEvent,
   type LoopTurnStopReason,
   type RecordStepUsageInfo,
 } from '../../loop/index';
@@ -41,15 +29,39 @@ import { abortable, isUserCancellation, userCancellationReason } from '../../uti
 import { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
 import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../../session/hooks';
-import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';
 import { ToolCallDeduplicator } from './tool-dedup';
 import { budgetToolResultForModel } from './tool-result-budget';
-import {
-  isRetryableProviderFailure,
-  resolveProviderRecovery,
-  type ProviderRecoveryState,
-} from '../provider-failover';
+import { isRetryableProviderFailure } from '../provider-failover';
 import { GOAL_NO_PROGRESS_STREAK_K } from '../goal';
+import {
+  TurnTelemetry,
+  classifyApiError,
+  currentTurnInputTokens,
+  toolInputRecord,
+  toolOutputText,
+} from './telemetry';
+import { mapLoopEvent } from './event-handler';
+import {
+  GOAL_PROVIDER_FILTERED_PAUSE_REASON,
+  summarizeTurnError,
+  goalFailurePauseReason,
+  abandonedToolResultOutput,
+  recoverFromProviderFailure,
+} from './error-recovery';
+import {
+  GOAL_CONTINUATION_ORIGIN,
+  GOAL_CONTINUATION_PROMPT,
+  GOAL_BLOCKED_REMINDER_NAME,
+  GOAL_COMPLETION_REMINDER_NAME,
+  buildGoalProgressSignature,
+  isGoalOutcomeReminderOrigin,
+  hasStepBudgetRemaining,
+} from './goal-driver';
+
+export {
+  GOAL_BLOCKED_REMINDER_NAME,
+  GOAL_COMPLETION_REMINDER_NAME,
+};
 
 interface ActiveTurn {
   readonly turnId: number;
@@ -74,57 +86,17 @@ interface PromptHookEndResult {
   readonly blocked: boolean;
 }
 
-const LLM_NOT_SET_MESSAGE = 'LLM not set, run /login or /provider to connect a model';
-
-/** Origin tag for the synthetic "continue" prompt that drives each goal turn. */
-const GOAL_CONTINUATION_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'goal_continuation' };
-import {
-  GOAL_BLOCKED_REMINDER_NAME,
-  GOAL_COMPLETION_REMINDER_NAME,
-} from './reminder-names';
-export {
-  GOAL_BLOCKED_REMINDER_NAME,
-  GOAL_COMPLETION_REMINDER_NAME,
-};
-const GOAL_RATE_LIMIT_PAUSE_REASON = 'Paused after provider rate limit';
-const GOAL_PROVIDER_CONNECTION_PAUSE_PREFIX = 'Paused after provider connection error';
-const GOAL_PROVIDER_AUTH_PAUSE_PREFIX = 'Paused after provider authentication error';
-const GOAL_PROVIDER_API_PAUSE_PREFIX = 'Paused after provider API error';
-const GOAL_MODEL_CONFIG_PAUSE_PREFIX = 'Paused after model configuration error';
-const GOAL_RUNTIME_PAUSE_PREFIX = 'Paused after runtime error';
-const GOAL_PROVIDER_FILTERED_PAUSE_REASON = 'Paused after provider safety policy block';
-
-/**
- * The prompt the goal driver appends to start each continuation turn — the
- * autonomous stand-in for the user typing "continue". The model decides when to
- * stop by calling `UpdateGoal`; otherwise the driver runs another turn.
- */
-const GOAL_CONTINUATION_PROMPT = [
-  'Continue. Pick the next highest-impact action toward the goal and execute it now.',
-  'Use TodoList to track progress — mark items done as you complete them, add new items as work emerges.',
-  'Do not re-explore or re-plan what is already decided; act on the current state.',
-  'Make reasonable decisions autonomously. Do not ask the user unless a decision materially changes direction and cannot be inferred from context.',
-  'Mark `complete` only when all required work is done and validated (tests pass, build clean).',
-  'Mark `blocked` only when a real external condition prevents progress.',
-  'Otherwise keep going.',
-].join(' ');
-
 export class TurnFlow {
   private steerBuffer: BufferedSteer[] = [];
   private turnId = -1;
   private activeTurn: 'resuming' | ActiveTurn | null = null;
-  private readonly toolCallStartedAt = new Map<string, { name: string; startedAt: number }>();
-  private readonly toolCallDupType = new Map<string, 'normal' | 'cross_step'>();
-  private readonly stepToolCallKeys = new Map<number, Set<string>>();
-  private readonly telemetryModeByTurn = new Map<number, 'agent' | 'plan'>();
   /** Suppress leaked `<think>`/`<reasoning>` tags in assistant text deltas. */
   private readonly assistantThinkScrubber = new StreamingThinkScrubber();
-  private readonly currentStepByTurn = new Map<number, number>();
-  private readonly interruptedTelemetryTurnIds = new Set<number>();
-  private readonly stepFailureByTurn = new Map<number, LoopTurnInterruptedEvent>();
-  private currentStep = 0;
+  private readonly turnTelemetry: TurnTelemetry;
 
-  constructor(protected readonly agent: Agent) {}
+  constructor(protected readonly agent: Agent) {
+    this.turnTelemetry = new TurnTelemetry(agent);
+  }
 
   /** Returns the id of the currently active turn, or undefined if no turn is running. */
   currentTurnId(): number | undefined {
@@ -363,7 +335,8 @@ export class TurnFlow {
       // provider failures. Recover here so a mid-run 429 does not silently end
       // the turn when a goal is not yet active.
       if (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
-        end = await this.recoverGoalTurnFromProviderFailure(
+        end = await recoverFromProviderFailure(
+          { agent: this.agent, runOneTurn: (tid, inp, org, sig, sa) => this.runOneTurn(tid, inp, org, sig, sa) },
           firstTurnId,
           input,
           origin,
@@ -433,7 +406,8 @@ export class TurnFlow {
       await this.agent.goal.incrementTurn();
       let end = await this.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
       if (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
-        end = await this.recoverGoalTurnFromProviderFailure(
+        end = await recoverFromProviderFailure(
+          { agent: this.agent, runOneTurn: (tid, inp, org, sig, sa) => this.runOneTurn(tid, inp, org, sig, sa) },
           turnId,
           turnInput,
           turnOrigin,
@@ -505,68 +479,6 @@ export class TurnFlow {
     }
   }
 
-  private async recoverGoalTurnFromProviderFailure(
-    turnId: number,
-    turnInput: readonly ContentPart[],
-    turnOrigin: PromptOrigin,
-    signal: AbortSignal,
-    initialEnd: TurnEndResult,
-  ): Promise<TurnEndResult> {
-    let end = initialEnd;
-    let recoveryState: ProviderRecoveryState = { autoRetryCount: 0, userPrompted: false };
-
-    while (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
-      if (signal.aborted) {
-        return cancelledTurnEndResult(turnId, signal);
-      }
-
-      let outcome;
-      try {
-        outcome = await resolveProviderRecovery(this.agent, {
-          error: end.event.error!,
-          turnId,
-          signal,
-          state: recoveryState,
-        });
-      } catch (error) {
-        // Esc/Ctrl+C during sleepForRetry rejects with AbortError — surface as
-        // a cancelled turn instead of leaving the UI stuck on a recovery wait.
-        if (isAbortError(error) || signal.aborted) {
-          return cancelledTurnEndResult(turnId, signal);
-        }
-        throw error;
-      }
-
-      if (outcome.type === 'pause') {
-        return end;
-      }
-
-      if (outcome.type === 'switch') {
-        this.agent.config.update({ modelAlias: outcome.modelAlias });
-        recoveryState = { ...recoveryState, userPrompted: true };
-      } else if (outcome.type === 'auto_retry') {
-        recoveryState = {
-          ...recoveryState,
-          autoRetryCount: recoveryState.autoRetryCount + 1,
-        };
-      } else if (outcome.type === 'user_retry') {
-        recoveryState = { ...recoveryState, userPrompted: true };
-      }
-
-      end = await this.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
-
-      if (
-        recoveryState.userPrompted &&
-        end.event.reason === 'failed' &&
-        isRetryableProviderFailure(end.event.error)
-      ) {
-        return end;
-      }
-    }
-
-    return end;
-  }
-
   private async markUltraworkInterruptedForTurnEnd(end: TurnEndResult): Promise<void> {
     if (end.event.reason === 'cancelled') {
       await this.agent.ultrawork.markInterrupted({ reason: 'Paused after interruption' });
@@ -615,13 +527,9 @@ export class TurnFlow {
     signal: AbortSignal,
     standalone: boolean,
   ): Promise<TurnEndResult> {
-    this.currentStep = 0;
-    this.stepToolCallKeys.clear();
-    this.toolCallDupType.clear();
     this.assistantThinkScrubber.reset();
-    const telemetryMode = this.telemetryMode();
-    this.telemetryModeByTurn.set(turnId, telemetryMode);
-    this.currentStepByTurn.set(turnId, 0);
+    const telemetryMode = this.turnTelemetry.telemetryMode();
+    this.turnTelemetry.resetForTurn(turnId, telemetryMode);
     this.agent.telemetry.track('turn_started', { mode: telemetryMode });
     this.agent.fullCompaction.resetForTurn();
     this.agent.usage.beginTurn();
@@ -673,7 +581,7 @@ export class TurnFlow {
         });
         ended = { type: 'turn.ended', turnId, reason: 'failed', error: summary, durationMs: Date.now() - startedAt };
         errorEvent = { type: 'error', ...summary };
-        if (this.shouldTrackApiError(turnId)) {
+        if (this.turnTelemetry.shouldTrackApiError(turnId)) {
           const classification = classifyApiError(error, summary);
           const properties: Record<string, TelemetryPropertyValue> = {
             error_type: classification.errorType,
@@ -745,12 +653,9 @@ export class TurnFlow {
     await this.recordTurnMemory(turnId, input, ended.reason);
     this.agent.dream?.maybeSchedule();
     if (ended.reason !== 'completed') {
-      this.trackTurnInterrupted(turnId, this.currentStepByTurn.get(turnId) ?? this.currentStep);
+      this.turnTelemetry.trackTurnInterrupted(turnId, this.turnTelemetry.currentStepForTurn(turnId));
     }
-    this.telemetryModeByTurn.delete(turnId);
-    this.currentStepByTurn.delete(turnId);
-    this.interruptedTelemetryTurnIds.delete(turnId);
-    this.stepFailureByTurn.delete(turnId);
+    this.turnTelemetry.cleanupTurn(turnId);
     return { event: ended, stopReason: completedStopReason, blockedByUserPromptHook };
   }
 
@@ -1012,7 +917,7 @@ export class TurnFlow {
         if (isMaxStepsExceededError(error)) {
           this.agent.log.warn('turn hit max steps', {
             turnId,
-            steps: this.currentStepByTurn.get(turnId) ?? this.currentStep,
+            steps: this.turnTelemetry.currentStepForTurn(turnId),
             limit: isKimiError(error) ? error.details?.['maxSteps'] : undefined,
           });
         } else {
@@ -1058,7 +963,7 @@ export class TurnFlow {
       },
       emitLiveEvent: (event: LoopEvent) => {
         this.noteFirstRequestEvent(event);
-        this.trackLoopTelemetry(event, turnId);
+        this.turnTelemetry.trackLoopTelemetry(event, turnId);
         const mapped = this.mapLiveLoopEvent(event, turnId);
         if (mapped !== undefined) this.agent.emitEvent(mapped);
       },
@@ -1095,420 +1000,4 @@ export class TurnFlow {
         return;
     }
   }
-
-  private trackLoopTelemetry(event: LoopEvent, turnId: number): void {
-    if (event.type === 'step.begin') {
-      this.beginTrackedStep(turnId, event.step);
-      return;
-    }
-    if (event.type === 'turn.interrupted') {
-      if (event.reason === 'error' && event.activeStep !== undefined) {
-        this.stepFailureByTurn.set(turnId, event);
-      }
-      this.trackTurnInterrupted(turnId, interruptedStep(event));
-      return;
-    }
-    this.trackToolLifecycle(event, turnId);
-  }
-
-  private beginTrackedStep(turnId: number, step: number): void {
-    this.currentStepByTurn.set(turnId, step);
-    this.currentStep = step;
-    if (!this.stepToolCallKeys.has(step)) {
-      this.stepToolCallKeys.set(step, new Set());
-    }
-  }
-
-  private trackToolLifecycle(event: LoopEvent, turnId: number): void {
-    if (event.type === 'tool.call') {
-      const dupType = this.trackDuplicateToolCall(turnId, event.step, event.name, event.args);
-      this.toolCallDupType.set(
-        event.toolCallId,
-        dupType === 'cross_step' ? 'cross_step' : 'normal',
-      );
-      this.toolCallStartedAt.set(event.toolCallId, {
-        name: event.name,
-        startedAt: Date.now(),
-      });
-      return;
-    }
-    if (event.type === 'tool.result') {
-      const started = this.toolCallStartedAt.get(event.toolCallId);
-      if (started === undefined) return;
-      this.toolCallStartedAt.delete(event.toolCallId);
-      const dupType = this.toolCallDupType.get(event.toolCallId) ?? 'normal';
-      this.toolCallDupType.delete(event.toolCallId);
-      const outcome = telemetryToolOutcome(event.result);
-      const properties: Record<string, TelemetryPropertyValue> = {
-        tool_name: started.name,
-        outcome,
-        duration_ms: Date.now() - started.startedAt,
-        dup_type: dupType,
-      };
-      const errorType = outcome === 'error' ? telemetryToolErrorType(event.result) : undefined;
-      if (errorType !== undefined) {
-        properties['error_type'] = errorType;
-      }
-      this.agent.telemetry.track('tool_call', properties);
-    }
-  }
-
-  private trackDuplicateToolCall(
-    turnId: number,
-    step: number,
-    toolName: string,
-    args: unknown,
-  ): 'normal' | 'same_step' | 'cross_step' {
-    const argsText = canonicalTelemetryArgs(args);
-    const key = `${toolName}\u0000${argsText}`;
-    const stepKeys = this.stepToolCallKeys.get(step) ?? new Set<string>();
-    this.stepToolCallKeys.set(step, stepKeys);
-
-    let dupType: 'same_step' | 'cross_step' | undefined;
-    if (stepKeys.has(key)) {
-      dupType = 'same_step';
-    } else if (this.hasPriorStepToolCallKey(step, key)) {
-      dupType = 'cross_step';
-    }
-
-    stepKeys.add(key);
-    if (dupType === undefined) return 'normal';
-
-    this.agent.telemetry.track('tool_call_dedup_detected', {
-      turn_id: turnId,
-      step_no: step,
-      tool_name: toolName,
-      dup_type: dupType,
-      args_hash: createHash('sha256').update(argsText).digest('hex').slice(0, 8),
-    });
-    return dupType;
-  }
-
-  private hasPriorStepToolCallKey(step: number, key: string): boolean {
-    for (const [seenStep, keys] of this.stepToolCallKeys) {
-      if (seenStep !== step && keys.has(key)) return true;
-    }
-    return false;
-  }
-
-  private trackTurnInterrupted(turnId: number, atStep: number): void {
-    if (this.interruptedTelemetryTurnIds.has(turnId)) return;
-    this.interruptedTelemetryTurnIds.add(turnId);
-    this.agent.telemetry.track('turn_interrupted', {
-      mode: this.telemetryModeByTurn.get(turnId) ?? this.telemetryMode(),
-      at_step: atStep,
-    });
-  }
-
-  private telemetryMode(): 'agent' | 'plan' {
-    return this.agent.planMode.isActive ? 'plan' : 'agent';
-  }
-
-  private shouldTrackApiError(turnId: number): boolean {
-    const failure = this.stepFailureByTurn.get(turnId);
-    return failure?.reason === 'error' && failure.activeStep !== undefined;
-  }
 }
-
-function isGoalOutcomeReminderOrigin(origin: PromptOrigin | undefined): boolean {
-  return (
-    origin?.kind === 'system_trigger' &&
-    (origin.name === GOAL_COMPLETION_REMINDER_NAME ||
-      origin.name === GOAL_BLOCKED_REMINDER_NAME)
-  );
-}
-
-function hasStepBudgetRemaining(maxSteps: number | undefined, currentStep: number): boolean {
-  return maxSteps === undefined || maxSteps <= 0 || currentStep < maxSteps;
-}
-
-function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined {
-  switch (event.type) {
-    case 'step.begin':
-      return {
-        type: 'turn.step.started',
-        turnId,
-        step: event.step,
-        stepId: event.uuid,
-      };
-    case 'step.end':
-      return {
-        type: 'turn.step.completed',
-        turnId,
-        step: event.step,
-        stepId: event.uuid,
-        usage: event.usage,
-        finishReason: event.finishReason,
-        llmFirstTokenLatencyMs: event.llmFirstTokenLatencyMs,
-        llmStreamDurationMs: event.llmStreamDurationMs,
-        llmRequestBuildMs: event.llmRequestBuildMs,
-        llmServerFirstTokenMs: event.llmServerFirstTokenMs,
-        llmServerDecodeMs: event.llmServerDecodeMs,
-        llmClientConsumeMs: event.llmClientConsumeMs,
-        providerFinishReason: event.providerFinishReason,
-        rawFinishReason: event.rawFinishReason,
-        providerRouteSelection: event.providerRouteSelection,
-      };
-    case 'step.retrying':
-      return {
-        type: 'turn.step.retrying',
-        turnId,
-        step: event.step,
-        stepId: event.stepUuid,
-        failedAttempt: event.failedAttempt,
-        nextAttempt: event.nextAttempt,
-        maxAttempts: event.maxAttempts,
-        delayMs: event.delayMs,
-        errorName: event.errorName,
-        errorMessage: event.errorMessage,
-        statusCode: event.statusCode,
-      };
-    case 'content.part':
-      return undefined;
-    case 'tool.call':
-      return {
-        type: 'tool.call.started',
-        turnId,
-        toolCallId: event.toolCallId,
-        name: event.name,
-        args: event.args,
-        description: event.description,
-        display: event.display,
-      };
-    case 'tool.result':
-      return {
-        type: 'tool.result',
-        turnId,
-        toolCallId: event.toolCallId,
-        output: event.result.output,
-        isError: event.result.isError,
-      };
-    case 'turn.interrupted':
-      if (event.activeStep === undefined) return undefined;
-      return {
-        type: 'turn.step.interrupted',
-        turnId,
-        step: event.activeStep,
-        reason: event.reason,
-        message: event.message,
-        cancelledByUser: event.cancelledByUser,
-      };
-    case 'text.delta':
-      return {
-        type: 'assistant.delta',
-        turnId,
-        delta: event.delta,
-      };
-    case 'thinking.delta':
-      return {
-        type: 'thinking.delta',
-        turnId,
-        delta: event.delta,
-      };
-    case 'tool.call.delta':
-      return {
-        type: 'tool.call.delta',
-        turnId,
-        toolCallId: event.toolCallId,
-        name: event.name,
-        argumentsPart: event.argumentsPart,
-      };
-    case 'tool.progress':
-      return {
-        type: 'tool.progress',
-        turnId,
-        toolCallId: event.toolCallId,
-        update: event.update,
-      };
-  }
-}
-
-function summarizeTurnError(error: unknown, turnId: number): LioraErrorPayload {
-  const payload = toKimiErrorPayload(error);
-  const details = { ...payload.details, turnId };
-
-  // Substitute a friendlier TUI-aware message for model-not-configured.
-  // The raw "Model not set" / "Provider not set" text is not actionable;
-  // this string points the user at the login flow.
-  if (payload.code === 'model.not_configured') {
-    return { ...payload, message: LLM_NOT_SET_MESSAGE, details };
-  }
-
-  return { ...payload, details };
-}
-
-function goalFailurePauseReason(error: LioraErrorPayload | undefined): string {
-  if (error?.code === ErrorCodes.PROVIDER_RATE_LIMIT) return GOAL_RATE_LIMIT_PAUSE_REASON;
-  if (error?.code === ErrorCodes.PROVIDER_CONNECTION_ERROR) {
-    return pauseReasonWithMessage(GOAL_PROVIDER_CONNECTION_PAUSE_PREFIX, error.message);
-  }
-  if (error?.code === ErrorCodes.PROVIDER_AUTH_ERROR) {
-    return pauseReasonWithMessage(GOAL_PROVIDER_AUTH_PAUSE_PREFIX, error.message);
-  }
-  if (error?.code === ErrorCodes.PROVIDER_API_ERROR) {
-    return pauseReasonWithMessage(GOAL_PROVIDER_API_PAUSE_PREFIX, error.message);
-  }
-  if (
-    error?.code === ErrorCodes.MODEL_NOT_CONFIGURED ||
-    error?.code === ErrorCodes.MODEL_CONFIG_INVALID
-  ) {
-    return pauseReasonWithMessage(GOAL_MODEL_CONFIG_PAUSE_PREFIX, error.message);
-  }
-  return pauseReasonWithMessage(GOAL_RUNTIME_PAUSE_PREFIX, error?.message);
-}
-
-function pauseReasonWithMessage(prefix: string, message: string | undefined): string {
-  return message === undefined || message.length === 0 ? prefix : `${prefix}: ${message}`;
-}
-
-function toolInputRecord(args: unknown): Record<string, unknown> {
-  return isPlainRecord(args) ? args : {};
-}
-
-function toolOutputText(output: ExecutableToolResult['output']): string {
-  if (typeof output === 'string') return output;
-  return output
-    .filter((part): part is Extract<(typeof output)[number], { type: 'text' }> => {
-      return typeof part === 'object' && part !== null && part.type === 'text';
-    })
-    .map((part) => part.text)
-    .join('');
-}
-
-
-function cancelledTurnEndResult(turnId: number, signal: AbortSignal): TurnEndResult {
-  return {
-    event: {
-      type: 'turn.ended',
-      turnId,
-      reason: 'cancelled',
-      durationMs: 0,
-      cancelledByUser: isUserCancellation(signal.reason),
-    },
-  };
-}
-
-function interruptedStep(event: LoopTurnInterruptedEvent): number {
-  const step = event.activeStep ?? event.attemptedSteps;
-  return Object.is(step, -0) ? 0 : step;
-}
-
-interface ApiErrorClassification {
-  readonly errorType: string;
-  readonly statusCode?: number;
-}
-
-function classifyApiError(error: unknown, summary: LioraErrorPayload): ApiErrorClassification {
-  const statusCode = apiStatusCode(error) ?? summaryStatusCode(summary);
-  if (statusCode !== undefined) {
-    if (statusCode === 429) return { errorType: 'rate_limit', statusCode };
-    if (statusCode === 401 || statusCode === 403) return { errorType: 'auth', statusCode };
-    if (statusCode >= 500) return { errorType: '5xx_server', statusCode };
-    if (isContextOverflowStatusError(statusCode, summary.message)) {
-      return { errorType: 'context_overflow', statusCode };
-    }
-    if (statusCode >= 400) return { errorType: '4xx_client', statusCode };
-    return { errorType: 'api', statusCode };
-  }
-
-  if (summary.code === ErrorCodes.PROVIDER_RATE_LIMIT) return { errorType: 'rate_limit' };
-  if (summary.code === ErrorCodes.PROVIDER_AUTH_ERROR) return { errorType: 'auth' };
-  if (summary.code === ErrorCodes.CONTEXT_OVERFLOW) return { errorType: 'context_overflow' };
-  if (isApiConnectionError(error, summary)) return { errorType: 'network' };
-  if (isApiTimeoutError(error, summary)) return { errorType: 'timeout' };
-  if (isApiEmptyResponseError(error, summary)) return { errorType: 'empty_response' };
-  return { errorType: 'other' };
-}
-
-function apiStatusCode(error: unknown): number | undefined {
-  if (error instanceof APIStatusError) {
-    const statusCode = (error as { readonly statusCode?: unknown }).statusCode;
-    return typeof statusCode === 'number' ? statusCode : undefined;
-  }
-  if (typeof error !== 'object' || error === null) return undefined;
-  const statusCode = (error as { readonly statusCode?: unknown }).statusCode;
-  if (typeof statusCode === 'number') return statusCode;
-  const status = (error as { readonly status?: unknown }).status;
-  return typeof status === 'number' ? status : undefined;
-}
-
-function summaryStatusCode(summary: LioraErrorPayload): number | undefined {
-  const statusCode = summary.details?.['statusCode'];
-  return typeof statusCode === 'number' ? statusCode : undefined;
-}
-
-function isApiConnectionError(error: unknown, summary: LioraErrorPayload): boolean {
-  return error instanceof APIConnectionError || summary.name === 'APIConnectionError';
-}
-
-function isApiTimeoutError(error: unknown, summary: LioraErrorPayload): boolean {
-  return (
-    error instanceof APITimeoutError ||
-    summary.name === 'APITimeoutError' ||
-    summary.name === 'TimeoutError'
-  );
-}
-
-function isApiEmptyResponseError(error: unknown, summary: LioraErrorPayload): boolean {
-  return error instanceof APIEmptyResponseError || summary.name === 'APIEmptyResponseError';
-}
-
-function currentTurnInputTokens(usage: TokenUsage | undefined): number | undefined {
-  if (usage === undefined) return undefined;
-  return inputTotal(usage);
-}
-
-type ToolTelemetryResult = Extract<LoopEvent, { type: 'tool.result' }>['result'];
-
-function telemetryToolOutcome(result: ToolTelemetryResult): 'success' | 'error' | 'cancelled' {
-  if (result.isError !== true) return 'success';
-  const text = toolResultText(result).toLowerCase();
-  return text.includes('aborted') ||
-    text.includes('cancelled') ||
-    text.includes('manually interrupted')
-    ? 'cancelled'
-    : 'error';
-}
-
-function telemetryToolErrorType(result: ToolTelemetryResult): string {
-  const text = toolResultText(result);
-  if (text.startsWith('Tool "') && text.includes('" not found')) return 'ToolNotFound';
-  if (text.startsWith('Invalid args for tool "')) return 'ToolInputError';
-  if (text.includes('prepareToolExecution hook failed')) return 'HookError';
-  if (text.includes('finalizeToolResult hook failed')) return 'HookError';
-  if (text.includes('blocked')) return 'ToolBlocked';
-  return 'ToolError';
-}
-
-function toolResultText(result: ToolTelemetryResult): string {
-  return toolOutputText(result.output);
-}
-
-function abandonedToolResultOutput(ended: TurnEndedEvent): string {
-  const cause =
-    ended.reason === 'cancelled'
-      ? 'the turn was cancelled'
-      : ended.reason === 'failed'
-        ? `the turn failed${ended.error !== undefined ? ` (${ended.error.message})` : ''}`
-        : 'the turn ended';
-  return `Tool call did not complete: ${cause} before its result was recorded. Do not assume the tool completed successfully.`;
-}
-
-function buildGoalProgressSignature(agent: Agent): string {
-  const goal = agent.goal.getGoal().goal;
-  const run = agent.ultrawork?.getRun() ?? null;
-  const parts: string[] = [
-    `goal:${goal?.goalId ?? 'none'}:${goal?.status ?? 'none'}:${goal?.turnsUsed ?? 0}`,
-  ];
-  if (run === null || run.workGraph === undefined) {
-    parts.push('uw:none');
-    return parts.join('|');
-  }
-  const nodes = run.workGraph.nodes;
-  const open = nodes.filter((n) => n.status !== 'done' && n.status !== 'failed').map((n) => n.id);
-  const done = nodes.filter((n) => n.status === 'done').length;
-  const evidence = nodes.reduce((acc, n) => acc + (n.evidenceIds?.length ?? 0), 0);
-  parts.push(`uw:${run.id}:${run.status}:done=${done}:open=${open.slice(0, 12).join(',')}:ev=${evidence}`);
-  return parts.join('|');
-}
-
