@@ -307,6 +307,9 @@ export interface CancelPayload {
 export interface SetPremiumQualityPayload {
   readonly enabled: boolean;
 }
+export interface SetOrchestratorModePayload {
+  readonly enabled: boolean;
+}
 export interface SetThinkingPayload {
   readonly level: string;
 }
@@ -668,6 +671,8 @@ export interface AgentAPI {
   getSwarmMode: (payload: EmptyPayload) => boolean;
   setPremiumQuality: (payload: SetPremiumQualityPayload) => void;
   getPremiumQuality: (payload: EmptyPayload) => boolean;
+  setOrchestratorMode: (payload: SetOrchestratorModePayload) => void;
+  getOrchestratorMode: (payload: EmptyPayload) => boolean;
   beginCompaction: (payload: BeginCompactionPayload) => void;
   cancelCompaction: (payload: EmptyPayload) => void;
   registerTool: (payload: RegisterToolPayload) => void;

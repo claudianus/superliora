@@ -42,6 +42,7 @@ import type {
   SetModelPayload,
   SetPermissionPayload,
   SetPremiumQualityPayload,
+  SetOrchestratorModePayload,
   SetThinkingPayload,
   SkillSummary,
   SkillSearchResult,
@@ -265,6 +266,14 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async getPremiumQuality({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).getPremiumQuality(payload);
+  }
+
+  async setOrchestratorMode({ agentId, ...payload }: AgentScopedPayload<SetOrchestratorModePayload>) {
+    return (await this.getAgent(agentId)).setOrchestratorMode(payload);
+  }
+
+  async getOrchestratorMode({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getOrchestratorMode(payload);
   }
 
   async beginCompaction({ agentId, ...payload }: AgentScopedPayload<BeginCompactionPayload>) {

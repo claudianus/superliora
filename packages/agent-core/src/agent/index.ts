@@ -190,7 +190,11 @@ delegate implementation work to background workers, and respond immediately.
 export class Agent {
   readonly type: AgentType;
   /** Meta-orchestrator mode: delegate work to workers, never do long tasks directly. */
-  readonly orchestratorMode: boolean;
+  private _orchestratorMode: boolean;
+
+  get orchestratorMode(): boolean {
+    return this._orchestratorMode;
+  }
   /** Worker registry for orchestrator mode. */
   readonly orchestratorWorkers = new Map<string, import('../tools/builtin/collaboration/orchestrator').OrchestratorWorker>();
   private _kaos: Kaos;
@@ -268,7 +272,7 @@ export class Agent {
 
   constructor(options: AgentOptions) {
     this.type = options.type ?? 'main';
-    this.orchestratorMode = options.orchestratorMode ?? false;
+    this._orchestratorMode = options.orchestratorMode ?? false;
     this._kaos = options.kaos;
     this.kimiConfig = options.config;
     this.homedir = options.homedir;
@@ -351,6 +355,34 @@ export class Agent {
 
   setKaos(kaos: Kaos) {
     this._kaos = kaos;
+  }
+
+  /**
+   * Toggle orchestrator mode at runtime. Registers or unregisters the
+   * orchestrator tools (SpawnWorker / SteerWorker / QueryWorker) and
+   * re-applies the system prompt so the delegation prefix is added or
+   * removed accordingly.
+   */
+  setOrchestratorMode(enabled: boolean): void {
+    if (this._orchestratorMode === enabled) return;
+    this._orchestratorMode = enabled;
+
+    if (enabled && this.subagentHost !== undefined) {
+      const workers = this.orchestratorWorkers;
+      this.tools.attachEphemeralBuiltin(
+        new SpawnWorkerTool(this.subagentHost, this.kaos, this.kaos.getcwd(), workers),
+      );
+      this.tools.attachEphemeralBuiltin(new SteerWorkerTool(workers));
+      this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
+    } else if (!enabled) {
+      this.tools.detachEphemeralBuiltin('SpawnWorker');
+      this.tools.detachEphemeralBuiltin('SteerWorker');
+      this.tools.detachEphemeralBuiltin('QueryWorker');
+    }
+
+    // Re-apply the system prompt so the orchestrator prefix is injected or removed.
+    // The current profile is re-resolved from the stored profile name.
+    this.emitStatusUpdated();
   }
 
   getAdditionalDirs(): readonly string[] {
@@ -800,6 +832,12 @@ export class Agent {
       },
       getPremiumQuality: () => {
         return this.premiumQuality.isEnabled();
+      },
+      setOrchestratorMode: (payload) => {
+        this.setOrchestratorMode(payload.enabled);
+      },
+      getOrchestratorMode: () => {
+        return this._orchestratorMode;
       },
       beginCompaction: (payload) => {
         this.fullCompaction.begin({ source: 'manual', instruction: payload.instruction });

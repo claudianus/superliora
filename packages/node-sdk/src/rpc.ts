@@ -126,6 +126,10 @@ export interface SetSessionPremiumQualityRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
 }
 
+export interface SetSessionOrchestratorModeRpcInput extends SessionIdRpcInput {
+  readonly enabled: boolean;
+}
+
 export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
   readonly ultra?: boolean;
@@ -482,6 +486,15 @@ export abstract class SDKRpcClientBase {
   async setPremiumQuality(input: SetSessionPremiumQualityRpcInput): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.setPremiumQuality({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      enabled: input.enabled,
+    });
+  }
+
+  async setOrchestratorMode(input: SetSessionOrchestratorModeRpcInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.setOrchestratorMode({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       enabled: input.enabled,

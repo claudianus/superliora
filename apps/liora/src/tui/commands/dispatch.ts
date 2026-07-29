@@ -80,6 +80,7 @@ import {
 } from './session';
 import { showSearch } from './search';
 import { handleSwarmCommand } from './swarm';
+import { handleOrchestratorCommand } from './orchestrator';
 import { showTerm } from './term';
 import {
   handleUltraGoalCommand,
@@ -499,6 +500,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'swarm':
       await handleSwarmCommand(host, args);
+      return;
+    case 'orchestrator':
+      await handleOrchestratorCommand(host, args);
       return;
     case 'ultrawork':
       await handleUltraworkCommand(host, args);

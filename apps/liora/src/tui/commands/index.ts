@@ -37,6 +37,7 @@ export {
   showHarnessEyesReadiness,
 } from './config';
 export { handleSwarmCommand } from './swarm';
+export { handleOrchestratorCommand } from './orchestrator';
 export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 export {

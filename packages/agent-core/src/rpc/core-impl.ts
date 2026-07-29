@@ -158,6 +158,7 @@ import type {
   SetPluginEnabledPayload,
   SetPluginMcpServerEnabledPayload,
   SetPremiumQualityPayload,
+  SetOrchestratorModePayload,
   SetThinkingPayload,
   SkillSearchResult,
   SkillSummary,
@@ -945,6 +946,14 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
   getPremiumQuality({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
     return this.sessionApi(sessionId).getPremiumQuality(payload);
+  }
+
+  setOrchestratorMode({ sessionId, ...payload }: SessionAgentPayload<SetOrchestratorModePayload>) {
+    return this.sessionApi(sessionId).setOrchestratorMode(payload);
+  }
+
+  getOrchestratorMode({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+    return this.sessionApi(sessionId).getOrchestratorMode(payload);
   }
 
   beginCompaction({ sessionId, ...payload }: SessionAgentPayload<BeginCompactionPayload>) {
