@@ -1,21 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { createBrowserUseRuntime, CuaComputerRuntime } from '@superliora/gui-use';
-import { join } from 'pathe';
 
 import { ErrorCodes, LioraError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
 import { PluginManager } from '#/plugin';
-import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
-import { LocalWebSearchProvider } from '#/tools/providers/local-web-search';
-import { MoonshotFetchURLProvider } from '#/tools/providers/moonshot-fetch-url';
-import { ResearchSearchEngine } from '#/tools/providers/research-search';
-import {
-  PreferXaiGrokWebSearchProvider,
-  XaiGrokBuildClient,
-  XaiGrokWebSearchProvider,
-  createXaiGrokBuildClientFromEnv,
-} from '#/tools/providers/xai-grok-build';
+
 import {
   createContext7Provider,
   isContext7Enabled,
@@ -24,11 +12,7 @@ import {
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
 import { resolveThinkingLevel } from '../agent/config/thinking';
-import { Agent } from '../agent';
-import {
-  limitReplayRecordsByTurn,
-  RESUME_REPLAY_TURN_LIMIT,
-} from '../agent/replay';
+
 import {
   ensureLioraHome,
   loadRuntimeConfigSafe,
@@ -42,7 +26,6 @@ import {
   writeConfigFile,
   type LioraConfig,
   type McpServerConfig,
-  type MoonshotServiceConfig,
 } from '../config';
 import {
   FLAG_DEFINITIONS,
@@ -60,17 +43,16 @@ import {
 import { exportSessionDirectory } from '../session/export';
 import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktree';
 import {
-  ProviderManager, type BearerTokenProvider,
+  ProviderManager,
   type OAuthTokenProviderResolver
 } from '../session/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
-import { normalizeWorkDir, SessionStore } from '../session/store/index';
+import { SessionStore } from '../session/store/index';
 import {
   noopTelemetryClient,
   withTelemetryContext,
   withTelemetryProperties,
   type TelemetryClient,
-  type TelemetryProperties,
 } from '../telemetry';
 import type { CoreRPCClient } from './client';
 import type {
@@ -173,20 +155,25 @@ import type {
   UnregisterToolPayload,
   UpdateSessionMetadataPayload,
 } from './core-api';
-import type { ResumedAgentState, ResumeSessionResult } from './resumed';
+import type { ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
 import {
   SUPERLIORA_PROVIDER_NAME,
-  XAI_PROFILE,
-  isXaiGrokBuildBaseUrl,
-  resolveXaiGrokRoute,
-  xaiGrokBuildRequestHeaders,
-  xaiGrokRouteConfig,
 } from '@superliora/oauth';
 import type { SessionWarning } from '@superliora/protocol';
 import { proxyWithExtraPayload } from './types';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';
+import { createRuntimeConfig, hasStatefulGuiRuntime } from './runtime-factory';
+import {
+  clientTelemetryProperties,
+  createSessionId,
+  requiredWorkDir,
+  resumeSessionResult,
+  telemetryErrorReason,
+  warnIfLogFlushFails,
+  withAdditionalDirs,
+} from './session-helpers';
 
 const SUPERLIORA_BASE_URL_ENV = 'SUPERLIORA_BASE_URL';
 const SUPERLIORA_OAUTH_HOST_ENV = 'SUPERLIORA_OAUTH_HOST';
@@ -1533,288 +1520,4 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       }
     }
   }
-}
-
-async function createRuntimeConfig(input: {
-  readonly config: LioraConfig;
-  readonly homeDir?: string | undefined;
-  readonly kimiRequestHeaders?: Record<string, string> | undefined;
-  readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
-}): Promise<ToolServices> {
-  const localFetcher = new LocalFetchURLProvider();
-  const localSearch = input.config.research?.localSearch;
-  const localOptions = {
-    urlFetcher: localFetcher,
-    concurrency: localSearch?.concurrency,
-    timeoutMs: localSearch?.timeoutMs,
-    searxngUrl: localSearch?.searxngUrl,
-    yacyUrl: localSearch?.yacyUrl,
-    directSources: localSearch?.directSources,
-    offlineMode: localSearch?.offlineMode,
-    cachePath:
-      input.homeDir === undefined
-        ? undefined
-        : join(input.homeDir, 'research', 'local-search.sqlite'),
-  };
-  const localSearcher =
-    localSearch?.enabled === false ? undefined : new LocalWebSearchProvider(localOptions);
-  const searchService = input.config.services?.moonshotSearch;
-  const fetchService = input.config.services?.moonshotFetch;
-  const moonshotCreds =
-    searchService === undefined
-      ? undefined
-      : serviceCredentials(searchService, input.resolveOAuthTokenProvider);
-  const researchSearcher =
-    localSearch?.enabled === false
-      ? undefined
-      : new ResearchSearchEngine({
-          search: input.config.research?.search,
-          local: localOptions,
-          urlFetcher: localFetcher,
-          moonshot:
-            searchService?.baseUrl === undefined
-              ? undefined
-              : {
-                  baseUrl: searchService.baseUrl,
-                  apiKey: moonshotCreds?.apiKey,
-                  defaultHeaders: input.kimiRequestHeaders,
-                  customHeaders: searchService.customHeaders,
-                  tokenProvider: moonshotCreds?.tokenProvider,
-                },
-        });
-
-  const xaiGrokBuild = resolveXaiGrokBuildClient(
-    input.config,
-    input.resolveOAuthTokenProvider,
-  );
-  const xaiWebSearcher =
-    xaiGrokBuild === undefined ? undefined : new XaiGrokWebSearchProvider(xaiGrokBuild);
-  const fallbackSearcher = researchSearcher ?? localSearcher;
-  const webSearcher =
-    xaiWebSearcher === undefined
-      ? fallbackSearcher
-      : fallbackSearcher === undefined
-        ? xaiWebSearcher
-        : new PreferXaiGrokWebSearchProvider(xaiWebSearcher, fallbackSearcher);
-
-  return {
-    urlFetcher:
-      fetchService?.baseUrl === undefined
-        ? localFetcher
-        : new MoonshotFetchURLProvider({
-            baseUrl: fetchService.baseUrl,
-            localFallback: localFetcher,
-            defaultHeaders: input.kimiRequestHeaders,
-            ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
-          }),
-    webSearcher,
-    xaiGrokBuild,
-    browserUse:
-      input.config.browserUse?.enabled === false
-        ? undefined
-        : createBrowserUseRuntime({
-            provider: input.config.browserUse?.provider,
-            fallbackProvider: input.config.browserUse?.fallbackProvider,
-            fallbackEnabled: input.config.browserUse?.fallbackEnabled,
-            autoInstall: input.config.browserUse?.autoInstall,
-            autoUpdate: input.config.browserUse?.autoUpdate,
-            cacheDir: input.config.browserUse?.cacheDir,
-            binaryPath: input.config.browserUse?.binaryPath,
-            version: input.config.browserUse?.version,
-            licenseKeyEnv: input.config.browserUse?.licenseKeyEnv,
-            host: input.config.browserUse?.host,
-            port: input.config.browserUse?.port,
-            obeyRobots: input.config.browserUse?.obeyRobots,
-            disableHostVerification: input.config.browserUse?.disableHostVerification,
-          }),
-    computerUse:
-      input.config.computerUse?.enabled === false
-        ? undefined
-        : new CuaComputerRuntime({
-            autoInstall: input.config.computerUse?.autoInstall,
-            driverCmd: input.config.computerUse?.driverCmd,
-          }),
-  };
-}
-
-function hasStatefulGuiRuntime(config: LioraConfig): boolean {
-  return config.browserUse?.enabled !== false || config.computerUse?.enabled !== false;
-}
-
-
-function resolveXaiGrokBuildClient(
-  config: LioraConfig,
-  resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
-): XaiGrokBuildClient | undefined {
-  const provider =
-    config.providers['xai-grok'] ??
-    config.providers[XAI_PROFILE.id] ??
-    undefined;
-
-  const envKey = nonEmptyString(process.env['XAI_API_KEY']);
-  const configKey = provider === undefined ? undefined : nonEmptyString(provider.apiKey);
-  const apiKey = configKey ?? envKey;
-
-  const oauthRef =
-    provider?.oauth ??
-    (provider?.oauths !== undefined && provider.oauths.length > 0
-      ? provider.oauths[0]
-      : undefined);
-  const tokenProvider =
-    oauthRef === undefined
-      ? undefined
-      : resolveOAuthTokenProvider?.('xai-grok', oauthRef) ??
-        resolveOAuthTokenProvider?.(XAI_PROFILE.id, oauthRef);
-
-  if (apiKey === undefined && tokenProvider === undefined) {
-    // Still allow env-only client construction for CI/scripts.
-    return createXaiGrokBuildClientFromEnv();
-  }
-
-  const configuredBaseUrl =
-    nonEmptyString(provider?.baseUrl) ?? nonEmptyString(process.env['XAI_BASE_URL']);
-  const routeKind = resolveXaiGrokRoute(configuredBaseUrl);
-  const route = xaiGrokRouteConfig(routeKind);
-  const baseUrl = configuredBaseUrl ?? route.baseUrl;
-  const customHeaders = {
-    ...provider?.customHeaders,
-    ...route.customHeaders,
-    ...(isXaiGrokBuildBaseUrl(baseUrl) ? xaiGrokBuildRequestHeaders() : {}),
-  };
-
-  return new XaiGrokBuildClient({
-    baseUrl,
-    apiKey,
-    tokenProvider,
-    customHeaders,
-  });
-}
-
-function serviceCredentials(
-  service: MoonshotServiceConfig,
-  resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
-): {
-  readonly apiKey?: string | undefined;
-  readonly tokenProvider?: BearerTokenProvider | undefined;
-  readonly customHeaders?: Record<string, string> | undefined;
-} {
-  const apiKey = nonEmptyString(service.apiKey);
-  return {
-    apiKey,
-    tokenProvider:
-      service.oauth !== undefined
-        ? resolveOAuthTokenProvider?.(SUPERLIORA_PROVIDER_NAME, service.oauth)
-        : undefined,
-    customHeaders: service.customHeaders,
-  };
-}
-
-function nonEmptyString(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
-}
-
-function requiredWorkDir(operation: string, value: string): string {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new LioraError(ErrorCodes.REQUEST_WORK_DIR_REQUIRED, `${operation} requires workDir`);
-  }
-  return normalizeWorkDir(value);
-}
-
-function createSessionId(): string {
-  return `session_${randomUUID()}`;
-}
-
-function withAdditionalDirs<T>(
-  result: T,
-  session: Session,
-): T & { readonly additionalDirs: readonly string[] } {
-  return {
-    ...result,
-    additionalDirs: session.getAdditionalDirs(),
-  };
-}
-
-function telemetryErrorReason(error: unknown): string {
-  if (error instanceof LioraError) return error.code;
-  if (error instanceof Error && error.name.length > 0) return error.name;
-  return typeof error;
-}
-
-function clientTelemetryProperties(client: ClientTelemetryInfo | undefined): TelemetryProperties {
-  if (client === undefined) return {};
-  return {
-    client_id: client.id ?? null,
-    client_name: client.name ?? null,
-    client_version: client.version ?? null,
-    ui_mode: client.uiMode ?? null,
-  };
-}
-
-async function resumeSessionResult(
-  summary: SessionSummary,
-  session: Session,
-  warning?: string,
-): Promise<ResumeSessionResult> {
-  const api = new SessionAPIImpl(session);
-  const agents: Record<string, ResumedAgentState> = {};
-  for (const [agentId, entry] of session.agents) {
-    if (!(entry instanceof Agent)) continue;
-    const agent = entry;
-    const config = await api.getConfig({ agentId });
-    const context = await api.getContext({ agentId });
-    const permission = await api.getPermission({ agentId });
-    const plan = await api.getPlan({ agentId });
-    const swarmMode = await api.getSwarmMode({ agentId });
-    const usage = await api.getUsage({ agentId });
-    const replay = limitReplayRecordsByTurn(
-      agent.replayBuilder.buildResult(),
-      RESUME_REPLAY_TURN_LIMIT,
-    );
-    // Cap the in-memory builder to the payload window without aliasing the
-    // returned array (keepOnly must not clear the payload view).
-    agent.replayBuilder.keepOnly(replay);
-    agents[agentId] = {
-      type: agent.type,
-      config,
-      context,
-      replay,
-      permission,
-      plan,
-      swarmMode,
-      usage,
-      tools: await api.getTools({ agentId }),
-      toolStore: agent.tools.storeData(),
-      background: agent.background.list(false),
-      ultrawork: {
-        modeEnabled: agent.ultrawork.isModeEnabled(),
-        run: agent.ultrawork.getRun(),
-      },
-    };
-  }
-  return withAdditionalDirs(
-    {
-      ...summary,
-      sessionMetadata: api.getSessionMetadata({}),
-      agents,
-      warning,
-    },
-    session,
-  );
-}
-
-async function warnIfLogFlushFails(
-  exportLog: Logger,
-  message: string,
-  flush: () => Promise<boolean>,
-): Promise<void> {
-  try {
-    if (await flush()) return;
-    exportLog.warn(message);
-  } catch (error) {
-    exportLog.warn(message, { error });
-  }
-  try {
-    await flush();
-  } catch {}
 }
