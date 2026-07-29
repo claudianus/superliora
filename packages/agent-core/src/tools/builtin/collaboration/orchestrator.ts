@@ -42,6 +42,8 @@ export interface OrchestratorWorker {
   readonly createdAt: number;
   result?: string;
   handle?: SubagentHandle;
+  /** Queued follow-up tasks to execute after the current one completes. */
+  taskQueue: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +123,7 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
       status: 'running',
       createdAt: Date.now(),
       handle,
+      taskQueue: [],
     };
     this.workers.set(workerId, worker);
 
@@ -273,5 +276,55 @@ export class QueryWorkerTool implements BuiltinTool<QueryWorkerInput> {
     });
 
     return { output: `Workers (${String(this.workers.size)}):\n${lines.join('\n')}` };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// EnqueueWorkerTaskTool
+// ---------------------------------------------------------------------------
+
+const EnqueueWorkerTaskInputSchema = z.object({
+  workerId: z.string().describe('The worker to enqueue the task for.'),
+  task: z.string().describe('The task prompt to queue. It will run after the current task completes.'),
+});
+
+type EnqueueWorkerTaskInput = z.infer<typeof EnqueueWorkerTaskInputSchema>;
+
+export class EnqueueWorkerTaskTool implements BuiltinTool<EnqueueWorkerTaskInput> {
+  readonly name = 'EnqueueWorkerTask';
+  readonly description =
+    'Queue a follow-up task for a worker. When the worker finishes its current task, ' +
+    'the queued task is automatically spawned as a new worker in the same worktree. ' +
+    'Use this for sequential "do X, then Y" workflows.';
+  readonly parameters: Record<string, unknown> = toInputJsonSchema(EnqueueWorkerTaskInputSchema);
+
+  constructor(private readonly workers: Map<string, OrchestratorWorker>) {}
+
+  async resolveExecution(args: EnqueueWorkerTaskInput): Promise<ToolExecution> {
+    return {
+      description: `Enqueue task for ${args.workerId}`,
+      accesses: ToolAccesses.none(),
+      approvalRule: this.name,
+      execute: () => this.execution(args),
+    };
+  }
+
+  private async execution(args: EnqueueWorkerTaskInput): Promise<ExecutableToolResult> {
+    const worker = this.workers.get(args.workerId);
+
+    if (worker === undefined) {
+      return {
+        output: `Worker "${args.workerId}" not found. Use QueryWorker to list active workers.`,
+        isError: true,
+      };
+    }
+
+    worker.taskQueue.push(args.task);
+    const position = worker.taskQueue.length;
+
+    return {
+      output: `Task queued for ${args.workerId} (position ${String(position)}). ` +
+        `It will run after the current task and ${String(position - 1)} queued task(s) complete.`,
+    };
   }
 }

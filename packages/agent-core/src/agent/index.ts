@@ -29,6 +29,7 @@ import { estimateTokens } from '../utils/tokens';
 
 import type { McpConnectionManager } from '../mcp';
 import {
+  EnqueueWorkerTaskTool,
   QueryWorkerTool,
   SpawnWorkerTool,
   SteerWorkerTool,
@@ -368,6 +369,7 @@ export class Agent {
       this.tools.detachEphemeralBuiltin('SpawnWorker');
       this.tools.detachEphemeralBuiltin('SteerWorker');
       this.tools.detachEphemeralBuiltin('QueryWorker');
+      this.tools.detachEphemeralBuiltin('EnqueueWorkerTask');
     }
 
     this.emitStatusUpdated();
@@ -382,11 +384,30 @@ export class Agent {
           `Orchestrator worker ${worker.id} (${worker.description}) ${worker.status}` +
             (worker.result !== undefined ? `: ${worker.result.slice(0, 200)}` : ''),
         );
+        // Auto-spawn the next queued task if any.
+        const nextTask = worker.taskQueue.shift();
+        if (nextTask !== undefined && worker.status === 'completed') {
+          log.info(`Orchestrator auto-spawning queued task for ${worker.id}`);
+          const spawner = new SpawnWorkerTool(host, this.kaos, this.kaos.getcwd(), workers);
+          void spawner.resolveExecution({
+            prompt: nextTask,
+            description: `${worker.description} (follow-up)`,
+          }).then((execution) => {
+            if ('execute' in execution) {
+              return execution.execute({
+                turnId: '0',
+                toolCallId: `queue-${worker.id}-${Date.now()}`,
+                signal: new AbortController().signal,
+              });
+            }
+          });
+        }
         this.emitStatusUpdated();
       }),
     );
     this.tools.attachEphemeralBuiltin(new SteerWorkerTool(host, workers));
     this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
+    this.tools.attachEphemeralBuiltin(new EnqueueWorkerTaskTool(workers));
   }
 
   getAdditionalDirs(): readonly string[] {
