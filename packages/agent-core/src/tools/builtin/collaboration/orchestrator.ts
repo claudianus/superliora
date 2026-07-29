@@ -70,6 +70,7 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
     private readonly kaos: Kaos,
     private readonly repoPath: string,
     private readonly workers: Map<string, OrchestratorWorker>,
+    private readonly onWorkerComplete?: (worker: OrchestratorWorker) => void,
   ) {}
 
   async resolveExecution(args: SpawnWorkerInput): Promise<ToolExecution> {
@@ -127,8 +128,10 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
     void handle.completion.then((completion) => {
       worker.status = 'completed';
       worker.result = completion.result;
+      this.onWorkerComplete?.(worker);
     }).catch(() => {
       worker.status = 'failed';
+      this.onWorkerComplete?.(worker);
     });
 
     const parts = [

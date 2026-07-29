@@ -344,12 +344,7 @@ export class Agent {
 
     // Register orchestrator tools when in orchestrator mode.
     if (this.orchestratorMode && options.subagentHost !== undefined) {
-      const workers = this.orchestratorWorkers;
-      this.tools.attachEphemeralBuiltin(
-        new SpawnWorkerTool(options.subagentHost, this.kaos, this.kaos.getcwd(), workers),
-      );
-      this.tools.attachEphemeralBuiltin(new SteerWorkerTool(workers));
-      this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
+      this.registerOrchestratorTools(options.subagentHost);
     }
   }
 
@@ -368,21 +363,30 @@ export class Agent {
     this._orchestratorMode = enabled;
 
     if (enabled && this.subagentHost !== undefined) {
-      const workers = this.orchestratorWorkers;
-      this.tools.attachEphemeralBuiltin(
-        new SpawnWorkerTool(this.subagentHost, this.kaos, this.kaos.getcwd(), workers),
-      );
-      this.tools.attachEphemeralBuiltin(new SteerWorkerTool(workers));
-      this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
+      this.registerOrchestratorTools(this.subagentHost);
     } else if (!enabled) {
       this.tools.detachEphemeralBuiltin('SpawnWorker');
       this.tools.detachEphemeralBuiltin('SteerWorker');
       this.tools.detachEphemeralBuiltin('QueryWorker');
     }
 
-    // Re-apply the system prompt so the orchestrator prefix is injected or removed.
-    // The current profile is re-resolved from the stored profile name.
     this.emitStatusUpdated();
+  }
+
+  /** Register the three orchestrator tools with a worker-completion callback. */
+  private registerOrchestratorTools(host: SessionSubagentHost): void {
+    const workers = this.orchestratorWorkers;
+    this.tools.attachEphemeralBuiltin(
+      new SpawnWorkerTool(host, this.kaos, this.kaos.getcwd(), workers, (worker) => {
+        log.info(
+          `Orchestrator worker ${worker.id} (${worker.description}) ${worker.status}` +
+            (worker.result !== undefined ? `: ${worker.result.slice(0, 200)}` : ''),
+        );
+        this.emitStatusUpdated();
+      }),
+    );
+    this.tools.attachEphemeralBuiltin(new SteerWorkerTool(workers));
+    this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
   }
 
   getAdditionalDirs(): readonly string[] {
