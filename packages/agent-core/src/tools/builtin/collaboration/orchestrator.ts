@@ -44,6 +44,8 @@ export interface OrchestratorWorker {
   handle?: SubagentHandle;
   /** Queued follow-up tasks to execute after the current one completes. */
   taskQueue: string[];
+  /** Declared file/directory ownership for conflict detection. */
+  readonly ownership: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +126,7 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
       createdAt: Date.now(),
       handle,
       taskQueue: [],
+      ownership: args.ownership ?? [],
     };
     this.workers.set(workerId, worker);
 
@@ -260,6 +263,8 @@ export class QueryWorkerTool implements BuiltinTool<QueryWorkerInput> {
         `Status: ${worker.status}`,
         `Agent: ${worker.agentId}`,
         worker.worktreePath !== undefined ? `Worktree: ${worker.worktreePath}` : null,
+        worker.ownership.length > 0 ? `Ownership: ${worker.ownership.join(', ')}` : null,
+        worker.taskQueue.length > 0 ? `Queued tasks: ${String(worker.taskQueue.length)}` : null,
         worker.result !== undefined ? `Result: ${worker.result.slice(0, 2000)}` : null,
       ].filter(Boolean);
       return { output: lines.join('\n') };
