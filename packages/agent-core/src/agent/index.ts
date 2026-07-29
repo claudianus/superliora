@@ -385,7 +385,7 @@ export class Agent {
         this.emitStatusUpdated();
       }),
     );
-    this.tools.attachEphemeralBuiltin(new SteerWorkerTool(workers));
+    this.tools.attachEphemeralBuiltin(new SteerWorkerTool(host, workers));
     this.tools.attachEphemeralBuiltin(new QueryWorkerTool(workers));
   }
 

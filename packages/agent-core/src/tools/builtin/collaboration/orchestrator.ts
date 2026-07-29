@@ -165,6 +165,7 @@ export class SteerWorkerTool implements BuiltinTool<SteerWorkerInput> {
   readonly parameters: Record<string, unknown> = toInputJsonSchema(SteerWorkerInputSchema);
 
   constructor(
+    private readonly subagentHost: SessionSubagentHost,
     private readonly workers: Map<string, OrchestratorWorker>,
   ) {}
 
@@ -194,13 +195,21 @@ export class SteerWorkerTool implements BuiltinTool<SteerWorkerInput> {
       };
     }
 
-    // Steering is delivered through the RPC layer in the full implementation.
-    // For Phase 1 MVP, we record the instruction and report it.
-    // TODO(orchestration-phase2): Wire through SessionSubagentHost.steer()
-    // once the public steering API is available for background agents.
+    const delivered = this.subagentHost.steerChild(worker.agentId, [
+      { type: 'text', text: args.instruction },
+    ]);
+
+    if (delivered) {
+      return {
+        output: `Instruction delivered to ${args.workerId}: "${args.instruction}". ` +
+          'The worker will adjust its work at the next step boundary.',
+      };
+    }
+
     return {
-      output: `Instruction queued for ${args.workerId}: "${args.instruction}". ` +
-        'Full steering delivery will be wired in Phase 2.',
+      output: `Worker ${args.workerId} is running but has no active turn to steer. ` +
+        'The instruction could not be delivered right now.',
+      isError: true,
     };
   }
 }

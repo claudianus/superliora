@@ -271,6 +271,18 @@ export class SessionSubagentHost {
     return forwarded;
   }
 
+  /**
+   * Steer a specific child agent by id. Returns true if the steer was
+   * delivered, false if the child is not running an active turn.
+   */
+  steerChild(agentId: string, input: readonly ContentPart[]): boolean {
+    if (!this.activeChildren.has(agentId)) return false;
+    const child = this.session.getReadyAgent(agentId);
+    if (child === undefined || !child.turn.hasActiveTurn) return false;
+    child.turn.steer(input);
+    return true;
+  }
+
   startSwarmStandupTimer(
     parent: Agent,
     store: import('../tools/store').ToolStore,
