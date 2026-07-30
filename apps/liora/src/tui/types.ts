@@ -370,4 +370,20 @@ export interface LoginProgressSpinnerHandle {
   setLabel(label: string): void;
 }
 
+export interface LioraTUIStartupInput {
+  readonly cliOptions: import('#/cli/options').CLIOptions;
+  readonly additionalDirs?: readonly string[];
+  readonly tuiConfig: import('./config').TuiConfig;
+  readonly version: string;
+  readonly workDir: string;
+  readonly startupNotice?: string;
+  readonly updateNotice?: {
+    readonly currentVersion: string;
+    readonly targetVersion: string;
+    readonly installCommand: string;
+  };
+  /** Optional session metadata (e.g. worktree) stamped on createSession. */
+  readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
+}
+
 export type ProgressSpinnerHandle = LoginProgressSpinnerHandle;

@@ -40,7 +40,7 @@ export interface MessageDispatchHost {
   runShellCommandFromInput(command: string): void;
   updateQueueDisplay(): void;
   dispatchSlashInput(text: string): void;
-  supportsCurrentModelCapability(capability: string): boolean;
+  readonly appStateController: { supportsCurrentModelCapability(capability: string): boolean };
   beginSessionRequest(): void;
   failSessionRequest(message: string): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
@@ -55,6 +55,24 @@ export class MessageDispatchController {
   private lastTurnFailed = false;
 
   constructor(private readonly host: MessageDispatchHost) {}
+
+  recallLastQueued(): QueuedMessage | undefined {
+    if (this.host.state.queuedMessages.length === 0) return undefined;
+    const last = this.host.state.queuedMessages.at(-1)!;
+    this.host.state.queuedMessages = this.host.state.queuedMessages.slice(0, -1);
+    return last;
+  }
+
+  clearQueuedMessages(): void {
+    this.host.state.queuedMessages = [];
+  }
+
+  shiftQueuedMessage(): QueuedMessage | undefined {
+    if (this.host.state.queuedMessages.length === 0) return undefined;
+    const [first, ...rest] = this.host.state.queuedMessages;
+    this.host.state.queuedMessages = rest;
+    return first;
+  }
 
   setLastTurnFailed(failed: boolean): void {
     this.lastTurnFailed = failed;
@@ -259,10 +277,10 @@ export class MessageDispatchController {
     if (!extraction.hasMedia) return true;
     const imageUnsupported =
       extraction.imageAttachmentIds.length > 0 &&
-      !host.supportsCurrentModelCapability('image_in');
+      !host.appStateController.supportsCurrentModelCapability('image_in');
     const videoUnsupported =
       extraction.videoAttachmentIds.length > 0 &&
-      !host.supportsCurrentModelCapability('video_in');
+      !host.appStateController.supportsCurrentModelCapability('video_in');
     if (!imageUnsupported && !videoUnsupported) return true;
 
     // 'block' keeps the legacy hard error. 'analyze'/'path' send anyway: the

@@ -6,13 +6,12 @@ import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
 
-import type { CLIOptions } from '#/cli/options';
-import {
-  type LioraSlashCommand,
-  type RendererDiagnosticsOverlayCommand,
-  type RendererTraceCommand,
-  type SlashCommandHelpMode,
-  type SkillListSession,
+import type {
+  LioraSlashCommand,
+  RendererDiagnosticsOverlayCommand,
+  RendererTraceCommand,
+  SlashCommandHelpMode,
+  SkillListSession,
 } from './commands';
 import * as slashCommands from './commands/dispatch';
 import { CommandHubComponent } from './components/dialogs/command-hub';
@@ -21,28 +20,24 @@ import {
   type SessionLoadingPhase,
 } from './components/dialogs/session-loading-overlay';
 import { ShellRunComponent } from './components/messages/shell-run';
-import { DEFAULT_APPEARANCE_PREFERENCES, type TuiConfig } from './config';
-import { NO_ACTIVE_SESSION_MESSAGE } from './constant/liora-tui';
 import { AppStateController } from './controllers/app-state';
 import { AuthFlowController } from './controllers/auth-flow';
 import { AutocompleteController } from './controllers/autocomplete';
-import { AppearanceController, shouldRenderAmbientAnimationFrame } from './controllers/appearance';
+import { AppearanceController } from './controllers/appearance';
 import { BtwPanelController } from './controllers/btw-panel';
-import { ClipboardImageHintController } from './controllers/clipboard-image-hint';
 import { DialogsController } from './controllers/dialogs';
 import { EditorKeyboardController } from './controllers/editor-keyboard';
+import { installLioraTUIDelegates } from './controllers/liora-tui-delegates';
+import { wireLioraTUIControllers } from './controllers/liora-tui-wiring';
 import { MessageDispatchController } from './controllers/message-dispatch';
-import {
-  NativeRendererDiagnosticsController,
-  nativeRendererDiagnosticsOverlayEnabled,
-} from './controllers/native-renderer-diagnostics';
+import { NativeRendererDiagnosticsController } from './controllers/native-renderer-diagnostics';
 import { PanesController } from './controllers/panes';
 import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { ReverseRpcPanelsController } from './controllers/reverse-rpc-panels';
 import { SessionBrowserController } from './controllers/session-browser';
 import { SessionEventHandler } from './controllers/session-event-handler';
 import { SessionLifecycleController } from './controllers/session-lifecycle';
-import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
+import { SessionReplayRenderer } from './controllers/session-replay';
 import { SessionRequestsController } from './controllers/session-requests';
 import { ShellInputController } from './controllers/shell-input';
 import { StartupLifecycleController } from './controllers/startup-lifecycle';
@@ -52,62 +47,44 @@ import { TranscriptRenderController } from './controllers/transcript-render';
 import { UsageMonitorController } from './controllers/usage-monitor';
 import { WorkspaceBrowserController } from './controllers/workspace-browser';
 import { ApprovalController } from './reverse-rpc/approval/controller';
-import { registerReverseRPCHandlers } from './reverse-rpc/index';
 import { QuestionController } from './reverse-rpc/question/controller';
 import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
 import type { ColorToken, ResolvedTheme, ThemeName } from './theme';
 import { createTUIState, type TUIState } from './tui-state';
-import { appearanceAnimationNow } from './utils/appearance-effects';
 import type { CenterModalMountOptions } from './utils/center-modal';
 import { DisposableRegistry } from './utils/disposables';
-import { requestTUILayoutRender } from './utils/frame-render';
-import { createInitialAppState } from './utils/initial-app-state';
+import { createMotionBeatController } from './utils/motion-beats';
 import { ImageAttachmentStore } from './utils/image-attachment-store';
 import { PromptStash } from './utils/prompt-stash';
-import { combineStartupNotice } from './utils/startup';
 import type { TranscriptScrollAction } from './utils/transcript-viewport';
 import type { TUIStateNativeInputRouter } from './utils/native-input-router';
-import { createMotionBeatController } from './utils/motion-beats';
 import type {
   AppState,
-  LioraTUIOptions,
   LivePaneState,
+  LioraTUIOptions,
+  LioraTUIStartupInput,
   LoginProgressSpinnerHandle,
   QueuedMessage,
   TranscriptDetailLevel,
   TranscriptEntry,
-  TUIStartupOptions,
-  TUIStartupState,
 } from './types';
 import { SplashComponent } from './components/chrome/splash';
 
 export type { TUIState } from './tui-state';
 export { createTUIState } from './tui-state';
 export type {
+  LioraTUIStartupInput,
   LioraTUIOptions,
   LoginProgressSpinnerHandle,
   TUIStartupOptions,
   TUIStartupState,
 } from './types';
 
-export interface LioraTUIStartupInput {
-  readonly cliOptions: CLIOptions;
-  readonly additionalDirs?: readonly string[];
-  readonly tuiConfig: TuiConfig;
-  readonly version: string;
-  readonly workDir: string;
-  readonly startupNotice?: string;
-  readonly updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string };
-  /** Optional session metadata (e.g. worktree) stamped on createSession. */
-  readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
-}
-
 export class LioraTUI {
   readonly harness: LioraHarness;
-  readonly options: LioraTUIOptions;
+  readonly options!: LioraTUIOptions;
   session: Session | undefined;
-  state: TUIState;
-  /** Thin transition-beat queue shared by harness enter/exit moments. */
+  state!: TUIState;
   readonly motionBeats = createMotionBeatController();
   readonly approvalController = new ApprovalController();
   readonly questionController = new QuestionController();
@@ -124,612 +101,184 @@ export class LioraTUI {
   deferUserMessages = false;
   aborted = false;
   terminalFocusTrackingDispose: (() => void) | undefined;
-  clipboardImageHintController: ClipboardImageHintController | undefined;
+  clipboardImageHintController: import('./controllers/clipboard-image-hint').ClipboardImageHintController | undefined;
   signalCleanupHandlers: Array<() => void> = [];
   isShuttingDown = false;
-  /** Central registry for timers, intervals, listeners, and watchers. */
   readonly disposables = new DisposableRegistry();
   eventLoopStarted = false;
   startupNotice: string | undefined;
-  /** Startup cinematic splash; disposed after play or on shutdown. */
   splash: SplashComponent | undefined;
-  /** UI children saved while the full-screen splash owns the tree. */
   splashSavedChildren: (typeof this.state.ui.children)[number][] | undefined;
-  /** While true, ambient schedule stays armed even if interaction gates pause it. */
   splashForcesAmbient = false;
   lastHistoryContent: string | undefined;
-  /** LIFO stash of prompt drafts saved via Ctrl-X while the editor has text. */
   readonly promptStash = new PromptStash();
-  // Live `!` shell output entries, keyed by commandId so concurrent commands
-  // each update their own card and stale events are dropped. Mutated in place
-  // as `shell.output` events arrive; removed when the command completes.
-  // `taskId` (from `shell.started`) lets ctrl+b detach the exact task.
   readonly shellOutputStreams = new Map<
     string,
     { entry: TranscriptEntry; component: ShellRunComponent; taskId?: string }
   >();
-  readonly streamingUI: StreamingUIController;
-  readonly authFlow: AuthFlowController;
-  readonly appearanceController: AppearanceController;
-  readonly btwPanelController: BtwPanelController;
-  readonly sessionEventHandler: SessionEventHandler;
-  readonly transcriptRender: TranscriptRenderController;
-  readonly panes: PanesController;
-  readonly sessionLifecycle: SessionLifecycleController;
-  readonly messageDispatch: MessageDispatchController;
-  readonly sessionReplay: SessionReplayRenderer;
-  readonly tasksBrowserController: TasksBrowserController;
-  readonly usageMonitor: UsageMonitorController;
-  readonly editorKeyboard: EditorKeyboardController;
-  readonly promptIntelligence: PromptIntelligenceController;
-  readonly dialogs: DialogsController;
-  readonly workspaceBrowser: WorkspaceBrowserController;
-  readonly sessionBrowser: SessionBrowserController;
-  readonly reverseRpcPanels: ReverseRpcPanelsController;
+  streamingUI!: StreamingUIController;
+  authFlow!: AuthFlowController;
+  appearanceController!: AppearanceController;
+  btwPanelController!: BtwPanelController;
+  sessionEventHandler!: SessionEventHandler;
+  transcriptRender!: TranscriptRenderController;
+  panes!: PanesController;
+  sessionLifecycle!: SessionLifecycleController;
+  messageDispatch!: MessageDispatchController;
+  sessionReplay!: SessionReplayRenderer;
+  tasksBrowserController!: TasksBrowserController;
+  usageMonitor!: UsageMonitorController;
+  editorKeyboard!: EditorKeyboardController;
+  promptIntelligence!: PromptIntelligenceController;
+  dialogs!: DialogsController;
+  workspaceBrowser!: WorkspaceBrowserController;
+  sessionBrowser!: SessionBrowserController;
+  reverseRpcPanels!: ReverseRpcPanelsController;
   nativeInputRouter: TUIStateNativeInputRouter | undefined;
   nativeInputModalDispose: (() => void) | undefined;
   nativeInputModalSequence = 0;
   centerModalSequence = 0;
-  /** Live Command Hub instance while the center-modal stack owns it. */
   openCommandHub: CommandHubComponent | undefined;
-  nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
-
-  readonly autocomplete: AutocompleteController;
-  readonly shellInput: ShellInputController;
-  readonly sessionRequests: SessionRequestsController;
-  readonly appStateController: AppStateController;
-  readonly startupLifecycle: StartupLifecycleController;
-  readonly nativeRendererDiagnostics: NativeRendererDiagnosticsController;
-
-  /** Timer that auto-clears the one-shot "moved to background" footer hint. */
+  nativeRendererDiagnosticsHudEnabled = false;
+  autocomplete!: AutocompleteController;
+  shellInput!: ShellInputController;
+  sessionRequests!: SessionRequestsController;
+  appStateController!: AppStateController;
+  startupLifecycle!: StartupLifecycleController;
+  nativeRendererDiagnostics!: NativeRendererDiagnosticsController;
   detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
-
-  /** Last user-submitted text, for `/retry` / Hub → Chat → Retry. */
   lastUserInput: string | undefined;
-
-  // Deferred reverse-RPC payloads that arrived while a command-driven dialog
-  // owned the editor area. Once the dialog closes (restoreEditor), the pending
-  // approval/question is shown — preventing mid-flow clobbering (BUG-7).
   deferredApproval: ApprovalPanelData | undefined;
   deferredQuestion: QuestionPanelData | undefined;
+  sessionLoadingOverlay: SessionLoadingOverlayComponent | undefined;
+  sessionLoadingPulseTimer: ReturnType<typeof setInterval> | undefined;
 
   public onExit?: (exitCode?: number) => Promise<void>;
-
-  /** URL opened in the browser just before exit; printed by onExit. */
   public exitOpenUrl: string | undefined;
+
+  constructor(harness: LioraHarness, startupInput: LioraTUIStartupInput) {
+    this.harness = harness;
+    wireLioraTUIControllers(this, harness, startupInput);
+  }
 
   track(event: string, properties?: Parameters<LioraHarness['track']>[1]): void {
     this.harness.track(event, properties);
   }
+}
 
-  constructor(harness: LioraHarness, startupInput: LioraTUIStartupInput) {
-    this.harness = harness;
-    const tuiOptions: LioraTUIOptions = {
-      initialAppState: createInitialAppState(startupInput),
-      startup: {
-        sessionFlag: startupInput.cliOptions.session,
-        continueLast: startupInput.cliOptions.continue,
-        yolo: startupInput.cliOptions.yolo,
-        auto: startupInput.cliOptions.auto,
-        plan: startupInput.cliOptions.plan,
-        model: startupInput.cliOptions.model,
-        startupNotice: startupInput.startupNotice,
-        resumeGoal: startupInput.cliOptions.resumeGoal,
-      },
-      sessionMetadata: startupInput.sessionMetadata,
-    };
-    this.options = tuiOptions;
-    this.startupNotice = startupInput.startupNotice;
-    this.state = createTUIState(tuiOptions);
-    this.state.footer.setMotionBeatSource(() =>
-      this.motionBeats.active(appearanceAnimationNow()),
-    );
-
-    this.reverseRpcDisposers.push(
-      ...registerReverseRPCHandlers(this.approvalController, this.questionController, {
-        showApprovalPanel: (payload) => {
-          this.showApprovalPanel(payload);
-        },
-        hideApprovalPanel: () => {
-          this.hideApprovalPanel();
-        },
-        showQuestionDialog: (payload) => {
-          this.showQuestionDialog(payload);
-        },
-        hideQuestionDialog: () => {
-          this.hideQuestionDialog();
-        },
-      }),
-    );
-    this.streamingUI = new StreamingUIController(this);
-    this.authFlow = new AuthFlowController(this);
-    this.appearanceController = new AppearanceController({
-      terminal: this.state.terminal,
-      getAppearance: () => this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
-      requestRender: () => {
-        this.state.renderer.requestRender('animation');
-      },
-      setAmbientSchedule: (options) => {
-        this.state.renderer.nativeRuntime?.setAmbientSchedule(options);
-      },
-      onAppearanceApplied: () => {
-        this.state.renderer.invalidateFrame('palette');
-      },
-      shouldRenderAnimation: () => this.shouldRenderAmbientAnimationFrame(),
-      forceAmbientSchedule: () => this.splashForcesAmbient,
-    });
-    // Transcript density is session-live: seed from tui.toml
-    // (`appearance.transcript_detail`); /transcript and Settings mutate it.
-    this.state.transcriptDetail =
-      this.state.appState.appearance?.transcriptDetail ?? 'standard';
-    this.btwPanelController = new BtwPanelController(this);
-    this.sessionEventHandler = new SessionEventHandler(this);
-    this.transcriptRender = new TranscriptRenderController(this);
-    this.panes = new PanesController(this);
-    this.dialogs = new DialogsController(this);
-    this.workspaceBrowser = new WorkspaceBrowserController(this);
-    this.sessionBrowser = new SessionBrowserController(this);
-    this.reverseRpcPanels = new ReverseRpcPanelsController(this);
-    this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
-    this.sessionLifecycle = new SessionLifecycleController(this);
-    this.messageDispatch = new MessageDispatchController(this);
-    this.autocomplete = new AutocompleteController(this);
-    this.shellInput = new ShellInputController(this);
-    this.appStateController = new AppStateController(this);
-    this.sessionRequests = new SessionRequestsController(this);
-    this.startupLifecycle = new StartupLifecycleController(this);
-    this.nativeRendererDiagnostics = new NativeRendererDiagnosticsController(this);
-    this.tasksBrowserController = new TasksBrowserController(this);
-    this.usageMonitor = new UsageMonitorController({
-      harness: this.harness,
-      setAppState: (patch) => this.setAppState(patch),
-      requestRender: () => requestTUILayoutRender(this.state),
-    });
-    this.editorKeyboard = new EditorKeyboardController(this, this.imageStore);
-    this.editorKeyboard.install();
-    this.promptIntelligence = new PromptIntelligenceController(this);
-    this.promptIntelligence.install();
-    this.startupLifecycle.buildLayout();
-  }
-
-  getSlashCommands(mode: SlashCommandHelpMode = 'primary'): readonly LioraSlashCommand[] {
-    return this.autocomplete.getSlashCommands(mode);
-  }
-
-  /** Lets controllers (e.g. `DialogsController`) run a slash command without importing `dispatch` themselves. */
-  dispatchSlash(command: string): void {
-    slashCommands.dispatchInput(this, command);
-  }
-
-  runPluginsCommand(): Promise<void> {
-    return slashCommands.handlePluginsCommand(this, '');
-  }
-
-  setupAutocomplete(): void {
-    this.autocomplete.setupAutocomplete();
-  }
-
-  refreshSlashCommandAutocomplete(): void {
-    this.autocomplete.refreshSlashCommandAutocomplete();
-  }
-
-  async refreshSkillCommands(session?: SkillListSession): Promise<void> {
-    return this.autocomplete.refreshSkillCommands(session);
-  }
-
-  async refreshDynamicSlashCommands(session?: Session): Promise<void> {
-    return this.autocomplete.refreshDynamicSlashCommands(session);
-  }
-  async start(): Promise<void> {
-    return this.startupLifecycle.start();
-  }
-
-  async stop(exitCode?: number): Promise<void> {
-    return this.startupLifecycle.stop(exitCode);
-  }
-
-  registerSignalHandlers(): void {
-    this.startupLifecycle.registerSignalHandlers();
-  }
-
-  unregisterSignalHandlers(): void {
-    this.startupLifecycle.unregisterSignalHandlers();
-  }
-
-  emergencyTerminalExit(exitCode = 129): never {
-    return this.startupLifecycle.emergencyTerminalExit(exitCode);
-  }
-
-  async initMainTui(): Promise<boolean> {
-    return this.startupLifecycle.initMainTui();
-  }
-
-  async init(): Promise<boolean> {
-    return this.startupLifecycle.init();
-  }
-
-  async loadBanner(): Promise<void> {
-    return this.startupLifecycle.loadBanner();
-  }
-
-  async finishStartup(shouldReplayHistory: boolean): Promise<void> {
-    return this.startupLifecycle.finishStartup(shouldReplayHistory);
-  }
-
-  async refreshProviderModelsInBackground(): Promise<void> {
-    return this.startupLifecycle.refreshProviderModelsInBackground();
-  }
-
-  async bootstrapFromPicker(): Promise<void> {
-    return this.sessionBrowser.bootstrapFromPicker();
-  }
-
-  private shouldRenderAmbientAnimationFrame(): boolean {
-    const selection = this.state.transcriptSelection;
-    return shouldRenderAmbientAnimationFrame(
-      this.state.terminal.rows,
-      selection.isDragging || selection.hasSelection,
-    );
-  }
-
-  scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
-    return this.startupLifecycle.scrollTranscriptViewport(action);
-  }
-
-  setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void {
-    this.nativeRendererDiagnostics.setNativeRendererDiagnosticsOverlay(command);
-  }
-
-  setNativeRendererTrace(command: RendererTraceCommand): void {
-    this.nativeRendererDiagnostics.setNativeRendererTrace(command);
-  }
-
-  async showSessionWarnings(session: Session): Promise<void> {
-    return this.startupLifecycle.showSessionWarnings(session);
-  }
-
-  handlePlanToggle(next: boolean, ultra = false): void {
-    void slashCommands.handlePlanCommand(this, next ? (ultra ? 'ultra' : 'on') : 'off');
-  }
-
-  handleUltraworkModeToggle(next: boolean): void {
-    void slashCommands.handleUltraworkModeToggle(this, next);
-  }
-
-  handleInputModeChange(mode: 'prompt' | 'bash'): void {
-    this.setAppState({ inputMode: mode });
-    this.updateEditorBorderHighlight();
-  }
-
-  handleUserInput(text: string): void {
-    this.messageDispatch.handleUserInput(text);
-  }
-
-  dispatchSlashInput(text: string): void {
-    slashCommands.dispatchInput(this, text);
-  }
-
-  runShellCommandFromInput(command: string): void {
-    this.shellInput.runShellCommandFromInput(command);
-  }
-
-  handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void {
-    this.shellInput.handleShellOutput(event);
-  }
-
-  handleShellStarted(event: { commandId: string; taskId: string }): void {
-    this.shellInput.handleShellStarted(event);
-  }
-
-  cancelRunningShellCommand(): void {
-    this.shellInput.cancelRunningShellCommand();
-  }
-
-  sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void {
-    this.messageDispatch.sendNormalUserInput(text, options);
-  }
-
-  supportsCurrentModelCapability(capability: string): boolean {
-    const capabilities =
-      this.state.appState.availableModels[this.state.appState.model]?.capabilities;
-    if (capabilities === undefined) return true;
-    return capabilities.includes(capability);
-  }
-
-  async loadPersistedInputHistory(): Promise<void> {
-    return this.shellInput.loadPersistedInputHistory();
-  }
-
-  async persistInputHistory(text: string): Promise<void> {
-    return this.shellInput.persistInputHistory(text);
-  }
-
-  recallLastQueued(): QueuedMessage | undefined {
-    if (this.state.queuedMessages.length === 0) return undefined;
-    const last = this.state.queuedMessages.at(-1)!;
-    this.state.queuedMessages = this.state.queuedMessages.slice(0, -1);
-    return last;
-  }
-  beginSessionRequest(): void {
-    this.sessionRequests.beginSessionRequest();
-  }
-
-  failSessionRequest(message: string): void {
-    this.sessionRequests.failSessionRequest(message);
-  }
-
-  sendQueuedMessage(session: Session, item: QueuedMessage): void {
-    this.messageDispatch.sendQueuedMessage(session, item);
-  }
-
-  requestQueuedGoalPromotion(): void {
-    this.sessionRequests.requestQueuedGoalPromotion();
-  }
-
-  sendSkillActivation(session: Session, skillName: string, skillArgs: string): void {
-    this.sessionRequests.sendSkillActivation(session, skillName, skillArgs);
-  }
-
+export interface LioraTUI {
+  getSlashCommands(mode?: SlashCommandHelpMode): readonly LioraSlashCommand[];
+  dispatchSlash(command: string): void;
+  runPluginsCommand(): Promise<void>;
+  setupAutocomplete(): void;
+  refreshSlashCommandAutocomplete(): void;
+  refreshSkillCommands(session?: SkillListSession): Promise<void>;
+  refreshDynamicSlashCommands(session?: Session): Promise<void>;
+  start(): Promise<void>;
+  stop(exitCode?: number): Promise<void>;
+  registerSignalHandlers(): void;
+  unregisterSignalHandlers(): void;
+  emergencyTerminalExit(exitCode?: number): never;
+  initMainTui(): Promise<boolean>;
+  init(): Promise<boolean>;
+  loadBanner(): Promise<void>;
+  finishStartup(shouldReplayHistory: boolean): Promise<void>;
+  refreshProviderModelsInBackground(): Promise<void>;
+  bootstrapFromPicker(): Promise<void>;
+  scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
+  getStartupMcpMs(): Promise<number>;
+  setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void;
+  setNativeRendererTrace(command: RendererTraceCommand): void;
+  showSessionWarnings(session: Session): Promise<void>;
+  handlePlanToggle(next: boolean, ultra?: boolean): void;
+  handleUltraworkModeToggle(next: boolean): void;
+  handleInputModeChange(mode: 'prompt' | 'bash'): void;
+  handleUserInput(text: string): void;
+  dispatchSlashInput(text: string): void;
+  runShellCommandFromInput(command: string): void;
+  handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void;
+  handleShellStarted(event: { commandId: string; taskId: string }): void;
+  cancelRunningShellCommand(): void;
+  sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
+  supportsCurrentModelCapability(capability: string): boolean;
+  loadPersistedInputHistory(): Promise<void>;
+  persistInputHistory(text: string): Promise<void>;
+  recallLastQueued(): QueuedMessage | undefined;
+  beginSessionRequest(): void;
+  failSessionRequest(message: string): void;
+  sendQueuedMessage(session: Session, item: QueuedMessage): void;
+  requestQueuedGoalPromotion(): void;
+  sendSkillActivation(session: Session, skillName: string, skillArgs: string): void;
   activatePluginCommand(
     session: Session,
     pluginId: string,
     commandName: string,
     args: string,
-  ): void {
-    this.sessionRequests.activatePluginCommand(session, pluginId, commandName, args);
-  }
-
-  steerMessage(session: Session, input: string[]): void {
-    this.sessionRequests.steerMessage(session, input);
-  }
-
-  setStartupReady(): void {
-    this.state.startupState = 'ready';
-  }
-
-  clearQueuedMessages(): void {
-    this.state.queuedMessages = [];
-  }
-
-  shiftQueuedMessage(): QueuedMessage | undefined {
-    if (this.state.queuedMessages.length === 0) return undefined;
-    const [first, ...rest] = this.state.queuedMessages;
-    this.state.queuedMessages = rest;
-    return first;
-  }
-
-  pushTranscriptEntry(entry: TranscriptEntry): void {
-    this.state.transcriptEntries.push(entry);
-  }
-
-  setExternalEditorRunning(running: boolean): void {
-    this.state.externalEditorRunning = running;
-  }
-
-  setTasksBrowser(value: TUIState['tasksBrowser']): void {
-    this.state.tasksBrowser = value;
-  }
-
-  appendStartupNotice(extra: string): void {
-    this.startupNotice = combineStartupNotice(this.startupNotice, extra);
-  }
-
-  get backgroundTasks(): ReadonlyMap<string, BackgroundTaskInfo> {
-    return this.sessionEventHandler.backgroundTasks;
-  }
-
-  getCurrentSessionId(): string {
-    return this.state.appState.sessionId;
-  }
-
-  hasSessionContent(): boolean {
-    return this.state.transcriptEntries.length > 0;
-  }
-
-  setExitOpenUrl(url: string): void {
-    this.exitOpenUrl = url;
-  }
-
-  async getStartupMcpMs(): Promise<number> {
-    const session = this.session;
-    if (session === undefined) return 0;
-    try {
-      const metrics = await session.getMcpStartupMetrics();
-      return metrics.durationMs;
-    } catch {
-      return 0;
-    }
-  }
-
-  setAppState(patch: Partial<AppState>): void {
-    this.appStateController.setAppState(patch);
-  }
-
-  syncGoalMonitorPanel(): void {
-    this.appStateController.syncGoalMonitorPanel();
-  }
-
-  patchLivePane(patch: Partial<LivePaneState>): void {
-    this.appStateController.patchLivePane(patch);
-  }
-
-  resetLivePane(): void {
-    this.appStateController.resetLivePane();
-  }
-
-  requireSession(): Session {
-    if (this.session === undefined) {
-      throw new Error(NO_ACTIVE_SESSION_MESSAGE);
-    }
-    return this.session;
-  }
-
-  async setSession(session: Session): Promise<void> {
-    return this.sessionLifecycle.setSession(session);
-  }
-
-  async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
-    return this.sessionLifecycle.syncRuntimeState(session);
-  }
-
-  async closeSession(reason: string): Promise<void> {
-    return this.sessionLifecycle.closeSession(reason);
-  }
-
-  clearReverseRpcPanels(): void {
-    for (const dispose of this.reverseRpcDisposers) {
-      dispose();
-    }
-  }
-
-  cancelPendingReverseRpc(reason: string): void {
-    this.approvalController.cancelAll(reason);
-    this.questionController.cancelAll(reason);
-  }
-
-  registerSessionHandlers(session: Session): void {
-    this.sessionLifecycle.registerSessionHandlers(session);
-  }
-
-  resetSessionRuntime(): void {
-    this.sessionLifecycle.resetSessionRuntime();
-  }
-
-  async fetchSessions(scope: 'cwd' | 'all' = this.state.sessionsScope): Promise<void> {
-    return this.sessionBrowser.fetchSessions(scope);
-  }
-
-  updateTerminalTitle(): void {
-    this.sessionBrowser.updateTerminalTitle();
-  }
-
-  async switchToSession(session: Session, statusMessage: string): Promise<void> {
-    return this.sessionLifecycle.switchToSession(session, statusMessage);
-  }
-
-  async reloadCurrentSessionView(session: Session, statusMessage: string): Promise<void> {
-    return this.sessionBrowser.reloadCurrentSessionView(session, statusMessage);
-  }
-
-  async createNewSession(): Promise<void> {
-    return this.sessionLifecycle.createNewSession();
-  }
-
-
-  renderWelcome(): void {
-    this.transcriptRender.renderWelcome();
-  }
-
-  appendTranscriptEntry(entry: TranscriptEntry): void {
-    this.transcriptRender.appendTranscriptEntry(entry);
-  }
-
-  clearTranscriptAndRedraw(): void {
-    this.transcriptRender.clearTranscriptAndRedraw();
-  }
-
-  mergeCurrentTurnSteps(): boolean {
-    return this.transcriptRender.mergeCurrentTurnSteps();
-  }
-
-  mergeAllTurnSteps(): void {
-    this.transcriptRender.mergeAllTurnSteps();
-  }
-
-  showStatus(message: string, color?: ColorToken): void {
-    this.transcriptRender.showStatus(message, color);
-  }
-
+  ): void;
+  steerMessage(session: Session, input: string[]): void;
+  setStartupReady(): void;
+  clearQueuedMessages(): void;
+  shiftQueuedMessage(): QueuedMessage | undefined;
+  pushTranscriptEntry(entry: TranscriptEntry): void;
+  setExternalEditorRunning(running: boolean): void;
+  setTasksBrowser(value: TUIState['tasksBrowser']): void;
+  appendStartupNotice(extra: string): void;
+  readonly backgroundTasks: ReadonlyMap<string, BackgroundTaskInfo>;
+  getCurrentSessionId(): string;
+  hasSessionContent(): boolean;
+  setExitOpenUrl(url: string): void;
+  setAppState(patch: Partial<AppState>): void;
+  syncGoalMonitorPanel(): void;
+  patchLivePane(patch: Partial<LivePaneState>): void;
+  resetLivePane(): void;
+  requireSession(): Session;
+  setSession(session: Session): Promise<void>;
+  syncRuntimeState(session?: Session): Promise<void>;
+  closeSession(reason: string): Promise<void>;
+  clearReverseRpcPanels(): void;
+  cancelPendingReverseRpc(reason: string): void;
+  registerSessionHandlers(session: Session): void;
+  resetSessionRuntime(): void;
+  fetchSessions(scope?: 'cwd' | 'all'): Promise<void>;
+  updateTerminalTitle(): void;
+  switchToSession(session: Session, statusMessage: string): Promise<void>;
+  reloadCurrentSessionView(session: Session, statusMessage: string): Promise<void>;
+  createNewSession(): Promise<void>;
+  renderWelcome(): void;
+  appendTranscriptEntry(entry: TranscriptEntry): void;
+  clearTranscriptAndRedraw(): void;
+  mergeCurrentTurnSteps(): boolean;
+  mergeAllTurnSteps(): void;
+  showStatus(message: string, color?: ColorToken): void;
   showNotice(
     title: string,
     detail?: string,
     options?: slashCommands.ShowNoticeOptions,
-  ): void {
-    this.transcriptRender.showNotice(title, detail, options);
-  }
-
-  showError(message: string): void {
-    this.transcriptRender.showError(message);
-  }
-
-  showLoginProgressSpinner(label: string): LoginProgressSpinnerHandle {
-    return this.transcriptRender.showLoginProgressSpinner(label);
-  }
-
-  showProgressSpinner(label: string): LoginProgressSpinnerHandle {
-    return this.transcriptRender.showProgressSpinner(label);
-  }
-
-  showLoginAuthorizationPrompt(auth: DeviceAuthorization): LoginProgressSpinnerHandle {
-    return this.transcriptRender.showLoginAuthorizationPrompt(auth);
-  }
-
-
-  updateActivityPane(): void {
-    this.panes.updateActivityPane();
-  }
-
-  updateQueueDisplay(): void {
-    this.panes.updateQueueDisplay();
-  }
-
-  toggleToolOutputExpansion(): void {
-    this.panes.toggleToolOutputExpansion();
-  }
-
-  /**
-   * Switch transcript density live (PREMIUM.md §7.9). Re-projects every
-   * mounted tool card — including replayed history — and re-renders.
-   * `/transcript` and the Settings appearance selector call this.
-   */
-  setTranscriptDetail(level: TranscriptDetailLevel): void {
-    this.panes.setTranscriptDetail(level);
-  }
-
-  toggleTodoPanelExpansion(): void {
-    this.panes.toggleTodoPanelExpansion();
-  }
-
-  async detachCurrentForegroundTask(): Promise<void> {
-    return this.panes.detachCurrentForegroundTask();
-  }
-
-  updateEditorBorderHighlight(text?: string): void {
-    this.panes.updateEditorBorderHighlight(text);
-  }
-
-  async applyTheme(themeName: ThemeName, resolved?: ResolvedTheme): Promise<void> {
-    return this.panes.applyTheme(themeName, resolved);
-  }
-
-  refreshTerminalThemeTracking(): void {
-    this.panes.refreshTerminalThemeTracking();
-  }
-
-
-  isSessionLoadingOverlayActive(): boolean {
-    return this.dialogs.isSessionLoadingOverlayActive();
-  }
-
-  beginSessionLoading(sessionId?: string, title?: string): void {
-    this.dialogs.beginSessionLoading(sessionId, title);
-  }
-
+  ): void;
+  showError(message: string): void;
+  showLoginProgressSpinner(label: string): LoginProgressSpinnerHandle;
+  showProgressSpinner(label: string): LoginProgressSpinnerHandle;
+  showLoginAuthorizationPrompt(auth: DeviceAuthorization): LoginProgressSpinnerHandle;
+  updateActivityPane(): void;
+  updateQueueDisplay(): void;
+  toggleToolOutputExpansion(): void;
+  setTranscriptDetail(level: TranscriptDetailLevel): void;
+  toggleTodoPanelExpansion(): void;
+  detachCurrentForegroundTask(): Promise<void>;
+  updateEditorBorderHighlight(text?: string): void;
+  applyTheme(themeName: ThemeName, resolved?: ResolvedTheme): Promise<void>;
+  refreshTerminalThemeTracking(): void;
+  isSessionLoadingOverlayActive(): boolean;
+  beginSessionLoading(sessionId?: string, title?: string): void;
   reportSessionLoading(patch: {
     readonly phase?: SessionLoadingPhase;
     readonly progress?: number;
     readonly detail?: string;
     readonly sessionId?: string;
     readonly title?: string;
-  }): void {
-    this.dialogs.reportSessionLoading(patch);
-  }
-
-  endSessionLoading(): void {
-    this.dialogs.endSessionLoading();
-  }
-
-  async runWithBusyOverlay<T>(
+  }): void;
+  endSessionLoading(): void;
+  runWithBusyOverlay<T>(
     options: {
       readonly title?: string;
       readonly detail?: string;
@@ -737,180 +286,39 @@ export class LioraTUI {
       readonly phase?: SessionLoadingPhase;
     },
     work: () => Promise<T> | T,
-  ): Promise<T> {
-    return this.dialogs.runWithBusyOverlay(options, work);
-  }
-
-  mountEditorReplacement(panel: Component & Focusable): void {
-    this.dialogs.mountEditorReplacement(panel);
-  }
-
-  /**
-   * Float a PREMIUM panel in the viewport center (Command Hub, Settings, …).
-   * Does not replace the editor strip. See PREMIUM.md §8.2.
-   */
-  mountCenterModal(
-    panel: Component & Focusable,
-    options: CenterModalMountOptions = {},
-  ): void {
-    this.dialogs.mountCenterModal(panel, options);
-  }
-
-  /** Pop the top center modal. Restores editor focus when the stack is empty. */
-  closeCenterModal(): void {
-    this.dialogs.closeCenterModal();
-  }
-
-  closeAllCenterModals(): void {
-    this.dialogs.closeAllCenterModals();
-  }
-
-  restoreEditor(): void {
-    this.dialogs.restoreEditor();
-  }
-
-  restoreInputText(text: string): void {
-    this.dialogs.restoreInputText(text);
-  }
-
-  /** Ctrl-X: stash the current draft, or pop the latest stash when the editor is empty. */
-  stashPromptToggle(): void {
-    this.dialogs.stashPromptToggle();
-  }
-
-  // =========================================================================
-  // History search (Ctrl-R), Command Hub (? / Ctrl-K),
-  // transcript search (Ctrl-F)
-  // =========================================================================
-
-  showHistorySearch(): void {
-    this.dialogs.showHistorySearch();
-  }
-
-  /** Open the beginner Command Hub (replaces the old Ctrl-Space palette). */
-  showCommandPalette(): void {
-    this.dialogs.showCommandPalette();
-  }
-
-  /**
-   * Power-user omnibox: fuzzy-search every slash command, skill, and a few
-   * session actions, then run the selection. Opened from the Hub
-   * (Help → Command palette); Esc returns to the Hub when it is stacked
-   * below. Recently run entries float to the top via Hub recency scoring.
-   */
-  showCommandPaletteOmnibox(): void {
-    this.dialogs.showCommandPaletteOmnibox();
-  }
-
-  showCommandHub(
-    options: { readonly initialQuery?: string; readonly intro?: boolean } = {},
-  ): void {
-    this.dialogs.showCommandHub(options);
-  }
-
-  showTranscriptSearch(): void {
-    this.dialogs.showTranscriptSearch();
-  }
-
-  /** Shared with the Error Navigator (`showErrors`) to jump to a transcript entry. */
-  scrollToTranscriptIndex(index: number): void {
-    this.dialogs.scrollToTranscriptIndex(index);
-  }
-
-  async retryLastTurn(): Promise<void> {
-    return this.messageDispatch.retryLastTurn();
-  }
-
-  setLastTurnFailed(failed: boolean): void {
-    this.messageDispatch.setLastTurnFailed(failed);
-  }
-
-  showHelpPanel(args = ''): void {
-    this.dialogs.showHelpPanel(args);
-  }
-
-  showFileExplorer(): void {
-    this.workspaceBrowser.showFileExplorer();
-  }
-
-  showDiffReview(report: GitDiffReport, filter: string): void {
-    this.workspaceBrowser.showDiffReview(report, filter);
-  }
-
-  showCommitBrowser(report: GitLogReport, filter: string): void {
-    this.workspaceBrowser.showCommitBrowser(report, filter);
-  }
-
-  showErrors(): void {
-    this.workspaceBrowser.showErrors();
-  }
-
-  showSearchResults(results: SearchResults): void {
-    this.workspaceBrowser.showSearchResults(results);
-  }
-
-  showWebContent(rawUrl: string | undefined): void {
-    this.workspaceBrowser.showWebContent(rawUrl);
-  }
-
-  showBlame(rawPath: string | undefined): void {
-    this.workspaceBrowser.showBlame(rawPath);
-  }
-
-  helpModeFromArgs(args: string): SlashCommandHelpMode {
-    const normalized = args.trim().toLowerCase();
-    if (normalized === 'diagnostics' || normalized === 'diagnostic' || normalized === 'internal') {
-      return 'diagnostics';
-    }
-    return normalized === 'advanced' || normalized === 'manual' ? 'advanced' : 'primary';
-  }
-
-  /** Editor-area modal while resume RPC + history hydrate run. */
-  sessionLoadingOverlay: SessionLoadingOverlayComponent | undefined;
-  sessionLoadingPulseTimer: ReturnType<typeof setInterval> | undefined;
-
-  async showSessionPicker(): Promise<void> {
-    return this.sessionBrowser.showSessionPicker();
-  }
-
-  async showAgentDashboard(): Promise<void> {
-    return this.sessionBrowser.showAgentDashboard();
-  }
-
-  hideAgentDashboard(): void {
-    this.sessionBrowser.hideAgentDashboard();
-  }
-
-  async showExtensionsModal(args?: string): Promise<void> {
-    return this.sessionBrowser.showExtensionsModal(args);
-  }
-
-  hideExtensionsModal(): void {
-    this.sessionBrowser.hideExtensionsModal();
-  }
-
-  hideSessionPicker(): void {
-    this.sessionBrowser.hideSessionPicker();
-  }
-
-  openUndoSelector(): void {
-    void slashCommands.handleUndoCommand(this, '');
-  }
-
-  showApprovalPanel(payload: ApprovalPanelData): void {
-    this.reverseRpcPanels.showApprovalPanel(payload);
-  }
-
-  private hideApprovalPanel(): void {
-    this.reverseRpcPanels.hideApprovalPanel();
-  }
-
-  showQuestionDialog(payload: QuestionPanelData): void {
-    this.reverseRpcPanels.showQuestionDialog(payload);
-  }
-
-  private hideQuestionDialog(): void {
-    this.reverseRpcPanels.hideQuestionDialog();
-  }
+  ): Promise<T>;
+  mountEditorReplacement(panel: Component & Focusable): void;
+  mountCenterModal(panel: Component & Focusable, options?: CenterModalMountOptions): void;
+  closeCenterModal(): void;
+  closeAllCenterModals(): void;
+  restoreEditor(): void;
+  restoreInputText(text: string): void;
+  stashPromptToggle(): void;
+  showHistorySearch(): void;
+  showCommandPalette(): void;
+  showCommandPaletteOmnibox(): void;
+  showCommandHub(options?: { readonly initialQuery?: string; readonly intro?: boolean }): void;
+  showTranscriptSearch(): void;
+  scrollToTranscriptIndex(index: number): void;
+  retryLastTurn(): Promise<void>;
+  setLastTurnFailed(failed: boolean): void;
+  showHelpPanel(args?: string): void;
+  showFileExplorer(): void;
+  showDiffReview(report: GitDiffReport, filter: string): void;
+  showCommitBrowser(report: GitLogReport, filter: string): void;
+  showErrors(): void;
+  showSearchResults(results: SearchResults): void;
+  showWebContent(rawUrl: string | undefined): void;
+  showBlame(rawPath: string | undefined): void;
+  showSessionPicker(): Promise<void>;
+  showAgentDashboard(): Promise<void>;
+  hideAgentDashboard(): void;
+  showExtensionsModal(args?: string): Promise<void>;
+  hideExtensionsModal(): void;
+  hideSessionPicker(): void;
+  openUndoSelector(): void;
+  showApprovalPanel(payload: ApprovalPanelData): void;
+  showQuestionDialog(payload: QuestionPanelData): void;
 }
 
+installLioraTUIDelegates(LioraTUI);

@@ -25,6 +25,7 @@ export interface ReverseRpcPanelsHost {
   deferredQuestion: QuestionPanelData | undefined;
   readonly approvalController: ApprovalController;
   readonly questionController: QuestionController;
+  readonly reverseRpcDisposers: Array<() => void>;
 
   patchLivePane(patch: Partial<LivePaneState>): void;
   mountEditorReplacement(panel: Component & Focusable): void;
@@ -47,6 +48,17 @@ export class ReverseRpcPanelsController {
     | undefined;
 
   constructor(private readonly host: ReverseRpcPanelsHost) {}
+
+  clearReverseRpcPanels(): void {
+    for (const dispose of this.host.reverseRpcDisposers) {
+      dispose();
+    }
+  }
+
+  cancelPendingReverseRpc(reason: string): void {
+    this.host.approvalController.cancelAll(reason);
+    this.host.questionController.cancelAll(reason);
+  }
 
   showApprovalPanel(payload: ApprovalPanelData): void {
     if (

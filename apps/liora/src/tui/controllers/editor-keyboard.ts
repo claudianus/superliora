@@ -36,7 +36,7 @@ export interface EditorKeyboardHost {
   handleUserInput(text: string): void;
   readonly btwPanelController: BtwPanelController;
   steerMessage(session: Session, input: string[]): void;
-  recallLastQueued(): QueuedMessage | undefined;
+  readonly messageDispatch: { recallLastQueued(): QueuedMessage | undefined };
   showError(msg: string): void;
   track(event: string, props?: Record<string, unknown>): void;
   updateEditorBorderHighlight(text?: string): void;
@@ -341,7 +341,7 @@ export class EditorKeyboardController {
     editor.onUpArrowEmpty = () => {
       if (host.btwPanelController.scroll('up')) return true;
       if (host.state.appState.streamingPhase === 'idle' && !host.state.appState.isCompacting) return false;
-      const recalled = host.recallLastQueued();
+      const recalled = host.messageDispatch.recallLastQueued();
       if (recalled !== undefined) {
         editor.setText(recalled.displayText ?? recalled.text);
         // Restore the queued item's mode so a recalled `!` command runs as a

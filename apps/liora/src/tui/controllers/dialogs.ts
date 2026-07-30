@@ -56,6 +56,14 @@ import { resolveTranscriptHitTestContext } from '../utils/transcript-hit-test';
 import { jumpTranscriptViewportToLine } from '../utils/transcript-viewport';
 import { ttui } from '../utils/tui-i18n';
 
+function helpModeFromArgs(args: string): SlashCommandHelpMode {
+  const normalized = args.trim().toLowerCase();
+  if (normalized === 'diagnostics' || normalized === 'diagnostic' || normalized === 'internal') {
+    return 'diagnostics';
+  }
+  return normalized === 'advanced' || normalized === 'manual' ? 'advanced' : 'primary';
+}
+
 /**
  * Host surface required by the dialog-mounting shell (editor-replacement /
  * center-modal mechanics, session-loading overlay, prompt stash) and the
@@ -84,7 +92,6 @@ export interface DialogsHost {
   showQuestionDialog(payload: QuestionPanelData): void;
   cancelRunningShellCommand(): void;
   getSlashCommands(mode?: SlashCommandHelpMode): readonly LioraSlashCommand[];
-  helpModeFromArgs(args: string): SlashCommandHelpMode;
   dispatchSlash(command: string): void;
 }
 
@@ -857,7 +864,7 @@ export class DialogsController {
 
   showHelpPanel(args = ''): void {
     const { host } = this;
-    const mode = host.helpModeFromArgs(args);
+    const mode = helpModeFromArgs(args);
     // Beginner path: `/help` opens the Command Hub, not a wall of slash names.
     if (mode === 'primary') {
       this.showCommandHub();
