@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import type { TeamPlan, WorkGraph, WorkGraphNode } from '@superliora/protocol';
-import { z } from 'zod';
 
 import type { Agent } from '../../../agent';
 import type { SwarmMode } from '../../../agent/swarm';
@@ -28,7 +27,6 @@ import {
 import {
   injectUltraworkPostSwarmContinuation,
   maybeAdvanceUltraworkStage,
-  maybeFinishUltraworkRun,
 } from '../../../ultrawork';
 import {
   emitCouncilDecisionFromReview,
@@ -55,10 +53,7 @@ import {
 import {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
-  rebindPhaseWorkNodeIds,
-  SWARM_DAG_TERMINAL_STATUSES,
 } from '../../../session/swarm-dag-scheduler';
-import { applyEvidenceHardGate } from '../../../session/swarm-evidence-gate';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
@@ -77,7 +72,6 @@ import {
   buildIntraPhaseDependencyHandoff,
   buildReviewRetryHandoff,
   capPlan,
-  cloneWorkGraphNode,
   extractFileChangePaths,
   mergePlans,
   mergeReviewResults,
@@ -88,15 +82,7 @@ import {
   uniqueStrings,
   withWorkNodeSelectionHint,
 } from './ultra-swarm-helpers';
-
-export { resolveMaxExperts, MAX_ULTRA_SWARM_SUBAGENTS } from './ultra-swarm-helpers';
 import type { ToolStore } from '../../store';
-import { TODO_STORE_KEY } from '../state/todo-list';
-import {
-  ULTRAWORK_GRAPH_STORE_KEY,
-  cloneWorkGraph,
-  todosFromWorkGraph,
-} from '../state/ultrawork-graph';
 import {
   clearSwarmRunBus,
   extendSwarmBusAllowlist,
@@ -118,8 +104,6 @@ import {
   councilDecisionFromReview,
   attachCriticAssignments,
   buildPhaseHandoff,
-  workNodeOutcome,
-  ownerResultForWorkNodes,
   renderUltraSwarmResults,
   withRenderedMetadata,
   buildRestaffSpecs,
@@ -138,86 +122,20 @@ import {
   emitDebateTurn,
   type RiskLevel,
 } from '../../../session/ultra-swarm-debate';
+import {
+  createLinkedAbortController,
+  formatBudgetKillHandoff,
+  assessDebateRiskForResult,
+} from './ultra-swarm-budget-debate';
+import { UltraSwarmWorkNodeCoordinator } from './ultra-swarm-worknodes';
+import {
+  UltraSwarmToolInputSchema,
+  type UltraSwarmToolInput,
+} from './ultra-swarm-schema';
 
-export const UltraSwarmToolInputSchema = z
-  .object({
-    description: z
-      .string()
-      .trim()
-      .min(1)
-      .describe('Task description for the UltraSwarm. Be specific about what you need.'),
-    run_id: z
-      .string()
-      .trim()
-      .min(1)
-      .optional()
-      .describe(
-        'Optional Ultrawork/UltraSwarm run id to echo into result metadata and trace evidence.',
-      ),
-    work_node_ids: z
-      .array(z.string().trim().min(1))
-      .max(MAX_ULTRA_SWARM_SUBAGENTS)
-      .optional()
-      .describe(
-        'Optional UltraworkGraph node ids to bind this swarm call to.',
-      ),
-    experts: z
-      .array(z.string().trim().min(1))
-      .max(MAX_ULTRA_SWARM_SUBAGENTS)
-      .optional()
-      .describe(
-        'Optional list of expert IDs to summon. If omitted, the system will auto-select the best experts for the task.',
-      ),
-    required_experts: z
-      .array(z.string().trim().min(1))
-      .max(MAX_ULTRA_SWARM_SUBAGENTS)
-      .optional()
-      .describe(
-        'Expert IDs that must be included even when auto_select is true. Useful when Ultrawork has already identified mandatory research, review, or verification roles.',
-      ),
-    max_experts: z
-      .number()
-      .int()
-      .min(1)
-      .max(MAX_ULTRA_SWARM_SUBAGENTS)
-      .optional()
-      .describe('Maximum experts to launch. Defaults to 24 and never exceeds 128.'),
-    intensity: z
-      .enum(['balanced', 'premium', 'max'])
-      .optional()
-      .describe(
-        'Swarm staffing intensity. balanced keeps staffing conservative, premium uses the default enterprise team, max allows the largest team up to max_experts.',
-      ),
-    focus: z
-      .enum(['plan', 'research', 'implement', 'review', 'full'])
-      .optional()
-      .describe(
-        'Primary swarm focus. Ultrawork uses this to distinguish planning, research, implementation, review, or full lifecycle work.',
-      ),
-    auto_select: z
-      .boolean()
-      .optional()
-      .describe(
-        'When true (default), the system automatically selects experts based on the task description. Set to false to require explicit expert IDs.',
-      ),
-    subagent_type: z
-      .string()
-      .trim()
-      .min(1)
-      .optional()
-      .describe(
-        'Base execution profile for spawned experts. Each expert still runs as its own expert subagent. Defaults to "coder" when omitted.',
-      ),
-    run_in_background: z
-      .boolean()
-      .optional()
-      .describe(
-        'Ignored. UltraSwarm always runs experts in the foreground swarm panel so orchestration, handoffs, and progress stay unified. Use the Agent tool for detached background work.',
-      ),
-  })
-  .strict();
-
-export type UltraSwarmToolInput = z.infer<typeof UltraSwarmToolInputSchema>;
+export { resolveMaxExperts, MAX_ULTRA_SWARM_SUBAGENTS } from './ultra-swarm-helpers';
+export { UltraSwarmToolInputSchema, type UltraSwarmToolInput } from './ultra-swarm-schema';
+export { createLinkedAbortController, formatBudgetKillHandoff } from './ultra-swarm-budget-debate';
 
 export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
   readonly name = 'UltraSwarm' as const;
@@ -237,12 +155,16 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     draftExcerpt: string;
   }[] = [];
 
+  private readonly workNodes: UltraSwarmWorkNodeCoordinator;
+
   constructor(
     private readonly subagentHost: SessionSubagentHost,
     private readonly swarmMode: SwarmMode,
     private readonly store: ToolStore,
     private readonly agent: Agent,
-  ) {}
+  ) {
+    this.workNodes = new UltraSwarmWorkNodeCoordinator(store, agent);
+  }
 
   resolveExecution(args: UltraSwarmToolInput): ToolExecution {
     const expertCount = args.experts?.length ?? 'auto';
@@ -286,7 +208,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const routing = typeof engageGate?.data === 'function' ? engageGate.data()?.routing : undefined;
     const maxExperts = resolveMaxExperts(args.intensity, routing, args.max_experts);
     const runId = normalizeOptionalString(args.run_id) ?? `ultra-swarm-${randomUUID()}`;
-    const workNodeContext = this.resolveWorkNodeContext(args);
+    const workNodeContext = this.workNodes.resolveWorkNodeContext(args);
     // Pure DAG ready-set: prefer nodes whose deps are done so blocked nodes are
     // not claimed early. Full graph still used for dep resolution.
     const dagNodes =
@@ -391,7 +313,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
 
     // Only mark ready nodes running; blocked deps stay queued.
     if (workNodeContext !== undefined && schedulableWorkNodeIds.length > 0) {
-      this.markWorkNodesRunning(schedulableWorkNodeIds, ownerExpertIdForWorkNodes(specs));
+      this.workNodes.markWorkNodesRunning(schedulableWorkNodeIds, ownerExpertIdForWorkNodes(specs));
     }
 
     let phaseResults: UltraSwarmRunResult[] = [];
@@ -415,7 +337,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     } catch (error) {
       // Only fail nodes we actually marked running; blocked deps stay queued.
       if (schedulableWorkNodeIds.length > 0) {
-        this.failWorkNodes(schedulableWorkNodeIds, error);
+        this.workNodes.failWorkNodes(schedulableWorkNodeIds, error);
       }
       getDefaultSwarmFileLeaseRegistry().releaseAll(runId);
       this.agent.ultraSwarmRun = undefined;
@@ -458,13 +380,13 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       const claimed = new Set<string>();
       for (const result of rendered) {
         if (result.spec.workNodeIds.length === 0) continue;
-        this.finishWorkNodes(result.spec.workNodeIds, [result]);
+        this.workNodes.finishWorkNodes(result.spec.workNodeIds, [result]);
         for (const id of result.spec.workNodeIds) claimed.add(id);
       }
       // Do not finish blocked (not-ready) nodes just because the run ended.
       const unclaimed = schedulableWorkNodeIds.filter((id) => !claimed.has(id));
       if (unclaimed.length > 0) {
-        this.finishWorkNodes(unclaimed, rendered);
+        this.workNodes.finishWorkNodes(unclaimed, rendered);
       }
     }
 
@@ -572,7 +494,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
 
       // Rebind this phase's specs to the live DAG ready-set so nodes unlocked
       // by prior phases become schedulable (not stuck on the initial ready set).
-      let phaseSpecsForRun = this.rebindPhaseSpecsToLiveReadyNodes(
+      let phaseSpecsForRun = this.workNodes.rebindPhaseSpecsToLiveReadyNodes(
         phaseSpecs,
         input.args.work_node_ids ?? [],
         input.runId,
@@ -616,7 +538,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
 
       phaseResults.push(...renderedPhaseResults);
       // Close work nodes finished in this phase so dependents become ready next.
-      this.finishPhaseClaimedWorkNodes(renderedPhaseResults);
+      this.workNodes.finishPhaseClaimedWorkNodes(renderedPhaseResults);
 
       // Budget governor: count rounds without high-signal progress; suggest kill after N wastes.
       // Review/implement PASS without evidenceIds still counts via verificationPassed so
@@ -683,7 +605,7 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         // cancel open non-terminal work nodes, and surface a visible reason.
         // Completed phase work stays in phaseResults; no further phases run.
         budgetKilled = true;
-        this.applyBudgetKill({
+        this.workNodes.applyBudgetKill({
           phaseController,
           runId: input.runId,
           phase,
@@ -864,240 +786,6 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
         });
     phaseResults.push(...restaffed);
     return { phaseResults, team };
-  }
-
-  private resolveWorkNodeContext(
-    args: UltraSwarmToolInput,
-  ): { readonly graph: WorkGraph; readonly nodes: readonly WorkGraphNode[] } | undefined {
-    const ids = uniqueStrings(args.work_node_ids ?? []);
-    if (ids.length === 0) return undefined;
-    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
-    if (graph === undefined) {
-      throw new Error(
-        'UltraSwarm work_node_ids requires an existing UltraworkGraph. Approved Ultra Plans seed the graph on ExitPlanMode; otherwise call UltraworkGraph first or omit work_node_ids.',
-      );
-    }
-    const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
-    const nodes = ids.map((id) => {
-      const node = nodeById.get(id);
-      if (node === undefined) {
-        const knownIds = graph.nodes.map((entry) => entry.id).join(', ');
-        throw new Error(
-          `UltraSwarm work_node_ids includes missing node ${id}. Known node ids: ${knownIds.length === 0 ? 'none' : knownIds}.`,
-        );
-      }
-      return node;
-    });
-    return { graph: cloneWorkGraph(graph), nodes: nodes.map(cloneWorkGraphNode) };
-  }
-
-  private markWorkNodesRunning(nodeIds: readonly string[], ownerExpertId: string | undefined): void {
-    this.updateWorkNodes(nodeIds, (node) => ({
-      ...node,
-      status: 'running',
-      ownerExpertId: node.ownerExpertId ?? ownerExpertId,
-    }));
-  }
-
-  /**
-   * After a phase completes, mark claimed work nodes done/failed so the DAG
-   * ready-set advances for subsequent phases.
-   */
-  private finishPhaseClaimedWorkNodes(
-    results: readonly UltraSwarmRenderedResult[],
-  ): void {
-    const claimed = new Set<string>();
-    for (const result of results) {
-      if (result.spec.workNodeIds.length === 0) continue;
-      this.finishWorkNodes(result.spec.workNodeIds, [result]);
-      for (const id of result.spec.workNodeIds) claimed.add(id);
-    }
-    if (claimed.size > 0) {
-      this.agent.telemetry.track('ultra_swarm_dag_phase_finish', {
-        finished_count: claimed.size,
-        finished_ids: [...claimed].slice(0, 32).join(','),
-      });
-    }
-  }
-
-  /**
-   * Rebind phase specs to currently ready WorkGraph nodes (live store).
-   * Specs that already hold ready/running ids keep them; empty/blocked specs
-   * pick up newly unlocked ready nodes so phase runners do not starve.
-   * Pure assignment lives in `rebindPhaseWorkNodeIds`; this method adds
-   * telemetry and mark-running side effects.
-   */
-  private rebindPhaseSpecsToLiveReadyNodes(
-    phaseSpecs: readonly UltraSwarmSpec[],
-    boundWorkNodeIds: readonly string[],
-    runId: string,
-  ): UltraSwarmSpec[] {
-    if (phaseSpecs.length === 0 || boundWorkNodeIds.length === 0) {
-      return [...phaseSpecs];
-    }
-    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
-    if (graph === undefined) return [...phaseSpecs];
-
-    const dagNodes = graph.nodes.map((node) => ({
-      id: node.id,
-      dependsOn: node.dependsOn,
-      status: node.status,
-    }));
-    const partition = partitionReadyWorkNodeIds(
-      dagNodes.filter((node) => boundWorkNodeIds.includes(node.id)),
-    );
-    this.agent.telemetry.track('ultra_swarm_dag_phase_ready', {
-      run_id: runId,
-      ready_count: partition.readyIds.length,
-      blocked_count: partition.blockedIds.length,
-      ready_ids: partition.readyIds.slice(0, 32).join(','),
-    });
-
-    const rebound = rebindPhaseWorkNodeIds(phaseSpecs, boundWorkNodeIds, dagNodes);
-    const readyIds = preferReadyWorkNodeIds(boundWorkNodeIds, dagNodes);
-    if (readyIds.length === 0) return rebound;
-
-    const newlyRunning = uniqueStrings(rebound.flatMap((spec) => spec.workNodeIds)).filter(
-      (id) => {
-        const node = graph.nodes.find((n) => n.id === id);
-        return (
-          node !== undefined &&
-          node.status !== 'running' &&
-          !SWARM_DAG_TERMINAL_STATUSES.has(node.status)
-        );
-      },
-    );
-    if (newlyRunning.length > 0) {
-      this.markWorkNodesRunning(newlyRunning, ownerExpertIdForWorkNodes(rebound));
-    }
-    return rebound;
-  }
-
-  private finishWorkNodes(
-    nodeIds: readonly string[],
-    results: readonly UltraSwarmRenderedResult[],
-  ): void {
-    const outcome = workNodeOutcome(results);
-    const owner = ownerResultForWorkNodes(results);
-    // Skip already-terminal nodes so multi-phase finish is idempotent.
-    // needs_integration / cancelled / failed / blocked count as terminal too.
-    this.updateWorkNodes(nodeIds, (node) => {
-      if (SWARM_DAG_TERMINAL_STATUSES.has(node.status)) return node;
-      return {
-        ...node,
-        ownerExpertId: node.ownerExpertId ?? owner?.spec.expertId,
-        ownerAgentId: node.ownerAgentId ?? owner?.agentId,
-        status: outcome.status,
-        evidenceIds: uniqueStrings([...(node.evidenceIds ?? []), ...outcome.evidenceIds]),
-        verificationStatus: outcome.verificationStatus,
-        verificationSummary: outcome.summary,
-      };
-    });
-  }
-
-  private failWorkNodes(nodeIds: readonly string[], error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
-    this.updateWorkNodes(nodeIds, (node) => ({
-      ...node,
-      status: 'failed',
-      verificationStatus: 'failed',
-      verificationSummary: `UltraSwarm failed before returning node evidence: ${message}`,
-    }));
-  }
-
-  /**
-   * Budget governor hard kill: abort the linked phase controller (cancels
-   * in-flight/remaining subagents that share its signal) and mark non-terminal
-   * bound work nodes cancelled with a visible verificationSummary reason.
-   */
-  private applyBudgetKill(input: {
-    readonly phaseController: AbortController;
-    readonly runId: string;
-    readonly phase: UltraSwarmPhase;
-    readonly reason: string;
-    readonly boundWorkNodeIds: readonly string[];
-  }): void {
-    if (!input.phaseController.signal.aborted) {
-      input.phaseController.abort(new Error(input.reason));
-    }
-
-    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
-    const candidateIds =
-      input.boundWorkNodeIds.length > 0
-        ? input.boundWorkNodeIds
-        : (graph?.nodes.map((node) => node.id) ?? []);
-    const openIds = candidateIds.filter((id) => {
-      const node = graph?.nodes.find((entry) => entry.id === id);
-      if (node === undefined) return false;
-      // running is never terminal; also cancel queued/ready open work.
-      return node.status === 'running' || !SWARM_DAG_TERMINAL_STATUSES.has(node.status);
-    });
-    if (openIds.length > 0) {
-      this.updateWorkNodes(openIds, (node) => {
-        if (node.status !== 'running' && SWARM_DAG_TERMINAL_STATUSES.has(node.status)) {
-          return node;
-        }
-        return {
-          ...node,
-          status: 'cancelled',
-          verificationStatus: 'failed',
-          verificationSummary: `Budget kill (${input.phase}): ${input.reason}`,
-        };
-      });
-    }
-    this.agent.emitEvent({
-      type: 'ultrawork.swarm.paused',
-      runId: input.runId,
-      reason: `Budget kill: ${input.reason}`,
-      phase: input.phase,
-    } as any);
-  }
-
-  private updateWorkNodes(
-    nodeIds: readonly string[],
-    update: (node: WorkGraphNode) => WorkGraphNode,
-  ): void {
-    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
-    if (graph === undefined) return;
-    const targetIds = new Set(nodeIds);
-    const mapped = graph.nodes.map((node) =>
-      targetIds.has(node.id) ? update(cloneWorkGraphNode(node)) : node,
-    );
-    // Same hard gate as UltraworkGraph tool path — UltraSwarm must not be a
-    // privileged done mutator that bypasses requiredEvidence checks.
-    const gated = applyEvidenceHardGate(mapped);
-    if (gated.violations.length > 0) {
-      this.agent.telemetry.track('evidence_gate_violations', {
-        run_id: graph.runId,
-        source: 'ultra_swarm_update_work_nodes',
-        violations: gated.violations.length,
-        node_ids: gated.violations.map((v) => v.nodeId).slice(0, 32).join(','),
-      });
-    }
-    const next = cloneWorkGraph({
-      ...graph,
-      updatedAt: new Date().toISOString(),
-      nodes: gated.nodes,
-    });
-    this.store.set(ULTRAWORK_GRAPH_STORE_KEY, next);
-    this.store.set(TODO_STORE_KEY, todosFromWorkGraph(next));
-    for (const node of next.nodes) {
-      if (!targetIds.has(node.id)) continue;
-      this.agent.emitEvent({
-        type: 'ultrawork.task.assigned',
-        runId: next.runId,
-        task: node,
-      });
-    }
-    // Sync the updated graph into the run so its workGraph reflects the new
-    // node statuses, then check whether the run (and its UltraGoal) should
-    // finish. Without this, swarm-completed nodes never trigger the
-    // run/goal termination path — the UltraworkGraph tool does this sync,
-    // but updateWorkNodes is the path UltraSwarm uses, and it was missing.
-    this.agent.ultrawork.syncWorkGraphFromStore();
-    // Fire-and-forget: this method is sync; markComplete applies status
-    // synchronously so the race window is minimal.
-    void maybeFinishUltraworkRun(this.agent);
   }
 
   private async buildPlan(
@@ -1502,102 +1190,3 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     });
   }
 }
-
-// ── Budget kill + AbortSignal helpers ────────────────────────────────
-
-/**
- * Link a child AbortController to a parent signal so budget kill can abort
- * phase work without mutating the parent tool signal.
- */
-export function createLinkedAbortController(parent: AbortSignal): AbortController {
-  const child = new AbortController();
-  if (parent.aborted) {
-    child.abort(parent.reason);
-    return child;
-  }
-  const onAbort = (): void => {
-    if (!child.signal.aborted) {
-      child.abort(parent.reason);
-    }
-  };
-  parent.addEventListener('abort', onAbort, { once: true });
-  // Drop listener when child aborts first (budget kill) so we do not leak.
-  child.signal.addEventListener(
-    'abort',
-    () => {
-      parent.removeEventListener('abort', onAbort);
-    },
-    { once: true },
-  );
-  return child;
-}
-
-/** Visible handoff fragment for budget governor kill (parent + TUI). */
-export function formatBudgetKillHandoff(input: {
-  readonly reason: string;
-  readonly phase: string;
-  readonly wastedRounds: number;
-  readonly killThreshold: number;
-  /**
-   * Optional trail of the last few rounds (newest first) so the next session
-   * sees which phases were wasted vs productive without re-deriving from state.
-   * At most `maxRounds` entries are rendered; defaults to 3.
-   */
-  readonly lastRounds?: readonly {
-    readonly label?: string;
-    readonly wasted: boolean;
-    readonly evidenceCount: number;
-    readonly toolSuccessCount: number;
-  }[];
-  /** Cap on rendered lastRounds trail length (default 3, hard cap 8). */
-  readonly maxRounds?: number;
-}): string {
-  const reason = input.reason.replace(/"/g, "'");
-  const lines: string[] = [
-    `<budget_kill reason="${reason}" phase="${input.phase}" ` +
-      `wasted_rounds="${String(input.wastedRounds)}" ` +
-      `threshold="${String(input.killThreshold)}" />`,
-    'Budget governor stopped further UltraSwarm phases after consecutive low-signal rounds.',
-    'Do not re-launch UltraSwarm for the same wasted pattern.',
-    'Next: close verification gaps, attach requiredEvidence/artifactIds/fileChangeCount signal, integrate accepted handoffs, or re-scope — then re-staff only if the plan changed.',
-  ];
-  if (input.lastRounds !== undefined && input.lastRounds.length > 0) {
-    const cap = Math.max(1, Math.min(input.maxRounds ?? 3, 8));
-    const trail = input.lastRounds.slice(-cap).map((round) => {
-      const verdict = round.wasted ? 'wasted' : 'productive';
-      const label = round.label !== undefined && round.label.length > 0 ? round.label : 'round';
-      const signals: string[] = [];
-      if (round.evidenceCount > 0) signals.push(`evidence ${String(round.evidenceCount)}`);
-      if (round.toolSuccessCount > 0) signals.push(`tools ${String(round.toolSuccessCount)}`);
-      const sig = signals.length > 0 ? ` (${signals.join(', ')})` : '';
-      return `${label}=${verdict}${sig}`;
-    });
-    lines.push(`Last rounds: ${trail.join(' → ')}.`);
-  }
-  return lines.join('\n');
-}
-
-// ── Debate risk assessment helpers ────────────────────────────────────
-
-/**
- * phase 결과물의 위험도를 평가하여 debate 깊이를 결정.
- * - implement phase: 파일 수/의존성/증거 수 기준
- * - review phase: 모든 결과에 대해 최소 medium 토론
- * - plan phase: 토론 생략 (이미 plan 승인을 받았으므로)
- */
-function assessDebateRiskForResult(
-  result: UltraSwarmRenderedResult,
-  phase: string,
-): RiskLevel {
-  if (phase === 'plan') return 'simple';
-  if (phase === 'review') return 'medium'; // review는 항상 토론
-
-  // implement phase: 결과물 길이와 증거 수로 위험도 추정
-  const text =
-    result.status === 'completed' ? (result.result ?? '') : (result.error ?? '');
-  const renderedLength = text.length;
-  if (renderedLength > 5000) return 'complex';
-  if (renderedLength > 1000) return 'medium';
-  return 'simple';
-}
-
