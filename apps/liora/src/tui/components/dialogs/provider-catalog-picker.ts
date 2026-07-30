@@ -21,7 +21,7 @@ import {Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWid
 import {CURRENT_MARK} from '#/tui/constant/symbols';
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {currentTheme, type ColorToken} from '#/tui/theme';
-import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
 import {SearchableList} from '#/tui/utils/searchable-list';
 import {type ProviderCatalogOption, type ProviderAuthKind, type ProviderCatalogSelection, resolveProviderSelection} from '#/tui/utils/provider-catalog-options';
 

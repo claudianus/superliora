@@ -5,7 +5,7 @@ import type { ColorToken } from '../../theme';
 import type { LioraTUIOptions } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { DisposableRegistry } from '../../utils/disposables';
-import type { TUIStateNativeInputRouter } from '../../utils/native-input-router';
+import type { TUIStateNativeInputRouter } from '../../features/native-layout/native-input-router';
 import type { AppearanceController } from '../appearance';
 import type { AuthFlowController } from '../auth-flow';
 import type { ClipboardImageHintController } from '../clipboard-image-hint';

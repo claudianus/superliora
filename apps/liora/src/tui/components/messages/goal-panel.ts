@@ -31,7 +31,7 @@ import {
   renderExitBeat,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import type { ColorToken } from '#/tui/theme';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 import { formatGoalElapsed } from './goal-format';

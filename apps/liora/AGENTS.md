@@ -54,7 +54,7 @@ User-facing features that operators need during an interactive session must be r
 - Every state transition (kanban card moves, dialogs, stream start/end, test results) gets a 150–400ms motion cue.
 - The kanban board is a live surface: card movement, WIP pulse, and swarm synchronization stay visible.
 - Frame budget: a single event repaint under 8ms; batch bulk updates through renderer invalidation. Do not debounce events in ways that hurt real-time feel.
-- Motion reuses the shared animation clock and ambient tick (`src/tui/utils/appearance-effects.ts`, `src/tui/PREMIUM.md` §7): no raw `setInterval`/`setTimeout`, quality levels off/subtle/premium, forced off under SSH/NO_COLOR/CI.
+- Motion reuses the shared animation clock and ambient tick (`src/tui/features/appearance/appearance-effects.ts`, `src/tui/PREMIUM.md` §7): no raw `setInterval`/`setTimeout`, quality levels off/subtle/premium, forced off under SSH/NO_COLOR/CI.
 - New TUI features include a visual verification path (visual smoke or VerifySurface).
 
 ## Hard rules (CI-guarded)

@@ -17,7 +17,7 @@ import {
   renderParticleRail,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { formatModelWithThinking } from '#/tui/utils/thinking-effort';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { renderWelcomeBanner } from './welcome-banner';

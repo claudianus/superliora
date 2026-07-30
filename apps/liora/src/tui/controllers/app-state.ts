@@ -2,7 +2,7 @@ import type { CommandHubComponent } from '../components/dialogs/command-hub';
 import type { AppState, LivePaneState } from '../types';
 import { INITIAL_LIVE_PANE } from '../types';
 import type { TUIState } from '../tui-state';
-import { appearanceAnimationNow } from '../utils/appearance-effects';
+import { appearanceAnimationNow } from '../features/appearance/appearance-effects';
 import { requestTUIContentRender, requestTUILayoutRender } from '../utils/frame-render';
 import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import { hasPatchChanges } from '../utils/object-patch';

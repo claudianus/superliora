@@ -12,7 +12,7 @@ import {Container, matchesKey, Key, truncateToWidth, visibleWidth, type Focusabl
 import {CURRENT_MARK} from '#/tui/constant/symbols';
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {currentTheme, type ColorToken} from '#/tui/theme';
-import {getActiveAppearancePreferences, renderAnimatedGradientText, renderParticleDivider, renderPremiumHeadline, renderShimmerPrefix, shouldRenderAmbientEffects} from '#/tui/utils/appearance-effects';
+import {getActiveAppearancePreferences, renderAnimatedGradientText, renderParticleDivider, renderPremiumHeadline, renderShimmerPrefix, shouldRenderAmbientEffects} from '#/tui/features/appearance/appearance-effects';
 import {printableChar} from '#/tui/utils/printable-key';
 import {SearchableList} from '#/tui/utils/searchable-list';
 

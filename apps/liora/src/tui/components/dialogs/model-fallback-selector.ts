@@ -1,7 +1,7 @@
 import { Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWidth, type Focusable } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { renderSelectPointer } from '#/tui/utils/select-pointer';
 
 export interface ModelFallbackItem {

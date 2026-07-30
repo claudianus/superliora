@@ -10,7 +10,7 @@ import {
 import type { UpgradePlan } from '#/cli/update/plan';
 import { PRODUCT_NAME } from '#/constant/app';
 import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { renderSelectPointer } from '#/tui/utils/select-pointer';
 
 export type UpgradeDialogChoice = 'install' | 'later';

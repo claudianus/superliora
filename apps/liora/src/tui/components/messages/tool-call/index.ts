@@ -14,17 +14,17 @@ import { RESULT_PREVIEW_LINES } from '#/tui/constant/rendering';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
 import type { ToolOutputViewportState } from '#/tui/utils/tool-output-viewport';
-import { isOneLineToolLevel } from '#/tui/utils/transcript-density';
+import { isOneLineToolLevel } from '#/tui/features/transcript/transcript-density';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 import {
   applyToolHeaderEntrance,
   isTranscriptEntranceActive,
   polishTranscriptLines,
-} from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/transcript/transcript-entrance';
 
 import { ShellExecutionComponent } from '../shell-execution';
 import { buildCompactErrorLineComponent } from './compact-error';

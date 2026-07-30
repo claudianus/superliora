@@ -9,15 +9,15 @@ import type { AppState } from '#/tui/types';
 import {
   resolveTranscriptHitTestContext,
   transcriptPointForMouse,
-} from '#/tui/utils/transcript-hit-test';
-import * as transcriptHitTest from '#/tui/utils/transcript-hit-test';
-import { handleTranscriptSelectionMouseInput } from '#/tui/utils/transcript-selection-mouse';
+} from '#/tui/features/transcript/transcript-hit-test';
+import * as transcriptHitTest from '#/tui/features/transcript/transcript-hit-test';
+import { handleTranscriptSelectionMouseInput } from '#/tui/features/transcript/transcript-selection-mouse';
 import {
   copyTranscriptSelectionToClipboard,
   createTranscriptSelectionState,
   extractTranscriptSelectionPlainText,
   shouldHoldTranscriptAnimation,
-} from '#/tui/utils/transcript-selection';
+} from '#/tui/features/transcript/transcript-selection';
 
 vi.mock('#/utils/clipboard/clipboard-text', () => ({
   copyTextToClipboard: vi.fn(async () => {}),

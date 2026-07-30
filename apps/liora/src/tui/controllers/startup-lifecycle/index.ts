@@ -6,7 +6,7 @@ import {
 import {
   scrollTranscriptViewport as applyTranscriptViewportScroll,
   type TranscriptScrollAction,
-} from '../../utils/transcript-viewport';
+} from '../../features/transcript/transcript-viewport';
 import { loadStartupBanner } from './banner';
 import { finishStartupSession, showSessionWarnings } from './finish';
 import {

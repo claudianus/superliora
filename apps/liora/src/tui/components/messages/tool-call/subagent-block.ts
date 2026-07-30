@@ -22,8 +22,8 @@ import {
 import { BACKGROUND_GLYPH, PENDING_GLYPH, SPINNER_GLYPH } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { TokenUsage } from '@superliora/sdk';
-import { renderPulseText } from '#/tui/utils/appearance-effects';
-import { applyToolHeaderEntrance } from '#/tui/utils/transcript-entrance';
+import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
+import { applyToolHeaderEntrance } from '#/tui/features/transcript/transcript-entrance';
 
 import { extractKeyArgument, formatSubagentContextTokens, formatSubagentTokens } from './format';
 import {

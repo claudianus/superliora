@@ -23,7 +23,7 @@ import {
   modelRouteDisplayName,
 } from '../../utils/model-route-notice';
 import { requestTUILayoutRender } from '../../utils/frame-render';
-import { nextTranscriptId } from '../../utils/transcript-id';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyTurnComplete } from '../../utils/desktop-notification';
 import type { StreamingUIController } from '../streaming-ui';
 

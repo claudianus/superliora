@@ -16,9 +16,9 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
-import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
-import { resetIdleScenePaintCachesForTests } from '#/tui/utils/idle-scene';
+} from '#/tui/features/appearance/appearance-effects';
+import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';
+import { resetIdleScenePaintCachesForTests } from '#/tui/features/idle-scene/idle-scene';
 import type { RendererCell } from '@harness-kit/tui-renderer';
 
 function appState(): AppState {

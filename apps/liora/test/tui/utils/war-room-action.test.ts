@@ -5,7 +5,7 @@ import {
   defaultWarRoomReason,
   formatWarRoomRestaffReason,
   resolveWarRoomReason,
-} from '#/tui/utils/war-room-action';
+} from '#/tui/features/agent-swarm/war-room-action';
 
 describe('war-room-action helpers', () => {
   it('defaults pause and restaff reasons', () => {

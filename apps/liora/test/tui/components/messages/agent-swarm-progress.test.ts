@@ -21,7 +21,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const DEFAULT_DESCRIPTION = 'Review changed files';
 

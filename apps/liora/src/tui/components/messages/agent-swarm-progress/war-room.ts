@@ -3,18 +3,18 @@ import {
   humanizeFeedBody,
   isAgentConversationChannel,
   swarmCollaborationFeedTag,
-} from '#/tui/utils/agent-swarm-cell-render';
+} from '#/tui/features/agent-swarm/agent-swarm-cell-render';
 import {
   appendAgentSwarmConversationFeedEntry,
   appendAgentSwarmToolFeedEntry,
   rebuildAgentSwarmExpertSlotIndex,
-} from '#/tui/utils/agent-swarm-feed-render';
+} from '#/tui/features/agent-swarm/agent-swarm-feed-render';
 import {
   collectAgentSwarmWarRoomHints,
   type WarRoomDebateTurn,
   type WarRoomFileLease,
-} from '#/tui/utils/agent-swarm-header-render';
-import { SWARM_OPS_FEED_MAX_ENTRIES } from '#/tui/utils/agent-swarm-progress-constants';
+} from '#/tui/features/agent-swarm/agent-swarm-header-render';
+import { SWARM_OPS_FEED_MAX_ENTRIES } from '#/tui/features/agent-swarm/agent-swarm-progress-constants';
 import type {
   AgentSwarmMember,
   AgentSwarmPauseRequest,
@@ -22,15 +22,15 @@ import type {
   SwarmCollaborationFeedMessage,
   SwarmOpsFeedEntry,
   SwarmOpsFeedTag,
-} from '#/tui/utils/agent-swarm-progress-types';
+} from '#/tui/features/agent-swarm/agent-swarm-progress-types';
 import {
   buildCouncilDecisionFeedDraft,
   buildSwarmPausedFeedDraft,
   buildSwarmRestaffingFeedDraft,
   trimAgentSwarmDebateReel,
-} from '#/tui/utils/agent-swarm-war-room-feed';
-import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
-import { findAgentSwarmMemberByAgentId, trackAgentSwarmMemberCodeWriteActivity } from '#/tui/utils/agent-swarm-member-state';
+} from '#/tui/features/agent-swarm/agent-swarm-war-room-feed';
+import { resolveWarRoomReason } from '#/tui/features/agent-swarm/war-room-action';
+import { findAgentSwarmMemberByAgentId, trackAgentSwarmMemberCodeWriteActivity } from '#/tui/features/agent-swarm/agent-swarm-member-state';
 
 export interface AgentSwarmProgressWarRoomLayoutSlice {
   readonly debateReel: readonly WarRoomDebateTurn[];

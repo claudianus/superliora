@@ -8,10 +8,10 @@ import type {
 } from '@harness-kit/tui-renderer';
 
 import { LioraNativeRootUI } from './native-root-ui';
-import type { FrameInvalidationIntent } from '#/tui/utils/native-frame-policy';
-import { frameInvalidationIntentToCause } from '#/tui/utils/native-frame-policy';
+import type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
+import { frameInvalidationIntentToCause } from '#/tui/features/native-layout/native-frame-policy';
 
-export type { FrameInvalidationIntent } from '#/tui/utils/native-frame-policy';
+export type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 
 export interface TerminalRenderer {
   readonly terminal: RendererTerminalHost;

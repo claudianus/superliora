@@ -7,7 +7,7 @@ import {
   modelRouteDisplayName,
   resolveModelRouteIdentity,
 } from '../../utils/model-route-notice';
-import { nextTranscriptId } from '../../utils/transcript-id';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { SubagentLifecycleEventOf } from './helpers';
 
 export function findAgentTaskId(

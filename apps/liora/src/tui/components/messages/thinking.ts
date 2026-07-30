@@ -28,13 +28,13 @@ import {
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
 import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
-} from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/transcript/transcript-entrance';
 
 export type ThinkingRenderMode = 'live' | 'finalized';
 

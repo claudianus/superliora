@@ -14,7 +14,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const CLEAN_FONTS: readonly BannerFontId[] = [
   'slant',

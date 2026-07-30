@@ -21,18 +21,18 @@ import { CHROME_GUTTER } from './constant/rendering';
 import type { TasksBrowserState } from './controllers/tasks-browser';
 import { currentTheme, type Theme } from './theme';
 import { resolveStageLayout } from './controllers/stage-layout';
-import { NativeEditorTextInputController } from './utils/native-editor-text-input';
+import { NativeEditorTextInputController } from './features/native-layout/native-editor-text-input';
 import { createTerminalState, type TerminalState } from './utils/terminal-state';
 import {
   createTranscriptSelectionState,
   shouldHoldTranscriptAnimation,
   type TranscriptSelectionState,
-} from './utils/transcript-selection';
+} from './features/transcript/transcript-selection';
 import { TUIToastState } from './utils/toast';
 import {
   createTranscriptViewportState,
   type TranscriptViewportState,
-} from './utils/transcript-viewport';
+} from './features/transcript/transcript-viewport';
 import type { ToolOutputViewportState } from './utils/tool-output-viewport';
 import {
   INITIAL_LIVE_PANE,

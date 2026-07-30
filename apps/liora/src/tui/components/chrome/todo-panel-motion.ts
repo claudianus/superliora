@@ -7,7 +7,7 @@ import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 import { cardPositions, countTodos, type CardPosition, type TodoChangeKind } from './todo-panel-model';
 import { EMPTY_LANE_FLASHES, EMPTY_MOTIONS, type CardMotionCue } from './todo-panel-render';

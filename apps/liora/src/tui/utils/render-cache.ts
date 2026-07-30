@@ -1,4 +1,4 @@
-import { ambientAnimationRenderTick } from '#/tui/utils/appearance-effects';
+import { ambientAnimationRenderTick } from '#/tui/features/appearance/appearance-effects';
 import type { Text } from '#/tui/renderer';
 
 /**

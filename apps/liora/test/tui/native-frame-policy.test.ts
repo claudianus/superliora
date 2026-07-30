@@ -9,7 +9,7 @@ import {
   isPureTranscriptScrollFrame,
   shouldReuseTUIChromeCache,
   tuiChromeEpoch,
-} from '#/tui/utils/native-frame-policy';
+} from '#/tui/features/native-layout/native-frame-policy';
 
 describe('frameInvalidationIntentToCause', () => {
   it('maps every intent to a stable native cause', () => {

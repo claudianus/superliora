@@ -11,7 +11,7 @@ import {
   renderPulseText,
   renderSettleFlash,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 type SubagentToolCallEventPayload = Extract<Event, { type: 'subagent.tool_call' }>;
 

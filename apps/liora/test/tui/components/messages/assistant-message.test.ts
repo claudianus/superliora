@@ -12,8 +12,8 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
-import { TURN_BOUNDARY_CUE_MS } from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/appearance/appearance-effects';
+import { TURN_BOUNDARY_CUE_MS } from '#/tui/features/transcript/transcript-entrance';
 
 import { captureProcessWrite } from '../../../helpers/process';
 

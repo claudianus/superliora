@@ -10,7 +10,7 @@ import {
   recordChainTool,
   resolveTranscriptDetail,
   settleToolChain,
-} from '#/tui/utils/transcript-density';
+} from '#/tui/features/transcript/transcript-density';
 
 describe('resolveTranscriptDetail', () => {
   it('prefers local override, then temporary full, then configured', () => {

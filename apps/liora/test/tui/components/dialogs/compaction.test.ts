@@ -9,7 +9,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 // Force CI mode to disable ambient effects for deterministic rendering.
 process.env['CI'] = '1';

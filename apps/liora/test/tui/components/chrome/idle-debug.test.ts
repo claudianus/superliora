@@ -10,8 +10,8 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
-import { stripAnsi } from '#/tui/utils/idle-scene';
+} from '#/tui/features/appearance/appearance-effects';
+import { stripAnsi } from '#/tui/features/idle-scene/idle-scene';
 
 /**
  * Manual eyeball dump — skip in CI. Run with:

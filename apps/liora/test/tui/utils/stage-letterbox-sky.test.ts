@@ -3,7 +3,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   applySkyToLetterboxRegions,
   letterboxArea,
@@ -20,8 +20,8 @@ import {
   spawnAndTarget,
   spawnOutsideScreen,
   resolveDebrisShardParams,
-} from '#/tui/utils/stage-letterbox-sky';
-import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/utils/stage-frame';
+} from '#/tui/features/stage/stage-letterbox-sky';
+import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/features/stage/stage-frame';
 import { resolveStageLayout } from '#/tui/controllers/stage-layout';
 
 describe('stage letterbox night sky', () => {

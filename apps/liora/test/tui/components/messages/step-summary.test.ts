@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { StepSummaryComponent, buildSparkBar } from '#/tui/components/messages/step-summary';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { setActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

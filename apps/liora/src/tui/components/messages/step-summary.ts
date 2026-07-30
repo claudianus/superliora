@@ -5,7 +5,7 @@ import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 /**
  * Collapsed summary of older steps within a turn.

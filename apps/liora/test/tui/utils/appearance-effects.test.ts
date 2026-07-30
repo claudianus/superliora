@@ -33,7 +33,7 @@ import {
   STATUS_FLASH_MS,
   statusFlashDurationMs,
   TYPEWRITER_MS,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 

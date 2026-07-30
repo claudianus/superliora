@@ -22,7 +22,7 @@ import {
   getActiveAppearancePreferences,
   renderParticleRail,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 

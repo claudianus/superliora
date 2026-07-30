@@ -12,13 +12,13 @@ import type { AppearancePreferences } from '#/tui/config';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
-import { padOrTrim } from '#/tui/utils/night-sky';
+import { padOrTrim } from '#/tui/features/stage/night-sky';
 import {
   stageFrameBundleRect,
   stageFrameLetterboxBands,
   stageFrameStrokeCells,
-} from '#/tui/utils/stage-frame';
-import { paintStageLetterboxSky } from '#/tui/utils/stage-letterbox-sky';
+} from '#/tui/features/stage/stage-frame';
+import { paintStageLetterboxSky } from '#/tui/features/stage/stage-letterbox-sky';
 import type { BrandMorphRect } from '#/tui/utils/splash-iris';
 
 export interface SplashMorphScene {

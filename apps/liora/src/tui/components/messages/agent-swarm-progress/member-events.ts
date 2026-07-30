@@ -3,7 +3,7 @@ import {
   AgentSwarmProgressEstimator,
 } from '#/tui/components/messages/agent-swarm-progress-estimator';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { collapseWhitespace, isTerminalPhase } from '#/tui/utils/agent-swarm-cell-render';
+import { collapseWhitespace, isTerminalPhase } from '#/tui/features/agent-swarm/agent-swarm-cell-render';
 import {
   applyAgentSwarmMemberCancelled,
   applyAgentSwarmMemberCompleted,
@@ -14,14 +14,14 @@ import {
   resolveAgentSwarmMemberForSubagent,
   TERMINAL_CLEAR_KEYS,
   clearAgentSwarmMemberState,
-} from '#/tui/utils/agent-swarm-member-state';
-import { AGENT_SWARM_MAX_LATEST_MODEL_CHARS } from '#/tui/utils/agent-swarm-progress-constants';
-import type { AgentSwarmMember } from '#/tui/utils/agent-swarm-progress-types';
+} from '#/tui/features/agent-swarm/agent-swarm-member-state';
+import { AGENT_SWARM_MAX_LATEST_MODEL_CHARS } from '#/tui/features/agent-swarm/agent-swarm-progress-constants';
+import type { AgentSwarmMember } from '#/tui/features/agent-swarm/agent-swarm-progress-types';
 import {
   parseAgentSwarmResultStatuses,
   parseUltraSwarmIntegrationReport,
   type UltraSwarmIntegrationReport,
-} from '#/tui/utils/agent-swarm-result-parser';
+} from '#/tui/features/agent-swarm/agent-swarm-result-parser';
 
 export interface AgentSwarmProgressMemberRuntime {
   members: AgentSwarmMember[];

@@ -18,7 +18,7 @@ import type {
 } from '#/tui/types';
 
 import { mediaUrlPartToText } from './media-url';
-import { nextTranscriptId } from './transcript-id';
+import { nextTranscriptId } from '#/tui/features/transcript/transcript-id';
 
 /** Recent user-turns to mount when hydrating a resumed session. */
 export const REPLAY_TURN_LIMIT = 10;

@@ -13,8 +13,8 @@ import {
   getActiveAppearancePreferences,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
-import { TOOL_HEADER_ENTRANCE_MS } from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/appearance/appearance-effects';
+import { TOOL_HEADER_ENTRANCE_MS } from '#/tui/features/transcript/transcript-entrance';
 
 /**
  * First-seen header timestamps keyed by toolCallId. Streaming deltas can

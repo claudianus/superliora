@@ -438,7 +438,7 @@ experimental wiring. Startup now switches to that
 native editor backend when the `native_renderer` experiment is enabled, before
 autocomplete, persisted history, focus, and visible native renderer attachment
 are wired.
-`src/tui/utils/native-layout-frame.ts` connects the package to the actual Kimi
+`src/tui/features/native-layout/native-layout-frame.ts` connects the package to the actual Kimi
 TUI state, building transcript, activity, todo, queue, BTW, editor, and footer
 regions from the current containers as opaque native frame bands for
 native preview/smoke rendering. It also uses renderer-owned cursor-marker
@@ -446,7 +446,7 @@ projection to turn pi-tui focus cursor markers into terminal cursor state and
 remove the fake inverse cursor cell from native output. It can
 also create a live `NativeTerminalRenderer` adapter for the current TUI state,
 so resize, render-loop pacing, and frame presentation can now run through the
-native backend against the real mounted containers. `src/tui/utils/native-input-router.ts`
+native backend against the real mounted containers. `src/tui/features/native-layout/native-input-router.ts`
 maps the app's current editor target onto `NativeInputRouter`, so a
 native runtime can send structured events through the renderer-owned router and
 still reuse the existing editor `handleInput` path during migration. `LioraTUI`'s

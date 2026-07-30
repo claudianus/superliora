@@ -1,6 +1,6 @@
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 
 import {
   type Colorize,

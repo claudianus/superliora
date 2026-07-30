@@ -24,8 +24,8 @@ import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import type { TranscriptEntry } from '../types';
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
-import { getTranscriptComponentEntry } from '../utils/transcript-component-metadata';
-import { nextTranscriptId } from '../utils/transcript-id';
+import { getTranscriptComponentEntry } from '../features/transcript/transcript-component-metadata';
+import { nextTranscriptId } from '../features/transcript/transcript-id';
 import type { SlashCommandHost } from './dispatch';
 import { ttui } from '#/tui/utils/tui-i18n';
 

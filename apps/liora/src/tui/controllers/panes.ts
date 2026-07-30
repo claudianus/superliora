@@ -20,14 +20,14 @@ import type { ResolvedTheme, ThemeName } from '../theme';
 import { refreshShikiPalette } from '../components/media/shiki-ansi';
 import type { TUIState } from '../tui-state';
 import type { AppState, TranscriptDetailLevel, TranscriptEntry } from '../types';
-import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from '../utils/appearance-effects';
+import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from '../features/appearance/appearance-effects';
 import { isExpandable } from '../utils/component-capabilities';
 import { formatErrorMessage } from '../utils/event-payload';
 import { pickForegroundTasks } from '../utils/foreground-task';
 import { requestTUIContentRender, requestTUILayoutRender } from '../utils/frame-render';
 import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import { installTerminalThemeTracking } from '../utils/terminal-theme';
-import { TRANSCRIPT_EXPAND_TURNS } from '../utils/transcript-window';
+import { TRANSCRIPT_EXPAND_TURNS } from '../features/transcript/transcript-window';
 import { ttui } from '../utils/tui-i18n';
 
 /** How long the one-shot "moved to background" footer hint stays visible. */

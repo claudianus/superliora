@@ -6,7 +6,7 @@
  * stay mounted as one-line headers under the summary, so failure punch-through
  * and click-to-expand keep working exactly as in `compact`.
  *
- * All statistics are pure projections from `#/tui/utils/transcript-density`;
+ * All statistics are pure projections from `#/tui/features/transcript/transcript-density`;
  * this component only owns styling and mount lifecycle.
  */
 
@@ -20,7 +20,7 @@ import {
   settleToolChain,
   type ChainToolRecord,
   type ToolChainStats,
-} from '#/tui/utils/transcript-density';
+} from '#/tui/features/transcript/transcript-density';
 
 export class ToolChainSummaryComponent extends Container {
   private stats: ToolChainStats;

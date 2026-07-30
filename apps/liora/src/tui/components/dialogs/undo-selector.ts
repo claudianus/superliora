@@ -2,7 +2,7 @@ import {Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWid
 
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {currentTheme} from '#/tui/theme';
-import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
 import {SearchableList} from '#/tui/utils/searchable-list';
 
 const MAX_VISIBLE_CHOICES = 5;

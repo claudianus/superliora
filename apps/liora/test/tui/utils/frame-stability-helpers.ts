@@ -11,7 +11,7 @@ import { expect } from 'vitest';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationNow,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const SGR_SEQUENCE = /\u001B\[[0-9;]*m/g;
 

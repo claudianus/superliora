@@ -10,8 +10,8 @@ import {
   scrollTranscriptViewport,
   syncTranscriptViewport,
   transcriptViewportStart,
-} from '#/tui/utils/transcript-viewport';
-import { groupTurns, readEnvInt, turnsToTrim } from '#/tui/utils/transcript-window';
+} from '#/tui/features/transcript/transcript-viewport';
+import { groupTurns, readEnvInt, turnsToTrim } from '#/tui/features/transcript/transcript-window';
 
 let seq = 0;
 function makeEntry(

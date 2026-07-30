@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import type { Component } from '#/tui/renderer';
-import type { TranscriptViewportState } from '#/tui/utils/transcript-viewport';
+import type { TranscriptViewportState } from '#/tui/features/transcript/transcript-viewport';
 
 class StubComponent implements Component {
   invalidate = vi.fn();

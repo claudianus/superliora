@@ -18,7 +18,7 @@ import {
   renderPremiumHeadline,
   renderPulseText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const HEAD_INDENT = '  ';
 const DETAIL_INDENT = '    ';

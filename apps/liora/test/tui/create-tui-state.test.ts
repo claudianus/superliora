@@ -43,15 +43,15 @@ import {
   renderTUIStateNativeFrame,
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
-} from '#/tui/utils/native-layout-frame';
+} from '#/tui/features/native-layout/native-layout-frame';
 import { renderNativeLayoutFrame } from '#/tui/renderer';
 import {
   createNativeEditorTextInput,
   handleNativeEditorKeyInput,
   handleNativeEditorMouseInput,
   nativeEditorAtomicRangesForText,
-} from '#/tui/utils/native-editor-text-input';
-import { createTUIStateNativeInputRouter } from '#/tui/utils/native-input-router';
+} from '#/tui/features/native-layout/native-editor-text-input';
+import { createTUIStateNativeInputRouter } from '#/tui/features/native-layout/native-input-router';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationNow,
@@ -59,7 +59,7 @@ import {
   getAppearanceRenderQuality,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 

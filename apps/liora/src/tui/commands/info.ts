@@ -27,7 +27,7 @@ import { buildUsageReportLines, buildContextCompositionLines, UsagePanelComponen
 import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
-import { appearanceAnimationNow } from '../utils/appearance-effects';
+import { appearanceAnimationNow } from '../features/appearance/appearance-effects';
 import { formatErrorMessage } from '../utils/event-payload';
 import { type LoopModelRoutingConfig } from '#/tui/utils/loop-model-routing';
 import { requestTUILayoutRender } from '../utils/frame-render';

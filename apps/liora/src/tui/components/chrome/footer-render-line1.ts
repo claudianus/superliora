@@ -9,7 +9,7 @@ import {
   renderShimmerPrefix,
   renderTypewriterLine,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
 import type { GitStatus } from '#/utils/git/git-status';
 

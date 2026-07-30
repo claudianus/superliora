@@ -4,7 +4,7 @@ import {Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWid
 import {DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME} from '#/constant/app';
 import {CURRENT_MARK} from '#/tui/constant/symbols';
 import {currentTheme} from '#/tui/theme';
-import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {SearchableList} from '#/tui/utils/searchable-list';
 import {

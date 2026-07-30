@@ -3,7 +3,7 @@ import type { ExperimentalFeatureState } from '@superliora/sdk';
 
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {currentTheme} from '#/tui/theme';
-import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
 import {printableChar} from '#/tui/utils/printable-key';
 import {SearchableList} from '#/tui/utils/searchable-list';
 

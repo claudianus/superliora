@@ -8,7 +8,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 function stripAnsi(text: string): string {
   return text.replaceAll(/\[[0-?]*[ -/]*[@-~]/g, '');

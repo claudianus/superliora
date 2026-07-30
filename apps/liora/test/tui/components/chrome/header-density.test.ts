@@ -8,7 +8,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 const strip = (s: string): string => s.replaceAll(ANSI_SGR, '');

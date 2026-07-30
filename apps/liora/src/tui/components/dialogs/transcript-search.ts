@@ -10,7 +10,7 @@
 import {Container, Key, matchesKey, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import {renderSelectPointer} from '#/tui/utils/select-pointer';
 import {currentTheme} from '#/tui/theme';
-import {getActiveAppearancePreferences, renderParticleDivider, renderPremiumHeadline, shouldRenderAmbientEffects} from '#/tui/utils/appearance-effects';
+import {getActiveAppearancePreferences, renderParticleDivider, renderPremiumHeadline, shouldRenderAmbientEffects} from '#/tui/features/appearance/appearance-effects';
 import {ttui} from '#/tui/utils/tui-i18n';
 import {SearchableList} from '#/tui/utils/searchable-list';
 

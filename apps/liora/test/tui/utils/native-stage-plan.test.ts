@@ -6,8 +6,8 @@ import {
   STAGE_MAX_HEIGHT,
   STAGE_MAX_WIDTH,
 } from '#/tui/controllers/stage-layout';
-import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
-import { planTUINativeStage } from '#/tui/utils/native-stage-plan';
+import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';
+import { planTUINativeStage } from '#/tui/features/native-layout/native-stage-plan';
 import { createTUIState } from '#/tui/tui-state';
 
 function fakeInitialAppState(): AppState {

@@ -24,7 +24,7 @@ import {
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
   type MotionToolPhase,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
 
 import { buildGoalToolHeader } from '../tool-renderers/goal';

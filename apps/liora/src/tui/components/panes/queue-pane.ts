@@ -17,7 +17,7 @@ import {
   SETTLE_FLASH_MS,
   shouldRenderAmbientEffects,
   resolveQualityAdjustedAmbientEffectMode,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 export interface QueuePaneOptions {
   readonly messages: readonly QueuedMessage[];

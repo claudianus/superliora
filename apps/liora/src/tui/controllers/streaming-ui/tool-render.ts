@@ -5,7 +5,7 @@ import { ToolCallComponent } from '../../components/messages/tool-call';
 import { isGenericToolResult } from '../../components/messages/tool-renderers/registry';
 import {
   appearanceAnimationNow,
-} from '../../utils/appearance-effects';
+} from '../../features/appearance/appearance-effects';
 import { parseStreamingArgs } from '../../utils/event-payload';
 import { isMotionTheatreActive } from '../../utils/motion-beats';
 import type { LivePaneState, ToolCallBlockData, ToolResultBlockData } from '../../types';

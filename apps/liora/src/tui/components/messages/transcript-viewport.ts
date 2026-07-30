@@ -1,4 +1,4 @@
-import { type TranscriptViewportState } from '#/tui/utils/transcript-viewport';
+import { type TranscriptViewportState } from '#/tui/features/transcript/transcript-viewport';
 import {
   RendererTranscriptViewportComponent,
   visibleWidth,

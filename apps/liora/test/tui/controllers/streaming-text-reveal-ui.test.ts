@@ -6,7 +6,7 @@ import { createTUIState } from '#/tui/liora-tui';
 import type { AppState, TranscriptEntry } from '#/tui/types';
 import {
   setActiveAppearancePreferences,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { createMotionBeatController } from '#/tui/utils/motion-beats';
 
 function fakeAppState(overrides: Partial<AppState> = {}): AppState {

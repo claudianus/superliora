@@ -7,7 +7,7 @@ import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { StatusMessageComponent } from '#/tui/components/messages/status-message';
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import type { AppState } from '#/tui/types';
-import { createTranscriptViewportState } from '#/tui/utils/transcript-viewport';
+import { createTranscriptViewportState } from '#/tui/features/transcript/transcript-viewport';
 
 function makeAppState(overrides?: Partial<AppState>): AppState {
   return {

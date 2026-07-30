@@ -5,7 +5,7 @@
 import { saveTuiConfig, type AppearancePreferences } from '../../config';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { ttui } from '#/tui/utils/tui-i18n';
-import { isTranscriptDetailLevel } from '#/tui/utils/transcript-density';
+import { isTranscriptDetailLevel } from '#/tui/features/transcript/transcript-density';
 import { currentAppearance, tuiConfigFromHost } from './tui-persist';
 import type { SlashCommandHost } from '../dispatch';
 

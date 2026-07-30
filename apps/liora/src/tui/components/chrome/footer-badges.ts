@@ -1,7 +1,7 @@
 import { currentTheme, type ColorToken } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
-import { renderPulseText } from '#/tui/utils/appearance-effects';
+import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import {
   formatWorkingSetFooterBadgeText,
   workingSetPressure,
