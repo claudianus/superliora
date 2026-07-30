@@ -1,4 +1,4 @@
-import { mixHexColor, triangleWave } from '../animation';
+import { mixHexColor, triangleWave } from '../motion/animation';
 import {
   cellsEqual,
   type RendererCell,
@@ -6,7 +6,7 @@ import {
   type RendererCellStyle,
   type RendererDamageRect,
 } from './index';
-import { clipRendererDamageRect, unionRendererDamageRect } from '../damage';
+import { clipRendererDamageRect, unionRendererDamageRect } from '../render/damage';
 import { hashRendererEffectSeed } from '../text/effects';
 import { displayClusterWidth, splitDisplayClusters } from '../text/metrics';
 

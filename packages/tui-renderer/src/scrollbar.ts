@@ -1,5 +1,5 @@
-import { ansiTextToCells } from './ansi-text';
-import type { RendererRegionLine } from './compositor';
+import { ansiTextToCells } from './text/ansi-text';
+import type { RendererRegionLine } from './render/compositor';
 import { truncateToWidth, visibleWidth } from './text/component';
 
 export interface RendererScrollbarOptions {

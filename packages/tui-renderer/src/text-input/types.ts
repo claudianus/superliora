@@ -1,5 +1,5 @@
 import type { RendererCellStyle } from '../cell-buffer/index';
-import type { RendererRegionLine } from '../compositor';
+import type { RendererRegionLine } from '../render/compositor';
 import type { RendererCursorShape, RendererCursorState } from '../terminal/output';
 
 /**

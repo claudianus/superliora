@@ -1,10 +1,10 @@
 import type { NativeFrameRenderer, NativeFrameRendererOptions } from '../native/frame';
-import type { NativeRenderFrame } from '../render-loop';
+import type { NativeRenderFrame } from '../frame/render-loop';
 import type { NativeTerminalSession, NativeTerminalSize } from '../terminal/session';
 import type { RendererCell } from '../cell-buffer/index';
-import type { RendererQualityController, RendererQualitySnapshot } from '../quality';
-import type { RendererLineCellCache } from '../line-cache';
-import type { RendererCompositionCache } from '../compositor';
+import type { RendererQualityController, RendererQualitySnapshot } from '../frame/quality';
+import type { RendererLineCellCache } from '../render/line-cache';
+import type { RendererCompositionCache } from '../render/compositor';
 import {
   createFrameMetrics,
   frameDuration,

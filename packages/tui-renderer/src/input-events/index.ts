@@ -18,6 +18,10 @@ export {
   type NativeInputDecoderOptions,
 } from './decoder';
 
+export * from './keys';
+export * from './router';
+export * from './paste-burst';
+
 import {
   BRACKETED_PASTE_END,
   BRACKETED_PASTE_START,

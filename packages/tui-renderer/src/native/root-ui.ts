@@ -13,7 +13,7 @@ import {
   type FrameInvalidationRequest,
 } from '../frame/invalidation';
 import type { FrameInvalidationStatsSnapshot } from '../frame/stats';
-import type { NativeRenderCause } from '../render-loop';
+import type { NativeRenderCause } from '../frame/render-loop';
 import type {
   NativeTerminalInput,
   NativeTerminalOutput,

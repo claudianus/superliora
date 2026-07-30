@@ -1,6 +1,6 @@
-import { ansiTextToCells } from './ansi-text';
+import { ansiTextToCells } from './text/ansi-text';
 import type { RendererCell, RendererCellStyle } from './cell-buffer/index';
-import type { RendererRect, RendererRegionLine } from './compositor';
+import type { RendererRect, RendererRegionLine } from './render/compositor';
 import { CURSOR_MARKER } from './component-primitives/index';
 import type { RendererCursorState } from './terminal/output';
 

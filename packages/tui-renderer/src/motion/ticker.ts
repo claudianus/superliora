@@ -1,4 +1,4 @@
-import { type NativeRenderLoopScheduler, type NativeRenderTimer } from './render-loop';
+import { type NativeRenderLoopScheduler, type NativeRenderTimer } from '../frame/render-loop';
 
 export interface RendererTickerOptions {
   readonly fps: number;

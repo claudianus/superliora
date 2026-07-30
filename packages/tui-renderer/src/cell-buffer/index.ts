@@ -1,8 +1,8 @@
-import { ansiTextToCells } from '../ansi-text';
+import { ansiTextToCells } from '../text/ansi-text';
 import {
   clipRendererDamageRect,
   unionRendererDamageRect,
-} from '../damage';
+} from '../render/damage';
 import { splitDisplayClusters } from '../text/metrics';
 import { compareDirtyRowSpans, mergeDirtyRowIntervals } from './dirty-rows';
 import {

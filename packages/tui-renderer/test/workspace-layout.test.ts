@@ -7,7 +7,7 @@ import {
   DEFAULT_SHELL_INSET_Y,
   measureBentoGridLayout,
   measureWorkspaceLayout,
-} from '../src/workspace-layout';
+} from '../src/layout/workspace-layout';
 
 describe('measureWorkspaceLayout shell', () => {
   it('insets a shell and gaps columns in wide mode', () => {

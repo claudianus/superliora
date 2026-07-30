@@ -1,7 +1,7 @@
 import { ANSI_CLEAR_SCREEN, type NativeTerminalScreenMode, type NativeTerminalSize } from '../terminal/session';
 import { encodeTerminalClearBelowRow } from '../terminal/output';
 import type { NativeFrameRenderer } from '../native/frame';
-import type { RendererCompositionCache } from '../compositor';
+import type { RendererCompositionCache } from '../render/compositor';
 
 export interface NativeRendererResizeContext {
   readonly screenMode: NativeTerminalScreenMode | undefined;

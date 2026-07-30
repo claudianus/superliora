@@ -1,5 +1,5 @@
-import type { RendererCell, RendererCellStyle } from './cell-buffer/index';
-import { textToCells } from './text/metrics';
+import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
+import { textToCells } from '../text/metrics';
 
 const ANSI_CONTROL_RE = /\u001B\[([0-9;]*)m|\u001B\]8;([^\u0007\u001B]*);([^\u0007\u001B]*)(?:\u0007|\u001B\\)/g;
 

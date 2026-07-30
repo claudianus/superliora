@@ -1,4 +1,4 @@
-import type { RendererRegionLine } from '../compositor';
+import type { RendererRegionLine } from '../render/compositor';
 import type { RendererScrollbarGlyphRole, RendererScrollbarVariant } from '../scrollbar';
 import type { RendererTranscriptViewport } from '../viewport/index';
 import type { Component } from '../text/component';

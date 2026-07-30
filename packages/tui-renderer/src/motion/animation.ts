@@ -1,4 +1,4 @@
-import type { RendererCellStyle } from './cell-buffer/index';
+import type { RendererCellStyle } from '../cell-buffer/index';
 
 export type RendererEasingName =
   | 'linear'

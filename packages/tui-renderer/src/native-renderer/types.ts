@@ -1,7 +1,7 @@
 import type { NativeFrameRenderer } from '../native/frame';
 import type { NativeInputEvent } from '../input-events/index';
-import type { NativeInputRouter } from '../input-router';
-import type { NativeRenderFrame } from '../render-loop';
+import type { NativeInputRouter } from '../input-events/router';
+import type { NativeRenderFrame } from '../frame/render-loop';
 import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal/probe';
 import type {
   NativeTerminalKeyboardProtocol,
@@ -14,17 +14,17 @@ import type {
 import type { RendererCell } from '../cell-buffer/index';
 import type { RendererCursorState, RendererTerminalOutputOptions } from '../terminal/output';
 import type { RendererInlineImageProtocol } from '../terminal/graphics';
-import type { RendererDamageScanStrategy } from '../damage';
+import type { RendererDamageScanStrategy } from '../render/damage';
 import type { NativeTerminalFeatureInput } from '../terminal/features';
 import type { NativeFrameStatsSnapshot } from '../frame/stats';
-import type { RendererLineCellCache, RendererLineCellCacheOptions } from '../line-cache';
-import type { RendererCompositionCache } from '../compositor';
+import type { RendererLineCellCache, RendererLineCellCacheOptions } from '../render/line-cache';
+import type { RendererCompositionCache } from '../render/compositor';
 import type {
   RendererQualityChangeReason,
   RendererQualityController,
   RendererQualityControllerOptions,
   RendererQualitySnapshot,
-} from '../quality';
+} from '../frame/quality';
 import type {
   RendererTraceRecorder,
   RendererTraceRecorderOptions,
@@ -34,7 +34,7 @@ import type {
   RendererFrameOutputMode,
   RendererFrameOutputPolicyInput,
 } from '../frame/output-policy';
-import type { NativeRenderLoopScheduler } from '../render-loop';
+import type { NativeRenderLoopScheduler } from '../frame/render-loop';
 import type { NativeFramePresentResult } from '../native/frame';
 import type { NativeTerminalRenderer } from './index';
 

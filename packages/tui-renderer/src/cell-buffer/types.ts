@@ -1,4 +1,4 @@
-import type { RendererDamageScanStrategy } from '../damage';
+import type { RendererDamageScanStrategy } from '../render/damage';
 
 export interface RendererCellStyle {
   readonly fg?: string;

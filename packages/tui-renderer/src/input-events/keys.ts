@@ -1,4 +1,4 @@
-import { decodeNativeInput, type NativeInputKey, type NativeInputKeyEvent } from './input-events/index';
+import { decodeNativeInput, type NativeInputKey, type NativeInputKeyEvent } from './index';
 
 type Letter =
   | 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm'

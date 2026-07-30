@@ -1,5 +1,5 @@
 import type { Component } from '../text/component';
-import type { NativeRenderCause } from '../render-loop';
+import type { NativeRenderCause } from '../frame/render-loop';
 
 export type RendererInputListenerResult =
   | {

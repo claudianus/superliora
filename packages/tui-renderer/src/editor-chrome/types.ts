@@ -1,5 +1,5 @@
 import type { RendererCellStyle } from '../cell-buffer/index';
-import type { RendererRect, RendererRegionLine } from '../compositor';
+import type { RendererRect, RendererRegionLine } from '../render/compositor';
 import type {
   RendererEditorCursor,
   RendererEditorTextInputGeometry,

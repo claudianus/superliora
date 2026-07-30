@@ -1,20 +1,20 @@
 import type {
   AutocompleteItem,
   AutocompleteProvider,
-} from './autocomplete';
+} from '../autocomplete';
 import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
-import type { RendererRegionLine } from '../compositor';
+import type { RendererRegionLine } from '../render/compositor';
 import type { NativeInputKeyEvent } from '../input-events/index';
 import type { RendererEditorCursor } from './text-input';
-import { Key, matchesKey } from '../input-keys';
+import { Key, matchesKey } from '../input-events/keys';
 import {
   createRendererStyledTextCells,
   truncateRendererStyledTextRuns,
   type RendererStyledTextRun,
 } from '../text/styled';
-import { RENDERER_SELECT_POINTER } from '../symbols';
+import { RENDERER_SELECT_POINTER } from '../text/symbols';
 
-export { RENDERER_SELECT_POINTER } from '../symbols';
+export { RENDERER_SELECT_POINTER } from '../text/symbols';
 
 export interface RendererEditorAutocompleteLineStyles {
   readonly text?: RendererCellStyle;

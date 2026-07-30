@@ -1,6 +1,6 @@
 import type { RendererCell } from '../cell-buffer/index';
-import type { RendererRect } from '../compositor';
-import type { RendererDamageScanStrategy } from '../damage';
+import type { RendererRect } from '../render/compositor';
+import type { RendererDamageScanStrategy } from '../render/damage';
 import type {
   RendererFrameOutputDecisionReason,
   RendererFrameOutputMode,
@@ -10,8 +10,8 @@ import type {
   RendererOverlayPanelLineStyle,
   RendererOverlayPanelStyle,
   RendererOverlayPlacement,
-} from '../overlay';
-import type { RendererQualitySnapshot } from '../quality';
+} from '../render/overlay';
+import type { RendererQualitySnapshot } from '../frame/quality';
 import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal/probe';
 import type { RendererTheme } from '../theme';
 

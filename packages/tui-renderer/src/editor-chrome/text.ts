@@ -1,5 +1,5 @@
 import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
-import type { RendererRegionLine } from '../compositor';
+import type { RendererRegionLine } from '../render/compositor';
 import {
   normalizeEditorFrameSize,
   rendererCellWidth,

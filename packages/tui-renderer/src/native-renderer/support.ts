@@ -1,11 +1,11 @@
 import type { NativeFramePresentResult } from '../native/frame';
 import type { NativeInputEvent } from '../input-events/index';
-import type { NativeRenderCause } from '../render-loop';
+import type { NativeRenderCause } from '../frame/render-loop';
 import type { NativeTerminalSize } from '../terminal/session';
-import { RendererLineCellCache, type RendererLineCellCacheOptions } from '../line-cache';
-import { RendererCompositionCache, type RendererCompositionStats } from '../compositor';
-import type { RendererQualityControllerOptions } from '../quality';
-import { RendererQualityController } from '../quality';
+import { RendererLineCellCache, type RendererLineCellCacheOptions } from '../render/line-cache';
+import { RendererCompositionCache, type RendererCompositionStats } from '../render/compositor';
+import type { RendererQualityControllerOptions } from '../frame/quality';
+import { RendererQualityController } from '../frame/quality';
 import type { RendererTraceInputData, RendererTraceRecorderOptions } from '../trace';
 import { RendererTraceRecorder } from '../trace';
 import type { NativeTerminalRendererFrameMetrics } from './types';

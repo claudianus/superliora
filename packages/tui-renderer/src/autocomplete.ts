@@ -3,7 +3,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
-import { fuzzyFilter } from './fuzzy';
+import { fuzzyFilter } from './text/fuzzy';
 
 export interface AutocompleteItem {
   readonly value: string;

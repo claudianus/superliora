@@ -1,5 +1,5 @@
 import type { NativeFrameStatsSnapshot } from '../frame/stats';
-import type { RendererQualitySnapshot } from '../quality';
+import type { RendererQualitySnapshot } from '../frame/quality';
 import { formatFrameBudgetSparkline } from './format';
 import {
   collectRendererDiagnosticsIssues,
