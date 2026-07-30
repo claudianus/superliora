@@ -19,7 +19,7 @@ import {
 } from './errors';
 import type { LoopInterruptReason, LoopEventDispatcher, LoopTurnInterruptedEvent } from './events';
 import type { LLM } from './llm';
-import { resetToolFailureTracker } from './tool-call';
+import { resetToolFailureTracker } from './tool-call-guards';
 import { executeLoopStep } from './turn-step';
 import type {
   ExecutableTool,
