@@ -12,8 +12,8 @@
 import { connectionsListResponseSchema } from '@superliora/protocol';
 import type { IInstantiationService } from '@superliora/agent-core';
 
-import { okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 import { IConnectionRegistry } from '#/services/gateway';
 
 /**

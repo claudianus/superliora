@@ -35,14 +35,14 @@ import { SessionNotFoundError, FsAlreadyExistsError, FsIsBinaryError, FsIsDirect
 import { z } from 'zod';
 
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 import {
   launchDetached,
   openFileCommandFor,
   openInAppCommandFor,
   revealFileCommandFor,
-} from '../lib/fileLaunch';
+} from '../../lib/fileLaunch';
 import {
   buildValidationEnvelope,
   parseRangeHeader,

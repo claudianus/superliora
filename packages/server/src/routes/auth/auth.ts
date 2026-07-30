@@ -18,8 +18,8 @@
 import { authSummarySchema } from '@superliora/protocol';
 import { IAuthSummaryService, type IInstantiationService } from '@superliora/agent-core';
 
-import { okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 
 interface RouteHost {
   get(

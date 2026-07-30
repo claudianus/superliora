@@ -30,8 +30,8 @@ import { IApprovalService, IMessageService, IPromptService, IQuestionService, IS
 import { z } from 'zod';
 
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 import type { ApprovalService } from '#/services/approval/approvalService';
 import type { QuestionService } from '#/services/question/questionService';
 import { IWSBroadcastService } from '#/services/gateway';

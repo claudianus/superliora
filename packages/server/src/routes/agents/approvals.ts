@@ -37,8 +37,8 @@ import { IApprovalService, approvalToAgentCoreResponse, type IInstantiationServi
 import { z } from 'zod';
 
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 import {
   ApprovalService,
 } from '#/services/approval';

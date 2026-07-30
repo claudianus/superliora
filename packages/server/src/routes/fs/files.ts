@@ -15,8 +15,8 @@ import { z } from 'zod';
 
 import { DEFAULT_MAX_UPLOAD_BYTES, FileNotFoundError, FileTooLargeError, IFileStore, type IInstantiationService } from '@superliora/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 
 interface FilesRouteHost {
   register(plugin: unknown, opts?: unknown): unknown;
