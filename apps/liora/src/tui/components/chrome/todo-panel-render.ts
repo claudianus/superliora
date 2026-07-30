@@ -44,7 +44,7 @@ import {
   selectVisibleTodos,
 } from './todo-panel-model';
 import type { TodoChangeKind, TodoPanelChangeSummary } from './todo-panel-model';
-import type { TodoItem, TodoStatus } from './todo-panel';
+import type { TodoItem, TodoStatus } from './todo-panel-types';
 
 export const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
