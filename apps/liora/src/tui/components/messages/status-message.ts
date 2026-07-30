@@ -12,7 +12,7 @@ import {
   renderStatusFlashLine,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
+import { syncAmbientAnimatedText } from '#/tui/utils/render/render-cache';
 import {
   isTranscriptEntranceActive,
   polishTranscriptLines,

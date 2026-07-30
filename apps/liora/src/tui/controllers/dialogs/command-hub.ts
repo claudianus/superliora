@@ -24,10 +24,10 @@ import {
   DEFAULT_ONBOARDING_PREFERENCES,
   saveTuiConfig,
 } from '../../config';
-import { commandHubActionToSlash } from '../../utils/command-hub-actions';
-import { noteSuccessFeedback } from '../../utils/feedback-vfx';
-import { requestTUIContentRender } from '../../utils/frame-render';
-import { hubRecencyScore, noteHubActionUse } from '../../utils/hub-recents';
+import { commandHubActionToSlash } from '../../utils/command/command-hub-actions';
+import { noteSuccessFeedback } from '../../utils/render/feedback-vfx';
+import { requestTUIContentRender } from '../../utils/render/frame-render';
+import { hubRecencyScore, noteHubActionUse } from '../../utils/command/hub-recents';
 import type { ModalShellDelegate } from './modal-shell';
 import {
   closeAllCenterModals,

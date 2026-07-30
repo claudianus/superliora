@@ -22,7 +22,7 @@ import {
   OSC11_QUERY,
   QUERY_TERMINAL_THEME,
   TERMINAL_THEME_LIGHT,
-} from '#/tui/utils/terminal-theme';
+} from '#/tui/utils/terminal/terminal-theme';
 import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,

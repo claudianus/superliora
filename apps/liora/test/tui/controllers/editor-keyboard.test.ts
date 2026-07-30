@@ -9,7 +9,7 @@ import {
   nextShiftTabModeTarget,
   type EditorKeyboardHost,
 } from '#/tui/controllers/editor-keyboard';
-import { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
+import { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
 
 interface Harness {
   readonly host: EditorKeyboardHost;

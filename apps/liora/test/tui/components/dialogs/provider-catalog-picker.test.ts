@@ -7,7 +7,7 @@ import { darkColors } from '#/tui/theme/colors';
 import {
   buildProviderCatalogOptions,
   resolveProviderSelection,
-} from '#/tui/utils/provider-catalog-options';
+} from '#/tui/utils/model/provider-catalog-options';
 
 const ESC = String.fromCodePoint(27);
 const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, 'g');

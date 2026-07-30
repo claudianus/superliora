@@ -3,7 +3,7 @@ import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
-import { requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import { clearIdleFeedPending, handleIdleFeedMouseInput } from '#/tui/features/idle-scene/idle-feed-mouse';
 import { noteMeteorEasterEggClick } from '#/tui/features/stage/stage-letterbox-sky';
 import {

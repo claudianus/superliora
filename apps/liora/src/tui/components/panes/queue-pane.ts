@@ -5,7 +5,7 @@ import {
   visibleWidth,
 } from '#/tui/renderer';
 
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import type { QueuedMessage } from '../../types';
 import { currentTheme } from '#/tui/theme';
 import {

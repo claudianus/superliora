@@ -16,9 +16,9 @@ import {
   STAGE_MIN_WIDTH,
 } from '../../controllers/stage-layout';
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import { stageFrameVisible, type StageFrameBand } from '#/tui/features/stage/stage-frame';
-import { getTerminalProfile, hasFeature } from '#/tui/utils/terminal-capability-profile';
+import { getTerminalProfile, hasFeature } from '#/tui/utils/terminal/terminal-capability-profile';
 
 /**
  * Live corner/edge drag state. Module-level (mirrors `stage-frame.ts`) because

@@ -16,9 +16,9 @@ import {
   REPLAY_TURN_LIMIT,
   replayEntry,
   type ReplayRenderContext,
-} from '../../utils/message-replay';
+} from '../../utils/session/message-replay';
 import { buildGoalCompletionMessage } from '../../utils/goal-completion';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '#/tui/utils/tui-i18n';
 import {
   goalLifecycleReplayContent,

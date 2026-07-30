@@ -30,7 +30,7 @@ import {
   runModelSelector,
 } from '#/tui/commands/prompts';
 import type { QueuedMessage } from '#/tui/types';
-import type { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
+import type { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
 
 const ESC = String.fromCodePoint(0x1b);
 const BEL = String.fromCodePoint(0x07);

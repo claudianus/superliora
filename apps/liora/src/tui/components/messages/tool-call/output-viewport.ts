@@ -3,7 +3,7 @@ import { ToolOutputViewportComponent } from '#/tui/components/messages/tool-outp
 import {
   createToolOutputViewportState,
   type ToolOutputViewportState,
-} from '#/tui/utils/tool-output-viewport';
+} from '#/tui/utils/tool/tool-output-viewport';
 
 export class ToolCallOutputViewportMount {
   private viewport: ToolOutputViewportComponent | undefined;

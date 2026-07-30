@@ -23,7 +23,7 @@ import {
 } from '#/tui/renderer';
 import { currentTheme, type ColorPalette } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { isUncommittedBlameHash, type BlameLine } from '#/utils/git/git-blame';
 
 const ELLIPSIS = '…';

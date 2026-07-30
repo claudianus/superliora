@@ -12,7 +12,7 @@ import {
   matchContextWorkingSetPreset,
   previewContextWorkingSet,
   type ContextWorkingSetPresetId,
-} from '#/tui/utils/context-working-set';
+} from '#/tui/utils/agent/context-working-set';
 import { currentTheme } from '#/tui/theme';
 
 export interface ContextWorkingSetSelectorOptions {

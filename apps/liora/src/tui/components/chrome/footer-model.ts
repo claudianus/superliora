@@ -1,10 +1,10 @@
 import type { AppState } from '#/tui/types';
-import { formatThinkingLevelSuffix } from '#/tui/utils/thinking-effort';
+import { formatThinkingLevelSuffix } from '#/tui/utils/model/thinking-effort';
 import {
   isSameEffectiveModel,
   modelRouteDisplayName,
   resolveModelRouteIdentity,
-} from '#/tui/utils/model-route-notice';
+} from '#/tui/utils/model/model-route-notice';
 
 export function modelDisplayName(state: AppState): string {
   const model = state.availableModels[state.model];

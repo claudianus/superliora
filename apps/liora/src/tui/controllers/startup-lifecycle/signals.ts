@@ -1,6 +1,6 @@
 import { NativeTerminalSession } from '#/tui/renderer';
 
-import { isDeadTerminalError } from '../../utils/dead-terminal';
+import { isDeadTerminalError } from '../../utils/terminal/dead-terminal';
 import type { StartupLifecycleHost } from './types';
 
 export interface StartupSignalCallbacks {

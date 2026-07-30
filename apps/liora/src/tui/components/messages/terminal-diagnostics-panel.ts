@@ -7,11 +7,11 @@
 
 import type { Component } from '#/tui/renderer';
 
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 import {
   formatTerminalDiagnosticsLines,
   type TerminalDiagnosticsReport,
-} from '#/tui/utils/terminal-diagnostics';
+} from '#/tui/utils/terminal/terminal-diagnostics';
 
 export class TerminalDiagnosticsPanel implements Component {
   constructor(private readonly report: TerminalDiagnosticsReport) {}

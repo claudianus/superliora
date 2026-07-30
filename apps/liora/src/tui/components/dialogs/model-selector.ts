@@ -5,13 +5,13 @@ import {DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME} from '#/constant/app';
 import {CURRENT_MARK} from '#/tui/constant/symbols';
 import {currentTheme} from '#/tui/theme';
 import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
-import {renderSelectPointer} from '#/tui/utils/select-pointer';
-import {SearchableList} from '#/tui/utils/searchable-list';
+import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
+import {SearchableList} from '#/tui/utils/ui/searchable-list';
 import {
   defaultEffortForModel as defaultEffortForModelUtil,
   effortsForModel as effortsForModelUtil,
   wireEffortForModel,
-} from '#/tui/utils/thinking-effort';
+} from '#/tui/utils/model/thinking-effort';
 
 import type { ChoiceOption } from './choice-picker';
 

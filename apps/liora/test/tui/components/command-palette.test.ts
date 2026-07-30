@@ -9,7 +9,7 @@ import {
   buildDefaultCommandHubItems,
   commandHubNestsPicker,
 } from '#/tui/components/dialogs/command-hub';
-import { commandHubActionToSlash } from '#/tui/utils/command-hub-actions';
+import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
 
 const ENTER = '\r';
 const ESCAPE = '\u001B';

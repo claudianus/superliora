@@ -6,10 +6,10 @@ import type {
   ToolCallBlockData,
   ToolResultBlockData,
 } from '../../types';
-import { notifySubagentAttention } from '../../utils/attention-notifications';
+import { notifySubagentAttention } from '../../utils/notification/attention-notifications';
 import { argsRecord, serializeToolResultOutput } from '../../utils/event-payload';
 import { formatHookResultPlain } from '../../utils/hook-result-format';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SessionEventHost } from '../session-event/handler';
 import { SubagentActivityPanel } from './activity';
 import {

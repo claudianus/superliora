@@ -8,7 +8,7 @@ import {
   McpOAuthAuthorizationUrlOpener,
   type OpenUrl,
   parseMcpOAuthAuthorizationUrlUpdate,
-} from '#/tui/utils/mcp-oauth';
+} from '#/tui/utils/mcp/mcp-oauth';
 
 describe('parseMcpOAuthAuthorizationUrlUpdate', () => {
   it('extracts MCP OAuth authorization URLs from structured tool updates', () => {

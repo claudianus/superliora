@@ -12,7 +12,7 @@ import type { Catalog } from '@superliora/sdk';
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '../../constant/liora-tui';
 import {
   type ProviderCatalogSelection,
-} from '#/tui/utils/provider-catalog-options';
+} from '#/tui/utils/model/provider-catalog-options';
 import { promptProviderCatalog } from '../prompts';
 import type { SlashCommandHost } from '../dispatch';
 import {

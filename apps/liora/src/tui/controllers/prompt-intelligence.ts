@@ -8,7 +8,7 @@ import {
   isSameEffectiveModel,
   modelRouteDisplayName,
   resolveModelRouteIdentity,
-} from '../utils/model-route-notice';
+} from '../utils/model/model-route-notice';
 
 /** Debounce before requesting an inline completion after the last keystroke. */
 const INLINE_DEBOUNCE_MS = 450;

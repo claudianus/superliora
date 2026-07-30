@@ -6,7 +6,7 @@ import {
   type ClipboardImageHintHost,
 } from '#/tui/controllers/clipboard-image-hint';
 import type { FooterComponent } from '#/tui/components/chrome/footer';
-import { TERMINAL_FOCUS_IN, TERMINAL_FOCUS_OUT } from '#/tui/utils/terminal-focus';
+import { TERMINAL_FOCUS_IN, TERMINAL_FOCUS_OUT } from '#/tui/utils/terminal/terminal-focus';
 import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
 
 vi.mock('#/utils/clipboard/clipboard-has-image', () => ({

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { ImageAttachmentStore } from '#/tui/utils/image-attachment-store';
-import { extractMediaAttachments } from '#/tui/utils/image-placeholder';
+import { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
+import { extractMediaAttachments } from '#/tui/utils/image/image-placeholder';
 
 function storeWith(
   bytes: Uint8Array,

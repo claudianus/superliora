@@ -13,7 +13,7 @@ import {
   type RendererColorMode,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { getProbedKittyGraphics, resolveImageProtocol } from '#/tui/utils/image-protocol-detect';
+import { getProbedKittyGraphics, resolveImageProtocol } from '#/tui/utils/image/image-protocol-detect';
 
 export interface TerminalDiagnosticsReport {
   readonly terminal: {

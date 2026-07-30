@@ -32,7 +32,7 @@ import {
 import {
   noteTUIInputInteraction,
   resetTUIInputInteractionForTests,
-} from '#/tui/utils/input-interaction';
+} from '#/tui/utils/input/input-interaction';
 import { currentTheme } from '#/tui/theme';
 import { mixHexColor } from '#/tui/renderer';
 

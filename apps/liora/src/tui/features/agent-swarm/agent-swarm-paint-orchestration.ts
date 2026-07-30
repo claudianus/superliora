@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 
 import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 import {
   SWARM_OPS_FEED_RENDER_LINES,
   SWARM_OPS_FEED_RENDER_LINES_TINY,

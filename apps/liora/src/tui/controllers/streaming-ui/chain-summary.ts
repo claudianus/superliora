@@ -1,7 +1,7 @@
 import { ToolChainSummaryComponent } from '../../components/messages/tool-chain-summary';
 import { UserMessageComponent } from '../../components/messages/user-message';
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 
 /** Per-turn minimal-density tool chain summary mount state. */
 export interface ChainSummaryState {

@@ -22,7 +22,7 @@ import { GutterContainer } from '#/tui/components/chrome/gutter-container';
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
-import { setRenderCacheEnabled } from '#/tui/utils/render-cache';
+import { setRenderCacheEnabled } from '#/tui/utils/render/render-cache';
 
 const WIDTH = 100;
 const TRANSCRIPT_TURNS = 200;

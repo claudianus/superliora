@@ -3,7 +3,7 @@ import { ReadGroupComponent } from '../../components/messages/read-group';
 import type { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { ToolCallBlockData } from '../../types';
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 
 /** Tracks the in-progress solo→group upgrade for a run of same-step tool calls. */
 export interface PendingToolGroup<TGroup> {

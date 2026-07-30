@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { parseDroppedFilePaths } from '#/tui/utils/media-drop';
+import { parseDroppedFilePaths } from '#/tui/utils/media/media-drop';
 
 let dir: string;
 let pngFile: string;

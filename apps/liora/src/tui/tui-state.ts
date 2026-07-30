@@ -22,18 +22,18 @@ import type { TasksBrowserState } from './controllers/tasks-browser';
 import { currentTheme, type Theme } from './theme';
 import { resolveStageLayout } from './controllers/stage-layout';
 import { NativeEditorTextInputController } from './features/native-layout/native-editor-text-input';
-import { createTerminalState, type TerminalState } from './utils/terminal-state';
+import { createTerminalState, type TerminalState } from './utils/terminal/terminal-state';
 import {
   createTranscriptSelectionState,
   shouldHoldTranscriptAnimation,
   type TranscriptSelectionState,
 } from './features/transcript/transcript-selection';
-import { TUIToastState } from './utils/toast';
+import { TUIToastState } from './utils/ui/toast';
 import {
   createTranscriptViewportState,
   type TranscriptViewportState,
 } from './features/transcript/transcript-viewport';
-import type { ToolOutputViewportState } from './utils/tool-output-viewport';
+import type { ToolOutputViewportState } from './utils/tool/tool-output-viewport';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -44,7 +44,7 @@ import {
   type TranscriptEntry,
   type TUIStartupState,
 } from './types';
-import type { CenterModalEntry } from './utils/center-modal';
+import type { CenterModalEntry } from './utils/ui/center-modal';
 
 export interface TUIState {
   renderer: TerminalRenderer;

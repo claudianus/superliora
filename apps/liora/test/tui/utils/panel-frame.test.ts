@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 
 import { stripAnsi } from './frame-stability-helpers';
 

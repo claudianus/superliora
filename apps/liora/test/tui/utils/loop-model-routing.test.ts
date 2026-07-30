@@ -5,7 +5,7 @@ import {
   loopModelRoutingDeletePath,
   loopModelRoutingPatch,
   loopModelRoutingRows,
-} from '#/tui/utils/loop-model-routing';
+} from '#/tui/utils/model/loop-model-routing';
 
 describe('loop model routing', () => {
   it('maps exactly six loop roles to their explicit override state', () => {

@@ -1,6 +1,6 @@
 import { IdleStageComponent } from '../components/chrome/idle-stage';
 import { WelcomeComponent } from '../components/chrome/welcome';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 

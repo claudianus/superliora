@@ -3,7 +3,7 @@ import { loadInputHistory } from '#/utils/history/input-history';
 
 import { HistorySearchDialogComponent } from '../../components/dialogs/history-search-dialog';
 import { TranscriptSearchDialogComponent } from '../../components/dialogs/transcript-search';
-import { requestTUIContentRender } from '../../utils/frame-render';
+import { requestTUIContentRender } from '../../utils/render/frame-render';
 import { resolveTranscriptEntryLineOffset } from '../../features/transcript/transcript-entry-layout';
 import { resolveTranscriptHitTestContext } from '../../features/transcript/transcript-hit-test';
 import { jumpTranscriptViewportToLine } from '../../features/transcript/transcript-viewport';

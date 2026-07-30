@@ -11,7 +11,7 @@ import {
   extensionsTabSummary,
   resolveExtensionsTab,
   rowsForExtensionsTab,
-} from '#/tui/utils/extensions-rows';
+} from '#/tui/utils/agent/extensions-rows';
 
 function plugin(partial: Partial<PluginSummary> & { readonly id: string }): PluginSummary {
   return {

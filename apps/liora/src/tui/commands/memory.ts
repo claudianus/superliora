@@ -6,7 +6,7 @@ import {
 } from '#/constant/workspace-data';
 
 import type { SlashCommandHost } from './dispatch';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 import {
   buildLlmWikiStatusLines,
   buildPromoteEvidenceLines,

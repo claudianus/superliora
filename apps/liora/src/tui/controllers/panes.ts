@@ -24,9 +24,9 @@ import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from '../featur
 import { isExpandable } from '../utils/component-capabilities';
 import { formatErrorMessage } from '../utils/event-payload';
 import { pickForegroundTasks } from '../utils/foreground-task';
-import { requestTUIContentRender, requestTUILayoutRender } from '../utils/frame-render';
-import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
-import { installTerminalThemeTracking } from '../utils/terminal-theme';
+import { requestTUIContentRender, requestTUILayoutRender } from '../utils/render/frame-render';
+import { isMotionTheatreActive, type MotionBeatController } from '../utils/render/motion-beats';
+import { installTerminalThemeTracking } from '../utils/terminal/terminal-theme';
 import { TRANSCRIPT_EXPAND_TURNS } from '../features/transcript/transcript-window';
 import { ttui } from '../utils/tui-i18n';
 

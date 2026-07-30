@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeSessionCostUsd } from '#/tui/utils/session-cost';
+import { computeSessionCostUsd } from '#/tui/utils/session/session-cost';
 
 const pricing = { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 };
 

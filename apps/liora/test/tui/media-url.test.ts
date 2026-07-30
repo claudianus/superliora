@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mediaUrlPartToText, summarizeDataUrl } from '#/tui/utils/media-url';
+import { mediaUrlPartToText, summarizeDataUrl } from '#/tui/utils/media/media-url';
 
 describe('mediaUrlPartToText', () => {
   it('keeps non-data URLs as escaped XML-like references', () => {

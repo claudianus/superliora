@@ -1,4 +1,4 @@
-import { hubRecencyScore, listRecentHubActionIds } from '#/tui/utils/hub-recents';
+import { hubRecencyScore, listRecentHubActionIds } from '#/tui/utils/command/hub-recents';
 
 import type { CommandHubActionId, CommandHubItem } from './command-hub-types';
 

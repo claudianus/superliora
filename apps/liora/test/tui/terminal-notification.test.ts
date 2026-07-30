@@ -6,7 +6,7 @@ import {
   notifyGoalBlockedAttention,
   notifyGoalCompletedAttention,
   notifySubagentAttention,
-} from '#/tui/utils/attention-notifications';
+} from '#/tui/utils/notification/attention-notifications';
 import {
   buildNativeNotificationCommand,
   buildTerminalNotificationSequences,
@@ -18,7 +18,7 @@ import {
   notifyUserAttentionOnce,
   supportsOsc9Notification,
   supportsTerminalProgress,
-} from '#/tui/utils/terminal-notification';
+} from '#/tui/utils/terminal/terminal-notification';
 
 function makeNotificationState(args: {
   readonly enabled?: boolean;

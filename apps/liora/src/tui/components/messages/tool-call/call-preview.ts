@@ -2,7 +2,7 @@ import type { Component, MarkdownTheme } from '#/tui/renderer';
 import { Text } from '#/tui/renderer';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
-import { computeStagedLineReveal } from '#/tui/utils/streaming-text-reveal';
+import { computeStagedLineReveal } from '#/tui/utils/streaming/streaming-text-reveal';
 
 import { ShellExecutionComponent } from '../shell-execution';
 import {

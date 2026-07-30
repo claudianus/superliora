@@ -13,7 +13,7 @@ import {
   resetStageResizeDragForTests,
   resetStageResizePointerShape,
 } from '#/tui/features/stage/stage-resize-mouse';
-import { invalidateProfile } from '#/tui/utils/terminal-capability-profile';
+import { invalidateProfile } from '#/tui/utils/terminal/terminal-capability-profile';
 
 function fakeInitialAppState(): AppState {
   return {

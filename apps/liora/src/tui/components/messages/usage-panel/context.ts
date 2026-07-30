@@ -4,7 +4,7 @@ import { currentTheme } from '#/tui/theme';
 import {
   effectiveSoftWorkingSetTokens,
   workingSetUsageRatio,
-} from '#/tui/utils/context-working-set';
+} from '#/tui/utils/agent/context-working-set';
 
 import { formatTokenCount, ratioSeverity, safeUsageRatio } from '#/utils/usage/usage-format';
 

@@ -6,13 +6,13 @@ import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';
 import { currentTheme } from '#/tui/theme';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   formatMcpStartupStatusSummary,
   mcpServerStatusKey,
   type McpServerStatusSnapshot,
   selectMcpStartupStatusRows,
-} from '../../utils/mcp-server-status';
+} from '../../utils/mcp/mcp-server-status';
 
 /** Host surface required by MCP server status rendering. */
 export interface McpStatusEventHost {

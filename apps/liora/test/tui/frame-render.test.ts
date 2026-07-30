@@ -6,7 +6,7 @@ import {
   requestTUIContentRender,
   requestTUILayoutRender,
   requestTUIScrollRender,
-} from '#/tui/utils/frame-render';
+} from '#/tui/utils/render/frame-render';
 import type { AppState } from '#/tui/types';
 
 function fakeAppState(): AppState {

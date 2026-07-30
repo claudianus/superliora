@@ -30,7 +30,7 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
-import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
+import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render/render-cache';
 import {
   isTranscriptEntranceActive,
   polishTranscriptLines,

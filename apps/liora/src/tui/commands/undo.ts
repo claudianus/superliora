@@ -23,7 +23,7 @@ import { UserMessageComponent } from '../components/messages/user-message';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import type { TranscriptEntry } from '../types';
 import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { getTranscriptComponentEntry } from '../features/transcript/transcript-component-metadata';
 import { nextTranscriptId } from '../features/transcript/transcript-id';
 import type { SlashCommandHost } from './dispatch';

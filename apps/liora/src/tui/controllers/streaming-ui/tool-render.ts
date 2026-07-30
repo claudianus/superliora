@@ -7,9 +7,9 @@ import {
   appearanceAnimationNow,
 } from '../../features/appearance/appearance-effects';
 import { parseStreamingArgs } from '../../utils/event-payload';
-import { isMotionTheatreActive } from '../../utils/motion-beats';
+import { isMotionTheatreActive } from '../../utils/render/motion-beats';
 import type { LivePaneState, ToolCallBlockData, ToolResultBlockData } from '../../types';
-import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import {
   ensureChainSummary as ensureChainSummaryHelper,
   type ChainSummaryState,

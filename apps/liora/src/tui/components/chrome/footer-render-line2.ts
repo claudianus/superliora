@@ -6,7 +6,7 @@ import {
   renderEnterBeat,
   renderShimmerPrefix,
 } from '#/tui/features/appearance/appearance-effects';
-import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
+import type { MotionBeatSnapshot } from '#/tui/utils/render/motion-beats';
 import type { GitStatus } from '#/utils/git/git-status';
 
 import {

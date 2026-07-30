@@ -2,13 +2,13 @@ import type { ResumedAgentState } from '@superliora/sdk';
 
 import type { TodoItem } from '../../components/chrome/todo-panel';
 import { isTodoItemShape } from '../../utils/event-payload';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   appStateFromResumeAgent,
   countActiveBackgroundTasks,
   isTerminalBackgroundTask,
   replayBackgroundProjection,
-} from '../../utils/message-replay';
+} from '../../utils/session/message-replay';
 import type { SessionReplayHost } from './types';
 
 export class SessionReplayHydrator {

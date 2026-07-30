@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { shouldRenderAmbientAnimationFrame } from '#/tui/controllers/appearance';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
-import { resetTUIInputInteractionForTests } from '#/tui/utils/input-interaction';
+import { resetTUIInputInteractionForTests } from '#/tui/utils/input/input-interaction';
 import { Text } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
 import {

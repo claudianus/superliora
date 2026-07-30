@@ -22,7 +22,7 @@ import { loadTuiConfig, TuiConfigParseError } from '#/tui/config';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { LioraTUI } from '#/tui/index';
 import { currentTheme, getColorPalette } from '#/tui/theme';
-import { initImageProtocolProbe } from '#/tui/utils/image-protocol-detect';
+import { initImageProtocolProbe } from '#/tui/utils/image/image-protocol-detect';
 import { combineStartupNotice } from '#/tui/utils/startup';
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 

@@ -2,10 +2,10 @@ import {Container, Key, matchesKey, renderRendererPanelChromeRows, type Focusabl
 import type { PluginSummary } from '@superliora/sdk';
 import chalk from 'chalk';
 
-import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import {currentTheme} from '#/tui/theme';
 import {printableChar} from '#/tui/utils/printable-key';
-import {renderTabStrip} from '#/tui/utils/tab-strip';
+import {renderTabStrip} from '#/tui/utils/ui/tab-strip';
 import {computeUpdateStatus, type PluginMarketplaceEntry} from '#/utils/plugin-marketplace';
 
 import {Input} from './input';

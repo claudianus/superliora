@@ -16,7 +16,7 @@ import {
   STREAM_REVEAL_MAX_LAG_MS,
   STREAM_REVEAL_MIN_CHARS_PER_TICK,
 } from '#/tui/constant/streaming';
-import { Easing } from '#/tui/utils/animation-scheduler';
+import { Easing } from '#/tui/utils/render/animation-scheduler';
 
 export type StreamingTextRevealConfig = {
   readonly baseCps?: number;

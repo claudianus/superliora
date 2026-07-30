@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SearchableList, type SearchableListOptions } from '#/tui/utils/searchable-list';
+import { SearchableList, type SearchableListOptions } from '#/tui/utils/ui/searchable-list';
 
 const ESC = String.fromCodePoint(27);
 const UP = `${ESC}[A`;

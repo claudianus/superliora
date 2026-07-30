@@ -11,7 +11,7 @@ import type { UpgradePlan } from '#/cli/update/plan';
 import { PRODUCT_NAME } from '#/constant/app';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 
 export type UpgradeDialogChoice = 'install' | 'later';
 

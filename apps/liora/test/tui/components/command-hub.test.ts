@@ -6,8 +6,8 @@ import {
   cyclePermissionMode,
   isCommandHubToggleId,
 } from '#/tui/components/dialogs/command-hub';
-import { commandHubActionToSlash } from '#/tui/utils/command-hub-actions';
-import { noteHubActionUse, resetHubRecentsForTests } from '#/tui/utils/hub-recents';
+import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
+import { noteHubActionUse, resetHubRecentsForTests } from '#/tui/utils/command/hub-recents';
 
 const ENTER = '\r';
 const ESCAPE = '\u001B';

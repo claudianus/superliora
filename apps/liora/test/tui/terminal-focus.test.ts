@@ -8,7 +8,7 @@ import {
   TERMINAL_FOCUS_OUT,
   handleTerminalFocusInput,
   installTerminalFocusTracking,
-} from '#/tui/utils/terminal-focus';
+} from '#/tui/utils/terminal/terminal-focus';
 
 describe('terminal focus tracking', () => {
   it('updates focus state from terminal focus reporting sequences', () => {

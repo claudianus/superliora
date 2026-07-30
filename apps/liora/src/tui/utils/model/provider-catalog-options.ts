@@ -24,7 +24,7 @@ import {
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
-import { QWEN_TOKEN_PLAN_TEXT_MODELS } from '#/tui/utils/qwen-token-plan';
+import { QWEN_TOKEN_PLAN_TEXT_MODELS } from '#/tui/utils/model/qwen-token-plan';
 
 /** How the user will authenticate for a given entry. */
 export type ProviderAuthKind = 'oauth' | 'api-key' | 'keyless' | 'cloud' | 'custom';

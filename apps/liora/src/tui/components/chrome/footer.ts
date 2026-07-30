@@ -10,7 +10,7 @@ import type { Component } from '#/tui/renderer';
 import { truncateToWidth } from '#/tui/renderer';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { AppState } from '#/tui/types';
-import type { MotionBeatSnapshot } from '#/tui/utils/motion-beats';
+import type { MotionBeatSnapshot } from '#/tui/utils/render/motion-beats';
 import {
   createGitStatusCache,
   type GitStatusCache,

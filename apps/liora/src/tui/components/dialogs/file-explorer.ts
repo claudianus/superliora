@@ -26,7 +26,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { printableChar, isPrintableChar } from '#/tui/utils/printable-key';
 import {
   filterFileTree,

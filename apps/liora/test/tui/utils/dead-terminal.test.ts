@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isDeadTerminalError } from '#/tui/utils/dead-terminal';
+import { isDeadTerminalError } from '#/tui/utils/terminal/dead-terminal';
 
 describe('isDeadTerminalError', () => {
   it('returns false for null', () => {

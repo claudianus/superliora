@@ -9,10 +9,10 @@ import {
   snapRevealToTarget,
   tickReveal,
   visibleText,
-} from '../../utils/streaming-text-reveal';
+} from '../../utils/streaming/streaming-text-reveal';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { TranscriptEntry } from '../../types';
-import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import {
   rescheduleRevealTimer as rescheduleRevealTimerHelper,
   type StreamingRevealContext,

@@ -14,7 +14,7 @@ import {
   hasTerminalThemeReport,
   handleTerminalThemeInput,
   installTerminalThemeTracking,
-} from "#/tui/utils/terminal-theme";
+} from "#/tui/utils/terminal/terminal-theme";
 
 type InputListener = Parameters<TUIState["ui"]["addInputListener"]>[0];
 const DARK_OSC11_REPORT = "\u001B]11;rgb:2828/2c2c/3434\u0007";

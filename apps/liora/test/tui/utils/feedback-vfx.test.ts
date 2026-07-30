@@ -14,11 +14,11 @@ import {
   selectionPulseFeedback,
   successFlashFeedback,
   typingRippleFeedback,
-} from '#/tui/utils/feedback-vfx';
+} from '#/tui/utils/render/feedback-vfx';
 import {
   noteTUIInputInteraction,
   resetTUIInputInteractionForTests,
-} from '#/tui/utils/input-interaction';
+} from '#/tui/utils/input/input-interaction';
 import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,

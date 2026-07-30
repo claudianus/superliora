@@ -12,7 +12,7 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { formatHookResultPlain } from '../utils/hook-result-format';
 import { createMarkdownTheme } from '../theme/pi-tui-theme';
 import type { TUIState } from '../tui-state';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 
 const BTW_BUSY_NOTICE = 'Wait for /btw to finish before sending another question.';
 

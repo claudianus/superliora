@@ -27,7 +27,7 @@ import {
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 export type SessionLoadingPhase =

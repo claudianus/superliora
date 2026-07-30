@@ -19,7 +19,7 @@ import {
   isTodoItemShape,
   serializeToolResultOutput,
 } from '../../utils/event-payload';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by tool / shell event handling. */

@@ -2,7 +2,7 @@ import type { MemorySearchResult, MemoryStats } from '@superliora/sdk';
 
 import { loadBenchStatus, redactBenchStatusText, type BenchStatus } from '../bench';
 import type { SlashCommandHost } from '../dispatch';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   loadMemoryReadinessEvidence,
   type MemoryReadinessSnapshot,

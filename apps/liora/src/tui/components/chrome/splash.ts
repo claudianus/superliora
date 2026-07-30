@@ -40,7 +40,7 @@ import {
   resolveBrandMorphRect,
   resolveMorphProgress,
   SPLASH_MORPH_MS,
-} from '#/tui/utils/splash-iris';
+} from '#/tui/utils/splash/splash-iris';
 import { renderWelcomeBanner } from './welcome-banner';
 
 export { SPLASH_MORPH_MS };

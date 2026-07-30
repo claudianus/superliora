@@ -5,7 +5,7 @@ import {
   requestTUIContentRender,
   requestTUILayoutRender,
   shouldSuppressTUIFrameRequests,
-} from '#/tui/utils/frame-render';
+} from '#/tui/utils/render/frame-render';
 import type { TUIState } from '#/tui/tui-state';
 
 function makeState(isBatchMounting: boolean): TUIState {

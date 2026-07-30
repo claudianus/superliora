@@ -21,7 +21,7 @@ import {
 import {
   noteTUIInputInteraction,
   resetTUIInputInteractionForTests,
-} from '#/tui/utils/input-interaction';
+} from '#/tui/utils/input/input-interaction';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 

@@ -6,7 +6,7 @@ import {
   isSameEffectiveModel,
   normalizeModelToken,
   resolveModelRouteIdentity,
-} from '../../../src/tui/utils/model-route-notice';
+} from '../../../src/tui/utils/model/model-route-notice';
 
 const models: Record<string, ModelAlias> = {
   'Grok 4.5': {

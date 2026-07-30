@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TUIToastState, TUI_TOAST_DURATION_MS } from '#/tui/utils/toast';
+import { TUIToastState, TUI_TOAST_DURATION_MS } from '#/tui/utils/ui/toast';
 
 describe('TUIToastState', () => {
   beforeEach(() => {

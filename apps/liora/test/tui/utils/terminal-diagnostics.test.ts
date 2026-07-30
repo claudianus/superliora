@@ -3,11 +3,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   resetImageProtocolProbeForTests,
   setProbedKittyGraphicsForTests,
-} from '#/tui/utils/image-protocol-detect';
+} from '#/tui/utils/image/image-protocol-detect';
 import {
   collectTerminalDiagnostics,
   formatTerminalDiagnosticsLines,
-} from '#/tui/utils/terminal-diagnostics';
+} from '#/tui/utils/terminal/terminal-diagnostics';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

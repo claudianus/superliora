@@ -8,7 +8,7 @@ import {
   type TuiConfig,
 } from '../config';
 import type { AppState } from '../types';
-import { contextWorkingSetSnapshotFromLoopControl } from './context-working-set';
+import { contextWorkingSetSnapshotFromLoopControl } from '#/tui/utils/agent/context-working-set';
 
 /** Inputs required to seed {@link AppState} before the TUI mounts. */
 export interface InitialAppStateInput {

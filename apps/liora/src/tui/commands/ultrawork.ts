@@ -14,7 +14,7 @@ import { UltraworkModeMarkerComponent } from '../components/messages/ultrawork-m
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';
 import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './dispatch';
 import {

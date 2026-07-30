@@ -4,7 +4,7 @@ import {
   isTUIInputInteractionActive,
   noteTUIInputInteraction,
   resetTUIInputInteractionForTests,
-} from '#/tui/utils/input-interaction';
+} from '#/tui/utils/input/input-interaction';
 
 describe('input interaction holdoff', () => {
   afterEach(() => {

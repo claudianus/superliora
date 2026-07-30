@@ -25,7 +25,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import { renderClusteredDiffBody } from '#/tui/components/media/diff-preview';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { printableChar } from '#/tui/utils/printable-key';
 import type { GitDiffFile, GitDiffFileStatus, GitDiffReport } from '#/utils/git/git-diff';
 

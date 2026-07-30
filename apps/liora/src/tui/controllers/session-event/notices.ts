@@ -22,16 +22,16 @@ import { errorReportHintLine } from '../../constant/feedback';
 import type { AppState, LivePaneState, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';
-import { computeSessionCostUsd } from '#/tui/utils/session-cost';
+import { computeSessionCostUsd } from '#/tui/utils/session/session-cost';
 import {
   formatErrorPayload,
   stringValue,
 } from '../../utils/event-payload';
 import { formatHookResultMarkdown } from '../../utils/hook-result-format';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
-import { notifyError } from '../../utils/desktop-notification';
+import { notifyError } from '../../utils/notification/desktop-notification';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by session notice / transcript side-effect handlers. */

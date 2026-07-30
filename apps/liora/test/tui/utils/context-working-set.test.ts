@@ -11,7 +11,7 @@ import {
   matchContextWorkingSetPreset,
   previewContextWorkingSet,
   workingSetPressure,
-} from '#/tui/utils/context-working-set';
+} from '#/tui/utils/agent/context-working-set';
 
 describe('context working-set presets', () => {
   it('lists four named presets with balanced first', () => {

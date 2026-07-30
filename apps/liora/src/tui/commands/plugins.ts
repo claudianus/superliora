@@ -20,7 +20,7 @@ import {
 } from '../components/messages/plugins-status-panel';
 import { UsagePanelComponent } from '../components/messages/usage-panel/index';
 import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { formatPluginSourceLabel, isOfficialPluginSource } from '../utils/plugin-source-label';
 import { loadPluginMarketplace } from '#/utils/plugin-marketplace';
 import type { AutocompleteItem } from '#/tui/renderer';

@@ -24,9 +24,9 @@ import type {
   FileContentDisplayBlock,
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
-import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
+import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 import { printableChar } from '#/tui/utils/printable-key';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,

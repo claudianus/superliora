@@ -18,7 +18,7 @@ import {
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { formatModelWithThinking } from '#/tui/utils/thinking-effort';
+import { formatModelWithThinking } from '#/tui/utils/model/thinking-effort';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { renderWelcomeBanner } from './welcome-banner';
 

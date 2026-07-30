@@ -8,7 +8,7 @@ import {
   syncToolOutputViewportContent,
   toolOutputViewportMaxHeight,
   toolOutputViewportThumb,
-} from '#/tui/utils/tool-output-viewport';
+} from '#/tui/utils/tool/tool-output-viewport';
 
 describe('tool output viewport state', () => {
   it('keeps the existing collapsed preview height and clamps scrolling', () => {

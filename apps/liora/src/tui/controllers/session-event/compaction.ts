@@ -12,7 +12,7 @@ import {
   isSameEffectiveModel,
   modelRouteDisplayName,
   resolveModelRouteIdentity,
-} from '../../utils/model-route-notice';
+} from '../../utils/model/model-route-notice';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by compaction event handling. */

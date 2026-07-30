@@ -15,7 +15,7 @@ import {
   buildProviderCatalogOptions,
   type ProviderCatalogOption,
   type ProviderCatalogSelection,
-} from '#/tui/utils/provider-catalog-options';
+} from '#/tui/utils/model/provider-catalog-options';
 import type { SlashCommandHost } from './dispatch';
 
 /**

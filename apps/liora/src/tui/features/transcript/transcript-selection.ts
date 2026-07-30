@@ -11,7 +11,7 @@ export type { TranscriptSelectionPoint, TranscriptSelectionRange } from '#/tui/f
 export { plainTextFromRegionLine } from '#/tui/features/transcript/transcript-selection-model';
 
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import { CHROME_GUTTER } from '../../constant/rendering';
 export class TranscriptSelectionState {
   private anchor: TranscriptSelectionPoint | undefined;

@@ -1,12 +1,12 @@
 import type { BackgroundTaskInfo, ModelAlias } from '@superliora/sdk';
 
 import type { BackgroundAgentMetadata, ToolCallBlockData, TranscriptEntry } from '../../types';
-import { formatBackgroundAgentTranscript } from '../../utils/background-agent-status';
+import { formatBackgroundAgentTranscript } from '../../utils/background/background-agent-status';
 import {
   isSameEffectiveModel,
   modelRouteDisplayName,
   resolveModelRouteIdentity,
-} from '../../utils/model-route-notice';
+} from '../../utils/model/model-route-notice';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { SubagentLifecycleEventOf } from './helpers';
 

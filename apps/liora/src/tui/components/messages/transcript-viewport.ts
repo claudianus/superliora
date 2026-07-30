@@ -11,7 +11,7 @@ import {
   isEmptyTranscriptChrome,
 } from '#/tui/components/chrome/idle-stage';
 import { currentTheme } from '#/tui/theme';
-import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
+import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render/render-cache';
 
 /**
  * Capsule scrollbar glyphs — soft track, rounded thumb ends, edge cues.

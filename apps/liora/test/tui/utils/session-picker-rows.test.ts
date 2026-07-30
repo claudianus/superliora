@@ -1,7 +1,7 @@
 import type { SessionSummary } from '@superliora/sdk';
 import { describe, expect, it } from 'vitest';
 
-import { sessionRowsForPicker } from '#/tui/utils/session-picker-rows';
+import { sessionRowsForPicker } from '#/tui/utils/session/session-picker-rows';
 
 function summary(input: {
   readonly id: string;

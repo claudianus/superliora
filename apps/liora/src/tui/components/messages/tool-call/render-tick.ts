@@ -1,6 +1,6 @@
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { appearanceAnimationNow, isToneSettleFlashActive } from '#/tui/features/appearance/appearance-effects';
-import { computeStagedLineReveal } from '#/tui/utils/streaming-text-reveal';
+import { computeStagedLineReveal } from '#/tui/utils/streaming/streaming-text-reveal';
 import {
   isTranscriptEntranceActive,
   toolHeaderEntranceDurationMs,

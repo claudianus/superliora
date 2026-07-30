@@ -8,7 +8,7 @@ import {
   toolCallFromReplayMessage,
   toolResultOutput,
   type ReplayRenderContext,
-} from '../../utils/message-replay';
+} from '../../utils/session/message-replay';
 import type { SessionReplayHost } from './types';
 
 export class SessionReplayToolContext {
