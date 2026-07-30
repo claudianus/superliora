@@ -6,13 +6,7 @@ import {
   RendererTextInput,
   isKeyRelease,
   matchesKey,
-  measureRendererEditorSurfaceLayout,
-  measureRendererEditorSurfaceNaturalRows,
-  RENDERER_EDITOR_CONTENT_RIGHT_INSET,
   RENDERER_EDITOR_CONTENT_X,
-  RENDERER_EDITOR_SHELL_MODE_LABEL,
-  renderRendererEditorSurface,
-  resolveRendererEditorSurfaceStyles,
   type AutocompleteProvider,
   type NativeInputEvent,
   type NativeInputKeyEvent,
@@ -22,11 +16,43 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 
-import { currentTheme } from '#/tui/theme';
-import { printableChar } from '#/tui/utils/printable-key';
-import { readClipboardText } from '#/utils/clipboard/clipboard-text';
-
 import type { TUIEditor, TUIEditorGhostKind, TUIEditorInputMode } from './editor-contract';
+import {
+  applyNativeTUIEditorAutocompleteCompletion,
+  requestNativeTUIEditorAutocomplete,
+  shouldQueryNativeTUIEditorAutocomplete,
+} from './native-tui-editor-autocomplete';
+import { dispatchNativeTUIEditorDecodedEvents } from './native-tui-editor-dispatch';
+import { navigateNativeTUIEditorHistory } from './native-tui-editor-history';
+import {
+  buildNativeTUIEditorSurface,
+  measureNativeTUIEditorLayoutRowCount,
+  regionLineToText,
+} from './native-tui-editor-render';
+import { handleNativeTUIEditorAppShortcut } from './native-tui-editor-shortcuts';
+import type { NativeTUIEditorAutocompleteHost } from './native-tui-editor-autocomplete';
+import type { NativeTUIEditorDispatchHost } from './native-tui-editor-dispatch';
+import type { NativeTUIEditorHistoryHost } from './native-tui-editor-history';
+import type { NativeTUIEditorRenderHost } from './native-tui-editor-render';
+import type { NativeTUIEditorShortcutHost } from './native-tui-editor-shortcuts';
+
+type NativeTUIEditorInternalHost = NativeTUIEditorShortcutHost &
+  NativeTUIEditorDispatchHost &
+  NativeTUIEditorHistoryHost &
+  NativeTUIEditorAutocompleteHost &
+  NativeTUIEditorRenderHost & {
+    get autocompleteOpen(): boolean;
+    getOverlayLineCount(width: number): number;
+    getOverlayLines(width: number): readonly RendererRegionLine[];
+    getLayoutRowCountCache():
+      | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+      | undefined;
+    setLayoutRowCountCache(
+      cache:
+        | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+        | undefined,
+    ): void;
+  };
 
 /** Debounce window for autocomplete provider queries after each keystroke. */
 const DEFAULT_AUTOCOMPLETE_DEBOUNCE_MS = 80;
@@ -223,7 +249,7 @@ export class NativeTUIEditor implements TUIEditor {
     if (isKeyRelease(normalized)) return;
     if (!matchesKey(normalized, Key.escape)) this.onNonEscapeInput?.();
 
-    if (this.handleAppShortcut(normalized)) return;
+    if (handleNativeTUIEditorAppShortcut(this.asInternalHost(), normalized)) return;
 
     // Keep soft-wrap navigation width in sync even when the last frame was
     // skipped (e.g. pure-input typing holdoff). Without this, ↑/↓ falls back
@@ -244,130 +270,7 @@ export class NativeTUIEditor implements TUIEditor {
     events: readonly NativeInputEvent[],
     rawInput?: string,
   ): void {
-    if (this.autocomplete.isOpen()) {
-      for (const event of events) {
-        if (event.type !== 'key' || event.eventType === 'release') continue;
-        const result = this.autocomplete.handleNativeInput(event, this);
-        if (!result.handled) continue;
-        if (result.completion !== undefined) {
-          this.applyAutocompleteCompletion(result.completion);
-        }
-        return;
-      }
-    }
-
-    for (const event of events) {
-      if (event.type === 'paste') {
-        // Terminal file drops arrive as a bracketed paste of file paths
-        // (iTerm2 / Ghostty / WezTerm / Kitty default mode all insert the
-        // dropped paths as text). Give the host first claim on the paste so
-        // dropped media becomes attachments instead of raw path text.
-        if (this.onPasteText?.(event.text) === true) {
-          this.pasteBurst.reset();
-          continue;
-        }
-        this.onTextPaste?.();
-        this.pasteBurst.reset();
-        this.applyPromptAwareMutation(() => this.input.handleInput(event), event.text);
-        continue;
-      }
-      if (event.type !== 'key') continue;
-      if (event.eventType === 'release') continue;
-
-      if (event.key === 'enter' && !event.shift && event.raw === '\r') {
-        if (
-          !this.disablePasteBurst &&
-          this.pasteBurst.shouldInsertNewlineInsteadOfSubmit(Date.now())
-        ) {
-          this.applyPromptAwareMutation(() => this.input.handleInput(event));
-          this.pasteBurst.extendWindow(Date.now());
-          this.onInsertNewline?.();
-          continue;
-        }
-        this.pasteBurst.reset();
-        this.submit();
-        continue;
-      }
-      if (event.key === 'up' && this.getText().length === 0) {
-        if (this.ghostKind === 'suggestion' && this.ghostText !== undefined) {
-          this.onCycleGhost?.(-1);
-          continue;
-        }
-        if (this.onUpArrowEmpty?.() === true) continue;
-        this.navigateHistory(-1);
-        continue;
-      }
-      if (event.key === 'down' && this.getText().length === 0) {
-        if (this.ghostKind === 'suggestion' && this.ghostText !== undefined) {
-          this.onCycleGhost?.(1);
-          continue;
-        }
-        if (this.onDownArrowEmpty?.() === true) continue;
-        this.navigateHistory(1);
-        continue;
-      }
-      if (this.getText().length === 0 && this.handleEmptyPromptNavigation(event.key)) {
-        continue;
-      }
-      if (event.key === 'escape') {
-        if (this.closeAutocomplete(true)) {
-          continue;
-        } else if (this.ghostText !== undefined) {
-          this.clearGhost();
-        } else if (this.inputMode === 'bash' && this.getText().length === 0) {
-          this.setInputMode('prompt');
-        } else {
-          this.onEscape?.();
-        }
-        continue;
-      }
-      if (event.key === 'tab') {
-        if (this.autocomplete.isOpen()) {
-          // Open-menu Tab is handled by handleAutocompleteNavigation (native path).
-          // Legacy string path should not steal focus while the menu is open.
-          continue;
-        }
-        if (this.ghostText !== undefined) {
-          this.acceptGhost();
-          continue;
-        }
-        // No ghost: open autocomplete when the line has a known trigger (/ @ path)
-        // or bash mode. Avoid Tab spam on plain prose (no force).
-        if (this.shouldQueryAutocomplete() || this.inputMode === 'bash') {
-          void this.requestAutocomplete({ force: true });
-        }
-        continue;
-      }
-
-      const triggerSource = rawInput ?? event.raw;
-      const trigger = printableChar(triggerSource);
-      if (
-        this.inputMode === 'prompt' &&
-        trigger === '!' &&
-        this.getText().length === 0
-      ) {
-        this.setInputMode('bash');
-        continue;
-      }
-
-      const changed = this.applyPromptAwareMutation(() => this.input.handleInput(event));
-      if (!changed) {
-        if (!this.disablePasteBurst && event.key !== 'enter') {
-          this.pasteBurst.reset();
-        }
-        continue;
-      }
-      if (!this.disablePasteBurst && event.type === 'key') {
-        const printable = printableChar(event.raw);
-        if (printable !== undefined) {
-          this.pasteBurst.onPlainChar(Date.now());
-        } else if (event.key !== 'enter') {
-          this.pasteBurst.reset();
-        }
-      }
-      if (event.key === 'enter') this.onInsertNewline?.();
-      void this.requestAutocomplete({ force: this.inputMode === 'bash' });
-    }
+    dispatchNativeTUIEditorDecodedEvents(this.asInternalHost(), events, rawInput);
   }
 
   render(width: number): string[] {
@@ -379,43 +282,7 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   getNativeLayoutRowCount(width: number): number {
-    const safeWidth = Math.max(1, Math.floor(width));
-    const text = this.getText();
-    // Overlay open/close must bust the cache: typing `/` keeps the same text
-    // while slash suggestions arrive async, and a stale 3-row height clips the
-    // prompt + autocomplete into a broken stub frame.
-    const overlayOpen = this.autocomplete.isOpen();
-    // Closed autocomplete: avoid building styled overlay cells just to count 0.
-    const overlayCount = overlayOpen ? this.getNativeOverlayLines(safeWidth).length : 0;
-    const cached = this.layoutRowCountCache;
-    if (
-      cached !== undefined &&
-      cached.width === safeWidth &&
-      cached.text === text &&
-      cached.overlayCount === overlayCount &&
-      cached.ghost === (this.ghostText ?? '')
-    ) {
-      return cached.rows;
-    }
-    const overlayLines = overlayOpen ? this.getNativeOverlayLines(safeWidth) : [];
-    const contentWidth = Math.max(
-      1,
-      safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
-    );
-    this.lastContentWidth = contentWidth;
-    this.input.setLayoutWidth(contentWidth);
-    // Measure natural visual rows (soft-wrap + hard newlines). Do not pass a
-    // fixed height:1 — contentRows still reflects full wrap, but the old
-    // "no newline ⇒ 3 rows" fast path kept long single-line prompts clipped.
-    // Empty / short single-line text still collapses to the 3-row closed box
-    // via measureRendererEditorSurfaceNaturalRows(contentRows=1).
-    const content = this.input.render({
-      width: contentWidth,
-      focused: this.focused,
-    });
-    const rows = measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows);
-    this.layoutRowCountCache = { width: safeWidth, text, overlayCount, ghost: this.ghostText ?? '', rows };
-    return rows;
+    return measureNativeTUIEditorLayoutRowCount(this.asInternalHost(), width);
   }
 
   getNativeOverlayLines(
@@ -432,143 +299,11 @@ export class NativeTUIEditor implements TUIEditor {
    * reach Command Hub instead of being inserted as characters.
    */
   tryHandleAppShortcut(data: string): boolean {
-    return this.handleAppShortcut(data);
+    return handleNativeTUIEditorAppShortcut(this.asInternalHost(), data);
   }
 
-  private handleAppShortcut(data: string): boolean {
-    // Ctrl+V (Alt+V on Windows, where terminals reserve Ctrl+V for their own
-    // paste): paste an image from the OS clipboard. Falls through to a text
-    // paste when the clipboard holds no image so the key never dead-ends.
-    // Restores the binding the legacy editor had before the native rewrite.
-    const pasteMediaKey = process.platform === 'win32' ? Key.alt('v') : Key.ctrl('v');
-    if (matchesKey(data, pasteMediaKey)) {
-      void this.handlePasteMediaKey(data);
-      return true;
-    }
-    if (matchesKey(data, Key.ctrl('d'))) {
-      if (this.getText().length === 0) {
-        this.onCtrlD?.();
-        return true;
-      }
-      return false;
-    }
-    if (matchesKey(data, Key.ctrl('c'))) {
-      this.onCtrlC?.();
-      return true;
-    }
-    if (matchesKey(data, Key.ctrl('g'))) {
-      this.onOpenExternalEditor?.();
-      return true;
-    }
-    if (matchesKey(data, Key.ctrl('s'))) {
-      this.onCtrlS?.();
-      return true;
-    }
-    // Ctrl-B: always consume so idle presses can toast instead of emacs backward-char.
-    if (matchesKey(data, Key.ctrl('b'))) {
-      this.onCtrlB?.();
-      return true;
-    }
-    // Ctrl-O: toggle tool output / reasoning expansion (advertised in card footers).
-    if (matchesKey(data, Key.ctrl('o'))) {
-      this.onToggleToolExpand?.();
-      return true;
-    }
-    // Ctrl-T: expand/collapse the todo panel; pass through when it has no overflow.
-    if (matchesKey(data, Key.ctrl('t')) && this.onToggleTodoExpand?.() === true) {
-      return true;
-    }
-    if (matchesKey(data, 'shift+tab')) {
-      this.onShiftTab?.();
-      return true;
-    }
-    // Ctrl-R: always consume; host toasts when the prompt is non-empty.
-    if (matchesKey(data, Key.ctrl('r'))) {
-      this.onHistorySearch?.();
-      return true;
-    }
-    // Ctrl-K / Ctrl-Space: Command Hub menu.
-    if (matchesKey(data, Key.ctrl('k')) || matchesKey(data, Key.ctrl(Key.space))) {
-      this.onCommandPalette?.();
-      return true;
-    }
-    // "?": open Command Hub when the editor is empty (native pre-handler path).
-    if (this.getText().length === 0 && printableChar(data) === '?') {
-      this.onCommandPalette?.();
-      return true;
-    }
-    // Ctrl-F: transcript search.
-    if (matchesKey(data, Key.ctrl('f'))) {
-      this.onTranscriptSearch?.();
-      return true;
-    }
-    // Ctrl-X: stash the current draft, or pop the latest stash when empty.
-    if (matchesKey(data, Key.ctrl('x'))) {
-      this.onStashToggle?.();
-      return true;
-    }
-    if (
-      this.inputMode === 'bash' &&
-      this.getText().length === 0 &&
-      (matchesKey(data, Key.escape) || matchesKey(data, Key.backspace))
-    ) {
-      this.setInputMode('prompt');
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Ctrl+V / Alt+V handler. Pastes a clipboard image when one is available
-   * (the host reads the OS clipboard natively); otherwise pastes clipboard
-   * text so the shortcut still behaves like a paste. Clipboard text also
-   * passes through the drop detector, so a copied file list attaches as
-   * media exactly like a terminal drop.
-   */
-  private async handlePasteMediaKey(raw: string): Promise<void> {
-    const handler = this.onPasteImage;
-    if (handler !== undefined) {
-      try {
-        if ((await handler()) === true) return;
-      } catch {
-        // Fall through to a text paste below.
-      }
-    }
-
-    let text: string | null = null;
-    try {
-      text = await readClipboardText();
-    } catch {
-      text = null;
-    }
-    if (text === null || text.length === 0) return;
-    const pasteText = text;
-
-    if (this.onPasteText?.(pasteText) === true) return;
-
-    this.onTextPaste?.();
-    this.pasteBurst.reset();
-    this.applyPromptAwareMutation(
-      () => this.input.handleInput({ type: 'paste', raw, text: pasteText }),
-      pasteText,
-    );
-    this.options.requestRender?.();
-    void this.requestAutocomplete({ force: this.inputMode === 'bash' });
-  }
-
-  private handleEmptyPromptNavigation(key: string): boolean {
-    switch (key) {
-      case 'pageup':
-        return this.onTranscriptPageUp?.() === true;
-      case 'pagedown':
-        return this.onTranscriptPageDown?.() === true;
-      case 'home':
-        return this.onTranscriptTop?.() === true;
-      case 'end':
-        return this.onTranscriptBottom?.() === true;
-      default:
-        return false;
-    }
+  private buildNativeEditorSurface(width: number) {
+    return buildNativeTUIEditorSurface(this.asInternalHost(), width);
   }
 
   private submit(): void {
@@ -584,35 +319,7 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private navigateHistory(direction: -1 | 1): void {
-    if (this.history.length === 0) return;
-    const entering = this.historyIndex === undefined && this.getText().length === 0;
-    if (entering) {
-      this.historyDraftText = this.getText();
-      this.hostHistoryDraft = this.onHistoryDraftSave?.();
-    }
-
-    let index = this.historyIndex ?? this.history.length;
-    while (true) {
-      index += direction;
-      if (index >= this.history.length) {
-        this.historyIndex = undefined;
-        this.setTextInternal(this.historyDraftText ?? '', true);
-        if (this.hostHistoryDraft !== undefined) {
-          this.onHistoryDraftRestore?.(this.hostHistoryDraft);
-          this.hostHistoryDraft = undefined;
-        }
-        this.historyDraftText = undefined;
-        return;
-      }
-      if (index < 0) return;
-      const entry = this.history[index];
-      if (entry === undefined) return;
-      if (this.historyFilter !== null && !this.historyFilter(entry)) continue;
-      this.historyIndex = index;
-      const recalled = this.onRecall?.(entry) ?? entry;
-      this.setTextInternal(recalled, true);
-      return;
-    }
+    navigateNativeTUIEditorHistory(this.asInternalHost(), direction);
   }
 
   private applyPromptAwareMutation(
@@ -661,41 +368,11 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private async requestAutocomplete(options: { readonly force?: boolean } = {}): Promise<void> {
-    // Plain prose has no autocomplete trigger. Skip the debounce timer + provider
-    // round-trip that used to fire on every printable keystroke.
-    if (options.force !== true && !this.shouldQueryAutocomplete()) {
-      if (this.autocomplete.isOpen()) this.autocomplete.close(true);
-      return;
-    }
-    await this.autocomplete.request(this, options);
+    await requestNativeTUIEditorAutocomplete(this.asInternalHost(), options);
   }
 
-  /**
-   * Cheap pre-filter before the autocomplete provider runs.
-   * Keep this sync and allocation-light — it sits on the keystroke path.
-   */
   private shouldQueryAutocomplete(): boolean {
-    if (this.inputMode === 'bash') return true;
-    if (this.autocomplete.isOpen()) return true;
-    const cursor = this.getCursor();
-    const lines = this.getText().split('\n');
-    const line = lines[cursor.line] ?? '';
-    const before = line.slice(0, cursor.col);
-    if (before.length === 0) return false;
-    // Slash commands / args
-    if (before.startsWith('/')) return true;
-    // @file mentions
-    if (before.includes('@')) return true;
-    // Relative / home / absolute path fragments after whitespace
-    const tokenStart = Math.max(before.lastIndexOf(' '), before.lastIndexOf('\t')) + 1;
-    const token = before.slice(tokenStart);
-    if (token.startsWith('./') || token.startsWith('../') || token.startsWith('~/')) return true;
-    if (token.startsWith('/') && token.length > 1) return true;
-    // Continuation of a path token (foo/bar)
-    if (token.includes('/') && !token.startsWith('http://') && !token.startsWith('https://')) {
-      return true;
-    }
-    return false;
+    return shouldQueryNativeTUIEditorAutocomplete(this.asInternalHost());
   }
 
   private closeAutocomplete(requestRender: boolean): boolean {
@@ -728,107 +405,120 @@ export class NativeTUIEditor implements TUIEditor {
   private applyAutocompleteCompletion(
     result: RendererEditorAutocompleteCompletion,
   ): void {
-    const before = this.getText();
-    this.input.setText(result.lines.join('\n'));
-    this.setCursorPosition({ line: result.cursorLine, col: result.cursorCol });
-    if (this.getText() !== before) this.onChange?.(this.getText());
-    void this.requestAutocomplete({ force: this.inputMode === 'bash' });
-  }
-
-  private resolveEditorSurfaceStyles() {
-    const palette = currentTheme.palette;
-    // When Ultrawork (or any highlight) is active, borderHighlighted is true and
-    // borderColor carries the live glow hex. Prefer that over static primary.
-    const focusHex =
-      this.borderHighlighted && this.inputMode !== 'bash'
-        ? extractHexFromBorderColor(this.borderColor) ?? palette.primary
-        : palette.primary;
-    return resolveRendererEditorSurfaceStyles({
-      commandMode: this.inputMode === 'bash',
-      focused: this.focused || this.borderHighlighted,
-      canvasBackground: currentTheme.canvasBackgroundEnabled,
-      palette: {
-        text: palette.text,
-        textMuted: palette.textMuted,
-        textStrong: palette.textStrong,
-        border: palette.border,
-        borderFocus: focusHex,
-        command: palette.shellMode,
-        surfaceSunken: palette.surfaceSunken,
-        background: palette.background,
-        selectionBg: palette.selectionBg,
-        selectionText: palette.selectionText,
-        ghostText: palette.ghostText,
-      },
-    });
-  }
-
-  private buildNativeEditorSurface(width: number) {
-    const safeWidth = Math.max(1, Math.floor(width));
-    const contentWidth = Math.max(
-      1,
-      safeWidth - RENDERER_EDITOR_CONTENT_X - RENDERER_EDITOR_CONTENT_RIGHT_INSET,
+    applyNativeTUIEditorAutocompleteCompletion(
+      this.asInternalHost(),
+      result,
+      (opts) => this.requestAutocomplete(opts),
     );
-    this.lastContentWidth = contentWidth;
-    this.input.setLayoutWidth(contentWidth);
-    const editorStyles = this.resolveEditorSurfaceStyles();
-    const overlayLines = this.getNativeOverlayLines(safeWidth, {
-      text: editorStyles.textStyle,
-      selected: editorStyles.autocompleteSelectedStyle,
-      description: editorStyles.autocompleteDescriptionStyle,
-      scroll: editorStyles.autocompleteScrollStyle,
-    });
-    const content = this.input.render({
-      width: contentWidth,
-      focused: this.focused,
-      ghostText: this.ghostText,
-      ghostStyle: editorStyles.ghostStyle,
-    });
-    const surfaceLayout = measureRendererEditorSurfaceLayout({
-      height: measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows),
-      overlays: overlayLines,
-    });
-    return renderRendererEditorSurface({
-      width: safeWidth,
-      frameRows: surfaceLayout.frameRows,
-      content,
-      argumentHint: this.inputMode === 'bash'
-        ? undefined
-        : {
-            text: this.getText(),
-            cursor: this.getCursor(),
-            hints: this.argumentHints,
-            width: contentWidth,
-          },
-      prompt: this.inputMode === 'bash' ? '!' : '>',
-      topLabel: this.inputMode === 'bash' ? RENDERER_EDITOR_SHELL_MODE_LABEL : undefined,
-      connectedAbove: this.connectedAbove && !this.borderHighlighted,
-      overlays: surfaceLayout.overlayLines,
-      borderStyle: editorStyles.borderStyle,
-      promptStyle: editorStyles.promptStyle,
-      surfaceStyle: editorStyles.surfaceStyle,
-      slashTokenStyle: this.inputMode === 'bash' ? undefined : editorStyles.slashTokenStyle,
-    });
+  }
+
+  private applyAutocompleteText(text: string, cursor: RendererEditorCursor): void {
+    this.input.setText(text);
+    this.setCursorPosition(cursor);
+  }
+
+  private getTextInput(): RendererTextInput {
+    return this.input;
+  }
+
+  private getPasteBurst(): PasteBurst {
+    return this.pasteBurst;
+  }
+
+  private getGhostKind(): TUIEditorGhostKind {
+    return this.ghostKind;
+  }
+
+  private restoreHistoryText(text: string): void {
+    this.setTextInternal(text, true);
+  }
+
+  private getAutocompleteController(): RendererEditorAutocompleteController {
+    return this.autocomplete;
+  }
+
+  private resetPasteBurst(): void {
+    this.pasteBurst.reset();
+  }
+
+  private applyTextPaste(raw: string, text: string): void {
+    this.applyPromptAwareMutation(
+      () => this.input.handleInput({ type: 'paste', raw, text }),
+      text,
+    );
+  }
+
+  private requestRender(): void {
+    this.options.requestRender?.();
+  }
+
+  private getDisablePasteBurst(): boolean {
+    return this.disablePasteBurst;
+  }
+
+  private getHistory(): readonly string[] {
+    return this.history;
+  }
+
+  private getHistoryIndex(): number | undefined {
+    return this.historyIndex;
+  }
+
+  private setHistoryIndex(index: number | undefined): void {
+    this.historyIndex = index;
+  }
+
+  private getHistoryFilter(): ((entry: string) => boolean) | null {
+    return this.historyFilter;
+  }
+
+  private getHistoryDraftText(): string | undefined {
+    return this.historyDraftText;
+  }
+
+  private setHistoryDraftText(text: string | undefined): void {
+    this.historyDraftText = text;
+  }
+
+  private getHostHistoryDraft(): unknown {
+    return this.hostHistoryDraft;
+  }
+
+  private setHostHistoryDraft(state: unknown): void {
+    this.hostHistoryDraft = state;
+  }
+
+  private setLastContentWidth(width: number): void {
+    this.lastContentWidth = width;
+  }
+
+  private get autocompleteOpen(): boolean {
+    return this.autocomplete.isOpen();
+  }
+
+  private getOverlayLineCount(width: number): number {
+    return this.getNativeOverlayLines(width).length;
+  }
+
+  private getOverlayLines(width: number): readonly RendererRegionLine[] {
+    return this.getNativeOverlayLines(width);
+  }
+
+  private getLayoutRowCountCache():
+    | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+    | undefined {
+    return this.layoutRowCountCache;
+  }
+
+  private setLayoutRowCountCache(
+    cache:
+      | { width: number; text: string; overlayCount: number; ghost: string; rows: number }
+      | undefined,
+  ): void {
+    this.layoutRowCountCache = cache;
+  }
+
+  private asInternalHost(): NativeTUIEditorInternalHost {
+    return this as unknown as NativeTUIEditorInternalHost;
   }
 }
-
-function regionLineToText(line: RendererRegionLine): string {
-  if (typeof line === 'string') return line;
-  return line.map((cell) => cell.char).join('');
-}
-
-function extractHexFromBorderColor(borderColor: (text: string) => string): string | undefined {
-  // borderColor is chalk-styled; sample a single glyph and recover #RRGGBB.
-  // chalk.hex() emits truecolor SGR (`38;2;r;g;b`) — not a literal `#` token.
-  const sample = borderColor('x');
-  const hexLiteral = /#([0-9A-Fa-f]{6})/.exec(sample);
-  if (hexLiteral !== null) return `#${hexLiteral[1]!}`;
-  const truecolor = /\x1b\[(?:38|48);2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(sample);
-  if (truecolor === null) return undefined;
-  const toByte = (raw: string): string => {
-    const n = Math.max(0, Math.min(255, Number.parseInt(raw, 10)));
-    return n.toString(16).padStart(2, '0');
-  };
-  return `#${toByte(truecolor[1]!)}${toByte(truecolor[2]!)}${toByte(truecolor[3]!)}`;
-}
-
