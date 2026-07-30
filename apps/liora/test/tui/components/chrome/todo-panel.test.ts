@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { TodoPanelComponent, type TodoItem } from '#/tui/components/chrome/todo-panel';
+import { TodoPanelComponent, type TodoItem } from '#/tui/components/chrome/todo/todo-panel';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme, darkColors } from '#/tui/theme';
 import {

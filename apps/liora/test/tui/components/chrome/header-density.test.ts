@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { HeaderComponent } from '#/tui/components/chrome/header';
+import { HeaderComponent } from '#/tui/components/chrome/header/header';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { AppState } from '#/tui/types';
 import {

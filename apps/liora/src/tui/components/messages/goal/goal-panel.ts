@@ -35,7 +35,7 @@ import {
 import type { ColorToken } from '#/tui/theme';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 import { formatGoalElapsed } from './goal-format';
-import { UsagePanelComponent } from './usage-panel';
+import { UsagePanelComponent } from '../usage-panel';
 
 const WRAP_WIDTH = 72;
 const MAX_OBJECTIVE_LINES = 6;

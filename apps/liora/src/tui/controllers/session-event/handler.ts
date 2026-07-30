@@ -10,7 +10,7 @@ import type {
 import { MoonLoader } from '../../components/chrome/moon-loader';
 import {
   isUltraworkTheatreEvent,
-} from '../../components/messages/ultrawork-theatre';
+} from '../../components/messages/ultrawork/ultrawork-theatre';
 import { McpOAuthAuthorizationUrlOpener } from '../../utils/mcp/mcp-oauth';
 import { openUrl } from '#/utils/open-url';
 import type { ColorToken } from '#/tui/theme';

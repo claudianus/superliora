@@ -7,7 +7,7 @@ import {
   workingSetPressure,
 } from '#/tui/utils/agent/context-working-set';
 
-import { safeContextUsage } from '#/tui/components/chrome/footer-context';
+import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
 
 export type FooterBadgeSeverity = 'muted' | 'info' | 'warning' | 'danger';
 

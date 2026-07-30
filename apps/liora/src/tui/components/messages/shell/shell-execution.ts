@@ -12,9 +12,9 @@ import { Container, Text, projectRendererLineWindow } from '#/tui/renderer';
 import { formatShellCommandPreview } from '#/tui/components/media/code-highlight';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
-import type { ResultRenderer } from './tool-renderers/types';
-import { PREVIEW_LINES } from './tool-renderers/types';
-import { TruncatedOutputComponent } from './tool-renderers/truncated';
+import type { ResultRenderer } from '../tool-renderers/types';
+import { PREVIEW_LINES } from '../tool-renderers/types';
+import { TruncatedOutputComponent } from '../tool-renderers/truncated';
 
 export interface ShellExecutionOptions {
   readonly command?: string;

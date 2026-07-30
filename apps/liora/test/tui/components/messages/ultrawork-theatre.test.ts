@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
-import { UltraworkTheatreComponent } from '#/tui/components/messages/ultrawork-theatre';
+import { UltraworkTheatreComponent } from '#/tui/components/messages/ultrawork/ultrawork-theatre';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme } from '#/tui/theme';
 import {

@@ -8,11 +8,11 @@ import {
   type TerminalRenderer,
 } from '#/tui/renderer';
 
-import { FooterComponent } from './components/chrome/footer';
+import { FooterComponent } from './components/chrome/footer/footer';
 import { GutterContainer } from './components/chrome/gutter-container';
-import { HeaderComponent } from './components/chrome/header';
+import { HeaderComponent } from './components/chrome/header/header';
 import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
-import { TodoPanelComponent } from './components/chrome/todo-panel';
+import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
 import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
 import { createTUIEditor } from './components/editor/editor-factory';

@@ -13,21 +13,21 @@ import {
 import type { MotionBeatSnapshot } from '#/tui/utils/render/motion-beats';
 import type { GitStatus } from '#/utils/git/git-status';
 
-import { formatMediaFooterBadge } from '#/tui/components/chrome/footer-badges';
+import { formatMediaFooterBadge } from '#/tui/components/chrome/footer/footer-badges';
 import {
   formatFooterGitBadge,
   formatTranscriptViewportBadge,
   shortenCwd,
   type FooterTranscriptViewportSnapshot,
-} from '#/tui/components/chrome/footer-chrome';
-import { formatGoalBadge } from '#/tui/components/chrome/footer-goal';
+} from '#/tui/components/chrome/footer/footer-chrome';
+import { formatGoalBadge } from '#/tui/components/chrome/footer/footer-goal';
 import {
   effectiveRouteModelLabel,
   formatModelRouteBadge,
   modelDisplayName,
   thinkingLevelLabel,
-} from '#/tui/components/chrome/footer-model';
-import { footerCurrentTipIndex, tipsForIndex } from '#/tui/components/chrome/footer-tips';
+} from '#/tui/components/chrome/footer/footer-model';
+import { footerCurrentTipIndex, tipsForIndex } from '#/tui/components/chrome/footer/footer-tips';
 
 export interface FooterLine1TipState {
   tipDisplay: string;

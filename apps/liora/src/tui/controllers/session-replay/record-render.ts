@@ -9,7 +9,7 @@ import {
   isUltraworkTheatreEvent,
   UltraworkTheatreComponent,
   ultraworkTheatreRunId,
-} from '../../components/messages/ultrawork-theatre';
+} from '../../components/messages/ultrawork/ultrawork-theatre';
 import {
   createReplayRenderContext,
   limitReplayRecordsByTurn,

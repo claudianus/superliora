@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { contextUsageSeverity, FooterComponent } from '#/tui/components/chrome/footer';
+import { contextUsageSeverity, FooterComponent } from '#/tui/components/chrome/footer/footer';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
 import {

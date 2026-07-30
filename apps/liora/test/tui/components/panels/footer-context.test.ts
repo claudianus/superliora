@@ -12,7 +12,7 @@ import {
   formatContextOSFooterBadge,
   formatMicroCompactionFooterBadge,
   buildWeightedTips,
-} from '#/tui/components/chrome/footer';
+} from '#/tui/components/chrome/footer/footer';
 import { darkColors } from '#/tui/theme/colors';
 import type { AppState } from '#/tui/types';
 

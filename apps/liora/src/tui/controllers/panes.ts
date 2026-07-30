@@ -10,7 +10,7 @@ import {
 } from '../components/panes/queue-pane';
 import { MoonLoader, type SpinnerStyle } from '../components/chrome/moon-loader';
 import { pickRandomWorkingTip, tipText } from '../components/chrome/working-tips';
-import { ShellRunComponent } from '../components/messages/shell-run';
+import { ShellRunComponent } from '../components/messages/shell/shell-run';
 import { ToolCallComponent } from '../components/messages/tool-call/index';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import type { AppearanceController } from './appearance';

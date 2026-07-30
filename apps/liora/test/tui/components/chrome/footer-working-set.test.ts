@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatWorkingSetFooterBadge } from '#/tui/components/chrome/footer';
+import { formatWorkingSetFooterBadge } from '#/tui/components/chrome/footer/footer';
 import {
   BALANCED_ASYNC_WORKING_SET_TOKENS,
   BALANCED_MAX_WORKING_SET_TOKENS,

@@ -2,7 +2,7 @@ import { visibleWidth } from '#/tui/renderer';
 import { describe, expect, it } from 'vitest';
 
 import { SwarmModeMarkerComponent } from '#/tui/components/messages/swarm-markers';
-import { buildGoalMarker, GoalMarkerComponent } from '#/tui/components/messages/goal-markers';
+import { buildGoalMarker, GoalMarkerComponent } from '#/tui/components/messages/goal/goal-markers';
 import type { GoalChange } from '@superliora/sdk';
 
 const ANSI_SGR = /\[[0-9;]*m/g;

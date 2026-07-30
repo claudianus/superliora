@@ -14,9 +14,9 @@ import {
   formatProviderQuotaFooterBadge,
   formatWorkingSetFooterBadge,
   styleFooterBadge,
-} from '#/tui/components/chrome/footer-badges';
-import { footerNextAction } from '#/tui/components/chrome/footer-chrome';
-import { formatContextStatus } from '#/tui/components/chrome/footer-context';
+} from '#/tui/components/chrome/footer/footer-badges';
+import { footerNextAction } from '#/tui/components/chrome/footer/footer-chrome';
+import { formatContextStatus } from '#/tui/components/chrome/footer/footer-context';
 
 export interface RenderFooterLine2Input {
   readonly state: AppState;

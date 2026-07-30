@@ -19,7 +19,7 @@ import {
   SessionLoadingOverlayComponent,
   type SessionLoadingPhase,
 } from './components/dialogs/session/session-loading-overlay';
-import { ShellRunComponent } from './components/messages/shell-run';
+import { ShellRunComponent } from './components/messages/shell/shell-run';
 import { AppStateController } from './controllers/app-state';
 import { AuthFlowController } from './controllers/auth-flow';
 import { AutocompleteController } from './controllers/autocomplete';

@@ -12,7 +12,7 @@ import type {
   TurnStepStartedEvent,
 } from '@superliora/sdk';
 
-import { buildGoalMarker } from '../../components/messages/goal-markers';
+import { buildGoalMarker } from '../../components/messages/goal/goal-markers';
 import type { AppState, LivePaneState, QueuedMessage, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';

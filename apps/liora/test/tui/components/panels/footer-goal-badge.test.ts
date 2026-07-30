@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FooterComponent } from '#/tui/components/chrome/footer';
+import { FooterComponent } from '#/tui/components/chrome/footer/footer';
 import { darkColors } from '#/tui/theme';
 import type { GoalSnapshot } from '@superliora/sdk';
 import type { AppState } from '#/tui/types';

@@ -14,11 +14,11 @@ import { CompactionComponent } from '../components/dialogs/session/compaction';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '../components/messages/background-agent-status';
 import { CronMessageComponent } from '../components/messages/cron-message';
-import { buildGoalMarker } from '../components/messages/goal-markers';
+import { buildGoalMarker } from '../components/messages/goal/goal-markers';
 import {
   GoalCompletionMessageComponent,
   GoalSetMessageComponent,
-} from '../components/messages/goal-panel';
+} from '../components/messages/goal/goal-panel';
 import { PluginCommandComponent } from '../components/messages/plugin-command';
 import { SkillActivationComponent } from '../components/messages/skill-activation';
 import { StepSummaryComponent } from '../components/messages/step-summary';

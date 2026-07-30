@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { formatLocalClock, HeaderComponent } from '#/tui/components/chrome/header';
+import { formatLocalClock, HeaderComponent } from '#/tui/components/chrome/header/header';
 import type { AppState } from '#/tui/types';
 import {
   advanceAppearanceAnimationClock,
