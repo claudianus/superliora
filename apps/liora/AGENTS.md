@@ -15,14 +15,18 @@ Entry: `src/main.ts` → `src/cli/commands.ts` → `src/cli/run-shell.ts` → SD
 | `src/tui/` | Interactive TUI |
 | `src/tui/liora-tui.ts` | `LioraTUI` coordinator — wire state/layout/editor/session/events/dialogs; heavy logic goes to `controllers/` |
 | `src/tui/tui-state.ts` | `TUIState` / initial app state |
-| `src/tui/controllers/` | Testable slices: session events, streaming UI, replay, tasks browser, editor keyboard, auth |
-| `src/tui/commands/` | Slash commands |
-| `src/tui/components/` | Native-renderer UI by kind (`chrome/`, `dialogs/`, `editor/`, `media/`, `messages/`, `panes/`) |
+| `src/tui/controllers/` | Stateful orchestration (lifecycle, SDK/events, streaming, dialogs host). Prefer domain subfolders; one entry per domain (`domain/index.ts`). |
+| `src/tui/commands/` | Slash-command implementations, grouped by command family folders |
+| `src/tui/components/` | Presentation / local interaction only — no SDK or session ownership |
+| `src/tui/features/` | Product-feature clusters pulled out of `utils/` (swarm, idle-scene, layout, appearance, transcript, …) |
 | `src/tui/renderer/` | Facade over `@harness-kit/tui-renderer` + local adapters. Import TUI primitives here, not the package directly. No `@earendil-works/pi-tui` (guarded). |
 | `src/tui/constant/` | TUI-only constants |
 | `src/tui/reverse-rpc/` | SDK approval/question ↔ UI |
 | `src/tui/theme/` | Themes / tokens |
-| `src/tui/utils/`, `src/utils/` | TUI-local vs app-wide helpers |
+| `src/tui/utils/` | Pure TUI helpers only (**no** `TUIState`); keep flat count small |
+| `src/utils/` | App-wide helpers shared with CLI |
+
+**TUI placement rule:** slash entry + user intent → `commands/` · SDK/event reaction with state → `controllers/` · pixels → `components/` · product feature clusters → `features/` · pure data/render math → `utils/` · SDK callback modal bridge → `reverse-rpc/`.
 
 ## Boundaries
 

@@ -32,6 +32,15 @@ Hot-path only: package map, hard constraints, and release/workflow gates every t
 
 - Node.js `>=24.15.0` (`.nvmrc` = `24.15.0`); pnpm `10.33.0` (`packageManager`). `.npmrc` has `engine-strict=true`.
 
+## Folder layout (in-package IA)
+
+Package boundaries stay as in Project Map. Inside a package:
+
+- Prefer **domain folders**; keep flat `.ts` siblings at one directory depth **≤25** (soft), warn/fail via `pnpm run check:dir` when **>40** (see `scripts/check-dir-budget.mjs`).
+- **One public entry per domain:** either `domain/index.ts` or a single `domain.ts`, not both long-term. Temporary compat barrels are OK only during a migration PR that also rewrites imports and deletes the dual path.
+- Runtime modules use **kebab-case** paths; `packages/agent-core/src/services/` keeps **camelCase** (see nested `AGENTS.md`).
+- Do not add new packages or merge packages for layout cleanup alone.
+
 ## Hard Constraints
 
 - **Agent standalone:** `packages/agent-core/src/agent` `Agent` must construct without a `Session`, `agentId`, or session lifecycle coupling. Optional `sessionId` may be a request-config hint only (e.g. `prompt_cache_key`); the instance must not store session graph state.
