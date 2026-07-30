@@ -26,24 +26,18 @@ import type {
 import { resolve } from 'pathe';
 
 import type { CLIOptions } from '#/cli/options';
-import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
+import type { SearchResults } from '#/utils/fs/project-search';
+import type { GitDiffReport } from '#/utils/git/git-diff';
+import type { GitLogReport } from '#/utils/git/git-log';
 import {
   appendGlobalInputHistory,
   appendInputHistory,
   loadGlobalInputHistory,
   loadInputHistory,
 } from '#/utils/history/input-history';
-import { loadFileForViewer } from '#/utils/fs/file-content';
-import { buildFileTree, listProjectFiles } from '#/utils/fs/file-tree';
-import type { SearchResults } from '#/utils/fs/project-search';
-import { collectGitBlame } from '#/utils/git/git-blame';
-import type { GitDiffReport } from '#/utils/git/git-diff';
-import { collectCommitDiff, type GitLogReport } from '#/utils/git/git-log';
 import { openUrl } from '#/utils/open-url';
 import { getGlobalInputHistoryFile, getInputHistoryFile } from '#/utils/paths';
 import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
-import { quoteShellArg } from '#/utils/shell-quote';
-import { fetchWebContent } from '#/utils/web/web-content';
 import { ttui } from './utils/tui-i18n';
 
 import { BannerProvider } from './banner/banner-provider';
@@ -75,38 +69,17 @@ import type { TodoBoardScrollAction } from './components/chrome/todo-panel';
 import { buildSplashMorphScene } from './utils/splash-reveal-preview';
 import { WelcomeComponent } from './components/chrome/welcome';
 import { pickRandomWorkingTip, tipText } from './components/chrome/working-tips';
-import {
-  ApprovalPanelComponent,
-  type ApprovalPanelResponse,
-} from './components/dialogs/approval-panel';
-import {
-  ApprovalPreviewViewer,
-  type ApprovalPreviewBlock,
-} from './components/dialogs/approval-preview';
-import { CompactionComponent } from './components/dialogs/compaction';
 import { CommandHubComponent } from './components/dialogs/command-hub';
-import { FileExplorerComponent } from './components/dialogs/file-explorer';
-import { DiffReviewComponent } from './components/dialogs/diff-review';
-import { CommitBrowserComponent } from './components/dialogs/commit-browser';
-import { ErrorNavigatorComponent } from './components/dialogs/error-navigator';
-import { FileViewerComponent } from './components/dialogs/file-viewer';
-import { SearchResultsComponent } from './components/dialogs/search-results';
-import { QuestionDialogComponent } from './components/dialogs/question-dialog';
-import { SessionPickerComponent, type SessionRow } from './components/dialogs/session-picker';
 import {
   SessionLoadingOverlayComponent,
   type SessionLoadingPhase,
 } from './components/dialogs/session-loading-overlay';
-import { AgentDashboardComponent } from './components/dialogs/agent-dashboard';
-import { ExtensionsModalComponent } from './components/dialogs/extensions-modal';
 import {
   FileMentionProvider,
   type SlashAutocompleteCommand,
 } from './components/editor/file-mention-provider';
 
 import { AssistantMessageComponent } from './components/messages/assistant-message';
-import { BackgroundAgentStatusComponent } from './components/messages/background-agent-status';
-import { BlamePanelComponent } from './components/dialogs/blame-panel';
 import { CronMessageComponent } from './components/messages/cron-message';
 import { buildGoalMarker } from './components/messages/goal-markers';
 import {
@@ -137,9 +110,7 @@ import {
 } from './config';
 import {
   NO_ACTIVE_SESSION_MESSAGE,
-  PRODUCT_NAME,
 } from './constant/liora-tui';
-import { MAX_TERMINAL_TITLE_LENGTH } from './constant/terminal';
 import { AuthFlowController } from './controllers/auth-flow';
 import { AppearanceController, shouldRenderAmbientAnimationFrame } from './controllers/appearance';
 import { BtwPanelController } from './controllers/btw-panel';
@@ -150,14 +121,16 @@ import { SessionEventHandler } from './controllers/session-event-handler';
 import { DialogsController } from './controllers/dialogs';
 import { MessageDispatchController } from './controllers/message-dispatch';
 import { PanesController } from './controllers/panes';
+import { ReverseRpcPanelsController } from './controllers/reverse-rpc-panels';
+import { SessionBrowserController } from './controllers/session-browser';
 import { SessionLifecycleController } from './controllers/session-lifecycle';
+import { WorkspaceBrowserController } from './controllers/workspace-browser';
 import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { TranscriptRenderController } from './controllers/transcript-render';
 import { UsageMonitorController } from './controllers/usage-monitor';
 import { setKittyGraphicsChannel } from './media/kitty-graphics-channel';
-import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
 import { registerReverseRPCHandlers } from './reverse-rpc/index';
@@ -206,32 +179,12 @@ import {
 } from './utils/frame-render';
 import { createMotionBeatController, isMotionTheatreActive } from './utils/motion-beats';
 import { pickForegroundTasks } from './utils/foreground-task';
-import { collectTranscriptErrors } from './utils/transcript-errors';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { resolveImageProtocol } from './utils/image-protocol-detect';
 import { hasPatchChanges } from './utils/object-patch';
 import { PromptStash } from './utils/prompt-stash';
-import { sessionRowsForPicker } from './utils/session-picker-rows';
-import {
-  dashboardRowsFromSessions,
-  type DashboardSessionRow,
-  type DashboardSessionStatus,
-  type DashboardStatusHints,
-} from './utils/agent-dashboard-rows';
-import {
-  resolveExtensionsTab,
-  type ExtensionsSnapshot,
-  type ExtensionsTabId,
-} from './utils/extensions-rows';
-import {
-  buildClaudeImportPlan,
-  formatClaudeImportSummary,
-  resolveClaudeImportRoots,
-  type ClaudeImportScanEntry,
-} from './utils/claude-import';
 import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
 import { installTerminalFocusTracking } from './utils/terminal-focus';
-import { notifyUserAttentionOnce } from './utils/terminal-notification';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
@@ -342,8 +295,8 @@ export class LioraTUI {
   state: TUIState;
   /** Thin transition-beat queue shared by harness enter/exit moments. */
   readonly motionBeats = createMotionBeatController();
-  private readonly approvalController = new ApprovalController();
-  private readonly questionController = new QuestionController();
+  readonly approvalController = new ApprovalController();
+  readonly questionController = new QuestionController();
   private readonly reverseRpcDisposers: Array<() => void> = [];
   skillCommands: readonly LioraSlashCommand[] = [];
   private pluginCommands: readonly LioraSlashCommand[] = [];
@@ -396,6 +349,9 @@ export class LioraTUI {
   readonly editorKeyboard: EditorKeyboardController;
   readonly promptIntelligence: PromptIntelligenceController;
   readonly dialogs: DialogsController;
+  readonly workspaceBrowser: WorkspaceBrowserController;
+  readonly sessionBrowser: SessionBrowserController;
+  readonly reverseRpcPanels: ReverseRpcPanelsController;
   nativeInputRouter: TUIStateNativeInputRouter | undefined;
   nativeInputModalDispose: (() => void) | undefined;
   nativeInputModalSequence = 0;
@@ -413,24 +369,11 @@ export class LioraTUI {
   /** True when the most recent turn ended in an error; cleared on a clean turn. */
   private lastTurnFailed = false;
 
-  // The currently-mounted approval panel, if any. Kept so the full-screen
-  // preview viewer can restore focus to the exact same instance (and its
-  // selection / feedback state) when it closes.
-  private activeApprovalPanel: ApprovalPanelComponent | undefined;
   // Deferred reverse-RPC payloads that arrived while a command-driven dialog
   // owned the editor area. Once the dialog closes (restoreEditor), the pending
   // approval/question is shown — preventing mid-flow clobbering (BUG-7).
   deferredApproval: ApprovalPanelData | undefined;
   deferredQuestion: QuestionPanelData | undefined;
-  // Active full-screen approval preview. While set, the root UI's normal
-  // children are stashed in `savedChildren`; closing restores them.
-  private approvalPreview:
-    | {
-        component: ApprovalPreviewViewer;
-        savedChildren: readonly Component[];
-        panel: ApprovalPanelComponent;
-      }
-    | undefined;
 
   public onExit?: (exitCode?: number) => Promise<void>;
 
@@ -506,6 +449,9 @@ export class LioraTUI {
     this.transcriptRender = new TranscriptRenderController(this);
     this.panes = new PanesController(this);
     this.dialogs = new DialogsController(this);
+    this.workspaceBrowser = new WorkspaceBrowserController(this);
+    this.sessionBrowser = new SessionBrowserController(this);
+    this.reverseRpcPanels = new ReverseRpcPanelsController(this);
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.sessionLifecycle = new SessionLifecycleController(this);
     this.messageDispatch = new MessageDispatchController(this);
@@ -539,6 +485,10 @@ export class LioraTUI {
   /** Lets controllers (e.g. `DialogsController`) run a slash command without importing `dispatch` themselves. */
   dispatchSlash(command: string): void {
     slashCommands.dispatchInput(this, command);
+  }
+
+  runPluginsCommand(): Promise<void> {
+    return slashCommands.handlePluginsCommand(this, '');
   }
 
   private setupAutocomplete(): void {
@@ -1065,7 +1015,7 @@ export class LioraTUI {
     }
     void this.showTmuxKeyboardWarningIfNeeded();
     if (this.state.startupState === 'picker') {
-      void this.bootstrapFromPicker();
+      void this.sessionBrowser.bootstrapFromPicker();
       return;
     }
     if (shouldReplayHistory) {
@@ -1085,7 +1035,7 @@ export class LioraTUI {
       }
       try {
         await this.sessionReplay.hydrateFromReplay(session);
-        this.applyStartupPermissionAndPlanToAppState();
+        this.sessionBrowser.applyStartupPermissionAndPlanToAppState();
       } finally {
         // hydrate ends only when *it* opened the modal; we own this cold-start one.
         if (ownsColdStartOverlay) {
@@ -1101,9 +1051,9 @@ export class LioraTUI {
       this.sessionEventHandler.startSubscription();
       void this.showSessionWarnings(this.session);
     }
-    void this.fetchSessions();
+    void this.sessionBrowser.fetchSessions();
     if (this.session !== undefined) {
-      this.updateTerminalTitle();
+      this.sessionBrowser.updateTerminalTitle();
     }
     void this.refreshDynamicSlashCommands(this.session);
     this.usageMonitor.start();
@@ -1250,7 +1200,7 @@ export class LioraTUI {
         session = await this.harness.createSession(createSessionOptions);
       }
       if (session !== undefined && shouldReplayHistory) {
-        await this.applyStartupModesToResumedSession(session);
+        await this.sessionBrowser.applyStartupModesToResumedSession(session);
         if (startup.model !== undefined) {
           await session.setModel(startup.model);
         }
@@ -1267,7 +1217,7 @@ export class LioraTUI {
     await this.setSession(session);
     await this.syncRuntimeState(session);
     await this.refreshDynamicSlashCommands(session);
-    this.applyStartupPermissionAndPlanToAppState();
+    this.sessionBrowser.applyStartupPermissionAndPlanToAppState();
     this.state.startupState = 'ready';
     return shouldReplayHistory;
   }
@@ -1962,45 +1912,6 @@ export class LioraTUI {
     return this.sessionLifecycle.syncRuntimeState(session);
   }
 
-  // Apply --auto/--yolo/--plan startup flags (or the persisted tui.toml
-  // permission mode) to a resumed session. The resumed session may already be
-  // in plan mode from its persisted records, and re-entering plan mode throws,
-  // so only enable it when it is not active yet. setPermission is idempotent
-  // and needs no such guard.
-  private async applyStartupModesToResumedSession(session: Session): Promise<void> {
-    const { startup } = this.options;
-    if (startup.auto) {
-      await session.setPermission('auto');
-    } else if (startup.yolo) {
-      await session.setPermission('yolo');
-    } else {
-      // No CLI flag: apply the persisted tui.toml permission mode so the
-      // resumed session matches the user's configured preference.
-      await session.setPermission(this.state.appState.permissionMode);
-    }
-    if (startup.plan) {
-      const status = await session.getStatus();
-      if (!status.planMode) {
-        await session.setPlanMode(true);
-      }
-    }
-  }
-
-  // Re-apply startup flags that the user explicitly passed on the command line.
-  // syncRuntimeState and session-replay hydration can both read stale persisted
-  // values, so this guarantees the footer reflects the CLI intent.
-  private applyStartupPermissionAndPlanToAppState(): void {
-    const { startup } = this.options;
-    if (startup.auto) {
-      this.setAppState({ permissionMode: 'auto' });
-    } else if (startup.yolo) {
-      this.setAppState({ permissionMode: 'yolo' });
-    }
-    if (startup.plan) {
-      this.setAppState({ planMode: true });
-    }
-  }
-
   async closeSession(reason: string): Promise<void> {
     return this.sessionLifecycle.closeSession(reason);
   }
@@ -2027,32 +1938,11 @@ export class LioraTUI {
   }
 
   async fetchSessions(scope: 'cwd' | 'all' = this.state.sessionsScope): Promise<void> {
-    this.state.loadingSessions = true;
-    this.state.sessionsScope = scope;
-    try {
-      const sessions =
-        scope === 'all'
-          ? await this.harness.listSessions({})
-          : await this.harness.listSessions({ workDir: this.state.appState.workDir });
-      this.state.sessions = sessionRowsForPicker(
-        sessions,
-        this.state.appState.sessionId,
-        this.hasSessionContent(),
-      );
-    } catch {
-      // Surface a warning instead of leaving the picker silently empty — the
-      // user cannot tell a genuine "no sessions" from a server/network failure.
-      this.state.sessions = [];
-      this.showStatus(ttui('tui.sessions.fetchFailed'), 'warning');
-    } finally {
-      this.state.loadingSessions = false;
-    }
+    return this.sessionBrowser.fetchSessions(scope);
   }
 
   updateTerminalTitle(): void {
-    const trimmed = this.state.appState.sessionTitle?.trim() ?? '';
-    const label = trimmed.length > 0 ? trimmed.slice(0, MAX_TERMINAL_TITLE_LENGTH) : PRODUCT_NAME;
-    this.state.terminal.setTitle?.(label);
+    this.sessionBrowser.updateTerminalTitle();
   }
 
   resetSessionRuntime(): void {
@@ -2078,93 +1968,12 @@ export class LioraTUI {
     this.updateQueueDisplay();
   }
 
-  private async showResumeOtherWorkDirHint(session: SessionRow): Promise<void> {
-    this.hideSessionPicker();
-    const command = `cd ${quoteShellArg(session.work_dir)} && liora --resume ${quoteShellArg(session.id)}`;
-    const message = `Current session is in a different working directory.\n  To resume, run: ${command}`;
-    try {
-      await copyTextToClipboard(command);
-      this.showStatus(`${message}\n  Command copied to clipboard`, 'warning');
-    } catch {
-      this.showStatus(`${message}\n  Failed to copy command to clipboard`, 'warning');
-    }
-  }
-
-  private async resumeSession(targetSessionId: string): Promise<boolean> {
-    if (targetSessionId === this.state.appState.sessionId && this.session !== undefined) {
-      try {
-        await this.session.getStatus();
-        this.showStatus('Already on this session.');
-        return true;
-      } catch {
-        // Session was closed — fall through and re-acquire it.
-      }
-    }
-    if (this.state.appState.streamingPhase !== 'idle') {
-      this.showError('Cannot switch sessions while streaming — press Esc or Ctrl-C first.');
-      return false;
-    }
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return false;
-    }
-
-    this.beginSessionLoading(targetSessionId);
-    this.reportSessionLoading({
-      phase: 'loading',
-      progress: 0.2,
-      detail: ttui('tui.sessionLoading.phase.loading'),
-      sessionId: targetSessionId,
-    });
-    let session: Session;
-    try {
-      session = await this.harness.resumeSession({ id: targetSessionId });
-    } catch (error) {
-      this.endSessionLoading();
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to resume session ${targetSessionId}: ${msg}`);
-      return false;
-    }
-
-    try {
-      await this.switchToSession(session, `Resumed session (${session.id}).`);
-      return true;
-    } finally {
-      this.endSessionLoading();
-    }
-  }
-
   async switchToSession(session: Session, statusMessage: string): Promise<void> {
     return this.sessionLifecycle.switchToSession(session, statusMessage);
   }
 
   async reloadCurrentSessionView(session: Session, statusMessage: string): Promise<void> {
-    this.sessionEventUnsubscribe?.();
-    this.sessionEventUnsubscribe = undefined;
-    this.clearReverseRpcPanels();
-    session.setApprovalHandler(undefined);
-    session.setQuestionHandler(undefined);
-    this.approvalController.cancelAll('reloading session');
-    this.questionController.cancelAll('reloading session');
-
-    this.resetSessionRuntime();
-    this.session = session;
-    this.harness.setTelemetryContext({ sessionId: session.id });
-    this.registerSessionHandlers(session);
-    await this.syncRuntimeState(session);
-    this.updateTerminalTitle();
-    try {
-      await this.refreshDynamicSlashCommands(session);
-    } catch {
-      /* keep the reloaded session usable even if dynamic skills fail */
-    }
-    this.sessionEventHandler.startSubscription();
-    const resumeState = session.getResumeState();
-    if (resumeState?.warning !== undefined) {
-      this.showStatus(`Warning: ${resumeState.warning}`, 'warning');
-    }
-    this.showStatus(statusMessage);
-    void this.showSessionWarnings(session);
+    return this.sessionBrowser.reloadCurrentSessionView(session, statusMessage);
   }
 
   async createNewSession(): Promise<void> {
@@ -2378,7 +2187,7 @@ export class LioraTUI {
   }
 
   /** Shared with the Error Navigator (`showErrors`) to jump to a transcript entry. */
-  private scrollToTranscriptIndex(index: number): void {
+  scrollToTranscriptIndex(index: number): void {
     this.dialogs.scrollToTranscriptIndex(index);
   }
 
@@ -2403,283 +2212,31 @@ export class LioraTUI {
   }
 
   showFileExplorer(): void {
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-    void this.runWithBusyOverlay(
-      {
-        title: ttui('tui.sessionLoading.scanning'),
-        detail: ttui('tui.sessionLoading.scanning'),
-        phase: 'working',
-      },
-      async () => {
-        const workDir = this.state.appState.workDir;
-        // Paint overlay before the sync FS walk blocks the event loop.
-        await new Promise<void>((resolve) => setImmediate(resolve));
-        const listing = listProjectFiles(workDir);
-        const nodes = buildFileTree(listing.paths);
-        this.state.activeDialog = 'files';
-        this.mountEditorReplacement(
-          new FileExplorerComponent({
-            workDir,
-            nodes,
-            truncated: listing.truncated,
-            source: listing.source,
-            onPick: (relativePath) => {
-              this.hideFileExplorer();
-              this.state.editor.insertTextAtCursor(`${relativePath} `);
-              requestTUILayoutRender(this.state);
-            },
-            onPreview: (relativePath) => {
-              this.showFileViewer(relativePath);
-            },
-            onClose: () => {
-              this.hideFileExplorer();
-            },
-          }),
-        );
-      },
-    );
+    this.workspaceBrowser.showFileExplorer();
   }
-
-  private hideFileExplorer(): void {
-    this.state.activeDialog = null;
-    this.restoreEditor();
-  }
-
-  private lastDiffReport: GitDiffReport | undefined;
-  private lastDiffFilter = '';
 
   showDiffReview(report: GitDiffReport, filter: string): void {
-    this.lastDiffReport = report;
-    this.lastDiffFilter = filter;
-    this.state.activeDialog = 'diff-review';
-    this.mountEditorReplacement(
-      new DiffReviewComponent({
-        report,
-        filter,
-        onOpenFile: (relativePath) => {
-          this.hideDiffReview();
-          this.showFileViewer(relativePath, () => {
-            if (this.lastDiffReport !== undefined) {
-              this.showDiffReview(this.lastDiffReport, this.lastDiffFilter);
-            }
-          });
-        },
-        onClose: () => {
-          this.hideDiffReview();
-        },
-      }),
-    );
-  }
-
-  private hideDiffReview(): void {
-    this.state.activeDialog = null;
-    this.restoreEditor();
+    this.workspaceBrowser.showDiffReview(report, filter);
   }
 
   showCommitBrowser(report: GitLogReport, filter: string): void {
-    this.state.activeDialog = 'commit-browser';
-    this.mountEditorReplacement(
-      new CommitBrowserComponent({
-        report,
-        filter,
-        onOpenCommit: (commit) => {
-          this.hideCommitBrowser();
-          const files = collectCommitDiff(this.state.appState.workDir, commit.hash);
-          if (files === null || files.length === 0) {
-            this.showStatus(`No diff for ${commit.hash.slice(0, 7)}.`, 'warning');
-            return;
-          }
-          const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
-          const totalDeleted = files.reduce((sum, file) => sum + file.deleted, 0);
-          this.showDiffReview(
-            {
-              branch: commit.hash.slice(0, 7),
-              files,
-              totalAdded,
-              totalDeleted,
-              truncated: false,
-            },
-            '',
-          );
-        },
-        onClose: () => {
-          this.hideCommitBrowser();
-        },
-      }),
-    );
-  }
-
-  private hideCommitBrowser(): void {
-    this.state.activeDialog = null;
-    this.restoreEditor();
+    this.workspaceBrowser.showCommitBrowser(report, filter);
   }
 
   showErrors(): void {
-    if (this.state.activeDialog !== null) return;
-    const items = collectTranscriptErrors(this.state.transcriptEntries);
-    if (items.length === 0) {
-      this.showStatus(ttui('tui.errors.empty'));
-      return;
-    }
-    this.state.activeDialog = 'error-navigator';
-    this.mountEditorReplacement(
-      new ErrorNavigatorComponent({
-        items,
-        onSelect: (item) => {
-          // Keep the dialog open so the user can jump to more errors; just
-          // scroll the failing entry into view.
-          this.scrollToTranscriptIndex(item.index);
-        },
-        onCancel: () => {
-          this.hideErrorNavigator();
-        },
-      }),
-    );
-  }
-
-  private hideErrorNavigator(): void {
-    this.state.activeDialog = null;
-    this.restoreEditor();
+    this.workspaceBrowser.showErrors();
   }
 
   showSearchResults(results: SearchResults): void {
-    this.state.activeDialog = 'search';
-    this.mountEditorReplacement(
-      new SearchResultsComponent({
-        results,
-        onOpenMatch: (match) => {
-          this.hideSearchResults();
-          this.showFileViewer(
-            match.path,
-            () => {
-              this.showSearchResults(results);
-            },
-            match.line,
-          );
-        },
-        onClose: () => {
-          this.hideSearchResults();
-        },
-      }),
-    );
-  }
-
-  private hideSearchResults(): void {
-    this.state.activeDialog = null;
-    this.restoreEditor();
-  }
-
-  private showFileViewer(
-    relativePath: string,
-    onViewerClose?: () => void,
-    initialLine?: number,
-  ): void {
-    const result = loadFileForViewer(resolve(this.state.appState.workDir, relativePath));
-    switch (result.kind) {
-      case 'text': {
-        this.state.activeDialog = 'file-viewer';
-        this.mountEditorReplacement(
-          new FileViewerComponent({
-            relativePath,
-            content: result.content,
-            bytes: result.bytes,
-            palette: currentTheme.palette,
-            initialLine,
-            onClose: () => {
-              if (onViewerClose !== undefined) onViewerClose();
-              else this.returnToFileExplorer();
-            },
-            onBlame: (blamePath) => {
-              // showBlame() bails while a dialog is active, so tear the
-              // viewer down first (same mechanics as hideFileExplorer).
-              this.state.activeDialog = null;
-              this.restoreEditor();
-              this.showBlame(blamePath);
-            },
-          }),
-        );
-        return;
-      }
-      case 'binary':
-        this.showStatus(`${relativePath} is binary — preview unavailable.`, 'warning');
-        return;
-      case 'too-large': {
-        const mb = (result.bytes / 1024 / 1024).toFixed(1);
-        this.showStatus(`${relativePath} is ${mb} MB — too large to preview.`, 'warning');
-        return;
-      }
-      case 'error':
-        this.showStatus(`${relativePath}: ${result.message}`, 'error');
-        return;
-    }
-  }
-
-  private returnToFileExplorer(): void {
-    this.showFileExplorer();
+    this.workspaceBrowser.showSearchResults(results);
   }
 
   showWebContent(rawUrl: string | undefined): void {
-    if (this.state.activeDialog !== null) return;
-    const target = (rawUrl ?? '').trim();
-    if (target.length === 0) {
-      this.showError(ttui('tui.web.usage'));
-      return;
-    }
-    this.showStatus(ttui('tui.web.fetching', { url: target }));
-    void (async () => {
-      try {
-        const content = await fetchWebContent(target);
-        if (this.state.activeDialog !== null) return;
-        this.state.activeDialog = 'file-viewer';
-        this.mountEditorReplacement(
-          new FileViewerComponent({
-            relativePath: content.title ?? content.url,
-            content: content.body,
-            bytes: Buffer.byteLength(content.body, 'utf8'),
-            palette: currentTheme.palette,
-            onClose: () => {
-              this.state.activeDialog = null;
-              this.restoreEditor();
-            },
-          }),
-        );
-      } catch (error) {
-        this.showError(formatErrorMessage(error));
-      }
-    })();
+    this.workspaceBrowser.showWebContent(rawUrl);
   }
 
   showBlame(rawPath: string | undefined): void {
-    if (this.state.activeDialog !== null) return;
-    const target = (rawPath ?? '').trim();
-    if (target.length === 0) {
-      this.showError(ttui('tui.blame.usage'));
-      return;
-    }
-    this.showStatus(ttui('tui.blame.loading', { path: target }));
-    void (async () => {
-      try {
-        const lines = await collectGitBlame(target, { cwd: this.state.appState.workDir });
-        if (this.state.activeDialog !== null) return;
-        this.state.activeDialog = 'blame';
-        this.mountEditorReplacement(
-          new BlamePanelComponent({
-            lines,
-            title: target,
-            palette: currentTheme.palette,
-            onClose: () => {
-              this.state.activeDialog = null;
-              this.restoreEditor();
-            },
-          }),
-        );
-      } catch (error) {
-        this.showError(formatErrorMessage(error));
-      }
-    })();
+    this.workspaceBrowser.showBlame(rawPath);
   }
 
   helpModeFromArgs(args: string): SlashCommandHelpMode {
@@ -2690,591 +2247,56 @@ export class LioraTUI {
     return normalized === 'advanced' || normalized === 'manual' ? 'advanced' : 'primary';
   }
 
-  private sessionPickerOptions: {
-    readonly applyStartupModes: boolean;
-    readonly closeOnCancel: boolean;
-    readonly forwardEditorExit: boolean;
-  } = {
-    applyStartupModes: false,
-    closeOnCancel: false,
-    forwardEditorExit: false,
-  };
-  private sessionPickerScopeRequestToken = 0;
   /** Editor-area modal while resume RPC + history hydrate run. */
   sessionLoadingOverlay: SessionLoadingOverlayComponent | undefined;
   sessionLoadingPulseTimer: ReturnType<typeof setInterval> | undefined;
 
   async showSessionPicker(): Promise<void> {
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-    await this.openSessionPicker({
-      applyStartupModes: false,
-      closeOnCancel: false,
-      forwardEditorExit: false,
-    });
+    return this.sessionBrowser.showSessionPicker();
   }
 
-  /**
-   * Agent Dashboard MVP — groups sessions into 입력 필요 / 작업 중 / 대기.
-   * Enter attaches (resume) the selected session. last_prompt is masked.
-   */
   async showAgentDashboard(): Promise<void> {
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-    this.state.loadingSessions = true;
-    let summaries: Awaited<ReturnType<LioraHarness['listSessions']>> = [];
-    try {
-      summaries = await this.runWithBusyOverlay(
-        {
-          title: ttui('tui.sessionLoading.dashboard'),
-          detail: ttui('tui.sessionLoading.dashboard'),
-          phase: 'working',
-        },
-        async () => this.harness.listSessions({ workDir: this.state.appState.workDir }),
-      );
-      // Keep session-picker cache in sync for other dialogs.
-      this.state.sessions = sessionRowsForPicker(
-        summaries,
-        this.state.appState.sessionId,
-        this.hasSessionContent(),
-      );
-    } catch {
-      this.state.sessions = [];
-      this.showStatus(ttui('tui.sessions.fetchFailed'), 'warning');
-    } finally {
-      this.state.loadingSessions = false;
-    }
-
-    const statusHints = this.buildDashboardStatusHints(summaries.map((s) => s.id));
-    const rows = dashboardRowsFromSessions(summaries, {
-      currentSessionId: this.state.appState.sessionId,
-      currentSessionHasContent: this.hasSessionContent(),
-      statusHints,
-    });
-
-    this.state.activeDialog = 'agent-dashboard';
-    this.mountEditorReplacement(
-      new AgentDashboardComponent({
-        sessions: rows,
-        loading: false,
-        currentSessionId: this.state.appState.sessionId,
-        onSelect: (session: DashboardSessionRow) => {
-          void this.handleAgentDashboardSelect(session).catch((error) => {
-            this.showError(`세션 연결 실패: ${formatErrorMessage(error)}`);
-          });
-        },
-        onCancel: () => {
-          this.hideAgentDashboard();
-        },
-      }),
-    );
+    return this.sessionBrowser.showAgentDashboard();
   }
 
   hideAgentDashboard(): void {
-    if (this.state.activeDialog === 'agent-dashboard') {
-      this.state.activeDialog = null;
-    }
-    this.editorKeyboard.clearPendingExit();
-    this.restoreEditor();
+    this.sessionBrowser.hideAgentDashboard();
   }
 
-  /**
-   * AC6 Extensions modal — plugins / hooks / skills / MCP tabs + Claude import.
-   * Claude import is allowlist-only (.claude / ~/.claude); no permission bypass.
-   */
   async showExtensionsModal(args?: string): Promise<void> {
-    const raw = (args ?? '').trim().toLowerCase();
-    if (raw === 'claude' || raw === 'import-claude' || raw === 'import') {
-      await this.runClaudeImportInventory();
-      return;
-    }
-
-    const initialTab: ExtensionsTabId = resolveExtensionsTab(raw);
-
-    let snapshot: ExtensionsSnapshot = { plugins: [], skills: [], mcpServers: [] };
-    try {
-      const session = this.requireSession();
-      snapshot = await this.runWithBusyOverlay(
-        {
-          title: ttui('tui.sessionLoading.extensions'),
-          detail: ttui('tui.sessionLoading.extensions'),
-          phase: 'working',
-        },
-        async () => {
-          const [plugins, skills, mcpServers] = await Promise.all([
-            session.listPlugins().catch(() => []),
-            session.listSkills().catch(() => []),
-            session.listMcpServers().catch(() => []),
-          ]);
-          return { plugins, skills, mcpServers };
-        },
-      );
-    } catch (error) {
-      this.showError(`확장 목록 불러오기 실패: ${formatErrorMessage(error)}`);
-      // Still open empty modal so operators can reach Claude import (i).
-    }
-
-    this.mountCenterModal(
-      new ExtensionsModalComponent({
-        snapshot,
-        initialTab,
-        onAction: (action) => {
-          void this.handleExtensionsAction(action).catch((error) => {
-            this.showError(`확장 동작 실패: ${formatErrorMessage(error)}`);
-          });
-        },
-        onCancel: () => {
-          this.hideExtensionsModal();
-        },
-      }),
-      { mode: 'replace' },
-    );
-    this.state.activeDialog = 'extensions';
+    return this.sessionBrowser.showExtensionsModal(args);
   }
 
   hideExtensionsModal(): void {
-    if (this.state.activeDialog === 'extensions') {
-      this.state.activeDialog = null;
-    }
-    this.editorKeyboard.clearPendingExit();
-    if (this.state.centerModalStack.length > 0) {
-      this.closeAllCenterModals();
-      return;
-    }
-    this.restoreEditor();
-  }
-
-  private async handleExtensionsAction(
-    action:
-      | { readonly kind: 'open-plugins' }
-      | { readonly kind: 'open-mcp' }
-      | { readonly kind: 'import-claude' }
-      | { readonly kind: 'activate-skill'; readonly skillName: string }
-      | { readonly kind: 'noop' },
-  ): Promise<void> {
-    switch (action.kind) {
-      case 'open-plugins':
-        this.hideExtensionsModal();
-        await slashCommands.handlePluginsCommand(this, '');
-        return;
-      case 'open-mcp':
-        this.hideExtensionsModal();
-        // MCP management lives under plugins panel today.
-        await slashCommands.handlePluginsCommand(this, '');
-        return;
-      case 'import-claude':
-        this.hideExtensionsModal();
-        await this.runClaudeImportInventory();
-        return;
-      case 'activate-skill': {
-        this.hideExtensionsModal();
-        const name = action.skillName.trim();
-        if (name.length === 0) return;
-        // Invoke skill via slash path without elevating permissions.
-        this.sendNormalUserInput(`/${name}`, { displayText: `/${name}` });
-        return;
-      }
-      case 'noop':
-        return;
-    }
-  }
-
-  /**
-   * Scan allowlisted Claude roots and print inventory only.
-   * Does not apply settings or bypass deny chains (FedRAMP AC6).
-   */
-  private async runClaudeImportInventory(): Promise<void> {
-    const workDir = this.state.appState.workDir;
-    const roots = resolveClaudeImportRoots(workDir);
-    const entries: ClaudeImportScanEntry[] = [];
-
-    const nodeFs = await import('node:fs');
-    const nodePath = await import('node:path');
-    const readdirSync = nodeFs.readdirSync.bind(nodeFs);
-    const statSync = nodeFs.statSync.bind(nodeFs);
-    const join = nodePath.join.bind(nodePath);
-    const relative = nodePath.relative.bind(nodePath);
-
-    const walk = (
-      rootPath: string,
-      rootKind: 'project' | 'global',
-      maxDepth: number,
-      depth = 0,
-    ): void => {
-      if (depth > maxDepth) return;
-      let dirents: import('node:fs').Dirent[];
-      try {
-        dirents = readdirSync(rootPath, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const dirent of dirents) {
-        if (dirent.name === '.' || dirent.name === '..') continue;
-        // Skip obvious secret / env files during inventory.
-        if (
-          /^\.env/i.test(dirent.name) ||
-          /\.(pem|key|p12|pfx)$/i.test(dirent.name)
-        ) {
-          continue;
-        }
-        const absolutePath = join(rootPath, dirent.name);
-        let isDir = dirent.isDirectory();
-        if (!isDir && !dirent.isFile()) {
-          try {
-            isDir = statSync(absolutePath).isDirectory();
-          } catch {
-            continue;
-          }
-        }
-        if (isDir) {
-          walk(absolutePath, rootKind, maxDepth, depth + 1);
-          continue;
-        }
-        entries.push({
-          absolutePath,
-          // Classify against root-relative path so global ~/.claude entries work.
-          relativePath: relative(rootPath, absolutePath),
-          rootKind,
-        });
-      }
-    };
-
-    for (const root of roots) {
-      walk(root.path, root.kind, 3);
-    }
-
-    const plan = buildClaudeImportPlan(workDir, entries);
-    const summary = formatClaudeImportSummary(plan);
-    // Multi-line detail in transcript-friendly status path (paths/counts only).
-    for (const line of summary.split('\n')) {
-      if (line.trim().length > 0) this.showStatus(line, 'textMuted');
-    }
-  }
-
-  private buildDashboardStatusHints(
-    sessionIds: readonly string[],
-  ): DashboardStatusHints {
-    const hints: Record<string, DashboardSessionStatus> = {};
-    const currentId = this.state.appState.sessionId;
-    for (const id of sessionIds) {
-      if (id !== currentId) continue;
-      if (this.state.livePane.pendingApproval !== null) {
-        hints[id] = 'needs_input';
-      } else if (this.state.appState.streamingPhase !== 'idle') {
-        hints[id] = 'working';
-      } else {
-        hints[id] = 'idle';
-      }
-    }
-    return hints;
-  }
-
-  private async handleAgentDashboardSelect(session: DashboardSessionRow): Promise<void> {
-    // Reuse session-picker attach path: workdir check + resume.
-    const asRow: SessionRow = {
-      id: session.id,
-      title: session.title,
-      last_prompt: session.last_prompt,
-      work_dir: session.work_dir,
-      updated_at: session.updated_at,
-      metadata: session.metadata,
-    };
-    if (resolve(session.work_dir) !== resolve(this.state.appState.workDir)) {
-      await this.showResumeOtherWorkDirHint(asRow);
-      return;
-    }
-    const switched = await this.resumeSession(session.id);
-    if (!switched) return;
-    this.hideAgentDashboard();
-  }
-
-  private async bootstrapFromPicker(): Promise<void> {
-    await this.openSessionPicker({
-      applyStartupModes: true,
-      closeOnCancel: true,
-      forwardEditorExit: true,
-    });
-  }
-
-  private async openSessionPicker(options: {
-    readonly applyStartupModes: boolean;
-    readonly closeOnCancel: boolean;
-    readonly forwardEditorExit: boolean;
-  }): Promise<void> {
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-    this.sessionPickerOptions = options;
-    await this.fetchSessions('cwd');
-    this.mountSessionPicker({
-      applyStartupModes: options.applyStartupModes,
-      onCancel: () => {
-        this.hideSessionPicker();
-        if (options.closeOnCancel) void this.stop();
-      },
-      onCtrlC: options.forwardEditorExit
-        ? () => {
-            this.state.editor.onCtrlC?.();
-          }
-        : undefined,
-      onCtrlD: options.forwardEditorExit
-        ? () => {
-            this.state.editor.onCtrlD?.();
-          }
-        : undefined,
-    });
-  }
-
-  private async toggleSessionPickerScope(selectedSessionId: string): Promise<void> {
-    const requestToken = ++this.sessionPickerScopeRequestToken;
-    const nextScope = this.state.sessionsScope === 'cwd' ? 'all' : 'cwd';
-    await this.fetchSessions(nextScope);
-    if (requestToken !== this.sessionPickerScopeRequestToken) return;
-    if (this.state.activeDialog !== 'session-picker') return;
-    this.mountSessionPicker({
-      initialSelectedSessionId: selectedSessionId,
-      applyStartupModes: this.sessionPickerOptions.applyStartupModes,
-      onCancel: () => {
-        this.hideSessionPicker();
-        if (this.sessionPickerOptions.closeOnCancel) void this.stop();
-      },
-      onCtrlC: this.sessionPickerOptions.forwardEditorExit
-        ? () => {
-            this.state.editor.onCtrlC?.();
-          }
-        : undefined,
-      onCtrlD: this.sessionPickerOptions.forwardEditorExit
-        ? () => {
-            this.state.editor.onCtrlD?.();
-          }
-        : undefined,
-    });
+    this.sessionBrowser.hideExtensionsModal();
   }
 
   hideSessionPicker(): void {
-    this.sessionPickerScopeRequestToken += 1;
-    this.editorKeyboard.clearPendingExit();
-    this.state.activeDialog = null;
-    if (this.state.centerModalStack.length > 0) {
-      this.closeAllCenterModals();
-      return;
-    }
-    this.restoreEditor();
+    this.sessionBrowser.hideSessionPicker();
+  }
+
+  private async bootstrapFromPicker(): Promise<void> {
+    return this.sessionBrowser.bootstrapFromPicker();
   }
 
   openUndoSelector(): void {
     void slashCommands.handleUndoCommand(this, '');
   }
 
-  private mountSessionPicker(options: {
-    readonly onCancel: () => void;
-    readonly onCtrlC?: () => void;
-    readonly onCtrlD?: () => void;
-    readonly initialSelectedSessionId?: string;
-    // CLI mode flags (--auto/--yolo/--plan) target the session picked at
-    // startup (bare --session); later /sessions switches keep the picked
-    // session's own persisted modes.
-    readonly applyStartupModes?: boolean;
-  }): void {
-    this.mountCenterModal(
-      new SessionPickerComponent({
-        sessions: this.state.sessions,
-        loading: this.state.loadingSessions,
-        currentSessionId: this.state.appState.sessionId,
-        scope: this.state.sessionsScope,
-        initialSelectedSessionId: options.initialSelectedSessionId,
-        pageSize: 50,
-        onSelect: (session: SessionRow) => {
-          void this.handleSessionPickerSelect(session, options.applyStartupModes === true).catch(
-            (error) => {
-              this.showError(`Failed to apply startup flags: ${formatErrorMessage(error)}`);
-            },
-          );
-        },
-        onCancel: options.onCancel,
-        onCtrlC: options.onCtrlC,
-        onCtrlD: options.onCtrlD,
-        onRename: (session: SessionRow, newTitle: string) =>
-          this.renameSessionFromPicker(session, newTitle),
-        onToggleScope: (selectedSessionId: string) => {
-          void this.toggleSessionPickerScope(selectedSessionId);
-        },
-      }),
-      { mode: 'replace' },
-    );
-    this.state.activeDialog = 'session-picker';
-  }
-
-  private async handleSessionPickerSelect(
-    session: SessionRow,
-    applyStartupModes: boolean,
-  ): Promise<void> {
-    if (resolve(session.work_dir) !== resolve(this.state.appState.workDir)) {
-      await this.showResumeOtherWorkDirHint(session);
-      if (applyStartupModes) await this.stop(0);
-      return;
-    }
-
-    const switched = await this.resumeSession(session.id);
-    if (!switched) return;
-    if (applyStartupModes) {
-      await this.applyStartupModesToResumedSession(this.requireSession());
-      this.applyStartupPermissionAndPlanToAppState();
-    }
-    this.hideSessionPicker();
-  }
-
-  /**
-   * Rename a session straight from the picker (Ctrl+R). Mirrors the `/title`
-   * command's cap and error handling, then patches the cached picker rows so
-   * the new title shows without a refetch. Rethrows so the picker keeps the
-   * old title on failure.
-   */
-  private async renameSessionFromPicker(session: SessionRow, newTitle: string): Promise<void> {
-    const title = newTitle.slice(0, 200);
-    try {
-      await this.harness.renameSession({ id: session.id, title });
-    } catch (error) {
-      this.showError(`Failed to rename session: ${formatErrorMessage(error)}`);
-      throw error;
-    }
-    const index = this.state.sessions.findIndex((row) => row.id === session.id);
-    if (index >= 0) {
-      const previous = this.state.sessions[index];
-      if (previous !== undefined) {
-        this.state.sessions[index] = { ...previous, title };
-      }
-    }
-    if (session.id === this.state.appState.sessionId) {
-      this.setAppState({ sessionTitle: title });
-      this.updateTerminalTitle();
-    }
-    this.showStatus(`Session renamed to: ${title}`);
-  }
-
   showApprovalPanel(payload: ApprovalPanelData): void {
-    // If a command-driven dialog (API-key input, provider picker, …) owns the
-    // editor area, defer the approval so we don't clobber the in-flight command
-    // flow (BUG-7). It is shown once the dialog closes via restoreEditor().
-    if (
-      this.state.activeDialog === 'command' ||
-      this.state.activeDialog === 'center-modal' ||
-      this.state.centerModalStack.length > 0
-    ) {
-      this.deferredApproval = payload;
-      return;
-    }
-    this.patchLivePane({ pendingApproval: { data: payload } });
-    notifyUserAttentionOnce(this.state, `approval:${payload.id}`, {
-      title: 'SuperLiora approval required',
-      body: payload.tool_name,
-    });
-    const panel = new ApprovalPanelComponent(
-      { data: payload },
-      (response: ApprovalPanelResponse) => {
-        // Recover plan text from numbered brief when present so L12: comments enrich.
-        const planFromDisplay = payload.display
-          .filter((block): block is { type: 'brief'; text: string } => block.type === 'brief')
-          .map((block) => block.text)
-          .join('\n');
-        this.approvalController.respond(
-          adaptPanelResponse(response, {
-            plan: planFromDisplay.length > 0 ? planFromDisplay : undefined,
-          }),
-        );
-      },
-      () => {
-        this.toggleToolOutputExpansion();
-      },
-      (block) => {
-        this.openApprovalPreview(panel, block);
-      },
-    );
-    this.activeApprovalPanel = panel;
-    this.mountEditorReplacement(panel);
+    this.reverseRpcPanels.showApprovalPanel(payload);
   }
 
   private hideApprovalPanel(): void {
-    // If the full-screen preview is open, fold it back first so the saved-
-    // children stack stays consistent with what mountEditorReplacement set up.
-    if (this.approvalPreview !== undefined) this.closeApprovalPreview();
-    this.activeApprovalPanel = undefined;
-    this.patchLivePane({ pendingApproval: null });
-    this.restoreEditor();
-  }
-
-  // Mounts the full-screen approval preview viewer on top of the current
-  // approval panel. Uses the same nested-takeover pattern as
-  // openTaskOutputViewer: we snapshot the root container's children, swap
-  // in the viewer, and restore on close. The approval panel instance is
-  // kept around in `activeApprovalPanel` so its selection state survives.
-  private openApprovalPreview(panel: ApprovalPanelComponent, block: ApprovalPreviewBlock): void {
-    if (this.approvalPreview !== undefined) return;
-    const savedChildren = [...this.state.ui.children];
-    const viewer = new ApprovalPreviewViewer(
-      {
-        block,
-        onClose: () => {
-          this.closeApprovalPreview();
-        },
-      },
-      this.state.terminal,
-    );
-    this.state.ui.clear();
-    this.state.ui.addChild(viewer);
-    this.state.ui.setFocus(viewer);
-    requestTUILayoutRender(this.state);
-    this.approvalPreview = { component: viewer, savedChildren, panel };
-  }
-
-  private closeApprovalPreview(): void {
-    const preview = this.approvalPreview;
-    if (preview === undefined) return;
-    this.approvalPreview = undefined;
-    this.state.ui.clear();
-    for (const child of preview.savedChildren) {
-      this.state.ui.addChild(child);
-    }
-    this.state.ui.setFocus(preview.panel);
-    requestTUILayoutRender(this.state);
+    this.reverseRpcPanels.hideApprovalPanel();
   }
 
   showQuestionDialog(payload: QuestionPanelData): void {
-    // Defer while a command-driven dialog is open (BUG-7, same as approval).
-    if (
-      this.state.activeDialog === 'command' ||
-      this.state.activeDialog === 'center-modal' ||
-      this.state.centerModalStack.length > 0
-    ) {
-      this.deferredQuestion = payload;
-      return;
-    }
-    this.patchLivePane({ pendingQuestion: { data: payload } });
-    notifyUserAttentionOnce(this.state, `question:${payload.id}`, {
-      title: 'SuperLiora needs your answer',
-      body: payload.questions[0]?.question,
-    });
-    const dialog = new QuestionDialogComponent(
-      { data: payload },
-      (response) => {
-        this.questionController.respond(response);
-      },
-      6,
-      () => {
-        this.toggleToolOutputExpansion();
-      },
-    );
-    this.mountEditorReplacement(dialog);
+    this.reverseRpcPanels.showQuestionDialog(payload);
   }
 
   private hideQuestionDialog(): void {
-    this.patchLivePane({ pendingQuestion: null });
-    this.restoreEditor();
+    this.reverseRpcPanels.hideQuestionDialog();
   }
 }
 
