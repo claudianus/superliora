@@ -1,4 +1,4 @@
-import type { OpenAILegacyGenerationKwargs } from './openai-legacy-types';
+import type { OpenAILegacyGenerationKwargs } from './types';
 
 export function usesMaxCompletionTokens(model: string): boolean {
   const normalized = model.toLowerCase();

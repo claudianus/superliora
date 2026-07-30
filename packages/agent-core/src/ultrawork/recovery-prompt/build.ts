@@ -8,12 +8,12 @@ import {
   inferEffectiveUltraworkStage,
   OSCILLATION_WARN_THRESHOLD,
   summarizeWorkGraphProgress,
-} from './stage-progress';
+} from '../stage-progress';
 import {
   collectVerificationGapNodes,
   formatVerificationGapNextActions,
   formatVerificationGapSummary,
-} from './recovery-prompt-evidence';
+} from './evidence';
 import {
   formatBlockedNodeNextActions,
   formatFailedNodeNextActions,
@@ -21,15 +21,15 @@ import {
   formatOwnerlessRunningNextActions,
   formatQueuedDependsOnWaitNextActions,
   formatStuckNodeNextActions,
-} from './recovery-prompt-node-actions';
-import { formatEmptyWorkGraphSeedNextActions } from './recovery-prompt-stage-actions';
-import { suggestNextActions } from './recovery-prompt-suggest';
+} from './node-actions';
+import { formatEmptyWorkGraphSeedNextActions } from './stage-actions';
+import { suggestNextActions } from './suggest';
 import type {
   UltraworkActivation,
   UltraworkPlanRecoveryContext,
   UltraworkRecoveryReport,
   UltraworkResumeCursor,
-} from './types';
+} from '../types';
 
 export function buildUltraworkRecoveryReport(input: {
   readonly run: UltraworkRun;

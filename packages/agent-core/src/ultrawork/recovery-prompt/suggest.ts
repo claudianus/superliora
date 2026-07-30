@@ -7,12 +7,12 @@ import {
   inferEffectiveUltraworkStage,
   summarizeWorkGraphProgress,
   ultraworkStageIndex,
-} from './stage-progress';
+} from '../stage-progress';
 import {
   collectVerificationGapNodes,
   formatEvidenceHardGateNextActions,
   formatVerificationGapNextActions,
-} from './recovery-prompt-evidence';
+} from './evidence';
 import {
   formatBlockedNodeNextActions,
   formatFailedNodeNextActions,
@@ -20,13 +20,13 @@ import {
   formatOwnerlessRunningNextActions,
   formatQueuedDependsOnWaitNextActions,
   formatStuckNodeNextActions,
-} from './recovery-prompt-node-actions';
+} from './node-actions';
 import {
   formatEmptyWorkGraphSeedNextActions,
   formatHighResumeOscillationNextActions,
   formatLongRunningStageNextActions,
-} from './recovery-prompt-stage-actions';
-import type { UltraworkPlanRecoveryContext, UltraworkResumeCursor } from './types';
+} from './stage-actions';
+import type { UltraworkPlanRecoveryContext, UltraworkResumeCursor } from '../types';
 
 export function suggestNextActions(
   run: UltraworkRun,

@@ -8,12 +8,12 @@ import {
   extractUsage,
   isFunctionToolCall,
   normalizeOpenAIFinishReason,
-} from './openai-common';
+} from '../openai-common';
 import {
   convertChatCompletionStreamToolCall,
   type BufferedChatCompletionToolCall,
-} from './chat-completions-stream';
-import { extractReasoningContent } from './openai-legacy-reasoning';
+} from '../chat-completions-stream';
+import { extractReasoningContent } from './reasoning';
 
 export class OpenAILegacyStreamedMessage implements StreamedMessage {
   private _id: string | null = null;
