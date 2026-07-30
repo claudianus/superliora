@@ -1,6 +1,5 @@
 import type {
   ExperimentalFeatureState,
-  ModelAlias,
   PermissionMode,
   Session,
 } from '@superliora/sdk';
@@ -15,24 +14,13 @@ import { PermissionSelectorComponent } from '../components/dialogs/permission-se
 import { SettingsSelectorComponent, type SettingsSelection } from '../components/dialogs/settings-selector';
 import { ThemeSelectorComponent } from '../components/dialogs/theme-selector';
 import { UpdatePreferenceSelectorComponent } from '../components/dialogs/update-preference-selector';
-import {
-  DEFAULT_APPEARANCE_PREFERENCES,
-  DEFAULT_ONBOARDING_PREFERENCES,
-  saveTuiConfig,
-  type AppearancePreferences,
-  type OnboardingPreferences,
-  type TuiConfig,
-} from '../config';
+import { saveTuiConfig } from '../config';
 import type { ThemeName } from '#/tui/theme';
 import { currentTheme, isBuiltInTheme, lightColors, loadCustomThemeMerged } from '#/tui/theme';
 import { importThemeSource } from '#/tui/theme/importer';
-import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
-import {
-  resolveThinkingDisplay,
-  resolveThinkingLevelForApply,
-} from '#/tui/utils/thinking-effort';
 import { handleAccountsCommand } from './accounts';
 import { showMcpServers, showUsage } from './info';
 import { handlePremiumQualityCommand } from './premium';
@@ -48,7 +36,8 @@ import {
 } from '#/tui/utils/harness-eyes-readiness';
 import { getHostPackageRoot } from '#/cli/version';
 import { ttui } from '#/tui/utils/tui-i18n';
-import { isTranscriptDetailLevel } from '#/tui/utils/transcript-density';
+import { handleAppearanceCommand } from './config-appearance';
+import { tuiConfigFromHost } from './config-tui-persist';
 
 // ---------------------------------------------------------------------------
 // Plan / Config commands
@@ -56,20 +45,8 @@ import { isTranscriptDetailLevel } from '#/tui/utils/transcript-density';
 
 export { handleModelCommand, showLoopModelRoutingPicker, applyLoopModelRoutingChoice, resetLoopModelRoutingChoice, showModelFallbackPicker, showModelPicker } from './config-model';
 export { handleContextCommand, showContextWorkingSetPicker } from './config-context';
-
-const THINKING_LEVELS = ['off', 'on', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
-type ThinkingLevel = (typeof THINKING_LEVELS)[number];
-const APPEARANCE_KEYS = [
-  'profile',
-  'density',
-  'timestamps',
-  'particles',
-  'animation-fps',
-  'canvas-background',
-  'terminal-background',
-  'terminal-palette',
-  'transcript-detail',
-] as const;
+export { handleThinkingCommand } from './config-thinking';
+export { handleAppearanceCommand } from './config-appearance';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
@@ -101,135 +78,6 @@ export async function handlePlanCommand(host: SlashCommandHost, args: string): P
   }
 
   await applyPlanMode(host, session, enabled, ultra);
-}
-
-export async function handleThinkingCommand(host: SlashCommandHost, args: string): Promise<void> {
-  const raw = args.trim();
-  if (raw.length === 0) {
-    host.showStatus(formatThinkingStatus(host));
-    return;
-  }
-
-  const level = normalizeThinkingLevel(args);
-  if (level === undefined) {
-    host.showError(
-      `Unknown thinking level: ${args.trim() || '(empty)'}. Use ${formatThinkingLevels()}.`,
-    );
-    return;
-  }
-
-  const modelAlias = host.state.appState.model.trim();
-  if (modelAlias.length === 0) {
-    host.showError(LLM_NOT_SET_MESSAGE);
-    return;
-  }
-
-  const model = host.state.appState.availableModels[modelAlias];
-  const validationError = validateThinkingLevelForModel(level, model);
-  if (validationError !== undefined) {
-    host.showError(validationError);
-    return;
-  }
-
-  const session = host.session;
-  if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
-    return;
-  }
-
-  // Clamp onto the model support list before applying so UI and session match.
-  const applied =
-    level === 'off' || level === 'on'
-      ? level
-      : resolveThinkingLevelForApply(true, level, model);
-
-  try {
-    await session.setThinking(applied);
-  } catch (error) {
-    host.showError(`Failed to set thinking: ${formatErrorMessage(error)}`);
-    return;
-  }
-
-  const enabled = applied !== 'off';
-  // UI may show a clamp note (max→high) when the wire mapping differs.
-  const display = resolveThinkingDisplay(applied, { thinking: enabled, model });
-  host.setAppState({ thinking: enabled, thinkingLevel: display.requested });
-  host.track('thinking_toggle', { enabled, level: display.requested });
-  const statusLabel =
-    display.label === 'off'
-      ? 'off'
-      : display.requested === display.effective
-        ? display.requested
-        : `${display.requested} (wire ${display.effective})`;
-  host.showStatus(`Thinking set to ${statusLabel}.`, 'success');
-}
-
-function normalizeThinkingLevel(args: string): ThinkingLevel | undefined {
-  const normalized = args.trim().toLowerCase();
-  return THINKING_LEVELS.includes(normalized as ThinkingLevel)
-    ? (normalized as ThinkingLevel)
-    : undefined;
-}
-
-function validateThinkingLevelForModel(
-  level: ThinkingLevel,
-  model: ModelAlias | undefined,
-): string | undefined {
-  if (model === undefined) return undefined;
-  const caps = model.capabilities ?? [];
-  const alwaysThinking = caps.includes('always_thinking');
-  const supportsThinking =
-    alwaysThinking || caps.includes('thinking') || model.adaptiveThinking === true;
-
-  if (level === 'off') {
-    return alwaysThinking ? 'Current model requires thinking.' : undefined;
-  }
-  if (!supportsThinking) return 'Current model does not support thinking.';
-
-  const supportEfforts = model.supportEfforts;
-  if (supportEfforts !== undefined && level !== 'on') {
-    const supported = new Set(supportEfforts.map((effort) => effort.trim().toLowerCase()));
-    if (!supported.has(level)) {
-      return `Current model supports thinking efforts: ${supportEfforts.join(', ')}.`;
-    }
-  }
-  return undefined;
-}
-
-function formatThinkingLevels(): string {
-  return THINKING_LEVELS.join(', ');
-}
-
-function formatThinkingStatus(host: SlashCommandHost): string {
-  const modelAlias = host.state.appState.model.trim();
-  const model = host.state.appState.availableModels[modelAlias];
-  const display = resolveThinkingDisplay(
-    host.state.appState.thinkingLevel ?? (host.state.appState.thinking ? 'on' : 'off'),
-    { thinking: host.state.appState.thinking, model },
-  );
-  const levelLabel =
-    display.label === 'off'
-      ? 'off'
-      : display.requested === display.effective
-        ? display.requested
-        : `${display.requested}→${display.effective}`;
-
-  // Check if model supports thinking.
-  const caps = model?.capabilities ?? [];
-  const supportsThinking =
-    caps.includes('always_thinking') || caps.includes('thinking') || model?.adaptiveThinking === true;
-
-  if (!supportsThinking) {
-    return `Thinking is ${levelLabel}. Current model does not support thinking.`;
-  }
-
-  const supportEfforts = model?.supportEfforts;
-  const defaultEffort = model?.defaultEffort ?? 'high';
-
-  if (supportEfforts !== undefined && supportEfforts.length > 0) {
-    return `Thinking is ${levelLabel}. Default effort: ${defaultEffort}. Supported: ${supportEfforts.join(', ')}. Use /thinking <level>.`;
-  }
-  return `Thinking is ${levelLabel}. Default effort: ${defaultEffort}. Use /thinking <${formatThinkingLevels()}>.`;
 }
 
 async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {
@@ -407,51 +255,6 @@ export async function handleThemeCommand(host: SlashCommandHost, args: string): 
     }
   }
   await applyThemeChoice(host, theme);
-}
-
-export async function handleAppearanceCommand(host: SlashCommandHost, args: string): Promise<void> {
-  const raw = args.trim();
-  if (raw.length === 0) {
-    host.showNotice('Appearance', formatAppearanceStatus(currentAppearance(host)));
-    return;
-  }
-
-  const [keyRaw, ...rest] = raw.split(/\s+/);
-  const key = keyRaw?.toLowerCase();
-  const value = rest.join(' ').trim().toLowerCase();
-  if (key === 'help' || key === undefined || value.length === 0) {
-    host.showNotice(
-      'Appearance',
-      `Usage: /appearance <${APPEARANCE_KEYS.join('|')}> <value>`,
-    );
-    return;
-  }
-
-  const previous = currentAppearance(host);
-  const next = parseAppearancePatch(previous, key, value);
-  if (next === null) {
-    host.showError(`Unknown appearance option or value: ${raw}`);
-    return;
-  }
-  if (JSON.stringify(next) === JSON.stringify(previous)) {
-    host.showStatus('Appearance unchanged.');
-    return;
-  }
-
-  try {
-    await saveTuiConfig(tuiConfigFromHost(host, { appearance: next }));
-  } catch (error) {
-    host.showStatus(`Failed to save appearance: ${formatErrorMessage(error)}`, 'error');
-    return;
-  }
-
-  host.setAppState({ appearance: next });
-  if (key === 'transcript-detail') {
-    // Live re-projection of mounted tool cards; the save above persists.
-    host.setTranscriptDetail(next.transcriptDetail);
-  }
-  host.track('appearance_changed', { key, value });
-  host.showStatus(`Appearance ${key} set to ${value}.`, 'success');
 }
 
 // ---------------------------------------------------------------------------
@@ -960,120 +763,4 @@ export async function showHarnessEyesReadiness(host: SlashCommandHost): Promise<
   } catch (error) {
     host.showError(`Failed to load eyes readiness: ${formatErrorMessage(error)}`);
   }
-}
-
-function currentAppearance(host: {
-  readonly state: { readonly appState: { readonly appearance?: AppearancePreferences } };
-}): AppearancePreferences {
-  return host.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
-}
-
-function tuiConfigFromHost(
-  host: {
-    readonly state: {
-      readonly appState: Pick<
-        SlashCommandHost['state']['appState'],
-        'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst' | 'permissionMode'
-      > & {
-        readonly appearance?: AppearancePreferences;
-        readonly onboarding?: OnboardingPreferences;
-      };
-    };
-  },
-  patch: Partial<TuiConfig> = {},
-): TuiConfig {
-  return {
-    theme: host.state.appState.theme,
-    permissionMode: host.state.appState.permissionMode,
-    disablePasteBurst: host.state.appState.disablePasteBurst ?? false,
-    editorCommand: host.state.appState.editorCommand,
-    notifications: host.state.appState.notifications,
-    upgrade: host.state.appState.upgrade,
-    appearance: currentAppearance(host),
-    onboarding: host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
-    ...patch,
-  };
-}
-
-function formatAppearanceStatus(appearance: AppearancePreferences): string {
-  return [
-    `profile: ${appearance.profile}`,
-    `density: ${appearance.density}`,
-    `${ttui('tui.appearance.timestamps')}: ${appearance.showTimestamps ? 'on' : 'off'}`,
-    `particles: ${appearance.particles}`,
-    `animation-fps: ${String(appearance.animationFps)}`,
-    `canvas-background: ${appearance.canvasBackground ? 'on' : 'off'}`,
-    `terminal-background: ${appearance.terminalBackground}`,
-    `terminal-palette: ${appearance.terminalPalette ? 'on' : 'off'}`,
-    `transcript-detail: ${appearance.transcriptDetail}`,
-  ].join('\n');
-}
-
-function parseAppearancePatch(
-  previous: AppearancePreferences,
-  key: string,
-  value: string,
-): AppearancePreferences | null {
-  const next: AppearancePreferences = { ...previous };
-  switch (key) {
-    case 'profile':
-      if (!isOneOf(value, ['auto', 'off', 'subtle', 'premium'])) return null;
-      next.profile = value;
-      return next;
-    case 'density':
-      if (!isOneOf(value, ['auto', 'compact', 'comfortable', 'spacious'])) return null;
-      next.density = value;
-      return next;
-    case 'timestamps':
-      {
-        const enabled = parseOnOff(value);
-        if (enabled === undefined) return null;
-        next.showTimestamps = enabled;
-        return next;
-      }
-    case 'particles':
-      if (!isOneOf(value, ['auto', 'off', 'ambient', 'events', 'premium'])) return null;
-      next.particles = value;
-      return next;
-    case 'animation-fps': {
-      const fps = Number.parseInt(value, 10);
-      if (!Number.isInteger(fps) || fps < 1 || fps > 60) return null;
-      next.animationFps = fps;
-      return next;
-    }
-    case 'canvas-background':
-      {
-        const enabled = parseOnOff(value);
-        if (enabled === undefined) return null;
-        next.canvasBackground = enabled;
-        return next;
-      }
-    case 'terminal-background':
-      if (!isOneOf(value, ['off', 'session'])) return null;
-      next.terminalBackground = value;
-      return next;
-    case 'terminal-palette':
-      {
-        const enabled = parseOnOff(value);
-        if (enabled === undefined) return null;
-        next.terminalPalette = enabled;
-        return next;
-      }
-    case 'transcript-detail':
-      if (!isTranscriptDetailLevel(value)) return null;
-      next.transcriptDetail = value;
-      return next;
-    default:
-      return null;
-  }
-}
-
-function parseOnOff(value: string): boolean | undefined {
-  if (value === 'on' || value === 'true' || value === 'yes') return true;
-  if (value === 'off' || value === 'false' || value === 'no') return false;
-  return undefined;
-}
-
-function isOneOf<const T extends readonly string[]>(value: string, choices: T): value is T[number] {
-  return choices.includes(value as T[number]);
 }
