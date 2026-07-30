@@ -29,7 +29,7 @@ export * from './messages/assistant-message';
 export * from './messages/background-agent-status';
 export * from './messages/plan-box';
 export * from './messages/read-group';
-export * from './messages/shell-execution';
+export * from './messages/shell/shell-execution';
 export * from './messages/skill-activation';
 export * from './messages/status-message';
 export * from './messages/swarm-markers';

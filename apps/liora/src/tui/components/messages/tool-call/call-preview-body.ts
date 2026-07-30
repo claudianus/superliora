@@ -14,7 +14,7 @@ import type { MarkdownTheme } from '#/tui/renderer';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 import { PlanBoxComponent } from '../plan-box';
-import { ShellExecutionComponent } from '../shell-execution';
+import { ShellExecutionComponent } from '../shell/shell-execution';
 import { extractPartialStringField, str } from './format';
 import {
   buildEditCallPreviewItems,

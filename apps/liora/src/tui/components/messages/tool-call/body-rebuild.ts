@@ -3,7 +3,7 @@ import type { Component } from '#/tui/renderer';
 import { RESULT_PREVIEW_LINES } from '#/tui/constant/rendering';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
-import { ShellExecutionComponent } from '../shell-execution';
+import { ShellExecutionComponent } from '../shell/shell-execution';
 import { buildCompactErrorLineComponent } from './compact-error';
 import type { ToolCallCallPreview } from './call-preview';
 import { buildToolCallResultContentComponents } from './content';
