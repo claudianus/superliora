@@ -2,4 +2,4 @@
 "@superliora/liora": patch
 ---
 
-Split the dialog-mounting shell (editor-replacement / center-modal mechanics, session-loading overlay, prompt stash) and the Command Hub, command palette, history search, and transcript search entry points out of the TUI coordinator into their own controller. No behavior change.
+Split the TUI dialogs controller into sibling modules (session loading, modal shell, search, command hub, help) and keep a thin facade. No behavior change.
