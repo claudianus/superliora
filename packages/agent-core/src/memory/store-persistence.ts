@@ -7,35 +7,42 @@
  * `store.ts` composes this with the pure query helpers in
  * `store-query.ts` for the public `LioraRecallStore` API; nothing here
  * validates domain rules beyond what is needed to read/write rows.
+ *
+ * Markdown mirror I/O lives in `store-persistence-markdown.ts`; SQLite
+ * helpers and row mapping live in `store-persistence-sqlite.ts`.
  */
 
 import { randomUUID } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'pathe';
 
 import {
+  memoryRecordFileStem,
+  readMarkdownRecord,
+  renderMarkdownRecord,
+} from './store-persistence-markdown';
+import {
+  corruptionErrorMessage,
+  isCountRow,
+  isDatabaseCorruptionError,
+  isMemoryRow,
+  openDatabase,
+  rowToMemory,
+  type MemoryRow,
+  type SqliteDatabase,
+} from './store-persistence-sqlite';
+import {
   buildSearchFilter,
-  clamp01,
   escapeLike,
-  isMemoryRecordLike,
-  isMemorySourceRefLike,
   limit,
   MAX_LIMIT,
-  normalizeTags,
-  parseMemoryKind,
-  parseMemoryScope,
-  parseMemoryStatus,
-  sanitizeMetadata,
-  stripUndefined,
   toFtsQuery,
 } from './store-query';
 import type {
@@ -44,57 +51,9 @@ import type {
   MemorySourceRef,
 } from './types';
 
-interface SqliteRunResult {
-  readonly changes: number;
-  readonly lastInsertRowid: number | bigint;
-}
-
-interface SqliteStatement {
-  run(...params: unknown[]): SqliteRunResult;
-  get(...params: unknown[]): unknown;
-  all(...params: unknown[]): unknown[];
-}
-
-interface SqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): SqliteStatement;
-  close(): void;
-}
-
-interface SqliteModule {
-  readonly DatabaseSync: new (path: string) => SqliteDatabase;
-}
-
-interface MemoryRow {
-  readonly id: string;
-  readonly kind: string;
-  readonly scope: string;
-  readonly scope_key: string | null;
-  readonly subject: string;
-  readonly content: string;
-  readonly tags_json: string;
-  readonly confidence: number;
-  readonly importance: number;
-  readonly status: string;
-  readonly source_json: string;
-  readonly created_at: number;
-  readonly updated_at: number;
-  readonly accessed_at: number | null;
-  readonly access_count: number;
-  readonly valid_from: number | null;
-  readonly valid_to: number | null;
-  readonly supersedes_json: string;
-  readonly superseded_by: string | null;
-  readonly metadata_json: string;
-  readonly rank?: number | null;
-}
-
 export const SCHEMA_VERSION = 1;
 export const STORE_RELATIVE_PATH = 'memory/kimi-recall.sqlite';
 const RECORDS_DIR_NAME = 'records';
-const MARKDOWN_RECORD_SCHEMA_VERSION = 1;
-const MARKDOWN_RECORD_MARKER = 'kimi-recall-record-json-base64';
-const SYSTEM_MEMORY_SOURCE: MemorySourceRef = { kind: 'system' };
 
 export interface MemoryIntegrityIssues {
   readonly issues: string[];
@@ -534,227 +493,4 @@ export class MemoryPersistence {
     }
     return ids;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Markdown mirror
-// ---------------------------------------------------------------------------
-
-function readMarkdownRecord(path: string): MemoryRecord | undefined {
-  try {
-    const text = readFileSync(path, 'utf8');
-    const match = text.match(markdownRecordRegex());
-    const encoded = match?.[1];
-    if (encoded === undefined) return undefined;
-    const json = Buffer.from(encoded, 'base64url').toString('utf8');
-    return normalizeMarkdownRecord(JSON.parse(json) as unknown);
-  } catch {
-    return undefined;
-  }
-}
-
-function renderMarkdownRecord(record: MemoryRecord): string {
-  const encoded = Buffer.from(JSON.stringify(record), 'utf8').toString('base64url');
-  const lines = [
-    '---',
-    `schema_version: ${MARKDOWN_RECORD_SCHEMA_VERSION}`,
-    `id: ${record.id}`,
-    `kind: ${record.kind}`,
-    `scope: ${record.scope}`,
-    `status: ${record.status}`,
-    '---',
-    '',
-    `# ${singleLine(record.subject)}`,
-    '',
-    `- id: ${record.id}`,
-    `- kind: ${record.kind}`,
-    `- scope: ${record.scope}${record.scopeKey === undefined ? '' : `:${record.scopeKey}`}`,
-    `- status: ${record.status}`,
-    `- confidence: ${record.confidence}`,
-    `- importance: ${record.importance}`,
-    `- tags: ${record.tags.join(', ') || '(none)'}`,
-    '',
-    '## Content',
-    '',
-    record.content,
-    '',
-    `<!-- ${MARKDOWN_RECORD_MARKER}:${encoded} -->`,
-    '',
-  ];
-  return lines.join('\n');
-}
-
-function normalizeMarkdownRecord(value: unknown): MemoryRecord | undefined {
-  if (!isMemoryRecordLike(value)) return undefined;
-  return stripUndefined({
-    id: value.id,
-    kind: value.kind,
-    scope: value.scope,
-    scopeKey: typeof value.scopeKey === 'string' ? value.scopeKey : undefined,
-    subject: value.subject,
-    content: value.content,
-    tags: normalizeTags(value.tags),
-    confidence: clamp01(value.confidence),
-    importance: clamp01(value.importance),
-    status: value.status,
-    source: isMemorySourceRefLike(value.source) ? value.source : SYSTEM_MEMORY_SOURCE,
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-    accessedAt: typeof value.accessedAt === 'number' ? value.accessedAt : undefined,
-    accessCount: Number.isFinite(value.accessCount) ? value.accessCount : 0,
-    validFrom: typeof value.validFrom === 'number' ? value.validFrom : undefined,
-    validTo: typeof value.validTo === 'number' ? value.validTo : undefined,
-    supersedes: Array.isArray(value.supersedes)
-      ? value.supersedes.filter((entry): entry is string => typeof entry === 'string')
-      : [],
-    supersededBy: typeof value.supersededBy === 'string' ? value.supersededBy : undefined,
-    metadata: sanitizeMetadata(value.metadata ?? {}),
-  });
-}
-
-function memoryRecordFileStem(id: string): string {
-  return `memory_${Buffer.from(id, 'utf8').toString('base64url')}`;
-}
-
-function markdownRecordRegex(): RegExp {
-  return new RegExp(`\\n<!-- ${MARKDOWN_RECORD_MARKER}:([A-Za-z0-9_-]+) -->\\n?$`);
-}
-
-function singleLine(value: string): string {
-  return value.replace(/\s+/gu, ' ').trim() || '(untitled)';
-}
-
-// ---------------------------------------------------------------------------
-// SQLite engine helpers
-// ---------------------------------------------------------------------------
-
-function openDatabase(path: string): SqliteDatabase {
-  const require = createRequire(import.meta.url);
-  const sqlite = require('node:sqlite') as SqliteModule;
-  return new sqlite.DatabaseSync(path);
-}
-
-/**
- * True for SQLite corruption-class failures (SQLITE_CORRUPT / SQLITE_NOTADB).
- * node:sqlite surfaces these as plain errors, so match on the message text.
- * Transient errors (busy, locked, permission) must NOT match — quarantining a
- * healthy database over them would discard recoverable data.
- */
-function isDatabaseCorruptionError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return (
-    /database disk image is malformed/iu.test(error.message) ||
-    /file is not a database/iu.test(error.message) ||
-    /SQLITE_CORRUPT\b/iu.test(error.message) ||
-    /SQLITE_NOTADB\b/iu.test(error.message)
-  );
-}
-
-function corruptionErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function rowToMemory(row: MemoryRow): MemoryRecord {
-  const base = {
-    id: row.id,
-    kind: parseMemoryKind(row.kind),
-    scope: parseMemoryScope(row.scope),
-    subject: row.subject,
-    content: row.content,
-    tags: parseJsonArray(row.tags_json),
-    confidence: row.confidence,
-    importance: row.importance,
-    status: parseMemoryStatus(row.status),
-    source: parseSourceRef(row.source_json),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    accessCount: row.access_count,
-    supersedes: parseJsonArray(row.supersedes_json),
-    metadata: parseJsonObject(row.metadata_json),
-  };
-  return stripUndefined({
-    ...base,
-    scopeKey: row.scope_key ?? undefined,
-    accessedAt: row.accessed_at ?? undefined,
-    validFrom: row.valid_from ?? undefined,
-    validTo: row.valid_to ?? undefined,
-    supersededBy: row.superseded_by ?? undefined,
-  });
-}
-
-function parseJsonArray(text: string): readonly string[] {
-  try {
-    const value = JSON.parse(text) as unknown;
-    if (!Array.isArray(value)) return [];
-    return value.filter((entry): entry is string => typeof entry === 'string');
-  } catch {
-    return [];
-  }
-}
-
-function parseJsonObject(text: string): Readonly<Record<string, unknown>> {
-  try {
-    const value = JSON.parse(text) as unknown;
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      return value as Record<string, unknown>;
-    }
-  } catch {
-    return {};
-  }
-  return {};
-}
-
-function parseSourceRef(text: string): MemorySourceRef {
-  const value = parseJsonObject(text);
-  const kind = value['kind'];
-  if (kind === 'user' || kind === 'tool' || kind === 'auto' || kind === 'import' || kind === 'system') {
-    const source: {
-      kind: MemorySourceRef['kind'];
-      sessionId?: string;
-      agentId?: string;
-      turnId?: number;
-      messageId?: string;
-      excerpt?: string;
-    } = { kind };
-    if (typeof value['sessionId'] === 'string') source.sessionId = value['sessionId'];
-    if (typeof value['agentId'] === 'string') source.agentId = value['agentId'];
-    if (typeof value['turnId'] === 'number') source.turnId = value['turnId'];
-    if (typeof value['messageId'] === 'string') source.messageId = value['messageId'];
-    if (typeof value['excerpt'] === 'string') source.excerpt = value['excerpt'];
-    return source;
-  }
-  return { kind: 'system' };
-}
-
-function isMemoryRow(value: unknown): value is MemoryRow {
-  if (typeof value !== 'object' || value === null) return false;
-  const row = value as Record<string, unknown>;
-  return (
-    typeof row['id'] === 'string' &&
-    typeof row['kind'] === 'string' &&
-    typeof row['scope'] === 'string' &&
-    (typeof row['scope_key'] === 'string' || row['scope_key'] === null) &&
-    typeof row['subject'] === 'string' &&
-    typeof row['content'] === 'string' &&
-    typeof row['tags_json'] === 'string' &&
-    typeof row['confidence'] === 'number' &&
-    typeof row['importance'] === 'number' &&
-    typeof row['status'] === 'string' &&
-    typeof row['source_json'] === 'string' &&
-    typeof row['created_at'] === 'number' &&
-    typeof row['updated_at'] === 'number' &&
-    (typeof row['accessed_at'] === 'number' || row['accessed_at'] === null) &&
-    typeof row['access_count'] === 'number' &&
-    (typeof row['valid_from'] === 'number' || row['valid_from'] === null) &&
-    (typeof row['valid_to'] === 'number' || row['valid_to'] === null) &&
-    typeof row['supersedes_json'] === 'string' &&
-    (typeof row['superseded_by'] === 'string' || row['superseded_by'] === null) &&
-    typeof row['metadata_json'] === 'string'
-  );
-}
-
-function isCountRow(value: unknown): value is { readonly kind: string; readonly scope: string; readonly status: string; readonly count: number } {
-  if (typeof value !== 'object' || value === null) return false;
-  const row = value as Record<string, unknown>;
-  return typeof row['kind'] === 'string' && typeof row['scope'] === 'string' && typeof row['status'] === 'string' && typeof row['count'] === 'number';
 }
