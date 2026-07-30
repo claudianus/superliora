@@ -31,11 +31,7 @@ import {
   RESULT_PREVIEW_LINES,
   THINKING_PREVIEW_LINES,
 } from '#/tui/constant/rendering';
-import {
-  STAGED_LINE_REVEAL_MS_PREMIUM,
-  STAGED_LINE_REVEAL_MS_SUBTLE,
-  STREAMING_ARGS_PREVIEW_MAX_CHARS,
-} from '#/tui/constant/streaming';
+import { STREAMING_ARGS_PREVIEW_MAX_CHARS } from '#/tui/constant/streaming';
 import {
   BACKGROUND_GLYPH,
   FAILURE_MARK,
@@ -58,7 +54,6 @@ import {
   renderPhaseChip,
   renderPulseText,
   renderToneSettleFlash,
-  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
   type MotionToolPhase,
 } from '#/tui/utils/appearance-effects';
@@ -69,7 +64,6 @@ import {
   applyToolHeaderEntrance,
   isTranscriptEntranceActive,
   polishTranscriptLines,
-  TOOL_HEADER_ENTRANCE_MS,
   toolHeaderEntranceDurationMs,
 } from '#/tui/utils/transcript-entrance';
 
@@ -79,6 +73,13 @@ import {
 } from './agent-swarm-progress';
 import { PlanBoxComponent } from './plan-box';
 import { ShellExecutionComponent } from './shell-execution';
+import {
+  hasPreviewRevealStarted,
+  peekPreviewRevealStartedAt,
+  previewRevealStartedAt,
+  stagedPreviewRevealDurationMs,
+  toolHeaderEntranceStartedAt,
+} from './tool-call-entrance';
 import {
   extractKeyArgument,
   extractPartialStringField,
@@ -134,68 +135,6 @@ const ABORTED_MARK = '⊘';
 /** Delay before a long-running foreground Bash/Agent card advertises Ctrl+B. */
 const DETACH_HINT_DELAY_MS = 6_000;
 const DETACH_HINT_TEXT = 'Press Ctrl+B to background this task · /tasks to inspect';
-
-/**
- * First-seen header timestamps keyed by toolCallId. Streaming deltas can
- * remount a ToolCallComponent (see `streamingShellPreview`), which would
- * restart a per-instance entrance clock every frame and read as flicker —
- * the registry pins the entrance start to the first render of each tool call.
- * Swept once it outgrows the live window so long sessions stay bounded.
- */
-const toolHeaderFirstSeenMs = new Map<string, number>();
-const TOOL_HEADER_FIRST_SEEN_MAX_ENTRIES = 128;
-
-function toolHeaderEntranceStartedAt(toolCallId: string): number {
-  const now = appearanceAnimationNow();
-  if (toolHeaderFirstSeenMs.size >= TOOL_HEADER_FIRST_SEEN_MAX_ENTRIES) {
-    // Generous expiry: the longest subtle-mode entrance plus margin.
-    const ttl = TOOL_HEADER_ENTRANCE_MS * 4;
-    for (const [id, seen] of toolHeaderFirstSeenMs) {
-      if (now - seen > ttl) toolHeaderFirstSeenMs.delete(id);
-    }
-  }
-  let seen = toolHeaderFirstSeenMs.get(toolCallId);
-  if (seen === undefined) {
-    seen = now;
-    toolHeaderFirstSeenMs.set(toolCallId, seen);
-  }
-  return seen;
-}
-
-/**
- * First-seen timestamps for the staged preview reveal keyed by toolCallId.
- * The settled Write/Edit preview is rebuilt whenever streaming args finalize
- * or the result lands; the registry pins the reveal start to the first
- * settled build so those rebuilds grow the preview in place instead of
- * replaying the entrance. Same bounded-map sweep as the header registry.
- */
-const previewRevealFirstSeenMs = new Map<string, number>();
-const PREVIEW_REVEAL_FIRST_SEEN_MAX_ENTRIES = 128;
-
-function previewRevealStartedAt(toolCallId: string): number {
-  const now = appearanceAnimationNow();
-  if (previewRevealFirstSeenMs.size >= PREVIEW_REVEAL_FIRST_SEEN_MAX_ENTRIES) {
-    // Generous expiry: the longest subtle-mode reveal plus margin.
-    const ttl = STAGED_LINE_REVEAL_MS_SUBTLE * 4;
-    for (const [id, seen] of previewRevealFirstSeenMs) {
-      if (now - seen > ttl) previewRevealFirstSeenMs.delete(id);
-    }
-  }
-  let seen = previewRevealFirstSeenMs.get(toolCallId);
-  if (seen === undefined) {
-    seen = now;
-    previewRevealFirstSeenMs.set(toolCallId, seen);
-  }
-  return seen;
-}
-
-/** Staged preview reveal TTL (0 when ambient motion is off; subtle stretches). */
-function stagedPreviewRevealDurationMs(): number {
-  const appearance = getActiveAppearancePreferences();
-  if (!shouldRenderAmbientEffects(appearance)) return 0;
-  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-  return mode === 'subtle' ? STAGED_LINE_REVEAL_MS_SUBTLE : STAGED_LINE_REVEAL_MS_PREMIUM;
-}
 
 /**
  * Immutable Read tool state snapshot. `ReadGroupComponent` reads one-time
@@ -482,7 +421,7 @@ export class ToolCallComponent extends Container {
     // preview block rebuilds, and only when the visible count actually
     // changed, so the result body below keeps its cached encoding.
     if (this.isPreviewRevealActive()) {
-      const startedAtMs = previewRevealFirstSeenMs.get(this.toolCall.id) ?? now;
+      const startedAtMs = peekPreviewRevealStartedAt(this.toolCall.id) ?? now;
       const visible = computeStagedLineReveal({
         totalLines: this.previewItemTotal,
         elapsedMs: now - startedAtMs,
@@ -2179,7 +2118,7 @@ export class ToolCallComponent extends Container {
     if (this.builtPreviewItemCount >= this.previewItemTotal) return false;
     const durationMs = stagedPreviewRevealDurationMs();
     if (durationMs <= 0) return false;
-    return previewRevealFirstSeenMs.has(this.toolCall.id);
+    return hasPreviewRevealStarted(this.toolCall.id);
   }
 
   /**

@@ -1,6 +1,7 @@
 /**
  * Pure string / preview formatters for ToolCallComponent.
- * No component instance state — keep stateful entrance / snapshot logic in tool-call.ts.
+ * No component instance state — keep stateful entrance / snapshot logic in
+ * tool-call-entrance.ts / tool-call.ts.
  */
 
 import { isAbsolute, relative, sep } from 'node:path';
