@@ -25,7 +25,6 @@ const FAIL_ALLOWLIST = new Set([
   'apps/liora/src/tui/components/messages/agent-swarm-progress.ts',
   'apps/liora/src/tui/components/messages/tool-call.ts',
   'apps/liora/src/tui/utils/idle-scene.ts',
-  'apps/liora/src/tui/components/chrome/todo-panel.ts',
   'packages/agent-core/src/tools/builtin/collaboration/ultra-swarm.ts',
 ]);
 
