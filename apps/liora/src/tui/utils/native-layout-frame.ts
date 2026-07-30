@@ -1,47 +1,30 @@
 import {
   createRendererStackFrameRegions,
-  createRendererDiagnosticsOverlayRegion,
-  createRendererRegionVfx,
   NativeFrameRenderer,
   NativeTerminalRenderer,
   nativeTerminalAdaptiveFeatureProfile,
   resolveNativePremiumRendererDefaults,
-  RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
-  RENDERER_EDITOR_SHELL_MODE_LABEL,
-  rendererEditorContentHeight,
-  rendererEditorContentWidth,
-  measureRendererEditorSurfaceLayout,
-  measureRendererEditorSurfaceNaturalRows,
   projectRendererCursorMarkerLines,
-  projectRendererEditorSurfaceCursor,
   promoteRendererRegionLinesToCells,
   renderNativeLayoutFrame,
-  renderRendererEditorSurface,
-  resolveRendererEditorSurfaceStyles,
-  visibleWidth,
   type NativeLayoutFrameResult,
   type NativeTerminalInput,
   type NativeTerminalOutput,
   type NativeTerminalRendererOptions,
   type NativeTerminalRendererRender,
   type RendererCell,
-  type RendererCellStyle,
   type RendererCompositionCache,
   type RendererCursorState,
   type RendererDiagnosticsSnapshot,
   type RendererFrameRegion,
   type RendererLineCellCache,
   type RendererOutputTarget,
-  type RendererOverlayPanelLineStyle,
-  type RendererOverlayPlacement,
   type RendererRect,
-  type RendererRegionVfxPreset,
   type RendererRegionId,
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { createCenterModalOverlayRegion } from '#/tui/utils/center-modal';
-import { feedbackBorderGlowHex } from '#/tui/utils/feedback-vfx';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationNow,
@@ -50,9 +33,7 @@ import {
   getAppearanceRenderQuality,
   motionEffectsAllowed,
   paintUltraworkEditorBorderGlow,
-  resolveAmbientEffectMode,
   resolveUltraworkBorderGlowHex,
-  resolveUltraworkEditorBorderStyle,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/utils/appearance-effects';
@@ -90,8 +71,31 @@ export {
   type TUIStateNativeFramePolicy,
   type TUIStateNativeFramePolicyInput,
 } from './native-frame-policy';
-import { CHROME_GUTTER } from '../constant/rendering';
 import { resolveStageLayout } from '../controllers/stage-layout';
+import {
+  nativeEditorFallbackRegionLines,
+  nativeEditorRegionRowsForLayout,
+  NATIVE_LAYOUT_MIN_TRANSCRIPT_ROWS,
+  projectNativeEditorRegion,
+} from './native-layout-frame-editor';
+import {
+  createTUIStateDiagnosticsOverlayRegion,
+  createTUIStateNativeRegionVfx,
+  createTUIToastOverlayRegion,
+  type TUIStateNativeDiagnosticsOverlayOptions,
+  type TUIStateNativeDiagnosticsOverlayInput,
+  type TUIStateNativeDiagnosticsOverlayResolver,
+  type TUIStateNativeDiagnosticsOverlaySource,
+} from './native-layout-frame-overlays';
+import {
+  detectTUIStateNativeLayoutShift,
+  type TUIStateNativeLayoutShift,
+  type TUIStateNativeLayoutTracking,
+} from './native-layout-frame-shift';
+import {
+  nativeTranscriptRegionLines,
+  promoteTranscriptRegionLinesToCells,
+} from './native-layout-frame-transcript';
 import {
   planTUINativeStage,
   type TUINativeStageChrome,
@@ -105,15 +109,21 @@ import {
   isStageResizeDragging,
   resetStageResizePointerShape,
 } from './stage-resize-mouse';
-import {
-  cellSelectedAtColumn,
-  shouldHoldTranscriptAnimation,
-  type TranscriptSelectionRange,
-} from './transcript-selection';
+import { shouldHoldTranscriptAnimation } from './transcript-selection';
+
+export {
+  detectTUIStateNativeLayoutShift,
+  type TUIStateNativeLayoutShift,
+} from './native-layout-frame-shift';
+export type {
+  TUIStateNativeDiagnosticsOverlayInput,
+  TUIStateNativeDiagnosticsOverlayOptions,
+  TUIStateNativeDiagnosticsOverlayResolver,
+  TUIStateNativeDiagnosticsOverlaySource,
+} from './native-layout-frame-overlays';
 
 const DEFAULT_NATIVE_FRAME_COLUMNS = 80;
 const DEFAULT_NATIVE_FRAME_ROWS = 24;
-const NATIVE_LAYOUT_MIN_TRANSCRIPT_ROWS = 1;
 
 export interface TUIStateNativeFrameOptions {
   readonly renderer?: NativeFrameRenderer;
@@ -133,32 +143,6 @@ export interface TUIStateNativeFrameResult extends NativeLayoutFrameResult {
   readonly width: number;
   readonly height: number;
   readonly cursor: RendererCursorState;
-}
-
-export type TUIStateNativeDiagnosticsOverlayInput =
-  | boolean
-  | TUIStateNativeDiagnosticsOverlayOptions;
-export type TUIStateNativeDiagnosticsOverlayResolver =
-  () => TUIStateNativeDiagnosticsOverlayInput | undefined;
-export type TUIStateNativeDiagnosticsOverlaySource =
-  | TUIStateNativeDiagnosticsOverlayInput
-  | TUIStateNativeDiagnosticsOverlayResolver;
-
-export interface TUIStateNativeDiagnosticsOverlayOptions {
-  readonly enabled?: boolean;
-  readonly diagnostics?: RendererDiagnosticsSnapshot;
-  readonly width?: number;
-  readonly minWidth?: number;
-  readonly maxWidth?: number;
-  readonly maxHeight?: number;
-  readonly placement?: RendererOverlayPlacement;
-  readonly marginX?: number;
-  readonly marginY?: number;
-  readonly zIndex?: number;
-  readonly title?: string;
-  readonly border?: boolean;
-  readonly maxIssues?: number;
-  readonly includeIssues?: boolean;
 }
 
 export interface TUIStateNativeRenderCallbackOptions {
@@ -244,91 +228,6 @@ export function renderTUIStateNativeFrame(
   });
 
   return { ...result, renderer, width, height, cursor: frame.cursor };
-}
-
-interface TUIStateNativeLayoutTracking {
-  transcriptStart?: number;
-  transcriptContentRows?: number;
-  transcriptChildCount?: number;
-  editorLayoutRows?: number;
-}
-
-export interface TUIStateNativeLayoutShift {
-  readonly shifted: boolean;
-  readonly viewportScrolled: boolean;
-  /** Transcript content rows/children or editor geometry changed. */
-  readonly structuralShift: boolean;
-  /**
-   * Editor (or other chrome geometry) row count changed — needs region
-   * clear-fills so layout holes wipe. Transcript-only content growth does not
-   * set this, so stage/letterbox can stay damage-only during streaming.
-   */
-  readonly geometryShift: boolean;
-  /** Transcript grew (rows or children). Safe for damage-only stack paint. */
-  readonly contentGrew: boolean;
-  /** Transcript shrank — holes need clear-fills. */
-  readonly contentShrunk: boolean;
-  readonly next: TUIStateNativeLayoutTracking;
-}
-
-export function detectTUIStateNativeLayoutShift(
-  state: TUIState,
-  frameWidth: number,
-  prior: TUIStateNativeLayoutTracking,
-  frameHeight = state.terminal.rows,
-): TUIStateNativeLayoutShift {
-  const stageWidth = resolveStageLayout({
-    width: frameWidth,
-    height: frameHeight,
-    userStageSize: state.userStageSize,
-  }).stage.width;
-  const transcriptStart = state.transcriptViewport.start();
-  const transcriptContentRows = state.transcriptContainer.contentRowCount(stageWidth);
-  const transcriptChildCount = state.transcriptContainer.children.length;
-  const editorLayoutRows =
-    state.editorContainer.children.includes(state.editor) &&
-    state.editor.getNativeLayoutRowCount !== undefined
-      ? state.editor.getNativeLayoutRowCount(stageWidth)
-      : undefined;
-  const viewportScrolled =
-    prior.transcriptStart !== undefined && prior.transcriptStart !== transcriptStart;
-  const rowsChanged =
-    prior.transcriptContentRows !== undefined &&
-    prior.transcriptContentRows !== transcriptContentRows;
-  const childrenChanged =
-    prior.transcriptChildCount !== undefined &&
-    prior.transcriptChildCount !== transcriptChildCount;
-  const contentShift = rowsChanged || childrenChanged;
-  const contentGrew =
-    (prior.transcriptContentRows !== undefined &&
-      transcriptContentRows > prior.transcriptContentRows) ||
-    (prior.transcriptChildCount !== undefined &&
-      transcriptChildCount > prior.transcriptChildCount);
-  const contentShrunk =
-    (prior.transcriptContentRows !== undefined &&
-      transcriptContentRows < prior.transcriptContentRows) ||
-    (prior.transcriptChildCount !== undefined &&
-      transcriptChildCount < prior.transcriptChildCount);
-  const geometryShift =
-    prior.editorLayoutRows !== undefined &&
-    editorLayoutRows !== undefined &&
-    prior.editorLayoutRows !== editorLayoutRows;
-  const structuralShift = contentShift || geometryShift;
-  const next: TUIStateNativeLayoutTracking = {
-    transcriptStart,
-    transcriptContentRows,
-    transcriptChildCount,
-  };
-  if (editorLayoutRows !== undefined) next.editorLayoutRows = editorLayoutRows;
-  return {
-    shifted: viewportScrolled || structuralShift,
-    viewportScrolled,
-    structuralShift,
-    geometryShift,
-    contentGrew,
-    contentShrunk,
-    next,
-  };
 }
 
 interface TUIStateNativeChromeCache extends TUINativeStageChrome {
@@ -977,461 +876,6 @@ function buildTUIStateNativeFrame(
     stageWidth,
     transcriptLines,
   };
-}
-
-function createTUIStateDiagnosticsOverlayRegion(
-  state: TUIState,
-  input: TUIStateNativeDiagnosticsOverlaySource | undefined,
-  fallbackDiagnostics: RendererDiagnosticsSnapshot | undefined,
-  width: number,
-  height: number,
-): RendererFrameRegion | undefined {
-  const options = normalizeDiagnosticsOverlayInput(input);
-  if (options === undefined) return undefined;
-  const diagnostics = options.diagnostics ?? fallbackDiagnostics;
-  if (diagnostics === undefined) return undefined;
-  const palette = currentTheme.palette;
-  const panelBg = currentTheme.canvasBackgroundEnabled ? palette.surfaceRaised : undefined;
-  const severityColor = diagnostics.severity === 'degraded'
-    ? palette.error
-    : diagnostics.severity === 'watch'
-      ? palette.warning
-      : palette.success;
-  const region = createRendererDiagnosticsOverlayRegion(diagnostics, {
-    id: 'kimi-native-renderer-diagnostics',
-    viewport: { x: 0, y: 0, width, height },
-    width: options.width,
-    minWidth: options.minWidth,
-    maxWidth: options.maxWidth ?? Math.min(72, Math.max(12, width - 2)),
-    maxHeight: options.maxHeight ?? 8,
-    placement: options.placement ?? 'top-right',
-    marginX: options.marginX ?? 1,
-    marginY: options.marginY ?? 1,
-    zIndex: options.zIndex,
-    title: options.title ?? 'Renderer',
-    border: options.border,
-    maxIssues: options.maxIssues ?? 2,
-    includeIssues: options.includeIssues,
-    style: {
-      container: { fg: palette.text, bg: panelBg },
-      border: { fg: severityColor, bg: panelBg },
-      title: { fg: severityColor, bg: panelBg, bold: true },
-      body: { fg: palette.textDim, bg: panelBg },
-    },
-    lineStyle: createTUIStateDiagnosticsOverlayLineStyle(panelBg),
-    background: { char: ' ', style: { fg: palette.text, bg: panelBg } },
-  });
-  if (region === undefined || diagnostics.severity === 'ok') return region;
-  return {
-    ...region,
-    vfx: createTUIStateNativeRegionVfx(state, 'focus-pulse', {
-      color: severityColor,
-      seed: `native-diagnostics:${diagnostics.severity}`,
-    }),
-  };
-}
-
-/**
- * Transient toast (e.g. "Copied to clipboard"). Drawn above all chrome
- * (zIndex 9) while `state.toast.visible` has not expired. Floats two rows
- * above the editor region when present, otherwise near the bottom edge.
- */
-function createTUIToastOverlayRegion(
-  state: TUIState,
-  width: number,
-  height: number,
-  editorTopY: number | undefined,
-): RendererFrameRegion | undefined {
-  const toast = state.toast.visible;
-  if (toast === null || toast.expiresAtMs <= Date.now()) return undefined;
-  const palette = currentTheme.palette;
-  const accent = palette.success ?? palette.primary;
-  const background = palette.surfaceRaised ?? palette.surface;
-  const label = ` ✓ ${toast.message} `;
-  const labelWidth = Math.min(visibleWidth(label), width);
-  if (labelWidth <= 0 || height <= 0) return undefined;
-  const x = Math.max(0, Math.min(Math.floor((width - labelWidth) / 2), width - labelWidth));
-  const y = editorTopY === undefined ? Math.max(0, height - 3) : Math.max(0, editorTopY - 2);
-  const content =
-    `\u001B[1m\u001B[38;2;${hexToTruecolorSgr(accent)}m\u001B[48;2;${hexToTruecolorSgr(background)}m` +
-    `${label}\u001B[0m`;
-  return {
-    id: 'toast',
-    zIndex: 9,
-    rect: { x, y, width: labelWidth, height: 1 },
-    content: [content],
-  };
-}
-
-function hexToTruecolorSgr(hex: string): string {
-  const value = hex.replace('#', '');
-  const r = Number.parseInt(value.slice(0, 2), 16);
-  const g = Number.parseInt(value.slice(2, 4), 16);
-  const b = Number.parseInt(value.slice(4, 6), 16);
-  return `${r};${g};${b}`;
-}
-
-function createTUIStateNativeRegionVfx(
-  state: TUIState,
-  preset: RendererRegionVfxPreset,
-  options: {
-    readonly color: string;
-    readonly seed: string;
-    readonly rect?: RendererRect;
-    readonly premiumIntervalMs?: number;
-    readonly subtleIntervalMs?: number;
-    readonly minIntensity?: number;
-    readonly maxIntensity?: number;
-    readonly width?: number;
-  },
-): ReturnType<typeof createRendererRegionVfx> {
-  // Region VFX keeps running while the transcript is scrolled back; ambient
-  // motion only pauses for an active transcript selection (frame hold).
-  if (!motionEffectsAllowed()) return undefined;
-  const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
-  // Ultrawork / premium spectacle pins full quality so the glow does not freeze under load.
-  const premiumPinned =
-    resolveAmbientEffectMode(appearance) === 'premium' || state.appState.ultraworkMode === true;
-  return createRendererRegionVfx({
-    preset,
-    requested:
-      state.appState.ultraworkMode === true
-        ? 'premium'
-        : resolveAmbientEffectMode(appearance),
-    quality: premiumPinned ? 'full' : getAppearanceRenderQuality(),
-    health: premiumPinned ? 'healthy' : getAppearanceRenderHealth(),
-    nowMs: appearanceAnimationNow(),
-    seed: options.seed,
-    color: options.color,
-    rect: options.rect,
-    premiumIntervalMs: options.premiumIntervalMs,
-    subtleIntervalMs: options.subtleIntervalMs,
-    minIntensity: options.minIntensity,
-    maxIntensity: options.maxIntensity,
-    width: options.width,
-  });
-}
-
-function normalizeDiagnosticsOverlayInput(
-  input: TUIStateNativeDiagnosticsOverlaySource | undefined,
-): TUIStateNativeDiagnosticsOverlayOptions | undefined {
-  if (typeof input === 'function') return normalizeDiagnosticsOverlayInput(input());
-  if (input === undefined || input === false) return undefined;
-  if (input === true) return {};
-  if (input.enabled === false) return undefined;
-  return input;
-}
-
-function createTUIStateDiagnosticsOverlayLineStyle(
-  background: string | undefined,
-): RendererOverlayPanelLineStyle {
-  return (line): RendererCellStyle | undefined => {
-    const palette = currentTheme.palette;
-    if (line.startsWith('degraded:')) return { fg: palette.error, bg: background, bold: true };
-    if (line.startsWith('watch:')) return { fg: palette.warning, bg: background, bold: true };
-    return undefined;
-  };
-}
-
-function nativeEditorRegionRowsForLayout(
-  state: TUIState,
-  editorRows: number,
-  terminalRows: number,
-  fixedRowsWithoutEditor: number,
-  frameWidth: number,
-): number {
-  if (!state.editorContainer.children.includes(state.editor) || editorRows <= 0) {
-    return editorRows;
-  }
-
-  const overlayLines = state.editor.getNativeOverlayLines?.(Math.floor(frameWidth)) ?? [];
-  const desiredRows = state.editor.getNativeLayoutRowCount?.(Math.floor(frameWidth))
-    ?? (overlayLines.length > 0
-      ? measureRendererEditorSurfaceNaturalRows(overlayLines)
-      : editorRows);
-  // Closed box needs 3 rows; open autocomplete needs at least 4
-  // (top + input + ≥1 suggestion + bottom). Capping the floor at 3 used to
-  // clip slash suggestions in short terminals even when a 4th row was free.
-  const minEditorRows = Math.min(
-    desiredRows,
-    overlayLines.length > 0 ? 4 : 3,
-  );
-  const availableRows = Math.max(
-    0,
-    Math.floor(terminalRows) - fixedRowsWithoutEditor - NATIVE_LAYOUT_MIN_TRANSCRIPT_ROWS,
-  );
-  return Math.min(desiredRows, Math.max(minEditorRows, availableRows));
-}
-
-function projectNativeEditorRegion(
-  state: TUIState,
-  fallbackLines: readonly RendererRegionLine[],
-  rect: RendererRect | undefined,
-  terminalColumns: number,
-  terminalRows: number,
-): {
-  readonly lines: readonly RendererRegionLine[];
-  readonly cursor?: RendererCursorState;
-} {
-  if (rect === undefined || !state.editorContainer.children.includes(state.editor)) {
-    return projectRendererCursorMarkerLines({
-      lines: fallbackLines,
-      rect,
-      viewport: { x: 0, y: 0, width: terminalColumns, height: terminalRows },
-    });
-  }
-  if (rect.width < 5 || rect.height < 3) {
-    return projectRendererCursorMarkerLines({
-      lines: fallbackLines,
-      rect,
-      viewport: { x: 0, y: 0, width: terminalColumns, height: terminalRows },
-    });
-  }
-
-  const palette = currentTheme.palette;
-  const isBash = state.editor.inputMode === 'bash';
-  const ultraworkGlow =
-    state.appState.ultraworkMode === true && motionEffectsAllowed();
-  const ultraworkBorderStyle = ultraworkGlow
-    ? resolveUltraworkEditorBorderStyle(appearanceAnimationNow())
-    : undefined;
-  const editorStyles = resolveRendererEditorSurfaceStyles({
-    commandMode: isBash,
-    focused: state.editor.borderHighlighted || ultraworkGlow,
-    canvasBackground: currentTheme.canvasBackgroundEnabled,
-    palette: {
-      text: palette.text,
-      textMuted: palette.textMuted,
-      textStrong: palette.textStrong,
-      border: palette.border,
-      // Ultrawork replaces the static focus color with a liquid multi-hue base;
-      // paintUltraworkEditorBorderGlow then adds the perimeter chase on top.
-      borderFocus: ultraworkGlow
-        ? resolveUltraworkBorderGlowHex(appearanceAnimationNow())
-        : feedbackBorderGlowHex(
-            palette.primary,
-            palette.accent,
-            appearanceAnimationNow(),
-          ),
-      command: palette.shellMode,
-      surfaceSunken: palette.surfaceSunken,
-      background: palette.background,
-      selectionBg: palette.selectionBg,
-      selectionText: palette.selectionText,
-      ghostText: palette.ghostText,
-    },
-  });
-  const overlayLines = state.editor.getNativeOverlayLines?.(Math.floor(rect.width), {
-    text: editorStyles.textStyle,
-    selected: editorStyles.autocompleteSelectedStyle,
-    description: editorStyles.autocompleteDescriptionStyle,
-    scroll: editorStyles.autocompleteScrollStyle,
-  }) ?? [];
-  const surfaceLayout = measureRendererEditorSurfaceLayout({
-    height: Math.floor(rect.height),
-    overlays: overlayLines,
-  });
-  const editorFrameRect = { ...rect, height: surfaceLayout.frameRows };
-  const contentHeight = rendererEditorContentHeight(
-    editorFrameRect,
-    RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
-  ) ?? 1;
-  const contentWidth = rendererEditorContentWidth(
-    editorFrameRect,
-    RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
-  ) ?? 1;
-  const input = state.nativeEditorTextInput.inputForEditor(state.editor, {
-    focused: true,
-    cursorShape: 'bar',
-    cursorBlinking: true,
-    layoutWidth: contentWidth,
-    layoutHeight: contentHeight,
-    style: editorStyles.textStyle,
-    placeholderStyle: editorStyles.placeholderStyle,
-    selectionStyle: editorStyles.selectionStyle,
-  });
-  const rendered = input.render({
-    width: contentWidth,
-    height: contentHeight,
-    focused: true,
-    style: editorStyles.textStyle,
-    placeholderStyle: editorStyles.placeholderStyle,
-    selectionStyle: editorStyles.selectionStyle,
-  });
-  const surface = renderRendererEditorSurface({
-    width: Math.floor(rect.width),
-    frameRows: surfaceLayout.frameRows,
-    content: rendered,
-    prompt: isBash ? '!' : '>',
-    topLabel: isBash ? RENDERER_EDITOR_SHELL_MODE_LABEL : undefined,
-    overlays: surfaceLayout.overlayLines,
-    scrollbar: {},
-    connectedAbove: state.editor.connectedAbove && !state.editor.borderHighlighted && !ultraworkGlow,
-    borderStyle: ultraworkBorderStyle ?? editorStyles.borderStyle,
-    promptStyle: editorStyles.promptStyle,
-    surfaceStyle: editorStyles.surfaceStyle,
-    scrollbarTrackStyle: editorStyles.scrollbarTrackStyle,
-    scrollbarThumbStyle: editorStyles.scrollbarThumbStyle,
-    slashTokenStyle: isBash ? undefined : editorStyles.slashTokenStyle,
-  });
-  const cursor = projectRendererEditorSurfaceCursor({
-    surface,
-    rect,
-    viewport: { x: 0, y: 0, width: terminalColumns, height: terminalRows },
-  });
-
-  const projected: {
-    readonly lines: readonly RendererRegionLine[];
-    cursor?: RendererCursorState;
-  } = {
-    lines: surface.lines,
-  };
-  if (cursor !== undefined) projected.cursor = cursor;
-  return projected;
-}
-
-function nativeEditorFallbackRegionLines(
-  state: TUIState,
-  width: number,
-): readonly RendererRegionLine[] {
-  if (
-    state.editorContainer.children.includes(state.editor) &&
-    state.editor.getNativeRegionLines !== undefined
-  ) {
-    return state.editor.getNativeRegionLines(width);
-  }
-  return state.editorContainer.render(width);
-}
-
-/**
- * Parse transcript ANSI lines at frame-compose time (same path as footer chrome)
- * and backfill a theme text foreground when a visible cell only carries background.
- * Without an explicit fg, terminals fall back to their default foreground (often
- * bright white) after authoritative clears — which looked like "theme colors died"
- * in the transcript while footer strings kept their chalk hex colors.
- */
-function promoteTranscriptRegionLinesToCells(
-  lines: readonly RendererRegionLine[],
-): readonly RendererRegionLine[] {
-  const defaultFg = currentTheme.palette.text;
-  return promoteRendererRegionLinesToCells(lines).map((line) => {
-    if (typeof line === 'string') return line;
-    return backfillTranscriptLineForeground(line, defaultFg);
-  });
-}
-
-/**
- * Backfill a theme foreground onto cells that only carry a background. Returns
- * the *same* array reference when no cell changes, preserving the stable
- * cell-array identity from the promote cache so the compositor's reference-keyed
- * row-key memoization can skip re-serializing unchanged transcript rows.
- */
-function backfillTranscriptLineForeground(
-  line: readonly RendererCell[],
-  defaultFg: string,
-): readonly RendererCell[] {
-  let changed = false;
-  const result = line.map((cell) => {
-    if (cell.style?.fg !== undefined || cell.char.trim().length === 0) return cell;
-    changed = true;
-    return { ...cell, style: { fg: defaultFg, ...cell.style } };
-  });
-  return changed ? result : line;
-}
-
-function nativeTranscriptRegionLines(
-  state: TUIState,
-  width: number,
-  visibleRows: number,
-): readonly RendererRegionLine[] {
-  const container = state.transcriptContainer;
-  const lines = typeof container.renderWithVisibleRegionLines === 'function'
-    ? container.renderWithVisibleRegionLines(width, visibleRows)
-    : promoteRendererRegionLinesToCells(
-        container.renderWithVisibleRows(width, visibleRows),
-      );
-  const range = state.transcriptSelection.rangeForRender();
-  if (range === undefined) return lines;
-  const palette = currentTheme.palette;
-  const editorStyles = resolveRendererEditorSurfaceStyles({
-    palette: {
-      text: palette.text,
-      textMuted: palette.textMuted,
-      textStrong: palette.textStrong,
-      border: palette.border,
-      borderFocus: palette.borderFocus,
-      command: palette.shellMode,
-      surfaceSunken: palette.surfaceSunken,
-      background: palette.background,
-      selectionBg: palette.selectionBg,
-      selectionText: palette.selectionText,
-      ghostText: palette.ghostText,
-    },
-    canvasBackground: currentTheme.canvasBackgroundEnabled,
-  });
-  return applyTranscriptSelectionOverlay(
-    lines,
-    state.transcriptViewport.start(),
-    range,
-    editorStyles.selectionStyle,
-  );
-}
-
-function applyTranscriptSelectionOverlay(
-  lines: readonly RendererRegionLine[],
-  viewportStart: number,
-  range: TranscriptSelectionRange,
-  selectionStyle: RendererCellStyle,
-): readonly RendererRegionLine[] {
-  return lines.map((line, rowIndex) =>
-    applyTranscriptSelectionOverlayToLine(
-      line,
-      viewportStart + rowIndex,
-      range,
-      selectionStyle,
-    ),
-  );
-}
-
-function applyTranscriptSelectionOverlayToLine(
-  line: RendererRegionLine,
-  globalLine: number,
-  range: TranscriptSelectionRange,
-  selectionStyle: RendererCellStyle,
-): RendererRegionLine {
-  if (typeof line === 'string') {
-    return applyTranscriptSelectionOverlayToLine(
-      promoteRendererRegionLinesToCells([line])[0] ?? [],
-      globalLine,
-      range,
-      selectionStyle,
-    );
-  }
-  let col = 0;
-  return line.map((cell) => {
-    const cellWidth = Math.max(1, visibleWidth(cell.char));
-    const selected = cellSelectedAtColumn(
-      globalLine,
-      col,
-      col + cellWidth,
-      range,
-      CHROME_GUTTER,
-    );
-    col += cellWidth;
-    if (!selected) return cell;
-    return {
-      ...cell,
-      style: mergeTranscriptSelectionCellStyle(cell.style, selectionStyle),
-    };
-  });
-}
-
-function mergeTranscriptSelectionCellStyle(
-  base: RendererCellStyle | undefined,
-  overlay: RendererCellStyle,
-): RendererCellStyle {
-  if (base === undefined) return overlay;
-  return { ...base, ...overlay };
 }
 
 function normalizeFrameSize(value: number, fallback: number): number {
