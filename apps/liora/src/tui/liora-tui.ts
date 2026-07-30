@@ -176,6 +176,7 @@ import { ClipboardImageHintController } from './controllers/clipboard-image-hint
 import { EditorKeyboardController } from './controllers/editor-keyboard';
 import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { SessionEventHandler } from './controllers/session-event-handler';
+import { SessionLifecycleController } from './controllers/session-lifecycle';
 import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
@@ -438,6 +439,7 @@ export class LioraTUI {
   readonly appearanceController: AppearanceController;
   readonly btwPanelController: BtwPanelController;
   readonly sessionEventHandler: SessionEventHandler;
+  readonly sessionLifecycle: SessionLifecycleController;
   readonly sessionReplay: SessionReplayRenderer;
   readonly tasksBrowserController: TasksBrowserController;
   readonly usageMonitor: UsageMonitorController;
@@ -555,6 +557,7 @@ export class LioraTUI {
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
+    this.sessionLifecycle = new SessionLifecycleController(this);
     this.tasksBrowserController = new TasksBrowserController(this);
     this.usageMonitor = new UsageMonitorController({
       harness: this.harness,
@@ -695,7 +698,7 @@ export class LioraTUI {
     this.setupAutocomplete();
   }
 
-  private async refreshDynamicSlashCommands(session?: Session): Promise<void> {
+  async refreshDynamicSlashCommands(session?: Session): Promise<void> {
     await this.refreshSkillCommands(session);
     await this.refreshPluginCommands(session);
   }
@@ -1186,7 +1189,7 @@ export class LioraTUI {
     }
   }
 
-  private async showSessionWarnings(session: Session): Promise<void> {
+  async showSessionWarnings(session: Session): Promise<void> {
     try {
       const warnings = await session.getSessionWarnings();
       if (this.session !== session) return;
@@ -2185,12 +2188,6 @@ export class LioraTUI {
     requestTUIContentRender(this.state);
   }
 
-  private syncAdditionalDirs(session: Session): void {
-    const additionalDirs = session.summary?.additionalDirs ?? [];
-    if (sameStringArrays(this.state.appState.additionalDirs, additionalDirs)) return;
-    this.setAppState({ additionalDirs: [...additionalDirs] });
-  }
-
   // =========================================================================
   // Session Runtime
   // =========================================================================
@@ -2202,82 +2199,12 @@ export class LioraTUI {
     return this.session;
   }
 
-  private async createSessionFromCurrentState(): Promise<Session> {
-    const model = this.state.appState.model.trim();
-    if (model.length === 0) {
-      throw new Error(LLM_NOT_SET_MESSAGE);
-    }
-    const options: MutableCreateSessionOptions = {
-      workDir: this.state.appState.workDir,
-      model,
-      thinking:
-        this.session === undefined
-          ? undefined
-          : (this.state.appState.thinkingLevel ??
-            (this.state.appState.thinking ? 'on' : 'off')),
-      permission: this.state.appState.permissionMode,
-      planMode: this.state.appState.planMode,
-    };
-    if (this.state.appState.additionalDirs.length > 0) {
-      options.additionalDirs = [...this.state.appState.additionalDirs];
-    }
-    return this.harness.createSession(options);
-  }
-
   async setSession(session: Session): Promise<void> {
-    if (this.session === session) {
-      this.harness.setTelemetryContext({ sessionId: session.id });
-      this.registerSessionHandlers(session);
-      this.syncAdditionalDirs(session);
-      return;
-    }
-    const previous = this.unloadCurrentSession('switching session');
-    await previous?.close();
-    this.session = session;
-    // Keep TUI workspace aligned when forking into a worktree (different workDir).
-    if (resolve(session.workDir) !== resolve(this.state.appState.workDir)) {
-      this.state.appState.workDir = session.workDir;
-    }
-    this.harness.setTelemetryContext({ sessionId: session.id });
-    this.registerSessionHandlers(session);
-    this.syncAdditionalDirs(session);
+    return this.sessionLifecycle.setSession(session);
   }
 
   async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
-    const [status, goalResult, config] = await Promise.all([
-      session.getStatus(),
-      session.getGoal(),
-      this.harness.getConfig({ reload: false }).catch(() => null),
-    ]);
-    this.setAppState({
-      sessionId: session.id,
-      model: status.model ?? '',
-      thinking: status.thinkingLevel !== 'off',
-      thinkingLevel: status.thinkingLevel,
-      permissionMode: status.permission,
-      planMode: status.planMode,
-      ultraworkMode: this.state.appState.ultraworkMode,
-      premiumQualityMode: status.premiumQualityMode ?? false,
-      swarmMode: status.swarmMode ?? false,
-      contextTokens: status.contextTokens,
-      maxContextTokens: status.maxContextTokens,
-      contextUsage: status.contextUsage,
-      contextOS: status.contextOS ?? null,
-      microCompaction: status.microCompaction ?? null,
-      autoDream: status.autoDream ?? null,
-      providerRouteStatus: status.providerRouteStatus ?? null,
-      sessionTitle: session.summary?.title ?? null,
-      goal: goalResult.goal,
-      ...(config !== null
-        ? {
-            workingSet: contextWorkingSetSnapshotFromLoopControl({
-              maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
-              asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
-            }),
-          }
-        : {}),
-    });
-    this.syncAdditionalDirs(session);
+    return this.sessionLifecycle.syncRuntimeState(session);
   }
 
   // Apply --auto/--yolo/--plan startup flags (or the persisted tui.toml
@@ -2319,43 +2246,22 @@ export class LioraTUI {
     }
   }
 
-  // Plan mode is set by createSession — do not re-enter it here.
-  private async activateRuntime(): Promise<void> {
-    const session = this.requireSession();
-    await session.setPermission(this.state.appState.permissionMode);
-    await this.syncRuntimeState(session);
-  }
-
   async closeSession(reason: string): Promise<void> {
-    const previous = this.unloadCurrentSession(reason);
-    await previous?.close();
+    return this.sessionLifecycle.closeSession(reason);
   }
 
-  private unloadCurrentSession(reason: string): Session | undefined {
-    const previous = this.session;
-    this.sessionEventUnsubscribe?.();
-    this.sessionEventUnsubscribe = undefined;
-    this.clearReverseRpcPanels();
-    previous?.setApprovalHandler(undefined);
-    previous?.setQuestionHandler(undefined);
-    previous?.setCredentialHandler(undefined);
-    this.approvalController.cancelAll(reason);
-    this.questionController.cancelAll(reason);
-    this.session = undefined;
-    this.state.toolOutputViewports.clear();
-    this.state.swarmModeEntry = undefined;
-    this.harness.setTelemetryContext({ sessionId: null });
-    this.setAppState({ goal: null });
-    return previous;
-  }
-
-  private clearReverseRpcPanels(): void {
+  clearReverseRpcPanels(): void {
     for (const dispose of this.reverseRpcDisposers) {
       dispose();
     }
   }
 
-  private registerSessionHandlers(session: Session): void {
+  cancelPendingReverseRpc(reason: string): void {
+    this.approvalController.cancelAll(reason);
+    this.questionController.cancelAll(reason);
+  }
+
+  registerSessionHandlers(session: Session): void {
     session.setApprovalHandler(
       createApprovalRequestHandler(this.approvalController, (request, response) => {
         this.appendApprovalTranscriptEntry(request, response);
@@ -2474,30 +2380,7 @@ export class LioraTUI {
   }
 
   async switchToSession(session: Session, statusMessage: string): Promise<void> {
-    this.resetSessionRuntime();
-    await this.setSession(session);
-    await this.syncRuntimeState(session);
-    this.updateTerminalTitle();
-    try {
-      await this.refreshDynamicSlashCommands(this.session);
-    } catch {
-      /* keep the switched session usable even if dynamic skills fail */
-    }
-    this.clearTranscriptAndRedraw();
-    try {
-      await this.sessionReplay.hydrateFromReplay(session);
-    } catch (error) {
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to replay session history: ${msg}`);
-    } finally {
-      this.sessionEventHandler.startSubscription();
-    }
-    const resumeState = session.getResumeState();
-    if (resumeState?.warning !== undefined) {
-      this.showStatus(`Warning: ${resumeState.warning}`, 'warning');
-    }
-    this.showStatus(statusMessage);
-    void this.showSessionWarnings(session);
+    return this.sessionLifecycle.switchToSession(session, statusMessage);
   }
 
   async reloadCurrentSessionView(session: Session, statusMessage: string): Promise<void> {
@@ -2530,80 +2413,7 @@ export class LioraTUI {
   }
 
   async createNewSession(): Promise<void> {
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-
-    await this.runWithBusyOverlay(
-      {
-        title: ttui('tui.sessionLoading.creating'),
-        detail: ttui('tui.sessionLoading.creating'),
-        phase: 'working',
-      },
-      async () => {
-        let session: Session;
-        try {
-          session = await this.createSessionFromCurrentState();
-        } catch (error) {
-          const msg = formatErrorMessage(error);
-          this.showError(`Failed to start a new session: ${msg}`);
-          return;
-        }
-
-        this.resetSessionRuntime();
-        this.setAppState({
-          ultraworkMode: false,
-          ultraworkPriorState: null,
-          activityTip: null,
-          isCompacting: false,
-          isBackgroundCompacting: false,
-          streamingPhase: 'idle',
-          // New session has no goal yet; clear before redraw so the monitor
-          // does not reappear from the previous session's snapshot.
-          goal: null,
-        });
-        await this.setSession(session);
-        this.setAppState({ sessionId: session.id });
-        this.clearTranscriptAndRedraw();
-        this.reportSessionLoading({
-          phase: 'finishing',
-          progress: 0.85,
-          detail: ttui('tui.sessionLoading.phase.finishing'),
-          sessionId: session.id,
-        });
-        try {
-          await this.activateRuntime();
-          await this.syncRuntimeState(session);
-        } catch (error) {
-          this.sessionEventHandler.startSubscription();
-          const msg = formatErrorMessage(error);
-          this.showError(`Post-create setup failed: ${msg}`);
-          return;
-        }
-        try {
-          await this.refreshDynamicSlashCommands(this.session);
-        } catch {
-          /* keep the new session usable even if dynamic skills fail */
-        }
-        this.sessionEventHandler.startSubscription();
-        this.showStatus(`Started a new session (${session.id}).`);
-        void this.showSessionWarnings(session);
-        void this.showConfigWarningsIfAny();
-      },
-    );
-  }
-
-  /** Surface config.toml load warnings (degraded or kept-previous config) in the status bar. */
-  private async showConfigWarningsIfAny(): Promise<void> {
-    try {
-      const { warnings } = await this.harness.getConfigDiagnostics();
-      for (const warning of warnings) {
-        this.showStatus(warning, 'warning');
-      }
-    } catch {
-      /* diagnostics are best-effort */
-    }
+    return this.sessionLifecycle.createNewSession();
   }
 
   // =========================================================================
@@ -2856,7 +2666,7 @@ export class LioraTUI {
     if (sequence.length > 0) this.state.terminal.write(sequence);
   }
 
-  private clearTranscriptAndRedraw(): void {
+  clearTranscriptAndRedraw(): void {
     this.streamingUI.discardPending();
     this.state.transcriptEntries = [];
     this.streamingUI.disposeActiveCompactionBlock();

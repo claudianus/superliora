@@ -18,6 +18,7 @@ For any list dialog, selector, input box, or status/toggle list, the interaction
 - `src/tui/controllers/` — the independently-testable responsibilities. Each controller owns one slice:
   - `session-event-handler.ts` — routes SDK session events (`handleEvent` dispatch + the per-event `handleXxx`). Compaction handlers live in `session-event-compaction.ts`; goal-updated / queued-goal promotion live in `session-event-goal-queue.ts`; turn / step / assistant / thinking handlers live in `session-event-turn.ts`; tool / shell handlers live in `session-event-tools.ts`. Concrete event handling goes here, not in `LioraTUI`.
   - `streaming-ui.ts` — streaming render: assistant delta, thinking, tool call / result, compaction, subagent, background agent, transcript aggregation.
+  - `session-lifecycle.ts` — session attach / switch / create / close (`setSession`, `switchToSession`, `createNewSession`, `closeSession`, `syncRuntimeState`). `LioraTUI` keeps thin public delegates.
   - `session-replay.ts` — resume/replay orchestration; drives replay records through the same live render hooks. Stateless replay parsing/limiting/projection helpers belong in `src/tui/utils/message-replay.ts`.
   - `tasks-browser.ts` — the tasks browser controller.
   - `editor-keyboard.ts` — editor keyboard handling, exit shortcuts, external editor, clipboard image.
@@ -43,7 +44,7 @@ The feature type decides the landing spot:
 - **Popup / selector** → `components/dialogs/`, mounted via `mountEditorReplacement`; follow [PREMIUM.md](../../../apps/liora/src/tui/PREMIUM.md). If triggered by an SDK callback, check whether `reverse-rpc/` needs an adapter/controller/handler.
 - **SDK event handling** → add the dispatch in `session-event-handler.ts`'s `handleEvent`, then the matching `handleXxx`.
 - **Streaming render** → `controllers/streaming-ui.ts`.
-- **Session start / resume behavior** → the session-management section of `LioraTUI`; replay behavior → `controllers/session-replay.ts`, reusing live render paths.
+- **Session start / resume behavior** → `controllers/session-lifecycle.ts` (attach/switch/create/close); startup wiring stays on `LioraTUI`; replay behavior → `controllers/session-replay.ts`, reusing live render paths.
 - **Status bar / activity / queue** → `chrome/footer`, `panes/activity`, `panes/queue`, and the matching `updateXxx`.
 - **Configuration option** → read/write + schema in `src/tui/config.ts`, then the settings UI; persist through `saveTuiConfig` (a component never writes the config file itself).
 - **Constants** → shared CLI/TUI non-copy constants in `src/constant/`; TUI-only non-copy constants in `src/tui/constant/`. Component-local copy, option labels, help text, dialog titles/footers stay next to their component — do not centralize copy into a global module.
