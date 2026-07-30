@@ -1,0 +1,197 @@
+import {
+  encodeNativeInputAsLegacySequence,
+  LioraNativeRootUI,
+  type NativeInputEvent,
+  type NativeInputKey,
+} from '#/tui/renderer';
+import { ensureFdPath } from '#/utils/process/fd-detect';
+
+import type { TodoBoardScrollAction } from '../components/chrome/todo-panel';
+import { setKittyGraphicsChannel } from '../media/kitty-graphics-channel';
+import {
+  requestTUIContentRender,
+  requestTUILayoutRender,
+} from '../utils/frame-render';
+import {
+  createTUIStateNativeInputRouter,
+  type TUIStateNativeInputRouter,
+} from '../utils/native-input-router';
+import { createTUIStateNativeRenderCallback } from '../utils/native-layout-frame';
+import { installTerminalFocusTracking } from '../utils/terminal-focus';
+import { getTUIStateNativeTodoRect } from '../utils/transcript-hit-test';
+import type { TranscriptScrollAction } from '../utils/transcript-viewport';
+import { ClipboardImageHintController } from './clipboard-image-hint';
+import type { StartupLifecycleHost } from './startup-lifecycle-types';
+
+export interface StartupNativeRendererCallbacks {
+  scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
+}
+
+export function attachStartupNativeRendererCallback(host: StartupLifecycleHost): void {
+  if (!(host.state.ui instanceof LioraNativeRootUI)) return;
+  const nativeRootUI = host.state.ui;
+  if (host.nativeInputRouter !== undefined) {
+    nativeRootUI.setInputRouter(host.nativeInputRouter.router);
+  }
+  const diagnosticsOverlay = () => host.nativeRendererDiagnosticsHudEnabled;
+  nativeRootUI.setRenderCallback(
+    createTUIStateNativeRenderCallback(host.state, {
+      diagnosticsOverlay,
+      onAuthoritativeFrame: () => {
+        host.appearanceController.reapplyTerminalPalette();
+      },
+    }),
+  );
+  host.state.toast.onChanged = () => {
+    nativeRootUI.renderer.requestRender('manual');
+  };
+}
+
+export function ensureStartupNativeInputRouter(
+  host: StartupLifecycleHost,
+  callbacks: StartupNativeRendererCallbacks,
+): void {
+  host.nativeInputRouter ??= createTUIStateNativeInputRouter(host.state, {
+    scrollTranscriptViewport: (action) => callbacks.scrollTranscriptViewport(action),
+    scrollTodoPanel: (event) => scrollStartupTodoPanelAtMouse(host, event),
+    handlePreEditorInput: (event) => {
+      if (event.type !== 'key' || event.eventType === 'release') return false;
+      if (event.alt && scrollStartupTodoPanelByKey(host, event.key)) return true;
+      const legacy = encodeNativeInputAsLegacySequence(event);
+      if (legacy === undefined) return false;
+      return host.state.editor.tryHandleAppShortcut?.(legacy) === true;
+    },
+  });
+}
+
+export function stopStartupNativeRendererAdapters(host: StartupLifecycleHost): void {
+  host.nativeInputModalDispose?.();
+  host.nativeInputModalDispose = undefined;
+  host.nativeInputRouter?.dispose();
+  host.nativeInputRouter = undefined;
+}
+
+export function startStartupClipboardImageHintController(host: StartupLifecycleHost): void {
+  host.clipboardImageHintController = new ClipboardImageHintController({
+    ui: host.state.ui,
+    footer: host.state.footer,
+    getModelSupportsImage: () => host.appStateController.supportsCurrentModelCapability('image_in'),
+    requestRender: () => {
+      requestTUIContentRender(host.state);
+    },
+  });
+  host.clipboardImageHintController.start();
+}
+
+export function startStartupEventLoop(
+  host: StartupLifecycleHost,
+  callbacks: StartupNativeRendererCallbacks,
+): void {
+  host.state.renderer.start();
+  setKittyGraphicsChannel((sequence) => {
+    host.state.terminal.write(sequence);
+  });
+  host.eventLoopStarted = true;
+  ensureStartupNativeInputRouter(host, callbacks);
+  attachStartupNativeRendererCallback(host);
+  startStartupClipboardImageHintController(host);
+  host.terminalFocusTrackingDispose = installTerminalFocusTracking(host.state);
+  host.refreshTerminalThemeTracking();
+}
+
+export function disposeStartupTerminalTracking(host: StartupLifecycleHost): void {
+  stopStartupNativeRendererAdapters(host);
+  setKittyGraphicsChannel(undefined);
+  host.eventLoopStarted = false;
+  host.panes.stopTerminalThemeTracking();
+  host.clipboardImageHintController?.stop();
+  host.clipboardImageHintController = undefined;
+  host.terminalFocusTrackingDispose?.();
+  host.terminalFocusTrackingDispose = undefined;
+}
+
+export function startStartupBackgroundFdAutocomplete(host: StartupLifecycleHost): void {
+  if (host.fdPath !== null || host.fdDownloadStarted) return;
+  host.fdDownloadStarted = true;
+
+  void ensureFdPath()
+    .then((fdPath) => {
+      if (fdPath === null) return;
+      host.fdPath = fdPath;
+      host.setupAutocomplete();
+    })
+    .catch(() => {});
+}
+
+export function mountStartupFooter(host: StartupLifecycleHost): void {
+  if (!host.state.footerContainer.children.includes(host.state.footer)) {
+    host.state.footerContainer.addChild(host.state.footer);
+  }
+  if (!host.state.ui.children.includes(host.state.footerContainer)) {
+    host.state.ui.addChild(host.state.footerContainer);
+  }
+}
+
+export function mountStartupHeader(host: StartupLifecycleHost): void {
+  if (!host.state.headerContainer.children.includes(host.state.header)) {
+    host.state.headerContainer.addChild(host.state.header);
+  }
+  if (!host.state.ui.children.includes(host.state.headerContainer)) {
+    host.state.ui.addChild(host.state.headerContainer);
+  }
+}
+
+function scrollStartupTodoPanelAtMouse(host: StartupLifecycleHost, event: NativeInputEvent): boolean {
+  if (event.type !== 'mouse') return false;
+  const rect = getTUIStateNativeTodoRect(host.state);
+  if (rect === undefined) return false;
+  if (
+    event.x < rect.x ||
+    event.x >= rect.x + rect.width ||
+    event.y < rect.y ||
+    event.y >= rect.y + rect.height
+  ) {
+    return false;
+  }
+  const action: TodoBoardScrollAction | undefined =
+    event.button === 'wheel-up'
+      ? 'line-up'
+      : event.button === 'wheel-down'
+        ? 'line-down'
+        : undefined;
+  if (action === undefined) return false;
+  if (!host.state.todoPanel.scrollBoard(action)) return false;
+  requestTUILayoutRender(host.state);
+  return true;
+}
+
+function scrollStartupTodoPanelByKey(host: StartupLifecycleHost, key: NativeInputKey): boolean {
+  let action: TodoBoardScrollAction | undefined;
+  switch (key) {
+    case 'up':
+      action = 'line-up';
+      break;
+    case 'down':
+      action = 'line-down';
+      break;
+    case 'pageup':
+      action = 'page-up';
+      break;
+    case 'pagedown':
+      action = 'page-down';
+      break;
+    case 'home':
+      action = 'top';
+      break;
+    case 'end':
+      action = 'bottom';
+      break;
+    default:
+      return false;
+  }
+  if (!host.state.todoPanel.scrollBoard(action)) return false;
+  requestTUILayoutRender(host.state);
+  return true;
+}
+
+export type { TUIStateNativeInputRouter };
