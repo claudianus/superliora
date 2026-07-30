@@ -6,7 +6,7 @@ import { resolve } from 'pathe';
 
 import { AgentDashboardComponent } from '../components/dialogs/session/agent-dashboard';
 import { ExtensionsModalComponent } from '../components/dialogs/session/extensions-modal';
-import { SessionPickerComponent, type SessionRow } from '../components/dialogs/session/session-picker';
+import type { SessionRow } from '../components/dialogs/session/session-picker';
 import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
 import { PRODUCT_NAME } from '../constant/liora-tui';
 import { MAX_TERMINAL_TITLE_LENGTH } from '../constant/terminal';
@@ -19,12 +19,6 @@ import {
   type DashboardSessionStatus,
   type DashboardStatusHints,
 } from '../utils/agent/agent-dashboard-rows';
-import {
-  buildClaudeImportPlan,
-  formatClaudeImportSummary,
-  resolveClaudeImportRoots,
-  type ClaudeImportScanEntry,
-} from '../utils/claude-import';
 import type { CenterModalMountOptions } from '../utils/ui/center-modal';
 import {
   resolveExtensionsTab,
@@ -33,6 +27,14 @@ import {
 } from '../utils/agent/extensions-rows';
 import { formatErrorMessage } from '../utils/event-payload';
 import { runClaudeImportInventoryForHost } from './session-browser-claude-import';
+import {
+  handleSessionPickerSelectFlow,
+  hideSessionPickerFlow,
+  mountSessionPickerFlow,
+  openSessionPickerFlow,
+  toggleSessionPickerScopeFlow,
+  type SessionPickerControllerState,
+} from './session-browser-picker';
 import { sessionRowsForPicker } from '../utils/session/session-picker-rows';
 import { ttui } from '../utils/tui-i18n';
 import type { EditorKeyboardController } from './editor-keyboard';
@@ -94,8 +96,8 @@ export interface SessionBrowserHost {
  * Session picker, agent dashboard, extensions modal, fetch/resume/reload, and
  * startup-mode application for resumed sessions. LioraTUI keeps thin delegates.
  */
-export class SessionBrowserController {
-  private sessionPickerOptions: {
+export class SessionBrowserController implements SessionPickerControllerState {
+  sessionPickerOptions: {
     readonly applyStartupModes: boolean;
     readonly closeOnCancel: boolean;
     readonly forwardEditorExit: boolean;
@@ -104,7 +106,7 @@ export class SessionBrowserController {
     closeOnCancel: false,
     forwardEditorExit: false,
   };
-  private sessionPickerScopeRequestToken = 0;
+  sessionPickerScopeRequestToken = 0;
 
   constructor(private readonly host: SessionBrowserHost) {}
 
@@ -341,14 +343,7 @@ export class SessionBrowserController {
   }
 
   hideSessionPicker(): void {
-    this.sessionPickerScopeRequestToken += 1;
-    this.host.editorKeyboard.clearPendingExit();
-    this.host.state.activeDialog = null;
-    if (this.host.state.centerModalStack.length > 0) {
-      this.host.closeAllCenterModals();
-      return;
-    }
-    this.host.restoreEditor();
+    hideSessionPickerFlow(this.host, this);
   }
 
   private async showResumeOtherWorkDirHint(session: SessionRow): Promise<void> {
@@ -415,55 +410,25 @@ export class SessionBrowserController {
     readonly closeOnCancel: boolean;
     readonly forwardEditorExit: boolean;
   }): Promise<void> {
-    if (this.host.state.appState.isReplaying || this.host.isSessionLoadingOverlayActive()) {
-      this.host.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-    this.sessionPickerOptions = options;
-    await this.fetchSessions('cwd');
-    this.mountSessionPicker({
-      applyStartupModes: options.applyStartupModes,
-      onCancel: () => {
-        this.hideSessionPicker();
-        if (options.closeOnCancel) void this.host.stop();
-      },
-      onCtrlC: options.forwardEditorExit
-        ? () => {
-            this.host.state.editor.onCtrlC?.();
-          }
-        : undefined,
-      onCtrlD: options.forwardEditorExit
-        ? () => {
-            this.host.state.editor.onCtrlD?.();
-          }
-        : undefined,
-    });
+    await openSessionPickerFlow(
+      this.host,
+      this,
+      options,
+      (scope) => this.fetchSessions(scope),
+      (mountOptions) => this.mountSessionPicker(mountOptions),
+      () => this.hideSessionPicker(),
+    );
   }
 
   private async toggleSessionPickerScope(selectedSessionId: string): Promise<void> {
-    const requestToken = ++this.sessionPickerScopeRequestToken;
-    const nextScope = this.host.state.sessionsScope === 'cwd' ? 'all' : 'cwd';
-    await this.fetchSessions(nextScope);
-    if (requestToken !== this.sessionPickerScopeRequestToken) return;
-    if (this.host.state.activeDialog !== 'session-picker') return;
-    this.mountSessionPicker({
-      initialSelectedSessionId: selectedSessionId,
-      applyStartupModes: this.sessionPickerOptions.applyStartupModes,
-      onCancel: () => {
-        this.hideSessionPicker();
-        if (this.sessionPickerOptions.closeOnCancel) void this.host.stop();
-      },
-      onCtrlC: this.sessionPickerOptions.forwardEditorExit
-        ? () => {
-            this.host.state.editor.onCtrlC?.();
-          }
-        : undefined,
-      onCtrlD: this.sessionPickerOptions.forwardEditorExit
-        ? () => {
-            this.host.state.editor.onCtrlD?.();
-          }
-        : undefined,
-    });
+    await toggleSessionPickerScopeFlow(
+      this.host,
+      this,
+      selectedSessionId,
+      (scope) => this.fetchSessions(scope),
+      (mountOptions) => this.mountSessionPicker(mountOptions),
+      () => this.hideSessionPicker(),
+    );
   }
 
   private mountSessionPicker(options: {
@@ -473,52 +438,31 @@ export class SessionBrowserController {
     readonly initialSelectedSessionId?: string;
     readonly applyStartupModes?: boolean;
   }): void {
-    this.host.mountCenterModal(
-      new SessionPickerComponent({
-        sessions: this.host.state.sessions,
-        loading: this.host.state.loadingSessions,
-        currentSessionId: this.host.state.appState.sessionId,
-        scope: this.host.state.sessionsScope,
-        initialSelectedSessionId: options.initialSelectedSessionId,
-        pageSize: 50,
-        onSelect: (session: SessionRow) => {
-          void this.handleSessionPickerSelect(session, options.applyStartupModes === true).catch(
-            (error) => {
-              this.host.showError(`Failed to apply startup flags: ${formatErrorMessage(error)}`);
-            },
-          );
-        },
-        onCancel: options.onCancel,
-        onCtrlC: options.onCtrlC,
-        onCtrlD: options.onCtrlD,
-        onRename: (session: SessionRow, newTitle: string) =>
-          this.renameSessionFromPicker(session, newTitle),
-        onToggleScope: (selectedSessionId: string) => {
-          void this.toggleSessionPickerScope(selectedSessionId);
-        },
-      }),
-      { mode: 'replace' },
+    mountSessionPickerFlow(
+      this.host,
+      options,
+      (session, applyStartupModes) => this.handleSessionPickerSelect(session, applyStartupModes),
+      (session, newTitle) => this.renameSessionFromPicker(session, newTitle),
+      (selectedSessionId) => {
+        void this.toggleSessionPickerScope(selectedSessionId);
+      },
     );
-    this.host.state.activeDialog = 'session-picker';
   }
 
   private async handleSessionPickerSelect(
     session: SessionRow,
     applyStartupModes: boolean,
   ): Promise<void> {
-    if (resolve(session.work_dir) !== resolve(this.host.state.appState.workDir)) {
-      await this.showResumeOtherWorkDirHint(session);
-      if (applyStartupModes) await this.host.stop(0);
-      return;
-    }
-
-    const switched = await this.resumeSession(session.id);
-    if (!switched) return;
-    if (applyStartupModes) {
-      await this.applyStartupModesToResumedSession(this.host.requireSession());
-      this.applyStartupPermissionAndPlanToAppState();
-    }
-    this.hideSessionPicker();
+    await handleSessionPickerSelectFlow(
+      this.host,
+      session,
+      applyStartupModes,
+      (row) => this.showResumeOtherWorkDirHint(row),
+      (targetSessionId) => this.resumeSession(targetSessionId),
+      (activeSession) => this.applyStartupModesToResumedSession(activeSession),
+      () => this.applyStartupPermissionAndPlanToAppState(),
+      () => this.hideSessionPicker(),
+    );
   }
 
   private async handleAgentDashboardSelect(session: DashboardSessionRow): Promise<void> {
