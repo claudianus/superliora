@@ -20,7 +20,7 @@ import {
   renderSettleFlash,
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/select-pointer';
 

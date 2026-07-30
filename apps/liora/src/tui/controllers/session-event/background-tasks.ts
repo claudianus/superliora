@@ -11,7 +11,7 @@ import {
 import type { TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/frame-render';
-import { nextTranscriptId } from '../../utils/transcript-id';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { StreamingUIController } from '../streaming-ui';
 import type { TasksBrowserController } from '../tasks-browser';
 

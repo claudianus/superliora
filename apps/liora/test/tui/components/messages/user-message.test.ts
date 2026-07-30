@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { formatClockTime, UserMessageComponent } from '#/tui/components/messages/user-message';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { setActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
 
 function stripAnsi(text: string): string {

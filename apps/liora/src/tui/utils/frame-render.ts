@@ -1,5 +1,5 @@
 import type { TUIState } from '../tui-state';
-import type { FrameInvalidationIntent } from './native-frame-policy';
+import type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 
 /**
  * Transcript batch-mount (session hydrate) grows the tree without per-child

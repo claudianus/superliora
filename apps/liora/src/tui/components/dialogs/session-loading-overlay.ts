@@ -26,7 +26,7 @@ import {
   renderPremiumHeadline,
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 import { ttui } from '#/tui/utils/tui-i18n';
 

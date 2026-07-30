@@ -14,7 +14,7 @@ import {
   buildWarRoomRestaffSteerDirective,
   formatWarRoomRestaffReason,
   resolveWarRoomReason,
-} from '../../utils/war-room-action';
+} from '../../features/agent-swarm/war-room-action';
 import type { StreamingUIController } from '../streaming-ui';
 import {
   isUserCancelledSubagentError,

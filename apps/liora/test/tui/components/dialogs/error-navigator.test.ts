@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 process.env['CI'] = '1';
 
 import { ErrorNavigatorComponent } from '#/tui/components/dialogs/error-navigator';
-import type { TranscriptErrorItem } from '#/tui/utils/transcript-errors';
+import type { TranscriptErrorItem } from '#/tui/features/transcript/transcript-errors';
 
 const previousChalkLevel = chalk.level;
 beforeAll(() => {

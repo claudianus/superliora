@@ -31,7 +31,7 @@ import {
   renderSettleFlash,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 
 const MAX_OBJECTIVE_LINES = 2;

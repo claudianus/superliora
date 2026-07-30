@@ -5,7 +5,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '../config';
 import { registerReverseRPCHandlers } from '../reverse-rpc/index';
 import type { ApprovalPanelData, QuestionPanelData } from '../reverse-rpc/types';
 import { createTUIState } from '../tui-state';
-import { appearanceAnimationNow } from '../utils/appearance-effects';
+import { appearanceAnimationNow } from '../features/appearance/appearance-effects';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { createInitialAppState } from '../utils/initial-app-state';
 import type { LioraTUIStartupInput } from '../types';

@@ -1,7 +1,7 @@
 import {
   enterBeatDurationMs,
   exitBeatDurationMs,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 export type MotionBeatName =
   | 'compaction_start'

@@ -20,7 +20,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { darkColors } from '#/tui/theme/colors';
 import {
   FISH_COMPACT_RIGHT,
@@ -40,10 +40,10 @@ import {
   resolveSeaweedSpacing,
   resetIdleScenePaintCachesForTests,
   stripAnsi,
-} from '#/tui/utils/idle-scene';
-import type { IdleTankSnapshot } from '#/tui/utils/idle-tank-sim';
+} from '#/tui/features/idle-scene/idle-scene';
+import type { IdleTankSnapshot } from '#/tui/features/idle-scene/idle-tank-sim';
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
-import { createTranscriptViewportState } from '#/tui/utils/transcript-viewport';
+import { createTranscriptViewportState } from '#/tui/features/transcript/transcript-viewport';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 

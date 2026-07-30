@@ -6,9 +6,9 @@ import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
 import { Text } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
-import { resolveTranscriptHitTestContext } from '#/tui/utils/transcript-hit-test';
-import { handleTranscriptSelectionMouseInput } from '#/tui/utils/transcript-selection-mouse';
-import { isShortClickFeed } from '#/tui/utils/idle-feed-mouse';
+import { resolveTranscriptHitTestContext } from '#/tui/features/transcript/transcript-hit-test';
+import { handleTranscriptSelectionMouseInput } from '#/tui/features/transcript/transcript-selection-mouse';
+import { isShortClickFeed } from '#/tui/features/idle-scene/idle-feed-mouse';
 
 function createTestAppState(): AppState {
   return {

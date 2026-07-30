@@ -4,7 +4,7 @@
  * revealing a live Welcome + Jewel Tank + letterbox/frame scene.
  */
 
-import { padOrTrim } from '#/tui/utils/night-sky';
+import { padOrTrim } from '#/tui/features/stage/night-sky';
 
 /** Default length of the splash→Welcome morph handoff. */
 export const SPLASH_MORPH_MS = 1100;

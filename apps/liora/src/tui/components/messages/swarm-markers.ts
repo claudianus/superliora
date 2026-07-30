@@ -7,7 +7,7 @@ import {
   renderPremiumHeadline,
   renderPulseGlyph,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 export type SwarmModeMarkerState = 'active' | 'inactive' | 'ended';
 

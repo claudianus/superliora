@@ -17,7 +17,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { renderTabStrip } from '#/tui/utils/tab-strip';
 import {

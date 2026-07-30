@@ -31,13 +31,13 @@ import {
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   applyTurnBoundaryCue,
   isTranscriptEntranceActive,
   isTurnBoundaryCueActive,
   polishTranscriptLines,
-} from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/transcript/transcript-entrance';
 
 type AssistantMarkdownOptions = {
   transient?: boolean;

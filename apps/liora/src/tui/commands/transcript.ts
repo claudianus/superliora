@@ -5,7 +5,7 @@ import type { SlashCommandHost } from './dispatch';
 import {
   TRANSCRIPT_DETAIL_LEVELS,
   isTranscriptDetailLevel,
-} from '#/tui/utils/transcript-density';
+} from '#/tui/features/transcript/transcript-density';
 
 /**
  * `/transcript` — quick switch for transcript density (PREMIUM.md §7.9).

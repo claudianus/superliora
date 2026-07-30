@@ -1,10 +1,10 @@
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
-import { appearanceAnimationNow, isToneSettleFlashActive } from '#/tui/utils/appearance-effects';
+import { appearanceAnimationNow, isToneSettleFlashActive } from '#/tui/features/appearance/appearance-effects';
 import { computeStagedLineReveal } from '#/tui/utils/streaming-text-reveal';
 import {
   isTranscriptEntranceActive,
   toolHeaderEntranceDurationMs,
-} from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/transcript/transcript-entrance';
 import { BRAILLE_SPINNER_FRAMES } from '#/tui/constant/rendering';
 
 import {

@@ -20,9 +20,9 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import type { ImageAttachmentStore } from '../utils/image-attachment-store';
 import { parseDroppedFilePaths } from '../utils/media-drop';
-import { copyTranscriptSelectionToClipboard } from '../utils/transcript-selection';
+import { copyTranscriptSelectionToClipboard } from '../features/transcript/transcript-selection';
 import type { PendingExit, QueuedMessage } from '../types';
-import type { TranscriptScrollAction } from '../utils/transcript-viewport';
+import type { TranscriptScrollAction } from '../features/transcript/transcript-viewport';
 import type { TUIState } from '../tui-state';
 import type { BtwPanelController } from './btw-panel';
 

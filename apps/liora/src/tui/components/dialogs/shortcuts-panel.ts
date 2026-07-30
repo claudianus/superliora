@@ -12,7 +12,7 @@ import {
 } from '#/tui/renderer';
 import { KEYMAP_ALL, type KeymapBinding } from '#/tui/keymap';
 import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 
 export interface ShortcutsPanelOptions {
   readonly bindings?: readonly KeymapBinding[];

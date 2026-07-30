@@ -4,7 +4,7 @@ import {
   dropFood,
   snapshotIdleTankSim,
   tickIdleTankSim,
-} from '#/tui/utils/idle-tank-sim';
+} from '#/tui/features/idle-scene/idle-tank-sim';
 
 describe('idle-tank-sim', () => {
   it('caps auto-spawned food', () => {

@@ -9,7 +9,7 @@ import type {
   PendingApproval,
 } from '#/tui/reverse-rpc/types';
 import { currentTheme } from '#/tui/theme';
-import * as appearanceEffects from '#/tui/utils/appearance-effects';
+import * as appearanceEffects from '#/tui/features/appearance/appearance-effects';
 import {
   advanceAppearanceAnimationClock,
   motionEffectsAllowed,
@@ -17,7 +17,7 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 import { captureProcessWrite } from '../../../helpers/process';
 

@@ -18,7 +18,7 @@ import {
 import { keymapAsHelpShortcuts } from '#/tui/keymap';
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface KeyboardShortcut {

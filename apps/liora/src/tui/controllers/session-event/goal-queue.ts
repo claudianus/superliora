@@ -16,14 +16,14 @@ import {
   notifyGoalBlockedAttention,
   notifyGoalCompletedAttention,
 } from '../../utils/attention-notifications';
-import { appearanceAnimationNow } from '../../utils/appearance-effects';
+import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { feedbackEffectsActive, noteSuccessFeedback } from '../../utils/feedback-vfx';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { buildGoalCompletionMessage } from '../../utils/goal-completion';
 import { isMotionTheatreActive, type MotionBeatController } from '../../utils/motion-beats';
 import { requestTUILayoutRender } from '../../utils/frame-render';
-import { noteGoalCompletionMeteorBurst } from '../../utils/stage-letterbox-sky';
-import { nextTranscriptId } from '../../utils/transcript-id';
+import { noteGoalCompletionMeteorBurst } from '../../features/stage/stage-letterbox-sky';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
 
 /** Host surface required by goal-updated / queued-goal promotion handling. */
 export interface GoalQueueEventHost {

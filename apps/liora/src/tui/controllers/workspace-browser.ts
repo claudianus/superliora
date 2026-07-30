@@ -21,7 +21,7 @@ import { currentTheme } from '../theme';
 import type { TUIState } from '../tui-state';
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
-import { collectTranscriptErrors } from '../utils/transcript-errors';
+import { collectTranscriptErrors } from '../features/transcript/transcript-errors';
 import { ttui } from '../utils/tui-i18n';
 
 /** Host surface for workspace file / git / search browser dialogs. */

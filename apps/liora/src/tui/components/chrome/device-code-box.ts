@@ -16,7 +16,7 @@ import {
   renderPremiumHeadline,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface DeviceCodeBoxParams {

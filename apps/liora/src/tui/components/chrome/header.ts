@@ -21,7 +21,7 @@ import {
   renderParticleDivider,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const BRAND_MARK = `${HEADER_DIAMOND} SuperLiora`;
 const CLOCK_INTERVAL_MS = 1_000;

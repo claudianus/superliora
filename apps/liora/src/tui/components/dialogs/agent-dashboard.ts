@@ -17,7 +17,7 @@ import {
 import { CURRENT_MARK } from '#/tui/constant/symbols';
 import { renderSelectPointer } from '#/tui/utils/select-pointer';
 import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
+import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import {
   DASHBOARD_GROUP_LABELS_KO,
   DASHBOARD_STATUS_BADGE_KO,

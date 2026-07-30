@@ -32,7 +32,7 @@ import {
   renderPremiumHeadline,
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const BLINK_INTERVAL = 500;
 

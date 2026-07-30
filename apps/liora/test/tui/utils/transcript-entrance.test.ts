@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme } from '#/tui/theme';
-import { setActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import {
   applyStreamTailGlow,
   applyToolHeaderEntrance,
@@ -18,7 +18,7 @@ import {
   TOOL_HEADER_ENTRANCE_MS,
   TRANSCRIPT_ENTRANCE_MS_PREMIUM,
   TURN_BOUNDARY_CUE_MS,
-} from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/transcript/transcript-entrance';
 
 describe('transcript-entrance', () => {
   const originalEnv = { ...process.env };

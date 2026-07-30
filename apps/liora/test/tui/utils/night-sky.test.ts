@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { paintStarfield } from '#/tui/utils/night-sky';
+import { paintStarfield } from '#/tui/features/stage/night-sky';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 

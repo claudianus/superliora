@@ -5,7 +5,7 @@ import {
   renderCrossfadeLine,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 import type { StatusFieldRow } from './provider-route';
 

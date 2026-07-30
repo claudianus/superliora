@@ -8,7 +8,7 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUIContentRender, requestTUILayoutRender } from '../utils/frame-render';
 import type { ImageAttachmentStore } from '../utils/image-attachment-store';
 import { extractMediaAttachments } from '../utils/image-placeholder';
-import { nextTranscriptId } from '../utils/transcript-id';
+import { nextTranscriptId } from '../features/transcript/transcript-id';
 import { ttui } from '../utils/tui-i18n';
 import type { BtwPanelController } from './btw-panel';
 import type { StreamingUIController } from './streaming-ui';

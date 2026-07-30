@@ -5,7 +5,7 @@ import {
   getActiveAppearancePreferences,
   renderPulseText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   CURATED_BADGE,
   OFFICIAL_BADGE,

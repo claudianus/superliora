@@ -6,11 +6,11 @@ import {
   getActiveAppearancePreferences,
   renderPulseText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
-} from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/transcript/transcript-entrance';
 
 import { formatBashOutputForDisplay, sanitizeShellOutput } from '#/tui/utils/shell-output';
 

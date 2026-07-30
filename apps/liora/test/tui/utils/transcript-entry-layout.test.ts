@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { type Component } from '#/tui/renderer';
 import type { TUIState } from '#/tui/tui-state';
 import type { TranscriptEntry } from '#/tui/types';
-import { markTranscriptComponent } from '#/tui/utils/transcript-component-metadata';
-import { resolveTranscriptEntryLineOffset } from '#/tui/utils/transcript-entry-layout';
+import { markTranscriptComponent } from '#/tui/features/transcript/transcript-component-metadata';
+import { resolveTranscriptEntryLineOffset } from '#/tui/features/transcript/transcript-entry-layout';
 
 function fakeComponent(height: number, widthsSeen?: number[]): Component {
   return {

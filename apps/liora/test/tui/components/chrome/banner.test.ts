@@ -8,8 +8,8 @@ import type { BannerState } from '#/tui/types';
 
 // Disable ambient effects so tests are deterministic (no particle rail,
 // no premium headline glyph substitution).
-vi.mock('#/tui/utils/appearance-effects', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/tui/utils/appearance-effects')>();
+vi.mock('#/tui/features/appearance/appearance-effects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/features/appearance/appearance-effects')>();
   return {
     ...actual,
     shouldRenderAmbientEffects: () => false,

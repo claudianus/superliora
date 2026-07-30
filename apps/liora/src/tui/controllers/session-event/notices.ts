@@ -30,7 +30,7 @@ import {
 import { formatHookResultMarkdown } from '../../utils/hook-result-format';
 import { requestTUILayoutRender } from '../../utils/frame-render';
 import { ttui } from '../../utils/tui-i18n';
-import { nextTranscriptId } from '../../utils/transcript-id';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyError } from '../../utils/desktop-notification';
 import type { StreamingUIController } from '../streaming-ui';
 

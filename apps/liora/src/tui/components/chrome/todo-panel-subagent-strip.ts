@@ -17,7 +17,7 @@ import {
   renderSettleFlash,
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 import { BOARD_INDENT } from './todo-panel-render';
 import type { SubagentStripEntry, SubagentTodosInput } from './todo-panel-types';

@@ -26,11 +26,11 @@ import {
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
-} from '#/tui/utils/transcript-entrance';
+} from '#/tui/features/transcript/transcript-entrance';
 
 import type { ToolCallComponent, ToolCallSubagentSnapshot } from './tool-call';
 

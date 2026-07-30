@@ -4,12 +4,12 @@ import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import type { NativeInputMouseEvent } from '#/tui/renderer';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';
-import { createTUIStateNativeInputRouter } from '#/tui/utils/native-input-router';
+import { createTUIStateNativeInputRouter } from '#/tui/features/native-layout/native-input-router';
 import {
   handleToolOutputMouse,
   resetToolOutputMouseState,
 } from '#/tui/utils/tool-output-mouse';
-import { resolveTranscriptLayoutContext } from '#/tui/utils/transcript-hit-test';
+import { resolveTranscriptLayoutContext } from '#/tui/features/transcript/transcript-hit-test';
 
 const FRAME_WIDTH = 80;
 const FRAME_HEIGHT = 40;

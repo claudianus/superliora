@@ -7,14 +7,14 @@ import {
   resolveHostOwnedQueueSettleStartedAtMs,
 } from '#/tui/components/panes/queue-pane';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import * as appearanceEffects from '#/tui/utils/appearance-effects';
+import * as appearanceEffects from '#/tui/features/appearance/appearance-effects';
 import {
   advanceAppearanceAnimationClock,
   SETTLE_FLASH_MS,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

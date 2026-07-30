@@ -4,7 +4,7 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import { flushSuppressedTUIFrame } from '../../utils/frame-render';
 import { autoResumeUltraworkFromSession } from '../../commands/ultrawork';
 import type { SlashCommandHost } from '../../commands/dispatch';
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import { isMotionTheatreActive } from '#/tui/utils/motion-beats';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { SessionReplayHydrator } from './hydrate';

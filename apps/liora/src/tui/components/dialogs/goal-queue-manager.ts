@@ -8,7 +8,7 @@ import type {
   UpcomingGoal,
 } from '#/tui/goal-queue-store';
 import {currentTheme} from '#/tui/theme';
-import {renderPremiumHeadline} from '#/tui/utils/appearance-effects';
+import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
 import {printableChar} from '#/tui/utils/printable-key';
 import {SearchableList} from '#/tui/utils/searchable-list';
 

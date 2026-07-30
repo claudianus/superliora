@@ -7,7 +7,7 @@ import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/typ
 import type { ColorToken } from '../../theme';
 import type { TUIState } from '../../tui-state';
 import type { AppState } from '../../types';
-import type { TUIStateNativeInputRouter } from '../../utils/native-input-router';
+import type { TUIStateNativeInputRouter } from '../../features/native-layout/native-input-router';
 import type { PromptStash } from '../../utils/prompt-stash';
 
 export function helpModeFromArgs(args: string): SlashCommandHelpMode {

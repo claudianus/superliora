@@ -8,7 +8,7 @@ import {
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { BackgroundAgentStatusData } from '#/tui/types';
 

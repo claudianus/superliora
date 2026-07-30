@@ -13,8 +13,8 @@ import type {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
-import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
-import { advanceAppearanceAnimationClock } from '#/tui/utils/appearance-effects';
+import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';
+import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
 import { createTUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';
 

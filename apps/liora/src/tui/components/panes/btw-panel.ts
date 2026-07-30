@@ -15,7 +15,7 @@ import {
   renderPulseText,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '../../utils/appearance-effects';
+} from '../../features/appearance/appearance-effects';
 
 type BtwPanelPhase = 'running' | 'done' | 'failed';
 

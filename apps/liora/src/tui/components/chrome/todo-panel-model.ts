@@ -5,7 +5,7 @@
  * (`todo-panel-render.ts`); nothing here touches the theme or terminal
  * renderer.
  */
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 
 import type { TodoItem, TodoStatus } from './todo-panel-types';
 

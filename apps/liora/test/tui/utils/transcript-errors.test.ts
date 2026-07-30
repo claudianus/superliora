@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { TranscriptEntry, TranscriptEntryKind } from '#/tui/types';
-import { collectTranscriptErrors } from '#/tui/utils/transcript-errors';
+import { collectTranscriptErrors } from '#/tui/features/transcript/transcript-errors';
 
 function entry(
   overrides: Partial<TranscriptEntry> & { id: string; kind: TranscriptEntryKind },

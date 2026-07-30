@@ -15,7 +15,7 @@ import {
   renderPulseText,
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 
 export type SpinnerStyle = 'moon' | 'braille' | 'comet';

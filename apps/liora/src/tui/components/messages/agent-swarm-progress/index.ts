@@ -14,7 +14,7 @@ import type { ColorPalette } from '#/tui/theme/colors';
 import {
   summarizeSnapshots,
   ultraSwarmMemberLabel,
-} from '#/tui/utils/agent-swarm-cell-render';
+} from '#/tui/features/agent-swarm/agent-swarm-cell-render';
 import {
   agentSwarmDescriptionFromArgs,
   agentSwarmItemsFromArgs,
@@ -26,36 +26,36 @@ import {
   swarmWorkItemsStartedFromArguments,
   ultraSwarmExpertItemsFromArgs,
   ultraSwarmPartialExpertItemsFromArguments,
-} from '#/tui/utils/agent-swarm-result-parser';
-import { calculateAgentSwarmGridLayout } from '#/tui/utils/agent-swarm-grid-layout';
-import { updateAgentSwarmMemberItemTexts } from '#/tui/utils/agent-swarm-member-state';
+} from '#/tui/features/agent-swarm/agent-swarm-result-parser';
+import { calculateAgentSwarmGridLayout } from '#/tui/features/agent-swarm/agent-swarm-grid-layout';
+import { updateAgentSwarmMemberItemTexts } from '#/tui/features/agent-swarm/agent-swarm-member-state';
 import {
   indentAgentSwarmProgressLines,
   renderAgentSwarmProgressLayout,
   type AgentSwarmProgressLayoutRenderInput,
-} from '#/tui/utils/agent-swarm-progress-layout-render';
+} from '#/tui/features/agent-swarm/agent-swarm-progress-layout-render';
 import {
   AGENT_SWARM_FRAME_INTERVAL_MS,
   AGENT_SWARM_LEFT_INDENT,
   AGENT_SWARM_RIGHT_GAP,
-} from '#/tui/utils/agent-swarm-progress-constants';
+} from '#/tui/features/agent-swarm/agent-swarm-progress-constants';
 import {
   buildAgentSwarmSnapshots,
   hasAnimatedAgentSwarmMembers,
   shouldRequestAgentSwarmAnimationFrame,
   sortAgentSwarmMembersForGrid,
-} from '#/tui/utils/agent-swarm-snapshot';
+} from '#/tui/features/agent-swarm/agent-swarm-snapshot';
 import {
   isSwarmProgressToolName,
   swarmProgressTitleForToolName,
-} from '#/tui/utils/agent-swarm-tool-ident';
+} from '#/tui/features/agent-swarm/agent-swarm-tool-ident';
 
 export {
   agentSwarmPartialItemsCountFromArguments,
   agentSwarmResultSummaryFromOutput,
-} from '#/tui/utils/agent-swarm-result-parser';
-export { agentSwarmGridHeightForTerminalRows } from '#/tui/utils/agent-swarm-grid-layout';
-export { CODE_WRITE_QUIET_MS } from '#/tui/utils/agent-swarm-cell-render';
+} from '#/tui/features/agent-swarm/agent-swarm-result-parser';
+export { agentSwarmGridHeightForTerminalRows } from '#/tui/features/agent-swarm/agent-swarm-grid-layout';
+export { CODE_WRITE_QUIET_MS } from '#/tui/features/agent-swarm/agent-swarm-cell-render';
 export {
   calculateAgentSwarmGridLayout,
   agentSwarmDescriptionFromArgs,
@@ -76,7 +76,7 @@ export type {
   TotalStatus,
   UltraSwarmMemberMetadata,
   WarRoomDebatePhase,
-} from '#/tui/utils/agent-swarm-progress-types';
+} from '#/tui/features/agent-swarm/agent-swarm-progress-types';
 export { isSwarmProgressToolName, swarmProgressTitleForToolName };
 
 import type {
@@ -85,7 +85,7 @@ import type {
   AgentSwarmRestaffRequest,
   SwarmCollaborationFeedMessage,
   UltraSwarmMemberMetadata,
-} from '#/tui/utils/agent-swarm-progress-types';
+} from '#/tui/features/agent-swarm/agent-swarm-progress-types';
 
 export class AgentSwarmProgressComponent implements Component {
   private readonly progressEstimator = new AgentSwarmProgressEstimator();

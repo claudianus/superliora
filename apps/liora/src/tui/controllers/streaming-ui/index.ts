@@ -78,7 +78,7 @@ import {
 } from './tool-groups';
 import {
   appearanceAnimationNow,
-} from '../../utils/appearance-effects';
+} from '../../features/appearance/appearance-effects';
 
 export interface StreamingUIHost {
   state: TUIState;

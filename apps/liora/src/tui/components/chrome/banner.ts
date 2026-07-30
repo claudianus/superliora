@@ -9,7 +9,7 @@ import {
   renderPremiumAccentLine,
   renderPremiumHeadline,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const PREFIX_STAR = '✦';
 const PADDING = ' ';

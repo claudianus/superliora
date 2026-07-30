@@ -209,9 +209,9 @@ static fallbacks.
 | Divider rows | `renderRendererDividerRow` |
 | Progress bars | `renderRendererSegmentedProgressBar` / `renderRendererRatioProgressBar` |
 | Gradient text | `theme/gradient-text.ts` → `gradientText` |
-| Ambient effects | `utils/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
-| Settle flashes (change → rest on a final tone) | `utils/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
-| Entrance highlights (tool headers, turn boundaries) | `utils/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
+| Ambient effects | `features/appearance/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
+| Settle flashes (change → rest on a final tone) | `features/appearance/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
+| Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
 | Staged line reveal (Write/Edit previews) | `utils/streaming-text-reveal.ts` → `computeStagedLineReveal` |
 | Adaptive streaming flush schedule | `utils/streaming-flush-schedule.ts` → `nextStreamingFlushDelay` |
 
@@ -256,7 +256,7 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
 - **Chrome.** The overlay region uses `border: false`; the panel owns its
   chrome so nothing doubles. List pickers keep the §3 two-line chrome. The
   Command Hub floats in a rounded box drawn by `renderPremiumBoxFrame`
-  (`utils/appearance-effects.ts`): a gradient-breathing perimeter with a
+  (`features/appearance/appearance-effects.ts`): a gradient-breathing perimeter with a
   clockwise comet chase, jewel-bright corners, the title and the live
   filter/match count embedded in the borders, an entry bloom + scale-in,
   and a staggered row reveal with a pointer slide-in. Reduced motion / SSH
@@ -417,13 +417,13 @@ Rules:
 
 Implementation map:
 
-- `src/tui/utils/transcript-density.ts` — pure projections (levels,
+- `src/tui/features/transcript/transcript-density.ts` — pure projections (levels,
   chain stats, summary formatters).
 - `src/tui/components/messages/tool-call.ts` — `setDetail()`,
   `toggleDetailOverride()`, `isOneLineCollapsed`, failure punch-through.
 - `src/tui/components/messages/tool-chain-summary.ts` — per-turn
   aggregate line for `minimal`.
-- `src/tui/utils/transcript-density-mouse.ts` — click routing.
+- `src/tui/features/transcript/transcript-density-mouse.ts` — click routing.
 - `src/tui/commands/transcript.ts` + `commands/config.ts` — slash
   command and appearance key.
 

@@ -14,7 +14,7 @@ import { requestTUILayoutRender } from '../utils/frame-render';
 import {
   resolveWarRoomReason,
   type WarRoomDockAction,
-} from '../utils/war-room-action';
+} from '../features/agent-swarm/war-room-action';
 import type { SlashCommandHost } from './dispatch';
 
 export async function handleSwarmCommand(host: SlashCommandHost, args: string): Promise<void> {

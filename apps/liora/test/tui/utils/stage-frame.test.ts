@@ -1,4 +1,4 @@
-import { getActiveAppearancePreferences } from '#/tui/utils/appearance-effects';
+import { getActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
@@ -20,7 +20,7 @@ import {
   stageFrameStrokeCells,
   stageFrameVisible,
   type StageFrameBand,
-} from '#/tui/utils/stage-frame';
+} from '#/tui/features/stage/stage-frame';
 import {
   resolveStageLayout,
   STAGE_MAX_WIDTH,
@@ -28,7 +28,7 @@ import {
 import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   noteTUIInputInteraction,
   resetTUIInputInteractionForTests,

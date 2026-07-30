@@ -21,7 +21,7 @@ import {
   getActiveAppearancePreferences,
   renderSpectacularText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 export class UserMessageComponent implements Component {
   private text: string;

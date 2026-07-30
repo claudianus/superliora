@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
-import { advanceAppearanceAnimationClock } from '#/tui/utils/appearance-effects';
+import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

@@ -1,6 +1,6 @@
 import { STREAM_REVEAL_TICK_MS } from '../../constant/streaming';
 import { shouldAnimate } from '../appearance';
-import { getActiveAppearancePreferences } from '../../utils/appearance-effects';
+import { getActiveAppearancePreferences } from '../../features/appearance/appearance-effects';
 import {
   isRevealCaughtUp,
   resetRevealState,

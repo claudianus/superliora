@@ -56,8 +56,8 @@ import { DisposableRegistry } from './utils/disposables';
 import { createMotionBeatController } from './utils/motion-beats';
 import { ImageAttachmentStore } from './utils/image-attachment-store';
 import { PromptStash } from './utils/prompt-stash';
-import type { TranscriptScrollAction } from './utils/transcript-viewport';
-import type { TUIStateNativeInputRouter } from './utils/native-input-router';
+import type { TranscriptScrollAction } from './features/transcript/transcript-viewport';
+import type { TUIStateNativeInputRouter } from './features/native-layout/native-input-router';
 import type {
   AppState,
   LivePaneState,

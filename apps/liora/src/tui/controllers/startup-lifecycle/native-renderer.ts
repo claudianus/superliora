@@ -15,11 +15,11 @@ import {
 import {
   createTUIStateNativeInputRouter,
   type TUIStateNativeInputRouter,
-} from '../../utils/native-input-router';
-import { createTUIStateNativeRenderCallback } from '../../utils/native-layout-frame';
+} from '../../features/native-layout/native-input-router';
+import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
 import { installTerminalFocusTracking } from '../../utils/terminal-focus';
-import { getTUIStateNativeTodoRect } from '../../utils/transcript-hit-test';
-import type { TranscriptScrollAction } from '../../utils/transcript-viewport';
+import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
+import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import { ClipboardImageHintController } from '../clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
 

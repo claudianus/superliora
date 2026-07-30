@@ -11,7 +11,7 @@ import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 function strip(text: string): string {
   return text.replaceAll(/\[[0-9;]*m/g, '');

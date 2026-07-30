@@ -21,7 +21,7 @@ import {
   renderParticleRail,
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 const ULTRAWORK_THEATRE_EVENT_TYPES = new Set<Event['type']>([
   'ultrawork.stage.changed',

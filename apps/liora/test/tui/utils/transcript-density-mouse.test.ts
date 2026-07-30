@@ -4,7 +4,7 @@ import { ToolCallComponent } from '#/tui/components/messages/tool-call';
 import type { NativeInputMouseEvent } from '#/tui/renderer';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';
-import { handleTranscriptDensityMouse } from '#/tui/utils/transcript-density-mouse';
+import { handleTranscriptDensityMouse } from '#/tui/features/transcript/transcript-density-mouse';
 
 const FRAME_WIDTH = 80;
 const FRAME_HEIGHT = 40;

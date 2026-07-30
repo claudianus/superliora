@@ -6,7 +6,7 @@ import {
   renderAnimatedGradientText,
   renderPulseText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 export const GOAL_TIMER_INTERVAL_MS = 1_000;
 

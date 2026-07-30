@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { encodeNativeInputAsLegacySequence, type NativeInputEvent } from '#/tui/renderer';
 import type { AppState } from '#/tui/types';
 import { createTUIState } from '#/tui/tui-state';
-import { createTUIStateNativeInputRouter } from '#/tui/utils/native-input-router';
+import { createTUIStateNativeInputRouter } from '#/tui/features/native-layout/native-input-router';
 
 function fakeInitialAppState(): AppState {
   return {

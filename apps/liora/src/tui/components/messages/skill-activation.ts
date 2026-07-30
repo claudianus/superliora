@@ -21,7 +21,7 @@ import {
   renderPremiumHeadline,
   renderPulseText,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import { renderCacheEpoch } from '#/tui/utils/render-cache';
 
 const ARGS_PREVIEW_MAX = 200;

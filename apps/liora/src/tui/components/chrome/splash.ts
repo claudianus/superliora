@@ -26,7 +26,7 @@ import {
   renderParticleRail,
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   blitCentered,
   centerText,
@@ -34,7 +34,7 @@ import {
   LIORA_MARK_LARGE,
   padOrTrim,
   paintStarfield,
-} from '#/tui/utils/night-sky';
+} from '#/tui/features/stage/night-sky';
 import {
   applyStageMorphReveal,
   resolveBrandMorphRect,

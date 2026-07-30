@@ -9,8 +9,8 @@ import {
   projectRendererNonEmptyLineWindow,
 } from '#/tui/renderer';
 import { BRAILLE_SPINNER_INTERVAL_MS } from '#/tui/constant/rendering';
-import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
-import { TOOL_HEADER_ENTRANCE_MS } from '#/tui/utils/transcript-entrance';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
+import { TOOL_HEADER_ENTRANCE_MS } from '#/tui/features/transcript/transcript-entrance';
 
 import { formatActivityLine } from './format';
 

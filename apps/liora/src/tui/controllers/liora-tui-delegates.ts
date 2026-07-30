@@ -15,7 +15,7 @@ import type { SessionLoadingPhase } from '../components/dialogs/session-loading-
 import type { ColorToken, ResolvedTheme, ThemeName } from '../theme';
 import type { CenterModalMountOptions } from '../utils/center-modal';
 import { combineStartupNotice } from '../utils/startup';
-import type { TranscriptScrollAction } from '../utils/transcript-viewport';
+import type { TranscriptScrollAction } from '../features/transcript/transcript-viewport';
 import type {
   AppState,
   LivePaneState,

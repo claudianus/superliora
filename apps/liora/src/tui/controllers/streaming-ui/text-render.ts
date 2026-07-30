@@ -2,7 +2,7 @@ import { AssistantMessageComponent } from '../../components/messages/assistant-m
 import { ThinkingComponent } from '../../components/messages/thinking';
 import {
   appearanceAnimationNow,
-} from '../../utils/appearance-effects';
+} from '../../features/appearance/appearance-effects';
 import {
   resetRevealState,
   setRevealTarget,
@@ -10,7 +10,7 @@ import {
   tickReveal,
   visibleText,
 } from '../../utils/streaming-text-reveal';
-import { nextTranscriptId } from '../../utils/transcript-id';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { TranscriptEntry } from '../../types';
 import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/frame-render';
 import {

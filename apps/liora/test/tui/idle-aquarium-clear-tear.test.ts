@@ -17,8 +17,8 @@ import {
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
-import { buildTUIStateNativeFrameRegions } from '#/tui/utils/native-layout-frame';
+} from '#/tui/features/appearance/appearance-effects';
+import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';
 import {
   NativeFrameRenderer,
   composeRendererRegions,
@@ -204,7 +204,7 @@ describe('idle aquarium clear tear', () => {
         id: 'stageFrame',
         rect: { x: 0, y: 0, width: 10, height: 5 },
         // Dense rows: the runtime paints rim-only bands instead of a sparse
-        // full-stage rect (see rimBands in tui/utils/stage-frame.ts), so model
+        // full-stage rect (see rimBands in tui/features/stage/stage-frame.ts), so model
         // the hazard with unstyled interior cells rather than undefined holes.
         lines: Array.from({ length: 5 }, () => {
           const row: { char: string; style?: { fg: string } }[] = Array.from({ length: 10 }, () => ({

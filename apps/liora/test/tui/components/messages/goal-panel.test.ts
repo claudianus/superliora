@@ -13,14 +13,14 @@ import {
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
-import * as appearanceEffects from '#/tui/utils/appearance-effects';
+import * as appearanceEffects from '#/tui/features/appearance/appearance-effects';
 import {
   advanceAppearanceAnimationClock,
   EXIT_BEAT_MS,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import type { GoalSnapshot } from '@superliora/sdk';
 
 const previousChalkLevel = chalk.level;

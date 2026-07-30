@@ -16,7 +16,7 @@ import {
   appearanceAnimationNow,
   motionEffectsAllowed,
   resolveQualityAdjustedAmbientEffectMode,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 
 /**
  * Clean figlet pool for the welcome hero (pyfiglet).

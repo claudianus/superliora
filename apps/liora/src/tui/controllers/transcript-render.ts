@@ -51,8 +51,8 @@ import { requestTUIContentRender, requestTUILayoutRender } from '../utils/frame-
 import {
   getTranscriptComponentEntry,
   markTranscriptComponent,
-} from '../utils/transcript-component-metadata';
-import { nextTranscriptId } from '../utils/transcript-id';
+} from '../features/transcript/transcript-component-metadata';
+import { nextTranscriptId } from '../features/transcript/transcript-id';
 import {
   TRANSCRIPT_HYSTERESIS,
   TRANSCRIPT_KEEP_RECENT_STEPS,
@@ -60,7 +60,7 @@ import {
   TRANSCRIPT_WINDOW_ENABLED,
   groupTurns,
   turnsToTrim,
-} from '../utils/transcript-window';
+} from '../features/transcript/transcript-window';
 
 /** Host surface required by transcript rendering, turn management, and the startup splash. */
 export interface TranscriptRenderHost {

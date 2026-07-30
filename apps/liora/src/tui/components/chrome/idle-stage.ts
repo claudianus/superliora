@@ -29,7 +29,7 @@ import {
   renderSpectacularText,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {
   centerText,
   padOrTrim,
@@ -37,7 +37,7 @@ import {
   resolveAquariumPalette,
   resolveFishGlyphRows,
   stripAnsi,
-} from '#/tui/utils/idle-scene';
+} from '#/tui/features/idle-scene/idle-scene';
 import {
   createIdleTankSim,
   dropFood,
@@ -46,7 +46,7 @@ import {
   tickIdleTankSim,
   type IdleTankSim,
   type IdleTankSnapshot,
-} from '#/tui/utils/idle-tank-sim';
+} from '#/tui/features/idle-scene/idle-tank-sim';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 const ANSI_RESET = '\u001B[0m';

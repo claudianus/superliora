@@ -14,8 +14,8 @@ import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 
 // Disable ambient effects for deterministic pointer/shimmer rendering.
-vi.mock('#/tui/utils/appearance-effects', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/tui/utils/appearance-effects')>();
+vi.mock('#/tui/features/appearance/appearance-effects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/features/appearance/appearance-effects')>();
   return {
     ...actual,
     shouldRenderAmbientEffects: () => false,

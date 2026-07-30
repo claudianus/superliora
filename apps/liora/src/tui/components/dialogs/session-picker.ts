@@ -10,7 +10,7 @@ import {
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderShimmerPrefix,
-} from '#/tui/utils/appearance-effects';
+} from '#/tui/features/appearance/appearance-effects';
 import {SearchableList} from '#/tui/utils/searchable-list';
 import {isPrintableChar, printableChar} from '#/tui/utils/printable-key';
 
