@@ -2196,6 +2196,10 @@ export class LioraTUI {
   // Transcript Rendering
   // =========================================================================
 
+  renderWelcome(): void {
+    this.transcriptRender.renderWelcome();
+  }
+
   appendTranscriptEntry(entry: TranscriptEntry): void {
     this.transcriptRender.appendTranscriptEntry(entry);
   }
