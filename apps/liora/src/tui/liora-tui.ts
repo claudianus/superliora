@@ -174,10 +174,12 @@ import { EditorKeyboardController } from './controllers/editor-keyboard';
 import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { SessionEventHandler } from './controllers/session-event-handler';
 import { MessageDispatchController } from './controllers/message-dispatch';
+import { PanesController } from './controllers/panes';
 import { SessionLifecycleController } from './controllers/session-lifecycle';
 import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
+import { TranscriptRenderController } from './controllers/transcript-render';
 import { UsageMonitorController } from './controllers/usage-monitor';
 import { setKittyGraphicsChannel } from './media/kitty-graphics-channel';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
@@ -299,15 +301,6 @@ export interface LioraTUIStartupInput {
   readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
 }
 
-type EffectiveActivityPaneMode = ActivityPaneMode | 'idle' | 'session';
-type LoadingTipKind = 'moon' | 'composing';
-
-function loadingTipKind(mode: EffectiveActivityPaneMode): LoadingTipKind | undefined {
-  if (mode === 'waiting' || mode === 'tool') return 'moon';
-  if (mode === 'composing') return 'composing';
-  return undefined;
-}
-
 function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
@@ -370,9 +363,6 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
   };
 }
 
-/** How long the one-shot "moved to background" footer hint stays visible. */
-const DETACH_HINT_DISPLAY_MS = 4_000;
-
 export class LioraTUI {
   readonly harness: LioraHarness;
   readonly options: LioraTUIOptions;
@@ -395,7 +385,6 @@ export class LioraTUI {
   deferUserMessages = false;
   aborted = false;
   private terminalFocusTrackingDispose: (() => void) | undefined;
-  private terminalThemeTrackingDispose: (() => void) | undefined;
   private clipboardImageHintController: ClipboardImageHintController | undefined;
   private signalCleanupHandlers: Array<() => void> = [];
   private isShuttingDown = false;
@@ -404,15 +393,11 @@ export class LioraTUI {
   private eventLoopStarted = false;
   private startupNotice: string | undefined;
   /** Startup cinematic splash; disposed after play or on shutdown. */
-  private splash: SplashComponent | undefined;
+  splash: SplashComponent | undefined;
   /** UI children saved while the full-screen splash owns the tree. */
-  private splashSavedChildren: (typeof this.state.ui.children)[number][] | undefined;
+  splashSavedChildren: (typeof this.state.ui.children)[number][] | undefined;
   /** While true, ambient schedule stays armed even if interaction gates pause it. */
-  private splashForcesAmbient = false;
-  private lastActivityMode: string | undefined;
-  private currentLoadingTip:
-    | { kind: LoadingTipKind; tip: string | undefined; tipKey?: string; pinned: boolean }
-    | undefined = undefined;
+  splashForcesAmbient = false;
   private lastHistoryContent: string | undefined;
   /** LIFO stash of prompt drafts saved via Ctrl-X while the editor has text. */
   private readonly promptStash = new PromptStash();
@@ -420,7 +405,7 @@ export class LioraTUI {
   // each update their own card and stale events are dropped. Mutated in place
   // as `shell.output` events arrive; removed when the command completes.
   // `taskId` (from `shell.started`) lets ctrl+b detach the exact task.
-  private readonly shellOutputStreams = new Map<
+  readonly shellOutputStreams = new Map<
     string,
     { entry: TranscriptEntry; component: ShellRunComponent; taskId?: string }
   >();
@@ -429,6 +414,8 @@ export class LioraTUI {
   readonly appearanceController: AppearanceController;
   readonly btwPanelController: BtwPanelController;
   readonly sessionEventHandler: SessionEventHandler;
+  readonly transcriptRender: TranscriptRenderController;
+  readonly panes: PanesController;
   readonly sessionLifecycle: SessionLifecycleController;
   readonly messageDispatch: MessageDispatchController;
   readonly sessionReplay: SessionReplayRenderer;
@@ -446,11 +433,7 @@ export class LioraTUI {
   private readonly sessionStartTime = Date.now();
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
-  private detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
-
-  /** Host-owned queue settle clock (survives QueuePane remounts). */
-  private queueSettleSelectionIdentity: string | undefined;
-  private queueSettleStartedAtMs: number | undefined;
+  detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Last user-submitted text, for `/retry` / Hub → Chat → Retry. */
   lastUserInput: string | undefined;
@@ -547,6 +530,8 @@ export class LioraTUI {
       this.state.appState.appearance?.transcriptDetail ?? 'standard';
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
+    this.transcriptRender = new TranscriptRenderController(this);
+    this.panes = new PanesController(this);
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.sessionLifecycle = new SessionLifecycleController(this);
     this.messageDispatch = new MessageDispatchController(this);
@@ -738,14 +723,14 @@ export class LioraTUI {
         // Mount Welcome + IdleStage before the splash so the saved UI tree
         // (captured by playStartupSplash) already contains them. The morph
         // target scene and the first post-splash frame are then 1:1 identical.
-        this.renderWelcome();
+        this.transcriptRender.renderWelcome();
         // Cinematic splash after the renderer loop is live, before Welcome.
-        await this.playStartupSplash();
+        await this.transcriptRender.playStartupSplash();
         void this.loadBanner();
         this.startBackgroundFdAutocomplete();
         await this.finishStartup(shouldReplayHistory);
       } catch (error) {
-        this.disposeStartupSplash();
+        this.transcriptRender.disposeStartupSplash();
         this.disposeTerminalTracking();
         this.state.renderer.stop();
         throw error;
@@ -1328,7 +1313,7 @@ export class LioraTUI {
     }
     this.reverseRpcDisposers.length = 0;
     this.disposeTerminalTracking();
-    this.disposeStartupSplash();
+    this.transcriptRender.disposeStartupSplash();
     this.appearanceController.dispose();
     // BUG-2: dispose the footer's goal-timer interval and the header clock.
     this.state.footer.dispose();
@@ -1448,7 +1433,7 @@ export class LioraTUI {
     this.stopNativeRendererAdapters();
     setKittyGraphicsChannel(undefined);
     this.eventLoopStarted = false;
-    this.stopTerminalThemeTracking();
+    this.panes.stopTerminalThemeTracking();
     this.clipboardImageHintController?.stop();
     this.clipboardImageHintController = undefined;
     this.terminalFocusTrackingDispose?.();
@@ -1957,7 +1942,7 @@ export class LioraTUI {
    * Keep the chrome todo/goal panel mounted for live goals even when the
    * TodoList is empty, and unmount when both are gone.
    */
-  private syncGoalMonitorPanel(): void {
+  syncGoalMonitorPanel(): void {
     this.state.todoPanel.setGoal(this.state.appState.goal);
     this.state.todoPanelContainer.clear();
     if (!this.state.todoPanel.isEmpty()) {
@@ -2055,7 +2040,7 @@ export class LioraTUI {
   registerSessionHandlers(session: Session): void {
     session.setApprovalHandler(
       createApprovalRequestHandler(this.approvalController, (request, response) => {
-        this.appendApprovalTranscriptEntry(request, response);
+        this.transcriptRender.appendApprovalTranscriptEntry(request, response);
       }),
     );
     session.setQuestionHandler(createQuestionAskHandler(this.questionController));
@@ -2211,495 +2196,24 @@ export class LioraTUI {
   // Transcript Rendering
   // =========================================================================
 
-  private createTranscriptComponent(entry: TranscriptEntry): Component | null {
-    if (entry.compactionData !== undefined) {
-      const data = entry.compactionData;
-      const block = new CompactionComponent(this.state.ui, data.instruction);
-      if (data.result === 'cancelled') {
-        block.markCanceled();
-      } else {
-        block.markDone(data.tokensBefore, data.tokensAfter);
-      }
-      return block;
-    }
-
-    switch (entry.kind) {
-      case 'user': {
-        const images = entry.imageAttachmentIds
-          ?.map((id) => this.imageStore.get(id))
-          .filter((a): a is ImageAttachment => a?.kind === 'image');
-        return new UserMessageComponent(entry.content, images, entry.bullet, entry.timestamp);
-      }
-      case 'skill_activation':
-        return new SkillActivationComponent(
-          entry.skillName ?? entry.content,
-          entry.skillArgs,
-          entry.skillTrigger,
-        );
-      case 'plugin_command':
-        return new PluginCommandComponent(
-          entry.pluginId ?? '',
-          entry.pluginCommandName ?? entry.content,
-          entry.pluginCommandArgs,
-          entry.pluginCommandTrigger,
-        );
-      case 'cron':
-        return new CronMessageComponent(entry.content, entry.cronData ?? {});
-      case 'goal':
-        if (entry.goalData?.kind === 'created') {
-          return new GoalSetMessageComponent();
-        }
-        if (entry.goalData?.kind === 'lifecycle') {
-          return buildGoalMarker(entry.goalData.change, this.state.toolOutputExpanded);
-        }
-        return null;
-      case 'assistant': {
-        if (entry.content.trimStart().startsWith('✓ Goal complete')) {
-          return new GoalCompletionMessageComponent(entry.content);
-        }
-        const component = new AssistantMessageComponent();
-        component.updateContent(entry.content);
-        return component;
-      }
-      case 'thinking': {
-        const thinking = new ThinkingComponent(entry.content, true);
-        if (this.state.toolOutputExpanded) thinking.setExpanded(true);
-        return thinking;
-      }
-      case 'tool_call':
-        if (entry.toolCallData) {
-          const tc = new ToolCallComponent(
-            entry.toolCallData,
-            entry.toolCallData.result,
-            this.state.ui,
-            this.state.appState.workDir,
-            this.state.toolOutputViewports,
-          );
-          if (this.state.toolOutputExpanded) tc.setExpanded(true);
-          tc.setDetail(this.state.transcriptDetail);
-          return tc;
-        }
-        if (entry.backgroundAgentStatus !== undefined) {
-          return new BackgroundAgentStatusComponent(entry.backgroundAgentStatus);
-        }
-        return entry.renderMode === 'notice'
-          ? new NoticeMessageComponent(entry.content, entry.detail)
-          : new StatusMessageComponent(entry.content, entry.color);
-      case 'status':
-        if (entry.backgroundAgentStatus !== undefined) {
-          return new BackgroundAgentStatusComponent(entry.backgroundAgentStatus);
-        }
-        return entry.renderMode === 'notice'
-          ? new NoticeMessageComponent(entry.content, entry.detail)
-          : new StatusMessageComponent(entry.content, entry.color);
-      case 'welcome':
-        return null;
-      default:
-        return null;
-    }
-  }
-
   appendTranscriptEntry(entry: TranscriptEntry): void {
-    this.state.transcriptEntries.push(entry);
-    const component = this.createTranscriptComponent(entry);
-    if (component) {
-      markTranscriptComponent(component, entry);
-      this.state.transcriptContainer.addChild(component);
-    }
-    // Session hydrate: frames are suppressed and merge uses a high water-mark
-    // so we only collapse when a turn is far over the keep window (not every entry).
-    if (this.state.appState.isReplaying) {
-      this.mergeCurrentTurnSteps();
-      return;
-    }
-    const trimmed = this.trimTranscriptWindow();
-    const merged = this.mergeCurrentTurnSteps();
-    if (component || trimmed || merged) {
-      requestTUIContentRender(this.state);
-    }
-  }
-
-  private appendApprovalTranscriptEntry(
-    request: ApprovalRequest,
-    response: ApprovalResponse,
-  ): void {
-    if (
-      request.toolName === 'ExitPlanMode' ||
-      request.display.kind === 'plan_review' ||
-      request.display.kind === 'goal_start'
-    )
-      return;
-    const parts: string[] = [];
-    switch (response.decision) {
-      case 'approved':
-        parts.push(response.scope === 'session' ? 'Approved for session' : 'Approved');
-        break;
-      case 'rejected':
-        parts.push('Rejected');
-        break;
-      case 'cancelled':
-        parts.push('Cancelled');
-        break;
-    }
-    parts.push(`: ${request.action}`);
-    if (response.feedback !== undefined && response.feedback.length > 0) {
-      parts.push(` — "${response.feedback}"`);
-    }
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'status',
-      turnId: request.turnId === undefined ? undefined : String(request.turnId),
-      renderMode: 'notice',
-      content: parts.join(''),
-    });
-  }
-
-  private renderWelcome(): void {
-    if (
-      !this.state.transcriptContainer.children.some((child) => child instanceof WelcomeComponent)
-    ) {
-      this.state.transcriptContainer.addChild(new WelcomeComponent(this.state.appState));
-    }
-    // Ambient empty-stage under welcome: vanishes on first real transcript child.
-    // preferredRows tracks the live transcript region so the night sky fills
-    // the empty pane (no hard 14-row cap). Suppress while session history replays.
-    if (this.state.appState.isReplaying) {
-      this.state.transcriptContainer.dismissIdleStage();
-      return;
-    }
-    if (
-      !this.state.transcriptContainer.children.some((child) => child instanceof IdleStageComponent)
-    ) {
-      this.state.transcriptContainer.addChild(
-        new IdleStageComponent({
-          state: this.state.appState,
-          getPreferredRows: (width) => this.state.transcriptContainer.idleTargetRows(width),
-        }),
-      );
-    }
-  }
-
-  /**
-   * Take over the full UI for a cinematic splash, then restore chrome.
-   * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
-   */
-  private async playStartupSplash(): Promise<void> {
-    this.disposeStartupSplash();
-    const splash = new SplashComponent({
-      appearance: this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
-      getRows: () => Math.max(8, this.state.terminal.rows),
-      requestRender: () => {
-        // Layout invalidation so the native frame path repaints the takeover.
-        requestTUILayoutRender(this.state);
-      },
-      getMorphScene: (width, rows) => {
-        const stageWidth = Math.max(1, width);
-        return buildSplashMorphScene({
-          width,
-          rows,
-          appState: this.state.appState,
-          headerLines: this.state.headerContainer.render(stageWidth),
-          footerLines: this.state.footerContainer.render(stageWidth),
-          editorLines: this.state.editorContainer.render(stageWidth),
-        });
-      },
-      onSplashActiveChange: (active) => {
-        this.splashForcesAmbient = active;
-        this.appearanceController.apply();
-      },
-    });
-    // Fast path: do not steal the UI tree when motion is off.
-    if (!shouldPlaySplash(this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES)) {
-      splash.dispose();
-      return;
-    }
-
-    this.splash = splash;
-    const savedChildren = [...this.state.ui.children];
-    this.splashSavedChildren = savedChildren;
-    this.state.ui.clear();
-    this.state.ui.addChild(splash);
-    requestTUILayoutRender(this.state);
-    try {
-      await splash.play();
-    } finally {
-      this.disposeStartupSplash();
-    }
-  }
-
-  private disposeStartupSplash(): void {
-    const splash = this.splash;
-    const saved = this.splashSavedChildren;
-    this.splash = undefined;
-    this.splashSavedChildren = undefined;
-    splash?.dispose();
-    if (this.splashForcesAmbient) {
-      this.splashForcesAmbient = false;
-      this.appearanceController.apply();
-    }
-    if (saved !== undefined) {
-      // Flag: the next native frame must not full-clear — the last morph frame
-      // is still on screen and the real UI paints over it without a black flash.
-      this.state.splashJustDisposed = true;
-      this.state.ui.clear();
-      for (const child of saved) {
-        this.state.ui.addChild(child);
-      }
-      this.state.ui.setFocus(this.state.editor);
-      requestTUILayoutRender(this.state);
-      return;
-    }
-    // Splash never stole the tree (skip path) — nothing to restore.
-  }
-
-  private clearTerminalInlineImages(): void {
-    const sequence = encodeRendererClearInlineImages(resolveImageProtocol());
-    if (sequence.length > 0) this.state.terminal.write(sequence);
+    this.transcriptRender.appendTranscriptEntry(entry);
   }
 
   clearTranscriptAndRedraw(): void {
-    this.streamingUI.discardPending();
-    this.state.transcriptEntries = [];
-    this.streamingUI.disposeActiveCompactionBlock();
-    this.streamingUI.resetLiveText();
-    this.streamingUI.resetToolUi();
-    this.sessionEventHandler.stopAllMcpServerStatusSpinners();
-    // Dispose disposable children (e.g. ShellRunComponent's 1s timer) before
-    // dropping them, so a /clear or session switch can't leak intervals that
-    // keep firing requestRender on a removed component.
-    for (const child of this.state.transcriptContainer.children) {
-      if (hasDispose(child)) child.dispose();
-    }
-    this.state.transcriptContainer.clear();
-    this.state.transcriptContainer.invalidate();
-    this.btwPanelController.clear();
-    this.clearTerminalInlineImages();
-    // Drop todo cards, then re-bind any live goal from appState so session
-    // switches (goal already hydrated) and mid-session redraws keep the
-    // monitor chrome. New sessions null goal before/after this via setAppState.
-    this.state.todoPanel.clear();
-    this.state.todoPanelContainer.clear();
-    this.syncGoalMonitorPanel();
-    this.imageStore.clear();
-    this.renderWelcome();
-    requestTUILayoutRender(this.state);
-  }
-
-  private isTurnBoundaryComponent(child: Component): boolean {
-    if (!(child instanceof UserMessageComponent) && !(child instanceof PluginCommandComponent)) {
-      return false;
-    }
-    const entry = getTranscriptComponentEntry(child);
-    if (entry === undefined) return false;
-    // Live user messages have an undefined turnId; replayed user messages get a
-    // `replay:N` turnId. Both start a new turn. Steer messages carry a defined
-    // non-replay turnId and are not boundaries.
-    return entry.turnId === undefined || entry.turnId.startsWith('replay:');
-  }
-
-  private trimTranscriptWindow(): boolean {
-    if (!TRANSCRIPT_WINDOW_ENABLED || TRANSCRIPT_MAX_TURNS <= 0) return false;
-    // Session replay already caps history to its own turn limit; trimming during
-    // replay would shrink it further and fight that limit.
-    if (this.state.appState.isReplaying) return false;
-
-    const children = this.state.transcriptContainer.children;
-
-    // Trim whole turns by *position* in the child list rather than by entry
-    // lookup — otherwise only the (registered) user message would be removed and
-    // the rest of the turn would be left behind.
-    const boundaries: number[] = [];
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) boundaries.push(i);
-    }
-
-    const turns = groupTurns(this.state.transcriptEntries);
-
-    const toRemove = turnsToTrim(turns, TRANSCRIPT_MAX_TURNS, TRANSCRIPT_HYSTERESIS);
-    if (toRemove.size === 0) return false;
-
-    let boundariesToRemove = 0;
-    for (const entry of toRemove) {
-      if (entry.kind === 'user' && entry.turnId === undefined) boundariesToRemove++;
-    }
-    if (boundariesToRemove === 0) {
-      this.state.transcriptEntries = this.state.transcriptEntries.filter((e) => !toRemove.has(e));
-      return true;
-    }
-
-    let boundariesSeen = 0;
-    let cutoff = 0;
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) {
-        if (boundariesSeen === boundariesToRemove) {
-          cutoff = i;
-          break;
-        }
-        boundariesSeen++;
-      }
-    }
-
-    const componentsToRemove: Component[] = [];
-    for (let i = 0; i < cutoff; i++) {
-      const child = children[i]!;
-      if (child instanceof WelcomeComponent) continue;
-      componentsToRemove.push(child);
-    }
-    for (const child of componentsToRemove) {
-      // pi-tui Container.removeChild (not a DOM node); `child.remove()` does not exist.
-      // oxlint-disable-next-line unicorn/prefer-dom-node-remove
-      this.state.transcriptContainer.removeChild(child);
-      if (hasDispose(child)) child.dispose();
-    }
-
-    this.state.transcriptEntries = this.state.transcriptEntries.filter((e) => !toRemove.has(e));
-    return true;
+    this.transcriptRender.clearTranscriptAndRedraw();
   }
 
   mergeCurrentTurnSteps(): boolean {
-    if (TRANSCRIPT_KEEP_RECENT_STEPS <= 0) return false;
-    const children = this.state.transcriptContainer.children;
-
-    // Find the start of the current turn (last turn-starting user message).
-    let turnStart = -1;
-    for (let i = children.length - 1; i >= 0; i--) {
-      if (this.isTurnBoundaryComponent(children[i]!)) {
-        turnStart = i;
-        break;
-      }
-    }
-    if (turnStart < 0) return false;
-
-    // Locate an existing summary, the assistant message, and the mergeable steps.
-    let summaryIndex = -1;
-    const stepIndices: number[] = [];
-    for (let i = turnStart + 1; i < children.length; i++) {
-      const child = children[i]!;
-      if (child instanceof StepSummaryComponent) {
-        summaryIndex = i;
-        continue;
-      }
-      if (child instanceof AssistantMessageComponent) continue;
-      stepIndices.push(i);
-    }
-
-    // Live: merge as soon as we exceed the keep window.
-    // Hydrate: wait until well over the window so we do not rebuild the turn
-    // on every tool result (O(n²)), while still bounding component count.
-    const mergeThreshold = this.state.appState.isReplaying
-      ? TRANSCRIPT_KEEP_RECENT_STEPS + Math.max(TRANSCRIPT_KEEP_RECENT_STEPS, 20)
-      : TRANSCRIPT_KEEP_RECENT_STEPS;
-    if (stepIndices.length <= mergeThreshold) return false;
-    const mergeCount = stepIndices.length - TRANSCRIPT_KEEP_RECENT_STEPS;
-    const toMergeIndices = stepIndices.slice(0, mergeCount);
-
-    let thinkingCount = 0;
-    let toolCount = 0;
-    for (const idx of toMergeIndices) {
-      const child = children[idx]!;
-      if (child instanceof ThinkingComponent) thinkingCount++;
-      else if (child instanceof ToolCallComponent) toolCount++;
-    }
-    if (thinkingCount === 0 && toolCount === 0) return false;
-
-    let summary: StepSummaryComponent;
-    if (summaryIndex >= 0) {
-      summary = children[summaryIndex] as StepSummaryComponent;
-      summary.addCounts(thinkingCount, toolCount);
-    } else {
-      summary = new StepSummaryComponent();
-      summary.addCounts(thinkingCount, toolCount);
-    }
-
-    // Rebuild children: keep everything except the merged steps, with the summary
-    // sitting right after the user message.
-    const toMergeSet = new Set(toMergeIndices);
-    const newChildren: Component[] = [];
-    for (let i = 0; i <= turnStart; i++) newChildren.push(children[i]!);
-    newChildren.push(summary);
-    for (let i = turnStart + 1; i < children.length; i++) {
-      if (i === summaryIndex) continue;
-      if (toMergeSet.has(i)) continue;
-      newChildren.push(children[i]!);
-    }
-
-    for (const idx of toMergeIndices) {
-      const child = children[idx]!;
-      if (hasDispose(child)) child.dispose();
-    }
-
-    children.splice(0, children.length, ...newChildren);
-    return true;
+    return this.transcriptRender.mergeCurrentTurnSteps();
   }
 
   mergeAllTurnSteps(): void {
-    if (TRANSCRIPT_KEEP_RECENT_STEPS <= 0) return;
-    const children = this.state.transcriptContainer.children;
-
-    const boundaries: number[] = [];
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) boundaries.push(i);
-    }
-    if (boundaries.length === 0) return;
-
-    const newChildren: Component[] = [];
-    const toDispose: Component[] = [];
-    for (let i = 0; i < boundaries[0]!; i++) newChildren.push(children[i]!);
-
-    for (let t = 0; t < boundaries.length; t++) {
-      const turnStart = boundaries[t]!;
-      const turnEnd = t + 1 < boundaries.length ? boundaries[t + 1]! : children.length;
-      newChildren.push(children[turnStart]!);
-
-      let summaryIndex = -1;
-      const stepIndices: number[] = [];
-      for (let i = turnStart + 1; i < turnEnd; i++) {
-        const child = children[i]!;
-        if (child instanceof StepSummaryComponent) summaryIndex = i;
-        else if (child instanceof AssistantMessageComponent) continue;
-        else stepIndices.push(i);
-      }
-
-      if (stepIndices.length > TRANSCRIPT_KEEP_RECENT_STEPS) {
-        const mergeCount = stepIndices.length - TRANSCRIPT_KEEP_RECENT_STEPS;
-        const toMergeIndices = stepIndices.slice(0, mergeCount);
-        let thinkingCount = 0;
-        let toolCount = 0;
-        for (const idx of toMergeIndices) {
-          const child = children[idx]!;
-          if (child instanceof ThinkingComponent) thinkingCount++;
-          else if (child instanceof ToolCallComponent) toolCount++;
-        }
-        let summary: StepSummaryComponent;
-        if (summaryIndex >= 0) {
-          summary = children[summaryIndex] as StepSummaryComponent;
-          summary.addCounts(thinkingCount, toolCount);
-        } else {
-          summary = new StepSummaryComponent();
-          summary.addCounts(thinkingCount, toolCount);
-        }
-        newChildren.push(summary);
-        for (const idx of toMergeIndices) toDispose.push(children[idx]!);
-        const toMergeSet = new Set(toMergeIndices);
-        for (let i = turnStart + 1; i < turnEnd; i++) {
-          if (i === summaryIndex) continue;
-          if (toMergeSet.has(i)) continue;
-          newChildren.push(children[i]!);
-        }
-      } else {
-        for (let i = turnStart + 1; i < turnEnd; i++) newChildren.push(children[i]!);
-      }
-    }
-
-    for (const child of toDispose) {
-      if (hasDispose(child)) child.dispose();
-    }
-    children.splice(0, children.length, ...newChildren);
+    this.transcriptRender.mergeAllTurnSteps();
   }
 
   showStatus(message: string, color?: ColorToken): void {
-    this.state.transcriptContainer.addChild(new StatusMessageComponent(message, color));
-    requestTUILayoutRender(this.state);
+    this.transcriptRender.showStatus(message, color);
   }
 
   showNotice(
@@ -2707,63 +2221,23 @@ export class LioraTUI {
     detail?: string,
     options?: slashCommands.ShowNoticeOptions,
   ): void {
-    const coalesceKey = options?.coalesceKey;
-    if (coalesceKey !== undefined) {
-      const { children } = this.state.transcriptContainer;
-      for (let index = children.length - 1; index >= 0; index -= 1) {
-        const child = children[index];
-        if (child instanceof NoticeMessageComponent && child.coalesceKey === coalesceKey) {
-          children.splice(index, 1);
-        }
-      }
-    }
-    this.state.transcriptContainer.addChild(
-      new NoticeMessageComponent(title, detail, coalesceKey),
-    );
-    requestTUILayoutRender(this.state);
+    this.transcriptRender.showNotice(title, detail, options);
   }
 
   showError(message: string): void {
-    noteErrorFeedback();
-    this.showStatus(`Error: ${message}`, 'error');
+    this.transcriptRender.showError(message);
   }
 
   showLoginProgressSpinner(label: string): LoginProgressSpinnerHandle {
-    return this.showProgressSpinner(label);
+    return this.transcriptRender.showLoginProgressSpinner(label);
   }
 
   showProgressSpinner(label: string): LoginProgressSpinnerHandle {
-    const tint = (s: string): string => currentTheme.fg('primary', s);
-    const spinner = new MoonLoader(this.state.ui, 'braille', tint, label);
-    this.state.transcriptContainer.addChild(new Spacer(1));
-    this.state.transcriptContainer.addChild(spinner);
-    requestTUIContentRender(this.state);
-    return {
-      stop: ({ ok, label: finalLabel }) => {
-        spinner.stop();
-        const tone = ok ? 'success' : 'error';
-        const symbol = ok ? '✓' : '✗';
-        spinner.setText(currentTheme.fg(tone, `${symbol} ${finalLabel}`));
-        requestTUILayoutRender(this.state);
-      },
-      setLabel: (nextLabel) => {
-        spinner.setLabel(nextLabel);
-      },
-    };
+    return this.transcriptRender.showProgressSpinner(label);
   }
 
   showLoginAuthorizationPrompt(auth: DeviceAuthorization): LoginProgressSpinnerHandle {
-    openUrl(auth.verificationUriComplete);
-    this.state.transcriptContainer.addChild(
-      new DeviceCodeBoxComponent({
-        title: 'Sign in to SuperLiora',
-        url: auth.verificationUriComplete,
-        code: auth.userCode,
-        hint: 'Press Ctrl-C to cancel',
-      }),
-    );
-    requestTUIContentRender(this.state);
-    return this.showLoginProgressSpinner('Waiting for authorization…');
+    return this.transcriptRender.showLoginAuthorizationPrompt(auth);
   }
 
   // =========================================================================
@@ -2771,199 +2245,15 @@ export class LioraTUI {
   // =========================================================================
 
   updateActivityPane(): void {
-    const effectiveMode = this.resolveActivityPaneMode();
-    const tipKind = loadingTipKind(effectiveMode);
-    // Pick a fresh loading tip when the loading kind changes. The same kind
-    // covers waiting/tool (both moon spinners) and any intermediate thinking
-    // phase, so a continuous burst of tool calls does not flip tips. Clear the
-    // cache only when there is no loading UI at all.
-    if (effectiveMode === 'idle' || effectiveMode === 'session' || effectiveMode === 'hidden') {
-      this.currentLoadingTip = undefined;
-    } else if (tipKind !== undefined) {
-      const pinnedTip = this.state.appState.activityTip ?? undefined;
-      if (pinnedTip !== undefined) {
-        if (
-          this.currentLoadingTip === undefined ||
-          this.currentLoadingTip.kind !== tipKind ||
-          this.currentLoadingTip.tip !== pinnedTip ||
-          !this.currentLoadingTip.pinned
-        ) {
-          this.currentLoadingTip = { kind: tipKind, tip: pinnedTip, pinned: true };
-        }
-      } else if (
-        this.currentLoadingTip === undefined ||
-        this.currentLoadingTip.kind !== tipKind ||
-        this.currentLoadingTip.pinned
-      ) {
-        const previousKey = this.currentLoadingTip?.tipKey;
-        const picked = pickRandomWorkingTip(previousKey);
-        this.currentLoadingTip = {
-          kind: tipKind,
-          tip: picked === undefined ? undefined : tipText(picked),
-          tipKey: picked?.key,
-          pinned: false,
-        };
-      }
-    }
-    this.syncTerminalProgress(this.shouldShowTerminalProgress(effectiveMode));
-    const placeSpinnerInAgentSwarm = this.shouldPlaceActivitySpinnerInAgentSwarm(effectiveMode);
-    const activityModeKey = `${effectiveMode}:${placeSpinnerInAgentSwarm ? 'swarm' : 'pane'}`;
-
-    if (
-      activityModeKey === this.lastActivityMode &&
-      (effectiveMode === 'waiting' || effectiveMode === 'thinking' || effectiveMode === 'tool')
-    ) {
-      if (placeSpinnerInAgentSwarm) {
-        this.syncAgentSwarmActivitySpinner(this.state.activitySpinner?.instance);
-      }
-      return;
-    }
-
-    this.lastActivityMode = activityModeKey;
-    this.state.activityContainer.clear();
-
-    switch (effectiveMode) {
-      case 'hidden':
-        this.stopActivitySpinner();
-        this.syncAgentSwarmActivitySpinner(undefined);
-        requestTUILayoutRender(this.state);
-        return;
-      case 'waiting': {
-        const spinner = this.ensureActivitySpinner('moon');
-        this.syncAgentSwarmActivitySpinner(placeSpinnerInAgentSwarm ? spinner : undefined);
-        if (placeSpinnerInAgentSwarm) break;
-        this.state.activityContainer.addChild(
-          new ActivityPaneComponent({
-            mode: 'waiting',
-            spinner,
-            tip: this.currentLoadingTip?.tip,
-          }),
-        );
-        break;
-      }
-      case 'thinking': {
-        this.stopActivitySpinner();
-        this.syncAgentSwarmActivitySpinner(undefined);
-        this.state.activityContainer.addChild(
-          new ActivityPaneComponent({
-            mode: 'thinking',
-          }),
-        );
-        this.motionBeats.play({
-          name: 'thinking_enter',
-          seed: 'thinking',
-          title: 'Thinking',
-          nowMs: appearanceAnimationNow(),
-          theatreActive: isMotionTheatreActive(this.state.appState),
-        });
-        break;
-      }
-      case 'composing': {
-        const spinner = this.ensureActivitySpinner('comet', 'working...', (s) =>
-          currentTheme.fg('primary', s),
-        );
-        this.syncAgentSwarmActivitySpinner(undefined);
-        this.state.activityContainer.addChild(
-          new ActivityPaneComponent({
-            mode: 'composing',
-            spinner,
-            tip: this.currentLoadingTip?.tip,
-          }),
-        );
-        break;
-      }
-      case 'tool': {
-        const spinner = this.ensureActivitySpinner('moon');
-        this.syncAgentSwarmActivitySpinner(placeSpinnerInAgentSwarm ? spinner : undefined);
-        if (placeSpinnerInAgentSwarm) break;
-        this.state.activityContainer.addChild(
-          new ActivityPaneComponent({
-            mode: 'tool',
-            spinner,
-            tip: this.currentLoadingTip?.tip,
-          }),
-        );
-        break;
-      }
-      case 'idle':
-      case 'session': {
-        this.stopActivitySpinner();
-        this.syncAgentSwarmActivitySpinner(undefined);
-        break;
-      }
-    }
-    requestTUIContentRender(this.state);
-  }
-
-  private resolveActivityPaneMode(): EffectiveActivityPaneMode {
-    if (this.state.activeDialog === 'session-picker') return 'hidden';
-    if (this.state.activeDialog === 'agent-dashboard') return 'hidden';
-    if (this.state.activeDialog === 'extensions') return 'hidden';
-    if (this.state.livePane.pendingApproval !== null) return 'hidden';
-    if (this.state.appState.isCompacting) return 'hidden';
-    if (this.state.livePane.pendingQuestion !== null) return 'hidden';
-
-    const streamingPhase = this.state.appState.streamingPhase;
-
-    // A running `!` shell command shows the moon spinner (same as `waiting`)
-    // until it finishes, signalling that input is busy / queued.
-    if (streamingPhase === 'shell') return 'waiting';
-
-    if (this.state.livePane.mode === 'idle') {
-      if (streamingPhase === 'thinking' || streamingPhase === 'composing') {
-        return streamingPhase;
-      }
-    }
-
-    return this.state.livePane.mode;
+    this.panes.updateActivityPane();
   }
 
   updateQueueDisplay(): void {
-    this.state.queueContainer.clear();
-    const queued = this.state.queuedMessages;
-    if (queued.length === 0) {
-      this.queueSettleSelectionIdentity = undefined;
-      this.queueSettleStartedAtMs = undefined;
-      return;
-    }
-
-    const selectedIndex = Math.max(0, queued.length - 1);
-    const settle = resolveHostOwnedQueueSettleStartedAtMs({
-      selectionIdentity: queuePaneSelectionIdentity(queued, selectedIndex),
-      previousSelectionIdentity: this.queueSettleSelectionIdentity,
-      previousSettleStartedAtMs: this.queueSettleStartedAtMs,
-      nowMs: appearanceAnimationNow(),
-    });
-    this.queueSettleSelectionIdentity = settle.selectionIdentity;
-    this.queueSettleStartedAtMs = settle.settleStartedAtMs;
-
-    this.state.queueContainer.addChild(
-      new QueuePaneComponent({
-        messages: queued,
-        isCompacting: this.state.appState.isCompacting,
-        isStreaming: this.state.appState.streamingPhase !== 'idle',
-        canSteerImmediately: !this.deferUserMessages,
-        selectedIndex,
-        settleStartedAtMs: settle.settleStartedAtMs,
-      }),
-    );
+    this.panes.updateQueueDisplay();
   }
 
   toggleToolOutputExpansion(): void {
-    this.state.toolOutputExpanded = !this.state.toolOutputExpanded;
-    this.syncTranscriptExpansion();
-    requestTUIContentRender(this.state);
-  }
-
-  /** Apply the Ctrl+O expansion state to the most recent transcript turns. */
-  private syncTranscriptExpansion(): void {
-    const children = this.state.transcriptContainer.children;
-    const expandCutoff = this.resolveExpansionCutoff(children);
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i]!;
-      if (!isExpandable(child)) continue;
-      child.setExpanded(this.state.toolOutputExpanded && i >= expandCutoff);
-    }
+    this.panes.toggleToolOutputExpansion();
   }
 
   /**
@@ -2972,269 +2262,27 @@ export class LioraTUI {
    * `/transcript` and the Settings appearance selector call this.
    */
   setTranscriptDetail(level: TranscriptDetailLevel): void {
-    if (this.state.transcriptDetail === level) return;
-    this.state.transcriptDetail = level;
-    for (const child of this.state.transcriptContainer.children) {
-      if (child instanceof ToolCallComponent) child.setDetail(level);
-    }
-    requestTUIContentRender(this.state);
-  }
-
-  /**
-   * Index of the first component belonging to one of the most recent
-   * `TRANSCRIPT_EXPAND_TURNS` turns. Position-based so it also covers
-   * streaming components that have no entry in the metadata map.
-   */
-  private resolveExpansionCutoff(children: readonly Component[]): number {
-    if (TRANSCRIPT_EXPAND_TURNS <= 0) return children.length;
-    const boundaries: number[] = [];
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) boundaries.push(i);
-    }
-    return boundaries.length > TRANSCRIPT_EXPAND_TURNS
-      ? boundaries[boundaries.length - TRANSCRIPT_EXPAND_TURNS]!
-      : 0;
+    this.panes.setTranscriptDetail(level);
   }
 
   toggleTodoPanelExpansion(): void {
-    this.state.todoPanel.toggleExpanded();
-    requestTUIContentRender(this.state);
-  }
-
-  private async detachRunningShellCommand(): Promise<void> {
-    // Only one `!` command runs at a time (input is queued while busy).
-    const next = this.shellOutputStreams.entries().next();
-    if (next.done) {
-      this.showDetachHint('No shell command running.');
-      return;
-    }
-    const [commandId, stream] = next.value;
-    if (stream.taskId === undefined) {
-      this.showDetachHint('Command is still starting — try again.');
-      return;
-    }
-    const session = this.session;
-    if (session === undefined) return;
-    try {
-      const info = await session.detachBackgroundTask(stream.taskId);
-      if (info === undefined) {
-        this.showDetachHint('Command already finished.');
-        return;
-      }
-    } catch (error) {
-      this.showError(`Failed to move to background: ${formatErrorMessage(error)}`);
-      return;
-    }
-    // Finalize the card as backgrounded and drop the stream so the eventual
-    // runShellCommand resolution (which carries background metadata) is a no-op
-    // instead of overwriting this view.
-    stream.component.finishBackgrounded();
-    stream.entry.content = 'Moved to background.';
-    this.shellOutputStreams.delete(commandId);
-    // The backgrounded command's notification turn (started by agent-core via
-    // appendSystemReminderAndNotify) owns the streaming phase and drains the
-    // queue when it completes, so we intentionally leave both untouched here.
-    this.showDetachHint(ttui('tui.footer.detachHint'));
+    this.panes.toggleTodoPanelExpansion();
   }
 
   async detachCurrentForegroundTask(): Promise<void> {
-    // A running `!` shell command takes priority over agent foreground tasks.
-    if (this.shellOutputStreams.size > 0) {
-      await this.detachRunningShellCommand();
-      return;
-    }
-
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(NO_ACTIVE_SESSION_MESSAGE);
-      return;
-    }
-
-    let tasks: readonly BackgroundTaskInfo[];
-    try {
-      // activeOnly defaults to true; foreground running tasks are non-terminal
-      // and therefore included. We filter to `detached === false` ourselves.
-      tasks = await session.listBackgroundTasks();
-    } catch (error) {
-      this.showError(`Failed to list tasks: ${formatErrorMessage(error)}`);
-      return;
-    }
-
-    const targets = pickForegroundTasks(tasks);
-    if (targets.length === 0) {
-      this.showDetachHint('No foreground task running.');
-      return;
-    }
-
-    let detached = 0;
-    let alreadyFinished = 0;
-    for (const target of targets) {
-      try {
-        const info = await session.detachBackgroundTask(target.taskId);
-        if (info === undefined) alreadyFinished++;
-        else detached++;
-      } catch (error) {
-        this.showError(`Failed to detach ${target.taskId}: ${formatErrorMessage(error)}`);
-      }
-    }
-
-    let hint: string;
-    if (detached === 0 && alreadyFinished > 0) {
-      hint = alreadyFinished === 1 ? 'Task already finished.' : 'Tasks already finished.';
-    } else if (detached === targets.length) {
-      hint = detached === 1 ? 'Moved 1 task to background.' : `Moved ${detached} tasks to background.`;
-    } else {
-      hint = `Moved ${detached} of ${targets.length} tasks to background.`;
-    }
-    if (detached > 0) hint = `${hint} /tasks to view.`;
-    this.showDetachHint(hint);
-  }
-
-  /** Show a one-shot footer hint that auto-clears after DETACH_HINT_DISPLAY_MS. */
-  private showDetachHint(hint: string): void {
-    if (this.detachHintClearTimer !== undefined) {
-      clearTimeout(this.detachHintClearTimer);
-      this.detachHintClearTimer = undefined;
-    }
-    this.state.footer.setTransientHint(hint);
-    const timer = setTimeout(() => {
-      this.detachHintClearTimer = undefined;
-      // Don't clobber a newer transient hint (e.g. the exit-confirmation
-      // prompt) that took over while this timer was pending.
-      if (this.state.footer.getTransientHint() !== hint) return;
-      this.state.footer.setTransientHint(null);
-      requestTUIContentRender(this.state);
-    }, DETACH_HINT_DISPLAY_MS);
-    timer.unref?.();
-    this.detachHintClearTimer = timer;
-    requestTUIContentRender(this.state);
+    return this.panes.detachCurrentForegroundTask();
   }
 
   updateEditorBorderHighlight(text?: string): void {
-    const trimmed = (text ?? this.state.editor.getText()).trimStart();
-    const isBash = this.state.appState.inputMode === 'bash';
-    const ultrawork = this.state.appState.ultraworkMode === true;
-    const highlighted =
-      this.state.appState.planMode || ultrawork || isBash || trimmed.startsWith('/');
-    const prevHighlighted = this.state.editor.borderHighlighted;
-    this.state.editor.borderHighlighted = highlighted;
-    // Shell mode: fixed hue. Ultrawork: live multi-hue glow. Plan/slash: primary.
-    if (isBash) {
-      this.state.editor.borderColor = (s: string) => currentTheme.fg('shellMode', s);
-    } else if (ultrawork) {
-      // Native layout resolves the live glow hex on animation frames. Do not
-      // re-bind chalk + force a second full paint on every keystroke.
-      const hex = resolveUltraworkBorderGlowHex(appearanceAnimationNow());
-      this.state.editor.borderColor = (s: string) => chalk.hex(hex).bold(s);
-    } else if (highlighted) {
-      this.state.editor.borderColor = (s: string) => currentTheme.fg('primary', s);
-    } else {
-      this.state.editor.borderColor = (s: string) => currentTheme.fg('border', s);
-    }
-    // Only repaint when the highlight *state* flips (plan/slash/bash/ultrawork).
-    // Ultrawork chase is driven by the animation scheduler, not onChange.
-    if (prevHighlighted === highlighted) return;
-    requestTUIContentRender(this.state);
+    this.panes.updateEditorBorderHighlight(text);
   }
 
   async applyTheme(themeName: ThemeName, resolved?: ResolvedTheme): Promise<void> {
-    const palette = await getColorPalette(themeName === 'auto' ? (resolved ?? 'dark') : themeName);
-    currentTheme.setPalette(palette);
-    refreshShikiPalette(palette);
-    this.setAppState({ theme: themeName });
-    this.appearanceController.apply();
-    this.updateEditorBorderHighlight();
-    // Force every historical message to re-render so Markdown/Text caches
-    // (which hold old ANSI colour codes) are cleared.
-    this.state.transcriptContainer.invalidate();
-    requestTUILayoutRender(this.state);
+    return this.panes.applyTheme(themeName, resolved);
   }
 
   refreshTerminalThemeTracking(): void {
-    this.stopTerminalThemeTracking();
-    if (!isBuiltInTheme(this.state.appState.theme) || this.state.appState.theme !== 'auto') return;
-
-    this.terminalThemeTrackingDispose = installTerminalThemeTracking(this.state, (resolved) => {
-      void this.applyResolvedAutoTheme(resolved);
-    });
-  }
-
-  private stopTerminalThemeTracking(): void {
-    this.terminalThemeTrackingDispose?.();
-    this.terminalThemeTrackingDispose = undefined;
-  }
-
-  private async applyResolvedAutoTheme(resolved: ResolvedTheme): Promise<void> {
-    if (this.state.appState.theme !== 'auto') return;
-    const palette = getBuiltInPalette(resolved);
-    if (currentTheme.palette === palette) return;
-    currentTheme.setPalette(palette);
-    refreshShikiPalette(palette);
-    this.appearanceController.apply();
-    this.updateEditorBorderHighlight();
-    // Repaint already-rendered transcript entries (status/markdown caches hold
-    // old ANSI codes), matching applyTheme()'s behaviour.
-    this.state.transcriptContainer.invalidate();
-    requestTUILayoutRender(this.state);
-  }
-
-  private shouldShowTerminalProgress(effectiveMode: EffectiveActivityPaneMode): boolean {
-    if (this.state.appState.isCompacting) return true;
-    return (
-      effectiveMode === 'waiting' ||
-      effectiveMode === 'thinking' ||
-      effectiveMode === 'composing' ||
-      effectiveMode === 'tool'
-    );
-  }
-
-  private shouldPlaceActivitySpinnerInAgentSwarm(
-    effectiveMode: EffectiveActivityPaneMode,
-  ): boolean {
-    return (
-      this.sessionEventHandler.hasActiveAgentSwarmToolCall() &&
-      (effectiveMode === 'waiting' || effectiveMode === 'tool')
-    );
-  }
-
-  private syncAgentSwarmActivitySpinner(spinner: MoonLoader | undefined): void {
-    this.sessionEventHandler.syncAgentSwarmActivitySpinner(spinner);
-  }
-
-  private syncTerminalProgress(active: boolean): void {
-    if (!this.state.terminalState.supportsProgress) return;
-    if (this.state.terminalState.progressActive === active) return;
-    this.state.terminal.setProgress?.(active);
-    this.state.terminalState.progressActive = active;
-  }
-
-  private ensureActivitySpinner(
-    style: SpinnerStyle,
-    label = '',
-    colorFn?: (s: string) => string,
-  ): MoonLoader {
-    if (this.state.activitySpinner?.style !== style) {
-      this.stopActivitySpinner();
-    }
-
-    if (this.state.activitySpinner === null) {
-      const instance = new MoonLoader(this.state.ui, style, colorFn, label);
-      this.state.activitySpinner = { instance, style };
-      return instance;
-    }
-
-    this.state.activitySpinner.instance.setLabel(label);
-    if (colorFn !== undefined) {
-      this.state.activitySpinner.instance.setColorFn(colorFn);
-    }
-    return this.state.activitySpinner.instance;
-  }
-
-  private stopActivitySpinner(): void {
-    if (this.state.activitySpinner !== null) {
-      this.state.activitySpinner.instance.stop();
-      this.state.activitySpinner = null;
-    }
+    this.panes.refreshTerminalThemeTracking();
   }
 
   // =========================================================================
