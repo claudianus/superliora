@@ -7,7 +7,7 @@ description: Use when writing or modifying the SuperLiora terminal UI in apps/li
 
 The terminal UI lives in `apps/liora/src/tui`. Before writing TUI code, read `apps/liora/AGENTS.md` for the always-on **map, module boundaries, and hard constraints** (printable-key decoding, no chalk named colors, etc.). This skill is the **how-to**: architecture orientation, feature routing, test placement, theme mechanics, and the dialog spec.
 
-For any list dialog, selector, input box, or status/toggle list, the interaction and visual rules are normative — see **[PREMIUM.md](../../apps/liora/src/tui/PREMIUM.md)** and follow its self-check list before submitting.
+For any list dialog, selector, input box, or status/toggle list, the interaction and visual rules are normative — see **[PREMIUM.md](../../../apps/liora/src/tui/PREMIUM.md)** and follow its self-check list before submitting.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ For any list dialog, selector, input box, or status/toggle list, the interaction
 - `src/tui/liora-tui.ts` — the `LioraTUI` coordinator. Holds `state`, owns startup/shutdown order, layout/editor wiring, user-input entry, sending/queueing, session lifecycle, and the slash-command handler dispatch. It should **not** accumulate event-routing or rendering logic — those live in controllers.
 - `src/tui/tui-state.ts` — `TUIState`, `createTUIState`, `createInitialAppState`. The single global UI state shape. Before adding a new global field, decide whether it truly belongs here vs. local component state.
 - `src/tui/controllers/` — the independently-testable responsibilities. Each controller owns one slice:
-  - `session-event-handler.ts` — routes SDK session events (`handleEvent` dispatch + the per-event `handleXxx`). Concrete event handling goes here, not in `LioraTUI`.
+  - `session-event-handler.ts` — routes SDK session events (`handleEvent` dispatch + the per-event `handleXxx`). Compaction handlers live in `session-event-compaction.ts`; goal-updated / queued-goal promotion live in `session-event-goal-queue.ts`; turn / step / assistant / thinking handlers live in `session-event-turn.ts`; tool / shell handlers live in `session-event-tools.ts`. Concrete event handling goes here, not in `LioraTUI`.
   - `streaming-ui.ts` — streaming render: assistant delta, thinking, tool call / result, compaction, subagent, background agent, transcript aggregation.
   - `session-replay.ts` — resume/replay orchestration; drives replay records through the same live render hooks. Stateless replay parsing/limiting/projection helpers belong in `src/tui/utils/message-replay.ts`.
   - `tasks-browser.ts` — the tasks browser controller.
@@ -40,7 +40,7 @@ The feature type decides the landing spot:
 - **Skill-derived commands** → hook into `buildSkillSlashCommands` / the skill command map; do not hard-code a single skill.
 - **Transcript message types** → define the shape in `src/tui/types.ts`, add/extend a `components/messages/` component, register the renderer in the transcript builder.
 - **Tool-result display** → extend `components/messages/tool-renderers/registry.ts` and the renderer; do not stack branches inside `ToolCallComponent`.
-- **Popup / selector** → `components/dialogs/`, mounted via `mountEditorReplacement`; follow [PREMIUM.md](../../apps/liora/src/tui/PREMIUM.md). If triggered by an SDK callback, check whether `reverse-rpc/` needs an adapter/controller/handler.
+- **Popup / selector** → `components/dialogs/`, mounted via `mountEditorReplacement`; follow [PREMIUM.md](../../../apps/liora/src/tui/PREMIUM.md). If triggered by an SDK callback, check whether `reverse-rpc/` needs an adapter/controller/handler.
 - **SDK event handling** → add the dispatch in `session-event-handler.ts`'s `handleEvent`, then the matching `handleXxx`.
 - **Streaming render** → `controllers/streaming-ui.ts`.
 - **Session start / resume behavior** → the session-management section of `LioraTUI`; replay behavior → `controllers/session-replay.ts`, reusing live render paths.
@@ -81,5 +81,5 @@ Apply / switch flow:
 ## Before you submit
 
 - Run lint / format / test on the files you changed.
-- For any dialog/selector/input/toggle list, walk the self-check list at the end of [PREMIUM.md](../../apps/liora/src/tui/PREMIUM.md).
+- For any dialog/selector/input/toggle list, walk the self-check list at the end of [PREMIUM.md](../../../apps/liora/src/tui/PREMIUM.md).
 - Keep `printableChar()` for printable-key comparisons (CI guard) and `chalk.hex(colors.<token>)` for color (CI guard).

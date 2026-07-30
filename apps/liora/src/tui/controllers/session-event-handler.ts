@@ -1,42 +1,22 @@
 import type { Component, Focusable } from '#/tui/renderer';
 import type {
   AgentStatusUpdatedEvent,
-  AssistantDeltaEvent,
   BackgroundTaskInfo,
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
-  CompactionBlockedEvent,
-  CompactionCancelledEvent,
-  CompactionCompletedEvent,
-  CompactionProgressEvent,
-  CompactionStartedEvent,
   CronFiredEvent,
   ErrorEvent,
   Event,
   GoalChange,
-  GoalUpdatedEvent,
   HookResultEvent,
   PluginCommandActivatedEvent,
   Session,
   SessionMetaUpdatedEvent,
   SkillActivatedEvent,
-  ThinkingDeltaEvent,
-  TokenUsage,
-  ToolCallDeltaEvent,
-  ToolCallStartedEvent,
-  ToolProgressEvent,
-  ToolResultEvent,
-  TurnEndedEvent,
-  TurnStartedEvent,
-  TurnStepCompletedEvent,
-  TurnStepInterruptedEvent,
-  TurnStepRetryingEvent,
-  TurnStepStartedEvent,
   WarningEvent,
 } from '@superliora/sdk';
 
 import { MoonLoader } from '../components/chrome/moon-loader';
-import { buildGoalMarker } from '../components/messages/goal-markers';
 import { StatusMessageComponent } from '../components/messages/status-message';
 import {
   SwarmModeMarkerComponent,
@@ -55,29 +35,11 @@ import {
 } from '../constant/liora-tui';
 import {
   notifyBackgroundTaskAttention,
-  notifyGoalBlockedAttention,
-  notifyGoalCompletedAttention,
 } from '../utils/attention-notifications';
-import { appearanceAnimationNow } from '../utils/appearance-effects';
-import { feedbackEffectsActive, noteSuccessFeedback } from '../utils/feedback-vfx';
-import { noteGoalCompletionMeteorBurst } from '../utils/stage-letterbox-sky';
-import { buildGoalCompletionMessage } from '../utils/goal-completion';
-import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import {
-  argsRecord,
   formatErrorPayload,
-  formatErrorMessage,
-  isTodoItemShape,
-  serializeToolResultOutput,
   stringValue,
 } from '../utils/event-payload';
-import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
-import {
-  readGoalQueue,
-  removeGoalQueueItem,
-  restoreGoalQueueItem,
-  type UpcomingGoal,
-} from '../goal-queue-store';
 import { formatBackgroundTaskTranscript } from '../utils/background-task-status';
 import { formatHookResultMarkdown } from '../utils/hook-result-format';
 import { McpOAuthAuthorizationUrlOpener } from '../utils/mcp-oauth';
@@ -88,17 +50,9 @@ import {
   selectMcpStartupStatusRows,
 } from '../utils/mcp-server-status';
 import { openUrl } from '#/utils/open-url';
-import {
-  decideModelRouteSurface,
-  isSameEffectiveModel,
-  modelRouteDisplayName,
-  resolveModelRouteIdentity,
-} from '../utils/model-route-notice';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import { errorReportHintLine } from '../constant/feedback';
-import { formatStepDebugTiming } from '#/utils/usage/debug-timing';
-import { formatTokenCount } from '#/utils/usage/usage-format';
 import { computeSessionCostUsd } from '#/tui/utils/session-cost';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { ttui } from '../utils/tui-i18n';
@@ -106,18 +60,20 @@ import { nextTranscriptId } from '../utils/transcript-id';
 import type { BtwPanelController } from './btw-panel';
 import type { StreamingUIController } from './streaming-ui';
 import type { TasksBrowserController } from './tasks-browser';
+import { SessionEventCompaction } from './session-event-compaction';
+import { SessionEventGoalQueue } from './session-event-goal-queue';
+import { SessionEventTools } from './session-event-tools';
+import { SessionEventTurn } from './session-event-turn';
 import { SubAgentEventHandler } from './subagent-event-handler';
 import type {
   AppState,
   LivePaneState,
   QueuedMessage,
-  ToolCallBlockData,
-  ToolResultBlockData,
   TranscriptEntry,
 } from '../types';
 import type { TUIState } from '../tui-state';
-import { createGoal as startGoalCommand } from '../commands/goal';
-import { notifyTurnComplete, notifyError } from '../utils/desktop-notification';
+import type { MotionBeatController } from '../utils/motion-beats';
+import { notifyError } from '../utils/desktop-notification';
 
 export interface SessionEventHost {
   state: TUIState;
@@ -153,15 +109,65 @@ export interface SessionEventHost {
 
 export class SessionEventHandler {
   readonly subAgentEventHandler: SubAgentEventHandler;
+  private readonly compaction: SessionEventCompaction;
+  private readonly goalQueue: SessionEventGoalQueue;
+  private readonly tools: SessionEventTools;
+  private readonly turn: SessionEventTurn;
 
   /** Optional activity feed for the workspace transparency panel. */
 
   constructor(private readonly host: SessionEventHost) {
+    this.compaction = new SessionEventCompaction(host);
+    this.goalQueue = new SessionEventGoalQueue(host, {
+      getGoalCompletionTurnEnded: () => this.goalCompletionTurnEnded,
+      setGoalCompletionTurnEnded: (value) => {
+        this.goalCompletionTurnEnded = value;
+      },
+      getCurrentTurnHasAssistantText: () => this.currentTurnHasAssistantText,
+      setPendingModelBlockedFallback: (value) => {
+        this.pendingModelBlockedFallback = value;
+      },
+    });
     this.subAgentEventHandler = new SubAgentEventHandler(host, {
       backgroundTasks: this.backgroundTasks,
       backgroundTaskTranscriptedTerminal: this.backgroundTaskTranscriptedTerminal,
       syncBackgroundAgentBadge: () => {
         this.syncBackgroundTaskBadge();
+      },
+    });
+    this.tools = new SessionEventTools(host, {
+      handleAgentSwarmToolCallStarted: (toolCallId, args, name) => {
+        this.subAgentEventHandler.handleAgentSwarmToolCallStarted(toolCallId, args, name);
+      },
+      handleAgentSwarmToolCallDelta: (toolCallId, args, options, name) => {
+        this.subAgentEventHandler.handleAgentSwarmToolCallDelta(toolCallId, args, options, name);
+      },
+      hasAgentSwarmProgress: (toolCallId) => {
+        return this.subAgentEventHandler.hasAgentSwarmProgress(toolCallId);
+      },
+      handleAgentSwarmToolResult: (toolCallId, resultData, isError) => {
+        this.subAgentEventHandler.handleAgentSwarmToolResult(toolCallId, resultData, isError);
+      },
+    });
+    this.turn = new SessionEventTurn(host, {
+      clearAgentSwarmProgress: () => {
+        this.clearAgentSwarmProgress();
+      },
+      markActiveAgentSwarmsCancelled: () => {
+        this.subAgentEventHandler.markActiveAgentSwarmsCancelled();
+      },
+      scheduleQueuedGoalPromotion: () => {
+        this.goalQueue.scheduleQueuedGoalPromotion();
+      },
+      setCurrentTurnHasAssistantText: (value) => {
+        this.currentTurnHasAssistantText = value;
+      },
+      setGoalCompletionTurnEnded: (value) => {
+        this.goalCompletionTurnEnded = value;
+      },
+      getPendingModelBlockedFallback: () => this.pendingModelBlockedFallback,
+      setPendingModelBlockedFallback: (value) => {
+        this.pendingModelBlockedFallback = value;
       },
     });
   }
@@ -177,14 +183,10 @@ export class SessionEventHandler {
   ultraworkTheatres: Map<string, UltraworkTheatreComponent> = new Map();
   private ultraworkCompletionHandledRuns: Set<string> = new Set();
   mcpServers: Map<string, McpServerStatusSnapshot> = new Map();
-  private goalCompletionAwaitingClear = false;
+  /** Shared with goal-queue + turn (assistant.delta / turn.ended / hook.result). */
   private goalCompletionTurnEnded = false;
   private currentTurnHasAssistantText = false;
-  private currentTurnUsage: TokenUsage | undefined;
   private pendingModelBlockedFallback: GoalChange | undefined;
-  private queuedGoalPromotionPending = false;
-  private queuedGoalPromotionInFlight = false;
-  private queuedGoalPromotionTimer: ReturnType<typeof setTimeout> | undefined;
 
   resetRuntimeState(): void {
     this.backgroundTasks.clear();
@@ -196,14 +198,11 @@ export class SessionEventHandler {
     this.renderedPluginCommandActivationIds.clear();
     this.renderedMcpServerStatusKeys.clear();
     this.mcpServers.clear();
-    this.goalCompletionAwaitingClear = false;
     this.goalCompletionTurnEnded = false;
     this.currentTurnHasAssistantText = false;
-    this.currentTurnUsage = undefined;
     this.pendingModelBlockedFallback = undefined;
-    this.queuedGoalPromotionPending = false;
-    this.queuedGoalPromotionInFlight = false;
-    this.clearQueuedGoalPromotionTimer();
+    this.turn.resetRuntimeState();
+    this.goalQueue.resetRuntimeState();
     this.stopAllMcpServerStatusSpinners();
   }
 
@@ -325,33 +324,33 @@ export class SessionEventHandler {
     }
 
     switch (event.type) {
-      case 'turn.started': this.handleTurnBegin(event); break;
-      case 'turn.ended': this.handleTurnEnd(event, sendQueued); break;
-      case 'turn.step.started': this.handleStepBegin(event); break;
-      case 'turn.step.interrupted': this.handleStepInterrupted(event); break;
-      case 'turn.step.completed': this.handleStepCompleted(event); break;
-      case 'turn.step.retrying': this.handleStepRetrying(event); break;
-      case 'tool.progress': this.handleToolProgress(event); break;
-      case 'shell.output': this.host.handleShellOutput(event); break;
-      case 'shell.started': this.host.handleShellStarted(event); break;
-      case 'assistant.delta': this.handleAssistantDelta(event); break;
+      case 'turn.started': this.turn.handleTurnBegin(event); break;
+      case 'turn.ended': this.turn.handleTurnEnd(event, sendQueued); break;
+      case 'turn.step.started': this.turn.handleStepBegin(event); break;
+      case 'turn.step.interrupted': this.turn.handleStepInterrupted(event); break;
+      case 'turn.step.completed': this.turn.handleStepCompleted(event); break;
+      case 'turn.step.retrying': this.turn.handleStepRetrying(event); break;
+      case 'tool.progress': this.tools.handleToolProgress(event); break;
+      case 'shell.output': this.tools.handleShellOutput(event); break;
+      case 'shell.started': this.tools.handleShellStarted(event); break;
+      case 'assistant.delta': this.turn.handleAssistantDelta(event); break;
       case 'hook.result': this.handleHookResult(event); break;
-      case 'thinking.delta': this.handleThinkingDelta(event); break;
-      case 'tool.call.started': this.handleToolCall(event); break;
-      case 'tool.call.delta': this.handleToolCallDelta(event); break;
-      case 'tool.result': this.handleToolResult(event); break;
+      case 'thinking.delta': this.turn.handleThinkingDelta(event); break;
+      case 'tool.call.started': this.tools.handleToolCall(event); break;
+      case 'tool.call.delta': this.tools.handleToolCallDelta(event); break;
+      case 'tool.result': this.tools.handleToolResult(event); break;
       case 'agent.status.updated': this.handleStatusUpdate(event); break;
       case 'session.meta.updated': this.handleSessionMetaChanged(event); break;
-      case 'goal.updated': this.handleGoalUpdated(event); break;
+      case 'goal.updated': this.goalQueue.handleUpdated(event); break;
       case 'skill.activated': this.handleSkillActivated(event); break;
       case 'plugin_command.activated': this.handlePluginCommandActivated(event); break;
       case 'error': this.handleSessionError(event); break;
       case 'warning': this.handleSessionWarning(event); break;
-      case 'compaction.started': this.handleCompactionBegin(event); break;
-      case 'compaction.completed': this.handleCompactionEnd(event, sendQueued); break;
-      case 'compaction.blocked': this.handleCompactionBlocked(event); break;
-      case 'compaction.cancelled': this.handleCompactionCancel(event, sendQueued); break;
-      case 'compaction.progress': this.handleCompactionProgress(event); break;
+      case 'compaction.started': this.compaction.handleBegin(event); break;
+      case 'compaction.completed': this.compaction.handleEnd(event, sendQueued); break;
+      case 'compaction.blocked': this.compaction.handleBlocked(event); break;
+      case 'compaction.cancelled': this.compaction.handleCancel(event, sendQueued); break;
+      case 'compaction.progress': this.compaction.handleProgress(event); break;
       case 'subagent.spawned':
       case 'subagent.started':
       case 'subagent.suspended':
@@ -366,7 +365,7 @@ export class SessionEventHandler {
       case 'subagent.tool_result':
         this.subAgentEventHandler.handleSubagentToolActivity(event); break;
       case 'tools.update_store':
-        this.handleToolsUpdateStore(event); break;
+        this.tools.handleToolsUpdateStore(event); break;
       case 'background.task.started':
       case 'background.task.terminated':
         this.handleBackgroundTaskEvent(event); break;
@@ -490,20 +489,6 @@ export class SessionEventHandler {
     requestTUILayoutRender(this.host.state);
   }
 
-  private async notifyUltraworkInterrupted(reason: string): Promise<void> {
-    try {
-      const run = await this.host.requireSession().getUltraworkRun();
-      if (run === null || run.status === 'done' || run.status === 'failed') return;
-      this.host.showNotice(
-        'Ultrawork interrupted',
-        `${reason}\nStage: ${run.stage}\nUse /ultrawork resume to continue.`,
-        { coalesceKey: 'ultrawork-interrupted' },
-      );
-    } catch {
-      // Best-effort UI hint only.
-    }
-  }
-
   stopAllMcpServerStatusSpinners(): void {
     for (const spinner of this.mcpServerStatusSpinners.values()) {
       spinner.stop();
@@ -514,24 +499,6 @@ export class SessionEventHandler {
   // ---------------------------------------------------------------------------
   // Private handlers
   // ---------------------------------------------------------------------------
-
-  private handleTurnBegin(_event: TurnStartedEvent): void {
-    void _event;
-    this.currentTurnHasAssistantText = false;
-    this.currentTurnUsage = undefined;
-    this.clearAgentSwarmProgress();
-    this.host.streamingUI.resetToolUi();
-    this.host.streamingUI.setStep(0);
-    this.host.patchLivePane({
-      mode: 'waiting',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    this.host.setAppState({
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
-  }
 
   private handleCronFired(event: CronFiredEvent): void {
     this.host.streamingUI.flushNow();
@@ -549,289 +516,6 @@ export class SessionEventHandler {
         stale: event.origin.stale,
       },
     });
-  }
-
-  private handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
-    this.host.streamingUI.flushNow();
-    if (event.reason === 'cancelled') {
-      this.markActiveAgentSwarmsCancelled();
-    }
-    if (event.reason === 'filtered') {
-      this.host.showStatus('Turn stopped: provider safety policy blocked the response.', 'error');
-    }
-    // A cleanly-ended turn clears the retry flag (only errors set it).
-    this.host.setLastTurnFailed(false);
-    const todos = this.host.state.todoPanel.getTodos();
-    if (todos.length > 0 && todos.every((t) => t.status === 'done')) {
-      this.host.streamingUI.setTodoList([]);
-    }
-    this.host.streamingUI.resetToolUi();
-    this.host.streamingUI.finalizeTurn(sendQueued);
-    this.appendTurnSummary(event);
-    this.renderPendingModelBlockedFallback();
-    this.currentTurnHasAssistantText = false;
-    this.currentTurnUsage = undefined;
-    this.goalCompletionTurnEnded = true;
-    this.scheduleQueuedGoalPromotion();
-    // Desktop notification on successful turn completion
-    if (event.reason !== 'cancelled' && event.reason !== 'filtered') {
-      notifyTurnComplete();
-    }
-  }
-
-  private appendTurnSummary(event: TurnEndedEvent): void {
-    const text = formatTurnSummary(event.durationMs, this.currentTurnUsage);
-    if (text === undefined) return;
-    this.host.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'status',
-      turnId: String(event.turnId),
-      renderMode: 'plain',
-      content: text,
-      color: 'textDim',
-      bullet: '',
-    });
-  }
-
-  private handleStepRetrying(event: TurnStepRetryingEvent): void {
-    // The payload carries no model/route info — build the cue from the error
-    // identity, attempt counts, and backoff delay only (no invented fields).
-    const name = event.errorName.trim();
-    const detail = event.errorMessage.trim().replaceAll(/\s+/g, ' ');
-    const shortDetail = detail.length > 90 ? `${detail.slice(0, 89)}…` : detail;
-    const reason =
-      name.length > 0
-        ? shortDetail.length > 0
-          ? `${name}: ${shortDetail}`
-          : name
-        : shortDetail.length > 0
-          ? shortDetail
-          : 'a transient error';
-    const delay =
-      event.delayMs > 0 ? ` — next attempt in ${formatRetryDelay(event.delayMs)}` : '';
-    this.host.showStatus(
-      `Retrying step ${String(event.step)} (attempt ${String(event.nextAttempt)}/${String(event.maxAttempts)}) after ${reason}${delay}`,
-      'warning',
-    );
-  }
-
-  private handleStepBegin(event: TurnStepStartedEvent): void {
-    this.host.streamingUI.flushNow();
-    this.host.streamingUI.setStep(event.step);
-    this.host.streamingUI.resetToolUi();
-    this.host.streamingUI.finalizeLiveTextBuffers('waiting');
-    this.host.patchLivePane({
-      mode: 'waiting',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    this.host.setAppState({
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
-  }
-
-  private handleStepCompleted(event: TurnStepCompletedEvent): void {
-    this.host.streamingUI.flushNow();
-    if (event.usage !== undefined) {
-      this.currentTurnUsage = addTokenUsage(this.currentTurnUsage, event.usage);
-    }
-    this.maybeShowDebugTiming(event);
-    this.maybeSurfaceProviderRouteSelection(event);
-
-    if (event.providerFinishReason === 'filtered') {
-      this.host.showNotice(
-        'Provider safety policy blocked the response.',
-        `The model output was filtered (${event.rawFinishReason ?? 'content_filter'}).`,
-      );
-      return;
-    }
-
-    if (event.finishReason !== 'max_tokens') return;
-
-    const truncatedCount = this.host.streamingUI.markStepTruncated(
-      String(event.turnId),
-      event.step,
-    );
-
-    const title =
-      truncatedCount > 0
-        ? 'Model hit max_tokens — tool call was truncated before it could run.'
-        : 'Model hit max_tokens — no tool call was emitted.';
-    const detail = this.isAnthropicSessionActive()
-      ? 'If this limit is wrong for your model, set `max_output_size` on the model alias in your kimi-code config.'
-      : undefined;
-    this.host.showNotice(title, detail);
-  }
-
-
-  /**
-   * Surface the effective model/credential for this step when it meaningfully
-   * differs from the previous step route — real failover & credential rotation
-   * become visible in the transcript + footer instead of only /status.
-   *
-   * Alias/display renames of the *same* underlying model (e.g. "Grok 4.5" vs
-   * "grok-4.5") are suppressed so every step does not spam "Model failover".
-   */
-  private maybeSurfaceProviderRouteSelection(event: TurnStepCompletedEvent): void {
-    const selection = event.providerRouteSelection;
-    if (selection === undefined) return;
-
-    const prev = this.host.state.appState.lastProviderRouteSelection ?? null;
-    const sessionModel = this.host.state.appState.model;
-    const availableModels = this.host.state.appState.availableModels;
-    const decision = decideModelRouteSurface({
-      selection,
-      previous: prev,
-      sessionModel,
-      availableModels,
-    });
-
-    const patch: Partial<AppState> = {
-      lastProviderRouteSelection: selection,
-    };
-
-    if (decision.kind !== 'none') {
-      const toAlias = decision.toAlias;
-      const fromAlias = decision.fromAlias;
-      const toLabel = modelRouteDisplayName(toAlias, availableModels);
-      const fromLabel =
-        fromAlias !== undefined ? modelRouteDisplayName(fromAlias, availableModels) : undefined;
-      const cred =
-        selection.credentialLabel !== undefined && selection.credentialLabel.length > 0
-          ? selection.credentialLabel
-          : selection.providerName;
-      const detailParts: string[] = [];
-      if (fromLabel !== undefined && fromLabel !== toLabel) {
-        detailParts.push(`${fromLabel} → ${toLabel}`);
-      } else {
-        detailParts.push(toLabel);
-      }
-      // Append wire model id only when it adds information beyond the alias/label.
-      if (
-        selection.providerModel.length > 0 &&
-        selection.providerModel !== toAlias &&
-        selection.providerModel !== toLabel
-      ) {
-        detailParts.push(selection.providerModel);
-      }
-      if (cred !== undefined && cred.length > 0) {
-        detailParts.push(cred);
-      }
-      const isFailover = decision.kind === 'failover';
-      const title = isFailover
-        ? 'Model failover'
-        : decision.credentialChanged
-          ? 'Route credential'
-          : 'Route selected';
-      this.host.showNotice(title, detailParts.join(' · '), {
-        coalesceKey: 'model-route:step',
-      });
-      patch.lastModelRouteNotice = {
-        kind: isFailover ? 'failover' : 'selection',
-        fromAlias,
-        toAlias,
-        providerName: selection.providerName,
-        credentialLabel: selection.credentialLabel,
-        providerModel: selection.providerModel,
-        reason: isFailover
-          ? 'provider-failover'
-          : decision.credentialChanged
-            ? 'provider-credential'
-            : 'provider-route',
-        atMs: Date.now(),
-      };
-    }
-
-    this.host.setAppState(patch);
-  }
-
-  private maybeShowDebugTiming(event: TurnStepCompletedEvent): void {
-    if (process.env['SUPERLIORA_DEBUG'] !== '1') return;
-    const text = formatStepDebugTiming(event);
-    if (text === undefined) return;
-    this.host.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'status',
-      turnId: String(event.turnId),
-      renderMode: 'plain',
-      content: text,
-    });
-  }
-
-  private markActiveAgentSwarmsCancelled(): void {
-    this.subAgentEventHandler.markActiveAgentSwarmsCancelled();
-  }
-
-  private isAnthropicSessionActive(): boolean {
-    const { state } = this.host;
-    const providerKey = state.appState.availableModels[state.appState.model]?.provider;
-    if (providerKey === undefined) return false;
-    return state.appState.availableProviders[providerKey]?.type === 'anthropic';
-  }
-
-  private handleStepInterrupted(event: TurnStepInterruptedEvent): void {
-    this.host.streamingUI.flushNow();
-    this.host.streamingUI.resetToolUi();
-    this.host.streamingUI.finalizeLiveTextBuffers('idle');
-    const reason = event.reason;
-    if (reason === 'error') return;
-    if (reason === 'aborted' || reason === undefined || reason === '') {
-      this.markActiveAgentSwarmsCancelled();
-      const userCancelled = event.cancelledByUser === true;
-      const programmaticAbort = event.cancelledByUser === false;
-      void this.notifyUltraworkInterrupted(
-        programmaticAbort ? 'Paused after abort' : 'Paused after interruption',
-      );
-      this.host.showStatus(
-        userCancelled
-          ? 'Interrupted by user'
-          : programmaticAbort
-            ? 'Turn aborted'
-            : 'Turn stopped',
-        'error',
-      );
-      return;
-    }
-    this.host.showError(
-      reason === 'max_steps'
-        ? 'reached per-turn step limit (max_steps)'
-        : `step interrupted (${reason})`,
-    );
-  }
-
-  private handleThinkingDelta(event: ThinkingDeltaEvent): void {
-    const { state, streamingUI } = this.host;
-    const wasThinking = state.appState.streamingPhase === 'thinking';
-    streamingUI.appendThinkingDelta(event.delta);
-    this.host.patchLivePane({ mode: 'idle' });
-    if (!wasThinking) {
-      this.host.setAppState({ streamingPhase: 'thinking', streamingStartTime: Date.now() });
-    }
-    streamingUI.scheduleFlush();
-  }
-
-  private handleAssistantDelta(event: AssistantDeltaEvent): void {
-    const { state, streamingUI } = this.host;
-    if (streamingUI.hasThinkingDraft()) {
-      streamingUI.flushThinkingToTranscript('idle');
-    }
-
-    if (event.delta.trim().length > 0) {
-      this.currentTurnHasAssistantText = true;
-      this.pendingModelBlockedFallback = undefined;
-    }
-    streamingUI.appendAssistantDelta(event.delta);
-
-    this.host.patchLivePane({
-      mode: 'idle',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    if (state.appState.streamingPhase !== 'composing') {
-      this.host.setAppState({ streamingPhase: 'composing', streamingStartTime: Date.now() });
-    }
-    streamingUI.scheduleFlush();
   }
 
   private handleHookResult(event: HookResultEvent): void {
@@ -856,125 +540,6 @@ export class SessionEventHandler {
       pendingApproval: null,
       pendingQuestion: null,
     });
-  }
-
-  private handleToolCall(event: ToolCallStartedEvent): void {
-    const { state, streamingUI } = this.host;
-    streamingUI.flushNow();
-    const { turnId, step } = streamingUI.getTurnContext();
-    const toolCall: ToolCallBlockData = {
-      id: event.toolCallId,
-      name: event.name,
-      args: argsRecord(event.args),
-      description: event.description,
-      display: event.display,
-      step,
-      turnId,
-    };
-    streamingUI.registerToolCall(toolCall);
-    // Push to activity feed for transparency panel
-        if (event.name !== 'TodoList') {
-      state.todoPanel.bumpActivity();
-      requestTUILayoutRender(state);
-    }
-    if (isSwarmProgressToolName(event.name)) {
-      this.subAgentEventHandler.handleAgentSwarmToolCallStarted(
-        event.toolCallId,
-        toolCall.args,
-        event.name,
-      );
-    }
-    this.host.patchLivePane({
-      mode: 'tool',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-  }
-
-  private handleToolCallDelta(event: ToolCallDeltaEvent): void {
-    if (event.toolCallId.length === 0) return;
-    const { state, streamingUI } = this.host;
-    streamingUI.accumulateToolCallDelta(event.toolCallId, event.name, event.argumentsPart);
-    const preview = streamingUI.getStreamingToolCallPreview(event.toolCallId);
-    if (
-      preview !== undefined &&
-      (isSwarmProgressToolName(preview.name) ||
-        this.subAgentEventHandler.hasAgentSwarmProgress(event.toolCallId))
-    ) {
-      this.subAgentEventHandler.handleAgentSwarmToolCallDelta(
-        event.toolCallId,
-        preview.args,
-        { streamingArguments: preview.argumentsText },
-        preview.name,
-      );
-    }
-
-    this.host.patchLivePane({
-      mode: 'tool',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    if (state.appState.streamingPhase !== 'composing') {
-      this.host.setAppState({ streamingPhase: 'composing', streamingStartTime: Date.now() });
-    }
-    streamingUI.scheduleFlush();
-  }
-
-  private handleToolProgress(event: ToolProgressEvent): void {
-    const text = event.update.text;
-    if (text === undefined || text.length === 0) return;
-    const tc = this.host.streamingUI.getToolComponent(event.toolCallId);
-    if (tc === undefined) return;
-    if (event.update.kind === 'status') {
-      tc.appendProgress(text);
-      return;
-    }
-    if (event.update.kind === 'stdout' || event.update.kind === 'stderr') {
-      tc.appendLiveOutput(text);
-    }
-  }
-
-  private handleToolResult(event: ToolResultEvent): void {
-    const { streamingUI } = this.host;
-    streamingUI.flushNow();
-    const resultData: ToolResultBlockData = {
-      tool_call_id: event.toolCallId,
-      output: serializeToolResultOutput(event.output),
-      is_error: event.isError,
-      synthetic: event.synthetic,
-    };
-    const matchedCall = streamingUI.completeToolResult(event.toolCallId, resultData);
-    // Push result to activity feed
-    
-    this.subAgentEventHandler.handleAgentSwarmToolResult(
-      event.toolCallId,
-      resultData,
-      event.isError === true,
-    );
-    if (matchedCall !== undefined && matchedCall.name === 'TodoList' && !event.isError) {
-      const rawTodos = (matchedCall.args as { todos?: unknown }).todos;
-      if (Array.isArray(rawTodos)) {
-        const sanitized = rawTodos
-          .filter((todo): todo is { title: string; status: 'pending' | 'in_progress' | 'done' } =>
-            isTodoItemShape(todo),
-          )
-          .map((t) => ({ title: t.title, status: t.status }));
-        streamingUI.setTodoList(sanitized);
-      }
-    }
-    this.host.patchLivePane({ mode: 'waiting' });
-  }
-
-  private handleToolsUpdateStore(event: Extract<Event, { type: 'tools.update_store' }>): void {
-    if (event.key !== 'todo') return;
-    const rawTodos = event.value;
-    if (!Array.isArray(rawTodos)) return;
-    const sanitized = rawTodos
-      .filter((todo): todo is { title: string; status: 'pending' | 'in_progress' | 'done' } =>
-        isTodoItemShape(todo),
-      )
-      .map((todo) => ({ title: todo.title, status: todo.status }));
-    this.host.streamingUI.setTodoList(sanitized);
   }
 
   private handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
@@ -1029,231 +594,12 @@ export class SessionEventHandler {
     requestTUILayoutRender(this.host.state);
   }
 
-  private handleGoalUpdated(event: GoalUpdatedEvent): void {
-    this.host.setAppState({ goal: event.snapshot });
-    if (event.snapshot === null && this.goalCompletionAwaitingClear) {
-      this.goalCompletionAwaitingClear = false;
-      this.queuedGoalPromotionPending = true;
-      this.scheduleQueuedGoalPromotion();
-    }
-    if (event.snapshot === null) {
-      this.pendingModelBlockedFallback = undefined;
-    }
-    const change = event.change;
-    if (change === undefined) return;
-    const { state } = this.host;
-
-    // Completion -> the box disappears (snapshot cleared on the follow-up null
-    // update) and a deterministic completion message lands in the transcript.
-    // Resume renders the same text from the durable goal completion replay
-    // record, so live and replayed completion cards stay identical.
-    if (change.kind === 'completion' && event.snapshot !== null) {
-      this.pendingModelBlockedFallback = undefined;
-      this.goalCompletionAwaitingClear = true;
-      this.goalCompletionTurnEnded = false;
-      notifyGoalCompletedAttention(state, event.snapshot);
-      noteSuccessFeedback();
-      if (feedbackEffectsActive()) {
-        noteGoalCompletionMeteorBurst(appearanceAnimationNow());
-      }
-      this.host.motionBeats.play({
-        name: 'goal_complete',
-        seed: `goal:${event.snapshot.goalId}`,
-        title: 'Goal complete',
-        nowMs: appearanceAnimationNow(),
-        theatreActive: isMotionTheatreActive(state.appState),
-      });
-      this.host.appendTranscriptEntry({
-        id: nextTranscriptId(),
-        kind: 'assistant',
-        renderMode: 'markdown',
-        content: buildGoalCompletionMessage(event.snapshot),
-      });
-      requestTUILayoutRender(state);
-      return;
-    }
-
-    // Lifecycle change (pause / resume / blocked) -> a low-profile,
-    // ctrl+o-expandable marker.
-    if (change.kind === 'lifecycle' && change.status === 'blocked') {
-      if (event.snapshot !== null) {
-        notifyGoalBlockedAttention(state, event.snapshot, change.reason);
-      }
-      void this.notifyQueuedGoalWaitingOnBlocked();
-      if (change.actor === 'model' || change.reason === undefined) {
-        this.pendingModelBlockedFallback = this.currentTurnHasAssistantText
-          ? undefined
-          : change;
-        return;
-      }
-      this.pendingModelBlockedFallback = undefined;
-    } else if (change.kind === 'lifecycle') {
-      this.pendingModelBlockedFallback = undefined;
-    }
-    const marker = buildGoalMarker(change, state.toolOutputExpanded, change.actor);
-    if (marker !== null) {
-      state.transcriptContainer.addChild(marker);
-      requestTUILayoutRender(state);
-    }
-  }
-
-  private renderPendingModelBlockedFallback(): void {
-    const change = this.pendingModelBlockedFallback;
-    if (change === undefined) return;
-    this.pendingModelBlockedFallback = undefined;
-    const { state } = this.host;
-    const marker = buildGoalMarker(change, state.toolOutputExpanded, 'model');
-    if (marker !== null) {
-      state.transcriptContainer.addChild(marker);
-      requestTUILayoutRender(state);
-    }
-  }
-
-  private scheduleQueuedGoalPromotion(): void {
-    if (!this.queuedGoalPromotionPending || !this.goalCompletionTurnEnded) return;
-    if (this.queuedGoalPromotionInFlight) return;
-    if (this.queuedGoalPromotionTimer !== undefined) return;
-    this.queuedGoalPromotionTimer = setTimeout(() => {
-      this.queuedGoalPromotionTimer = undefined;
-      if (!this.queuedGoalPromotionPending || !this.goalCompletionTurnEnded) return;
-      if (this.queuedGoalPromotionInFlight) return;
-      if (!this.isReadyForQueuedGoalPromotion()) {
-        return;
-      }
-      this.queuedGoalPromotionInFlight = true;
-      void this.promoteNextQueuedGoal()
-        .then((complete) => {
-          if (complete) {
-            this.queuedGoalPromotionPending = false;
-            this.goalCompletionTurnEnded = false;
-            return;
-          }
-          this.goalCompletionTurnEnded = false;
-        })
-        .finally(() => {
-          this.queuedGoalPromotionInFlight = false;
-          this.scheduleQueuedGoalPromotion();
-        });
-    }, 0);
-    this.queuedGoalPromotionTimer.unref?.();
-  }
-
-  private clearQueuedGoalPromotionTimer(): void {
-    if (this.queuedGoalPromotionTimer === undefined) return;
-    clearTimeout(this.queuedGoalPromotionTimer);
-    this.queuedGoalPromotionTimer = undefined;
-  }
-
   requestQueuedGoalPromotion(): void {
-    this.queuedGoalPromotionPending = true;
-    this.goalCompletionTurnEnded = true;
-    this.scheduleQueuedGoalPromotion();
+    this.goalQueue.requestQueuedGoalPromotion();
   }
 
   retryQueuedGoalPromotion(): void {
-    this.scheduleQueuedGoalPromotion();
-  }
-
-  private isReadyForQueuedGoalPromotion(session?: Session): boolean {
-    return (
-      (session === undefined || this.host.session === session) &&
-      !this.host.aborted &&
-      this.host.state.appState.streamingPhase === 'idle' &&
-      this.host.state.queuedMessages.length === 0
-    );
-  }
-
-  private async promoteNextQueuedGoal(): Promise<boolean> {
-    const { host } = this;
-    const session = host.session;
-    if (session === undefined || host.aborted) return true;
-
-    let queue;
-    try {
-      queue = await readGoalQueue(session);
-    } catch (error) {
-      host.showError(`Failed to read upcoming goals: ${formatErrorMessage(error)}`);
-      return false;
-    }
-    if (host.session !== session || host.aborted) return true;
-
-    const next = queue.goals[0];
-    if (next === undefined) return true;
-
-    if (!this.isReadyForQueuedGoalPromotion(session)) return false;
-
-    const started = await startGoalCommand(
-      host,
-      { kind: 'create', objective: next.objective, replace: false },
-      next.objective,
-      {
-        skipPermissionPrompt: true,
-        beforeSend: async () => {
-          if (!this.isReadyForQueuedGoalPromotion(session)) {
-            await this.cancelStartedQueuedGoal(session);
-            return false;
-          }
-          try {
-            await removeGoalQueueItem(session, { goalId: next.id });
-          } catch (error) {
-            host.showError(
-              `Queued goal started, but could not be removed from the queue: ${formatErrorMessage(error)}`,
-            );
-            await this.cancelStartedQueuedGoal(session);
-            return false;
-          }
-          if (this.isReadyForQueuedGoalPromotion(session)) {
-            return true;
-          }
-          await this.restoreAndCancelStartedQueuedGoal(session, next);
-          return false;
-        },
-        sendInput: (objective) => {
-          host.sendQueuedMessage(session, { text: objective });
-        },
-      },
-    );
-    return started || host.session !== session || host.aborted;
-  }
-
-  private async restoreAndCancelStartedQueuedGoal(
-    session: Session,
-    goal: UpcomingGoal,
-  ): Promise<void> {
-    try {
-      await restoreGoalQueueItem(session, goal);
-    } catch (error) {
-      this.host.showError(`Queued goal could not be restored: ${formatErrorMessage(error)}`);
-    }
-    await this.cancelStartedQueuedGoal(session);
-  }
-
-  private async cancelStartedQueuedGoal(session: Session): Promise<void> {
-    try {
-      await session.cancelGoal();
-    } catch (error) {
-      this.host.showError(`Queued goal could not be cancelled: ${formatErrorMessage(error)}`);
-    }
-  }
-
-  private async notifyQueuedGoalWaitingOnBlocked(): Promise<void> {
-    const { host } = this;
-    const session = host.session;
-    if (session === undefined || host.aborted) return;
-
-    let hasQueuedGoal = false;
-    try {
-      const queue = await readGoalQueue(session);
-      hasQueuedGoal = queue.goals.length > 0;
-    } catch {
-      return;
-    }
-    if (!hasQueuedGoal || host.session !== session || host.aborted) return;
-
-    host.showNotice(
-      'Goal blocked.',
-      'The next queued goal will start only after this goal is complete.',
-    );
+    this.goalQueue.retryQueuedGoalPromotion();
   }
 
   private handleSessionMetaChanged(event: SessionMetaUpdatedEvent): void {
@@ -1426,129 +772,6 @@ export class SessionEventHandler {
     });
   }
 
-  private handleCompactionBegin(event: CompactionStartedEvent): void {
-    const background = event.mode === 'background';
-    if (background) {
-      // Async pre-rot: keep the live turn interactive; only surface a badge.
-      // Do not flush live thinking/assistant buffers mid-turn.
-      this.host.setAppState({ isBackgroundCompacting: true });
-    } else {
-      this.host.streamingUI.finalizeLiveTextBuffers('waiting');
-      this.host.setAppState({
-        isCompacting: true,
-        isBackgroundCompacting: false,
-        streamingPhase: 'waiting',
-        streamingStartTime: Date.now(),
-      });
-    }
-    this.host.streamingUI.beginCompaction(event.instruction, {
-      background,
-      modelAlias: event.modelAlias,
-    });
-    if (event.modelAlias !== undefined && event.modelAlias.length > 0) {
-      const parentModel = this.host.state.appState.model;
-      const models = this.host.state.appState.availableModels;
-      // Same underlying model as the session alias — keep quiet (alias noise).
-      if (
-        parentModel.length > 0 &&
-        isSameEffectiveModel(
-          resolveModelRouteIdentity(parentModel, models),
-          resolveModelRouteIdentity(event.modelAlias, models),
-        )
-      ) {
-        // still no-op for notice
-      } else {
-        const fromLabel =
-          parentModel.length > 0 ? modelRouteDisplayName(parentModel, models) : undefined;
-        const toLabel = modelRouteDisplayName(event.modelAlias, models);
-        const switched =
-          fromLabel !== undefined && fromLabel !== toLabel
-            ? `${fromLabel} → ${toLabel}`
-            : toLabel;
-        this.host.showNotice('Compaction model', switched, {
-          coalesceKey: 'model-route:compaction',
-        });
-        this.host.setAppState({
-          lastModelRouteNotice: {
-            kind: 'selection',
-            fromAlias: parentModel.length > 0 ? parentModel : undefined,
-            toAlias: event.modelAlias,
-            reason: background ? 'compaction-background' : 'compaction',
-            atMs: Date.now(),
-          },
-        });
-      }
-    }
-  }
-
-  private handleCompactionBlocked(_event: CompactionBlockedEvent): void {
-    // Background pre-rot has been awaited by the turn: promote to blocking UX.
-    if (!this.host.state.appState.isBackgroundCompacting && !this.host.state.appState.isCompacting) {
-      return;
-    }
-    this.host.streamingUI.finalizeLiveTextBuffers('waiting');
-    this.host.setAppState({
-      isCompacting: true,
-      isBackgroundCompacting: false,
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
-    this.host.streamingUI.promoteCompactionToBlocking();
-  }
-
-  private handleCompactionEnd(
-    event: CompactionCompletedEvent,
-    sendQueued: (item: QueuedMessage) => void,
-  ): void {
-    const swarmDetail = event.result.summary.includes('swarm_runs:')
-      ? 'Swarm coordination state preserved in structured memory'
-      : undefined;
-    this.host.streamingUI.endCompaction(
-      event.result.tokensBefore,
-      event.result.tokensAfter,
-      swarmDetail,
-    );
-    this.finishCompaction(sendQueued);
-  }
-
-  private handleCompactionCancel(
-    _event: CompactionCancelledEvent,
-    sendQueued: (item: QueuedMessage) => void,
-  ): void {
-    this.host.streamingUI.cancelCompaction();
-    this.finishCompaction(sendQueued);
-  }
-
-  private handleCompactionProgress(event: CompactionProgressEvent): void {
-    this.host.streamingUI.updateCompactionProgress(event.phase, event.delta, {
-      streamKind: event.streamKind,
-      blockIndex: event.blockIndex,
-      blockCount: event.blockCount,
-      blocksCompleted: event.blocksCompleted,
-      fraction: event.fraction,
-    });
-  }
-
-  private finishCompaction(sendQueued: (item: QueuedMessage) => void): void {
-    const hasActiveTurn = this.host.streamingUI.hasActiveTurn();
-    if (!hasActiveTurn) {
-      this.host.setAppState({
-        isCompacting: false,
-        isBackgroundCompacting: false,
-        streamingPhase: 'idle',
-      });
-      this.host.resetLivePane();
-      const next = this.host.shiftQueuedMessage();
-      if (next !== undefined) {
-        setTimeout(() => {
-          sendQueued(next);
-        }, 0);
-      }
-    } else {
-      this.host.setAppState({ isCompacting: false, isBackgroundCompacting: false });
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Background task lifecycle
   // ---------------------------------------------------------------------------
@@ -1656,43 +879,3 @@ export class SessionEventHandler {
     requestTUILayoutRender(state);
   }
 }
-
-function formatTurnSummary(durationMs: number | undefined, usage: TokenUsage | undefined): string | undefined {
-  const hasDuration = durationMs !== undefined && durationMs >= 0;
-  const hasUsage = usage !== undefined;
-  if (!hasDuration && !hasUsage) return undefined;
-
-  const parts: string[] = [];
-  if (hasDuration) parts.push(`⏱ ${formatTurnDuration(durationMs!)}`);
-  if (hasUsage) {
-    const total =
-      usage!.inputOther + usage!.inputCacheRead + usage!.inputCacheCreation + usage!.output;
-    parts.push(`${formatTokenCount(total)} tokens`);
-  }
-  return parts.join(' · ');
-}
-
-function formatTurnDuration(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  if (ms < 60 * 1000) return `${(ms / 1000).toFixed(1)}s`;
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m${seconds.toString().padStart(2, '0')}s`;
-}
-
-function formatRetryDelay(delayMs: number): string {
-  if (delayMs >= 1000) return `${(delayMs / 1000).toFixed(1)}s`;
-  return `${String(Math.max(0, Math.round(delayMs)))}ms`;
-}
-
-function addTokenUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
-  if (a === undefined) return b;
-  return {
-    inputOther: a.inputOther + b.inputOther,
-    output: a.output + b.output,
-    inputCacheRead: a.inputCacheRead + b.inputCacheRead,
-    inputCacheCreation: a.inputCacheCreation + b.inputCacheCreation,
-  };
-}
-
