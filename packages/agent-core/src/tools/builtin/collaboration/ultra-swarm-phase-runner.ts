@@ -1,6 +1,6 @@
 import type { TeamPlan, WorkGraphNode } from '@superliora/protocol';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   type QueuedSubagentTask,

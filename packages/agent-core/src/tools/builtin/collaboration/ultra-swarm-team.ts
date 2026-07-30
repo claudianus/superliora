@@ -1,6 +1,6 @@
 import type { TeamPlan } from '@superliora/protocol';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import {
   injectUltraworkPostSwarmContinuation,
   maybeAdvanceUltraworkStage,

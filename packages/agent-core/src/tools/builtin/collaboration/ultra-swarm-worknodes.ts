@@ -1,6 +1,6 @@
 import type { WorkGraph, WorkGraphNode } from '@superliora/protocol';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import { applyEvidenceHardGate } from '../../../session/swarm-evidence-gate';
 import {
   partitionReadyWorkNodeIds,

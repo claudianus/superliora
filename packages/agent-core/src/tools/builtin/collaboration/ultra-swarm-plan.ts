@@ -1,4 +1,4 @@
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
 import { synthesizeExpertsWithLlm } from '../../../expert-agents/synthetic-expert-llm';
 import type { ExpertSwarmPlan } from '../../../expert-agents/types';
