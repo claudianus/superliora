@@ -1,4 +1,4 @@
-import type { Component } from '../text-component';
+import type { Component } from '../text/component';
 
 export interface Focusable {
   focused: boolean;

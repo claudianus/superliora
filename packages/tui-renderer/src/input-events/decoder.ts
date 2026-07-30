@@ -1,4 +1,4 @@
-import { parseNativeTerminalDecModeReport } from '../terminal-features';
+import { parseNativeTerminalDecModeReport } from '../terminal/features';
 import { matchCsiFunctional, matchCsiU } from './csi';
 import { eventForCharacter, keyEvent } from './key';
 import { matchSgrMouse, matchX10Mouse } from './mouse';

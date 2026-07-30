@@ -12,7 +12,7 @@ import {
   type NativeTerminalFeatureOptions,
   type NativeTerminalFeatureInput,
 } from './features';
-import type { RendererOutputTarget } from '../native-frame';
+import type { RendererOutputTarget } from '../native/frame';
 
 export type NativeTerminalScreenMode = 'main' | 'alternate';
 export type NativeTerminalKeyboardProtocol = 'kitty';

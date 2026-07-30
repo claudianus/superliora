@@ -1,4 +1,4 @@
-import type { NativeFrameStatsHealth } from './frame-stats';
+import type { NativeFrameStatsHealth } from './frame/stats';
 import type { RendererQualityLevel } from './quality';
 
 export type RendererEffectLevel = 'off' | 'subtle' | 'premium';

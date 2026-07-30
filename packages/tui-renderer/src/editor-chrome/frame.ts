@@ -1,4 +1,4 @@
-import type { RendererCell } from '../cell-buffer';
+import type { RendererCell } from '../cell-buffer/index';
 import {
   createRendererEditorBlankLine,
   createRendererEditorBorderLine,
@@ -17,7 +17,7 @@ import {
   type RendererEditorFrameResult,
   type RendererEditorOverlayLinesOptions,
 } from './types';
-import { truncateToWidth } from '../text-component';
+import { truncateToWidth } from '../text/component';
 
 export function renderRendererEditorFrame(
   options: RendererEditorFrameOptions,

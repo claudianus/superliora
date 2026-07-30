@@ -1,7 +1,7 @@
-import type { NativeFramePresentResult } from '../native-frame';
-import type { NativeInputEvent } from '../input-events';
+import type { NativeFramePresentResult } from '../native/frame';
+import type { NativeInputEvent } from '../input-events/index';
 import type { NativeRenderCause } from '../render-loop';
-import type { NativeTerminalSize } from '../terminal-session';
+import type { NativeTerminalSize } from '../terminal/session';
 import { RendererLineCellCache, type RendererLineCellCacheOptions } from '../line-cache';
 import { RendererCompositionCache, type RendererCompositionStats } from '../compositor';
 import type { RendererQualityControllerOptions } from '../quality';

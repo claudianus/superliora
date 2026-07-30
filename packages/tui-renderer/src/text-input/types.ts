@@ -1,6 +1,6 @@
-import type { RendererCellStyle } from '../cell-buffer';
+import type { RendererCellStyle } from '../cell-buffer/index';
 import type { RendererRegionLine } from '../compositor';
-import type { RendererCursorShape, RendererCursorState } from '../terminal-output';
+import type { RendererCursorShape, RendererCursorState } from '../terminal/output';
 
 /**
  * Public option/result types for `RendererTextInput`. Kept separate from the

@@ -1,4 +1,4 @@
-import type { Component } from '../text-component';
+import type { Component } from '../text/component';
 
 export class Container implements Component {
   children: Component[] = [];

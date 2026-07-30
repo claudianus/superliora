@@ -1,4 +1,4 @@
-import type { Component } from '../text-component';
+import type { Component } from '../text/component';
 import { Container } from './container';
 import { normalizeLineCount, normalizeRenderWidth } from './normalize';
 

@@ -1,18 +1,18 @@
-import type { RendererCell } from '../cell-buffer';
+import type { RendererCell } from '../cell-buffer/index';
 import type { RendererRect } from '../compositor';
 import type { RendererDamageScanStrategy } from '../damage';
 import type {
   RendererFrameOutputDecisionReason,
   RendererFrameOutputMode,
-} from '../frame-output-policy';
-import type { NativeFrameStatsHealth } from '../frame-stats';
+} from '../frame/output-policy';
+import type { NativeFrameStatsHealth } from '../frame/stats';
 import type {
   RendererOverlayPanelLineStyle,
   RendererOverlayPanelStyle,
   RendererOverlayPlacement,
 } from '../overlay';
 import type { RendererQualitySnapshot } from '../quality';
-import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal-probe';
+import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal/probe';
 import type { RendererTheme } from '../theme';
 
 export type RendererDiagnosticsSeverity = 'ok' | 'watch' | 'degraded';

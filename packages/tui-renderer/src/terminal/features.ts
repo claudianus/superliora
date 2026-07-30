@@ -1,4 +1,4 @@
-import type { RendererFrameOutputPolicyProfile } from '../frame-output-policy';
+import type { RendererFrameOutputPolicyProfile } from '../frame/output-policy';
 import type { RendererColorMode, RendererTerminalOutputOptions } from './output';
 import type { RendererInlineImageProtocol } from './graphics';
 import type {

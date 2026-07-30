@@ -1,5 +1,5 @@
-import type { Component, RendererTextBackgroundFn } from '../text-component';
-import { visibleWidth } from '../text-component';
+import type { Component, RendererTextBackgroundFn } from '../text/component';
+import { visibleWidth } from '../text/component';
 import { normalizeLineCount, normalizeRenderWidth } from './normalize';
 
 export class Spacer implements Component {

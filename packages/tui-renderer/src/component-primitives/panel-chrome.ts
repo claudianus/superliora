@@ -1,4 +1,4 @@
-import { truncateToWidth } from '../text-component';
+import { truncateToWidth } from '../text/component';
 import {
   renderRendererDividerRow,
   type RendererDividerLineStyle,
@@ -7,7 +7,7 @@ import { normalizeRenderWidth } from './normalize';
 import {
   projectRendererScrollableLineWindow,
   type RendererScrollableLineWindowProjection,
-} from '../viewport';
+} from '../viewport/index';
 
 export interface RendererPanelChromeRowsOptions {
   readonly width: number;

@@ -1,4 +1,4 @@
-import type { RendererDamageRect, RendererDirtyRowSpan } from './cell-buffer';
+import type { RendererDamageRect, RendererDirtyRowSpan } from './cell-buffer/index';
 
 export type RendererDamageScanStrategy = 'none' | 'dirty-rows' | 'damage-rect' | 'full-frame';
 

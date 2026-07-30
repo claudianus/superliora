@@ -1,5 +1,5 @@
-import type { FrameInvalidationRequest } from './frame-invalidation';
-import type { NativeFrameStatsHealth } from './frame-stats';
+import type { FrameInvalidationRequest } from './frame/invalidation';
+import type { NativeFrameStatsHealth } from './frame/stats';
 import type { RendererQualityLevel } from './quality';
 import type { NativeRenderLoopScheduler } from './render-loop';
 import { RendererTicker } from './ticker';

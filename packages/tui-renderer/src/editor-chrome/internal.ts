@@ -1,9 +1,9 @@
 import { ansiTextToCells } from '../ansi-text';
-import type { RendererCell, RendererCellStyle } from '../cell-buffer';
+import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
 import type { RendererRect, RendererRegionLine } from '../compositor';
-import type { RendererCursorState } from '../terminal-output';
-import { visibleWidth } from '../text-component';
-import { measureDisplayWidth } from '../text-metrics';
+import type { RendererCursorState } from '../terminal/output';
+import { visibleWidth } from '../text/component';
+import { measureDisplayWidth } from '../text/metrics';
 
 export function normalizeEditorFrameSize(value: number): number {
   if (!Number.isFinite(value) || value <= 0) return 0;

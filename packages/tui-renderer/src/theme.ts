@@ -1,4 +1,4 @@
-import type { RendererCell, RendererCellStyle } from './cell-buffer';
+import type { RendererCell, RendererCellStyle } from './cell-buffer/index';
 
 export const RENDERER_THEME_COLOR_TOKENS = [
   'surface',

@@ -1,4 +1,4 @@
-import type { NativeTerminalDecModeReport } from '../terminal-features';
+import type { NativeTerminalDecModeReport } from '../terminal/features';
 
 export type NativeInputKey =
   | 'character'

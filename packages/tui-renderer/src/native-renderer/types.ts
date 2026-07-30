@@ -1,8 +1,8 @@
-import type { NativeFrameRenderer } from '../native-frame';
-import type { NativeInputEvent } from '../input-events';
+import type { NativeFrameRenderer } from '../native/frame';
+import type { NativeInputEvent } from '../input-events/index';
 import type { NativeInputRouter } from '../input-router';
 import type { NativeRenderFrame } from '../render-loop';
-import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal-probe';
+import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal/probe';
 import type {
   NativeTerminalKeyboardProtocol,
   NativeTerminalInput,
@@ -10,13 +10,13 @@ import type {
   NativeTerminalOutput,
   NativeTerminalScreenMode,
   NativeTerminalSize,
-} from '../terminal-session';
-import type { RendererCell } from '../cell-buffer';
-import type { RendererCursorState, RendererTerminalOutputOptions } from '../terminal-output';
-import type { RendererInlineImageProtocol } from '../terminal-graphics';
+} from '../terminal/session';
+import type { RendererCell } from '../cell-buffer/index';
+import type { RendererCursorState, RendererTerminalOutputOptions } from '../terminal/output';
+import type { RendererInlineImageProtocol } from '../terminal/graphics';
 import type { RendererDamageScanStrategy } from '../damage';
-import type { NativeTerminalFeatureInput } from '../terminal-features';
-import type { NativeFrameStatsSnapshot } from '../frame-stats';
+import type { NativeTerminalFeatureInput } from '../terminal/features';
+import type { NativeFrameStatsSnapshot } from '../frame/stats';
 import type { RendererLineCellCache, RendererLineCellCacheOptions } from '../line-cache';
 import type { RendererCompositionCache } from '../compositor';
 import type {
@@ -33,9 +33,9 @@ import type {
   RendererFrameOutputDecisionReason,
   RendererFrameOutputMode,
   RendererFrameOutputPolicyInput,
-} from '../frame-output-policy';
+} from '../frame/output-policy';
 import type { NativeRenderLoopScheduler } from '../render-loop';
-import type { NativeFramePresentResult } from '../native-frame';
+import type { NativeFramePresentResult } from '../native/frame';
 import type { NativeTerminalRenderer } from './index';
 
 export interface NativeTerminalRendererFrame {

@@ -1,7 +1,7 @@
-import { type Component, truncateToWidth, visibleWidth } from './text-component';
+import { type Component, truncateToWidth, visibleWidth } from './text/component';
 import { Key, matchesKey } from './input-keys';
 import { RENDERER_SELECT_POINTER } from './symbols';
-import { RendererSelectableListViewport } from './viewport';
+import { RendererSelectableListViewport } from './viewport/index';
 
 export interface SelectItem {
   readonly value: string;

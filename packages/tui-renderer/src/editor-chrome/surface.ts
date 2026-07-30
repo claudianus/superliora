@@ -27,9 +27,9 @@ import {
   type RendererEditorSurfaceStyles,
 } from './types';
 import { renderRendererVerticalScrollbar } from '../scrollbar';
-import type { RendererCursorState } from '../terminal-output';
+import type { RendererCursorState } from '../terminal/output';
 import { rendererDarkTheme, type RendererTheme } from '../theme';
-import type { RendererTextInputRenderResult } from '../text-input';
+import type { RendererTextInputRenderResult } from '../text-input/index';
 
 export function renderRendererEditorSurface(
   options: RendererEditorSurfaceOptions,

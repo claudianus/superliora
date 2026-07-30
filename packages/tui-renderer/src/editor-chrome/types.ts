@@ -1,11 +1,11 @@
-import type { RendererCellStyle } from '../cell-buffer';
+import type { RendererCellStyle } from '../cell-buffer/index';
 import type { RendererRect, RendererRegionLine } from '../compositor';
 import type {
   RendererEditorCursor,
   RendererEditorTextInputGeometry,
-} from '../editor-text-input';
-import type { RendererCursorState } from '../terminal-output';
-import type { RendererTextInputRenderResult } from '../text-input';
+} from '../editor/text-input';
+import type { RendererCursorState } from '../terminal/output';
+import type { RendererTextInputRenderResult } from '../text-input/index';
 import type { RendererTheme } from '../theme';
 
 export type RendererEditorPaint = (text: string) => string;

@@ -1,8 +1,8 @@
-import type { RendererCell, RendererCellStyle } from '../cell-buffer';
+import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
 import type { RendererRegionLine } from '../compositor';
 import type { RendererTextInputCursor, RendererTextInputSelectionRange } from './types';
 import { rangesOverlap, splitClusters } from './selection';
-import { measureDisplayWidth, textToCells } from '../text-metrics';
+import { measureDisplayWidth, textToCells } from '../text/metrics';
 
 /**
  * Pure render/layout algorithms backing `RendererTextInput`: soft-wrap line

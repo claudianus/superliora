@@ -1,4 +1,4 @@
-import type { NativeInputEvent } from './input-events';
+import type { NativeInputEvent } from './input-events/index';
 
 export type NativeInputRoute = 'modal' | 'focused' | 'global' | 'unhandled';
 

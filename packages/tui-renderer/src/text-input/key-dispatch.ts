@@ -1,4 +1,4 @@
-import type { NativeInputKeyEvent } from '../input-events';
+import type { NativeInputKeyEvent } from '../input-events/index';
 import type { AtomicCursorBias } from './selection';
 
 /**

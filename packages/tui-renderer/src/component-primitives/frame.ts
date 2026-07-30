@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth } from '../text-component';
+import { truncateToWidth, visibleWidth } from '../text/component';
 import { normalizeLineCount, normalizeRenderWidth } from './normalize';
 import {
   type RendererScrollableLineViewportSnapshot,
@@ -6,7 +6,7 @@ import {
   type RendererScrollableLineViewport,
   type RendererStableScrollableLineViewport,
   type RendererStableScrollableLineWindowProjection,
-} from '../viewport';
+} from '../viewport/index';
 
 export interface RendererFrameRowsOptions {
   readonly title?: string;
