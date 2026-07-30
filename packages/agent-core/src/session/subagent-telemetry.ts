@@ -22,7 +22,7 @@ import {
   previewSubagentToolResult,
   type SubagentProgressStats,
 } from './subagent-progress-preview';
-import type { RunSubagentOptions } from './subagent-host';
+import type { RunSubagentOptions } from './subagent-host-types';
 
 /** Cadence for subagent.progress telemetry (T3-7). */
 const SUBAGENT_PROGRESS_INTERVAL_MS = 5_000;

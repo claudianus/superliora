@@ -2,4 +2,4 @@
 "@superliora/liora": patch
 ---
 
-Split subagent host event emission and live telemetry into focused session modules.
+Split subagent-host orchestration into sibling modules without changing spawn, resume, or batch behavior.
