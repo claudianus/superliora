@@ -11,7 +11,7 @@ import {
 } from '../commands';
 import type { ColorToken } from '../theme';
 import type { TUIState } from '../tui-state';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 
 function truthyEnv(value: string | undefined): boolean {
   if (value === undefined) return false;

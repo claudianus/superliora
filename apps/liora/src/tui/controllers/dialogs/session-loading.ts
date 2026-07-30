@@ -2,7 +2,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 
 import { SessionLoadingOverlayComponent } from '../../components/dialogs/session-loading-overlay';
 import type { SessionLoadingPhase } from '../../components/dialogs/session-loading-overlay';
-import { flushSuppressedTUIFrame } from '../../utils/frame-render';
+import { flushSuppressedTUIFrame } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import type { DialogsHost } from './types';
 

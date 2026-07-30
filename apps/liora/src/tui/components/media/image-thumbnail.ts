@@ -27,8 +27,8 @@ import {
 } from '#/tui/renderer';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
-import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
-import { resolveImageProtocol } from '#/tui/utils/image-protocol-detect';
+import type { ImageAttachment } from '#/tui/utils/image/image-attachment-store';
+import { resolveImageProtocol } from '#/tui/utils/image/image-protocol-detect';
 import { renderHalfBlockPreview } from '#/utils/image/half-block-preview';
 import { decodePng, type DecodedPng } from '#/utils/image/png-decode';
 import { computePreviewCellSize } from '#/utils/image/preview-size';

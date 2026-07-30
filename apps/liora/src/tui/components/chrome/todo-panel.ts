@@ -28,7 +28,7 @@ import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import {
   appearanceAnimationNow,
 } from '#/tui/features/appearance/appearance-effects';
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 
 import {
   MAX_VISIBLE,

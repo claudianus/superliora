@@ -10,7 +10,7 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { createCenterModalOverlayRegion } from '#/tui/utils/center-modal';
+import { createCenterModalOverlayRegion } from '#/tui/utils/ui/center-modal';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,

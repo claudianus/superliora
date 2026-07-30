@@ -3,8 +3,8 @@ import {
   QWEN_TOKEN_PLAN_PROVIDER_ID,
   QWEN_TOKEN_PLAN_TEXT_MODELS,
   validateQwenTokenPlanKeyFormat,
-} from '#/tui/utils/qwen-token-plan';
-import { type ProviderCatalogOption } from '#/tui/utils/provider-catalog-options';
+} from '#/tui/utils/model/qwen-token-plan';
+import { type ProviderCatalogOption } from '#/tui/utils/model/provider-catalog-options';
 import { promptApiKeyForCatalogProvider } from '../prompts';
 import type { SlashCommandHost } from '../dispatch';
 import { openModelPickerForProvider } from './model-picker';

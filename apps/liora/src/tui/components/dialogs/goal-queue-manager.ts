@@ -1,7 +1,7 @@
 import {Container, CURSOR_MARKER, Key, matchesKey, renderRendererFrameRows, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import chalk from 'chalk';
 
-import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import type {
   GoalQueueMoveDirection,
   GoalQueueSnapshot,
@@ -10,7 +10,7 @@ import type {
 import {currentTheme} from '#/tui/theme';
 import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
 import {printableChar} from '#/tui/utils/printable-key';
-import {SearchableList} from '#/tui/utils/searchable-list';
+import {SearchableList} from '#/tui/utils/ui/searchable-list';
 
 const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
 const MAX_EDIT_INPUT_LINES = 8;

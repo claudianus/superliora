@@ -11,7 +11,7 @@
 import { fuzzyFilter, Key, matchesKey } from '#/tui/renderer';
 
 import { pageView, type PageView } from './paging';
-import { isPrintableChar, printableChar } from './printable-key';
+import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 
 const DEFAULT_PAGE_SIZE = 8;
 

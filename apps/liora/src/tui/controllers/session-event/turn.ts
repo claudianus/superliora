@@ -21,10 +21,10 @@ import { formatTokenCount } from '#/utils/usage/usage-format';
 import {
   decideModelRouteSurface,
   modelRouteDisplayName,
-} from '../../utils/model-route-notice';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+} from '../../utils/model/model-route-notice';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
-import { notifyTurnComplete } from '../../utils/desktop-notification';
+import { notifyTurnComplete } from '../../utils/notification/desktop-notification';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by turn / step / assistant / thinking event handling. */

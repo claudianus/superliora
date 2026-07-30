@@ -18,8 +18,8 @@ import {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
-import { renderTabStrip } from '#/tui/utils/tab-strip';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { renderTabStrip } from '#/tui/utils/ui/tab-strip';
 import {
   EXTENSIONS_TAB_LABELS_KO,
   EXTENSIONS_TAB_ORDER,
@@ -28,7 +28,7 @@ import {
   type ExtensionsRow,
   type ExtensionsSnapshot,
   type ExtensionsTabId,
-} from '#/tui/utils/extensions-rows';
+} from '#/tui/utils/agent/extensions-rows';
 
 const ELLIPSIS = '…';
 

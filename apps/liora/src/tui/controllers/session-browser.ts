@@ -18,21 +18,21 @@ import {
   type DashboardSessionRow,
   type DashboardSessionStatus,
   type DashboardStatusHints,
-} from '../utils/agent-dashboard-rows';
+} from '../utils/agent/agent-dashboard-rows';
 import {
   buildClaudeImportPlan,
   formatClaudeImportSummary,
   resolveClaudeImportRoots,
   type ClaudeImportScanEntry,
 } from '../utils/claude-import';
-import type { CenterModalMountOptions } from '../utils/center-modal';
+import type { CenterModalMountOptions } from '../utils/ui/center-modal';
 import {
   resolveExtensionsTab,
   type ExtensionsSnapshot,
   type ExtensionsTabId,
-} from '../utils/extensions-rows';
+} from '../utils/agent/extensions-rows';
 import { formatErrorMessage } from '../utils/event-payload';
-import { sessionRowsForPicker } from '../utils/session-picker-rows';
+import { sessionRowsForPicker } from '../utils/session/session-picker-rows';
 import { ttui } from '../utils/tui-i18n';
 import type { EditorKeyboardController } from './editor-keyboard';
 import type { SessionEventHandler } from './session-event/handler';

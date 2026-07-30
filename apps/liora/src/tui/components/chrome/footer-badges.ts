@@ -5,7 +5,7 @@ import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import {
   formatWorkingSetFooterBadgeText,
   workingSetPressure,
-} from '#/tui/utils/context-working-set';
+} from '#/tui/utils/agent/context-working-set';
 
 import { safeContextUsage } from '#/tui/components/chrome/footer-context';
 

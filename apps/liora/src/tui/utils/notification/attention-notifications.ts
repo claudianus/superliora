@@ -2,8 +2,8 @@ import type { BackgroundTaskInfo, GoalSnapshot } from '@superliora/sdk';
 
 import type { TUIState } from '#/tui/tui-state';
 
-import { formatBackgroundTaskTranscript } from './background-task-status';
-import { notifyUserAttentionOnce, type UserAttentionOptions } from './terminal-notification';
+import { formatBackgroundTaskTranscript } from '#/tui/utils/background/background-task-status';
+import { notifyUserAttentionOnce, type UserAttentionOptions } from '#/tui/utils/terminal/terminal-notification';
 
 export function notifyGoalCompletedAttention(
   state: TUIState,

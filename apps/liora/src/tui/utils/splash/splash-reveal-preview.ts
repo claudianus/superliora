@@ -19,7 +19,7 @@ import {
   stageFrameStrokeCells,
 } from '#/tui/features/stage/stage-frame';
 import { paintStageLetterboxSky } from '#/tui/features/stage/stage-letterbox-sky';
-import type { BrandMorphRect } from '#/tui/utils/splash-iris';
+import type { BrandMorphRect } from '#/tui/utils/splash/splash-iris';
 
 export interface SplashMorphScene {
   readonly lines: readonly string[];

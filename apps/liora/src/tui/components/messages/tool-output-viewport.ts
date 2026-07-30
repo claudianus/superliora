@@ -8,7 +8,7 @@ import {
   syncToolOutputViewportContent,
   toolOutputViewportThumb,
   type ToolOutputViewportState,
-} from '#/tui/utils/tool-output-viewport';
+} from '#/tui/utils/tool/tool-output-viewport';
 
 export interface ToolOutputViewportComponentOptions {
   readonly child: Component;

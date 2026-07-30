@@ -11,24 +11,24 @@ import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
 import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../components/dialogs/model-fallback-selector';
 import { TabbedModelSelectorComponent } from '../../components/dialogs/tabbed-model-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
-} from '#/tui/utils/thinking-effort';
+} from '#/tui/utils/model/thinking-effort';
 import {
   loopModelRoutingDeletePath,
   loopModelRoutingPatch,
   loopModelRoutingRows,
   type LoopModelRoutingConfig,
   type LoopModelRoutingRole,
-} from '#/tui/utils/loop-model-routing';
+} from '#/tui/utils/model/loop-model-routing';
 import {
   getFallbackModels,
   fallbackModelsPatch,
   clearFallbackModelsPatch,
   type ModelFallbackConfig,
-} from '#/tui/utils/model-fallback';
+} from '#/tui/utils/model/model-fallback';
 import type { SlashCommandHost } from '../dispatch';
 
 const MODEL_PICKER_REFRESH_TIMEOUT_MS = 2_000;

@@ -8,7 +8,7 @@ import {
 import { UltraworkModeMarkerComponent } from '../../components/messages/ultrawork-markers';
 import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SubAgentEventHandler } from '../subagent-event/handler';
 
 /** Host surface required by ultrawork theatre event handling. */

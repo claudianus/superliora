@@ -5,8 +5,8 @@
  */
 
 import { TerminalDiagnosticsPanel } from '../components/messages/terminal-diagnostics-panel';
-import { requestTUILayoutRender } from '../utils/frame-render';
-import { collectTerminalDiagnostics } from '../utils/terminal-diagnostics';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
+import { collectTerminalDiagnostics } from '../utils/terminal/terminal-diagnostics';
 import type { SlashCommandHost } from './dispatch';
 
 export function showTerm(host: SlashCommandHost): void {

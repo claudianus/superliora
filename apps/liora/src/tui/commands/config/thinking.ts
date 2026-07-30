@@ -9,7 +9,7 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
-} from '#/tui/utils/thinking-effort';
+} from '#/tui/utils/model/thinking-effort';
 import type { SlashCommandHost } from '../dispatch';
 
 const THINKING_LEVELS = ['off', 'on', 'low', 'medium', 'high', 'xhigh', 'max'] as const;

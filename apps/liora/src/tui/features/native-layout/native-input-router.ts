@@ -12,7 +12,7 @@ import {
   handleNativeEditorMouseInput,
   handleNativeEditorTextInput,
 } from './native-editor-text-input';
-import { noteTUIInputInteraction } from '#/tui/utils/input-interaction';
+import { noteTUIInputInteraction } from '#/tui/utils/input/input-interaction';
 import { getTUIStateNativeEditorRect } from './native-layout-frame';
 import {
   handleStageResizeMouseInput,
@@ -21,7 +21,7 @@ import {
 import {
   handleToolOutputMouse,
   resetToolOutputMouseState,
-} from '#/tui/utils/tool-output-mouse';
+} from '#/tui/utils/tool/tool-output-mouse';
 import { handleTranscriptDensityMouse } from '#/tui/features/transcript/transcript-density-mouse';
 import { handleTranscriptSelectionMouseInput } from '#/tui/features/transcript/transcript-selection-mouse';
 import type { TranscriptScrollAction } from '#/tui/features/transcript/transcript-viewport';

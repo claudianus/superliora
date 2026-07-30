@@ -22,7 +22,7 @@ import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import {
   isRenderCacheEnabled,
   renderCacheEpoch,
-} from '#/tui/utils/render-cache';
+} from '#/tui/utils/render/render-cache';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,

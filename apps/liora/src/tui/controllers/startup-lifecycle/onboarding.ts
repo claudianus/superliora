@@ -11,7 +11,7 @@ export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<
   if (!hasProvider) {
     const qwenKey = process.env['QWEN_TOKEN_PLAN_API_KEY']?.trim();
     if (qwenKey !== undefined && qwenKey.length > 0) {
-      const { applyQwenTokenPlanProvider } = await import('#/tui/utils/qwen-token-plan');
+      const { applyQwenTokenPlanProvider } = await import('#/tui/utils/model/qwen-token-plan');
       applyQwenTokenPlanProvider(config, qwenKey);
       await host.harness.setConfig({
         providers: config.providers,

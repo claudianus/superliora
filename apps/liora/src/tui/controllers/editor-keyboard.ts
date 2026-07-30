@@ -17,9 +17,9 @@ import {
   NO_ACTIVE_SESSION_MESSAGE,
 } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/frame-render';
-import type { ImageAttachmentStore } from '../utils/image-attachment-store';
-import { parseDroppedFilePaths } from '../utils/media-drop';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
+import type { ImageAttachmentStore } from '../utils/image/image-attachment-store';
+import { parseDroppedFilePaths } from '../utils/media/media-drop';
 import { copyTranscriptSelectionToClipboard } from '../features/transcript/transcript-selection';
 import type { PendingExit, QueuedMessage } from '../types';
 import type { TranscriptScrollAction } from '../features/transcript/transcript-viewport';

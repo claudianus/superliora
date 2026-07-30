@@ -4,7 +4,7 @@ import {
   ImageAttachmentStore,
   formatPlaceholder,
   formatVideoPlaceholder,
-} from '#/tui/utils/image-attachment-store';
+} from '#/tui/utils/image/image-attachment-store';
 
 describe('ImageAttachmentStore', () => {
   it('assigns monotonically increasing ids starting at 1', () => {

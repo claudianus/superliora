@@ -10,14 +10,14 @@ import {
 import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui/index';
 import { createTUIState } from '#/tui/liora-tui';
 import type { AppState, TranscriptEntry } from '#/tui/types';
-import { createMotionBeatController } from '#/tui/utils/motion-beats';
+import { createMotionBeatController } from '#/tui/utils/render/motion-beats';
 import {
   nextStreamingFlushDelay,
   type StreamingFlushScheduleInput,
-} from '#/tui/utils/streaming-flush-schedule';
+} from '#/tui/utils/streaming/streaming-flush-schedule';
 
-vi.mock('#/tui/utils/terminal-notification', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/tui/utils/terminal-notification')>();
+vi.mock('#/tui/utils/terminal/terminal-notification', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/utils/terminal/terminal-notification')>();
   return {
     ...actual,
     notifyUserAttentionOnce: vi.fn(),

@@ -4,14 +4,14 @@
 
 import {Container, matchesKey, Key, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import {CURRENT_MARK} from '#/tui/constant/symbols';
-import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import {currentTheme} from '#/tui/theme';
 import {
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderShimmerPrefix,
 } from '#/tui/features/appearance/appearance-effects';
-import {SearchableList} from '#/tui/utils/searchable-list';
+import {SearchableList} from '#/tui/utils/ui/searchable-list';
 import {isPrintableChar, printableChar} from '#/tui/utils/printable-key';
 
 export interface SessionRow {

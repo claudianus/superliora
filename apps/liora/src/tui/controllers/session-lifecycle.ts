@@ -14,7 +14,7 @@ import { createQuestionAskHandler } from '../reverse-rpc/question/handler';
 import type { ColorToken } from '../theme';
 import type { AppState } from '../types';
 import type { TUIState } from '../tui-state';
-import { contextWorkingSetSnapshotFromLoopControl } from '../utils/context-working-set';
+import { contextWorkingSetSnapshotFromLoopControl } from '../utils/agent/context-working-set';
 import { formatErrorMessage } from '../utils/event-payload';
 import { ttui } from '../utils/tui-i18n';
 import type { BtwPanelController } from './btw-panel';

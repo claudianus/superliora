@@ -8,7 +8,7 @@ import type { AppState, TranscriptEntry } from '../../types';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { SessionEventHandler } from '../session-event/handler';
 import type { TUIState } from '../../tui-state';
-import type { MotionBeatController } from '#/tui/utils/motion-beats';
+import type { MotionBeatController } from '#/tui/utils/render/motion-beats';
 
 export type GoalReplayRecord = Extract<AgentReplayRecord, { type: 'goal_updated' }>;
 export type CompactionReplayRecord = Extract<AgentReplayRecord, { type: 'compaction' }>;

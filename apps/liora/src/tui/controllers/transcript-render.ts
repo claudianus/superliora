@@ -38,16 +38,16 @@ import type { StreamingUIController } from './streaming-ui/index';
 import { currentTheme } from '../theme';
 import type { ColorToken } from '../theme';
 import type { TUIState } from '../tui-state';
-import type { ImageAttachment, ImageAttachmentStore } from '../utils/image-attachment-store';
-import { resolveImageProtocol } from '../utils/image-protocol-detect';
+import type { ImageAttachment, ImageAttachmentStore } from '../utils/image/image-attachment-store';
+import { resolveImageProtocol } from '../utils/image/image-protocol-detect';
 import type {
   LoginProgressSpinnerHandle,
   TranscriptEntry,
 } from '../types';
-import { buildSplashMorphScene } from '../utils/splash-reveal-preview';
+import { buildSplashMorphScene } from '../utils/splash/splash-reveal-preview';
 import { hasDispose } from '../utils/component-capabilities';
-import { noteErrorFeedback } from '../utils/feedback-vfx';
-import { requestTUIContentRender, requestTUILayoutRender } from '../utils/frame-render';
+import { noteErrorFeedback } from '../utils/render/feedback-vfx';
+import { requestTUIContentRender, requestTUILayoutRender } from '../utils/render/frame-render';
 import {
   getTranscriptComponentEntry,
   markTranscriptComponent,

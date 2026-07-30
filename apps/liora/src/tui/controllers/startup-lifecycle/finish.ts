@@ -1,6 +1,6 @@
 import type { Session } from '@superliora/sdk';
 
-import { detectTmuxKeyboardWarning } from '../../utils/tmux-keyboard';
+import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
 import { ttui } from '../../utils/tui-i18n';
 import type { StartupLifecycleHost } from './types';
 

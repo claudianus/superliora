@@ -12,7 +12,7 @@ import { handleThemeCommand } from '#/tui/commands/config/editor-theme';
 import { handleThinkingCommand } from '#/tui/commands/config/thinking';
 import { showHarnessPanel, showSettingsSelector } from '#/tui/commands/config/settings';
 import { showToolsInventory, showHarnessEyesReadiness } from '#/tui/commands/config/harness-tools';
-import { LOOP_MODEL_ROUTING_ROLES } from '#/tui/utils/loop-model-routing';
+import { LOOP_MODEL_ROUTING_ROLES } from '#/tui/utils/model/loop-model-routing';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
 import {
@@ -20,7 +20,7 @@ import {
   BALANCED_MAX_WORKING_SET_TOKENS,
   ECONOMY_ASYNC_WORKING_SET_TOKENS,
   ECONOMY_MAX_WORKING_SET_TOKENS,
-} from '#/tui/utils/context-working-set';
+} from '#/tui/utils/agent/context-working-set';
 
 function makeHost(options: { planMode?: boolean; planPath?: string | undefined } = {}) {
   const session = {

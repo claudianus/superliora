@@ -13,7 +13,7 @@ import {
 import {
   createMotionBeatController,
   isMotionTheatreActive,
-} from '#/tui/utils/motion-beats';
+} from '#/tui/utils/render/motion-beats';
 
 const premiumAppearance = {
   ...DEFAULT_APPEARANCE_PREFERENCES,

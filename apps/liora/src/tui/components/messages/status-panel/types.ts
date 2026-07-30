@@ -8,7 +8,7 @@ import type {
 } from '@superliora/sdk';
 
 import type { GitStatus } from '#/utils/git/git-status';
-import type { LoopModelRoutingConfig } from '#/tui/utils/loop-model-routing';
+import type { LoopModelRoutingConfig } from '#/tui/utils/model/loop-model-routing';
 
 import type { ManagedUsageReport } from '../usage-panel/index';
 import type { StatusFieldMotionState } from './field-motion';

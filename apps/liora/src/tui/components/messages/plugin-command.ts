@@ -8,7 +8,7 @@ import {
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { syncAmbientAnimatedText } from '#/tui/utils/render-cache';
+import { syncAmbientAnimatedText } from '#/tui/utils/render/render-cache';
 
 const ARGS_PREVIEW_MAX = 200;
 

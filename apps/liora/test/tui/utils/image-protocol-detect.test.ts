@@ -8,7 +8,7 @@ import {
   resetImageProtocolProbeForTests,
   resolveImageProtocol,
   setProbedKittyGraphicsForTests,
-} from '#/tui/utils/image-protocol-detect';
+} from '#/tui/utils/image/image-protocol-detect';
 
 const ESC = '\u001B';
 const BEL = '\u0007';

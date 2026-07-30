@@ -4,13 +4,13 @@ import type {
   BackgroundTaskTerminatedEvent,
 } from '@superliora/sdk';
 
-import { formatBackgroundTaskTranscript } from '../../utils/background-task-status';
+import { formatBackgroundTaskTranscript } from '../../utils/background/background-task-status';
 import {
   notifyBackgroundTaskAttention,
-} from '../../utils/attention-notifications';
+} from '../../utils/notification/attention-notifications';
 import type { TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../tasks-browser';

@@ -5,7 +5,7 @@ import {
   BALANCED_ASYNC_WORKING_SET_TOKENS,
   BALANCED_MAX_WORKING_SET_TOKENS,
   formatTokenCount,
-} from '#/tui/utils/context-working-set';
+} from '#/tui/utils/agent/context-working-set';
 
 describe('formatWorkingSetFooterBadge', () => {
   it('returns null without a snapshot', () => {

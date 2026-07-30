@@ -9,8 +9,8 @@ import {
   tickReveal,
   visibleText,
   type StreamingTextRevealState,
-} from '../../utils/streaming-text-reveal';
-import { requestTUIContentRender } from '#/tui/utils/frame-render';
+} from '../../utils/streaming/streaming-text-reveal';
+import { requestTUIContentRender } from '#/tui/utils/render/frame-render';
 import type { AssistantMessageComponent } from '../../components/messages/assistant-message';
 import type { ThinkingComponent } from '../../components/messages/thinking';
 import type { TUIState } from '../../tui-state';

@@ -2,7 +2,7 @@ import { Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWi
 
 import { currentTheme } from '#/tui/theme/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 
 export interface ModelFallbackItem {
   readonly alias: string;

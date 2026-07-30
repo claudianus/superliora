@@ -13,13 +13,13 @@ import type { Component, RendererRootUI } from '#/tui/renderer';
 import { RESULT_PREVIEW_LINES } from '#/tui/constant/rendering';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
-import type { ToolOutputViewportState } from '#/tui/utils/tool-output-viewport';
+import type { ToolOutputViewportState } from '#/tui/utils/tool/tool-output-viewport';
 import { isOneLineToolLevel } from '#/tui/features/transcript/transcript-density';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
 } from '#/tui/features/appearance/appearance-effects';
-import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render-cache';
+import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render/render-cache';
 import {
   applyToolHeaderEntrance,
   isTranscriptEntranceActive,

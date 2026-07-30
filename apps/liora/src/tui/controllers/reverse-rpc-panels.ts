@@ -15,8 +15,8 @@ import type { QuestionController } from '../reverse-rpc/question/controller';
 import type { ApprovalPanelData, QuestionPanelData } from '../reverse-rpc/types';
 import type { TUIState } from '../tui-state';
 import type { LivePaneState } from '../types';
-import { requestTUILayoutRender } from '../utils/frame-render';
-import { notifyUserAttentionOnce } from '../utils/terminal-notification';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
+import { notifyUserAttentionOnce } from '../utils/terminal/terminal-notification';
 
 /** Host surface for SDK approval and question panel mounting. */
 export interface ReverseRpcPanelsHost {

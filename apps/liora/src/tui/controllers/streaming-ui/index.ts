@@ -9,12 +9,12 @@ import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress/index';
 import { hasDispose } from '../../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../../utils/event-payload';
-import { type MotionBeatController } from '../../utils/motion-beats';
+import { type MotionBeatController } from '../../utils/render/motion-beats';
 import {
   createStreamingTextRevealState,
   resetRevealState,
-} from '../../utils/streaming-text-reveal';
-import { notifyUserAttentionOnce } from '../../utils/terminal-notification';
+} from '../../utils/streaming/streaming-text-reveal';
+import { notifyUserAttentionOnce } from '../../utils/terminal/terminal-notification';
 import type { TodoItem } from '../../components/chrome/todo-panel';
 import type {
   AppState,
@@ -25,7 +25,7 @@ import type {
   TranscriptEntry,
 } from '../../types';
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import {
   applyBackgroundTaskTerminalStatus as applyBackgroundTaskTerminalStatusHelper,
   markSubagentBackgrounded as markSubagentBackgroundedHelper,

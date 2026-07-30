@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentDashboardComponent } from '#/tui/components/dialogs/agent-dashboard';
-import type { DashboardSessionRow } from '#/tui/utils/agent-dashboard-rows';
+import type { DashboardSessionRow } from '#/tui/utils/agent/agent-dashboard-rows';
 
 function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

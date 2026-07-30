@@ -3,8 +3,8 @@ import type { CompactionPhase } from '@superliora/sdk';
 import { currentWorkingTip, tipText } from '../../components/chrome/working-tips';
 import { CompactionComponent } from '../../components/dialogs/compaction';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import { isMotionTheatreActive, type MotionBeatController } from '../../utils/motion-beats';
-import { requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import type { TUIState } from '../../tui-state';
 
 export interface CompactionHost {

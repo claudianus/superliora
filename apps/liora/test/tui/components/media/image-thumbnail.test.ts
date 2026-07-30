@@ -7,7 +7,7 @@ import {
   resetKittyPlaceholderTransmissions,
 } from '#/tui/components/media/image-thumbnail';
 import { setKittyGraphicsChannel } from '#/tui/media/kitty-graphics-channel';
-import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
+import type { ImageAttachment } from '#/tui/utils/image/image-attachment-store';
 
 const SGR_RE = /\u001B\[[0-9;]*m/g;
 

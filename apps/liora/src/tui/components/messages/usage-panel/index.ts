@@ -15,7 +15,7 @@ import {
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 
 import { buildContextCompositionLines } from './context';
 import { buildManagedUsageReportLines } from './managed';

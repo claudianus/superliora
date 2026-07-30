@@ -11,7 +11,7 @@ import {
   QWEN_TOKEN_PLAN_PROVIDER_ID,
   QWEN_TOKEN_PLAN_TEXT_MODELS,
   validateQwenTokenPlanKeyFormat,
-} from '#/tui/utils/qwen-token-plan';
+} from '#/tui/utils/model/qwen-token-plan';
 
 describe('Qwen Token Plan utilities', () => {
   describe('validateQwenTokenPlanKeyFormat', () => {

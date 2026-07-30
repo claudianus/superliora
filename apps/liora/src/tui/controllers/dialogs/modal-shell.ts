@@ -1,12 +1,12 @@
 import type { Component, Focusable } from '#/tui/renderer';
 
 import { CommandHubComponent } from '../../components/dialogs/command-hub';
-import type { CenterModalMountOptions } from '../../utils/center-modal';
+import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
 import {
   flushSuppressedTUIFrame,
   requestTUIContentRender,
   requestTUILayoutRender,
-} from '../../utils/frame-render';
+} from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import type { DialogsHost } from './types';
 

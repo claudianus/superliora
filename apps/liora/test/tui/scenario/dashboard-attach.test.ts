@@ -14,7 +14,7 @@ import {
   flattenDashboardGroups,
   groupDashboardRows,
   maskSecretLikePrompt,
-} from '#/tui/utils/agent-dashboard-rows';
+} from '#/tui/utils/agent/agent-dashboard-rows';
 
 function summary(input: {
   readonly id: string;

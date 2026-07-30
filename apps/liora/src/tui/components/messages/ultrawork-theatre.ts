@@ -14,7 +14,7 @@ import type {
 
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme, type ColorToken } from '#/tui/theme';
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
+import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,

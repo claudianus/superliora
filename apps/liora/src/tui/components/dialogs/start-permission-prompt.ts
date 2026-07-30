@@ -1,6 +1,6 @@
 import {Key, matchesKey, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Component, type Focusable} from '#/tui/renderer';
 
-import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import {currentTheme} from '#/tui/theme';
 
 export type StartPermissionChoice = 'auto' | 'yolo' | 'manual' | 'cancel';

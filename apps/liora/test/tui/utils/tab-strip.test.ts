@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import chalk from 'chalk';
 
 import { darkColors } from '#/tui/theme/colors';
-import { renderTabStrip } from '#/tui/utils/tab-strip';
+import { renderTabStrip } from '#/tui/utils/ui/tab-strip';
 
 const ANSI_SGR = /\u001b\[[0-9;]*m/g;
 

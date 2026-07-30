@@ -11,10 +11,10 @@ import { MoonLoader } from '../../components/chrome/moon-loader';
 import {
   isUltraworkTheatreEvent,
 } from '../../components/messages/ultrawork-theatre';
-import { McpOAuthAuthorizationUrlOpener } from '../../utils/mcp-oauth';
+import { McpOAuthAuthorizationUrlOpener } from '../../utils/mcp/mcp-oauth';
 import { openUrl } from '#/utils/open-url';
 import type { ColorToken } from '#/tui/theme';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { BtwPanelController } from '../btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../tasks-browser';
@@ -33,7 +33,7 @@ import type {
   TranscriptEntry,
 } from '../../types';
 import type { TUIState } from '../../tui-state';
-import type { MotionBeatController } from '../../utils/motion-beats';
+import type { MotionBeatController } from '../../utils/render/motion-beats';
 
 export interface SessionEventHost {
   state: TUIState;

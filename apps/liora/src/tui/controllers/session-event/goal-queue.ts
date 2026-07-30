@@ -15,13 +15,13 @@ import type { TUIState } from '../../tui-state';
 import {
   notifyGoalBlockedAttention,
   notifyGoalCompletedAttention,
-} from '../../utils/attention-notifications';
+} from '../../utils/notification/attention-notifications';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import { feedbackEffectsActive, noteSuccessFeedback } from '../../utils/feedback-vfx';
+import { feedbackEffectsActive, noteSuccessFeedback } from '../../utils/render/feedback-vfx';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { buildGoalCompletionMessage } from '../../utils/goal-completion';
-import { isMotionTheatreActive, type MotionBeatController } from '../../utils/motion-beats';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { noteGoalCompletionMeteorBurst } from '../../features/stage/stage-letterbox-sky';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 

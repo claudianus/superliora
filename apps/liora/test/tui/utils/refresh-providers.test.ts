@@ -6,7 +6,7 @@ import {
 } from '@superliora/oauth';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { refreshAllProviderModels } from '../../../src/tui/utils/refresh-providers';
+import { refreshAllProviderModels } from '../../../src/tui/utils/model/refresh-providers';
 import type { LioraConfig } from '@superliora/sdk';
 
 type FetchMock = (

@@ -7,7 +7,7 @@ import type { AppState, TranscriptEntry } from '#/tui/types';
 import {
   setActiveAppearancePreferences,
 } from '#/tui/features/appearance/appearance-effects';
-import { createMotionBeatController } from '#/tui/utils/motion-beats';
+import { createMotionBeatController } from '#/tui/utils/render/motion-beats';
 
 function fakeAppState(overrides: Partial<AppState> = {}): AppState {
   return {

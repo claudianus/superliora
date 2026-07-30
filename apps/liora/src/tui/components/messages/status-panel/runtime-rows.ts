@@ -1,6 +1,6 @@
 import type { ModelAlias } from '@superliora/sdk';
 
-import { resolveThinkingDisplay } from '#/tui/utils/thinking-effort';
+import { resolveThinkingDisplay } from '#/tui/utils/model/thinking-effort';
 import { formatGitBadgeBase, type GitStatus } from '#/utils/git/git-status';
 import { safeUsageRatio } from '#/utils/usage/usage-format';
 

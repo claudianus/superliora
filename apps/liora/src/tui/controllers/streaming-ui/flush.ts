@@ -3,7 +3,7 @@ import {
   STREAMING_UI_FLUSH_MAX_MS,
   STREAMING_UI_FLUSH_MS,
 } from '../../constant/streaming';
-import { nextStreamingFlushDelay } from '../../utils/streaming-flush-schedule';
+import { nextStreamingFlushDelay } from '../../utils/streaming/streaming-flush-schedule';
 
 export interface StreamingFlushState {
   flushTimer: ReturnType<typeof setTimeout> | undefined;

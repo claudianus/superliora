@@ -10,7 +10,7 @@
 import { RendererGutterContainer, visibleWidth } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
-import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
+import { isRenderCacheEnabled } from '#/tui/utils/render/render-cache';
 
 export class GutterContainer extends RendererGutterContainer {
   constructor(

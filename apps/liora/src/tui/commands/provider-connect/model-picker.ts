@@ -3,7 +3,7 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
-} from '#/tui/utils/thinking-effort';
+} from '#/tui/utils/model/thinking-effort';
 import type { SlashCommandHost } from '../dispatch';
 
 export async function openModelPickerForProvider(

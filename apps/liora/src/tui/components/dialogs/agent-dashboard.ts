@@ -15,7 +15,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { CURRENT_MARK } from '#/tui/constant/symbols';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import {
@@ -27,7 +27,7 @@ import {
   type DashboardGroup,
   type DashboardSessionRow,
   type DashboardSessionStatus,
-} from '#/tui/utils/agent-dashboard-rows';
+} from '#/tui/utils/agent/agent-dashboard-rows';
 
 const ELLIPSIS = '…';
 

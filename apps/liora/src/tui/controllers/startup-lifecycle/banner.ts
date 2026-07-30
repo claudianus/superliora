@@ -2,7 +2,7 @@ import { BannerProvider } from '../../banner/banner-provider';
 import { readBannerDisplayState, writeBannerDisplayState } from '../../banner/state';
 import { BannerComponent } from '../../components/chrome/banner';
 import { WelcomeComponent } from '../../components/chrome/welcome';
-import { requestTUILayoutRender } from '../../utils/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { StartupLifecycleHost } from './types';
 
 export async function loadStartupBanner(host: StartupLifecycleHost): Promise<void> {

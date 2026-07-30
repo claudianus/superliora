@@ -1,5 +1,5 @@
 import type { Component, Focusable } from '#/tui/renderer';
-import type { CenterModalMountMode, CenterModalMountOptions } from '#/tui/utils/center-modal';
+import type { CenterModalMountMode, CenterModalMountOptions } from '#/tui/utils/ui/center-modal';
 
 /** Minimal host surface for center-modal vs editor-replacement pickers. */
 export interface PickerMountHost {

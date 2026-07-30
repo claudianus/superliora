@@ -11,7 +11,7 @@ import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
   wireEffortForModel,
-} from '#/tui/utils/thinking-effort';
+} from '#/tui/utils/model/thinking-effort';
 
 function model(
   provider: string,

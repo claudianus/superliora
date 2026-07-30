@@ -5,7 +5,7 @@ import {
   TMUX_EXTENDED_KEYS_FORMAT_XTERM_WARNING,
   TMUX_EXTENDED_KEYS_OFF_WARNING,
   type TmuxOptionReader,
-} from '#/tui/utils/tmux-keyboard';
+} from '#/tui/utils/terminal/tmux-keyboard';
 
 function optionReader(values: Record<string, string | undefined>): TmuxOptionReader {
   return vi.fn(async (option: string) => values[option]);

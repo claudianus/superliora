@@ -25,7 +25,7 @@ import {
   shouldRenderAmbientEffects,
   type MotionToolPhase,
 } from '#/tui/features/appearance/appearance-effects';
-import { decodeMcpToolName } from '#/tui/utils/mcp-tool-name';
+import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 
 import { buildGoalToolHeader } from '../tool-renderers/goal';
 import { isGenericToolResult } from '../tool-renderers/registry';

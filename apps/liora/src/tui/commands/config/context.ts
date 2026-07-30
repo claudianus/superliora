@@ -7,7 +7,7 @@
 
 import { ContextWorkingSetSelectorComponent } from '../../components/dialogs/context-working-set-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import {
   contextWorkingSetPresetById,
   contextWorkingSetSnapshotFromLoopControl,
@@ -16,7 +16,7 @@ import {
   matchContextWorkingSetPreset,
   previewContextWorkingSet,
   type ContextWorkingSetPresetId,
-} from '#/tui/utils/context-working-set';
+} from '#/tui/utils/agent/context-working-set';
 import type { SlashCommandHost } from '../dispatch';
 
 /**

@@ -25,7 +25,7 @@ import {
   getActiveAppearancePreferences,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { lastTUIInputInteractionAtMs } from '#/tui/utils/input-interaction';
+import { lastTUIInputInteractionAtMs } from '#/tui/utils/input/input-interaction';
 
 let lastErrorAtMs = 0;
 let lastSuccessAtMs = 0;

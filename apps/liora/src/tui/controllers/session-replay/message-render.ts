@@ -13,9 +13,9 @@ import {
   type PluginCommandProjection,
   type ReplayRenderContext,
   type SkillActivationProjection,
-} from '../../utils/message-replay';
-import { formatBackgroundAgentTranscript } from '../../utils/background-agent-status';
-import { formatBackgroundTaskTranscript } from '../../utils/background-task-status';
+} from '../../utils/session/message-replay';
+import { formatBackgroundAgentTranscript } from '../../utils/background/background-agent-status';
+import { formatBackgroundTaskTranscript } from '../../utils/background/background-task-status';
 import { formatBashOutputForDisplay } from '../../utils/shell-output';
 import {
   extractBashTag,

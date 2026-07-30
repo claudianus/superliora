@@ -2,7 +2,7 @@ import type { Session } from '@superliora/sdk';
 
 import {
   requestTUIScrollRender,
-} from '../../utils/frame-render';
+} from '../../utils/render/frame-render';
 import {
   scrollTranscriptViewport as applyTranscriptViewportScroll,
   type TranscriptScrollAction,

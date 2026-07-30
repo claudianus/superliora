@@ -24,7 +24,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 import { ttui } from '#/tui/utils/tui-i18n';
 import type { TranscriptErrorItem } from '#/tui/features/transcript/transcript-errors';

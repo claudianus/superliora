@@ -1,6 +1,6 @@
 import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
 import { SettingsSelectorComponent, type SettingsSelection } from '../../components/dialogs/settings-selector';
-import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import { handleAccountsCommand } from '../accounts';
 import { showMcpServers, showUsage } from '../info';
 import { handlePremiumQualityCommand } from '../premium';

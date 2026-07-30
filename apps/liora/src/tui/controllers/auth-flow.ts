@@ -2,13 +2,13 @@ import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sd
 import type { SkillListSession } from '../commands';
 
 import { OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE } from '../constant/liora-tui';
-import { contextWorkingSetSnapshotFromLoopControl } from '../utils/context-working-set';
-import { resolveThinkingLevelForApply } from '../utils/thinking-effort';
+import { contextWorkingSetSnapshotFromLoopControl } from '../utils/agent/context-working-set';
+import { resolveThinkingLevelForApply } from '../utils/model/thinking-effort';
 import {
   refreshAllProviderModels,
   type RefreshProviderScope,
   type RefreshResult,
-} from '../utils/refresh-providers';
+} from '../utils/model/refresh-providers';
 import type { SessionEventHandler } from './session-event/handler';
 import type { AppState, LioraTUIOptions } from '../types';
 import type { TUIState } from '../tui-state';

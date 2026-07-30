@@ -16,7 +16,7 @@ import {
   snapRevealToTarget,
   tickReveal,
   visibleText,
-} from '#/tui/utils/streaming-text-reveal';
+} from '#/tui/utils/streaming/streaming-text-reveal';
 
 describe('countCodePoints / advanceCodePointIndex', () => {
   it('counts ASCII as one each', () => {

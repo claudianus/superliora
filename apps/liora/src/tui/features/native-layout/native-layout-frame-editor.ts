@@ -14,7 +14,7 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { feedbackBorderGlowHex } from '#/tui/utils/feedback-vfx';
+import { feedbackBorderGlowHex } from '#/tui/utils/render/feedback-vfx';
 import {
   appearanceAnimationNow,
   motionEffectsAllowed,

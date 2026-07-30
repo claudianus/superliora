@@ -6,7 +6,7 @@ import { ToolOutputViewportComponent } from '#/tui/components/messages/tool-outp
 import {
   createToolOutputViewportState,
   type ToolOutputViewportState,
-} from '#/tui/utils/tool-output-viewport';
+} from '#/tui/utils/tool/tool-output-viewport';
 
 const ANSI_PATTERN = /\u001B\[[0-9;]*m/g;
 

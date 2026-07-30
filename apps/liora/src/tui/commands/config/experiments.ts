@@ -5,7 +5,7 @@ import {
   type ExperimentalFeatureDraftChange,
 } from '../../components/dialogs/experiments-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import { setExperimentalFeatures } from '../experimental-flags';
 import type { SlashCommandHost } from '../dispatch';
 

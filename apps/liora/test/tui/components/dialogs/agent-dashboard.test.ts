@@ -8,8 +8,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentDashboardComponent } from '#/tui/components/dialogs/agent-dashboard';
-import type { DashboardSessionRow } from '#/tui/utils/agent-dashboard-rows';
-import { maskSecretLikePrompt } from '#/tui/utils/agent-dashboard-rows';
+import type { DashboardSessionRow } from '#/tui/utils/agent/agent-dashboard-rows';
+import { maskSecretLikePrompt } from '#/tui/utils/agent/agent-dashboard-rows';
 import { visibleWidth } from '#/tui/renderer';
 
 function stripAnsi(text: string): string {

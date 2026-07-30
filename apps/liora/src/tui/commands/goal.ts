@@ -16,7 +16,7 @@ import {
   UpcomingGoalAddedMessageComponent,
 } from '../components/messages/goal-panel';
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
-import { requestTUILayoutRender } from '../utils/frame-render';
+import { requestTUILayoutRender } from '../utils/render/frame-render';
 import {
   appendGoalQueueItem,
   moveGoalQueueItem,

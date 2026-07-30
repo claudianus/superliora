@@ -19,7 +19,7 @@ import {
   type RendererRootUI,
   type RendererTerminalHost,
 } from '@harness-kit/tui-renderer';
-import { noteFocusFeedback } from '../utils/feedback-vfx';
+import { noteFocusFeedback } from '../utils/render/feedback-vfx';
 
 export interface LioraNativeRootUIOptions
   extends Omit<NativeRootUIOptions, 'render'> {}

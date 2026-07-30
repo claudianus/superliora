@@ -6,7 +6,7 @@ import {
   centerModalContentWidth,
   createCenterModalOverlayRegion,
   type CenterModalEntry,
-} from '#/tui/utils/center-modal';
+} from '#/tui/utils/ui/center-modal';
 
 describe('centerModalContentWidth', () => {
   it('caps at 72 and leaves margin', () => {

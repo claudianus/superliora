@@ -15,8 +15,8 @@ import {
 import { ImageThumbnail } from '#/tui/components/media/image-thumbnail';
 import { USER_MESSAGE_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
-import type { ImageAttachment } from '#/tui/utils/image-attachment-store';
-import { isRenderCacheEnabled } from '#/tui/utils/render-cache';
+import type { ImageAttachment } from '#/tui/utils/image/image-attachment-store';
+import { isRenderCacheEnabled } from '#/tui/utils/render/render-cache';
 import {
   getActiveAppearancePreferences,
   renderSpectacularText,

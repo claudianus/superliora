@@ -3,7 +3,7 @@ import type { PermissionMode } from '@superliora/sdk';
 import { saveTuiConfig } from '../../config';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import { PermissionSelectorComponent } from '../../components/dialogs/permission-selector';
 import { ttui } from '#/tui/utils/tui-i18n';
 import type { SlashCommandHost } from '../dispatch';

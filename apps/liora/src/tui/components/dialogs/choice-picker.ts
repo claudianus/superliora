@@ -10,11 +10,11 @@
 
 import {Container, matchesKey, Key, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import {CURRENT_MARK} from '#/tui/constant/symbols';
-import {renderSelectPointer} from '#/tui/utils/select-pointer';
+import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import {currentTheme, type ColorToken} from '#/tui/theme';
 import {getActiveAppearancePreferences, renderAnimatedGradientText, renderParticleDivider, renderPremiumHeadline, renderShimmerPrefix, shouldRenderAmbientEffects} from '#/tui/features/appearance/appearance-effects';
 import {printableChar} from '#/tui/utils/printable-key';
-import {SearchableList} from '#/tui/utils/searchable-list';
+import {SearchableList} from '#/tui/utils/ui/searchable-list';
 
 export interface ChoiceOption {
   /** Value passed to onSelect (e.g. the actual editor command string). */

@@ -8,7 +8,7 @@
 import { PRODUCT_NAME } from '#/constant/app';
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { loopModelRoutingRows } from '#/tui/utils/loop-model-routing';
+import { loopModelRoutingRows } from '#/tui/utils/model/loop-model-routing';
 import {
   formatTokenCount,
   ratioSeverity,

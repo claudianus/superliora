@@ -5,7 +5,7 @@ import {
   resolveBrandMorphRect,
   resolveMorphProgress,
   SPLASH_MORPH_MS,
-} from '#/tui/utils/splash-iris';
+} from '#/tui/utils/splash/splash-iris';
 
 describe('splash morph handoff', () => {
   it('keeps default morph length near one second', () => {

@@ -5,7 +5,7 @@ import {
   TERMINAL_FOCUS_OUT,
 } from '#/tui/constant/terminal';
 import type { TUIState } from '#/tui/tui-state';
-import type { TerminalState } from '#/tui/utils/terminal-state';
+import type { TerminalState } from '#/tui/utils/terminal/terminal-state';
 
 export {
   DISABLE_TERMINAL_FOCUS_REPORTING,

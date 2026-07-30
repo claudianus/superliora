@@ -8,7 +8,7 @@ import { createTUIStateNativeInputRouter } from '#/tui/features/native-layout/na
 import {
   handleToolOutputMouse,
   resetToolOutputMouseState,
-} from '#/tui/utils/tool-output-mouse';
+} from '#/tui/utils/tool/tool-output-mouse';
 import { resolveTranscriptLayoutContext } from '#/tui/features/transcript/transcript-hit-test';
 
 const FRAME_WIDTH = 80;

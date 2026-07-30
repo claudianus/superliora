@@ -23,7 +23,7 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
-import { renderTabStrip } from '#/tui/utils/tab-strip';
+import { renderTabStrip } from '#/tui/utils/ui/tab-strip';
 
 import {
   ModelSelectorComponent,

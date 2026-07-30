@@ -11,13 +11,13 @@ import { setKittyGraphicsChannel } from '../../media/kitty-graphics-channel';
 import {
   requestTUIContentRender,
   requestTUILayoutRender,
-} from '../../utils/frame-render';
+} from '../../utils/render/frame-render';
 import {
   createTUIStateNativeInputRouter,
   type TUIStateNativeInputRouter,
 } from '../../features/native-layout/native-input-router';
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
-import { installTerminalFocusTracking } from '../../utils/terminal-focus';
+import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import { ClipboardImageHintController } from '../clipboard-image-hint';

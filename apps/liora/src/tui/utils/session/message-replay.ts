@@ -17,7 +17,7 @@ import type {
   TranscriptEntry,
 } from '#/tui/types';
 
-import { mediaUrlPartToText } from './media-url';
+import { mediaUrlPartToText } from '#/tui/utils/media/media-url';
 import { nextTranscriptId } from '#/tui/features/transcript/transcript-id';
 
 /** Recent user-turns to mount when hydrating a resumed session. */

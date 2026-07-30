@@ -13,7 +13,7 @@ import { currentTheme } from '../theme';
 import type { AppState, QueuedMessage, TranscriptEntry } from '../types';
 import type { TUIState } from '../tui-state';
 import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUIContentRender } from '../utils/frame-render';
+import { requestTUIContentRender } from '../utils/render/frame-render';
 import { formatBashOutputForDisplay } from '../utils/shell-output';
 import { markTranscriptComponent } from '../features/transcript/transcript-component-metadata';
 import { nextTranscriptId } from '../features/transcript/transcript-id';

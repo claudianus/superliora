@@ -16,7 +16,7 @@
 import {Container, Key, matchesKey, projectRendererScrollableLineWindow, RendererSelectableListViewport, renderRendererFrameRows, renderRendererVerticalScrollbar, type RendererTerminalHost, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@superliora/sdk';
 
-import {renderSelectPointer} from '@/tui/utils/select-pointer';
+import {renderSelectPointer} from '@/tui/utils/ui/select-pointer';
 import {currentTheme} from '#/tui/theme';
 import {printableChar} from '@/tui/utils/printable-key';
 
