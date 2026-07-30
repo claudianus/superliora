@@ -10,7 +10,6 @@ import {
   Text,
 } from '#/tui/renderer';
 import type { Component, RendererRootUI } from '#/tui/renderer';
-import { RESULT_PREVIEW_LINES } from '#/tui/constant/rendering';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
 import type { ToolOutputViewportState } from '#/tui/utils/tool/tool-output-viewport';
@@ -26,16 +25,18 @@ import {
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
 
-import { ShellExecutionComponent } from '../shell-execution';
-import { buildCompactErrorLineComponent } from './compact-error';
+import {
+  rebuildToolCallBody,
+  rebuildToolCallContent,
+  rebuildToolCallSubagentBlock,
+  type ToolCallBodyRebuildHost,
+} from './body-rebuild';
 import { ToolCallCallPreview, type ToolCallCallPreviewHost } from './call-preview';
-import { buildToolCallResultContentComponents } from './content';
 import { ToolCallDetachHint } from './detach-hint';
 import { toolHeaderEntranceStartedAt } from './entrance';
 import { str } from './format';
 import { composeToolCallHeader, type ToolCallHeaderState } from './header';
 import { ToolCallOutputViewportMount } from './output-viewport';
-import { buildProgressBlockComponents } from './progress';
 import {
   buildToolCallReadSnapshot,
   type ToolCallReadSnapshot,
@@ -47,10 +48,6 @@ import {
   type SubagentTextKind,
   type ToolCallSubagentSnapshot,
 } from './subagent';
-import {
-  buildMultiSubagentBlockComponents,
-  buildSingleSubagentBlockComponents,
-} from './subagent-block';
 import {
   appendToolCallSubToolCall,
   appendToolCallSubToolCallDelta,
@@ -552,114 +549,44 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     };
   }
 
+  private bodyRebuildHost(): ToolCallBodyRebuildHost {
+    const self = this;
+    return {
+      toolCall: this.toolCall,
+      result: this.result,
+      workspaceDir: this.workspaceDir,
+      expanded: this.expanded,
+      isOneLineCollapsed: this.isOneLineCollapsed,
+      progressLines: this.progressLines,
+      liveOutput: this.liveOutput,
+      subagent: this.subagent,
+      callPreview: this.callPreview,
+      outputViewport: this.outputViewport,
+      detachHint: this.detachHint,
+      children: this.children,
+      get subagentBlockStartIndex() {
+        return self.subagentBlockStartIndex;
+      },
+      set subagentBlockStartIndex(value: number) {
+        self.subagentBlockStartIndex = value;
+      },
+      renderCache: this.renderCache,
+      addChild: (child) => this.addChild(child),
+      isSingleSubagentView: () => this.isSingleSubagentView(),
+      getDerivedSubagentPhase: () => this.getDerivedSubagentPhase(),
+    };
+  }
+
   private rebuildContent(): void {
-    this.renderCache.clear();
-    this.outputViewport.reset();
-    while (this.children.length > this.callPreview.callPreviewEndIndex) {
-      this.children.pop();
-    }
-    if (this.isOneLineCollapsed) {
-      this.appendCompactErrorLine();
-      return;
-    }
-    this.appendProgressBlock();
-    this.appendDetachHintBlock();
-    this.appendLiveOutputBlock();
-    this.appendResultContent();
-    this.buildSubagentBlock();
+    rebuildToolCallContent(this.bodyRebuildHost());
   }
 
   private rebuildBody(): void {
-    this.renderCache.clear();
-    this.outputViewport.reset();
-    while (this.children.length > 2) {
-      this.children.pop();
-    }
-    if (this.isOneLineCollapsed) {
-      this.appendCompactErrorLine();
-      this.callPreview.callPreviewEndIndex = this.children.length;
-      return;
-    }
-    this.buildCallPreview();
-    this.callPreview.callPreviewEndIndex = this.children.length;
-    this.appendProgressBlock();
-    this.appendDetachHintBlock();
-    this.appendLiveOutputBlock();
-    this.appendResultContent();
-    this.buildSubagentBlock();
-  }
-
-  private appendCompactErrorLine(): void {
-    const line = buildCompactErrorLineComponent(this.result);
-    if (line !== undefined) this.addChild(line);
-  }
-
-  private appendProgressBlock(): void {
-    if (this.result !== undefined) return;
-    for (const child of buildProgressBlockComponents(this.progressLines)) {
-      this.addChild(child);
-    }
-  }
-
-  private appendDetachHintBlock(): void {
-    const child = this.detachHint.buildChild();
-    if (child !== undefined) this.addChild(child);
-  }
-
-  private appendLiveOutputBlock(): void {
-    if (this.result !== undefined) return;
-    if (this.liveOutput.length === 0) return;
-    this.outputViewport.mount([
-      new ShellExecutionComponent({
-        result: {
-          tool_call_id: this.toolCall.id,
-          output: this.liveOutput,
-          is_error: false,
-        },
-        expanded: true,
-        resultPreviewLines: RESULT_PREVIEW_LINES,
-        tailOutput: false,
-        expandHint: false,
-      }),
-    ], true);
-  }
-
-  private buildSubagentBlock(): void {
-    this.subagentBlockStartIndex = this.children.length;
-    if (!this.subagent.hasState()) return;
-
-    if (this.isSingleSubagentView()) {
-      this.buildSingleSubagentBlock();
-      return;
-    }
-
-    for (const child of buildMultiSubagentBlockComponents({
-      toolCallId: this.toolCall.id,
-      workspaceDir: this.workspaceDir,
-      subagentAgentName: this.subagent.agentName,
-      subagentAgentId: this.subagent.agentId,
-      subagentPhase: this.subagent.phase,
-      subagentSpinnerFrame: this.subagent.spinnerFrame,
-      subagentContextTokens: this.subagent.contextTokens,
-      subagentUsage: this.subagent.usage,
-      hiddenSubCallCount: this.subagent.hiddenSubCallCount,
-      finishedSubCalls: this.subagent.finishedSubCalls,
-      ongoingSubCalls: this.subagent.ongoingSubCalls,
-      subagentText: this.subagent.text,
-      subagentResultSummary: this.subagent.resultSummary,
-      subagentError: this.subagent.error,
-      spawnEntranceAtMs: this.subagent.spawnEntranceAtMs,
-    })) {
-      this.addChild(child);
-    }
+    rebuildToolCallBody(this.bodyRebuildHost());
   }
 
   private rebuildSubagentBlock(): void {
-    this.renderCache.clear();
-    while (this.children.length > this.subagentBlockStartIndex) {
-      this.children.pop();
-    }
-    this.buildSubagentBlock();
+    rebuildToolCallSubagentBlock(this.bodyRebuildHost());
   }
 
   private isSingleSubagentView(): boolean {
@@ -670,37 +597,11 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     return this.subagent.getDerivedPhase(this.result);
   }
 
-  private buildSingleSubagentBlock(): void {
-    for (const child of buildSingleSubagentBlockComponents({
-      toolCallId: this.toolCall.id,
-      workspaceDir: this.workspaceDir,
-      activities: [...this.subagent.subToolActivities.values()],
-      derivedSubagentPhase: this.getDerivedSubagentPhase(),
-      subagentError: this.subagent.error,
-      subagentText: this.subagent.text,
-      subagentThinkingText: this.subagent.thinkingText,
-    })) {
-      this.addChild(child);
-    }
-  }
-
   private buildCallPreview(): void {
     this.callPreview.build(this);
   }
 
   private rebuildCallPreviewBlock(): void {
     this.callPreview.rebuildBlock(this, this.children);
-  }
-
-  private appendResultContent(): void {
-    const { result } = this;
-    if (result === undefined) return;
-    const components = buildToolCallResultContentComponents({
-      toolCall: this.toolCall,
-      result,
-      expanded: this.expanded,
-      isSingleSubagentView: this.isSingleSubagentView(),
-    });
-    this.outputViewport.mount(components);
   }
 }
