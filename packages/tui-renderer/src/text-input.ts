@@ -1,4 +1,4 @@
-import type { RendererCell, RendererCellStyle } from './cell-buffer';
+import type { RendererCellStyle } from './cell-buffer';
 import type { RendererRegionLine } from './compositor';
 import type { NativeInputEvent, NativeInputKeyEvent, NativeInputMouseEvent } from './input-events';
 import type { RendererCursorShape, RendererCursorState } from './terminal-output';
@@ -11,20 +11,42 @@ import {
   type RendererTextInputHistorySnapshot,
 } from './text-input-edit';
 import {
+  buildVisualLines,
+  composeGhostLine,
+  computeCursorVisualPosition,
+  computeVisualLineIndexForCursor,
+  normalizeHistoryLimit,
+  normalizeInputText,
+  normalizeMaxLength,
+  normalizeMouseCoordinate,
+  normalizeOptionalLayoutWidth,
+  normalizeRenderHeight,
+  normalizeRenderWidth,
+  normalizeViewportRow,
+  renderVisualLineCells,
+  type VisualLine,
+} from './text-input-layout';
+import {
+  clampOffsetOutsideAtomicRange,
+  computeCursorForOffset,
+  computeOffsetForCursor,
+  computeOffsetForLine,
+  expandToAtomicBoundaries,
+  findContainingAtomicRange,
+  findNextEditableOffset,
+  findPreviousEditableOffset,
+} from './text-input-offsets';
+import {
   clampInteger,
   columnAtDisplayWidth,
   findParagraphTargetLine,
-  nextClusterBoundary,
   nextWordBoundary,
-  previousClusterBoundary,
   previousWordBoundary,
-  rangesOverlap,
   snapColumnToBoundary,
   snapTextOffsetToBoundary,
-  splitClusters,
   type AtomicCursorBias,
 } from './text-input-selection';
-import { measureDisplayWidth, textToCells } from './text-metrics';
+import { measureDisplayWidth } from './text-metrics';
 
 export interface RendererTextInputOptions {
   readonly text?: string;
@@ -93,15 +115,6 @@ export interface RendererTextInputRenderResult {
   readonly cursor: RendererCursorState;
   readonly contentRows: number;
   readonly viewportRow: number;
-}
-
-interface VisualLine {
-  readonly text: string;
-  readonly logicalLine: number;
-  readonly start: number;
-  readonly end: number;
-  readonly width: number;
-  readonly placeholder?: boolean;
 }
 
 const DEFAULT_SELECTION_STYLE: RendererCellStyle = { inverse: true };
@@ -375,7 +388,7 @@ export class RendererTextInput {
     if (ghostText !== undefined && ghostText.length > 0 && selection === undefined) {
       const ghostRow = absoluteCursor.y - viewportRow;
       if (ghostRow >= 0 && ghostRow < lines.length) {
-        lines[ghostRow] = this.composeGhostLine(
+        lines[ghostRow] = composeGhostLine(
           lines[ghostRow] ?? [],
           absoluteCursor.x,
           ghostText,
@@ -391,41 +404,6 @@ export class RendererTextInput {
       contentRows: visualLines.length,
       viewportRow,
     };
-  }
-
-  /**
-   * Overlay dimmed ghost cells onto the cursor's visual line starting at the
-   * cursor column. Cells already typed before the cursor are preserved; the
-   * ghost replaces whatever follows the cursor and is truncated so the combined
-   * display width never exceeds the line `width` (wide/CJK chars stay intact).
-   */
-  private composeGhostLine(
-    line: RendererRegionLine,
-    cursorX: number,
-    ghostText: string,
-    ghostStyle: RendererCellStyle | undefined,
-    width: number,
-  ): RendererRegionLine {
-    const available = width - cursorX;
-    if (available <= 0) return line;
-    const lineCells: readonly RendererCell[] =
-      typeof line === 'string' ? textToCells(line, undefined) : line;
-    const before: RendererCell[] = [];
-    let column = 0;
-    for (const cell of lineCells) {
-      if (column >= cursorX) break;
-      before.push(cell);
-      column += cell.width ?? 1;
-    }
-    const ghostCells: RendererCell[] = [];
-    let ghostWidth = 0;
-    for (const cell of textToCells(ghostText, ghostStyle)) {
-      const cellWidth = cell.width ?? 1;
-      if (ghostWidth + cellWidth > available) break;
-      ghostCells.push(cell);
-      ghostWidth += cellWidth;
-    }
-    return [...before, ...ghostCells];
   }
 
   private handleKey(event: NativeInputKeyEvent): boolean {
@@ -848,50 +826,15 @@ export class RendererTextInput {
   }
 
   private createVisualLines(width: number): readonly VisualLine[] {
-    if (this.getText().length === 0 && this.placeholder !== undefined) {
-      return wrapLogicalLine(this.placeholder, 0, width, true);
-    }
-    return this.lines.flatMap((line, index) => wrapLogicalLine(line, index, width, false));
+    return buildVisualLines(this.lines, this.placeholder, width);
   }
 
   private cursorToVisualPosition(visualLines: readonly VisualLine[]): { readonly x: number; readonly y: number } {
-    const fallbackY = Math.max(0, visualLines.length - 1);
-    for (let y = 0; y < visualLines.length; y++) {
-      const visual = visualLines[y]!;
-      if (visual.logicalLine !== this.cursor.line) continue;
-      if (this.cursor.column < visual.start || this.cursor.column > visual.end) continue;
-      if (
-        this.cursor.column === visual.end &&
-        y + 1 < visualLines.length &&
-        visualLines[y + 1]?.logicalLine === this.cursor.line &&
-        visualLines[y + 1]?.start === visual.end
-      ) {
-        continue;
-      }
-      return {
-        x: measureDisplayWidth(this.currentLine().slice(visual.start, this.cursor.column)),
-        y,
-      };
-    }
-    return { x: 0, y: fallbackY };
+    return computeCursorVisualPosition(this.cursor, this.currentLine(), visualLines);
   }
 
   private visualLineIndexForCursor(visualLines: readonly VisualLine[]): number {
-    for (let index = 0; index < visualLines.length; index++) {
-      const visual = visualLines[index]!;
-      if (visual.logicalLine !== this.cursor.line) continue;
-      if (this.cursor.column < visual.start || this.cursor.column > visual.end) continue;
-      if (
-        this.cursor.column === visual.end &&
-        index + 1 < visualLines.length &&
-        visualLines[index + 1]?.logicalLine === this.cursor.line &&
-        visualLines[index + 1]?.start === visual.end
-      ) {
-        continue;
-      }
-      return index;
-    }
-    return Math.max(0, visualLines.length - 1);
+    return computeVisualLineIndexForCursor(this.cursor, visualLines);
   }
 
   private renderVisualLine(
@@ -903,25 +846,7 @@ export class RendererTextInput {
       readonly selection: RendererTextInputSelectionRange | undefined;
     },
   ): RendererRegionLine {
-    if (line.placeholder === true || options.selection === undefined) {
-      return textToCells(line.text, line.placeholder === true ? options.placeholderStyle : options.style);
-    }
-
-    const lineStartOffset = this.textOffsetForLine(line.logicalLine);
-    const cells: RendererCell[] = [];
-    for (const cluster of splitClusters(line.text)) {
-      const clusterStart = lineStartOffset + line.start + cluster.start;
-      const clusterEnd = lineStartOffset + line.start + cluster.end;
-      const selected = rangesOverlap(
-        clusterStart,
-        clusterEnd,
-        options.selection.start,
-        options.selection.end,
-      );
-      const style = selected ? mergeCellStyles(options.style, options.selectionStyle) : options.style;
-      cells.push(...textToCells(cluster.text, style));
-    }
-    return cells;
+    return renderVisualLineCells(line, this.textOffsetForLine(line.logicalLine), options);
   }
 
   private currentLine(): string {
@@ -945,36 +870,15 @@ export class RendererTextInput {
   }
 
   private textOffsetForCursor(): number {
-    let offset = 0;
-    for (let line = 0; line < this.cursor.line; line++) {
-      offset += (this.lines[line] ?? '').length + 1;
-    }
-    return offset + this.cursor.column;
+    return computeOffsetForCursor(this.lines, this.cursor);
   }
 
   private textOffsetForLine(line: number): number {
-    let offset = 0;
-    const bounded = Math.max(0, Math.min(this.lines.length - 1, Math.floor(line)));
-    for (let index = 0; index < bounded; index++) {
-      offset += (this.lines[index] ?? '').length + 1;
-    }
-    return offset;
+    return computeOffsetForLine(this.lines, line);
   }
 
   private cursorForTextOffset(offset: number): RendererTextInputCursor {
-    let remaining = Math.max(0, offset);
-    for (let line = 0; line < this.lines.length; line++) {
-      const text = this.lines[line] ?? '';
-      if (remaining <= text.length) {
-        return { line, column: snapColumnToBoundary(text, remaining) };
-      }
-      remaining -= text.length + 1;
-    }
-    const lastLine = this.lines.length - 1;
-    return {
-      line: lastLine,
-      column: this.lines[lastLine]?.length ?? 0,
-    };
+    return computeCursorForOffset(this.lines, offset);
   }
 
   private truncateToMaxLength(): void {
@@ -986,23 +890,11 @@ export class RendererTextInput {
   }
 
   private previousEditableOffset(offset: number): number {
-    const text = this.getText();
-    const bounded = Math.max(0, Math.min(text.length, offset));
-    const endingRange = this.atomicRanges.find((range) => range.end === bounded);
-    if (endingRange !== undefined) return endingRange.start;
-    const previous = previousClusterBoundary(text, bounded);
-    const containingRange = this.atomicRangeContainingOffset(previous);
-    return containingRange?.start ?? previous;
+    return findPreviousEditableOffset(this.getText(), this.atomicRanges, offset);
   }
 
   private nextEditableOffset(offset: number): number {
-    const text = this.getText();
-    const bounded = Math.max(0, Math.min(text.length, offset));
-    const startingRange = this.atomicRanges.find((range) => range.start === bounded);
-    if (startingRange !== undefined) return startingRange.end;
-    const next = nextClusterBoundary(text, bounded);
-    const containingRange = this.atomicRangeContainingOffset(next);
-    return containingRange?.end ?? next;
+    return findNextEditableOffset(this.getText(), this.atomicRanges, offset);
   }
 
   private previousWordOffset(offset: number): number {
@@ -1033,17 +925,11 @@ export class RendererTextInput {
   }
 
   private snapOffsetOutOfAtomicRange(offset: number, bias: AtomicCursorBias): number {
-    const text = this.getText();
-    const bounded = Math.max(0, Math.min(text.length, offset));
-    const range = this.atomicRangeContainingOffset(bounded);
-    if (range === undefined) return bounded;
-    if (bias === 'backward') return range.start;
-    if (bias === 'forward') return range.end;
-    return bounded - range.start <= range.end - bounded ? range.start : range.end;
+    return clampOffsetOutsideAtomicRange(this.getText(), this.atomicRanges, offset, bias);
   }
 
   private atomicRangeContainingOffset(offset: number): RendererTextInputAtomicRange | undefined {
-    return this.atomicRanges.find((range) => range.start < offset && offset < range.end);
+    return findContainingAtomicRange(this.atomicRanges, offset);
   }
 
   private clampCursor(bias: AtomicCursorBias = 'nearest'): void {
@@ -1065,24 +951,7 @@ export class RendererTextInput {
   }
 
   private expandRangeToAtomicBoundaries(start: number, end: number): RendererTextInputSelectionRange {
-    let expandedStart = start;
-    let expandedEnd = end;
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const range of this.atomicRanges) {
-        if (!rangesOverlap(expandedStart, expandedEnd, range.start, range.end)) continue;
-        if (range.start < expandedStart) {
-          expandedStart = range.start;
-          changed = true;
-        }
-        if (range.end > expandedEnd) {
-          expandedEnd = range.end;
-          changed = true;
-        }
-      }
-    }
-    return { start: expandedStart, end: expandedEnd };
+    return expandToAtomicBoundaries(this.atomicRanges, start, end);
   }
 
   private normalizeSelection(): void {
@@ -1167,87 +1036,5 @@ export class RendererTextInput {
   private clearSelection(): void {
     this.selectionAnchor = undefined;
   }
-}
-
-function mergeCellStyles(
-  base: RendererCellStyle | undefined,
-  overlay: RendererCellStyle,
-): RendererCellStyle {
-  if (base === undefined) return overlay;
-  return { ...base, ...overlay };
-}
-
-function normalizeInputText(text: string): string[] {
-  const normalized = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-  const lines = normalized.split('\n');
-  return lines.length === 0 ? [''] : lines;
-}
-
-function normalizeMaxLength(value: number | undefined): number | undefined {
-  if (value === undefined || !Number.isFinite(value) || value < 0) return undefined;
-  return Math.floor(value);
-}
-
-function normalizeHistoryLimit(value: number | undefined): number {
-  if (value === undefined) return 100;
-  if (!Number.isFinite(value) || value < 0) return 0;
-  return Math.floor(value);
-}
-
-function normalizeRenderWidth(value: number): number {
-  if (!Number.isFinite(value) || value < 1) return 1;
-  return Math.floor(value);
-}
-
-function normalizeViewportRow(value: number | undefined): number {
-  if (value === undefined || !Number.isFinite(value) || value < 0) return 0;
-  return Math.floor(value);
-}
-
-function normalizeMouseCoordinate(value: number): number {
-  if (!Number.isFinite(value) || value < 0) return 0;
-  return Math.floor(value);
-}
-
-function normalizeOptionalLayoutWidth(value: number | undefined): number | undefined {
-  if (value === undefined || !Number.isFinite(value) || value < 1) return undefined;
-  return Math.floor(value);
-}
-
-function normalizeRenderHeight(value: number | undefined): number | undefined {
-  if (value === undefined || !Number.isFinite(value) || value < 1) return undefined;
-  return Math.floor(value);
-}
-
-function wrapLogicalLine(
-  line: string,
-  logicalLine: number,
-  width: number,
-  placeholder: boolean,
-): readonly VisualLine[] {
-  if (line.length === 0) return [{ text: '', logicalLine, start: 0, end: 0, width: 0, placeholder }];
-
-  const clusters = splitClusters(line);
-  const out: VisualLine[] = [];
-  let current = '';
-  let currentWidth = 0;
-  let start = clusters[0]?.start ?? 0;
-  let end = start;
-
-  for (const cluster of clusters) {
-    if (currentWidth > 0 && currentWidth + cluster.width > width) {
-      out.push({ text: current, logicalLine, start, end, width: currentWidth, placeholder });
-      current = '';
-      currentWidth = 0;
-      start = cluster.start;
-      end = cluster.start;
-    }
-    current += cluster.text;
-    currentWidth += cluster.width;
-    end = cluster.end;
-  }
-
-  out.push({ text: current, logicalLine, start, end, width: currentWidth, placeholder });
-  return out;
 }
 
