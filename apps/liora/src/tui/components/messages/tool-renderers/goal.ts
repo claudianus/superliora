@@ -5,7 +5,7 @@ import { currentTheme } from '#/tui/theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 
-import { formatGoalElapsed, pluralizeGoalCount } from '../goal-format';
+import { formatGoalElapsed, pluralizeGoalCount } from '../goal/goal-format';
 import { renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
 
