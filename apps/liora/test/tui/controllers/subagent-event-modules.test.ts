@@ -8,13 +8,13 @@ import {
   findAgentTaskId,
   shouldSurfaceSubagentModelNotice,
   subagentModelRouteNoticeText,
-} from '#/tui/controllers/subagent-event-background';
+} from '#/tui/controllers/subagent-event/background';
 import {
   isSubagentLifecycleEvent,
   isUserCancelledSubagentError,
   subagentFailureRetryNote,
   ultraSwarmMembersFromTeam,
-} from '#/tui/controllers/subagent-event-helpers';
+} from '#/tui/controllers/subagent-event/helpers';
 
 describe('subagent-event-helpers', () => {
   it('detects subagent lifecycle events', () => {
