@@ -2,12 +2,12 @@
  * /appearance slash command and appearance preference parsing extracted from config.ts.
  */
 
-import { saveTuiConfig, type AppearancePreferences } from '../config';
-import { formatErrorMessage } from '../utils/event-payload';
+import { saveTuiConfig, type AppearancePreferences } from '../../config';
+import { formatErrorMessage } from '../../utils/event-payload';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { isTranscriptDetailLevel } from '#/tui/utils/transcript-density';
-import { currentAppearance, tuiConfigFromHost } from './config-tui-persist';
-import type { SlashCommandHost } from './dispatch';
+import { currentAppearance, tuiConfigFromHost } from './tui-persist';
+import type { SlashCommandHost } from '../dispatch';
 
 const APPEARANCE_KEYS = [
   'profile',

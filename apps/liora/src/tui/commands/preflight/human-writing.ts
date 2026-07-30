@@ -6,14 +6,14 @@ import {
   PREFLIGHT_ULTRAWORK_CONTRACT_PATH,
   preflightSotaCriteriaPath,
   type PreflightHumanWriting,
-} from './preflight-types';
+} from './types';
 import {
   asRecord,
   displayPath,
   missingPhrases,
   readJsonRecord,
   readText,
-} from './preflight-utils';
+} from './utils';
 
 export function loadPreflightHumanWriting(workDir: string): PreflightHumanWriting {
   const contractPath = join(workDir, PREFLIGHT_ULTRAWORK_CONTRACT_PATH);

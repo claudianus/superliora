@@ -8,13 +8,13 @@ import {
   type Catalog,
 } from '@superliora/sdk';
 
-import { formatErrorMessage } from '../utils/event-payload';
+import { formatErrorMessage } from '../../utils/event-payload';
 import { loadCatalog } from '#/utils/catalog-cache';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { type ProviderCatalogOption } from '#/tui/utils/provider-catalog-options';
-import { promptApiKeyForCatalogProvider } from './prompts';
-import type { SlashCommandHost } from './dispatch';
-import { openModelPickerForProvider } from './provider-connect-model-picker';
+import { promptApiKeyForCatalogProvider } from '../prompts';
+import type { SlashCommandHost } from '../dispatch';
+import { openModelPickerForProvider } from './model-picker';
 
 export { DEFAULT_CATALOG_URL, fetchCatalog };
 

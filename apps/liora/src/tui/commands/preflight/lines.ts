@@ -1,6 +1,6 @@
 import type { MemoryStats } from '@superliora/sdk';
 
-import { formatEvidenceSignal, type MemoryReadinessSnapshot } from './evidence-readiness';
+import { formatEvidenceSignal, type MemoryReadinessSnapshot } from '../evidence-readiness';
 import {
   loopAgeSummary,
   loopBudgetSummary,
@@ -16,7 +16,7 @@ import {
   loopRerunSummary,
   loopRunSummary,
   loopScopeSummary,
-} from './preflight-loop';
+} from './loop';
 import {
   freshnessSummary,
   humanWritingSummary,
@@ -24,7 +24,7 @@ import {
   isMemoryReady,
   isRecallReady,
   readinessGateSummary,
-} from './preflight-readiness';
+} from './readiness';
 import {
   refreshAgeSummary,
   refreshBenchSummary,
@@ -32,14 +32,14 @@ import {
   refreshCandidatesSummary,
   refreshGatesSummary,
   refreshRunSummary,
-} from './preflight-refresh';
-import type { PreflightStatus } from './preflight-types';
+} from './refresh';
+import type { PreflightStatus } from './types';
 import {
   formatDuration,
   formatPassRate,
   formatScore,
   readyWord,
-} from './preflight-utils';
+} from './utils';
 
 export function buildPreflightLines(status: PreflightStatus, redact: (text: string) => string): string[] {
   const lines = [

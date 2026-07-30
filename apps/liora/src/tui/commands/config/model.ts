@@ -7,11 +7,11 @@
 
 import type { ModelAlias } from '@superliora/sdk';
 
-import { ChoicePickerComponent } from '../components/dialogs/choice-picker';
-import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../components/dialogs/model-fallback-selector';
-import { TabbedModelSelectorComponent } from '../components/dialogs/tabbed-model-selector';
-import { formatErrorMessage } from '../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
+import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
+import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../components/dialogs/model-fallback-selector';
+import { TabbedModelSelectorComponent } from '../../components/dialogs/tabbed-model-selector';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
 import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
@@ -29,7 +29,7 @@ import {
   clearFallbackModelsPatch,
   type ModelFallbackConfig,
 } from '#/tui/utils/model-fallback';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from '../dispatch';
 
 const MODEL_PICKER_REFRESH_TIMEOUT_MS = 2_000;
 

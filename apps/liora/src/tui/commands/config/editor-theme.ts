@@ -1,13 +1,13 @@
-import { EditorSelectorComponent } from '../components/dialogs/editor-selector';
-import { ThemeSelectorComponent } from '../components/dialogs/theme-selector';
-import { saveTuiConfig } from '../config';
+import { EditorSelectorComponent } from '../../components/dialogs/editor-selector';
+import { ThemeSelectorComponent } from '../../components/dialogs/theme-selector';
+import { saveTuiConfig } from '../../config';
 import type { ThemeName } from '#/tui/theme';
 import { currentTheme, isBuiltInTheme, lightColors, loadCustomThemeMerged } from '#/tui/theme';
 import { importThemeSource } from '#/tui/theme/importer';
-import { formatErrorMessage } from '../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
-import type { SlashCommandHost } from './dispatch';
-import { tuiConfigFromHost } from './config-tui-persist';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import type { SlashCommandHost } from '../dispatch';
+import { tuiConfigFromHost } from './tui-persist';
 
 export async function handleEditorCommand(host: SlashCommandHost, args: string): Promise<void> {
   const command = args.trim();

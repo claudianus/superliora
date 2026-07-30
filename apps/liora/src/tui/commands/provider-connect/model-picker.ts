@@ -1,10 +1,10 @@
-import { TabbedModelSelectorComponent } from '../components/dialogs/tabbed-model-selector';
-import { formatErrorMessage } from '../utils/event-payload';
+import { TabbedModelSelectorComponent } from '../../components/dialogs/tabbed-model-selector';
+import { formatErrorMessage } from '../../utils/event-payload';
 import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
 } from '#/tui/utils/thinking-effort';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from '../dispatch';
 
 export async function openModelPickerForProvider(
   host: SlashCommandHost,

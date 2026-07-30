@@ -16,17 +16,17 @@ import {
   type ProviderModelPreset,
 } from '@superliora/oauth';
 
-import { ChoicePickerComponent } from '../components/dialogs/choice-picker';
-import { DEFAULT_OAUTH_PROVIDER_NAME } from '../constant/liora-tui';
-import { formatErrorMessage } from '../utils/event-payload';
+import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
+import { DEFAULT_OAUTH_PROVIDER_NAME } from '../../constant/liora-tui';
+import { formatErrorMessage } from '../../utils/event-payload';
 import type { LoginProgressSpinnerHandle } from '../types';
 import { loadCatalog } from '#/utils/catalog-cache';
 import { openUrl } from '#/utils/open-url';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
-import { promptOAuthCallback } from './prompts';
-import type { SlashCommandHost } from './dispatch';
-import { openModelPickerForProvider } from './provider-connect-model-picker';
+import { promptOAuthCallback } from '../prompts';
+import type { SlashCommandHost } from '../dispatch';
+import { openModelPickerForProvider } from './model-picker';
 
 export async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
   // Inline the managed Kimi OAuth login flow so this module owns every connect

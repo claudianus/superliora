@@ -1,9 +1,9 @@
-import { UpdatePreferenceSelectorComponent } from '../components/dialogs/update-preference-selector';
-import { saveTuiConfig } from '../config';
-import { formatErrorMessage } from '../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
-import type { SlashCommandHost } from './dispatch';
-import { tuiConfigFromHost } from './config-tui-persist';
+import { UpdatePreferenceSelectorComponent } from '../../components/dialogs/update-preference-selector';
+import { saveTuiConfig } from '../../config';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import type { SlashCommandHost } from '../dispatch';
+import { tuiConfigFromHost } from './tui-persist';
 
 type UpdatePreferenceHost = {
   readonly state: {

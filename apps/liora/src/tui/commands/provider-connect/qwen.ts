@@ -5,9 +5,9 @@ import {
   validateQwenTokenPlanKeyFormat,
 } from '#/tui/utils/qwen-token-plan';
 import { type ProviderCatalogOption } from '#/tui/utils/provider-catalog-options';
-import { promptApiKeyForCatalogProvider } from './prompts';
-import type { SlashCommandHost } from './dispatch';
-import { openModelPickerForProvider } from './provider-connect-model-picker';
+import { promptApiKeyForCatalogProvider } from '../prompts';
+import type { SlashCommandHost } from '../dispatch';
+import { openModelPickerForProvider } from './model-picker';
 
 /**
  * Connects Qwen Cloud Token Plan — a first-class multimodal subscription
