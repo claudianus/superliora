@@ -91,7 +91,7 @@ Hook 命令的工作目录是当前会话的项目目录。非 Windows 平台上
 ```
 
 ::: info 哪些事件支持阻断？
-只有**可阻断事件**（`PreToolUse`、`Stop`、`UserPromptSubmit`）的返回值会影响主流程。其余事件属于**观察型事件**——触发后即发即忘，不管脚本返回什么，主流程都不会改变。
+**可阻断事件**为 `PreToolUse`、`Stop`、`UserPromptSubmit`，以及 UltraSwarm 团队事件 `TeammateIdle`、`TaskCreated`、`TaskCompleted`。其余事件属于观察型——触发后即发即忘。
 :::
 
 ## 事件一览
@@ -109,11 +109,64 @@ Hook 命令的工作目录是当前会话的项目目录。非 Windows 平台上
 | `SessionEnd` | `exit` | — | 会话关闭后触发 |
 | `SubagentStart` | 子 Agent 名称 | — | 子 Agent 开始运行前触发 |
 | `SubagentStop` | 子 Agent 名称 | — | 子 Agent 成功完成后触发（观察用） |
+| `TeammateIdle` | （未使用） | ✓ | UltraSwarm：专家即将空闲。退出码 `2` 把 stderr 反馈回去并继续工作；JSON `{"continue": false, "stopReason": "..."}` 停止该专家 |
+| `TaskCreated` | （未使用） | ✓ | UltraSwarm：正在认领工作节点。退出码 `2` 拒绝认领；`continue: false` 中止 swarm |
+| `TaskCompleted` | （未使用） | ✓ | UltraSwarm：工作节点结束 swarm 阶段。退出码 `2` 保持节点未完成；`continue: false` 中止 swarm |
 | `StopFailure` | 错误类型 | — | 本轮因错误失败后触发（观察用） |
 | `Interrupt` | 空字符串 | — | 用户中断本轮时触发（例如按下 Esc）；超时或其他程序性中断不会触发。中断时 `Stop` 不会触发，由本事件替代。payload 含 `reason` 字段（观察用） |
 | `PreCompact` | `manual` 或 `auto` | — | 上下文压缩开始前触发；返回值被完全忽略 |
 | `PostCompact` | `manual` 或 `auto` | — | 上下文压缩完成后触发（观察用） |
 | `Notification` | 通知类型（如 `task.completed`） | — | 后台任务状态变化时触发（观察用） |
+
+### UltraSwarm 团队 hooks（Claude Agent Teams 映射）
+
+UltraSwarm 与 `UltraworkGraph` 承载与 Claude 兼容的团队生命周期 hooks。
+
+| 事件 | SuperLiora 触发时机 |
+| --- | --- |
+| `TaskCreated` | `UltraworkGraph` 新增 WorkGraph 节点，或 UltraSwarm 认领节点（`running`） |
+| `TaskCompleted` | 节点变为 `needs_integration` 或 `done` |
+| `TeammateIdle` | UltraSwarm 专家即将结束一轮 |
+
+这三个事件会忽略 matcher（与 Claude 一致）。退出码 `2` 把 stderr 反馈给模型并拒绝/重试该动作；`{"continue":false,"stopReason":"..."}` 停止 teammate/swarm，并通过 `hook.result` 向用户展示 `stopReason`。可选的 `systemMessage` 也会展示给用户。
+
+典型 payload：
+
+```json
+{
+  "hook_event_name": "TeammateIdle",
+  "teammate_name": "security-reviewer",
+  "team_name": "<ultra-swarm-run-id>"
+}
+```
+
+```json
+{
+  "hook_event_name": "TaskCreated",
+  "task_id": "ac_1",
+  "task_subject": "Add auth middleware",
+  "teammate_name": "implementer",
+  "team_name": "<ultra-swarm-run-id>"
+}
+```
+
+质量门示例（没有 `dist/output.js` 就继续让专家工作）：
+
+```bash
+#!/bin/bash
+# TeammateIdle
+if [ ! -f "./dist/output.js" ]; then
+  echo "Build artifact missing" >&2
+  exit 2
+fi
+```
+
+若要直接停止专家而不是重跑：
+
+```bash
+#!/bin/bash
+echo '{"continue":false,"stopReason":"Budget exhausted"}'
+```
 
 ## 示例：阻断危险 Shell 命令
 

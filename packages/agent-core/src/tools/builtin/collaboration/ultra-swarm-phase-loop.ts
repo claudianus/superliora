@@ -1,6 +1,8 @@
+import { createUserMessage } from '@superliora/kosong';
 import type { TeamPlan, WorkGraph, WorkGraphNode } from '@superliora/protocol';
 
 import type { Agent } from '../../../agent/index';
+import { extractTextFromLLMResponse } from '../../../agent/plan/ultra-plan-llm-json';
 import type { SwarmRoutingIntensity } from '../../../agent/plan/ultra-swarm-routing';
 import {
   consumeUltraSwarmRestaffRequests,
@@ -12,6 +14,9 @@ import {
   createDebate,
   debatePhasesForRisk,
   emitDebateTurn,
+  parseConsensusVerdict,
+  runDebateCycle,
+  type DebateParticipant,
   type RiskLevel,
 } from '../../../session/ultra-swarm-debate';
 import { postOrchestratorStandup } from '../../../collaboration/swarm-bus-coordination';
@@ -65,6 +70,7 @@ export type UltraSwarmActiveDebate = {
   criticExpertId: string;
   /** Implementer/phase output attached as debate draft for critics. */
   draftExcerpt: string;
+  consensusVerdict?: string;
 };
 
 /**
@@ -102,6 +108,7 @@ export class UltraSwarmPhaseLoopRunner {
     let team = input.team;
     let budgetState: SwarmBudgetState = createSwarmBudgetState();
     let budgetKilled = false;
+    let teamHaltReason: string | undefined;
     // Child controller so budget kill can abort in-flight/remaining phase work
     // without requiring the parent tool signal to be re-abortable.
     const phaseController = createLinkedAbortController(input.signal);
@@ -114,7 +121,7 @@ export class UltraSwarmPhaseLoopRunner {
         phaseResults.push(...blockedResultsForPhase(phaseSpecs, blockedBy));
         continue;
       }
-      if (budgetKilled || phaseSignal.aborted) {
+      if (budgetKilled || teamHaltReason !== undefined || phaseSignal.aborted) {
         break;
       }
 
@@ -134,11 +141,21 @@ export class UltraSwarmPhaseLoopRunner {
 
       // Rebind this phase's specs to the live DAG ready-set so nodes unlocked
       // by prior phases become schedulable (not stuck on the initial ready set).
-      let phaseSpecsForRun = this.workNodes.rebindPhaseSpecsToLiveReadyNodes(
+      const rebound = await this.workNodes.rebindPhaseSpecsToLiveReadyNodes(
         phaseSpecs,
         input.args.work_node_ids ?? [],
         input.runId,
+        phaseSignal,
       );
+      if (rebound.haltReason !== undefined) {
+        teamHaltReason = rebound.haltReason;
+        phaseHandoff = `${phaseHandoff}\n\nTeam hook halt (TaskCreated): ${rebound.haltReason}`;
+        break;
+      }
+      if (rebound.blockedFeedbacks.length > 0) {
+        phaseHandoff = `${phaseHandoff}\n\n<task_created_hook_feedback>\n${rebound.blockedFeedbacks.join('\n')}\n</task_created_hook_feedback>`;
+      }
+      let phaseSpecsForRun = rebound.specs;
       if (phase === 'review') {
         phaseSpecsForRun = attachCriticAssignments(
           phaseSpecsForRun,
@@ -161,6 +178,15 @@ export class UltraSwarmPhaseLoopRunner {
         signal: phaseSignal,
       });
 
+      if (renderedPhaseResults.some((result) => result.error?.startsWith('Team hook halt:'))) {
+        const halted = renderedPhaseResults.find((result) =>
+          result.error?.startsWith('Team hook halt:'),
+        );
+        teamHaltReason = halted?.error?.slice('Team hook halt:'.length).trim() || 'halted';
+        phaseResults.push(...renderedPhaseResults);
+        break;
+      }
+
       if (phase === 'review') {
         renderedPhaseResults = await this.phaseRunner.retryFailedReviewExperts({
           renderedPhaseResults,
@@ -177,8 +203,19 @@ export class UltraSwarmPhaseLoopRunner {
       }
 
       phaseResults.push(...renderedPhaseResults);
-      // Close work nodes finished in this phase so dependents become ready next.
-      this.workNodes.finishPhaseClaimedWorkNodes(renderedPhaseResults);
+      const finish = await this.workNodes.finishPhaseClaimedWorkNodes(
+        renderedPhaseResults,
+        input.runId,
+        phaseSignal,
+      );
+      if (finish.haltReason !== undefined) {
+        teamHaltReason = finish.haltReason;
+        phaseHandoff = `${phaseHandoff}\n\nTeam hook halt (TaskCompleted): ${finish.haltReason}`;
+        break;
+      }
+      if (finish.blockedFeedbacks.length > 0) {
+        phaseHandoff = `${phaseHandoff}\n\n<task_completed_hook_feedback>\n${finish.blockedFeedbacks.join('\n')}\n</task_completed_hook_feedback>`;
+      }
 
       budgetState = this.recordPhaseBudgetRound({
         budgetState,
@@ -210,11 +247,16 @@ export class UltraSwarmPhaseLoopRunner {
         break;
       }
 
-      this.maybeTriggerDebates({
+      await this.maybeTriggerDebates({
         phase,
         renderedPhaseResults,
         team,
         runId: input.runId,
+        phaseSignal,
+        teamHaltReason: () => teamHaltReason,
+        appendPhaseHandoff: (text) => {
+          phaseHandoff = `${phaseHandoff}\n\n${text}`;
+        },
       });
 
       phaseHandoff = buildPhaseHandoff(
@@ -350,19 +392,23 @@ export class UltraSwarmPhaseLoopRunner {
     return true;
   }
 
-  private maybeTriggerDebates(input: {
+  private async maybeTriggerDebates(input: {
     phase: UltraSwarmPhase;
     renderedPhaseResults: readonly UltraSwarmRenderedResult[];
     team: TeamPlan;
     runId: string;
-  }): void {
+    phaseSignal: AbortSignal;
+    teamHaltReason: () => string | undefined;
+    appendPhaseHandoff: (text: string) => void;
+  }): Promise<void> {
     if (input.phase === 'plan' || input.renderedPhaseResults.length === 0) return;
 
     for (const result of input.renderedPhaseResults) {
+      if (input.phaseSignal.aborted || input.teamHaltReason() !== undefined) break;
       const riskResult = assessDebateRiskForResult(result, input.phase);
       if (riskResult === 'simple') continue;
 
-      void debatePhasesForRisk(riskResult);
+      const phases = debatePhasesForRisk(riskResult);
       const otherExperts = input.team.experts.filter(
         (e) => e.id !== result.spec.expertId,
       );
@@ -392,6 +438,49 @@ export class UltraSwarmPhaseLoopRunner {
         stance: 'neutral',
       });
 
+      let consensusVerdict: string | undefined;
+      try {
+        debate = await runDebateCycle({
+          debate,
+          critic: this.makeDebateParticipant(criticExpert.id, criticExpert.role),
+          author: this.makeDebateParticipant(result.spec.expertId, result.spec.expertName),
+          runId: input.runId,
+          parent: this.agent,
+          phases,
+          signal: input.phaseSignal,
+        });
+        consensusVerdict =
+          debate.consensusVerdict?.trim() ||
+          debate.turns.at(-1)?.text.trim() ||
+          undefined;
+        if (consensusVerdict !== undefined) {
+          const parsed = parseConsensusVerdict(consensusVerdict);
+          this.agent.telemetry.track('ultra_swarm_debate_consensus', {
+            run_id: input.runId,
+            debate_id: debate.debateId,
+            work_node_id: workNodeId,
+            verdict: parsed.verdict,
+            risk: riskResult,
+            phase: input.phase,
+          });
+          if (parsed.verdict === 'block') {
+            input.appendPhaseHandoff(
+              `Debate blocked ${workNodeId}: ${consensusVerdict.slice(0, 500)}`,
+            );
+          } else if (parsed.verdict === 'revise' && parsed.revisionNotes !== undefined) {
+            input.appendPhaseHandoff(
+              `Debate revise ${workNodeId}: ${parsed.revisionNotes.slice(0, 500)}`,
+            );
+          }
+        }
+      } catch (error) {
+        this.agent.telemetry.track('ultra_swarm_debate_cycle_failed', {
+          run_id: input.runId,
+          work_node_id: workNodeId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
       const draftExcerpt = (debate.draftExcerpt ?? artifactSummary).trim();
       this.activeDebates.push({
         debateId: debate.debateId,
@@ -401,8 +490,27 @@ export class UltraSwarmPhaseLoopRunner {
         authorExpertId: result.spec.expertId,
         criticExpertId: criticExpert.id,
         draftExcerpt: draftExcerpt.slice(0, 4_000),
+        consensusVerdict,
       });
     }
+  }
+
+  private makeDebateParticipant(expertId: string, expertName: string): DebateParticipant {
+    return {
+      expertId,
+      expertName,
+      generate: async (prompt, options) => {
+        const response = await this.agent.generate(
+          this.agent.config.provider,
+          `You are ${expertName} in an UltraSwarm debate. Be concrete and adversarial when criticizing; concise when defending. Reply in plain text.`,
+          [],
+          [createUserMessage(prompt)],
+          undefined,
+          { signal: options?.signal },
+        );
+        return extractTextFromLLMResponse(response);
+      },
+    };
   }
 
   private async maybeRunRestaff(input: {

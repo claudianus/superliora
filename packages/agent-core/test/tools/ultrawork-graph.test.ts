@@ -36,22 +36,27 @@ function makeStore(): {
   };
 }
 
-function makeTool(): {
+function makeTool(hooks?: Agent['hooks']): {
   tool: UltraworkGraphTool;
   data: Partial<ToolStoreData>;
   emitEvent: ReturnType<typeof vi.fn>;
+  appendSystemReminder: ReturnType<typeof vi.fn>;
 } {
   const { store, data } = makeStore();
   const emitEvent = vi.fn();
+  const appendSystemReminder = vi.fn();
   const agent = {
     emitEvent,
     telemetry: { track: vi.fn() },
+    hooks,
+    turn: { currentTurnId: () => 1 },
+    context: { appendSystemReminder },
     ultrawork: {
       getRun: () => null,
       syncWorkGraphFromStore: vi.fn(),
     },
   } as unknown as Agent;
-  return { tool: new UltraworkGraphTool(store, agent), data, emitEvent };
+  return { tool: new UltraworkGraphTool(store, agent), data, emitEvent, appendSystemReminder };
 }
 
 type WorkGraphInputNode = NonNullable<UltraworkGraphInput['nodes']>[number];
@@ -118,6 +123,61 @@ describe('UltraworkGraphTool', () => {
       runId: 'uw_1',
       task: expect.objectContaining({ id: 'ac_1', status: 'queued' }),
     });
+  });
+
+  it('blocks TaskCreated via team hooks and omits the new node', async () => {
+    const hooks = {
+      trigger: vi.fn(async (event: string) => {
+        if (event === 'TaskCreated') {
+          return [{ action: 'block' as const, reason: 'bad name' }];
+        }
+        return [{ action: 'allow' as const }];
+      }),
+    };
+    const { tool, data, appendSystemReminder } = makeTool(hooks as unknown as Agent['hooks']);
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'call_block_create',
+      args: { run_id: 'uw_1', nodes: [node()] },
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: false });
+    expect(result.output).toContain('TaskCreated ac_1: bad name');
+    expect(data[ULTRAWORK_GRAPH_STORE_KEY]).toMatchObject({ nodes: [] });
+    expect(appendSystemReminder).toHaveBeenCalled();
+  });
+
+  it('blocks TaskCompleted via team hooks and keeps the previous status', async () => {
+    const hooks = {
+      trigger: vi.fn(async (event: string) => {
+        if (event === 'TaskCompleted') {
+          return [{ action: 'block' as const, reason: 'tests failing' }];
+        }
+        return [{ action: 'allow' as const }];
+      }),
+    };
+    const { tool, data } = makeTool(hooks as unknown as Agent['hooks']);
+    data[ULTRAWORK_GRAPH_STORE_KEY] = {
+      id: 'wg_1',
+      runId: 'uw_1',
+      nodes: [node({ status: 'running' })],
+    };
+
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'call_block_complete',
+      args: {
+        run_id: 'uw_1',
+        nodes: [node({ status: 'done', evidenceIds: ['e1'], requiredEvidence: ['e1'] })],
+      },
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: false });
+    expect(result.output).toContain('TaskCompleted ac_1: tests failing');
+    expect((data[ULTRAWORK_GRAPH_STORE_KEY] as WorkGraph).nodes[0]?.status).toBe('running');
   });
 
   it('normalizes stage synonyms at the tool boundary and stores canonical stages', async () => {

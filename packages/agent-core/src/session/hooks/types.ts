@@ -14,6 +14,10 @@ export const HOOK_EVENT_TYPES = [
   'SessionEnd',
   'SubagentStart',
   'SubagentStop',
+  // Claude Agent Teams lifecycle (hosted by UltraSwarm)
+  'TaskCreated',
+  'TaskCompleted',
+  'TeammateIdle',
   'PreCompact',
   'PostCompact',
   'Notification',
@@ -39,6 +43,14 @@ export interface HookResult {
   readonly exitCode?: number;
   readonly timedOut?: boolean;
   readonly structuredOutput?: boolean;
+  /**
+   * Claude JSON `{"continue": false}` — stop the teammate/swarm entirely.
+   * Distinct from `action: "block"` (exit 2), which keeps the teammate working.
+   */
+  readonly halt?: boolean;
+  readonly stopReason?: string;
+  /** Claude universal JSON field — warning shown to the user. */
+  readonly systemMessage?: string;
 }
 
 export interface HookBlockDecision {

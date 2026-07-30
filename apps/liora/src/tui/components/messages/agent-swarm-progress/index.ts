@@ -86,6 +86,7 @@ import type {
   SwarmCollaborationFeedMessage,
   UltraSwarmMemberMetadata,
 } from '#/tui/features/agent-swarm/agent-swarm-progress-types';
+import type { WarRoomExpertView } from '#/tui/utils/war-room-experts';
 
 export class AgentSwarmProgressComponent implements Component {
   private readonly progressEstimator = new AgentSwarmProgressEstimator();
@@ -212,9 +213,34 @@ export class AgentSwarmProgressComponent implements Component {
       if (member === undefined || metadata === undefined) continue;
       member.ultraSwarm = metadata;
       member.itemText = ultraSwarmMemberLabel(metadata);
+      if (metadata.agentId !== undefined && metadata.agentId.length > 0) {
+        member.agentId = metadata.agentId;
+      }
     }
     this.itemsStarted = members.length > 0;
     this.warRoom.rebuildExpertSlotIndex();
+  }
+
+  /** Snapshot of War Room experts for talk / transcript UX. */
+  listWarRoomExperts(): readonly WarRoomExpertView[] {
+    return this.runtime.members.map((member) => {
+      const meta = member.ultraSwarm;
+      const expertId = meta?.expertId ?? member.id;
+      const name = meta?.name ?? member.itemText;
+      const latest =
+        member.latestModelText.trim().length > 0
+          ? member.latestModelText
+          : member.completedText ?? member.failureText;
+      return {
+        expertId,
+        name: name.length > 0 ? name : expertId,
+        emoji: meta?.emoji,
+        agentId: member.agentId,
+        phase: member.phase,
+        latestText: latest,
+        focus: meta?.focus,
+      };
+    });
   }
 
   applyRoutingDecision(routing: {

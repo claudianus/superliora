@@ -14,6 +14,8 @@ export interface UltraSwarmMemberMetadata {
   readonly focus?: string;
   readonly dependsOn?: readonly string[];
   readonly taskIds?: readonly string[];
+  /** Session agent id when the expert was already spawned at staffing time. */
+  readonly agentId?: string;
 }
 
 export type SwarmOpsFeedTag =

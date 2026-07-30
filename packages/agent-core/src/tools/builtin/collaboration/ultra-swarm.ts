@@ -247,8 +247,21 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       parentToolCallId: toolCallId,
     });
 
+    let claimedWorkNodeIds = schedulableWorkNodeIds;
     if (workNodeContext !== undefined && schedulableWorkNodeIds.length > 0) {
-      this.workNodes.markWorkNodesRunning(schedulableWorkNodeIds, ownerExpertIdForWorkNodes(specs));
+      const claim = await this.workNodes.markWorkNodesRunning(
+        schedulableWorkNodeIds,
+        ownerExpertIdForWorkNodes(specs),
+        runId,
+        signal,
+      );
+      if (claim.haltReason !== undefined) {
+        standupTimer?.stop();
+        clearSwarmRunBus(this.store);
+        this.agent.ultraSwarmRun = undefined;
+        throw new Error(`Team hook halt (TaskCreated): ${claim.haltReason}`);
+      }
+      claimedWorkNodeIds = [...claim.claimedIds];
     }
 
     let phaseResults: UltraSwarmRunResult[] = [];
@@ -270,8 +283,8 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       phaseResults = [...loop.phaseResults];
       team = loop.team;
     } catch (error) {
-      if (schedulableWorkNodeIds.length > 0) {
-        this.workNodes.failWorkNodes(schedulableWorkNodeIds, error);
+      if (claimedWorkNodeIds.length > 0) {
+        this.workNodes.failWorkNodes(claimedWorkNodeIds, error);
       }
       getDefaultSwarmFileLeaseRegistry().releaseAll(runId);
       this.agent.ultraSwarmRun = undefined;
@@ -312,12 +325,12 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       const claimed = new Set<string>();
       for (const result of rendered) {
         if (result.spec.workNodeIds.length === 0) continue;
-        this.workNodes.finishWorkNodes(result.spec.workNodeIds, [result]);
+        await this.workNodes.finishWorkNodes(result.spec.workNodeIds, [result], runId, signal);
         for (const id of result.spec.workNodeIds) claimed.add(id);
       }
-      const unclaimed = schedulableWorkNodeIds.filter((id) => !claimed.has(id));
+      const unclaimed = claimedWorkNodeIds.filter((id) => !claimed.has(id));
       if (unclaimed.length > 0) {
-        this.workNodes.finishWorkNodes(unclaimed, rendered);
+        await this.workNodes.finishWorkNodes(unclaimed, rendered, runId, signal);
       }
     }
 
