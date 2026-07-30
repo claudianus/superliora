@@ -6,7 +6,7 @@ import {
 } from '#/tui/renderer';
 import { ensureFdPath } from '#/utils/process/fd-detect';
 
-import type { TodoBoardScrollAction } from '../../components/chrome/todo-panel';
+import type { TodoBoardScrollAction } from '../../components/chrome/todo/todo-panel';
 import { setKittyGraphicsChannel } from '../../media/kitty-graphics-channel';
 import {
   requestTUIContentRender,

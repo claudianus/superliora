@@ -4,7 +4,7 @@ import {
   formatMediaFooterBadge,
   mediaImageKeyReady,
   mediaVideoKeyReady,
-} from '#/tui/components/chrome/footer';
+} from '#/tui/components/chrome/footer/footer';
 
 const KEYS = ['OPENAI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'] as const;
 

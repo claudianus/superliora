@@ -1,6 +1,6 @@
 import { visibleWidth, type Component } from '#/tui/renderer';
 
-import type { TodoItem } from '#/tui/components/chrome/todo-panel';
+import type { TodoItem } from '#/tui/components/chrome/todo/todo-panel';
 import {
   AgentSwarmProgressEstimator,
 } from '#/tui/components/messages/agent-swarm-progress/estimator';

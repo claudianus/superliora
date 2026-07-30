@@ -1,7 +1,7 @@
 import { WORKING_TIPS, type ToolbarTip } from '#/tui/constant/tips';
 import { ttui } from '#/tui/utils/tui-i18n';
 
-import { buildWeightedTips } from './footer-tips';
+import { buildWeightedTips } from './footer/footer-tips';
 
 export { WORKING_TIPS };
 

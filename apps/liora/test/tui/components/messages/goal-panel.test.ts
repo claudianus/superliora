@@ -9,7 +9,7 @@ import {
   GoalStatusMessageComponent,
   UpcomingGoalAddedMessageComponent,
   goalPanelTitle,
-} from '#/tui/components/messages/goal-panel';
+} from '#/tui/components/messages/goal/goal-panel';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';

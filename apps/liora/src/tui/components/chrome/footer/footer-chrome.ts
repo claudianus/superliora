@@ -9,8 +9,8 @@ import {
 } from '#/utils/git/git-status';
 import { ttui } from '#/tui/utils/tui-i18n';
 
-import { mediaProviderKeyReady } from '#/tui/components/chrome/footer-badges';
-import { safeContextUsage } from '#/tui/components/chrome/footer-context';
+import { mediaProviderKeyReady } from '#/tui/components/chrome/footer/footer-badges';
+import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
 
 const MAX_CWD_SEGMENTS = 3;
 

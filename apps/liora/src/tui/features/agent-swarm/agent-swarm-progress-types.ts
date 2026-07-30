@@ -1,5 +1,5 @@
 import type { AgentSwarmProgressEstimatorPhase } from '#/tui/components/messages/agent-swarm-progress/estimator';
-import type { TodoItem } from '#/tui/components/chrome/todo-panel';
+import type { TodoItem } from '#/tui/components/chrome/todo/todo-panel';
 
 export type AgentSwarmPhase = AgentSwarmProgressEstimatorPhase;
 export type TotalStatus = 'working' | 'completed' | 'suspended' | 'failed' | 'aborted';

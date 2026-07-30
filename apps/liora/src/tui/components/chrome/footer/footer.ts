@@ -16,18 +16,18 @@ import {
   type GitStatusCache,
 } from '#/utils/git/git-status';
 
-import type { FooterTranscriptViewportSnapshot } from '#/tui/components/chrome/footer-chrome';
+import type { FooterTranscriptViewportSnapshot } from '#/tui/components/chrome/footer/footer-chrome';
 import {
   GOAL_TIMER_INTERVAL_MS,
   goalSnapshotKey,
-} from '#/tui/components/chrome/footer-goal';
+} from '#/tui/components/chrome/footer/footer-goal';
 import {
   renderFooterLine1,
   type FooterLine1TipState,
-} from '#/tui/components/chrome/footer-render-line1';
-import { renderFooterLine2 } from '#/tui/components/chrome/footer-render-line2';
+} from '#/tui/components/chrome/footer/footer-render-line1';
+import { renderFooterLine2 } from '#/tui/components/chrome/footer/footer-render-line2';
 
-export { buildWeightedTips } from '#/tui/components/chrome/footer-tips';
+export { buildWeightedTips } from '#/tui/components/chrome/footer/footer-tips';
 export {
   contextUsageSeverity,
   formatContextOSFooterBadge,
@@ -40,8 +40,8 @@ export {
   mediaVideoKeyReady,
   type FooterBadge,
   type FooterBadgeSeverity,
-} from '#/tui/components/chrome/footer-badges';
-export { formatFooterGitBadge } from '#/tui/components/chrome/footer-chrome';
+} from '#/tui/components/chrome/footer/footer-badges';
+export { formatFooterGitBadge } from '#/tui/components/chrome/footer/footer-chrome';
 
 export class FooterComponent implements Component {
   private state: AppState;

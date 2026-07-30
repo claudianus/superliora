@@ -1,6 +1,6 @@
 import type { ResumedAgentState } from '@superliora/sdk';
 
-import type { TodoItem } from '../../components/chrome/todo-panel';
+import type { TodoItem } from '../../components/chrome/todo/todo-panel';
 import { isTodoItemShape } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {

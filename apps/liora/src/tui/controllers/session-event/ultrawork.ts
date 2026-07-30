@@ -4,8 +4,8 @@ import {
   UltraworkTheatreComponent,
   ultraworkTheatreRunId,
   type UltraworkTheatreEvent,
-} from '../../components/messages/ultrawork-theatre';
-import { UltraworkModeMarkerComponent } from '../../components/messages/ultrawork-markers';
+} from '../../components/messages/ultrawork/ultrawork-theatre';
+import { UltraworkModeMarkerComponent } from '../../components/messages/ultrawork/ultrawork-markers';
 import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';

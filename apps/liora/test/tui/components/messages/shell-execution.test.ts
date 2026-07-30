@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ShellExecutionComponent,
   shellExecutionResultRenderer,
-} from '#/tui/components/messages/shell-execution';
+} from '#/tui/components/messages/shell/shell-execution';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

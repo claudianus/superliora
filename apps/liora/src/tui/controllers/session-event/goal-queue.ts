@@ -2,7 +2,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
 import type { GoalChange, GoalUpdatedEvent, Session } from '@superliora/sdk';
 
-import { buildGoalMarker } from '../../components/messages/goal-markers';
+import { buildGoalMarker } from '../../components/messages/goal/goal-markers';
 import { createGoal as startGoalCommand } from '../../commands/goal';
 import {
   readGoalQueue,

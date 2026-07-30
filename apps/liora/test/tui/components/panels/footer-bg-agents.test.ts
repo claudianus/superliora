@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FooterComponent } from '#/tui/components/chrome/footer';
+import { FooterComponent } from '#/tui/components/chrome/footer/footer';
 import type { AppState } from '#/tui/types';
 
 const ANSI_SGR = /\[[0-9;]*m/g;

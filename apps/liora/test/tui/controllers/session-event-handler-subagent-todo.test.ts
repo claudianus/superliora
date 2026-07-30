@@ -10,7 +10,7 @@ import { getBuiltInPalette } from '#/tui/theme';
  * strip, and lifecycle completion/failure must remove the row. The host mock
  * mirrors session-event-handler-turn.test.ts; the todo panel is a spy so the
  * assertions stay on the wiring, not the component (covered separately in
- * test/tui/components/chrome/todo-panel.test.ts).
+ * test/tui/components/chrome/todo/todo-panel.test.ts).
  */
 function makeHost() {
   const host = {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ShellRunComponent } from '#/tui/components/messages/shell-run';
+import { ShellRunComponent } from '#/tui/components/messages/shell/shell-run';
 
 function stripTheme(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

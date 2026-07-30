@@ -12,7 +12,7 @@ import {
 } from '#/tui/renderer';
 import type { GoalSnapshot, GoalStatus } from '@superliora/sdk';
 
-import { formatGoalElapsed } from '#/tui/components/messages/goal-format';
+import { formatGoalElapsed } from '#/tui/components/messages/goal/goal-format';
 import {
   BLOCKED_GLYPH,
   GOAL_DOT,

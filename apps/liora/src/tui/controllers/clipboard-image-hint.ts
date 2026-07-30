@@ -4,7 +4,7 @@ import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
 
 import { FOCUS_DEBOUNCE_MS, HINT_DISPLAY_MS } from '../constant/clipboard-image-hint';
 import { TERMINAL_FOCUS_IN, TERMINAL_FOCUS_OUT } from '../utils/terminal/terminal-focus';
-import type { FooterComponent } from '../components/chrome/footer';
+import type { FooterComponent } from '../components/chrome/footer/footer';
 
 export interface ClipboardImageHintHost {
   readonly ui: RendererRootUI;

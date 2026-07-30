@@ -8,7 +8,7 @@ import {
 } from '#/utils/history/input-history';
 import { getGlobalInputHistoryFile, getInputHistoryFile } from '#/utils/paths';
 
-import { ShellRunComponent } from '../components/messages/shell-run';
+import { ShellRunComponent } from '../components/messages/shell/shell-run';
 import { currentTheme } from '../theme';
 import type { AppState, QueuedMessage, TranscriptEntry } from '../types';
 import type { TUIState } from '../tui-state';

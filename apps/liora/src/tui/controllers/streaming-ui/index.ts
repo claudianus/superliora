@@ -15,7 +15,7 @@ import {
   resetRevealState,
 } from '../../utils/streaming/streaming-text-reveal';
 import { notifyUserAttentionOnce } from '../../utils/terminal/terminal-notification';
-import type { TodoItem } from '../../components/chrome/todo-panel';
+import type { TodoItem } from '../../components/chrome/todo/todo-panel';
 import type {
   AppState,
   LivePaneState,

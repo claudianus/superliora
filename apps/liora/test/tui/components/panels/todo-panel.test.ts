@@ -7,7 +7,7 @@ import {
   formatSwarmMemberTodoLines,
   selectVisibleTodos,
   type TodoItem,
-} from '#/tui/components/chrome/todo-panel';
+} from '#/tui/components/chrome/todo/todo-panel';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { darkColors } from '#/tui/theme/colors';

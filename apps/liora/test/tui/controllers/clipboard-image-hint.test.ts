@@ -5,7 +5,7 @@ import {
   ClipboardImageHintController,
   type ClipboardImageHintHost,
 } from '#/tui/controllers/clipboard-image-hint';
-import type { FooterComponent } from '#/tui/components/chrome/footer';
+import type { FooterComponent } from '#/tui/components/chrome/footer/footer';
 import { TERMINAL_FOCUS_IN, TERMINAL_FOCUS_OUT } from '#/tui/utils/terminal/terminal-focus';
 import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
 
