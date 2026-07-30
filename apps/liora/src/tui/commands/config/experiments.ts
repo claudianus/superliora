@@ -3,11 +3,11 @@ import type { ExperimentalFeatureState } from '@superliora/sdk';
 import {
   ExperimentsSelectorComponent,
   type ExperimentalFeatureDraftChange,
-} from '../components/dialogs/experiments-selector';
-import { formatErrorMessage } from '../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
-import { setExperimentalFeatures } from './experimental-flags';
-import type { SlashCommandHost } from './dispatch';
+} from '../../components/dialogs/experiments-selector';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { setExperimentalFeatures } from '../experimental-flags';
+import type { SlashCommandHost } from '../dispatch';
 
 export async function showExperimentsPanel(host: SlashCommandHost): Promise<void> {
   let features: readonly ExperimentalFeatureState[];

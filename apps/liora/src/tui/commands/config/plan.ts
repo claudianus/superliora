@@ -1,9 +1,9 @@
 import type { Session } from '@superliora/sdk';
 
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { formatErrorMessage } from '../utils/event-payload';
-import type { SlashCommandHost } from './dispatch';
-import { isActiveUltraworkRun, ultraworkModeDisableBlockedMessage } from './ultrawork-contract';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { formatErrorMessage } from '../../utils/event-payload';
+import type { SlashCommandHost } from '../dispatch';
+import { isActiveUltraworkRun, ultraworkModeDisableBlockedMessage } from '../ultrawork-contract';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;

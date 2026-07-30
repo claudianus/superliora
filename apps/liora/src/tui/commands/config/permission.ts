@@ -1,13 +1,13 @@
 import type { PermissionMode } from '@superliora/sdk';
 
-import { saveTuiConfig } from '../config';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { formatErrorMessage } from '../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
-import { PermissionSelectorComponent } from '../components/dialogs/permission-selector';
+import { saveTuiConfig } from '../../config';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { PermissionSelectorComponent } from '../../components/dialogs/permission-selector';
 import { ttui } from '#/tui/utils/tui-i18n';
-import type { SlashCommandHost } from './dispatch';
-import { tuiConfigFromHost } from './config-tui-persist';
+import type { SlashCommandHost } from '../dispatch';
+import { tuiConfigFromHost } from './tui-persist';
 
 /** Fire-and-forget persistence of the current permission mode to tui.toml. */
 function persistPermissionMode(host: SlashCommandHost): Promise<void> {

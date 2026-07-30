@@ -1,20 +1,20 @@
-import { ChoicePickerComponent } from '../components/dialogs/choice-picker';
-import { SettingsSelectorComponent, type SettingsSelection } from '../components/dialogs/settings-selector';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
-import { handleAccountsCommand } from './accounts';
-import { showMcpServers, showUsage } from './info';
-import { handlePremiumQualityCommand } from './premium';
-import { handlePersonaCommand } from './persona';
-import type { SlashCommandHost } from './dispatch';
-import { showModelPicker, showLoopModelRoutingPicker, showModelFallbackPicker } from './config-model';
-import { showContextWorkingSetPicker } from './config-context';
-import { handleAppearanceCommand } from './config-appearance';
-import { showPermissionPicker } from './config-permission';
-import { showEditorPicker, showThemePicker } from './config-editor-theme';
-import { showMediaFallbackPicker } from './config-media';
-import { showExperimentsPanel } from './config-experiments';
-import { showUpdatePreferencePicker } from './config-update-preference';
-import { showToolsInventory, showHarnessEyesReadiness } from './config-harness-tools';
+import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
+import { SettingsSelectorComponent, type SettingsSelection } from '../../components/dialogs/settings-selector';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import { handleAccountsCommand } from '../accounts';
+import { showMcpServers, showUsage } from '../info';
+import { handlePremiumQualityCommand } from '../premium';
+import { handlePersonaCommand } from '../persona';
+import type { SlashCommandHost } from '../dispatch';
+import { showModelPicker, showLoopModelRoutingPicker, showModelFallbackPicker } from './model';
+import { showContextWorkingSetPicker } from './context';
+import { handleAppearanceCommand } from './appearance';
+import { showPermissionPicker } from './permission';
+import { showEditorPicker, showThemePicker } from './editor-theme';
+import { showMediaFallbackPicker } from './media';
+import { showExperimentsPanel } from './experiments';
+import { showUpdatePreferencePicker } from './update-preference';
+import { showToolsInventory, showHarnessEyesReadiness } from './harness-tools';
 
 export function showSettingsSelector(host: SlashCommandHost): void {
   mountPickerDialog(

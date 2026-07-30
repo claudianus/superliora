@@ -1,7 +1,7 @@
-import { ChoicePickerComponent } from '../components/dialogs/choice-picker';
-import { formatErrorMessage } from '../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
-import type { SlashCommandHost } from './dispatch';
+import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
+import type { SlashCommandHost } from '../dispatch';
 
 /**
  * Settings → Media fallback: policy for attached images/videos when the

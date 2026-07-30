@@ -5,9 +5,9 @@
  * and preset application logic.
  */
 
-import { ContextWorkingSetSelectorComponent } from '../components/dialogs/context-working-set-selector';
-import { formatErrorMessage } from '../utils/event-payload';
-import { dismissPickerDialog, mountPickerDialog } from '../utils/mount-picker';
+import { ContextWorkingSetSelectorComponent } from '../../components/dialogs/context-working-set-selector';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { dismissPickerDialog, mountPickerDialog } from '../../utils/mount-picker';
 import {
   contextWorkingSetPresetById,
   contextWorkingSetSnapshotFromLoopControl,
@@ -17,7 +17,7 @@ import {
   previewContextWorkingSet,
   type ContextWorkingSetPresetId,
 } from '#/tui/utils/context-working-set';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from '../dispatch';
 
 /**
  * /context [economy|balanced|deep|full|status] — open the working-set picker

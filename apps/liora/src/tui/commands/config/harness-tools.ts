@@ -3,9 +3,9 @@ import {
   loadHarnessEyesReadiness,
 } from '#/tui/utils/harness-eyes-readiness';
 import { getHostPackageRoot } from '#/cli/version';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { formatErrorMessage } from '../utils/event-payload';
-import type { SlashCommandHost } from './dispatch';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { formatErrorMessage } from '../../utils/event-payload';
+import type { SlashCommandHost } from '../dispatch';
 
 /** List active tools for the current session (TUI eyes for the tool surface). */
 export async function showToolsInventory(host: SlashCommandHost): Promise<void> {

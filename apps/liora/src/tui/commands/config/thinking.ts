@@ -4,13 +4,13 @@
 
 import type { ModelAlias } from '@superliora/sdk';
 
-import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { formatErrorMessage } from '../utils/event-payload';
+import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { formatErrorMessage } from '../../utils/event-payload';
 import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
 } from '#/tui/utils/thinking-effort';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from '../dispatch';
 
 const THINKING_LEVELS = ['off', 'on', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 type ThinkingLevel = (typeof THINKING_LEVELS)[number];
