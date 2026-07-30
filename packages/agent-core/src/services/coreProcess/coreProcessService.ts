@@ -5,7 +5,7 @@
 import { createRPC, LioraCore } from '../../rpc';
 import { Disposable, registerSingleton, SyncDescriptor } from '../../di';
 import type { CoreAPI, CoreRPC, SDKAPI } from '../../rpc';
-import type { OAuthTokenProviderResolver } from '../../session/provider-manager';
+import type { OAuthTokenProviderResolver } from '../../session/provider/provider-manager';
 import {
   createKimiDefaultHeaders,
   type KimiHostIdentity,

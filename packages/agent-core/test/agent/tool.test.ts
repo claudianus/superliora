@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { budgetToolResultForModel } from '../../src/agent/turn/tool-result-budget';
 import { HookEngine } from '../../src/session/hooks';
-import type { SessionSubagentHost } from '../../src/session/subagent-host';
+import type { SessionSubagentHost } from '../../src/session/subagent/subagent-host';
 import { FLAG_DEFINITIONS, FlagResolver } from '../../src/flags';
 import type { AgentMemoryRuntime } from '../../src/memory';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';

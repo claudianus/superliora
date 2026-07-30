@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createLioraHarness, ErrorCodes, LioraError } from '#/index';
 
-import { ProviderManager } from '../../agent-core/src/session/provider-manager';
+import { ProviderManager } from '../../agent-core/src/session/provider/provider-manager';
 import { TEST_IDENTITY } from './test-identity';
 
 let homeDir: string;

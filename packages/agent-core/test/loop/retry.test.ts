@@ -5,7 +5,7 @@ import type { LioraConfig } from '#/config';
 import { ErrorCodes, LioraError } from '#/errors';
 import type { LLM, LLMChatParams, LLMChatResponse } from '#/loop/llm';
 import { chatWithRetry } from '#/loop/retry';
-import { ProviderManager } from '#/session/provider-manager';
+import { ProviderManager } from '#/session/provider/provider-manager';
 
 function okResponse(): LLMChatResponse {
   return { toolCalls: [], usage: emptyUsage() };

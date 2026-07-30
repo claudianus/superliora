@@ -11,7 +11,7 @@ import {
 } from '@superliora/kosong';
 
 import type { Agent } from '..';
-import type { ResolvedRuntimeProvider } from '../../session/provider-manager';
+import type { ResolvedRuntimeProvider } from '../../session/provider/provider-manager';
 import {
   applyCompletionBudget,
   computeCompletionBudgetCap,

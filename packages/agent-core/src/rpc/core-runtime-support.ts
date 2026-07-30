@@ -19,7 +19,7 @@ import { Session, type SessionSkillConfig } from '../session';
 import {
   ProviderManager,
   type OAuthTokenProviderResolver,
-} from '../session/provider-manager';
+} from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
 import type { ToolServices } from '../tools/support/services';
 import {

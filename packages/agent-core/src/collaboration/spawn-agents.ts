@@ -1,4 +1,4 @@
-import type { SubagentHandle, RunSubagentOptions, SpawnSubagentOptions } from '../session/subagent-host';
+import type { SubagentHandle, RunSubagentOptions, SpawnSubagentOptions } from '../session/subagent/subagent-host';
 
 /**
  * Unified fan-out primitive (harness reform T4-1). Agent (manual), AgentSwarm

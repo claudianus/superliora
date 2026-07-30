@@ -22,7 +22,7 @@ import {
 import type { LioraConfig } from '../../../src/config';
 import type { ExecutableToolResult } from '../../../src/loop';
 import type { Logger } from '../../../src/logging';
-import { ProviderManager } from '../../../src/session/provider-manager';
+import { ProviderManager } from '../../../src/session/provider/provider-manager';
 import type { QuestionResult, RPCCallOptions, SDKAgentRPC } from '../../../src/rpc';
 import type { AgentAPI } from '../../../src/rpc/core-api';
 import type { ToolServices } from '../../../src/tools/support/services';

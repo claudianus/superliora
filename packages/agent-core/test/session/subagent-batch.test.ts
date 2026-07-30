@@ -8,7 +8,7 @@ import {
   type SpawnSubagentOptions,
   type SubagentHandle,
   SubagentMaxTokensError,
-} from '../../src/session/subagent-host';
+} from '../../src/session/subagent/subagent-host';
 import {
   SubagentBatch,
   classifySubagentFailureReason,
@@ -16,7 +16,7 @@ import {
   type SubagentBatchLauncher,
   type SubagentResult,
   type SubagentSuspendedEvent,
-} from '../../src/session/subagent-batch';
+} from '../../src/session/subagent/subagent-batch';
 import { userCancellationReason } from '../../src/utils/abort';
 
 const signal = new AbortController().signal;

@@ -30,7 +30,7 @@ import type {
   QueuedSubagentRunResult,
   QueuedSubagentTask,
   SessionSubagentHost,
-} from '../../src/session/subagent-host';
+} from '../../src/session/subagent/subagent-host';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, testAgent, type TestAgentOptions } from './harness/agent';

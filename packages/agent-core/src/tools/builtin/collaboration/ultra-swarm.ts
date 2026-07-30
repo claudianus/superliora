@@ -5,25 +5,25 @@ import type { SwarmMode } from '../../../agent/swarm';
 import type { BuiltinTool } from '../../../agent/tool';
 import {
   type SessionSubagentHost,
-} from '../../../session/subagent-host';
+} from '../../../session/subagent/subagent-host';
 import {
   createUltraSwarmRunContext,
 } from '../../../agent/ultra-swarm-run';
 import {
   emitCouncilDecisionFromReview,
   type SwarmStandupTimerHandle,
-} from '../../../session/swarm-bus-coordination';
+} from '../../../collaboration/swarm-bus-coordination';
 import {
   buildSwarmRunLedgerFromResults,
   writeSwarmRunLedgerArtifact,
-} from '../../../session/swarm-run-ledger';
+} from '../../../collaboration/swarm-run-ledger';
 import {
   getDefaultSwarmFileLeaseRegistry,
-} from '../../../session/swarm-file-lease';
+} from '../../../collaboration/swarm-file-lease';
 import {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
-} from '../../../session/swarm-dag-scheduler';
+} from '../../../collaboration/swarm-dag-scheduler';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';

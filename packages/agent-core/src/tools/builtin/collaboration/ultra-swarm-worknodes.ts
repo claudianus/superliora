@@ -1,13 +1,13 @@
 import type { WorkGraph, WorkGraphNode } from '@superliora/protocol';
 
 import type { Agent } from '../../../agent/index';
-import { applyEvidenceHardGate } from '../../../session/swarm-evidence-gate';
+import { applyEvidenceHardGate } from '../../../collaboration/swarm-evidence-gate';
 import {
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
   rebindPhaseWorkNodeIds,
   SWARM_DAG_TERMINAL_STATUSES,
-} from '../../../session/swarm-dag-scheduler';
+} from '../../../collaboration/swarm-dag-scheduler';
 import { maybeFinishUltraworkRun } from '../../../ultrawork';
 import type { ToolStore } from '../../store';
 import { TODO_STORE_KEY } from '../state/todo-list';

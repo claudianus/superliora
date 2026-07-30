@@ -8,7 +8,7 @@ import {
   createSwarmBudgetState,
   recordSwarmBudgetRound,
   suggestSwarmBudgetKill,
-} from '../../../../src/session/swarm-budget';
+} from '../../../../src/collaboration/swarm-budget';
 
 describe('ultra-swarm budget kill helpers', () => {
   it('createLinkedAbortController aborts child when parent aborts', () => {

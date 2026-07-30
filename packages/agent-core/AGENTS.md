@@ -34,7 +34,7 @@ Prefer extending the owning module over growing god files. New cross-cutting hel
 
 - `loop/tool-call.ts` — tool-call batch lifecycle; guard state in `loop/tool-call-guards.ts`
 - `agent/turn/kosong-llm.ts` — kosong LLM adapter; route state/classify in sibling `provider-route-*.ts`
-- `session/subagent-host.ts` — subagent public surface; errors/progress/lifecycle in `subagent-errors.ts` / `subagent-progress-preview.ts` / `subagent-run-lifecycle.ts`
+- `session/subagent/subagent-host.ts` — subagent public surface; errors/progress/lifecycle in `subagent-errors.ts` / `subagent-progress-preview.ts` / `subagent-run-lifecycle.ts`
 
 ## Tests
 

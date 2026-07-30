@@ -1,6 +1,6 @@
 import type { WorkGraphNode } from '@superliora/protocol';
 
-import { applyEvidenceHardGate } from '../../session/swarm-evidence-gate';
+import { applyEvidenceHardGate } from '../../collaboration/swarm-evidence-gate';
 
 /** Nodes that still need verification evidence or have failed/blocked verification. */
 export function collectVerificationGapNodes(

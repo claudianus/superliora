@@ -21,7 +21,7 @@ import {
 import type {
   ResolvedRuntimeProvider,
   ResolvedRuntimeProviderRoute,
-} from '../../session/provider-manager';
+} from '../../session/provider/provider-manager';
 
 export * from './types';
 export { resolveThinkingEffort, type ThinkingEffort } from './thinking';

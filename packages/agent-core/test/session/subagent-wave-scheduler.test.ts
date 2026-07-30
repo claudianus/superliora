@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDependencyWaves, phaseHasDependencyWaves } from '../../src/session/subagent-wave-scheduler';
+import { buildDependencyWaves, phaseHasDependencyWaves } from '../../src/session/subagent/subagent-wave-scheduler';
 
 describe('subagent wave scheduler', () => {
   it('runs independent experts in one wave', () => {

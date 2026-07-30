@@ -6,7 +6,7 @@ import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   type QueuedSubagentTask,
   type SessionSubagentHost,
-} from '../../../session/subagent-host';
+} from '../../../session/subagent/subagent-host';
 import { takeRollingIntegrationWarning } from '../../../session/rolling-integration';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';

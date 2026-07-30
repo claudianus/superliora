@@ -8,7 +8,7 @@
 import type { ModelCapability } from '@superliora/kosong';
 
 import type { Agent } from '../../agent';
-import type { ProviderManager } from '../provider-manager';
+import type { ProviderManager } from '../provider/provider-manager';
 
 /** What happens when the current chat model cannot consume attached media. */
 export type NonVisionFallbackPolicy = 'analyze' | 'path' | 'block';

@@ -28,7 +28,7 @@ export {
   type HumanizeCollaborationEventInput,
   type HumanizeSeverity,
   type HumanizedCollaborationEvent,
-} from './session/swarm-humanize';
+} from './collaboration/swarm-humanize';
 export {
   DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD,
   createSwarmBudgetState,
@@ -41,7 +41,7 @@ export {
   type SwarmBudgetRoundRecord,
   type SwarmBudgetState,
   type SwarmBudgetSuggestion,
-} from './session/swarm-budget';
+} from './collaboration/swarm-budget';
 export {
   SWARM_DAG_DONE_STATUSES,
   SWARM_DAG_TERMINAL_STATUSES,
@@ -53,7 +53,7 @@ export {
   type PhaseWorkNodeBinding,
   type SwarmDagNode,
   type SwarmDagNodeStatus,
-} from './session/swarm-dag-scheduler';
+} from './collaboration/swarm-dag-scheduler';
 export {
   buildRestaffSpecs,
   canAttemptRestaff,
@@ -71,7 +71,7 @@ export {
   normalizeEvidenceToken,
   type EvidenceGateNode,
   type EvidenceGateResult,
-} from './session/swarm-evidence-gate';
+} from './collaboration/swarm-evidence-gate';
 export {
   attachDraftToDebate,
   buildDebateContext,
@@ -309,7 +309,7 @@ export type {
   ModelProvider,
   OAuthTokenProviderResolver,
   ResolvedRuntimeProvider,
-} from './session/provider-manager';
+} from './session/provider/provider-manager';
 export {
   analyzeMediaPart,
   DEFAULT_NON_VISION_FALLBACK,

@@ -20,14 +20,14 @@ describe('extractFileChangePaths', () => {
     const paths = extractFileChangePaths(
       [
         'Implemented the fix.',
-        'artifact_paths: packages/agent-core/src/session/swarm-budget.ts',
-        'Also touched packages/agent-core/test/session/swarm-budget.test.ts',
+        'artifact_paths: packages/agent-core/src/collaboration/swarm-budget.ts',
+        'Also touched packages/agent-core/test/collaboration/swarm-budget.test.ts',
       ].join('\n'),
     );
     expect(paths).toEqual(
       expect.arrayContaining([
-        'packages/agent-core/src/session/swarm-budget.ts',
-        'packages/agent-core/test/session/swarm-budget.test.ts',
+        'packages/agent-core/src/collaboration/swarm-budget.ts',
+        'packages/agent-core/test/collaboration/swarm-budget.test.ts',
       ]),
     );
   });

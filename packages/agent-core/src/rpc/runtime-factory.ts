@@ -19,7 +19,7 @@ import {
   createXaiGrokBuildClientFromEnv,
 } from '#/tools/providers/xai-grok-build';
 import type { LioraConfig, MoonshotServiceConfig } from '../config';
-import type { BearerTokenProvider, OAuthTokenProviderResolver } from '../session/provider-manager';
+import type { BearerTokenProvider, OAuthTokenProviderResolver } from '../session/provider/provider-manager';
 import type { ToolServices } from '../tools/support/services';
 import {
   SUPERLIORA_PROVIDER_NAME,

@@ -10,7 +10,7 @@ import {
   rebindPhaseWorkNodeIds,
   type SwarmDagNode,
   type SwarmDagNodeStatus,
-} from '../../src/session/swarm-dag-scheduler';
+} from '../../src/collaboration/swarm-dag-scheduler';
 
 function node(id: string, status: SwarmDagNodeStatus, dependsOn: readonly string[] = []): SwarmDagNode {
   return { id, status, dependsOn };

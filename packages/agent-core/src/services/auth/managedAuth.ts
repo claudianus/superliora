@@ -1,6 +1,6 @@
 import { readConfigFile, writeConfigFile } from '../../config';
 import type { LioraConfig, OAuthRef } from '../../config';
-import type { OAuthTokenProviderResolver } from '../../session/provider-manager';
+import type { OAuthTokenProviderResolver } from '../../session/provider/provider-manager';
 import {
   applyManagedKimiCodeConfig,
   applyManagedKimiCodeLogoutConfig,

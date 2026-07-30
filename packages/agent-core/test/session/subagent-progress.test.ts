@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { collectSubagentProgressStats } from '../../src/session/subagent-host';
+import { collectSubagentProgressStats } from '../../src/session/subagent/subagent-host';
 
 const emptyUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 };
 

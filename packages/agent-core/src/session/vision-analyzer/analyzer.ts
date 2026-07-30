@@ -12,8 +12,8 @@ import type { ContentPart, Message } from '@superliora/kosong';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 
 import { persistOriginalImage } from '../../tools/support/image-originals';
-import { providerHasAnyCredential } from '../provider-manager';
-import type { ProviderManager, ResolvedRuntimeProvider } from '../provider-manager';
+import { providerHasAnyCredential } from '../provider/provider-manager';
+import type { ProviderManager, ResolvedRuntimeProvider } from '../provider/provider-manager';
 import { VISION_ANALYZER_SYSTEM_PROMPT, VISION_ANALYZE_USER_INSTRUCTION } from './prompts';
 import type { AnalyzeMediaResult, MediaKind, VisionAnalyzerDeps } from './types';
 

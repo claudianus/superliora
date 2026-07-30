@@ -1,4 +1,4 @@
-import type { OAuthTokenProviderResolver } from '../session/provider-manager';
+import type { OAuthTokenProviderResolver } from '../session/provider/provider-manager';
 import type { TelemetryClient } from '../telemetry';
 import type { ToolServices } from '../tools/support/services';
 import type { RenameSessionPayload, UpdateSessionMetadataPayload } from './core-api';

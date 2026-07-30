@@ -22,7 +22,7 @@ import {
   resolveGlobalLogPath,
 } from '../../src/logging/logger';
 import { resolveLoggingConfig } from '../../src/logging/resolve-config';
-import type { OAuthTokenProviderResolver } from '../../src/session/provider-manager';
+import type { OAuthTokenProviderResolver } from '../../src/session/provider/provider-manager';
 import { testKaos } from '../fixtures/test-kaos';
 
 function requiredFlagEnv(id: string): string {

@@ -27,7 +27,7 @@ import {
 } from '../session/response-language';
 import { exportSessionDirectory } from '../session/export';
 import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktree';
-import type { ProviderManager } from '../session/provider-manager';
+import type { ProviderManager } from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
 import type { SessionStore } from '../session/store/index';
 import {

@@ -18,7 +18,7 @@ import {
 } from '../flags';
 import { LioraRecallStore } from '../memory';
 import { Session } from '../session';
-import type { OAuthTokenProviderResolver } from '../session/provider-manager';
+import type { OAuthTokenProviderResolver } from '../session/provider/provider-manager';
 import { SessionStore } from '../session/store/index';
 import {
   noopTelemetryClient,

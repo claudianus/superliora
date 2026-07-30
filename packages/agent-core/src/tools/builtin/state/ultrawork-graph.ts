@@ -14,7 +14,7 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
-} from '../../../session/swarm-evidence-gate';
+} from '../../../collaboration/swarm-evidence-gate';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
 import {
