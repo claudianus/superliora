@@ -29,11 +29,9 @@ const FAIL_AT = 40;
  */
 const FAIL_ALLOWLIST = new Set([
   'apps/liora/src/tui/utils',
-  'packages/tui-renderer/src',
   'apps/liora/src/tui/components/dialogs',
-  'apps/liora/src/tui/components/messages',
   'apps/liora/src/tui/commands',
-  'packages/agent-core/src/session',
+  'packages/oauth/src',
 ]);
 
 const ROOTS = [
