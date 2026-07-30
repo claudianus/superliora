@@ -5,774 +5,48 @@
  * separate from the TUI orchestration layer.
  */
 
-import type {
-  ModelAlias,
-  PermissionMode,
-  ProviderConfig,
-  ProviderRouteSelection,
-  ProviderRouteStatus,
-  SessionStatus,
-} from '@superliora/sdk';
-
 import { PRODUCT_NAME } from '#/constant/app';
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import {
-  appearanceAnimationNow,
-  CROSSFADE_MS,
-  getActiveAppearancePreferences,
-  renderCrossfadeLine,
-  resolveQualityAdjustedAmbientEffectMode,
-  shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
-import { resolveThinkingDisplay } from '#/tui/utils/thinking-effort';
-import {
-  loopModelRoutingRows,
-  type LoopModelRoutingConfig,
-} from '#/tui/utils/loop-model-routing';
+import { loopModelRoutingRows } from '#/tui/utils/loop-model-routing';
 import {
   formatTokenCount,
   ratioSeverity,
   safeUsageRatio,
 } from '#/utils/usage/usage-format';
-import { formatGitBadgeBase, type GitStatus } from '#/utils/git/git-status';
 
-import { buildManagedUsageReportLines, type ManagedUsageReport } from './usage-panel';
+import { buildManagedUsageReportLines } from './usage-panel';
+import { contextValues } from './status-panel-context';
+import { addStatusFieldRows, createStatusFieldMotionState } from './status-panel-field-motion';
 import {
   formatProviderRouteSummary,
   providerRouteRows,
   type StatusFieldRow,
 } from './status-panel-provider-route';
+import { readinessRows } from './status-panel-readiness';
+import {
+  contextOSStatusRows,
+  formatModelStatus,
+  formatPremiumQualityStatus,
+  formatUltraworkStatus,
+  formatWorktreeStatus,
+  microCompactionStatusRows,
+  privacyStatusRows,
+} from './status-panel-runtime-rows';
+import {
+  formatLastRouteNotice,
+  formatLastRouteSelection,
+  noticeKindLabel,
+} from './status-panel-route-notice';
+import type {
+  StatusHumanWritingReadiness,
+  StatusRecoveryReadiness,
+  StatusReportOptions,
+} from './status-panel-types';
 
-type FieldRow = StatusFieldRow;
-
-/** Tracks prior field values so status rows can crossfade on change. */
-export interface StatusFieldMotionState {
-  readonly previousValues: Map<string, string>;
-  readonly changedAtMs: Map<string, number>;
-}
-
-export function createStatusFieldMotionState(): StatusFieldMotionState {
-  return {
-    previousValues: new Map(),
-    changedAtMs: new Map(),
-  };
-}
-
-type StatusGoalStatus = 'active' | 'paused' | 'blocked' | 'complete';
-
-export interface StatusHumanWritingReadiness {
-  readonly ready: boolean;
-  readonly advisoryOnly: boolean;
-  readonly nextAction: string;
-}
-
-export interface StatusRecoveryReadiness {
-  readonly ready: boolean;
-  readonly nextAction: string;
-  readonly evidencePath?: string;
-}
-
-export interface StatusReportOptions {
-  readonly version: string;
-  readonly model: string;
-  readonly workDir: string;
-  readonly sessionId: string;
-  readonly sessionTitle: string | null;
-  readonly thinking: boolean;
-  readonly permissionMode: PermissionMode;
-  readonly planMode: boolean;
-  readonly ultraworkMode?: boolean;
-  readonly premiumQualityMode?: boolean;
-  readonly swarmMode?: boolean;
-  readonly goalStatus?: StatusGoalStatus;
-  readonly contextUsage: number;
-  readonly contextTokens: number;
-  readonly maxContextTokens: number;
-  readonly availableModels: Record<string, ModelAlias>;
-  readonly availableProviders?: Record<string, ProviderConfig>;
-  readonly providerRouteStatus?: ProviderRouteStatus | null;
-  readonly lastProviderRouteSelection?: ProviderRouteSelection | null;
-  readonly lastModelRouteNotice?: {
-    readonly kind: 'failover' | 'switch' | 'selection';
-    readonly fromAlias?: string;
-    readonly toAlias: string;
-    readonly providerName?: string;
-    readonly credentialLabel?: string;
-    readonly providerModel?: string;
-    readonly reason?: string;
-    readonly atMs: number;
-  } | null;
-  readonly status?: SessionStatus;
-  readonly statusError?: string;
-  readonly managedUsage?: ManagedUsageReport;
-  readonly managedUsageError?: string;
-  readonly gitStatus?: GitStatus | null;
-  readonly humanWriting?: StatusHumanWritingReadiness;
-  readonly recovery?: StatusRecoveryReadiness;
-  readonly upstreamBaseline?: string;
-  readonly ultraworkRun?: { readonly stage: string } | null;
-  readonly contextOS?: {
-    readonly pageCount: number;
-    readonly readyPageCount: number;
-    readonly needsRehydrationPageCount: number;
-    readonly atRiskPageCount: number;
-    readonly missingEvidencePageCount: number;
-    readonly evidenceIdRecallScore: number;
-    readonly latestContinuityStatus: string;
-  };
-  readonly microCompaction?: {
-    readonly total: number;
-    readonly lastTrigger: string | null;
-    readonly lastContextUsageRatio: number | null;
-    readonly byTrigger: Readonly<Record<string, number>>;
-  };
-  readonly autoDream?: {
-    readonly enabled: boolean;
-    readonly inFlight: boolean;
-    readonly runs: number;
-    readonly lastDreamAt: number | null;
-    readonly lastExamined: number | null;
-    readonly lastMerged: number | null;
-    readonly minHours: number;
-    readonly minActiveRecords: number;
-  } | null;
-  /** Product telemetry enabled (false ≈ ZDR-friendlier local posture). */
-  readonly privacyTelemetryEnabled?: boolean;
-  /** Active tool names from the session (for research/media readiness). */
-  readonly activeToolNames?: readonly string[];
-  /** Explicit loop-role model overrides loaded from persisted harness config. */
-  readonly loopModelRouting?: LoopModelRoutingConfig;
-  /** Error while loading explicit loop-role model overrides. */
-  readonly loopModelRoutingError?: string;
-  /** Optional field-value crossfade tracker across rebuilds. */
-  readonly fieldMotion?: StatusFieldMotionState;
-}
-
-type Colorize = (text: string) => string;
-
-function displayModelName(alias: string, models: Record<string, ModelAlias>): string {
-  const model = models[alias];
-  return model?.displayName ?? model?.model ?? alias;
-}
-
-function formatModelStatus(options: StatusReportOptions): string {
-  const model = options.status?.model ?? options.model;
-  if (model.trim().length === 0) return 'not set';
-
-  const thinkingRaw = options.status?.thinkingLevel ?? (options.thinking ? 'on' : 'off');
-  const alias = options.availableModels[model];
-  const display = resolveThinkingDisplay(thinkingRaw, {
-    thinking: options.thinking,
-    model: alias,
-  });
-  const thinkingLabel =
-    display.label === 'off'
-      ? 'off'
-      : display.requested === display.effective
-        ? display.requested
-        : `${display.requested}→${display.effective}`;
-  return `${displayModelName(model, options.availableModels)} (thinking ${thinkingLabel})`;
-}
-
-function paintStatusFieldValue(
-  label: string,
-  raw: string,
-  colorize: Colorize,
-  fieldMotion: StatusFieldMotionState | undefined,
-): string {
-  if (fieldMotion === undefined) return colorize(raw);
-  const appearance = getActiveAppearancePreferences();
-  if (!shouldRenderAmbientEffects(appearance)) {
-    fieldMotion.previousValues.set(`@current:${label}`, raw);
-    return colorize(raw);
-  }
-
-  const currentKey = `@current:${label}`;
-  const prevKey = `@prev:${label}`;
-  const current = fieldMotion.previousValues.get(currentKey);
-  if (current !== raw) {
-    fieldMotion.previousValues.set(prevKey, current ?? raw);
-    fieldMotion.previousValues.set(currentKey, raw);
-    fieldMotion.changedAtMs.set(label, appearanceAnimationNow());
-  }
-
-  const from = fieldMotion.previousValues.get(prevKey);
-  const to = fieldMotion.previousValues.get(currentKey) ?? raw;
-  const startedAtMs = fieldMotion.changedAtMs.get(label);
-  if (from !== undefined && startedAtMs !== undefined && from !== to) {
-    const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
-    const duration = mode === 'subtle' ? CROSSFADE_MS * 1.4 : CROSSFADE_MS;
-    if (appearanceAnimationNow() - startedAtMs < duration) {
-      return renderCrossfadeLine(from, to, `status:${label}`, startedAtMs, appearance);
-    }
-  }
-  return colorize(to);
-}
-
-function addFieldRows(
-  lines: string[],
-  rows: readonly FieldRow[],
-  muted: Colorize,
-  value: Colorize,
-  errorStyle: Colorize,
-  warningStyle: Colorize = value,
-  fieldMotion?: StatusFieldMotionState,
-): void {
-  const labelWidth = Math.max(10, ...rows.map((row) => row.label.length));
-  for (const row of rows) {
-    const colorize =
-      row.severity === 'error'
-        ? errorStyle
-        : row.severity === 'warning'
-          ? warningStyle
-          : value;
-    const painted = paintStatusFieldValue(row.label, row.value, colorize, fieldMotion);
-    lines.push(`  ${muted(row.label.padEnd(labelWidth, ' '))}  ${painted}`);
-  }
-}
-
-function contextValues(options: StatusReportOptions): {
-  ratio: number;
-  tokens: number;
-  maxTokens: number;
-} {
-  return {
-    ratio: options.status?.contextUsage ?? options.contextUsage,
-    tokens: options.status?.contextTokens ?? options.contextTokens,
-    maxTokens: options.status?.maxContextTokens ?? options.maxContextTokens,
-  };
-}
-
-function formatWorktreeStatus(status: GitStatus): string {
-  return `${formatGitBadgeBase(status)} ${status.dirty ? 'dirty' : 'clean'}`;
-}
-
-const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
-const WORKFLOW_GATE = 'research → interview → goal → swarm → integrate → verify → learn';
-const ENGINE_GATE = 'UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn';
-const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
-const AUTONOMY_GATE = 'bounded now -> headless target';
-const TOOLS_GATE = 'search first; load tools on demand';
-
-function formatToolsGate(options: StatusReportOptions): string {
-  const names = options.activeToolNames;
-  if (names === undefined) return TOOLS_GATE;
-  const count = names.length;
-  const inventory = names.includes('SearchTools') ? ' · SearchTools on' : ' · SearchTools off';
-  const skills = names.includes('SearchSkill') ? ' · SearchSkill on' : '';
-  return `${String(count)} active tools${inventory}${skills} · /tools for full list`;
-}
-const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · a1/m2/sw800/s8';
-const MEDIA_GATE =
-  'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
-const OFFICE_GATE =
-  'SearchSkill → docx / pptx / xlsx for Word, slides, and sheets (zero MCP)';
-function formatMemoryGate(options: StatusReportOptions): string {
-  const dream = options.autoDream ?? options.status?.autoDream;
-  let dreamPart = 'auto-dream on';
-  if (dream !== undefined && dream !== null) {
-    if (!dream.enabled) {
-      dreamPart = 'auto-dream off';
-    } else if (dream.inFlight) {
-      dreamPart = 'auto-dream…';
-    } else if (dream.runs > 0) {
-      dreamPart = `auto-dream×${String(dream.runs)}`;
-    } else {
-      dreamPart = `auto-dream ≥${String(dream.minHours)}h/${String(dream.minActiveRecords)}rec`;
-    }
-  }
-  // Keep ≤80-col with "  Memory  " label padding.
-  return `prefs | session recall | ${dreamPart}`;
-}
-const SCOPE_GATE = 'small focused diff; no broad refactor';
-const COVERAGE_GATE = 'test public behavior changes';
-const WRITING_GATE = 'human voice lanes; detectors advisory-only';
-const WRITING_BLOCKED_GATE = 'voice-lane guidance blocked; detectors must stay advisory-only';
-const SCREEN_CHECK_GATE = 'open changed screen before finishing';
-const DONE_GATE = 'tests + typecheck/lint/build + clean diff + TUI';
-
-function hasActiveTool(options: StatusReportOptions, name: string): boolean | undefined {
-  if (options.activeToolNames === undefined) return undefined;
-  return options.activeToolNames.includes(name);
-}
-
-function imageProviderKeyReady(): boolean {
-  return (
-    nonEmptyEnv(process.env['OPENAI_API_KEY']) !== undefined ||
-    nonEmptyEnv(process.env['GOOGLE_API_KEY']) !== undefined ||
-    nonEmptyEnv(process.env['GEMINI_API_KEY']) !== undefined
-  );
-}
-
-function nonEmptyEnv(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function formatResearchGate(options: StatusReportOptions): string {
-  const web = hasActiveTool(options, 'WebSearch');
-  const fetch = hasActiveTool(options, 'FetchURL');
-  const c7Resolve = hasActiveTool(options, 'Context7Resolve');
-  const c7Docs = hasActiveTool(options, 'Context7Docs');
-  const searchKeys = formatSearchKeyHint();
-  if (web === undefined || fetch === undefined) {
-    return `${RESEARCH_GATE}${searchKeys}`;
-  }
-  const context7 =
-    c7Resolve === true || c7Docs === true
-      ? ' · Context7 on'
-      : c7Resolve === false && c7Docs === false
-        ? ' · Context7 off'
-        : '';
-  if (web && fetch) {
-    return `ready · WebSearch + FetchURL active${context7}${searchKeys}`;
-  }
-  if (!web && !fetch) return 'unavailable · Web research tools missing in this session';
-  return `partial · WebSearch ${web ? 'on' : 'off'} · FetchURL ${fetch ? 'on' : 'off'}${context7}${searchKeys}`;
-}
-
-function formatSearchKeyHint(): string {
-  const envNames = [
-    'BRAVE_API_KEY',
-    'BRAVE_SEARCH_API_KEY',
-    'TAVILY_API_KEY',
-    'EXA_API_KEY',
-    'SERPER_API_KEY',
-    'SERPER_DEV_API_KEY',
-  ] as const;
-  const present = envNames.filter((name) => {
-    const value = process.env[name];
-    return value !== undefined && value.trim().length > 0;
-  });
-  if (present.length === 0) return ' · free local (set BRAVE/TAVILY/EXA/SERPER key for multi-provider)';
-  const short = present
-    .map((name) => name.replace(/_API_KEY$/u, '').replace(/_SEARCH$/u, '').toLowerCase())
-    .join('+');
-  return ` · paid:${short}`;
-}
-
-function formatMediaGate(options: StatusReportOptions): string {
-  const image = hasActiveTool(options, 'GenerateImage');
-  const video = hasActiveTool(options, 'GenerateVideo');
-  if (image === true && video === true) {
-    return 'ready · GenerateImage + GenerateVideo active (keys detected)';
-  }
-  if (image === true) return 'ready · GenerateImage active (key detected)';
-  if (video === true) return 'ready · GenerateVideo active (Google/Gemini key)';
-  if (imageProviderKeyReady()) {
-    return 'key ready · GenerateImage/GenerateVideo will register when profile allows';
-  }
-  return MEDIA_GATE;
-}
-
-function humanWritingBlocked(options: StatusReportOptions): boolean {
-  const humanWriting = options.humanWriting;
-  return humanWriting !== undefined && (!humanWriting.ready || !humanWriting.advisoryOnly);
-}
-
-function verifyBlockedByReadiness(options: StatusReportOptions): boolean {
-  const model = (options.status?.model ?? options.model).trim();
-  const { ratio, maxTokens } = contextValues(options);
-  return (
-    model.length === 0 ||
-    (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) ||
-    options.gitStatus?.dirty === true ||
-    options.goalStatus === 'blocked' ||
-    humanWritingBlocked(options)
-  );
-}
-
-function formatUltraworkStageStatus(options: StatusReportOptions): string {
-  const planMode = options.status?.planMode ?? options.planMode;
-  const blocked = verifyBlockedByReadiness(options);
-  const canAutoOrchestrate = options.goalStatus === undefined && !blocked;
-  const plan = planMode ? 'Plan on' : options.ultraworkMode ? 'Plan required' : 'Plan off';
-  const goal = `Goal ${formatGoalStatus(options.goalStatus)}`;
-  const swarm = `Swarm ${options.swarmMode === true ? 'armed' : canAutoOrchestrate ? 'decision pending' : 'off'}`;
-  const verify = `Verify ${formatVerifyStatus(options.goalStatus, planMode, blocked)}`;
-  
-  // Add current Ultrawork stage if available
-  let stageInfo = '';
-  if (options.ultraworkRun !== undefined && options.ultraworkRun !== null) {
-    const stage = options.ultraworkRun.stage;
-    const stageLabel = stage.replaceAll('_', ' ');
-    stageInfo = ` | Stage: ${stageLabel}`;
-  }
-  
-  return `${plan} | ${goal} | ${swarm} | ${verify}${stageInfo}`;
-}
-
-function formatUltraworkFlow(options: StatusReportOptions): FieldRow {
-  const planMode = options.status?.planMode ?? options.planMode;
-  const blocked = verifyBlockedByReadiness(options);
-  const verify = formatVerifyStatus(options.goalStatus, planMode, blocked);
-  if (verify === 'passed') {
-    return {
-      label: 'Flow',
-      value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 verified`,
-    };
-  }
-  if (verify === 'blocked') {
-    return {
-      label: 'Flow',
-      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify blocked`,
-      severity: 'error',
-    };
-  }
-  if (verify === 'queued') {
-    return {
-      label: 'Flow',
-      value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify queued`,
-    };
-  }
-  return {
-    label: 'Flow',
-    value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 ready to run`,
-  };
-}
-
-function formatPremiumQualityStatus(options: StatusReportOptions): string {
-  const enabled =
-    options.status?.premiumQualityMode ?? options.premiumQualityMode === true;
-  return enabled ? 'mode on' : 'mode off';
-}
-
-function formatUltraworkStatus(options: StatusReportOptions): string {
-  const blocked = verifyBlockedByReadiness(options);
-  if (blocked && options.goalStatus !== 'blocked') return 'needs readiness';
-  if (options.ultraworkMode === true) return 'mode on';
-
-  switch (options.goalStatus) {
-    case 'active':
-      return 'goal active';
-    case 'paused':
-      return 'goal paused';
-    case 'blocked':
-      return 'goal blocked';
-    case 'complete':
-      return 'verified';
-    case undefined:
-      return 'mode off';
-  }
-}
-
-function formatGoalStatus(status: StatusGoalStatus | undefined): string {
-  switch (status) {
-    case 'active':
-      return 'active';
-    case 'paused':
-      return 'paused';
-    case 'blocked':
-      return 'blocked';
-    case 'complete':
-      return 'complete';
-    case undefined:
-      return 'ready';
-  }
-}
-
-function formatVerifyStatus(status: StatusGoalStatus | undefined, planMode: boolean, blocked: boolean): string {
-  if (status === 'complete') return 'passed';
-  if (status === 'blocked' || blocked) return 'blocked';
-
-  switch (status) {
-    case 'active':
-    case 'paused':
-      return 'queued';
-    case undefined:
-      return planMode ? 'queued' : 'ready';
-  }
-}
-
-function formatReadinessBlockers(options: StatusReportOptions): string {
-  const blockers: string[] = [];
-  const model = (options.status?.model ?? options.model).trim();
-  if (model.length === 0) blockers.push('model setup');
-  const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) blockers.push('context high');
-  if (options.gitStatus?.dirty === true) blockers.push('worktree dirty');
-  if (options.goalStatus === 'blocked') blockers.push('goal blocked');
-  if (humanWritingBlocked(options)) blockers.push('writing guidance');
-  return blockers.length === 0 ? 'none detected' : blockers.join(', ');
-}
-
-function formatRecoveryGate(options: StatusReportOptions): string {
-  return options.recovery?.ready === true
-    ? 'resumable evidence ready -> durable target'
-    : 'resumable evidence needed -> durable target';
-}
-
-function formatModelCatalogGate(options: StatusReportOptions): string {
-  const modelCount = Object.keys(options.availableModels).length;
-  const providerCount = Object.keys(options.availableProviders ?? {}).length;
-  const model = (options.status?.model ?? options.model).trim();
-  const activeProvider = model.length > 0 ? options.availableModels[model]?.provider : undefined;
-
-  if (modelCount === 0 && providerCount === 0) return 'no catalog loaded';
-  if (activeProvider === undefined) {
-    return `${String(modelCount)} models / ${String(providerCount)} providers; choose model`;
-  }
-  return (
-    `${String(modelCount)} models / ${String(providerCount)} providers; ` +
-    `active ${compactCatalogValue(activeProvider)}`
-  );
-}
-
-const QWEN_TOKEN_PLAN_PROVIDER_ID = 'qwen-token-plan';
-
-function formatQwenTokenPlanGate(options: StatusReportOptions): string {
-  const providers = options.availableProviders ?? {};
-  const tokenPlanProvider = providers[QWEN_TOKEN_PLAN_PROVIDER_ID];
-  if (tokenPlanProvider === undefined) return 'not connected';
-  const hasKey = tokenPlanProvider.apiKey !== undefined && tokenPlanProvider.apiKey.length > 0;
-  if (!hasKey) return 'configured (no key)';
-  return 'connected · text/image/video/harness';
-}
-
-function compactCatalogValue(value: string): string {
-  const maxLength = 28;
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, 12)}...${value.slice(value.length - 13)}`;
-}
-
-function displayAliasName(
-  alias: string,
-  models: Record<string, ModelAlias>,
-): string {
-  const entry = models[alias];
-  return entry?.displayName ?? entry?.model ?? alias;
-}
-
-function formatLastRouteSelection(
-  selection: ProviderRouteSelection,
-  models: Record<string, ModelAlias>,
-): string {
-  const name = displayAliasName(selection.modelAlias, models);
-  const parts = [name];
-  if (
-    selection.providerModel.length > 0 &&
-    selection.providerModel !== selection.modelAlias &&
-    selection.providerModel !== name
-  ) {
-    parts.push(selection.providerModel);
-  }
-  const cred = selection.credentialLabel ?? selection.providerName;
-  if (cred !== undefined && cred.length > 0) {
-    parts.push(cred);
-  }
-  return parts.join(' · ');
-}
-
-function noticeKindLabel(kind: 'failover' | 'switch' | 'selection'): string {
-  switch (kind) {
-    case 'failover':
-      return 'Failover';
-    case 'switch':
-      return 'Switch';
-    case 'selection':
-      return 'Selection';
-  }
-}
-
-
-function formatRouteReason(reason: string): string {
-  if (reason === 'completion:inline') return 'ghost complete';
-  if (reason === 'completion:suggest') return 'suggest';
-  if (reason.startsWith('completion:')) return `completion · ${reason.slice('completion:'.length)}`;
-  if (reason.startsWith('compaction')) return reason.replace(/^compaction[:]?/, 'compact').trim() || 'compact';
-  return reason;
-}
-
-function formatLastRouteNotice(
-  notice: {
-    readonly kind: 'failover' | 'switch' | 'selection';
-    readonly fromAlias?: string;
-    readonly toAlias: string;
-    readonly providerName?: string;
-    readonly credentialLabel?: string;
-    readonly providerModel?: string;
-    readonly reason?: string;
-    readonly atMs: number;
-  },
-  models: Record<string, ModelAlias>,
-): string {
-  const to = displayAliasName(notice.toAlias, models);
-  const parts: string[] = [];
-  if (notice.fromAlias !== undefined && notice.fromAlias !== notice.toAlias) {
-    parts.push(`${displayAliasName(notice.fromAlias, models)} → ${to}`);
-  } else {
-    parts.push(to);
-  }
-  if (notice.reason !== undefined && notice.reason.length > 0) {
-    parts.push(formatRouteReason(notice.reason));
-  }
-  const ageSec = Math.max(0, Math.round((Date.now() - notice.atMs) / 1000));
-  parts.push(`${String(ageSec)}s ago`);
-  return parts.join(' · ');
-}
-
-function readinessGateRows(options: StatusReportOptions): readonly FieldRow[] {
-  const writingBlocked = humanWritingBlocked(options);
-  const writingRow: FieldRow = writingBlocked
-    ? { label: 'Writing', value: WRITING_BLOCKED_GATE, severity: 'error' }
-    : { label: 'Writing', value: WRITING_GATE };
-  return [
-    { label: 'Checks', value: READINESS_CHECKS },
-    { label: 'Workflow', value: WORKFLOW_GATE },
-    { label: 'Engine', value: ENGINE_GATE },
-    { label: 'Auto', value: AUTO_GATE },
-    { label: 'Autonomy', value: AUTONOMY_GATE },
-    { label: 'Recovery', value: formatRecoveryGate(options) },
-    { label: 'Tools', value: formatToolsGate(options) },
-    { label: 'Research', value: formatResearchGate(options) },
-    { label: 'Bench', value: BENCH_GATE },
-    { label: 'Media', value: formatMediaGate(options) },
-    { label: 'Office', value: OFFICE_GATE },
-    { label: 'Catalog', value: formatModelCatalogGate(options) },
-    { label: 'Token Plan', value: formatQwenTokenPlanGate(options) },
-    { label: 'Memory', value: formatMemoryGate(options) },
-    formatUltraworkFlow(options),
-    { label: 'Stages', value: formatUltraworkStageStatus(options) },
-    { label: 'Blockers', value: formatReadinessBlockers(options) },
-    { label: 'Scope', value: SCOPE_GATE },
-    { label: 'Coverage', value: COVERAGE_GATE },
-    writingRow,
-    { label: 'Screen check', value: SCREEN_CHECK_GATE },
-    { label: 'Done gate', value: DONE_GATE },
-  ];
-}
-
-function readinessRows(options: StatusReportOptions): readonly FieldRow[] {
-  const gateRows = readinessGateRows(options);
-  const model = (options.status?.model ?? options.model).trim();
-  if (model.length === 0) {
-    return [
-      { label: 'State', value: 'Model needed', severity: 'error' },
-      ...gateRows,
-      { label: 'Next', value: 'Run /login to add a provider, then /model to pick one.' },
-    ];
-  }
-
-  const { ratio, maxTokens } = contextValues(options);
-  if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) {
-    return [
-      { label: 'State', value: 'Context high' },
-      ...gateRows,
-      { label: 'Next', value: 'Run /compact before long work.' },
-    ];
-  }
-
-  if (options.gitStatus?.dirty === true) {
-    return [
-      { label: 'State', value: 'Worktree dirty' },
-      ...gateRows,
-      { label: 'Next', value: 'Review changed files before finishing.' },
-    ];
-  }
-
-  if (humanWritingBlocked(options)) {
-    return [
-      { label: 'State', value: 'Writing guidance blocked', severity: 'error' },
-      ...gateRows,
-      {
-        label: 'Next',
-        value: options.humanWriting?.nextAction ?? 'Restore writing-quality guidance before long autonomous work.',
-      },
-    ];
-  }
-
-  if (options.goalStatus === 'blocked') {
-    return [
-      { label: 'State', value: 'Goal blocked', severity: 'error' },
-      ...gateRows,
-      { label: 'Next', value: 'Resolve or replace the blocked goal before continuing.' },
-    ];
-  }
-
-  return [
-    { label: 'State', value: 'Ready' },
-    ...gateRows,
-    {
-      label: 'Next',
-      value: options.ultraworkMode === true
-        ? 'Type task; Ultrawork will interview before goal, swarm, and edits.'
-        : 'Press Shift-Tab to toggle Ultrawork/off, or type normally.',
-    },
-  ];
-}
-
-function formatContextOSStatus(options: StatusReportOptions): string | undefined {
-  const health = options.contextOS ?? options.status?.contextOS;
-  if (health === undefined || health.pageCount <= 0) return undefined;
-  const evidence =
-    health.missingEvidencePageCount > 0
-      ? `evidence ${health.evidenceIdRecallScore.toFixed(2)} (missing ${String(health.missingEvidencePageCount)})`
-      : `evidence ${health.evidenceIdRecallScore.toFixed(2)}`;
-  return `${health.latestContinuityStatus} · pages ${String(health.readyPageCount)}/${String(health.pageCount)} ready · ${evidence}`;
-}
-
-
-
-function privacyStatusRows(options: StatusReportOptions): readonly FieldRow[] {
-  if (options.privacyTelemetryEnabled === undefined) return [];
-  if (options.privacyTelemetryEnabled) {
-    return [
-      {
-        label: 'Privacy',
-        value: 'Telemetry ON (opt-in) · omit/false for ZDR-friendly local',
-        severity: 'warning',
-      },
-    ];
-  }
-  return [
-    {
-      label: 'Privacy',
-      value: 'Telemetry OFF (default) · ZDR-friendly local',
-    },
-  ];
-}
-
-function contextOSStatusRows(options: StatusReportOptions): readonly FieldRow[] {
-  const value = formatContextOSStatus(options);
-  if (value === undefined) return [];
-  const health = options.contextOS ?? options.status?.contextOS;
-  const severity: FieldRow['severity'] =
-    health !== undefined && health.missingEvidencePageCount > 0
-      ? 'error'
-      : health !== undefined && health.latestContinuityStatus !== 'ready'
-        ? 'warning'
-        : undefined;
-  return [{ label: 'Context OS', value, severity }];
-}
-
-function microCompactionStatusRows(options: StatusReportOptions): readonly FieldRow[] {
-  const value = formatMicroCompactionStatus(options);
-  if (value === undefined) return [];
-  const micro = options.microCompaction ?? options.status?.microCompaction;
-  const last = micro?.lastTrigger;
-  const severity: FieldRow['severity'] =
-    last === 'swarm_pressure' || last === 'usage_and_cache_miss' ? 'warning' : undefined;
-  return [{ label: 'Micro clear', value, severity }];
-}
-
-function formatMicroCompactionStatus(options: StatusReportOptions): string | undefined {
-  const micro = options.microCompaction ?? options.status?.microCompaction;
-  if (micro === undefined || micro.total <= 0) return undefined;
-  const last = micro.lastTrigger ?? 'unknown';
-  const usage =
-    micro.lastContextUsageRatio === null || micro.lastContextUsageRatio === undefined
-      ? ''
-      : ` @${(micro.lastContextUsageRatio * 100).toFixed(0)}%`;
-  const top = Object.entries(micro.byTrigger)
-    .toSorted((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name, count]) => `${name}:${String(count)}`)
-    .join(',');
-  return `${String(micro.total)} clears · last ${last}${usage}${top.length > 0 ? ` · ${top}` : ''}`;
-}
+export type { StatusFieldMotionState } from './status-panel-field-motion';
+export { createStatusFieldMotionState };
+export type { StatusHumanWritingReadiness, StatusRecoveryReadiness, StatusReportOptions };
 
 export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const accent = (text: string) => currentTheme.boldFg('primary', text);
@@ -785,7 +59,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
 
   const permission = options.status?.permission ?? options.permissionMode;
   const sessionId = options.sessionId.trim().length > 0 ? options.sessionId : 'none';
-  const rows: FieldRow[] = [
+  const rows: StatusFieldRow[] = [
     { label: 'Model', value: formatModelStatus(options) },
     { label: 'Directory', value: options.workDir },
     { label: 'Permissions', value: permission },
@@ -818,7 +92,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     lines.push(`${muted('Upstream')}  ${value(options.upstreamBaseline)}`);
   }
   lines.push('');
-  addFieldRows(lines, rows, muted, value, errorStyle, warningStyle, options.fieldMotion);
+  addStatusFieldRows(lines, rows, muted, value, errorStyle, warningStyle, options.fieldMotion);
 
   const { ratio, tokens, maxTokens } = contextValues(options);
   lines.push('');
@@ -842,7 +116,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
 
   const cacheHitRate = options.status?.cacheHitRate;
   if (cacheHitRate !== undefined && Number.isFinite(cacheHitRate)) {
-    addFieldRows(
+    addStatusFieldRows(
       lines,
       [{ label: 'Cache hit', value: `${(cacheHitRate * 100).toFixed(0)}%` }],
       muted,
@@ -857,7 +131,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   if (roleModels !== undefined) {
     lines.push('');
     lines.push(accent('Role models'));
-    addFieldRows(
+    addStatusFieldRows(
       lines,
       [
         { label: 'Compaction', value: roleModels.compaction ?? 'auto' },
@@ -876,7 +150,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     lines.push('');
     lines.push(accent('Loop model routing'));
     if (options.loopModelRouting !== undefined) {
-      addFieldRows(
+      addStatusFieldRows(
         lines,
         loopModelRoutingRows(options.loopModelRouting).map((role) => ({
           label: role.label,
@@ -889,7 +163,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
         options.fieldMotion,
       );
     } else {
-      addFieldRows(
+      addStatusFieldRows(
         lines,
         [{ label: 'Overrides', value: options.loopModelRoutingError!, severity: 'error' }],
         muted,
@@ -904,7 +178,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
     lines.push('');
     lines.push(accent('Provider route'));
-    addFieldRows(
+    addStatusFieldRows(
       lines,
       providerRouteRows(options.providerRouteStatus),
       muted,
@@ -923,25 +197,25 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   ) {
     lines.push('');
     lines.push(accent('Last model route'));
-    const rows: FieldRow[] = [];
+    const routeRows: StatusFieldRow[] = [];
     if (lastSelection !== undefined && lastSelection !== null) {
-      rows.push({
+      routeRows.push({
         label: 'Effective',
         value: formatLastRouteSelection(lastSelection, options.availableModels),
       });
     }
     if (lastNotice !== undefined && lastNotice !== null) {
-      rows.push({
+      routeRows.push({
         label: noticeKindLabel(lastNotice.kind),
         value: formatLastRouteNotice(lastNotice, options.availableModels),
       });
     }
-    addFieldRows(lines, rows, muted, value, errorStyle, warningStyle, options.fieldMotion);
+    addStatusFieldRows(lines, routeRows, muted, value, errorStyle, warningStyle, options.fieldMotion);
   }
 
   lines.push('');
   lines.push(accent('Readiness'));
-  addFieldRows(
+  addStatusFieldRows(
     lines,
     readinessRows(options),
     muted,
