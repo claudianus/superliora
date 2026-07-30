@@ -9,10 +9,10 @@ import {
   restaffSlotsAvailable,
   shouldPlanRestaffWave,
 } from '../../../session/ultra-swarm-restaff';
-import { postOrchestratorStandup } from '../../../session/swarm-bus-coordination';
+import { postOrchestratorStandup } from '../../../collaboration/swarm-bus-coordination';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
 import type { ExpertSwarmPlan } from '../../../expert-agents/types';
-import type { SessionSubagentHost } from '../../../session/subagent-host';
+import type { SessionSubagentHost } from '../../../session/subagent/subagent-host';
 import type { ToolStore } from '../../store';
 import { extendSwarmBusAllowlist, renderSwarmBusDigest } from '../state/swarm-bus';
 import {

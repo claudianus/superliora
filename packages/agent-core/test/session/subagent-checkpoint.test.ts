@@ -10,7 +10,7 @@ import {
   readSubagentCheckpoint,
   subagentCheckpointPath,
   writeSubagentCheckpoint,
-} from '../../src/session/subagent-checkpoint';
+} from '../../src/session/subagent/subagent-checkpoint';
 
 describe('subagent checkpoint store', () => {
   let home: string;
@@ -85,7 +85,7 @@ describe('subagent checkpoint store', () => {
       subagentId: 'agent-0',
       toolCount: 12,
       lastTool: 'Edit',
-      lastTarget: 'src/session/subagent-host.ts',
+      lastTarget: 'src/session/subagent/subagent-host.ts',
       tokens: 5_000,
       elapsedMs: 900_000,
       todos: [
@@ -96,7 +96,7 @@ describe('subagent checkpoint store', () => {
       savedAt: '2026-07-27T00:00:00.000Z',
     });
     expect(reminder).toContain('tool calls completed: 12');
-    expect(reminder).toContain('last tool: Edit (src/session/subagent-host.ts)');
+    expect(reminder).toContain('last tool: Edit (src/session/subagent/subagent-host.ts)');
     expect(reminder).toContain('[done] fix bug');
     expect(reminder).toContain('[pending] add test');
     expect(reminder).toContain('src/a.ts, test/a.test.ts');

@@ -8,7 +8,7 @@ import {
   ProcessBackgroundTask,
   type BackgroundTaskInfo,
 } from '../../../src/agent/background';
-import type { SessionSubagentHost, SubagentHandle } from '../../../src/session/subagent-host';
+import type { SessionSubagentHost, SubagentHandle } from '../../../src/session/subagent/subagent-host';
 import type { AgentEvent } from '../../../src/rpc/events';
 
 export interface FakeBackgroundAgent {

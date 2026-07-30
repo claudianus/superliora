@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { LioraConfig, OAuthRef } from '../../src/config';
 import { ErrorCodes, LioraError } from '../../src/errors';
-import { ProviderManager } from '../../src/session/provider-manager';
+import { ProviderManager } from '../../src/session/provider/provider-manager';
 import { resolveThinkingLevel } from '../../src/agent/config/thinking';
 
 // Thin wrapper that adapts the legacy `resolveRuntimeProvider(input)` shape to

@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent, AgentOptions } from '../../src/agent';
 import { trimTrailingOpenToolExchange } from '../../src/agent/context/projector';
-import { ProviderManager } from '../../src/session/provider-manager';
+import { ProviderManager } from '../../src/session/provider/provider-manager';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';

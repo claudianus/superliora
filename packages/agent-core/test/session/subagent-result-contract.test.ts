@@ -8,7 +8,7 @@ import {
   renderSubagentCompletionText,
   verdictFromCheckOutcomes,
   VERIFICATION_NOT_RUN,
-} from '../../src/session/subagent-result-contract';
+} from '../../src/session/subagent/subagent-result-contract';
 
 describe('subagent-result-contract — computeFilesChanged', () => {
   it('merges committed and dirty files, sorted and de-duplicated', () => {

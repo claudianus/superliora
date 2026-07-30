@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { emptyUsage } from '@superliora/kosong';
 
-import { ProviderManager } from '../../src/session/provider-manager';
+import { ProviderManager } from '../../src/session/provider/provider-manager';
 import { testAgent } from './harness';
 
 describe('ConfigState model capabilities', () => {

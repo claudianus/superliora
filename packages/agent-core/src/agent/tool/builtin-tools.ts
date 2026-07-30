@@ -1,7 +1,7 @@
 import type { ChatProvider, ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '..';
-import { ProviderManager } from '../../session/provider-manager';
+import { ProviderManager } from '../../session/provider/provider-manager';
 import { analyzeMediaPart } from '../../session/vision-analyzer';
 import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
 import * as b from '../../tools/builtin';

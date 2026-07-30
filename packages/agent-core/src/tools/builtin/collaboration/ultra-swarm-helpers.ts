@@ -10,7 +10,7 @@ import type {
   ExpertCatalogEntry,
   ExpertSwarmPlan,
 } from '../../../expert-agents/types';
-import { isPermanentProviderFailureMessage } from '../../../session/subagent-host';
+import { isPermanentProviderFailureMessage } from '../../../session/subagent/subagent-host';
 
 export const MAX_ULTRA_SWARM_SUBAGENTS = 128;
 

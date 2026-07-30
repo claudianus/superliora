@@ -12,7 +12,7 @@ import {
   swarmRunLedgerRelativePath,
   type SwarmRunLedgerExpert,
   type SwarmRunLedgerResultLike,
-} from '../../src/session/swarm-run-ledger';
+} from '../../src/collaboration/swarm-run-ledger';
 
 function makeResult(over: Partial<SwarmRunLedgerResultLike> & { expertId: string }): SwarmRunLedgerResultLike {
   return {

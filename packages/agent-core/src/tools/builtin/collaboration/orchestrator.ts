@@ -24,7 +24,7 @@ import type {
   SessionSubagentHost,
   SpawnSubagentOptions,
   SubagentHandle,
-} from '../../../session/subagent-host';
+} from '../../../session/subagent/subagent-host';
 import { createSessionWorktree } from '../../../session/worktree';
 import type { Kaos } from '@superliora/kaos';
 

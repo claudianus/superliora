@@ -14,14 +14,14 @@ import {
   emitDebateTurn,
   type RiskLevel,
 } from '../../../session/ultra-swarm-debate';
-import { postOrchestratorStandup } from '../../../session/swarm-bus-coordination';
+import { postOrchestratorStandup } from '../../../collaboration/swarm-bus-coordination';
 import {
   createSwarmBudgetState,
   recordSwarmBudgetRound,
   suggestSwarmBudgetKill,
   type SwarmBudgetState,
-} from '../../../session/swarm-budget';
-import type { SessionSubagentHost } from '../../../session/subagent-host';
+} from '../../../collaboration/swarm-budget';
+import type { SessionSubagentHost } from '../../../session/subagent/subagent-host';
 import type { ToolStore } from '../../store';
 import { renderSwarmBusDigest } from '../state/swarm-bus';
 import {

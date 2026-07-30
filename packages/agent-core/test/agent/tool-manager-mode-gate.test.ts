@@ -3,7 +3,7 @@ import { describe, expect, it, vi, type Mock } from 'vitest';
 import { Agent } from '../../src/agent';
 import { resolveActivePremiumDensity } from '../../src/agent/injection/premium-quality';
 import type { SDKAgentRPC } from '../../src/rpc';
-import { ProviderManager } from '../../src/session/provider-manager';
+import { ProviderManager } from '../../src/session/provider/provider-manager';
 import { testKaos } from '../fixtures/test-kaos';
 
 vi.mock('../../src/agent/injection/premium-quality', async (importOriginal) => {

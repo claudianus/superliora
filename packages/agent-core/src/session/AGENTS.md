@@ -2,11 +2,18 @@
 
 Session host: conversation persistence, provider management, subagent spawn, swarm coordination glue.
 
+## Layout
+
+- `index.ts` — `Session` coordinator.
+- `lifecycle/` — create/close/resources/types/warnings/workspace dirs.
+- `provider/` — `ProviderManager` and provider credential routing.
+- `subagent/` — subagent host, batch, checkpoint, telemetry.
+- `store/`, `hooks/`, `export/`, `vision-analyzer/` — unchanged domain folders.
+
 ## Ownership
 
-- `index.ts` is the `Session` coordinator — extract persistence/loops/providers into siblings rather than growing the class.
-- Subagent public surface: `subagent-host.ts` + `subagent-errors.ts` / `subagent-progress-preview.ts` / `subagent-run-lifecycle.ts`.
-- Swarm/subagent domain is consolidating under `src/collaboration/` — new swarm code goes there; keep thin re-exports here until callers migrate.
+- Subagent public surface: `subagent/subagent-host.ts` + `subagent-errors.ts` / `subagent-progress-preview.ts` / `subagent-run-lifecycle.ts`.
+- Swarm coordination lives under `src/collaboration/` — import from there, not deprecated `session/swarm-*` shims (removed).
 
 ## Imports
 

@@ -19,7 +19,7 @@ import {
   type QueuedSubagentRunResult,
   type QueuedSubagentTask,
   type SessionSubagentHost,
-} from '../../src/session/subagent-host';
+} from '../../src/session/subagent/subagent-host';
 import { SessionSkillRegistry } from '../../src/skill';
 import { TaskListInputSchema } from '../../src/tools/background/task-list';
 import { TaskOutputInputSchema } from '../../src/tools/background/task-output';

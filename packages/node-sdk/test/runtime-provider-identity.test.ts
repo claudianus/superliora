@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { LioraConfig } from '@superliora/agent-core';
 import { createKimiDefaultHeaders, SUPERLIORA_PLATFORM } from '@superliora/oauth';
 
-import { ProviderManager } from '../../agent-core/src/session/provider-manager';
+import { ProviderManager } from '../../agent-core/src/session/provider/provider-manager';
 import { SDKRpcClient } from '#/index';
 import { TEST_IDENTITY } from './test-identity';
 

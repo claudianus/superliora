@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import type { FanoutHost } from '../../src/session/spawn-agents';
-import type { FanoutSpec, FanoutTask } from '../../src/session/spawn-agents';
+import type { FanoutHost } from '../../src/collaboration/spawn-agents';
+import type { FanoutSpec, FanoutTask } from '../../src/collaboration/spawn-agents';
 import {
   baseRunOptions,
   runOptionsForTask,
   spawnAgents,
   spawnOneAgent,
   spawnOptionsForTask,
-} from '../../src/session/spawn-agents';
+} from '../../src/collaboration/spawn-agents';
 
 interface RecordedCall {
   readonly kind: 'spawn' | 'resume';

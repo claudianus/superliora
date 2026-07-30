@@ -9,7 +9,7 @@ import { join } from 'pathe';
 import { KaosFileNotFoundError, type Kaos } from '@superliora/kaos';
 
 import type { Logger } from '#/logging/types';
-import type { SessionMeta } from './session-types';
+import type { SessionMeta } from './lifecycle/session-types';
 
 export interface MetadataPersistenceOptions {
   readonly sessionHomedir: string;

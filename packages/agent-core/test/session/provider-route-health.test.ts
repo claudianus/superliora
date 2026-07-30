@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 
-import { ProviderManager } from '../../src/session/provider-manager';
+import { ProviderManager } from '../../src/session/provider/provider-manager';
 import type { LioraConfig } from '../../src/config';
 
 function baseConfig(): LioraConfig {

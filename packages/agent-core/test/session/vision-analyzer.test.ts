@@ -7,7 +7,7 @@ import type { ContentPart, ModelCapability } from '@superliora/kosong';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LioraConfig } from '../../src/config';
-import type { ProviderManager, ResolvedRuntimeProvider } from '../../src/session/provider-manager';
+import type { ProviderManager, ResolvedRuntimeProvider } from '../../src/session/provider/provider-manager';
 import { SessionAPIImpl } from '../../src/session/rpc';
 import type { Session } from '../../src/session';
 import {

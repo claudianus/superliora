@@ -31,22 +31,22 @@ import type { PluginCommandDef } from '../plugin';
 import { FlagResolver } from '../flags';
 import { SessionMetadataPersistence } from './metadata-persistence';
 import { ConversationLoopManager } from './conversation-loops';
-import { SessionCloseLifecycle } from './session-close-lifecycle';
+import { SessionCloseLifecycle } from './lifecycle/session-close-lifecycle';
 import {
   appendPluginSessionStartReminder as applyPluginSessionStartReminder,
   runGenerateAgentsMd,
-} from './session-plugin-reminder';
-import { SessionAgentLifecycle } from './session-agent-lifecycle';
-import { SessionResources } from './session-resources';
-import { triggerSessionEnd, triggerSessionStart } from './session-lifecycle-hooks';
-import { notifyAdditionalDirAdded } from './session-workspace-dirs';
-import { collectSessionWarnings } from './session-warnings';
+} from './lifecycle/session-plugin-reminder';
+import { SessionAgentLifecycle } from './lifecycle/session-agent-lifecycle';
+import { SessionResources } from './lifecycle/session-resources';
+import { triggerSessionEnd, triggerSessionStart } from './lifecycle/session-lifecycle-hooks';
+import { notifyAdditionalDirAdded } from './lifecycle/session-workspace-dirs';
+import { collectSessionWarnings } from './lifecycle/session-warnings';
 import type {
   AgentEntry,
   CreateAgentOptions,
   SessionMeta,
   SessionOptions,
-} from './session-types';
+} from './lifecycle/session-types';
 
 export type {
   AgentMeta,
@@ -54,7 +54,7 @@ export type {
   SessionMeta,
   SessionOptions,
   SessionSkillConfig,
-} from './session-types';
+} from './lifecycle/session-types';
 
 export class Session {
   readonly rpc: SessionOptions['rpc'];
@@ -533,7 +533,7 @@ export class Session {
   }
 }
 
-export * from './subagent-host';
+export * from './subagent/subagent-host';
 export {
   FileSnapshotStore,
   type FileSnapshotEntry,

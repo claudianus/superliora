@@ -28,8 +28,8 @@ import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   type SessionSubagentHost,
   type SubagentHandle,
-} from '../../../session/subagent-host';
-import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../session/spawn-agents';
+} from '../../../session/subagent/subagent-host';
+import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../collaboration/spawn-agents';
 import { isUserCancellation } from '../../../utils/abort';
 import { AgentBackgroundTask, type BackgroundManager } from '../../../agent/background';
 import { toInputJsonSchema } from '../../support/input-schema';

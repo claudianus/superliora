@@ -9,7 +9,7 @@ import {
   buildSwarmChannelRulesXml,
   buildSwarmCollaborationRequiredXml,
   buildTeamRosterXml,
-} from '../../../session/swarm-bus-coordination';
+} from '../../../collaboration/swarm-bus-coordination';
 import { buildExpertSwarmExecutionFooter } from '../../../expert-agents/expert-persona';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 import { formatWorkNodeContract } from './ultra-swarm-helpers';

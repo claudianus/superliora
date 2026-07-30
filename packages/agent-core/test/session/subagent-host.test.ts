@@ -21,12 +21,12 @@ import type { SDKSessionRPC } from '../../src/rpc';
 import {
   readSubagentCheckpoint,
   writeSubagentCheckpoint,
-} from '../../src/session/subagent-checkpoint';
+} from '../../src/session/subagent/subagent-checkpoint';
 import {
   getDefaultSwarmFileLeaseRegistry,
   normalizeLeasePath,
   resetDefaultSwarmFileLeaseRegistry,
-} from '../../src/session/swarm-file-lease';
+} from '../../src/collaboration/swarm-file-lease';
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {
@@ -41,12 +41,12 @@ import {
   resolveSubagentDeadlineMs,
   type QueuedSubagentTask,
   type RunSubagentOptions,
-} from '../../src/session/subagent-host';
+} from '../../src/session/subagent/subagent-host';
 import {
   attachToolStreamBridge,
   startProgressReporter,
-} from '../../src/session/subagent-telemetry';
-import * as subagentCompletionFlow from '../../src/session/subagent-completion-flow';
+} from '../../src/session/subagent/subagent-telemetry';
+import * as subagentCompletionFlow from '../../src/session/subagent/subagent-completion-flow';
 import { abortError, userCancellationReason } from '../../src/utils/abort';
 import { testAgent, type AgentTestContext } from '../agent/harness/agent';
 import { createScriptedGenerate } from '../agent/harness/scripted-generate';
@@ -2819,7 +2819,7 @@ function createSessionRpc(): SDKSessionRPC {
   ) as SDKSessionRPC;
 }
 
-import { __testing__ as hostTesting } from '../../src/session/subagent-host';
+import { __testing__ as hostTesting } from '../../src/session/subagent/subagent-host';
 
 const { providerRateLimitErrorFromPayload } = hostTesting;
 

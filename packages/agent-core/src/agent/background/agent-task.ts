@@ -4,8 +4,8 @@ import {
   type BackgroundTaskInfoBase,
   type BackgroundTaskSink,
 } from './task';
-import type { SessionSubagentHost, SubagentHandle } from '../../session/subagent-host';
-import { renderSubagentCompletionText } from '../../session/subagent-result-contract';
+import type { SessionSubagentHost, SubagentHandle } from '../../session/subagent/subagent-host';
+import { renderSubagentCompletionText } from '../../session/subagent/subagent-result-contract';
 
 export interface AgentBackgroundTaskInfo extends BackgroundTaskInfoBase {
   readonly kind: 'agent';

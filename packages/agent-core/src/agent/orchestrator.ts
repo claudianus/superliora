@@ -10,7 +10,7 @@ import {
   SpawnWorkerTool,
   SteerWorkerTool,
 } from '../tools/builtin/collaboration/orchestrator';
-import type { SessionSubagentHost } from '../session/subagent-host';
+import type { SessionSubagentHost } from '../session/subagent/subagent-host';
 import type { Agent } from './index';
 
 export const ORCHESTRATOR_SYSTEM_PREFIX = `# Orchestrator Mode

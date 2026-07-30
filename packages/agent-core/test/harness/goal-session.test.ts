@@ -5,7 +5,7 @@ import { join } from 'pathe';
 import { APIConnectionError, APIStatusError, type ProviderConfig } from '@superliora/kosong';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ProviderManager } from '../../src/session/provider-manager';
+import { ProviderManager } from '../../src/session/provider/provider-manager';
 import type { AgentOptions } from '../../src/agent';
 import type { LioraConfig } from '../../src/config';
 import { ErrorCodes, LioraError } from '../../src/errors';

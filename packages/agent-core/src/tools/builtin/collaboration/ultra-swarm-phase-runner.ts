@@ -5,12 +5,12 @@ import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   type QueuedSubagentTask,
   type SessionSubagentHost,
-} from '../../../session/subagent-host';
+} from '../../../session/subagent/subagent-host';
 import {
   postOrchestratorStandup,
   postWaveStandup,
-} from '../../../session/swarm-bus-coordination';
-import { buildDependencyWaves } from '../../../session/subagent-wave-scheduler';
+} from '../../../collaboration/swarm-bus-coordination';
+import { buildDependencyWaves } from '../../../session/subagent/subagent-wave-scheduler';
 import type { ToolStore } from '../../store';
 import { renderSwarmBusDigest } from '../state/swarm-bus';
 import {

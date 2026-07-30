@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ErrorCodes, LioraError, type LioraConfig, type Logger } from '#/index';
 
-import { ProviderManager } from '../../agent-core/src/session/provider-manager';
+import { ProviderManager } from '../../agent-core/src/session/provider/provider-manager';
 
 function managedConfig(): LioraConfig {
   return {
@@ -27,7 +27,7 @@ function managedConfig(): LioraConfig {
 
 async function resolveRuntimeProviderWithOAuth(options: {
   readonly config: LioraConfig;
-  readonly resolveOAuthTokenProvider?: import('../../agent-core/src/session/provider-manager').OAuthTokenProviderResolver;
+  readonly resolveOAuthTokenProvider?: import('../../agent-core/src/session/provider/provider-manager').OAuthTokenProviderResolver;
   readonly log?: Logger;
 }) {
   const manager = new ProviderManager({

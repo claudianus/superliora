@@ -1,6 +1,6 @@
 import type { WorkGraph, WorkGraphNode, UltraworkStage } from '@superliora/protocol';
 
-import { withDefaultRequiredEvidence } from '../../session/swarm-evidence-gate';
+import { withDefaultRequiredEvidence } from '../../collaboration/swarm-evidence-gate';
 
 import type { Agent } from '..';
 import {

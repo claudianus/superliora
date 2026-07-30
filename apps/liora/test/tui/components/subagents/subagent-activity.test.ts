@@ -155,7 +155,7 @@ describe('SubagentActivityComponent', () => {
       subagentName: 'coder',
       toolCallId: 'call-1',
       name: 'Edit',
-      argsPreview: '{"path":"packages/agent-core/src/session/subagent-host.ts"}',
+      argsPreview: '{"path":"packages/agent-core/src/session/subagent/subagent-host.ts"}',
     });
     component.recordToolResult({ subagentId: 'agent-0', toolCallId: 'call-1' });
 
