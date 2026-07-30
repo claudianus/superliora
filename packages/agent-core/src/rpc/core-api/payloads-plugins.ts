@@ -1,4 +1,4 @@
-import type { PluginCommandDef, PluginInfo, PluginSummary, ReloadSummary } from '#/plugin';
+import type { PluginCommandDef, PluginInfo, PluginSummary, ReloadSummary } from '#/plugin/index';
 import type { SkillSearchHit } from '#/skill';
 
 export interface SkillSummary {

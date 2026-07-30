@@ -2,7 +2,7 @@
  * Compaction worker loop — extracted from FullCompaction.
  */
 
-import { toKimiErrorPayload } from '#/errors';
+import { toKimiErrorPayload } from '#/errors/index';
 
 import { isAbortError } from '../../loop/errors';
 import type {

@@ -5,7 +5,7 @@
  * Each loop prompts the main agent when its interval elapses.
  */
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import {
   createConversationLoop,
   type ConversationLoopController,

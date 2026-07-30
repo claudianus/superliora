@@ -1,5 +1,5 @@
 import type { McpRemoteServerConfig, McpServerConfig } from '#/config/schema';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 
 export function buildMcpRemoteHeaders(
   config: McpRemoteServerConfig,

@@ -1,4 +1,4 @@
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { McpServerStdioConfig } from '#/config/schema';
 import { proxyEnvForChild, reconcileChildNoProxy } from '#/utils/proxy';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';

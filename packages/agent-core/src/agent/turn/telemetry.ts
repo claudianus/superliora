@@ -18,7 +18,7 @@ import {
 } from '@superliora/kosong';
 
 import type { Agent } from '..';
-import { ErrorCodes, type LioraErrorPayload } from '#/errors';
+import { ErrorCodes, type LioraErrorPayload } from '#/errors/index';
 import type { LoopEvent, LoopTurnInterruptedEvent, ExecutableToolResult } from '../../loop/index';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { canonicalTelemetryArgs, isPlainRecord } from './canonical-args';

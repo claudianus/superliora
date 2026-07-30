@@ -2,7 +2,7 @@
  * Plugin session-start and init reminders — extracted from Session class.
  */
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { renderPluginSessionStartReminder } from '../../agent/injection/plugin-session-start';
 import type { Agent } from '../../agent';
 import { DEFAULT_INIT_PROMPT, loadAgentsMd } from '../../profile';

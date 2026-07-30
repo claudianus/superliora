@@ -6,7 +6,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { ApprovalRequest, ApprovalResponse } from '@superliora/sdk';
 
-import { displayBlockToAcpContent } from '#/convert/convert';
+import { displayBlockToAcpContent } from '#/convert/index';
 import { acpToolCallId } from '#/convert/events-map';
 
 /**

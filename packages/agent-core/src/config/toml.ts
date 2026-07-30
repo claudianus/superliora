@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, open } from 'node:fs/promises';
 import { dirname } from 'pathe';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { applyEnvModelConfig, stripEnvModelConfig } from './env-model';
 import {
   LioraConfigSchema,

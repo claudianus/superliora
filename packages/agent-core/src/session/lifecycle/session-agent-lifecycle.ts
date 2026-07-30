@@ -4,7 +4,7 @@
 
 import type { Kaos } from '@superliora/kaos';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import { proxyWithExtraPayload } from '#/rpc/types';

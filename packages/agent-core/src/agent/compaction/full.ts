@@ -1,7 +1,7 @@
 import {
   ErrorCodes,
   LioraError,
-} from '#/errors';
+} from '#/errors/index';
 import {
   type Message,
   APIContextOverflowError,

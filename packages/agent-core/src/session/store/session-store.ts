@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'pathe';
 
 import { z } from 'zod';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { SessionIndexEntry } from '#/session/store/session-index';
 import { appendSessionIndexEntry, readSessionIndex } from '#/session/store/session-index';
 import { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key';

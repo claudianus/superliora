@@ -1,6 +1,6 @@
 import { ChatProviderError } from '#/errors';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
-import { AnthropicChatProvider, resolveDefaultMaxTokens } from '#/providers/anthropic';
+import { AnthropicChatProvider, resolveDefaultMaxTokens } from '#/providers/anthropic/index';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';
 

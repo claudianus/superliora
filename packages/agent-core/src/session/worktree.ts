@@ -5,7 +5,7 @@ import { LocalKaos, type Kaos } from '@superliora/kaos';
 
 import { createWorktree, removeWorktree, runGit } from '#/autopilot/git';
 import { resolveLioraHome } from '#/config/path';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { slugifyWorkDirName } from '#/utils/workdir-slug';
 
 export const SESSION_WORKTREE_CUSTOM_KEY = 'worktree' as const;

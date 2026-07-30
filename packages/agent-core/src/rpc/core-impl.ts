@@ -1,5 +1,5 @@
 import { log } from '#/logging/logger';
-import { PluginManager } from '#/plugin';
+import { PluginManager } from '#/plugin/index';
 
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';

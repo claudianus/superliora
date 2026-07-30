@@ -44,7 +44,7 @@ import { LocalKaos, type Kaos } from '@superliora/kaos';
 
 import { TERMINAL_AUTH_METHOD, buildTerminalAuthMethod } from '#/auth-methods';
 import { AcpKaos } from '#/kaos-acp';
-import { AcpSession, type TelemetryTrackFn } from '#/session/session';
+import { AcpSession, type TelemetryTrackFn } from '#/session/index';
 import { buildSessionConfigOptions } from '#/config-options';
 import { availableCommandsUpdateNotification } from '#/convert/events-map';
 import { acpMcpServersToConfigs } from '#/mcp';

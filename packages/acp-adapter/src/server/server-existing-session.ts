@@ -14,7 +14,7 @@ import { acpMcpServersToConfigs } from '#/mcp';
 import { DEFAULT_MODE_ID } from '#/modes';
 import { resolveCurrentModelId, resolveCurrentThinkingEnabled } from './server-config-resolve';
 import { harnessIsAuthed } from './server-slash';
-import { AcpSession, type TelemetryTrackFn } from '#/session/session';
+import { AcpSession, type TelemetryTrackFn } from '#/session/index';
 
 export interface ExistingSessionSetupDeps {
   readonly harness: LioraHarness;

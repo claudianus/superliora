@@ -15,7 +15,7 @@ import {
   type TokenUsage,
   type Tool,
 } from '@superliora/kosong';
-import { ErrorCodes, isKimiError } from '#/errors';
+import { ErrorCodes, isKimiError } from '#/errors/index';
 
 import type { Agent } from '../..';
 import { isAbortError } from '../../../loop/errors';

@@ -6,7 +6,7 @@ import {
   type Message,
 } from '@superliora/kosong';
 
-import { ErrorCodes, isKimiError } from '#/errors';
+import { ErrorCodes, isKimiError } from '#/errors/index';
 import { isAbortError } from '../../loop/errors';
 import { estimateTokens } from '../../utils/tokens';
 import type { CompactionPlan } from './planner';

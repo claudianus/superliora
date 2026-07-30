@@ -10,7 +10,7 @@ import {
 } from './capability-registry';
 import { GoogleGenAIChatProvider, type GoogleGenAIOptions } from './google-genai';
 import { KimiChatProvider, type LioraOptions } from './kimi';
-import { OpenAILegacyChatProvider, type OpenAILegacyOptions } from '#/providers/openai-legacy';
+import { OpenAILegacyChatProvider, type OpenAILegacyOptions } from '#/providers/openai-legacy/index';
 import { OpenAIResponsesChatProvider, type OpenAIResponsesOptions } from './openai-responses';
 import { VertexClaudeChatProvider, type VertexClaudeOptions } from './vertex-claude';
 

@@ -9,7 +9,7 @@ import {
   isRetryableProviderFailure,
   resolveProviderRetryDelayMs,
 } from '#/agent/provider-failover';
-import { ErrorCodes, type LioraErrorPayload } from '#/errors';
+import { ErrorCodes, type LioraErrorPayload } from '#/errors/index';
 
 const err = (over: Partial<LioraErrorPayload> = {}): LioraErrorPayload => ({
   code: ErrorCodes.PROVIDER_RATE_LIMIT,

@@ -8,14 +8,14 @@ export type { AcpBuiltinSlashCommandName } from './builtin-commands';
 export { CURRENT_VERSION, MIN_PROTOCOL_VERSION, negotiateVersion } from './version';
 export type { AcpVersionSpec } from './version';
 export { TERMINAL_AUTH_METHOD, buildTerminalAuthMethod } from './auth-methods';
-export { AcpServer, runAcpServer, runAcpServerWithStream } from '#/server/server';
-export type { SlashCommandsSnapshot } from '#/server/server';
-export { AcpSession } from '#/session/session';
+export { AcpServer, runAcpServer, runAcpServerWithStream } from '#/server/index';
+export type { SlashCommandsSnapshot } from '#/server/index';
+export { AcpSession } from '#/session/index';
 export {
   acpBlocksToPromptParts,
   displayBlockToAcpContent,
   toolResultToAcpContent,
-} from '#/convert/convert';
+} from '#/convert/index';
 export {
   acpToolCallId,
   assistantDeltaToSessionUpdate,

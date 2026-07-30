@@ -1,4 +1,4 @@
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 
 const TRUE_BOOLEAN_ENV_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const FALSE_BOOLEAN_ENV_VALUES = new Set(['0', 'false', 'no', 'off']);

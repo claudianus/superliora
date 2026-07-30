@@ -1,6 +1,6 @@
 import { generate } from '#/generate';
 import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/message';
-import { OpenAILegacyChatProvider } from '#/providers/openai-legacy';
+import { OpenAILegacyChatProvider } from '#/providers/openai-legacy/index';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -1027,7 +1027,7 @@ describe('OpenAILegacyChatProvider', () => {
     });
 
     it('modelRejectsReasoningEffortParam matches grok-build ids', async () => {
-      const { modelRejectsReasoningEffortParam } = await import('#/providers/openai-legacy');
+      const { modelRejectsReasoningEffortParam } = await import('#/providers/openai-legacy/index');
       expect(modelRejectsReasoningEffortParam('grok-build-0.1')).toBe(true);
       expect(modelRejectsReasoningEffortParam('GROK-BUILD-1')).toBe(true);
       expect(modelRejectsReasoningEffortParam('gpt-4.1')).toBe(false);

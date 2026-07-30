@@ -6,7 +6,7 @@ import {
 import { join } from 'pathe';
 
 import { normalizeAdditionalDirs } from '../config';
-import { ErrorCodes, makeErrorPayload } from '#/errors';
+import { ErrorCodes, makeErrorPayload } from '#/errors/index';
 import { log } from '#/logging/logger';
 import type { Logger } from '#/logging/types';
 import type {
@@ -19,7 +19,7 @@ import type {
 } from '#/rpc';
 import { generate } from '@superliora/kosong';
 
-import type { EnabledPluginSessionStart, PluginCommandDef } from '#/plugin';
+import type { EnabledPluginSessionStart, PluginCommandDef } from '#/plugin/index';
 import type { AgentMemoryRuntime } from '#/memory';
 import { estimateTokens } from '../utils/tokens';
 
