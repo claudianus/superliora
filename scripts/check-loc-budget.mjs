@@ -1,24 +1,36 @@
 #!/usr/bin/env node
 /**
- * LOC budget report for hand-written TypeScript (Wave 0 warn / Wave 6 fail).
+ * LOC budget for hand-written TypeScript.
  *
  * Thresholds (generated/catalog excluded):
- *   >1500  fail candidates
- *   >1000  warn candidates
+ *   >1500  fail (unless allowlisted)
+ *   >1000  warn
  *
  * Usage:
  *   node scripts/check-loc-budget.mjs
  *   node scripts/check-loc-budget.mjs --fail
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, relative, resolve } from 'node:path';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const failOnViolation = process.argv.includes('--fail');
 
 const WARN_AT = 1000;
 const FAIL_AT = 1500;
+
+/** Remaining god-files tracked for incremental shrink. Remove as they drop ≤1500. */
+const FAIL_ALLOWLIST = new Set([
+  'apps/liora/src/tui/liora-tui.ts',
+  'apps/liora/src/tui/components/messages/agent-swarm-progress.ts',
+  'apps/liora/src/tui/components/messages/tool-call.ts',
+  'apps/liora/src/tui/utils/idle-scene.ts',
+  'apps/liora/src/tui/components/chrome/todo-panel.ts',
+  'packages/acp-adapter/src/session.ts',
+  'packages/agent-core/src/tools/builtin/collaboration/ultra-swarm.ts',
+  'packages/agent-core/src/memory/store.ts',
+  'packages/agent-core/src/rpc/core-impl.ts',
+]);
 
 const ROOTS = [
   'packages/agent-core/src',
@@ -72,6 +84,7 @@ function walk(dir) {
 
 const warns = [];
 const fails = [];
+const allowlisted = [];
 
 for (const root of ROOTS) {
   const abs = join(repoRoot, root);
@@ -83,24 +96,34 @@ for (const root of ROOTS) {
   for (const file of walk(abs)) {
     const lines = readFileSync(file, 'utf8').split('\n').length;
     const rel = relative(repoRoot, file).replaceAll('\\', '/');
-    if (lines > FAIL_AT) fails.push({ rel, lines });
-    else if (lines > WARN_AT) warns.push({ rel, lines });
+    if (lines > FAIL_AT) {
+      if (FAIL_ALLOWLIST.has(rel)) allowlisted.push({ rel, lines });
+      else fails.push({ rel, lines });
+    } else if (lines > WARN_AT) warns.push({ rel, lines });
   }
 }
 
 fails.sort((a, b) => b.lines - a.lines);
 warns.sort((a, b) => b.lines - a.lines);
+allowlisted.sort((a, b) => b.lines - a.lines);
 
 console.log(`LOC budget (warn>${WARN_AT}, fail>${FAIL_AT}; generated/catalog excluded)`);
-if (fails.length === 0 && warns.length === 0) {
+
+if (fails.length === 0 && warns.length === 0 && allowlisted.length === 0) {
   console.log('All scanned files within budget.');
   process.exit(0);
 }
 
 if (fails.length > 0) {
-  console[failOnViolation ? 'error' : 'warn'](`\nFAIL (>${FAIL_AT} LOC): ${fails.length}`);
+  console[failOnViolation ? 'error' : 'warn'](`\nFAIL (>${FAIL_AT} LOC, not allowlisted): ${fails.length}`);
   for (const item of fails) {
     console[failOnViolation ? 'error' : 'warn'](`  ${item.lines}\t${item.rel}`);
+  }
+}
+if (allowlisted.length > 0) {
+  console.warn(`\nALLOWLISTED (>${FAIL_AT} LOC): ${allowlisted.length}`);
+  for (const item of allowlisted) {
+    console.warn(`  ${item.lines}\t${item.rel}`);
   }
 }
 if (warns.length > 0) {

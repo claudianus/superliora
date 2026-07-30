@@ -1,26 +1,24 @@
 #!/usr/bin/env node
 /**
- * Warn-only (Wave 0) / fail (Wave 6) intra-package layering for agent-core.
+ * Intra-package layering for agent-core.
  *
  * Rules:
- * 1. tools/ must not import the agent or session top-level barrels (#/agent, #/session,
- *    ../agent, ../session without a subpath). Subpath imports (e.g. agent/tool) are OK.
- * 2. services/ must not import loop/ (services sit above runtime loop).
- * 3. session/ → agent/ imports are allow-listed to freeze existing coupling.
+ * 1. tools/ must not import agent/session top-level barrels (subpaths OK).
+ * 2. services/ must not import loop/.
+ * 3. session/ → agent/ imports are allow-listed.
  *
  * Usage:
- *   node scripts/check-agent-core-layering.mjs           # warn, exit 0
- *   node scripts/check-agent-core-layering.mjs --fail     # exit 1 on violations
+ *   node scripts/check-agent-core-layering.mjs
+ *   node scripts/check-agent-core-layering.mjs --fail
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, relative, resolve, dirname } from 'node:path';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const srcRoot = join(repoRoot, 'packages/agent-core/src');
 const failOnViolation = process.argv.includes('--fail');
 
-/** Existing session → agent importers (frozen). Add only when intentionally expanding. */
+/** Existing session → agent importers (frozen). */
 const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/conversation-loops.ts',
   'session/export/manifest.ts',
@@ -32,11 +30,37 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/subagent-host.ts',
   'session/subagent-progress-preview.ts',
   'session/subagent-run-lifecycle.ts',
-  'session/swarm-bus-coordination.ts',
   'session/trace.ts',
   'session/ultra-swarm-debate.ts',
   'session/vision-analyzer/types.ts',
 ]);
+
+/**
+ * Existing tools → agent/session barrel imports (frozen). Prefer subpath imports
+ * for new code; shrink this list over time.
+ */
+const TOOLS_BARREL_ALLOWLIST = new Set([
+  'tools/builtin/collaboration/ask-user.ts',
+  'tools/builtin/collaboration/search-skill.ts',
+  'tools/builtin/collaboration/search-tools.ts',
+  'tools/builtin/collaboration/skill-tool.ts',
+  'tools/builtin/collaboration/swarm-channel.ts',
+  'tools/builtin/collaboration/ultra-swarm.ts',
+  'tools/builtin/goal/create-goal.ts',
+  'tools/builtin/goal/create-ultra-goal.ts',
+  'tools/builtin/goal/get-goal.ts',
+  'tools/builtin/goal/set-goal-budget.ts',
+  'tools/builtin/goal/update-goal.ts',
+  'tools/builtin/planning/enter-plan-mode.ts',
+  'tools/builtin/planning/exit-plan-mode.ts',
+  'tools/builtin/planning/next-phase.ts',
+  'tools/builtin/planning/record-interview-finding.ts',
+  'tools/builtin/review/code-review.ts',
+  'tools/builtin/state/ultrawork-graph.ts',
+]);
+
+/** Known services → loop imports (frozen; shrink over time). */
+const SERVICES_LOOP_ALLOWLIST = new Set(['services/message/transcript.ts']);
 
 const IMPORT_SPECIFIER =
   /(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,$]+\s+from\s+)?['"]([^'"]+)['"]/g;
@@ -62,9 +86,7 @@ function walk(dir) {
 }
 
 function isBarrelImport(specifier, layer) {
-  // #/agent or #/session (exact barrel)
   if (specifier === `#/${layer}`) return true;
-  // relative .../agent or .../session ending without further path
   const relativeBarrel = new RegExp(`(?:^|/)(?:\\.\\./)+${layer}$`);
   return relativeBarrel.test(specifier);
 }
@@ -96,9 +118,11 @@ function scanFile(absPath) {
         const specifier = match[1];
         if (underTools) {
           if (isBarrelImport(specifier, 'agent') || isBarrelImport(specifier, 'session')) {
-            warnings.push(
-              `${rel}:${i + 1}: tools/ must not import agent/session barrel ("${specifier}")`,
-            );
+            if (!TOOLS_BARREL_ALLOWLIST.has(rel)) {
+              warnings.push(
+                `${rel}:${i + 1}: tools/ must not import agent/session barrel ("${specifier}")`,
+              );
+            }
           }
         }
         if (underServices) {
@@ -107,7 +131,9 @@ function scanFile(absPath) {
             specifier.startsWith('#/loop/') ||
             /(?:^|\/)(?:\.\.\/)+loop(?:\/|$)/.test(specifier)
           ) {
-            warnings.push(`${rel}:${i + 1}: services/ must not import loop/ ("${specifier}")`);
+            if (!SERVICES_LOOP_ALLOWLIST.has(rel)) {
+              warnings.push(`${rel}:${i + 1}: services/ must not import loop/ ("${specifier}")`);
+            }
           }
         }
         if (underSession && resolvesToAgent(specifier, absPath)) {

@@ -15,6 +15,8 @@
     "check:layering": "node scripts/check-agent-core-layering.mjs",
     "check:loc": "node scripts/check-loc-budget.mjs",
     "check:unused-exports": "node scripts/report-unused-exports.mjs",
+    "check:layering:strict": "node scripts/check-agent-core-layering.mjs --fail",
+    "check:loc:strict": "node scripts/check-loc-budget.mjs --fail",
     "check:source-install": "node scripts/check-source-install.mjs",
     "check:slop": "node scripts/check-ai-slop.mjs",
     "check:test-baseline": "node scripts/check-test-baseline.mjs",

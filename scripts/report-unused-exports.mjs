@@ -10,10 +10,9 @@
  * Exits 0 in warn mode. With --fail, exits 1 when candidates remain after allowlist.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, relative, resolve } from 'node:path';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const failOnViolation = process.argv.includes('--fail');
 
 const SCAN_ROOTS = ['packages/agent-core/src', 'apps/liora/src/tui/utils'];
