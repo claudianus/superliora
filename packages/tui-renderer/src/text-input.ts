@@ -37,16 +37,24 @@ import {
   findPreviousEditableOffset,
 } from './text-input-offsets';
 import {
-  clampInteger,
-  columnAtDisplayWidth,
-  findParagraphTargetLine,
   nextWordBoundary,
   previousWordBoundary,
   snapColumnToBoundary,
   snapTextOffsetToBoundary,
   type AtomicCursorBias,
 } from './text-input-selection';
-import { measureDisplayWidth } from './text-metrics';
+import {
+  dispatchTextInputKey,
+  type RendererTextInputKeyActions,
+} from './text-input-key-dispatch';
+import {
+  computeHardLineVerticalMoveOffset,
+  computeMouseTextOffset,
+  computePageMoveOffset,
+  computeParagraphMoveOffset,
+  computeVisualLineMoveOffset,
+  type NavigationMoveResult,
+} from './text-input-navigation';
 
 export interface RendererTextInputOptions {
   readonly text?: string;
@@ -407,163 +415,36 @@ export class RendererTextInput {
   }
 
   private handleKey(event: NativeInputKeyEvent): boolean {
-    if (event.eventType === 'release') return false;
-    if (event.key === 'character') {
-      if (event.ctrl) return this.handleControlCharacter(event);
-      if (event.alt) return this.handleAltCharacter(event);
-      if (event.text === undefined || event.alt) return false;
-      this.insertText(event.text);
-      return true;
-    }
-
-    switch (event.key) {
-      case 'enter':
-        if (!this.multiline) return false;
-        this.insertText('\n');
-        return true;
-      case 'backspace':
-        if (event.alt || event.ctrl) this.deleteWordBackward();
-        else this.deleteBackward();
-        return true;
-      case 'delete':
-        if (event.alt || event.ctrl) this.deleteWordForward();
-        else this.deleteForward();
-        return true;
-      case 'left':
-        if (event.alt || event.ctrl) this.moveWordLeft(event.shift);
-        else this.moveLeft(event.shift);
-        return true;
-      case 'right':
-        if (event.alt || event.ctrl) this.moveWordRight(event.shift);
-        else this.moveRight(event.shift);
-        return true;
-      case 'up':
-        if (event.alt || event.ctrl) {
-          this.moveParagraph(-1, event.shift);
-          return true;
-        }
-        this.moveVertical(-1, event.shift);
-        return true;
-      case 'down':
-        if (event.alt || event.ctrl) {
-          this.moveParagraph(1, event.shift);
-          return true;
-        }
-        this.moveVertical(1, event.shift);
-        return true;
-      case 'pageup':
-        this.movePage(-1, event.shift);
-        return true;
-      case 'pagedown':
-        this.movePage(1, event.shift);
-        return true;
-      case 'home':
-        this.moveCursorToOffset(
-          event.ctrl ? 0 : this.textOffsetForLine(this.cursor.line),
-          'forward',
-          event.shift,
-        );
-        this.clearPreferredDisplayColumn();
-        return true;
-      case 'end':
-        this.moveCursorToOffset(
-          event.ctrl
-            ? this.getText().length
-            : this.textOffsetForLine(this.cursor.line) + this.currentLine().length,
-          'backward',
-          event.shift,
-        );
-        this.clearPreferredDisplayColumn();
-        return true;
-      case 'tab':
-      case 'escape':
-      case 'insert':
-      case 'f1':
-      case 'f2':
-      case 'f3':
-      case 'f4':
-      case 'f5':
-      case 'f6':
-        return false;
-      case 'f7':
-        this.selectAll();
-        return true;
-      case 'f8':
-      case 'f9':
-      case 'f10':
-      case 'f11':
-      case 'f12':
-      case 'menu':
-        return false;
-    }
+    return dispatchTextInputKey(event, this.keyActions);
   }
 
-  private handleAltCharacter(event: NativeInputKeyEvent): boolean {
-    const text = event.text;
-    if (text === undefined) return false;
-    switch (text.toLowerCase()) {
-      case 'b':
-        this.moveWordLeft(event.shift);
-        return true;
-      case 'f':
-        this.moveWordRight(event.shift);
-        return true;
-      case 'd':
-        this.deleteWordForward();
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  private handleControlCharacter(event: NativeInputKeyEvent): boolean {
-    const text = event.text;
-    if (text === undefined) return false;
-    switch (text.toLowerCase()) {
-      case 'a':
-        if (event.shift) this.selectAll();
-        else this.moveCursorToOffset(this.textOffsetForLine(this.cursor.line), 'forward', false);
-        this.clearPreferredDisplayColumn();
-        return true;
-      case 'e':
-        this.moveCursorToOffset(
-          this.textOffsetForLine(this.cursor.line) + this.currentLine().length,
-          'backward',
-          false,
-        );
-        this.clearPreferredDisplayColumn();
-        return true;
-      case 'b':
-        this.moveLeft();
-        return true;
-      case 'f':
-        this.moveRight();
-        return true;
-      case 'h':
-        this.deleteBackward();
-        return true;
-      case 'd':
-        this.deleteForward();
-        return true;
-      case 'w':
-        this.deleteWordBackward();
-        return true;
-      case 'u':
-        this.deleteToLineStart();
-        return true;
-      case 'k':
-        this.deleteToLineEnd();
-        return true;
-      case 'z':
-        if (event.shift) this.redo();
-        else this.undo();
-        return true;
-      case 'y':
-        this.redo();
-        return true;
-      default:
-        return false;
-    }
+  private get keyActions(): RendererTextInputKeyActions {
+    return {
+      multiline: this.multiline,
+      insertText: (text) => this.insertText(text),
+      deleteBackward: () => this.deleteBackward(),
+      deleteForward: () => this.deleteForward(),
+      deleteWordBackward: () => this.deleteWordBackward(),
+      deleteWordForward: () => this.deleteWordForward(),
+      deleteToLineStart: () => this.deleteToLineStart(),
+      deleteToLineEnd: () => this.deleteToLineEnd(),
+      moveLeft: (extend) => this.moveLeft(extend),
+      moveRight: (extend) => this.moveRight(extend),
+      moveWordLeft: (extend) => this.moveWordLeft(extend),
+      moveWordRight: (extend) => this.moveWordRight(extend),
+      moveVertical: (direction, extend) => this.moveVertical(direction, extend),
+      moveParagraph: (direction, extend) => this.moveParagraph(direction, extend),
+      movePage: (direction, extend) => this.movePage(direction, extend),
+      moveCursorToOffset: (offset, bias, extend) => this.moveCursorToOffset(offset, bias, extend),
+      cursorLine: () => this.cursor.line,
+      textOffsetForLine: (line) => this.textOffsetForLine(line),
+      currentLineLength: () => this.currentLine().length,
+      textLength: () => this.getText().length,
+      clearPreferredDisplayColumn: () => this.clearPreferredDisplayColumn(),
+      selectAll: () => this.selectAll(),
+      undo: () => this.undo(),
+      redo: () => this.redo(),
+    };
   }
 
   private insertText(text: string): void {
@@ -739,16 +620,15 @@ export class RendererTextInput {
   }
 
   private moveVertical(direction: -1 | 1, extend = false): void {
-    // Prefer soft-wrapped visual rows when width is known so long single-line
-    // prompts and hard-wrapped paragraphs feel continuous under ↑/↓.
     if (this.moveVisualLine(direction, extend)) return;
-    const nextLine = this.cursor.line + direction;
-    if (nextLine < 0 || nextLine >= this.lines.length) return;
-    const targetColumn = this.preferredColumn();
-    const offset =
-      this.textOffsetForLine(nextLine) +
-      columnAtDisplayWidth(this.lines[nextLine] ?? '', targetColumn);
-    this.moveCursorToOffset(offset, direction > 0 ? 'forward' : 'backward', extend);
+    const move = computeHardLineVerticalMoveOffset(
+      this.lines,
+      this.cursor,
+      direction,
+      this.preferredDisplayColumn,
+    );
+    if (move === undefined) return;
+    this.applyNavigationMove(move, extend);
   }
 
   private moveVisualLine(direction: -1 | 1, extend: boolean): boolean {
@@ -756,73 +636,51 @@ export class RendererTextInput {
     if (width === undefined || width <= 0) return false;
     const visualLines = this.createVisualLines(width);
     if (visualLines.length === 0) return false;
-    const index = this.visualLineIndexForCursor(visualLines);
-    const next = visualLines[index + direction];
-    if (next === undefined) return false;
-
-    const current = visualLines[index]!;
-    const targetColumn = this.preferredVisualColumn(current);
-    // Place the caret on the next visual row at the sticky display column.
-    // Clamp into the visual segment so soft-wrap boundaries stay stable.
-    const columnInNext = columnAtDisplayWidth(next.text, targetColumn);
-    const nextColumn = Math.min(next.end, next.start + columnInNext);
-    this.moveCursorToOffset(
-      this.textOffsetForLine(next.logicalLine) + nextColumn,
-      direction > 0 ? 'forward' : 'backward',
-      extend,
+    const move = computeVisualLineMoveOffset(
+      this.lines,
+      this.cursor,
+      visualLines,
+      this.visualLineIndexForCursor(visualLines),
+      direction,
+      this.preferredDisplayColumn,
     );
+    if (move === undefined) return false;
+    this.applyNavigationMove(move, extend);
     return true;
   }
 
-  /**
-   * Jump by blank-line paragraph (or to document start/end). Used for Alt/Ctrl+↑/↓
-   * so long multi-line drafts can be scanned quickly without holding the arrow.
-   */
   private moveParagraph(direction: -1 | 1, extend = false): void {
-    const targetLine = findParagraphTargetLine(this.lines, this.cursor.line, direction);
-    if (targetLine === this.cursor.line && direction < 0 && this.cursor.line === 0) {
-      this.moveCursorToOffset(0, 'forward', extend);
-      this.clearPreferredDisplayColumn();
-      return;
-    }
-    if (
-      targetLine === this.cursor.line &&
-      direction > 0 &&
-      this.cursor.line === this.lines.length - 1
-    ) {
-      this.moveCursorToOffset(this.getText().length, 'backward', extend);
-      this.clearPreferredDisplayColumn();
-      return;
-    }
-    const targetColumn = this.preferredColumn();
-    const offset =
-      this.textOffsetForLine(targetLine) +
-      columnAtDisplayWidth(this.lines[targetLine] ?? '', targetColumn);
-    this.moveCursorToOffset(offset, direction > 0 ? 'forward' : 'backward', extend);
+    const move = computeParagraphMoveOffset(
+      this.lines,
+      this.cursor,
+      direction,
+      this.getText().length,
+      this.preferredDisplayColumn,
+    );
+    this.applyNavigationMove(move, extend);
   }
 
   private movePage(direction: -1 | 1, extend = false): void {
     const pageRows = Math.max(1, this.layoutHeight ?? 1);
-    if (this.layoutWidth === undefined) {
-      const targetLine = clampInteger(this.cursor.line + direction * pageRows, 0, this.lines.length - 1);
-      const targetColumn = this.preferredColumn();
-      const offset = this.textOffsetForLine(targetLine) + columnAtDisplayWidth(this.lines[targetLine] ?? '', targetColumn);
-      this.moveCursorToOffset(offset, direction > 0 ? 'forward' : 'backward', extend);
-      return;
-    }
-
-    const visualLines = this.createVisualLines(this.layoutWidth);
-    const currentIndex = this.visualLineIndexForCursor(visualLines);
-    const targetIndex = clampInteger(currentIndex + direction * pageRows, 0, visualLines.length - 1);
-    const current = visualLines[currentIndex]!;
-    const target = visualLines[targetIndex]!;
-    const targetColumn = this.preferredVisualColumn(current);
-    const targetOffset = target.start + columnAtDisplayWidth(target.text, targetColumn);
-    this.moveCursorToOffset(
-      this.textOffsetForLine(target.logicalLine) + Math.min(target.end, targetOffset),
-      direction > 0 ? 'forward' : 'backward',
-      extend,
+    const width = this.layoutWidth;
+    const visualLines = width === undefined ? [] : this.createVisualLines(width);
+    const move = computePageMoveOffset(
+      this.lines,
+      this.cursor,
+      visualLines,
+      width === undefined ? 0 : this.visualLineIndexForCursor(visualLines),
+      direction,
+      pageRows,
+      width,
+      this.preferredDisplayColumn,
     );
+    this.applyNavigationMove(move, extend);
+  }
+
+  private applyNavigationMove(move: NavigationMoveResult, extend: boolean): void {
+    if (move.clearPreferred) this.clearPreferredDisplayColumn();
+    else if (move.preferredColumn !== undefined) this.preferredDisplayColumn = move.preferredColumn;
+    this.moveCursorToOffset(move.offset, move.bias, extend);
   }
 
   private createVisualLines(width: number): readonly VisualLine[] {
@@ -972,12 +830,13 @@ export class RendererTextInput {
     const width = normalizeRenderWidth(options.width ?? this.layoutWidth ?? 1);
     this.layoutWidth = width;
     const visualLines = this.createVisualLines(width);
-    const viewportRow = normalizeViewportRow(options.viewportRow);
-    const visualIndex = Math.max(0, Math.min(visualLines.length - 1, viewportRow + normalizeMouseCoordinate(options.y)));
-    const visualLine = visualLines[visualIndex] ?? visualLines.at(-1);
-    if (visualLine === undefined || visualLine.placeholder === true) return 0;
-    const column = columnAtDisplayWidth(visualLine.text, normalizeMouseCoordinate(options.x));
-    return this.textOffsetForLine(visualLine.logicalLine) + Math.min(visualLine.end, visualLine.start + column);
+    return computeMouseTextOffset(
+      visualLines,
+      normalizeViewportRow(options.viewportRow),
+      normalizeMouseCoordinate(options.x),
+      normalizeMouseCoordinate(options.y),
+      (line) => this.textOffsetForLine(line),
+    );
   }
 
   private createHistorySnapshot(): RendererTextInputHistorySnapshot {
@@ -1012,21 +871,6 @@ export class RendererTextInput {
       this.undoStack.splice(0, this.undoStack.length - this.historyLimit);
     }
     this.redoStack = [];
-  }
-
-  private preferredColumn(): number {
-    const column =
-      this.preferredDisplayColumn ?? measureDisplayWidth(this.currentLine().slice(0, this.cursor.column));
-    this.preferredDisplayColumn = column;
-    return column;
-  }
-
-  private preferredVisualColumn(visualLine: VisualLine): number {
-    const column =
-      this.preferredDisplayColumn ??
-      measureDisplayWidth(this.currentLine().slice(visualLine.start, this.cursor.column));
-    this.preferredDisplayColumn = column;
-    return column;
   }
 
   private clearPreferredDisplayColumn(): void {
