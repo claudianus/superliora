@@ -76,7 +76,7 @@ export interface StartupLifecycleHost {
   isSessionLoadingOverlayActive(): boolean;
   beginSessionLoading(sessionId?: string, title?: string): void;
   reportSessionLoading(patch: {
-    readonly phase?: import('../components/dialogs/session/session-loading-overlay').SessionLoadingPhase;
+    readonly phase?: import('../../components/dialogs/session/session-loading-overlay').SessionLoadingPhase;
     readonly progress?: number;
     readonly detail?: string;
     readonly sessionId?: string;

@@ -42,7 +42,7 @@ export class ReverseRpcPanelsController {
   private approvalPreview:
     | {
         component: ApprovalPreviewViewer;
-        savedChildren: (typeof this.host.state.ui.children)[number][];
+        savedChildren: ReverseRpcPanelsHost['state']['ui']['children'][number][];
         panel: ApprovalPanelComponent;
       }
     | undefined;

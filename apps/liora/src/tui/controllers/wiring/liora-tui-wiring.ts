@@ -67,7 +67,7 @@ export function wireLioraTUIControllers(
     },
     sessionMetadata: startupInput.sessionMetadata,
   };
-  tui.options = tuiOptions;
+  Object.assign(tui, { options: tuiOptions });
   tui.startupNotice = startupInput.startupNotice;
   tui.state = createTUIState(tuiOptions);
   tui.state.footer.setMotionBeatSource(() =>

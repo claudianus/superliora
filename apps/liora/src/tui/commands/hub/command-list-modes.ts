@@ -2,7 +2,7 @@
  * Declarative slash command metadata — modes, settings, and harness controls.
  */
 
-import type { LioraSlashCommand } from '../../types';
+import type { LioraSlashCommand } from '../types';
 import {
   toggleOnOffArgumentCompletions,
   permissionArgumentCompletions,

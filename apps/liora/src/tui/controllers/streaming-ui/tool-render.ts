@@ -128,19 +128,22 @@ export function onToolCallEnd(
   if (tc) {
     tc.setResult(result);
     ctx.getPendingToolComponents().delete(toolCallId);
-    if (state.transcriptDetail === 'minimal' && ctx.getChainSummary().active !== null) {
-      const args = matchedCall?.args ?? {};
-      const file =
-        typeof args['file_path'] === 'string'
-          ? (args['file_path'] as string)
-          : typeof args['path'] === 'string'
-            ? (args['path'] as string)
-            : undefined;
-      ctx.getChainSummary().active.record({
-        isError: result.is_error === true,
-        errorText: result.is_error === true ? result.output : undefined,
-        file,
-      });
+    if (state.transcriptDetail === 'minimal') {
+      const active = ctx.getChainSummary().active;
+      if (active !== null) {
+        const args = matchedCall?.args ?? {};
+        const file =
+          typeof args['file_path'] === 'string'
+            ? (args['file_path'] as string)
+            : typeof args['path'] === 'string'
+              ? (args['path'] as string)
+              : undefined;
+        active.record({
+          isError: result.is_error === true,
+          errorText: result.is_error === true ? result.output : undefined,
+          file,
+        });
+      }
     }
     const toolName = matchedCall?.name;
     if (toolName !== undefined && isGenericToolResult(toolName)) {

@@ -1,4 +1,4 @@
-import { SubagentActivityComponent } from '../../components/subagents/subagent-activity';
+import { SubagentActivityComponent, type SubagentToolCallInput } from '../../components/subagents/subagent-activity';
 import type { TUIState } from '../../tui-state';
 
 export interface SubagentActivityPanelHost {
@@ -53,14 +53,7 @@ export class SubagentActivityPanel {
     this.requestRender();
   }
 
-  recordToolCall(input: {
-    subagentId: string;
-    subagentName: string | undefined;
-    toolCallId: string;
-    name: string;
-    argsPreview: string | undefined;
-    detail: string | undefined;
-  }): void {
+  recordToolCall(input: SubagentToolCallInput): void {
     this.ensure().recordToolCall(input);
   }
 

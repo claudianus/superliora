@@ -70,6 +70,7 @@ import {
   resolveBannerRevealCount,
   resolveMarkRiseProgress,
   resolveFadeAlpha,
+  shouldPlaySplash,
   type SplashPhase,
 } from './splash-phase';
 import {

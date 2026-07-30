@@ -92,7 +92,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   private planPath: string | undefined;
   private currentPlan: string | undefined;
   private headerText: Text;
-  private readonly previewRevealEligible: boolean;
+  readonly previewRevealEligible: boolean;
 
   private readonly subagent = new ToolCallSubagentState();
   private readonly callPreview = new ToolCallCallPreview();
@@ -219,7 +219,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       isStreamingEditPreview: isToolCallStreamingEditPreview(this.internalsHost()),
       subagentSpawnEntranceAtMs: this.subagent.spawnEntranceAtMs,
       subagentStartedAtMs: this.subagent.startedAtMs,
-      subagentPhase: this.subagent.phase,
+      subagentPhase: this.subagent.phase ?? 'queued',
       subagentOngoingSubCallsSize: this.subagent.ongoingSubCalls.size,
     };
   }

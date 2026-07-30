@@ -12,8 +12,8 @@ import {
 } from '#/tui/renderer';
 import { CURRENT_MARK } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
-import { renderPremiumHeadline } from '#/tui/utils/appearance-effects';
-import { renderSelectPointer } from '#/tui/utils/select-pointer';
+import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { printableChar } from '#/tui/utils/printable-key';
 import {
   warRoomExpertLabel,

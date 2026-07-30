@@ -10,6 +10,8 @@ export interface NativeTUIEditorAutocompleteHost {
   readonly inputMode: TUIEditorInputMode;
   getAutocompleteController(): RendererEditorAutocompleteController;
   getText(): string;
+  getLines(): string[];
+  getCursor(): RendererEditorCursor;
   applyAutocompleteText(text: string, cursor: RendererEditorCursor): void;
   onChange?: (text: string) => void;
 }

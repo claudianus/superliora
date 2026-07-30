@@ -285,6 +285,6 @@ export class SessionReplayMessageRenderer {
   private renderToolResult(context: ReplayRenderContext, message: ContextMessage): void {
     const toolCallId = message.toolCallId;
     if (toolCallId === undefined) return;
-    this.tools.renderToolResult(context, toolCallId, message.content, message.isError);
+    this.tools.renderToolResult(context, toolCallId, message.content, message.isError ?? false);
   }
 }

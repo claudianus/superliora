@@ -14,7 +14,7 @@ import { PERSONA_PRESET_DESCRIPTIONS, PERSONA_PRESET_NAMES } from '../persona';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { rendererArgumentCompletions } from '../renderer';
 import { transcriptArgumentCompletions } from '../session/transcript';
-import type { SlashCommandAvailability } from '../../types';
+import type { SlashCommandAvailability } from '../types';
 
 /** Subcommands offered when autocompleting `/goal <…>`. */
 const GOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [

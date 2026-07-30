@@ -1,4 +1,4 @@
-import type { ToolCall } from '@superliora/sdk';
+import type { ToolCall, ContentPart } from '@superliora/sdk';
 
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { ToolCallBlockData, ToolResultBlockData } from '../../types';
@@ -50,7 +50,7 @@ export class SessionReplayToolContext {
 
     const result: ToolResultBlockData = {
       tool_call_id: toolCallId,
-      output: toolResultOutput(content),
+      output: toolResultOutput(content as readonly ContentPart[]),
       is_error: isError,
     };
     call.result = result;

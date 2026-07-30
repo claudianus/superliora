@@ -260,7 +260,7 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.resetSessionRuntime = function () {
     this.sessionLifecycle.resetSessionRuntime();
   };
-  proto.fetchSessions = function (scope: 'cwd' | 'all' = this.state.sessionsScope) {
+  proto.fetchSessions = function (this: import('../../liora-tui').LioraTUI, scope: 'cwd' | 'all' = this.state.sessionsScope) {
     return this.sessionBrowser.fetchSessions(scope);
   };
   proto.updateTerminalTitle = function () {

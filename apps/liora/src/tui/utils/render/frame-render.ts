@@ -1,4 +1,4 @@
-import type { TUIState } from '../tui-state';
+import type { TUIState } from '../../tui-state';
 import type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 
 /**

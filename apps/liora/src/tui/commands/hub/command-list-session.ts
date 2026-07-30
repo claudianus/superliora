@@ -2,7 +2,7 @@
  * Declarative slash command metadata — session, workspace, and auth commands.
  */
 
-import type { LioraSlashCommand } from '../../types';
+import type { LioraSlashCommand } from '../types';
 import {
   toggleOnOffArgumentCompletions,
   permissionArgumentCompletions,

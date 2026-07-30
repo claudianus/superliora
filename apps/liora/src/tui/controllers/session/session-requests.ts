@@ -16,7 +16,7 @@ export interface SessionRequestsHost {
   patchLivePane(patch: Partial<LivePaneState>): void;
   resetLivePane(): void;
   showError(msg: string): void;
-  sendQueuedMessage(session: Session, item: import('../types').QueuedMessage): void;
+  sendQueuedMessage(session: Session, item: import('../../types').QueuedMessage): void;
 }
 
 /**

@@ -1,4 +1,4 @@
-import {Container, Key, matchesKey, renderRendererFrameRows, renderRendererPanelChromeRows, truncateToWidth, type Focusable} from '#/tui/renderer';
+import {Container, Key, matchesKey, renderRendererFrameRows, renderRendererPanelChromeRows, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
 import chalk from 'chalk';
 
 import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';

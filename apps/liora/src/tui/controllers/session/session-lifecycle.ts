@@ -80,7 +80,6 @@ export interface SessionLifecycleHost {
     readonly sessionId?: string;
     readonly title?: string;
   }): void;
-  readonly reverseRpcPanels: { clearReverseRpcPanels(): void; cancelPendingReverseRpc(reason: string): void };
 }
 
 /**

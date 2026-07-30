@@ -24,7 +24,8 @@ const EVENT_GLYPH: Record<ReplayEventType, string> = {
   'user-input': '⌨',
   compaction: '⊟',
   approval: '☑',
-  streaming: '…',
+  'streaming-start': '…',
+  'streaming-end': '…',
 };
 
 const EVENT_COLOR: Record<ReplayEventType, string> = {
@@ -36,7 +37,8 @@ const EVENT_COLOR: Record<ReplayEventType, string> = {
   'user-input': 'primary',
   compaction: 'textMuted',
   approval: 'warning',
-  streaming: 'accent',
+  'streaming-start': 'accent',
+  'streaming-end': 'accent',
 };
 
 function formatTime(ms: number): string {
@@ -181,7 +183,7 @@ export class SessionReplay {
 
   /** Cycle through speed options. */
   cycleSpeed(): void {
-    const idx = SPEED_OPTIONS.indexOf(this.speed);
+    const idx = SPEED_OPTIONS.indexOf(this.speed as (typeof SPEED_OPTIONS)[number]);
     const nextIdx = (idx + 1) % SPEED_OPTIONS.length;
     this.speed = SPEED_OPTIONS[nextIdx]!;
   }
