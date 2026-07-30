@@ -10,8 +10,8 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 
-import { OAuthConnectionError, OAuthError } from './errors';
-import { isRecord } from './utils';
+import { OAuthConnectionError, OAuthError } from '../errors';
+import { isRecord } from '../utils';
 
 const DEFAULT_HTTP_TIMEOUT_MS = 30_000;
 

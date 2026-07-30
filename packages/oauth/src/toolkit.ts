@@ -9,7 +9,7 @@ import {
   kimiCodeFeedbackUrl,
   type FetchSubmitFeedbackResult,
   type SubmitFeedbackBody,
-} from './managed-feedback';
+} from './kimi/managed-feedback';
 import {
   fetchCompleteFeedbackUpload,
   fetchCreateFeedbackUploadUrl,
@@ -17,7 +17,7 @@ import {
   type CreateFeedbackUploadUrlBody,
   type FetchCompleteFeedbackUploadResult,
   type FetchCreateFeedbackUploadUrlResult,
-} from './managed-feedback-upload';
+} from './kimi/managed-feedback-upload';
 import {
   SUPERLIORA_OAUTH_KEY,
   SUPERLIORA_PROVIDER_NAME,
@@ -25,14 +25,14 @@ import {
   resolveKimiCodeOAuthKey,
   type ManagedKimiCodeProvisionResult,
   type ManagedKimiConfigAdapter,
-} from './managed-kimi-code';
+} from './kimi';
 import {
   fetchManagedUsage,
   kimiCodeUsageUrl,
   type FetchManagedUsageError,
   type ParsedManagedUsage,
-} from './managed-usage';
-import { OAuthManager, type LoginOptions, type OAuthManagerOptions } from './oauth-manager';
+} from './kimi/managed-usage';
+import { OAuthManager, type LoginOptions, type OAuthManagerOptions } from './flow/oauth-manager';
 import { FileTokenStorage, type TokenStorage } from './storage';
 import type { OAuthFlowConfig } from './types';
 

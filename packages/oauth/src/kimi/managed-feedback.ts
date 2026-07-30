@@ -7,7 +7,7 @@
  * backend can identify this client.
  */
 
-import { readApiErrorMessage } from './api-error';
+import { readApiErrorMessage } from '../api-error';
 import { kimiCodeBaseUrl } from './managed-usage';
 
 export interface SubmitFeedbackBody {

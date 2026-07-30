@@ -20,8 +20,8 @@ export { tokenFromWire, tokenToWire } from './types';
 export type { TokenStorage } from './storage';
 export { FileTokenStorage } from './storage';
 
-export type { DevicePollResult, RefreshOptions } from './oauth';
-export { pollDeviceToken, refreshAccessToken, requestDeviceAuthorization } from './oauth';
+export type { DevicePollResult, RefreshOptions } from './flow/oauth';
+export { pollDeviceToken, refreshAccessToken, requestDeviceAuthorization } from './flow/oauth';
 
 export {
   getJson,
@@ -38,7 +38,7 @@ export {
   type ManualCallbackPromptContext,
   type PkcePair,
   type WaitForCallbackOrManualOptions,
-} from './oauth-flow-http';
+} from './flow/oauth-flow-http';
 export {
   exchangeOpenAiToken,
   pollOpenAiDeviceToken,
@@ -50,7 +50,7 @@ export {
   toDeviceAuthorization as toOpenAiDeviceAuthorization,
   type OpenAIDeviceCode,
   type OpenAITokenExchange,
-} from './oauth-flow-openai';
+} from './flow/oauth-flow-openai';
 export {
   exchangeXaiToken,
   refreshXaiToken,
@@ -58,10 +58,10 @@ export {
   runXaiBrowserFlow,
   toTokenInfo as toXaiTokenInfo,
   type XaiTokenExchange,
-} from './oauth-flow-xai';
+} from './flow/oauth-flow-xai';
 
-export type { LoginOptions, OAuthManagerOptions, OAuthRefreshOutcome } from './oauth-manager';
-export { OAuthManager, defaultRefreshThreshold, newInstanceId } from './oauth-manager';
+export type { LoginOptions, OAuthManagerOptions, OAuthRefreshOutcome } from './flow/oauth-manager';
+export { OAuthManager, defaultRefreshThreshold, newInstanceId } from './flow/oauth-manager';
 
 export {
   assertKimiHostIdentity,
@@ -95,7 +95,7 @@ export {
   resolveKimiCodeRuntimeAuth,
   allocateManagedKimiOAuthAccountKey,
   listManagedKimiOAuthRefs,
-} from './managed-kimi-code';
+} from './kimi';
 export type {
   FetchManagedKimiCodeModelsOptions,
   ManagedKimiCodeApplyResult,
@@ -110,7 +110,7 @@ export type {
   ManagedKimiOAuthRefInput,
   ManagedKimiRuntimeAuth,
   ProvisionManagedKimiCodeConfigOptions,
-} from './managed-kimi-code';
+} from './kimi';
 
 export {
   allocateProviderOAuthAccountKey,
@@ -123,13 +123,13 @@ export {
   promoteProviderOAuthSlot,
   removeProviderOAuthRef,
   rewriteProviderOAuthRefs,
-} from './provider-oauth-pool';
+} from './pool/provider-oauth-pool';
 export type {
   LabelProviderOAuthResult,
   PromoteProviderOAuthResult,
   ProviderOAuthRef,
   RemoveProviderOAuthResult,
-} from './provider-oauth-pool';
+} from './pool/provider-oauth-pool';
 
 export {
   fetchManagedUsage,
@@ -139,13 +139,13 @@ export {
   kimiCodeBaseUrl,
   kimiCodeUsageUrl,
   parseManagedUsagePayload,
-} from './managed-usage';
+} from './kimi/managed-usage';
 export type {
   FetchManagedUsageError,
   FetchManagedUsageResult,
   ParsedManagedUsage,
   UsageRow,
-} from './managed-usage';
+} from './kimi/managed-usage';
 
 export {
   buildAllProvidersUsageSnapshot,
@@ -161,20 +161,20 @@ export type {
   ProviderUsageSnapshot,
 } from './provider-usage';
 
-export { fetchSubmitFeedback, kimiCodeFeedbackUrl } from './managed-feedback';
+export { fetchSubmitFeedback, kimiCodeFeedbackUrl } from './kimi/managed-feedback';
 export type {
   FetchSubmitFeedbackError,
   FetchSubmitFeedbackOk,
   FetchSubmitFeedbackResult,
   SubmitFeedbackBody,
-} from './managed-feedback';
+} from './kimi/managed-feedback';
 
 export {
   fetchCompleteFeedbackUpload,
   fetchCreateFeedbackUploadUrl,
   kimiCodeFeedbackUploadCompleteUrl,
   kimiCodeFeedbackUploadUrl,
-} from './managed-feedback-upload';
+} from './kimi/managed-feedback-upload';
 export type {
   CompleteFeedbackUploadBody,
   CreateFeedbackUploadUrlBody,
@@ -182,7 +182,7 @@ export type {
   FetchCompleteFeedbackUploadResult,
   FetchCreateFeedbackUploadUrlResult,
   FetchFeedbackUploadError,
-} from './managed-feedback-upload';
+} from './kimi/managed-feedback-upload';
 
 export {
   applyOpenPlatformConfig,
@@ -194,11 +194,11 @@ export {
   OPEN_PLATFORMS,
   OpenPlatformApiError,
   removeOpenPlatformConfig,
-} from './open-platform';
+} from './registry/open-platform';
 export type {
   ApplyOpenPlatformResult,
   OpenPlatformDefinition,
-} from './open-platform';
+} from './registry/open-platform';
 
 export {
   applyCustomRegistryEntries,
@@ -209,22 +209,22 @@ export {
   CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT,
   fetchCustomRegistry,
   removeCustomRegistryProvider,
-} from './custom-registry';
+} from './registry/custom-registry';
 export type {
   CustomRegistryModelEntry,
   CustomRegistryProviderEntry,
   CustomRegistryProviderType,
   CustomRegistrySource,
-} from './custom-registry';
+} from './registry/custom-registry';
 
-export { refreshProviderModels } from './refreshProviderModels';
+export { refreshProviderModels } from './registry/refreshProviderModels';
 export type {
   ProviderChange,
   RefreshProviderHost,
   RefreshProviderOptions,
   RefreshProviderScope,
   RefreshResult,
-} from './refreshProviderModels';
+} from './registry/refreshProviderModels';
 
 export { KimiOAuthToolkit, resolveKimiTokenStorageName } from './toolkit';
 export type {
@@ -272,12 +272,12 @@ export type {
   XaiGrokRouteConfig,
 } from './profiles';
 
-export { OAuthProviderManager } from './oauth-provider-manager';
+export { OAuthProviderManager } from './flow/oauth-provider-manager';
 export type {
   OAuthProviderManagerOptions,
   ProviderLoginCallbacks,
   ProviderLoginOptions,
-} from './oauth-provider-manager';
+} from './flow/oauth-provider-manager';
 
 export {
   CredentialHealthStore,

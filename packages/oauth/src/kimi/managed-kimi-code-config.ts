@@ -1,4 +1,4 @@
-import { isRecord } from './utils';
+import { isRecord } from '../utils';
 import { SUPERLIORA_PROVIDER_NAME } from './managed-kimi-code-constants';
 import { fetchManagedKimiCodeModels } from './managed-kimi-code-models';
 import {

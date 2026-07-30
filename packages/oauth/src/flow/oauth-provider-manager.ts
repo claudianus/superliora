@@ -13,7 +13,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { OAuthError } from './errors';
+import { OAuthError } from '../errors';
 import {
   refreshPkceToken,
   runPkceBrowserFlow,
@@ -34,13 +34,13 @@ import {
 } from './oauth-flow-xai';
 import { OAuthManager, type LoginOptions, type OAuthRefreshOutcome } from './oauth-manager';
 import { requestDeviceAuthorization, pollDeviceToken, refreshAccessToken } from './oauth';
-import { FileTokenStorage, type TokenStorage } from './storage';
-import type { DeviceAuthorization, TokenInfo } from './types';
+import { FileTokenStorage, type TokenStorage } from '../storage';
+import type { DeviceAuthorization, TokenInfo } from '../types';
 import {
   getProviderProfile,
   type ProviderFlowConfig,
   type ProviderProfile,
-} from './profiles';
+} from '../profiles';
 
 export interface OAuthProviderManagerOptions {
   readonly homeDir?: string;

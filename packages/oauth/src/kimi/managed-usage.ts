@@ -17,8 +17,8 @@
  * `reset_at`, `duration+timeUnit` window labels, etc.).
  */
 
-import { readApiErrorMessage } from './api-error';
-import { isRecord } from './utils';
+import { readApiErrorMessage } from '../api-error';
+import { isRecord } from '../utils';
 
 const MANAGED_PREFIX = 'managed:';
 /** Wire platform ids accepted after the `managed:` prefix. */

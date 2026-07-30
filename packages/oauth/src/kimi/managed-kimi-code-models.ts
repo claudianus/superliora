@@ -1,5 +1,5 @@
-import { readApiErrorMessage } from './api-error';
-import { isRecord } from './utils';
+import { readApiErrorMessage } from '../api-error';
+import { isRecord } from '../utils';
 import type {
   FetchManagedKimiCodeModelsOptions,
   ManagedKimiCodeModelInfo,

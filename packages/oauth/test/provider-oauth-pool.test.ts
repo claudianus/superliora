@@ -11,7 +11,7 @@ import {
   promoteProviderOAuthSlot,
   removeProviderOAuthRef,
   rewriteProviderOAuthRefs,
-} from '../src/provider-oauth-pool';
+} from '../src/pool/provider-oauth-pool';
 
 describe('provider oauth pool', () => {
   it('allocates the default key for the first account', () => {

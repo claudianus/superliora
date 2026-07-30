@@ -6,7 +6,7 @@ import {
   isOpenPlatformId,
   OPEN_PLATFORMS,
   OpenPlatformApiError,
-} from '../src/open-platform';
+} from '../src/registry/open-platform';
 
 describe('oauth/open-platform — pure helpers', () => {
   it('exposes a non-empty OPEN_PLATFORMS list', () => {

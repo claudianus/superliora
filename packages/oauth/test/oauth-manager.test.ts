@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DeviceCodeTimeoutError, OAuthUnauthorizedError } from '../src/errors';
-import type { DevicePollResult } from '../src/oauth';
-import { OAuthManager } from '../src/oauth-manager';
+import type { DevicePollResult } from '../src/flow/oauth';
+import { OAuthManager } from '../src/flow/oauth-manager';
 import { FileTokenStorage } from '../src/storage';
 import type { TokenStorage } from '../src/storage';
 import type { DeviceAuthorization, OAuthFlowConfig, TokenInfo } from '../src/types';

@@ -19,7 +19,7 @@
  * consistent quota dashboard regardless of which providers are configured.
  */
 
-import { isManagedKimiCode } from './managed-usage';
+import { isManagedKimiCode } from '../kimi/managed-usage';
 import { snapshotWorstRatio, providerDisplayName } from './provider-usage-display';
 import { fetchAnthropicUsage } from './provider-usage-fetch-anthropic';
 import { fetchClinePassUsage } from './provider-usage-fetch-clinepass';

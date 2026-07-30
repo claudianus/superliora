@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   kimiCodeFeedbackUploadCompleteUrl,
   kimiCodeFeedbackUploadUrl,
-} from '../src/managed-feedback-upload';
+} from '../src/kimi/managed-feedback-upload';
 
 describe('oauth/managed-feedback-upload — URL builders', () => {
   it('kimiCodeFeedbackUploadUrl returns a /feedback/upload_url URL', () => {

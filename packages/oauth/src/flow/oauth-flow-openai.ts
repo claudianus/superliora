@@ -19,8 +19,8 @@
  * The resulting access token is a Bearer token for the ChatGPT Codex backend.
  */
 
-import { OAuthError, OAuthUnauthorizedError } from './errors';
-import type { DeviceAuthorization, TokenInfo } from './types';
+import { OAuthError, OAuthUnauthorizedError } from '../errors';
+import type { DeviceAuthorization, TokenInfo } from '../types';
 import {
   generatePkcePair,
   generateState,
@@ -31,7 +31,7 @@ import {
   type CallbackServer,
   type PkcePair,
 } from './oauth-flow-http';
-import type { ProviderFlowConfig } from './profiles';
+import type { ProviderFlowConfig } from '../profiles';
 
 export interface OpenAIDeviceCode {
   readonly deviceAuthId: string;

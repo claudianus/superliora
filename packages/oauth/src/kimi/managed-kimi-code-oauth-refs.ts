@@ -1,8 +1,8 @@
 import { createHash, randomBytes as nodeRandomBytes } from 'node:crypto';
 
-import { DEFAULT_SUPERLIORA_OAUTH_HOST } from './constants';
+import { DEFAULT_SUPERLIORA_OAUTH_HOST } from '../constants';
 import { DEFAULT_SUPERLIORA_BASE_URL } from './managed-usage';
-import { isRecord } from './utils';
+import { isRecord } from '../utils';
 import {
   SUPERLIORA_OAUTH_KEY,
   SUPERLIORA_SCOPED_OAUTH_KEY_PREFIX,

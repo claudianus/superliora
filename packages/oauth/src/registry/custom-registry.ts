@@ -1,6 +1,6 @@
-import { readApiErrorMessage } from './api-error';
-import { isRecord } from './utils';
-import type { ManagedKimiConfigShape } from './managed-kimi-code';
+import { readApiErrorMessage } from '../api-error';
+import { isRecord } from '../utils';
+import type { ManagedKimiConfigShape } from '../kimi';
 
 export type { ManagedKimiConfigShape };
 

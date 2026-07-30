@@ -6,7 +6,7 @@
  */
 
 import { SUPERLIORA_FLOW_CONFIG } from '../constants';
-import { SUPERLIORA_PROVIDER_NAME } from '../managed-kimi-code';
+import { SUPERLIORA_PROVIDER_NAME } from '../kimi';
 
 import type { ProviderProfile } from './provider-profile';
 

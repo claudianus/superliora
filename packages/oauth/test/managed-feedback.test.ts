@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { kimiCodeFeedbackUrl } from '../src/managed-feedback';
+import { kimiCodeFeedbackUrl } from '../src/kimi/managed-feedback';
 
 describe('oauth/managed-feedback — kimiCodeFeedbackUrl', () => {
   it('returns a feedback URL with a /v1/feedback suffix on the default host', () => {

@@ -1,10 +1,10 @@
-import { readApiErrorMessage } from './api-error';
-import { isRecord } from './utils';
-import { parseSupportsThinkingType, parseThinkEfforts } from './managed-kimi-code';
+import { readApiErrorMessage } from '../api-error';
+import { isRecord } from '../utils';
+import { parseSupportsThinkingType, parseThinkEfforts } from '../kimi';
 import type {
   ManagedKimiCodeModelInfo,
   ManagedKimiConfigShape,
-} from './managed-kimi-code';
+} from '../kimi';
 
 export type { ManagedKimiConfigShape };
 
