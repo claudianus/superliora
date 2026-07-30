@@ -2,7 +2,29 @@ import type { RendererCell, RendererCellStyle } from './cell-buffer';
 import type { RendererRegionLine } from './compositor';
 import type { NativeInputEvent, NativeInputKeyEvent, NativeInputMouseEvent } from './input-events';
 import type { RendererCursorShape, RendererCursorState } from './terminal-output';
-import { displayClusterWidth, measureDisplayWidth, textToCells } from './text-metrics';
+import {
+  cloneAtomicRange,
+  historySnapshotsEqual,
+  normalizeAtomicRanges,
+  shiftAtomicRangesAfterDelete,
+  shiftAtomicRangesAfterInsert,
+  type RendererTextInputHistorySnapshot,
+} from './text-input-edit';
+import {
+  clampInteger,
+  columnAtDisplayWidth,
+  findParagraphTargetLine,
+  nextClusterBoundary,
+  nextWordBoundary,
+  previousClusterBoundary,
+  previousWordBoundary,
+  rangesOverlap,
+  snapColumnToBoundary,
+  snapTextOffsetToBoundary,
+  splitClusters,
+  type AtomicCursorBias,
+} from './text-input-selection';
+import { measureDisplayWidth, textToCells } from './text-metrics';
 
 export interface RendererTextInputOptions {
   readonly text?: string;
@@ -73,13 +95,6 @@ export interface RendererTextInputRenderResult {
   readonly viewportRow: number;
 }
 
-interface TextCluster {
-  readonly text: string;
-  readonly start: number;
-  readonly end: number;
-  readonly width: number;
-}
-
 interface VisualLine {
   readonly text: string;
   readonly logicalLine: number;
@@ -88,18 +103,6 @@ interface VisualLine {
   readonly width: number;
   readonly placeholder?: boolean;
 }
-
-interface RendererTextInputHistorySnapshot {
-  readonly lines: readonly string[];
-  readonly cursor: RendererTextInputCursor;
-  readonly atomicRanges: readonly RendererTextInputAtomicRange[];
-  readonly selectionAnchor?: number;
-}
-
-const graphemeSegmenter =
-  typeof Intl !== 'undefined' && 'Segmenter' in Intl
-    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-    : undefined;
 
 const DEFAULT_SELECTION_STYLE: RendererCellStyle = { inverse: true };
 
@@ -1166,157 +1169,12 @@ export class RendererTextInput {
   }
 }
 
-type AtomicCursorBias = 'backward' | 'forward' | 'nearest';
-
-function normalizeAtomicRanges(
-  ranges: readonly RendererTextInputAtomicRange[] | undefined,
-  text: string,
-): readonly RendererTextInputAtomicRange[] {
-  if (ranges === undefined || ranges.length === 0 || text.length === 0) return [];
-  const out: RendererTextInputAtomicRange[] = [];
-  const sorted = ranges
-    .map((range) => {
-      const start = snapTextOffsetToBoundary(text, range.start, 'backward');
-      const end = snapTextOffsetToBoundary(text, range.end, 'forward');
-      if (end <= start) return undefined;
-      const normalized: { start: number; end: number; id?: string } = { start, end };
-      if (range.id !== undefined) normalized.id = range.id;
-      return normalized;
-    })
-    .filter((range): range is RendererTextInputAtomicRange => range !== undefined)
-    .toSorted((a, b) => a.start - b.start || a.end - b.end);
-
-  for (const range of sorted) {
-    const previous = out.at(-1);
-    if (previous !== undefined && range.start < previous.end) {
-      const merged: { start: number; end: number; id?: string } = {
-        start: previous.start,
-        end: Math.max(previous.end, range.end),
-      };
-      if (previous.id !== undefined && previous.id === range.id) merged.id = previous.id;
-      out[out.length - 1] = merged;
-      continue;
-    }
-    out.push(range);
-  }
-
-  return out;
-}
-
-function shiftAtomicRangesAfterInsert(
-  ranges: readonly RendererTextInputAtomicRange[],
-  offset: number,
-  amount: number,
-): readonly RendererTextInputAtomicRange[] {
-  if (amount <= 0 || ranges.length === 0) return ranges;
-  return ranges.map((range) => {
-    const shifted: { start: number; end: number; id?: string } =
-      range.start >= offset
-        ? { start: range.start + amount, end: range.end + amount }
-        : range.end > offset
-          ? { start: range.start, end: range.end + amount }
-          : { start: range.start, end: range.end };
-    if (range.id !== undefined) shifted.id = range.id;
-    return shifted;
-  });
-}
-
-function shiftAtomicRangesAfterDelete(
-  ranges: readonly RendererTextInputAtomicRange[],
-  start: number,
-  end: number,
-): readonly RendererTextInputAtomicRange[] {
-  if (end <= start || ranges.length === 0) return ranges;
-  const amount = end - start;
-  const out: RendererTextInputAtomicRange[] = [];
-  for (const range of ranges) {
-    if (range.end <= start) {
-      out.push(range);
-      continue;
-    }
-    if (range.start >= end) {
-      const shifted: { start: number; end: number; id?: string } = {
-        start: range.start - amount,
-        end: range.end - amount,
-      };
-      if (range.id !== undefined) shifted.id = range.id;
-      out.push(shifted);
-    }
-  }
-  return out;
-}
-
-function snapTextOffsetToBoundary(
-  text: string,
-  offset: number,
-  bias: AtomicCursorBias,
-): number {
-  const clamped = Math.max(0, Math.min(text.length, Math.floor(offset)));
-  if (clamped === 0 || clamped === text.length) return clamped;
-  for (const cluster of splitClusters(text)) {
-    if (cluster.start === clamped || cluster.end === clamped) return clamped;
-    if (cluster.start < clamped && clamped < cluster.end) {
-      if (bias === 'nearest') {
-        return clamped - cluster.start <= cluster.end - clamped ? cluster.start : cluster.end;
-      }
-      return bias === 'backward' ? cluster.start : cluster.end;
-    }
-    if (cluster.start > clamped) return bias === 'backward' ? 0 : cluster.start;
-  }
-  return clamped;
-}
-
-function rangesOverlap(start: number, end: number, otherStart: number, otherEnd: number): boolean {
-  return start < otherEnd && otherStart < end;
-}
-
 function mergeCellStyles(
   base: RendererCellStyle | undefined,
   overlay: RendererCellStyle,
 ): RendererCellStyle {
   if (base === undefined) return overlay;
   return { ...base, ...overlay };
-}
-
-function cloneAtomicRange(range: RendererTextInputAtomicRange): RendererTextInputAtomicRange {
-  const clone: { start: number; end: number; id?: string } = {
-    start: range.start,
-    end: range.end,
-  };
-  if (range.id !== undefined) clone.id = range.id;
-  return clone;
-}
-
-function historySnapshotsEqual(
-  left: RendererTextInputHistorySnapshot,
-  right: RendererTextInputHistorySnapshot,
-): boolean {
-  return (
-    arrayEqual(left.lines, right.lines) &&
-    cursorEqual(left.cursor, right.cursor) &&
-    left.selectionAnchor === right.selectionAnchor &&
-    atomicRangesEqual(left.atomicRanges, right.atomicRanges)
-  );
-}
-
-function arrayEqual(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
-}
-
-function cursorEqual(left: RendererTextInputCursor, right: RendererTextInputCursor): boolean {
-  return left.line === right.line && left.column === right.column;
-}
-
-function atomicRangesEqual(
-  left: readonly RendererTextInputAtomicRange[],
-  right: readonly RendererTextInputAtomicRange[],
-): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((range, index) => {
-    const other = right[index]!;
-    return range.start === other.start && range.end === other.end && range.id === other.id;
-  });
 }
 
 function normalizeInputText(text: string): string[] {
@@ -1361,11 +1219,6 @@ function normalizeRenderHeight(value: number | undefined): number | undefined {
   return Math.floor(value);
 }
 
-function clampInteger(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.max(min, Math.min(max, Math.floor(value)));
-}
-
 function wrapLogicalLine(
   line: string,
   logicalLine: number,
@@ -1398,138 +1251,3 @@ function wrapLogicalLine(
   return out;
 }
 
-function splitClusters(text: string): readonly TextCluster[] {
-  if (graphemeSegmenter !== undefined) {
-    return Array.from(graphemeSegmenter.segment(text), (segment) => ({
-      text: segment.segment,
-      start: segment.index,
-      end: segment.index + segment.segment.length,
-      width: displayClusterWidth(segment.segment),
-    }));
-  }
-
-  const clusters: TextCluster[] = [];
-  let index = 0;
-  for (const char of Array.from(text)) {
-    clusters.push({
-      text: char,
-      start: index,
-      end: index + char.length,
-      width: displayClusterWidth(char),
-    });
-    index += char.length;
-  }
-  return clusters;
-}
-
-function previousClusterBoundary(text: string, column: number): number {
-  const clamped = Math.max(0, Math.min(text.length, column));
-  let previous = 0;
-  for (const cluster of splitClusters(text)) {
-    if (cluster.end >= clamped) return cluster.start;
-    previous = cluster.start;
-  }
-  return previous;
-}
-
-function nextClusterBoundary(text: string, column: number): number {
-  const clamped = Math.max(0, Math.min(text.length, column));
-  for (const cluster of splitClusters(text)) {
-    if (cluster.end > clamped) return cluster.end;
-  }
-  return text.length;
-}
-
-function previousWordBoundary(text: string, offset: number): number {
-  let cursor = Math.max(0, Math.min(text.length, offset));
-  while (cursor > 0) {
-    const previous = previousClusterBoundary(text, cursor);
-    if (!isWhitespaceCluster(text.slice(previous, cursor))) break;
-    cursor = previous;
-  }
-  while (cursor > 0) {
-    const previous = previousClusterBoundary(text, cursor);
-    if (isWhitespaceCluster(text.slice(previous, cursor))) break;
-    cursor = previous;
-  }
-  return cursor;
-}
-
-function nextWordBoundary(text: string, offset: number): number {
-  let cursor = Math.max(0, Math.min(text.length, offset));
-  while (cursor < text.length) {
-    const next = nextClusterBoundary(text, cursor);
-    if (!isWhitespaceCluster(text.slice(cursor, next))) break;
-    cursor = next;
-  }
-  while (cursor < text.length) {
-    const next = nextClusterBoundary(text, cursor);
-    if (isWhitespaceCluster(text.slice(cursor, next))) break;
-    cursor = next;
-  }
-  return cursor;
-}
-
-function isWhitespaceCluster(text: string): boolean {
-  return /^\s+$/u.test(text);
-}
-
-function snapColumnToBoundary(text: string, column: number): number {
-  const clamped = Math.max(0, Math.min(text.length, Math.floor(column)));
-  if (clamped === 0 || clamped === text.length) return clamped;
-  let previous = 0;
-  for (const cluster of splitClusters(text)) {
-    if (cluster.start === clamped || cluster.end === clamped) return clamped;
-    if (cluster.start > clamped) return previous;
-    previous = cluster.end;
-  }
-  return previous;
-}
-
-function columnAtDisplayWidth(text: string, targetWidth: number): number {
-  let width = 0;
-  for (const cluster of splitClusters(text)) {
-    if (width + cluster.width > targetWidth) return cluster.start;
-    width += cluster.width;
-    if (width === targetWidth) return cluster.end;
-  }
-  return text.length;
-}
-
-/**
- * Blank-line paragraph navigation: skip empty lines, then land on the first
- * non-empty line of the next/previous block. Falls back to document edges.
- */
-function findParagraphTargetLine(
-  lines: readonly string[],
-  fromLine: number,
-  direction: -1 | 1,
-): number {
-  if (lines.length === 0) return 0;
-  const last = lines.length - 1;
-  let line = clampInteger(fromLine, 0, last);
-
-  const isBlank = (index: number): boolean => (lines[index] ?? '').trim().length === 0;
-
-  if (direction < 0) {
-    // Move to the start of the current paragraph, or the previous one.
-    if (line > 0 && !isBlank(line) && !isBlank(line - 1)) {
-      while (line > 0 && !isBlank(line - 1)) line -= 1;
-      return line;
-    }
-    line = Math.max(0, line - 1);
-    while (line > 0 && isBlank(line)) line -= 1;
-    while (line > 0 && !isBlank(line - 1)) line -= 1;
-    return line;
-  }
-
-  // direction > 0: jump past the current paragraph to the next non-empty block.
-  if (line < last && !isBlank(line)) {
-    while (line < last && !isBlank(line + 1)) line += 1;
-    line = Math.min(last, line + 1);
-  } else {
-    line = Math.min(last, line + 1);
-  }
-  while (line < last && isBlank(line)) line += 1;
-  return line;
-}
