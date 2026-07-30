@@ -25,7 +25,6 @@ import {
   resolveLioraHome,
   writeConfigFile,
   type LioraConfig,
-  type McpServerConfig,
 } from '../config';
 import {
   FLAG_DEFINITIONS,
@@ -157,9 +156,6 @@ import type {
 } from './core-api';
 import type { ResumeSessionResult } from './resumed';
 import type { SDKRPC } from './sdk-api';
-import {
-  SUPERLIORA_PROVIDER_NAME,
-} from '@superliora/oauth';
 import type { SessionWarning } from '@superliora/protocol';
 import { proxyWithExtraPayload } from './types';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
@@ -174,86 +170,19 @@ import {
   warnIfLogFlushFails,
   withAdditionalDirs,
 } from './session-helpers';
+import { applyDeleteConfigFields, removeProviderFromConfig, validateDeleteConfigFields } from './config-ops';
+import * as pluginMethods from './plugin-methods';
+import {
+  combinePluginMcpConfig,
+  managedKimiCodeEnvForPlugins,
+  withManagedKimiPluginEnv,
+} from './plugin-mcp-env';
 
-const SUPERLIORA_BASE_URL_ENV = 'SUPERLIORA_BASE_URL';
-const SUPERLIORA_OAUTH_HOST_ENV = 'SUPERLIORA_OAUTH_HOST';
-const KIMI_OAUTH_HOST_ENV = 'KIMI_OAUTH_HOST';
 type AgentScopedPayload<T> = T & { readonly agentId: string };
 type SessionScopedPayload<T> = T & { readonly sessionId: string };
 type SessionAgentPayload<T> = SessionScopedPayload<AgentScopedPayload<T>>;
 type RenameSessionRequest = SessionScopedPayload<RenameSessionPayload>;
 type UpdateSessionMetadataRequest = SessionScopedPayload<UpdateSessionMetadataPayload>;
-type DeleteConfigFieldPath = DeleteConfigFieldsPayload['paths'][number];
-
-const DELETE_CONFIG_FIELD_PATHS = new Set<DeleteConfigFieldPath>([
-  'loopControl.compactionModel',
-  'loopControl.completionModel',
-  'loopControl.explorationModel',
-  'loopControl.codingModel',
-  'loopControl.planningModel',
-  'loopControl.debuggingModel',
-]);
-const CONFIG_PATH_SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/;
-
-function validateDeleteConfigFields(
-  input: DeleteConfigFieldsPayload,
-): readonly DeleteConfigFieldPath[] {
-  const rawInput = input as unknown;
-  if (
-    typeof rawInput !== 'object' ||
-    rawInput === null ||
-    Array.isArray(rawInput) ||
-    !Object.hasOwn(rawInput, 'paths')
-  ) {
-    throw new LioraError(ErrorCodes.CONFIG_INVALID, 'Invalid config field deletion request.');
-  }
-
-  const rawPaths = (rawInput as { readonly paths: unknown }).paths;
-  if (!Array.isArray(rawPaths)) {
-    throw new LioraError(
-      ErrorCodes.CONFIG_INVALID,
-      'Config field deletion paths must be a list of dot-delimited strings.',
-    );
-  }
-
-  return rawPaths.map((path) => {
-    if (typeof path !== 'string') {
-      throw new LioraError(
-        ErrorCodes.CONFIG_INVALID,
-        'Config field deletion paths must be dot-delimited strings.',
-      );
-    }
-
-    const segments = path.split('.');
-    if (
-      segments.length !== 2 ||
-      segments.some(
-        (segment) =>
-          segment === '__proto__' ||
-          segment === 'constructor' ||
-          !CONFIG_PATH_SEGMENT.test(segment),
-      )
-    ) {
-      throw new LioraError(ErrorCodes.CONFIG_INVALID, `Invalid config field path "${path}".`);
-    }
-
-    if (!DELETE_CONFIG_FIELD_PATHS.has(path as DeleteConfigFieldPath)) {
-      throw new LioraError(ErrorCodes.CONFIG_INVALID, `Unknown config field path "${path}".`);
-    }
-
-    return path as DeleteConfigFieldPath;
-  });
-}
-
-function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): boolean {
-  const loopControl = config.loopControl;
-  if (loopControl === undefined) return false;
-
-  const field = path.slice('loopControl.'.length) as keyof typeof loopControl;
-  if (!Object.hasOwn(loopControl, field)) return false;
-  delete loopControl[field];
-  return true;
-}
 
 export interface LioraCoreOptions {
   readonly homeDir?: string | undefined;
@@ -284,8 +213,8 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   private readonly skillDirs: readonly string[];
   private readonly sessionStore: SessionStore;
   readonly plugins: PluginManager;
-  private pluginsReady: Promise<void>;
-  private pluginsLoadError: Error | undefined;
+  pluginsReady: Promise<void>;
+  pluginsLoadError: Error | undefined;
   private readonly appVersion: string | undefined;
   private readonly experimentalFlags: FlagResolver;
   private readonly memory: LioraRecallStore;
@@ -818,11 +747,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   async deleteConfigFields(input: DeleteConfigFieldsPayload): Promise<LioraConfig> {
     const paths = validateDeleteConfigFields(input);
     const config = this.readConfigForWrite();
-    let deleted = false;
-    for (const path of paths) {
-      deleted = deleteConfigField(config, path) || deleted;
-    }
-    if (deleted) {
+    if (applyDeleteConfigFields(config, paths)) {
       await writeConfigFile(this.configPath, config);
     }
     return this.reloadRuntimeConfig();
@@ -830,31 +755,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
   async removeKimiProvider(input: RemoveKimiProviderPayload): Promise<LioraConfig> {
     const config = this.readConfigForWrite();
-    delete config.providers[input.providerId];
-
-    let removedDefault = false;
-    const existingModels = config.models ?? {};
-    for (const [key, model] of Object.entries(existingModels)) {
-      if (
-        typeof model === 'object' &&
-        model !== null &&
-        !Array.isArray(model) &&
-        model['provider'] === input.providerId
-      ) {
-        delete existingModels[key];
-        if (config.defaultModel === key) removedDefault = true;
-      }
-    }
-    config.models = existingModels;
-
-    if (removedDefault) {
-      config.defaultModel = undefined;
-    }
-
-    if (config.defaultProvider === input.providerId) {
-      config.defaultProvider = undefined;
-    }
-
+    removeProviderFromConfig(config, input.providerId);
     await writeConfigFile(this.configPath, config);
     return this.reloadRuntimeConfig();
   }
@@ -1242,77 +1143,31 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   }
 
   async installPlugin(payload: InstallPluginPayload): Promise<PluginSummary> {
-    await this.pluginsReady;
-    this.assertPluginsLoaded();
-    const record = await this.plugins.install(payload.source);
-    return this.plugins.summaries().find((s) => s.id === record.id)!;
+    return pluginMethods.installPlugin(this, payload);
   }
 
-  async listPlugins(_: EmptyPayload): Promise<readonly PluginSummary[]> {
-    await this.pluginsReady;
-    this.assertPluginsLoaded();
-    return this.plugins.summaries();
+  async listPlugins(payload: EmptyPayload): Promise<readonly PluginSummary[]> {
+    return pluginMethods.listPlugins(this, payload);
   }
 
-  async setPluginEnabled({ id, enabled }: SetPluginEnabledPayload): Promise<void> {
-    await this.pluginsReady;
-    this.assertPluginsLoaded();
-    await this.plugins.setEnabled(id, enabled);
+  async setPluginEnabled(payload: SetPluginEnabledPayload): Promise<void> {
+    return pluginMethods.setPluginEnabled(this, payload);
   }
 
-  async setPluginMcpServerEnabled({
-    id,
-    server,
-    enabled,
-  }: SetPluginMcpServerEnabledPayload): Promise<void> {
-    await this.pluginsReady;
-    this.assertPluginsLoaded();
-    await this.plugins.setMcpServerEnabled(id, server, enabled);
+  async setPluginMcpServerEnabled(payload: SetPluginMcpServerEnabledPayload): Promise<void> {
+    return pluginMethods.setPluginMcpServerEnabled(this, payload);
   }
 
-  async removePlugin({ id }: RemovePluginPayload): Promise<void> {
-    await this.pluginsReady;
-    this.assertPluginsLoaded();
-    await this.plugins.remove(id);
+  async removePlugin(payload: RemovePluginPayload): Promise<void> {
+    return pluginMethods.removePlugin(this, payload);
   }
 
-  async reloadPlugins(_: EmptyPayload): Promise<ReloadPluginsResult> {
-    try {
-      const summary = await this.plugins.reload();
-      this.pluginsLoadError = undefined;
-      return summary;
-    } catch (error) {
-      this.pluginsLoadError = error instanceof Error ? error : new Error(String(error));
-      throw new LioraError(
-        ErrorCodes.PLUGIN_LOAD_FAILED,
-        `Failed to reload plugins: ${this.pluginsLoadError.message}`,
-        { cause: error, details: { kimiHomeDir: this.homeDir } },
-      );
-    }
+  async reloadPlugins(payload: EmptyPayload): Promise<ReloadPluginsResult> {
+    return pluginMethods.reloadPlugins(this, payload);
   }
 
-  async getPluginInfo({ id }: GetPluginInfoPayload): Promise<PluginInfo> {
-    await this.pluginsReady;
-    this.assertPluginsLoaded();
-    const info = this.plugins.info(id);
-    if (info === undefined) {
-      throw new LioraError(
-        ErrorCodes.PLUGIN_NOT_FOUND,
-        `Plugin "${id}" is not installed`,
-        { details: { id } },
-      );
-    }
-    return info;
-  }
-
-  private assertPluginsLoaded(): void {
-    if (this.pluginsLoadError === undefined) return;
-    throw new LioraError(
-      ErrorCodes.PLUGIN_LOAD_FAILED,
-      `Plugin state failed to load: ${this.pluginsLoadError.message}. ` +
-        `Fix the file at ${this.homeDir}/plugins/installed.json and run /plugins reload.`,
-      { cause: this.pluginsLoadError, details: { kimiHomeDir: this.homeDir } },
-    );
+  async getPluginInfo(payload: GetPluginInfoPayload): Promise<PluginInfo> {
+    return pluginMethods.getPluginInfo(this, payload);
   }
 
   private async resolveRuntime(config: LioraConfig): Promise<ToolServices> {
@@ -1393,44 +1248,9 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   }
 
   private mergePluginMcpConfig(base: SessionMcpConfig | undefined): SessionMcpConfig | undefined {
-    const pluginServers = this.withManagedKimiPluginEnv(this.plugins.enabledMcpServers());
-    if (Object.keys(pluginServers).length === 0) return base;
-    return {
-      servers: {
-        ...base?.servers,
-        ...pluginServers,
-      },
-    };
-  }
-
-  private withManagedKimiPluginEnv(
-    pluginServers: Record<string, McpServerConfig>,
-  ): Record<string, McpServerConfig> {
-    const managedEnv = this.managedKimiCodeEnvForPlugins();
-    if (Object.keys(managedEnv).length === 0) return pluginServers;
-
-    const out: Record<string, McpServerConfig> = {};
-    for (const [name, server] of Object.entries(pluginServers)) {
-      out[name] =
-        server.transport === 'stdio'
-          ? { ...server, env: { ...server.env, ...managedEnv } }
-          : server;
-    }
-    return out;
-  }
-
-  private managedKimiCodeEnvForPlugins(): Record<string, string> {
-    const provider = this.config.providers[SUPERLIORA_PROVIDER_NAME];
-    const envBaseUrl = process.env[SUPERLIORA_BASE_URL_ENV];
-    const envOAuthHost = process.env[SUPERLIORA_OAUTH_HOST_ENV] ?? process.env[KIMI_OAUTH_HOST_ENV];
-    const hasEnvOverride = envBaseUrl !== undefined || envOAuthHost !== undefined;
-    const baseUrl =
-      envBaseUrl !== undefined ? envBaseUrl.replace(/\/+$/, '') : provider?.baseUrl;
-    const oauthHost = hasEnvOverride ? envOAuthHost : provider?.oauth?.oauthHost;
-    const env: Record<string, string> = {};
-    if (baseUrl !== undefined) env[SUPERLIORA_BASE_URL_ENV] = baseUrl;
-    if (oauthHost !== undefined) env[SUPERLIORA_OAUTH_HOST_ENV] = oauthHost;
-    return env;
+    const managedEnv = managedKimiCodeEnvForPlugins(this.config);
+    const pluginServers = withManagedKimiPluginEnv(this.plugins.enabledMcpServers(), managedEnv);
+    return combinePluginMcpConfig(base, pluginServers);
   }
 
   private requireSession(sessionId: string): Session {
