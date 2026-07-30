@@ -7,7 +7,7 @@
  */
 import { appearanceAnimationNow } from '#/tui/utils/appearance-effects';
 
-import type { TodoItem, TodoStatus } from './todo-panel';
+import type { TodoItem, TodoStatus } from './todo-panel-types';
 
 export const MAX_VISIBLE = 5;
 
