@@ -70,7 +70,7 @@ function stringifyToolPayloadPreview(value: unknown): string | undefined {
       if (json === undefined) return undefined;
       text = json;
     } catch {
-      text = String(value);
+      text = '[unserializable]';
     }
   }
   const flat = text.replace(/\s+/g, ' ').trim();
@@ -182,7 +182,7 @@ function countEditLineChanges(
   const oldCount = oldLines.length;
   const newCount = newLines.length;
   const dp: number[][] = Array.from({ length: oldCount + 1 }, () =>
-    new Array<number>(newCount + 1).fill(0),
+    Array.from({ length: newCount + 1 }, () => 0),
   );
   for (let i = 1; i <= oldCount; i++) {
     for (let j = 1; j <= newCount; j++) {
