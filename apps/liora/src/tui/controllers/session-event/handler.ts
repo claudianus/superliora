@@ -3,9 +3,9 @@ import type {
   BackgroundTaskInfo,
   Event,
   GoalChange,
-  QueuedMessage,
   Session,
 } from '@superliora/sdk';
+import type { QueuedMessage } from '../../types';
 
 import { MoonLoader } from '../../components/chrome/moon-loader';
 import {

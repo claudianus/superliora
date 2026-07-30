@@ -94,6 +94,7 @@ import {
 } from './tool-registry';
 import { type PendingToolGroup } from './tool-groups';
 export type { StreamingUIHost } from './host-types';
+import type { StreamingUIHost } from './host-types';
 
 export class StreamingUIController {
   private readonly _flushState: StreamingFlushState = createStreamingFlushState();

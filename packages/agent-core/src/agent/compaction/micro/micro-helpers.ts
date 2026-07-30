@@ -1,7 +1,10 @@
 import type { ContentPart } from '@superliora/kosong';
+import { readdirSync, rmSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 import type { ContextMessage } from '../../context';
 import { isSwarmToolResult, maskStaleSwarmToolResult } from './boundary-compaction';
+import { MICRO_TOOL_RESULT_FAMILY_KEEP } from './micro-constants';
 export function contentPreview(parts: readonly ContentPart[]): string {
   return parts.map((part) => truncateForMarker(contentPartPreview(part), 80)).join('\n').trim();
 }

@@ -40,7 +40,7 @@ const CANDIDATE_JSON_NAMES = new Set([
 ]);
 
 export async function handleBenchCommand(host: SlashCommandHost, args: string): Promise<void> {
-  const { UsagePanelComponent } = await import('../components/messages/usage-panel/index');
+  const { UsagePanelComponent } = await import('../../components/messages/usage-panel/index');
   const status = loadBenchStatus(host.state.appState.workDir, args);
   const panel = new UsagePanelComponent(() => buildBenchStatusLines(status), 'primary', ' Bench ');
   host.state.transcriptContainer.addChild(panel);

@@ -53,7 +53,7 @@ export class QuestionDialogComponent
 
   readonly onToggleToolOutput: (() => void) | undefined;
 
-  private readonly onAnswer: (response: QuestionPanelResponse) => void;
+  private readonly answerCallback: (response: QuestionPanelResponse) => void;
 
   constructor(
     request: PendingQuestion,
@@ -63,7 +63,7 @@ export class QuestionDialogComponent
   ) {
     super();
     this.request = request;
-    this.onAnswer = onAnswer;
+    this.answerCallback = onAnswer;
     this.maxVisibleOptions = maxVisibleOptions;
     this.onToggleToolOutput = onToggleToolOutput;
     this.otherInput.onSubmit = (value) => {
@@ -83,6 +83,10 @@ export class QuestionDialogComponent
 
   handleInput(data: string): void {
     handleQuestionDialogInput(this, data);
+  }
+
+  onAnswer(response: { answers: string[]; method?: QuestionSubmissionMethod }): void {
+    this.answerCallback(response);
   }
 
   // ── State mutation ────────────────────────────────────────────────

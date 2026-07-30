@@ -79,7 +79,7 @@ async function resumeGoalFromQueue(host: StartupLifecycleHost): Promise<void> {
   if (session === undefined) return;
 
   try {
-    const { readGoalQueue, removeGoalQueueItem } = await import('../goal-queue-store');
+    const { readGoalQueue, removeGoalQueueItem } = await import('../../goal-queue-store');
     const queue = await readGoalQueue(session);
     const firstGoal = queue.goals[0];
     if (firstGoal === undefined) {

@@ -22,6 +22,8 @@ export interface NativeTUIEditorDispatchHost extends NativeTUIEditorShortcutHost
   getDisablePasteBurst(): boolean;
   getGhostText(): string | undefined;
   getText(): string;
+  getLines(): string[];
+  getCursor(): import('#/tui/renderer').RendererEditorCursor;
   onPasteText?: (text: string) => boolean;
   onTextPaste?: () => void;
   onInsertNewline?: () => void;

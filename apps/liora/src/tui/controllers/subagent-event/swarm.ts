@@ -6,6 +6,7 @@ import {
   agentSwarmGridHeightForTerminalRows,
   swarmProgressTitleForToolName,
 } from '../../components/messages/agent-swarm-progress/index';
+import type { TodoItem } from '../../components/chrome/todo/todo-panel-types';
 import { describeSubagentToolFeedBody } from '../../components/subagents/subagent-activity';
 import type { ToolResultBlockData } from '../../types';
 import type { TUIState } from '../../tui-state';
@@ -435,7 +436,7 @@ export class SubagentSwarmCoordinator {
   ): void {
     const progress = this.progressByToolCallId.get(parentToolCallId);
     if (progress === undefined) return;
-    progress.applyMemberTodos(subagentId, todos);
+    progress.applyMemberTodos(subagentId, todos as readonly TodoItem[]);
   }
 
   private updateProgress(

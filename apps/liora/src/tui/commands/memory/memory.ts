@@ -95,7 +95,7 @@ async function searchMemories(host: SlashCommandHost, query: string): Promise<vo
 }
 
 async function showMemoryReadiness(host: SlashCommandHost, query: string): Promise<void> {
-  const { UsagePanelComponent } = await import('../components/messages/usage-panel/index');
+  const { UsagePanelComponent } = await import('../../components/messages/usage-panel/index');
   const statsResult = await loadMemoryStats(host);
   const searchResult = await loadMemoryReadinessSearch(host, query);
   const evidence = loadMemoryReadinessEvidence(host.state.appState.workDir);

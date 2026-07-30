@@ -1,7 +1,6 @@
 import type { Agent } from '../agent';
 
 import type {
-  DebateParticipant,
   DebatePhase,
   DebateState,
   DebateTurn,

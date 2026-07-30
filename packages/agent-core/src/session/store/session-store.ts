@@ -16,6 +16,7 @@ import {
   dropForkedSessionFiles,
   forkCustomMetadata,
   isDirectory,
+  isRecord,
   isSafeSessionId,
   latestAgentWireMtime,
   metadataFromState,

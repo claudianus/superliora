@@ -4,7 +4,7 @@
  * availability, argument hints, and completion function references).
  */
 
-import type { LioraSlashCommand } from '../../types';
+import type { LioraSlashCommand } from '../types';
 import { BUILTIN_SLASH_COMMANDS_MODES } from './command-list-modes';
 import { BUILTIN_SLASH_COMMANDS_SESSION } from './command-list-session';
 

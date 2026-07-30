@@ -2,7 +2,7 @@ import type { AgentGroupComponent } from '../../components/messages/agent-group'
 import type { ReadGroupComponent } from '../../components/messages/read-group';
 import type { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
-import type { ToolCallBlockData } from '../../types';
+import type { LivePaneState, ToolCallBlockData } from '../../types';
 
 import {
   settleActiveChainSummary as settleActiveChainSummaryHelper,
@@ -12,6 +12,7 @@ import type { StreamingUIHost } from './host-types';
 import {
   shouldSmoothStreamReveal as shouldSmoothStreamRevealHelper,
   type StreamingRevealContext,
+  type StreamingRevealRuntime,
 } from './reveal';
 import type { StreamingTextBlock, TextRenderContext } from './text-render';
 import type { ToolRenderContext } from './tool-render';
@@ -40,7 +41,7 @@ export function createStreamingRenderContextState(args: {
   setActiveThinkingComponent: (component: ThinkingComponent | undefined) => void;
   setPendingAgentGroup: (group: PendingToolGroup<AgentGroupComponent> | null) => void;
   setPendingReadGroup: (group: PendingToolGroup<ReadGroupComponent> | null) => void;
-  finalizeLiveTextBuffers: (mode: 'assistant' | 'thinking' | 'tool') => void;
+  finalizeLiveTextBuffers: (mode: LivePaneState['mode']) => void;
   onToolCallStart: (toolCall: ToolCallBlockData) => void;
 }): StreamingRenderContextState {
   return args;
@@ -52,7 +53,7 @@ export function createStreamingToolRegistryState(args: {
   activeToolCalls: Map<string, ToolCallBlockData>;
   pendingToolComponents: Map<string, ToolCallComponent>;
   streamingToolCallArguments: Map<string, { name?: string; argumentsText: string; startedAtMs: number }>;
-  finalizeLiveTextBuffers: (mode?: 'assistant' | 'thinking' | 'tool') => void;
+  finalizeLiveTextBuffers: (mode?: LivePaneState['mode']) => void;
   onToolCallStart: (toolCall: ToolCallBlockData) => void;
   onToolCallEnd: (toolCallId: string, result: import('../../types').ToolResultBlockData) => void;
 }): StreamingUIToolRegistryState {
@@ -81,7 +82,7 @@ export interface StreamingUIRenderContextHost {
   setActiveThinkingComponent(component: ThinkingComponent | undefined): void;
   setPendingAgentGroup(group: PendingToolGroup<AgentGroupComponent> | null): void;
   setPendingReadGroup(group: PendingToolGroup<ReadGroupComponent> | null): void;
-  finalizeLiveTextBuffers(mode: 'assistant' | 'thinking' | 'tool'): void;
+  finalizeLiveTextBuffers(mode: LivePaneState['mode']): void;
   onToolCallStart(toolCall: ToolCallBlockData): void;
 }
 
@@ -108,14 +109,6 @@ export function buildStreamingToolRegistryStateFromParts(
   return createStreamingToolRegistryState(parts);
 }
 
-export interface StreamingRevealRuntime {
-  revealTimer: ReturnType<typeof setTimeout> | undefined;
-  channels: {
-    assistantReveal: unknown;
-    thinkingReveal: unknown;
-  };
-}
-
 export interface StreamingRenderContextState {
   host: StreamingUIHost;
   revealRuntime: StreamingRevealRuntime;
@@ -137,7 +130,7 @@ export interface StreamingRenderContextState {
   setActiveThinkingComponent(component: ThinkingComponent | undefined): void;
   setPendingAgentGroup(group: PendingToolGroup<AgentGroupComponent> | null): void;
   setPendingReadGroup(group: PendingToolGroup<ReadGroupComponent> | null): void;
-  finalizeLiveTextBuffers(mode: 'assistant' | 'thinking' | 'tool'): void;
+  finalizeLiveTextBuffers(mode: LivePaneState['mode']): void;
   onToolCallStart(toolCall: ToolCallBlockData): void;
 }
 

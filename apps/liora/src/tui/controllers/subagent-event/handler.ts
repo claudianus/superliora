@@ -158,8 +158,8 @@ export class SubAgentEventHandler {
     this.activityPanel.recordToolResult({
       subagentId: event.subagentId,
       toolCallId: event.toolCallId,
-      name: event.name,
-      isError: event.isError,
+      name: event.name ?? '',
+      isError: event.isError ?? false,
     });
   }
 

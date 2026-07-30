@@ -30,31 +30,31 @@ export * from './types';
 export type { McpToolEntry };
 
 export class ToolManager {
-  protected builtinTools: Map<string, BuiltinTool> = new Map();
-  protected readonly userTools: Map<string, ExecutableTool> = new Map();
-  protected readonly mcpTools: Map<string, McpToolEntry> = new Map();
-  private loopToolsOverride: readonly ExecutableTool[] | undefined;
-  private readonly ephemeralBuiltinTools = new Map<string, BuiltinTool>();
+  builtinTools: Map<string, BuiltinTool> = new Map();
+  readonly userTools: Map<string, ExecutableTool> = new Map();
+  readonly mcpTools: Map<string, McpToolEntry> = new Map();
+  loopToolsOverride: readonly ExecutableTool[] | undefined;
+  readonly ephemeralBuiltinTools = new Map<string, BuiltinTool>();
   /** server name → list of qualified tool names registered for that server. */
-  protected readonly mcpToolsByServer: Map<string, string[]> = new Map();
-  protected enabledTools: Set<string> = new Set();
+  readonly mcpToolsByServer: Map<string, string[]> = new Map();
+  enabledTools: Set<string> = new Set();
   /** Glob patterns (e.g. `mcp__*`, `mcp__github__*`) gating which MCP tools the profile exposes. */
-  private mcpAccessPatterns: string[] = [];
+  mcpAccessPatterns: string[] = [];
   protected readonly store: Partial<ToolStoreData> = {};
   private mcpToolStatusUnsubscribe: (() => void) | undefined;
 
   /** Abort controllers for in-flight `!` shell commands, keyed by commandId so
    *  the TUI can cancel (Esc / Ctrl+C) a running command. */
-  private readonly shellCommandControllers = new Map<string, AbortController>();
+  readonly shellCommandControllers = new Map<string, AbortController>();
 
-  constructor(protected readonly agent: Agent) {
+  constructor(readonly agent: Agent) {
     this.attachMcpTools();
     if (agent.config.hasProvider) {
       this.initializeBuiltinTools();
     }
   }
 
-  protected get toolStore(): ToolStore {
+  get toolStore(): ToolStore {
     return {
       get: (key) => this.store[key],
       set: (key, value) => {
@@ -265,8 +265,8 @@ export class ToolManager {
     return resolveLoopTools(this);
   }
 
-  private lastVisualGateDensity: 'visual' | 'code' | undefined;
-  private pendingVisualGateDensityCount = 0;
+  lastVisualGateDensity: 'visual' | 'code' | undefined;
+  pendingVisualGateDensityCount = 0;
 
   /**
    * Visual density hysteresis is retained for telemetry but no longer gates

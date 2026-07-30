@@ -126,7 +126,7 @@ export const lioraCallgraphGlance: GlanceFn = (toolCall, result) => {
   const head = symbol.length > 0 ? `${symbol} · ` : '';
   return `${head}${samples.join(' · ')}`;
 };
-const context7ResolveGlance: GlanceFn = (_toolCall, result) => {
+export const context7ResolveGlance: GlanceFn = (_toolCall, result) => {
   if (result.output.includes('No libraries found')) return 'no libraries';
   const samples: string[] = [];
   let pendingTitle: string | undefined;
@@ -147,7 +147,7 @@ const context7ResolveGlance: GlanceFn = (_toolCall, result) => {
   return samples.join(' · ');
 };
 
-const context7DocsGlance: GlanceFn = (toolCall, result) => {
+export const context7DocsGlance: GlanceFn = (toolCall, result) => {
   if (result.output.includes('No documentation snippets matched')) return 'no snippets';
   const libraryId = typeof toolCall.args['library_id'] === 'string' ? toolCall.args['library_id'] : '';
   const titles: string[] = [];

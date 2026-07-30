@@ -8,7 +8,7 @@ import {
   rebuildToolCallSubagentBlock,
   type ToolCallBodyRebuildHost,
 } from './body-rebuild';
-import type { ToolCallCallPreviewHost } from './call-preview';
+import type { ToolCallCallPreview, ToolCallCallPreviewHost } from './call-preview';
 import { toolHeaderEntranceStartedAt } from './entrance';
 import { composeToolCallHeader, type ToolCallHeaderState } from './header';
 import type { ToolCallSubagentState } from './subagent-state';
@@ -24,7 +24,7 @@ export interface ToolCallInternalsHost {
   progressLines: string[];
   liveOutput: string;
   subagent: ToolCallSubagentState;
-  callPreview: ToolCallCallPreviewHost;
+  callPreview: ToolCallCallPreview;
   outputViewport: ToolCallBodyRebuildHost['outputViewport'];
   detachHint: ToolCallBodyRebuildHost['detachHint'];
   children: ToolCallBodyRebuildHost['children'];

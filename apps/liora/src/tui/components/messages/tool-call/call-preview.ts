@@ -86,7 +86,7 @@ export class ToolCallCallPreview {
     }
   }
 
-  private addItems(host: ToolCallCallPreviewHost, items: readonly Text[]): void {
+  private addItems(host: ToolCallCallPreviewHost, items: readonly Component[]): void {
     if (!host.previewRevealEligible) {
       for (const item of items) host.addChild(item);
       this.builtPreviewItemCount = items.length;

@@ -158,7 +158,11 @@ export function buildPluginsInfoLines(input: PluginsInfoPanelInput): readonly st
     }
   }
 
-  const iface = info.manifest?.interface;
+  const iface = (info.manifest as { interface?: {
+    shortDescription?: string;
+    developerName?: string;
+    websiteURL?: string;
+  } } | undefined)?.interface;
   if (iface !== undefined) {
     lines.push('');
     lines.push(value('Display:'));
