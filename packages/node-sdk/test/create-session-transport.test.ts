@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import type { Kaos } from '@superliora/kaos';
 import { createLioraHarness, LioraHarness } from '#/index';
 import type { LioraError } from '#/index';
-import type { ResumeSessionInput, ResumedSessionSummary } from '#/types';
-import { SDKRpcClientBase, type SetSessionPlanModeRpcInput } from '#/rpc';
+import type { ResumeSessionInput, ResumedSessionSummary } from '#/session/types';
+import { SDKRpcClientBase, type SetSessionPlanModeRpcInput } from '#/rpc/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { waitForAgentWireEvent } from './session-runtime-helpers';

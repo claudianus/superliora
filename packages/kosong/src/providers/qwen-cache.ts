@@ -1,4 +1,4 @@
-import type { OpenAIContentPart } from './openai-common';
+import type { OpenAIContentPart } from '#/providers/openai/openai-common';
 
 /**
  * Qwen/DashScope explicit context-cache marker (Chat Completions compatible).

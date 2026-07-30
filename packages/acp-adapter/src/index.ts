@@ -8,14 +8,14 @@ export type { AcpBuiltinSlashCommandName } from './builtin-commands';
 export { CURRENT_VERSION, MIN_PROTOCOL_VERSION, negotiateVersion } from './version';
 export type { AcpVersionSpec } from './version';
 export { TERMINAL_AUTH_METHOD, buildTerminalAuthMethod } from './auth-methods';
-export { AcpServer, runAcpServer, runAcpServerWithStream } from './server';
-export type { SlashCommandsSnapshot } from './server';
-export { AcpSession } from './session';
+export { AcpServer, runAcpServer, runAcpServerWithStream } from '#/server/server';
+export type { SlashCommandsSnapshot } from '#/server/server';
+export { AcpSession } from '#/session/session';
 export {
   acpBlocksToPromptParts,
   displayBlockToAcpContent,
   toolResultToAcpContent,
-} from './convert';
+} from '#/convert/convert';
 export {
   acpToolCallId,
   assistantDeltaToSessionUpdate,
@@ -29,7 +29,7 @@ export {
   toolProgressToSessionUpdate,
   toolResultToSessionUpdate,
   turnEndReasonToStopReason,
-} from './events-map';
+} from '#/convert/events-map';
 export type { AcpStopReason, AcpToolCallStatus, AcpToolKind } from './types';
 export { HideOutputMarker, isHideOutputMarker } from './marker';
 export { redirectConsoleToStderr } from './log-guard';

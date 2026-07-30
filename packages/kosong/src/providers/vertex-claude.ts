@@ -13,7 +13,7 @@
 
 import AnthropicVertex from '@anthropic-ai/vertex-sdk';
 
-import { AnthropicChatProvider, type AnthropicOptions } from './anthropic';
+import { AnthropicChatProvider, type AnthropicOptions } from './anthropic/anthropic';
 import type { ProviderRequestAuth } from '../provider';
 
 export interface VertexClaudeOptions

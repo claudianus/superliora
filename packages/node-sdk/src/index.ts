@@ -1,5 +1,5 @@
-export { LioraHarness, LioraMemoryClient } from '#/liora-harness';
-export type { LioraHarnessRuntimeOptions } from '#/liora-harness';
+export { LioraHarness, LioraMemoryClient } from '#/harness/liora-harness';
+export type { LioraHarnessRuntimeOptions } from '#/harness/liora-harness';
 export {
   HarnessDiagnostics,
   type DiagnosticCallbacks,
@@ -7,16 +7,16 @@ export {
   type DiagnosticOptions,
   type DiagnosticSeverity,
   type HealthSnapshot,
-} from '#/harness-diagnostics';
-export { Session } from '#/session';
-export { tryAutoResumeUltrawork, ensureUltraworkResumeSetup } from '#/ultrawork-auto-resume';
-export type { AutoResumeUltraworkResult } from '#/ultrawork-auto-resume';
+} from '#/harness/harness-diagnostics';
+export { Session } from '#/session/session';
+export { tryAutoResumeUltrawork, ensureUltraworkResumeSetup } from '#/session/ultrawork-auto-resume';
+export type { AutoResumeUltraworkResult } from '#/session/ultrawork-auto-resume';
 export { LioraAuthFacade } from '#/auth';
 export {
   createLioraHarness,
   SDKRpcClient,
   type SDKRpcClientOptions,
-} from '#/sdk-rpc-client';
+} from '#/rpc/sdk-rpc-client';
 export {
   createLioraConfigRpc,
   LioraConfigRpcClient,
@@ -25,8 +25,8 @@ export {
   type LioraConfigValidationPathSegment,
   type ResolveLioraConfigPathInput,
   type ValidateLioraConfigTomlInput,
-} from '#/config-rpc';
-export { SDKRpcClientBase } from '#/rpc';
+} from '#/rpc/config-rpc';
+export { SDKRpcClientBase } from '#/rpc/rpc';
 export { KimiForCodingProvider } from '#/kimi-code-model-provider';
 export type { KimiForCodingProviderOptions } from '#/kimi-code-model-provider';
 
@@ -244,8 +244,8 @@ export type {
   ProviderUsageSnapshot,
 } from '@superliora/oauth';
 
-export * from '#/events';
-export type * from '#/types';
+export * from '#/session/events';
+export type * from '#/session/types';
 
 // Browser-use runtime for in-app browser
 export {

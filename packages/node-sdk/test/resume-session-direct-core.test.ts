@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SDKRpcClient } from '#/sdk-rpc-client';
-import type { ResumedSessionSummary } from '#/types';
+import { SDKRpcClient } from '#/rpc/sdk-rpc-client';
+import type { ResumedSessionSummary } from '#/session/types';
 
 import { TEST_IDENTITY } from './test-identity';
 

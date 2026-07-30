@@ -14,7 +14,7 @@
 
 import AnthropicBedrock from '@anthropic-ai/bedrock-sdk';
 
-import { AnthropicChatProvider, type AnthropicOptions } from './anthropic';
+import { AnthropicChatProvider, type AnthropicOptions } from './anthropic/anthropic';
 import type { ProviderRequestAuth } from '../provider';
 
 export interface BedrockOptions extends Omit<AnthropicOptions, 'baseUrl' | 'clientFactory'> {

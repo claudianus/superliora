@@ -6,8 +6,8 @@ import type {
 } from '@agentclientprotocol/sdk';
 import type { ApprovalRequest, ApprovalResponse } from '@superliora/sdk';
 
-import { displayBlockToAcpContent } from './convert';
-import { acpToolCallId } from './events-map';
+import { displayBlockToAcpContent } from '#/convert/convert';
+import { acpToolCallId } from '#/convert/events-map';
 
 /**
  * Canonical option ids surfaced to the ACP client.

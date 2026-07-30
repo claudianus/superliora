@@ -6,7 +6,7 @@ import {
   assistantDeltaToSessionUpdate,
   thinkingDeltaToSessionUpdate,
   toolCallStartToSessionUpdate,
-} from './events-map';
+} from '#/convert/events-map';
 
 /**
  * Per-replay bookkeeping threaded through {@link replayMessage} by

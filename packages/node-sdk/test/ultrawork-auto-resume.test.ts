@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { UltraworkRun } from '#/types';
+import type { UltraworkRun } from '#/session/types';
 import {
   ensureUltraworkResumeSetup,
   tryAutoResumeUltrawork,
   type UltraworkAutoResumeSession,
-} from '#/ultrawork-auto-resume';
+} from '#/session/ultrawork-auto-resume';
 
 function sampleStatus(overrides: { swarmMode?: boolean; planMode?: boolean } = {}) {
   return {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { Session } from '#/session';
-import type { SDKRpcClientBase } from '#/rpc';
+import { Session } from '#/session/session';
+import type { SDKRpcClientBase } from '#/rpc/rpc';
 
 function makeSession() {
   const rpc = {
