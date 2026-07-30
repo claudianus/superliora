@@ -22,7 +22,6 @@ const FAIL_AT = 1500;
 /** Remaining god-files tracked for incremental shrink. Remove as they drop ≤1500. */
 const FAIL_ALLOWLIST = new Set([
   'apps/liora/src/tui/liora-tui.ts',
-  'apps/liora/src/tui/components/messages/agent-swarm-progress.ts',
   'apps/liora/src/tui/components/messages/tool-call.ts',
 ]);
 
