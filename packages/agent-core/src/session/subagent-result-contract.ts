@@ -10,6 +10,7 @@
 
 import type { Kaos } from '@superliora/kaos';
 
+import type { Agent } from '../agent';
 import { runGit, type GitResult } from './git-context';
 
 export type VerificationVerdict = 'passed' | 'failed' | 'not_run';
@@ -111,6 +112,15 @@ export function computeFilesChanged(options: {
     if (file.length > 0 && !before.has(file)) merged.add(file);
   }
   return [...merged].sort().slice(0, MAX_FILES_CHANGED);
+}
+
+/** Best-effort git snapshot for a child agent; never throws (T4-2/T4-6). */
+export async function snapshotChildWork(child: Agent): Promise<GitWorkSnapshot> {
+  try {
+    return await snapshotGitWork(child.kaos, child.config.cwd);
+  } catch {
+    return { head: undefined, dirtyFiles: [] };
+  }
 }
 
 export async function snapshotGitWork(kaos: Kaos, cwd: string): Promise<GitWorkSnapshot> {

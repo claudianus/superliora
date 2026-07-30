@@ -42,6 +42,10 @@ import {
   type QueuedSubagentTask,
   type RunSubagentOptions,
 } from '../../src/session/subagent-host';
+import {
+  attachToolStreamBridge,
+  startProgressReporter,
+} from '../../src/session/subagent-telemetry';
 import { abortError, userCancellationReason } from '../../src/utils/abort';
 import { testAgent, type AgentTestContext } from '../agent/harness/agent';
 import { createScriptedGenerate } from '../agent/harness/scripted-generate';
@@ -282,22 +286,17 @@ describe('SessionSubagentHost', () => {
     parent.configure();
     parent.newEvents();
     const child = testAgent();
-    const session = fakeSession(parent.agent, child.agent);
-    const host = new SessionSubagentHost(session, 'main');
+    fakeSession(parent.agent, child.agent);
 
     vi.useFakeTimers();
     try {
-      const reporter = (
-        host as unknown as {
-          startProgressReporter(
-            parentAgent: Agent,
-            childAgent: Agent,
-            subagentId: string,
-            profileName: string,
-            budgetMs: number,
-          ): () => void;
-        }
-      ).startProgressReporter(parent.agent, child.agent, 'agent-0', 'coder', 600_000);
+      const reporter = startProgressReporter(
+        parent.agent,
+        child.agent,
+        'agent-0',
+        'coder',
+        600_000,
+      );
 
       vi.advanceTimersByTime(5_000);
       expect(parent.allEvents).toContainEqual(
@@ -334,8 +333,7 @@ describe('SessionSubagentHost', () => {
     parent.configure();
     parent.newEvents();
     const child = testAgent();
-    const session = fakeSession(parent.agent, child.agent);
-    const host = new SessionSubagentHost(session, 'main');
+    fakeSession(parent.agent, child.agent);
     const options: RunSubagentOptions = {
       parentToolCallId: 'tc-1',
       prompt: 'work',
@@ -343,17 +341,13 @@ describe('SessionSubagentHost', () => {
       runInBackground: true,
       signal,
     };
-    const dispose = (
-      host as unknown as {
-        attachToolStreamBridge(
-          parentAgent: Agent,
-          childAgent: Agent,
-          subagentId: string,
-          profileName: string,
-          runOptions: RunSubagentOptions,
-        ): () => void;
-      }
-    ).attachToolStreamBridge(parent.agent, child.agent, 'agent-0', 'coder', options);
+    const dispose = attachToolStreamBridge(
+      parent.agent,
+      child.agent,
+      'agent-0',
+      'coder',
+      options,
+    );
 
     try {
       child.agent.emitEvent({
@@ -426,8 +420,7 @@ describe('SessionSubagentHost', () => {
     parent.configure();
     parent.newEvents();
     const child = testAgent();
-    const session = fakeSession(parent.agent, child.agent);
-    const host = new SessionSubagentHost(session, 'main');
+    fakeSession(parent.agent, child.agent);
     const options: RunSubagentOptions = {
       parentToolCallId: 'tc-1',
       prompt: 'work',
@@ -435,17 +428,13 @@ describe('SessionSubagentHost', () => {
       runInBackground: true,
       signal,
     };
-    const dispose = (
-      host as unknown as {
-        attachToolStreamBridge(
-          parentAgent: Agent,
-          childAgent: Agent,
-          subagentId: string,
-          profileName: string,
-          runOptions: RunSubagentOptions,
-        ): () => void;
-      }
-    ).attachToolStreamBridge(parent.agent, child.agent, 'agent-0', 'coder', options);
+    const dispose = attachToolStreamBridge(
+      parent.agent,
+      child.agent,
+      'agent-0',
+      'coder',
+      options,
+    );
 
     try {
       child.agent.emitEvent({
@@ -549,22 +538,17 @@ describe('SessionSubagentHost', () => {
     parent.configure();
     parent.newEvents();
     const child = testAgent();
-    const session = fakeSession(parent.agent, child.agent);
-    const host = new SessionSubagentHost(session, 'main');
+    fakeSession(parent.agent, child.agent);
 
     vi.useFakeTimers();
     try {
-      const reporter = (
-        host as unknown as {
-          startProgressReporter(
-            parentAgent: Agent,
-            childAgent: Agent,
-            subagentId: string,
-            profileName: string,
-            budgetMs: number,
-          ): () => void;
-        }
-      ).startProgressReporter(parent.agent, child.agent, 'agent-0', 'coder', 360_000);
+      const reporter = startProgressReporter(
+        parent.agent,
+        child.agent,
+        'agent-0',
+        'coder',
+        360_000,
+      );
 
       // 60s elapsed leaves exactly the 5-minute finishing window.
       vi.advanceTimersByTime(60_000);
