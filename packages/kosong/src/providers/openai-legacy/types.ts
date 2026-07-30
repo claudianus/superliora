@@ -1,10 +1,10 @@
 import type OpenAI from 'openai';
 
 import type { ProviderRequestAuth } from '#/provider';
-import type { ToolMessageConversion } from './openai-common';
-import type { OpenAIContentPart } from './openai-common';
-import type { ToolCallIdPolicy } from './tool-call-id';
-import { sanitizeToolCallId } from './tool-call-id';
+import type { ToolMessageConversion } from '../openai-common';
+import type { OpenAIContentPart } from '../openai-common';
+import type { ToolCallIdPolicy } from '../tool-call-id';
+import { sanitizeToolCallId } from '../tool-call-id';
 
 // Inbound: scan in priority order; first string value wins. Outbound: the first
 // entry doubles as the default field we serialize ThinkPart back into. Both

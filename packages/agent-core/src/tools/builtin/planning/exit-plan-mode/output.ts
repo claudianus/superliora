@@ -6,7 +6,7 @@ import {
   ULTRA_PLAN_DRIFT_THRESHOLD,
   type DriftMetrics,
 } from '#/agent/plan/ultra-plan-mode';
-import type { ExecutableToolResult } from '../../../loop/types';
+import type { ExecutableToolResult } from '../../../../loop/types';
 
 export type UltraPlanDriftResult =
   | { readonly ok: true; readonly metrics: DriftMetrics; readonly warning?: string }

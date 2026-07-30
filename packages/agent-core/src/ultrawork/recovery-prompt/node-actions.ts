@@ -1,6 +1,6 @@
 import type { UltraworkRun, WorkGraphNode } from '@superliora/protocol';
 
-import { analyzeFailedNodes } from './stage-progress';
+import { analyzeFailedNodes } from '../stage-progress';
 
 /** Shared UpdateGoal(complete) ban for status=failed WorkGraph nodes. */
 export function formatFailedNodeCompleteBan(): string {

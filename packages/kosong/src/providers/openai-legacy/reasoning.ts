@@ -1,4 +1,4 @@
-import { KNOWN_REASONING_KEYS } from './openai-legacy-types';
+import { KNOWN_REASONING_KEYS } from './types';
 
 export function extractReasoningContent(
   source: unknown,

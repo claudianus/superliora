@@ -1,4 +1,4 @@
-import { detectLongRunningStage, OSCILLATION_WARN_THRESHOLD } from './stage-progress';
+import { detectLongRunningStage, OSCILLATION_WARN_THRESHOLD } from '../stage-progress';
 
 /** Match recovery-triangle high-resume oscillation next_actions. */
 export function formatHighResumeOscillationNextActions(resumeCycles: number): readonly string[] {

@@ -7,9 +7,9 @@ import {
   TOOL_RESULT_MEDIA_PLACEHOLDER,
   TOOL_RESULT_MEDIA_PROMPT,
   type ToolMessageConversion,
-} from './openai-common';
-import { DEFAULT_OUTBOUND_REASONING_KEY } from './openai-legacy-types';
-import type { OpenAIMessage } from './openai-legacy-types';
+} from '../openai-common';
+import { DEFAULT_OUTBOUND_REASONING_KEY } from './types';
+import type { OpenAIMessage } from './types';
 
 // Chat Completions has no url-based audio/video content part (only base64
 // `input_audio`), so unlike images these cannot be reattached as user input.
