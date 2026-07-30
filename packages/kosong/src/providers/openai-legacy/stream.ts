@@ -8,7 +8,7 @@ import {
   extractUsage,
   isFunctionToolCall,
   normalizeOpenAIFinishReason,
-} from '../openai-common';
+} from '../openai/openai-common';
 import {
   convertChatCompletionStreamToolCall,
   type BufferedChatCompletionToolCall,

@@ -7,7 +7,7 @@ import {
   TOOL_RESULT_MEDIA_PLACEHOLDER,
   TOOL_RESULT_MEDIA_PROMPT,
   type ToolMessageConversion,
-} from '../openai-common';
+} from '../openai/openai-common';
 import { DEFAULT_OUTBOUND_REASONING_KEY } from './types';
 import type { OpenAIMessage } from './types';
 

@@ -13,7 +13,7 @@ import {
   type SkillActivatedEvent,
   type SkillSummary,
 } from '#/index';
-import type { SDKRpcClientBase } from '#/rpc';
+import type { SDKRpcClientBase } from '#/rpc/rpc';
 
 import { normalizeWorkDir } from '../../agent-core/src/session/store';
 import {

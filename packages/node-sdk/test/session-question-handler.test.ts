@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { Session, type QuestionHandler, type QuestionRequest, type QuestionResult } from '#/index';
-import type { SDKRpcClientBase } from '#/rpc';
+import type { SDKRpcClientBase } from '#/rpc/rpc';
 
 describe('Session question handler', () => {
   it('registers a question handler and returns handler results', async () => {

@@ -16,7 +16,7 @@ import {
   thinkingEffortToReasoningEffort,
   toolToOpenAI,
   type ToolMessageConversion,
-} from '../openai-common';
+} from '../openai/openai-common';
 import {
   mergeRequestHeaders,
   requireProviderApiKey,

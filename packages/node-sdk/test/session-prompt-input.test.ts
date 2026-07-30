@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CoreAPI, RPCMethods } from '@superliora/agent-core';
 
-import { SDKRpcClientBase } from '../src/rpc';
-import { Session } from '../src/session';
+import { SDKRpcClientBase } from '../src/rpc/rpc';
+import { Session } from '../src/session/session';
 
 class CapturingRpc extends SDKRpcClientBase {
   readonly promptCalls: unknown[] = [];

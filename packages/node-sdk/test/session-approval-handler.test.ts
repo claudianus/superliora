@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ApprovalHandler, ApprovalRequest, ApprovalResponse } from '#/index';
 import { Session } from '#/index';
-import type { SDKRpcClientBase } from '#/rpc';
+import type { SDKRpcClientBase } from '#/rpc/rpc';
 
 describe('Session approval handler', () => {
   it('registers an approval handler and returns approved responses', async () => {

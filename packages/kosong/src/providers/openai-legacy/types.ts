@@ -1,8 +1,8 @@
 import type OpenAI from 'openai';
 
 import type { ProviderRequestAuth } from '#/provider';
-import type { ToolMessageConversion } from '../openai-common';
-import type { OpenAIContentPart } from '../openai-common';
+import type { ToolMessageConversion } from '../openai/openai-common';
+import type { OpenAIContentPart } from '../openai/openai-common';
 import type { ToolCallIdPolicy } from '../tool-call-id';
 import { sanitizeToolCallId } from '../tool-call-id';
 
