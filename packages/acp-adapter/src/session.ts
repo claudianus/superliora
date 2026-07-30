@@ -9,20 +9,13 @@ import {
   type SessionModeId,
 } from '@agentclientprotocol/sdk';
 import {
-  ErrorCodes,
   log,
   type ApprovalRequest,
   type ApprovalResponse,
-  type BackgroundTaskInfo,
-  type Event,
-  type LioraErrorPayload,
   type LioraHarness,
-  type McpServerInfo,
   type QuestionAnswers,
   type QuestionRequest,
   type Session,
-  type SessionStatus,
-  type SessionUsage,
 } from '@superliora/sdk';
 
 import {
@@ -31,32 +24,22 @@ import {
   buildPermissionToolCallUpdate,
   permissionResponseToApprovalResponse,
 } from './approval';
-import {
-  ACP_BUILTIN_SLASH_COMMANDS,
-  type AcpBuiltinSlashCommandName,
-} from './builtin-commands';
-import { buildSessionConfigOptions } from './config-options';
-import { listModelsFromHarness } from './model-catalog';
+import { type AcpBuiltinSlashCommandName } from './builtin-commands';
 import { acpBlocksToPromptParts } from './convert';
-import {
-  acpToolCallId,
-  assistantDeltaToSessionUpdate,
-  configOptionUpdateNotification,
-  planFromDisplayBlock,
-  stringifyArgs,
-  thinkingDeltaToSessionUpdate,
-  toolCallDeltaToSessionUpdate,
-  toolCallLazyCreateToSessionUpdate,
-  toolCallStartedUpgradeToSessionUpdate,
-  toolCallStartToSessionUpdate,
-  toolProgressToSessionUpdate,
-  toolResultToSessionUpdate,
-  turnEndReasonToStopReason,
-} from './events-map';
-import { acpModeToToggles, DEFAULT_MODE_ID, isAcpModeId, type AcpModeId } from './modes';
+import { acpToolCallId } from './events-map';
+import { DEFAULT_MODE_ID, isAcpModeId, type AcpModeId } from './modes';
 import { outcomeToQuestionAnswer, questionItemToPermissionOptions } from './question';
 import { replayMessage } from './replay';
-import { detectSlashIntent } from './slash';
+import { runBuiltInSlashCommand, runUnknownSlashCommand } from './session-commands';
+import { MAIN_AGENT_ID } from './session-constants';
+import {
+  applySetModel,
+  applySetMode,
+  applySetThinking,
+  emitConfigOptionUpdateNotification,
+} from './session-lifecycle';
+import { runPromptTurn } from './session-prompt';
+import { detectLeadingSlashIntent } from './session-slash';
 
 /**
  * Telemetry sink threaded into {@link AcpSession} so reverse-RPC bridges
@@ -297,128 +280,36 @@ export class AcpSession {
 
   /**
    * Forward an ACP `session/set_model` (`unstable_setSessionModel`)
-   * request to the underlying SDK session.
-   *
-   * ACP allows model identifiers like `"kimi-k2,thinking"` where the
-   * `,thinking` suffix signals "always-thinking" mode (mirrors the
-   * Python ref's `_ModelIDConv.from_acp_model_id` at
-   * `kimi-cli/src/kimi_cli/acp/server.py:425-433`). Phase 15 decoupled
-   * thinking from the model id at the ACP surface — it's now its own
-   * `thought_level` config option (Phase 16 wire form: 2-entry `select`
-   * `off` / `on`) — but this legacy compat path is
-   * kept: when the caller sends a merged form, we split it into the
-   * bare model key (forwarded to `Session.setModel`) plus a thinking
-   * flag (forwarded to `Session.setThinking`).
-   *
-   * Wire semantics:
-   *  - `'kimi-v2'`           → setModel('kimi-v2'); thinking state unchanged.
-   *  - `'kimi-v2,thinking'`  → setModel('kimi-v2') + setThinking('high');
-   *    thinking state flips on.
-   *
-   * Note the asymmetry: a bare model id does NOT turn thinking OFF.
-   * That keeps the model / thinking axes orthogonal — model changes
-   * preserve thinking state. To explicitly disable thinking, the
-   * client must call `setSessionConfigOption({ configId: 'thinking',
-   * value: false })` (or send `setThinking('off')` directly through
-   * the SDK channel, but the ACP surface only exposes the boolean).
-   *
-   * `currentModelIdInternal` is updated to the bare key — the snapshot
-   * therefore never carries a `,thinking` suffix in the model option's
-   * `currentValue`. Thinking visibility in the snapshot is governed
-   * by `currentThinkingEnabledInternal` and
-   * {@link buildSessionConfigOptions}'s `thinkingSupported` gate.
-   *
-   * Unknown model errors bubble up from the SDK as-is; the caller in
-   * `AcpServer.unstable_setSessionModel` decides how to translate them.
+   * request to the underlying SDK session. See {@link applySetModel} for
+   * the full wire semantics and legacy `,thinking` suffix handling.
    */
   async setModel(modelId: ModelId): Promise<void> {
-    const suffix = ',thinking';
-    const hasSuffix = modelId.endsWith(suffix);
-    const baseKey = hasSuffix ? modelId.slice(0, -suffix.length) : modelId;
-    await this.session.setModel(baseKey);
-    if (hasSuffix && typeof this.session.setThinking === 'function') {
-      await this.session.setThinking(THINKING_ON_LEVEL);
+    const result = await applySetModel(this.session, modelId);
+    this.currentModelIdInternal = result.modelId;
+    if (result.thinkingEnabled === true) {
       this.currentThinkingEnabledInternal = true;
     }
-    this.currentModelIdInternal = baseKey;
     await this.emitConfigOptionUpdate();
   }
 
   /**
    * Forward an ACP thinking-toggle change to the underlying SDK.
-   *
-   * Phase 15 introduces this as the new canonical channel for the
-   * thinking axis. Boolean → effort-level mapping:
-   *  - `true`  → `Session.setThinking('high')` (kimi-code's typical
-   *    default; the agent-core `resolveThinkingEffort` would also
-   *    coerce a missing config to `'high'`).
-   *  - `false` → `Session.setThinking('off')`.
-   *
-   * Tolerant to partial-stub `Session` instances (adapter-level unit
-   * tests construct minimal fakes that may omit `setThinking`): when
-   * the method is missing we still update the adapter-side toggle
-   * state and emit the snapshot, so the ACP wire stays consistent —
-   * the test simply doesn't observe an SDK call.
-   *
-   * Always emits a `config_option_update` notification afterwards so
-   * the client sees the toggle reflect the new value, even if it
-   * came in through the funnel and the response itself already
-   * carries a fresh snapshot.
+   * See {@link applySetThinking} for the boolean → effort-level mapping.
    */
   async setThinking(enabled: boolean): Promise<void> {
-    if (!enabled && (await this.currentModelAlwaysThinking())) {
-      // The current model cannot disable thinking (declared
-      // 'always_thinking'); silently ignore the off request — agent-core
-      // clamps the runtime the same way — but still refresh the snapshot
-      // so a stale client toggle snaps back to on.
-      this.currentThinkingEnabledInternal = true;
-      await this.emitConfigOptionUpdate();
-      return;
-    }
-    if (typeof this.session.setThinking === 'function') {
-      await this.session.setThinking(enabled ? THINKING_ON_LEVEL : THINKING_OFF_LEVEL);
-    }
-    this.currentThinkingEnabledInternal = enabled;
+    const result = await applySetThinking(
+      this.session,
+      this.harness,
+      this.currentModelIdInternal,
+      enabled,
+    );
+    this.currentThinkingEnabledInternal = result.thinkingEnabled;
     await this.emitConfigOptionUpdate();
   }
 
   /**
-   * Whether the currently-selected model declares 'always_thinking'.
-   * Harness-less adapter unit tests resolve to false — the agent-core
-   * runtime clamp still protects the actual request in that case.
-   */
-  private async currentModelAlwaysThinking(): Promise<boolean> {
-    if (!this.harness) return false;
-    const models = await listModelsFromHarness(this.harness);
-    return models.find((m) => m.id === this.currentModelIdInternal)?.alwaysThinking === true;
-  }
-
-  /**
    * Forward an ACP `session/set_mode` request to the underlying SDK
-   * session.
-   *
-   * Phase 12.2 supports the full 4-mode taxonomy (PLAN D9 at
-   * `PLAN.md:85-106`):
-   *
-   *  - `'default'` → `setPlanMode(false)` + `setPermission('yolo')`
-   *  - `'plan'`    → `setPlanMode(true)`  + `setPermission('manual')`
-   *  - `'auto'`    → `setPlanMode(false)` + `setPermission('auto')`
-   *  - `'yolo'`    → `setPlanMode(false)` + `setPermission('yolo')`
-   *
-   * Order inside every arm is `setPlanMode` → `setPermission` →
-   * `emitConfigOptionUpdate`. The dispatch table lives in
-   * {@link acpModeToToggles} so the registry of modes and the toggles
-   * each mode maps to stay co-located.
-   *
-   * Phase 14.3 (PLAN D11) emits the generic `config_option_update`
-   * notification in place of Phase 12's `current_mode_update` — model
-   * and mode pickers share the same notification channel now so a
-   * client that listens for either change has exactly one subscription
-   * point.
-   *
-   * No idempotency optimisation (PLAN D9 line 105): even if the client
-   * re-asserts the current mode, both SDK calls fire and a fresh
-   * `config_option_update` notification is emitted.
+   * session. See {@link applySetMode} for the 4-mode taxonomy.
    *
    * Error policy:
    *  - Unknown `modeId` → JSON-RPC `invalid_params` (-32602) BEFORE any
@@ -433,9 +324,7 @@ export class AcpSession {
     if (!isAcpModeId(modeId)) {
       throw RequestError.invalidParams({ modeId }, `Unknown sessionModeId: ${modeId}`);
     }
-    const { plan, permission } = acpModeToToggles(modeId);
-    await this.session.setPlanMode(plan);
-    await this.session.setPermission(permission);
+    await applySetMode(this.session, modeId);
     this.currentModeIdInternal = modeId;
     await this.emitConfigOptionUpdate();
   }
@@ -444,36 +333,16 @@ export class AcpSession {
    * Push a `config_option_update` session notification carrying the
    * full {@link SessionConfigOption}[] snapshot computed from the
    * adapter-side `currentModelId` + `currentModeId` authoritative state.
-   *
-   * Called from {@link setModel} and {@link setMode} after the SDK
-   * toggle(s) succeed. Tolerant to missing `harness` (adapter-level
-   * unit tests construct `AcpSession` without one): when absent, the
-   * snapshot cannot be assembled and the emit is silently skipped so
-   * the SDK call path still completes. The failure mode is symmetric
-   * to {@link safeTrack}.
-   *
-   * Errors during the underlying `listModelsFromHarness` call or
-   * the `sessionUpdate` push are caught and logged at `warn` — same
-   * policy as {@link emitAvailableCommandsUpdate}: pushing a session
-   * update is a streaming concern, not load-bearing for the SDK call
-   * that triggered it.
    */
   private async emitConfigOptionUpdate(): Promise<void> {
-    if (!this.harness) return;
-    try {
-      const snapshot = await buildSessionConfigOptions(
-        this.harness,
-        this.currentModelIdInternal,
-        this.currentThinkingEnabledInternal,
-        this.currentModeIdInternal,
-      );
-      await this.conn.sessionUpdate(configOptionUpdateNotification(this.id, snapshot));
-    } catch (err) {
-      log.warn('acp: failed to emit config_option_update', {
-        sessionId: this.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await emitConfigOptionUpdateNotification({
+      harness: this.harness,
+      conn: this.conn,
+      sessionId: this.id,
+      currentModelId: this.currentModelIdInternal,
+      currentThinkingEnabled: this.currentThinkingEnabledInternal,
+      currentModeId: this.currentModeIdInternal,
+    });
   }
 
   /**
@@ -487,34 +356,7 @@ export class AcpSession {
    * call, no Kaos. The method walks {@link Session.getResumeState}
    * (which the node SDK populates from the on-disk session snapshot
    * during `harness.resumeSession`) and synthesizes per-message
-   * notifications:
-   *
-   *  - role `user`         → `user_message_chunk` per text {@link ContentPart}.
-   *  - role `assistant`    → `agent_message_chunk` / `agent_thought_chunk`
-   *    per text/think content, plus a `tool_call` notification per
-   *    `toolCalls` entry. A monotonically increasing synthetic `turnId`
-   *    starts at 1 and bumps on each assistant message so the wire ids
-   *    (`${turnId}:${toolCallId}`) match the live emission scheme used
-   *    in {@link runPromptBody}.
-   *  - role `tool`         → `tool_call_update` with `status: 'completed'`
-   *    (or `'failed'` if the SDK marked the message as an error).
-   *    `toolCallId` is looked up from the bookkeeping map populated when
-   *    the originating assistant message was replayed.
-   *
-   * Tool calls whose result we never observe (interrupted turn,
-   * truncated history) are emitted as `tool_call` only — they stay in
-   * `in_progress` on the client, which is honest about the underlying
-   * state. Likewise, tool messages whose originating `toolCallId` we
-   * cannot find are skipped with a warning rather than crashing
-   * replay; the latter would deny the rest of the session a chance to
-   * surface.
-   *
-   * Errors thrown by individual `sessionUpdate` calls are caught and
-   * logged so a single transient push failure does not truncate the
-   * whole replay. The method awaits every push (unlike the live
-   * `runPromptBody` fire-and-forget path) because replay is a one-shot
-   * batch — completion ordering is what tells the caller (`loadSession`)
-   * that the response is safe to return.
+   * notifications via {@link replayMessage}.
    */
   async replayHistory(agentId: string = MAIN_AGENT_ID): Promise<void> {
     const sessionId = this.id;
@@ -575,19 +417,12 @@ export class AcpSession {
    *  - Auth-coded failures may arrive on TWO paths: a `turn.ended`
    *    event with `reason: 'failed'` and an `event.error` payload, OR
    *    a synchronous `session.prompt(...)` rejection. Both are
-   *    routed through {@link mapPromptError} for parity.
+   *    routed through {@link runPromptTurn}'s error mapper for parity.
    *
    * Subscribes to the session event stream; for every `assistant.delta`,
    * pushes an `agent_message_chunk` `session/update` notification to the
    * client. Resolves with the ACP `PromptResponse` (containing
    * `stopReason`) when a `turn.ended` event arrives.
-   *
-   * Cleanup invariants:
-   *  - The event subscription is unsubscribed on EVERY exit path
-   *    (success, cancel, failed turn, and `session.prompt()` rejection).
-   *  - If `session.prompt()` rejects synchronously or asynchronously, the
-   *    rejection is propagated as a `prompt` request error so the client
-   *    sees a JSON-RPC error rather than a hung request.
    */
   async prompt(blocks: readonly ContentBlock[]): Promise<PromptResponse> {
     const parts = acpBlocksToPromptParts(blocks);
@@ -622,429 +457,45 @@ export class AcpSession {
     return this.runTurnBody(sessionId, conn, () => this.session.prompt(parts));
   }
 
-  private async runBuiltInCommand(
+  private runBuiltInCommand(
     name: AcpBuiltinSlashCommandName,
     args: string,
   ): Promise<PromptResponse> {
-    try {
-      switch (name) {
-        case 'compact':
-          await this.runCompactCommand(args);
-          break;
-        case 'status':
-          await this.emitLocalCommandMessage(formatStatusReport(await this.session.getStatus()));
-          break;
-        case 'usage':
-          await this.emitLocalCommandMessage(
-            formatUsageReport(await this.session.getUsage(), await this.session.getStatus()),
-          );
-          break;
-        case 'mcp':
-          await this.emitLocalCommandMessage(formatMcpReport(await this.session.listMcpServers()));
-          break;
-        case 'tasks':
-          await this.emitLocalCommandMessage(
-            formatTasksReport(await this.session.listBackgroundTasks()),
-          );
-          break;
-        case 'help':
-          await this.emitLocalCommandMessage(formatHelpReport(this.availableCommands));
-          break;
-      }
-    } catch (error) {
-      await this.emitLocalCommandMessage(`/${name} failed: ${errorMessage(error)}`);
-    }
-    return { stopReason: 'end_turn' };
+    return runBuiltInSlashCommand(this.commandDeps(), name, args);
   }
 
-  private async runUnknownSlashCommand(name: string): Promise<PromptResponse> {
-    await this.emitLocalCommandMessage(
-      `Unknown ACP command: /${name}. Use /help to see available commands.`,
-    );
-    return { stopReason: 'end_turn' };
+  private runUnknownSlashCommand(name: string): Promise<PromptResponse> {
+    return runUnknownSlashCommand(this.commandDeps(), name);
   }
 
-  private async emitLocalCommandMessage(text: string): Promise<void> {
-    await this.conn.sessionUpdate({
+  private commandDeps() {
+    return {
+      session: this.session,
+      conn: this.conn,
       sessionId: this.id,
-      update: {
-        sessionUpdate: 'agent_message_chunk',
-        content: { type: 'text', text },
-      },
-    });
-  }
-
-  private async runCompactCommand(args: string): Promise<void> {
-    const instruction = args.trim() || undefined;
-    let started = false;
-    let settled = false;
-    let unsubscribe: (() => void) | undefined;
-    // The agent-core compaction worker emits events in this order on
-    // failure: `compaction.cancelled` (from `markCanceled`) followed by
-    // `error` (unless the failure happened while blocked-by-turn, in
-    // which case `compact()` itself rejects). We resolve on whichever
-    // terminal event arrives first and ignore the rest, so a follow-up
-    // `error` after a cancelled never causes a double-settle.
-    const completion = new Promise<CompactionOutcome>((resolve, reject) => {
-      const settle = (action: () => void): void => {
-        if (settled) return;
-        settled = true;
-        action();
-      };
-      unsubscribe = this.session.onEvent((event: Event) => {
-        if (event.agentId !== undefined && event.agentId !== MAIN_AGENT_ID) return;
-        if (event.type === 'compaction.started') {
-          started = true;
-          void this.emitLocalCommandMessage(
-            instruction === undefined
-              ? 'Compacting conversation context…'
-              : `Compacting conversation context with instruction: ${instruction}`,
-          );
-          return;
-        }
-        if (event.type === 'compaction.completed') {
-          settle(() => resolve({ kind: 'completed', result: event.result }));
-          return;
-        }
-        if (event.type === 'compaction.cancelled') {
-          settle(() => resolve({ kind: 'cancelled' }));
-          return;
-        }
-        if (event.type === 'compaction.blocked') {
-          void this.emitLocalCommandMessage('Compaction is blocked by the current turn; retry when the turn is idle.');
-          return;
-        }
-        // Surface any error event the worker emits, even if it lands
-        // before `compaction.started` — that path is currently empty
-        // (begin() throws synchronously and rejects compact()), but
-        // dropping pre-start errors would silently hang the prompt if
-        // the worker is ever restructured.
-        if (event.type === 'error') {
-          settle(() => reject(new Error(event.message)));
-        }
-      });
-    });
-    try {
-      await this.session.compact({ instruction });
-      if (!started && !settled) {
-        await this.emitLocalCommandMessage('Compaction was not started.');
-        return;
-      }
-      const outcome = await completion;
-      if (outcome.kind === 'completed') {
-        await this.emitLocalCommandMessage(formatCompactionCompleted(outcome.result));
-      } else {
-        await this.emitLocalCommandMessage('Compaction cancelled.');
-      }
-    } finally {
-      unsubscribe?.();
-    }
+      availableCommands: this.availableCommands,
+    };
   }
 
   /**
    * Body of {@link prompt}, extracted so the event-listener invariants
-   * — single `onEvent` subscription, `settled` flag semantics,
-   * `currentTurnId` reset — live in one place and can be driven by
-   * either `Session.prompt(parts)` or `Session.activateSkill(name, args)`.
-   * Both entry points trigger the same downstream turn (skill
-   * activation internally calls `agent.turn.prompt(...)` after
-   * injecting the `<kimi-skill-loaded>` block — see
-   * `packages/agent-core/src/agent/skill/index.ts`), so the event
-   * subscription's `turn.started` / `turn.ended` semantics apply
-   * uniformly.
+   * live in {@link runPromptTurn} and can be driven by either
+   * `Session.prompt(parts)` or `Session.activateSkill(name, args)`.
    */
   private runTurnBody(
     sessionId: string,
     conn: AgentSideConnection,
     kick: () => Promise<unknown>,
   ): Promise<PromptResponse> {
-    return new Promise<PromptResponse>((resolve, reject) => {
-      let settled = false;
-      const isFromMainAgent = (event: { agentId?: string }): boolean =>
-        event.agentId === undefined || event.agentId === MAIN_AGENT_ID;
-      // Per-tool-call streaming args accumulator. Lives in the Promise
-      // executor closure so each `prompt()` invocation gets its own
-      // map and no state leaks across concurrent or sequential turns.
-      // Keyed on the **SDK** `toolCallId` (not the ACP-prefixed one)
-      // because the SDK delta events only carry the raw id.
-      const argsByToolCall = new Map<string, { args: string }>();
-      // Set of **wire-level** (turn-prefixed) tool-call ids for which
-      // we have already sent the `tool_call` CREATE notification. The
-      // agent-core actually emits `tool.call.delta` events BEFORE
-      // `tool.call.started` (deltas come from the model's args stream;
-      // the started event comes from the loop dispatching the call
-      // afterwards). Without this set, the naive "started → tool_call,
-      // delta → tool_call_update" mapping puts updates on the wire
-      // ahead of the create, and clients such as Zed surface "Tool
-      // call not found" until the create eventually lands. We instead
-      // lazy-create the wire `tool_call` on the first delta and
-      // downgrade the eventual started event into a `tool_call_update`
-      // carrying the canonical title/kind/rawInput (and any
-      // `display`-derived diff).
-      //
-      // Keyed on the wire id (`${turnId}:${rawToolCallId}`) — not the
-      // raw SDK `toolCallId` — because providers may legitimately
-      // reuse the same raw id across turns within one prompt, and
-      // each turn produces a distinct wire-level tool call that needs
-      // its own CREATE.
-      const startedToolCalls = new Set<string>();
-      const initialActiveTurnId = this.currentTurnId;
-      let hasReceivedOwnTurnStarted = false;
-      const unsub = this.session.onEvent((event) => {
-        if (
-          event.type === 'turn.started' &&
-          isFromMainAgent(event) &&
-          (initialActiveTurnId === undefined || event.turnId !== initialActiveTurnId)
-        ) {
-          hasReceivedOwnTurnStarted = true;
-        }
-        // Track the active turn so `handleApproval` (registered once at
-        // construction, called via `setApprovalHandler`) can compose the
-        // prefixed `${turnId}:${toolCallId}` wire id that matches the
-        // tool card the client already rendered. This branch is purely
-        // additive: it runs before the existing dispatch and never
-        // returns, so the if-chain below behaves exactly as in Phase 4.
-        // Subagent turn events carry their own `turnId`; filtering on
-        // `agentId` keeps `currentTurnId` aligned with the parent turn
-        // that the approval prompt actually belongs to.
-        if (
-          'turnId' in event &&
-          typeof event.turnId === 'number' &&
-          isFromMainAgent(event)
-        ) {
-          this.currentTurnId = event.turnId;
-        }
-        if (event.type === 'error') {
-          if (settled) return;
-          if (!isFromMainAgent(event)) return;
-          if (event.code !== ErrorCodes.TURN_AGENT_BUSY) return;
-          if (hasReceivedOwnTurnStarted) return;
-          settled = true;
-          argsByToolCall.clear();
-          startedToolCalls.clear();
-          this.currentTurnId = undefined;
-          unsub();
-          log.warn('acp: prompt rejected because another turn is active', {
-            sessionId,
-            details: event.details,
-          });
-          reject(
-            RequestError.invalidRequest(
-              { code: event.code, details: event.details },
-              event.message,
-            ),
-          );
-          return;
-        }
-        if (event.type === 'assistant.delta') {
-          if (!isFromMainAgent(event)) return;
-          // `sessionUpdate` is itself async (it serializes onto the
-          // ndjson stream). The text deltas form a strictly ordered
-          // single-producer/single-consumer pipeline, so each await
-          // would force the next delta to wait for the previous flush.
-          // Fire-and-forget keeps the stream pumping; we log push
-          // failures rather than dropping them silently.
-          conn
-            .sessionUpdate(assistantDeltaToSessionUpdate(sessionId, event))
-            .catch((err) => {
-              log.warn('acp: failed to push agent_message_chunk', {
-                sessionId,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            });
-          return;
-        }
-        if (event.type === 'thinking.delta') {
-          if (!isFromMainAgent(event)) return;
-          conn
-            .sessionUpdate(thinkingDeltaToSessionUpdate(sessionId, event))
-            .catch((err) => {
-              log.warn('acp: failed to push agent_thought_chunk', {
-                sessionId,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            });
-          return;
-        }
-        if (event.type === 'tool.call.started') {
-          if (!isFromMainAgent(event)) return;
-          // Seed the accumulator with the **stringified initial args**.
-          // The wire-level `tool_call_update` is REPLACE-content (not
-          // append) so each subsequent delta emits the cumulative args
-          // string; if we seeded with an empty string the first delta
-          // would silently drop the initial args from the rendered card.
-          argsByToolCall.set(event.toolCallId, { args: stringifyArgs(event.args) });
-          // Branch on whether a streaming delta already lazy-created
-          // the wire `tool_call` for this id:
-          //  - YES → we cannot send a second `tool_call` CREATE; emit a
-          //    `tool_call_update` (the "upgrade") so `title`/`kind`/
-          //    `rawInput`/`display`-derived diff land on the existing
-          //    card and `status` flips to `'in_progress'`.
-          //  - NO  → no prior deltas (e.g. provider doesn't stream args);
-          //    take the original path and emit the `tool_call` CREATE.
-          const startedWireId = acpToolCallId(event.turnId, event.toolCallId);
-          if (startedToolCalls.has(startedWireId)) {
-            conn
-              .sessionUpdate(toolCallStartedUpgradeToSessionUpdate(sessionId, event))
-              .catch((err) => {
-                log.warn('acp: failed to push tool_call_update (start upgrade)', {
-                  sessionId,
-                  toolCallId: event.toolCallId,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              });
-          } else {
-            startedToolCalls.add(startedWireId);
-            conn
-              .sessionUpdate(toolCallStartToSessionUpdate(sessionId, event))
-              .catch((err) => {
-                log.warn('acp: failed to push tool_call', {
-                  sessionId,
-                  toolCallId: event.toolCallId,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              });
-          }
-          // Phase 9.3: when the tool exposed a structured TodoList
-          // display, additionally fire a `plan` session_update so ACP
-          // clients can render the agent's evolving TODO list. Other
-          // display kinds (diff/file_io/command/…) are already folded
-          // into the tool_call card; only `todo_list` becomes a plan.
-          // The emission is fire-and-forget under the same idle-stream
-          // discipline as the assistant deltas above.
-          if (event.display) {
-            const planNote = planFromDisplayBlock(sessionId, event.turnId, event.display);
-            if (planNote !== null) {
-              conn.sessionUpdate(planNote).catch((err) => {
-                log.warn('acp: failed to push plan', {
-                  sessionId,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              });
-            }
-          }
-          return;
-        }
-        if (event.type === 'tool.call.delta') {
-          if (!isFromMainAgent(event)) return;
-          // The agent-core emits these args-stream deltas BEFORE the
-          // `tool.call.started` event (deltas come from the provider's
-          // streaming phase; started is dispatched afterwards). If we
-          // haven't yet sent a `tool_call` CREATE for this id, do so now
-          // from the delta — Zed otherwise sees a `tool_call_update`
-          // for an unknown id and surfaces "Tool call not found" until
-          // the start eventually lands.
-          const deltaWireId = acpToolCallId(event.turnId, event.toolCallId);
-          if (!startedToolCalls.has(deltaWireId)) {
-            const initial = event.argumentsPart ?? '';
-            argsByToolCall.set(event.toolCallId, { args: initial });
-            startedToolCalls.add(deltaWireId);
-            conn
-              .sessionUpdate(toolCallLazyCreateToSessionUpdate(sessionId, event))
-              .catch((err) => {
-                log.warn('acp: failed to push tool_call (lazy create from delta)', {
-                  sessionId,
-                  toolCallId: event.toolCallId,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              });
-            return;
-          }
-          // Subsequent delta — accumulate then emit an update with the
-          // cumulative args text (REPLACE-content semantics).
-          let acc = argsByToolCall.get(event.toolCallId);
-          if (!acc) {
-            acc = { args: '' };
-            argsByToolCall.set(event.toolCallId, acc);
-          }
-          conn
-            .sessionUpdate(toolCallDeltaToSessionUpdate(sessionId, event, acc))
-            .catch((err) => {
-              log.warn('acp: failed to push tool_call_update (delta)', {
-                sessionId,
-                toolCallId: event.toolCallId,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            });
-          return;
-        }
-        if (event.type === 'tool.progress') {
-          if (!isFromMainAgent(event)) return;
-          const note = toolProgressToSessionUpdate(sessionId, event);
-          if (note === null) return;
-          conn.sessionUpdate(note).catch((err) => {
-            log.warn('acp: failed to push tool_call_update (progress)', {
-              sessionId,
-              toolCallId: event.toolCallId,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          });
-          return;
-        }
-        if (event.type === 'tool.result') {
-          if (!isFromMainAgent(event)) return;
-          conn
-            .sessionUpdate(toolResultToSessionUpdate(sessionId, event))
-            .catch((err) => {
-              log.warn('acp: failed to push tool_call_update (result)', {
-                sessionId,
-                toolCallId: event.toolCallId,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            });
-          return;
-        }
-        if (event.type === 'turn.ended') {
-          if (settled) return;
-          if (!isFromMainAgent(event)) return;
-          settled = true;
-          if (event.reason === 'failed') {
-            // Failures bubble up via the SDK `error` payload. Phase 11.1
-            // upgrades the prior "log + resolve end_turn" behaviour to
-            // route auth-coded failures through `RequestError.authRequired()`
-            // so the client can trigger its re-auth UX. Other failure
-            // codes still resolve with `end_turn` (the spec discourages
-            // signaling errors through `stopReason`; the failure is
-            // observable in the log).
-            log.warn('acp: turn ended with failed reason', {
-              sessionId,
-              error: event.error,
-            });
-            argsByToolCall.clear();
-            startedToolCalls.clear();
-            this.currentTurnId = undefined;
-            unsub();
-            const authErr = authRequiredFromPayload(event.error);
-            if (authErr) {
-              reject(authErr);
-              return;
-            }
-          } else {
-            if (event.reason === 'filtered') {
-              // The provider's safety policy blocked the response. It is
-              // mapped to ACP `refusal` (see turnEndReasonToStopReason); log
-              // it here too so the block stays observable in the agent logs,
-              // mirroring the `failed` branch above.
-              log.warn('acp: turn ended with filtered reason', { sessionId });
-            }
-            argsByToolCall.clear();
-            startedToolCalls.clear();
-            // Drop the turnId so a late-arriving approval (e.g. an SDK
-            // reverse-RPC racing the turn boundary) falls back to the raw
-            // SDK id rather than re-prefixing with a stale value.
-            this.currentTurnId = undefined;
-            unsub();
-          }
-          resolve({ stopReason: turnEndReasonToStopReason(event.reason) });
-        }
-      });
-
-      kick().catch((err) => {
-        if (settled) return;
-        settled = true;
-        unsub();
-        reject(mapPromptError(err, sessionId));
-      });
+    return runPromptTurn({
+      session: this.session,
+      conn,
+      sessionId,
+      kick,
+      getCurrentTurnId: () => this.currentTurnId,
+      setCurrentTurnId: (turnId) => {
+        this.currentTurnId = turnId;
+      },
     });
   }
 
@@ -1215,230 +666,3 @@ export class AcpSession {
     }
   }
 }
-
-/**
- * Map a Kimi SDK error (raw `Error`, `LioraError`, or `LioraErrorPayload`)
- * into the ACP {@link RequestError} shape used by the JSON-RPC layer.
- *
- * Auth-coded inputs (`auth.login_required`, `provider.auth_error`)
- * become `RequestError.authRequired()` so the client can drive its own
- * re-auth UX. Everything else becomes `RequestError.internalError(...)`
- * with the raw error logged to the agent log file but NOT exposed in
- * the JSON-RPC response — the client only sees the canonical
- * "session prompt failed" message, preventing accidental leakage of
- * stack frames or PII through the wire.
- *
- * The kimi-cli Python reference performs the same mapping at
- * `kimi-cli/src/kimi_cli/acp/session.py:218-247`; this is the TS port.
- */
-type CompactionCompletedResult = Extract<Event, { type: 'compaction.completed' }>['result'];
-
-type CompactionOutcome =
-  | { readonly kind: 'completed'; readonly result: CompactionCompletedResult }
-  | { readonly kind: 'cancelled' };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function formatHelpReport(commands: readonly AvailableCommand[]): string {
-  const visibleCommands: readonly AvailableCommand[] =
-    commands.length > 0 ? commands : ACP_BUILTIN_SLASH_COMMANDS;
-  return [
-    'Available ACP commands:',
-    ...visibleCommands.map((command) => {
-      const hint = command.input?.hint ? ` ${command.input.hint}` : '';
-      return `- /${command.name}${hint} — ${command.description}`;
-    }),
-  ].join('\n');
-}
-
-function formatStatusReport(status: SessionStatus): string {
-  const maxTokens = status.maxContextTokens > 0 ? status.maxContextTokens.toLocaleString('en-US') : 'unknown';
-  const usage = formatContextUsage(status.contextUsage);
-  return [
-    'Session status:',
-    `- Model: ${status.model ?? '(not set)'}`,
-    `- Thinking: ${status.thinkingLevel}`,
-    `- Permission: ${status.permission}`,
-    `- Plan mode: ${status.planMode ? 'on' : 'off'}`,
-    `- Context: ${status.contextTokens.toLocaleString('en-US')} / ${maxTokens}${usage}`,
-  ].join('\n');
-}
-
-function formatUsageReport(usage: SessionUsage, status: SessionStatus): string {
-  const lines = ['Session usage:'];
-  if (usage.total !== undefined) {
-    lines.push(`- Total: ${formatTokenUsage(usage.total)}`);
-  }
-  if (usage.currentTurn !== undefined) {
-    lines.push(`- Current turn: ${formatTokenUsage(usage.currentTurn)}`);
-  }
-  for (const [model, modelUsage] of Object.entries(usage.byModel ?? {})) {
-    lines.push(`- ${model}: ${formatTokenUsage(modelUsage)}`);
-  }
-  lines.push(
-    `- Context: ${status.contextTokens.toLocaleString('en-US')} / ${status.maxContextTokens.toLocaleString('en-US')}${formatContextUsage(status.contextUsage)}`,
-  );
-  return lines.join('\n');
-}
-
-function formatMcpReport(servers: readonly McpServerInfo[]): string {
-  if (servers.length === 0) return 'No MCP servers are configured for this session.';
-  return [
-    `MCP servers (${servers.length}):`,
-    ...servers.map((server) => {
-      const base = `- ${server.name}: ${server.status} (${server.transport}, ${server.toolCount} tools)`;
-      return server.error === undefined ? base : `${base}\n  Error: ${server.error}`;
-    }),
-  ].join('\n');
-}
-
-function formatTasksReport(tasks: readonly BackgroundTaskInfo[]): string {
-  if (tasks.length === 0) return 'No background tasks for this session.';
-  return [
-    `Background tasks (${tasks.length}):`,
-    ...tasks.map((task) => {
-      const parts = [`- ${task.taskId}: ${task.status}`, task.description];
-      if (task.kind === 'process') parts.push(`command=${task.command}`);
-      if (task.kind === 'agent' && task.subagentType !== undefined) parts.push(`subagent=${task.subagentType}`);
-      if (task.stopReason !== undefined) parts.push(`reason=${task.stopReason}`);
-      return parts.join(' · ');
-    }),
-  ].join('\n');
-}
-
-function formatCompactionCompleted(result: CompactionCompletedResult): string {
-  return [
-    'Compaction completed.',
-    `- Messages compacted: ${result.compactedCount.toLocaleString('en-US')}`,
-    `- Tokens before: ${result.tokensBefore.toLocaleString('en-US')}`,
-    `- Tokens after: ${result.tokensAfter.toLocaleString('en-US')}`,
-  ].join('\n');
-}
-
-function formatTokenUsage(usage: NonNullable<SessionUsage['total']>): string {
-  return [
-    `input ${usage.inputOther.toLocaleString('en-US')}`,
-    `output ${usage.output.toLocaleString('en-US')}`,
-    `cache read ${usage.inputCacheRead.toLocaleString('en-US')}`,
-    `cache creation ${usage.inputCacheCreation.toLocaleString('en-US')}`,
-  ].join(', ');
-}
-
-// agent-core emits `contextUsage` as a 0..1 fraction (`contextTokens /
-// maxContextTokens` — see agent-core/src/agent/index.ts:419-422). It can
-// briefly exceed 1.0 when a turn overflows the budget; we still surface
-// that as ">100%" rather than collapsing back into 0..1.
-function formatContextUsage(contextUsage: number): string {
-  if (!Number.isFinite(contextUsage) || contextUsage < 0) return '';
-  return ` (${(contextUsage * 100).toFixed(1)}%)`;
-}
-
-/**
- * Inspect the leading `ContentBlock` of an ACP prompt for a
- * `/skill:<name>` form. Only the first block is examined — when Zed
- * (or any other ACP client) sends a slash command, it always lives in
- * the first text block; multi-part prompts that interleave images or
- * resources before text are typed by humans and do not start with a
- * slash. Non-text leading blocks short-circuit to passthrough.
- *
- * The parsing/resolution itself is delegated to `./slash` —
- * deliberately duplicated from the TUI's
- * `apps/liora/src/tui/commands/parse.ts` and `resolve.ts` to
- * avoid an app→package import inversion. See `./slash`'s top-of-file
- * comment for the sync target.
- */
-function detectLeadingSlashIntent(
-  blocks: readonly ContentBlock[],
-  skillCommandMap: ReadonlyMap<string, string>,
-): ReturnType<typeof detectSlashIntent> {
-  const first = blocks[0];
-  if (!first || first.type !== 'text') return { kind: 'passthrough' };
-  return detectSlashIntent(first.text, skillCommandMap);
-}
-
-function mapPromptError(err: unknown, sessionId: string): RequestError {
-  const authErr = authRequiredFromUnknown(err);
-  if (authErr) {
-    log.warn('acp: prompt rejected with auth error; mapping to authRequired', {
-      sessionId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return authErr;
-  }
-  log.error('acp: prompt failed', {
-    sessionId,
-    error: err instanceof Error ? { message: err.message, stack: err.stack } : String(err),
-  });
-  return RequestError.internalError(undefined, 'session prompt failed');
-}
-
-/**
- * Inspect a {@link LioraErrorPayload} (as carried on `turn.ended`
- * failed events) and return a `RequestError.authRequired()` if its
- * `code` is one of the auth-required codes; otherwise `undefined`.
- *
- * Kept separate from {@link authRequiredFromUnknown} because the
- * `turn.ended` event hands us a serialized payload (no class identity
- * to branch on) — we only need the `code` discriminator here.
- */
-function authRequiredFromPayload(payload: LioraErrorPayload | undefined): RequestError | undefined {
-  if (!payload) return undefined;
-  if (isAuthErrorCode(payload.code)) {
-    return RequestError.authRequired();
-  }
-  return undefined;
-}
-
-/**
- * Type-narrowing predicate for the codes the adapter treats as
- * "the client must re-authenticate before retrying". Currently:
- *  - `auth.login_required` — Kimi Platform / OAuth login flow needed.
- *  - `provider.auth_error` — the downstream provider rejected the
- *    request with a 401 (the node SDK lifts these into `LioraError`
- *    at `kimi-code-model-provider.ts:99-103`).
- */
-function isAuthErrorCode(code: unknown): boolean {
-  return code === ErrorCodes.AUTH_LOGIN_REQUIRED || code === ErrorCodes.PROVIDER_AUTH_ERROR;
-}
-
-/**
- * Best-effort detection of "auth required" for the `session.prompt(...)`
- * rejection path. The thrown value MAY be:
- *  - A `LioraError` instance with a recognized `code` field.
- *  - A plain object that happens to expose a `code` (covers RPC-layer
- *    deserialized payloads that lost class identity).
- *  - Anything else — returns `undefined`.
- */
-function authRequiredFromUnknown(err: unknown): RequestError | undefined {
-  if (err && typeof err === 'object' && 'code' in err) {
-    const code = (err as { code?: unknown }).code;
-    if (isAuthErrorCode(code)) {
-      return RequestError.authRequired();
-    }
-  }
-  return undefined;
-}
-
-/**
- * Effort-level strings passed to {@link Session.setThinking} when the
- * ACP `thinking` toggle flips. Phase 15 wired the ACP-side binary axis
- * (then a `SessionConfigBoolean`; Phase 16 reshaped it to a 2-entry
- * `select` `off` / `on` for Zed UI compatibility) to the SDK's
- * effort-level channel: `true` → `'high'` (kimi-code's typical default,
- * also `resolveThinkingEffort`'s fallback), `false` → `'off'`. The
- * granularity of `'low' | 'medium' | 'xhigh' | 'max'` is intentionally
- * not exposed — the ACP `thinking` axis is binary.
- */
-const THINKING_ON_LEVEL = 'high';
-const THINKING_OFF_LEVEL = 'off';
-
-/**
- * Identifier the agent-core session emits for the main (user-facing)
- * agent. Subagents are issued generated ids by `Session.spawnAgent`;
- * filtering on this constant keeps `turn.ended` / `error` events from a
- * child agent from settling the parent's `session/prompt` promise.
- */
-const MAIN_AGENT_ID = 'main';
-
