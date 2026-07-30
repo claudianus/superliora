@@ -3,12 +3,12 @@ import { visibleWidth, type Component } from '#/tui/renderer';
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';
 import {
   AgentSwarmProgressEstimator,
-} from '#/tui/components/messages/agent-swarm-progress-estimator';
+} from '#/tui/components/messages/agent-swarm-progress/estimator';
 import {
   AgentSwarmProgressMemberEvents,
   type AgentSwarmProgressMemberRuntime,
-} from '#/tui/components/messages/agent-swarm-progress-member-events';
-import { AgentSwarmProgressWarRoom } from '#/tui/components/messages/agent-swarm-progress-war-room';
+} from '#/tui/components/messages/agent-swarm-progress/member-events';
+import { AgentSwarmProgressWarRoom } from '#/tui/components/messages/agent-swarm-progress/war-room';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {

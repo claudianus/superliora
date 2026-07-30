@@ -1,7 +1,7 @@
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';
 import {
   AgentSwarmProgressEstimator,
-} from '#/tui/components/messages/agent-swarm-progress-estimator';
+} from '#/tui/components/messages/agent-swarm-progress/estimator';
 import type { ColorPalette } from '#/tui/theme/colors';
 import { collapseWhitespace, isTerminalPhase } from '#/tui/features/agent-swarm/agent-swarm-cell-render';
 import {

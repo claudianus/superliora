@@ -9,7 +9,7 @@ import { FAILURE_MARK, SUCCESS_MARK } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ToolResultBlockData } from '#/tui/types';
 
-import { agentSwarmResultSummaryFromOutput } from '../agent-swarm-progress';
+import { agentSwarmResultSummaryFromOutput } from '../agent-swarm-progress/index';
 
 const ABORTED_MARK = '⊘';
 

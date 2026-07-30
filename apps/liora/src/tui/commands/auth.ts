@@ -1,9 +1,7 @@
 import type { ChoiceOption } from '../components/dialogs/choice-picker';
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '../constant/liora-tui';
-import {
-  loadCatalogWithSpinner,
-  runUnifiedProviderConnect,
-} from './provider-connect';
+import { loadCatalogWithSpinner } from './provider-connect/catalog';
+import { runUnifiedProviderConnect } from './provider-connect/run';
 import { promptLogoutProviderSelection } from './prompts';
 import type { SlashCommandHost } from './dispatch';
 

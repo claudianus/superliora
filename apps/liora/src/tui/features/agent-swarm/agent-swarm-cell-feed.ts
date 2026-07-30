@@ -8,7 +8,7 @@ import type {
   SwarmOpsFeedTag,
   UltraSwarmMemberMetadata,
   WarRoomDebatePhase,
-} from '#/tui/components/messages/agent-swarm-progress';
+} from '#/tui/components/messages/agent-swarm-progress/index';
 
 import { collapseWhitespace } from '#/tui/features/agent-swarm/agent-swarm-cell-text';
 

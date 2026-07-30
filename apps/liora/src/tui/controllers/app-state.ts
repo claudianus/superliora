@@ -7,9 +7,9 @@ import { requestTUIContentRender, requestTUILayoutRender } from '../utils/frame-
 import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
 import { hasPatchChanges } from '../utils/object-patch';
 import type { AppearanceController } from './appearance';
-import type { DialogsController } from './dialogs';
+import type { DialogsController } from './dialogs/index';
 import type { PromptIntelligenceController } from './prompt-intelligence';
-import type { SessionEventHandler } from './session-event-handler';
+import type { SessionEventHandler } from './session-event/handler';
 
 function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);

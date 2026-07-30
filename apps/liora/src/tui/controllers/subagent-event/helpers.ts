@@ -1,7 +1,7 @@
 import type { Event, TeamPlan } from '@superliora/sdk';
 import type { Component } from '#/tui/renderer';
 
-import type { UltraSwarmMemberMetadata } from '../../components/messages/agent-swarm-progress';
+import type { UltraSwarmMemberMetadata } from '../../components/messages/agent-swarm-progress/index';
 
 export type SubagentLifecycleEvent = Event & { type: `subagent.${string}` };
 export type SubagentLifecycleEventOf<Type extends SubagentLifecycleEvent['type']> =

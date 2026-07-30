@@ -1,7 +1,7 @@
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import type { AgentSwarmMember, TotalStatus } from '#/tui/components/messages/agent-swarm-progress';
+import type { AgentSwarmMember, TotalStatus } from '#/tui/components/messages/agent-swarm-progress/index';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   ACTIVITY_SPINNER_PLACEHOLDER,

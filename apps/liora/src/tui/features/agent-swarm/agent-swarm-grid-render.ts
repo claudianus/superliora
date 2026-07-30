@@ -1,11 +1,11 @@
 import { RENDERER_BRAILLE_PROGRESS_LEVELS, visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import type { AgentSwarmProgressEstimatorPhase } from '#/tui/components/messages/agent-swarm-progress-estimator';
+import type { AgentSwarmProgressEstimatorPhase } from '#/tui/components/messages/agent-swarm-progress/estimator';
 import type {
   AgentSwarmMember,
   AgentSwarmSnapshot,
-} from '#/tui/components/messages/agent-swarm-progress';
+} from '#/tui/components/messages/agent-swarm-progress/index';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   brailleBar,

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildStatusReportLines,
   createStatusFieldMotionState,
-} from '#/tui/components/messages/status-panel';
+} from '#/tui/components/messages/status-panel/index';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,

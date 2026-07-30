@@ -16,26 +16,16 @@ export {
   redactBenchStatusText,
 } from './bench';
 export { handleBtwCommand } from './btw';
-export {
-  handleCompactCommand,
-  handleAppearanceCommand,
-  handleContextCommand,
-  handleEditorCommand,
-  handleModelCommand,
-  handlePermissionCommand,
-  handlePlanCommand,
-  handleThemeCommand,
-  handleThinkingCommand,
-  handleYoloCommand,
-  showContextWorkingSetPicker,
-  showExperimentsPanel,
-  showModelPicker,
-  showPermissionPicker,
-  showSettingsSelector,
-  showHarnessPanel,
-  showToolsInventory,
-  showHarnessEyesReadiness,
-} from './config';
+export { handleCompactCommand, handlePlanCommand } from './config/plan';
+export { handleAppearanceCommand } from './config/appearance';
+export { handleContextCommand, showContextWorkingSetPicker } from './config/context';
+export { handleEditorCommand, handleThemeCommand } from './config/editor-theme';
+export { handleModelCommand, showModelPicker } from './config/model';
+export { handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission';
+export { handleThinkingCommand } from './config/thinking';
+export { showExperimentsPanel } from './config/experiments';
+export { showSettingsSelector, showHarnessPanel } from './config/settings';
+export { showToolsInventory, showHarnessEyesReadiness } from './config/harness-tools';
 export { handleSwarmCommand } from './swarm';
 export { handleOrchestratorCommand } from './orchestrator';
 export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork';
@@ -46,13 +36,7 @@ export {
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
 } from './memory';
-export {
-  buildPreflightLines,
-  buildPreflightStatus,
-  handlePreflightCommand,
-  loadPreflightStatus,
-  redactPreflightText,
-} from './preflight';
+export { buildPreflightLines, buildPreflightStatus, handlePreflightCommand, loadPreflightStatus, redactPreflightText } from './preflight/command';
 export { handlePluginsCommand, pluginsArgumentCompletions } from './plugins';
 export { handlePersonaCommand } from './persona';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';

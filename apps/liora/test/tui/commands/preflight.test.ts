@@ -5,15 +5,11 @@ import { join } from 'node:path';
 import type { MemoryRecord, MemoryStats } from '@superliora/sdk';
 import { describe, expect, it } from 'vitest';
 
-import {
-  buildPreflightLines,
-  buildPreflightStatus,
-  loadPreflightHumanWriting,
-  loadPreflightLoopRun,
-  loadPreflightRefreshRun,
-  redactPreflightText,
-  type PreflightFreshness,
-} from '#/tui/commands/preflight';
+import { buildPreflightLines, buildPreflightStatus, redactPreflightText } from '#/tui/commands/preflight/command';
+import { loadPreflightHumanWriting } from '#/tui/commands/preflight/human-writing';
+import { loadPreflightLoopRun } from '#/tui/commands/preflight/loop';
+import { loadPreflightRefreshRun } from '#/tui/commands/preflight/refresh';
+import type { PreflightFreshness } from '#/tui/commands/preflight/types';
 
 describe('preflight slash command status surface', () => {
   it('unifies bench, memory, recall, and runtime evidence readiness', () => {

@@ -1,4 +1,4 @@
-import type { UltraSwarmMemberMetadata } from '#/tui/components/messages/agent-swarm-progress';
+import type { UltraSwarmMemberMetadata } from '#/tui/components/messages/agent-swarm-progress/index';
 import { collapseWhitespace, normalizeFinalOutputText } from '#/tui/features/agent-swarm/agent-swarm-cell-render';
 
 const RESUMED_ITEM_LABEL = '(resumed)';

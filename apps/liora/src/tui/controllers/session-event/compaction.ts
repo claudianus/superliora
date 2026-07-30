@@ -13,7 +13,7 @@ import {
   modelRouteDisplayName,
   resolveModelRouteIdentity,
 } from '../../utils/model-route-notice';
-import type { StreamingUIController } from '../streaming-ui';
+import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by compaction event handling. */
 export interface CompactionEventHost {

@@ -1,6 +1,6 @@
 import type { NativeInputMouseEvent } from '#/tui/renderer';
 import type { TUIState } from '#/tui/tui-state';
-import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { requestTUIContentRender } from '#/tui/utils/frame-render';
 import { resolveTranscriptLayoutContext } from '#/tui/features/transcript/transcript-hit-test';
 import { isOneLineToolLevel } from '#/tui/features/transcript/transcript-density';

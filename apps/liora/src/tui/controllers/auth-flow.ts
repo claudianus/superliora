@@ -9,7 +9,7 @@ import {
   type RefreshProviderScope,
   type RefreshResult,
 } from '../utils/refresh-providers';
-import type { SessionEventHandler } from './session-event-handler';
+import type { SessionEventHandler } from './session-event/handler';
 import type { AppState, LioraTUIOptions } from '../types';
 import type { TUIState } from '../tui-state';
 

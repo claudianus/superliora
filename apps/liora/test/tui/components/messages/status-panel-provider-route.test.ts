@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   formatProviderRouteSummary,
   providerRouteRows,
-} from '#/tui/components/messages/status-panel-provider-route';
+} from '#/tui/components/messages/status-panel/provider-route';
 
 describe('status panel provider route formatting', () => {
   afterEach(() => {

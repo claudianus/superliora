@@ -9,7 +9,7 @@ import { BannerProvider } from '#/tui/banner/banner-provider';
 import { readBannerDisplayState } from '#/tui/banner/state';
 import { handleLoginCommand, handleLogoutCommand } from '#/tui/commands/auth';
 import { promptProviderCatalog, promptLogoutProviderSelection } from '#/tui/commands/prompts';
-import { loadCatalogWithSpinner } from '#/tui/commands/provider-connect';
+import { loadCatalogWithSpinner } from '#/tui/commands/provider-connect/catalog';
 import { BannerComponent } from '#/tui/components/chrome/banner';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
@@ -32,8 +32,8 @@ vi.mock('#/tui/commands/prompts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('#/tui/commands/prompts')>();
   return { ...actual, promptProviderCatalog: vi.fn(), promptLogoutProviderSelection: vi.fn() };
 });
-vi.mock('#/tui/commands/provider-connect', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/tui/commands/provider-connect')>();
+vi.mock('#/tui/commands/provider-connect/catalog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/commands/provider-connect/catalog')>();
   return { ...actual, loadCatalogWithSpinner: vi.fn(async () => ({})) };
 });
 vi.mock('#/utils/clipboard/clipboard-text', () => ({

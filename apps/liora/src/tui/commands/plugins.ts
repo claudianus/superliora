@@ -18,7 +18,7 @@ import {
   buildPluginsInfoLines,
   buildPluginsListLines,
 } from '../components/messages/plugins-status-panel';
-import { UsagePanelComponent } from '../components/messages/usage-panel';
+import { UsagePanelComponent } from '../components/messages/usage-panel/index';
 import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { formatPluginSourceLabel, isOfficialPluginSource } from '../utils/plugin-source-label';

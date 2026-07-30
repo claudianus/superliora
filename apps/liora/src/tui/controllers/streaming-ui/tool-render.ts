@@ -1,7 +1,7 @@
-import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress';
+import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress/index';
 import type { AgentGroupComponent } from '../../components/messages/agent-group';
 import type { ReadGroupComponent } from '../../components/messages/read-group';
-import { ToolCallComponent } from '../../components/messages/tool-call';
+import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import { isGenericToolResult } from '../../components/messages/tool-renderers/registry';
 import {
   appearanceAnimationNow,

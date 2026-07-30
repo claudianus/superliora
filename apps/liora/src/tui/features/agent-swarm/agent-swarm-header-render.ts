@@ -10,7 +10,7 @@ import type {
   AgentSwarmMember,
   AgentSwarmSummary,
   WarRoomDebatePhase,
-} from '#/tui/components/messages/agent-swarm-progress';
+} from '#/tui/components/messages/agent-swarm-progress/index';
 import { formatSwarmMemberTodoLines } from '#/tui/components/chrome/todo-panel';
 import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
 import type { ColorPalette } from '#/tui/theme/colors';

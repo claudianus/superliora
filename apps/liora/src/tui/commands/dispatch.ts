@@ -11,7 +11,7 @@ import type { GitLogReport } from '#/utils/git/git-log';
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
 import type { AuthFlowController } from '../controllers/auth-flow';
 import type { BtwPanelController } from '../controllers/btw-panel';
-import type { StreamingUIController } from '../controllers/streaming-ui';
+import type { StreamingUIController } from '../controllers/streaming-ui/index';
 import type { TasksBrowserController } from '../controllers/tasks-browser';
 import type { ResolvedTheme } from '../theme/colors';
 import type { TUIState } from '../tui-state';
@@ -28,26 +28,16 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { handleAccountsCommand } from './accounts';
 import { handleLoginCommand, handleLogoutCommand } from './auth';
 import { handleBtwCommand } from './btw';
-import {
-  handleAutoCommand,
-  handleAppearanceCommand,
-  handleCompactCommand,
-  handleContextCommand,
-  handleEditorCommand,
-  handleModelCommand,
-  handlePermissionCommand,
-  handlePlanCommand,
-  handleThemeCommand,
-  handleThinkingCommand,
-  handleYoloCommand,
-  showExperimentsPanel,
-  showModelPicker,
-  showPermissionPicker,
-  showSettingsSelector,
-  showHarnessEyesReadiness,
-  showHarnessPanel,
-  showToolsInventory,
-} from './config';
+import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission';
+import { handleAppearanceCommand } from './config/appearance';
+import { handleCompactCommand, handlePlanCommand } from './config/plan';
+import { handleContextCommand } from './config/context';
+import { handleEditorCommand, handleThemeCommand } from './config/editor-theme';
+import { handleModelCommand, showModelPicker } from './config/model';
+import { handleThinkingCommand } from './config/thinking';
+import { showExperimentsPanel } from './config/experiments';
+import { showSettingsSelector, showHarnessPanel } from './config/settings';
+import { showHarnessEyesReadiness, showToolsInventory } from './config/harness-tools';
 import { handleGoalCommand } from './goal';
 import { handleImproveHarnessCommand } from './improve-harness';
 import { handleCronCommand } from './cron';
@@ -62,7 +52,7 @@ import { handleMemoryCommand } from './memory';
 import { handlePersonaCommand } from './persona';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
-import { handlePreflightCommand } from './preflight';
+import { handlePreflightCommand } from './preflight/command';
 import { handlePremiumQualityCommand } from './premium';
 import {
   handleRendererCommand,
@@ -103,29 +93,21 @@ export { handleLoginCommand, handleLogoutCommand } from './auth';
 export { handleBenchCommand } from './bench';
 export { handleBtwCommand } from './btw';
 export { handleAddDirCommand } from './add-dir';
-export {
-  handleAutoCommand,
-  handleAppearanceCommand,
-  handleCompactCommand,
-  handleEditorCommand,
-  handleModelCommand,
-  handlePermissionCommand,
-  handlePlanCommand,
-  handleThemeCommand,
-  handleThinkingCommand,
-  handleYoloCommand,
-  showModelPicker,
-  showExperimentsPanel,
-  showPermissionPicker,
-  showSettingsSelector,
-} from './config';
+export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission';
+export { handleAppearanceCommand } from './config/appearance';
+export { handleCompactCommand, handlePlanCommand } from './config/plan';
+export { handleEditorCommand, handleThemeCommand } from './config/editor-theme';
+export { handleModelCommand, showModelPicker } from './config/model';
+export { handleThinkingCommand } from './config/thinking';
+export { showExperimentsPanel } from './config/experiments';
+export { showSettingsSelector } from './config/settings';
 export { handleSwarmCommand } from './swarm';
 export { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 export { handleMemoryCommand } from './memory';
 export { handlePersonaCommand } from './persona';
 export { handlePluginsCommand } from './plugins';
-export { handlePreflightCommand } from './preflight';
+export { handlePreflightCommand } from './preflight/command';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
 export { handleGoalCommand } from './goal';
 export {

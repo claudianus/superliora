@@ -1,6 +1,6 @@
 import type { ToolCall } from '@superliora/sdk';
 
-import { ToolCallComponent } from '../../components/messages/tool-call';
+import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { ToolCallBlockData, ToolResultBlockData } from '../../types';
 import {
   REPLAY_MAX_TOOL_MOUNTS_PER_TURN,

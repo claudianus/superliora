@@ -32,7 +32,7 @@ import { requestTUILayoutRender } from '../../utils/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyError } from '../../utils/desktop-notification';
-import type { StreamingUIController } from '../streaming-ui';
+import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by session notice / transcript side-effect handlers. */
 export interface NoticeEventHost {

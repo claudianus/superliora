@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { AgentSwarmProgressComponent } from '#/tui/components/messages/agent-swarm-progress';
+import { AgentSwarmProgressComponent } from '#/tui/components/messages/agent-swarm-progress/index';
 import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
-import type { SessionEventHandler } from '#/tui/controllers/session-event-handler';
+import type { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
 
 interface ActivityDriver {

@@ -11,10 +11,10 @@ import {
 import { MoonLoader, type SpinnerStyle } from '../components/chrome/moon-loader';
 import { pickRandomWorkingTip, tipText } from '../components/chrome/working-tips';
 import { ShellRunComponent } from '../components/messages/shell-run';
-import { ToolCallComponent } from '../components/messages/tool-call';
+import { ToolCallComponent } from '../components/messages/tool-call/index';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import type { AppearanceController } from './appearance';
-import type { SessionEventHandler } from './session-event-handler';
+import type { SessionEventHandler } from './session-event/handler';
 import { currentTheme, getBuiltInPalette, getColorPalette, isBuiltInTheme } from '../theme';
 import type { ResolvedTheme, ThemeName } from '../theme';
 import { refreshShikiPalette } from '../components/media/shiki-ansi';

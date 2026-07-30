@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import type { NativeInputMouseEvent } from '#/tui/renderer';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';

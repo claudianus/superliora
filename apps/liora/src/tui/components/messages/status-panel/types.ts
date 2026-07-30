@@ -10,7 +10,7 @@ import type {
 import type { GitStatus } from '#/utils/git/git-status';
 import type { LoopModelRoutingConfig } from '#/tui/utils/loop-model-routing';
 
-import type { ManagedUsageReport } from '../usage-panel';
+import type { ManagedUsageReport } from '../usage-panel/index';
 import type { StatusFieldMotionState } from './field-motion';
 
 export type StatusGoalStatus = 'active' | 'paused' | 'blocked' | 'complete';

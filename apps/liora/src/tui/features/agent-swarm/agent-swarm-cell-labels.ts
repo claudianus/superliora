@@ -1,11 +1,11 @@
 import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import type { AgentSwarmProgressEstimatorPhase as AgentSwarmPhase } from '#/tui/components/messages/agent-swarm-progress-estimator';
+import type { AgentSwarmProgressEstimatorPhase as AgentSwarmPhase } from '#/tui/components/messages/agent-swarm-progress/estimator';
 import type {
   AgentSwarmMember,
   AgentSwarmSnapshot,
-} from '#/tui/components/messages/agent-swarm-progress';
+} from '#/tui/components/messages/agent-swarm-progress/index';
 import { FAILURE_MARK, SUCCESS_MARK } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';

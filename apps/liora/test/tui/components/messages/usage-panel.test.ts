@@ -6,7 +6,7 @@ import {
   buildManagedUsageReportLines,
   buildUsageReportLines,
   UsagePanelComponent,
-} from '#/tui/components/messages/usage-panel';
+} from '#/tui/components/messages/usage-panel/index';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui';
+import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui/index';
 import { createTUIState } from '#/tui/liora-tui';
 import type { AppState, TranscriptEntry } from '#/tui/types';
 import {

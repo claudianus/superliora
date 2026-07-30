@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Event } from '@superliora/sdk';
 
-import { SessionEventHandler } from '#/tui/controllers/session-event-handler';
+import { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import { getBuiltInPalette } from '#/tui/theme';
 
 /**

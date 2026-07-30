@@ -1,13 +1,13 @@
 import { renderRendererSegmentedProgressBar } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import type { AgentSwarmProgressEstimatorPhase as AgentSwarmPhase } from '#/tui/components/messages/agent-swarm-progress-estimator';
+import type { AgentSwarmProgressEstimatorPhase as AgentSwarmPhase } from '#/tui/components/messages/agent-swarm-progress/estimator';
 import type {
   AgentSwarmMember,
   AgentSwarmSnapshot,
   AgentSwarmSummary,
   TotalStatus,
-} from '#/tui/components/messages/agent-swarm-progress';
+} from '#/tui/components/messages/agent-swarm-progress/index';
 import { FAILURE_MARK, SUCCESS_MARK } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';

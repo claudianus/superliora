@@ -6,7 +6,7 @@ import chalk from 'chalk';
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
 import { NoticeMessageComponent } from '#/tui/components/messages/status-message';
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
-import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import {

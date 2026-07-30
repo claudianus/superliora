@@ -2,7 +2,7 @@ import type { RendererRootUI } from '#/tui/renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
-import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
 
 const ESC = String.fromCodePoint(0x1b);
