@@ -1,4 +1,7 @@
-import type { AgentEvent, ProviderRouteStatus, UsageStatus } from '#/rpc';
+import type { AgentStatusUpdatedEvent } from '@superliora/protocol';
+import type { ProviderRouteStatus, UsageStatus } from '#/rpc';
+import type { PermissionMode } from './permission';
+import type { MicroTriggerKind } from './compaction/micro';
 
 /** Minimal host surface for building `agent.status.updated` payloads. */
 export interface AgentStatusUpdatedHost {
@@ -25,8 +28,8 @@ export interface AgentStatusUpdatedHost {
     readonly triggers: {
       snapshot(): {
         readonly total: number;
-        readonly lastTrigger: string | undefined;
-        readonly lastContextUsageRatio: number | undefined;
+        readonly lastTrigger: MicroTriggerKind | null | undefined;
+        readonly lastContextUsageRatio: number | null | undefined;
         readonly byTrigger: Record<string, number>;
       };
     };
@@ -48,7 +51,7 @@ export interface AgentStatusUpdatedHost {
   readonly dream: { snapshot(): unknown } | null;
 }
 
-export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): AgentEvent {
+export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): AgentStatusUpdatedEvent {
   const contextTokens = host.context.tokenCount;
   const maxContextTokens = host.config.modelCapabilities.max_context_tokens;
   const contextUsage =
@@ -75,11 +78,11 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
         ? [...host.orchestratorWorkers.values()].map((w) => ({
             id: w.id,
             description: w.description,
-            status: w.status,
+            status: w.status as 'running' | 'completed' | 'failed',
             tokenOutput: w.tokenUsage?.output,
           }))
         : undefined,
-    permission: host.permission.mode,
+    permission: host.permission.mode as PermissionMode,
     usage,
     providerRoute,
     contextOS:
@@ -92,23 +95,26 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
             atRiskPageCount: contextOSHealth.atRiskPageCount,
             missingEvidencePageCount: contextOSHealth.missingEvidencePageCount,
             evidenceIdRecallScore: contextOSHealth.evidenceIdRecallScore,
-            latestContinuityStatus: contextOSHealth.latestContinuityStatus,
+            latestContinuityStatus: contextOSHealth.latestContinuityStatus ?? '',
           },
     microCompaction:
       microSnap.total === 0
         ? null
         : {
             total: microSnap.total,
-            lastTrigger: microSnap.lastTrigger,
-            lastContextUsageRatio: microSnap.lastContextUsageRatio,
+            lastTrigger: microSnap.lastTrigger ?? null,
+            lastContextUsageRatio: microSnap.lastContextUsageRatio ?? null,
             byTrigger: microSnap.byTrigger,
           },
-    autoDream: host.dream === null ? null : host.dream.snapshot(),
+    autoDream:
+      host.dream === null
+        ? null
+        : (host.dream.snapshot() as AgentStatusUpdatedEvent['autoDream']),
   };
 }
 
 export function durableTraceRecordType(
-  eventType: AgentEvent['type'],
+  eventType: AgentStatusUpdatedEvent['type'] | string,
 ): 'subagent.lifecycle' | 'ultrawork.event' | undefined {
   if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
   if (eventType.startsWith('ultrawork.')) return 'ultrawork.event';

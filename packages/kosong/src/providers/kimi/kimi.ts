@@ -267,7 +267,7 @@ export class KimiChatProvider implements ChatProvider {
     tools: Tool[],
     history: Message[],
     options?: GenerateOptions,
-  ): Promise<StreamedMessage> {
+  ): Promise<KimiStreamedMessage> {
     const messages: OpenAIMessage[] = [];
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });

@@ -263,6 +263,7 @@ export type {
   PluginGithubRef,
   PluginMcpServerInfo,
   PluginSource,
+  PluginThemeDef,
   ReloadSummary,
 } from './plugin';
 export {

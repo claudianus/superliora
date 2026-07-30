@@ -2,6 +2,7 @@ import type { SessionWarning } from '@superliora/protocol';
 
 import type {
   EmptyPayload,
+  McpServerInfo,
   McpStartupMetrics,
   PluginCommandDef,
   ReconnectMcpServerPayload,

@@ -1,4 +1,5 @@
 import { appendFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 
 import type { AgentRecord } from './types';
 

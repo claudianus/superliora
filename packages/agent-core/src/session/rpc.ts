@@ -60,7 +60,7 @@ import type {
 } from '#/rpc';
 import type { PromisableMethods } from '#/utils/types';
 
-import type { Session } from '.';
+import type { Session, SessionMeta } from '.';
 import { buildSessionTrace } from './trace';
 import {
   promptMetadataTextFromPayload,

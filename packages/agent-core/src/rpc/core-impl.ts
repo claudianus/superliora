@@ -64,8 +64,8 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   pluginsReady: Promise<void>;
   pluginsLoadError: Error | undefined;
   private readonly pluginDirs: readonly string[];
-  private readonly channelServers: readonly string[];
-  private readonly projectDir: string;
+  readonly channelServers: readonly string[];
+  readonly projectDir: string;
   readonly appVersion: string | undefined;
   readonly experimentalFlags: FlagResolver;
   readonly memory: LioraRecallStore;

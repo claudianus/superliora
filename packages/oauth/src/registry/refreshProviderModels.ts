@@ -18,6 +18,7 @@ import {
   getOpenPlatformById,
   isOpenPlatformId,
 } from './open-platform';
+import type { CustomRegistrySource } from './custom-registry';
 import {
   clampDanglingDefault,
   clearDefaultThinkingWhenDefaultRemoved,
@@ -28,6 +29,7 @@ import {
   fetchCustomRegistryFromSources,
   pickDefaultModel,
   preserveUserProviderAliases,
+  providerAliasKeys,
   providerConfigEqual,
   providerModelsEqual,
   providerRefreshAliasKeys,
@@ -117,7 +119,7 @@ export async function refreshProviderModels(
     try {
       const auth = resolveKimiCodeRuntimeAuth({
         configuredBaseUrl: managedProvider.baseUrl,
-        configuredOAuthRef: managedProvider.oauth,
+        configuredOAuthRef: managedProvider.oauth ?? undefined,
       });
       const accessToken = await host.resolveOAuthToken(SUPERLIORA_PROVIDER_NAME, auth.oauthRef);
       const models = await fetchManagedKimiCodeModels({

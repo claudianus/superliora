@@ -23,6 +23,8 @@ import {
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
   SWARM_MICRO_PRESSURE_RATIO,
+  DefaultCompactionStrategy,
+  PipelineStrategy,
   type CompactionStrategy,
 } from '../strategy';
 import {
