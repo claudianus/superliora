@@ -7,12 +7,12 @@ import yazl from 'yazl';
 
 import { PluginManager } from '../../src/plugin/manager';
 
-async function makeKimiHome(): Promise<string> {
-  return mkdtemp(path.join(tmpdir(), 'kimi-home-'));
+async function makePluginHome(): Promise<string> {
+  return mkdtemp(path.join(tmpdir(), 'plugin-home-'));
 }
 
-async function managedPluginRoot(home: string, id: string): Promise<string> {
-  return realpath(path.join(home, 'plugins', 'managed', id));
+async function cachedPluginRoot(home: string, id: string, version = 'local'): Promise<string> {
+  return realpath(path.join(home, 'plugins', 'cache', id, version));
 }
 
 async function makePlugin(
@@ -21,10 +21,11 @@ async function makePlugin(
     skills?: boolean;
     skillNames?: readonly string[];
     version?: string;
-    sessionStartSkill?: string;
     mcpServers?: Record<string, unknown>;
-    hooks?: readonly unknown[];
+    hookCommands?: ReadonlyArray<{ event: string; command: string; timeout?: number }>;
     commands?: Record<string, string>;
+    agents?: Record<string, string>;
+    bin?: boolean;
   } = {},
 ): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), `plugin-${name}-`));
@@ -32,9 +33,16 @@ async function makePlugin(
   if (options.version !== undefined) {
     manifest['version'] = options.version;
   }
+
+  await mkdir(path.join(root, '.claude-plugin'), { recursive: true });
+  await writeFile(
+    path.join(root, '.claude-plugin', 'plugin.json'),
+    JSON.stringify(manifest),
+    'utf8',
+  );
+
   const skillNames = options.skillNames ?? (options.skills === true ? ['demo-skill'] : []);
   if (skillNames.length > 0) {
-    manifest['skills'] = './skills/';
     await mkdir(path.join(root, 'skills'), { recursive: true });
     for (const skillName of skillNames) {
       await mkdir(path.join(root, 'skills', skillName), { recursive: true });
@@ -45,17 +53,39 @@ async function makePlugin(
       );
     }
   }
-  if (options.sessionStartSkill !== undefined) {
-    manifest['sessionStart'] = { skill: options.sessionStartSkill };
-  }
+
   if (options.mcpServers !== undefined) {
-    manifest['mcpServers'] = options.mcpServers;
+    await writeFile(
+      path.join(root, '.mcp.json'),
+      JSON.stringify({ mcpServers: options.mcpServers }),
+      'utf8',
+    );
   }
-  if (options.hooks !== undefined) {
-    manifest['hooks'] = options.hooks;
+
+  if (options.hookCommands !== undefined) {
+    const hooksTable: Record<string, unknown[]> = {};
+    for (const hook of options.hookCommands) {
+      hooksTable[hook.event] ??= [];
+      hooksTable[hook.event]!.push({
+        matcher: '',
+        hooks: [
+          {
+            type: 'command',
+            command: hook.command,
+            ...(hook.timeout !== undefined ? { timeout: hook.timeout } : {}),
+          },
+        ],
+      });
+    }
+    await mkdir(path.join(root, 'hooks'), { recursive: true });
+    await writeFile(
+      path.join(root, 'hooks', 'hooks.json'),
+      JSON.stringify({ hooks: hooksTable }),
+      'utf8',
+    );
   }
+
   if (options.commands !== undefined) {
-    manifest['commands'] = ['./commands'];
     await mkdir(path.join(root, 'commands'), { recursive: true });
     for (const [file, body] of Object.entries(options.commands)) {
       const filePath = path.join(root, 'commands', file);
@@ -63,17 +93,26 @@ async function makePlugin(
       await writeFile(filePath, body, 'utf8');
     }
   }
-  await writeFile(
-    path.join(root, 'kimi.plugin.json'),
-    JSON.stringify(manifest),
-    'utf8',
-  );
+
+  if (options.agents !== undefined) {
+    await mkdir(path.join(root, 'agents'), { recursive: true });
+    for (const [file, body] of Object.entries(options.agents)) {
+      const filePath = path.join(root, 'agents', file);
+      await writeFile(filePath, body, 'utf8');
+    }
+  }
+
+  if (options.bin === true) {
+    await mkdir(path.join(root, 'bin'), { recursive: true });
+    await writeFile(path.join(root, 'bin', 'tool.sh'), '#!/bin/sh\necho ok\n', 'utf8');
+  }
+
   return realpath(root);
 }
 
 describe('PluginManager', () => {
   it('install() adds a plugin and load() rehydrates it from disk', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const pluginRoot = await makePlugin('demo', { skills: true });
 
     let manager = new PluginManager({ kimiHomeDir: home });
@@ -88,52 +127,66 @@ describe('PluginManager', () => {
     manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     expect(manager.list()).toHaveLength(1);
-    expect(manager.get('demo')?.root).toBe(await managedPluginRoot(home, 'demo'));
+    expect(manager.get('demo')?.root).toBe(await cachedPluginRoot(home, 'demo'));
     expect(manager.get('demo')?.originalSource).toBe(pluginRoot);
   });
 
-  it('install() accepts a .kimi-plugin manifest', async () => {
-    const home = await makeKimiHome();
-    const root = await mkdtemp(path.join(tmpdir(), 'kimi-plugin-'));
-    await mkdir(path.join(root, '.kimi-plugin'), { recursive: true });
-    await mkdir(path.join(root, 'skills'), { recursive: true });
+  it('install() accepts a .claude-plugin manifest', async () => {
+    const home = await makePluginHome();
+    const root = await mkdtemp(path.join(tmpdir(), 'claude-plugin-'));
+    await mkdir(path.join(root, '.claude-plugin'), { recursive: true });
+    await mkdir(path.join(root, 'skills', 'demo-skill'), { recursive: true });
     await writeFile(
-      path.join(root, '.kimi-plugin', 'plugin.json'),
-      JSON.stringify({
-        name: 'superpowers',
-        skills: './skills/',
-        skillInstructions: 'Use Kimi tools.',
-      }),
+      path.join(root, '.claude-plugin', 'plugin.json'),
+      JSON.stringify({ name: 'superpowers' }),
+      'utf8',
+    );
+    await writeFile(
+      path.join(root, 'skills', 'demo-skill', 'SKILL.md'),
+      '---\nname: demo-skill\ndescription: A demo\n---\nbody',
       'utf8',
     );
 
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     const record = await manager.install(root);
-    const managedRoot = await managedPluginRoot(home, 'superpowers');
+    const cachedRoot = await cachedPluginRoot(home, 'superpowers');
 
     expect(record.id).toBe('superpowers');
-    expect(record.manifestKind).toBe('kimi-plugin-dir');
-    expect(record.root).toBe(managedRoot);
+    expect(record.manifestKind).toBe('claude-plugin');
+    expect(record.root).toBe(cachedRoot);
     expect(record.originalSource).toBe(root);
-    expect(record.manifest?.skills).toEqual([path.join(managedRoot, 'skills')]);
+    expect(record.manifest?.skills).toEqual([path.join(cachedRoot, 'skills')]);
     expect(manager.pluginSkillRoots()).toContainEqual({
-      path: path.join(managedRoot, 'skills'),
+      path: path.join(cachedRoot, 'skills'),
       source: 'extra',
-      plugin: { id: 'superpowers', instructions: 'Use Kimi tools.' },
+      plugin: { id: 'superpowers' },
     });
   });
 
+  it('install() rejects legacy kimi.plugin.json', async () => {
+    const home = await makePluginHome();
+    const root = await mkdtemp(path.join(tmpdir(), 'legacy-plugin-'));
+    await writeFile(
+      path.join(root, 'kimi.plugin.json'),
+      JSON.stringify({ name: 'legacy' }),
+      'utf8',
+    );
+    const manager = new PluginManager({ kimiHomeDir: home });
+    await manager.load();
+    await expect(manager.install(root)).rejects.toThrow(/Legacy kimi\.plugin\.json/i);
+  });
+
   it('install() rejects a relative plugin root', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
 
     await expect(manager.install('relative/plugin')).rejects.toThrow(/absolute path/i);
   });
 
-  it('install() copies a symlinked plugin root into the managed plugins dir', async () => {
-    const home = await makeKimiHome();
+  it('install() copies a symlinked plugin root into the plugin cache', async () => {
+    const home = await makePluginHome();
     const pluginRoot = await makePlugin('demo');
     const link = path.join(await mkdtemp(path.join(tmpdir(), 'plugin-link-')), 'demo-link');
     await symlink(pluginRoot, link);
@@ -142,16 +195,16 @@ describe('PluginManager', () => {
 
     const record = await manager.install(link);
 
-    const managedRoot = await managedPluginRoot(home, 'demo');
-    expect(record.root).toBe(managedRoot);
+    const cachedRoot = await cachedPluginRoot(home, 'demo');
+    expect(record.root).toBe(cachedRoot);
     expect(record.originalSource).toBe(link);
     const reloaded = new PluginManager({ kimiHomeDir: home });
     await reloaded.load();
-    expect(reloaded.get('demo')?.root).toBe(managedRoot);
+    expect(reloaded.get('demo')?.root).toBe(cachedRoot);
   });
 
   it('setEnabled() persists the new state', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', { skills: true });
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -166,7 +219,7 @@ describe('PluginManager', () => {
   });
 
   it('remove() clears the entry but does not delete the source directory', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', { skills: true });
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -174,13 +227,12 @@ describe('PluginManager', () => {
 
     await manager.remove('demo');
     expect(manager.get('demo')).toBeUndefined();
-    // Source directory survives.
     const { stat } = await import('node:fs/promises');
     expect((await stat(root)).isDirectory()).toBe(true);
   });
 
   it('pluginSkillRoots() returns only enabled plugins skills paths', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const a = await makePlugin('a', { skills: true });
     const b = await makePlugin('b', { skills: true });
     const manager = new PluginManager({ kimiHomeDir: home });
@@ -188,22 +240,22 @@ describe('PluginManager', () => {
     await manager.install(a);
     await manager.install(b);
     await manager.setEnabled('b', false);
-    const managedA = await managedPluginRoot(home, 'a');
-    const managedB = await managedPluginRoot(home, 'b');
+    const cachedA = await cachedPluginRoot(home, 'a');
+    const cachedB = await cachedPluginRoot(home, 'b');
     expect(manager.pluginSkillRoots()).toContainEqual({
-      path: path.join(managedA, 'skills'),
+      path: path.join(cachedA, 'skills'),
       source: 'extra',
-      plugin: { id: 'a', instructions: undefined },
+      plugin: { id: 'a' },
     });
     expect(manager.pluginSkillRoots()).not.toContainEqual({
-      path: path.join(managedB, 'skills'),
+      path: path.join(cachedB, 'skills'),
       source: 'extra',
-      plugin: { id: 'b', instructions: undefined },
+      plugin: { id: 'b' },
     });
   });
 
   it('summaries count discovered skills inside plugin skill roots', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('superpowers', {
       skillNames: ['brainstorming', 'systematic-debugging', 'writing-plans'],
     });
@@ -220,16 +272,16 @@ describe('PluginManager', () => {
     expect(manager.info('superpowers')?.skillCount).toBe(3);
   });
 
-  it('reload() picks up edits to the managed plugin copy', async () => {
-    const home = await makeKimiHome();
+  it('reload() picks up edits to the cached plugin copy', async () => {
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     await manager.install(root);
-    const managedRoot = await managedPluginRoot(home, 'demo');
+    const cachedRoot = await cachedPluginRoot(home, 'demo');
 
     await writeFile(
-      path.join(managedRoot, 'kimi.plugin.json'),
+      path.join(cachedRoot, '.claude-plugin', 'plugin.json'),
       JSON.stringify({ name: 'demo', version: '2.0.0' }),
       'utf8',
     );
@@ -239,14 +291,14 @@ describe('PluginManager', () => {
   });
 
   it('reload() does not reread the original local source after install', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     await manager.install(root);
 
     await writeFile(
-      path.join(root, 'kimi.plugin.json'),
+      path.join(root, '.claude-plugin', 'plugin.json'),
       JSON.stringify({ name: 'demo', version: 'source-edit' }),
       'utf8',
     );
@@ -256,16 +308,24 @@ describe('PluginManager', () => {
     expect(manager.get('demo')?.manifest?.version).toBeUndefined();
   });
 
-  it('install() refuses to add a directory without a manifest', async () => {
-    const home = await makeKimiHome();
-    const root = await mkdtemp(path.join(tmpdir(), 'no-manifest-'));
+  it('install() autodiscovers a directory with skills/ and no manifest file', async () => {
+    const home = await makePluginHome();
+    const root = await mkdtemp(path.join(tmpdir(), 'autodiscover-demo-'));
+    await mkdir(path.join(root, 'skills', 'demo-skill'), { recursive: true });
+    await writeFile(
+      path.join(root, 'skills', 'demo-skill', 'SKILL.md'),
+      '---\nname: demo-skill\ndescription: demo\n---\nbody',
+      'utf8',
+    );
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
-    await expect(manager.install(root)).rejects.toThrow(/manifest/i);
+    const record = await manager.install(root);
+    expect(record.manifestKind).toBe('claude-autodiscover');
+    expect(record.manifest?.skills).toEqual([path.join(record.root, 'skills')]);
   });
 
   it('install() overwrites the same local plugin and preserves user state', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', {
       version: '1.0.0',
       mcpServers: { finance: { command: 'finance-mcp' } },
@@ -289,17 +349,18 @@ describe('PluginManager', () => {
     expect(updated.installedAt).toBe(first.installedAt);
     expect(updated.updatedAt).not.toBe(first.updatedAt);
     expect(updated.originalSource).toBe(updatedRoot);
+    expect(updated.root).toBe(await cachedPluginRoot(home, 'demo', '2.0.0'));
     expect(manager.info('demo')?.mcpServers[0]?.enabled).toBe(false);
   });
 
   it('keeps a plugin in error state instead of losing it on a broken manifest', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     await manager.install(root);
     await writeFile(
-      path.join(await managedPluginRoot(home, 'demo'), 'kimi.plugin.json'),
+      path.join(await cachedPluginRoot(home, 'demo'), '.claude-plugin', 'plugin.json'),
       '{ not json',
       'utf8',
     );
@@ -315,25 +376,8 @@ describe('PluginManager', () => {
     expect(manager.pluginSkillRoots()).toEqual([]);
   });
 
-  it('enabledSessionStarts() returns only enabled plugin sessionStart declarations', async () => {
-    const home = await makeKimiHome();
-    const root = await makePlugin('demo', {
-      skills: true,
-      sessionStartSkill: 'demo-skill',
-    });
-    const manager = new PluginManager({ kimiHomeDir: home });
-    await manager.load();
-    await manager.install(root);
-    expect(manager.enabledSessionStarts()).toEqual([
-      { pluginId: 'demo', skillName: 'demo-skill' },
-    ]);
-
-    await manager.setEnabled('demo', false);
-    expect(manager.enabledSessionStarts()).toEqual([]);
-  });
-
   it('enabledCommands() loads command markdown only from enabled plugins', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const enabled = await makePlugin('enabled', {
       commands: {
         'deploy.md': '---\ndescription: Deploy\n---\nDeploy $ARGUMENTS',
@@ -357,7 +401,7 @@ describe('PluginManager', () => {
         name: 'deploy',
         description: 'Deploy',
         body: 'Deploy $ARGUMENTS',
-        path: path.join(await managedPluginRoot(home, 'enabled'), 'commands', 'deploy.md'),
+        path: path.join(await cachedPluginRoot(home, 'enabled'), 'commands', 'deploy.md'),
       },
       {
         pluginId: 'enabled',
@@ -365,7 +409,7 @@ describe('PluginManager', () => {
         description: 'Make component',
         body: 'Make component',
         path: path.join(
-          await managedPluginRoot(home, 'enabled'),
+          await cachedPluginRoot(home, 'enabled'),
           'commands',
           'frontend',
           'component.md',
@@ -380,25 +424,59 @@ describe('PluginManager', () => {
     );
   });
 
-  it('maps manifest skillInstructions to record skillInstructions', async () => {
-    const home = await makeKimiHome();
-    const root = await mkdtemp(path.join(tmpdir(), 'plugin-instructions-'));
-    await writeFile(
-      path.join(root, 'kimi.plugin.json'),
-      JSON.stringify({
-        name: 'demo',
-        skillInstructions: 'Always be helpful.',
-      }),
-      'utf8',
-    );
+  it('enabledAgents() loads agent markdown only from enabled plugins', async () => {
+    const home = await makePluginHome();
+    const enabled = await makePlugin('enabled', {
+      agents: {
+        'reviewer.md': '---\nname: reviewer\ndescription: Reviews code\n---\nBe thorough.',
+      },
+    });
+    const disabled = await makePlugin('disabled', {
+      agents: {
+        'skip.md': '---\nname: skip\ndescription: Skip\n---\nSkip.',
+      },
+    });
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
-    const record = await manager.install(root);
-    expect(record.skillInstructions).toBe('Always be helpful.');
+    await manager.install(enabled);
+    await manager.install(disabled);
+    await manager.setEnabled('disabled', false);
+
+    const agents = await manager.enabledAgents();
+    expect(agents).toHaveLength(1);
+    expect(agents[0]).toMatchObject({
+      pluginId: 'enabled',
+      name: 'reviewer',
+      description: 'Reviews code',
+      profileName: 'enabled:reviewer',
+      path: path.join(await cachedPluginRoot(home, 'enabled'), 'agents', 'reviewer.md'),
+    });
+    expect(manager.summaries()).toContainEqual(
+      expect.objectContaining({
+        id: 'enabled',
+        agentCount: 1,
+      }),
+    );
+  });
+
+  it('enabledBinDirs() returns bin dirs only from enabled plugins', async () => {
+    const home = await makePluginHome();
+    const withBin = await makePlugin('with-bin', { bin: true });
+    const noBin = await makePlugin('no-bin');
+    const manager = new PluginManager({ kimiHomeDir: home });
+    await manager.load();
+    await manager.install(withBin);
+    await manager.install(noBin);
+
+    const cachedWithBin = await cachedPluginRoot(home, 'with-bin');
+    expect(manager.enabledBinDirs()).toEqual([path.join(cachedWithBin, 'bin')]);
+
+    await manager.setEnabled('with-bin', false);
+    expect(manager.enabledBinDirs()).toEqual([]);
   });
 
   it('setMcpServerEnabled() persists explicit MCP server state', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', {
       mcpServers: {
         finance: { command: 'finance-mcp' },
@@ -409,12 +487,12 @@ describe('PluginManager', () => {
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     await manager.install(root);
-    const managedRoot = await managedPluginRoot(home, 'demo');
+    const cachedRoot = await cachedPluginRoot(home, 'demo');
 
     expect(manager.info('demo')?.mcpServers).toContainEqual(
       expect.objectContaining({
         name: 'finance',
-        runtimeName: 'plugin-demo:finance',
+        runtimeName: 'plugin:demo:finance',
         enabled: true,
         command: 'finance-mcp',
       }),
@@ -422,7 +500,7 @@ describe('PluginManager', () => {
     expect(manager.info('demo')?.mcpServers).toContainEqual(
       expect.objectContaining({
         name: 'events',
-        runtimeName: 'plugin-demo:events',
+        runtimeName: 'plugin:demo:events',
         transport: 'sse',
         url: 'https://example.com/sse',
       }),
@@ -436,15 +514,19 @@ describe('PluginManager', () => {
 
     expect(manager.enabledMcpServers()).toEqual(
       expect.objectContaining({
-        'plugin-demo:finance': expect.objectContaining({
+        'plugin:demo:finance': expect.objectContaining({
           command: 'finance-mcp',
-          cwd: managedRoot,
-          env: expect.objectContaining({ SUPERLIORA_HOME: home, KIMI_PLUGIN_ROOT: managedRoot }),
+          cwd: cachedRoot,
+          env: expect.objectContaining({
+            SUPERLIORA_HOME: home,
+            CLAUDE_PLUGIN_ROOT: cachedRoot,
+            CLAUDE_PLUGIN_DATA: path.join(home, 'plugins', 'data', 'demo'),
+          }),
         }),
-        'plugin-demo:docs': expect.objectContaining({
+        'plugin:demo:docs': expect.objectContaining({
           url: 'https://example.com/mcp',
         }),
-        'plugin-demo:events': expect.objectContaining({
+        'plugin:demo:events': expect.objectContaining({
           transport: 'sse',
           url: 'https://example.com/sse',
         }),
@@ -453,7 +535,7 @@ describe('PluginManager', () => {
 
     await manager.setMcpServerEnabled('demo', 'finance', false);
 
-    expect(manager.enabledMcpServers()).not.toHaveProperty('plugin-demo:finance');
+    expect(manager.enabledMcpServers()).not.toHaveProperty('plugin:demo:finance');
     expect(manager.summaries()[0]).toEqual(
       expect.objectContaining({
         mcpServerCount: 3,
@@ -469,7 +551,7 @@ describe('PluginManager', () => {
   });
 
   it('merges manifest MCP enabled defaults with explicit user state', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', {
       mcpServers: {
         finance: { command: 'finance-mcp', enabled: false },
@@ -497,7 +579,7 @@ describe('PluginManager', () => {
     );
     expect(manager.enabledMcpServers()).toEqual(
       expect.objectContaining({
-        'plugin-demo:finance': expect.objectContaining({
+        'plugin:demo:finance': expect.objectContaining({
           command: 'finance-mcp',
           enabled: true,
         }),
@@ -509,11 +591,11 @@ describe('PluginManager', () => {
     expect(reloaded.info('demo')?.mcpServers).toContainEqual(
       expect.objectContaining({ name: 'finance', enabled: true }),
     );
-    expect(reloaded.enabledMcpServers()).toHaveProperty('plugin-demo:finance');
+    expect(reloaded.enabledMcpServers()).toHaveProperty('plugin:demo:finance');
   });
 
   it('uses unambiguous runtime names for plugin MCP servers', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const first = await makePlugin('a-b', {
       mcpServers: {
         c: { command: 'first-mcp' },
@@ -530,24 +612,24 @@ describe('PluginManager', () => {
     await manager.install(second);
 
     expect(manager.info('a-b')?.mcpServers).toContainEqual(
-      expect.objectContaining({ name: 'c', runtimeName: 'plugin-a-b:c' }),
+      expect.objectContaining({ name: 'c', runtimeName: 'plugin:a-b:c' }),
     );
     expect(manager.info('a')?.mcpServers).toContainEqual(
-      expect.objectContaining({ name: 'b-c', runtimeName: 'plugin-a:b-c' }),
+      expect.objectContaining({ name: 'b-c', runtimeName: 'plugin:a:b-c' }),
     );
 
     const servers = manager.enabledMcpServers();
     expect(servers).toEqual(
       expect.objectContaining({
-        'plugin-a-b:c': expect.objectContaining({ command: 'first-mcp' }),
-        'plugin-a:b-c': expect.objectContaining({ command: 'second-mcp' }),
+        'plugin:a-b:c': expect.objectContaining({ command: 'first-mcp' }),
+        'plugin:a:b-c': expect.objectContaining({ command: 'second-mcp' }),
       }),
     );
     expect(Object.keys(servers)).toHaveLength(2);
   });
 
   it('enabledMcpServers() excludes disabled plugins', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', {
       mcpServers: { finance: { command: 'finance-mcp' } },
     });
@@ -561,7 +643,7 @@ describe('PluginManager', () => {
   });
 
   it('setMcpServerEnabled() rejects unknown MCP servers', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -573,7 +655,7 @@ describe('PluginManager', () => {
   });
 
   it('install() sets originalSource and updatedAt', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -583,7 +665,7 @@ describe('PluginManager', () => {
     const after = Date.now();
 
     expect(record.originalSource).toBe(root);
-    expect(record.root).toBe(await managedPluginRoot(home, 'demo'));
+    expect(record.root).toBe(await cachedPluginRoot(home, 'demo'));
     expect(record.updatedAt).toBeDefined();
     const updatedAt = new Date(record.updatedAt!).getTime();
     expect(updatedAt).toBeGreaterThanOrEqual(before);
@@ -592,7 +674,7 @@ describe('PluginManager', () => {
   });
 
   it('persist() and load() round-trip originalSource and updatedAt', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -602,19 +684,18 @@ describe('PluginManager', () => {
     await reloaded.load();
     const record = reloaded.get('demo');
     expect(record?.originalSource).toBe(root);
-    expect(record?.root).toBe(await managedPluginRoot(home, 'demo'));
+    expect(record?.root).toBe(await cachedPluginRoot(home, 'demo'));
     expect(record?.updatedAt).toBeDefined();
   });
 
   it('setEnabled() updates updatedAt', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     const record = await manager.install(root);
     const firstUpdatedAt = record.updatedAt;
 
-    // Give enough time for the timestamp to change.
     await new Promise((r) => setTimeout(r, 10));
     await manager.setEnabled('demo', false);
 
@@ -628,7 +709,7 @@ describe('PluginManager', () => {
   });
 
   it('info() includes originalSource', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -639,11 +720,11 @@ describe('PluginManager', () => {
   });
 
   it('install() supports zip URL', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const zipBuffer = await createZipBuffer([
       {
-        name: 'plugin/kimi.plugin.json',
-        data: JSON.stringify({ name: 'zip-demo', skills: './skills/' }),
+        name: 'plugin/.claude-plugin/plugin.json',
+        data: JSON.stringify({ name: 'zip-demo' }),
       },
       {
         name: 'plugin/skills/demo-skill/SKILL.md',
@@ -656,23 +737,25 @@ describe('PluginManager', () => {
     await manager.load();
 
     const record = await manager.install(url);
-    const managedRoot = await realpath(path.join(home, 'plugins', 'managed', 'zip-demo'));
     expect(record.id).toBe('zip-demo');
     expect(record.source).toBe('zip-url');
     expect(record.originalSource).toBe(url);
-    expect(record.root).toBe(managedRoot);
-    expect(record.manifest?.skills).toEqual([path.join(managedRoot, 'skills')]);
+    expect(record.root).toContain(path.join('plugins', 'cache', 'zip-demo', 'latest'));
+    expect(record.manifest?.skills).toEqual([path.join(record.root, 'skills')]);
 
     const reloaded = new PluginManager({ kimiHomeDir: home });
     await reloaded.load();
     expect(reloaded.get('zip-demo')?.source).toBe('zip-url');
-    expect(reloaded.get('zip-demo')?.root).toBe(managedRoot);
+    expect(reloaded.get('zip-demo')?.root).toBe(record.root);
   });
 
   it('install() from zip-url overwrites existing zip-url plugin', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const zipBuffer1 = await createZipBuffer([
-      { name: 'plugin/kimi.plugin.json', data: JSON.stringify({ name: 'zip-demo', version: '1.0.0' }) },
+      {
+        name: 'plugin/.claude-plugin/plugin.json',
+        data: JSON.stringify({ name: 'zip-demo', version: '1.0.0' }),
+      },
     ]);
     const url1 = await serveOnce(zipBuffer1);
 
@@ -681,7 +764,10 @@ describe('PluginManager', () => {
     await manager.install(url1);
 
     const zipBuffer2 = await createZipBuffer([
-      { name: 'plugin/kimi.plugin.json', data: JSON.stringify({ name: 'zip-demo', version: '2.0.0' }) },
+      {
+        name: 'plugin/.claude-plugin/plugin.json',
+        data: JSON.stringify({ name: 'zip-demo', version: '2.0.0' }),
+      },
     ]);
     const url2 = await serveOnce(zipBuffer2);
 
@@ -689,10 +775,11 @@ describe('PluginManager', () => {
     expect(record.manifest?.version).toBe('2.0.0');
     expect(manager.list()).toHaveLength(1);
     expect(record.originalSource).toBe(url2);
+    expect(record.root).toBe(await cachedPluginRoot(home, 'zip-demo', '2.0.0'));
   });
 
   it('install() from zip-url overwrites existing local-path plugin', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('zip-demo');
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -700,7 +787,10 @@ describe('PluginManager', () => {
     await manager.setEnabled('zip-demo', false);
 
     const zipBuffer = await createZipBuffer([
-      { name: 'plugin/kimi.plugin.json', data: JSON.stringify({ name: 'zip-demo', version: '2.0.0' }) },
+      {
+        name: 'plugin/.claude-plugin/plugin.json',
+        data: JSON.stringify({ name: 'zip-demo', version: '2.0.0' }),
+      },
     ]);
     const url = await serveOnce(zipBuffer);
 
@@ -714,24 +804,24 @@ describe('PluginManager', () => {
     expect(manager.list()).toHaveLength(1);
   });
 
-  it('install() rejects zip URL without manifest', async () => {
-    const home = await makeKimiHome();
+  it('install() rejects zip URL with legacy kimi.plugin.json only', async () => {
+    const home = await makePluginHome();
     const zipBuffer = await createZipBuffer([
-      { name: 'readme.txt', data: 'no manifest here' },
+      { name: 'kimi.plugin.json', data: JSON.stringify({ name: 'legacy' }) },
     ]);
     const url = await serveOnce(zipBuffer);
 
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
 
-    await expect(manager.install(url)).rejects.toThrow(/manifest/i);
+    await expect(manager.install(url)).rejects.toThrow(/Legacy kimi\.plugin\.json/i);
   });
 
   it('install() from github URL resolves latest release and records github metadata', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const zipBuffer = await createZipBuffer([
       {
-        name: 'wbxl2000-superpowers-abc/kimi.plugin.json',
+        name: 'wbxl2000-superpowers-abc/.claude-plugin/plugin.json',
         data: JSON.stringify({ name: 'gh-demo', version: '1.0.0' }),
       },
     ]);
@@ -761,13 +851,10 @@ describe('PluginManager', () => {
   });
 
   it('install() from /tree/<tag-shaped-ref> downloads via short form, not refs/heads/ (P1 regression)', async () => {
-    // A repo whose only ref `v5.1.0` is a tag (no branch by that name). The
-    // previous resolver wrote `zip/refs/heads/v5.1.0` and 404'd. Verify the
-    // mock now sees the short-form request `zip/v5.1.0`.
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const zipBuffer = await createZipBuffer([
       {
-        name: 'obra-superpowers-v5.1.0/kimi.plugin.json',
+        name: 'obra-superpowers-v5.1.0/.claude-plugin/plugin.json',
         data: JSON.stringify({ name: 'pin-tag-demo', version: '5.1.0' }),
       },
     ]);
@@ -802,10 +889,10 @@ describe('PluginManager', () => {
   });
 
   it('install() from /releases/tag/<tag> resolves precisely via refs/tags/', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const zipBuffer = await createZipBuffer([
       {
-        name: 'obra-superpowers-v5.1.0/kimi.plugin.json',
+        name: 'obra-superpowers-v5.1.0/.claude-plugin/plugin.json',
         data: JSON.stringify({ name: 'pin-tag-demo', version: '5.1.0' }),
       },
     ]);
@@ -832,8 +919,6 @@ describe('PluginManager', () => {
       const record = await manager.install(
         'https://github.com/obra/superpowers/releases/tag/v5.1.0',
       );
-      // Explicit tag origin → kind is 'tag', URL uses refs/tags/ for
-      // disambiguation against same-named branches.
       expect(codeloadPath).toBe('/obra/superpowers/zip/refs/tags/v5.1.0');
       expect(record.github?.ref).toEqual({ kind: 'tag', value: 'v5.1.0' });
     } finally {
@@ -842,10 +927,10 @@ describe('PluginManager', () => {
   });
 
   it('install() from github /tree/<branch> bypasses the GitHub API', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const zipBuffer = await createZipBuffer([
       {
-        name: 'wbxl2000-superpowers-main/kimi.plugin.json',
+        name: 'wbxl2000-superpowers-main/.claude-plugin/plugin.json',
         data: JSON.stringify({ name: 'gh-demo', version: '5.1.0' }),
       },
     ]);
@@ -870,7 +955,7 @@ describe('PluginManager', () => {
   });
 
   it('install() ignores forged marketplace context from legacy callers', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('rando', { version: '1.0.0' });
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -883,11 +968,13 @@ describe('PluginManager', () => {
   });
 
   it('install() from github URL overwrites an existing zip-url install (CDN migration)', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
 
-    // Original CDN install.
     const cdnZip = await createZipBuffer([
-      { name: 'pkg/kimi.plugin.json', data: JSON.stringify({ name: 'superpowers', version: '5.0.0' }) },
+      {
+        name: 'pkg/.claude-plugin/plugin.json',
+        data: JSON.stringify({ name: 'superpowers', version: '5.0.0' }),
+      },
     ]);
     const cdnUrl = await serveOnce(cdnZip);
 
@@ -897,9 +984,11 @@ describe('PluginManager', () => {
     expect(first.source).toBe('zip-url');
     await manager.setEnabled('superpowers', false);
 
-    // Now migrate via GitHub URL.
     const ghZip = await createZipBuffer([
-      { name: 'pkg/kimi.plugin.json', data: JSON.stringify({ name: 'superpowers', version: '5.1.0' }) },
+      {
+        name: 'pkg/.claude-plugin/plugin.json',
+        data: JSON.stringify({ name: 'superpowers', version: '5.1.0' }),
+      },
     ]);
     using _ = mockGithubFetch({
       releaseTag: 'v5.1.0',
@@ -909,37 +998,43 @@ describe('PluginManager', () => {
 
     expect(updated.source).toBe('github');
     expect(updated.manifest?.version).toBe('5.1.0');
-    expect(updated.enabled).toBe(false); // preserved
-    expect(updated.installedAt).toBe(first.installedAt); // preserved
+    expect(updated.enabled).toBe(false);
+    expect(updated.installedAt).toBe(first.installedAt);
     expect(updated.originalSource).toBe('https://github.com/wbxl2000/superpowers');
     expect(updated.github?.ref).toEqual({ kind: 'tag', value: 'v5.1.0' });
     expect(manager.list()).toHaveLength(1);
   });
 
   it('enabledHooks() returns hooks from enabled plugins with cwd and env injected', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', {
-      hooks: [{ event: 'PreToolUse', command: './hooks/guard.sh', timeout: 10 }],
+      hookCommands: [{ event: 'PreToolUse', command: './hooks/guard.sh', timeout: 10 }],
     });
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
     await manager.install(root);
-    const installedRoot = await managedPluginRoot(home, 'demo');
+    const installedRoot = await cachedPluginRoot(home, 'demo');
     expect(manager.enabledHooks()).toEqual([
       {
         event: 'PreToolUse',
+        type: 'command',
         command: './hooks/guard.sh',
         timeout: 10,
+        matcher: '',
         cwd: installedRoot,
-        env: { SUPERLIORA_HOME: home, KIMI_PLUGIN_ROOT: installedRoot },
+        env: {
+          SUPERLIORA_HOME: home,
+          CLAUDE_PLUGIN_ROOT: installedRoot,
+          CLAUDE_PLUGIN_DATA: path.join(home, 'plugins', 'data', 'demo'),
+        },
       },
     ]);
   });
 
   it('enabledHooks() excludes disabled plugins', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', {
-      hooks: [{ event: 'PreToolUse', command: './x.sh' }],
+      hookCommands: [{ event: 'PreToolUse', command: './x.sh' }],
     });
     const manager = new PluginManager({ kimiHomeDir: home });
     await manager.load();
@@ -949,9 +1044,9 @@ describe('PluginManager', () => {
   });
 
   it('summaries() include hookCount', async () => {
-    const home = await makeKimiHome();
+    const home = await makePluginHome();
     const root = await makePlugin('demo', {
-      hooks: [
+      hookCommands: [
         { event: 'PreToolUse', command: './a.sh' },
         { event: 'Stop', command: './b.sh' },
       ],
@@ -992,7 +1087,6 @@ function mockGithubFetch(options: MockGithubFetchOptions): { [Symbol.dispose]():
       });
     }
     if (url.startsWith('https://codeload.github.com/')) {
-      // HEAD probe used by the no-release fallback path returns headers only.
       if (init?.method === 'HEAD') {
         return new Response(null, { status: 200 });
       }
@@ -1033,7 +1127,7 @@ async function serveOnce(buffer: Buffer): Promise<string> {
     });
     server.listen(0, '127.0.0.1', () => {
       const addr = server.address()!;
-      resolve(`http://127.0.0.1:${(addr as any).port}`);
+      resolve(`http://127.0.0.1:${(addr as { port: number }).port}`);
     });
   });
 }

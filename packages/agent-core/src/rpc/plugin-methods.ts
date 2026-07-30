@@ -8,7 +8,8 @@
  */
 
 import { ErrorCodes, LioraError } from '#/errors/index';
-import type { PluginManager } from '#/plugin/index';
+import type { PluginHost, PluginManager } from '#/plugin/index';
+import type { PluginThemeDef } from '#/plugin/themes';
 
 import type {
   EmptyPayload,
@@ -24,6 +25,7 @@ import type {
 
 export interface PluginMethodsContext {
   readonly plugins: PluginManager;
+  readonly pluginHost: PluginHost;
   readonly homeDir: string;
   readonly pluginsReady: Promise<void>;
   pluginsLoadError: Error | undefined;
@@ -116,4 +118,13 @@ export async function getPluginInfo(
     });
   }
   return info;
+}
+
+export async function listPluginThemes(
+  context: PluginMethodsContext,
+  _: EmptyPayload,
+): Promise<readonly PluginThemeDef[]> {
+  await context.pluginsReady;
+  assertPluginsLoaded(context);
+  return context.pluginHost.themes();
 }

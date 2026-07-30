@@ -1,357 +1,322 @@
-import { readdir, realpath, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
+import { loadClaudeAgentEntries } from './agents';
+import { loadPluginChannels } from './channels';
+import { loadClaudeHooks } from './hooks-adapter';
+import { loadClaudeMcpServers } from './mcp';
+import { loadClaudeMonitors } from './monitors';
 import {
-  HookDefSchema,
-  McpServerConfigSchema,
-  type HookDefConfig,
-  type McpServerConfig,
-} from '../config/schema';
+  isDir,
+  isFile,
+  isObject,
+  pathEntries,
+  resolvePluginPath,
+  stringArrayField,
+  stringField,
+} from './paths';
 import {
   PLUGIN_NAME_REGEX,
+  type PluginChannelDef,
   type PluginCommandEntry,
   type PluginDiagnostic,
-  type PluginInterface,
   type PluginManifest,
   type PluginManifestKind,
 } from './types';
+import { parseUserConfigSchema } from './user-config';
 
-const KIMI_PLUGIN_ROOT_PATH = 'kimi.plugin.json';
-const KIMI_PLUGIN_DIR_PATH = '.kimi-plugin/plugin.json';
+const CLAUDE_MANIFEST_REL = path.join('.claude-plugin', 'plugin.json');
 
-// Fields that look like third-party runtime extensions (Claude / Codex / old
-// Kimi CLI). We do not run them; emit an info diagnostic so plugin authors and
-// users can see why a field is silently ignored.
-const UNSUPPORTED_RUNTIME_FIELDS = [
-  'tools',
-  'apps',
-  'inject',
-  'configFile',
-  'config_file',
-  'bootstrap',
-] as const;
+/** Manifest fields still accepted as format-compatible no-ops (partial host). */
+const RUNTIME_NOOP_FIELDS = ['experimental'] as const;
 
 export interface ParsedManifestResult {
   readonly manifest?: PluginManifest;
   readonly manifestKind?: PluginManifestKind;
   readonly manifestPath?: string;
-  readonly shadowedManifestPath?: string;
   readonly diagnostics: readonly PluginDiagnostic[];
 }
 
-export async function parseManifest(pluginRoot: string): Promise<ParsedManifestResult> {
-  const rootJsonPath = path.join(pluginRoot, KIMI_PLUGIN_ROOT_PATH);
-  const dirJsonPath = path.join(pluginRoot, KIMI_PLUGIN_DIR_PATH);
-  const rootJsonExists = await isFile(rootJsonPath);
-  const dirJsonExists = await isFile(dirJsonPath);
-
-  if (!rootJsonExists && !dirJsonExists) {
-    return {
-      diagnostics: [
-        {
-          severity: 'error',
-          message: `No manifest at ${KIMI_PLUGIN_ROOT_PATH} or ${KIMI_PLUGIN_DIR_PATH}`,
-        },
-      ],
-    };
-  }
-
-  const manifestPath = rootJsonExists ? rootJsonPath : dirJsonPath;
-  const manifestKind: PluginManifestKind = rootJsonExists ? 'kimi-plugin-root' : 'kimi-plugin-dir';
-  const shadowedManifestPath = rootJsonExists && dirJsonExists ? dirJsonPath : undefined;
-
-  let raw: unknown;
-  try {
-    raw = JSON.parse(await readFile(manifestPath, 'utf8'));
-  } catch (error) {
-    return {
-      manifestKind,
-      manifestPath,
-      shadowedManifestPath,
-      diagnostics: [
-        {
-          severity: 'error',
-          message: `Failed to parse ${path.relative(pluginRoot, manifestPath)}: ${(error as Error).message}`,
-        },
-      ],
-    };
-  }
-
-  if (!isObject(raw)) {
-    return {
-      manifestKind,
-      manifestPath,
-      shadowedManifestPath,
-      diagnostics: [{ severity: 'error', message: 'manifest must be a JSON object' }],
-    };
-  }
-
+export async function parseManifest(
+  pluginRoot: string,
+  options: { readonly projectDir?: string; readonly pluginDataDir?: string } = {},
+): Promise<ParsedManifestResult> {
+  const manifestPath = path.join(pluginRoot, CLAUDE_MANIFEST_REL);
+  const hasManifest = await isFile(manifestPath);
   const diagnostics: PluginDiagnostic[] = [];
 
-  const name = typeof raw['name'] === 'string' ? raw['name'].trim() : '';
+  let raw: Record<string, unknown> = {};
+  let manifestKind: PluginManifestKind = 'claude-autodiscover';
+  let resolvedManifestPath: string | undefined;
+
+  if (hasManifest) {
+    manifestKind = 'claude-plugin';
+    resolvedManifestPath = manifestPath;
+    try {
+      const parsed = JSON.parse(await readFile(manifestPath, 'utf8'));
+      if (!isObject(parsed)) {
+        return {
+          manifestKind,
+          manifestPath: resolvedManifestPath,
+          diagnostics: [{ severity: 'error', message: 'manifest must be a JSON object' }],
+        };
+      }
+      raw = parsed;
+    } catch (error) {
+      return {
+        manifestKind,
+        manifestPath: resolvedManifestPath,
+        diagnostics: [
+          {
+            severity: 'error',
+            message: `Failed to parse ${CLAUDE_MANIFEST_REL}: ${(error as Error).message}`,
+          },
+        ],
+      };
+    }
+  }
+
+  // Reject legacy Kimi manifests so authors do not silently run the wrong format.
+  if (
+    (await isFile(path.join(pluginRoot, 'kimi.plugin.json'))) ||
+    (await isFile(path.join(pluginRoot, '.kimi-plugin', 'plugin.json')))
+  ) {
+    diagnostics.push({
+      severity: 'error',
+      message:
+        'Legacy kimi.plugin.json / .kimi-plugin/plugin.json is not supported; use .claude-plugin/plugin.json',
+    });
+    return { diagnostics, manifestKind, manifestPath: resolvedManifestPath };
+  }
+
+  const dirName = path.basename(await realpath(pluginRoot).catch(() => pluginRoot));
+  const nameRaw = stringField(raw, 'name') ?? (hasManifest ? '' : sanitizeDirName(dirName));
+  const name = nameRaw.trim();
   if (name.length === 0) {
-    diagnostics.push({ severity: 'error', message: '"name" is required' });
-    return { manifestKind, manifestPath, shadowedManifestPath, diagnostics };
+    diagnostics.push({
+      severity: 'error',
+      message: hasManifest
+        ? '"name" is required'
+        : `Cannot autodiscover plugin name from directory "${dirName}"`,
+    });
+    return { diagnostics, manifestKind, manifestPath: resolvedManifestPath };
   }
   if (!PLUGIN_NAME_REGEX.test(name)) {
     diagnostics.push({
       severity: 'error',
       message: `"name" must match ${PLUGIN_NAME_REGEX} (got "${name}")`,
     });
-    return { manifestKind, manifestPath, shadowedManifestPath, diagnostics };
+    return { diagnostics, manifestKind, manifestPath: resolvedManifestPath };
   }
 
-  let skills = await resolveSkillsField(pluginRoot, raw['skills'], diagnostics);
-  if (raw['skills'] === undefined) {
-    const rootSkillMd = path.join(pluginRoot, 'SKILL.md');
-    if (await isFile(rootSkillMd)) {
-      skills = [pluginRoot];
+  for (const field of RUNTIME_NOOP_FIELDS) {
+    if (raw[field] !== undefined) {
+      diagnostics.push({
+        severity: 'info',
+        message: `"${field}" is present but not executed by SuperLiora yet`,
+      });
     }
   }
 
-  const skillInstructions =
-    typeof raw['skillInstructions'] === 'string' ? raw['skillInstructions'] : undefined;
+  const vars = {
+    pluginRoot,
+    pluginData: options.pluginDataDir ?? path.join(pluginRoot, '.plugin-data'),
+    projectDir: options.projectDir ?? process.cwd(),
+  };
 
-  recordUnsupportedRuntimeFields(raw, diagnostics);
+  const skills = await resolveSkills({
+    pluginRoot,
+    raw: raw['skills'],
+    diagnostics,
+  });
+  const commandsOverride = raw['commands'] !== undefined;
+  const agentsOverride = raw['agents'] !== undefined;
+  const hooksOverride = raw['hooks'] !== undefined;
+
+  const commands = await resolveCommands({
+    pluginRoot,
+    raw: raw['commands'],
+    diagnostics,
+    useDefault: !commandsOverride,
+  });
+  const agents = await loadClaudeAgentEntries({
+    pluginRoot,
+    raw: raw['agents'],
+    diagnostics,
+    useDefault: !agentsOverride,
+  });
+  const hooks = await loadClaudeHooks({
+    pluginRoot,
+    raw: raw['hooks'],
+    vars,
+    diagnostics,
+    useDefault: !hooksOverride,
+  });
+  const mcpServers = await loadClaudeMcpServers({
+    pluginRoot,
+    raw: raw['mcpServers'],
+    vars,
+    diagnostics,
+    useDefault: true,
+  });
+  const monitors = await loadClaudeMonitors({
+    pluginRoot,
+    raw: raw['monitors'],
+    vars,
+    diagnostics,
+  });
+  const userConfig = parseUserConfigSchema(raw['userConfig'], diagnostics);
+
+  let binDir: string | undefined;
+  const binPath = path.join(pluginRoot, 'bin');
+  if (await isDir(binPath)) binDir = binPath;
+
+  const extras = await discoverClaudeExtras({
+    pluginRoot,
+    raw,
+    diagnostics,
+  });
+
+  const mcpServerNames = new Set(Object.keys(mcpServers ?? {}));
+  let channels: readonly PluginChannelDef[] | undefined;
+  if (extras.channelsPath !== undefined || Array.isArray(raw['channels'])) {
+    channels = await loadPluginChannels({
+      channelsPath: extras.channelsPath ?? pluginRoot,
+      inline: raw['channels'],
+      mcpServerNames,
+      diagnostics,
+    });
+  }
+
+  const author = readAuthor(raw['author']);
+  const defaultEnabled =
+    typeof raw['defaultEnabled'] === 'boolean' ? raw['defaultEnabled'] : undefined;
 
   const manifest: PluginManifest = {
     name,
+    displayName: stringField(raw, 'displayName'),
     version: stringField(raw, 'version'),
     description: stringField(raw, 'description'),
     keywords: stringArrayField(raw, 'keywords'),
     homepage: stringField(raw, 'homepage'),
+    repository: stringField(raw, 'repository'),
     license: stringField(raw, 'license'),
-    author: readAuthor(raw['author']),
+    author,
+    defaultEnabled,
     skills,
-    sessionStart: readSessionStart(raw['sessionStart'], diagnostics),
-    mcpServers: await readMcpServers(pluginRoot, raw['mcpServers'], diagnostics),
-    hooks: readHooks(raw['hooks'], diagnostics),
-    commands: await readCommands(pluginRoot, raw['commands'], diagnostics),
-    interface: readInterface(raw['interface']),
-    skillInstructions,
+    commands,
+    agents,
+    mcpServers,
+    hooks,
+    binDir,
+    monitors,
+    userConfig,
+    ...extras,
+    ...(channels !== undefined && channels.length > 0 ? { channels } : {}),
   };
 
-  return { manifest, manifestKind, manifestPath, shadowedManifestPath, diagnostics };
+  return {
+    manifest,
+    manifestKind,
+    manifestPath: resolvedManifestPath,
+    diagnostics,
+  };
 }
 
-function recordUnsupportedRuntimeFields(
-  raw: Record<string, unknown>,
-  diagnostics: PluginDiagnostic[],
-): void {
-  for (const field of UNSUPPORTED_RUNTIME_FIELDS) {
-    if (raw[field] === undefined) continue;
-    diagnostics.push({
-      severity: 'info',
-      message: `"${field}" is present but not supported by Kimi plugins`,
-    });
-  }
-}
-
-async function resolveSkillsField(
-  pluginRoot: string,
-  raw: unknown,
-  diagnostics: PluginDiagnostic[],
-): Promise<readonly string[]> {
-  if (raw === undefined) return [];
-  const entries: string[] = [];
-  if (typeof raw === 'string') {
-    entries.push(raw);
-  } else if (Array.isArray(raw) && raw.every((entry) => typeof entry === 'string')) {
-    entries.push(...raw);
-  } else {
-    diagnostics.push({ severity: 'error', message: '"skills" must be a string or string[]' });
-    return [];
-  }
-
+async function resolveSkills(input: {
+  readonly pluginRoot: string;
+  readonly raw: unknown;
+  readonly diagnostics: PluginDiagnostic[];
+}): Promise<readonly string[]> {
   const resolved: string[] = [];
-  for (const entry of entries) {
-    if (!entry.startsWith('./')) {
-      diagnostics.push({
+  const defaultSkills = path.join(input.pluginRoot, 'skills');
+  if (await isDir(defaultSkills)) resolved.push(defaultSkills);
+
+  if (input.raw !== undefined) {
+    const entries = pathEntries(input.raw);
+    if (entries === undefined) {
+      input.diagnostics.push({
         severity: 'error',
-        message: `"skills" path must start with "./" (got "${entry}")`,
+        message: '"skills" must be a string or string[]',
       });
-      continue;
+    } else {
+      for (const entry of entries) {
+        const absolute = await resolvePluginPath({
+          pluginRoot: input.pluginRoot,
+          field: 'skills',
+          value: entry,
+          diagnostics: input.diagnostics,
+          severity: 'error',
+        });
+        if (absolute === undefined) continue;
+        if (!(await isDir(absolute))) {
+          input.diagnostics.push({
+            severity: 'warn',
+            message: `"skills" path is not a directory (${entry})`,
+          });
+          continue;
+        }
+        if (!resolved.includes(absolute)) resolved.push(absolute);
+      }
     }
-    const absolute = path.resolve(pluginRoot, entry);
-    let real: string;
-    try {
-      real = await realpath(absolute);
-    } catch {
-      real = absolute;
-    }
-    const rootReal = await realpath(pluginRoot).catch(() => pluginRoot);
-    if (!isWithin(real, rootReal)) {
-      diagnostics.push({
-        severity: 'error',
-        message: `"skills" path resolves outside the plugin (${entry})`,
-      });
-      continue;
-    }
-    if (!(await isDir(real))) {
-      diagnostics.push({
-        severity: 'warn',
-        message: `"skills" path is not a directory (${entry})`,
-      });
-      continue;
-    }
-    resolved.push(real);
   }
+
+  if (resolved.length === 0) {
+    const rootSkillMd = path.join(input.pluginRoot, 'SKILL.md');
+    if (await isFile(rootSkillMd)) {
+      resolved.push(input.pluginRoot);
+    }
+  }
+
   return resolved;
 }
 
-async function resolvePluginPathField(input: {
+async function resolveCommands(input: {
   readonly pluginRoot: string;
-  readonly field: string;
-  readonly value: string;
+  readonly raw: unknown;
   readonly diagnostics: PluginDiagnostic[];
-}): Promise<string | undefined> {
-  if (!input.value.startsWith('./')) {
-    input.diagnostics.push({
-      severity: 'warn',
-      message: `"${input.field}" path must start with "./" (got "${input.value}")`,
-    });
-    return undefined;
-  }
-  const absolute = path.resolve(input.pluginRoot, input.value);
-  let real: string;
-  try {
-    real = await realpath(absolute);
-  } catch {
-    real = absolute;
-  }
-  const rootReal = await realpath(input.pluginRoot).catch(() => input.pluginRoot);
-  if (!isWithin(real, rootReal)) {
-    input.diagnostics.push({
-      severity: 'warn',
-      message: `"${input.field}" path resolves outside the plugin (${input.value})`,
-    });
-    return undefined;
-  }
-  return real;
-}
+  readonly useDefault: boolean;
+}): Promise<readonly PluginCommandEntry[]> {
+  const roots: string[] = [];
 
-function readSessionStart(
-  raw: unknown,
-  diagnostics: PluginDiagnostic[],
-): PluginManifest['sessionStart'] {
-  if (raw === undefined) return undefined;
-  if (!isObject(raw)) {
-    diagnostics.push({ severity: 'warn', message: '"sessionStart" must be an object' });
-    return undefined;
-  }
-  const skill = typeof raw['skill'] === 'string' ? raw['skill'].trim() : '';
-  if (skill.length === 0) {
-    diagnostics.push({
-      severity: 'warn',
-      message: '"sessionStart.skill" is required when sessionStart is present',
-    });
-    return undefined;
-  }
-  return { skill };
-}
-
-async function readMcpServers(
-  pluginRoot: string,
-  raw: unknown,
-  diagnostics: PluginDiagnostic[],
-): Promise<PluginManifest['mcpServers']> {
-  if (raw === undefined) return undefined;
-  if (!isObject(raw)) {
-    diagnostics.push({ severity: 'warn', message: '"mcpServers" must be an object' });
-    return undefined;
-  }
-
-  const out: Record<string, McpServerConfig> = {};
-  for (const [name, value] of Object.entries(raw)) {
-    const trimmedName = name.trim();
-    if (trimmedName.length === 0) {
-      diagnostics.push({
+  if (input.raw !== undefined) {
+    const entries = pathEntries(input.raw);
+    if (entries === undefined) {
+      input.diagnostics.push({
         severity: 'warn',
-        message: '"mcpServers" entries must have a non-empty name',
-      });
-      continue;
-    }
-    const parsed = McpServerConfigSchema.safeParse(value);
-    if (!parsed.success) {
-      diagnostics.push({
-        severity: 'warn',
-        message: `Invalid MCP server "${trimmedName}": ${parsed.error.message}`,
-      });
-      continue;
-    }
-    const normalized = await normalizePluginMcpServer({
-      pluginRoot,
-      name: trimmedName,
-      config: parsed.data,
-      diagnostics,
-    });
-    if (normalized !== undefined) out[trimmedName] = normalized;
-  }
-  return Object.keys(out).length === 0 ? undefined : out;
-}
-
-function readHooks(
-  raw: unknown,
-  diagnostics: PluginDiagnostic[],
-): readonly HookDefConfig[] | undefined {
-  if (raw === undefined) return undefined;
-  if (!Array.isArray(raw)) {
-    diagnostics.push({ severity: 'warn', message: '"hooks" must be an array' });
-    return undefined;
-  }
-  const out: HookDefConfig[] = [];
-  raw.forEach((entry, i) => {
-    const parsed = HookDefSchema.safeParse(entry);
-    if (!parsed.success) {
-      diagnostics.push({
-        severity: 'warn',
-        message: `Invalid hook at index ${i}: ${parsed.error.message}`,
+        message: '"commands" must be a string or string[]',
       });
     } else {
-      out.push(parsed.data);
+      for (const entry of entries) {
+        const resolved = await resolvePluginPath({
+          pluginRoot: input.pluginRoot,
+          field: 'commands',
+          value: entry,
+          diagnostics: input.diagnostics,
+        });
+        if (resolved === undefined) continue;
+        roots.push(resolved);
+      }
     }
-  });
-  return out.length === 0 ? undefined : out;
-}
-
-async function readCommands(
-  pluginRoot: string,
-  raw: unknown,
-  diagnostics: PluginDiagnostic[],
-): Promise<readonly PluginCommandEntry[] | undefined> {
-  if (raw === undefined) return undefined;
-  const entries: string[] = [];
-  if (typeof raw === 'string') {
-    entries.push(raw);
-  } else if (Array.isArray(raw) && raw.every((entry) => typeof entry === 'string')) {
-    entries.push(...raw);
-  } else {
-    diagnostics.push({ severity: 'warn', message: '"commands" must be a string or string[]' });
-    return undefined;
+  } else if (input.useDefault) {
+    const defaultDir = path.join(input.pluginRoot, 'commands');
+    if (await isDir(defaultDir)) roots.push(defaultDir);
   }
 
   const files: PluginCommandEntry[] = [];
-  for (const entry of entries) {
-    const resolved = await resolvePluginPathField({
-      pluginRoot,
-      field: 'commands',
-      value: entry,
-      diagnostics,
-    });
-    if (resolved === undefined) continue;
-    if (await isDir(resolved)) {
-      files.push(...(await listMarkdownFilesRecursive(resolved)));
-    } else if ((await isFile(resolved)) && resolved.endsWith('.md')) {
-      files.push({ path: resolved, name: commandNameFromFile(resolved, path.dirname(resolved)) });
+  for (const root of roots) {
+    if (await isDir(root)) {
+      files.push(...(await listMarkdownFilesRecursive(root)));
+    } else if ((await isFile(root)) && root.endsWith('.md')) {
+      files.push({ path: root, name: commandNameFromFile(root, path.dirname(root)) });
     } else {
-      diagnostics.push({
+      input.diagnostics.push({
         severity: 'warn',
-        message: `"commands" entry must be a directory or .md file (${entry})`,
+        message: `"commands" entry must be a directory or .md file (${root})`,
       });
     }
   }
-
-  return files.length === 0 ? undefined : files.toSorted((a, b) => a.name.localeCompare(b.name));
+  return files.toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 async function listMarkdownFilesRecursive(root: string): Promise<readonly PluginCommandEntry[]> {
@@ -386,106 +351,132 @@ function commandNameFromFile(file: string, root: string): string {
   return relative.split(path.sep).join('/');
 }
 
-async function normalizePluginMcpServer(input: {
-  readonly pluginRoot: string;
-  readonly name: string;
-  readonly config: McpServerConfig;
-  readonly diagnostics: PluginDiagnostic[];
-}): Promise<McpServerConfig | undefined> {
-  const { config } = input;
-  if (config.transport === 'http' || config.transport === 'sse') return config;
-
-  let command = config.command;
-  if (command.startsWith('./')) {
-    const resolvedCommand = await resolvePluginPathField({
-      pluginRoot: input.pluginRoot,
-      field: `mcpServers.${input.name}.command`,
-      value: command,
-      diagnostics: input.diagnostics,
-    });
-    if (resolvedCommand === undefined) return undefined;
-    command = resolvedCommand;
-  } else if (command.includes('/') || path.isAbsolute(command)) {
-    input.diagnostics.push({
-      severity: 'warn',
-      message: `"mcpServers.${input.name}.command" must be a PATH command or start with "./"`,
-    });
-    return undefined;
-  }
-
-  let cwd = config.cwd;
-  if (cwd !== undefined) {
-    const resolvedCwd = await resolvePluginPathField({
-      pluginRoot: input.pluginRoot,
-      field: `mcpServers.${input.name}.cwd`,
-      value: cwd,
-      diagnostics: input.diagnostics,
-    });
-    if (resolvedCwd === undefined) return undefined;
-    cwd = resolvedCwd;
-  }
-
-  return { ...config, command, cwd };
-}
-
 function readAuthor(raw: unknown): PluginManifest['author'] {
   if (typeof raw === 'string') return { name: raw };
   if (!isObject(raw)) return undefined;
   const name = stringField(raw, 'name');
   const email = stringField(raw, 'email');
-  if (name === undefined && email === undefined) return undefined;
-  return { name, email };
+  const url = stringField(raw, 'url');
+  if (name === undefined && email === undefined && url === undefined) return undefined;
+  return { name, email, url };
 }
 
-function readInterface(raw: unknown): PluginInterface | undefined {
-  if (!isObject(raw)) return undefined;
-  const out: PluginInterface = {
-    displayName: stringField(raw, 'displayName'),
-    shortDescription: stringField(raw, 'shortDescription'),
-    longDescription: stringField(raw, 'longDescription'),
-    developerName: stringField(raw, 'developerName'),
-    websiteURL: stringField(raw, 'websiteURL'),
-  };
-  const hasAny = Object.values(out).some((value) => value !== undefined);
-  return hasAny ? out : undefined;
+/**
+ * Discover Claude component paths that SuperLiora hosts partially today
+ * (presence + PackageView flags; full runtime lands in later slices).
+ */
+async function discoverClaudeExtras(input: {
+  readonly pluginRoot: string;
+  readonly raw: Record<string, unknown>;
+  readonly diagnostics: PluginDiagnostic[];
+}): Promise<{
+  settingsPath?: string;
+  themesDir?: string;
+  outputStylesDir?: string;
+  lspServersPath?: string;
+  workflowsDir?: string;
+  channelsPath?: string;
+  dependencies?: Readonly<Record<string, string>>;
+}> {
+  const { pluginRoot, raw, diagnostics } = input;
+  const out: {
+    settingsPath?: string;
+    themesDir?: string;
+    outputStylesDir?: string;
+    lspServersPath?: string;
+    workflowsDir?: string;
+    channelsPath?: string;
+    dependencies?: Readonly<Record<string, string>>;
+  } = {};
+
+  const settingsDefault = path.join(pluginRoot, 'settings.json');
+  if (await isFile(settingsDefault)) {
+    out.settingsPath = settingsDefault;
+  }
+
+  const themesDefault = path.join(pluginRoot, 'themes');
+  if (await isDir(themesDefault)) {
+    out.themesDir = themesDefault;
+  }
+
+  const outputStylesDefault = path.join(pluginRoot, 'output-styles');
+  const outputStylesAlt = path.join(pluginRoot, 'outputStyles');
+  if (await isDir(outputStylesDefault)) {
+    out.outputStylesDir = outputStylesDefault;
+  } else if (await isDir(outputStylesAlt)) {
+    out.outputStylesDir = outputStylesAlt;
+  }
+
+  const lspPath = await resolveOptionalPathField({
+    pluginRoot,
+    field: 'lspServers',
+    raw: raw['lspServers'],
+    defaultRel: '.lsp.json',
+    diagnostics,
+  });
+  if (lspPath !== undefined) {
+    out.lspServersPath = lspPath;
+  }
+
+  const workflowsDefault = path.join(pluginRoot, 'workflows');
+  if (await isDir(workflowsDefault)) {
+    out.workflowsDir = workflowsDefault;
+  }
+
+  const channelsDefault = path.join(pluginRoot, 'channels');
+  const channelsFile = path.join(pluginRoot, 'channels.json');
+  if (await isDir(channelsDefault)) {
+    out.channelsPath = channelsDefault;
+  } else if (await isFile(channelsFile)) {
+    out.channelsPath = channelsFile;
+  } else if (raw['channels'] !== undefined) {
+    out.channelsPath = pluginRoot;
+  }
+
+  if (isObject(raw['dependencies'])) {
+    const deps: Record<string, string> = {};
+    for (const [key, value] of Object.entries(raw['dependencies'])) {
+      if (typeof value === 'string' && value.trim() !== '') {
+        deps[key] = value.trim();
+      }
+    }
+    if (Object.keys(deps).length > 0) {
+      out.dependencies = deps;
+    }
+  }
+
+  return out;
 }
 
-function stringField(raw: Record<string, unknown>, key: string): string | undefined {
-  const value = raw[key];
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed;
-}
-
-function stringArrayField(raw: Record<string, unknown>, key: string): readonly string[] | undefined {
-  const value = raw[key];
-  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+async function resolveOptionalPathField(input: {
+  readonly pluginRoot: string;
+  readonly field: string;
+  readonly raw: unknown;
+  readonly defaultRel: string;
+  readonly diagnostics: PluginDiagnostic[];
+}): Promise<string | undefined> {
+  if (input.raw === undefined) {
+    const fallback = path.join(input.pluginRoot, input.defaultRel);
+    return (await isFile(fallback)) ? fallback : undefined;
+  }
+  if (typeof input.raw !== 'string') {
+    input.diagnostics.push({
+      severity: 'warn',
+      message: `"${input.field}" must be a path string when set`,
+    });
     return undefined;
   }
-  return value as readonly string[];
+  return resolvePluginPath({
+    pluginRoot: input.pluginRoot,
+    field: input.field,
+    value: input.raw,
+    diagnostics: input.diagnostics,
+  });
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isWithin(child: string, parent: string): boolean {
-  const relative = path.relative(parent, child);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-async function isFile(p: string): Promise<boolean> {
-  try {
-    return (await stat(p)).isFile();
-  } catch {
-    return false;
-  }
-}
-
-async function isDir(p: string): Promise<boolean> {
-  try {
-    return (await stat(p)).isDirectory();
-  } catch {
-    return false;
-  }
+function sanitizeDirName(name: string): string {
+  const lower = name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (lower.length === 0) return '';
+  if (!/^[a-z0-9]/.test(lower)) return `p-${lower}`.slice(0, 64);
+  return lower.slice(0, 64);
 }

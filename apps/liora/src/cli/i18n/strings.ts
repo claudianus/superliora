@@ -33,6 +33,8 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.option.showThinking': 'Print model thinking to stderr in prompt text mode.',
   'cli.option.skillsDir':
     'Load skills from this directory instead of auto-discovered user and project directories. Can be repeated.',
+  'cli.option.pluginDir':
+    'Load a Claude plugin from this directory for the current session only (not persisted). Can be repeated.',
   'cli.option.addDir':
     'Add an additional workspace directory for this session. Can be repeated.',
   'cli.option.plan': 'Start with Ultrawork plan steering.',
@@ -79,6 +81,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.showThinking': '프롬프트 텍스트 모드에서 모델의 사고를 stderr로 출력합니다.',
   'cli.option.skillsDir':
     '자동 발견된 사용자/프로젝트 디렉터리 대신 이 디렉터리에서 스킬을 로드합니다. 여러 번 지정할 수 있습니다.',
+  'cli.option.pluginDir':
+    '이 세션에만 Claude 플러그인을 디렉터리에서 로드합니다(저장되지 않음). 여러 번 지정할 수 있습니다.',
   'cli.option.addDir': '이 세션에 추가 작업 디렉터리를 등록합니다. 여러 번 지정할 수 있습니다.',
   'cli.option.plan': 'Ultrawork 플랜 조향으로 시작합니다.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',

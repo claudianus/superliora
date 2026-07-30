@@ -70,6 +70,7 @@ export type {
   PluginMcpServerInfo,
   PluginSource,
   PluginSummary,
+  PluginThemeDef,
   ProcessBackgroundTaskInfo,
   PromptOrigin,
   ProviderConfig,
@@ -174,6 +175,18 @@ export interface LioraHarnessOptions {
   readonly autoLoadConfig?: boolean | undefined;
   readonly uiMode?: string;
   readonly skillDirs?: readonly string[];
+  /** Project root for `.superliora/plugins/` merge (defaults to cwd). */
+  readonly projectDir?: string;
+  /** Ephemeral plugin directories (`--plugin-dir`); session scope. */
+  readonly pluginDirs?: readonly string[];
+  /** Opt-in Claude channel MCP server names for inbound inject. */
+  readonly channelServers?: readonly string[];
+  /**
+   * Resolve marketplace plugin id → install source for dependency auto-install.
+   */
+  readonly resolveMarketplaceSource?: (
+    pluginId: string,
+  ) => Promise<string | undefined> | string | undefined;
   readonly telemetry?: TelemetryClient | undefined;
   readonly onOAuthRefresh?: ((outcome: OAuthRefreshOutcome) => void) | undefined;
   readonly sessionStartedProperties?: TelemetryProperties;

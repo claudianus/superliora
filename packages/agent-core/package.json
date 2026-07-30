@@ -54,6 +54,7 @@
     "build": "tsdown",
     "test": "vitest run",
     "test:baseline": "vitest run",
+    "prove:claude-plugins": "node scripts/prove-claude-plugins.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:src": "tsc -p tsconfig.src.json --noEmit",
     "clean": "rm -rf dist"

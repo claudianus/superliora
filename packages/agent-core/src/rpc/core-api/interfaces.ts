@@ -249,6 +249,7 @@ export interface CoreAPI extends SessionAPIWithId {
   removePlugin: (payload: RemovePluginPayload) => void;
   reloadPlugins: (payload: EmptyPayload) => ReloadPluginsResult;
   getPluginInfo: (payload: GetPluginInfoPayload) => PluginInfo;
+  listPluginThemes: (payload: EmptyPayload) => readonly import('#/plugin/themes').PluginThemeDef[];
   memorySearch: (payload: MemorySearchPayload) => readonly MemorySearchResult[];
   memoryList: (payload: MemoryListPayload) => readonly MemoryRecord[];
   memoryGet: (payload: MemoryGetPayload) => MemoryRecord | undefined;

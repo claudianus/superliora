@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -19,13 +19,13 @@ describe('plugin store', () => {
     const home = await makeKimiHome();
     const result = await readInstalled(home);
     expect(result.plugins).toEqual([]);
-    expect(result.version).toBe(1);
+    expect(result.version).toBe(2);
   });
 
   it('writes and reads installed.json round-trip', async () => {
     const home = await makeKimiHome();
     const data: InstalledFile = {
-      version: 1,
+      version: 2,
       plugins: [
         {
           id: 'demo',
@@ -50,14 +50,14 @@ describe('plugin store', () => {
 
   it('writes atomically (no .tmp left after success)', async () => {
     const home = await makeKimiHome();
-    await writeInstalled(home, { version: 1, plugins: [] });
+    await writeInstalled(home, { version: 2, plugins: [] });
     const after = await readFile(path.join(home, 'plugins', 'installed.json'), 'utf8');
-    expect(after).toContain('"version": 1');
+    expect(after).toContain('"version": 2');
   });
 
   it('throws on a corrupt installed.json instead of silently dropping it', async () => {
     const home = await makeKimiHome();
-    await writeInstalled(home, { version: 1, plugins: [] });
+    await writeInstalled(home, { version: 2, plugins: [] });
     await writeFile(path.join(home, 'plugins', 'installed.json'), '{ not json', 'utf8');
     await expect(readInstalled(home)).rejects.toThrow(/parse/i);
   });
@@ -65,7 +65,7 @@ describe('plugin store', () => {
   it('round-trips a github-sourced record', async () => {
     const home = await makeKimiHome();
     const data: InstalledFile = {
-      version: 1,
+      version: 2,
       plugins: [
         {
           id: 'superpowers',
@@ -89,9 +89,9 @@ describe('plugin store', () => {
     expect(result).toEqual(data);
   });
 
-  it('reads a legacy record without github field unchanged', async () => {
+  it('loads v1 installed.json as empty (no migration)', async () => {
     const home = await makeKimiHome();
-    await writeInstalled(home, { version: 1, plugins: [] });
+    await mkdir(path.join(home, 'plugins'), { recursive: true });
     await writeFile(
       path.join(home, 'plugins', 'installed.json'),
       JSON.stringify({
@@ -110,11 +110,6 @@ describe('plugin store', () => {
       'utf8',
     );
     const result = await readInstalled(home);
-    expect(result.plugins).toHaveLength(1);
-    const record = result.plugins[0];
-    expect(record).toBeDefined();
-    expect(record?.id).toBe('demo');
-    expect(record?.source).toBe('zip-url');
-    expect((record as { github?: unknown } | undefined)?.github).toBeUndefined();
+    expect(result).toEqual({ version: 2, plugins: [] });
   });
 });

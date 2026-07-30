@@ -7,7 +7,6 @@ import type { DynamicInjector } from './injector';
 import { ToolWorkflowInjector } from './tool-workflow-injector';
 import { MemoryInjector } from './memory';
 import { PermissionModeInjector } from './permission-mode';
-import { PluginSessionStartInjector } from './plugin-session-start';
 import { PlanModeInjector } from './plan-mode';
 import { PremiumQualityInjector } from './premium-quality';
 import { ResponseLanguageInjector } from './response-language';
@@ -37,7 +36,6 @@ export class InjectionManager {
   constructor(protected readonly agent: Agent) {
     this.injectors = [
       new CurrentTimeInjector(agent),
-      new PluginSessionStartInjector(agent),
       new MemoryInjector(agent),
       new ToolWorkflowInjector(agent),
       new TodoListReminderInjector(agent),

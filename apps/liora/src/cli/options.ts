@@ -14,6 +14,9 @@ export interface CLIOptions {
   showThinking?: boolean;
   prompt: string | undefined;
   skillsDirs: string[];
+  pluginDirs: string[];
+  /** Opt-in Claude channel server names (`--channels`). */
+  channelServers: string[];
   addDirs?: string[];
   /** Automatically resume the first goal in the queue on startup. */
   resumeGoal?: boolean;

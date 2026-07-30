@@ -58,6 +58,12 @@ export interface McpConnectionManagerOptions {
    * `session.log` so MCP events land in the session log too.
    */
   readonly log?: Logger;
+  /** Fired for JSON-RPC notifications from connected servers (channels). */
+  readonly onServerNotification?: (
+    server: string,
+    method: string,
+    params: unknown,
+  ) => void;
 }
 
 /**
@@ -76,6 +82,9 @@ export class McpConnectionManager {
   private initialLoadAttemptId = 0;
   private initialLoadStartedAt: number | undefined;
   private initialLoadFinishedAt: number | undefined;
+  private notificationHandler:
+    | ((server: string, method: string, params: unknown) => void)
+    | undefined;
 
   /**
    * OAuth orchestrator injected at construction time. Consumed by the
@@ -88,6 +97,29 @@ export class McpConnectionManager {
   constructor(private readonly options: McpConnectionManagerOptions = {}) {
     this.oauthService = options.oauthService;
     this.log = options.log ?? defaultLog;
+    this.notificationHandler = options.onServerNotification;
+  }
+
+  /**
+   * Attach/replace a notification listener for channel hosts. Applies to
+   * already-connected clients and future connects.
+   */
+  setNotificationHandler(
+    handler: ((server: string, method: string, params: unknown) => void) | undefined,
+  ): void {
+    this.notificationHandler = handler;
+    if (handler === undefined) return;
+    for (const entry of this.entries.values()) {
+      if (entry.status !== 'connected' || entry.client === undefined) continue;
+      const client = entry.client as RuntimeMcpClient & {
+        onNotification?: (h: (method: string, params: unknown) => void) => void;
+      };
+      if (client.onNotification === undefined) continue;
+      const server = entry.name;
+      client.onNotification((method: string, params: unknown) => {
+        handler(server, method, params);
+      });
+    }
   }
 
   /**
@@ -270,6 +302,15 @@ export class McpConnectionManager {
       entry.tools = tools;
       entry.enabledNames = computeEnabledNames(entry.config, tools);
       entry.status = 'connected';
+      const onNotification = this.notificationHandler;
+      const notifiable = startupClient as RuntimeMcpClient & {
+        onNotification?: (h: (method: string, params: unknown) => void) => void;
+      };
+      if (onNotification !== undefined && notifiable.onNotification !== undefined) {
+        notifiable.onNotification((method: string, params: unknown) => {
+          onNotification(entry.name, method, params);
+        });
+      }
       this.watchForUnexpectedClose(entry, startupClient, attemptId);
     } catch (error) {
       if (!this.isCurrent(entry, attemptId)) {

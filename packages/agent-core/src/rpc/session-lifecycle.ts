@@ -8,7 +8,7 @@
 
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { getRootLogger, log } from '#/logging/logger';
-import type { PluginManager } from '#/plugin/index';
+import type { PluginHost, PluginManager } from '#/plugin/index';
 import type { Kaos } from '@superliora/kaos';
 
 import type { LioraConfig } from '../config';
@@ -66,18 +66,23 @@ import {
   warnIfLogFlushFails,
   withAdditionalDirs,
 } from './session-helpers';
+import * as pluginWiring from './core-plugin-wiring';
 
 export interface SessionLifecycleContext {
   readonly homeDir: string;
+  readonly projectDir: string;
+  readonly channelServers: readonly string[];
   readonly sessions: Map<string, Session>;
   readonly sessionStore: SessionStore;
   readonly plugins: PluginManager;
+  readonly pluginHost: PluginHost;
   readonly pluginsReady: Promise<void>;
   readonly memory: LioraRecallStore;
   readonly experimentalFlags: FlagResolver;
   readonly telemetry: TelemetryClient;
   readonly appVersion: string | undefined;
   readonly sdk: Promise<SDKRPC>;
+  readonly config: LioraConfig;
 
   reloadProviderManager(): LioraConfig;
   getKaos(): Promise<Kaos>;
@@ -147,25 +152,41 @@ export async function createSessionWithOverrides(
       : withTelemetryProperties(sessionTelemetryBase, clientTelemetry);
 
   await context.pluginsReady;
+  const wiringContext = {
+    homeDir: context.homeDir,
+    projectDir: context.projectDir,
+    channelServers: context.channelServers,
+    config,
+    plugins: context.plugins,
+    pluginHost: context.pluginHost,
+  };
+  const pluginSession = await pluginWiring.resolvePluginSessionConfig(wiringContext, config);
+  const sessionConfig = pluginSession.config;
   const pluginSessionStarts = context.plugins.enabledSessionStarts();
-  const pluginCommands = await context.plugins.enabledCommands();
+  const pluginCommands = await context.pluginHost.commands();
+  const pluginAgents = await context.pluginHost.agents();
+  const pluginBinDirs = context.pluginHost.binDirs();
   const mcpConfig = context.mergePluginMcpConfig(withCallerMcp);
 
-  const runtime = await context.buildSessionToolServices(config, summary.id);
+  const runtime = await context.buildSessionToolServices(sessionConfig, summary.id);
+  let sessionKaos = parentKaos.withCwd(workDir);
+  if (Object.keys(pluginSession.env).length > 0) {
+    sessionKaos = sessionKaos.withEnv(pluginSession.env);
+  }
   const session = new Session({
-    kaos: parentKaos.withCwd(workDir),
+    kaos: sessionKaos,
     persistenceKaos,
     toolServices: runtime,
-    config,
+    config: sessionConfig,
     id,
     homedir: summary.sessionDir,
     kimiHomeDir: context.homeDir,
     rpc: proxyWithExtraPayload(await context.sdk, { sessionId: summary.id }),
     providerManager: context.resolveProviderManager(summary.id),
-    background: config.background,
-    hooks: [...(config.hooks ?? []), ...context.plugins.enabledHooks()],
-    permissionRules: config.permission?.rules,
-    skills: context.resolveSessionSkillConfig(config),
+    background: sessionConfig.background,
+    hooks: [...(sessionConfig.hooks ?? []), ...context.pluginHost.hooks()],
+    permissionRules: sessionConfig.permission?.rules,
+    skills: context.resolveSessionSkillConfig(sessionConfig),
     mcpConfig,
     experimentalFlags: context.experimentalFlags,
     telemetry: sessionTelemetry,
@@ -175,6 +196,8 @@ export async function createSessionWithOverrides(
     memory: context.memory.runtimeForSession({ sessionId: summary.id, workDir }),
     dreamStore: context.memory,
     pluginCommands,
+    pluginAgents,
+    pluginBinDirs,
     drainAgentTasksOnStop: options.drainAgentTasksOnStop,
   });
   try {
@@ -214,6 +237,7 @@ export async function createSessionWithOverrides(
     if (config.defaultPlanMode === true) {
       await mainAgent.planMode.enter();
     }
+    await pluginWiring.wirePluginSessionHosts(wiringContext, session, mainAgent);
     await session.writeMetadata();
     await session.flushMetadata();
   } catch (error) {
@@ -293,26 +317,42 @@ export async function resumeSessionWithOverrides(
   });
   const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, input.mcpServers);
   await context.pluginsReady;
+  const wiringContext = {
+    homeDir: context.homeDir,
+    projectDir: context.projectDir,
+    channelServers: context.channelServers,
+    config,
+    plugins: context.plugins,
+    pluginHost: context.pluginHost,
+  };
+  const pluginSession = await pluginWiring.resolvePluginSessionConfig(wiringContext, config);
+  const sessionConfig = pluginSession.config;
   const pluginSessionStarts = context.plugins.enabledSessionStarts();
-  const pluginCommands = await context.plugins.enabledCommands();
+  const pluginCommands = await context.pluginHost.commands();
+  const pluginAgents = await context.pluginHost.agents();
+  const pluginBinDirs = context.pluginHost.binDirs();
   const mcpConfig = context.mergePluginMcpConfig(withCallerMcp);
-  const runtime = await context.buildSessionToolServices(config, summary.id);
+  const runtime = await context.buildSessionToolServices(sessionConfig, summary.id);
   const parentKaos = parentKaosForRead;
   const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
+  let sessionKaos = parentKaos.withCwd(summary.workDir);
+  if (Object.keys(pluginSession.env).length > 0) {
+    sessionKaos = sessionKaos.withEnv(pluginSession.env);
+  }
   const session = new Session({
-    kaos: parentKaos.withCwd(summary.workDir),
+    kaos: sessionKaos,
     persistenceKaos,
     toolServices: runtime,
-    config,
+    config: sessionConfig,
     id: summary.id,
     homedir: summary.sessionDir,
     kimiHomeDir: context.homeDir,
     rpc: proxyWithExtraPayload(await context.sdk, { sessionId: summary.id }),
     providerManager: context.resolveProviderManager(summary.id),
-    background: config.background,
-    hooks: [...(config.hooks ?? []), ...context.plugins.enabledHooks()],
-    permissionRules: config.permission?.rules,
-    skills: context.resolveSessionSkillConfig(config),
+    background: sessionConfig.background,
+    hooks: [...(sessionConfig.hooks ?? []), ...context.pluginHost.hooks()],
+    permissionRules: sessionConfig.permission?.rules,
+    skills: context.resolveSessionSkillConfig(sessionConfig),
     mcpConfig,
     experimentalFlags: context.experimentalFlags,
     telemetry: withTelemetryContext(context.telemetry, { sessionId: summary.id }),
@@ -323,12 +363,18 @@ export async function resumeSessionWithOverrides(
     memory: context.memory.runtimeForSession({ sessionId: summary.id, workDir: summary.workDir }),
     dreamStore: context.memory,
     pluginCommands,
+    pluginAgents,
+    pluginBinDirs,
   });
   let warning: string | undefined;
   try {
     const resumeResult = await session.resume();
     warning = resumeResult.warning;
-    await context.refreshSessionRuntimeConfig(session, config);
+    await context.refreshSessionRuntimeConfig(session, sessionConfig);
+    const mainAgent = session.getReadyAgent('main');
+    if (mainAgent !== undefined) {
+      await pluginWiring.wirePluginSessionHosts(wiringContext, session, mainAgent);
+    }
   } catch (error) {
     await session.close().catch(() => {});
     withTelemetryContext(context.telemetry, { sessionId: summary.id }).track('session_load_failed', {

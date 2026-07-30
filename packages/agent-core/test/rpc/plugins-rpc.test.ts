@@ -6,15 +6,35 @@ import { describe, expect, it } from 'vitest';
 
 import { LioraCore } from '../../src/rpc/core-impl';
 
+async function writeClaudePlugin(
+  pluginRoot: string,
+  name: string,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  await mkdir(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
+  await writeFile(
+    path.join(pluginRoot, '.claude-plugin', 'plugin.json'),
+    JSON.stringify({ name, ...extra }),
+    'utf8',
+  );
+}
+
+async function writeClaudeMcp(
+  pluginRoot: string,
+  mcpServers: Record<string, unknown>,
+): Promise<void> {
+  await writeFile(
+    path.join(pluginRoot, '.mcp.json'),
+    JSON.stringify({ mcpServers }),
+    'utf8',
+  );
+}
+
 describe('LioraCore plugin RPCs', () => {
   it('install → list → setEnabled → remove round trip', async () => {
     const home = await mkdtemp(path.join(tmpdir(), 'kimi-home-'));
     const pluginRoot = await mkdtemp(path.join(tmpdir(), 'plugin-'));
-    await writeFile(
-      path.join(pluginRoot, 'kimi.plugin.json'),
-      JSON.stringify({ name: 'demo', version: '1.0.0' }),
-      'utf8',
-    );
+    await writeClaudePlugin(pluginRoot, 'demo', { version: '1.0.0' });
 
     const core = new LioraCore(async () => ({}) as never, { homeDir: home });
     await new Promise((r) => setImmediate(r));
@@ -37,11 +57,7 @@ describe('LioraCore plugin RPCs', () => {
   it('installPlugin ignores forged marketplace context from public RPC callers', async () => {
     const home = await mkdtemp(path.join(tmpdir(), 'kimi-home-'));
     const pluginRoot = await mkdtemp(path.join(tmpdir(), 'plugin-'));
-    await writeFile(
-      path.join(pluginRoot, 'kimi.plugin.json'),
-      JSON.stringify({ name: 'demo', version: '1.0.0' }),
-      'utf8',
-    );
+    await writeClaudePlugin(pluginRoot, 'demo', { version: '1.0.0' });
 
     const core = new LioraCore(async () => ({}) as never, { homeDir: home });
     await new Promise((r) => setImmediate(r));
@@ -57,16 +73,10 @@ describe('LioraCore plugin RPCs', () => {
   it('setPluginMcpServerEnabled toggles plugin MCP state', async () => {
     const home = await mkdtemp(path.join(tmpdir(), 'kimi-home-'));
     const pluginRoot = await mkdtemp(path.join(tmpdir(), 'plugin-'));
-    await writeFile(
-      path.join(pluginRoot, 'kimi.plugin.json'),
-      JSON.stringify({
-        name: 'demo',
-        mcpServers: {
-          finance: { command: 'finance-mcp' },
-        },
-      }),
-      'utf8',
-    );
+    await writeClaudePlugin(pluginRoot, 'demo');
+    await writeClaudeMcp(pluginRoot, {
+      finance: { command: 'finance-mcp' },
+    });
 
     const core = new LioraCore(async () => ({}) as never, { homeDir: home });
     await new Promise((r) => setImmediate(r));
@@ -105,16 +115,10 @@ oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "http
 `,
         'utf8',
       );
-      await writeFile(
-        path.join(pluginRoot, 'kimi.plugin.json'),
-        JSON.stringify({
-          name: 'kimi-datasource',
-          mcpServers: {
-            data: { command: 'node', args: ['./bin/kimi-datasource.mjs'] },
-          },
-        }),
-        'utf8',
-      );
+      await writeClaudePlugin(pluginRoot, 'kimi-datasource');
+      await writeClaudeMcp(pluginRoot, {
+        data: { command: 'node', args: ['./bin/kimi-datasource.mjs'] },
+      });
 
       const core = new LioraCore(async () => ({}) as never, { homeDir: home });
       await new Promise((r) => setImmediate(r));
@@ -128,7 +132,7 @@ oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "http
         }
       ).mergePluginMcpConfig(undefined);
 
-      expect(mcpConfig.servers['plugin-kimi-datasource:data']?.env).toEqual(
+      expect(mcpConfig.servers['plugin:kimi-datasource:data']?.env).toEqual(
         expect.objectContaining({
           SUPERLIORA_BASE_URL: 'https://api.dev.example.test/coding/v1',
           SUPERLIORA_OAUTH_HOST: 'https://auth.dev.example.test',
@@ -148,8 +152,6 @@ oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "http
 
     const core = new LioraCore(async () => ({}) as never, { homeDir: home });
 
-    // Driving an awaiting RPC first ensures the load promise has settled
-    // and captured pluginsLoadError before the read RPCs run.
     await expect(core.installPlugin({ source: '/tmp/nonexistent' })).rejects.toThrow(/load/i);
     await expect(core.listPlugins({})).rejects.toThrow(/load/i);
     await expect(core.getPluginInfo({ id: 'demo' })).rejects.toThrow(/load/i);
@@ -159,15 +161,13 @@ oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "http
     ).rejects.toThrow(/load/i);
     await expect(core.removePlugin({ id: 'demo' })).rejects.toThrow(/load/i);
 
-    // installed.json must NOT have been overwritten by the failed install.
     const { readFile } = await import('node:fs/promises');
     const onDisk = await readFile(path.join(home, 'plugins', 'installed.json'), 'utf8');
     expect(onDisk).toBe('{ not json');
 
-    // Fixing the file and calling reload clears the error state.
     await writeFile(
       path.join(home, 'plugins', 'installed.json'),
-      JSON.stringify({ version: 1, plugins: [] }),
+      JSON.stringify({ version: 2, plugins: [] }),
       'utf8',
     );
     await core.reloadPlugins({});
@@ -177,16 +177,13 @@ oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "http
   it('listPlugins waits for initial plugin load', async () => {
     const home = await mkdtemp(path.join(tmpdir(), 'kimi-home-'));
     const pluginRoot = await mkdtemp(path.join(tmpdir(), 'plugin-'));
-    await writeFile(
-      path.join(pluginRoot, 'kimi.plugin.json'),
-      JSON.stringify({ name: 'demo' }),
-      'utf8',
-    );
+    await writeClaudePlugin(pluginRoot, 'demo');
+
     await mkdir(path.join(home, 'plugins'), { recursive: true });
     await writeFile(
       path.join(home, 'plugins', 'installed.json'),
       JSON.stringify({
-        version: 1,
+        version: 2,
         plugins: [
           {
             id: 'demo',
@@ -205,6 +202,31 @@ oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "http
     await expect(core.listPlugins({})).resolves.toContainEqual(
       expect.objectContaining({ id: 'demo' }),
     );
+  });
+
+  it('listPluginThemes returns Claude themes from enabled plugins', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'kimi-home-'));
+    const pluginRoot = await mkdtemp(path.join(tmpdir(), 'plugin-'));
+    await writeClaudePlugin(pluginRoot, 'skin');
+    await mkdir(path.join(pluginRoot, 'themes'), { recursive: true });
+    await writeFile(
+      path.join(pluginRoot, 'themes', 'neon.json'),
+      JSON.stringify({ name: 'Neon', base: 'dark', overrides: { error: '#ff0000' } }),
+      'utf8',
+    );
+
+    const core = new LioraCore(async () => ({}) as never, { homeDir: home });
+    await new Promise((r) => setImmediate(r));
+    await core.installPlugin({ source: pluginRoot });
+
+    await expect(core.listPluginThemes({})).resolves.toEqual([
+      expect.objectContaining({
+        id: 'plugin-skin-neon',
+        pluginId: 'skin',
+        displayName: 'Neon',
+        colors: { error: '#ff0000' },
+      }),
+    ]);
   });
 });
 

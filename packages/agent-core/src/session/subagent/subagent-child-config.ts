@@ -64,6 +64,9 @@ export function resolveSubagentProfile(
     DEFAULT_AGENT_PROFILES['agent']?.subagents?.[profileName];
   if (profile !== undefined) return profile;
 
+  const pluginAgent = parent.pluginAgents.find((agent) => agent.profileName === profileName);
+  if (pluginAgent !== undefined) return pluginAgent.profile;
+
   const expert = resolveExpertCatalogEntry(profileName);
   if (expert === undefined) {
     throw new Error(`Subagent profile "${profileName}" was not found`);

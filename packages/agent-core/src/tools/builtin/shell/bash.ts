@@ -120,6 +120,8 @@ export class BashTool implements BuiltinTool<BashInput> {
 
   private readonly shellEnvPolicy: ShellEnvFilterPolicy;
 
+  private readonly pathPrefix: readonly string[];
+
   constructor(
     private readonly kaos: Kaos,
     private readonly cwd: string,
@@ -129,12 +131,15 @@ export class BashTool implements BuiltinTool<BashInput> {
       store?: ToolStore | undefined;
       /** Shell env secret filter; default strips KEY/SECRET/TOKEN name patterns. */
       shellEnvPolicy?: ShellEnvFilterPolicy | undefined;
+      /** Directories prepended to PATH (e.g. enabled plugin `bin/`). */
+      pathPrefix?: readonly string[] | undefined;
     },
   ) {
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
     this.allowBackground = options?.allowBackground ?? true;
     this.store = options?.store;
     this.shellEnvPolicy = options?.shellEnvPolicy ?? {};
+    this.pathPrefix = options?.pathPrefix ?? [];
     const rendered = renderBashDescription(this.kaos.osEnv.shellName);
     this.description = this.allowBackground ? rendered : withoutBackgroundDescription(rendered);
   }
@@ -180,6 +185,11 @@ export class BashTool implements BuiltinTool<BashInput> {
     // Ambient env is secret-filtered before noninteractive knobs so child
     // shells never inherit *KEY*/*SECRET*/*TOKEN* names (values never logged).
     const mergedEnv = buildShellChildEnv(process.env, noninteractiveEnv, this.shellEnvPolicy);
+    if (this.pathPrefix.length > 0) {
+      const sep = this.isWindowsBash ? ';' : ':';
+      const existing = mergedEnv['PATH'] ?? process.env['PATH'] ?? '';
+      mergedEnv['PATH'] = [...this.pathPrefix, existing].filter((part) => part.length > 0).join(sep);
+    }
     return this.kaos.execWithEnv(shellArgs, mergedEnv);
   }
 

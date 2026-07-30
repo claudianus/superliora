@@ -21,10 +21,12 @@ import type { TuiConfig } from '#/tui/config';
 import { loadTuiConfig, TuiConfigParseError } from '#/tui/config';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { LioraTUI } from '#/tui/index';
-import { currentTheme, getColorPalette } from '#/tui/theme';
+import { currentTheme, getColorPalette, refreshPluginThemeCatalog } from '#/tui/theme';
 import { initImageProtocolProbe } from '#/tui/utils/image/image-protocol-detect';
 import { combineStartupNotice } from '#/tui/utils/startup';
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
+
+import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-resolver';
 
 import type { CLIOptions } from './options';
 import { resolveSessionWorkDir } from './resolve-worktree';
@@ -45,13 +47,10 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
     configWarning = error.message;
   }
 
-  // Initialise the global Theme singleton before pi-tui grabs stdin.
-  const palette = await getColorPalette(tuiConfig.theme);
-  currentTheme.setPalette(palette);
-  refreshShikiPalette(palette);
-
   // Probe runtime kitty graphics support in the same pre-raw-mode window —
   // once the TUI owns stdin the probe reply would be eaten by the input loop.
+  // Theme palette waits until plugin themes are catalogued so a persisted
+  // plugin theme id does not silently fall back to dark.
   await initImageProtocolProbe();
 
   const resolvedWork = await resolveSessionWorkDir({ worktree: opts.worktree });
@@ -65,6 +64,11 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
   const harness = createLioraHarness({
     homeDir: telemetryBootstrap.homeDir,
     identity: createLioraHostIdentity(version),
+    projectDir: workDir,
+    pluginDirs: opts.pluginDirs,
+    channelServers: opts.channelServers,
+    skillDirs: opts.skillsDirs,
+    resolveMarketplaceSource: createMarketplaceSourceResolver(workDir),
     telemetry: telemetryClient,
     onOAuthRefresh: (outcome) => {
       if (outcome.success) {
@@ -87,6 +91,10 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
   });
 
   await harness.ensureConfigFile();
+  await refreshPluginThemeCatalog(() => harness.listPluginThemes());
+  // Initialise the global Theme singleton before pi-tui grabs stdin.
+  const palette = await getColorPalette(tuiConfig.theme);
+  currentTheme.setPalette(palette);
   const config = await harness.getConfig();
   for (const warning of (await harness.getConfigDiagnostics()).warnings) {
     configWarning = combineStartupNotice(configWarning, warning);

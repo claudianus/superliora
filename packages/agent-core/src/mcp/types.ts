@@ -94,6 +94,11 @@ export interface MCPClient {
    * not provide instructions.
    */
   getInstructions?(): string | undefined;
+  /**
+   * Optional: receive JSON-RPC notifications from the server (channels, etc.).
+   * Later registrations replace earlier ones.
+   */
+  onNotification?(handler: (method: string, params: unknown) => void): void;
 }
 
 /**

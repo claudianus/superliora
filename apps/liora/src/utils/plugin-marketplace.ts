@@ -27,6 +27,8 @@ export interface PluginMarketplaceEntry {
 
 export interface PluginMarketplace {
   readonly source: string;
+  /** Claude marketplace catalog name (optional). */
+  readonly name?: string;
   readonly version?: string;
   readonly plugins: readonly PluginMarketplaceEntry[];
 }
@@ -71,6 +73,15 @@ export interface LoadPluginMarketplaceOptions {
   readonly workDir: string;
   readonly source?: string;
   readonly fetchImpl?: typeof fetch;
+}
+
+/** Look up a marketplace entry by plugin id (case-insensitive). */
+export function findMarketplacePlugin(
+  marketplace: PluginMarketplace,
+  pluginId: string,
+): PluginMarketplaceEntry | undefined {
+  const id = pluginId.trim().toLowerCase();
+  return marketplace.plugins.find((entry) => entry.id.toLowerCase() === id);
 }
 
 export async function loadPluginMarketplace(
@@ -129,6 +140,7 @@ export function parsePluginMarketplace(raw: string, location: MarketplaceLocatio
 
   return {
     source: location.resolved,
+    name: stringField(parsed, 'name'),
     version: stringField(parsed, 'version'),
     plugins: rawPlugins.map((entry, index) => parseMarketplaceEntry(entry, index, location)),
   };
@@ -151,10 +163,17 @@ function resolveMarketplaceLocation(source: string, workDir: string): Marketplac
 
 async function getSourceCheckoutMarketplaceLocation(): Promise<MarketplaceLocation | undefined> {
   const sourceDir = dirname(fileURLToPath(import.meta.url));
-  const marketplacePath = resolve(sourceDir, '../../../../plugins/marketplace.json');
-  const info = await stat(marketplacePath).catch(() => undefined);
-  if (info?.isFile() !== true) return undefined;
-  return { raw: marketplacePath, kind: 'local', resolved: marketplacePath };
+  const candidates = [
+    resolve(sourceDir, '../../../../plugins/.claude-plugin/marketplace.json'),
+    resolve(sourceDir, '../../../../plugins/marketplace.json'),
+  ];
+  for (const marketplacePath of candidates) {
+    const info = await stat(marketplacePath).catch(() => undefined);
+    if (info?.isFile() === true) {
+      return { raw: marketplacePath, kind: 'local', resolved: marketplacePath };
+    }
+  }
+  return undefined;
 }
 
 async function readMarketplaceText(
@@ -179,14 +198,15 @@ function parseMarketplaceEntry(
   if (!isRecord(value)) {
     throw new TypeError(`Plugin marketplace entry ${index + 1} must be an object.`);
   }
-  const id = requiredString(value, 'id', index);
+  // Prefer legacy `id` when present; Claude catalogs use `name` as the plugin id.
+  const id =
+    stringField(value, 'id') ??
+    stringField(value, 'name') ??
+    (() => {
+      throw new Error(`Plugin marketplace entry ${index + 1} must define "name" (or legacy "id").`);
+    })();
   validateMarketplaceEntryType(value, id);
-  const source = stringField(value, 'source') ??
-    stringField(value, 'url') ??
-    stringField(value, 'downloadUrl');
-  if (source === undefined) {
-    throw new Error(`Plugin marketplace entry ${id} must define "source".`);
-  }
+  const source = resolveClaudeMarketplaceSource(value, id);
   const resolvedSource = resolveEntrySource(source, location);
   return {
     id,
@@ -198,6 +218,32 @@ function parseMarketplaceEntry(
     homepage: stringField(value, 'homepage') ?? stringField(value, 'websiteURL'),
     keywords: stringArrayField(value, 'keywords'),
   };
+}
+
+function resolveClaudeMarketplaceSource(value: Record<string, unknown>, id: string): string {
+  const source = value['source'];
+  if (typeof source === 'string' && source.trim().length > 0) return source.trim();
+  if (isRecord(source)) {
+    const sourceType = stringField(source, 'source') ?? stringField(source, 'type');
+    if (sourceType === 'url' || sourceType === 'github') {
+      const url = stringField(source, 'url') ?? stringField(source, 'repo');
+      if (url !== undefined) return url;
+    }
+    if (sourceType === 'git-subdir' || sourceType === 'path') {
+      const pathValue = stringField(source, 'path') ?? stringField(source, 'subdir');
+      if (pathValue !== undefined) return pathValue;
+    }
+    const nested =
+      stringField(source, 'url') ??
+      stringField(source, 'path') ??
+      stringField(source, 'repo');
+    if (nested !== undefined) return nested;
+  }
+  const legacy =
+    stringField(value, 'url') ??
+    stringField(value, 'downloadUrl');
+  if (legacy !== undefined) return legacy;
+  throw new Error(`Plugin marketplace entry ${id} must define "source".`);
 }
 
 function validateMarketplaceEntryType(value: Record<string, unknown>, id: string): void {

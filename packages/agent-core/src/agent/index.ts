@@ -19,7 +19,7 @@ import type {
 } from '#/rpc';
 import { generate } from '@superliora/kosong';
 
-import type { EnabledPluginSessionStart, PluginCommandDef } from '#/plugin/index';
+import type { EnabledPluginSessionStart, PluginAgentDef, PluginCommandDef } from '#/plugin/index';
 import type { AgentMemoryRuntime } from '#/memory';
 import { estimateTokens } from '../utils/tokens';
 
@@ -121,6 +121,8 @@ export interface AgentOptions {
   readonly telemetry?: TelemetryClient | undefined;
   readonly pluginSessionStarts?: readonly EnabledPluginSessionStart[];
   readonly pluginCommands?: readonly PluginCommandDef[];
+  readonly pluginAgents?: readonly PluginAgentDef[];
+  readonly pluginBinDirs?: readonly string[];
   readonly experimentalFlags?: ExperimentalFlagResolver;
   readonly replay?: ReplayBuilderOptions;
   readonly additionalDirs?: readonly string[];
@@ -161,6 +163,8 @@ export class Agent {
   readonly toolServices?: ToolServices;
   readonly pluginSessionStarts: readonly EnabledPluginSessionStart[];
   readonly pluginCommands: readonly PluginCommandDef[];
+  readonly pluginAgents: readonly PluginAgentDef[];
+  readonly pluginBinDirs: readonly string[];
   readonly rawGenerate: typeof generate;
   readonly modelProvider?: ModelProvider;
   readonly subagentHost?: SessionSubagentHost;
@@ -192,6 +196,13 @@ export class Agent {
    * Set on subagent workers when an UltraSwarm run is active; undefined otherwise.
    */
   swarmFileLease: { ownerId?: string; runId?: string } | undefined;
+  /**
+   * Optional plugin LSP bridge hook. Edit/Write call this after a successful
+   * mutation; returned text is appended to the tool result.
+   */
+  fileMutationHook:
+    | ((path: string, content: string) => Promise<string | undefined>)
+    | undefined = undefined;
   readonly swarmMode: SwarmMode;
   readonly usage: UsageRecorder;
   readonly skills: SkillManager | null;
@@ -232,6 +243,8 @@ export class Agent {
     this.toolServices = options.toolServices;
     this.pluginSessionStarts = options.pluginSessionStarts ?? [];
     this.pluginCommands = options.pluginCommands ?? [];
+    this.pluginAgents = options.pluginAgents ?? [];
+    this.pluginBinDirs = options.pluginBinDirs ?? [];
     this.rawGenerate = options.generate ?? generate;
     this.modelProvider = options.modelProvider;
     this.subagentHost = options.subagentHost;

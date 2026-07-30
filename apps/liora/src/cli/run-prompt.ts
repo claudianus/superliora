@@ -13,6 +13,7 @@ import {
 
 import { CLI_SHUTDOWN_TIMEOUT_MS, PROMPT_CLEANUP_TIMEOUT_MS } from '#/constant/app';
 
+import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-resolver';
 import { parseHeadlessGoalCreate } from './goal-prompt';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import type { CLIOptions } from './options';
@@ -56,6 +57,10 @@ export async function runPrompt(
     identity: createLioraHostIdentity(version),
     uiMode: PROMPT_UI_MODE,
     skillDirs: opts.skillsDirs,
+    projectDir: workDir,
+    pluginDirs: opts.pluginDirs,
+    channelServers: opts.channelServers,
+    resolveMarketplaceSource: createMarketplaceSourceResolver(workDir),
     telemetry: telemetryClient,
     onOAuthRefresh: (outcome) => {
       if (outcome.success) {

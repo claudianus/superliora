@@ -58,6 +58,29 @@ describe('Session lifecycle hooks', () => {
     ]);
   });
 
+  it('fires Setup after SessionStart on startup', async () => {
+    const { command, logPath, sessionDir, workDir } = await hookFixture();
+    const session = new Session({
+      kaos: testKaos.withCwd(workDir),
+      id: 'session-setup',
+      homedir: sessionDir,
+      rpc: createSessionRpc(),
+      skills: { explicitDirs: [join(workDir, 'missing-skills')] },
+      hooks: [
+        { event: 'SessionStart', matcher: 'startup', command, timeout: 5 },
+        { event: 'Setup', matcher: 'startup', command, timeout: 5 },
+      ],
+    });
+
+    await session.createMain();
+    await session.close();
+
+    expect(await readHookPayloads(logPath)).toMatchObject([
+      { hook_event_name: 'SessionStart', source: 'startup' },
+      { hook_event_name: 'Setup', source: 'startup' },
+    ]);
+  });
+
   it('fires SessionStart with resume source after loading metadata', async () => {
     const { command, logPath, sessionDir, workDir } = await hookFixture();
     await writeFile(

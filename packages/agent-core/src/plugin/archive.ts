@@ -133,9 +133,18 @@ async function detectPluginRoot(dir: string): Promise<string> {
 }
 
 async function hasManifest(dir: string): Promise<boolean> {
-  const rootManifest = path.join(dir, 'kimi.plugin.json');
-  const dirManifest = path.join(dir, '.kimi-plugin', 'plugin.json');
-  return (await isFile(rootManifest)) || (await isFile(dirManifest));
+  const claudeManifest = path.join(dir, '.claude-plugin', 'plugin.json');
+  if (await isFile(claudeManifest)) return true;
+  // Autodiscover layout: skills/, commands/, agents/, hooks/, or root SKILL.md
+  const markers = ['skills', 'commands', 'agents', 'hooks', 'bin'];
+  for (const marker of markers) {
+    try {
+      if ((await stat(path.join(dir, marker))).isDirectory()) return true;
+    } catch {
+      // continue
+    }
+  }
+  return isFile(path.join(dir, 'SKILL.md')) || isFile(path.join(dir, '.mcp.json'));
 }
 
 async function isFile(p: string): Promise<boolean> {

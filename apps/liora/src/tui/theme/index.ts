@@ -17,8 +17,12 @@ export {
   loadCustomThemeMerged,
   loadCustomThemeMergedSync,
   listCustomThemes,
+  setPluginThemeCatalog,
+  getPluginThemeCatalog,
 } from './custom-theme-loader';
+export type { PluginThemeCatalogEntry, ThemeListEntry, ThemeSource } from './custom-theme-loader';
 export { importThemeSource } from './importer';
+export { applyPluginThemeCatalog, refreshPluginThemeCatalog } from './plugin-themes';
 
 /**
  * User-facing theme preference.

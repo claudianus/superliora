@@ -178,6 +178,8 @@ function opts(overrides: Partial<Parameters<typeof runPrompt>[0]> = {}) {
     outputFormat: undefined,
     prompt: '/goal Ship feature X',
     skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
     ...overrides,
   } as Parameters<typeof runPrompt>[0];
 }

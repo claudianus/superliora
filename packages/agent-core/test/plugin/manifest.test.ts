@@ -10,7 +10,7 @@ async function makePlugin(
   files: Record<string, string>,
   options: { dirs?: readonly string[] } = {},
 ): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), 'kimi-plugin-test-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'claude-plugin-test-'));
   for (const dir of options.dirs ?? []) {
     await mkdir(path.join(root, dir), { recursive: true });
   }
@@ -21,454 +21,218 @@ async function makePlugin(
   return realpath(root);
 }
 
-describe('parseManifest', () => {
-  it('reads a minimal kimi.plugin.json at the plugin root', async () => {
+describe('parseManifest (Claude Code format)', () => {
+  it('reads .claude-plugin/plugin.json', async () => {
     const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', version: '1.0.0' }),
+      '.claude-plugin/plugin.json': JSON.stringify({
+        name: 'demo',
+        version: '1.0.0',
+        displayName: 'Demo Plugin',
+      }),
     });
     const result = await parseManifest(root);
     expect(result.manifest?.name).toBe('demo');
     expect(result.manifest?.version).toBe('1.0.0');
-    expect(result.manifestKind).toBe('kimi-plugin-root');
-    expect(result.diagnostics).toEqual([]);
+    expect(result.manifest?.displayName).toBe('Demo Plugin');
+    expect(result.manifestKind).toBe('claude-plugin');
+    expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
   });
 
-  it('prefers root kimi.plugin.json when .kimi-plugin/plugin.json also exists', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'root-version', version: '1.0.0' }),
-      '.kimi-plugin/plugin.json': JSON.stringify({ name: 'dir-version' }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifestKind).toBe('kimi-plugin-root');
-    expect(result.manifest?.name).toBe('root-version');
-    expect(result.shadowedManifestPath).toBe(path.join(root, '.kimi-plugin/plugin.json'));
-  });
-
-  it('falls back to .kimi-plugin/plugin.json when kimi.plugin.json is absent', async () => {
+  it('autodiscovers without a manifest from skills/ and directory name', async () => {
     const root = await makePlugin(
       {
-        '.kimi-plugin/plugin.json': JSON.stringify({
-          name: 'demo',
-          version: '1.0.0',
-          keywords: ['workflow'],
-          skills: './skills/',
-          interface: { displayName: 'Demo' },
-          sessionStart: { skill: 'using-demo' },
-          skillInstructions: 'Use Kimi tools.',
-        }),
+        'skills/hello/SKILL.md': '---\nname: hello\ndescription: Hi\n---\nHello\n',
       },
-      { dirs: ['skills'] },
+      { dirs: ['skills/hello'] },
     );
     const result = await parseManifest(root);
-    expect(result.manifestKind).toBe('kimi-plugin-dir');
-    expect(result.manifestPath).toBe(path.join(root, '.kimi-plugin/plugin.json'));
-    expect(result.manifest?.name).toBe('demo');
-    expect(result.manifest?.version).toBe('1.0.0');
-    expect(result.manifest?.keywords).toEqual(['workflow']);
+    expect(result.manifestKind).toBe('claude-autodiscover');
     expect(result.manifest?.skills).toEqual([path.join(root, 'skills')]);
-    expect(result.manifest?.interface?.displayName).toBe('Demo');
-    expect(result.manifest?.sessionStart).toEqual({ skill: 'using-demo' });
-    expect(result.manifest?.skillInstructions).toBe('Use Kimi tools.');
+    expect(result.manifest?.name).toMatch(/^[a-z0-9][a-z0-9_-]{0,63}$/);
   });
 
-  it('does NOT fall back to .kimi-plugin/plugin.json when kimi.plugin.json is invalid JSON', async () => {
+  it('rejects legacy kimi.plugin.json', async () => {
     const root = await makePlugin({
-      'kimi.plugin.json': '{ not json',
-      '.kimi-plugin/plugin.json': JSON.stringify({ name: 'dir-version' }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest).toBeUndefined();
-    expect(result.manifestKind).toBe('kimi-plugin-root');
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'error',
-        message: expect.stringContaining('Failed to parse'),
-      }),
-    );
-    expect(result.shadowedManifestPath).toBe(path.join(root, '.kimi-plugin/plugin.json'));
-  });
-
-  it('rejects names that violate the regex', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'Bad Name!' }),
+      'kimi.plugin.json': JSON.stringify({ name: 'legacy' }),
     });
     const result = await parseManifest(root);
     expect(result.manifest).toBeUndefined();
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({
         severity: 'error',
-        message: expect.stringContaining('"name" must match'),
+        message: expect.stringContaining('Legacy kimi.plugin.json'),
       }),
     );
   });
 
-  it('reports an error when no manifest file exists', async () => {
-    const root = await makePlugin({});
+  it('loads nested hooks from hooks/hooks.json with CLAUDE_PLUGIN_ROOT expand', async () => {
+    const root = await makePlugin({
+      '.claude-plugin/plugin.json': JSON.stringify({ name: 'hooky' }),
+      'hooks/hooks.json': JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: 'Bash',
+              hooks: [
+                {
+                  type: 'command',
+                  command: '"${CLAUDE_PLUGIN_ROOT}/scripts/check.sh"',
+                },
+                {
+                  type: 'http',
+                  url: '${CLAUDE_PLUGIN_ROOT}/hooks/endpoint',
+                },
+                {
+                  type: 'mcp_tool',
+                  server: 'audit',
+                  tool: 'check',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      'scripts/check.sh': '#!/bin/sh\nexit 0\n',
+    });
+    const result = await parseManifest(root);
+    expect(result.manifest?.hooks).toHaveLength(3);
+    expect(result.manifest?.hooks[0]).toMatchObject({
+      event: 'PreToolUse',
+      type: 'command',
+      command: `"${root}/scripts/check.sh"`,
+    });
+    expect(result.manifest?.hooks[1]).toMatchObject({
+      type: 'http',
+      url: `${root}/hooks/endpoint`,
+    });
+    expect(result.manifest?.hooks[2]).toMatchObject({
+      type: 'mcp_tool',
+      server: 'audit',
+      tool: 'check',
+    });
+  });
+
+  it('loads .mcp.json and expands placeholders', async () => {
+    const root = await makePlugin({
+      '.claude-plugin/plugin.json': JSON.stringify({ name: 'mcp-demo' }),
+      '.mcp.json': JSON.stringify({
+        mcpServers: {
+          data: {
+            command: 'node',
+            args: ['${CLAUDE_PLUGIN_ROOT}/bin/server.mjs'],
+            cwd: '${CLAUDE_PLUGIN_ROOT}',
+          },
+        },
+      }),
+      'bin/server.mjs': 'console.log("ok")\n',
+    });
+    const result = await parseManifest(root);
+    expect(result.manifest?.mcpServers?.['data']).toMatchObject({
+      command: 'node',
+      args: [`${root}/bin/server.mjs`],
+      cwd: root,
+    });
+  });
+
+  it('discovers agents/*.md', async () => {
+    const root = await makePlugin({
+      '.claude-plugin/plugin.json': JSON.stringify({ name: 'with-agents' }),
+      'agents/reviewer.md':
+        '---\nname: reviewer\ndescription: Reviews code\n---\nBe thorough.\n',
+    });
+    const result = await parseManifest(root);
+    expect(result.manifest?.agents).toHaveLength(1);
+    expect(result.manifest?.agents[0]?.name).toBe('reviewer');
+  });
+
+  it('discovers commands/*.md', async () => {
+    const root = await makePlugin({
+      '.claude-plugin/plugin.json': JSON.stringify({ name: 'with-cmds' }),
+      'commands/ship.md': '---\nname: ship\ndescription: Ship it\n---\nShip $ARGUMENTS\n',
+    });
+    const result = await parseManifest(root);
+    expect(result.manifest?.commands).toHaveLength(1);
+    expect(result.manifest?.commands[0]?.name).toBe('ship');
+  });
+
+  it('discovers Claude extras with info diagnostics until hosts land', async () => {
+    const root = await makePlugin({
+      '.claude-plugin/plugin.json': JSON.stringify({
+        name: 'extras',
+        experimental: { monitors: true },
+        dependencies: { 'other-plugin': '^1.0.0' },
+      }),
+      'settings.json': '{}\n',
+      'themes/dark.json': '{}\n',
+      '.lsp.json': '{}\n',
+      'workflows/ship.md': '# ship\n',
+    });
+    const result = await parseManifest(root);
+    expect(result.manifest?.settingsPath).toBeDefined();
+    expect(result.manifest?.themesDir).toBeDefined();
+    expect(result.manifest?.lspServersPath).toBeDefined();
+    expect(result.manifest?.workflowsDir).toBeDefined();
+    expect(result.manifest?.dependencies).toEqual({ 'other-plugin': '^1.0.0' });
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: 'info',
+        message: expect.stringContaining('experimental'),
+      }),
+    );
+  });
+
+  it('loads monitors and userConfig from Claude layout', async () => {
+    const root = await makePlugin({
+      '.claude-plugin/plugin.json': JSON.stringify({
+        name: 'watchy',
+        userConfig: {
+          region: { type: 'string', default: 'us' },
+        },
+      }),
+      'monitors/monitors.json': JSON.stringify([
+        {
+          name: 'tick',
+          command: 'echo ${CLAUDE_PLUGIN_ROOT}/ok',
+          description: 'ticks',
+        },
+      ]),
+    });
+    const result = await parseManifest(root);
+    expect(result.manifest?.monitors).toHaveLength(1);
+    expect(result.manifest?.monitors[0]).toMatchObject({
+      name: 'tick',
+      command: `echo ${root}/ok`,
+    });
+    expect(result.manifest?.userConfig?.['region']).toMatchObject({
+      type: 'string',
+      default: 'us',
+    });
+  });
+
+  it('rejects skills paths that escape the plugin root via symlink', async () => {
+    const root = await makePlugin({
+      '.claude-plugin/plugin.json': JSON.stringify({
+        name: 'escape',
+        skills: './link',
+      }),
+    });
+    const outside = await mkdtemp(path.join(tmpdir(), 'outside-'));
+    await symlink(outside, path.join(root, 'link'));
     const result = await parseManifest(root);
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({
         severity: 'error',
-        message: expect.stringContaining('No manifest at'),
+        message: expect.stringContaining('outside the plugin'),
       }),
     );
   });
 
-  it('resolves a single skills path', async () => {
-    const root = await makePlugin(
-      { 'kimi.plugin.json': JSON.stringify({ name: 'demo', skills: './skills/' }) },
-      { dirs: ['skills'] },
-    );
-    const result = await parseManifest(root);
-    expect(result.manifest?.skills).toEqual([path.join(root, 'skills')]);
-  });
-
-  it('resolves an array of skills paths', async () => {
-    const root = await makePlugin(
-      {
-        'kimi.plugin.json': JSON.stringify({
-          name: 'demo',
-          skills: ['./a/', './b/'],
-        }),
-      },
-      { dirs: ['a', 'b'] },
-    );
-    const result = await parseManifest(root);
-    expect(result.manifest?.skills).toEqual([path.join(root, 'a'), path.join(root, 'b')]);
-  });
-
-  it('rejects a skills path not prefixed with ./', async () => {
+  it('falls back to root SKILL.md when skills/ is absent', async () => {
     const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', skills: 'skills/' }),
-    });
-    const result = await parseManifest(root);
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'error',
-        message: expect.stringContaining('"skills" path must start with "./"'),
-      }),
-    );
-    expect(result.manifest?.skills).toEqual([]);
-  });
-
-  it('rejects a skills path that escapes plugin_root', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', skills: './../escape' }),
-    });
-    const result = await parseManifest(root);
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'error',
-        message: expect.stringContaining('resolves outside the plugin'),
-      }),
-    );
-  });
-
-  it('rejects a skills path that escapes via a symlink', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', skills: './sym' }),
-    });
-    const outside = await mkdtemp(path.join(tmpdir(), 'kimi-plugin-outside-'));
-    await symlink(outside, path.join(root, 'sym'));
-    const result = await parseManifest(root);
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'error',
-        message: expect.stringContaining('resolves outside the plugin'),
-      }),
-    );
-  });
-
-  it('warns when skills resolves to a non-directory', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', skills: './notes.md' }),
-      'notes.md': 'hi',
-    });
-    const result = await parseManifest(root);
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'warn',
-        message: expect.stringContaining('is not a directory'),
-      }),
-    );
-  });
-
-  it('falls back to root SKILL.md when skills field is absent', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo' }),
-      'SKILL.md': '---\nname: root-skill\n---\nbody',
+      '.claude-plugin/plugin.json': JSON.stringify({ name: 'root-skill' }),
+      'SKILL.md': '---\nname: root-skill\ndescription: Root\n---\nBody\n',
     });
     const result = await parseManifest(root);
     expect(result.manifest?.skills).toEqual([root]);
-  });
-
-  it('does not fall back to root SKILL.md when skills field is present', async () => {
-    const root = await makePlugin(
-      {
-        'kimi.plugin.json': JSON.stringify({ name: 'demo', skills: './skills/' }),
-        'SKILL.md': '---\nname: root-skill\n---\nbody',
-      },
-      { dirs: ['skills'] },
-    );
-    const result = await parseManifest(root);
-    expect(result.manifest?.skills).toEqual([path.join(root, 'skills')]);
-  });
-
-  it('emits info diagnostics for unsupported runtime extension fields', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        tools: { foo: { description: 'x' } },
-        configFile: 'cfg.json',
-        config_file: 'legacy-cfg.json',
-        inject: { foo: 'bar' },
-        bootstrap: { skill: 'using-demo' },
-        apps: './apps',
-      }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest).toEqual(expect.objectContaining({ name: 'demo' }));
-    for (const field of [
-      'tools',
-      'configFile',
-      'config_file',
-      'inject',
-      'bootstrap',
-      'apps',
-    ]) {
-      expect(result.diagnostics).toContainEqual(
-        expect.objectContaining({
-          severity: 'info',
-          message: expect.stringContaining(`"${field}" is present but not supported`),
-        }),
-      );
-    }
-  });
-
-  it('parses plugin command markdown files from directories and single files', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        commands: ['./commands', './ship.md'],
-      }),
-      'commands/deploy.md': 'Deploy',
-      'commands/frontend/component.md': 'Component',
-      'commands/ignore.txt': 'Nope',
-      'ship.md': 'Ship',
-    });
-
-    const result = await parseManifest(root);
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.manifest?.commands).toEqual([
-      { path: path.join(root, 'commands', 'deploy.md'), name: 'deploy' },
-      { path: path.join(root, 'commands', 'frontend', 'component.md'), name: 'frontend/component' },
-      { path: path.join(root, 'ship.md'), name: 'ship' },
-    ]);
-  });
-
-  it('warns and skips invalid command entries', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        commands: ['commands', './../outside', './notes.txt'],
-      }),
-      'notes.txt': 'not markdown',
-    });
-
-    const result = await parseManifest(root);
-
-    expect(result.manifest?.commands).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'warn',
-        message: expect.stringContaining('"commands" path must start with "./"'),
-      }),
-    );
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'warn',
-        message: expect.stringContaining('resolves outside the plugin'),
-      }),
-    );
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'warn',
-        message: expect.stringContaining('must be a directory or .md file'),
-      }),
-    );
-  });
-
-  it('parses skillInstructions', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', skillInstructions: 'Do this.' }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.skillInstructions).toBe('Do this.');
-  });
-
-  it('parses keywords metadata', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', keywords: ['finance', 'workflow'] }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.keywords).toEqual(['finance', 'workflow']);
-  });
-
-  it('reads sessionStart', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        sessionStart: { skill: 'using-demo' },
-      }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.sessionStart).toEqual({ skill: 'using-demo' });
-  });
-
-  it('does not read .codex-plugin/plugin.json as a manifest', async () => {
-    const root = await makePlugin({
-      '.codex-plugin/plugin.json': JSON.stringify({ name: 'demo', skills: './skills/' }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'error',
-        message: expect.stringContaining('No manifest at'),
-      }),
-    );
-  });
-
-  it('parses plugin mcpServers', async () => {
-    const root = await makePlugin(
-      {
-        'kimi.plugin.json': JSON.stringify({
-          name: 'demo',
-          mcpServers: {
-            finance: {
-              command: './bin/finance-mcp',
-              args: ['--stdio'],
-              cwd: './bin',
-              env: { FINANCE_API_KEY: 'x' },
-            },
-            docs: {
-              url: 'https://example.com/mcp',
-              headers: { 'X-Test': '1' },
-            },
-            events: {
-              transport: 'sse',
-              url: 'https://example.com/sse',
-              headers: { 'X-Events': '1' },
-            },
-          },
-        }),
-      },
-      { dirs: ['bin'] },
-    );
-    await writeFile(path.join(root, 'bin', 'finance-mcp'), '#!/bin/sh\n', 'utf8');
-    const result = await parseManifest(root);
-    expect(result.manifest?.mcpServers?.['finance']).toEqual({
-      transport: 'stdio',
-      command: path.join(root, 'bin', 'finance-mcp'),
-      args: ['--stdio'],
-      cwd: path.join(root, 'bin'),
-      env: { FINANCE_API_KEY: 'x' },
-    });
-    expect(result.manifest?.mcpServers?.['docs']).toEqual({
-      transport: 'http',
-      url: 'https://example.com/mcp',
-      headers: { 'X-Test': '1' },
-    });
-    expect(result.manifest?.mcpServers?.['events']).toEqual({
-      transport: 'sse',
-      url: 'https://example.com/sse',
-      headers: { 'X-Events': '1' },
-    });
-  });
-
-  it('warns and skips invalid plugin mcpServers entries', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        mcpServers: {
-          bad: { command: '/tmp/unsafe' },
-        },
-      }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.mcpServers).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: 'warn',
-        message: expect.stringContaining('must be a PATH command or start with "./"'),
-      }),
-    );
-  });
-
-  it('captures interface.displayName and shortDescription', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        interface: { displayName: 'Demo', shortDescription: 'A demo.' },
-      }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.interface?.displayName).toBe('Demo');
-    expect(result.manifest?.interface?.shortDescription).toBe('A demo.');
-  });
-
-  it('parses a flat hooks array from the manifest', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        hooks: [
-          { event: 'PreToolUse', matcher: 'Bash', command: './hooks/guard.sh', timeout: 10 },
-          { event: 'UserPromptSubmit', command: 'node ./hooks/log.js' },
-        ],
-      }),
-    });
-    const result = await parseManifest(root);
-    expect(result.diagnostics).toEqual([]);
-    expect(result.manifest?.hooks).toEqual([
-      { event: 'PreToolUse', matcher: 'Bash', command: './hooks/guard.sh', timeout: 10 },
-      { event: 'UserPromptSubmit', command: 'node ./hooks/log.js' },
-    ]);
-  });
-
-  it('warns and skips a hook entry that is missing required fields', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        hooks: [{ event: 'PreToolUse' }],
-      }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.hooks).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ severity: 'warn', message: expect.stringContaining('index 0') }),
-    );
-  });
-
-  it('warns when hooks is not an array', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({ name: 'demo', hooks: { event: 'Stop', command: 'x' } }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.hooks).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ severity: 'warn', message: '"hooks" must be an array' }),
-    );
-  });
-
-  it('rejects a hook entry that sets cwd/env (strict schema)', async () => {
-    const root = await makePlugin({
-      'kimi.plugin.json': JSON.stringify({
-        name: 'demo',
-        hooks: [{ event: 'PreToolUse', command: './x.sh', cwd: '/tmp' }],
-      }),
-    });
-    const result = await parseManifest(root);
-    expect(result.manifest?.hooks).toBeUndefined();
-    expect(result.diagnostics).toContainEqual(expect.objectContaining({ severity: 'warn' }));
   });
 });

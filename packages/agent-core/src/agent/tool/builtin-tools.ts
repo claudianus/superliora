@@ -92,6 +92,7 @@ function createFileAndContextTools(
         getTurnId: () =>
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
+        onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
       }),
     shouldCreateBuiltin(host, 'Edit') &&
       new b.EditTool(kaos, workspace, {
@@ -99,6 +100,7 @@ function createFileAndContextTools(
         getTurnId: () =>
           host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
         getSwarmLease: () => host.agent.swarmFileLease,
+        onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
       }),
     shouldCreateBuiltin(host, 'Grep') && new b.GrepTool(kaos, workspace, host.agent.telemetry),
     shouldCreateBuiltin(host, 'Glob') && new b.GlobTool(kaos, workspace, host.agent.telemetry),
@@ -111,6 +113,7 @@ function createFileAndContextTools(
       new b.BashTool(kaos, cwd, background, {
         allowBackground,
         store: host.toolStore,
+        pathPrefix: host.agent.pluginBinDirs,
       }),
     shouldCreateBuiltin(host, 'RunProjectChecks') &&
       new b.RunProjectChecksTool(kaos, cwd, { store: host.toolStore }),
@@ -244,10 +247,16 @@ function createSkillAndSubagentTools(
       new b.AgentTool(
         host.agent.subagentHost,
         background,
-        DEFAULT_AGENT_PROFILES['agent']?.subagents,
+        {
+          ...(DEFAULT_AGENT_PROFILES['agent']?.subagents ?? {}),
+          ...Object.fromEntries(
+            host.agent.pluginAgents.map((agent) => [agent.profileName, agent.profile]),
+          ),
+        },
         {
           allowBackground,
           log: host.agent.log,
+          pluginAgents: host.agent.pluginAgents,
         },
       ),
     host.agent.subagentHost &&

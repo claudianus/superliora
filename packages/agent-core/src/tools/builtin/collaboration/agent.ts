@@ -32,6 +32,7 @@ import {
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../collaboration/spawn-agents';
 import { isUserCancellation } from '../../../utils/abort';
 import { AgentBackgroundTask, type BackgroundManager } from '../../../agent/background';
+import { resolvePluginAgentType, type PluginAgentDef } from '../../../plugin';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { matchesGlobRuleSubject } from '../../support/rule-match';
 import AGENT_BACKGROUND_DISABLED_DESCRIPTION from './agent-background-disabled.md?raw';
@@ -129,10 +130,12 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
     options?: {
       log?: Logger;
       allowBackground?: boolean | undefined;
+      pluginAgents?: readonly PluginAgentDef[];
     },
   ) {
     const log = options?.log;
     this.allowBackground = options?.allowBackground ?? true;
+    this.pluginAgents = options?.pluginAgents ?? [];
     const typeLines = buildSubagentDescriptions(subagents);
     const baseDescription = `${AGENT_DESCRIPTION_BASE}\n\n${
       this.allowBackground ? AGENT_BACKGROUND_DESCRIPTION : AGENT_BACKGROUND_DISABLED_DESCRIPTION
@@ -145,9 +148,12 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
 
   private readonly log?: Logger;
   private readonly allowBackground: boolean;
+  private readonly pluginAgents: readonly PluginAgentDef[];
 
   async resolveExecution(args: AgentToolInput): Promise<ToolExecution> {
-    let profileName = args.subagent_type?.length ? args.subagent_type : 'coder';
+    let profileName = args.subagent_type?.length
+      ? resolvePluginAgentType(args.subagent_type, this.pluginAgents)
+      : 'coder';
     const resumeAgentId = args.resume?.trim();
     if (resumeAgentId !== undefined && resumeAgentId.length > 0) {
       profileName = (await this.subagentHost.getProfileName?.(resumeAgentId)) ?? 'subagent';
@@ -191,7 +197,18 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         };
       }
 
-      if (runInBackground && !this.allowBackground) {
+      const operation = resumeAgentId !== undefined && resumeAgentId.length > 0 ? 'resume' : 'spawn';
+      const resolvedProfileName =
+        requestedProfileName === undefined
+          ? 'coder'
+          : resolvePluginAgentType(requestedProfileName, this.pluginAgents);
+      const pluginAgent = this.pluginAgents.find(
+        (agent) => agent.profileName === resolvedProfileName,
+      );
+      const effectiveBackground =
+        runInBackground || (pluginAgent?.background === true && this.allowBackground);
+
+      if (effectiveBackground && !this.allowBackground) {
         return {
           output: BACKGROUND_AGENT_UNAVAILABLE,
           isError: true,
@@ -202,22 +219,20 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
       const abortBeforeRegister = (): void => {
         controller.abort(signal.reason);
       };
-      if (!runInBackground) {
+      if (!effectiveBackground) {
         signal.addEventListener('abort', abortBeforeRegister, { once: true });
       }
-
-      const operation = resumeAgentId !== undefined && resumeAgentId.length > 0 ? 'resume' : 'spawn';
       const task: FanoutTask = {
         prompt: args.prompt,
         description: args.description,
-        profileName: requestedProfileName ?? 'coder',
+        profileName: resolvedProfileName,
         ownership: args.ownership,
         resumeAgentId: operation === 'resume' ? resumeAgentId : undefined,
       };
       const spec: FanoutSpec = {
         mode: 'manual',
         parentToolCallId: toolCallId,
-        runInBackground,
+        runInBackground: effectiveBackground,
         signal: controller.signal,
         contractPath: args.contract,
         timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
@@ -244,9 +259,9 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         taskId = this.backgroundManager.registerTask(
           new AgentBackgroundTask(handle, args.description, this.subagentHost, controller),
           {
-            detached: runInBackground,
+            detached: effectiveBackground,
             timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
-            signal: runInBackground ? undefined : signal,
+            signal: effectiveBackground ? undefined : signal,
           },
         );
         signal.removeEventListener('abort', abortBeforeRegister);
@@ -266,7 +281,7 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         };
       }
 
-      if (runInBackground) {
+      if (effectiveBackground) {
         return {
           output: formatBackgroundAgentResult(
             taskId,

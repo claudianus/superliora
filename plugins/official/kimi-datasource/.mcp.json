@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "data": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/kimi-datasource.mjs"],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}"
+    }
+  }
+}

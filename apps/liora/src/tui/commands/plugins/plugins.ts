@@ -22,6 +22,7 @@ import { UsagePanelComponent } from '../../components/messages/usage-panel/index
 import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { formatPluginSourceLabel, isOfficialPluginSource } from '../../utils/plugin-source-label';
+import { refreshPluginThemeCatalog } from '#/tui/theme';
 import { loadPluginMarketplace } from '#/utils/plugin-marketplace';
 import type { AutocompleteItem } from '#/tui/renderer';
 
@@ -380,6 +381,7 @@ async function applyPluginEnabled(
 ): Promise<string> {
   const session = host.requireSession();
   await session.setPluginEnabled(id, enabled);
+  await refreshHostPluginThemes(host);
   let info: PluginInfo | undefined;
   try {
     info = await session.getPluginInfo(id);
@@ -480,6 +482,7 @@ async function handlePluginMcpSelection(
 
 async function removePlugin(host: SlashCommandHost, id: string): Promise<void> {
   await host.requireSession().removePlugin(id);
+  await refreshHostPluginThemes(host);
   host.showStatus(`Removed ${id}.`);
   host.showStatus(PLUGIN_RELOAD_HINT, 'warning');
 }
@@ -519,6 +522,7 @@ async function installPluginFromSource(
   const summary = await session.installPlugin(
     resolvePluginInstallSource(source, host.state.appState.workDir),
   );
+  await refreshHostPluginThemes(host);
   showPluginInstallResult(host, beforeList, summary);
 }
 
@@ -579,9 +583,14 @@ function truncateForStatus(input: string): string {
 
 async function reloadPlugins(host: SlashCommandHost): Promise<void> {
   const summary = await host.requireSession().reloadPlugins();
+  await refreshHostPluginThemes(host);
   const line = `Reload: +${summary.added.length} -${summary.removed.length}` +
     (summary.errors.length > 0 ? ` (${summary.errors.length} errors)` : '');
   host.showStatus(line);
+}
+
+async function refreshHostPluginThemes(host: SlashCommandHost): Promise<void> {
+  await refreshPluginThemeCatalog(() => host.requireSession().listPluginThemes());
 }
 
 function resolvePluginInstallSource(source: string, workDir: string): string {

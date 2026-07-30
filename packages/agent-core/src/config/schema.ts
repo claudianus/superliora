@@ -151,6 +151,8 @@ export const PermissionRuleSchema = z.object({
   reason: z.string().optional(),
 });
 
+export type PermissionRule = z.infer<typeof PermissionRuleSchema>;
+
 export const PermissionConfigSchema = z.object({
   rules: z.array(PermissionRuleSchema).optional(),
 });

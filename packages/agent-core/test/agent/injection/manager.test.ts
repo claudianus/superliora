@@ -13,7 +13,6 @@ describe('agent/injection/manager — InjectionManager construction', () => {
       getResponseLanguagePreference: () => undefined,
       goal: undefined,
       memory: undefined,
-      pluginSessionStarts: [],
       skills: undefined,
       contextOS: undefined,
     } as unknown as Agent;

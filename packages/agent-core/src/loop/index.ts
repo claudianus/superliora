@@ -8,10 +8,12 @@
 export type {
   AfterStepHook,
   AfterStepResult,
+  AfterToolBatchHook,
   BeforeStepResult,
   BeforeStepHook,
   LoopHooks,
   LoopAfterStepContext,
+  LoopToolBatchContext,
   LoopStepHookContext,
   LoopStepStopReason,
   LoopStoppedStepContext,

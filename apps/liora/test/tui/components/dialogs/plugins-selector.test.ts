@@ -439,7 +439,7 @@ describe('plugins selector dialogs', () => {
         mcpServers: [
           {
             name: 'data',
-            runtimeName: 'plugin-kimi-datasource-data',
+            runtimeName: 'plugin:kimi-datasource:data',
             enabled: true,
             transport: 'stdio',
             command: 'node',

@@ -28,6 +28,9 @@ import {
 } from '../skill';
 import { noopTelemetryClient } from '../telemetry';
 import type { PluginCommandDef } from '../plugin';
+import type { PluginChannelRuntime } from '../plugin/channel-runtime';
+import type { PluginLspRuntime } from '../plugin/lsp-runtime';
+import type { WorkflowHost } from '../plugin/workflow-host';
 import { FlagResolver } from '../flags';
 import { SessionMetadataPersistence } from './metadata-persistence';
 import { ConversationLoopManager } from './conversation-loops';
@@ -68,6 +71,14 @@ export class Session {
   private readonly logHandle: SessionLogHandle | undefined;
   readonly hookEngine: HookEngine;
   readonly experimentalFlags: NonNullable<SessionOptions['experimentalFlags']>;
+  /** Session-scoped plugin LSP stdio pool; disposed on session close. */
+  pluginLspRuntime: PluginLspRuntime | undefined;
+  /** Opt-in Claude channel inbound host. */
+  pluginChannelRuntime: PluginChannelRuntime | undefined;
+  /** Claude dynamic workflow host. */
+  workflowHost: WorkflowHost | undefined;
+  /** When true, channel MCP notifications inject into the session. */
+  channelsOptIn = false;
   private toolKaos: Kaos;
   private persistenceKaos: Kaos;
   private additionalDirs: readonly string[];
@@ -301,6 +312,8 @@ export class Session {
       );
       await this.flushMetadata();
       await triggerSessionEnd(this.hookEngine, 'exit');
+      await this.pluginLspRuntime?.dispose();
+      this.pluginLspRuntime = undefined;
     } finally {
       try {
         await this.mcp.shutdown();
@@ -316,6 +329,8 @@ export class Session {
         Array.from(this.readyAgents(), async (agent) => agent.cron?.stop()),
       );
       await this.flushMetadata();
+      await this.pluginLspRuntime?.dispose();
+      this.pluginLspRuntime = undefined;
     } finally {
       try {
         await this.mcp.shutdown();

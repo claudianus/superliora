@@ -108,6 +108,8 @@ export class SessionAgentLifecycle {
       log: this.opts.log.createChild({ agentId: id }),
       pluginSessionStarts: type === 'main' ? this.opts.options.pluginSessionStarts : undefined,
       pluginCommands: type === 'main' ? this.opts.options.pluginCommands : undefined,
+      pluginAgents: this.opts.options.pluginAgents,
+      pluginBinDirs: this.opts.options.pluginBinDirs,
       experimentalFlags: this.opts.experimentalFlags,
       additionalDirs: parentAgent?.getAdditionalDirs() ?? this.opts.getAdditionalDirs(),
       memory: this.opts.options.memory?.forAgent({

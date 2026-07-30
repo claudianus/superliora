@@ -6,6 +6,7 @@ import type {
   PluginCommandDef,
   PluginInfo,
   PluginSummary,
+  PluginThemeDef,
   ReloadSummary,
 } from '#/session/types';
 
@@ -54,6 +55,11 @@ export abstract class SDKRpcClientPluginsMixin extends SDKRpcClientGoalsUltrawor
   async getPluginInfo(id: string): Promise<PluginInfo> {
     const rpc = await this.getRpc();
     return rpc.getPluginInfo({ id });
+  }
+
+  async listPluginThemes(): Promise<readonly PluginThemeDef[]> {
+    const rpc = await this.getRpc();
+    return rpc.listPluginThemes({});
   }
 
   async activateSkill(input: ActivateSkillRpcInput): Promise<void> {

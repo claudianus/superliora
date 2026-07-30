@@ -244,6 +244,10 @@ export class EditTool implements BuiltinTool<EditInput> {
       readonly getSwarmLease?:
         | (() => { readonly ownerId?: string; readonly runId?: string } | undefined)
         | undefined;
+      /** Optional post-mutation hook (e.g. plugin LSP diagnostics). */
+      readonly onFileMutated?:
+        | ((path: string, content: string) => Promise<string | undefined> | string | undefined)
+        | undefined;
     },
   ) {}
 
@@ -330,11 +334,15 @@ export class EditTool implements BuiltinTool<EditInput> {
         }
 
         const newContent = replaceOnceLiteral(content, args.old_string, args.new_string);
-        await this.kaos.writeAtomic(
-          safePath,
-          materializeModelText(newContent, modelView.lineEndingStyle),
-        );
-        return { output: `Replaced 1 occurrence in ${args.path}` };
+        const written = materializeModelText(newContent, modelView.lineEndingStyle);
+        await this.kaos.writeAtomic(safePath, written);
+        return {
+          output: await this.withMutationDiagnostics(
+            safePath,
+            written,
+            `Replaced 1 occurrence in ${args.path}`,
+          ),
+        };
       }
 
       const parts = content.split(args.old_string);
@@ -347,11 +355,15 @@ export class EditTool implements BuiltinTool<EditInput> {
       }
 
       const newContent = parts.join(args.new_string);
-      await this.kaos.writeAtomic(
-        safePath,
-        materializeModelText(newContent, modelView.lineEndingStyle),
-      );
-      return { output: `Replaced ${String(replacementCount)} occurrences in ${args.path}` };
+      const written = materializeModelText(newContent, modelView.lineEndingStyle);
+      await this.kaos.writeAtomic(safePath, written);
+      return {
+        output: await this.withMutationDiagnostics(
+          safePath,
+          written,
+          `Replaced ${String(replacementCount)} occurrences in ${args.path}`,
+        ),
+      };
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
       if (code === 'EISDIR') {
@@ -362,5 +374,15 @@ export class EditTool implements BuiltinTool<EditInput> {
         output: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  private async withMutationDiagnostics(
+    path: string,
+    content: string,
+    output: string,
+  ): Promise<string> {
+    const extra = await this.options?.onFileMutated?.(path, content);
+    if (extra === undefined || extra.trim() === '') return output;
+    return `${output}\n\n${extra.trim()}`;
   }
 }

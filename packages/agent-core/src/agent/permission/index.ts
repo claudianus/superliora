@@ -214,19 +214,27 @@ export class PermissionManager {
         : undefined;
 
     if (requestedApproval) {
+      const permissionInput = {
+        turnId: Number(context.turnId),
+        toolCallId: id,
+        toolName: name,
+        action,
+        decision: response.decision,
+        scope: response.scope,
+        feedback: response.feedback,
+        selectedLabel: response.selectedLabel,
+      };
       void this.agent.hooks?.fireAndForgetTrigger?.('PermissionResult', {
         matcherValue: name,
-        inputData: {
-          turnId: Number(context.turnId),
-          toolCallId: id,
-          toolName: name,
-          action,
-          decision: response.decision,
-          scope: response.scope,
-          feedback: response.feedback,
-          selectedLabel: response.selectedLabel,
-        },
+        inputData: permissionInput,
       });
+      // Claude-canonical deny event (additive; PermissionResult still fires).
+      if (response.decision === 'rejected') {
+        void this.agent.hooks?.fireAndForgetTrigger?.('PermissionDenied', {
+          matcherValue: name,
+          inputData: permissionInput,
+        });
+      }
     }
 
     this.recordApprovalResult({
@@ -296,11 +304,22 @@ export class PermissionManager {
         return result.executionMetadata === undefined
           ? undefined
           : { executionMetadata: result.executionMetadata };
-      case 'deny':
+      case 'deny': {
+        const toolName = context.toolCall.name;
+        void this.agent.hooks?.fireAndForgetTrigger?.('PermissionDenied', {
+          matcherValue: toolName,
+          inputData: {
+            toolName,
+            decision: 'denied',
+            policyName: policyName ?? null,
+            reason: result.message,
+          },
+        });
         return {
           block: true,
-          reason: result.message ?? this.formatPolicyDenyMessage(context.toolCall.name),
+          reason: result.message ?? this.formatPolicyDenyMessage(toolName),
         };
+      }
       case 'ask':
         return this.requestToolApproval(context, result, policyName);
       case 'result': {

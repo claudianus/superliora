@@ -156,6 +156,12 @@ export class StdioMcpClient implements MCPClient {
     return this.client.getInstructions();
   }
 
+  onNotification(handler: (method: string, params: unknown) => void): void {
+    this.client.fallbackNotificationHandler = async (notification): Promise<void> => {
+      handler(notification.method, notification.params);
+    };
+  }
+
   private async closeStartedClient(): Promise<void> {
     if (!this.started) return;
     this.started = false;
