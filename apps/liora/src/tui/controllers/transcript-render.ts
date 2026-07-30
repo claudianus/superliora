@@ -10,7 +10,7 @@ import { IdleStageComponent } from '../components/chrome/idle-stage';
 import { MoonLoader } from '../components/chrome/moon-loader';
 import { SplashComponent, shouldPlaySplash } from '../components/chrome/splash';
 import { WelcomeComponent } from '../components/chrome/welcome';
-import { CompactionComponent } from '../components/dialogs/compaction';
+import { CompactionComponent } from '../components/dialogs/session/compaction';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '../components/messages/background-agent-status';
 import { CronMessageComponent } from '../components/messages/cron-message';

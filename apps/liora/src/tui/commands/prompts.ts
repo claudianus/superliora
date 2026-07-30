@@ -3,14 +3,14 @@ import {
   type ModelAlias,
 } from '@superliora/sdk';
 
-import { ApiKeyInputDialogComponent, type ApiKeyInputResult } from '../components/dialogs/api-key-input-dialog';
+import { ApiKeyInputDialogComponent, type ApiKeyInputResult } from '../components/dialogs/auth/api-key-input-dialog';
 import {
   OAuthCallbackInputDialogComponent,
   type OAuthCallbackInputResult,
-} from '../components/dialogs/oauth-callback-input-dialog';
-import { ChoicePickerComponent, type ChoiceOption } from '../components/dialogs/choice-picker';
-import { ModelSelectorComponent } from '../components/dialogs/model-selector';
-import { ProviderCatalogPickerComponent } from '../components/dialogs/provider-catalog-picker';
+} from '../components/dialogs/auth/oauth-callback-input-dialog';
+import { ChoicePickerComponent, type ChoiceOption } from '../components/dialogs/picker/choice-picker';
+import { ModelSelectorComponent } from '../components/dialogs/picker/model-selector';
+import { ProviderCatalogPickerComponent } from '../components/dialogs/picker/provider-catalog-picker';
 import {
   buildProviderCatalogOptions,
   type ProviderCatalogOption,

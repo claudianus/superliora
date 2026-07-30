@@ -2,7 +2,7 @@ import type { Terminal } from '#/tui/renderer';
 import type { BackgroundTaskInfo } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { TaskOutputViewer } from '@/tui/components/dialogs/task-output-viewer';
+import { TaskOutputViewer } from '@/tui/components/dialogs/tasks/task-output-viewer';
 import { darkColors } from '@/tui/theme/colors';
 
 const ANSI_SGR = /\[[0-9;]*m/g;

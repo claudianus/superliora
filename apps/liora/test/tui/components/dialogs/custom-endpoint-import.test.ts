@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CustomEndpointImportDialogComponent,
   type CustomEndpointImportResult,
-} from '#/tui/components/dialogs/custom-endpoint-import';
+} from '#/tui/components/dialogs/provider/custom-endpoint-import';
 
 const ANSI = /\u001B\[[0-9;]*m/g;
 const strip = (s: string): string => s.replaceAll(ANSI, '');

@@ -4,10 +4,10 @@ import { quoteShellArg } from '#/utils/shell-quote';
 import type { LioraHarness, Session } from '@superliora/sdk';
 import { resolve } from 'pathe';
 
-import { AgentDashboardComponent } from '../components/dialogs/agent-dashboard';
-import { ExtensionsModalComponent } from '../components/dialogs/extensions-modal';
-import { SessionPickerComponent, type SessionRow } from '../components/dialogs/session-picker';
-import type { SessionLoadingPhase } from '../components/dialogs/session-loading-overlay';
+import { AgentDashboardComponent } from '../components/dialogs/session/agent-dashboard';
+import { ExtensionsModalComponent } from '../components/dialogs/session/extensions-modal';
+import { SessionPickerComponent, type SessionRow } from '../components/dialogs/session/session-picker';
+import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
 import { PRODUCT_NAME } from '../constant/liora-tui';
 import { MAX_TERMINAL_TITLE_LENGTH } from '../constant/terminal';
 import type { ColorToken } from '../theme';

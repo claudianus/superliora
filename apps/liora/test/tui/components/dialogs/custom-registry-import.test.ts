@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CustomRegistryImportDialogComponent,
   type CustomRegistryImportResult,
-} from '#/tui/components/dialogs/custom-registry-import';
+} from '#/tui/components/dialogs/provider/custom-registry-import';
 import { darkColors } from '#/tui/theme/colors';
 
 const ANSI = /\[[0-9;]*m/g;

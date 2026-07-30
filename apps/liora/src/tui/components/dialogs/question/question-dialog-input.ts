@@ -1,6 +1,6 @@
 import { decodeKittyPrintable, Key, matchesKey } from '#/tui/renderer';
 
-import type { Input } from './input';
+import type { Input } from '../shared/input';
 import { NUMBER_KEYS, SUBMIT_ACTIONS } from './question-dialog-constants';
 import type { QuestionSubmissionMethod } from '#/tui/reverse-rpc/types';
 

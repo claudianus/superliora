@@ -7,18 +7,18 @@ import {
   isCommandHubCycleId,
   type CommandHubItem,
   type CommandHubSelectMode,
-} from '../../components/dialogs/command-hub';
+} from '../../components/dialogs/command-hub/index';
 import {
   CommandPaletteComponent,
   rankPaletteEntries,
   type PaletteEntry,
-} from '../../components/dialogs/command-palette';
+} from '../../components/dialogs/command-hub/command-palette';
 import {
   advancedHelpIntro,
   advancedKeyboardShortcuts,
   HelpPanelComponent,
-} from '../../components/dialogs/help-panel';
-import { ShortcutsPanelComponent } from '../../components/dialogs/shortcuts-panel';
+} from '../../components/dialogs/help/help-panel';
+import { ShortcutsPanelComponent } from '../../components/dialogs/command-hub/shortcuts-panel';
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,

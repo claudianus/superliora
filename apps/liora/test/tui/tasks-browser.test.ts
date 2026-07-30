@@ -6,7 +6,7 @@ import {
   TasksBrowserApp,
   type TasksBrowserProps,
   type TasksFilter,
-} from '@/tui/components/dialogs/tasks-browser';
+} from '@/tui/components/dialogs/tasks/tasks-browser';
 import { darkColors } from '@/tui/theme/colors';
 
 const ANSI_SGR = /\[[0-9;]*m/g;

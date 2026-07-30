@@ -7,7 +7,7 @@ import { resolveUpgradePlan } from '#/cli/update/plan';
 import {
   UpgradeDialogComponent,
   type UpgradeDialogChoice,
-} from '#/tui/components/dialogs/upgrade-dialog';
+} from '#/tui/components/dialogs/upgrade/upgrade-dialog';
 
 import type { SlashCommandHost } from './dispatch';
 

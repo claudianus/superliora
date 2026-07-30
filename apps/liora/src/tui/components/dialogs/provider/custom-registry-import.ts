@@ -19,7 +19,7 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
-import { Input } from './input';
+import { Input } from '../shared/input';
 
 export interface CustomRegistryImportValue {
   readonly url: string;

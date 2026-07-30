@@ -4,7 +4,7 @@ import { resolve } from 'pathe';
 import type { Component, Focusable } from '#/tui/renderer';
 
 import type { LioraSlashCommand } from '../commands';
-import type { SessionLoadingPhase } from '../components/dialogs/session-loading-overlay';
+import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { createContext7CredentialHandler } from '../reverse-rpc/credential/handler';
 import type { ApprovalController } from '../reverse-rpc/approval/controller';

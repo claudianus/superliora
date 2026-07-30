@@ -1,5 +1,5 @@
-import { EditorSelectorComponent } from '../../components/dialogs/editor-selector';
-import { ThemeSelectorComponent } from '../../components/dialogs/theme-selector';
+import { EditorSelectorComponent } from '../../components/dialogs/picker/editor-selector';
+import { ThemeSelectorComponent } from '../../components/dialogs/picker/theme-selector';
 import { saveTuiConfig } from '../../config';
 import type { ThemeName } from '#/tui/theme';
 import { currentTheme, isBuiltInTheme, lightColors, loadCustomThemeMerged } from '#/tui/theme';

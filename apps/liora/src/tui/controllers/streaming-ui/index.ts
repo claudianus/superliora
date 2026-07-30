@@ -2,7 +2,7 @@ import type { CompactionPhase, Session } from '@superliora/sdk';
 
 import type { AgentGroupComponent } from '../../components/messages/agent-group';
 import { AssistantMessageComponent } from '../../components/messages/assistant-message';
-import type { CompactionComponent } from '../../components/dialogs/compaction';
+import type { CompactionComponent } from '../../components/dialogs/session/compaction';
 import type { ReadGroupComponent } from '../../components/messages/read-group';
 import type { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';

@@ -1,7 +1,7 @@
 import type { CompactionPhase } from '@superliora/sdk';
 
 import { currentWorkingTip, tipText } from '../../components/chrome/working-tips';
-import { CompactionComponent } from '../../components/dialogs/compaction';
+import { CompactionComponent } from '../../components/dialogs/session/compaction';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
 import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';

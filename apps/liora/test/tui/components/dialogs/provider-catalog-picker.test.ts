@@ -2,7 +2,7 @@ import type { Catalog } from '@superliora/sdk';
 import chalk from 'chalk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { ProviderCatalogPickerComponent } from '#/tui/components/dialogs/provider-catalog-picker';
+import { ProviderCatalogPickerComponent } from '#/tui/components/dialogs/picker/provider-catalog-picker';
 import { darkColors } from '#/tui/theme/colors';
 import {
   buildProviderCatalogOptions,

@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { BlamePanelComponent } from '#/tui/components/dialogs/blame-panel';
+import { BlamePanelComponent } from '#/tui/components/dialogs/workspace/blame-panel';
 import { currentTheme } from '#/tui/theme';
 import type { BlameCommit, BlameLine } from '#/utils/git/git-blame';
 

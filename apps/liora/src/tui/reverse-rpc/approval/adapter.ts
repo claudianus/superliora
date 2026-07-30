@@ -1,7 +1,7 @@
 import type { ApprovalRequest, ApprovalResponse, ToolInputDisplay } from '@superliora/sdk';
 
-import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval-panel';
-import { goalStartOptions } from '#/tui/components/dialogs/goal-start-permission-prompt';
+import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval/approval-panel';
+import { goalStartOptions } from '#/tui/components/dialogs/goal/goal-start-permission-prompt';
 import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui/reverse-rpc/types';
 import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 import {

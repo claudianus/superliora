@@ -1,6 +1,6 @@
 import type { SessionSummary } from '@superliora/sdk';
 
-import type { SessionRow } from '#/tui/components/dialogs/session-picker';
+import type { SessionRow } from '#/tui/components/dialogs/session/session-picker';
 
 export function sessionRowsForPicker(
   sessions: readonly SessionSummary[],

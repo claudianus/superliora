@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ContextWorkingSetSelectorComponent } from '#/tui/components/dialogs/context-working-set-selector';
+import { ContextWorkingSetSelectorComponent } from '#/tui/components/dialogs/picker/context-working-set-selector';
 
 const ENTER = '\r';
 const ESC = '\u001B';

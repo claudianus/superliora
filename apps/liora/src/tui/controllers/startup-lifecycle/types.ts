@@ -1,6 +1,6 @@
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
 
-import type { SessionLoadingOverlayComponent } from '../../components/dialogs/session-loading-overlay';
+import type { SessionLoadingOverlayComponent } from '../../components/dialogs/session/session-loading-overlay';
 import type { ColorToken } from '../../theme';
 import type { LioraTUIOptions } from '../../types';
 import type { TUIState } from '../../tui-state';
@@ -76,7 +76,7 @@ export interface StartupLifecycleHost {
   isSessionLoadingOverlayActive(): boolean;
   beginSessionLoading(sessionId?: string, title?: string): void;
   reportSessionLoading(patch: {
-    readonly phase?: import('../components/dialogs/session-loading-overlay').SessionLoadingPhase;
+    readonly phase?: import('../components/dialogs/session/session-loading-overlay').SessionLoadingPhase;
     readonly progress?: number;
     readonly detail?: string;
     readonly sessionId?: string;

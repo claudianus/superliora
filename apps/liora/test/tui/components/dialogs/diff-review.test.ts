@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { DiffReviewComponent } from '#/tui/components/dialogs/diff-review';
+import { DiffReviewComponent } from '#/tui/components/dialogs/workspace/diff-review';
 import type { DiffLine } from '#/tui/components/media/diff-preview';
 import type { GitDiffFile, GitDiffReport } from '#/utils/git/git-diff';
 

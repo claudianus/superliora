@@ -13,7 +13,7 @@ import {
   type PluginMcpSelection,
   type PluginRemoveConfirmResult,
   type PluginsPanelSelection,
-} from '#/tui/components/dialogs/plugins-selector';
+} from '#/tui/components/dialogs/plugins/index';
 import { currentTheme } from '#/tui/theme';
 import { darkColors, lightColors } from '#/tui/theme/colors';
 import { isOfficialPluginSource, pluginTrustLabel } from '#/tui/utils/plugin-source-label';

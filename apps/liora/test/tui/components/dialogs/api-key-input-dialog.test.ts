@@ -1,7 +1,7 @@
 import { visibleWidth } from '#/tui/renderer';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiKeyInputDialogComponent } from '#/tui/components/dialogs/api-key-input-dialog';
+import { ApiKeyInputDialogComponent } from '#/tui/components/dialogs/auth/api-key-input-dialog';
 
 describe('ApiKeyInputDialogComponent', () => {
   it('keeps every line within narrow widths', () => {

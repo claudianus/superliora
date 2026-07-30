@@ -3,12 +3,12 @@ import type { Component, Focusable } from '#/tui/renderer';
 import {
   ApprovalPanelComponent,
   type ApprovalPanelResponse,
-} from '../components/dialogs/approval-panel';
+} from '../components/dialogs/approval/approval-panel';
 import {
   ApprovalPreviewViewer,
   type ApprovalPreviewBlock,
-} from '../components/dialogs/approval-preview';
-import { QuestionDialogComponent } from '../components/dialogs/question-dialog';
+} from '../components/dialogs/approval/approval-preview';
+import { QuestionDialogComponent } from '../components/dialogs/question/question-dialog';
 import { adaptPanelResponse } from '../reverse-rpc/approval/adapter';
 import type { ApprovalController } from '../reverse-rpc/approval/controller';
 import type { QuestionController } from '../reverse-rpc/question/controller';

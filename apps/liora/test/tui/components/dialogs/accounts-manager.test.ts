@@ -8,8 +8,8 @@ import {
   buildOAuthAccountPoolRows,
   formatOAuthAccountRowLine,
   oauthAccountRole,
-} from '#/tui/components/dialogs/accounts-manager';
-import { SettingsSelectorComponent } from '#/tui/components/dialogs/settings-selector';
+} from '#/tui/components/dialogs/auth/accounts-manager';
+import { SettingsSelectorComponent } from '#/tui/components/dialogs/picker/settings-selector';
 import type { ProviderOAuthRef } from '@superliora/oauth';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;

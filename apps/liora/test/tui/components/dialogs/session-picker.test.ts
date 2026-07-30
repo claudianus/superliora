@@ -1,7 +1,7 @@
 import { visibleWidth } from '#/tui/renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SessionPickerComponent, type SessionRow } from '#/tui/components/dialogs/session-picker';
+import { SessionPickerComponent, type SessionRow } from '#/tui/components/dialogs/session/session-picker';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,

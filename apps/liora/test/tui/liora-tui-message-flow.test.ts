@@ -7,7 +7,7 @@ import { encodeKittyDeleteImages } from '#/tui/renderer';
 import type { ApprovalRequest, ApprovalResponse, Event } from '@superliora/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval-panel';
+import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval/approval-panel';
 import { SUPERLIORA_PLUGIN_MARKETPLACE_URL } from '#/constant/app';
 import {
   AgentSwarmProgressComponent,
@@ -15,15 +15,15 @@ import {
 } from '#/tui/components/messages/agent-swarm-progress/index';
 import { BtwPanelComponent } from '#/tui/components/panes/btw-panel';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
-import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
-import { TabbedModelSelectorComponent } from '#/tui/components/dialogs/tabbed-model-selector';
-import { UndoSelectorComponent } from '#/tui/components/dialogs/undo-selector';
+import { ModelSelectorComponent } from '#/tui/components/dialogs/picker/model-selector';
+import { TabbedModelSelectorComponent } from '#/tui/components/dialogs/picker/tabbed-model-selector';
+import { UndoSelectorComponent } from '#/tui/components/dialogs/picker/undo-selector';
 import {
   PluginInstallTrustConfirmComponent,
   PluginMcpSelectorComponent,
   PluginRemoveConfirmComponent,
   PluginsPanelComponent,
-} from '#/tui/components/dialogs/plugins-selector';
+} from '#/tui/components/dialogs/plugins/index';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
 import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index';
 import {

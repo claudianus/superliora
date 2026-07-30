@@ -1,4 +1,4 @@
-import {ChoicePickerComponent} from './choice-picker';
+import {ChoicePickerComponent} from '../picker/choice-picker';
 import {mutedHintLine} from './plugins-selector-shared';
 
 const REMOVE_CONFIRM_CANCEL = 'cancel';

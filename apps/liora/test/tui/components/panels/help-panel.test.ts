@@ -6,7 +6,7 @@ import {
   ADVANCED_HELP_INTRO,
   advancedKeyboardShortcuts,
   HelpPanelComponent,
-} from '#/tui/components/dialogs/help-panel';
+} from '#/tui/components/dialogs/help/help-panel';
 import { KEYMAP_ALL } from '#/tui/keymap';
 
 function cmd(name: string, description: string, aliases: string[] = []): LioraSlashCommand {

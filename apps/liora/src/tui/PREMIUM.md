@@ -5,7 +5,7 @@
   animated element must conform to this document. Walk the self-check list at the
 > end before submitting.
 >
-> **Baseline component:** `components/dialogs/model-selector.ts` (`/model`).
+> **Baseline component:** `components/dialogs/picker/model-selector.ts` (`/model`).
 
 ---
 

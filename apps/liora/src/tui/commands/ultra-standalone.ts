@@ -21,11 +21,11 @@ import { GoalSetMessageComponent } from '../components/messages/goal-panel';
 import {
   GoalStartPermissionPromptComponent,
   type GoalStartPermissionChoice,
-} from '../components/dialogs/goal-start-permission-prompt';
+} from '../components/dialogs/goal/goal-start-permission-prompt';
 import {
   SwarmStartPermissionPromptComponent,
   type SwarmStartPermissionChoice,
-} from '../components/dialogs/swarm-start-permission-prompt';
+} from '../components/dialogs/goal/swarm-start-permission-prompt';
 import {
   SwarmModeMarkerComponent,
   type SwarmModeMarkerState,

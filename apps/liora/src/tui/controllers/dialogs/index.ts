@@ -1,6 +1,6 @@
 import type { Component, Focusable } from '#/tui/renderer';
 
-import type { SessionLoadingPhase } from '../../components/dialogs/session-loading-overlay';
+import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
 import {
   refreshOpenCommandHub,

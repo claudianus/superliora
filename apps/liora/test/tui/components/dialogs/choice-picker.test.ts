@@ -4,12 +4,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ChoicePickerComponent, type ChoiceOption } from '#/tui/components/dialogs/choice-picker';
-import { EditorSelectorComponent } from '#/tui/components/dialogs/editor-selector';
-import { PermissionSelectorComponent } from '#/tui/components/dialogs/permission-selector';
-import { SettingsSelectorComponent } from '#/tui/components/dialogs/settings-selector';
-import { ThemeSelectorComponent } from '#/tui/components/dialogs/theme-selector';
-import { UpdatePreferenceSelectorComponent } from '#/tui/components/dialogs/update-preference-selector';
+import { ChoicePickerComponent, type ChoiceOption } from '#/tui/components/dialogs/picker/choice-picker';
+import { EditorSelectorComponent } from '#/tui/components/dialogs/picker/editor-selector';
+import { PermissionSelectorComponent } from '#/tui/components/dialogs/picker/permission-selector';
+import { SettingsSelectorComponent } from '#/tui/components/dialogs/picker/settings-selector';
+import { ThemeSelectorComponent } from '#/tui/components/dialogs/picker/theme-selector';
+import { UpdatePreferenceSelectorComponent } from '#/tui/components/dialogs/picker/update-preference-selector';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 

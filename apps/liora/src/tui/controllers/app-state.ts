@@ -1,4 +1,4 @@
-import type { CommandHubComponent } from '../components/dialogs/command-hub';
+import type { CommandHubComponent } from '../components/dialogs/command-hub/index';
 import type { AppState, LivePaneState } from '../types';
 import { INITIAL_LIVE_PANE } from '../types';
 import type { TUIState } from '../tui-state';

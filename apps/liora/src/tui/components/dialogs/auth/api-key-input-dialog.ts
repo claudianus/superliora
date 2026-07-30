@@ -9,50 +9,67 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 import { sanitizeApiKeyValue } from '#/tui/utils/sanitize-api-key';
-import { Input } from './input';
+import { Input } from '../shared/input';
 
-export type OAuthCallbackInputResult =
+export type ApiKeyInputResult =
   | { readonly kind: 'ok'; readonly value: string }
   | { readonly kind: 'cancel' };
 
 const FOOTER = 'Enter to submit  ·  Esc to cancel';
 
-export interface OAuthCallbackInputDialogOptions {
-  readonly title?: string;
-  readonly subtitleLines?: readonly string[];
-  readonly errorHint?: string;
+function maskInputLine(raw: string): string {
+  const prefix = '> ';
+  if (!raw.startsWith(prefix)) return raw;
+
+  // Strip trailing padding spaces so they stay as spaces.
+  let end = raw.length;
+  while (end > prefix.length && raw[end - 1] === ' ') {
+    end--;
+  }
+  const padding = raw.slice(end);
+  const content = raw.slice(prefix.length, end);
+
+  // Protect ANSI escape sequences (reverse-video cursor, IME marker, etc.)
+  // while masking every other visible character.
+  const parts = content.split(/(\u001B(?:\[[0-9;]*m|_pi:c\u0007))/);
+  const maskedContent = parts
+    .map((part, index) => {
+      if (index % 2 === 1) return part; // ANSI sequence
+      return part.replaceAll(/./g, '•');
+    })
+    .join('');
+
+  return prefix + maskedContent + padding;
 }
 
-/**
- * Single-line paste dialog for OAuth browser-callback fallbacks.
- * Used when the loopback redirect cannot reach the CLI and the user must
- * paste the callback URL / authorization code manually.
- */
-export class OAuthCallbackInputDialogComponent extends Container implements Focusable {
+export interface ApiKeyInputDialogOptions {
+  /** Pre-fill the input with this value (e.g. a detected env-var value). */
+  readonly prefill?: string;
+}
+
+export class ApiKeyInputDialogComponent extends Container implements Focusable {
   focused = false;
 
   private readonly input = new Input();
-  private readonly onDone: (result: OAuthCallbackInputResult) => void;
+  private readonly onDone: (result: ApiKeyInputResult) => void;
   private readonly title: string;
   private readonly subtitleLines: readonly string[];
   private done = false;
   private emptyHinted = false;
-  private errorHint: string | undefined;
 
   constructor(
-    onDone: (result: OAuthCallbackInputResult) => void,
-    options: OAuthCallbackInputDialogOptions = {},
+    platformName: string,
+    subtitleLines: readonly string[],
+    onDone: (result: ApiKeyInputResult) => void,
+    options: ApiKeyInputDialogOptions = {},
   ) {
     super();
     this.onDone = onDone;
-    this.title = options.title ?? 'Paste OAuth callback';
-    this.subtitleLines =
-      options.subtitleLines ??
-      [
-        'If the browser could not redirect back automatically, paste the',
-        'callback URL or authorization code shown after sign-in.',
-      ];
-    this.errorHint = options.errorHint;
+    this.title = `Enter API key for ${platformName}`;
+    this.subtitleLines = subtitleLines;
+    if (options.prefill !== undefined && options.prefill.length > 0) {
+      this.input.setValue(options.prefill);
+    }
     this.input.onSubmit = (value) => {
       this.submit(value);
     };
@@ -68,9 +85,8 @@ export class OAuthCallbackInputDialogComponent extends Container implements Focu
       this.cancel();
       return;
     }
-    if (this.emptyHinted || this.errorHint !== undefined) {
+    if (this.emptyHinted) {
       this.emptyHinted = false;
-      this.errorHint = undefined;
     }
     this.input.handleInput(data);
   }
@@ -89,24 +105,16 @@ export class OAuthCallbackInputDialogComponent extends Container implements Focu
 
     const border = (s: string): string => currentTheme.fg('primary', s);
     const titleStyled = currentTheme.boldFg('textStrong', this.title);
-    const subtitleSource =
-      this.errorHint !== undefined
-        ? [this.errorHint]
-        : this.emptyHinted
-          ? ['Callback value cannot be empty.']
-          : this.subtitleLines;
+    const subtitleSource = this.emptyHinted ? ['API key cannot be empty.'] : this.subtitleLines;
     const subtitleLines = subtitleSource.map((line) =>
-      truncateToWidth(
-        currentTheme.fg(this.errorHint !== undefined || this.emptyHinted ? 'error' : 'textDim', line),
-        innerWidth,
-        '…',
-      ),
+      truncateToWidth(currentTheme.fg('textDim', line), innerWidth, '…'),
     );
     const footerStyled = currentTheme.fg('textDim', FOOTER);
 
     const titleLine = truncateToWidth(titleStyled, innerWidth, '…');
     const footerLine = truncateToWidth(footerStyled, innerWidth, '…');
-    const inputLine = this.input.render(innerWidth)[0] ?? '> ';
+    const rawInputLine = this.input.render(innerWidth)[0] ?? '> ';
+    const inputLine = this.input.getValue() === '' ? rawInputLine : maskInputLine(rawInputLine);
 
     const contentLines: string[] = [
       titleLine,

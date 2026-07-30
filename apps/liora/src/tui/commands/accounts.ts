@@ -24,7 +24,7 @@ import {
   formatOAuthAccountDisplayLabel,
   type AccountAction,
   type AccountPoolRow,
-} from '../components/dialogs/accounts-manager';
+} from '../components/dialogs/auth/accounts-manager';
 import type { SlashCommandHost } from './dispatch';
 
 interface OAuthProviderPool {

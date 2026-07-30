@@ -16,7 +16,7 @@ import {
   type ProviderModelPreset,
 } from '@superliora/oauth';
 
-import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
+import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
 import { DEFAULT_OAUTH_PROVIDER_NAME } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
 import type { LoginProgressSpinnerHandle } from '../types';

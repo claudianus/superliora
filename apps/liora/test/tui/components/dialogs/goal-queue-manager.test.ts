@@ -5,7 +5,7 @@ import {
   GoalQueueEditDialogComponent,
   GoalQueueManagerComponent,
   type GoalQueueManagerAction,
-} from '#/tui/components/dialogs/goal-queue-manager';
+} from '#/tui/components/dialogs/goal/goal-queue-manager';
 import type { GoalQueueSnapshot, UpcomingGoal } from '#/tui/goal-queue-store';
 
 const ANSI = /\u001B\[[0-9;]*m/g;

@@ -9,7 +9,7 @@ import {
 import {
   UltraworkStartModePromptComponent,
   type UltraworkStartModeChoice,
-} from '../components/dialogs/ultrawork-start-mode-prompt';
+} from '../components/dialogs/goal/ultrawork-start-mode-prompt';
 import { UltraworkModeMarkerComponent } from '../components/messages/ultrawork-markers';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';

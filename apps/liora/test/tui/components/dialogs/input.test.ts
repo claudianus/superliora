@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { Input } from '#/tui/components/dialogs/input';
+import { Input } from '#/tui/components/dialogs/shared/input';
 
 describe('dialog Input', () => {
   it('inserts bracketed paste without escape markers', () => {

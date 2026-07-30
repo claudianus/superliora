@@ -8,7 +8,7 @@ import {printableChar} from '#/tui/utils/printable-key';
 import {renderTabStrip} from '#/tui/utils/ui/tab-strip';
 import {computeUpdateStatus, type PluginMarketplaceEntry} from '#/utils/plugin-marketplace';
 
-import {Input} from './input';
+import {Input} from '../shared/input';
 import {
   ELLIPSIS,
   mutedHintLine,

@@ -1,8 +1,8 @@
 import { getInputHistoryFile } from '#/utils/paths';
 import { loadInputHistory } from '#/utils/history/input-history';
 
-import { HistorySearchDialogComponent } from '../../components/dialogs/history-search-dialog';
-import { TranscriptSearchDialogComponent } from '../../components/dialogs/transcript-search';
+import { HistorySearchDialogComponent } from '../../components/dialogs/search/history-search-dialog';
+import { TranscriptSearchDialogComponent } from '../../components/dialogs/search/transcript-search';
 import { requestTUIContentRender } from '../../utils/render/frame-render';
 import { resolveTranscriptEntryLineOffset } from '../../features/transcript/transcript-entry-layout';
 import { resolveTranscriptHitTestContext } from '../../features/transcript/transcript-hit-test';

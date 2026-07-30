@@ -18,7 +18,7 @@ import {
 } from '#/utils/custom-provider';
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
-import { Input } from './input';
+import { Input } from '../shared/input';
 
 /** Wire types offered by `/login` custom endpoint (matches `liora provider custom add --type`). */
 export const CUSTOM_ENDPOINT_WIRE_TYPES = [

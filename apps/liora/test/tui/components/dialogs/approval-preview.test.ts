@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ApprovalPreviewViewer,
   type ApprovalPreviewBlock,
-} from '#/tui/components/dialogs/approval-preview';
+} from '#/tui/components/dialogs/approval/approval-preview';
 const ANSI_SGR = /\[[0-9;]*m/g;
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '');

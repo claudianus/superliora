@@ -7,7 +7,7 @@
 
 import { Container, type Focusable } from '#/tui/renderer';
 
-import { Input } from './input';
+import { Input } from '../shared/input';
 import type { DisplayOption } from './question-dialog-constants';
 import { handleQuestionDialogInput } from './question-dialog-input';
 import {
