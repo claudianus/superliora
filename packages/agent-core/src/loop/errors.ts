@@ -2,7 +2,7 @@
  * Loop-local error helpers.
  */
 
-import { ErrorCodes, LioraError, isKimiError } from '#/errors';
+import { ErrorCodes, LioraError, isKimiError } from '#/errors/index';
 
 export function createMaxStepsExceededError(maxSteps: number, message?: string): LioraError {
   return new LioraError(

@@ -3,7 +3,7 @@
  * Extracted from Agent class to reduce God Class size.
  */
 import { randomUUID } from 'node:crypto';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { AgentAPI } from '#/rpc';
 import type { PromisableMethods } from '../utils/types';
 import { expandCommandArguments } from '../plugin/commands';

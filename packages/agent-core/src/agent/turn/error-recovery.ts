@@ -12,7 +12,7 @@ import {
   ErrorCodes,
   type LioraErrorPayload,
   toKimiErrorPayload,
-} from '#/errors';
+} from '#/errors/index';
 import type { TurnEndedEvent } from '../../rpc/events';
 import { isUserCancellation } from '../../utils/abort';
 import type { PromptOrigin } from '../context';

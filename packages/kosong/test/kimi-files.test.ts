@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { KimiChatProvider } from '#/providers/kimi';
+import { KimiChatProvider } from '#/providers/kimi/index';
 import { KimiFiles } from '#/providers/kimi-files';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 

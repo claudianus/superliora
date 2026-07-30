@@ -1,8 +1,8 @@
-import { parseSkillText } from '../parser';
-import type { SkillDefinition } from '../types';
-import CONSOLIDATE_BODY from './sub-skill/consolidate/SKILL.md?raw';
-import REVIEW_BODY from './sub-skill/review/SKILL.md?raw';
-import PARENT_BODY from './sub-skill/SKILL.md?raw';
+import { parseSkillText } from '../../parser';
+import type { SkillDefinition } from '../../types';
+import CONSOLIDATE_BODY from './consolidate/SKILL.md?raw';
+import REVIEW_BODY from './review/SKILL.md?raw';
+import PARENT_BODY from './SKILL.md?raw';
 
 function makeBuiltin(
   body: string,

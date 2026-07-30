@@ -1,12 +1,12 @@
-import agentYaml from './default/agent.yaml?raw';
-import coderYaml from './default/coder.yaml?raw';
-import exploreYaml from './default/explore.yaml?raw';
-import fullYaml from './default/full.yaml?raw';
-import initMd from './default/init.md?raw';
-import planYaml from './default/plan.yaml?raw';
-import systemMd from './default/system.md?raw';
-import ultraPlanYaml from './default/ultra-plan.yaml?raw';
-import { loadAgentProfilesFromSources } from './load';
+import agentYaml from './agent.yaml?raw';
+import coderYaml from './coder.yaml?raw';
+import exploreYaml from './explore.yaml?raw';
+import fullYaml from './full.yaml?raw';
+import initMd from './init.md?raw';
+import planYaml from './plan.yaml?raw';
+import systemMd from './system.md?raw';
+import ultraPlanYaml from './ultra-plan.yaml?raw';
+import { loadAgentProfilesFromSources } from '../load';
 
 // Keyed by the source path the profile loader expects: profile YAML files
 // plus any file referenced through `systemPromptPath`.

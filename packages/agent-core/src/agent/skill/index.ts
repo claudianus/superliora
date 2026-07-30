@@ -4,7 +4,7 @@ import type { ActivateSkillPayload } from '#/rpc';
 import type { ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '..';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { isUserActivatableSkillType } from '../../skill';
 import type { SkillActivationOrigin } from '../context';
 import { renderUserSlashSkillPrompt } from './prompt';

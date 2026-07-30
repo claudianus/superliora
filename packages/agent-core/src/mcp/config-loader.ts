@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join, normalize, resolve } from 'pathe';
 
 import { resolveLioraHome } from '#/config/path';
 import { McpServerConfigSchema, type McpServerConfig } from '#/config/schema';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { z } from 'zod';
 
 const McpJsonFileSchema = z.object({

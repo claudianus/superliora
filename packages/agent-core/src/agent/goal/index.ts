@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { Agent } from '..';
 import {
   maybeAdvanceUltraworkOnGoalComplete,

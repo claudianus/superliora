@@ -6,9 +6,9 @@
  * of the whole class so they stay independently testable.
  */
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { getRootLogger, log } from '#/logging/logger';
-import type { PluginManager } from '#/plugin';
+import type { PluginManager } from '#/plugin/index';
 import type { Kaos } from '@superliora/kaos';
 
 import type { LioraConfig } from '../config';

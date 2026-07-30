@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { Agent } from '#/agent';
 import { SkillManager } from '#/agent/skill/index';
 import type { SkillRegistry } from '#/agent/skill/types';

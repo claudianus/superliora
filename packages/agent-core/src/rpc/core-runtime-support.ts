@@ -4,7 +4,7 @@
 
 import { homedir } from 'node:os';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import {
   createContext7Provider,
   isContext7Enabled,

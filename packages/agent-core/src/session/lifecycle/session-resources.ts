@@ -4,7 +4,7 @@
 
 import { homedir } from 'node:os';
 
-import { ErrorCodes } from '#/errors';
+import { ErrorCodes } from '#/errors/index';
 import type { Logger } from '#/logging/types';
 import type { SDKSessionRPC } from '#/rpc';
 

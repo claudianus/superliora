@@ -14,7 +14,7 @@ import {
   reasoningEffortToThinkingEffort,
   thinkingEffortToReasoningEffort,
 } from '#/providers/openai-common';
-import { OpenAILegacyChatProvider, OpenAILegacyStreamedMessage } from '#/providers/openai-legacy';
+import { OpenAILegacyChatProvider, OpenAILegacyStreamedMessage } from '#/providers/openai-legacy/index';
 import {
   APIError as OpenAIAPIError,
   APIConnectionError as OpenAIConnectionError,

@@ -1,5 +1,5 @@
 import type { Message, StreamedMessagePart, ToolCall } from '#/message';
-import { AnthropicChatProvider } from '#/providers/anthropic';
+import { AnthropicChatProvider } from '#/providers/anthropic/index';
 import type { Tool } from '#/tool';
 import type { TokenUsage } from '#/usage';
 import { describe, expect, it } from 'vitest';

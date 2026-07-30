@@ -1,6 +1,6 @@
 import { generate } from '#/generate';
 import type { ContentPart, Message, ToolCall } from '#/message';
-import { extractUsageFromChunk, KimiChatProvider } from '#/providers/kimi';
+import { extractUsageFromChunk, KimiChatProvider } from '#/providers/kimi/index';
 import { extractUsage } from '#/providers/openai-common';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';

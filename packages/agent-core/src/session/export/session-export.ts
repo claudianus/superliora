@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'pathe';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { resolveGlobalLogPath } from '#/logging/logger';
 import { buildExportManifest } from '#/session/export/manifest';
 import { scanSessionWire } from '#/session/export/wire-scan';

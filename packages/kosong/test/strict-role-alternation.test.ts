@@ -1,5 +1,5 @@
 import type { Message } from '#/message';
-import { AnthropicChatProvider } from '#/providers/anthropic';
+import { AnthropicChatProvider } from '#/providers/anthropic/index';
 import { GoogleGenAIChatProvider } from '#/providers/google-genai';
 import { describe, expect, it, vi } from 'vitest';
 

@@ -3,7 +3,7 @@ import type { ContentPart } from '@superliora/kosong';
 import { basename } from 'pathe';
 
 import type { Agent } from '..';
-import { makeErrorPayload } from '#/errors';
+import { makeErrorPayload } from '#/errors/index';
 import { isAbortError } from '../../loop/errors';
 import type { LoopTurnStopReason } from '../../loop/index';
 import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events';

@@ -1,7 +1,7 @@
 import { join } from 'pathe';
 import { type Kaos } from '@superliora/kaos';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { getRootLogger, log } from '#/logging/logger';
 import type { SessionLogHandle } from '#/logging/types';
 import { Agent, type AgentOptions } from '../agent';

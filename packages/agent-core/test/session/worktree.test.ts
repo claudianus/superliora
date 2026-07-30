@@ -17,7 +17,7 @@ import {
   sessionWorktreeFromCustom,
   worktreesRoot,
 } from '#/session/worktree';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 
 const tempDirs: string[] = [];
 

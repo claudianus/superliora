@@ -10,7 +10,7 @@ import {
   ErrorCodes,
   LioraError,
   isKimiError,
-} from '#/errors';
+} from '#/errors/index';
 import type { Message, TokenUsage } from '@superliora/kosong';
 
 import { isAbortError } from '../../../loop/errors';

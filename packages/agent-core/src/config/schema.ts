@@ -1,6 +1,6 @@
 import { HOOK_EVENT_TYPES } from '../session/hooks/types';
 import { parsePattern } from '#/agent/permission/matches-rule';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { z } from 'zod';
 
 export const ProviderTypeSchema = z.enum([

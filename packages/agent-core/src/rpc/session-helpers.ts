@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { Logger } from '../logging/types';
 import { Agent } from '../agent';
 import {

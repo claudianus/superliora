@@ -6,7 +6,7 @@ import {
   APITimeoutError,
   ChatProviderError,
 } from '#/errors';
-import { convertAnthropicError, AnthropicChatProvider } from '#/providers/anthropic';
+import { convertAnthropicError, AnthropicChatProvider } from '#/providers/anthropic/index';
 import {
   APIConnectionError as AnthropicConnectionError,
   APIConnectionTimeoutError as AnthropicTimeoutError,

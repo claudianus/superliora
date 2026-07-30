@@ -7,8 +7,8 @@
  * instead of the whole class so they stay independently testable.
  */
 
-import { ErrorCodes, LioraError } from '#/errors';
-import type { PluginManager } from '#/plugin';
+import { ErrorCodes, LioraError } from '#/errors/index';
+import type { PluginManager } from '#/plugin/index';
 
 import type {
   EmptyPayload,

@@ -25,7 +25,7 @@ import {
   permissionResponseToApprovalResponse,
 } from '#/approval';
 import { type AcpBuiltinSlashCommandName } from '#/builtin-commands';
-import { acpBlocksToPromptParts } from '#/convert/convert';
+import { acpBlocksToPromptParts } from '#/convert/index';
 import { acpToolCallId } from '#/convert/events-map';
 import { DEFAULT_MODE_ID, isAcpModeId, type AcpModeId } from '#/modes';
 import { outcomeToQuestionAnswer, questionItemToPermissionOptions } from '#/question';

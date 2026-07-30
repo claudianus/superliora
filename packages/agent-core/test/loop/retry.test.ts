@@ -2,7 +2,7 @@ import { APIConnectionError, emptyUsage, isRetryableGenerateError } from '@super
 import { describe, expect, it } from 'vitest';
 
 import type { LioraConfig } from '#/config';
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { LLM, LLMChatParams, LLMChatResponse } from '#/loop/llm';
 import { chatWithRetry } from '#/loop/retry';
 import { ProviderManager } from '#/session/provider/provider-manager';

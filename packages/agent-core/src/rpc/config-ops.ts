@@ -7,7 +7,7 @@
  * only validate the request shape and mutate the in-memory `LioraConfig`.
  */
 
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 
 import type { LioraConfig } from '../config';
 import type { DeleteConfigFieldsPayload } from './core-api';

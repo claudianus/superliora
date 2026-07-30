@@ -1,4 +1,4 @@
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import { parseBooleanEnv } from './resolve';
 import {
   validateConfig,

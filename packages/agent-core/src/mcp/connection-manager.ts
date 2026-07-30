@@ -1,4 +1,4 @@
-import { ErrorCodes, LioraError } from '#/errors';
+import { ErrorCodes, LioraError } from '#/errors/index';
 import type { McpServerConfig } from '#/config/schema';
 import { log as defaultLog } from '#/logging/logger';
 import type { Logger } from '#/logging/types';

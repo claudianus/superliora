@@ -15,7 +15,7 @@ import {
   ErrorCodes,
   isKimiError,
   toKimiErrorPayload,
-} from '#/errors';
+} from '#/errors/index';
 import { isMaxStepsExceededError } from '../../loop/errors';
 import {
   runTurn,
