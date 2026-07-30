@@ -18,7 +18,7 @@ import type {
   AmbiguityMilestone,
   AmbiguityScoreResult,
   InterviewState,
-} from './ultra-plan-mode';
+} from './ultra-plan-types';
 
 export { AMBIGUITY_THRESHOLD };
 

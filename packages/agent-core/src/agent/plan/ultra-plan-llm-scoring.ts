@@ -2,7 +2,7 @@
  * Pure LLM prompt builders + response parsers for Ultra Plan scoring.
  */
 
-import type { DriftMetrics } from './ultra-plan-mode';
+import type { DriftMetrics } from './ultra-plan-types';
 import type { LLMAmbiguityResult } from './ultra-plan-ambiguity-heuristic';
 
 export const AMBIGUITY_LLM_SYSTEM_PROMPT = `You are an expert requirements analyst. Evaluate the clarity of the requirements captured in the interview evidence.

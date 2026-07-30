@@ -2,10 +2,7 @@
  * Pure Seed Spec builders for Ultra Plan.
  */
 
-import type {
-  OntologyField,
-  SeedSpec,
-} from './ultra-plan-mode';
+import type { OntologyField, SeedSpec } from './ultra-plan-types';
 
 export function buildSeedSpec(
   goal: string,

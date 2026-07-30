@@ -1,6 +1,6 @@
 /** Thinking-persona prompt banks for Ultra Plan lateral thinking. */
 
-import type { ThinkingPersona } from './ultra-plan-mode';
+import type { ThinkingPersona } from './ultra-plan-types';
 
 export const THINKING_PERSONA_SUMMARIES: Record<ThinkingPersona, string> = {
   hacker: 'Find unconventional workarounds and bypasses',

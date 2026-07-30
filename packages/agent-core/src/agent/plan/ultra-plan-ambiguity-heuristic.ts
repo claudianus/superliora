@@ -3,7 +3,7 @@
  */
 
 import { ULTRA_PLAN_REQUIRED_SECTIONS } from './ultra-plan-section-guidance';
-import type { InterviewState } from './ultra-plan-mode';
+import type { InterviewState } from './ultra-plan-types';
 
 export const AMBIGUITY_THRESHOLD = 0.2;
 export const GOAL_CLARITY_FLOOR = 0.75;
