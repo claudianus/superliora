@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseForkArgs } from '#/tui/commands/session';
+import { parseForkArgs } from '#/tui/commands/session/session';
 
 describe('parseForkArgs', () => {
   it('returns empty for plain fork', () => {

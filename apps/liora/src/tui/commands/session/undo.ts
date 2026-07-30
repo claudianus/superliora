@@ -2,31 +2,31 @@ import type { Component } from '#/tui/renderer';
 import type { ContextMessage } from '@superliora/sdk';
 import { isKimiError } from '@superliora/sdk';
 
-import { IdleStageComponent } from '../components/chrome/idle-stage';
-import { WelcomeComponent } from '../components/chrome/welcome';
-import { CompactionComponent } from '../components/dialogs/session/compaction';
+import { IdleStageComponent } from '../../components/chrome/idle-stage';
+import { WelcomeComponent } from '../../components/chrome/welcome';
+import { CompactionComponent } from '../../components/dialogs/session/compaction';
 import {
   UndoSelectorComponent,
   type UndoChoice,
-} from '../components/dialogs/picker/undo-selector';
-import { AgentGroupComponent } from '../components/messages/agent-group';
-import { AgentSwarmProgressComponent } from '../components/messages/agent-swarm-progress/index';
-import { AssistantMessageComponent } from '../components/messages/assistant-message';
-import { BackgroundAgentStatusComponent } from '../components/messages/background-agent-status';
-import { CronMessageComponent } from '../components/messages/cron-message';
-import { PluginCommandComponent } from '../components/messages/plugin-command';
-import { ReadGroupComponent } from '../components/messages/read-group';
-import { SkillActivationComponent } from '../components/messages/skill-activation';
-import { ThinkingComponent } from '../components/messages/thinking';
-import { ToolCallComponent } from '../components/messages/tool-call/index';
-import { UserMessageComponent } from '../components/messages/user-message';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import type { TranscriptEntry } from '../types';
-import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
-import { getTranscriptComponentEntry } from '../features/transcript/transcript-component-metadata';
-import { nextTranscriptId } from '../features/transcript/transcript-id';
-import type { SlashCommandHost } from './hub/dispatch';
+} from '../../components/dialogs/picker/undo-selector';
+import { AgentGroupComponent } from '../../components/messages/agent-group';
+import { AgentSwarmProgressComponent } from '../../components/messages/agent-swarm-progress/index';
+import { AssistantMessageComponent } from '../../components/messages/assistant-message';
+import { BackgroundAgentStatusComponent } from '../../components/messages/background-agent-status';
+import { CronMessageComponent } from '../../components/messages/cron-message';
+import { PluginCommandComponent } from '../../components/messages/plugin-command';
+import { ReadGroupComponent } from '../../components/messages/read-group';
+import { SkillActivationComponent } from '../../components/messages/skill-activation';
+import { ThinkingComponent } from '../../components/messages/thinking';
+import { ToolCallComponent } from '../../components/messages/tool-call/index';
+import { UserMessageComponent } from '../../components/messages/user-message';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import type { TranscriptEntry } from '../../types';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { getTranscriptComponentEntry } from '../../features/transcript/transcript-component-metadata';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import {
   removeProviderOAuthRef,
 } from '@superliora/oauth';
 
-import { handleAccountsCommand } from '#/tui/commands/accounts';
+import { handleAccountsCommand } from '#/tui/commands/auth/accounts';
 import { BUILTIN_SLASH_COMMANDS } from '#/tui/commands/hub/registry';
 
 describe('/accounts command wiring', () => {

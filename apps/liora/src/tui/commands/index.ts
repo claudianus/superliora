@@ -7,8 +7,8 @@ export * from './plugins/plugin-commands';
 export * from './types';
 
 export { dispatchInput, type SlashCommandHost } from './hub/dispatch';
-export { handleAccountsCommand, openAccountsManager } from './accounts';
-export { handleLoginCommand, handleLogoutCommand } from './auth';
+export { handleAccountsCommand, openAccountsManager } from './auth/accounts';
+export { handleLoginCommand, handleLogoutCommand } from './auth/login';
 export {
   buildBenchStatusLines,
   handleBenchCommand,
@@ -26,20 +26,20 @@ export { handleThinkingCommand } from './config/thinking';
 export { showExperimentsPanel } from './config/experiments';
 export { showSettingsSelector, showHarnessPanel } from './config/settings';
 export { showToolsInventory, showHarnessEyesReadiness } from './config/harness-tools';
-export { handleSwarmCommand } from './swarm';
-export { handleOrchestratorCommand } from './orchestrator';
+export { handleSwarmCommand } from './swarm/swarm';
+export { handleOrchestratorCommand } from './swarm/orchestrator';
 export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork/ultrawork';
-export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
+export { showMcpServers, showQuota, showStatusReport, showUsage } from './info/info';
 export {
   buildMemoryReadinessLines,
   handleMemoryCommand,
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
-} from './memory';
+} from './memory/memory';
 export { buildPreflightLines, buildPreflightStatus, handlePreflightCommand, loadPreflightStatus, redactPreflightText } from './preflight/command';
 export { handlePluginsCommand, pluginsArgumentCompletions } from './plugins/plugins';
 export { handlePersonaCommand } from './persona';
-export { handleReloadCommand, handleReloadTuiCommand } from './reload';
+export { handleReloadCommand, handleReloadTuiCommand } from './session/reload';
 export {
   formatRendererDiagnosticsStatusReport,
   formatRendererTraceStatusReport,
@@ -50,9 +50,9 @@ export {
 } from './renderer';
 export { handleGoalCommand, parseGoalCommand } from './goal';
 export { goalArgumentCompletions } from './hub/registry';
-export { handleForkCommand, handleInitCommand, handleTitleCommand } from './session';
-export { handleUndoCommand } from './undo';
-export { handleRewindCommand } from './rewind';
+export { handleForkCommand, handleInitCommand, handleTitleCommand } from './session/session';
+export { handleUndoCommand } from './session/undo';
+export { handleRewindCommand } from './session/rewind';
 export { handleLoopCommand } from './loop';
 export {
   IMPROVEMENT_AREAS,
@@ -66,4 +66,4 @@ export {
   promptLogoutProviderSelection,
   promptProviderCatalog,
   runModelSelector,
-} from './prompts';
+} from './auth/prompts';

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadMemoryReadinessEvidence } from '#/tui/commands/evidence-readiness';
+import { loadMemoryReadinessEvidence } from '#/tui/commands/memory/evidence-readiness';
 import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork/ultrawork';
 
 describe('evidence readiness evaluator', () => {

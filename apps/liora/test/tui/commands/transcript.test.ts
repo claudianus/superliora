@@ -9,7 +9,7 @@ import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import {
   handleTranscriptCommand,
   transcriptArgumentCompletions,
-} from '#/tui/commands/transcript';
+} from '#/tui/commands/session/transcript';
 
 async function withTempHome<T>(run: () => Promise<T>): Promise<T> {
   const originalHome = process.env['SUPERLIORA_HOME'];

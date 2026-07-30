@@ -12,7 +12,7 @@ import {
   handleMemoryCommand,
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
-} from '#/tui/commands/memory';
+} from '#/tui/commands/memory/memory';
 import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork/ultrawork';
 
 describe('memory readiness slash command builders', () => {

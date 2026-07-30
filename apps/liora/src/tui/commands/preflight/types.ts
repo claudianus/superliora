@@ -1,7 +1,7 @@
 import { workspaceRelativePath, CANONICAL_EVIDENCE_ROOT, WORKSPACE_DATA_DIR } from '#/constant/workspace-data';
 
 import type { BenchStatus } from '../bench/bench';
-import type { MemoryReadinessSnapshot } from '../evidence-readiness';
+import type { MemoryReadinessSnapshot } from '../memory/evidence-readiness';
 
 export const DEFAULT_PREFLIGHT_RECALL_QUERY = 'superliora harness knowledge-map browser-use computer-use llm-wiki readiness';
 export const PREFLIGHT_RECALL_MEMORY_SUBJECT = 'preflight-readiness';

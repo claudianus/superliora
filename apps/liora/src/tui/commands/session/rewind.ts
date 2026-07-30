@@ -3,9 +3,9 @@
  * snapshot. Conversation history is not rewritten; pair with `/undo` if needed.
  */
 
-import { formatErrorMessage } from '../utils/event-payload';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import type { SlashCommandHost } from './hub/dispatch';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 export async function handleRewindCommand(
   host: SlashCommandHost,

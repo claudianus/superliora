@@ -1,8 +1,8 @@
 import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
 import { SettingsSelectorComponent, type SettingsSelection } from '../../components/dialogs/picker/settings-selector';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
-import { handleAccountsCommand } from '../accounts';
-import { showMcpServers, showUsage } from '../info';
+import { handleAccountsCommand } from '../auth/accounts';
+import { showMcpServers, showUsage } from '../info/info';
 import { handlePremiumQualityCommand } from '../premium';
 import { handlePersonaCommand } from '../persona';
 import type { SlashCommandHost } from '../hub/dispatch';

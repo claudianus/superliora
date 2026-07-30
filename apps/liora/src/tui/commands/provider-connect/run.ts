@@ -13,7 +13,7 @@ import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '../../constant/liora-
 import {
   type ProviderCatalogSelection,
 } from '#/tui/utils/model/provider-catalog-options';
-import { promptProviderCatalog } from '../prompts';
+import { promptProviderCatalog } from '../auth/prompts';
 import type { SlashCommandHost } from '../hub/dispatch';
 import {
   connectCatalogProvider,

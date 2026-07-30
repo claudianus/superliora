@@ -1,6 +1,6 @@
 import type { MemoryStats } from '@superliora/sdk';
 
-import { formatEvidenceSignal, type MemoryReadinessSnapshot } from '../evidence-readiness';
+import { formatEvidenceSignal, type MemoryReadinessSnapshot } from '../memory/evidence-readiness';
 import {
   loopAgeSummary,
   loopBudgetSummary,

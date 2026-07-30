@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   handleReloadCommand,
   handleReloadTuiCommand,
-} from '#/tui/commands/reload';
+} from '#/tui/commands/session/reload';
 import { currentTheme } from '#/tui/theme';
 import type { SlashCommandHost } from '#/tui/commands';
 import {

@@ -28,7 +28,7 @@ import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-
 import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index';
 import {
   runModelSelector,
-} from '#/tui/commands/prompts';
+} from '#/tui/commands/auth/prompts';
 import type { QueuedMessage } from '#/tui/types';
 import type { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
 

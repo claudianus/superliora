@@ -24,8 +24,8 @@ import {
   formatOAuthAccountDisplayLabel,
   type AccountAction,
   type AccountPoolRow,
-} from '../components/dialogs/auth/accounts-manager';
-import type { SlashCommandHost } from './hub/dispatch';
+} from '../../components/dialogs/auth/accounts-manager';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 interface OAuthProviderPool {
   readonly providerId: string;
