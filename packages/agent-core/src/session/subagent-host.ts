@@ -1,11 +1,6 @@
-import {
-  isProviderRateLimitError,
-  type ContentPart,
-  type TokenUsage,
-} from '@superliora/kosong';
+import type { ContentPart, TokenUsage } from '@superliora/kosong';
 
 import type { Agent } from '../agent';
-import type { AgentEvent } from '@superliora/protocol';
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
@@ -19,7 +14,6 @@ import {
 } from '../agent/provider-failover';
 import { DenyAllPermissionPolicy } from '../agent/permission/policies/deny-all';
 import { InMemoryAgentRecordPersistence } from '../agent/records';
-import { isAbortError } from '../loop/errors';
 import { resolveExpertCatalogEntry } from '../expert-agents/catalog-extensions';
 import {
   deliverSwarmBusCoordination,
@@ -32,11 +26,7 @@ import {
 import {
   SwarmChannelTool,
 } from '../tools/builtin/collaboration/swarm-channel';
-import {
-  TODO_STORE_KEY,
-  type TodoItem,
-  updateSwarmOrchestrationTodoStatus,
-} from '../tools/builtin/state/todo-list';
+import { updateSwarmOrchestrationTodoStatus } from '../tools/builtin/state/todo-list';
 import { RunProjectChecksTool } from '../tools/builtin/ops/run-project-checks';
 import {
   DEFAULT_AGENT_PROFILES,
@@ -54,14 +44,13 @@ import {
   buildCheckpointRecoveryReminder,
   clearSubagentCheckpoint,
   readSubagentCheckpoint,
-  writeSubagentCheckpoint,
 } from './subagent-checkpoint';
 import { getDefaultSwarmFileLeaseRegistry } from './swarm-file-lease';
 import {
   buildSubagentResultContract,
   collectFilesChanged,
   deriveVerificationPackageDir,
-  snapshotGitWork,
+  snapshotChildWork,
   verdictFromCheckOutcomes,
   VERIFICATION_NOT_RUN,
   type GitWorkSnapshot,
@@ -94,14 +83,6 @@ import {
   resolveSubagentDeadlineMs,
 } from './subagent-errors';
 import {
-  collectSubagentProgressStats,
-  describeSubagentToolDetail,
-  previewSubagentToolArgs,
-  previewSubagentToolResult,
-  type SubagentProgressStats,
-} from './subagent-progress-preview';
-import {
-  __testing__,
   createExpertSubagentProfile,
   isModelAliasHealthy,
   isRetryableSubagentProviderFailure,
@@ -109,6 +90,19 @@ import {
   runWithActiveChild as runActiveChildLifecycle,
   type ActiveChildEntry,
 } from './subagent-run-lifecycle';
+import {
+  emitSubagentFailed,
+  emitSubagentSpawned,
+  emitSubagentStarted,
+  observeFirstRequest,
+  triggerSubagentStart,
+  triggerSubagentStop,
+} from './subagent-events';
+import {
+  attachSubagentTodoBridge,
+  attachToolStreamBridge,
+  startProgressReporter,
+} from './subagent-telemetry';
 
 export {
   DEFAULT_SUBAGENT_DEADLINE_MS,
@@ -122,11 +116,13 @@ export {
   isSubagentDeadlineError,
   isSubagentMaxTokensError,
   resolveSubagentDeadlineMs,
+} from './subagent-errors';
+export {
   collectSubagentProgressStats,
   describeSubagentToolDetail,
   type SubagentProgressStats,
-  __testing__,
-};
+} from './subagent-progress-preview';
+export { __testing__ } from './subagent-run-lifecycle';
 
 
 const SUBAGENT_MODEL_FALLBACK_HOPS = 2;
@@ -150,26 +146,7 @@ const COMPLETION_CHECK_TIMEOUT_MS = 180_000;
 /** Overall ceiling for the completion verification gate (T4-4). */
 const COMPLETION_VERIFICATION_TOTAL_MS = 600_000;
 
-/** Cadence for subagent.progress telemetry (T3-7). */
-const SUBAGENT_PROGRESS_INTERVAL_MS = 5_000;
-/** Silence window before a subagent is reported stalled (T3-7). */
-const SUBAGENT_STALL_MS = 300_000;
-/** Checkpoint cadence: snapshot every N completed tool calls (T4-5). */
-const CHECKPOINT_TOOL_DELTA = 10;
-/** Args preview cap for `subagent.tool_call` payloads (Phase 1-A). */
-/** Result summary cap for `subagent.tool_result` payloads (Phase 1-A). */
-/** Bash command cap for structured `subagent.tool_call` detail (Phase 1-B). */
-/** LCS line-diff bound for Edit detail; larger edits fall back to raw counts. */
-/** Finishing mode starts when this much budget remains (T4-5). */
-const SUBAGENT_FINISHING_WINDOW_MS = 5 * 60 * 1000;
-const SUBAGENT_FINISHING_REMINDER = [
-  'Time budget is nearly exhausted — enter finishing mode now:',
-  '- do not start new implementation work',
-  '- run the verification still owed for completed work',
-  '- then write the final structured summary of what is done and what remains',
-].join('\n');
 const SUMMARY_CONTINUATION_ATTEMPTS = 1;
-const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const TOOL_CALL_DISABLED_MESSAGE =
   'Tool calls are disabled for side questions. Answer with text only.';
 const SUBAGENT_PROMPT_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'subagent' };
@@ -203,13 +180,6 @@ export interface RunSubagentOptions {
 export interface SpawnSubagentOptions extends RunSubagentOptions {
   readonly profileName: string;
   readonly profileBaseName?: string;
-}
-
-/** Optional model-fallback progress attached to `subagent.failed` events. */
-interface SubagentFailedDetails {
-  readonly retryAttempt?: number;
-  readonly retryLimit?: number;
-  readonly fellBackToModel?: string;
 }
 
 type SubagentCompletion = {
@@ -320,11 +290,11 @@ export class SessionSubagentHost {
           isAliasHealthy: (alias) => isModelAliasHealthy(alias, parent.kimiConfig?.models),
         },
       );
-      this.emitSubagentSpawned(parent, id, profile.name, runOptions, modelAlias);
+      emitSubagentSpawned(parent, this.ownerAgentId, id, profile.name, runOptions, modelAlias);
       try {
         await this.configureChild(parent, agent, profile, id, runOptions, options.profileBaseName);
       } catch (error) {
-        this.emitSubagentFailed(parent, id, runOptions, error);
+        emitSubagentFailed(parent, id, runOptions, error);
         throw error;
       }
       return await this.runPromptTurnWithModelFallback(parent, id, agent, profile.name, runOptions);
@@ -361,7 +331,7 @@ export class SessionSubagentHost {
             isModelAliasHealthy(alias, parent.kimiConfig?.models),
         },
       );
-      this.emitSubagentSpawned(parent, agentId, profileName, runOptions, modelAlias);
+      emitSubagentSpawned(parent, this.ownerAgentId, agentId, profileName, runOptions, modelAlias);
       try {
         // Read-only explore subagents run on a cheap configured model when one
         // exists; every other profile keeps the parent agent's current model.
@@ -372,7 +342,7 @@ export class SessionSubagentHost {
         return await this.runPromptTurn(parent, agentId, child, profileName, runOptions);
       } catch (error) {
         const failure = enrichPermanentProviderFailure(error, child);
-        this.emitSubagentFailed(parent, agentId, runOptions, failure);
+        emitSubagentFailed(parent, agentId, runOptions, failure);
         throw failure;
       }
     });
@@ -400,13 +370,13 @@ export class SessionSubagentHost {
             },
           ),
         });
-        this.emitSubagentStarted(parent, agentId, runOptions);
-        const workSnapshot = await this.snapshotChildWork(child);
+        emitSubagentStarted(parent, agentId, runOptions);
+        const workSnapshot = await snapshotChildWork(child);
         const turnId = child.turn.retry('agent-host');
         if (turnId === null) {
           throw new Error(`Agent instance "${agentId}" could not start a retry turn`);
         }
-        this.observeFirstRequest(child, runOptions);
+        observeFirstRequest(child, runOptions);
         return await this.waitForChildCompletion(
           parent,
           agentId,
@@ -417,7 +387,7 @@ export class SessionSubagentHost {
         );
       } catch (error) {
         const failure = enrichPermanentProviderFailure(error, child);
-        this.emitSubagentFailed(parent, agentId, runOptions, failure);
+        emitSubagentFailed(parent, agentId, runOptions, failure);
         throw failure;
       }
     });
@@ -584,14 +554,14 @@ export class SessionSubagentHost {
             : undefined;
         if (nextAlias === undefined) {
           const failure = enrichPermanentProviderFailure(error, child);
-          this.emitSubagentFailed(parent, childId, options, failure, {
+          emitSubagentFailed(parent, childId, options, failure, {
             ...(hop > 0 && lastAttemptedAlias !== undefined
               ? { fellBackToModel: lastAttemptedAlias }
               : {}),
           });
           throw failure;
         }
-        this.emitSubagentFailed(parent, childId, options, error, {
+        emitSubagentFailed(parent, childId, options, error, {
           retryAttempt: hop + 1,
           retryLimit: maxFallbackHops,
         });
@@ -609,7 +579,7 @@ export class SessionSubagentHost {
     options: RunSubagentOptions,
   ): Promise<SubagentCompletion> {
     options.signal.throwIfAborted();
-    await this.triggerSubagentStart(parent, profileName, options.prompt, options.signal);
+    await triggerSubagentStart(parent, profileName, options.prompt, options.signal);
     options.signal.throwIfAborted();
 
     let childPrompt = options.prompt;
@@ -618,13 +588,13 @@ export class SessionSubagentHost {
       if (gitContext) childPrompt = `${gitContext}\n\n${childPrompt}`;
     }
 
-    this.emitSubagentStarted(parent, childId, options);
-    const workSnapshot = await this.snapshotChildWork(child);
+    emitSubagentStarted(parent, childId, options);
+    const workSnapshot = await snapshotChildWork(child);
     const turnId = child.turn.prompt([{ type: 'text', text: childPrompt }], SUBAGENT_PROMPT_ORIGIN);
     if (turnId === null) {
       throw new Error(`Agent instance "${childId}" could not start a turn`);
     }
-    this.observeFirstRequest(child, options);
+    observeFirstRequest(child, options);
     return this.waitForChildCompletion(parent, childId, child, profileName, options, workSnapshot);
   }
 
@@ -636,14 +606,14 @@ export class SessionSubagentHost {
     options: RunSubagentOptions,
     workSnapshot: GitWorkSnapshot,
   ): Promise<SubagentCompletion> {
-    const disposeProgress = this.startProgressReporter(
+    const disposeProgress = startProgressReporter(
       parent,
       child,
       childId,
       profileName,
       options.timeoutMs ?? DEFAULT_SUBAGENT_TIMEOUT_MS,
     );
-    const disposeToolStream = this.attachToolStreamBridge(
+    const disposeToolStream = attachToolStreamBridge(
       parent,
       child,
       childId,
@@ -709,7 +679,7 @@ export class SessionSubagentHost {
       usage,
       contextTokens: child.context.tokenCount,
     });
-    this.triggerSubagentStop(parent, profileName, result);
+    triggerSubagentStop(parent, profileName, result);
     clearSubagentCheckpoint(childId);
     getDefaultSwarmFileLeaseRegistry().releaseAll(options.parentToolCallId);
     if (options.swarmItem !== undefined) {
@@ -768,14 +738,6 @@ export class SessionSubagentHost {
     throw new Error(
       `Contract file did not compile (${check.kind}) — fix it before fan-out: ${contractPath}${detail}`,
     );
-  }
-
-  private async snapshotChildWork(child: Agent): Promise<GitWorkSnapshot> {
-    try {
-      return await snapshotGitWork(child.kaos, child.config.cwd);
-    } catch {
-      return { head: undefined, dirtyFiles: [] };
-    }
   }
 
   private async buildChildResultContract(
@@ -855,171 +817,6 @@ export class SessionSubagentHost {
     }
   }
 
-  /**
-   * Live telemetry for background subagents (harness reform T3-7): emits
-   * `subagent.progress` every few seconds with the last tool, tool count,
-   * elapsed time, and token spend, plus a one-shot `subagent.stalled` when
-   * no tool call has happened for the stall window.
-   */
-  private startProgressReporter(
-    parent: Agent,
-    child: Agent,
-    childId: string,
-    profileName: string,
-    budgetMs: number,
-  ): () => void {
-    const startedAt = Date.now();
-    let lastToolCount = -1;
-    let lastChangeAt = startedAt;
-    let stalledReported = false;
-    let finishingNotified = false;
-    let lastCheckpointToolCount = 0;
-    let checkpointInFlight = false;
-    const timer = setInterval(() => {
-      const stats = collectSubagentProgressStats(child);
-      const now = Date.now();
-      const elapsedMs = now - startedAt;
-      const budgetRemainingMs = Math.max(0, budgetMs - elapsedMs);
-      const finishing = budgetRemainingMs <= SUBAGENT_FINISHING_WINDOW_MS;
-      parent.emitEvent({
-        type: 'subagent.progress',
-        subagentId: childId,
-        subagentName: profileName,
-        lastTool: stats.lastTool,
-        lastTarget: stats.lastTarget,
-        toolCount: stats.toolCount,
-        elapsedMs,
-        tokens: stats.tokens,
-        budgetMs,
-        budgetRemainingMs,
-        finishing,
-      });
-      if (finishing && !finishingNotified) {
-        finishingNotified = true;
-        child.context.appendSystemReminder(SUBAGENT_FINISHING_REMINDER, {
-          kind: 'system_trigger',
-          name: 'subagent-finishing',
-        });
-      }
-      if (stats.toolCount !== lastToolCount) {
-        lastToolCount = stats.toolCount;
-        lastChangeAt = now;
-        stalledReported = false;
-      } else if (!stalledReported && now - lastChangeAt >= SUBAGENT_STALL_MS) {
-        stalledReported = true;
-        parent.emitEvent({
-          type: 'subagent.stalled',
-          subagentId: childId,
-          subagentName: profileName,
-          silentMs: now - lastChangeAt,
-          toolCount: stats.toolCount,
-        });
-      }
-      if (
-        stats.toolCount - lastCheckpointToolCount >= CHECKPOINT_TOOL_DELTA &&
-        !checkpointInFlight
-      ) {
-        lastCheckpointToolCount = stats.toolCount;
-        checkpointInFlight = true;
-        void this.writeProgressCheckpoint(child, childId, stats, elapsedMs)
-          .catch(() => {})
-          .finally(() => {
-            checkpointInFlight = false;
-          });
-      }
-    }, SUBAGENT_PROGRESS_INTERVAL_MS);
-    // Progress reporting must never keep the event loop alive on its own.
-    timer.unref?.();
-    return () => clearInterval(timer);
-  }
-
-  /**
-   * Live tool-call telemetry (Phase 1-A realtime overhaul): mirrors the
-   * child's `tool.call.started` / `tool.result` agent events onto the parent
-   * agent as truncated `subagent.tool_call` / `subagent.tool_result` events,
-   * so clients can render a live per-subagent tool feed without subscribing
-   * to every raw child event (and without huge wire payloads). Uses the same
-   * instance-patch pattern as `attachSubagentTodoBridge`; the returned
-   * disposer restores the original emitter.
-   */
-  private attachToolStreamBridge(
-    parent: Agent,
-    child: Agent,
-    childId: string,
-    profileName: string,
-    options: RunSubagentOptions,
-  ): () => void {
-    const originalEmitEvent = child.emitEvent.bind(child);
-    const runId = this.resolveToolStreamRunId(parent, options);
-    const toolNames = new Map<string, string>();
-    child.emitEvent = (event: AgentEvent) => {
-      originalEmitEvent(event);
-      if (event.type === 'tool.call.started') {
-        toolNames.set(event.toolCallId, event.name);
-        // Structured chip detail (Phase 1-B) is computed from the FULL child
-        // args before the preview truncation below.
-        const detail = describeSubagentToolDetail(event.name, event.args);
-        parent.emitEvent({
-          type: 'subagent.tool_call',
-          subagentId: childId,
-          subagentName: profileName,
-          parentToolCallId: options.parentToolCallId,
-          ...(runId !== undefined ? { runId } : {}),
-          toolCallId: event.toolCallId,
-          name: event.name,
-          argsPreview: previewSubagentToolArgs(event.args),
-          ...(detail !== undefined ? { detail } : {}),
-        });
-        return;
-      }
-      if (event.type === 'tool.result') {
-        const name = toolNames.get(event.toolCallId);
-        if (name !== undefined) toolNames.delete(event.toolCallId);
-        parent.emitEvent({
-          type: 'subagent.tool_result',
-          subagentId: childId,
-          ...(runId !== undefined ? { runId } : {}),
-          toolCallId: event.toolCallId,
-          ...(name !== undefined ? { name } : {}),
-          isError: event.isError,
-          resultPreview: previewSubagentToolResult(event.output),
-        });
-      }
-    };
-    return () => {
-      child.emitEvent = originalEmitEvent;
-    };
-  }
-
-  private resolveToolStreamRunId(
-    parent: Agent,
-    options: RunSubagentOptions,
-  ): string | undefined {
-    const run = parent.ultraSwarmRun;
-    if (run === undefined) return undefined;
-    if (options.parentToolCallId !== run.parentToolCallId) return undefined;
-    return run.runId;
-  }
-
-  private async writeProgressCheckpoint(
-    child: Agent,
-    childId: string,
-    stats: SubagentProgressStats,
-    elapsedMs: number,
-  ): Promise<void> {
-    const todos = normalizeTodoItems(child.tools.getStore().get(TODO_STORE_KEY));
-    const work = await this.snapshotChildWork(child);
-    writeSubagentCheckpoint(childId, {
-      toolCount: stats.toolCount,
-      lastTool: stats.lastTool,
-      lastTarget: stats.lastTarget,
-      tokens: stats.tokens,
-      elapsedMs,
-      todos,
-      dirtyFiles: work.dirtyFiles,
-    });
-  }
-
   private async configureChild(
     parent: Agent,
     child: Agent,
@@ -1054,36 +851,8 @@ export class SessionSubagentHost {
     );
     child.useProfile(profile, context);
     child.tools.inheritUserTools(parent.tools);
-    this.attachSubagentTodoBridge(parent, child, childId, profile.name, options);
+    attachSubagentTodoBridge(parent, child, childId, profile.name, options);
     this.attachUltraSwarmChannelIfNeeded(parent, child, childId, options, profile.name);
-  }
-
-  private attachSubagentTodoBridge(
-    parent: Agent,
-    child: Agent,
-    childId: string,
-    profileName: string,
-    options: RunSubagentOptions,
-  ): void {
-    type ToolManagerLike = {
-      updateStore<K extends keyof import('../tools/store').ToolStoreData>(
-        key: K,
-        value: import('../tools/store').ToolStoreData[K],
-      ): void;
-    };
-    const tools = child.tools as ToolManagerLike;
-    const originalUpdateStore = tools.updateStore.bind(tools);
-    tools.updateStore = (key, value) => {
-      originalUpdateStore(key, value);
-      if (key !== TODO_STORE_KEY) return;
-      parent.emitEvent({
-        type: 'subagent.todo.updated',
-        subagentId: childId,
-        subagentName: profileName,
-        parentToolCallId: options.parentToolCallId,
-        todos: normalizeTodoItems(value),
-      });
-    };
   }
 
   private attachUltraSwarmChannelIfNeeded(
@@ -1117,117 +886,6 @@ export class SessionSubagentHost {
       }),
     );
   }
-
-  private async triggerSubagentStart(
-    parent: Agent,
-    profileName: string,
-    prompt: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    await parent.hooks?.trigger('SubagentStart', {
-      matcherValue: profileName,
-      signal,
-      inputData: {
-        agentName: profileName,
-        prompt: prompt.slice(0, HOOK_TEXT_PREVIEW_LENGTH),
-      },
-    });
-  }
-
-  private triggerSubagentStop(parent: Agent, profileName: string, result: string): void {
-    void parent.hooks?.fireAndForgetTrigger('SubagentStop', {
-      matcherValue: profileName,
-      inputData: {
-        agentName: profileName,
-        response: result.slice(0, HOOK_TEXT_PREVIEW_LENGTH),
-      },
-    });
-  }
-
-  private observeFirstRequest(
-    child: Agent,
-    options: RunSubagentOptions,
-  ): void {
-    if (options.onReady === undefined) return;
-    void child.turn
-      .waitForTurnFirstRequest()
-      .then(() => {
-        options.onReady?.();
-      })
-      .catch(() => {
-        // Turn failed before the first request — onReady is skipped since the
-        // subagent never became ready.
-      });
-  }
-
-  private emitSubagentSpawned(
-    parent: Agent,
-    childId: string,
-    profileName: string,
-    options: RunSubagentOptions,
-    modelAlias?: string,
-  ): void {
-    const run = parent.ultraSwarmRun;
-    if (
-      run !== undefined &&
-      run.busEnabled &&
-      options.parentToolCallId === run.parentToolCallId
-    ) {
-      run.expertAgentIds.set(profileName, childId);
-    }
-    parent.emitEvent({
-      type: 'subagent.spawned',
-      subagentId: childId,
-      subagentName: profileName,
-      parentToolCallId: options.parentToolCallId,
-      parentToolCallUuid: options.parentToolCallUuid,
-      parentAgentId: this.ownerAgentId,
-      description: options.description,
-      swarmIndex: options.swarmIndex,
-      runInBackground: options.runInBackground,
-      modelAlias,
-    });
-    parent.telemetry.track('subagent_created', {
-      subagent_name: profileName,
-      run_in_background: options.runInBackground,
-    });
-  }
-
-  private emitSubagentStarted(
-    parent: Agent,
-    childId: string,
-    options: RunSubagentOptions,
-  ): void {
-    if (options.swarmItem !== undefined) {
-      updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'in_progress');
-    }
-    parent.emitEvent({
-      type: 'subagent.started',
-      subagentId: childId,
-    });
-  }
-
-  private emitSubagentFailed(
-    parent: Agent,
-    childId: string,
-    options: RunSubagentOptions,
-    error: unknown,
-    details?: SubagentFailedDetails,
-  ): void {
-    getDefaultSwarmFileLeaseRegistry().releaseAll(options.parentToolCallId);
-    if (shouldSuppressQueuedAttemptFailureEvent(options, error)) return;
-    if (options.swarmItem !== undefined) {
-      updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'pending');
-    }
-    parent.emitEvent({
-      type: 'subagent.failed',
-      subagentId: childId,
-      error: error instanceof Error ? error.message : String(error),
-      ...(details?.retryAttempt !== undefined ? { retryAttempt: details.retryAttempt } : {}),
-      ...(details?.retryLimit !== undefined ? { retryLimit: details.retryLimit } : {}),
-      ...(details?.fellBackToModel !== undefined ? { fellBackToModel: details.fellBackToModel } : {}),
-    });
-  }
 }
 
 function lastAssistantText(agent: Agent): string {
@@ -1241,33 +899,4 @@ function lastAssistantText(agent: Agent): string {
   }
   return '';
 }
-
-function normalizeTodoItems(value: unknown): readonly TodoItem[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isTodoItemLike).map((todo) => ({
-    title: todo.title,
-    status: todo.status,
-  }));
-}
-
-function isTodoItemLike(value: unknown): value is TodoItem {
-  if (typeof value !== 'object' || value === null) return false;
-  const record = value as Record<string, unknown>;
-  return (
-    typeof record['title'] === 'string' &&
-    (record['status'] === 'pending' ||
-      record['status'] === 'in_progress' ||
-      record['status'] === 'done')
-  );
-}
-
-function shouldSuppressQueuedAttemptFailureEvent(
-  options: RunSubagentOptions,
-  error: unknown,
-): boolean {
-  if (options.suppressRateLimitFailureEvent !== true) return false;
-  if (isProviderRateLimitError(error)) return true;
-  return isAbortError(error) || options.signal.aborted;
-}
-
 
