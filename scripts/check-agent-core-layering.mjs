@@ -23,6 +23,7 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/conversation-loops.ts',
   'session/export/manifest.ts',
   'session/index.ts',
+  'session/session-agent-lifecycle.ts',
   'session/response-language-llm.ts',
   'session/rpc.ts',
   'session/store/session-store.ts',
