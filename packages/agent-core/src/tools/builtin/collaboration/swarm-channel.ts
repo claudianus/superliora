@@ -8,7 +8,7 @@ import type {
 } from '@superliora/protocol';
 import { z } from 'zod';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { UltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';

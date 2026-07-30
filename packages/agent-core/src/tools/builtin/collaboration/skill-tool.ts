@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { SkillActivationOrigin } from '../../../agent/context';
 import { renderModelToolSkillPrompt } from '../../../agent/skill/prompt';
 import type { BuiltinTool } from '../../../agent/tool';

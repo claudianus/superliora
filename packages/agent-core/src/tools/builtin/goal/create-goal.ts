@@ -4,7 +4,7 @@
  * GoalMode, not text parsed from a slash command.
  */
 
-import type { Agent } from '#/agent';
+import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';

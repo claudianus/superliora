@@ -6,7 +6,7 @@
  * file; this tool reads that file and flips plan mode off.
  */
 
-import type { Agent } from '#/agent';
+import type { Agent } from '#/agent/index';
 import {
   formatSeededWorkGraphNotice,
   seedUltraworkGraphFromApprovedPlan,

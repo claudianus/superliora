@@ -10,7 +10,7 @@
  * `loopTools` filter in the tool manager).
  */
 
-import type { Agent } from '#/agent';
+import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import {

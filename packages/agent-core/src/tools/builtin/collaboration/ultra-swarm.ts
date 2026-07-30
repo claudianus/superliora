@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { SwarmMode } from '../../../agent/swarm';
 import type { BuiltinTool } from '../../../agent/tool';
 import {

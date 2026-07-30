@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { BuiltinTool, ToolInfo } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { escapeXml, escapeXmlAttr } from '../../../utils/xml-escape';

@@ -4,7 +4,7 @@
  * and PATH 3 (research) entry point of the question-routing system.
  */
 
-import type { Agent } from '#/agent';
+import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';

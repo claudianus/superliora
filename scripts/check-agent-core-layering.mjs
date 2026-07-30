@@ -52,25 +52,7 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
  * Existing tools → agent/session barrel imports (frozen). Prefer subpath imports
  * for new code; shrink this list over time.
  */
-const TOOLS_BARREL_ALLOWLIST = new Set([
-  'tools/builtin/collaboration/ask-user.ts',
-  'tools/builtin/collaboration/search-skill.ts',
-  'tools/builtin/collaboration/search-tools.ts',
-  'tools/builtin/collaboration/skill-tool.ts',
-  'tools/builtin/collaboration/swarm-channel.ts',
-  'tools/builtin/collaboration/ultra-swarm.ts',
-  'tools/builtin/goal/create-goal.ts',
-  'tools/builtin/goal/create-ultra-goal.ts',
-  'tools/builtin/goal/get-goal.ts',
-  'tools/builtin/goal/set-goal-budget.ts',
-  'tools/builtin/goal/update-goal.ts',
-  'tools/builtin/planning/enter-plan-mode.ts',
-  'tools/builtin/planning/exit-plan-mode.ts',
-  'tools/builtin/planning/next-phase.ts',
-  'tools/builtin/planning/record-interview-finding.ts',
-  'tools/builtin/review/code-review.ts',
-  'tools/builtin/state/ultrawork-graph.ts',
-]);
+const TOOLS_BARREL_ALLOWLIST = new Set([]);
 
 /** Known services → loop imports (frozen; shrink over time). */
 const SERVICES_LOOP_ALLOWLIST = new Set(['services/message/transcript.ts']);
