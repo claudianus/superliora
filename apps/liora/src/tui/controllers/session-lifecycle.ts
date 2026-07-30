@@ -5,7 +5,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 
 import type { LioraSlashCommand } from '../commands';
 import type { SessionLoadingPhase } from '../components/dialogs/session-loading-overlay';
-import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
+import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { createContext7CredentialHandler } from '../reverse-rpc/credential/handler';
 import type { ApprovalController } from '../reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from '../reverse-rpc/approval/handler';
@@ -51,8 +51,8 @@ export interface SessionLifecycleHost {
   readonly approvalController: ApprovalController;
   readonly questionController: QuestionController;
   readonly transcriptRender: TranscriptRenderController;
+  readonly reverseRpcPanels: { clearReverseRpcPanels(): void; cancelPendingReverseRpc(reason: string): void };
 
-  requireSession(): Session;
   setAppState(patch: Partial<AppState>): void;
   updateTerminalTitle(): void;
   updateQueueDisplay(): void;
@@ -80,8 +80,7 @@ export interface SessionLifecycleHost {
     readonly sessionId?: string;
     readonly title?: string;
   }): void;
-  clearReverseRpcPanels(): void;
-  cancelPendingReverseRpc(reason: string): void;
+  readonly reverseRpcPanels: { clearReverseRpcPanels(): void; cancelPendingReverseRpc(reason: string): void };
 }
 
 /**
@@ -90,6 +89,21 @@ export interface SessionLifecycleHost {
  */
 export class SessionLifecycleController {
   constructor(private readonly host: SessionLifecycleHost) {}
+
+  requireSession(): Session {
+    if (this.host.session === undefined) {
+      throw new Error(NO_ACTIVE_SESSION_MESSAGE);
+    }
+    return this.host.session;
+  }
+
+  getCurrentSessionId(): string {
+    return this.host.state.appState.sessionId;
+  }
+
+  hasSessionContent(): boolean {
+    return this.host.state.transcriptEntries.length > 0;
+  }
 
   registerSessionHandlers(session: Session): void {
     const { host } = this;
@@ -146,7 +160,7 @@ export class SessionLifecycleController {
     this.syncAdditionalDirs(session);
   }
 
-  async syncRuntimeState(session: Session = this.host.requireSession()): Promise<void> {
+  async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
     const { host } = this;
     const [status, goalResult, config] = await Promise.all([
       session.getStatus(),
@@ -314,7 +328,7 @@ export class SessionLifecycleController {
 
   // Plan mode is set by createSession — do not re-enter it here.
   private async activateRuntime(): Promise<void> {
-    const session = this.host.requireSession();
+    const session = this.requireSession();
     await session.setPermission(this.host.state.appState.permissionMode);
     await this.syncRuntimeState(session);
   }
@@ -324,11 +338,11 @@ export class SessionLifecycleController {
     const previous = host.session;
     host.sessionEventUnsubscribe?.();
     host.sessionEventUnsubscribe = undefined;
-    host.clearReverseRpcPanels();
+    host.reverseRpcPanels.clearReverseRpcPanels();
     previous?.setApprovalHandler(undefined);
     previous?.setQuestionHandler(undefined);
     previous?.setCredentialHandler(undefined);
-    host.cancelPendingReverseRpc(reason);
+    host.reverseRpcPanels.cancelPendingReverseRpc(reason);
     host.session = undefined;
     host.state.toolOutputViewports.clear();
     host.state.swarmModeEntry = undefined;

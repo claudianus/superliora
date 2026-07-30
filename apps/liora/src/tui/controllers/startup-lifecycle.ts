@@ -123,7 +123,7 @@ export interface StartupLifecycleHost {
   }): void;
   endSessionLoading(): void;
   refreshTerminalThemeTracking(): void;
-  supportsCurrentModelCapability(capability: string): boolean;
+  readonly appStateController: { supportsCurrentModelCapability(capability: string): boolean };
   stop(exitCode?: number): Promise<void>;
 }
 
@@ -288,6 +288,17 @@ export class StartupLifecycleController {
     const changed = applyTranscriptViewportScroll(this.host.state.transcriptViewport, action);
     if (changed) requestTUIScrollRender(this.host.state);
     return changed;
+  }
+
+  async getStartupMcpMs(): Promise<number> {
+    const session = this.host.session;
+    if (session === undefined) return 0;
+    try {
+      const metrics = await session.getMcpStartupMetrics();
+      return metrics.durationMs;
+    } catch {
+      return 0;
+    }
   }
 
   async init(): Promise<boolean> {
@@ -573,7 +584,7 @@ export class StartupLifecycleController {
     host.clipboardImageHintController = new ClipboardImageHintController({
       ui: host.state.ui,
       footer: host.state.footer,
-      getModelSupportsImage: () => host.supportsCurrentModelCapability('image_in'),
+      getModelSupportsImage: () => host.appStateController.supportsCurrentModelCapability('image_in'),
       requestRender: () => {
         requestTUIContentRender(host.state);
       },

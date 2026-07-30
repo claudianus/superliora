@@ -80,6 +80,13 @@ export interface AppStateHost {
 export class AppStateController {
   constructor(private readonly host: AppStateHost) {}
 
+  supportsCurrentModelCapability(capability: string): boolean {
+    const capabilities =
+      this.host.state.appState.availableModels[this.host.state.appState.model]?.capabilities;
+    if (capabilities === undefined) return true;
+    return capabilities.includes(capability);
+  }
+
   setAppState(patch: Partial<AppState>): void {
     const { host } = this;
     if (!hasPatchChanges(host.state.appState, patch)) return;
