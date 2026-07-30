@@ -1,50 +1,26 @@
-import {
-  NativeFrameRenderer,
-  type NativeFramePresentResult,
-  type NativeFrameRendererOptions,
-} from './native-frame';
+import { NativeFrameRenderer } from './native-frame';
 import { NativeInputDecoder, type NativeInputEvent } from './input-events';
-import type { NativeInputRouter } from './input-router';
 import {
   NativeRenderLoop,
   type NativeAnimationFrameCallback,
   type NativeRenderCause,
   type NativeRenderFrame,
-  type NativeRenderLoopScheduler,
 } from './render-loop';
 import {
-  ANSI_CLEAR_SCREEN,
   NativeTerminalSession,
-  type NativeTerminalKeyboardProtocol,
-  type NativeTerminalInput,
-  type NativeTerminalMouseTracking,
-  type NativeTerminalOutput,
-  type NativeTerminalScreenMode,
   type NativeTerminalSize,
 } from './terminal-session';
-import {
-  probeNativeSynchronizedOutputSupport,
-  type NativeTerminalSynchronizedOutputProbeResult,
-} from './terminal-probe';
-import type { RendererCell } from './cell-buffer';
-import {
-  encodeTerminalClearBelowRow,
-  type RendererCursorState,
-  type RendererTerminalOutputOptions,
-} from './terminal-output';
-import type { RendererInlineImageProtocol } from './terminal-graphics';
+import type { NativeTerminalSynchronizedOutputProbeResult } from './terminal-probe';
 import {
   diagnoseNativeRendererStats,
   type RendererDiagnosticsSnapshot,
 } from './diagnostics';
-import type { RendererDamageScanStrategy } from './damage';
 import {
   mergeNativeTerminalFeatureOptions,
-  type NativeTerminalFeatureInput,
 } from './terminal-features';
 import { NativeFrameStats, type NativeFrameStatsSnapshot } from './frame-stats';
-import { RendererLineCellCache, type RendererLineCellCacheOptions } from './line-cache';
-import { RendererCompositionCache, type RendererCompositionStats } from './compositor';
+import { RendererLineCellCache } from './line-cache';
+import { RendererCompositionCache } from './compositor';
 import {
   renderNativeLayoutFrame,
   type NativeLayoutFrameResult,
@@ -52,8 +28,6 @@ import {
 } from './layout-frame';
 import {
   RendererQualityController,
-  type RendererQualityChangeReason,
-  type RendererQualityControllerOptions,
   type RendererQualitySnapshot,
 } from './quality';
 import {
@@ -64,15 +38,8 @@ import {
   RendererTraceRecorder,
   type RendererChromeTraceFile,
   type RendererChromeTraceOptions,
-  type RendererTraceInputData,
-  type RendererTraceRecorderOptions,
   type RendererTraceSnapshot,
 } from './trace';
-import type {
-  RendererFrameOutputDecisionReason,
-  RendererFrameOutputMode,
-  RendererFrameOutputPolicyInput,
-} from './frame-output-policy';
 import type { RendererAnimationFrameCallback } from './animation';
 import {
   RendererAmbientSchedule,
@@ -80,17 +47,22 @@ import {
 } from './ambient-schedule';
 import {
   createCompositionCache,
-  createFrameMetrics,
   createLineCache,
   createQualityController,
   createTraceRecorder,
-  frameDuration,
-  isAutoFrameHoldCause,
   nativeInputTraceData,
 } from './native-renderer-support';
+import { NativeRendererAutoFrameHold } from './native-renderer-auto-frame-hold';
+import { NativeRendererBackpressure } from './native-renderer-backpressure';
+import { NativeRendererSyncProbe } from './native-renderer-sync-probe';
+import { handleNativeRendererTerminalResize } from './native-renderer-resize';
+import {
+  createNativeFrameRendererOptions,
+  executeNativeRendererFrame,
+  shouldScheduleNativeRendererRegionVfxFrames,
+} from './native-renderer-frame-pipeline';
 import type {
   NativeTerminalRendererAutoFrameHold,
-  NativeTerminalRendererFrame,
   NativeTerminalRendererFrameMetrics,
   NativeTerminalRendererLayoutFrameOptions,
   NativeTerminalRendererOptions,
@@ -133,26 +105,11 @@ export class NativeTerminalRenderer {
   private readonly adaptiveQualityEnabled: boolean;
   private regionVfxScheduler: RendererRegionVfxAnimationScheduler | undefined;
   private currentSynchronized: boolean | undefined;
-  private synchronizedOutputProbeResultValue:
-    | NativeTerminalSynchronizedOutputProbeResult
-    | undefined;
-  private synchronizedOutputProbePromise:
-    | Promise<NativeTerminalSynchronizedOutputProbeResult>
-    | undefined;
-  private synchronizedOutputProbeAbort: AbortController | undefined;
-  private outputBackpressured = false;
-  private outputDrainListener: (() => void) | undefined;
-  private readonly deferredRenderCauses = new Set<NativeRenderCause>();
-  private readonly deferredAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
-  private nextDeferredAnimationFrameId = -1;
-  private autoFrameHoldOverride: boolean | undefined;
   private measureFrameHeightOverride: ((size: NativeTerminalSize) => number) | undefined;
-  private autoFrameHeld = false;
-  private releasingHeldAutoFrames = false;
-  private readonly heldRenderCauses = new Set<NativeRenderCause>();
-  private readonly heldAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
-  private nextHeldAnimationFrameId = -1_000_000;
   private ambientSchedule!: RendererAmbientSchedule;
+  private readonly autoFrameHold: NativeRendererAutoFrameHold;
+  private readonly backpressure: NativeRendererBackpressure;
+  private readonly syncProbe: NativeRendererSyncProbe;
 
   constructor(options: NativeTerminalRendererOptions) {
     this.options = mergeNativeTerminalFeatureOptions(options.features, options);
@@ -163,6 +120,52 @@ export class NativeTerminalRenderer {
     this.qualityController = createQualityController(this.options.adaptiveQuality);
     this.trace = createTraceRecorder(this.options.trace);
     this.adaptiveQualityEnabled = this.options.adaptiveQuality !== false;
+    this.backpressure = new NativeRendererBackpressure(
+      this.options.output,
+      this.options.deferFramesDuringBackpressure,
+      {
+        now: () => this.loop.now(),
+        recordMarker: (name, args) => {
+          this.trace.recordMarker({ timestampMs: this.loop.now(), name, args });
+        },
+        cancelRegionAnimationFrame: () => this.cancelRegionAnimationFrame(),
+        loopRequestRender: (cause) => this.loop.requestRender(cause),
+        loopRequestAnimationFrame: (callback) => this.loop.requestAnimationFrame(callback),
+      },
+    );
+    this.autoFrameHold = new NativeRendererAutoFrameHold(this.options.autoFrameHold, {
+      now: () => this.loop.now(),
+      recordMarker: (name, args) => {
+        this.trace.recordMarker({ timestampMs: this.loop.now(), name, args });
+      },
+      cancelRegionAnimationFrame: () => this.cancelRegionAnimationFrame(),
+      requestRenderDirect: (cause) => this.loop.requestRender(cause),
+      requestAnimationFrameDirect: (callback) => this.loop.requestAnimationFrame(callback),
+      shouldDeferFrameForBackpressure: () => this.backpressure.shouldDefer(),
+      deferRenderCause: (cause) => this.backpressure.deferRenderCause(cause),
+      deferAnimationFrame: (callback) => this.backpressure.deferAnimationFrame(callback),
+      cancelDeferredAnimationFrame: (id) => this.backpressure.cancelDeferredAnimationFrame(id),
+      loopCancelAnimationFrame: (id) => this.loop.cancelAnimationFrame(id),
+    });
+    this.syncProbe = new NativeRendererSyncProbe(
+      {
+        input: this.options.input,
+        output: this.options.output,
+        scheduler: this.options.scheduler,
+        synchronizedOutputProbe: this.options.synchronizedOutputProbe,
+        synchronizedOutputProbeTimeoutMs: this.options.synchronizedOutputProbeTimeoutMs,
+        unrefTimers: this.options.unrefTimers,
+      },
+      {
+        now: () => this.loop.now(),
+        recordMarker: (name, args) => {
+          this.trace.recordMarker({ timestampMs: this.loop.now(), name, args });
+        },
+        getCurrentSynchronized: () => this.currentSynchronized,
+        setSynchronizedOutput: (synchronized) => this.setSynchronizedOutput(synchronized),
+        onSynchronizedOutputProbe: this.options.onSynchronizedOutputProbe,
+      },
+    );
     this.session = new NativeTerminalSession({
       input: this.options.input,
       output: this.options.output,
@@ -194,7 +197,15 @@ export class NativeTerminalRenderer {
         this.handleResize(size);
       },
     });
-    this.frameRenderer = new NativeFrameRenderer(this.createFrameRendererOptions(this.session.size));
+    this.frameRenderer = new NativeFrameRenderer(
+      createNativeFrameRendererOptions(
+        this.session,
+        this.session.size,
+        this.currentSynchronized,
+        this.options,
+        () => this.loop.now(),
+      ),
+    );
     this.loop = new NativeRenderLoop({
       targetFps: this.options.targetFps,
       unrefTimers: this.options.unrefTimers,
@@ -221,7 +232,7 @@ export class NativeTerminalRenderer {
       getContext: () => ({
         quality: this.quality.level,
         health: this.frameStats.snapshot().health,
-        backpressure: this.outputBackpressured,
+        backpressure: this.backpressure.isActive,
       }),
     });
   }
@@ -243,7 +254,7 @@ export class NativeTerminalRenderer {
   }
 
   get synchronizedOutputProbeResult(): NativeTerminalSynchronizedOutputProbeResult | undefined {
-    return this.synchronizedOutputProbeResultValue;
+    return this.syncProbe.result;
   }
 
   private dispatchDecodedInputEvents(events: readonly NativeInputEvent[]): void {
@@ -258,11 +269,11 @@ export class NativeTerminalRenderer {
   }
 
   get isOutputBackpressured(): boolean {
-    return this.outputBackpressured;
+    return this.backpressure.isActive;
   }
 
   get areAutoFramesHeld(): boolean {
-    return this.shouldHoldAutoFrames();
+    return this.autoFrameHold.areHeld();
   }
 
   get stats(): NativeFrameStatsSnapshot {
@@ -275,7 +286,7 @@ export class NativeTerminalRenderer {
 
   get diagnostics(): RendererDiagnosticsSnapshot {
     return diagnoseNativeRendererStats(this.stats, this.quality, {
-      synchronizedOutputProbeResult: this.synchronizedOutputProbeResultValue,
+      synchronizedOutputProbeResult: this.syncProbe.result,
       synchronizedOutputEnabled: this.synchronizedOutputEnabled,
     });
   }
@@ -288,7 +299,7 @@ export class NativeTerminalRenderer {
     if (this.started) return;
     this.started = true;
     this.session.start();
-    this.startSynchronizedOutputProbe();
+    this.syncProbe.start();
     this.frameRenderer.resize(this.size.columns, this.size.rows);
     this.loop.start();
   }
@@ -297,9 +308,9 @@ export class NativeTerminalRenderer {
     if (!this.started) return;
     this.started = false;
     this.ambientSchedule.dispose();
-    this.abortSynchronizedOutputProbe();
-    this.clearOutputBackpressure();
-    this.clearAutoFrameHold();
+    this.syncProbe.abort();
+    this.backpressure.clear();
+    this.autoFrameHold.clear();
     // Drop any bare-ESC timer so a stopped renderer cannot emit late Escape.
     this.inputDecoder.dispose();
     this.loop.stop();
@@ -311,16 +322,7 @@ export class NativeTerminalRenderer {
   }
 
   requestRender(cause: NativeRenderCause = 'request'): void {
-    if (this.shouldHoldAutoFrameCause(cause)) {
-      this.holdRenderCause(cause);
-      return;
-    }
-    this.releaseHeldAutoFramesIfReady();
-    if (this.shouldDeferFrameForBackpressure()) {
-      this.deferredRenderCauses.add(cause);
-      return;
-    }
-    this.loop.requestRender(cause);
+    this.autoFrameHold.requestRender(cause);
   }
 
   resetStats(): void {
@@ -336,42 +338,15 @@ export class NativeTerminalRenderer {
   }
 
   requestAnimationFrame(callback: NativeAnimationFrameCallback): number {
-    if (this.shouldHoldAutoFrameCause('animation')) {
-      const id = this.nextHeldAnimationFrameId--;
-      this.heldAnimationCallbacks.set(id, callback);
-      this.holdRenderCause('animation');
-      return id;
-    }
-    this.releaseHeldAutoFramesIfReady();
-    if (this.shouldDeferFrameForBackpressure()) {
-      const id = this.nextDeferredAnimationFrameId--;
-      this.deferredAnimationCallbacks.set(id, callback);
-      this.deferredRenderCauses.add('animation');
-      return id;
-    }
-    return this.loop.requestAnimationFrame(callback);
+    return this.autoFrameHold.requestAnimationFrame(callback);
   }
 
   cancelAnimationFrame(id: number): void {
-    if (this.heldAnimationCallbacks.delete(id)) {
-      if (this.heldAnimationCallbacks.size === 0) {
-        this.heldRenderCauses.delete('animation');
-      }
-      if (this.heldRenderCauses.size === 0) this.clearAutoFrameHold();
-      return;
-    }
-    if (this.deferredAnimationCallbacks.delete(id)) {
-      if (this.deferredAnimationCallbacks.size === 0) {
-        this.deferredRenderCauses.delete('animation');
-      }
-      return;
-    }
-    this.loop.cancelAnimationFrame(id);
+    this.autoFrameHold.cancelAnimationFrame(id);
   }
 
   setAutoFrameHold(held: boolean): void {
-    this.autoFrameHoldOverride = held;
-    if (!held) this.releaseHeldAutoFrames();
+    this.autoFrameHold.setOverride(held);
   }
 
   /**
@@ -384,33 +359,11 @@ export class NativeTerminalRenderer {
   }
 
   clearAutoFrameHoldOverride(): void {
-    this.autoFrameHoldOverride = undefined;
-    this.releaseHeldAutoFramesIfReady();
+    this.autoFrameHold.clearOverride();
   }
 
   releaseHeldAutoFrames(): void {
-    const deferredCauses = Array.from(this.heldRenderCauses);
-    const deferredCallbacks = Array.from(this.heldAnimationCallbacks.values());
-    this.clearAutoFrameHold();
-    if (deferredCauses.length === 0 && deferredCallbacks.length === 0) return;
-    this.trace.recordMarker({
-      timestampMs: this.loop.now(),
-      name: 'renderer.auto_frame_release',
-      args: {
-        deferredCauses: deferredCauses.join(','),
-        deferredAnimations: deferredCallbacks.length,
-      },
-    });
-    this.releasingHeldAutoFrames = true;
-    try {
-      for (const callback of deferredCallbacks) this.requestAnimationFrame(callback);
-      for (const cause of deferredCauses) {
-        if (cause === 'animation') continue;
-        this.requestRender(cause);
-      }
-    } finally {
-      this.releasingHeldAutoFrames = false;
-    }
+    this.autoFrameHold.releaseHeld();
   }
 
   requestAnimationFrameForRegions(
@@ -455,268 +408,69 @@ export class NativeTerminalRenderer {
   }
 
   private handleResize(size: NativeTerminalSize): void {
-    const previousRows = this.frameRenderer.height;
-    const previousCols = this.frameRenderer.width;
-    if (size.columns !== previousCols || size.rows !== previousRows) {
-      // The frame buffer is recreated on resize; rows composed into the old
-      // buffer must not be reused (skipped) when composing the new one.
-      this.compositionCache?.reset();
-    }
-    this.frameRenderer.resize(size.columns, size.rows);
-    this.clearStaleFrameRowsOnShrink(size.rows, previousRows);
-    // Alternate-screen grow leaves the previous frame's pixels at top-left.
-    // Soft buffers reset empty, so equal-cell skips never overwrite that ghost.
-    // Queue the clear inside the next present transaction so terminals with
-    // synchronized output never reveal the empty surface between writes.
-    if (
-      this.options.screenMode === 'alternate' &&
-      (size.columns !== previousCols || size.rows !== previousRows)
-    ) {
-      this.frameRenderer.queueTerminalPrefix(ANSI_CLEAR_SCREEN);
-    }
-    this.trace.recordResize({
-      timestampMs: this.loop.now(),
+    handleNativeRendererTerminalResize(
+      {
+        screenMode: this.options.screenMode,
+        originX: this.options.originX,
+        originY: this.options.originY,
+        frameRenderer: this.frameRenderer,
+        compositionCache: this.compositionCache,
+      },
       size,
-    });
-    this.options.onResize?.(size);
-    this.loop.requestRender('resize');
-  }
-
-  private resolveFrameHeight(size: NativeTerminalSize): number {
-    const measure = this.measureFrameHeightOverride ?? this.options.measureFrameHeight;
-    const measured = measure?.(size);
-    if (measured === undefined || !Number.isFinite(measured) || measured <= 0) return size.rows;
-    return Math.min(size.rows, Math.floor(measured));
-  }
-
-  private clearStaleFrameRowsOnShrink(height: number, previousHeight: number): void {
-    if (this.options.screenMode === 'alternate' || height >= previousHeight) return;
-    this.frameRenderer.queueTerminalPrefix(
-      encodeTerminalClearBelowRow(height, this.options.originX ?? 0, this.options.originY ?? 0),
+      {
+        now: () => this.loop.now(),
+        recordResize: (resizeSize) => {
+          this.trace.recordResize({
+            timestampMs: this.loop.now(),
+            size: resizeSize,
+          });
+        },
+        onResize: this.options.onResize,
+        requestRender: () => this.loop.requestRender('resize'),
+      },
     );
   }
 
   private shouldScheduleRegionVfxFrames(): boolean {
-    if (this.shouldHoldAutoFrameCause('animation')) return false;
-    if (this.shouldDeferFrameForBackpressure()) return false;
-    const policy = this.options.regionVfxFrames ?? 'auto';
-    switch (policy) {
-      case 'always':
-        return true;
-      case 'never':
-        return false;
-      case 'auto':
-        return (
-          this.currentSynchronized === true ||
-          this.options.screenMode === 'alternate' ||
-          this.options.synchronized === true
-        );
-    }
-  }
-
-  private shouldHoldAutoFrameCause(cause: NativeRenderCause): boolean {
-    if (this.releasingHeldAutoFrames) return false;
-    if (!isAutoFrameHoldCause(cause)) return false;
-    return this.shouldHoldAutoFrames();
-  }
-
-  private shouldHoldAutoFrames(): boolean {
-    const override = this.autoFrameHoldOverride;
-    if (override !== undefined) return override;
-    const hold = this.options.autoFrameHold;
-    return typeof hold === 'function' ? hold() : hold === true;
-  }
-
-  private holdRenderCause(cause: NativeRenderCause): void {
-    this.heldRenderCauses.add(cause);
-    this.cancelRegionAnimationFrame();
-    if (this.autoFrameHeld) return;
-    this.autoFrameHeld = true;
-    this.trace.recordMarker({
-      timestampMs: this.loop.now(),
-      name: 'renderer.auto_frame_hold',
-      args: { cause },
+    return shouldScheduleNativeRendererRegionVfxFrames({
+      shouldHoldAutoFrameCause: (cause) => this.autoFrameHold.shouldHoldAutoFrameCause(cause),
+      shouldDeferFrameForBackpressure: () => this.backpressure.shouldDefer(),
+      regionVfxFrames: this.options.regionVfxFrames,
+      currentSynchronized: this.currentSynchronized,
+      screenMode: this.options.screenMode,
+      synchronized: this.options.synchronized,
     });
-  }
-
-  private releaseHeldAutoFramesIfReady(): void {
-    if (this.shouldHoldAutoFrames()) return;
-    this.releaseHeldAutoFrames();
-  }
-
-  private clearAutoFrameHold(): void {
-    this.autoFrameHeld = false;
-    this.heldRenderCauses.clear();
-    this.heldAnimationCallbacks.clear();
-  }
-
-  private shouldDeferFrameForBackpressure(): boolean {
-    return this.options.deferFramesDuringBackpressure !== false && this.outputBackpressured;
-  }
-
-  private handleOutputBackpressure(): void {
-    if (this.options.deferFramesDuringBackpressure === false) return;
-    if (this.outputBackpressured) return;
-    if (this.options.output.on === undefined) return;
-    this.outputBackpressured = true;
-    this.cancelRegionAnimationFrame();
-    const listener = () => {
-      this.handleOutputDrain();
-    };
-    this.outputDrainListener = listener;
-    this.options.output.on('drain', listener);
-    this.trace.recordMarker({
-      timestampMs: this.loop.now(),
-      name: 'terminal.output_backpressure',
-    });
-  }
-
-  private handleOutputDrain(): void {
-    if (!this.outputBackpressured) return;
-    const deferredCauses = Array.from(this.deferredRenderCauses);
-    const deferredCallbacks = Array.from(this.deferredAnimationCallbacks.values());
-    this.clearOutputBackpressure();
-    this.trace.recordMarker({
-      timestampMs: this.loop.now(),
-      name: 'terminal.output_drain',
-      args: {
-        deferredCauses: deferredCauses.join(','),
-        deferredAnimations: deferredCallbacks.length,
-      },
-    });
-    for (const callback of deferredCallbacks) this.loop.requestAnimationFrame(callback);
-    for (const cause of deferredCauses) {
-      if (cause === 'animation') continue;
-      this.loop.requestRender(cause);
-    }
-  }
-
-  private clearOutputBackpressure(): void {
-    if (this.outputDrainListener !== undefined) {
-      if (this.options.output.off !== undefined) {
-        this.options.output.off('drain', this.outputDrainListener);
-      } else {
-        this.options.output.removeListener?.('drain', this.outputDrainListener);
-      }
-      this.outputDrainListener = undefined;
-    }
-    this.outputBackpressured = false;
-    this.deferredRenderCauses.clear();
-    this.deferredAnimationCallbacks.clear();
-  }
-
-  private startSynchronizedOutputProbe(): void {
-    if (this.options.synchronizedOutputProbe !== true) return;
-    if (this.options.input === undefined || this.currentSynchronized !== true) return;
-    if (this.synchronizedOutputProbePromise !== undefined) return;
-
-    this.synchronizedOutputProbeAbort = new AbortController();
-    const promise = probeNativeSynchronizedOutputSupport({
-      input: this.options.input,
-      output: this.options.output,
-      // Reuse the render-loop scheduler so tests / custom clocks can drive the
-      // probe timeout without real wall-clock waits.
-      scheduler: this.options.scheduler,
-      timeoutMs: this.options.synchronizedOutputProbeTimeoutMs,
-      unrefTimer: this.options.unrefTimers,
-      signal: this.synchronizedOutputProbeAbort.signal,
-    });
-    this.synchronizedOutputProbePromise = promise;
-    void promise.then((result) => {
-      if (this.synchronizedOutputProbePromise !== promise) return;
-      this.synchronizedOutputProbePromise = undefined;
-      this.synchronizedOutputProbeAbort = undefined;
-      this.synchronizedOutputProbeResultValue = result;
-      if (result.aborted === true) return;
-      // Only an explicit "unsupported" report may disable sync. Timeout / unknown
-      // used to flip sync off and tear fullscreen stage presents in kitty when
-      // the DECRQM reply was lost under input load.
-      const enabled =
-        result.support === 'unsupported'
-          ? false
-          : result.support === 'supported'
-            ? true
-            : this.currentSynchronized === true;
-      this.trace.recordMarker({
-        timestampMs: this.loop.now(),
-        name: 'terminal.synchronized_output_probe',
-        args: {
-          support: result.support,
-          timedOut: result.timedOut,
-          enabled,
-        },
-      });
-      this.options.onSynchronizedOutputProbe?.(result);
-      this.setSynchronizedOutput(enabled);
-    }, () => {
-      if (this.synchronizedOutputProbePromise !== promise) return;
-      this.synchronizedOutputProbePromise = undefined;
-      this.synchronizedOutputProbeAbort = undefined;
-    });
-  }
-
-  private abortSynchronizedOutputProbe(): void {
-    this.synchronizedOutputProbePromise = undefined;
-    this.synchronizedOutputProbeAbort?.abort();
-    this.synchronizedOutputProbeAbort = undefined;
   }
 
   private renderFrame(frame: NativeRenderFrame): NativeTerminalRendererRenderResult {
-    const startedAt = this.loop.now();
-    const size = this.size;
-    const qualityBeforeRender = this.qualityController.snapshot();
-    const previousHeight = this.frameRenderer.height;
-    const frameHeight = this.resolveFrameHeight(size);
-    if (size.columns !== this.frameRenderer.width || frameHeight !== previousHeight) {
-      // The frame buffer is recreated on resize; rows composed into the old
-      // buffer must not be reused (skipped) when composing the new one.
-      this.compositionCache?.reset();
-    }
-    this.frameRenderer.resize(size.columns, frameHeight);
-    if (!frame.causes.includes('start')) {
-      this.clearStaleFrameRowsOnShrink(frameHeight, previousHeight);
-    }
-    if (this.options.autoBeginFrame !== false) {
-      this.frameRenderer.beginFrame({ fill: this.options.fill });
-    }
-    const renderCallbackStartedAt = this.loop.now();
-    const renderResult = this.options.render({
-      frame,
-      renderer: this.frameRenderer,
-      runtime: this,
-      size,
-      lineCache: this.lineCache,
-      compositionCache: this.compositionCache,
-      quality: qualityBeforeRender,
-    });
-    const renderCallbackEndedAt = this.loop.now();
-    const present = renderResult ?? this.frameRenderer.present();
-    const endedAt = this.loop.now();
-    const metricsBeforeQuality = createFrameMetrics(
-      startedAt,
-      endedAt,
-      this.loop.frameIntervalMs,
-      present,
-      size,
+    return executeNativeRendererFrame(
       {
-        renderCallbackDurationMs: frameDuration(renderCallbackStartedAt, renderCallbackEndedAt),
+        frameRenderer: this.frameRenderer,
+        compositionCache: this.compositionCache,
+        lineCache: this.lineCache,
+        qualityController: this.qualityController,
+        adaptiveQualityEnabled: this.adaptiveQualityEnabled,
+        options: this.options,
+        runtime: this,
+        resizeContext: {
+          screenMode: this.options.screenMode,
+          originX: this.options.originX,
+          originY: this.options.originY,
+          frameRenderer: this.frameRenderer,
+          compositionCache: this.compositionCache,
+        },
+        measureFrameHeight:
+          this.measureFrameHeightOverride ?? this.options.measureFrameHeight,
+        frameIntervalMs: this.loop.frameIntervalMs,
+        now: () => this.loop.now(),
+        onBackpressure: () => this.backpressure.handleBackpressure(),
+        onQualityChange: (renderFrame, previous, current, metrics) => {
+          this.handleQualityChange(renderFrame, previous, current, metrics);
+        },
       },
+      frame,
+      this.size,
     );
-    if (present?.backpressure) this.handleOutputBackpressure();
-    const qualityStartedAt = this.loop.now();
-    const previousQuality = this.qualityController.snapshot();
-    const quality = this.adaptiveQualityEnabled
-      ? this.qualityController.record(metricsBeforeQuality)
-      : this.qualityController.snapshot();
-    const qualityEndedAt = this.loop.now();
-    const metrics = {
-      ...metricsBeforeQuality,
-      qualityDurationMs: frameDuration(qualityStartedAt, qualityEndedAt),
-    };
-    if (quality.changes !== previousQuality.changes) {
-      this.handleQualityChange(frame, previousQuality, quality, metrics);
-    }
-    return { frame, size, present, metrics, quality };
   }
 
   private handleQualityChange(
@@ -749,22 +503,5 @@ export class NativeTerminalRenderer {
       metrics,
     });
     this.requestRender('quality');
-  }
-
-  private createFrameRendererOptions(size: NativeTerminalSize): NativeFrameRendererOptions {
-    return {
-      width: size.columns,
-      height: size.rows,
-      output: this.session,
-      synchronized: this.currentSynchronized,
-      resetStyle: this.options.resetStyle,
-      originX: this.options.originX,
-      originY: this.options.originY,
-      eraseLine: this.options.eraseLine,
-      colorMode: this.options.colorMode,
-      inlineImageProtocol: this.options.imageProtocol,
-      outputPolicy: this.options.outputPolicy,
-      now: () => this.loop.now(),
-    };
   }
 }
