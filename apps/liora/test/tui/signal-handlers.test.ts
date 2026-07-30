@@ -328,7 +328,7 @@ describe('LioraTUI signal handlers', () => {
     // Force the very first awaited call inside start() to reject. We don't
     // care which method blows up — only that the failure surfaces and any
     // listeners we installed up front get cleaned up before the throw escapes.
-    vi.spyOn(tui as unknown as { initMainTui(): Promise<boolean> }, 'initMainTui').mockRejectedValue(
+    vi.spyOn(tui.startupLifecycle, 'initMainTui').mockRejectedValue(
       new Error('init boom'),
     );
     // Stub state.ui.stop so the failure-path cleanup does not touch the real
