@@ -1,5 +1,5 @@
 import { AgentGroupComponent } from '../../components/messages/agent-group';
-import { ToolCallComponent } from '../../components/messages/tool-call';
+import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { TUIState } from '../../tui-state';
 
 /**

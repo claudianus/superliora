@@ -14,11 +14,11 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
-import type { SessionEventHandler } from '#/tui/controllers/session-event-handler';
-import type { StreamingUIController } from '#/tui/controllers/streaming-ui';
+import type { SessionEventHandler } from '#/tui/controllers/session-event/handler';
+import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index';
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
-import { ToolCallComponent } from '#/tui/components/messages/tool-call';
+import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { REPLAY_MAX_TOOL_MOUNTS_PER_TURN } from '#/tui/utils/message-replay';
 
 vi.mock('#/utils/open-url', () => ({ openUrl: vi.fn() }));

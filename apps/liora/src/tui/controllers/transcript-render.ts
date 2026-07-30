@@ -27,14 +27,14 @@ import {
   StatusMessageComponent,
 } from '../components/messages/status-message';
 import { ThinkingComponent } from '../components/messages/thinking';
-import { ToolCallComponent } from '../components/messages/tool-call';
+import { ToolCallComponent } from '../components/messages/tool-call/index';
 import { UserMessageComponent } from '../components/messages/user-message';
 import type { ShowNoticeOptions } from '../commands/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '../config';
 import type { AppearanceController } from './appearance';
 import type { BtwPanelController } from './btw-panel';
-import type { SessionEventHandler } from './session-event-handler';
-import type { StreamingUIController } from './streaming-ui';
+import type { SessionEventHandler } from './session-event/handler';
+import type { StreamingUIController } from './streaming-ui/index';
 import { currentTheme } from '../theme';
 import type { ColorToken } from '../theme';
 import type { TUIState } from '../tui-state';

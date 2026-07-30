@@ -9,7 +9,7 @@ import { UltraworkModeMarkerComponent } from '../../components/messages/ultrawor
 import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/frame-render';
-import type { SubAgentEventHandler } from '../subagent-event-handler';
+import type { SubAgentEventHandler } from '../subagent-event/handler';
 
 /** Host surface required by ultrawork theatre event handling. */
 export interface UltraworkEventHost {

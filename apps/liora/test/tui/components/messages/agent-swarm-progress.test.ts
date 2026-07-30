@@ -12,8 +12,8 @@ import {
   agentSwarmPartialItemsCountFromArguments,
   agentSwarmPartialItemsFromArguments,
   calculateAgentSwarmGridLayout,
-} from '#/tui/components/messages/agent-swarm-progress';
-import { AgentSwarmProgressEstimator } from '#/tui/components/messages/agent-swarm-progress-estimator';
+} from '#/tui/components/messages/agent-swarm-progress/index';
+import { AgentSwarmProgressEstimator } from '#/tui/components/messages/agent-swarm-progress/estimator';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import {

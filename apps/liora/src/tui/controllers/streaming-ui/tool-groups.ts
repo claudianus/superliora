@@ -1,6 +1,6 @@
 import { AgentGroupComponent } from '../../components/messages/agent-group';
 import { ReadGroupComponent } from '../../components/messages/read-group';
-import type { ToolCallComponent } from '../../components/messages/tool-call';
+import type { ToolCallComponent } from '../../components/messages/tool-call/index';
 import type { ToolCallBlockData } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '#/tui/utils/frame-render';

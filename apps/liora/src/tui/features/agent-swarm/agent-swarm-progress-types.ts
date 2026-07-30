@@ -1,4 +1,4 @@
-import type { AgentSwarmProgressEstimatorPhase } from '#/tui/components/messages/agent-swarm-progress-estimator';
+import type { AgentSwarmProgressEstimatorPhase } from '#/tui/components/messages/agent-swarm-progress/estimator';
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';
 
 export type AgentSwarmPhase = AgentSwarmProgressEstimatorPhase;

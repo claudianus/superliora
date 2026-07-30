@@ -7,7 +7,7 @@ import {
   STREAMING_UI_FLUSH_MAX_MS,
   STREAMING_UI_FLUSH_MS,
 } from '#/tui/constant/streaming';
-import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui';
+import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui/index';
 import { createTUIState } from '#/tui/liora-tui';
 import type { AppState, TranscriptEntry } from '#/tui/types';
 import { createMotionBeatController } from '#/tui/utils/motion-beats';

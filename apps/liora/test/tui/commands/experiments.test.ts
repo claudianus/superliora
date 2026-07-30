@@ -2,9 +2,7 @@ import type { ExperimentalFeatureState } from '@superliora/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SlashCommandHost } from '#/tui/commands';
-import {
-  applyExperimentalFeatureChanges,
-} from '#/tui/commands/config';
+import { applyExperimentalFeatureChanges } from '#/tui/commands/config/experiments';
 import {
   isExperimentalFlagEnabled,
   setExperimentalFeatures,

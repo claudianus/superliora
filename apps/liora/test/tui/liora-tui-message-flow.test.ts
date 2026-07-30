@@ -12,7 +12,7 @@ import { SUPERLIORA_PLUGIN_MARKETPLACE_URL } from '#/constant/app';
 import {
   AgentSwarmProgressComponent,
   agentSwarmGridHeightForTerminalRows,
-} from '#/tui/components/messages/agent-swarm-progress';
+} from '#/tui/components/messages/agent-swarm-progress/index';
 import { BtwPanelComponent } from '#/tui/components/panes/btw-panel';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
@@ -25,7 +25,7 @@ import {
   PluginsPanelComponent,
 } from '#/tui/components/dialogs/plugins-selector';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
-import type { StreamingUIController } from '#/tui/controllers/streaming-ui';
+import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index';
 import {
   runModelSelector,
 } from '#/tui/commands/prompts';

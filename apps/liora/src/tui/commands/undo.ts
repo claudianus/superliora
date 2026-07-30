@@ -10,7 +10,7 @@ import {
   type UndoChoice,
 } from '../components/dialogs/undo-selector';
 import { AgentGroupComponent } from '../components/messages/agent-group';
-import { AgentSwarmProgressComponent } from '../components/messages/agent-swarm-progress';
+import { AgentSwarmProgressComponent } from '../components/messages/agent-swarm-progress/index';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';
 import { BackgroundAgentStatusComponent } from '../components/messages/background-agent-status';
 import { CronMessageComponent } from '../components/messages/cron-message';
@@ -18,7 +18,7 @@ import { PluginCommandComponent } from '../components/messages/plugin-command';
 import { ReadGroupComponent } from '../components/messages/read-group';
 import { SkillActivationComponent } from '../components/messages/skill-activation';
 import { ThinkingComponent } from '../components/messages/thinking';
-import { ToolCallComponent } from '../components/messages/tool-call';
+import { ToolCallComponent } from '../components/messages/tool-call/index';
 import { UserMessageComponent } from '../components/messages/user-message';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import type { TranscriptEntry } from '../types';

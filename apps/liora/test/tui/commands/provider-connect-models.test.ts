@@ -5,7 +5,7 @@ vi.mock('#/utils/catalog-cache', () => ({
 }));
 
 const { loadCatalog } = await import('#/utils/catalog-cache');
-const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-connect');
+const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-connect/catalog');
 
 const XAI_PRESETS = [
   { id: 'grok-4.5', displayName: 'Grok 4.5', maxContextSize: 500000, capabilities: ['thinking', 'tool_use'] },

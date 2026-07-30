@@ -25,7 +25,7 @@ import {
 import { requestTUILayoutRender } from '../../utils/frame-render';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyTurnComplete } from '../../utils/desktop-notification';
-import type { StreamingUIController } from '../streaming-ui';
+import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by turn / step / assistant / thinking event handling. */
 export interface TurnEventHost {

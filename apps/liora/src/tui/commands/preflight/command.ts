@@ -34,7 +34,7 @@ import { formatPreflightError } from './utils';
 import { redactMemoryReadinessText } from '../memory';
 
 export async function handlePreflightCommand(host: SlashCommandHost, rawArgs: string): Promise<void> {
-  const { UsagePanelComponent } = await import('../components/messages/usage-panel');
+  const { UsagePanelComponent } = await import('../components/messages/usage-panel/index');
   const status = await loadPreflightStatus(host, rawArgs);
   const panel = new UsagePanelComponent(() => buildPreflightLines(status), 'primary', ' Preflight ');
   host.state.transcriptContainer.addChild(panel);

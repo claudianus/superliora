@@ -35,7 +35,7 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { sessionRowsForPicker } from '../utils/session-picker-rows';
 import { ttui } from '../utils/tui-i18n';
 import type { EditorKeyboardController } from './editor-keyboard';
-import type { SessionEventHandler } from './session-event-handler';
+import type { SessionEventHandler } from './session-event/handler';
 
 /** Host surface for session picker, agent dashboard, and extensions browser. */
 export interface SessionBrowserHost {

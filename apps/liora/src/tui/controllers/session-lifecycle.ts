@@ -18,9 +18,9 @@ import { contextWorkingSetSnapshotFromLoopControl } from '../utils/context-worki
 import { formatErrorMessage } from '../utils/event-payload';
 import { ttui } from '../utils/tui-i18n';
 import type { BtwPanelController } from './btw-panel';
-import type { SessionEventHandler } from './session-event-handler';
-import type { SessionReplayRenderer } from './session-replay';
-import type { StreamingUIController } from './streaming-ui';
+import type { SessionEventHandler } from './session-event/handler';
+import type { SessionReplayRenderer } from './session-replay/index';
+import type { StreamingUIController } from './streaming-ui/index';
 import type { TasksBrowserController } from './tasks-browser';
 import type { TranscriptRenderController } from './transcript-render';
 

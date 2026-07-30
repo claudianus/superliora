@@ -16,7 +16,7 @@ import { openUrl } from '#/utils/open-url';
 import type { ColorToken } from '#/tui/theme';
 import { requestTUILayoutRender } from '../../utils/frame-render';
 import type { BtwPanelController } from '../btw-panel';
-import type { StreamingUIController } from '../streaming-ui';
+import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../tasks-browser';
 import { SessionEventBackgroundTasks } from './background-tasks';
 import { SessionEventCompaction } from './compaction';
@@ -26,7 +26,7 @@ import { SessionEventNotices } from './notices';
 import { SessionEventTools } from './tools';
 import { SessionEventTurn } from './turn';
 import { SessionEventUltrawork } from './ultrawork';
-import { SubAgentEventHandler } from '../subagent-event-handler';
+import { SubAgentEventHandler } from '../subagent-event/handler';
 import type {
   AppState,
   LivePaneState,

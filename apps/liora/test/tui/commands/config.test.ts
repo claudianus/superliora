@@ -4,20 +4,14 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  applyLoopModelRoutingChoice,
-  handleAppearanceCommand,
-  handleContextCommand,
-  handlePlanCommand,
-  handleThemeCommand,
-  handleThinkingCommand,
-  resetLoopModelRoutingChoice,
-  showHarnessPanel,
-  showToolsInventory,
-  showHarnessEyesReadiness,
-  showLoopModelRoutingPicker,
-  showSettingsSelector,
-} from '#/tui/commands/config';
+import { applyLoopModelRoutingChoice, resetLoopModelRoutingChoice, showLoopModelRoutingPicker } from '#/tui/commands/config/model';
+import { handleAppearanceCommand } from '#/tui/commands/config/appearance';
+import { handleContextCommand } from '#/tui/commands/config/context';
+import { handlePlanCommand } from '#/tui/commands/config/plan';
+import { handleThemeCommand } from '#/tui/commands/config/editor-theme';
+import { handleThinkingCommand } from '#/tui/commands/config/thinking';
+import { showHarnessPanel, showSettingsSelector } from '#/tui/commands/config/settings';
+import { showToolsInventory, showHarnessEyesReadiness } from '#/tui/commands/config/harness-tools';
 import { LOOP_MODEL_ROUTING_ROLES } from '#/tui/utils/loop-model-routing';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';

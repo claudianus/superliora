@@ -9,15 +9,15 @@ import {
   isMemoryReady,
   isRecallReady,
   nextPreflightAction,
-} from '#/tui/commands/preflight-readiness';
-import type { PreflightFreshness } from '#/tui/commands/preflight-types';
+} from '#/tui/commands/preflight/readiness';
+import type { PreflightFreshness } from '#/tui/commands/preflight/types';
 import {
   formatDuration,
   formatPreflightError,
   readyWord,
-} from '#/tui/commands/preflight-utils';
-import { refreshAgeDetails } from '#/tui/commands/preflight-refresh';
-import { fallbackLoopRerunCommand } from '#/tui/commands/preflight-loop';
+} from '#/tui/commands/preflight/utils';
+import { refreshAgeDetails } from '#/tui/commands/preflight/refresh';
+import { fallbackLoopRerunCommand } from '#/tui/commands/preflight/loop';
 
 describe('preflight extracted helpers', () => {
   it('formats durations and ready labels for status lines', () => {

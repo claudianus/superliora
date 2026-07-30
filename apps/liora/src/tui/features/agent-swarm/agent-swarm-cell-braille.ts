@@ -7,8 +7,8 @@ import {
 } from '#/tui/renderer';
 import chalk from 'chalk';
 
-import type { AgentSwarmProgressEstimatorPhase as AgentSwarmPhase } from '#/tui/components/messages/agent-swarm-progress-estimator';
-import type { AgentSwarmMember } from '#/tui/components/messages/agent-swarm-progress';
+import type { AgentSwarmProgressEstimatorPhase as AgentSwarmPhase } from '#/tui/components/messages/agent-swarm-progress/estimator';
+import type { AgentSwarmMember } from '#/tui/components/messages/agent-swarm-progress/index';
 import type { ColorPalette } from '#/tui/theme/colors';
 
 /** How long the completed/failed fill animation runs before settling. */

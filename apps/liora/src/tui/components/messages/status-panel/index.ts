@@ -15,7 +15,7 @@ import {
   safeUsageRatio,
 } from '#/utils/usage/usage-format';
 
-import { buildManagedUsageReportLines } from '../usage-panel';
+import { buildManagedUsageReportLines } from '../usage-panel/index';
 import { contextValues } from './context';
 import { addStatusFieldRows, createStatusFieldMotionState } from './field-motion';
 import {

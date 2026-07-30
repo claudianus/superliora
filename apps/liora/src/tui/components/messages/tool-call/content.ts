@@ -8,7 +8,7 @@ import { Text, type Component } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
-import { isSwarmProgressToolName } from '../agent-swarm-progress';
+import { isSwarmProgressToolName } from '../agent-swarm-progress/index';
 import { interpretExitPlanModeOutcome, isExitPlanModeOutcomeOutput } from './plan';
 import {
   buildAgentSwarmResultSummaryComponents,

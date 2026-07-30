@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
-import { SessionEventHandler } from '#/tui/controllers/session-event-handler';
+import { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import { getBuiltInPalette } from '#/tui/theme';
 import { readGoalQueue, removeGoalQueueItem, restoreGoalQueueItem } from '#/tui/goal-queue-store';
 

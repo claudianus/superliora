@@ -5,8 +5,8 @@ import { AssistantMessageComponent } from '../../components/messages/assistant-m
 import type { CompactionComponent } from '../../components/dialogs/compaction';
 import type { ReadGroupComponent } from '../../components/messages/read-group';
 import type { ThinkingComponent } from '../../components/messages/thinking';
-import { ToolCallComponent } from '../../components/messages/tool-call';
-import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress';
+import { ToolCallComponent } from '../../components/messages/tool-call/index';
+import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress/index';
 import { hasDispose } from '../../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../../utils/event-payload';
 import { type MotionBeatController } from '../../utils/motion-beats';

@@ -6,7 +6,7 @@ import type {
   ToolResultEvent,
 } from '@superliora/sdk';
 
-import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress';
+import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress/index';
 import type {
   AppState,
   LivePaneState,
@@ -20,7 +20,7 @@ import {
   serializeToolResultOutput,
 } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/frame-render';
-import type { StreamingUIController } from '../streaming-ui';
+import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by tool / shell event handling. */
 export interface ToolsEventHost {

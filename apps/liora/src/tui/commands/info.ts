@@ -22,8 +22,8 @@ import {
   buildStatusReportLines,
   createStatusFieldMotionState,
   type StatusRecoveryReadiness,
-} from '../components/messages/status-panel';
-import { buildUsageReportLines, buildContextCompositionLines, UsagePanelComponent, type ManagedUsageReport } from '../components/messages/usage-panel';
+} from '../components/messages/status-panel/index';
+import { buildUsageReportLines, buildContextCompositionLines, UsagePanelComponent, type ManagedUsageReport } from '../components/messages/usage-panel/index';
 import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 import { isManagedUsageProvider } from '../constant/liora-tui';
 import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
@@ -33,7 +33,7 @@ import { type LoopModelRoutingConfig } from '#/tui/utils/loop-model-routing';
 import { requestTUILayoutRender } from '../utils/frame-render';
 import { isMotionTheatreActive } from '../utils/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';
-import { loadPreflightHumanWriting } from './preflight';
+import { loadPreflightHumanWriting } from './preflight/human-writing';
 import type { SlashCommandHost } from './dispatch';
 
 function playStatusOpenBeat(host: SlashCommandHost, title: string, seed: string): void {

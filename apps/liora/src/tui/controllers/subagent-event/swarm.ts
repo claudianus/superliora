@@ -5,7 +5,7 @@ import {
   agentSwarmDescriptionFromArgs,
   agentSwarmGridHeightForTerminalRows,
   swarmProgressTitleForToolName,
-} from '../../components/messages/agent-swarm-progress';
+} from '../../components/messages/agent-swarm-progress/index';
 import { describeSubagentToolFeedBody } from '../../components/subagents/subagent-activity';
 import type { ToolResultBlockData } from '../../types';
 import type { TUIState } from '../../tui-state';
@@ -15,7 +15,7 @@ import {
   formatWarRoomRestaffReason,
   resolveWarRoomReason,
 } from '../../features/agent-swarm/war-room-action';
-import type { StreamingUIController } from '../streaming-ui';
+import type { StreamingUIController } from '../streaming-ui/index';
 import {
   isUserCancelledSubagentError,
   renderedRowsAfterChild,
