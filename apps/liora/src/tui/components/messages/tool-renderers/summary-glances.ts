@@ -350,222 +350,24 @@ export const cronCreateGlance: GlanceFn = (_toolCall, result) => {
   if (parts.length > 0) return parts.join(' · ');
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
-export const ultraworkGraphGlance: GlanceFn = (_toolCall, result) => {
-  if (/Ultrawork graph is empty/i.test(result.output)) return 'empty graph';
-  const updated = /Ultrawork graph updated:\s*(\d+)\s+nodes,\s*(\d+)\s+task events/i.exec(result.output);
-  if (updated) return `updated · ${updated[1]} nodes · ${updated[2]} events`;
-  const samples: string[] = [];
-  for (const line of result.output.split('\n')) {
-    const m = /^\s*\[([^\]]+)\]\s+([^:]+):\s+(.+)$/.exec(line);
-    if (m) {
-      samples.push(`${m[1]} ${m[2]}`);
-      if (samples.length >= GLANCE_SAMPLES) break;
-    }
-  }
-  if (samples.length > 0) return samples.join(' · ');
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
 
-export const swarmChannelGlance: GlanceFn = (toolCall, result) => {
-  if (/No Swarm bus messages/i.test(result.output)) return 'no messages';
-  if (/Posted to Swarm bus/i.test(result.output)) {
-    const channel = /channel=(\S+)/.exec(result.output)?.[1];
-    const kind = /kind=(\S+)/.exec(result.output)?.[1];
-    const parts = ['posted'];
-    if (channel !== undefined) parts.push(channel);
-    if (kind !== undefined) parts.push(kind);
-    return parts.join(' · ');
-  }
-  const samples: string[] = [];
-  for (const line of result.output.split('\n')) {
-    const m = /^\s*\[.+\]\s+(.+?)\s+→\s+.+?\s+\(([^)]+)\):\s*(.+)$/.exec(line);
-    if (m) {
-      samples.push(`${m[1]} (${m[2]})`);
-      if (samples.length >= GLANCE_SAMPLES) break;
-    }
-  }
-  if (samples.length > 0) return samples.join(' · ');
-  const action = typeof toolCall.args['action'] === 'string' ? toolCall.args['action'] : '';
-  return action.length > 0 ? action : result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-export const agentGlance: GlanceFn = (_toolCall, result) => {
-  const agentId = /^agent_id:\s*(\S+)/m.exec(result.output)?.[1];
-  const status = /^status:\s*([a-z_]+)/m.exec(result.output)?.[1];
-  const type = /^actual_subagent_type:\s*(\S+)/m.exec(result.output)?.[1];
-  const parts: string[] = [];
-  if (type !== undefined) parts.push(type);
-  if (status !== undefined) parts.push(status);
-  if (agentId !== undefined) parts.push(agentId);
-  if (parts.length > 0) return parts.join(' · ');
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
+export {
+  agentGlance,
+  agentSwarmGlance,
+  swarmChannelGlance,
+  ultraSwarmGlance,
+  ultraworkGraphGlance,
+} from './summary-glances-swarm';
+export {
+  browserObserveGlance,
+  browserStatusGlance,
+  computerCaptureGlance,
+  generateMediaGlance,
+  runProjectChecksGlance,
+  verifySurfaceGlance,
+  visualDiffGlance,
+} from './summary-glances-browser';
 
-export const agentSwarmGlance: GlanceFn = (_toolCall, result) => {
-  const summary = /<summary>([^<]+)<\/summary>/i.exec(result.output)?.[1]?.trim();
-  if (summary !== undefined && summary.length > 0) return summary;
-  const samples: string[] = [];
-  for (const line of result.output.split('\n')) {
-    const m = /outcome="([^"]+)"/.exec(line);
-    const item = /item="([^"]+)"/.exec(line)?.[1];
-    if (m) {
-      samples.push(item !== undefined ? `${item}:${m[1]}` : m[1]!);
-      if (samples.length >= GLANCE_SAMPLES) break;
-    }
-  }
-  if (samples.length > 0) return samples.join(' · ');
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-
-export const ultraSwarmGlance: GlanceFn = (_toolCall, result) => {
-  const summary = /<summary>([^<]+)<\/summary>/i.exec(result.output)?.[1]?.trim();
-  const strategy = /<strategy>([^<]+)<\/strategy>/i.exec(result.output)?.[1]?.trim();
-  const parts: string[] = [];
-  if (strategy !== undefined) parts.push(strategy);
-  if (summary !== undefined) parts.push(summary);
-  if (parts.length > 0) return parts.join(' · ');
-  const samples: string[] = [];
-  for (const line of result.output.split('\n')) {
-    const name = /name="([^"]+)"/.exec(line)?.[1];
-    const outcome = /outcome="([^"]+)"/.exec(line)?.[1];
-    if (name !== undefined && outcome !== undefined) {
-      samples.push(`${name}:${outcome}`);
-      if (samples.length >= GLANCE_SAMPLES) break;
-    }
-  }
-  if (samples.length > 0) return samples.join(' · ');
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-export const runProjectChecksGlance: GlanceFn = (_toolCall, result) => {
-  const start = result.output.indexOf('{');
-  if (start >= 0) {
-    try {
-      const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
-      if (typeof json['summary'] === 'string' && json['summary'].length > 0) {
-        return json['summary'].replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-      }
-      const exitCode = typeof json['exitCode'] === 'number' ? json['exitCode'] : undefined;
-      const checks = Array.isArray(json['checks']) ? json['checks'].length : undefined;
-      const parts: string[] = [];
-      if (exitCode !== undefined) parts.push(exitCode === 0 ? 'pass' : `exit ${exitCode}`);
-      if (checks !== undefined) parts.push(`${checks} checks`);
-      if (parts.length > 0) return parts.join(' · ');
-    } catch {
-      // fall through
-    }
-  }
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-
-export const verifySurfaceGlance: GlanceFn = (_toolCall, result) => {
-  const start = result.output.indexOf('{');
-  if (start >= 0) {
-    try {
-      const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
-      const pass = json['pass'] === true;
-      const url = typeof json['url'] === 'string' ? json['url'] : '';
-      const errors = Array.isArray(json['consoleErrors']) ? json['consoleErrors'].length : 0;
-      const parts: string[] = [pass ? 'pass' : 'fail'];
-      if (url.length > 0) {
-        try {
-          parts.push(new URL(url).host);
-        } catch {
-          parts.push(url.slice(0, 32));
-        }
-      }
-      if (errors > 0) parts.push(`${errors} console`);
-      return parts.join(' · ');
-    } catch {
-      // fall through
-    }
-  }
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-
-export const visualDiffGlance: GlanceFn = (_toolCall, result) => {
-  const start = result.output.indexOf('{');
-  if (start >= 0) {
-    try {
-      const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
-      const summary = typeof json['summary'] === 'string' ? json['summary'].trim() : '';
-      if (summary.length > 0) return summary.slice(0, 96);
-      const status = typeof json['status'] === 'string' ? json['status'].replaceAll('_', ' ') : '';
-      const identical = json['identical'] === true;
-      const delta = typeof json['lengthDelta'] === 'number' ? json['lengthDelta'] : undefined;
-      const prefix =
-        typeof json['sharedPrefixRatio'] === 'number'
-          ? Math.round(json['sharedPrefixRatio'] * 100)
-          : undefined;
-      const parts: string[] = [status.length > 0 ? status : identical ? 'identical' : 'differ'];
-      if (delta !== undefined && delta > 0) parts.push(`Δ${String(delta)}B`);
-      if (prefix !== undefined && !identical) parts.push(`prefix ${String(prefix)}%`);
-      return parts.join(' · ');
-    } catch {
-      // fall through
-    }
-  }
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-
-export const browserStatusGlance: GlanceFn = (_toolCall, result) => {
-  const json = (() => {
-    const start = result.output.indexOf('{');
-    if (start < 0) return undefined;
-    try {
-      return JSON.parse(result.output.slice(start)) as Record<string, unknown>;
-    } catch {
-      return undefined;
-    }
-  })();
-  if (json === undefined) return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-  const url = typeof json['url'] === 'string' ? json['url'] : '';
-  const title = typeof json['title'] === 'string' ? json['title'] : '';
-  if (url.length > 0 && title.length > 0) {
-    try {
-      return `${new URL(url).host} · ${title.slice(0, 40)}`;
-    } catch {
-      return `${url.slice(0, 40)} · ${title.slice(0, 40)}`;
-    }
-  }
-  if (url.length > 0) return url.slice(0, 72);
-  if (title.length > 0) return title.slice(0, 72);
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-
-export const browserObserveGlance: GlanceFn = (_toolCall, result) => {
-  const start = result.output.indexOf('{');
-  if (start < 0) return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-  try {
-    const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
-    const title = typeof json['title'] === 'string' ? json['title'] : '';
-    const refs = Array.isArray(json['refs']) ? json['refs'].length : undefined;
-    const parts: string[] = [];
-    if (title.length > 0) parts.push(title.slice(0, 40));
-    if (refs !== undefined) parts.push(`${refs} refs`);
-    if (parts.length > 0) return parts.join(' · ');
-  } catch {
-    // fall through
-  }
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
-
-export const computerCaptureGlance: GlanceFn = (_toolCall, result) => {
-  const start = result.output.indexOf('{');
-  if (start < 0) return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-  try {
-    const json = JSON.parse(result.output.slice(start)) as Record<string, unknown>;
-    const mode = typeof json['mode'] === 'string' ? json['mode'] : '';
-    const app = typeof json['app'] === 'string' ? json['app'] : '';
-    const title = typeof json['windowTitle'] === 'string' ? json['windowTitle'] : '';
-    const parts: string[] = [];
-    if (mode.length > 0) parts.push(mode);
-    if (app.length > 0) parts.push(app);
-    if (title.length > 0) parts.push(title.slice(0, 40));
-    if (parts.length > 0) return parts.join(' · ');
-  } catch {
-    // fall through
-  }
-  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
-};
 export const todoListGlance: GlanceFn = (_toolCall, result) => {
   if (/Todo list is empty/i.test(result.output) || /Todo list cleared/i.test(result.output)) {
     return 'empty';
@@ -597,8 +399,6 @@ export const fetchGlance: GlanceFn = (toolCall, result) => {
   return preview;
 };
 
-
-
 export const webSearchGlance: GlanceFn = (_toolCall, result) => {
   if (result.output.includes('No search results found.')) return 'no results';
   const titles: string[] = [];
@@ -609,14 +409,5 @@ export const webSearchGlance: GlanceFn = (_toolCall, result) => {
   }
   if (titles.length === 0) return '';
   return titles.join(' · ');
-};
-
-
-export const generateMediaGlance: GlanceFn = (_toolCall, result) => {
-  for (const line of result.output.split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('Path:')) return trimmed.slice('Path:'.length).trim();
-  }
-  return '';
 };
 

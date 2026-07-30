@@ -36,64 +36,16 @@ import {
   type SessionCreateOptions,
   type SessionListQuery,
 } from './session';
-
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
-const DEFAULT_UNDO_MESSAGE_PAGE_SIZE = 50;
-const MAX_UNDO_MESSAGE_PAGE_SIZE = 100;
-const CHILD_SESSION_KIND = 'child';
-
-function asJsonObject(value: Record<string, unknown>): JsonObject {
-  return value as unknown as JsonObject;
-}
-
-function normalizeOptionalString(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed === '' ? undefined : trimmed;
-}
-
-function canUndoHistory(history: readonly ContextMessage[], count: number): boolean {
-  let found = 0;
-  for (let i = history.length - 1; i >= 0; i--) {
-    const message = history[i];
-    if (message === undefined) continue;
-    if (message.origin?.kind === 'injection') continue;
-    if (message.origin?.kind === 'compaction_summary') return false;
-    if (isRealUserPrompt(message)) {
-      found++;
-      if (found >= count) return true;
-    }
-  }
-  return false;
-}
-
-function isRealUserPrompt(message: ContextMessage): boolean {
-  if (message.role !== 'user') return false;
-  const origin = message.origin;
-  if (origin === undefined || origin.kind === 'user') return true;
-  if (origin.kind === 'plugin_command') return origin.trigger === 'user-slash';
-  return origin.kind === 'skill_activation' && origin.trigger === 'user-slash';
-}
-
-function pageContextMessages(
-  sessionId: string,
-  sessionCreatedAtMs: number,
-  context: AgentContextData,
-  requestedPageSize: number | undefined,
-): PageResponse<Message> {
-  const pageSize = Math.min(
-    Math.max(requestedPageSize ?? DEFAULT_UNDO_MESSAGE_PAGE_SIZE, 1),
-    MAX_UNDO_MESSAGE_PAGE_SIZE,
-  );
-  const all = context.history.map((message, index) =>
-    toProtocolMessage(sessionId, index, message, sessionCreatedAtMs),
-  );
-  const desc = all.toReversed();
-  return {
-    items: desc.slice(0, pageSize),
-    has_more: desc.length > pageSize,
-  };
-}
+import {
+  CHILD_SESSION_KIND,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  asJsonObject,
+  canUndoHistory,
+  normalizeOptionalString,
+  pageContextMessages,
+} from './session-service-helpers';
+import { buildSessionStatusResponse } from './session-service-status';
 
 export class SessionService extends Disposable implements ISessionService {
   readonly _serviceBrand: undefined;
@@ -444,72 +396,15 @@ export class SessionService extends Disposable implements ISessionService {
 
   async getStatus(id: string): Promise<SessionStatusResponse> {
     const all = await this.core.rpc.listSessions({});
-    const summary = all.find((s) => s.id === id);
-    if (summary === undefined) {
+    if (!all.some((s) => s.id === id)) {
       throw new SessionNotFoundError(id);
     }
-
-    const [config, context, permission, plan, providerRoute, usage] = await Promise.all([
-      this.core.rpc.getConfig({ sessionId: id, agentId: 'main' }),
-      this.core.rpc.getContext({ sessionId: id, agentId: 'main' }),
-      this.core.rpc.getPermission({ sessionId: id, agentId: 'main' }),
-      this.core.rpc.getPlan({ sessionId: id, agentId: 'main' }),
-      this.core.rpc.getProviderRouteStatus({ sessionId: id, agentId: 'main' }),
-      this.core.rpc.getUsage({ sessionId: id, agentId: 'main' }).catch(() => undefined),
-    ]);
-
-    const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
-    const contextTokens = context.tokenCount;
-    const contextUsage = maxContextTokens > 0 ? contextTokens / maxContextTokens : 0;
-
-    const agentState = this.promptService.getAgentStateSnapshot(id);
-
-    const contextOS = context.contextOS;
-    return {
-      status: this._computeStatus(id),
-      model: config.modelAlias ?? config.provider?.model,
-      thinking_level: config.thinkingLevel,
-      permission: permission.mode,
-      plan_mode: plan !== null,
-      swarm_mode: agentState?.swarmMode ?? false,
-      context_tokens: contextTokens,
-      max_context_tokens: maxContextTokens,
-      context_usage: contextUsage,
-      cache_hit_rate: usage?.cacheHitRate,
-      role_models:
-        config.roleModels === undefined
-          ? undefined
-          : {
-              compaction: config.roleModels.compaction ?? null,
-              completion: config.roleModels.completion ?? null,
-              exploration: config.roleModels.exploration ?? null,
-              coding: config.roleModels.coding ?? null,
-              planning: config.roleModels.planning ?? null,
-              debugging: config.roleModels.debugging ?? null,
-            },
-      provider_route: providerRoute,
-      context_os:
-        contextOS === undefined
-          ? undefined
-          : {
-              page_count: contextOS.pageCount,
-              ready_page_count: contextOS.readyPageCount,
-              needs_rehydration_page_count: contextOS.needsRehydrationPageCount,
-              at_risk_page_count: contextOS.atRiskPageCount,
-              missing_evidence_page_count: contextOS.missingEvidencePageCount,
-              evidence_id_recall_score: contextOS.evidenceIdRecallScore,
-              latest_continuity_status: contextOS.latestContinuityStatus,
-            },
-      micro_compaction:
-        context.microCompaction === undefined
-          ? undefined
-          : {
-              total: context.microCompaction.total,
-              last_trigger: context.microCompaction.lastTrigger,
-              last_context_usage_ratio: context.microCompaction.lastContextUsageRatio,
-              by_trigger: { ...context.microCompaction.byTrigger },
-            },
-    };
+    return buildSessionStatusResponse(
+      id,
+      this.core,
+      this.promptService,
+      (sessionId) => this._computeStatus(sessionId),
+    );
   }
 
   async getSessionWarnings(id: string): Promise<readonly SessionWarning[]> {

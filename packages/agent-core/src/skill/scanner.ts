@@ -8,6 +8,19 @@ import {
 } from './parser';
 import type { SkillDefinition, SkillRoot, SkillSource, SkippedSkill } from './types';
 import { normalizeSkillName } from './types';
+import {
+  collectSkillResources,
+  hasSubSkillEnabled,
+} from './scanner-resources';
+import {
+  defaultIsDir,
+  defaultIsFile,
+  exists,
+  findProjectRoot,
+  isWithin,
+  qualifySubSkillName,
+  resolveConfiguredDir,
+} from './scanner-path-utils';
 
 // Relative to brandHomeDir, which already IS the brand data dir (~/.superliora or
 // $SUPERLIORA_HOME) — no '.superliora' segment here, or it would nest twice.
@@ -499,111 +512,17 @@ async function parseAndRegister(input: {
   }
 }
 
-const RESOURCE_SCAN_MAX_DEPTH = 3;
-const RESOURCE_SCAN_MAX_FILES = 128;
 
-async function collectSkillResources(
-  skill: SkillDefinition,
-  input: {
-    readonly readdir: (p: string) => Promise<readonly string[]>;
-    readonly isFile: (p: string) => Promise<boolean>;
-    readonly isDir: (p: string) => Promise<boolean>;
-    readonly warn: (message: string, cause?: unknown) => void;
-  },
-): Promise<readonly string[]> {
-  if (path.basename(skill.path) !== 'SKILL.md') return [];
-  const out: string[] = [];
-
-  async function walk(dir: string, depth: number): Promise<void> {
-    if (depth > RESOURCE_SCAN_MAX_DEPTH || out.length >= RESOURCE_SCAN_MAX_FILES) return;
-    let entries: readonly string[];
-    try {
-      entries = [...(await input.readdir(dir))].toSorted();
-    } catch (error) {
-      input.warn(`Failed to read skill resources in ${dir}`, error);
-      return;
-    }
-    for (const entry of entries) {
-      if (out.length >= RESOURCE_SCAN_MAX_FILES) return;
-      if (entry === 'SKILL.md' || entry === 'node_modules' || entry.startsWith('.')) continue;
-      const entryPath = path.join(dir, entry);
-      if (await input.isFile(entryPath)) {
-        out.push(path.relative(skill.dir, entryPath).replaceAll('\\', '/'));
-        continue;
-      }
-      if (await input.isDir(entryPath)) {
-        await walk(entryPath, depth + 1);
-      }
-    }
-  }
-
-  await walk(skill.dir, 0);
-  return out;
-}
-
-function qualifySubSkillName(parentName: string, skillName: string): string {
-  if (skillName === parentName || skillName.startsWith(`${parentName}.`)) return skillName;
-  return `${parentName}.${skillName}`;
-}
-
-function hasSubSkillEnabled(skill: SkillDefinition): boolean {
-  const nested = skill.metadata['metadata'];
-  const nestedFlag =
-    typeof nested === 'object' && nested !== null
-      ? (nested as Record<string, unknown>)['has-sub-skill'] === true ||
-        (nested as Record<string, unknown>)['hasSubSkill'] === true
-      : false;
-  return (
-    skill.metadata['has-sub-skill'] === true ||
-    skill.metadata['hasSubSkill'] === true ||
-    nestedFlag
-  );
-}
-
-async function defaultIsDir(p: string): Promise<boolean> {
-  try {
-    return (await fs.stat(p)).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-async function defaultIsFile(p: string): Promise<boolean> {
-  try {
-    return (await fs.stat(p)).isFile();
-  } catch {
-    return false;
-  }
-}
-
-async function findProjectRoot(workDir: string): Promise<string> {
-  const start = path.resolve(workDir);
-  let current = start;
-  while (true) {
-    if (await exists(path.join(current, '.git'))) return current;
-    const parent = path.dirname(current);
-    if (parent === current) return start;
-    current = parent;
-  }
-}
-
-async function exists(p: string): Promise<boolean> {
-  try {
-    await fs.stat(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function resolveConfiguredDir(dir: string, projectRoot: string, userHomeDir: string): string {
-  if (dir === '~') return userHomeDir;
-  if (dir.startsWith('~/')) return path.join(userHomeDir, dir.slice(2));
-  if (path.isAbsolute(dir)) return dir;
-  return path.resolve(projectRoot, dir);
-}
-
-function isWithin(child: string, parent: string): boolean {
-  const relative = path.relative(parent, child);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
+export {
+  collectSkillResources,
+  hasSubSkillEnabled,
+} from './scanner-resources';
+export {
+  defaultIsDir,
+  defaultIsFile,
+  exists,
+  findProjectRoot,
+  isWithin,
+  qualifySubSkillName,
+  resolveConfiguredDir,
+} from './scanner-path-utils';

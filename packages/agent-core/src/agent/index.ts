@@ -89,6 +89,8 @@ import { createRpcMethods } from './rpc-methods';
 import { buildPersonaRoleAdditional } from './persona';
 import { ORCHESTRATOR_SYSTEM_PREFIX, registerOrchestratorTools as registerOrchestratorToolsImpl } from './orchestrator';
 import { createGenerateProxy, buildLLMRoute as buildLLMRouteImpl } from './generate-facade';
+import { buildAgentStatusUpdatedEvent, durableTraceRecordType } from './agent-status-updated';
+import { buildRecordsWriteErrorEvent } from './agent-records-write-error';
 
 export type { AgentRecord } from './records';
 export type { ModeActivationSource } from './mode-activation';
@@ -529,89 +531,15 @@ export class Agent {
   emitStatusUpdated(): void {
     if (this.records.restoring) return;
     if (!this.config.hasModel) return;
-
-    const contextTokens = this.context.tokenCount;
-    const maxContextTokens = this.config.modelCapabilities.max_context_tokens;
-    const contextUsage =
-      maxContextTokens !== undefined && maxContextTokens > 0
-        ? contextTokens / maxContextTokens
-        : undefined;
-    const usage: UsageStatus | undefined = this.usage.status();
-    const model = this.config.model;
-    const providerRoute = this.providerRouteStatus();
-
-    const contextOSHealth = this.contextOS.health();
-    const microSnap = this.microCompaction.triggers.snapshot();
-    this.emitEvent({
-      type: 'agent.status.updated',
-      model,
-      contextTokens,
-      maxContextTokens,
-      contextUsage,
-      planMode: this.planMode.isActive,
-      swarmMode: this.swarmMode.isActive,
-      premiumQualityMode: this.premiumQuality.isEnabled(),
-      orchestratorMode: this.orchestratorMode || undefined,
-      orchestratorWorkers: this.orchestratorMode && this.orchestratorWorkers.size > 0
-        ? [...this.orchestratorWorkers.values()].map((w) => ({
-            id: w.id,
-            description: w.description,
-            status: w.status,
-            tokenOutput: w.tokenUsage?.output,
-          }))
-        : undefined,
-      permission: this.permission.mode,
-      usage,
-      providerRoute,
-      contextOS:
-        contextOSHealth.pageCount === 0
-          ? null
-          : {
-              pageCount: contextOSHealth.pageCount,
-              readyPageCount: contextOSHealth.readyPageCount,
-              needsRehydrationPageCount: contextOSHealth.needsRehydrationPageCount,
-              atRiskPageCount: contextOSHealth.atRiskPageCount,
-              missingEvidencePageCount: contextOSHealth.missingEvidencePageCount,
-              evidenceIdRecallScore: contextOSHealth.evidenceIdRecallScore,
-              latestContinuityStatus: contextOSHealth.latestContinuityStatus,
-            },
-      microCompaction:
-        microSnap.total === 0
-          ? null
-          : {
-              total: microSnap.total,
-              lastTrigger: microSnap.lastTrigger,
-              lastContextUsageRatio: microSnap.lastContextUsageRatio,
-              byTrigger: microSnap.byTrigger,
-            },
-      autoDream: this.dream === null ? null : this.dream.snapshot(),
-    });
+    this.emitEvent(buildAgentStatusUpdatedEvent(this));
   }
 
   private emitRecordsWriteError(error: unknown, record?: AgentRecord | undefined): void {
-    const message = error instanceof Error ? error.message : String(error);
     this.log.error('wire record persist failed', {
       agentHomedir: this.homedir,
       recordType: record?.type,
       error,
     });
-    this.emitEvent({
-      type: 'error',
-      ...makeErrorPayload(
-        ErrorCodes.RECORDS_WRITE_FAILED,
-        `Failed to write agent records: ${message}`,
-        {
-          details: { recordType: record?.type },
-        },
-      ),
-    });
+    this.emitEvent(buildRecordsWriteErrorEvent(error, record));
   }
-}
-
-function durableTraceRecordType(
-  eventType: AgentEvent['type'],
-): 'subagent.lifecycle' | 'ultrawork.event' | undefined {
-  if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
-  if (eventType.startsWith('ultrawork.')) return 'ultrawork.event';
-  return undefined;
 }

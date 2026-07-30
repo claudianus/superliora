@@ -13,6 +13,7 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme';
 
 import { highlightLines, langFromPath } from './code-highlight';
+import { buildSyntaxLookup, formatDiffRow } from './diff-preview-row-format';
 
 export type DiffLineKind = 'context' | 'add' | 'delete';
 
@@ -24,7 +25,7 @@ export type DiffLineKind = 'context' | 'add' | 'delete';
  * rows. Both tiers are alpha-blended against the theme background so they read
  * as material, not neon.
  */
-interface DiffStyles {
+export interface DiffStyles {
   add: (s: string) => string;
   del: (s: string) => string;
   addBold: (s: string) => string;
@@ -56,7 +57,7 @@ function mixHex(a: string, b: string, t: number): string {
   return `#${channel(ar, br)}${channel(ag, bg)}${channel(ab, bb)}`;
 }
 
-function makeDiffStyles(): DiffStyles {
+export function makeDiffStyles(): DiffStyles {
   const palette = currentTheme.palette;
   const canvas = palette.background;
   return {
@@ -76,7 +77,7 @@ function makeDiffStyles(): DiffStyles {
 }
 
 /** One run of tokens inside a changed line; `changed` marks the exact edit. */
-interface WordSpan {
+export interface WordSpan {
   readonly text: string;
   readonly changed: boolean;
 }
@@ -149,7 +150,7 @@ function computeWordSpans(
  * highlights. Only rows with a partner get spans; pure inserts and removals
  * keep the plain line tint.
  */
-function pairWordSpans(diffLines: readonly DiffLine[]): Map<DiffLine, WordSpan[]> {
+export function pairWordSpans(diffLines: readonly DiffLine[]): Map<DiffLine, WordSpan[]> {
   const spans = new Map<DiffLine, WordSpan[]>();
   let i = 0;
   while (i < diffLines.length) {
@@ -292,330 +293,12 @@ export function renderDiffLines(
   return output;
 }
 
-export interface ClusteredDiffOptions {
-  readonly contextLines?: number;
-  readonly maxLines?: number;
-  readonly isIncomplete?: boolean;
-  readonly expandKeyHint?: string;
-  /**
-   * When true (default), highlight code on each diff row using language from
-   * `path`. Diff markers (+/-) and gutter stay on the diff palette; only the
-   * code body receives syntax colors.
-   */
-  readonly syntaxHighlight?: boolean;
-  readonly palette?: ColorPalette;
-  /**
-   * Paint changed rows across the gutter+marker+code span instead of hugging
-   * the code text. When `width` is set, the tint is padded to that many
-   * visible columns so short rows still read as one edge-to-edge surface.
-   */
-  readonly fullRowBackground?: boolean;
-  /** Target visible column count for `fullRowBackground` padding. */
-  readonly width?: number;
-  /**
-   * Anchor the preview window to the newest changes instead of the first
-   * ones — the streaming "follow the edit" mode. Mirrors Write's live tail
-   * window so the viewport tracks the code currently being written.
-   */
-  readonly tail?: boolean;
-}
 
-interface Cluster {
-  readonly start: number;
-  readonly end: number;
-}
-
-interface DiffBodyRow {
-  readonly text: string;
-  readonly kind: DiffPreviewRowKind;
-  readonly line?: DiffLine;
-}
-
-function buildClusters(
-  diffLines: DiffLine[],
-  contextLines: number,
-): { clusters: Cluster[]; changedCount: number; addedCount: number; removedCount: number } {
-  const changeIndices: number[] = [];
-  let added = 0;
-  let removed = 0;
-  for (const [i, line] of diffLines.entries()) {
-    if (line.kind === 'add') {
-      added++;
-      changeIndices.push(i);
-    } else if (line.kind === 'delete') {
-      removed++;
-      changeIndices.push(i);
-    }
-  }
-
-  const clusters: Cluster[] = [];
-  if (changeIndices.length === 0) {
-    return { clusters, changedCount: 0, addedCount: added, removedCount: removed };
-  }
-
-  const mergeGap = 2 * contextLines;
-  let groupStart = changeIndices[0]!;
-  let groupEnd = changeIndices[0]!;
-  for (let i = 1; i < changeIndices.length; i++) {
-    const idx = changeIndices[i]!;
-    if (idx - groupEnd <= mergeGap) {
-      groupEnd = idx;
-    } else {
-      clusters.push({
-        start: Math.max(0, groupStart - contextLines),
-        end: Math.min(diffLines.length - 1, groupEnd + contextLines),
-      });
-      groupStart = idx;
-      groupEnd = idx;
-    }
-  }
-  clusters.push({
-    start: Math.max(0, groupStart - contextLines),
-    end: Math.min(diffLines.length - 1, groupEnd + contextLines),
-  });
-
-  return {
-    clusters,
-    changedCount: changeIndices.length,
-    addedCount: added,
-    removedCount: removed,
-  };
-}
-
-/**
- * Highlight each unique plain code line once, then look up by plain text.
- * Line-oriented (cli-highlight per line) — multi-line tokens may degrade, but
- * Edit hunks are usually short and this keeps add/delete rows independent.
- */
-function buildSyntaxLookup(
-  diffLines: DiffLine[],
-  path: string,
-  enabled: boolean,
-  palette?: ColorPalette,
-): Map<string, string> {
-  const map = new Map<string, string>();
-  if (!enabled) return map;
-  const lang = langFromPath(path);
-  if (lang === undefined) return map;
-
-  const unique: string[] = [];
-  const seen = new Set<string>();
-  for (const line of diffLines) {
-    if (seen.has(line.code)) continue;
-    seen.add(line.code);
-    unique.push(line.code);
-  }
-  if (unique.length === 0) return map;
-
-  // Join with a rare sentinel so one highlight pass covers the hunk.
-  // Using \n preserves line alignment for languages that care.
-  const joined = unique.join('\n');
-  const highlighted = highlightLines(joined, lang, palette);
-  for (let i = 0; i < unique.length; i++) {
-    map.set(unique[i]!, highlighted[i] ?? unique[i]!);
-  }
-  return map;
-}
-
-function formatDiffRow(
-  line: DiffLine,
-  s: DiffStyles,
-  syntaxByCode?: ReadonlyMap<string, string>,
-  wordSpans?: WordSpan[],
-  fullRow?: { readonly width?: number },
-): string {
-  const gutter = s.gutter(String(line.lineNum).padStart(4) + ' ');
-  if (line.kind === 'context') {
-    const code =
-      syntaxByCode !== undefined ? (syntaxByCode.get(line.code) ?? line.code) : line.code;
-    return gutter + '  ' + code;
-  }
-  const code = renderCodeWithSpans(line, syntaxByCode, wordSpans, s);
-  const lineBg = line.kind === 'add' ? s.addLineBg : s.delLineBg;
-  const marker = line.kind === 'add' ? s.add('+ ') : s.del('- ');
-  if (fullRow === undefined) {
-    // The marker shares the line tint so the whole row reads as one surface.
-    return gutter + lineBg(marker + code);
-  }
-  // Full-row paint: the gutter joins the tinted surface and the tint extends
-  // to the target width, so short rows span the column like material diffs.
-  const inner = gutter + marker + code;
-  const target = fullRow.width;
-  const pad = target !== undefined && target > 0 ? Math.max(0, target - visibleWidth(inner)) : 0;
-  return lineBg(inner + ' '.repeat(pad));
-}
-
-/**
- * Render a changed line's code, layering word-level backgrounds over syntax
- * highlighting. slice-ansi cuts by visible column so escape sequences in the
- * highlighted string survive the slicing.
- */
-function renderCodeWithSpans(
-  line: DiffLine,
-  syntaxByCode: ReadonlyMap<string, string> | undefined,
-  wordSpans: WordSpan[] | undefined,
-  s: DiffStyles,
-): string {
-  const highlighted = syntaxByCode?.get(line.code);
-  if (wordSpans === undefined) {
-    return highlighted ?? line.code;
-  }
-  const wordBg = line.kind === 'add' ? s.addWordBg : s.delWordBg;
-  if (highlighted === undefined) {
-    return wordSpans.map((span) => (span.changed ? wordBg(span.text) : span.text)).join('');
-  }
-  let out = '';
-  let start = 0;
-  for (const span of wordSpans) {
-    const end = start + span.text.length;
-    const slice = sliceAnsi(highlighted, start, end);
-    out += span.changed ? wordBg(slice) : slice;
-    start = end;
-  }
-  return out;
-}
-
-/** Semantic kind of a rendered diff row; `meta` covers headers and footers. */
-export type DiffPreviewRowKind = DiffLineKind | 'meta';
-
-/** One rendered diff row plus its kind, so callers can paint full lines. */
-export interface DiffPreviewRow {
-  readonly text: string;
-  readonly kind: DiffPreviewRowKind;
-}
-
-/**
- * Line background painter for diff rows rendered through `Text`'s
- * `customBgFn`: the component pads every visual line to full width, and this
- * paints the padded span with the same material tint the inline row carries.
- */
-export function diffLineBackground(kind: 'add' | 'delete'): (text: string) => string {
-  const s = makeDiffStyles();
-  return kind === 'add' ? s.addLineBg : s.delLineBg;
-}
-
-/**
- * Render a diff with surrounding context, eliding unchanged middle
- * regions between change clusters with a `… N unchanged lines …`
- * separator. When `maxLines` is set, the renderer projection selects
- * the body window and a `ctrl+o to expand` footer is appended.
- *
- * Used by Edit's call preview where we want to show *what changed*
- * with enough context to read the change, but not the whole file.
- */
-export function renderDiffLinesClustered(
-  oldText: string,
-  newText: string,
-  path: string,
-  opts: ClusteredDiffOptions = {},
-): string[] {
-  return renderDiffLinesClusteredRows(oldText, newText, path, opts).map((row) => row.text);
-}
-
-/**
- * Like {@link renderDiffLinesClustered}, but keeps each row's diff kind so
- * callers (e.g. the Edit tool card) can paint the full terminal line.
- */
-export function renderDiffLinesClusteredRows(
-  oldText: string,
-  newText: string,
-  path: string,
-  opts: ClusteredDiffOptions = {},
-): DiffPreviewRow[] {
-  const diffLines = computeDiffLines(oldText, newText, 1, 1, opts.isIncomplete ?? false);
-  return renderClusteredDiffRows(diffLines, path, opts);
-}
-
-/**
- * Render pre-computed {@link DiffLine}s (for example, lines parsed from a
- * `git diff` unified output) with the same clustering, gutter formatting,
- * and elision as {@link renderDiffLinesClustered}. Callers that already hold
- * diff lines reuse this single formatter instead of re-deriving one.
- */
-export function renderClusteredDiffBody(
-  diffLines: DiffLine[],
-  path: string,
-  opts: ClusteredDiffOptions = {},
-): string[] {
-  return renderClusteredDiffRows(diffLines, path, opts).map((row) => row.text);
-}
-
-/** Row-kind-aware core behind {@link renderClusteredDiffBody}. */
-export function renderClusteredDiffRows(
-  diffLines: DiffLine[],
-  path: string,
-  opts: ClusteredDiffOptions = {},
-): DiffPreviewRow[] {
-  const s = makeDiffStyles();
-  const contextLines = opts.contextLines ?? 3;
-  const maxLines = opts.maxLines;
-  const syntaxHighlight = opts.syntaxHighlight !== false;
-  const syntaxByCode = buildSyntaxLookup(
-    diffLines,
-    path,
-    syntaxHighlight,
-    opts.palette,
-  );
-  const wordSpans = pairWordSpans(diffLines);
-  const fullRow = opts.fullRowBackground === true ? { width: opts.width } : undefined;
-  const { clusters, changedCount, addedCount, removedCount } = buildClusters(
-    diffLines,
-    contextLines,
-  );
-
-  const output: DiffPreviewRow[] = [];
-  let header = '';
-  if (addedCount > 0) header += s.addBold(`+${String(addedCount)} `);
-  if (removedCount > 0) header += s.delBold(`-${String(removedCount)} `);
-  header += path;
-  output.push({ text: header, kind: 'meta' });
-
-  if (clusters.length === 0) return output;
-
-  const bodyRows: DiffBodyRow[] = [];
-  let prevEnd = -1;
-
-  for (const cluster of clusters) {
-    if (prevEnd >= 0) {
-      const gap = cluster.start - prevEnd - 1;
-      if (gap > 0) {
-        bodyRows.push({
-          text: s.meta(`     … ${String(gap)} unchanged line${gap > 1 ? 's' : ''} …`),
-          kind: 'meta',
-        });
-      }
-    }
-    for (let i = cluster.start; i <= cluster.end; i++) {
-      const line = diffLines[i]!;
-      bodyRows.push({
-        text: formatDiffRow(line, s, syntaxByCode, wordSpans.get(line), fullRow),
-        kind: line.kind,
-        line,
-      });
-    }
-    prevEnd = cluster.end;
-  }
-
-  const preview = projectRendererLineWindow({
-    lines: bodyRows,
-    maxLines: maxLines !== undefined && maxLines >= 0 ? maxLines : undefined,
-    tail: opts.tail === true,
-  });
-  output.push(...preview.lines.map((row) => ({ text: row.text, kind: row.kind })));
-
-  if (preview.hiddenLineCount > 0) {
-    const shownChanges = preview.lines.filter((row) => row.line?.kind !== 'context').length;
-    const hidden = changedCount - shownChanges;
-    if (hidden > 0) {
-      const hint = opts.expandKeyHint ?? 'ctrl+o';
-      output.push({
-        text: s.meta(
-          `     … ${String(hidden)} more change${hidden > 1 ? 's' : ''} hidden (${hint} to expand)`,
-        ),
-        kind: 'meta',
-      });
-    }
-  }
-
-  return output;
-}
+export type { ClusteredDiffOptions, DiffPreviewRow, DiffPreviewRowKind } from './diff-preview-cluster';
+export {
+  diffLineBackground,
+  renderClusteredDiffBody,
+  renderClusteredDiffRows,
+  renderDiffLinesClustered,
+  renderDiffLinesClusteredRows,
+} from './diff-preview-cluster';

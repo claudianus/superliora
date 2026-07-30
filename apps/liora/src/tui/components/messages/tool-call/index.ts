@@ -67,6 +67,16 @@ import {
   type ToolCallSubagentEventHost,
 } from './subagent-events';
 import { ToolCallSubagentState } from './subagent-state';
+import {
+  buildToolCallHeaderText,
+  isToolCallStreamingEditPreview,
+  rebuildToolCallCallPreviewBlock,
+  rebuildToolCallComponentBody,
+  rebuildToolCallComponentContent,
+  rebuildToolCallComponentSubagentBlock,
+  refreshToolCallSubagentPresentation,
+} from './tool-call-internals';
+
 
 export type { ToolCallReadSnapshot } from './read-snapshot';
 export type { ToolCallSubagentSnapshot } from './subagent';
@@ -127,15 +137,15 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       addChild: (child) => this.addChild(child),
     });
     this.detachHint = new ToolCallDetachHint({
-      rebuildBody: () => this.rebuildBody(),
+      rebuildBody: () => rebuildToolCallComponentBody(this.internalsHost()),
       requestRender: () => this.ui?.requestRender(),
       hasResult: () => this.result !== undefined,
     });
 
     this.addChild(new Spacer(1));
-    this.headerText = new Text(this.buildHeader(), 0, 0);
+    this.headerText = new Text(buildToolCallHeaderText(this.internalsHost()), 0, 0);
     this.addChild(this.headerText);
-    this.rebuildBody();
+    rebuildToolCallComponentBody(this.internalsHost());
     this.detachHint.start(this.toolCall.name, this.ui !== undefined);
   }
 
@@ -147,10 +157,10 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       subagent: this.subagent,
       toolCall: this.toolCall,
       result: this.result,
-      refreshSubagentPresentation: (requestRender) => this.refreshSubagentPresentation(requestRender),
-      rebuildContent: () => this.rebuildContent(),
-      notifySnapshotChange: () => this.notifySnapshotChange(),
-      refreshHeader: () => this.headerText.setText(this.buildHeader()),
+      refreshSubagentPresentation: (requestRender) => refreshToolCallSubagentPresentation(this.internalsHost(), requestRender),
+      rebuildContent: () => rebuildToolCallComponentContent(this.internalsHost()),
+      notifySnapshotChange: () => this.internalsHost().onSnapshotChange?.(),
+      refreshHeader: () => this.headerText.setText(buildToolCallHeaderText(this.internalsHost())),
       invalidate: () => this.invalidate(),
       requestRender: () => this.ui?.requestRender(),
     };
@@ -158,11 +168,11 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
 
   override render(width: number): string[] {
     tickToolCallRenderClock(this.renderTickInput(), {
-      rebuildCallPreviewBlock: () => this.rebuildCallPreviewBlock(),
-      rebuildBody: () => this.rebuildBody(),
-      rebuildSubagentBlock: () => this.rebuildSubagentBlock(),
-      refreshHeader: () => this.headerText.setText(this.buildHeader()),
-      notifySnapshotChange: () => this.notifySnapshotChange(),
+      rebuildCallPreviewBlock: () => rebuildToolCallCallPreviewBlock(this.internalsHost()),
+      rebuildBody: () => rebuildToolCallComponentBody(this.internalsHost()),
+      rebuildSubagentBlock: () => rebuildToolCallComponentSubagentBlock(this.internalsHost()),
+      refreshHeader: () => this.headerText.setText(buildToolCallHeaderText(this.internalsHost())),
+      notifySnapshotChange: () => this.internalsHost().onSnapshotChange?.(),
       requestRender: () => this.ui?.requestRender(),
       setLastStreamingProgressTickMs: (ms) => {
         this.lastStreamingProgressTickMs = ms;
@@ -206,7 +216,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       resultSettledAtMs: this.resultSettledAtMs,
       isSingleSubagentView: this.isSingleSubagentView(),
       derivedSubagentPhase: this.getDerivedSubagentPhase(),
-      isStreamingEditPreview: this.isStreamingEditPreview(),
+      isStreamingEditPreview: isToolCallStreamingEditPreview(this.internalsHost()),
       subagentSpawnEntranceAtMs: this.subagent.spawnEntranceAtMs,
       subagentStartedAtMs: this.subagent.startedAtMs,
       subagentPhase: this.subagent.phase,
@@ -218,20 +228,20 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     const epoch = renderCacheEpoch();
     if (epoch < 0 || epoch === this.lastHeaderAnimationEpoch) return;
     this.lastHeaderAnimationEpoch = epoch;
-    this.headerText.setText(this.buildHeader());
+    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
   }
 
   override invalidate(): void {
     this.renderCache.clear();
-    this.headerText.setText(this.buildHeader());
-    this.rebuildBody();
+    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+    rebuildToolCallComponentBody(this.internalsHost());
     super.invalidate();
   }
 
   setExpanded(expanded: boolean): void {
     if (this.expanded === expanded) return;
     this.expanded = expanded;
-    this.rebuildBody();
+    rebuildToolCallComponentBody(this.internalsHost());
   }
 
   setDetail(detail: TranscriptDetailLevel): void {
@@ -241,7 +251,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.detailOverrideExpanded = false;
     if (detail === 'full') this.expanded = true;
     else if (wasFull) this.expanded = false;
-    this.rebuildBody();
+    rebuildToolCallComponentBody(this.internalsHost());
   }
 
   getDetail(): TranscriptDetailLevel {
@@ -250,7 +260,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
 
   toggleDetailOverride(): boolean {
     this.detailOverrideExpanded = !this.detailOverrideExpanded;
-    this.rebuildBody();
+    rebuildToolCallComponentBody(this.internalsHost());
     return this.isOneLineCollapsed;
   }
 
@@ -294,16 +304,16 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.liveOutput = '';
     this.detachHint.clearOnResult();
     this.subagent.finalizeElapsedIfNeeded(this.toolCall.name);
-    this.headerText.setText(this.buildHeader());
-    this.rebuildBody();
-    this.notifySnapshotChange();
+    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+    rebuildToolCallComponentBody(this.internalsHost());
+    this.internalsHost().onSnapshotChange?.();
   }
 
   updateToolCall(toolCall: ToolCallBlockData): void {
     this.toolCall = toolCall;
-    this.headerText.setText(this.buildHeader());
-    this.rebuildBody();
-    this.notifySnapshotChange();
+    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+    rebuildToolCallComponentBody(this.internalsHost());
+    this.internalsHost().onSnapshotChange?.();
     this.ui?.requestRender();
   }
 
@@ -315,8 +325,8 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     while (this.progressLines.length > ToolCallComponent.MAX_PROGRESS_LINES) {
       this.progressLines.shift();
     }
-    this.rebuildBody();
-    this.notifySnapshotChange();
+    rebuildToolCallComponentBody(this.internalsHost());
+    this.internalsHost().onSnapshotChange?.();
     this.ui?.requestRender();
   }
 
@@ -325,8 +335,8 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     const next = appendMainLiveOutputText(this.liveOutput, text, this.liveOutputTruncated);
     this.liveOutput = next.text;
     this.liveOutputTruncated = next.truncated;
-    this.rebuildContent();
-    this.notifySnapshotChange();
+    rebuildToolCallComponentContent(this.internalsHost());
+    this.internalsHost().onSnapshotChange?.();
     this.ui?.requestRender();
   }
 
@@ -346,7 +356,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       changed = true;
     }
     if (!changed) return;
-    this.rebuildBody();
+    rebuildToolCallComponentBody(this.internalsHost());
     this.ui?.requestRender();
   }
 
@@ -493,67 +503,13 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.renderCache.clear();
   }
 
-  private notifySnapshotChange(): void {
-    this.onSnapshotChange?.();
-  }
-
-  private isStreamingEditPreview(): boolean {
-    return (
-      this.toolCall.name === 'Edit' &&
-      this.result === undefined &&
-      this.toolCall.streamingArguments !== undefined
-    );
-  }
-
-  private refreshSubagentPresentation(requestRender = true): void {
-    this.headerText.setText(this.buildHeader());
-    this.rebuildContent();
-    this.notifySnapshotChange();
-    if (requestRender) this.ui?.requestRender();
-  }
-
-  private buildHeader(): string {
-    const header = this.composeHeader();
-    if (this.result === undefined) {
-      const startedAtMs = toolHeaderEntranceStartedAt(this.toolCall.id);
-      const entered = applyToolHeaderEntrance(header, startedAtMs);
-      const spawnAtMs = this.subagent.spawnEntranceAtMs;
-      if (spawnAtMs !== undefined && this.isSingleSubagentView()) {
-        return applyToolHeaderEntrance(entered, spawnAtMs);
-      }
-      return entered;
-    }
-    return header;
-  }
-
-  private composeHeader(): string {
-    return composeToolCallHeader(this.headerState());
-  }
-
-  private headerState(): ToolCallHeaderState {
+  private internalsHost(): import('./tool-call-internals').ToolCallInternalsHost {
+    const self = this;
     return {
       toolCall: this.toolCall,
       result: this.result,
       resultSettledAtMs: this.resultSettledAtMs,
       finishedAtMs: this.finishedAtMs,
-      workspaceDir: this.workspaceDir,
-      isSingleSubagentView: this.isSingleSubagentView(),
-      subagentAgentName: this.subagent.agentName,
-      subagentModelAlias: this.subagent.modelAlias,
-      derivedSubagentPhase: this.getDerivedSubagentPhase(),
-      subToolActivityCount: this.subagent.subToolActivities.size,
-      subagentElapsedSeconds: this.subagent.getElapsedSeconds(),
-      subagentContextTokens: this.subagent.contextTokens,
-      subagentUsage: this.subagent.usage,
-      subagentSpinnerFrame: this.subagent.spinnerFrame,
-    };
-  }
-
-  private bodyRebuildHost(): ToolCallBodyRebuildHost {
-    const self = this;
-    return {
-      toolCall: this.toolCall,
-      result: this.result,
       workspaceDir: this.workspaceDir,
       expanded: this.expanded,
       isOneLineCollapsed: this.isOneLineCollapsed,
@@ -564,29 +520,16 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       outputViewport: this.outputViewport,
       detachHint: this.detachHint,
       children: this.children,
-      get subagentBlockStartIndex() {
-        return self.subagentBlockStartIndex;
-      },
-      set subagentBlockStartIndex(value: number) {
-        self.subagentBlockStartIndex = value;
-      },
+      get subagentBlockStartIndex() { return self.subagentBlockStartIndex; },
+      set subagentBlockStartIndex(value: number) { self.subagentBlockStartIndex = value; },
       renderCache: this.renderCache,
       addChild: (child) => this.addChild(child),
+      headerText: this.headerText,
+      get onSnapshotChange() { return self.onSnapshotChange; },
+      ui: this.ui,
       isSingleSubagentView: () => this.isSingleSubagentView(),
       getDerivedSubagentPhase: () => this.getDerivedSubagentPhase(),
     };
-  }
-
-  private rebuildContent(): void {
-    rebuildToolCallContent(this.bodyRebuildHost());
-  }
-
-  private rebuildBody(): void {
-    rebuildToolCallBody(this.bodyRebuildHost());
-  }
-
-  private rebuildSubagentBlock(): void {
-    rebuildToolCallSubagentBlock(this.bodyRebuildHost());
   }
 
   private isSingleSubagentView(): boolean {
@@ -595,13 +538,5 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
 
   private getDerivedSubagentPhase(): SubagentPhase | undefined {
     return this.subagent.getDerivedPhase(this.result);
-  }
-
-  private buildCallPreview(): void {
-    this.callPreview.build(this);
-  }
-
-  private rebuildCallPreviewBlock(): void {
-    this.callPreview.rebuildBlock(this, this.children);
   }
 }
