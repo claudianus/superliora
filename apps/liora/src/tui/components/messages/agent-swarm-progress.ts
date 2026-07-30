@@ -1,28 +1,16 @@
 import { visibleWidth, type Component } from '#/tui/renderer';
-import chalk from 'chalk';
 
 import {
   AgentSwarmProgressEstimator,
-  type AgentSwarmProgressEstimatorPhase,
 } from '#/tui/components/messages/agent-swarm-progress-estimator';
 import type { TodoItem } from '#/tui/components/chrome/todo-panel';
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import { renderRoundedPanel } from '#/tui/utils/panel-frame';
-import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
 import {
-  ABORTED_LABEL,
-  CANCELLED_LABEL,
-  COMPLETE_FILL_MS,
-  cancelledLabelColor,
   collapseWhitespace,
   humanizeFeedBody,
   isAgentConversationChannel,
-  isCodeWriteToolActivity,
   isTerminalPhase,
-  normalizeFinalOutputText,
-  runningCellLabelText,
   summarizeSnapshots,
   swarmCollaborationFeedTag,
   ultraSwarmMemberLabel,
@@ -35,7 +23,6 @@ import {
   agentSwarmPartialResumeItemsFromArguments,
   agentSwarmPromptTemplateFromArgs,
   agentSwarmResumeItemsFromArgs,
-  normalizeFailureText,
   parseAgentSwarmResultStatuses,
   parseUltraSwarmIntegrationReport,
   swarmWorkItemsStartedFromArguments,
@@ -48,34 +35,54 @@ import {
   appendAgentSwarmConversationFeedEntry,
   appendAgentSwarmToolFeedEntry,
   rebuildAgentSwarmExpertSlotIndex,
-  renderAgentSwarmOpsFeedContent,
-  renderAgentSwarmOpsFeedSection,
-  renderAgentSwarmToolFeedSection,
-  type SwarmFeedRenderContext,
 } from '#/tui/utils/agent-swarm-feed-render';
-import { renderAgentSwarmGrid } from '#/tui/utils/agent-swarm-grid-render';
 import {
-  renderAgentSwarmStatusLine,
-  type SwarmStatusLineContext,
-} from '#/tui/utils/agent-swarm-status-line-render';
-import {
-  collectAgentSwarmEvidenceWallIds,
   collectAgentSwarmWarRoomHints,
-  indentAgentSwarmLines,
-  isAgentSwarmWarRoomActive,
-  renderAgentSwarmActionDockHint,
-  renderAgentSwarmChildActivitySection,
-  renderAgentSwarmDebateReelContent,
-  renderAgentSwarmEvidenceWallContent,
-  renderAgentSwarmFileMapContent,
-  renderAgentSwarmHeaderLines,
-  renderAgentSwarmIntegrationReportContent,
-  renderAgentSwarmMemberTodoSection,
-  renderAgentSwarmMissionContent,
-  type WarRoomActionDockState,
   type WarRoomDebateTurn,
   type WarRoomFileLease,
 } from '#/tui/utils/agent-swarm-header-render';
+import {
+  applyAgentSwarmMemberCancelled,
+  applyAgentSwarmMemberCompleted,
+  applyAgentSwarmMemberFailed,
+  createAgentSwarmMembers,
+  findAgentSwarmMemberByAgentId,
+  promoteAgentSwarmMemberToRunning,
+  resolveAgentSwarmMemberForSubagent,
+  TERMINAL_CLEAR_KEYS,
+  trackAgentSwarmMemberCodeWriteActivity,
+  updateAgentSwarmMemberItemTexts,
+  clearAgentSwarmMemberState,
+} from '#/tui/utils/agent-swarm-member-state';
+import {
+  indentAgentSwarmProgressLines,
+  renderAgentSwarmProgressLayout,
+  type AgentSwarmProgressLayoutRenderInput,
+} from '#/tui/utils/agent-swarm-progress-layout-render';
+import {
+  AGENT_SWARM_FRAME_INTERVAL_MS,
+  AGENT_SWARM_LEFT_INDENT,
+  AGENT_SWARM_MAX_LATEST_MODEL_CHARS,
+  AGENT_SWARM_RIGHT_GAP,
+  SWARM_OPS_FEED_MAX_ENTRIES,
+} from '#/tui/utils/agent-swarm-progress-constants';
+import {
+  buildAgentSwarmSnapshots,
+  hasAnimatedAgentSwarmMembers,
+  shouldRequestAgentSwarmAnimationFrame,
+  sortAgentSwarmMembersForGrid,
+} from '#/tui/utils/agent-swarm-snapshot';
+import {
+  isSwarmProgressToolName,
+  swarmProgressTitleForToolName,
+} from '#/tui/utils/agent-swarm-tool-ident';
+import {
+  buildCouncilDecisionFeedDraft,
+  buildSwarmPausedFeedDraft,
+  buildSwarmRestaffingFeedDraft,
+  trimAgentSwarmDebateReel,
+} from '#/tui/utils/agent-swarm-war-room-feed';
+import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
 
 export {
   agentSwarmPartialItemsCountFromArguments,
@@ -89,206 +96,33 @@ export {
   agentSwarmItemsFromArgs,
   agentSwarmPartialItemsFromArguments,
 };
+export type {
+  AgentSwarmActionDockRequest,
+  AgentSwarmMember,
+  AgentSwarmPauseRequest,
+  AgentSwarmProgressOptions,
+  AgentSwarmRestaffRequest,
+  AgentSwarmSnapshot,
+  AgentSwarmSummary,
+  SwarmCollaborationFeedMessage,
+  SwarmOpsFeedEntry,
+  SwarmOpsFeedTag,
+  TotalStatus,
+  UltraSwarmMemberMetadata,
+  WarRoomDebatePhase,
+} from '#/tui/utils/agent-swarm-progress-types';
+export { isSwarmProgressToolName, swarmProgressTitleForToolName };
 
-const FRAME_INTERVAL_MS = 80;
-const MAX_LATEST_MODEL_CHARS = 2_000;
-const AGENT_SWARM_LEFT_INDENT = ' ';
-const AGENT_SWARM_RIGHT_GAP = 1;
-const SWARM_OPS_FEED_MAX_ENTRIES = 48;
-const SWARM_OPS_FEED_RENDER_LINES = 8;
-const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
-/** War room debate reel cap before eviction (rendered slice is smaller; see agent-swarm-header-render). */
-const WAR_ROOM_DEBATE_REEL_MAX = 4;
-
-type AgentSwarmPhase = AgentSwarmProgressEstimatorPhase;
-export type TotalStatus = 'working' | 'completed' | 'suspended' | 'failed' | 'aborted';
-type ClearableMemberKey =
-  | 'completedAtMs'
-  | 'completedText'
-  | 'failedAtMs'
-  | 'failureText'
-  | 'cancelledLabelText'
-  | 'cancelledLabelColor'
-  | 'cancelledMarkColor'
-  | 'cancelledBarColor'
-  | 'suspendedReason'
-  | 'activeToolName'
-  | 'codeWriteAtMs'
-  | 'retryNote';
-
-const COMPLETED_CLEAR_KEYS = [
-  'failedAtMs',
-  'failureText',
-  'cancelledLabelText',
-  'cancelledLabelColor',
-  'cancelledMarkColor',
-  'cancelledBarColor',
-  'suspendedReason',
-  'activeToolName',
-  'codeWriteAtMs',
-  'retryNote',
-] as const satisfies readonly ClearableMemberKey[];
-const FAILED_CLEAR_KEYS = [
-  'completedAtMs',
-  'completedText',
-  'cancelledLabelText',
-  'cancelledLabelColor',
-  'cancelledMarkColor',
-  'cancelledBarColor',
-  'suspendedReason',
-  'activeToolName',
-  'codeWriteAtMs',
-] as const satisfies readonly ClearableMemberKey[];
-const TERMINAL_CLEAR_KEYS = [
-  'completedAtMs',
-  'completedText',
-  'failedAtMs',
-  'failureText',
-  'cancelledLabelText',
-  'cancelledLabelColor',
-  'cancelledMarkColor',
-  'cancelledBarColor',
-  'suspendedReason',
-  'activeToolName',
-  'codeWriteAtMs',
-  'retryNote',
-] as const satisfies readonly ClearableMemberKey[];
-const CANCELLED_CLEAR_KEYS = [
-  'completedAtMs',
-  'completedText',
-  'failedAtMs',
-  'failureText',
-  'suspendedReason',
-  'activeToolName',
-  'codeWriteAtMs',
-  'retryNote',
-] as const satisfies readonly ClearableMemberKey[];
-
-export interface UltraSwarmMemberMetadata {
-  readonly expertId: string;
-  readonly name: string;
-  readonly division?: string;
-  readonly emoji?: string;
-  readonly coverageLane?: string;
-  readonly selectionReason?: string;
-  readonly focus?: string;
-  readonly dependsOn?: readonly string[];
-  readonly taskIds?: readonly string[];
-}
-
-export type SwarmOpsFeedTag =
-  | 'staff'
-  | 'join'
-  | 'live'
-  | 'tool'
-  | 'pulse'
-  | 'done'
-  | 'fail'
-  | 'wait'
-  | 'stop'
-  | 'msg'
-  | 'mention'
-  | 'block'
-  | 'standup'
-  | 'council';
-
-export interface SwarmCollaborationFeedMessage {
-  readonly id?: string;
-  readonly from: { readonly expertId?: string; readonly name: string; readonly emoji?: string };
-  readonly to?: { readonly expertId: string };
-  readonly channel: 'standup' | 'lane' | 'direct' | 'blocker' | 'council';
-  readonly body: string;
-}
-
-export interface SwarmOpsFeedEntry {
-  readonly atMs: number;
-  readonly tag: SwarmOpsFeedTag;
-  readonly messageId?: string;
-  readonly fromExpertId?: string;
-  readonly fromName?: string;
-  readonly fromEmoji?: string;
-  readonly toExpertId?: string;
-  /** Humanized (or plain) body shown by default. */
-  readonly body: string;
-  /** Original protocol/raw body when humanization rewrote the message. */
-  readonly rawBody?: string;
-}
-
-/** Host-facing action dock request kinds. */
-export type AgentSwarmActionDockRequest = 'pause' | 'restaff' | 'raw';
-
-export interface AgentSwarmRestaffRequest {
-  readonly reason?: string;
-  readonly phase?: string;
-}
-
-export interface AgentSwarmPauseRequest {
-  readonly reason?: string;
-  readonly phase?: string;
-}
-
-export type WarRoomDebatePhase = 'critic' | 'rebuttal' | 'counter-critique' | 'consensus' | 'steer';
-
-export interface AgentSwarmMember {
-  readonly id: string;
-  agentId?: string;
-  phase: AgentSwarmPhase;
-  ticks: number;
-  itemText: string;
-  latestModelText: string;
-  modelAlias?: string;
-  activeToolName?: string;
-  ultraSwarm?: UltraSwarmMemberMetadata;
-  verdict?: string;
-  evidenceIds?: readonly string[];
-  completedText?: string;
-  failureText?: string;
-  cancelledLabelText?: string;
-  cancelledLabelColor?: string;
-  cancelledMarkColor?: string;
-  cancelledBarColor?: string;
-  suspendedReason?: string;
-  completedAtMs?: number;
-  failedAtMs?: number;
-  /** First moment the member entered running; drives the per-cell elapsed badge. */
-  startedAtMs?: number;
-  /** Last moment a Write/Edit tool started in this lane; drives the ✎ code-write pulse. */
-  codeWriteAtMs?: number;
-  /** Optional dim note after failure text (retry attempt / model fallback). */
-  retryNote?: string;
-  todos: TodoItem[];
-}
-
-export interface AgentSwarmSnapshot {
-  readonly phase: AgentSwarmPhase;
-  readonly ticks: number;
-  readonly latestModelText: string;
-  readonly phaseElapsedMs: number;
-}
-
-export interface AgentSwarmSummary {
-  readonly active: number;
-  readonly completed: number;
-  readonly failed: number;
-  readonly cancelled: number;
-}
-
-export interface AgentSwarmProgressOptions {
-  readonly description: string;
-  readonly title?: string | undefined;
-  readonly requestRender?: () => void;
-  readonly availableGridHeight?: () => number | undefined;
-  /**
-   * Host callback when the war-room action dock requests a pause.
-   * Wire to session `pauseUltrawork` / `swarmSteer` as available.
-   */
-  readonly onRequestPause?: (request: AgentSwarmPauseRequest) => void;
-  /**
-   * Host callback when the war-room action dock requests restaff.
-   * Parent may emit collaboration/steer or invoke UltraSwarm restaff path.
-   */
-  readonly onRequestRestaff?: (request: AgentSwarmRestaffRequest) => void;
-}
+import type {
+  AgentSwarmMember,
+  AgentSwarmPauseRequest,
+  AgentSwarmProgressOptions,
+  AgentSwarmRestaffRequest,
+  SwarmCollaborationFeedMessage,
+  SwarmOpsFeedEntry,
+  SwarmOpsFeedTag,
+  UltraSwarmMemberMetadata,
+} from '#/tui/utils/agent-swarm-progress-types';
 
 export class AgentSwarmProgressComponent implements Component {
   private members: AgentSwarmMember[];
@@ -414,7 +248,7 @@ export class AgentSwarmProgressComponent implements Component {
 
     const itemCount = Math.max(fullRows.length, partialRows.length);
     if (itemCount > 0) this.ensureMemberCount(itemCount);
-    this.updateItemTexts(fullRows, partialRows);
+    updateAgentSwarmMemberItemTexts(this.members, fullRows, partialRows);
   }
 
   applyUltraSwarmTeam(members: readonly UltraSwarmMemberMetadata[]): void {
@@ -444,38 +278,17 @@ export class AgentSwarmProgressComponent implements Component {
     readonly reason?: string;
   }): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const body = input.reason === undefined || input.reason.trim().length === 0
-      ? `council ${input.decision}`
-      : `council ${input.decision} · ${input.reason}`;
-    this.appendConversationFeed({
-      tag: 'council',
-      fromExpertId: 'council',
-      fromName: 'Council',
-      fromEmoji: '⚑',
-      body,
-    });
+    this.appendConversationFeed(buildCouncilDecisionFeedDraft(input));
     this.requestRender?.();
   }
 
   applySwarmPaused(input: { readonly reason: string; readonly phase?: string }): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
+    const paused = buildSwarmPausedFeedDraft(input);
     this.swarmPaused = true;
-    this.swarmPausedReason = collapseWhitespace(input.reason);
-    this.swarmPausedPhase = input.phase === undefined ? undefined : collapseWhitespace(input.phase);
-    const phase = this.swarmPausedPhase === undefined || this.swarmPausedPhase.length === 0
-      ? ''
-      : ` @ ${this.swarmPausedPhase}`;
-    const reason =
-      this.swarmPausedReason === undefined || this.swarmPausedReason.length === 0
-        ? 'steering'
-        : this.swarmPausedReason;
-    this.appendConversationFeed({
-      tag: 'stop',
-      fromExpertId: 'orchestrator',
-      fromName: 'Orchestrator',
-      fromEmoji: '⏸',
-      body: `paused for steering${phase} · ${reason}`,
-    });
+    this.swarmPausedReason = paused.pausedReason;
+    this.swarmPausedPhase = paused.pausedPhase;
+    this.appendConversationFeed(paused.feed);
     this.requestRender?.();
   }
 
@@ -503,17 +316,7 @@ export class AgentSwarmProgressComponent implements Component {
     this.restaffingReason =
       input.reason === undefined ? undefined : collapseWhitespace(input.reason);
     if (input.active) {
-      const reason =
-        this.restaffingReason === undefined || this.restaffingReason.length === 0
-          ? 'closing gaps'
-          : this.restaffingReason;
-      this.appendConversationFeed({
-        tag: 'staff',
-        fromExpertId: 'orchestrator',
-        fromName: 'Orchestrator',
-        fromEmoji: '↻',
-        body: `restaffing · ${reason}`,
-      });
+      this.appendConversationFeed(buildSwarmRestaffingFeedDraft(this.restaffingReason));
     }
     this.requestRender?.();
   }
@@ -708,7 +511,12 @@ export class AgentSwarmProgressComponent implements Component {
     readonly description?: string | undefined;
     readonly modelAlias?: string | undefined;
   }): void {
-    const member = this.findMemberForSubagent(input.agentId, input.swarmIndex);
+    const member = resolveAgentSwarmMemberForSubagent(
+      () => this.members,
+      input.agentId,
+      input.swarmIndex,
+      (count) => this.ensureMemberCount(count),
+    );
     if (member === undefined) return;
     member.agentId = input.agentId;
     if (input.modelAlias !== undefined) {
@@ -720,7 +528,7 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   markStarted(agentId: string): void {
-    const member = this.findMemberByAgentId(agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, agentId);
     if (member === undefined) return;
     const nowMs = Date.now();
     this.progressEstimator.markStarted(member.id, nowMs);
@@ -731,7 +539,7 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   applyMemberTodos(agentId: string, todos: readonly TodoItem[]): void {
-    const member = this.findMemberByAgentId(agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, agentId);
     if (member === undefined) return;
     member.todos = todos.map((todo) => ({ title: todo.title, status: todo.status }));
     this.startAnimationIfNeeded();
@@ -743,7 +551,7 @@ export class AgentSwarmProgressComponent implements Component {
     readonly toolName?: string;
     readonly toolDescription?: string;
   }): void {
-    const member = this.findMemberByAgentId(input.agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, input.agentId);
     if (member === undefined) return;
     const result = this.progressEstimator.recordToolCall({
       memberKey: member.id,
@@ -772,13 +580,13 @@ export class AgentSwarmProgressComponent implements Component {
     readonly isError?: boolean;
     readonly summary?: string;
   }): void {
-    const member = this.findMemberByAgentId(input.agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, input.agentId);
     if (member === undefined) return;
     delete member.activeToolName;
     member.ticks += 1;
     if (input.summary !== undefined && input.summary.length > 0) {
       const prefix = input.isError === true ? '⚠ ' : '';
-      const line = `${prefix}${input.summary}`.slice(0, MAX_LATEST_MODEL_CHARS);
+      const line = `${prefix}${input.summary}`.slice(0, AGENT_SWARM_MAX_LATEST_MODEL_CHARS);
       member.latestModelText = line;
     }
     this.promoteToRunning(member);
@@ -803,9 +611,9 @@ export class AgentSwarmProgressComponent implements Component {
     readonly toolName?: string;
   }): void {
     if (!this.isUltraSwarmOpsFeedEnabled()) return;
-    const member = this.findMemberByAgentId(input.agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, input.agentId);
     if (member === undefined) return;
-    this.trackMemberCodeWriteActivity(member, input);
+    trackAgentSwarmMemberCodeWriteActivity(member, input, Date.now());
     this.appendToolFeed({
       tag: input.isError === true ? 'fail' : 'tool',
       fromExpertId: member.ultraSwarm?.expertId ?? member.agentId,
@@ -816,42 +624,21 @@ export class AgentSwarmProgressComponent implements Component {
     this.requestRender?.();
   }
 
-  /**
-   * Phase 5-A parallel write visibility: timestamp the member's latest
-   * code-writing tool so the grid cell can pulse ✎ while writes are in
-   * flight. Non-write tools and error results clear the mark immediately;
-   * the renderer expires it after CODE_WRITE_QUIET_MS of quiet.
-   */
-  private trackMemberCodeWriteActivity(
-    member: AgentSwarmMember,
-    input: {
-      readonly body: string;
-      readonly isError?: boolean;
-      readonly toolName?: string;
-    },
-  ): void {
-    if (input.isError !== true && isCodeWriteToolActivity(input.toolName, input.body)) {
-      member.codeWriteAtMs = Date.now();
-    } else {
-      delete member.codeWriteAtMs;
-    }
-  }
-
   appendModelDelta(input: {
     readonly agentId: string;
     readonly delta: string;
   }): void {
-    const member = this.findMemberByAgentId(input.agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, input.agentId);
     if (member === undefined || input.delta.length === 0) return;
     delete member.activeToolName;
     member.latestModelText = `${member.latestModelText}${input.delta}`.slice(
-      -MAX_LATEST_MODEL_CHARS,
+      -AGENT_SWARM_MAX_LATEST_MODEL_CHARS,
     );
     this.promoteToRunning(member, Date.now(), true);
   }
 
   markCompleted(agentId: string, completedText?: string): void {
-    const member = this.findMemberByAgentId(agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, agentId);
     if (member === undefined || member.phase === 'failed' || member.phase === 'cancelled') return;
     const nowMs = Date.now();
     this.completeMember(member, nowMs, completedText);
@@ -864,13 +651,18 @@ export class AgentSwarmProgressComponent implements Component {
     readonly swarmIndex?: number;
     readonly description?: string | undefined;
   }): void {
-    const member = this.findMemberByAgentId(input.agentId) ??
-      this.findMemberForSubagent(input.agentId, input.swarmIndex);
+    const member = findAgentSwarmMemberByAgentId(this.members, input.agentId) ??
+      resolveAgentSwarmMemberForSubagent(
+        () => this.members,
+        input.agentId,
+        input.swarmIndex,
+        (count) => this.ensureMemberCount(count),
+      );
     if (member === undefined || member.phase === 'completed' || member.phase === 'cancelled') return;
     member.agentId = input.agentId;
     this.progressEstimator.markQueued(member.id, Date.now());
     member.phase = 'suspended';
-    clearMemberState(member, ...TERMINAL_CLEAR_KEYS);
+    clearAgentSwarmMemberState(member, ...TERMINAL_CLEAR_KEYS);
     this.startAnimationIfNeeded();
   }
 
@@ -879,7 +671,7 @@ export class AgentSwarmProgressComponent implements Component {
     failureText?: string,
     meta?: { readonly retryNote?: string | undefined },
   ): void {
-    const member = this.findMemberByAgentId(agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, agentId);
     if (member === undefined) return;
     const nowMs = Date.now();
     this.failMember(member, nowMs, failureText, meta?.retryNote);
@@ -898,7 +690,7 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   markCancelled(agentId: string): void {
-    const member = this.findMemberByAgentId(agentId);
+    const member = findAgentSwarmMemberByAgentId(this.members, agentId);
     if (member === undefined) return;
     this.cancelMember(member, Date.now());
   }
@@ -958,180 +750,55 @@ export class AgentSwarmProgressComponent implements Component {
       outerWidth - visibleWidth(AGENT_SWARM_LEFT_INDENT) - AGENT_SWARM_RIGHT_GAP,
     );
     const nowMs = Date.now();
-    const snapshots = this.members.map((member): AgentSwarmSnapshot => ({
-      phase: member.phase,
-      ticks: member.ticks,
-      latestModelText: member.latestModelText,
-      phaseElapsedMs: terminalPhaseElapsedMs(member, nowMs),
-    }));
+    const snapshots = buildAgentSwarmSnapshots(this.members, nowMs);
     const summary = summarizeSnapshots(snapshots);
-    // Sort grid: running first, then completed, then pending
-    const sortedMembers = [...this.members].sort((a, b) => {
-      const order = (p: AgentSwarmPhase): number => {
-        if (p === 'running') return 0;
-        if (p === 'completed') return 1;
-        return 2;
-      };
-      return order(a.phase) - order(b.phase);
-    });
-    const sortedSnapshots = sortedMembers.map((member): AgentSwarmSnapshot => ({
-      phase: member.phase,
-      ticks: member.ticks,
-      latestModelText: member.latestModelText,
-      phaseElapsedMs: terminalPhaseElapsedMs(member, nowMs),
-    }));
-    const lines = this.members.length === 0
-      ? this.renderEmptyLayout(innerWidth, summary)
-      : this.isUltraSwarmOpsFeedEnabled()
-        ? this.renderUltraSwarmLayout(innerWidth, summary, sortedMembers, sortedSnapshots, nowMs)
-        : [
-            '',
-            ...this.renderIntegratedDashboard(innerWidth, summary),
-            '',
-            ...this.renderGrid(
-              innerWidth,
-              this.availableGridHeight?.(),
-              sortedMembers,
-              sortedSnapshots,
-              nowMs,
-            ),
-            ...this.renderChildActivitySection(innerWidth),
-            ...this.renderMemberTodoSection(innerWidth),
-            ...this.renderOpsFeed(innerWidth),
-            '',
-            '',
-          ];
+    const sortedMembers = sortAgentSwarmMembersForGrid(this.members);
+    const sortedSnapshots = buildAgentSwarmSnapshots(sortedMembers, nowMs);
+    const lines = renderAgentSwarmProgressLayout(
+      this.layoutRenderInput(),
+      innerWidth,
+      summary,
+      sortedMembers,
+      sortedSnapshots,
+      nowMs,
+    );
     this.startAnimationIfNeeded();
-    return this.indentLines(lines, outerWidth);
+    return indentAgentSwarmProgressLines(lines, outerWidth);
   }
 
-  private renderEmptyLayout(width: number, summary: AgentSwarmSummary): string[] {
-    if (this.isUltraSwarmOpsFeedEnabled()) {
-      return this.renderUltraSwarmLayout(width, summary, [], [], Date.now());
-    }
-    return [
-      '',
-      ...this.renderHeaderLines(width, undefined),
-      '',
-      this.renderStatusLine(width),
-      '',
-    ];
-  }
-
-  private renderUltraSwarmLayout(
-    width: number,
-    summary: AgentSwarmSummary,
-    members: readonly AgentSwarmMember[],
-    snapshots: readonly AgentSwarmSnapshot[],
-    nowMs: number,
-  ): string[] {
-    const profile = resolveResponsiveLayout({ width });
-    const missionContent = this.renderMissionContent(width, summary);
-    const teamContent = this.renderGrid(width, this.availableGridHeight?.(), members, snapshots, nowMs);
-    const feedLimit = profile === 'tiny' ? SWARM_OPS_FEED_RENDER_LINES_TINY : SWARM_OPS_FEED_RENDER_LINES;
-    const feedContent = this.renderOpsFeedContent(width, feedLimit);
-    const reportContent = this.renderIntegrationReportContent(width);
-    const debateContent = this.renderDebateReelContent(width, profile);
-    const evidenceContent = this.renderEvidenceWallContent(width);
-    const fileMapContent = this.renderFileMapContent(width);
-    const actionDock = this.renderActionDockHint(width);
-    const statusFooter = ['', this.renderStatusLine(width), ''];
-
-    const teamBody = teamContent.length > 0
-      ? teamContent
-      : [chalk.hex(this.colors.textDim)('awaiting agents…')];
-    const activityContent = this.renderChildActivitySection(width);
-    const feedHeader = chalk.hex(this.colors.textDim)('war room · team feed');
-    const panelContent = [
-      ...missionContent,
-      '',
-      ...teamBody,
-      ...(activityContent.length > 0 ? ['', ...activityContent] : []),
-      ...(reportContent.length > 0 ? ['', ...reportContent] : []),
-      ...(debateContent.length > 0 ? ['', ...debateContent] : []),
-      ...(evidenceContent.length > 0 ? ['', ...evidenceContent] : []),
-      ...(fileMapContent.length > 0 ? ['', ...fileMapContent] : []),
-      '',
-      feedHeader,
-      ...feedContent,
-      ...this.renderToolFeed(width),
-      ...(actionDock.length > 0 ? ['', ...actionDock] : []),
-    ];
-
-    if (profile === 'tiny') {
-      return ['', ...panelContent, ...statusFooter];
-    }
-
-    return [
-      '',
-      ...renderRoundedPanel({
-        title: ' UltraSwarm ',
-        content: panelContent,
-        width,
-        borderToken: 'primary',
-        minBoxWidth: 60,
-      }),
-      ...statusFooter,
-    ];
-  }
-
-  private renderMissionContent(width: number, summary: AgentSwarmSummary | undefined): string[] {
-    return renderAgentSwarmMissionContent(width, {
+  private layoutRenderInput(): AgentSwarmProgressLayoutRenderInput {
+    return {
       title: this.title,
       description: this.description,
       routingBadge: this.routingBadge,
-      summary,
-      members: this.members,
       colors: this.colors,
-    });
-  }
-
-  private renderIntegrationReportContent(width: number): string[] {
-    return renderAgentSwarmIntegrationReportContent(width, this.integrationReport, this.colors);
-  }
-
-  private renderDebateReelContent(
-    width: number,
-    profile: ReturnType<typeof resolveResponsiveLayout>,
-  ): string[] {
-    return renderAgentSwarmDebateReelContent(width, profile, this.debateReel, this.colors);
-  }
-
-  private renderEvidenceWallContent(width: number): string[] {
-    const ids = collectAgentSwarmEvidenceWallIds(this.members, this.feedEvidenceIds, this.feedPathHints);
-    return renderAgentSwarmEvidenceWallContent(width, ids, this.colors);
-  }
-
-  private renderFileMapContent(width: number): string[] {
-    if (!this.isUltraSwarmOpsFeedEnabled()) return [];
-    return renderAgentSwarmFileMapContent(width, this.fileLeases, this.colors, this.isWarRoomActive());
-  }
-
-  private renderActionDockHint(width: number): string[] {
-    if (!this.isUltraSwarmOpsFeedEnabled()) return [];
-    return renderAgentSwarmActionDockHint(width, this.actionDockState(), this.colors);
-  }
-
-  private actionDockState(): WarRoomActionDockState {
-    return {
+      members: this.members,
+      integrationReport: this.integrationReport,
+      debateReel: this.debateReel,
+      feedEvidenceIds: this.feedEvidenceIds,
+      feedPathHints: this.feedPathHints,
+      fileLeases: this.fileLeases,
+      opsFeed: this.opsFeed,
+      opsToolFeed: this.opsToolFeed,
+      showRawFeed: this.showRawFeed,
+      expertSlotById: this.expertSlotById,
+      failed: this.failed,
+      aborted: this.aborted,
+      toolCallActive: this.toolCallActive,
+      activitySpinnerText: this.activitySpinnerText,
+      swarmStartedAtMs: this.swarmStartedAtMs,
+      inputComplete: this.inputComplete,
+      itemsStarted: this.itemsStarted,
+      promptTemplateText: this.promptTemplateText,
       swarmPaused: this.swarmPaused,
       swarmPausedReason: this.swarmPausedReason,
       swarmPausedPhase: this.swarmPausedPhase,
       restaffing: this.restaffing,
       restaffingReason: this.restaffingReason,
-      showRawFeed: this.showRawFeed,
+      isUltraSwarm: this.isUltraSwarmOpsFeedEnabled(),
+      availableGridHeight: this.availableGridHeight?.(),
+      progressEstimator: this.progressEstimator,
     };
-  }
-
-  private isWarRoomActive(): boolean {
-    return isAgentSwarmWarRoomActive({
-      members: this.members,
-      opsFeedLength: this.opsFeed.length,
-      opsToolFeedLength: this.opsToolFeed.length,
-      debateReelLength: this.debateReel.length,
-      fileLeaseCount: this.fileLeases.size,
-      itemsStarted: this.itemsStarted,
-    });
   }
 
   private collectWarRoomHintsFromText(text: string): void {
@@ -1142,65 +809,7 @@ export class AgentSwarmProgressComponent implements Component {
 
   private pushDebateReelTurn(turn: WarRoomDebateTurn): void {
     this.debateReel.push(turn);
-    const maxStored = WAR_ROOM_DEBATE_REEL_MAX * 4;
-    if (this.debateReel.length > maxStored) {
-      this.debateReel.splice(0, this.debateReel.length - maxStored);
-    }
-  }
-
-  private indentLines(lines: readonly string[], width: number): string[] {
-    return indentAgentSwarmLines(lines, width, AGENT_SWARM_LEFT_INDENT, AGENT_SWARM_RIGHT_GAP);
-  }
-
-  private renderHeaderLines(width: number, _summary: AgentSwarmSummary | undefined): string[] {
-    return renderAgentSwarmHeaderLines(width, this.title, this.description, this.colors);
-  }
-
-  private renderIntegratedDashboard(
-    width: number,
-    summary: AgentSwarmSummary | undefined,
-  ): string[] {
-    const headerLines = this.renderHeaderLines(width, summary);
-    const statusLine = this.renderStatusLine(width);
-    return [...headerLines, '', statusLine];
-  }
-
-  private renderMemberTodoSection(width: number): string[] {
-    return renderAgentSwarmMemberTodoSection(width, this.members, this.colors);
-  }
-
-  private feedRenderContext(): SwarmFeedRenderContext {
-    return {
-      colors: this.colors,
-      showRawFeed: this.showRawFeed,
-      expertSlotById: this.expertSlotById,
-      members: this.members,
-    };
-  }
-
-  private renderOpsFeed(width: number): string[] {
-    if (!this.isUltraSwarmOpsFeedEnabled()) return [];
-    return renderAgentSwarmOpsFeedSection(width, this.opsFeed, this.feedRenderContext());
-  }
-
-  private renderToolFeed(width: number): string[] {
-    if (!this.isUltraSwarmOpsFeedEnabled()) return [];
-    return renderAgentSwarmToolFeedSection(width, this.opsToolFeed, this.feedRenderContext());
-  }
-
-  private renderOpsFeedContent(
-    width: number,
-    maxLines: number,
-    indent = false,
-  ): string[] {
-    return renderAgentSwarmOpsFeedContent(
-      this.opsFeed,
-      width,
-      maxLines,
-      indent,
-      resolveResponsiveLayout({ width }),
-      this.feedRenderContext(),
-    );
+    trimAgentSwarmDebateReel(this.debateReel);
   }
 
   private rebuildExpertSlotIndex(): void {
@@ -1247,89 +856,17 @@ export class AgentSwarmProgressComponent implements Component {
     });
   }
 
-  private renderStatusLine(width: number): string {
-    const context: SwarmStatusLineContext = {
-      members: this.members,
-      failed: this.failed,
-      aborted: this.aborted,
-      toolCallActive: this.toolCallActive,
-      activitySpinnerText: this.activitySpinnerText,
-      swarmStartedAtMs: this.swarmStartedAtMs,
-      inputComplete: this.inputComplete,
-      itemsStarted: this.itemsStarted,
-      promptTemplateText: this.promptTemplateText,
-      colors: this.colors,
-    };
-    return renderAgentSwarmStatusLine(width, context);
-  }
-
-  private renderGrid(
-    width: number,
-    height: number | undefined,
-    members: readonly AgentSwarmMember[],
-    snapshots: readonly AgentSwarmSnapshot[],
-    nowMs: number,
-  ): string[] {
-    return renderAgentSwarmGrid({
-      width,
-      height,
-      members,
-      snapshots,
-      nowMs,
-      colors: this.colors,
-      estimate: (input) => this.progressEstimator.estimate(input),
-    });
-  }
-
-  private renderChildActivitySection(width: number): string[] {
-    return renderAgentSwarmChildActivitySection(width, this.members, this.colors);
-  }
-
-  private findMemberForSubagent(
-    agentId: string,
-    swarmIndex: number | undefined,
-  ): AgentSwarmMember | undefined {
-    const existing = this.findMemberByAgentId(agentId);
-    if (existing !== undefined) return existing;
-
-    if (swarmIndex !== undefined && Number.isInteger(swarmIndex) && swarmIndex > 0) {
-      this.ensureMemberCount(swarmIndex);
-      const byIndex = this.members[swarmIndex - 1];
-      if (byIndex !== undefined) return byIndex;
-    }
-
-    const unassigned = this.members.find((member) => member.agentId === undefined);
-    if (unassigned !== undefined) return unassigned;
-
-    this.ensureMemberCount(this.members.length + 1);
-    return this.members.at(-1);
-  }
-
-  private findMemberByAgentId(agentId: string): AgentSwarmMember | undefined {
-    return this.members.find((member) => member.agentId === agentId);
-  }
-
   private ensureMemberCount(count: number): void {
     if (count <= this.members.length) return;
     const previousLength = this.members.length;
     this.members = [
       ...this.members,
-      ...createMembers(count, this.inputComplete ? 'queued' : 'pending').slice(this.members.length),
+      ...createAgentSwarmMembers(count, this.inputComplete ? 'queued' : 'pending').slice(this.members.length),
     ];
     const nowMs = Date.now();
     for (let index = previousLength; index < this.members.length; index += 1) {
       const member = this.members[index];
       if (member !== undefined) this.progressEstimator.ensureMember(member.id, nowMs);
-    }
-  }
-
-  private updateItemTexts(fullItems: readonly string[], partialItems: readonly string[]): void {
-    const count = Math.max(fullItems.length, partialItems.length, this.members.length);
-    for (let index = 0; index < count; index += 1) {
-      const member = this.members[index];
-      if (member === undefined) continue;
-      const itemText = fullItems[index] ?? partialItems[index];
-      if (itemText !== undefined) member.itemText = itemText;
     }
   }
 
@@ -1346,46 +883,33 @@ export class AgentSwarmProgressComponent implements Component {
    */
   private tickClockDrivenAnimation(): void {
     if (this.requestRender === undefined) return;
-    if (!this.hasAnimatedMembers()) {
+    const now = Date.now();
+    const hasAnimatedMembers = hasAnimatedAgentSwarmMembers(
+      this.members,
+      now,
+      this.progressEstimator.hasPendingCatchup(),
+    );
+    if (!hasAnimatedMembers) {
       this.lastFrameTickMs = 0;
       return;
     }
-    const now = Date.now();
-    if (this.lastFrameTickMs !== 0 && now - this.lastFrameTickMs < FRAME_INTERVAL_MS) return;
+    if (!shouldRequestAgentSwarmAnimationFrame(
+      this.lastFrameTickMs,
+      now,
+      AGENT_SWARM_FRAME_INTERVAL_MS,
+      hasAnimatedMembers,
+    )) return;
     this.lastFrameTickMs = now;
     this.requestRender();
   }
 
-  private hasAnimatedMembers(): boolean {
-    const now = Date.now();
-    return (
-      this.progressEstimator.hasPendingCatchup() ||
-      this.members.some((member) =>
-        (
-          member.phase === 'completed' &&
-          member.completedAtMs !== undefined &&
-          now - member.completedAtMs < COMPLETE_FILL_MS
-        ) ||
-        (
-          member.phase === 'failed' &&
-          member.failedAtMs !== undefined &&
-          now - member.failedAtMs < COMPLETE_FILL_MS
-        ),
-      )
-    );
-  }
-
   private promoteToRunning(member: AgentSwarmMember, nowMs?: number, setTicks = false): void {
-    if (member.phase === 'pending' || member.phase === 'queued' || member.phase === 'suspended') {
-      member.phase = 'running';
-      member.startedAtMs ??= nowMs ?? Date.now();
-      if (nowMs !== undefined) {
-        this.ensureSwarmStartedAt(nowMs);
-        this.progressEstimator.markStarted(member.id, nowMs);
-      }
-      if (setTicks) member.ticks = Math.max(member.ticks, 1);
-    }
-    delete member.suspendedReason;
+    promoteAgentSwarmMemberToRunning(member, {
+      nowMs,
+      setTicks,
+      onStarted: (memberId, startedAtMs) => this.progressEstimator.markStarted(memberId, startedAtMs),
+      onSwarmStarted: (startedAtMs) => this.ensureSwarmStartedAt(startedAtMs),
+    });
   }
 
   private ensureSwarmStartedAt(nowMs: number): void {
@@ -1393,14 +917,9 @@ export class AgentSwarmProgressComponent implements Component {
   }
 
   private completeMember(member: AgentSwarmMember, nowMs: number, completedText?: string): void {
-    if (member.phase !== 'completed') {
+    applyAgentSwarmMemberCompleted(member, nowMs, completedText, () => {
       this.progressEstimator.markCompleted(member.id, nowMs);
-      member.completedAtMs = nowMs;
-    }
-    const normalizedCompletedText = normalizeFinalOutputText(completedText);
-    if (normalizedCompletedText !== undefined) member.completedText = normalizedCompletedText;
-    member.phase = 'completed';
-    clearMemberState(member, ...COMPLETED_CLEAR_KEYS);
+    });
   }
 
   private failMember(
@@ -1409,70 +928,14 @@ export class AgentSwarmProgressComponent implements Component {
     failureText?: string,
     retryNote?: string,
   ): void {
-    if (member.phase !== 'failed') {
+    applyAgentSwarmMemberFailed(member, nowMs, failureText, () => {
       this.progressEstimator.markFailed(member.id, nowMs);
-      member.failedAtMs = nowMs;
-    }
-    const normalizedFailureText = normalizeFailureText(failureText);
-    if (normalizedFailureText !== undefined) member.failureText = normalizedFailureText;
-    const normalizedRetryNote = normalizeFailureText(retryNote);
-    if (normalizedRetryNote !== undefined) member.retryNote = normalizedRetryNote;
-    member.phase = 'failed';
-    clearMemberState(member, ...FAILED_CLEAR_KEYS);
+    }, retryNote);
   }
 
   private cancelMember(member: AgentSwarmMember, nowMs: number): void {
-    const previousPhase = member.phase;
-    this.progressEstimator.markCancelled(member.id, nowMs);
-    member.phase = 'cancelled';
-    clearMemberState(member, ...CANCELLED_CLEAR_KEYS);
-    if (previousPhase === 'pending' || previousPhase === 'queued' || previousPhase === 'suspended') {
-      member.cancelledLabelText = CANCELLED_LABEL;
-      member.cancelledLabelColor = cancelledLabelColor(this.colors);
-      member.cancelledMarkColor = this.colors.warning;
-      member.cancelledBarColor = this.colors.warning;
-    } else if (previousPhase === 'running') {
-      member.cancelledLabelText = runningCellLabelText(member);
-      member.cancelledLabelColor = cancelledLabelColor(this.colors);
-      member.cancelledMarkColor = this.colors.warning;
-      member.cancelledBarColor = this.colors.warning;
-    } else {
-      member.cancelledLabelText = ABORTED_LABEL;
-      member.cancelledLabelColor = this.colors.warning;
-      member.cancelledMarkColor = this.colors.warning;
-      member.cancelledBarColor = this.colors.warning;
-    }
+    applyAgentSwarmMemberCancelled(member, this.colors, () => {
+      this.progressEstimator.markCancelled(member.id, nowMs);
+    });
   }
-}
-
-function createMembers(count: number, phase: AgentSwarmPhase): AgentSwarmMember[] {
-  return Array.from({ length: count }, (_item, index) => ({
-    id: String(index + 1).padStart(3, '0'),
-    phase,
-    ticks: 0,
-    itemText: '',
-    latestModelText: '',
-    todos: [],
-  }));
-}
-
-function clearMemberState(member: AgentSwarmMember, ...keys: ClearableMemberKey[]): void {
-  for (const key of keys) delete member[key];
-}
-
-function terminalPhaseElapsedMs(member: AgentSwarmMember, nowMs: number): number {
-  const startedAtMs = member.phase === 'completed'
-    ? member.completedAtMs
-    : member.phase === 'failed'
-      ? member.failedAtMs
-      : undefined;
-  return startedAtMs === undefined ? 0 : Math.max(0, nowMs - startedAtMs);
-}
-
-export function isSwarmProgressToolName(toolName: string): boolean {
-  return toolName === 'AgentSwarm' || toolName === 'UltraSwarm';
-}
-
-export function swarmProgressTitleForToolName(toolName: string): string {
-  return toolName === 'UltraSwarm' ? 'UltraSwarm' : 'Agent Swarm';
 }
