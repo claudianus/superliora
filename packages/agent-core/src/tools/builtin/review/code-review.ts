@@ -12,7 +12,7 @@ import { z } from 'zod';
 import type { Kaos } from '@superliora/kaos';
 
 import type { BuiltinTool } from '../../../agent/tool/types';
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ToolAccesses, type ToolExecution } from '../../../loop';
 import { parseDiff, type DiffFile } from './diff-parser';

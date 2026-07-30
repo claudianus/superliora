@@ -13,7 +13,7 @@
 
 import { z } from 'zod';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import { QuestionBackgroundTask } from '../../../agent/background';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ErrorCodes, LioraError } from '../../../errors';

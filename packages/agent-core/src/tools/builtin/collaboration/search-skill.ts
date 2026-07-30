@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { SkillSearchHit } from '../../../skill';
