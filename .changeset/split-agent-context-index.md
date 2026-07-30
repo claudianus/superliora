@@ -2,4 +2,4 @@
 "@superliora/liora": patch
 ---
 
-Split agent context composition and message helpers into focused modules.
+Split ContextMemory compaction, loop events, projection, and user-message helpers into focused modules under agent context.
