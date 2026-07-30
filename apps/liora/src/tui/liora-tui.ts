@@ -1,29 +1,12 @@
-import {
-  encodeRendererClearInlineImages,
-  type Component,
-  type Focusable,
-  Spacer,
-} from '#/tui/renderer';
+import type { Component, Focusable } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
-import type {
-  ApprovalRequest,
-  ApprovalResponse,
-  BackgroundTaskInfo,
-  CreateSessionOptions,
-  LioraHarness,
-  PermissionMode,
-  Session,
-} from '@superliora/sdk';
-import { resolve } from 'pathe';
-
-import type { CLIOptions } from '#/cli/options';
+import type { BackgroundTaskInfo, LioraHarness, Session } from '@superliora/sdk';
+import { detectFdPath } from '#/utils/process/fd-detect';
 import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
-import { openUrl } from '#/utils/open-url';
-import { detectFdPath } from '#/utils/process/fd-detect';
-import { ttui } from './utils/tui-i18n';
 
+import type { CLIOptions } from '#/cli/options';
 import {
   type LioraSlashCommand,
   type RendererDiagnosticsOverlayCommand,
@@ -32,126 +15,71 @@ import {
   type SkillListSession,
 } from './commands';
 import * as slashCommands from './commands/dispatch';
-import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
-import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
-import { IdleStageComponent } from './components/chrome/idle-stage';
-import { SplashComponent, shouldPlaySplash } from './components/chrome/splash';
-import { buildSplashMorphScene } from './utils/splash-reveal-preview';
-import { pickRandomWorkingTip, tipText } from './components/chrome/working-tips';
 import { CommandHubComponent } from './components/dialogs/command-hub';
 import {
   SessionLoadingOverlayComponent,
   type SessionLoadingPhase,
 } from './components/dialogs/session-loading-overlay';
-
-import { AssistantMessageComponent } from './components/messages/assistant-message';
-import { CronMessageComponent } from './components/messages/cron-message';
-import { buildGoalMarker } from './components/messages/goal-markers';
-import {
-  GoalCompletionMessageComponent,
-  GoalSetMessageComponent,
-} from './components/messages/goal-panel';
-import { PluginCommandComponent } from './components/messages/plugin-command';
-import { SkillActivationComponent } from './components/messages/skill-activation';
 import { ShellRunComponent } from './components/messages/shell-run';
-import {
-  NoticeMessageComponent,
-  StatusMessageComponent,
-} from './components/messages/status-message';
-import { ThinkingComponent } from './components/messages/thinking';
-import { StepSummaryComponent } from './components/messages/step-summary';
-import { ToolCallComponent } from './components/messages/tool-call';
-import { UserMessageComponent } from './components/messages/user-message';
-import { ActivityPaneComponent, type ActivityPaneMode } from './components/panes/activity-pane';
-import {
-  QueuePaneComponent,
-  queuePaneSelectionIdentity,
-  resolveHostOwnedQueueSettleStartedAtMs,
-} from './components/panes/queue-pane';
-import {
-  DEFAULT_APPEARANCE_PREFERENCES,
-  DEFAULT_ONBOARDING_PREFERENCES,
-  type TuiConfig,
-} from './config';
-import {
-  NO_ACTIVE_SESSION_MESSAGE,
-} from './constant/liora-tui';
+import { DEFAULT_APPEARANCE_PREFERENCES, type TuiConfig } from './config';
+import { NO_ACTIVE_SESSION_MESSAGE } from './constant/liora-tui';
 import { AppStateController } from './controllers/app-state';
 import { AuthFlowController } from './controllers/auth-flow';
 import { AutocompleteController } from './controllers/autocomplete';
 import { AppearanceController, shouldRenderAmbientAnimationFrame } from './controllers/appearance';
 import { BtwPanelController } from './controllers/btw-panel';
 import { ClipboardImageHintController } from './controllers/clipboard-image-hint';
+import { DialogsController } from './controllers/dialogs';
 import { EditorKeyboardController } from './controllers/editor-keyboard';
+import { MessageDispatchController } from './controllers/message-dispatch';
 import {
   NativeRendererDiagnosticsController,
   nativeRendererDiagnosticsOverlayEnabled,
 } from './controllers/native-renderer-diagnostics';
-import { PromptIntelligenceController } from './controllers/prompt-intelligence';
-import { SessionEventHandler } from './controllers/session-event-handler';
-import { DialogsController } from './controllers/dialogs';
-import { MessageDispatchController } from './controllers/message-dispatch';
 import { PanesController } from './controllers/panes';
+import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { ReverseRpcPanelsController } from './controllers/reverse-rpc-panels';
 import { SessionBrowserController } from './controllers/session-browser';
+import { SessionEventHandler } from './controllers/session-event-handler';
 import { SessionLifecycleController } from './controllers/session-lifecycle';
+import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { SessionRequestsController } from './controllers/session-requests';
 import { ShellInputController } from './controllers/shell-input';
 import { StartupLifecycleController } from './controllers/startup-lifecycle';
-import { WorkspaceBrowserController } from './controllers/workspace-browser';
-import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { TranscriptRenderController } from './controllers/transcript-render';
 import { UsageMonitorController } from './controllers/usage-monitor';
+import { WorkspaceBrowserController } from './controllers/workspace-browser';
 import { ApprovalController } from './reverse-rpc/approval/controller';
-import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
 import { registerReverseRPCHandlers } from './reverse-rpc/index';
 import { QuestionController } from './reverse-rpc/question/controller';
-import { createQuestionAskHandler } from './reverse-rpc/question/handler';
-import { createContext7CredentialHandler } from './reverse-rpc/credential/handler';
 import type { ApprovalPanelData, QuestionPanelData } from './reverse-rpc/types';
-import { currentTheme, getColorPalette, getBuiltInPalette, isBuiltInTheme } from './theme';
-import { refreshShikiPalette } from './components/media/shiki-ansi';
 import type { ColorToken, ResolvedTheme, ThemeName } from './theme';
 import { createTUIState, type TUIState } from './tui-state';
-import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from './utils/appearance-effects';
-import { noteErrorFeedback } from './utils/feedback-vfx';
-import type { TUIStateNativeInputRouter } from './utils/native-input-router';
-import {
-  INITIAL_LIVE_PANE,
-  type AppState,
-  type LioraTUIOptions,
-  type LivePaneState,
-  type LoginProgressSpinnerHandle,
-  type QueuedMessage,
-  type TranscriptDetailLevel,
-  type TranscriptEntry,
-  type TUIStartupOptions,
-  type TUIStartupState,
-} from './types';
-import { hasDispose, isExpandable } from './utils/component-capabilities';
-import { DisposableRegistry } from './utils/disposables';
-import { contextWorkingSetSnapshotFromLoopControl } from './utils/context-working-set';
+import { appearanceAnimationNow } from './utils/appearance-effects';
 import type { CenterModalMountOptions } from './utils/center-modal';
+import { DisposableRegistry } from './utils/disposables';
 import { requestTUILayoutRender } from './utils/frame-render';
-import { createMotionBeatController } from './utils/motion-beats';
-import { pickForegroundTasks } from './utils/foreground-task';
-import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
-import { resolveImageProtocol } from './utils/image-protocol-detect';
+import { createInitialAppState } from './utils/initial-app-state';
+import { ImageAttachmentStore } from './utils/image-attachment-store';
 import { PromptStash } from './utils/prompt-stash';
 import { combineStartupNotice } from './utils/startup';
-import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
-import {
-  TRANSCRIPT_EXPAND_TURNS,
-  TRANSCRIPT_HYSTERESIS,
-  TRANSCRIPT_KEEP_RECENT_STEPS,
-  TRANSCRIPT_MAX_TURNS,
-  TRANSCRIPT_WINDOW_ENABLED,
-  groupTurns,
-  turnsToTrim,
-} from './utils/transcript-window';
 import type { TranscriptScrollAction } from './utils/transcript-viewport';
+import type { TUIStateNativeInputRouter } from './utils/native-input-router';
+import { createMotionBeatController } from './utils/motion-beats';
+import type {
+  AppState,
+  LioraTUIOptions,
+  LivePaneState,
+  LoginProgressSpinnerHandle,
+  QueuedMessage,
+  TranscriptDetailLevel,
+  TranscriptEntry,
+  TUIStartupOptions,
+  TUIStartupState,
+} from './types';
+import { SplashComponent } from './components/chrome/splash';
 
 export type { TUIState } from './tui-state';
 export { createTUIState } from './tui-state';
@@ -172,60 +100,6 @@ export interface LioraTUIStartupInput {
   readonly updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string };
   /** Optional session metadata (e.g. worktree) stamped on createSession. */
   readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
-}
-
-function createInitialAppState(input: LioraTUIStartupInput): AppState {
-  // Restore persisted permission mode; --auto CLI flag overrides.
-  const startupPermission: PermissionMode = input.cliOptions.auto
-    ? 'auto'
-    : input.tuiConfig.permissionMode;
-  return {
-    model: '',
-    workDir: input.workDir,
-    additionalDirs: [...(input.additionalDirs ?? [])],
-    sessionId: '',
-    permissionMode: startupPermission,
-    planMode: input.cliOptions.plan,
-    ultraworkMode: false,
-    premiumQualityMode: false,
-    orchestratorMode: false,
-    inputMode: 'prompt',
-    swarmMode: false,
-    thinking: false,
-    thinkingLevel: 'off',
-    contextUsage: 0,
-    contextTokens: 0,
-    maxContextTokens: 0,
-    // Balanced defaults until harness config is loaded (footer badge stays stable).
-    workingSet: contextWorkingSetSnapshotFromLoopControl({}),
-    isCompacting: false,
-    isBackgroundCompacting: false,
-    isReplaying: false,
-    streamingPhase: 'idle',
-    streamingStartTime: 0,
-    promptIntelligencePhase: 'idle',
-    activityTip: null,
-    theme: input.tuiConfig.theme,
-    disablePasteBurst: input.tuiConfig.disablePasteBurst,
-    version: input.version,
-    editorCommand: input.tuiConfig.editorCommand,
-    notifications: input.tuiConfig.notifications,
-    upgrade: input.tuiConfig.upgrade,
-    appearance: input.tuiConfig.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
-    onboarding: input.tuiConfig.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
-    availableModels: {},
-    availableProviders: {},
-    nonVisionFallbackPolicy: 'analyze',
-    providerRouteStatus: null,
-    lastProviderRouteSelection: null,
-    lastModelRouteNotice: null,
-    sessionTitle: null,
-    goal: null,
-    mcpServersSummary: null,
-    providerQuota: null,
-    banner: undefined,
-    updateNotice: input.updateNotice ?? null,
-  };
 }
 
 export class LioraTUI {
@@ -299,7 +173,6 @@ export class LioraTUI {
   /** Live Command Hub instance while the center-modal stack owns it. */
   openCommandHub: CommandHubComponent | undefined;
   nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
-  private readonly sessionStartTime = Date.now();
 
   readonly autocomplete: AutocompleteController;
   readonly shellInput: ShellInputController;
@@ -313,8 +186,6 @@ export class LioraTUI {
 
   /** Last user-submitted text, for `/retry` / Hub → Chat → Retry. */
   lastUserInput: string | undefined;
-  /** True when the most recent turn ended in an error; cleared on a clean turn. */
-  private lastTurnFailed = false;
 
   // Deferred reverse-RPC payloads that arrived while a command-driven dialog
   // owned the editor area. Once the dialog closes (restoreEditor), the pending
@@ -421,9 +292,6 @@ export class LioraTUI {
     this.startupLifecycle.buildLayout();
   }
 
-  // =========================================================================
-  // Autocomplete & Skill Commands
-  // =========================================================================
   getSlashCommands(mode: SlashCommandHelpMode = 'primary'): readonly LioraSlashCommand[] {
     return this.autocomplete.getSlashCommands(mode);
   }
@@ -452,39 +320,48 @@ export class LioraTUI {
   async refreshDynamicSlashCommands(session?: Session): Promise<void> {
     return this.autocomplete.refreshDynamicSlashCommands(session);
   }
-  // =========================================================================
-  // Lifecycle
-  // =========================================================================
   async start(): Promise<void> {
     return this.startupLifecycle.start();
-  }
-
-  private async loadBanner(): Promise<void> {
-    return this.startupLifecycle.loadBanner();
-  }
-
-  private async initMainTui(): Promise<boolean> {
-    return this.startupLifecycle.initMainTui();
-  }
-
-  private async init(): Promise<boolean> {
-    return this.startupLifecycle.init();
   }
 
   async stop(exitCode?: number): Promise<void> {
     return this.startupLifecycle.stop(exitCode);
   }
 
-  private registerSignalHandlers(): void {
+  registerSignalHandlers(): void {
     this.startupLifecycle.registerSignalHandlers();
   }
 
-  private unregisterSignalHandlers(): void {
+  unregisterSignalHandlers(): void {
     this.startupLifecycle.unregisterSignalHandlers();
   }
 
-  private emergencyTerminalExit(exitCode = 129): never {
+  emergencyTerminalExit(exitCode = 129): never {
     return this.startupLifecycle.emergencyTerminalExit(exitCode);
+  }
+
+  async initMainTui(): Promise<boolean> {
+    return this.startupLifecycle.initMainTui();
+  }
+
+  async init(): Promise<boolean> {
+    return this.startupLifecycle.init();
+  }
+
+  async loadBanner(): Promise<void> {
+    return this.startupLifecycle.loadBanner();
+  }
+
+  async finishStartup(shouldReplayHistory: boolean): Promise<void> {
+    return this.startupLifecycle.finishStartup(shouldReplayHistory);
+  }
+
+  async refreshProviderModelsInBackground(): Promise<void> {
+    return this.startupLifecycle.refreshProviderModelsInBackground();
+  }
+
+  async bootstrapFromPicker(): Promise<void> {
+    return this.sessionBrowser.bootstrapFromPicker();
   }
 
   private shouldRenderAmbientAnimationFrame(): boolean {
@@ -511,16 +388,6 @@ export class LioraTUI {
     return this.startupLifecycle.showSessionWarnings(session);
   }
 
-  private async finishStartup(shouldReplayHistory: boolean): Promise<void> {
-    return this.startupLifecycle.finishStartup(shouldReplayHistory);
-  }
-
-  private async refreshProviderModelsInBackground(): Promise<void> {
-    return this.startupLifecycle.refreshProviderModelsInBackground();
-  }
-  // =========================================================================
-  // Input Dispatch
-  // =========================================================================
   handlePlanToggle(next: boolean, ultra = false): void {
     void slashCommands.handlePlanCommand(this, next ? (ultra ? 'ultra' : 'on') : 'off');
   }
@@ -583,9 +450,6 @@ export class LioraTUI {
     this.state.queuedMessages = this.state.queuedMessages.slice(0, -1);
     return last;
   }
-  // =========================================================================
-  // Session Requests / Queues
-  // =========================================================================
   beginSessionRequest(): void {
     this.sessionRequests.beginSessionRequest();
   }
@@ -618,9 +482,6 @@ export class LioraTUI {
   steerMessage(session: Session, input: string[]): void {
     this.sessionRequests.steerMessage(session, input);
   }
-  // =========================================================================
-  // State & Accessors
-  // =========================================================================
 
   setStartupReady(): void {
     this.state.startupState = 'ready';
@@ -695,9 +556,6 @@ export class LioraTUI {
   resetLivePane(): void {
     this.appStateController.resetLivePane();
   }
-  // =========================================================================
-  // Session Runtime
-  // =========================================================================
 
   requireSession(): Session {
     if (this.session === undefined) {
@@ -730,13 +588,11 @@ export class LioraTUI {
   }
 
   registerSessionHandlers(session: Session): void {
-    session.setApprovalHandler(
-      createApprovalRequestHandler(this.approvalController, (request, response) => {
-        this.transcriptRender.appendApprovalTranscriptEntry(request, response);
-      }),
-    );
-    session.setQuestionHandler(createQuestionAskHandler(this.questionController));
-    session.setCredentialHandler(createContext7CredentialHandler(this));
+    this.sessionLifecycle.registerSessionHandlers(session);
+  }
+
+  resetSessionRuntime(): void {
+    this.sessionLifecycle.resetSessionRuntime();
   }
 
   async fetchSessions(scope: 'cwd' | 'all' = this.state.sessionsScope): Promise<void> {
@@ -745,29 +601,6 @@ export class LioraTUI {
 
   updateTerminalTitle(): void {
     this.sessionBrowser.updateTerminalTitle();
-  }
-
-  resetSessionRuntime(): void {
-    this.aborted = false;
-    this.streamingUI.discardPending();
-    this.state.queuedMessages = [];
-    this.state.swarmModeEntry = undefined;
-    this.streamingUI.resetToolCallState();
-    this.streamingUI.resetToolUi();
-    this.sessionEventHandler.resetRuntimeState();
-    this.skillCommands = [];
-    this.skillCommandMap.clear();
-    this.pluginCommands = [];
-    this.pluginCommandMap.clear();
-    this.tasksBrowserController.close();
-    this.btwPanelController.clear();
-    this.state.footer.setBackgroundCounts({ bashTasks: 0, agentTasks: 0 });
-    this.streamingUI.setTodoList([]);
-    this.streamingUI.setTurnId(undefined);
-    this.setAppState({ mcpServersSummary: null });
-    this.streamingUI.setStep(0);
-    this.streamingUI.resetLiveText();
-    this.updateQueueDisplay();
   }
 
   async switchToSession(session: Session, statusMessage: string): Promise<void> {
@@ -782,9 +615,6 @@ export class LioraTUI {
     return this.sessionLifecycle.createNewSession();
   }
 
-  // =========================================================================
-  // Transcript Rendering
-  // =========================================================================
 
   renderWelcome(): void {
     this.transcriptRender.renderWelcome();
@@ -834,9 +664,6 @@ export class LioraTUI {
     return this.transcriptRender.showLoginAuthorizationPrompt(auth);
   }
 
-  // =========================================================================
-  // Panes / Presentation State
-  // =========================================================================
 
   updateActivityPane(): void {
     this.panes.updateActivityPane();
@@ -879,9 +706,6 @@ export class LioraTUI {
     this.panes.refreshTerminalThemeTracking();
   }
 
-  // =========================================================================
-  // Dialogs / Selectors
-  // =========================================================================
 
   isSessionLoadingOverlayActive(): boolean {
     return this.dialogs.isSessionLoadingOverlayActive();
@@ -994,19 +818,11 @@ export class LioraTUI {
   }
 
   async retryLastTurn(): Promise<void> {
-    const session = this.session;
-    if (session === undefined || this.lastUserInput === undefined) {
-      this.showError(ttui('tui.retry.none'));
-      return;
-    }
-    if (this.state.appState.streamingPhase !== 'idle') return;
-    this.lastTurnFailed = false;
-    this.showStatus(ttui('tui.retry.resending'), 'primary');
-    this.messageDispatch.sendMessageInternal(session, this.lastUserInput);
+    return this.messageDispatch.retryLastTurn();
   }
 
   setLastTurnFailed(failed: boolean): void {
-    this.lastTurnFailed = failed;
+    this.messageDispatch.setLastTurnFailed(failed);
   }
 
   showHelpPanel(args = ''): void {
@@ -1075,10 +891,6 @@ export class LioraTUI {
 
   hideSessionPicker(): void {
     this.sessionBrowser.hideSessionPicker();
-  }
-
-  private async bootstrapFromPicker(): Promise<void> {
-    return this.sessionBrowser.bootstrapFromPicker();
   }
 
   openUndoSelector(): void {
