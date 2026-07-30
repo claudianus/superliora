@@ -84,32 +84,7 @@ import {
   type ApprovalPreviewBlock,
 } from './components/dialogs/approval-preview';
 import { CompactionComponent } from './components/dialogs/compaction';
-import {
-  buildDefaultCommandHubItems,
-  commandHubKeepsOpen,
-  commandHubNestsPicker,
-  CommandHubComponent,
-  cyclePermissionMode,
-  isCommandHubCycleId,
-  type CommandHubItem,
-  type CommandHubSelectMode,
-} from './components/dialogs/command-hub';
-import { ShortcutsPanelComponent } from './components/dialogs/shortcuts-panel';
-import {
-  CommandPaletteComponent,
-  rankPaletteEntries,
-  type PaletteEntry,
-} from './components/dialogs/command-palette';
-import { commandHubActionToSlash } from './utils/command-hub-actions';
-import { hubRecencyScore, noteHubActionUse } from './utils/hub-recents';
-import { noteSuccessFeedback } from './utils/feedback-vfx';
-import { HistorySearchDialogComponent } from './components/dialogs/history-search-dialog';
-import { TranscriptSearchDialogComponent } from './components/dialogs/transcript-search';
-import {
-  advancedHelpIntro,
-  advancedKeyboardShortcuts,
-  HelpPanelComponent,
-} from './components/dialogs/help-panel';
+import { CommandHubComponent } from './components/dialogs/command-hub';
 import { FileExplorerComponent } from './components/dialogs/file-explorer';
 import { DiffReviewComponent } from './components/dialogs/diff-review';
 import { CommitBrowserComponent } from './components/dialogs/commit-browser';
@@ -158,7 +133,6 @@ import {
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
-  saveTuiConfig,
   type TuiConfig,
 } from './config';
 import {
@@ -173,6 +147,7 @@ import { ClipboardImageHintController } from './controllers/clipboard-image-hint
 import { EditorKeyboardController } from './controllers/editor-keyboard';
 import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { SessionEventHandler } from './controllers/session-event-handler';
+import { DialogsController } from './controllers/dialogs';
 import { MessageDispatchController } from './controllers/message-dispatch';
 import { PanesController } from './controllers/panes';
 import { SessionLifecycleController } from './controllers/session-lifecycle';
@@ -225,7 +200,6 @@ import { formatErrorMessage } from './utils/event-payload';
 import { contextWorkingSetSnapshotFromLoopControl } from './utils/context-working-set';
 import type { CenterModalMountOptions } from './utils/center-modal';
 import {
-  flushSuppressedTUIFrame,
   requestTUIContentRender,
   requestTUILayoutRender,
   requestTUIScrollRender,
@@ -261,8 +235,7 @@ import { notifyUserAttentionOnce } from './utils/terminal-notification';
 import { installTerminalThemeTracking } from './utils/terminal-theme';
 import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
-import { resolveTranscriptEntryLineOffset } from './utils/transcript-entry-layout';
-import { resolveTranscriptHitTestContext, getTUIStateNativeTodoRect } from './utils/transcript-hit-test';
+import { getTUIStateNativeTodoRect } from './utils/transcript-hit-test';
 import {
   TRANSCRIPT_EXPAND_TURNS,
   TRANSCRIPT_HYSTERESIS,
@@ -273,7 +246,6 @@ import {
   turnsToTrim,
 } from './utils/transcript-window';
 import {
-  jumpTranscriptViewportToLine,
   scrollTranscriptViewport as applyTranscriptViewportScroll,
   type TranscriptScrollAction,
 } from './utils/transcript-viewport';
@@ -373,7 +345,7 @@ export class LioraTUI {
   private readonly approvalController = new ApprovalController();
   private readonly questionController = new QuestionController();
   private readonly reverseRpcDisposers: Array<() => void> = [];
-  private skillCommands: readonly LioraSlashCommand[] = [];
+  skillCommands: readonly LioraSlashCommand[] = [];
   private pluginCommands: readonly LioraSlashCommand[] = [];
   readonly skillCommandMap = new Map<string, string>();
   readonly pluginCommandMap = new Map<string, string>();
@@ -400,7 +372,7 @@ export class LioraTUI {
   splashForcesAmbient = false;
   private lastHistoryContent: string | undefined;
   /** LIFO stash of prompt drafts saved via Ctrl-X while the editor has text. */
-  private readonly promptStash = new PromptStash();
+  readonly promptStash = new PromptStash();
   // Live `!` shell output entries, keyed by commandId so concurrent commands
   // each update their own card and stale events are dropped. Mutated in place
   // as `shell.output` events arrive; removed when the command completes.
@@ -423,12 +395,13 @@ export class LioraTUI {
   readonly usageMonitor: UsageMonitorController;
   readonly editorKeyboard: EditorKeyboardController;
   readonly promptIntelligence: PromptIntelligenceController;
-  private nativeInputRouter: TUIStateNativeInputRouter | undefined;
-  private nativeInputModalDispose: (() => void) | undefined;
-  private nativeInputModalSequence = 0;
-  private centerModalSequence = 0;
+  readonly dialogs: DialogsController;
+  nativeInputRouter: TUIStateNativeInputRouter | undefined;
+  nativeInputModalDispose: (() => void) | undefined;
+  nativeInputModalSequence = 0;
+  centerModalSequence = 0;
   /** Live Command Hub instance while the center-modal stack owns it. */
-  private openCommandHub: CommandHubComponent | undefined;
+  openCommandHub: CommandHubComponent | undefined;
   private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   private readonly sessionStartTime = Date.now();
 
@@ -447,8 +420,8 @@ export class LioraTUI {
   // Deferred reverse-RPC payloads that arrived while a command-driven dialog
   // owned the editor area. Once the dialog closes (restoreEditor), the pending
   // approval/question is shown — preventing mid-flow clobbering (BUG-7).
-  private deferredApproval: ApprovalPanelData | undefined;
-  private deferredQuestion: QuestionPanelData | undefined;
+  deferredApproval: ApprovalPanelData | undefined;
+  deferredQuestion: QuestionPanelData | undefined;
   // Active full-screen approval preview. While set, the root UI's normal
   // children are stashed in `savedChildren`; closing restores them.
   private approvalPreview:
@@ -532,6 +505,7 @@ export class LioraTUI {
     this.sessionEventHandler = new SessionEventHandler(this);
     this.transcriptRender = new TranscriptRenderController(this);
     this.panes = new PanesController(this);
+    this.dialogs = new DialogsController(this);
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.sessionLifecycle = new SessionLifecycleController(this);
     this.messageDispatch = new MessageDispatchController(this);
@@ -552,7 +526,7 @@ export class LioraTUI {
   // Autocomplete & Skill Commands
   // =========================================================================
 
-  private getSlashCommands(mode: SlashCommandHelpMode = 'primary'): readonly LioraSlashCommand[] {
+  getSlashCommands(mode: SlashCommandHelpMode = 'primary'): readonly LioraSlashCommand[] {
     const builtins = sortSlashCommands(BUILTIN_SLASH_COMMANDS).filter((command) =>
       isExperimentalFlagEnabled(command.experimentalFlag),
     );
@@ -560,6 +534,11 @@ export class LioraTUI {
     return mode === 'diagnostics'
       ? visibleBuiltins
       : [...visibleBuiltins, ...this.skillCommands, ...this.pluginCommands];
+  }
+
+  /** Lets controllers (e.g. `DialogsController`) run a slash command without importing `dispatch` themselves. */
+  dispatchSlash(command: string): void {
+    slashCommands.dispatchInput(this, command);
   }
 
   private setupAutocomplete(): void {
@@ -1297,7 +1276,7 @@ export class LioraTUI {
     if (this.isShuttingDown) return;
     this.isShuttingDown = true;
     this.unregisterSignalHandlers();
-    this.stopSessionLoadingPulse();
+    this.dialogs.stopSessionLoadingPulse();
     this.sessionLoadingOverlay = undefined;
     this.aborted = true;
     this.streamingUI.discardPending();
@@ -1910,7 +1889,7 @@ export class LioraTUI {
         'streamingPhase' in patch ||
         'isCompacting' in patch)
     ) {
-      this.refreshOpenCommandHub();
+      this.dialogs.refreshOpenCommandHub();
     }
     const theatreActive = isMotionTheatreActive(this.state.appState);
     for (const beat of modeBeats) {
@@ -2294,44 +2273,11 @@ export class LioraTUI {
   // =========================================================================
 
   isSessionLoadingOverlayActive(): boolean {
-    return this.sessionLoadingOverlay !== undefined;
+    return this.dialogs.isSessionLoadingOverlayActive();
   }
 
   beginSessionLoading(sessionId?: string, title?: string): void {
-    this.setAppState({ isReplaying: true });
-    if (this.sessionLoadingOverlay !== undefined) {
-      this.reportSessionLoading({
-        phase: 'opening',
-        progress: 0.08,
-        sessionId,
-        title,
-        detail: ttui('tui.sessionLoading.phase.opening'),
-      });
-      return;
-    }
-    // Drop any open picker/dashboard so a second resume cannot start mid-load.
-    if (
-      this.state.activeDialog === 'session-picker' ||
-      this.state.activeDialog === 'agent-dashboard' ||
-      this.state.activeDialog === 'command' ||
-      this.state.activeDialog === 'help' ||
-      this.state.activeDialog === 'search'
-    ) {
-      this.state.activeDialog = null;
-    }
-    const overlay = new SessionLoadingOverlayComponent({
-      sessionId,
-      title,
-      phase: 'opening',
-      progress: 0.08,
-      detail: ttui('tui.sessionLoading.phase.opening'),
-    });
-    this.sessionLoadingOverlay = overlay;
-    this.state.activeDialog = 'session-loading';
-    this.mountEditorReplacement(overlay);
-    this.startSessionLoadingPulse();
-    // Paint immediately so the user never sees a silent freeze.
-    flushSuppressedTUIFrame(this.state, 'layout');
+    this.dialogs.beginSessionLoading(sessionId, title);
   }
 
   reportSessionLoading(patch: {
@@ -2341,25 +2287,11 @@ export class LioraTUI {
     readonly sessionId?: string;
     readonly title?: string;
   }): void {
-    const overlay = this.sessionLoadingOverlay;
-    if (overlay === undefined) return;
-    overlay.update(patch);
-    // Mid-hydrate content frames are suppressed by batch mount; force a layout
-    // paint so the modal spinner/bar stay alive.
-    flushSuppressedTUIFrame(this.state, 'layout');
+    this.dialogs.reportSessionLoading(patch);
   }
 
   endSessionLoading(): void {
-    this.stopSessionLoadingPulse();
-    this.sessionLoadingOverlay = undefined;
-    this.setAppState({ isReplaying: false });
-    if (this.state.activeDialog === 'session-loading') {
-      this.state.activeDialog = null;
-      this.restoreEditor();
-    } else {
-      // Overlay was already replaced; still force a final layout paint.
-      flushSuppressedTUIFrame(this.state, 'layout');
-    }
+    this.dialogs.endSessionLoading();
   }
 
   async runWithBusyOverlay<T>(
@@ -2371,57 +2303,11 @@ export class LioraTUI {
     },
     work: () => Promise<T> | T,
   ): Promise<T> {
-    const already = this.isSessionLoadingOverlayActive();
-    if (!already) {
-      this.beginSessionLoading(options.sessionId, options.title);
-    }
-    this.reportSessionLoading({
-      phase: options.phase ?? 'working',
-      detail: options.detail ?? ttui('tui.sessionLoading.phase.working'),
-      sessionId: options.sessionId,
-      title: options.title,
-    });
-    // Let the modal paint before potentially-blocking work.
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    try {
-      return await work();
-    } finally {
-      if (!already) {
-        this.endSessionLoading();
-      }
-    }
-  }
-
-  private startSessionLoadingPulse(): void {
-    this.stopSessionLoadingPulse();
-    this.sessionLoadingPulseTimer = setInterval(() => {
-      if (this.sessionLoadingOverlay === undefined) {
-        this.stopSessionLoadingPulse();
-        return;
-      }
-      flushSuppressedTUIFrame(this.state, 'content');
-    }, 100);
-  }
-
-  private stopSessionLoadingPulse(): void {
-    if (this.sessionLoadingPulseTimer === undefined) return;
-    clearInterval(this.sessionLoadingPulseTimer);
-    this.sessionLoadingPulseTimer = undefined;
+    return this.dialogs.runWithBusyOverlay(options, work);
   }
 
   mountEditorReplacement(panel: Component & Focusable): void {
-    // Center modals own the input stack — close them before editor takeover.
-    if (this.state.centerModalStack.length > 0) this.closeAllCenterModals();
-    this.state.editorContainer.clear();
-    this.state.editorContainer.addChild(panel);
-    this.state.ui.setFocus(panel);
-    this.mountNativeInputModal(panel);
-    // Track that a command-driven dialog owns the editor area so background
-    // approval/question events do not clobber it mid-flow (BUG-7). Help and
-    // session-picker set their own specific dialog id after this call.
-    // Keep session-loading sticky so restore paths cannot silently drop the lock.
-    if (this.state.activeDialog === null) this.state.activeDialog = 'command';
-    requestTUIContentRender(this.state);
+    this.dialogs.mountEditorReplacement(panel);
   }
 
   /**
@@ -2432,200 +2318,29 @@ export class LioraTUI {
     panel: Component & Focusable,
     options: CenterModalMountOptions = {},
   ): void {
-    const mode = options.mode ?? 'push';
-    if (mode === 'replace' && this.state.centerModalStack.length > 0) {
-      this.closeCenterModal();
-    }
-    // Block only true full-page takeovers (not center-modal dialog ids).
-    switch (this.state.activeDialog) {
-      case 'session-loading':
-      case 'files':
-      case 'file-viewer':
-      case 'diff-review':
-      case 'commit-browser':
-      case 'blame':
-      case 'error-navigator':
-      case 'search':
-      case 'agent-dashboard':
-        return;
-      default:
-        break;
-    }
-    const inputRouter = this.nativeInputRouter;
-    if (inputRouter === undefined || panel.handleInput === undefined) return;
-    const id = `center-modal:${String(++this.centerModalSequence)}`;
-    const handleInput = panel.handleInput.bind(panel);
-    const disposeInput = inputRouter.pushLegacyModalTarget(
-      {
-        id,
-        handleInput: (data) => {
-          handleInput(data);
-        },
-      },
-      { restoreFocus: false },
-    );
-    this.state.centerModalStack.push({
-      id,
-      panel,
-      disposeInput,
-      label: options.label,
-    });
-    this.state.activeDialog = 'center-modal';
-    this.state.ui.setFocus(panel);
-    requestTUIContentRender(this.state);
+    this.dialogs.mountCenterModal(panel, options);
   }
 
   /** Pop the top center modal. Restores editor focus when the stack is empty. */
   closeCenterModal(): void {
-    const top = this.state.centerModalStack.pop();
-    if (top === undefined) return;
-    if (top.panel === this.openCommandHub) {
-      this.openCommandHub = undefined;
-    }
-    top.disposeInput();
-    if (this.state.centerModalStack.length === 0) {
-      this.clearCenterModalDialogMarker();
-      this.nativeInputRouter?.focusEditor();
-      this.state.ui.setFocus(this.state.editor);
-      this.flushDeferredReverseRpcPanels();
-    } else {
-      const next = this.state.centerModalStack.at(-1)!;
-      this.state.ui.setFocus(next.panel);
-      if (next.panel instanceof CommandHubComponent) {
-        this.refreshOpenCommandHub();
-      }
-    }
-    requestTUIContentRender(this.state);
+    this.dialogs.closeCenterModal();
   }
 
   closeAllCenterModals(): void {
-    while (this.state.centerModalStack.length > 0) {
-      const top = this.state.centerModalStack.pop();
-      top?.disposeInput();
-    }
-    this.openCommandHub = undefined;
-    this.clearCenterModalDialogMarker();
-    this.nativeInputRouter?.focusEditor();
-    this.state.ui.setFocus(this.state.editor);
-    requestTUIContentRender(this.state);
-    this.flushDeferredReverseRpcPanels();
-  }
-
-  private clearCenterModalDialogMarker(): void {
-    switch (this.state.activeDialog) {
-      case 'center-modal':
-      case 'help':
-      case 'extensions':
-      case 'session-picker':
-        this.state.activeDialog = null;
-        break;
-      default:
-        break;
-    }
-  }
-
-  private flushDeferredReverseRpcPanels(): void {
-    const approval = this.deferredApproval;
-    if (approval !== undefined) {
-      this.deferredApproval = undefined;
-      this.showApprovalPanel(approval);
-      return;
-    }
-    const question = this.deferredQuestion;
-    if (question !== undefined) {
-      this.deferredQuestion = undefined;
-      this.showQuestionDialog(question);
-    }
+    this.dialogs.closeAllCenterModals();
   }
 
   restoreEditor(): void {
-    // Never restore the free editor while history is still loading.
-    if (this.sessionLoadingOverlay !== undefined) {
-      this.state.editorContainer.clear();
-      this.state.editorContainer.addChild(this.sessionLoadingOverlay);
-      this.state.ui.setFocus(this.sessionLoadingOverlay);
-      this.mountNativeInputModal(this.sessionLoadingOverlay);
-      this.state.activeDialog = 'session-loading';
-      requestTUIContentRender(this.state);
-      return;
-    }
-    this.state.editorContainer.clear();
-    this.state.editorContainer.addChild(this.state.editor);
-    this.state.ui.setFocus(this.state.editor);
-    this.nativeInputModalDispose?.();
-    this.nativeInputModalDispose = undefined;
-    this.nativeInputRouter?.focusEditor();
-    // Only clear a generic command-dialog marker. Help/session-picker/
-    // agent-dashboard manage their own `activeDialog` lifecycle and may
-    // already be null here.
-    if (this.state.activeDialog === 'command' || this.state.activeDialog === 'session-loading') {
-      this.state.activeDialog = null;
-    }
-    requestTUIContentRender(this.state);
-    // Flush any reverse-RPC panel that was deferred while a command dialog was
-    // open (BUG-7). Approval takes priority, then question.
-    const approval = this.deferredApproval;
-    if (approval !== undefined) {
-      this.deferredApproval = undefined;
-      this.showApprovalPanel(approval);
-      return;
-    }
-    const question = this.deferredQuestion;
-    if (question !== undefined) {
-      this.deferredQuestion = undefined;
-      this.showQuestionDialog(question);
-    }
-  }
-
-  private mountNativeInputModal(panel: Component & Focusable): void {
-    const inputRouter = this.nativeInputRouter;
-    if (inputRouter === undefined || panel.handleInput === undefined) return;
-    this.nativeInputModalDispose?.();
-    const id = `editor-replacement:${String(++this.nativeInputModalSequence)}`;
-    const handleInput = panel.handleInput.bind(panel);
-    this.nativeInputModalDispose = inputRouter.pushLegacyModalTarget({
-      id,
-      handleInput: (data) => {
-        handleInput(data);
-      },
-    });
+    this.dialogs.restoreEditor();
   }
 
   restoreInputText(text: string): void {
-    this.restoreEditor();
-    this.state.editor.setText(text);
-    this.updateEditorBorderHighlight(text);
-    requestTUIContentRender(this.state);
+    this.dialogs.restoreInputText(text);
   }
 
   /** Ctrl-X: stash the current draft, or pop the latest stash when the editor is empty. */
   stashPromptToggle(): void {
-    const editor = this.state.editor;
-    const text = editor.getText();
-    if (text.trim().length > 0) {
-      this.promptStash.push({ text, mode: editor.inputMode });
-      editor.setText('');
-      this.updateEditorBorderHighlight('');
-      this.showStatus(ttui('tui.stash.stashed', { count: String(this.promptStash.size) }));
-      requestTUIContentRender(this.state);
-      return;
-    }
-    const entry = this.promptStash.pop();
-    if (entry === undefined) {
-      this.showStatus(ttui('tui.stash.empty'));
-      return;
-    }
-    this.restoreInputText(entry.text);
-    // Restore the stashed mode like queue recall does, so a draft saved in
-    // shell mode comes back ready to run as a `!` command.
-    const mode = entry.mode;
-    if (editor.inputMode !== mode) {
-      editor.inputMode = mode;
-      editor.onInputModeChange?.(mode);
-    }
-    this.updateQueueDisplay();
-    requestTUILayoutRender(this.state);
-    this.showStatus(ttui('tui.stash.restored', { count: String(this.promptStash.size) }));
+    this.dialogs.stashPromptToggle();
   }
 
   // =========================================================================
@@ -2634,37 +2349,12 @@ export class LioraTUI {
   // =========================================================================
 
   showHistorySearch(): void {
-    if (this.state.activeDialog !== null && this.state.activeDialog !== 'center-modal') return;
-    void this.openHistorySearch();
-  }
-
-  private async openHistorySearch(): Promise<void> {
-    let entries: { content: string }[] = [];
-    try {
-      entries = await loadInputHistory(getInputHistoryFile(this.state.appState.workDir));
-    } catch {
-      entries = [];
-    }
-    // Most-recent-first ordering for search UX.
-    const items = [...new Set(entries.map((e) => e.content))].reverse();
-    const dialog = new HistorySearchDialogComponent({
-      items,
-      onSelect: (text) => {
-        this.restoreEditor();
-        this.state.editor.setText(text);
-        this.updateEditorBorderHighlight(text);
-        requestTUIContentRender(this.state);
-      },
-      onCancel: () => {
-        this.restoreEditor();
-      },
-    });
-    this.mountEditorReplacement(dialog);
+    this.dialogs.showHistorySearch();
   }
 
   /** Open the beginner Command Hub (replaces the old Ctrl-Space palette). */
   showCommandPalette(): void {
-    this.showCommandHub();
+    this.dialogs.showCommandPalette();
   }
 
   /**
@@ -2674,341 +2364,22 @@ export class LioraTUI {
    * below. Recently run entries float to the top via Hub recency scoring.
    */
   showCommandPaletteOmnibox(): void {
-    if (
-      this.state.activeDialog !== null &&
-      this.state.activeDialog !== 'center-modal' &&
-      this.state.activeDialog !== 'help'
-    ) {
-      return;
-    }
-    const entries = rankPaletteEntries(this.buildPaletteEntries(), (entry) =>
-      hubRecencyScore(this.paletteRecencyKey(entry)),
-    );
-    const palette = new CommandPaletteComponent({
-      entries,
-      onSelect: (entry) => {
-        this.closeAllCenterModals();
-        this.runPaletteEntry(entry);
-      },
-      onCancel: () => {
-        this.closeCenterModal();
-      },
-    });
-    this.mountCenterModal(palette, { mode: 'push', label: 'Palette' });
-  }
-
-  private buildPaletteEntries(): PaletteEntry[] {
-    const skillNames = new Set(this.skillCommands.map((command) => command.name));
-    const commands: PaletteEntry[] = this.getSlashCommands('advanced').map((command) => ({
-      kind: skillNames.has(command.name) ? 'skill' : 'command',
-      value: command.name,
-      label: `/${command.name}`,
-      description: command.description,
-      aliases: command.aliases,
-    }));
-    const actions: PaletteEntry[] = [
-      {
-        kind: 'action',
-        value: 'hub',
-        label: 'Command Hub',
-        description: 'Open the guided dashboard',
-      },
-      {
-        kind: 'action',
-        value: 'shortcuts',
-        label: 'Keyboard shortcuts',
-        description: 'Keybinding cheatsheet',
-      },
-      {
-        kind: 'action',
-        value: 'transcript-search',
-        label: 'Search transcript',
-        description: 'Find text in this chat',
-      },
-      {
-        kind: 'action',
-        value: 'history',
-        label: 'Input history',
-        description: 'Reuse a past prompt',
-      },
-    ];
-    return [...actions, ...commands];
-  }
-
-  private runPaletteEntry(entry: PaletteEntry): void {
-    noteHubActionUse(this.paletteRecencyKey(entry));
-    noteSuccessFeedback();
-    if (entry.kind === 'action') {
-      switch (entry.value) {
-        case 'hub':
-          this.showCommandHub();
-          return;
-        case 'shortcuts':
-          this.mountCenterModal(
-            new ShortcutsPanelComponent({
-              onClose: () => this.closeCenterModal(),
-            }),
-            { mode: 'push', label: 'Shortcuts' },
-          );
-          return;
-        case 'transcript-search':
-          this.showTranscriptSearch();
-          return;
-        case 'history':
-          void this.openHistorySearch();
-          return;
-        default:
-          return;
-      }
-    }
-    slashCommands.dispatchInput(this, `/${entry.value}`);
-  }
-
-  /** Namespaced so palette runs never match Hub item ids in recency lookups. */
-  private paletteRecencyKey(entry: PaletteEntry): string {
-    return `palette:${entry.kind}:${entry.value}`;
+    this.dialogs.showCommandPaletteOmnibox();
   }
 
   showCommandHub(
     options: { readonly initialQuery?: string; readonly intro?: boolean } = {},
   ): void {
-    if (
-      this.state.activeDialog !== null &&
-      this.state.activeDialog !== 'center-modal' &&
-      this.state.activeDialog !== 'help'
-    ) {
-      return;
-    }
-    this.closeAllCenterModals();
-    const hub = new CommandHubComponent({
-      items: this.buildCommandHubItems(),
-      initialQuery: options.initialQuery,
-      intro: options.intro === true,
-      onIntroDismiss: () => {
-        void this.markHubIntroSeen();
-      },
-      onSelect: (item, mode) => {
-        this.handleCommandHubSelect(item, mode);
-      },
-      onCancel: () => {
-        this.closeCenterModal();
-      },
-    });
-    this.openCommandHub = hub;
-    this.mountCenterModal(hub, { mode: 'push', label: 'Hub' });
-    if (options.intro === true) {
-      noteSuccessFeedback();
-      this.state.toast.show('Command Hub — Space toggles modes · type to search', 3200);
-    }
-  }
-
-  private buildCommandHubItems(): CommandHubItem[] {
-    const signedIn =
-      this.state.appState.model.trim().length > 0 ||
-      Object.keys(this.state.appState.availableProviders).length > 0;
-    return buildDefaultCommandHubItems({
-      planMode: this.state.appState.planMode,
-      swarmMode: this.state.appState.swarmMode,
-      ultraworkMode: this.state.appState.ultraworkMode,
-      premiumQualityMode: this.state.appState.premiumQualityMode,
-      permissionMode: this.state.appState.permissionMode,
-      model: this.state.appState.model,
-      thinkingLevel: this.state.appState.thinkingLevel,
-      streamingPhase: this.state.appState.streamingPhase,
-      isCompacting: this.state.appState.isCompacting,
-      signedIn,
-    });
-  }
-
-  private refreshOpenCommandHub(): void {
-    const hub = this.openCommandHub;
-    if (hub === undefined) return;
-    hub.setItems(this.buildCommandHubItems());
-    requestTUIContentRender(this.state);
-  }
-
-  private async markHubIntroSeen(): Promise<void> {
-    const previous = this.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
-    if (previous.hubIntroSeen) return;
-    const onboarding = { ...previous, hubIntroSeen: true };
-    this.setAppState({ onboarding });
-    try {
-      await saveTuiConfig({
-        theme: this.state.appState.theme,
-        permissionMode: this.state.appState.permissionMode,
-        disablePasteBurst: this.state.appState.disablePasteBurst ?? false,
-        editorCommand: this.state.appState.editorCommand,
-        notifications: this.state.appState.notifications,
-        upgrade: this.state.appState.upgrade,
-        appearance: this.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
-        onboarding,
-      });
-    } catch {
-      // Best-effort persistence; intro still dismissed in-session.
-    }
-  }
-
-  private handleCommandHubSelect(item: CommandHubItem, mode: CommandHubSelectMode): void {
-    noteHubActionUse(item.id);
-
-    // Permission: Space cycles in place; Enter opens the picker (nested).
-    if (isCommandHubCycleId(item.id)) {
-      if (mode === 'space') {
-        const next = cyclePermissionMode(this.state.appState.permissionMode);
-        slashCommands.dispatchInput(this, `/permission ${next}`);
-        this.openCommandHub?.noteToggleFlash(item.id);
-        noteSuccessFeedback();
-        this.state.toast.show(`Permission → ${next}`, 1600);
-        return;
-      }
-      slashCommands.dispatchInput(this, '/permission');
-      return;
-    }
-
-    if (commandHubKeepsOpen(item.id)) {
-      const slash = commandHubActionToSlash(item.id);
-      if (slash !== undefined) {
-        slashCommands.dispatchInput(this, slash);
-      }
-      const label = item.label;
-      const nextOn = item.badge !== 'ON';
-      noteSuccessFeedback();
-      this.state.toast.show(`${label} → ${nextOn ? 'ON' : 'off'}`, 1400);
-      // Space: stay in Hub and flip more. Enter: apply and return to chat.
-      if (mode === 'enter') {
-        this.closeCenterModal();
-      } else {
-        this.openCommandHub?.noteToggleFlash(item.id);
-      }
-      return;
-    }
-
-    if (item.id === 'now.steer') {
-      this.closeAllCenterModals();
-      this.state.footer.setTransientHint('Steer: type, then Ctrl-S');
-      this.state.toast.show('Type steer text · Ctrl-S to send', 2800);
-      requestTUIContentRender(this.state);
-      return;
-    }
-    if (item.id === 'now.stop') {
-      this.closeAllCenterModals();
-      this.cancelRunningShellCommand();
-      void this.session?.cancel({ source: 'ctrl-c' });
-      noteSuccessFeedback();
-      this.state.toast.show('Stopped', 1400);
-      return;
-    }
-
-    if (commandHubNestsPicker(item.id)) {
-      this.handleCommandHubAction(item, { nest: true });
-      return;
-    }
-
-    this.closeCenterModal();
-    this.handleCommandHubAction(item, { nest: false });
-  }
-
-  private handleCommandHubAction(
-    item: CommandHubItem,
-    options: { readonly nest: boolean },
-  ): void {
-    if (item.id === 'help.palette') {
-      this.showCommandPaletteOmnibox();
-      return;
-    }
-    if (item.id === 'help.shortcuts') {
-      this.mountCenterModal(
-        new ShortcutsPanelComponent({
-          onClose: () => this.closeCenterModal(),
-        }),
-        { mode: 'push', label: 'Shortcuts' },
-      );
-      return;
-    }
-    if (item.id === 'help.commands') {
-      // Nest under Hub so Esc returns (don't wipe the stack).
-      this.mountCenterModal(
-        new HelpPanelComponent({
-          commands: this.getSlashCommands('advanced'),
-          intro: advancedHelpIntro(),
-          commandSectionTitle: 'All slash commands',
-          shortcuts: advancedKeyboardShortcuts(),
-          onClose: () => {
-            this.closeCenterModal();
-          },
-        }),
-        { mode: options.nest ? 'push' : 'replace', label: 'Commands' },
-      );
-      return;
-    }
-    if (item.id === 'workspace.search') {
-      this.restoreInputText('/search ');
-      this.state.toast.show('Type a search pattern after /search', 2200);
-      return;
-    }
-    if (item.id === 'chat.btw') {
-      this.restoreInputText('/btw ');
-      this.state.toast.show('Type your side question after /btw', 2200);
-      return;
-    }
-
-    const slash = commandHubActionToSlash(item.id);
-    if (slash !== undefined) {
-      slashCommands.dispatchInput(this, slash);
-    }
+    this.dialogs.showCommandHub(options);
   }
 
   showTranscriptSearch(): void {
-    if (this.state.activeDialog !== null) return;
-    const entries = this.state.transcriptEntries
-      .map((entry, index) => {
-        // Strip ANSI/control noise from searchable text.
-        const text = entry.content.replace(/\u001B\[[0-9;]*m/g, '').trim();
-        return { index, text };
-      })
-      .filter((entry) => entry.text.length > 0);
-    const dialog = new TranscriptSearchDialogComponent({
-      entries,
-      onSelect: (index) => {
-        // Keep the dialog open so the user can jump to more matches; just
-        // scroll the matching entry into view.
-        this.scrollToTranscriptIndex(index);
-      },
-      onCancel: () => {
-        this.restoreEditor();
-      },
-    });
-    this.mountEditorReplacement(dialog);
+    this.dialogs.showTranscriptSearch();
   }
 
+  /** Shared with the Error Navigator (`showErrors`) to jump to a transcript entry. */
   private scrollToTranscriptIndex(index: number): void {
-    const entry = this.state.transcriptEntries[index];
-    if (entry === undefined) return;
-    // Exact jump: resolve the entry's first line in the current transcript
-    // layout and move the viewport start there. Resolving the hit-test
-    // context also warms the cached transcript layout.
-    const context = resolveTranscriptHitTestContext(this.state);
-    if (context !== undefined) {
-      const line = resolveTranscriptEntryLineOffset(this.state, entry.id, context.stageWidth);
-      if (line !== undefined) {
-        jumpTranscriptViewportToLine(this.state.transcriptViewport, line);
-        requestTUIContentRender(this.state);
-        return;
-      }
-    }
-    // Roughly map a transcript entry index to a scroll position. The viewport
-    // is line-based; we approximate by scrolling to the entry proportionally.
-    const total = this.state.transcriptEntries.length;
-    if (total === 0) return;
-    // Jump to bottom first, then up by the offset of entries after the target.
-    this.state.transcriptViewport.scroll('bottom');
-    const entriesAfter = total - 1 - index;
-    // Each entry is at least one rendered line; scroll up by a few lines per
-    // entry as a heuristic. The viewport clamps automatically.
-    for (let i = 0; i < entriesAfter * 3; i++) {
-      this.state.transcriptViewport.scroll('line-up');
-    }
-    requestTUIContentRender(this.state);
+    this.dialogs.scrollToTranscriptIndex(index);
   }
 
   async retryLastTurn(): Promise<void> {
@@ -3028,32 +2399,7 @@ export class LioraTUI {
   }
 
   showHelpPanel(args = ''): void {
-    const mode = this.helpModeFromArgs(args);
-    // Beginner path: `/help` opens the Command Hub, not a wall of slash names.
-    if (mode === 'primary') {
-      this.showCommandHub();
-      return;
-    }
-    this.closeAllCenterModals();
-    this.mountCenterModal(
-      new HelpPanelComponent({
-        commands: this.getSlashCommands(mode),
-        intro: mode === 'diagnostics'
-          ? 'Advanced QA commands for SuperLiora harness development.'
-          : advancedHelpIntro(),
-        commandSectionTitle: mode === 'diagnostics'
-          ? 'Diagnostic commands'
-          : 'All slash commands',
-        shortcuts: mode === 'advanced' ? advancedKeyboardShortcuts() : undefined,
-        onClose: () => {
-          this.closeCenterModal();
-        },
-      }),
-    );
-  }
-
-  private hideHelpPanel(): void {
-    this.closeCenterModal();
+    this.dialogs.showHelpPanel(args);
   }
 
   showFileExplorer(): void {
@@ -3336,7 +2682,7 @@ export class LioraTUI {
     })();
   }
 
-  private helpModeFromArgs(args: string): SlashCommandHelpMode {
+  helpModeFromArgs(args: string): SlashCommandHelpMode {
     const normalized = args.trim().toLowerCase();
     if (normalized === 'diagnostics' || normalized === 'diagnostic' || normalized === 'internal') {
       return 'diagnostics';
@@ -3355,8 +2701,8 @@ export class LioraTUI {
   };
   private sessionPickerScopeRequestToken = 0;
   /** Editor-area modal while resume RPC + history hydrate run. */
-  private sessionLoadingOverlay: SessionLoadingOverlayComponent | undefined;
-  private sessionLoadingPulseTimer: ReturnType<typeof setInterval> | undefined;
+  sessionLoadingOverlay: SessionLoadingOverlayComponent | undefined;
+  sessionLoadingPulseTimer: ReturnType<typeof setInterval> | undefined;
 
   async showSessionPicker(): Promise<void> {
     if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
@@ -3811,7 +3157,7 @@ export class LioraTUI {
     this.showStatus(`Session renamed to: ${title}`);
   }
 
-  private showApprovalPanel(payload: ApprovalPanelData): void {
+  showApprovalPanel(payload: ApprovalPanelData): void {
     // If a command-driven dialog (API-key input, provider picker, …) owns the
     // editor area, defer the approval so we don't clobber the in-flight command
     // flow (BUG-7). It is shown once the dialog closes via restoreEditor().
@@ -3898,7 +3244,7 @@ export class LioraTUI {
     requestTUILayoutRender(this.state);
   }
 
-  private showQuestionDialog(payload: QuestionPanelData): void {
+  showQuestionDialog(payload: QuestionPanelData): void {
     // Defer while a command-driven dialog is open (BUG-7, same as approval).
     if (
       this.state.activeDialog === 'command' ||
