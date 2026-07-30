@@ -1,4 +1,4 @@
-import { UpdatePreferenceSelectorComponent } from '../../components/dialogs/update-preference-selector';
+import { UpdatePreferenceSelectorComponent } from '../../components/dialogs/picker/update-preference-selector';
 import { saveTuiConfig } from '../../config';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';

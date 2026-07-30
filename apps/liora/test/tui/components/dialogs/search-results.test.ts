@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 // Force CI mode to disable ambient effects for deterministic rendering.
 process.env['CI'] = '1';
 
-import { SearchResultsComponent } from '#/tui/components/dialogs/search-results';
+import { SearchResultsComponent } from '#/tui/components/dialogs/search/search-results';
 import type { SearchMatch, SearchResults } from '#/utils/fs/project-search';
 
 const previousChalkLevel = chalk.level;

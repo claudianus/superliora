@@ -14,7 +14,7 @@ import {
   wrapTextWithAnsi,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { Input } from './input';
+import { Input } from '../shared/input';
 import { highlightLines, highlightShellCommandLine, langFromPath } from '#/tui/components/media/code-highlight';
 import { renderDiffLinesClustered } from '#/tui/components/media/diff-preview';
 import type {

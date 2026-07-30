@@ -1,6 +1,6 @@
 import type { Component, Focusable } from '#/tui/renderer';
 
-import { CommandHubComponent } from '../../components/dialogs/command-hub';
+import { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
 import {
   flushSuppressedTUIFrame,

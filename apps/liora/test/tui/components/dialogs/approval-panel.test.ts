@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval-panel';
+import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval/approval-panel';
 import type {
   DiffDisplayBlock,
   FileContentDisplayBlock,

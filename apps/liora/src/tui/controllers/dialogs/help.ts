@@ -2,7 +2,7 @@ import {
   advancedHelpIntro,
   advancedKeyboardShortcuts,
   HelpPanelComponent,
-} from '../../components/dialogs/help-panel';
+} from '../../components/dialogs/help/help-panel';
 import { closeAllCenterModals, closeCenterModal, mountCenterModal } from './modal-shell';
 import type { CommandHubDelegate } from './command-hub';
 import { helpModeFromArgs, type DialogsHost } from './types';

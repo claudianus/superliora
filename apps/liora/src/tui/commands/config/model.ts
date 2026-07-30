@@ -7,9 +7,9 @@
 
 import type { ModelAlias } from '@superliora/sdk';
 
-import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
-import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../components/dialogs/model-fallback-selector';
-import { TabbedModelSelectorComponent } from '../../components/dialogs/tabbed-model-selector';
+import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
+import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../components/dialogs/picker/model-fallback-selector';
+import { TabbedModelSelectorComponent } from '../../components/dialogs/picker/tabbed-model-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import {

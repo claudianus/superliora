@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { CompactionComponent } from '#/tui/components/dialogs/compaction';
+import { CompactionComponent } from '#/tui/components/dialogs/session/compaction';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,

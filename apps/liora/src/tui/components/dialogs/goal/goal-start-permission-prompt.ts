@@ -3,7 +3,7 @@ import { ttui } from '#/tui/utils/tui-i18n';
 import {
   StartPermissionPromptComponent,
   type StartPermissionOption,
-} from './start-permission-prompt';
+} from '../approval/start-permission-prompt';
 
 export type GoalStartPermissionChoice = 'auto' | 'yolo' | 'manual' | 'cancel';
 

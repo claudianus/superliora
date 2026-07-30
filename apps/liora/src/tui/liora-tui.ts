@@ -14,11 +14,11 @@ import type {
   SkillListSession,
 } from './commands';
 import * as slashCommands from './commands/dispatch';
-import { CommandHubComponent } from './components/dialogs/command-hub';
+import { CommandHubComponent } from './components/dialogs/command-hub/index';
 import {
   SessionLoadingOverlayComponent,
   type SessionLoadingPhase,
-} from './components/dialogs/session-loading-overlay';
+} from './components/dialogs/session/session-loading-overlay';
 import { ShellRunComponent } from './components/messages/shell-run';
 import { AppStateController } from './controllers/app-state';
 import { AuthFlowController } from './controllers/auth-flow';

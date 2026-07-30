@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SUPERLIORA_CHANGELOG_URL, type UpgradePlan } from '#/cli/update/plan';
-import { UpgradeDialogComponent } from '#/tui/components/dialogs/upgrade-dialog';
+import { UpgradeDialogComponent } from '#/tui/components/dialogs/upgrade/upgrade-dialog';
 
 const ANSI = /\u001B\[[0-9;]*m/g;
 const ESC = String.fromCodePoint(27);

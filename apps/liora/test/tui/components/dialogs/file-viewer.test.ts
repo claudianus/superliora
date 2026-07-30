@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { FileViewerComponent } from '#/tui/components/dialogs/file-viewer';
+import { FileViewerComponent } from '#/tui/components/dialogs/workspace/file-viewer';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 const DOWN = '\u001B[B';

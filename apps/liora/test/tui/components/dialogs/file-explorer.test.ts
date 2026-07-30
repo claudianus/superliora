@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { FileExplorerComponent } from '#/tui/components/dialogs/file-explorer';
+import { FileExplorerComponent } from '#/tui/components/dialogs/workspace/file-explorer';
 import { buildFileTree } from '#/utils/fs/file-tree';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;

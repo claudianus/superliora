@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ExperimentsSelectorComponent,
   type ExperimentalFeatureDraftChange,
-} from '#/tui/components/dialogs/experiments-selector';
+} from '#/tui/components/dialogs/picker/experiments-selector';
 
 
 const ANSI = /\u001B\[[0-9;]*m/g;

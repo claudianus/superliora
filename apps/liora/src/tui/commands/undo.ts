@@ -4,11 +4,11 @@ import { isKimiError } from '@superliora/sdk';
 
 import { IdleStageComponent } from '../components/chrome/idle-stage';
 import { WelcomeComponent } from '../components/chrome/welcome';
-import { CompactionComponent } from '../components/dialogs/compaction';
+import { CompactionComponent } from '../components/dialogs/session/compaction';
 import {
   UndoSelectorComponent,
   type UndoChoice,
-} from '../components/dialogs/undo-selector';
+} from '../components/dialogs/picker/undo-selector';
 import { AgentGroupComponent } from '../components/messages/agent-group';
 import { AgentSwarmProgressComponent } from '../components/messages/agent-swarm-progress/index';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';

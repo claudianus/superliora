@@ -28,7 +28,6 @@ const FAIL_AT = 40;
  * Paths are repo-relative with trailing slash omitted.
  */
 const FAIL_ALLOWLIST = new Set([
-  'apps/liora/src/tui/components/dialogs',
   'apps/liora/src/tui/commands',
   'packages/oauth/src',
 ]);

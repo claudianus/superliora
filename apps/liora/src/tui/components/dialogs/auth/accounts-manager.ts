@@ -21,8 +21,8 @@ import {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 
-import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
-import { Input } from './input';
+import { ChoicePickerComponent, type ChoiceOption } from '../picker/choice-picker';
+import { Input } from '../shared/input';
 
 export type AccountRole = 'primary' | 'fallback';
 

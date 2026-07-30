@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   renderSessionLoadingBar,
   SessionLoadingOverlayComponent,
-} from '#/tui/components/dialogs/session-loading-overlay';
+} from '#/tui/components/dialogs/session/session-loading-overlay';
 
 function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');

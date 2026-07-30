@@ -5,7 +5,7 @@
  * and preset application logic.
  */
 
-import { ContextWorkingSetSelectorComponent } from '../../components/dialogs/context-working-set-selector';
+import { ContextWorkingSetSelectorComponent } from '../../components/dialogs/picker/context-working-set-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import {

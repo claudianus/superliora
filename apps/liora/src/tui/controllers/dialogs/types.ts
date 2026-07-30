@@ -1,8 +1,8 @@
 import type { Session } from '@superliora/sdk';
 
 import type { LioraSlashCommand, SlashCommandHelpMode } from '../../commands';
-import { CommandHubComponent } from '../../components/dialogs/command-hub';
-import { SessionLoadingOverlayComponent } from '../../components/dialogs/session-loading-overlay';
+import { CommandHubComponent } from '../../components/dialogs/command-hub/index';
+import { SessionLoadingOverlayComponent } from '../../components/dialogs/session/session-loading-overlay';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import type { ColorToken } from '../../theme';
 import type { TUIState } from '../../tui-state';

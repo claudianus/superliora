@@ -1,4 +1,4 @@
-import type { CommandHubActionId } from '#/tui/components/dialogs/command-hub';
+import type { CommandHubActionId } from '#/tui/components/dialogs/command-hub/index';
 
 /** Map a Hub action to a slash command string, or undefined when the host handles it. */
 export function commandHubActionToSlash(id: CommandHubActionId): string | undefined {

@@ -13,7 +13,7 @@ import { GutterContainer } from './components/chrome/gutter-container';
 import { HeaderComponent } from './components/chrome/header';
 import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo-panel';
-import type { SessionRow } from './components/dialogs/session-picker';
+import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
 import { createTUIEditor } from './components/editor/editor-factory';
 import { TranscriptViewportComponent } from './components/messages/transcript-viewport';

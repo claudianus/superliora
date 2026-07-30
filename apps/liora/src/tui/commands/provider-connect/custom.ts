@@ -9,11 +9,11 @@ import {
   CustomEndpointImportDialogComponent,
   type CustomEndpointImportResult,
   type CustomEndpointImportValue,
-} from '../../components/dialogs/custom-endpoint-import';
+} from '../../components/dialogs/provider/custom-endpoint-import';
 import {
   CustomRegistryImportDialogComponent,
   type CustomRegistryImportResult,
-} from '../../components/dialogs/custom-registry-import';
+} from '../../components/dialogs/provider/custom-registry-import';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { loadCatalog } from '#/utils/catalog-cache';
 import { applyCustomEndpointProvider, lookupModelCapability, probeModelsEndpoint } from '#/utils/custom-provider';

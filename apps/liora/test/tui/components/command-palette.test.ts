@@ -4,11 +4,11 @@ import {
   CommandPaletteComponent,
   rankPaletteEntries,
   type PaletteEntry,
-} from '#/tui/components/dialogs/command-palette';
+} from '#/tui/components/dialogs/command-hub/command-palette';
 import {
   buildDefaultCommandHubItems,
   commandHubNestsPicker,
-} from '#/tui/components/dialogs/command-hub';
+} from '#/tui/components/dialogs/command-hub/index';
 import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
 
 const ENTER = '\r';

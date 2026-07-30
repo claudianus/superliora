@@ -7,7 +7,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 
-import type { Input } from './input';
+import type { Input } from '../shared/input';
 import {
   MAX_BODY_LINES,
   NOT_ANSWERED_LABEL,

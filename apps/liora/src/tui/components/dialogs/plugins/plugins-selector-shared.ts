@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import {currentTheme} from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 
-import {Input} from './input';
+import {Input} from '../shared/input';
 
 export const MCP_SERVER_PREFIX = 'mcp:';
 export const ELLIPSIS = '…';

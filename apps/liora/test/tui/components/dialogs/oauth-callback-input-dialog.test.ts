@@ -1,7 +1,7 @@
 import { visibleWidth } from '#/tui/renderer';
 import { describe, expect, it, vi } from 'vitest';
 
-import { OAuthCallbackInputDialogComponent } from '#/tui/components/dialogs/oauth-callback-input-dialog';
+import { OAuthCallbackInputDialogComponent } from '#/tui/components/dialogs/auth/oauth-callback-input-dialog';
 
 describe('OAuthCallbackInputDialogComponent', () => {
   it('keeps every line within narrow widths', () => {

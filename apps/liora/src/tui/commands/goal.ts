@@ -3,13 +3,13 @@ import { ErrorCodes, isKimiError, type PermissionMode } from '@superliora/sdk';
 import {
   GoalStartPermissionPromptComponent,
   type GoalStartPermissionChoice,
-} from '../components/dialogs/goal-start-permission-prompt';
+} from '../components/dialogs/goal/goal-start-permission-prompt';
 import {
   GoalQueueEditDialogComponent,
   GoalQueueManagerComponent,
   type GoalQueueEditResult,
   type GoalQueueManagerAction,
-} from '../components/dialogs/goal-queue-manager';
+} from '../components/dialogs/goal/goal-queue-manager';
 import {
   GoalSetMessageComponent,
   GoalStatusMessageComponent,

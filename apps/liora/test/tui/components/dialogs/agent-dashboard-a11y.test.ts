@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AgentDashboardComponent } from '#/tui/components/dialogs/agent-dashboard';
+import { AgentDashboardComponent } from '#/tui/components/dialogs/session/agent-dashboard';
 import type { DashboardSessionRow } from '#/tui/utils/agent/agent-dashboard-rows';
 
 function stripAnsi(text: string): string {

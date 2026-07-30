@@ -3,7 +3,7 @@ import type { PermissionMode } from '@superliora/sdk';
 import {
   SwarmStartPermissionPromptComponent,
   type SwarmStartPermissionChoice,
-} from '../components/dialogs/swarm-start-permission-prompt';
+} from '../components/dialogs/goal/swarm-start-permission-prompt';
 import {
   SwarmModeMarkerComponent,
   type SwarmModeMarkerState,

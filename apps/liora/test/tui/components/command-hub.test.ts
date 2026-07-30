@@ -5,7 +5,7 @@ import {
   CommandHubComponent,
   cyclePermissionMode,
   isCommandHubToggleId,
-} from '#/tui/components/dialogs/command-hub';
+} from '#/tui/components/dialogs/command-hub/index';
 import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
 import { noteHubActionUse, resetHubRecentsForTests } from '#/tui/utils/command/hub-recents';
 

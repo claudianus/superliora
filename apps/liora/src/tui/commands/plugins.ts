@@ -13,7 +13,7 @@ import {
   type PluginRemoveConfirmResult,
   type PluginsPanelSelection,
   type PluginsPanelTabId,
-} from '../components/dialogs/plugins-selector';
+} from '../components/dialogs/plugins/index';
 import {
   buildPluginsInfoLines,
   buildPluginsListLines,

@@ -3,7 +3,7 @@ import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
+import { ModelSelectorComponent } from '#/tui/components/dialogs/picker/model-selector';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';

@@ -3,8 +3,8 @@ import chalk from 'chalk';
 
 import type { ModelAlias } from '@superliora/sdk';
 
-import { ModelSelectorComponent } from '#/tui/components/dialogs/model-selector';
-import { TabbedModelSelectorComponent } from '#/tui/components/dialogs/tabbed-model-selector';
+import { ModelSelectorComponent } from '#/tui/components/dialogs/picker/model-selector';
+import { TabbedModelSelectorComponent } from '#/tui/components/dialogs/picker/tabbed-model-selector';
 import type {
   RendererCell,
   RendererFrameRegionContent,

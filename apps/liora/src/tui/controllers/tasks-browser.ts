@@ -1,8 +1,8 @@
 import type { BackgroundTaskInfo, Session } from '@superliora/sdk';
 import type { Component, RendererRootUI, RendererTerminalHost } from '#/tui/renderer';
 
-import { TaskOutputViewer } from '../components/dialogs/task-output-viewer';
-import { TasksBrowserApp, type TasksFilter } from '../components/dialogs/tasks-browser';
+import { TaskOutputViewer } from '../components/dialogs/tasks/task-output-viewer';
+import { TasksBrowserApp, type TasksFilter } from '../components/dialogs/tasks/tasks-browser';
 import type { Theme } from '#/tui/theme';
 import type { TUIEditor } from '../components/editor/editor-contract';
 

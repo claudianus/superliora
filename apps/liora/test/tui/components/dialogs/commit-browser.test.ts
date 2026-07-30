@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { CommitBrowserComponent } from '#/tui/components/dialogs/commit-browser';
+import { CommitBrowserComponent } from '#/tui/components/dialogs/workspace/commit-browser';
 import type { GitLogCommit, GitLogReport } from '#/utils/git/git-log';
 
 const previousChalkLevel = chalk.level;

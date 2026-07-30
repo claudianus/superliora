@@ -3,7 +3,7 @@ import type { ExperimentalFeatureState } from '@superliora/sdk';
 import {
   ExperimentsSelectorComponent,
   type ExperimentalFeatureDraftChange,
-} from '../../components/dialogs/experiments-selector';
+} from '../../components/dialogs/picker/experiments-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import { setExperimentalFeatures } from '../experimental-flags';

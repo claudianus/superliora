@@ -1,4 +1,4 @@
-import { TabbedModelSelectorComponent } from '../../components/dialogs/tabbed-model-selector';
+import { TabbedModelSelectorComponent } from '../../components/dialogs/picker/tabbed-model-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
 import {
   resolveThinkingDisplay,

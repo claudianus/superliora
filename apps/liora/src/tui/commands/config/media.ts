@@ -1,4 +1,4 @@
-import { ChoicePickerComponent } from '../../components/dialogs/choice-picker';
+import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import type { SlashCommandHost } from '../dispatch';
