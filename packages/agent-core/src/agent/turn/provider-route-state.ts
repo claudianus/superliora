@@ -20,11 +20,27 @@ import type {
   KosongLLMRoute,
   KosongLLMRouteCandidate,
   ProviderRouteFailure,
-  ProviderRouteFailureKind,
   ProviderRouteState,
   ProviderRouteSuccessMetrics,
   ProviderRouteUnavailable,
 } from './provider-route-types';
+import {
+  candidateKey,
+  candidateWeight,
+  compareRateLimitAwareCandidates,
+  copyProviderRouteRateLimits,
+  matchesPreferredCredential,
+  normalizeLatencyMs,
+  providerBaseUrl,
+  rateLimitHeadroom,
+  sameProviderRouteRateLimits,
+  shuffleCandidates,
+  type ProviderRouteCandidateStats,
+  type ProviderRouteFailureRecord,
+  type ProviderRouteLocalUsageRecord,
+} from './provider-route-helpers';
+
+export { providerBaseUrl } from './provider-route-helpers';
 
 const LOCAL_LIMIT_WINDOW_MS = 60_000;
 
@@ -514,139 +530,4 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
     }
     return changed;
   }
-}
-
-function candidateWeight(candidate: KosongLLMRouteCandidate): number {
-  const weight = candidate.weight ?? 1;
-  return Number.isInteger(weight) && weight > 0 ? weight : 1;
-}
-
-function shuffleCandidates(
-  candidates: readonly KosongLLMRouteCandidate[],
-): readonly KosongLLMRouteCandidate[] {
-  const shuffled = [...candidates];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex]!, shuffled[index]!];
-  }
-  return shuffled;
-}
-
-interface RateLimitAwareCandidateOrder {
-  readonly candidate: KosongLLMRouteCandidate;
-  readonly index: number;
-  readonly headroom?: number;
-}
-
-function compareRateLimitAwareCandidates(
-  left: RateLimitAwareCandidateOrder,
-  right: RateLimitAwareCandidateOrder,
-): number {
-  const rankDiff = rateLimitHeadroomRank(left.headroom) - rateLimitHeadroomRank(right.headroom);
-  if (rankDiff !== 0) return rankDiff;
-  return (right.headroom ?? 0) - (left.headroom ?? 0) || left.index - right.index;
-}
-
-function rateLimitHeadroomRank(headroom: number | undefined): number {
-  if (headroom === undefined) return 1;
-  return headroom > 0 ? 0 : 2;
-}
-
-function rateLimitHeadroom(
-  rateLimits: readonly ProviderRouteRateLimitStatus[] | undefined,
-): number | undefined {
-  if (rateLimits === undefined || rateLimits.length === 0) return undefined;
-  const headrooms: number[] = [];
-  const now = Date.now();
-  for (const rateLimit of rateLimits) {
-    if (rateLimit.resetAt !== undefined && rateLimit.resetAt <= now) continue;
-    if (rateLimit.remaining === undefined) continue;
-    const remaining = Math.max(0, rateLimit.remaining);
-    if (rateLimit.limit !== undefined && rateLimit.limit > 0) {
-      headrooms.push(Math.min(1, remaining / rateLimit.limit));
-    } else {
-      headrooms.push(remaining > 0 ? 1 : 0);
-    }
-  }
-  return headrooms.length === 0 ? undefined : Math.min(...headrooms);
-}
-
-interface ProviderRouteFailureRecord {
-  readonly kind: ProviderRouteFailureKind;
-  readonly failedAt: number;
-  readonly cooldownUntil: number;
-}
-
-interface ProviderRouteCandidateStats {
-  readonly successCount: number;
-  readonly failureCount: number;
-  readonly lastSuccessAt?: number;
-  readonly lastLatencyMs?: number;
-  readonly avgLatencyMs?: number;
-  readonly lastFailureKind?: ProviderRouteFailureKind;
-  readonly lastFailureAt?: number;
-}
-
-interface ProviderRouteLocalUsageRecord {
-  readonly windowStartedAt: number;
-  readonly requestCount: number;
-  readonly tokenCount: number;
-}
-
-function normalizeLatencyMs(value: number | undefined): number | undefined {
-  if (value === undefined || !Number.isFinite(value) || value < 0) return undefined;
-  return Math.round(value);
-}
-
-function copyProviderRouteRateLimits(
-  rateLimits: readonly ProviderRouteRateLimitStatus[],
-): ProviderRouteRateLimitStatus[] {
-  return rateLimits.map((rateLimit) => ({ ...rateLimit }));
-}
-
-function sameProviderRouteRateLimits(
-  left: readonly ProviderRouteRateLimitStatus[] | undefined,
-  right: readonly ProviderRouteRateLimitStatus[],
-): boolean {
-  if (left === undefined || left.length !== right.length) return false;
-  return left.every((leftLimit, index) => {
-    const rightLimit = right[index]!;
-    return (
-      leftLimit.name === rightLimit.name &&
-      leftLimit.limit === rightLimit.limit &&
-      leftLimit.remaining === rightLimit.remaining &&
-      leftLimit.resetAt === rightLimit.resetAt
-    );
-  });
-}
-
-function candidateKey(candidate: KosongLLMRouteCandidate): string {
-  return [
-    candidate.modelAlias,
-    candidate.providerName,
-    candidate.credentialLabel ?? '',
-    candidate.provider.modelName,
-    providerBaseUrl(candidate.provider) ?? '',
-  ].join('\n');
-}
-
-export function providerBaseUrl(provider: ChatProvider): string | undefined {
-  const baseUrl = (provider as { readonly baseUrl?: unknown }).baseUrl;
-  return typeof baseUrl === 'string' && baseUrl.trim().length > 0 ? baseUrl.trim() : undefined;
-}
-
-function matchesPreferredCredential(
-  preferredCredential: string | undefined,
-  candidate: KosongLLMRouteCandidate,
-): boolean {
-  const preferred = preferredCredential?.trim();
-  const label = candidate.credentialLabel?.trim();
-  if (preferred === undefined || preferred.length === 0 || label === undefined || label.length === 0) {
-    return false;
-  }
-  return (
-    preferred === label ||
-    preferred === `${candidate.modelAlias}:${label}` ||
-    preferred === `${candidate.providerName}:${label}`
-  );
 }
