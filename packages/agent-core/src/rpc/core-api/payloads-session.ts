@@ -3,7 +3,7 @@ import type { LioraConfig, LioraConfigPatch, McpServerConfig } from '#/config';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 
-import type { JsonObject } from './core-api-json';
+import type { JsonObject } from './json';
 
 export type { LioraConfig, LioraConfigPatch };
 
