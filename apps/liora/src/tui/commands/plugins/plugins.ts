@@ -13,14 +13,14 @@ import {
   type PluginRemoveConfirmResult,
   type PluginsPanelSelection,
   type PluginsPanelTabId,
-} from '../../components/dialogs/plugins-selector';
+} from '../../components/dialogs/plugins/index';
 import {
   buildPluginsInfoLines,
   buildPluginsListLines,
 } from '../../components/messages/plugins-status-panel';
 import { UsagePanelComponent } from '../../components/messages/usage-panel/index';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { formatPluginSourceLabel, isOfficialPluginSource } from '../../utils/plugin-source-label';
 import { loadPluginMarketplace } from '#/utils/plugin-marketplace';
 import type { AutocompleteItem } from '#/tui/renderer';

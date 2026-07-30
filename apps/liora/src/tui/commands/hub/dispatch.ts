@@ -15,8 +15,8 @@ import type { StreamingUIController } from '../../controllers/streaming-ui/index
 import type { TasksBrowserController } from '../../controllers/tasks-browser';
 import type { ResolvedTheme } from '../../theme/colors';
 import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
-import type { MotionBeatController } from '../utils/render/motion-beats';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import type { MotionBeatController } from '../../utils/render/motion-beats';
 import type {
   AppState,
   LoginProgressSpinnerHandle,

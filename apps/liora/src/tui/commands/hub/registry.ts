@@ -6,7 +6,7 @@
  * for backward compatibility and provides the registry utility functions.
  */
 
-import type { LioraSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from '../types';
+import type { LioraSlashCommand, SlashCommandAvailability, SlashCommandVisibility } from '../../types';
 
 // Re-export completion specs and functions (backward compat for `export * from './registry'`).
 export * from './completion-specs';

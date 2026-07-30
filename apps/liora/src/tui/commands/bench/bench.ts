@@ -26,7 +26,7 @@ import {
 import { displaySourcePath, resolveInputPath } from './bench-path';
 import { normalizeReplaySummary } from './bench-replay';
 import type { BenchStatus, BudgetTaskStatus, CandidateStatus } from './bench-types';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 
 export type { BenchStatus } from './bench-types';
 

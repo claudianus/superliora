@@ -19,7 +19,7 @@ import {
 import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
 import { DEFAULT_OAUTH_PROVIDER_NAME } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
-import type { LoginProgressSpinnerHandle } from '../types';
+import type { LoginProgressSpinnerHandle } from '../../types';
 import { loadCatalog } from '#/utils/catalog-cache';
 import { openUrl } from '#/utils/open-url';
 import { ttui } from '#/tui/utils/tui-i18n';

@@ -15,17 +15,17 @@
 
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { GoalSetMessageComponent } from '../../components/messages/goal-panel';
 import {
   GoalStartPermissionPromptComponent,
   type GoalStartPermissionChoice,
-} from '../components/dialogs/goal/goal-start-permission-prompt';
+} from '../../components/dialogs/goal/goal-start-permission-prompt';
 import {
   SwarmStartPermissionPromptComponent,
   type SwarmStartPermissionChoice,
-} from '../components/dialogs/goal/swarm-start-permission-prompt';
+} from '../../components/dialogs/goal/swarm-start-permission-prompt';
 import {
   SwarmModeMarkerComponent,
   type SwarmModeMarkerState,

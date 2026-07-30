@@ -4,7 +4,7 @@
  * availability, argument hints, and completion function references).
  */
 
-import type { LioraSlashCommand } from '../types';
+import type { LioraSlashCommand } from '../../types';
 import {
   toggleOnOffArgumentCompletions,
   permissionArgumentCompletions,

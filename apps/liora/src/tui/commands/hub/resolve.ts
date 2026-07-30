@@ -10,7 +10,7 @@ import type {
   LioraSlashCommand,
   SlashCommandBusyReason,
   SlashCommandInvalidReason,
-} from '../types';
+} from '../../types';
 
 export type SlashCommandIntent =
   | { readonly kind: 'not-command' }
