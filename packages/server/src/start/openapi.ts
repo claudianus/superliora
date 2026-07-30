@@ -1,6 +1,6 @@
 import { createAsyncApiDocument } from '@superliora/protocol';
 
-import { transformOpenApiDocument } from './openapi/transforms';
+import { transformOpenApiDocument } from '../openapi/transforms';
 
 /**
  * Minimal structural shape for the Fastify instance — avoids the strict

@@ -1,8 +1,8 @@
 import type { BindClass } from '#/services/auth/bindClassify';
 import { classify } from '#/services/auth/bindClassify';
 import type { TokenStore } from '#/services/auth/tokenStore';
-import type { ServerLogger } from './services/pinoLoggerService';
-import type { ServerStartOptions } from './start-types';
+import type { ServerLogger } from '../services/pinoLoggerService';
+import type { ServerStartOptions } from './types';
 
 export interface BindGateContext {
   bindClass: BindClass;

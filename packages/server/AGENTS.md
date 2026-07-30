@@ -14,7 +14,8 @@ Hosts `agent-core` sessions over REST + WebSocket under `/api/v1`. Consumed by `
 
 ## Layout (`src/`)
 
-- Top: `start.ts`, `index.ts`, `envelope.ts`, `error-handler.ts`, `lock.ts`, `request-id.ts`, `version.ts`
+- Top: `start.ts` (thin barrel), `index.ts`, `envelope.ts`, `error-handler.ts`, `lock.ts`, `request-id.ts`, `version.ts`
+- `start/` — bootstrap implementation (`index.ts` + listen/bind/OpenAPI/shutdown helpers)
 - `routes/` — REST domains + `registerApiV1Routes.ts` + `action-suffix.ts`
 - `services/` — server DI adapters (`approval/`, `question/`, `gateway/`, logger, `serviceCollection.ts`)
 - `ws/` — connection, frame protocol, raw data

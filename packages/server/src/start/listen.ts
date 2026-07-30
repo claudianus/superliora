@@ -1,5 +1,5 @@
 import type { IRestGateway } from '#/services/gateway';
-import type { ServerLogger } from './services/pinoLoggerService';
+import type { ServerLogger } from '../services/pinoLoggerService';
 
 /**
  * Maximum consecutive `EADDRINUSE` retries when the requested port is busy.

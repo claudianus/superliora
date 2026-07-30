@@ -39,7 +39,7 @@ import {
 import type { IAuthTokenService } from '#/services/auth/authTokenService';
 import { IModelCatalogRefreshScheduler } from '#/services/modelCatalog/modelCatalogRefreshScheduler';
 import { ISnapshotService, loadSnapshotConfig } from '#/services/snapshot';
-import { createFsWatchHandler } from './start-fs-watch';
+import { createFsWatchHandler } from './fs-watch';
 
 export interface WireCoreProcessResult {
   coreProcess: ICoreProcessService;

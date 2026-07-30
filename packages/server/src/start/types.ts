@@ -5,7 +5,7 @@ import type {
 } from '@superliora/agent-core';
 
 import type { WSGatewayOptions } from '#/services/gateway';
-import type { ServerLogLevel, ServerLogger } from './services/pinoLoggerService';
+import type { ServerLogLevel, ServerLogger } from '../services/pinoLoggerService';
 
 export interface ServerStartOptions {
   host: string;

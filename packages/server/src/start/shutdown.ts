@@ -7,9 +7,9 @@ import {
   IServerShutdownService,
   IWSGateway,
 } from '#/services/gateway';
-import type { AcquireLockResult } from './lock';
-import type { ServerLogger } from './services/pinoLoggerService';
-import type { ServerStartOptions } from './start-types';
+import type { AcquireLockResult } from '../lock';
+import type { ServerLogger } from '../services/pinoLoggerService';
+import type { ServerStartOptions } from './types';
 
 interface ShutdownHost {
   close(): Promise<unknown>;
