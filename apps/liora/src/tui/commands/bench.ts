@@ -1,11 +1,34 @@
-import { existsSync, readdirSync, readFileSync, statSync, type Stats } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { existsSync, readdirSync, statSync, type Stats } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 
 import { workspaceRelativePath } from '#/constant/workspace-data';
 
 import type { SlashCommandHost } from './dispatch';
+import {
+  budgetActionLines,
+  budgetLine,
+  formatHoldout,
+  formatPassRate,
+  formatScore,
+  nextActionFor,
+  providerBlockLine,
+} from './bench-format';
+import { normalizeLoopSummary } from './bench-loop';
+import {
+  asBoolean,
+  asNumber,
+  asRecord,
+  asString,
+  readJson,
+  stringList,
+  timestampOf,
+} from './bench-parse';
+import { displaySourcePath, resolveInputPath } from './bench-path';
+import { normalizeReplaySummary } from './bench-replay';
+import type { BenchStatus, BudgetTaskStatus, CandidateStatus } from './bench-types';
 import { requestTUILayoutRender } from '../utils/frame-render';
-import { quoteShellArg } from '../../utils/shell-quote';
+
+export type { BenchStatus } from './bench-types';
 
 const DEFAULT_BENCH_SUFFIX = ['evidence', 'superliora-provider-bench', 'final-quality-gate'] as const;
 const CANDIDATE_JSON_NAMES = new Set([
@@ -15,52 +38,6 @@ const CANDIDATE_JSON_NAMES = new Set([
   'gate-summary.json',
   'quality-gate.json',
 ]);
-
-export interface BenchStatus {
-  readonly sourcePath: string;
-  readonly sourceDisplayPath?: string;
-  readonly status: string;
-  readonly score?: number;
-  readonly passRate?: number;
-  readonly budget?: string;
-  readonly budgetExceeded?: number;
-  readonly budgetTasks?: readonly BudgetTaskStatus[];
-  readonly budgetInspect?: string;
-  readonly budgetRerun?: string;
-  readonly loopTrend?: string;
-  readonly loopLatest?: string;
-  readonly loopFocus?: string;
-  readonly loopReason?: string;
-  readonly loopAction?: string;
-  readonly loopInspect?: string;
-  readonly loopCost?: string;
-  readonly loopGuard?: string;
-  readonly loopStop?: string;
-  readonly loopRerun?: string;
-  readonly loopReplay?: string;
-  readonly replaySummary?: string;
-  readonly replayVerdict?: string;
-  readonly replaySource?: string;
-  readonly replayEvidence?: string;
-  readonly replayInspect?: string;
-  readonly replayLog?: string;
-  readonly replayDiff?: string;
-  readonly holdout?: string;
-  readonly providerBlock?: string;
-  readonly redaction?: string;
-  readonly noSecret: boolean;
-  readonly nextAction: string;
-  readonly warnings: readonly string[];
-}
-
-interface BudgetTaskStatus {
-  readonly id: string;
-  readonly violations: readonly string[];
-}
-
-interface CandidateStatus extends BenchStatus {
-  readonly timestamp: number;
-}
 
 export async function handleBenchCommand(host: SlashCommandHost, args: string): Promise<void> {
   const { UsagePanelComponent } = await import('../components/messages/usage-panel');
@@ -138,16 +115,6 @@ export function redactBenchStatusText(text: string): string {
     .replaceAll(/\b[A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\b/g, '[REDACTED_ENV]')
     .replaceAll(/\b([A-Za-z0-9_-]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_-]*)=([^\s,;]+)/gi, '$1=[REDACTED_SECRET]')
     .replaceAll(/\bsk-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED_SECRET]');
-}
-
-function resolveInputPath(workDir: string, input: string): string {
-  return isAbsolute(input) ? input : resolve(workDir, input);
-}
-
-function displaySourcePath(workDir: string, path: string): string {
-  const localPath = relative(workDir, path);
-  if (localPath.length > 0 && !localPath.startsWith('..') && !isAbsolute(localPath)) return localPath;
-  return path;
 }
 
 function collectCandidateFiles(root: string): string[] {
@@ -323,81 +290,6 @@ function normalizeBenchSummary(path: string, record: Record<string, unknown>): C
   };
 }
 
-function normalizeReplaySummary(workDir: string, path: string, record: Record<string, unknown>): CandidateStatus {
-  const replayed = asRecord(record['replayedLoopSummary']) ?? asRecord(record['loopSummary']);
-  const iterationValues = Array.isArray(replayed?.['iterations']) ? replayed['iterations'] : [];
-  const iterations = iterationValues.flatMap((item) => {
-    const iteration = asRecord(item);
-    return iteration === null ? [] : [iteration];
-  });
-  const lastIteration = iterations.at(-1);
-  const childExit = asNumber(record['childExitCode']);
-  const childSignal = asString(record['childSignal']);
-  const childTimedOut = asBoolean(record['childTimedOut']);
-  const onlyEvidenceRootChanged = asBoolean(record['onlyEvidenceRootChanged']);
-  const shellParsing = asBoolean(record['shellParsing']);
-  const exit = childExit === undefined ? childSignal ?? 'unknown' : String(childExit);
-  const childStatus = asString(replayed?.['status']) ?? 'UNKNOWN';
-  const replayStatus = asString(record['status']) ?? 'UNKNOWN';
-  const sourceSummaryPath = asString(record['sourceSummaryPath']);
-  const evidenceRoot = asString(record['evidenceRoot']);
-  const replaySource = sourceSummaryPath === undefined ? undefined : displaySourcePath(workDir, sourceSummaryPath);
-  const replayEvidence = evidenceRoot === undefined ? undefined : displaySourcePath(workDir, evidenceRoot);
-  const replayVerdict = replayVerdictLine({
-    wrapperStatus: replayStatus,
-    childStatus,
-    childExit,
-    childSignal,
-    childTimedOut,
-    onlyEvidenceRootChanged,
-    shellParsing,
-  });
-
-  return {
-    sourcePath: path,
-    status: replayStatus,
-    score: asNumber(replayed?.['bestScore']) ?? asNumber(lastIteration?.['score']),
-    passRate: asNumber(lastIteration?.['passRate']),
-    replaySummary: [
-      `child ${childStatus}`,
-      `exit ${exit}`,
-      `rootOnly ${formatBoolean(onlyEvidenceRootChanged)}`,
-      `shellParsing ${formatBoolean(shellParsing)}`,
-      `timeout ${formatBoolean(childTimedOut)}`,
-    ].join('; '),
-    replayVerdict,
-    replaySource,
-    replayEvidence,
-    replayInspect: replayEvidence === undefined ? undefined : `cat ${quoteBenchShellArg(join(replayEvidence, 'loop-summary.json'))}`,
-    replayLog: replayEvidence === undefined ? undefined : `cat ${quoteBenchShellArg(join(replayEvidence, 'commands.jsonl'))}`,
-    replayDiff: replayDiffCommand(replaySource, replayEvidence),
-    holdout: 'loop replay wrapper',
-    providerBlock: 'not applicable',
-    redaction: 'not recorded',
-    noSecret: true,
-    nextAction: replayNextAction(replayVerdict, childStatus),
-    warnings: [],
-    timestamp: timestampOf(record, path),
-  };
-}
-
-function budgetLine(status: BenchStatus): string {
-  if (status.budget === undefined) return 'not recorded';
-  const exceeded = status.budgetExceeded === undefined ? 'unknown' : String(status.budgetExceeded);
-  return `${status.budget}; exceeded ${exceeded}`;
-}
-
-function budgetActionLines(status: BenchStatus): string[] {
-  if (status.budget !== 'FAIL' || status.budgetTasks === undefined || status.budgetTasks.length === 0) return [];
-  const topTask = status.budgetTasks[0];
-  if (topTask === undefined) return [];
-  const lines = [`top  ${topTask.id}`];
-  if (topTask.violations.length > 0) lines.push(`detail  ${topTask.violations.slice(0, 3).join('; ')}`);
-  if (status.budgetInspect !== undefined) lines.push(`inspect  ${status.budgetInspect}`);
-  if (status.budgetRerun !== undefined) lines.push(`rerun  ${status.budgetRerun}`);
-  return lines;
-}
-
 function budgetTaskStatuses(budget: Record<string, unknown> | null): BudgetTaskStatus[] {
   const taskRecords = budget?.['tasks'];
   const tasks = Array.isArray(taskRecords) ? taskRecords : [];
@@ -427,173 +319,6 @@ function safeFileName(value: string): string {
   return value.replaceAll(/[^A-Za-z0-9._-]/g, '_');
 }
 
-function normalizeLoopSummary(workDir: string, path: string, record: Record<string, unknown>): CandidateStatus {
-  const iterationValues = Array.isArray(record['iterations']) ? record['iterations'] : [];
-  const iterations = iterationValues.flatMap((item) => {
-    const iteration = asRecord(item);
-    return iteration === null ? [] : [iteration];
-  });
-  const lastIteration = iterations.at(-1);
-  const proposal = asString(lastIteration?.['proposal']);
-  const bestScore = asNumber(record['bestScore']);
-  const stopReason = asString(record['stopReason']);
-  const rerun = asRecord(record['rerun']);
-  const guardrails = asRecord(record['guardrails']);
-  const focus = asRecord(lastIteration?.['focus']);
-
-  return {
-    sourcePath: path,
-    status: asString(record['status']) ?? 'UNKNOWN',
-    score: bestScore ?? asNumber(lastIteration?.['score']),
-    passRate: asNumber(lastIteration?.['passRate']),
-    loopTrend: loopTrendLine(iterations, bestScore),
-    loopLatest: loopLatestLine(lastIteration),
-    loopFocus: loopFocusLine(focus),
-    loopReason: loopReasonLine(focus),
-    loopAction: loopActionLine(focus),
-    loopInspect: loopInspectLine(focus),
-    loopCost: loopCostLine(record, lastIteration),
-    loopGuard: loopGuardLine(record, guardrails),
-    loopStop: stopReason,
-    loopRerun: asString(rerun?.['command']),
-    loopReplay: loopReplayCommand(workDir, path, rerun),
-    holdout: `bounded loop: ${stopReason ?? 'not recorded'}`,
-    providerBlock: 'not applicable',
-    redaction: 'not recorded',
-    noSecret: true,
-    nextAction: proposal ?? 'Review the loop proposal, then run the next bounded benchmark iteration.',
-    warnings: [],
-    timestamp: timestampOf(record, path),
-  };
-}
-
-function loopReplayCommand(
-  workDir: string,
-  sourcePath: string,
-  rerun: Record<string, unknown> | null,
-): string | undefined {
-  if (!hasReplayableRerunArgv(rerun?.['argv'])) return undefined;
-  const sourceDisplayPath = displaySourcePath(workDir, sourcePath);
-  if (sourceDisplayPath === sourcePath) return undefined;
-  const replayRoot = join(dirname(sourceDisplayPath), 'replay');
-  return `node scripts/liora-agent-bench.mjs --replay-summary ${quoteBenchShellArg(sourceDisplayPath)} --evidence-root ${quoteBenchShellArg(replayRoot)}`;
-}
-
-function hasReplayableRerunArgv(value: unknown): boolean {
-  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) return false;
-  if (value[0] !== 'node' || value[1] !== 'scripts/liora-agent-bench.mjs') return false;
-  return !value.some((entry) => entry === '--replay-summary' || entry.startsWith('--replay-summary='));
-}
-
-function quoteBenchShellArg(value: string): string {
-  return /^[A-Za-z0-9_./:=@%^,+-]+$/.test(value) ? value : quoteShellArg(value);
-}
-
-function replayDiffCommand(replaySource: string | undefined, replayEvidence: string | undefined): string | undefined {
-  if (replaySource === undefined || replayEvidence === undefined) return undefined;
-  return `diff -u ${quoteBenchShellArg(replaySource)} ${quoteBenchShellArg(join(replayEvidence, 'loop-summary.json'))}`;
-}
-
-function loopTrendLine(iterations: readonly Record<string, unknown>[], bestScore: number | undefined): string | undefined {
-  const firstIteration = iterations[0];
-  const lastIteration = iterations.at(-1);
-  if (firstIteration === undefined || lastIteration === undefined) return undefined;
-  const firstScore = asNumber(firstIteration['score']);
-  const lastScore = asNumber(lastIteration['score']);
-  const delta = firstScore === undefined || lastScore === undefined ? undefined : lastScore - firstScore;
-  return `iter ${iterations.length}; score ${formatScore(firstScore)} -> ${formatScore(lastScore)} (${formatDelta(delta)}); best ${formatScore(bestScore ?? lastScore)}`;
-}
-
-function loopLatestLine(iteration: Record<string, unknown> | undefined): string | undefined {
-  if (iteration === undefined) return undefined;
-  const status = asString(iteration['status']) ?? 'UNKNOWN';
-  return `status ${status}; passRate ${formatPassRate(asNumber(iteration['passRate']))}; delta ${formatDelta(asNumber(iteration['delta']))}`;
-}
-
-function loopFocusLine(focus: Record<string, unknown> | null): string | undefined {
-  if (focus === null) return undefined;
-  const tasks = focusTasks(focus);
-  const taxonomy = loopTaxonomyLine(focus);
-  const status = asString(focus['status']) ?? 'attention';
-  if (status === 'clean' && tasks.length === 0) return undefined;
-
-  const task = tasks[0];
-  const taskText = task === undefined ? `${status} task unknown` : loopFocusTaskText(task);
-  return taxonomy === undefined ? taskText : `${taskText}; top ${taxonomy}`;
-}
-
-function loopInspectLine(focus: Record<string, unknown> | null): string | undefined {
-  if (focus === null) return undefined;
-  const task = focusTasks(focus)[0];
-  return asString(task?.['displayPath']) ?? asString(task?.['resultPath']);
-}
-
-function loopReasonLine(focus: Record<string, unknown> | null): string | undefined {
-  if (focus === null) return undefined;
-  const status = asString(focus['status']) ?? 'attention';
-  if (status === 'clean') return undefined;
-  return asString(focusTasks(focus)[0]?.['reason']);
-}
-
-function loopActionLine(focus: Record<string, unknown> | null): string | undefined {
-  if (focus === null) return undefined;
-  const status = asString(focus['status']) ?? 'attention';
-  if (status === 'clean') return undefined;
-  return asString(focusTasks(focus)[0]?.['action']);
-}
-
-function loopFocusTaskText(task: Record<string, unknown>): string {
-  const status = asString(task['status']) ?? 'UNKNOWN';
-  const id = asString(task['id']) ?? 'unknown';
-  const taxonomy = stringList(task['taxonomy']).slice(0, 3).join(',');
-  return taxonomy.length === 0 ? `${status} ${id}` : `${status} ${id} (${taxonomy})`;
-}
-
-function focusTasks(focus: Record<string, unknown>): Record<string, unknown>[] {
-  const tasks = focus['tasks'];
-  return Array.isArray(tasks)
-    ? tasks.flatMap((item) => {
-      const record = asRecord(item);
-      return record === null ? [] : [record];
-    })
-    : [];
-}
-
-function loopTaxonomyLine(focus: Record<string, unknown>): string | undefined {
-  const taxonomy = focus['taxonomy'];
-  if (Array.isArray(taxonomy)) {
-    const entries = taxonomy.flatMap((item) => {
-      const record = asRecord(item);
-      const name = asString(record?.['name']);
-      if (name === undefined) return [];
-      return [`${name} x${formatMetric(asNumber(record?.['count']))}`];
-    });
-    return entries.length === 0 ? undefined : entries.slice(0, 3).join(', ');
-  }
-  const record = asRecord(taxonomy);
-  if (record === null) return undefined;
-  const entries = Object.entries(record).flatMap(([name, value]) => {
-    const count = asNumber(value);
-    return count === undefined ? [] : [`${name} x${formatMetric(count)}`];
-  });
-  return entries.length === 0 ? undefined : entries.slice(0, 3).join(', ');
-}
-
-function loopCostLine(record: Record<string, unknown>, iteration: Record<string, unknown> | undefined): string {
-  const counts = asRecord(iteration?.['counts']);
-  const selected = asNumber(counts?.['selected']);
-  const scored = asNumber(counts?.['scored']);
-  const failed = asNumber(counts?.['failed']);
-  const blocked = asNumber(counts?.['blocked']);
-  return `wall ${formatDurationMs(asNumber(record['wallClockMs']))}/${formatDurationMs(asNumber(record['maxTotalMs']))}; tasks ${formatMetric(scored)}/${formatMetric(selected)}; failed ${formatMetric(failed)}; blocked ${formatMetric(blocked)}`;
-}
-
-function loopGuardLine(record: Record<string, unknown>, guardrails: Record<string, unknown> | null): string {
-  const bounded = asBoolean(guardrails?.['bounded']);
-  const executeCodeChanges = asBoolean(guardrails?.['executeCodeChanges']);
-  return `bounded ${formatBoolean(bounded)}; maxIter ${formatMetric(asNumber(record['maxIterations']))}; codeChanges ${executeCodeChanges === undefined ? 'unknown' : String(executeCodeChanges)}`;
-}
-
 function unavailableStatus(sourcePath: string, warning: string): BenchStatus {
   return {
     sourcePath,
@@ -604,152 +329,10 @@ function unavailableStatus(sourcePath: string, warning: string): BenchStatus {
   };
 }
 
-function readJson(path: string): unknown {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8')) as unknown;
-  } catch {
-    return null;
-  }
-}
-
 function safeStat(path: string): Stats | null {
   try {
     return statSync(path);
   } catch {
     return null;
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-}
-
-function asNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function asBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
-}
-
-function stringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-}
-
-function formatHoldout(holdout: Record<string, unknown> | null): string | undefined {
-  if (holdout === null) return undefined;
-  const status = asString(holdout['status']) ?? 'not recorded';
-  const selected = asNumber(holdout['selected']);
-  const available = asNumber(holdout['available']);
-  if (selected !== undefined && available !== undefined) return `${status} (${selected}/${available})`;
-  return status;
-}
-
-function providerBlockLine(
-  preflight: string | undefined,
-  missingEnv: readonly string[],
-  providerCallStarted: boolean | undefined,
-): string {
-  if (preflight === undefined || preflight === 'not_applicable') return 'not blocked';
-  const missing = missingEnv.length > 0 ? `: ${missingEnv.join(', ')}` : '';
-  const callState = providerCallStarted === undefined ? '' : `; providerCallStarted=${providerCallStarted}`;
-  return `${preflight}${missing}${callState}`;
-}
-
-function nextActionFor(preflight: string | undefined, missingEnv: readonly string[]): string {
-  if (preflight === 'blocked_missing_env' || missingEnv.length > 0) {
-    return `Set ${missingEnv.join('/')} and rerun node scripts/liora-agent-bench.mjs --suite holdout --runner provider.`;
-  }
-  return 'Run the next bounded Ultrawork loop only after recording fresh benchmark evidence.';
-}
-
-function replayNextAction(replayVerdict: string, childStatus: string): string {
-  if (replayVerdict.startsWith('trusted;')) {
-    return `Replay verified; inspect child loop result ${childStatus} before the next improvement.`;
-  }
-  return 'Inspect replay-summary.json and commands.jsonl before trusting this replay result.';
-}
-
-interface ReplayVerdictInput {
-  readonly wrapperStatus: string;
-  readonly childStatus: string;
-  readonly childExit?: number;
-  readonly childSignal?: string;
-  readonly childTimedOut?: boolean;
-  readonly onlyEvidenceRootChanged?: boolean;
-  readonly shellParsing?: boolean;
-}
-
-function replayVerdictLine(input: ReplayVerdictInput): string {
-  const trusted = input.wrapperStatus === 'PASS'
-    && input.childStatus === 'PASS'
-    && input.childExit === 0
-    && input.childSignal === undefined
-    && input.childTimedOut === false
-    && input.onlyEvidenceRootChanged === true
-    && input.shellParsing === false;
-  if (trusted) {
-    return 'trusted; child PASS; exit 0; rootOnly true; shellParsing false; timeout false';
-  }
-
-  const blockers: string[] = [];
-  const concerns: string[] = [];
-  if (input.wrapperStatus === 'BLOCKED' || input.wrapperStatus === 'FAIL') blockers.push(`wrapper ${input.wrapperStatus}`);
-  else if (input.wrapperStatus !== 'PASS') concerns.push(`wrapper ${input.wrapperStatus}`);
-  if (input.childStatus === 'BLOCKED' || input.childStatus === 'FAIL') blockers.push(`child ${input.childStatus}`);
-  else if (input.childStatus !== 'PASS') concerns.push(`child ${input.childStatus}`);
-  if (input.childSignal !== undefined) blockers.push(`signal ${input.childSignal}`);
-  if (input.childExit === undefined) concerns.push('exit unknown');
-  else if (input.childExit !== 0) blockers.push(`exit ${input.childExit}`);
-  if (input.childTimedOut === true) blockers.push('timeout true');
-  else if (input.childTimedOut === undefined) concerns.push('timeout unknown');
-  if (input.onlyEvidenceRootChanged !== true) concerns.push(`rootOnly ${formatBoolean(input.onlyEvidenceRootChanged)}`);
-  if (input.shellParsing !== false) concerns.push(`shellParsing ${formatBoolean(input.shellParsing)}`);
-
-  const verdict = blockers.length > 0 ? 'blocked' : 'suspect';
-  return `${verdict}; ${[...blockers, ...concerns].join('; ')}`;
-}
-
-function formatScore(score: number | undefined): string {
-  return score === undefined ? 'unavailable' : score.toFixed(2);
-}
-
-function formatPassRate(passRate: number | undefined): string {
-  if (passRate === undefined) return 'unavailable';
-  return `${Math.round(passRate * 100)}%`;
-}
-
-function formatDelta(delta: number | undefined): string {
-  if (delta === undefined) return 'unavailable';
-  return `${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`;
-}
-
-function formatDurationMs(durationMs: number | undefined): string {
-  if (durationMs === undefined) return 'unavailable';
-  if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
-  const seconds = durationMs / 1000;
-  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-  const minutes = seconds / 60;
-  return `${minutes.toFixed(minutes < 10 ? 1 : 0)}m`;
-}
-
-function formatMetric(value: number | undefined): string {
-  return value === undefined ? 'unknown' : String(value);
-}
-
-function formatBoolean(value: boolean | undefined): string {
-  return value === undefined ? 'unknown' : String(value);
-}
-
-function timestampOf(record: Record<string, unknown>, path: string): number {
-  const value = asString(record['completedAt']) ?? asString(record['createdAt']) ?? asString(record['startedAt']);
-  const parsed = value === undefined ? Number.NaN : Date.parse(value);
-  if (Number.isFinite(parsed)) return parsed;
-  return safeStat(path)?.mtimeMs ?? 0;
 }

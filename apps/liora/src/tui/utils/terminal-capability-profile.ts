@@ -21,6 +21,24 @@
  * response to a query sequence).
  */
 
+import { DEFAULT_FEATURES, TERMINAL_DB } from './terminal-capability-db';
+import {
+  buildSummary,
+  calculateTier,
+  computeEffectiveDimensions,
+} from './terminal-capability-queries';
+
+export type {
+  FeatureRecommendation,
+} from './terminal-capability-queries';
+export {
+  getColorEncoder,
+  getFeatureRecommendations,
+  getImageStrategy,
+  getMaxSafeFps,
+  hasFeature,
+} from './terminal-capability-queries';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -114,141 +132,8 @@ export interface CapabilityOverrides {
 }
 
 // ---------------------------------------------------------------------------
-// Known Terminal Database
-// ---------------------------------------------------------------------------
-
-interface TerminalDbEntry {
-  readonly tier: FeatureTier;
-  readonly colorDepth: ColorDepth;
-  readonly imageProtocol: ImageProtocol;
-  readonly keyboardProtocol: KeyboardProtocol;
-  readonly features: Partial<TerminalFeatureFlags>;
-}
-
-const TERMINAL_DB: Record<string, TerminalDbEntry> = {
-  kitty: {
-    tier: 'premium',
-    colorDepth: 'truecolor',
-    imageProtocol: 'kitty',
-    keyboardProtocol: 'kitty-enhanced',
-    features: {
-      trueColor: true, kittyKeyboard: true, kittyGraphics: true,
-      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
-      bracketedPaste: true, osc52Clipboard: true, osc99Notify: true,
-      styledUnderlines: true, hyperlinks: true, unicodeWide: true,
-      extendedAttributes: true, cursorShape: true, pointerShapes: true, cursorColor: true,
-      windowTitle: true, alternateScreen: true,
-    },
-  },
-  ghostty: {
-    tier: 'premium',
-    colorDepth: 'truecolor',
-    imageProtocol: 'kitty',
-    keyboardProtocol: 'kitty-enhanced',
-    features: {
-      trueColor: true, kittyKeyboard: true, kittyGraphics: true,
-      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
-      bracketedPaste: true, osc52Clipboard: true,
-      styledUnderlines: true, hyperlinks: true, unicodeWide: true,
-      extendedAttributes: true, cursorShape: true, pointerShapes: true, cursorColor: true,
-      windowTitle: true, alternateScreen: true,
-    },
-  },
-  wezterm: {
-    tier: 'premium',
-    colorDepth: 'truecolor',
-    imageProtocol: 'iterm2',
-    keyboardProtocol: 'kitty-enhanced',
-    features: {
-      trueColor: true, kittyKeyboard: true, iterm2Images: true,
-      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
-      bracketedPaste: true, osc52Clipboard: true,
-      styledUnderlines: true, hyperlinks: true, unicodeWide: true,
-      extendedAttributes: true, cursorShape: true, pointerShapes: true, cursorColor: true,
-      windowTitle: true, alternateScreen: true,
-    },
-  },
-  iterm2: {
-    tier: 'enhanced',
-    colorDepth: 'truecolor',
-    imageProtocol: 'iterm2',
-    keyboardProtocol: 'modify-other-keys',
-    features: {
-      trueColor: true, iterm2Images: true,
-      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
-      bracketedPaste: true, osc52Clipboard: true,
-      hyperlinks: true, unicodeWide: true,
-      cursorShape: true, cursorColor: true,
-      windowTitle: true, alternateScreen: true,
-    },
-  },
-  alacritty: {
-    tier: 'enhanced',
-    colorDepth: 'truecolor',
-    imageProtocol: 'none',
-    keyboardProtocol: 'modify-other-keys',
-    features: {
-      trueColor: true,
-      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
-      bracketedPaste: true, osc52Clipboard: true,
-      styledUnderlines: true, hyperlinks: true, unicodeWide: true,
-      cursorShape: true, cursorColor: true,
-      windowTitle: true, alternateScreen: true,
-    },
-  },
-  foot: {
-    tier: 'enhanced',
-    colorDepth: 'truecolor',
-    imageProtocol: 'sixel',
-    keyboardProtocol: 'modify-other-keys',
-    features: {
-      trueColor: true, sixel: true,
-      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
-      bracketedPaste: true, osc52Clipboard: true,
-      hyperlinks: true, unicodeWide: true,
-      cursorShape: true, windowTitle: true, alternateScreen: true,
-    },
-  },
-  rio: {
-    tier: 'premium',
-    colorDepth: 'truecolor',
-    imageProtocol: 'kitty',
-    keyboardProtocol: 'kitty-enhanced',
-    features: {
-      trueColor: true, kittyKeyboard: true, kittyGraphics: true,
-      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
-      bracketedPaste: true, hyperlinks: true, unicodeWide: true,
-      cursorShape: true, cursorColor: true,
-      windowTitle: true, alternateScreen: true,
-    },
-  },
-  vscode: {
-    tier: 'enhanced',
-    colorDepth: 'truecolor',
-    imageProtocol: 'none',
-    keyboardProtocol: 'legacy',
-    features: {
-      trueColor: true,
-      mouseTracking: true, bracketedPaste: true,
-      hyperlinks: true, unicodeWide: true,
-      cursorShape: true, windowTitle: true, alternateScreen: true,
-    },
-  },
-};
-
-// ---------------------------------------------------------------------------
 // Detection Logic
 // ---------------------------------------------------------------------------
-
-const DEFAULT_FEATURES: TerminalFeatureFlags = {
-  trueColor: false, kittyKeyboard: false, kittyGraphics: false,
-  iterm2Images: false, sixel: false, synchronizedOutput: false,
-  mouseTracking: false, focusEvents: false, bracketedPaste: false,
-  osc52Clipboard: false, osc99Notify: false, styledUnderlines: false,
-  hyperlinks: false, unicodeWide: false, extendedAttributes: false,
-  cursorShape: true, pointerShapes: false, cursorColor: false, windowTitle: true,
-  alternateScreen: true,
-};
 
 /**
  * Detect the terminal identity from environment variables.
@@ -292,24 +177,20 @@ function identifyTerminal(identity: TerminalIdentity): string | null {
  * Detect unicode version based on environment hints.
  */
 function detectUnicodeVersion(env: NodeJS.ProcessEnv): UnicodeVersion {
-  // TERM_PROGRAM_VERSION or explicit hints
   const term = (env['TERM'] ?? '').toLowerCase();
   const program = (env['TERM_PROGRAM'] ?? '').toLowerCase();
 
-  // Modern terminals (2023+) typically support Unicode 15
   if (term.includes('kitty') || term.includes('ghostty') || term.includes('wezterm')) {
     return 15;
   }
   if (program.includes('iterm') || program.includes('vscode')) {
     return 12;
   }
-  // Check for explicit unicode width env
   const unicodeWidth = env['SUPERLIORA_UNICODE_WIDTH'];
   if (unicodeWidth === '15') return 15;
   if (unicodeWidth === '12') return 12;
   if (unicodeWidth === '9') return 9;
 
-  // Default: most modern systems support at least Unicode 12
   return 12;
 }
 
@@ -325,14 +206,12 @@ export function buildCapabilityProfile(
   const overrides = parseOverrides(env);
   const terminalKey = identifyTerminal(identity);
 
-  // Start from defaults
   let features: TerminalFeatureFlags = { ...DEFAULT_FEATURES };
   let colorDepth: ColorDepth = 'ansi256';
   let imageProtocol: ImageProtocol = 'none';
   let keyboardProtocol: KeyboardProtocol = 'legacy';
   let tier: FeatureTier = 'basic';
 
-  // Apply known terminal database entry
   if (terminalKey && TERMINAL_DB[terminalKey]) {
     const entry = TERMINAL_DB[terminalKey]!;
     tier = entry.tier;
@@ -342,7 +221,6 @@ export function buildCapabilityProfile(
     features = { ...DEFAULT_FEATURES, ...entry.features };
   }
 
-  // Environment-based color detection
   const colorterm = (env['COLORTERM'] ?? '').toLowerCase();
   if (colorterm === 'truecolor' || colorterm === '24bit') {
     colorDepth = 'truecolor';
@@ -352,7 +230,6 @@ export function buildCapabilityProfile(
     colorDepth = 'ansi256';
   }
 
-  // NO_COLOR / FORCE_COLOR
   if (env['NO_COLOR'] !== undefined && !env['FORCE_COLOR']) {
     colorDepth = 'none';
     features = { ...features, trueColor: false };
@@ -362,28 +239,22 @@ export function buildCapabilityProfile(
     if (colorDepth === 'none') colorDepth = 'ansi16';
   }
 
-  // Multiplexer degradation
   if (identity.multiplexer === 'tmux' || identity.multiplexer === 'zellij') {
-    // Images generally don't pass through multiplexers (except tmux passthrough)
     if (imageProtocol === 'kitty' && identity.multiplexer === 'zellij') {
       imageProtocol = 'none';
       features = { ...features, kittyGraphics: false };
     }
-    // Keyboard protocol may be degraded in multiplexers
     if (keyboardProtocol === 'kitty-enhanced' && identity.multiplexer) {
       keyboardProtocol = 'modify-other-keys';
       features = { ...features, kittyKeyboard: false };
     }
-    // Pointer shape OSC 22 does not pass through multiplexers by default
     features = { ...features, pointerShapes: false };
   }
 
-  // SSH degradation: some features unreliable over SSH
   if (identity.ssh) {
     features = { ...features, osc99Notify: false };
   }
 
-  // Non-interactive: disable all interactive features
   if (!identity.interactive) {
     features = {
       ...features,
@@ -393,7 +264,6 @@ export function buildCapabilityProfile(
     keyboardProtocol = 'legacy';
   }
 
-  // Apply user overrides
   features = applyOverrides(features, overrides);
   if (overrides.forceNoColor) {
     colorDepth = 'none';
@@ -419,10 +289,8 @@ export function buildCapabilityProfile(
     features = { ...features, mouseTracking: false };
   }
 
-  // Recalculate tier based on final features
   tier = calculateTier(features, colorDepth);
 
-  // Effective dimensions (multiplexer chrome deduction)
   const rawCols = columns ?? process.stdout.columns ?? 80;
   const rawRows = rows ?? process.stdout.rows ?? 24;
   const { effectiveColumns, effectiveRows } = computeEffectiveDimensions(
@@ -447,169 +315,6 @@ export function buildCapabilityProfile(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Feature Recommendations
-// ---------------------------------------------------------------------------
-
-export interface FeatureRecommendation {
-  readonly feature: string;
-  readonly enabled: boolean;
-  readonly reason: string;
-}
-
-/**
- * Get recommendations for which visual features to enable based on profile.
- */
-export function getFeatureRecommendations(profile: TerminalCapabilityProfile): FeatureRecommendation[] {
-  const recs: FeatureRecommendation[] = [];
-  const f = profile.features;
-
-  recs.push({
-    feature: 'animations',
-    enabled: f.synchronizedOutput && profile.identity.interactive,
-    reason: f.synchronizedOutput
-      ? 'Sync output prevents tearing'
-      : 'No sync output — animations may tear',
-  });
-
-  recs.push({
-    feature: 'inline-images',
-    enabled: profile.imageProtocol !== 'none',
-    reason: profile.imageProtocol !== 'none'
-      ? `${profile.imageProtocol} protocol available`
-      : 'No image protocol detected',
-  });
-
-  recs.push({
-    feature: 'mouse-interaction',
-    enabled: f.mouseTracking,
-    reason: f.mouseTracking ? 'SGR mouse tracking available' : 'Mouse not supported',
-  });
-
-  recs.push({
-    feature: 'clipboard-integration',
-    enabled: f.osc52Clipboard,
-    reason: f.osc52Clipboard ? 'OSC 52 clipboard available' : 'No clipboard access',
-  });
-
-  recs.push({
-    feature: 'desktop-notifications',
-    enabled: f.osc99Notify,
-    reason: f.osc99Notify ? 'OSC 99 notifications available' : 'No notification support',
-  });
-
-  recs.push({
-    feature: 'styled-underlines',
-    enabled: f.styledUnderlines,
-    reason: f.styledUnderlines ? 'Undercurl/dotted/dashed available' : 'Basic underline only',
-  });
-
-  recs.push({
-    feature: 'hyperlinks',
-    enabled: f.hyperlinks,
-    reason: f.hyperlinks ? 'OSC 8 hyperlinks available' : 'No hyperlink support',
-  });
-
-  recs.push({
-    feature: 'high-fps-animation',
-    enabled: profile.tier === 'premium' && f.synchronizedOutput,
-    reason: profile.tier === 'premium'
-      ? 'Premium terminal — 60fps viable'
-      : 'Standard terminal — cap at 30fps',
-  });
-
-  recs.push({
-    feature: 'unicode-emoji',
-    enabled: f.unicodeWide && profile.unicodeVersion >= 12,
-    reason: `Unicode ${String(profile.unicodeVersion)} detected`,
-  });
-
-  return recs;
-}
-
-// ---------------------------------------------------------------------------
-// Capability Query Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Check if a specific feature is available.
- */
-export function hasFeature(profile: TerminalCapabilityProfile, feature: keyof TerminalFeatureFlags): boolean {
-  return profile.features[feature];
-}
-
-/**
- * Get the maximum safe FPS for animations.
- */
-export function getMaxSafeFps(profile: TerminalCapabilityProfile): number {
-  if (!profile.identity.interactive) return 0;
-  if (profile.tier === 'premium' && profile.features.synchronizedOutput) return 60;
-  if (profile.tier === 'enhanced') return 30;
-  return 15;
-}
-
-/**
- * Get the best available image rendering strategy.
- */
-export function getImageStrategy(profile: TerminalCapabilityProfile): {
-  protocol: ImageProtocol;
-  maxInlineWidth: number;
-  maxInlineHeight: number;
-  supportsTransparency: boolean;
-  supportsAnimation: boolean;
-} {
-  switch (profile.imageProtocol) {
-    case 'kitty':
-      return {
-        protocol: 'kitty',
-        maxInlineWidth: 4096,
-        maxInlineHeight: 4096,
-        supportsTransparency: true,
-        supportsAnimation: true,
-      };
-    case 'iterm2':
-      return {
-        protocol: 'iterm2',
-        maxInlineWidth: 2048,
-        maxInlineHeight: 2048,
-        supportsTransparency: true,
-        supportsAnimation: false,
-      };
-    case 'sixel':
-      return {
-        protocol: 'sixel',
-        maxInlineWidth: 1024,
-        maxInlineHeight: 1024,
-        supportsTransparency: true,
-        supportsAnimation: false,
-      };
-    default:
-      return {
-        protocol: 'none',
-        maxInlineWidth: 0,
-        maxInlineHeight: 0,
-        supportsTransparency: false,
-        supportsAnimation: false,
-      };
-  }
-}
-
-/**
- * Get the optimal color encoding function selector.
- */
-export function getColorEncoder(profile: TerminalCapabilityProfile): 'rgb' | 'palette256' | 'palette16' | 'none' {
-  switch (profile.colorDepth) {
-    case 'truecolor': return 'rgb';
-    case 'ansi256': return 'palette256';
-    case 'ansi16': return 'palette16';
-    default: return 'none';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Internal Helpers
-// ---------------------------------------------------------------------------
-
 function parseOverrides(env: NodeJS.ProcessEnv): CapabilityOverrides {
   return {
     forceTrueColor: env['SUPERLIORA_FORCE_TRUECOLOR'] === '1',
@@ -627,71 +332,6 @@ function applyOverrides(features: TerminalFeatureFlags, overrides: CapabilityOve
     result = { ...result, mouseTracking: false };
   }
   return result;
-}
-
-function calculateTier(features: TerminalFeatureFlags, colorDepth: ColorDepth): FeatureTier {
-  if (
-    colorDepth === 'truecolor' &&
-    features.kittyKeyboard &&
-    (features.kittyGraphics || features.iterm2Images) &&
-    features.synchronizedOutput
-  ) {
-    return 'premium';
-  }
-  if (colorDepth === 'truecolor' && features.mouseTracking && features.bracketedPaste) {
-    return 'enhanced';
-  }
-  if (colorDepth === 'ansi256' && features.mouseTracking) {
-    return 'enhanced';
-  }
-  return 'basic';
-}
-
-function computeEffectiveDimensions(
-  columns: number,
-  rows: number,
-  multiplexer: TerminalIdentity['multiplexer'],
-): { effectiveColumns: number; effectiveRows: number } {
-  let effectiveColumns = columns;
-  let effectiveRows = rows;
-
-  switch (multiplexer) {
-    case 'tmux':
-      // tmux status bar takes 1 row (or 2 with status-position top+bottom)
-      effectiveRows -= 1;
-      break;
-    case 'zellij':
-      // zellij has top tab bar (1) + bottom status bar (1) + possible padding
-      effectiveRows -= 2;
-      effectiveColumns -= 2; // side borders in some layouts
-      break;
-    case 'screen':
-      // GNU screen hardstatus line
-      effectiveRows -= 1;
-      break;
-  }
-
-  return {
-    effectiveColumns: Math.max(20, effectiveColumns),
-    effectiveRows: Math.max(5, effectiveRows),
-  };
-}
-
-function buildSummary(
-  tier: FeatureTier,
-  colorDepth: ColorDepth,
-  imageProtocol: ImageProtocol,
-  keyboardProtocol: KeyboardProtocol,
-  identity: TerminalIdentity,
-): string {
-  const parts: string[] = [];
-  parts.push(tier);
-  parts.push(colorDepth);
-  if (imageProtocol !== 'none') parts.push(`img:${imageProtocol}`);
-  if (keyboardProtocol !== 'legacy') parts.push(`kb:${keyboardProtocol}`);
-  if (identity.multiplexer) parts.push(`mux:${identity.multiplexer}`);
-  if (identity.ssh) parts.push('ssh');
-  return parts.join(' | ');
 }
 
 // ---------------------------------------------------------------------------
