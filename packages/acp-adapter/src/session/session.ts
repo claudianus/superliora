@@ -18,20 +18,17 @@ import {
   type Session,
 } from '@superliora/sdk';
 
-import {
-  approvalRequestToPermissionOptions,
-  attachSelectedLabel,
-  buildPermissionToolCallUpdate,
-  permissionResponseToApprovalResponse,
-} from '#/approval';
 import { type AcpBuiltinSlashCommandName } from '#/builtin-commands';
 import { acpBlocksToPromptParts } from '#/convert/index';
-import { acpToolCallId } from '#/convert/events-map';
 import { DEFAULT_MODE_ID, isAcpModeId, type AcpModeId } from '#/modes';
-import { outcomeToQuestionAnswer, questionItemToPermissionOptions } from '#/question';
 import { replayMessage } from '#/replay';
 import { runBuiltInSlashCommand, runUnknownSlashCommand } from './session-commands';
 import { MAIN_AGENT_ID } from './session-constants';
+import {
+  emitSessionTelemetry,
+  handleSessionApproval,
+  handleSessionQuestion,
+} from './session-reverse-rpc';
 import {
   applySetModel,
   applySetMode,
@@ -522,147 +519,24 @@ export class AcpSession {
    * needs human authorization to proceed with a tool call.
    */
   private async handleApproval(req: ApprovalRequest): Promise<ApprovalResponse> {
-    const toolCall = buildPermissionToolCallUpdate(this.currentTurnId, req);
-    const options = approvalRequestToPermissionOptions(req);
-    // Phase 13.2 telemetry breadcrumb: how many discrete options does
-    // the plan_review surface carry? PII-free (just a count), matches
-    // the Phase 11.2 telemetry discipline.
-    if (req.display.kind === 'plan_review') {
-      const count = req.display.options?.length ?? 0;
-      this.emitTelemetry('plan_review_options_count', { count });
-    }
-    try {
-      // `requestPermission` is an awaitable JSON-RPC request (unlike
-      // the fire-and-forget `sessionUpdate` notifications elsewhere in
-      // this file), so the SDK call site naturally blocks on the
-      // user's decision before the tool runs.
-      const response = await this.conn.requestPermission({
-        sessionId: this.id,
-        options: [...options],
-        toolCall,
-      });
-      // Map the discriminator first (pure mapper, easy to unit-test),
-      // then stitch the matched option's human-readable name as
-      // `selectedLabel` so the SDK can surface "approved as
-      // 'Approve once'" in subsequent reasoning. `attachSelectedLabel`
-      // is a no-op for `cancelled` outcomes, unknown optionIds, and
-      // plan_* optionIds (Phase 13.2 — the plan_review branch attaches
-      // selectedLabel inside `permissionResponseToApprovalResponse`).
-      return attachSelectedLabel(
-        response,
-        permissionResponseToApprovalResponse(req, response),
-        options,
-      );
-    } catch (err) {
-      log.warn('acp: requestPermission failed; rejecting', {
-        sessionId: this.id,
-        toolCallId: req.toolCallId,
-        toolName: req.toolName,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return { decision: 'rejected' };
-    }
+    return handleSessionApproval(this.reverseRpcContext(), req);
   }
 
-  /**
-   * Bridge an SDK {@link QuestionRequest} (the AskUserQuestion tool's
-   * reverse-RPC) through the same ACP
-   * `session/request_permission` surface used by approvals.
-   *
-   * ACP currently has no dedicated `session/request_question` method, so
-   * the adapter re-uses `requestPermission` and tags the options with a
-   * `q{n}_*` namespace so the round-trip is unambiguous.
-   *
-   * Degradation rules:
-   *  - `req.questions.length > 1` → only the first question is asked;
-   *    telemetry records the dropped count so we can observe how often
-   *    multi-question prompts land in the wild.
-   *  - `q.multiSelect === true` → still asked as single-select; the
-   *    SDK's ask-user tool tolerates a single-key answer for a multi-
-   *    select prompt so this is a graceful narrow rather than a hard
-   *    fail.
-   *
-   * Error policy mirrors {@link handleApproval}: any RPC failure logs
-   * a warning and returns `null` so the SDK resolves the tool with the
-   * canonical "user dismissed" branch (`rpc.ts:567`). Returning `null`
-   * is strictly safer than fabricating an answer the user did not give.
-   */
   private async handleQuestion(req: QuestionRequest): Promise<QuestionAnswers | null> {
-    const questions = req.questions;
-    if (questions.length === 0) {
-      // Pathological input — log and dismiss. No telemetry: the SDK
-      // would never emit an empty `questions` payload in practice.
-      log.warn('acp: handleQuestion received empty questions array', {
-        sessionId: this.id,
-      });
-      return null;
-    }
-    if (questions.length > 1) {
-      log.warn('acp: handleQuestion degrading to first question only', {
-        sessionId: this.id,
-        dropped: questions.length - 1,
-      });
-      this.emitTelemetry('question_degraded', {
-        reason: 'multi_question',
-        dropped: questions.length - 1,
-      });
-    }
-    const q = questions[0]!;
-    if (q.multiSelect === true) {
-      this.emitTelemetry('question_degraded', { reason: 'multi_select' });
-    }
-    const options = questionItemToPermissionOptions(q, 0);
-    const rawToolCallId = req.toolCallId ?? 'ask-user';
-    const toolCallId =
-      this.currentTurnId !== undefined
-        ? acpToolCallId(this.currentTurnId, rawToolCallId)
-        : rawToolCallId;
-    try {
-      const response = await this.conn.requestPermission({
-        sessionId: this.id,
-        options: [...options],
-        toolCall: {
-          toolCallId,
-          title: 'AskUserQuestion',
-          content: [{ type: 'content', content: { type: 'text', text: q.question } }],
-        },
-      });
-      const answer = outcomeToQuestionAnswer(q, response);
-      if (answer === null) {
-        // Dismissed via skip / cancel / unknown optionId — telemetry
-        // matches the ask-user tool's existing `question_dismissed`
-        // event so dashboards stay coherent.
-        this.emitTelemetry('question_dismissed');
-      } else {
-        this.emitTelemetry('question_answered', { answered: Object.keys(answer).length });
-      }
-      return answer;
-    } catch (err) {
-      log.warn('acp: requestPermission (question) failed; dismissing', {
-        sessionId: this.id,
-        toolCallId: req.toolCallId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
-    }
+    return handleSessionQuestion(this.reverseRpcContext(), req);
   }
 
-  /**
-   * Fire-and-forget telemetry emitter that guards a missing or
-   * throwing `track` sink. Mirrors the Phase 11.2 pattern in
-   * `server.ts:trackSessionStarted` — telemetry must never crash a
-   * reverse-RPC handler.
-   */
+  private reverseRpcContext() {
+    return {
+      sessionId: this.id,
+      conn: this.conn,
+      getCurrentTurnId: () => this.currentTurnId,
+      emitTelemetry: (event: string, properties?: Record<string, unknown>) =>
+        this.emitTelemetry(event, properties),
+    };
+  }
+
   private emitTelemetry(event: string, properties?: Record<string, unknown>): void {
-    if (typeof this.track !== 'function') return;
-    try {
-      this.track(event, properties);
-    } catch (err) {
-      log.warn('acp: telemetry track failed', {
-        sessionId: this.id,
-        event,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+    emitSessionTelemetry(this.id, this.track, event, properties);
   }
 }
