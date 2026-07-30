@@ -9,10 +9,11 @@ import type { ChatProvider, Message, TokenUsage } from '@superliora/kosong';
 
 import type { Agent } from '../..';
 import type { CompactionStrategy } from '../strategy';
-import type { CompactionPlan } from '../planner';
+import { type CompactionPlanner, type CompactionPlan } from '../planner';
 import type { ExtractedFact } from '../memory';
 import type { AnchorDocument } from '../anchor';
 import type { CompactionQualityResult } from '../quality';
+import type { CompactionBeginData, CompactionResult } from '../types';
 
 /**
  * Minimal surface the pipeline stages need from the owning FullCompaction.
@@ -23,6 +24,41 @@ export interface CompactionPipelineContext {
   extractedFacts: ExtractedFact[];
   anchor: AnchorDocument | null;
   compactionModelAlias: string | undefined;
+}
+
+/** Host surface for one compaction round (summarize → repair → assemble). */
+export interface FullCompactionRoundHost extends CompactionPipelineContext {
+  readonly planner: CompactionPlanner;
+  createCompactionProvider(usedContextTokens: number): ChatProvider;
+  triggerPreCompactHook(
+    data: Readonly<CompactionBeginData>,
+    tokenCount: number,
+    signal: AbortSignal,
+  ): Promise<void>;
+  recordCompactionQuality(input: {
+    readonly recallEvalScore?: number | undefined;
+    readonly usedEmergencyBackstop: boolean;
+    readonly evidenceRepairAttempted?: boolean;
+    readonly evidenceRepairSucceeded?: boolean;
+  }): void;
+  cancel(): void;
+  lastCompactedTokenCount: number | null;
+}
+
+/** Host surface for the multi-round compaction worker loop. */
+export interface FullCompactionWorkerHost extends FullCompactionRoundHost {
+  readonly compacting: {
+    abortController: AbortController;
+    promise: Promise<void>;
+    blockedByTurn: boolean;
+  } | null;
+  markCompleted(): void;
+  syncCompactionBaseline(): void;
+  triggerPostCompactHook(
+    data: Readonly<CompactionBeginData>,
+    result: CompactionResult,
+  ): void;
+  releaseLockIfOwned(): void;
 }
 
 /** Progress weights within one compaction round (sum ≈ 1). */
