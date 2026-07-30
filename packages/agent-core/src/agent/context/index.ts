@@ -1,32 +1,31 @@
-import { createToolMessage, type Message } from '@superliora/kosong';
+import type { ContentPart, Message } from '@superliora/kosong';
 
 import type { Agent } from '..';
-import { ErrorCodes, LioraError } from '../../errors';
 import type { LoopRecordedEvent, LoopToolIntendEvent } from '../../loop';
-import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
-import { escapeXml } from '../../utils/xml-escape';
+import { estimateTokensForMessages } from '../../utils/tokens';
 import { buildContextComposition } from './composition';
+import { applyContextCompaction } from './context-memory-compaction';
+import type { ContextMemoryHost } from './context-memory-host';
 import {
-  formatUndoUnavailableMessage,
-  isRealUserPrompt,
-  isReclaimableEphemeralUserMessage,
-  splitImageCompressionCaptions,
-} from './message-helpers';
+  closePendingToolResults,
+  handleContextLoopEvent,
+} from './context-memory-loop-events';
 import {
-  TOOL_INTERRUPTED_ON_RESUME_OUTPUT,
-  interruptedWithIntentMessage,
-  toolResultOutputForModel,
-} from './tool-result-output';
+  COMPACTION_PROJECTION_OPTIONS,
+  reportContextProjectionRepairs,
+} from './context-memory-projection';
 import {
-  COMPACTION_ELISION_VARIANT,
-  buildCompactionElisionText,
-  collectCompactableUserMessages,
-  resolveCompactionUserMessageBudget,
-  selectCompactionUserMessages,
-  selectRecentUserMessages,
-  type CompactionInput,
-  type CompactionResult,
-} from '../compaction';
+  reclaimEphemeralUserMessagesFromContext,
+  undoContextMessages,
+} from './context-memory-undo';
+import {
+  appendBashInputToContext,
+  appendBashOutputToContext,
+  appendLocalCommandStdoutToContext,
+  appendSystemReminderToContext,
+  appendUserMessageToContext,
+} from './context-memory-user-messages';
+import type { CompactionInput, CompactionResult } from '../compaction';
 import {
   project,
   type ProjectionAnomaly,
@@ -42,14 +41,7 @@ import {
 } from './types';
 
 export * from './types';
-
-export const COMPACTION_PROJECTION_OPTIONS: ProjectOptions = {
-  synthesizeMissing: true,
-  dropOrphanResults: true,
-  dedupeDuplicateToolCalls: true,
-  dropLeadingNonUser: true,
-  mergeConsecutiveAssistants: true,
-};
+export { COMPACTION_PROJECTION_OPTIONS } from './context-memory-projection';
 
 // Invariant: _history must not contain an unresolved tool call exchange except
 // at the tail. When the tail is unresolved, pendingToolResultIds is exactly the
@@ -58,9 +50,9 @@ export const COMPACTION_PROJECTION_OPTIONS: ProjectOptions = {
 export class ContextMemory {
   private _history: ContextMessage[] = [];
   private _tokenCount = 0;
-  private tokenCountCoveredMessageCount = 0;
-  private openSteps: Map<string, ContextMessage> = new Map();
-  private pendingToolResultIds = new Set<string>();
+  tokenCountCoveredMessageCount = 0;
+  openSteps: Map<string, ContextMessage> = new Map();
+  pendingToolResultIds = new Set<string>();
   /**
    * Tool-call ids whose results may still arrive after a compaction raced
    * ahead of them. Maps each id to the `_history.length` at the time it was
@@ -68,7 +60,7 @@ export class ContextMemory {
    * prefix that has since been summarized away and can never produce a
    * meaningful late result.
    */
-  private lateAcceptedToolCallIds = new Map<string, number>();
+  lateAcceptedToolCallIds = new Map<string, number>();
   /**
    * Side-effecting tool calls that logged a `tool.intend` but have not yet been
    * acknowledged (`tool.ack`). On resume, an intend without an ack means
@@ -76,52 +68,47 @@ export class ContextMemory {
    * it (e.g. idempotently verifying a file write landed) instead of treating it
    * as never-started.
    */
-  private intendedToolCalls = new Map<string, LoopToolIntendEvent>();
-  private deferredMessages: ContextMessage[] = [];
-  private _lastAssistantAt: number | null = null;
-  private lastProjectionRepairSignature: string | null = null;
+  intendedToolCalls = new Map<string, LoopToolIntendEvent>();
+  deferredMessages: ContextMessage[] = [];
+  lastProjectionRepairSignature: string | null = null;
+  lastAssistantAt: number | null = null;
 
   constructor(protected readonly agent: Agent) {}
 
-  get lastAssistantAt(): number | null {
-    return this._lastAssistantAt;
+  private get host(): ContextMemoryHost {
+    return this as unknown as ContextMemoryHost;
+  }
+
+  get history(): ContextMessage[] {
+    return this._history;
+  }
+
+  set history(value: ContextMessage[]) {
+    this._history = value;
+  }
+
+  get tokenCount(): number {
+    return this._tokenCount;
+  }
+
+  set tokenCount(value: number) {
+    this._tokenCount = value;
   }
 
   appendUserMessage(
     content: readonly ContentPart[],
     origin: PromptOrigin = USER_PROMPT_ORIGIN,
   ): void {
-    if (content.length === 0) return;
-    // Prompt ingestion (server upload/base64 route, TUI paste, ACP) annotates
-    // a compressed image with an inline `<system>` caption next to the image.
-    // Left inside the user message, that raw markup is user-visible in every
-    // history projection (TUI replay, vis, export). Reroute each caption
-    // through the built-in system-reminder injection — hidden by its
-    // `injection` origin — and keep only the real user content here.
-    const { captions, parts } =
-      origin.kind === 'user'
-        ? splitImageCompressionCaptions(content)
-        : { captions: [], parts: [...content] };
-    for (const caption of captions) {
-      this.appendSystemReminder(caption, { kind: 'injection', variant: 'image_compression' });
-    }
-    if (parts.length === 0) return;
-    this.appendMessage({
-      role: 'user',
-      content: parts,
-      toolCalls: [],
+    appendUserMessageToContext(
+      content,
       origin,
-    });
+      (message) => this.appendMessage(message),
+      (text, reminderOrigin) => this.appendSystemReminder(text, reminderOrigin),
+    );
   }
 
   appendSystemReminder(content: string, origin: PromptOrigin): void {
-    const text = `<system-reminder>\n${content.trim()}\n</system-reminder>`;
-    this.appendMessage({
-      role: 'user',
-      content: [{ type: 'text', text }],
-      toolCalls: [],
-      origin,
-    });
+    appendSystemReminderToContext(content, origin, (message) => this.appendMessage(message));
   }
 
   /**
@@ -140,40 +127,15 @@ export class ContextMemory {
   }
 
   appendLocalCommandStdout(content: string): void {
-    const text = `<local-command-stdout>\n${content.trim()}\n</local-command-stdout>`;
-    this.appendMessage({
-      role: 'user',
-      content: [{ type: 'text', text }],
-      toolCalls: [],
-      origin: { kind: 'injection', variant: 'local-command-stdout' },
-    });
+    appendLocalCommandStdoutToContext(content, (message) => this.appendMessage(message));
   }
 
-  // User-initiated `!` shell command. Unlike `injection` (which is skipped on
-  // replay), `shell_command` origin is replayed and rendered, so resumed
-  // sessions still show the command and its output. The XML tags carry the
-  // semantics to the model; the origin drives UI/replay routing.
   appendBashInput(command: string): void {
-    const text = `<bash-input>\n${escapeXml(command)}\n</bash-input>`;
-    this.appendMessage({
-      role: 'user',
-      content: [{ type: 'text', text }],
-      toolCalls: [],
-      origin: { kind: 'shell_command', phase: 'input' },
-    });
+    appendBashInputToContext(command, (message) => this.appendMessage(message));
   }
 
   appendBashOutput(stdout: string, stderr: string, isError?: boolean): void {
-    const text = `<bash-stdout>${escapeXml(stdout)}</bash-stdout><bash-stderr>${escapeXml(stderr)}</bash-stderr>`;
-    this.appendMessage({
-      role: 'user',
-      content: [{ type: 'text', text }],
-      toolCalls: [],
-      origin:
-        isError === true
-          ? { kind: 'shell_command', phase: 'output', isError: true }
-          : { kind: 'shell_command', phase: 'output' },
-    });
+    appendBashOutputToContext(stdout, stderr, isError, (message) => this.appendMessage(message));
   }
 
   popMatchedMessage(matcher: (origin: PromptOrigin | undefined) => boolean): boolean {
@@ -197,7 +159,7 @@ export class ContextMemory {
     this.openSteps.clear();
     this.pendingToolResultIds.clear();
     this.deferredMessages = [];
-    this._lastAssistantAt = null;
+    this.lastAssistantAt = null;
     this.agent.microCompaction.reset();
     this.agent.contextOS.clear();
     this.agent.injection.onContextClear();
@@ -205,229 +167,15 @@ export class ContextMemory {
   }
 
   undo(count: number): void {
-    if (count <= 0) return;
-    if (this._history.length === 0) return;
-
-    this.agent.records.logRecord({ type: 'context.undo', count });
-
-    let removedUserCount = 0;
-    const removedMessages = new Set<ContextMessage>();
-    let stoppedAtBoundary = false;
-    for (let i = this._history.length - 1; i >= 0; i--) {
-      const message = this._history[i];
-      if (message === undefined) continue;
-      if (message.origin?.kind === 'injection') continue;
-      if (message.origin?.kind === 'compaction_summary') {
-        stoppedAtBoundary = true;
-        break;
-      }
-
-      removedMessages.add(message);
-      this._history.splice(i, 1);
-      this.agent.injection.onContextMessageRemoved(i);
-
-      if (i < this.tokenCountCoveredMessageCount) {
-        this.tokenCountCoveredMessageCount--;
-        this._tokenCount -= estimateTokensForMessages([message]);
-      }
-
-      if (isRealUserPrompt(message)) {
-        removedUserCount++;
-        if (removedUserCount >= count) break;
-      }
-    }
-
-    this.agent.replayBuilder.removeLastMessages(removedMessages);
-
-    this.openSteps.clear();
-    this.pendingToolResultIds.clear();
-    this.deferredMessages = [];
-    this.agent.microCompaction.reset(this._history.length);
-    this.agent.emitStatusUpdated();
-
-    if (
-      !this.agent.records.restoring &&
-      (stoppedAtBoundary || removedUserCount < count)
-    ) {
-      throw new LioraError(
-        ErrorCodes.REQUEST_INVALID,
-        formatUndoUnavailableMessage(count, removedUserCount, stoppedAtBoundary),
-        {
-          details: {
-            reason: 'undo_limit',
-            requestedCount: count,
-            undoableCount: removedUserCount,
-            stoppedAtCompaction: stoppedAtBoundary,
-          },
-        },
-      );
-    }
+    undoContextMessages(this.host, count);
   }
 
-  /**
-   * Drop user-role messages that injectors rebuild (lean context, goal, recall,
-   * etc.). Used when auto compaction cannot find a structural split but the
-   * context is still over budget — typically right after a successful compaction
-   * when post-compaction injections dominate the live history.
-   */
   reclaimEphemeralUserMessages(): number {
-    let removed = 0;
-    for (let i = this._history.length - 1; i >= 0; i--) {
-      const message = this._history[i];
-      if (message === undefined) continue;
-      if (!isReclaimableEphemeralUserMessage(message)) continue;
-
-      this._history.splice(i, 1);
-      removed++;
-      if (i < this.tokenCountCoveredMessageCount) {
-        this.tokenCountCoveredMessageCount--;
-        this._tokenCount -= estimateTokensForMessages([message]);
-      }
-      this.agent.injection.onContextMessageRemoved(i);
-    }
-    if (removed > 0) {
-      this.agent.microCompaction.reset(this._history.length);
-      this.agent.emitStatusUpdated();
-    }
-    return removed;
+    return reclaimEphemeralUserMessagesFromContext(this.host);
   }
 
   applyCompaction(input: CompactionInput): CompactionResult {
-    const retainedSuffix = this._history.slice(input.compactedCount);
-    const hasRetainedLiveContext = retainedSuffix.some(
-      (message) => message.origin?.kind !== 'injection',
-    );
-    const compactableUserMessages = collectCompactableUserMessages(
-      this._history.slice(0, input.compactedCount),
-    );
-    const restoreTailOnly =
-      this.agent.records.restoring !== null && input.keptHeadUserMessageCount === undefined;
-    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens;
-    const userMessageBudget = resolveCompactionUserMessageBudget(maxContextTokens);
-    const selection = hasRetainedLiveContext
-      ? { head: [], tail: [], elided: false, omittedTokens: 0 }
-      : restoreTailOnly
-        ? {
-            head: [],
-            tail: selectRecentUserMessages(compactableUserMessages, userMessageBudget),
-            elided: false,
-            omittedTokens: 0,
-          }
-        : selectCompactionUserMessages(compactableUserMessages, userMessageBudget);
-    const elisionMessage: ContextMessage | null = selection.elided
-      ? {
-          role: 'user',
-          content: [{ type: 'text', text: buildCompactionElisionText(selection.omittedTokens) }],
-          toolCalls: [],
-          origin: { kind: 'injection', variant: COMPACTION_ELISION_VARIANT },
-        }
-      : null;
-    const keptMessages: ContextMessage[] =
-      elisionMessage === null
-        ? [...selection.head, ...selection.tail]
-        : [...selection.head, elisionMessage, ...selection.tail];
-    const contextSummary = input.contextSummary ?? input.summary;
-    const tokensAfter =
-      input.tokensAfter ??
-      estimateTokens(contextSummary) +
-        estimateTokensForMessages([...keptMessages, ...retainedSuffix]);
-    const keptUserMessageCount =
-      input.keptUserMessageCount ?? selection.head.length + selection.tail.length;
-    const keptHeadUserMessageCount =
-      input.keptHeadUserMessageCount ?? (selection.elided ? selection.head.length : undefined);
-    const result: CompactionResult = {
-      summary: input.summary,
-      contextSummary,
-      compactedCount: input.compactedCount,
-      tokensBefore: input.tokensBefore,
-      tokensAfter,
-      keptUserMessageCount,
-      keptHeadUserMessageCount,
-      droppedCount: input.droppedCount,
-      algorithmVersion: input.algorithmVersion,
-      actions: input.actions,
-      rawRefs: input.rawRefs,
-      summaryTokens: input.summaryTokens,
-      retainedTokens: input.retainedTokens,
-      compactedTokens: input.compactedTokens,
-      qualityWarnings: input.qualityWarnings,
-      qualityWarningCategories: input.qualityWarningCategories,
-      parallelBlockCount: input.parallelBlockCount,
-      mergeInputTokens: input.mergeInputTokens,
-      repairAttempted: input.repairAttempted,
-      contextPack: input.contextPack,
-    };
-    this.agent.records.logRecord({
-      type: 'context.apply_compaction',
-      ...result,
-    });
-    this.agent.replayBuilder.patchLast('compaction', {
-      result: {
-        summary: result.summary,
-        contextSummary: result.contextSummary,
-        compactedCount: result.compactedCount,
-        tokensBefore: result.tokensBefore,
-        tokensAfter: result.tokensAfter,
-        keptUserMessageCount: result.keptUserMessageCount,
-        keptHeadUserMessageCount: result.keptHeadUserMessageCount,
-        droppedCount: result.droppedCount,
-      },
-    });
-    const summaryMessage: ContextMessage = {
-      role: 'user',
-      content: [{ type: 'text', text: contextSummary }],
-      toolCalls: [],
-      origin: { kind: 'compaction_summary' },
-    };
-    const isLegacyRestore =
-      this.agent.records.restoring !== null &&
-      input.keptUserMessageCount === undefined &&
-      input.compactedCount < this._history.length;
-    this._history = isLegacyRestore
-      ? [summaryMessage, ...retainedSuffix]
-      : [...keptMessages, summaryMessage, ...retainedSuffix];
-    this.openSteps.clear();
-    const previouslyPending = new Set(this.pendingToolResultIds);
-    const compactionHistoryLength = this._history.length;
-    this.resyncPendingToolResultIdsFromHistory();
-    // Any tool call awaiting a result before compaction must remain acceptable
-    // afterwards, whether its owning assistant survived in the retained tail
-    // (still pending) or was summarized away and is now gone from history. The
-    // latter case happens when a manual compaction compacts the whole prefix
-    // including an open tool exchange (PROBE #4) — without this, a result
-    // arriving afterwards is treated as an orphan and silently dropped.
-    for (const toolCallId of previouslyPending) {
-      this.lateAcceptedToolCallIds.set(toolCallId, compactionHistoryLength);
-    }
-    // Expire late-accept ids registered before the prefix this compaction
-    // just summarized. A result for one of those ids can no longer attach to
-    // a visible tool-call message, so keeping it only risks accepting a
-    // genuinely stale result later. The newly-registered ids above are
-    // preserved because they were just re-registered at the current length.
-    const stillPending = this.pendingToolResultIds;
-    for (const [id, registeredAt] of this.lateAcceptedToolCallIds) {
-      if (registeredAt < compactionHistoryLength && !stillPending.has(id) && !previouslyPending.has(id)) {
-        this.lateAcceptedToolCallIds.delete(id);
-      }
-    }
-    this._tokenCount = estimateTokensForMessages(this._history);
-    this.tokenCountCoveredMessageCount = this._history.length;
-    this.agent.microCompaction.reset();
-    this.agent.contextOS.recordCompaction(result);
-    // The post-compaction history is
-    //   [...keptMessages, summaryMessage, ...retainedSuffix]
-    // (or `[summaryMessage, ...retainedSuffix]` for the legacy restore path).
-    // A retained-tail message at original index N (N >= compactedCount) lands
-    // at `keptHeadCount + 1 + (N - compactedCount)`. The `+1` accounts for the
-    // new summary message; `keptHeadCount` is the count of messages kept in
-    // front of it, excluding the summary itself. Without this, every
-    // DynamicInjector would believe its prior injection lived at a position
-    // that has shifted upward by `keptHeadCount`, causing shouldRefresh to
-    // fire on turns that did not actually advance past the injection.
-    const keptHeadCount = isLegacyRestore ? 0 : selection.head.length;
-    this.agent.injection.onContextCompacted(result.compactedCount, keptHeadCount);
-    this.agent.emitStatusUpdated();
-    return result;
+    return applyContextCompaction(this.host, input);
   }
 
   data(): AgentContextData {
@@ -466,17 +214,9 @@ export class ContextMemory {
     return buildContextComposition(this.agent, this._history);
   }
 
-  get tokenCount(): number {
-    return this._tokenCount;
-  }
-
   get tokenCountWithPending(): number {
     const pendingMessages = this._history.slice(this.tokenCountCoveredMessageCount);
     return this._tokenCount + estimateTokensForMessages(pendingMessages);
-  }
-
-  get history(): readonly ContextMessage[] {
-    return this._history;
   }
 
   project(messages: readonly ContextMessage[], options?: ProjectOptions): Message[] {
@@ -488,7 +228,7 @@ export class ContextMemory {
         options?.onAnomaly?.(anomaly);
       },
     });
-    this.reportProjectionRepairs(anomalies);
+    reportContextProjectionRepairs(this.host, anomalies);
     return result;
   }
 
@@ -508,69 +248,6 @@ export class ContextMemory {
     return this.project(messages, COMPACTION_PROJECTION_OPTIONS);
   }
 
-  private reportProjectionRepairs(anomalies: readonly ProjectionAnomaly[]): void {
-    const notable = anomalies.filter(
-      (anomaly) => !(anomaly.kind === 'tool_result_synthesized' && anomaly.trailing),
-    );
-    if (notable.length === 0) {
-      this.lastProjectionRepairSignature = null;
-      return;
-    }
-
-    const signature = notable
-      .map((anomaly) => ('toolCallId' in anomaly ? `${anomaly.kind}:${anomaly.toolCallId}` : anomaly.kind))
-      .toSorted()
-      .join('|');
-    if (signature === this.lastProjectionRepairSignature) return;
-    this.lastProjectionRepairSignature = signature;
-
-    let reordered = 0;
-    let synthesized = 0;
-    let droppedOrphan = 0;
-    let duplicateCallsDropped = 0;
-    let duplicateResultsDropped = 0;
-    let leadingDropped = 0;
-    let assistantsMerged = 0;
-    let whitespaceDropped = 0;
-    for (const anomaly of notable) {
-      if (anomaly.kind === 'tool_result_reordered') reordered += 1;
-      else if (anomaly.kind === 'tool_result_synthesized') synthesized += 1;
-      else if (anomaly.kind === 'orphan_tool_result_dropped') droppedOrphan += 1;
-      else if (anomaly.kind === 'duplicate_tool_call_dropped') duplicateCallsDropped += 1;
-      else if (anomaly.kind === 'duplicate_tool_result_dropped') duplicateResultsDropped += 1;
-      else if (anomaly.kind === 'leading_non_user_dropped') leadingDropped += 1;
-      else if (anomaly.kind === 'consecutive_assistants_merged') assistantsMerged += 1;
-      else whitespaceDropped += 1;
-    }
-    const toolCallIds = [
-      ...new Set(
-        notable.flatMap((anomaly) => ('toolCallId' in anomaly ? [anomaly.toolCallId] : [])),
-      ),
-    ].slice(0, 5);
-
-    this.agent.log.warn('repaired request projection for strict provider wire validity', {
-      reordered,
-      synthesized,
-      droppedOrphan,
-      duplicateCallsDropped,
-      duplicateResultsDropped,
-      leadingDropped,
-      assistantsMerged,
-      whitespaceDropped,
-      toolCallIds,
-    });
-    this.agent.telemetry.track('context_projection_repaired', {
-      reordered,
-      synthesized,
-      dropped_orphan: droppedOrphan,
-      duplicate_calls_dropped: duplicateCallsDropped,
-      duplicate_results_dropped: duplicateResultsDropped,
-      leading_dropped: leadingDropped,
-      assistants_merged: assistantsMerged,
-      whitespace_dropped: whitespaceDropped,
-    });
-  }
-
   useProjectedHistoryFrom(source: ContextMemory): void {
     this.clear();
     this.pushHistory(...trimTrailingOpenToolExchange(source.project(source.history)));
@@ -578,7 +255,7 @@ export class ContextMemory {
 
   finishResume(): void {
     this.openSteps.clear();
-    const closed = this.closePendingToolResults();
+    const closed = closePendingToolResults(this.host);
     if (closed.length > 0) {
       this.agent.log.info('closed interrupted tool calls at end of resume', {
         closed: closed.length,
@@ -587,190 +264,21 @@ export class ContextMemory {
     }
   }
 
-  // Synthesize interrupted tool results for any still-open tool calls, closing
-  // the exchange in place. Called at every replayed step boundary (see the
-  // `step.begin` case) so a tool call left unresolved mid-history is closed
-  // exactly where it occurred — otherwise it would keep `hasOpenToolExchange`
-  // true and strand every later message in `deferredMessages`, so only the
-  // trailing exchange ends up aligned. `finishResume` runs the same routine once
-  // more to close a genuine trailing interruption at end of resume, and
-  // `closeAbandonedToolExchange` reuses it (with a live-turn message) as the
-  // turn-end teardown. Returns the ids it closed; callers own the logging.
-  private closePendingToolResults(output: string = TOOL_INTERRUPTED_ON_RESUME_OUTPUT): string[] {
-    if (this.pendingToolResultIds.size === 0) return [];
-    const interruptedToolCallIds = [...this.pendingToolResultIds];
-    for (const toolCallId of interruptedToolCallIds) {
-      // If the call logged a `tool.intend`, execution was at least attempted
-      // before the crash — the side effect may have partially or fully applied.
-      // Use a sharper message so the model re-reads before redoing the write,
-      // rather than assuming the call never ran.
-      const intend = this.intendedToolCalls.get(toolCallId);
-      const message = intend === undefined ? output : interruptedWithIntentMessage(intend);
-      this.appendLoopEvent({
-        type: 'tool.result',
-        parentUuid: toolCallId,
-        toolCallId,
-        result: {
-          output: message,
-          isError: true,
-        },
-      });
-    }
-    return interruptedToolCallIds;
-  }
-
-  /**
-   * Defensive teardown for a live turn that ended while recorded tool calls
-   * were still awaiting results. Synthesizes an error result for each dangling
-   * call so the exchange closes and later messages are not stranded.
-   */
   closeAbandonedToolExchange(output: string): number {
-    return this.closePendingToolResults(output).length;
+    return closePendingToolResults(this.host, output).length;
   }
 
-  /**
-   * Manual compaction while tool calls are still awaiting results: preserve the
-   * ids for late-arriving results, then synthesize interrupted tool results so
-   * the prefix can be summarized safely.
-   */
   prepareManualCompactionWithOpenToolExchange(): boolean {
     if (this.pendingToolResultIds.size === 0) return false;
     const historyLength = this._history.length;
     for (const toolCallId of this.pendingToolResultIds) {
       this.lateAcceptedToolCallIds.set(toolCallId, historyLength);
     }
-    return this.closePendingToolResults().length > 0;
+    return closePendingToolResults(this.host).length > 0;
   }
 
   appendLoopEvent(event: LoopRecordedEvent): void {
-    this.agent.records.logRecord({
-      type: 'context.append_loop_event',
-      event,
-    });
-    switch (event.type) {
-      case 'step.begin': {
-        // A new assistant step means any tool calls still pending from an
-        // earlier step were interrupted (the invariant guarantees this never
-        // happens live, so this is a no-op outside replay). Close them in place
-        // before opening the new step so mid-history gaps stay aligned.
-        const closed = this.closePendingToolResults();
-        if (closed.length > 0) {
-          this.agent.log.warn('closed unresolved tool calls at a step boundary', {
-            closed: closed.length,
-            toolCallIds: closed.slice(0, 5),
-          });
-        }
-        const message: ContextMessage = {
-          role: 'assistant',
-          content: [],
-          toolCalls: [],
-        };
-        this.pushHistory(message);
-        this.openSteps.set(event.uuid, message);
-        return;
-      }
-      case 'step.end': {
-        const openStep = this.openSteps.get(event.uuid);
-        this.openSteps.delete(event.uuid);
-        if (event.usage !== undefined) {
-          const openStepIndex = openStep === undefined ? -1 : this._history.indexOf(openStep);
-          const coveredCount =
-            openStepIndex === -1 ? this._history.length : openStepIndex + 1;
-          const totalUsage =
-            event.usage.inputCacheRead +
-            event.usage.inputCacheCreation +
-            event.usage.inputOther +
-            event.usage.output;
-          if (totalUsage > 0) {
-            this._tokenCount = totalUsage;
-          } else {
-            // The provider reported zero usage (e.g. content filter). Do not
-            // overwrite the accumulated context token count with 0; add an
-            // estimate for the newly covered messages so the invariant between
-            // _tokenCount and tokenCountCoveredMessageCount stays intact.
-            const previousCoveredCount = this.tokenCountCoveredMessageCount;
-            this._tokenCount += estimateTokensForMessages(
-              this._history.slice(previousCoveredCount, coveredCount),
-            );
-          }
-          this.tokenCountCoveredMessageCount = coveredCount;
-        }
-        this.flushDeferredMessagesIfToolExchangeClosed();
-        return;
-      }
-      case 'content.part': {
-        const openStep = this.openSteps.get(event.stepUuid);
-        if (openStep === undefined) {
-          this.dropLoopEventWithUnknownStep(event);
-          return;
-        }
-        openStep.content.push(event.part);
-        return;
-      }
-      case 'tool.call': {
-        const openStep = this.openSteps.get(event.stepUuid);
-        if (openStep === undefined) {
-          this.dropLoopEventWithUnknownStep(event);
-          return;
-        }
-        openStep.toolCalls.push({
-          type: 'function',
-          id: event.toolCallId,
-          name: event.name,
-          arguments: event.args === undefined ? null : JSON.stringify(event.args),
-          extras: event.extras,
-        });
-        this.pendingToolResultIds.add(event.toolCallId);
-        return;
-      }
-      case 'tool.intend': {
-        // Track the intent so resume can reconcile a crash that left the tool
-        // call without an ack/result. The intend itself does not add to the
-        // message history — it is a durability marker only.
-        this.intendedToolCalls.set(event.toolCallId, event);
-        return;
-      }
-      case 'tool.ack': {
-        // Execution settled; the side effect completed. Remove the intent so
-        // the close-pending path no longer treats it as ambiguous.
-        this.intendedToolCalls.delete(event.toolCallId);
-        return;
-      }
-      case 'tool.result': {
-        const acceptsLateResult = this.lateAcceptedToolCallIds.has(event.toolCallId);
-        if (!this.pendingToolResultIds.has(event.toolCallId) && !acceptsLateResult) return;
-        const message = createToolMessage(event.toolCallId, toolResultOutputForModel(event.result));
-        this.pushHistory({
-          ...message,
-          role: 'tool',
-          isError: event.result.isError,
-        });
-        this.pendingToolResultIds.delete(event.toolCallId);
-        this.lateAcceptedToolCallIds.delete(event.toolCallId);
-        // A result also settles the intend window — clear it so the resume
-        // path does not treat a result-bearing call as still ambiguous.
-        this.intendedToolCalls.delete(event.toolCallId);
-        this.flushDeferredMessagesIfToolExchangeClosed();
-        return;
-      }
-    }
-  }
-
-  private dropLoopEventWithUnknownStep(
-    event: Extract<LoopRecordedEvent, { type: 'content.part' | 'tool.call' }>,
-  ): void {
-    this.agent.log.warn('dropped loop event for unknown context step', {
-      eventType: event.type,
-      stepUuid: event.stepUuid,
-      turnId: event.turnId,
-      step: event.step,
-      openStepCount: this.openSteps.size,
-    });
-    this.agent.telemetry.track('context_unknown_step_event_dropped', {
-      event_type: event.type,
-      step: event.step,
-      open_step_count: this.openSteps.size,
-    });
+    handleContextLoopEvent(this.host, event);
   }
 
   appendMessage(message: ContextMessage): void {
@@ -785,7 +293,7 @@ export class ContextMemory {
     this.pushHistory(message);
   }
 
-  private resyncPendingToolResultIdsFromHistory(): void {
+  resyncPendingToolResultIdsFromHistory(): void {
     this.pendingToolResultIds.clear();
     for (const message of this._history) {
       if (message.role === 'assistant') {
@@ -799,7 +307,7 @@ export class ContextMemory {
     }
   }
 
-  private flushDeferredMessagesIfToolExchangeClosed(): void {
+  flushDeferredMessagesIfToolExchangeClosed(): void {
     if (this.pendingToolResultIds.size > 0 || this.deferredMessages.length === 0) {
       return;
     }
@@ -807,11 +315,7 @@ export class ContextMemory {
     this.deferredMessages = [];
   }
 
-  private hasOpenToolExchange(): boolean {
-    return this.pendingToolResultIds.size > 0;
-  }
-
-  private pushHistory(...messages: ContextMessage[]): void {
+  pushHistory(...messages: ContextMessage[]): void {
     if (messages.length === 0) return;
     const postCompactionInjections =
       this.tokenCountCoveredMessageCount >= this._history.length &&
@@ -823,7 +327,7 @@ export class ContextMemory {
     this._history.push(...messages);
     for (const message of messages) {
       if (message.role === 'assistant') {
-        this._lastAssistantAt = this.agent.records.restoring?.time ?? Date.now();
+        this.lastAssistantAt = this.agent.records.restoring?.time ?? Date.now();
       }
       if (message.origin?.kind === 'background_task') {
         this.agent.background.markDeliveredNotification(message.origin);
@@ -833,5 +337,9 @@ export class ContextMemory {
         message,
       });
     }
+  }
+
+  private hasOpenToolExchange(): boolean {
+    return this.pendingToolResultIds.size > 0;
   }
 }
