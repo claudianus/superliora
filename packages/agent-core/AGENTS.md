@@ -19,11 +19,14 @@ The agent engine: turn loop, tools, session/subagent orchestration, compaction, 
 |---|---|
 | `loop/` | Stateless agent loop (`runTurn`, tool-call batch, scheduler, guards) |
 | `agent/` | `Agent` facade, turn, compaction, context, permissions, plan |
-| `session/` | Session host, subagent spawn/batch, swarm coordination |
+| `session/` | Session host; thin re-exports for subagent/swarm during migration |
+| `collaboration/` | Swarm / subagent orchestration home (see nested `AGENTS.md`) |
 | `tools/` | Builtin tools, policies, providers |
 | `rpc/` | Core RPC surface shared with server/CLI |
 | `services/` | In-process DI services (see nested `AGENTS.md`) |
 | `config/`, `profile/`, `skill/`, `memory/` | Config, profiles, skills, memory stores |
+
+`Manager` suffixes are allowed under `agent/` / `session/` / `collaboration/` / `mcp/` / `plugin/`. They are **banned** under `services/` (use `Service`).
 
 Prefer extending the owning module over growing god files. New cross-cutting helpers belong next to the first consumer, not a catch-all util barrel.
 

@@ -6,14 +6,14 @@ Local rules for `apps/liora`. Cross-repo gates: root `AGENTS.md`.
 
 ## Layout
 
-Entry: `src/main.ts` → `src/cli/commands.ts` → `src/cli/run-shell.ts` → SDK `LioraHarness` → `src/tui/kimi-tui.ts`.
+Entry: `src/main.ts` → `src/cli/commands.ts` → `src/cli/run-shell.ts` → SDK `LioraHarness` → `src/tui/liora-tui.ts`.
 
 | Path | Role |
 |---|---|
 | `src/constant/` | Shared non-copy constants (product, paths, terminal, updates, …) |
 | `src/cli/` | Args, subcommands, CLI startup |
 | `src/tui/` | Interactive TUI |
-| `src/tui/kimi-tui.ts` | `LioraTUI` coordinator — wire state/layout/editor/session/events/dialogs; heavy logic goes to `controllers/` |
+| `src/tui/liora-tui.ts` | `LioraTUI` coordinator — wire state/layout/editor/session/events/dialogs; heavy logic goes to `controllers/` |
 | `src/tui/tui-state.ts` | `TUIState` / initial app state |
 | `src/tui/controllers/` | Testable slices: session events, streaming UI, replay, tasks browser, editor keyboard, auth |
 | `src/tui/commands/` | Slash commands |
