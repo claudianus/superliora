@@ -6,14 +6,11 @@ import { Disposable, InstantiationType, registerSingleton } from '../../di';
 import { Emitter } from '../../base/common/event';
 import type {
   Event,
-  PromptItem,
   PromptListResponse,
   PromptSubmission,
   PromptSteerResult,
   PromptSubmitResult,
-  PromptThinking,
 } from '@superliora/protocol';
-import type { PermissionMode } from '../../agent/permission';
 import { ulid } from 'ulid';
 
 import { ICoreProcessService } from '../coreProcess/coreProcess';
@@ -35,204 +32,20 @@ import {
   type SyntheticPromptSteeredEvent,
   type SyntheticPromptSubmittedEvent,
 } from './prompt';
-
-const MAIN_AGENT_ID = 'main';
-
-function promptKey(sessionId: string, agentId: string): string {
-  return `${sessionId}\u0000${agentId}`;
-}
-
-/** Cap per-session dispatch-log entries; ring-buffer drops oldest on overflow. */
-const DISPATCH_LOG_CAP = 100;
-
-/**
- * `true` iff any of the runtime-control fields is defined on the patch.
- * Used to short-circuit `applyAgentState` / the prompt-body override path
- * when the caller carries nothing actionable.
- */
-function hasAnyAgentStateField(patch: AgentStatePatch): boolean {
-  return (
-    patch.model !== undefined ||
-    patch.thinking !== undefined ||
-    patch.permission_mode !== undefined ||
-    patch.plan_mode !== undefined ||
-    patch.swarm_mode !== undefined ||
-    patch.goal_objective !== undefined ||
-    patch.goal_control !== undefined
-  );
-}
-
-/**
- * Extract the runtime-control fields from a `PromptSubmission` body into a
- * shadow-shaped patch. Returns `undefined` when the body carries none of the
- * fields — the submit path skips both shadow bootstrap and diff-dispatch in
- * that case, saving RPCs on hot content-only prompts.
- */
-function pickAgentStatePatch(body: PromptSubmission): AgentStatePatch | undefined {
-  const patch: AgentStatePatch = {};
-  if (body.model !== undefined) patch.model = body.model;
-  if (body.thinking !== undefined) patch.thinking = body.thinking;
-  if (body.permission_mode !== undefined) patch.permission_mode = body.permission_mode;
-  if (body.plan_mode !== undefined) patch.plan_mode = body.plan_mode;
-  if (body.swarm_mode !== undefined) patch.swarm_mode = body.swarm_mode;
-  if (body.goal_objective !== undefined) patch.goal_objective = body.goal_objective;
-  if (body.goal_control !== undefined) patch.goal_control = body.goal_control;
-  return hasAnyAgentStateField(patch) ? patch : undefined;
-}
-
-/**
- * Per-session "active prompt" state. Cleared on completion/abort.
- *
- * `turnId === null` when the prompt has been submitted but the first
- * `turn.started` hasn't arrived yet (the RPC pair queues calls before
- * `ready()` so the gap is small but non-zero in practice).
- *
- * `terminal === true` is set when `turn.ended` arrives — we keep the record
- * around so abort-on-already-completed surfaces as 40903, not 40402.
- */
-interface PromptState {
-  agentId: string;
-  promptId: string;
-  userMessageId: string;
-  body: PromptSubmission;
-  createdAt: string;
-  turnId: number | null;
-  /** Set on `turn.ended` for the top-level turn (reason='completed'|'failed'|'filtered'). */
-  completed: boolean;
-  /** Set on `turn.ended` with reason='cancelled' or after a successful abort RPC. */
-  aborted: boolean;
-}
-
-type CorePromptPart =
-  | { readonly type: 'text'; readonly text: string }
-  | { readonly type: 'image_url'; readonly imageUrl: { readonly url: string } }
-  | { readonly type: 'video_url'; readonly videoUrl: { readonly url: string } };
-
-function toPromptItem(state: PromptState, status: 'running' | 'queued'): PromptItem {
-  return {
-    prompt_id: state.promptId,
-    user_message_id: state.userMessageId,
-    status,
-    content: state.body.content,
-    created_at: state.createdAt,
-  };
-}
-
-function contentToCoreParts(content: PromptSubmission['content']): CorePromptPart[] {
-  const input: CorePromptPart[] = [];
-  for (const part of content) {
-    switch (part.type) {
-      case 'text':
-        input.push({ type: 'text', text: part.text });
-        break;
-      case 'image':
-        if (part.source.kind === 'url') {
-          input.push({
-            type: 'image_url',
-            imageUrl: { url: part.source.url },
-          });
-        } else if (part.source.kind === 'base64') {
-          input.push({
-            type: 'image_url',
-            imageUrl: {
-              url: `data:${part.source.media_type};base64,${part.source.data}`,
-            },
-          });
-        }
-        break;
-      case 'video':
-        if (part.source.kind === 'url') {
-          input.push({
-            type: 'video_url',
-            videoUrl: { url: part.source.url },
-          });
-        } else if (part.source.kind === 'base64') {
-          input.push({
-            type: 'video_url',
-            videoUrl: {
-              url: `data:${part.source.media_type};base64,${part.source.data}`,
-            },
-          });
-        }
-        break;
-      case 'file':
-      case 'thinking':
-      case 'tool_result':
-      case 'tool_use':
-        break;
-    }
-  }
-  return input;
-}
-
-function steerContentToCoreParts(states: readonly PromptState[]): CorePromptPart[] {
-  const textBodies: string[] = [];
-  let allText = true;
-  for (const state of states) {
-    const texts: string[] = [];
-    for (const part of state.body.content) {
-      if (part.type !== 'text') {
-        allText = false;
-        break;
-      }
-      texts.push(part.text);
-    }
-    if (!allText) break;
-    textBodies.push(texts.join('\n'));
-  }
-  if (allText) {
-    return [{ type: 'text', text: textBodies.join('\n\n') }];
-  }
-
-  const input: CorePromptPart[] = [];
-  states.forEach((state, index) => {
-    if (index > 0) input.push({ type: 'text', text: '\n\n' });
-    input.push(...contentToCoreParts(state.body.content));
-  });
-  return input;
-}
-
-/**
- * Type guard for `turn.started` agent-core events.
- */
-function isTurnStarted(e: Event): e is Event & { type: 'turn.started'; turnId: number } {
-  return (e as { type?: string }).type === 'turn.started';
-}
-
-/**
- * Type guard for `turn.ended` agent-core events.
- */
-function isTurnEnded(e: Event): e is Event & {
-  type: 'turn.ended';
-  turnId: number;
-  reason: 'completed' | 'cancelled' | 'failed' | 'filtered';
-} {
-  return (e as { type?: string }).type === 'turn.ended';
-}
-
-/**
- * Type guard for `agent.status.updated` agent-core events. Carries the
- * subset of fields we mirror into the per-session shadow on every live
- * change (model / permission / planMode). `thinkingLevel` is NOT on this
- * event — bootstrap seeds it from `getConfig` and per-request diff dispatch
- * keeps it in sync from there.
- */
-function isAgentStatusUpdated(e: Event): e is Event & {
-  type: 'agent.status.updated';
-  model?: string;
-  permission?: PermissionMode;
-  planMode?: boolean;
-} {
-  return (e as { type?: string }).type === 'agent.status.updated';
-}
-
-/**
- * Per-session shadow of `model` / `thinking` / `permissionMode` /
- * `planMode`. Type re-exported from `./prompt` so the daemon debug route
- * can consume it without reaching into `PromptService` internals.
- * Absent until first `submit` bootstraps. See `_bootstrapAgentState` +
- * `_applyAgentState`.
- */
+import {
+  applyAgentStateInternal,
+  ensureAgentStateBootstrapped,
+  type PromptAgentStateStore,
+} from './promptAgentStateDispatch';
+import { hasAnyAgentStateField, pickAgentStatePatch } from './promptAgentStatePatch';
+import { contentToCoreParts, steerContentToCoreParts } from './promptContent';
+import { handlePromptBusEvent } from './promptLifecycle';
+import {
+  MAIN_AGENT_ID,
+  promptKey,
+  toPromptItem,
+  type PromptState,
+} from './promptState';
 
 export class PromptService
   extends Disposable
@@ -592,275 +405,46 @@ export class PromptService
 
   // --- Stateless session controls (per-request diff dispatch) ---------------
 
-  /**
-   * Seed the per-session shadow from `getConfig` / `getPermission` /
-   * `getPlan` if not yet bootstrapped. Idempotent across submits within a
-   * session lifetime; cleared on `ISessionService.onDidClose`.
-   *
-   * The three RPCs run in parallel — they share no preconditions.
-   */
-  private async _ensureAgentStateBootstrapped(sid: string): Promise<void> {
-    if (this._agentState.has(sid)) return;
-    const [config, permission, plan, swarmMode] = await Promise.all([
-      this.core.rpc.getConfig({ sessionId: sid, agentId: MAIN_AGENT_ID }),
-      this.core.rpc.getPermission({ sessionId: sid, agentId: MAIN_AGENT_ID }),
-      this.core.rpc.getPlan({ sessionId: sid, agentId: MAIN_AGENT_ID }),
-      this.core.rpc.getSwarmMode({ sessionId: sid, agentId: MAIN_AGENT_ID }),
-    ]);
-    const snapshot: AgentStateSnapshot = {};
-    if (config.modelAlias !== undefined) snapshot.model = config.modelAlias;
-    // `AgentConfigData.thinkingLevel` is typed `string` but in practice
-    // takes one of the `PromptThinking` literals (`off|low|...|max`); the
-    // narrow cast lets diff comparisons stay typed without forcing
-    // protocol to import from agent-core.
-    snapshot.thinking = config.thinkingLevel as PromptThinking;
-    snapshot.permissionMode = permission.mode;
-    snapshot.planMode = plan !== null;
-    snapshot.swarmMode = swarmMode;
-    this._agentState.set(sid, snapshot);
+  private _agentStateStore(): PromptAgentStateStore {
+    return { agentState: this._agentState, dispatchLog: this._dispatchLog };
   }
 
-  /**
-   * Diff-dispatch: for each of the four controls present on `patch`,
-   * call the matching `core.rpc.*` setter ONLY when the value differs
-   * from the shadow. Each setter runs serially so any failure surfaces
-   * to the caller. Each successful setter also appends to the per-session
-   * dispatch-log ring buffer; absence of an entry between two prompts is
-   * the proof that the shadow suppressed a redundant dispatch.
-   *
-   * Pre-condition: `_ensureAgentStateBootstrapped(sid)` already ran (the
-   * shadow Map carries `sid`). Callers must guard.
-   */
+  private async _ensureAgentStateBootstrapped(sid: string): Promise<void> {
+    await ensureAgentStateBootstrapped(this.core, this._agentStateStore(), sid);
+  }
+
   private async _applyAgentStateInternal(
     sid: string,
     patch: AgentStatePatch,
     source: AgentStateSource,
     promptId: string,
   ): Promise<void> {
-    const shadow = this._agentState.get(sid);
-    if (shadow === undefined) {
-      // Bootstrap is a precondition; a missing shadow here is a bug,
-      // not a recoverable state.
-      throw new Error(
-        `PromptService._applyAgentStateInternal: shadow not bootstrapped for sid=${sid}`,
-      );
-    }
-    const agentId = MAIN_AGENT_ID;
-
-    if (patch.model !== undefined && patch.model !== shadow.model) {
-      const payload = { sessionId: sid, agentId, model: patch.model };
-      await this.core.rpc.setModel(payload);
-      shadow.model = patch.model;
-      this._recordDispatch(sid, 'setModel', payload, promptId, source);
-    }
-    if (patch.thinking !== undefined && patch.thinking !== shadow.thinking) {
-      const payload = { sessionId: sid, agentId, level: patch.thinking as PromptThinking };
-      await this.core.rpc.setThinking(payload);
-      shadow.thinking = patch.thinking;
-      this._recordDispatch(sid, 'setThinking', payload, promptId, source);
-    }
-    if (
-      patch.permission_mode !== undefined &&
-      patch.permission_mode !== shadow.permissionMode
-    ) {
-      const payload = {
-        sessionId: sid,
-        agentId,
-        mode: patch.permission_mode as PermissionMode,
-      };
-      await this.core.rpc.setPermission(payload);
-      shadow.permissionMode = patch.permission_mode as PermissionMode;
-      this._recordDispatch(sid, 'setPermission', payload, promptId, source);
-    }
-    if (patch.plan_mode !== undefined && patch.plan_mode !== shadow.planMode) {
-      const payload = { sessionId: sid, agentId };
-      if (patch.plan_mode) {
-        await this.core.rpc.enterPlan(payload);
-        this._recordDispatch(sid, 'enterPlan', payload, promptId, source);
-      } else {
-        // `cancelPlan({id?})` accepts an omitted id — `PlanMode.cancel`
-        // clears whatever id is currently active. Shadow doesn't track
-        // ids, so we always omit.
-        await this.core.rpc.cancelPlan(payload);
-        this._recordDispatch(sid, 'cancelPlan', payload, promptId, source);
-      }
-      shadow.planMode = patch.plan_mode;
-    }
-
-    // Swarm mode toggle. enterSwarm/exitSwarm are idempotent no-throw on
-    // the agent side; we still guard with the shadow to avoid redundant
-    // dispatch-log entries.
-    if (patch.swarm_mode !== undefined && patch.swarm_mode !== shadow.swarmMode) {
-      const payload = { sessionId: sid, agentId };
-      if (patch.swarm_mode) {
-        const enterPayload = { ...payload, trigger: 'manual' as const };
-        await this.core.rpc.enterSwarm(enterPayload);
-        this._recordDispatch(sid, 'enterSwarm', enterPayload, promptId, source);
-      } else {
-        await this.core.rpc.exitSwarm(payload);
-        this._recordDispatch(sid, 'exitSwarm', payload, promptId, source);
-      }
-      shadow.swarmMode = patch.swarm_mode;
-    }
-
-    // Goal creation. createGoal throws LioraError on invalid input
-    // (GOAL_OBJECTIVE_EMPTY, GOAL_OBJECTIVE_TOO_LONG) or when a goal is
-    // already active without replace=true (GOAL_ALREADY_EXISTS). Let these
-    // propagate so the REST route layer can map them to the right code.
-    if (patch.goal_objective !== undefined) {
-      const payload = {
-        sessionId: sid,
-        agentId,
-        objective: patch.goal_objective,
-        replace: false,
-      };
-      await this.core.rpc.createGoal(payload);
-      this._recordDispatch(sid, 'createGoal', payload, promptId, source);
-      // `goal_objective` is a one-shot creation trigger; do not keep it on
-      // the shadow.
-    }
-
-    // Goal lifecycle control. Each action maps to its own RPC; errors
-    // (GOAL_NOT_FOUND, GOAL_STATUS_INVALID, GOAL_NOT_RESUMABLE) propagate.
-    if (patch.goal_control !== undefined) {
-      const payload = { sessionId: sid, agentId };
-      switch (patch.goal_control) {
-        case 'pause':
-          await this.core.rpc.pauseGoal(payload);
-          this._recordDispatch(sid, 'pauseGoal', payload, promptId, source);
-          break;
-        case 'resume':
-          await this.core.rpc.resumeGoal(payload);
-          this._recordDispatch(sid, 'resumeGoal', payload, promptId, source);
-          break;
-        case 'cancel':
-          await this.core.rpc.cancelGoal(payload);
-          this._recordDispatch(sid, 'cancelGoal', payload, promptId, source);
-          break;
-      }
-      // `goal_control` is a one-shot action trigger; do not keep it on the
-      // shadow.
-    }
-  }
-
-  /**
-   * Append a dispatch entry to the per-session ring buffer, evicting the
-   * oldest entry when the cap is hit. Called only from
-   * `_applyAgentStateInternal` after the underlying setter resolves
-   * successfully.
-   */
-  private _recordDispatch(
-    sid: string,
-    kind: PromptDispatchLogEntry['kind'],
-    payload: Record<string, unknown>,
-    promptId: string,
-    source: AgentStateSource,
-  ): void {
-    let buf = this._dispatchLog.get(sid);
-    if (buf === undefined) {
-      buf = [];
-      this._dispatchLog.set(sid, buf);
-    }
-    buf.push({
-      ts: new Date().toISOString(),
-      kind,
-      // Shallow copy so future shadow mutations / callers can't mutate
-      // the recorded payload retroactively.
-      payload: { ...payload },
-      promptId,
+    await applyAgentStateInternal(
+      this.core,
+      this._agentStateStore(),
+      sid,
+      patch,
       source,
-    });
-    if (buf.length > DISPATCH_LOG_CAP) {
-      buf.splice(0, buf.length - DISPATCH_LOG_CAP);
-    }
+      promptId,
+    );
   }
 
   // --- Private event handler (replaces IPromptLifecycleObserver) ----------
 
   private _handleBusEvent(event: Event): void {
-    const sid = (event as { sessionId?: string }).sessionId;
-    if (sid === undefined || sid === '') return;
-
-    // Mirror live `agent.status.updated` into the per-session shadow. This
-    // keeps the shadow honest when out-of-band callers (TUI / SDK / agent
-    // itself) mutate `model` / `permission` / `planMode` between prompts.
-    // Only fields present on the event update the shadow — `thinking` is
-    // not carried here and stays whatever the last `setThinking` (or
-    // bootstrap getConfig) put there.
-    if (isAgentStatusUpdated(event)) {
-      const shadow = this._agentState.get(sid);
-      if (shadow !== undefined) {
-        if (event.model !== undefined) shadow.model = event.model;
-        if (event.permission !== undefined) shadow.permissionMode = event.permission;
-        if (event.planMode !== undefined) shadow.planMode = event.planMode;
-      }
-      // status events are also published normally; fall through to allow
-      // other event-type handlers below — but there's no overlap today.
-      return;
-    }
-
-    const agentId = (event as { agentId?: string }).agentId ?? MAIN_AGENT_ID;
-    const key = promptKey(sid, agentId);
-    const state = this._active.get(key);
-    if (state === undefined) return;
-
-    if (isTurnStarted(event)) {
-      // Capture the FIRST turn.started after submit as the "top-level" turn.
-      // Subsequent nested turns (e.g. subagent) carry different turnId values
-      // and are NOT promoted to the prompt's top-level.
-      state.turnId ??= event.turnId;
-      return;
-    }
-
-    if (isTurnEnded(event)) {
-      // Only fire on the top-level turn end. Nested turn.ended events fly
-      // through without prompt-level synthesis.
-      if (state.turnId === null || event.turnId !== state.turnId) return;
-
-      // If we already synthesized via abort RPC, don't double-emit. Mark
-      // completed to prevent stale lookups, but emit nothing.
-      if (state.aborted) {
-        this._active.delete(key);
-        void this._startNextQueued(sid, state.agentId);
-        return;
-      }
-
-      const reason = event.reason;
-      if (reason === 'cancelled') {
-        // The model produced a cancellation that we didn't initiate via
-        // abort RPC (or it slipped past the optimistic flag). Synthesize
-        // prompt.aborted.
-        state.aborted = true;
-        const synth: SyntheticPromptAbortedEvent = {
-          type: 'prompt.aborted',
-          agentId: state.agentId,
-          sessionId: sid,
-          promptId: state.promptId,
-          abortedAt: new Date().toISOString(),
-        };
-        this._active.delete(key);
-        // Fire typed listeners BEFORE publishing the synth event.
-        this._onDidAbort.fire(synth);
-        this.eventService.publish(synth as unknown as Event);
-        void this._startNextQueued(sid, state.agentId);
-        return;
-      }
-
-      state.completed = true;
-      const synth: SyntheticPromptCompletedEvent = {
-        type: 'prompt.completed',
-        agentId: state.agentId,
-        sessionId: sid,
-        promptId: state.promptId,
-        finishedAt: new Date().toISOString(),
-        reason: reason === 'failed' || reason === 'filtered' ? 'failed' : 'completed',
-      };
-      this._active.delete(key);
-      // Fire typed listeners BEFORE publishing the synth event.
-      this._onDidComplete.fire(synth);
-      this.eventService.publish(synth as unknown as Event);
-      void this._startNextQueued(sid, state.agentId);
-    }
+    handlePromptBusEvent(
+      {
+        active: this._active,
+        agentState: this._agentState,
+        eventService: this.eventService,
+        onDidCompleteFire: (ev) => this._onDidComplete.fire(ev),
+        onDidAbortFire: (ev) => this._onDidAbort.fire(ev),
+        startNextQueued: (sid, agentId) => {
+          void this._startNextQueued(sid, agentId);
+        },
+      },
+      event,
+    );
   }
 
   /**
