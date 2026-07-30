@@ -1,40 +1,23 @@
-import { join } from 'node:path';
-
 import {
   ErrorCodes,
   LioraError,
-  isKimiError,
-  toKimiErrorPayload,
 } from '#/errors';
 import {
-  createProvider,
-  type ChatProvider,
   type Message,
-  type ModelCapability,
-  type TokenUsage,
   APIContextOverflowError,
   APIStatusError,
 } from '@superliora/kosong';
 
 import type { Agent } from '..';
-import type { ResolvedRuntimeProvider } from '../../session/provider-manager';
-import { isAbortError } from '../../loop/errors';
 import {
   estimateTokens,
   estimateTokensForMessages,
   estimateTokensForTools,
 } from '../../utils/tokens';
-import {
-  applyCompletionBudget,
-  computeCompletionBudgetCap,
-  resolveCompletionBudget,
-} from '../../utils/completion-budget';
 import { resolveCompactionModelAlias } from '../../utils/cheap-model';
 import type {
   CompactionBeginData,
   CompactionResult,
-  CompactionResultAction,
-  CompactionResultRawRef,
 } from './types';
 import {
   DEFAULT_COMPACTION_CONFIG,
@@ -50,16 +33,9 @@ import {
 } from './strategy';
 import {
   CompactionPlanner,
-  type CompactionPlan,
 } from './planner';
 import {
-  injectMissingDurableEvidenceIds,
-  mergeCompactionQualityResults,
-  validateInitialCompactionSummary,
-  validateRenderedCompactionSummary,
-  validateUltraworkCompactionContinuity,
   CompactionQualityTracker,
-  type CompactionQualityResult,
 } from './quality';
 import {
   type ExtractedFact,
@@ -68,19 +44,8 @@ import {
   type AnchorDocument,
   createAnchorDocument,
 } from './anchor';
-import {
-  buildEmergencyBackstopSummary,
-} from './backstop';
-import { buildCompactionSummaryText } from './handoff';
-import {
-  compactionFinishedTelemetryProperties,
-  compactionV2FinishedTelemetryProperties,
-  evidenceRepairSucceeded,
-  formatContextManagementCapability,
-  isMissingEvidenceQualityFailure,
-  mergeTokenUsage,
-  stripResolvedEvidenceCriticals,
-} from './full-helpers';
+import { createCompactionProvider as buildCompactionProvider } from './full-provider';
+import { runCompactionWorker } from './full-worker';
 import {
   handoffThresholdTokens,
   relaxObservedMaxContextTokens,
@@ -89,27 +54,9 @@ import {
   shouldRecoverFromOverflowStatus,
   shouldSkipRecompactUntilGrowth as shouldSkipRecompactUntilGrowthPolicy,
 } from './full-policy';
-import { emitCompactionProgress, fractionForMergeDone, fractionForFinalizing } from './pipeline/progress';
-import { summarizeCompactedPrefix } from './pipeline/summarize';
-import { enrichCompactionSummary } from './pipeline/enrich';
-import {
-  assembleCompactionResult,
-  archiveCompactedToolExchanges,
-  persistCompactionRecall,
-  injectResumeRecheckReminder,
-  type CompletedCompactionResult,
-} from './pipeline/assemble';
-import {
-  applyEvidenceSecondChanceRepair,
-  repairSummaryForQuality,
-  revalidateAfterEvidenceRepair,
-} from './pipeline/repair';
 import type { CompactionPipelineContext } from './pipeline/types';
-import { PROGRESS_WEIGHT_PLAN } from './pipeline/types';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
-const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
-const COMPACTION_MIN_OUTPUT_TOKENS = 8_192;
 const OVERFLOW_CONTEXT_SAFETY_RATIO = 0.85;
 const OVERFLOW_STATUS_RECOVERY_RATIO = 0.5;
 /**
@@ -122,18 +69,18 @@ const OBSERVED_MAX_DECAY_PER_TURN = 0.1;
 
 export class FullCompaction implements CompactionPipelineContext {
   protected compactionCountInTurn = 0;
-  protected compacting: {
+  compacting: {
     abortController: AbortController;
     promise: Promise<void>;
     blockedByTurn: boolean;
   } | null = null;
   readonly strategy: CompactionStrategy;
   private readonly observedMaxContextTokensByModel = new Map<string, number>();
-  private lastCompactedTokenCount: number | null = null;
+  lastCompactedTokenCount: number | null = null;
   private consecutiveOverflowCompactions = 0;
   extractedFacts: ExtractedFact[] = [];
   anchor: AnchorDocument | null = null;
-  protected readonly planner = new CompactionPlanner();
+  readonly planner = new CompactionPlanner();
   private readonly qualityTracker = new CompactionQualityTracker();
 
   constructor(
@@ -270,7 +217,7 @@ export class FullCompaction implements CompactionPipelineContext {
     const abortController = new AbortController();
     this.compacting = {
       abortController,
-      promise: this.compactionWorker(abortController.signal, data, compactedCount),
+      promise: runCompactionWorker(this, abortController.signal, data, compactedCount),
       blockedByTurn: false,
     };
   }
@@ -302,7 +249,7 @@ export class FullCompaction implements CompactionPipelineContext {
    * it is a no-op once the lock is already cleared, and re-aborting an
    * already-aborted controller does nothing.
    */
-  private releaseLockIfOwned(): void {
+  releaseLockIfOwned(): void {
     if (this.compacting) {
       this.cancel();
     }
@@ -315,7 +262,7 @@ export class FullCompaction implements CompactionPipelineContext {
     this.compacting = null;
   }
 
-  private syncCompactionBaseline(): void {
+  syncCompactionBaseline(): void {
     this.lastCompactedTokenCount = this.tokenCountWithPending;
   }
 
@@ -387,7 +334,7 @@ export class FullCompaction implements CompactionPipelineContext {
     return this.strategy.shouldCompact(projectedUsedSize);
   }
 
-  private recordCompactionQuality(input: {
+  recordCompactionQuality(input: {
     readonly recallEvalScore?: number | undefined;
     readonly usedEmergencyBackstop: boolean;
     readonly evidenceRepairAttempted?: boolean;
@@ -665,512 +612,13 @@ export class FullCompaction implements CompactionPipelineContext {
     }
   }
 
-  private async compactionWorker(
-    signal: AbortSignal,
-    data: Readonly<CompactionBeginData>,
-    compactedCount: number,
-  ): Promise<void> {
-    try {
-      const finalActions: CompactionResultAction[] = [];
-      const finalRawRefs: CompactionResultRawRef[] = [];
-      const finalQualityWarnings: string[] = [];
-      const finalResult: CompactionResult = {
-        summary: '',
-        compactedCount: 1,
-        tokensBefore: 0,
-        tokensAfter: 0,
-      };
-
-      for (let round = 1; ; round++) {
-        const result = await this.compactionRound(round, signal, data, compactedCount);
-        if (!result) return;
-
-        finalResult.summary = result.summary;
-        finalResult.compactedCount += result.compactedCount - 1;
-        finalResult.tokensBefore += result.tokensBefore - finalResult.tokensAfter;
-        finalResult.tokensAfter = result.tokensAfter;
-        finalResult.algorithmVersion = result.algorithmVersion;
-        finalResult.summaryTokens = result.summaryTokens;
-        finalResult.retainedTokens = result.retainedTokens;
-        finalResult.compactedTokens = result.compactedTokens;
-        if (result.parallelBlockCount !== undefined) {
-          finalResult.parallelBlockCount =
-            (finalResult.parallelBlockCount ?? 0) + result.parallelBlockCount;
-        }
-        if (result.mergeInputTokens !== undefined) {
-          finalResult.mergeInputTokens =
-            (finalResult.mergeInputTokens ?? 0) + result.mergeInputTokens;
-        }
-        if (result.repairAttempted === true) {
-          finalResult.repairAttempted = true;
-        }
-        if (result.actions !== undefined) finalActions.push(...result.actions);
-        if (result.rawRefs !== undefined) finalRawRefs.push(...result.rawRefs);
-        if (result.qualityWarnings !== undefined) {
-          finalQualityWarnings.push(...result.qualityWarnings);
-        }
-        finalResult.keptUserMessageCount = result.keptUserMessageCount;
-        finalResult.keptHeadUserMessageCount = result.keptHeadUserMessageCount;
-
-        if (result.tokensBefore - result.tokensAfter < 1024) break;
-        if (!this.strategy.shouldBlock(result.tokensAfter)) break;
-        compactedCount = this.strategy.computeCompactCount(this.agent.context.history, data.source);
-        if (compactedCount === 0) break;
-      }
-      if (finalActions.length > 0) finalResult.actions = finalActions;
-      if (finalRawRefs.length > 0) finalResult.rawRefs = finalRawRefs;
-      if (finalQualityWarnings.length > 0) {
-        finalResult.qualityWarnings = [...new Set(finalQualityWarnings)];
-      }
-      await this.agent.injection.injectAfterCompaction();
-      injectResumeRecheckReminder(this, finalResult.summary);
-      this.syncCompactionBaseline();
-      this.triggerPostCompactHook(data, finalResult);
-      this.markCompleted();
-      this.agent.emitEvent({ type: 'compaction.completed', result: finalResult });
-      this.agent.turn.onCompactionFinished();
-    } catch (error) {
-      // Abort errors are settled by the `finally` below, which releases the
-      // lock if this worker still owns it.
-      if (isAbortError(error)) return;
-      const blockedByTurn = this.compacting?.blockedByTurn === true;
-      this.cancel();
-      this.agent.log.error('compaction failed', { error });
-      if (blockedByTurn) {
-        throw error;
-      }
-      this.agent.emitEvent({
-        type: 'error',
-        ...toKimiErrorPayload(error),
-      });
-    } finally {
-      this.releaseLockIfOwned();
-    }
-  }
-
-  private async compactionRound(
-    round: number,
-    signal: AbortSignal,
-    data: Readonly<CompactionBeginData>,
-    initialCompactedCount: number,
-  ) {
-    const startedAt = Date.now();
-    const originalHistory = [...this.agent.context.history];
-    const tokensBefore = estimateTokensForMessages(originalHistory);
-    const retryCount = { value: 0 };
-    try {
-      let compactedCount = initialCompactedCount;
-
-      await this.triggerPreCompactHook(data, tokensBefore, signal);
-
-      const model = this.agent.config.model;
-      let summary: string;
-      let usage: TokenUsage | null = null;
-      let parallelBlockCount = 0;
-      let mergeInputTokens: number | undefined;
-      let repairAttempted = false;
-      let usedEmergencyBackstop = false;
-      let messagesToCompact: readonly Message[] = originalHistory.slice(0, compactedCount);
-      let plan = this.planner.plan(originalHistory, compactedCount);
-      const provider = this.createCompactionProvider(
-        estimateTokensForMessages(messagesToCompact),
-      );
-      // Volatile phase signal so live clients can render phase-aware progress.
-      emitCompactionProgress(this.agent, {
-        phase: 'summarizing',
-        streamKind: 'summary',
-        fraction: PROGRESS_WEIGHT_PLAN,
-      });
-      const summarized = await summarizeCompactedPrefix(this, {
-        signal,
-        provider,
-        messagesToCompact,
-        plan,
-        instruction: data.instruction,
-        retryCount,
-        originalHistory,
-        compactedCount,
-      });
-      summary = summarized.summary;
-      usage = summarized.usage;
-      parallelBlockCount = summarized.parallelBlockCount;
-      mergeInputTokens = summarized.mergeInputTokens;
-      compactedCount = summarized.compactedCount;
-      messagesToCompact = summarized.messagesToCompact;
-      usedEmergencyBackstop = summarized.usedEmergencyBackstop;
-      plan = this.planner.plan(originalHistory, compactedCount);
-
-      // Archive compacted tool-exchange groups so their original content stays
-      // recoverable via liora-expand after the prefix is summarized away.
-      const { rawRefs: archivedRawRefs, guidance: archiveGuidance } =
-        archiveCompactedToolExchanges(this, originalHistory, plan);
-      if (archivedRawRefs !== plan.rawRefs) {
-        plan = { ...plan, rawRefs: archivedRawRefs as typeof plan.rawRefs };
-      }
-
-      // Volatile phase signal: summary validation / repair begins.
-      emitCompactionProgress(this.agent, {
-        phase: 'repairing',
-        streamKind: 'repair',
-        fraction: fractionForMergeDone(),
-      });
-      const initialQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
-      let quality: CompactionQualityResult = initialQuality;
-      if (initialQuality.critical.length > 0 && !usedEmergencyBackstop) {
-        const repair = await repairSummaryForQuality(
-          this,
-          signal,
-          provider,
-          messagesToCompact,
-          plan,
-          data.instruction,
-          initialQuality,
-        );
-        summary = repair.summary;
-        repairAttempted = true;
-        if (repair.usage !== null) {
-          usage = mergeTokenUsage(usage, repair.usage);
-        }
-        const repairedQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
-        // The initial summary was replaced by the repair, so its critical errors no longer
-        // apply to the current artifact. Carry forward only warnings (for telemetry) and
-        // treat the repaired summary as the source of truth for critical checks.
-        const merged = mergeCompactionQualityResults(initialQuality, repairedQuality);
-        quality = {
-          critical: repairedQuality.critical,
-          warnings: merged.warnings,
-          warningCategories: merged.warningCategories,
-          signals: repairedQuality.signals ?? initialQuality.signals,
-        };
-        if (repairedQuality.critical.length > 0) {
-          const evidenceOnly =
-            isMissingEvidenceQualityFailure(repairedQuality) &&
-            repairedQuality.critical.every((item) => item.includes('durable evidence'));
-          if (!evidenceOnly) {
-            // Surviving non-evidence criticals are deliberately NOT thrown here:
-            // throwing would hard-stall the turn. They propagate to the final
-            // quality gate below, which swaps in the deterministic backstop and
-            // lets the turn resume on a well-formed summary.
-            this.agent.telemetry.track('compaction_qc_repair_unresolved', {
-              critical_count: repairedQuality.critical.length,
-            });
-          }
-          // Evidence-id gaps are recovered deterministically after enrichment.
-        }
-      }
-
-      if (usage !== null) {
-        this.agent.usage.record(model, usage);
-      }
-
-      const newHistory = this.agent.context.history;
-      for (let i = 0; i < originalHistory.length; i++) {
-        if (newHistory[i] !== originalHistory[i]) {
-          // History changed during compaction, likely due to undo
-          this.cancel();
-          return undefined;
-        }
-      }
-
-      const enrichment = enrichCompactionSummary(this, {
-        summary,
-        messagesToCompact,
-        plan,
-      });
-      summary = enrichment.summary;
-      const ultraworkSnapshot = enrichment.ultraworkSnapshot;
-      if (archiveGuidance.length > 0) {
-        summary = `${summary.trimEnd()}${archiveGuidance}`;
-      }
-      let contextSummary = buildCompactionSummaryText(summary);
-      let summaryTokens = estimateTokens(contextSummary);
-      let retained: readonly Message[] = this.agent.context.history.slice(compactedCount);
-      let retainedTokens = estimateTokensForMessages(retained);
-      let tokensAfter = summaryTokens + retainedTokens;
-      let renderedQuality = validateRenderedCompactionSummary(
-        summary,
-        plan,
-        messagesToCompact,
-        tokensAfter,
-      );
-      quality = mergeCompactionQualityResults(quality, renderedQuality);
-      if (ultraworkSnapshot !== undefined) {
-        const ultraworkQuality = validateUltraworkCompactionContinuity(summary, ultraworkSnapshot);
-        quality = mergeCompactionQualityResults(quality, ultraworkQuality);
-      }
-      const evidenceRepair = await applyEvidenceSecondChanceRepair(this, {
-        signal,
-        provider,
-        messagesToCompact,
-        plan,
-        instruction: data.instruction,
-        quality,
-        summary,
-        usage,
-        archiveGuidance,
-        compactedCount,
-        ultraworkSnapshot,
-        usedEmergencyBackstop,
-        contextSummary,
-        summaryTokens,
-        retained,
-        retainedTokens,
-        tokensAfter,
-      });
-      summary = evidenceRepair.summary;
-      usage = evidenceRepair.usage;
-      quality = evidenceRepair.quality;
-      repairAttempted = repairAttempted || evidenceRepair.repairAttempted;
-      contextSummary = evidenceRepair.contextSummary;
-      summaryTokens = evidenceRepair.summaryTokens;
-      retained = evidenceRepair.retained;
-      retainedTokens = evidenceRepair.retainedTokens;
-      tokensAfter = evidenceRepair.tokensAfter;
-
-      // Last-resort: splice missing durable IDs from the compacted history into the
-      // summary. Hard-failing auto-compaction here freezes long sessions forever.
-      if (
-        quality.critical.length > 0 &&
-        !usedEmergencyBackstop &&
-        isMissingEvidenceQualityFailure(quality)
-      ) {
-        const injected = injectMissingDurableEvidenceIds(
-          summary,
-          messagesToCompact,
-          this.agent.homedir !== undefined ? join(this.agent.homedir, 'compaction') : undefined,
-        );
-        if (injected.injectedIds.length > 0) {
-          this.agent.telemetry.track('compaction_evidence_ids_injected', {
-            injected_count: injected.injectedIds.length,
-            injected_ids: injected.injectedIds.join(','),
-          });
-          const revalidated = revalidateAfterEvidenceRepair(this, {
-            summary: injected.summary,
-            plan,
-            messagesToCompact,
-            archiveGuidance,
-            compactedCount,
-            priorQuality: quality,
-            ultraworkSnapshot,
-          });
-          summary = revalidated.summary;
-          quality = stripResolvedEvidenceCriticals(
-            revalidated.quality,
-          ) as CompactionQualityResult;
-          contextSummary = revalidated.contextSummary;
-          summaryTokens = revalidated.summaryTokens;
-          retained = revalidated.retained;
-          retainedTokens = revalidated.retainedTokens;
-          tokensAfter = revalidated.tokensAfter;
-          repairAttempted = true;
-        }
-      }
-
-      if (quality.critical.length > 0 && !usedEmergencyBackstop) {
-        // Criticals that survive every repair pass must not hard-stall the turn:
-        // swap in the deterministic extractive backstop and continue assembling so
-        // the session keeps a well-formed summary instead of freezing.
-        summary = buildEmergencyBackstopSummary(messagesToCompact, plan, data.instruction);
-        usedEmergencyBackstop = true;
-        contextSummary = buildCompactionSummaryText(summary);
-        summaryTokens = estimateTokens(contextSummary);
-        tokensAfter = summaryTokens + retainedTokens;
-        this.agent.telemetry.track('compaction_qc_fallback_backstop', {
-          critical_count: quality.critical.length,
-        });
-      }
-
-      // Volatile phase signal: assembly / context rebuild begins.
-      emitCompactionProgress(this.agent, {
-        phase: 'finalizing',
-        fraction: fractionForFinalizing(),
-      });
-      const result = assembleCompactionResult(this, {
-        summary,
-        contextSummary,
-        compactedCount,
-        tokensBefore,
-        tokensAfter,
-        plan,
-        quality,
-        summaryTokens,
-        retainedTokens,
-        retainedCount: retained.length,
-        parallelBlockCount,
-        mergeInputTokens,
-        repairAttempted,
-        usedEmergencyBackstop,
-        source: data.source,
-        provider,
-      });
-      const recallMemorySavedCount = await persistCompactionRecall(this, result);
-      const qualitySignals = quality.signals;
-      const qualityWarningCategories = result.qualityWarningCategories ?? [];
-
-      const durationMs = Date.now() - startedAt;
-      const finishedTelemetry = {
-        source: data.source,
-        tokensBefore: result.tokensBefore,
-        tokensAfter: result.tokensAfter,
-        summaryTokens: result.summaryTokens,
-        retainedTokens: result.retainedTokens,
-        compactedTokens: result.compactedTokens,
-        durationMs,
-        compactedCount: result.compactedCount,
-        retryCount: retryCount.value,
-        parallelBlockCount,
-        qualityWarningCount: result.qualityWarnings.length,
-        qualityWarningCategories,
-        repairAttempted,
-        emergencyBackstopUsed: usedEmergencyBackstop,
-        mergeInputTokens: mergeInputTokens ?? 0,
-        providerContextManagement: formatContextManagementCapability(provider),
-        contextPackVersion: result.contextPack.version,
-        contextPackRawRefCount: result.contextPack.evidence.rawRefCount,
-        contextPackActionCount: result.contextPack.evidence.actionTypes.length,
-        contextPackRetainedMessageCount: result.contextPack.messageCounts.retained,
-        contextOsStatus: result.contextPack.contextOS.continuity.status,
-        contextOsScore: result.contextPack.contextOS.continuity.score,
-        contextOsTierCount: result.contextPack.contextOS.memoryTiers.length,
-        contextOsRehydrationKindCount: result.contextPack.contextOS.rehydrationRawRefKinds.length,
-        recallEvalScore: qualitySignals?.recallEvalScore,
-        evidenceIdRecallScore: qualitySignals?.evidenceIdRecallScore,
-        criticalFactCount: qualitySignals?.criticalFactCount,
-        placeholderItemCount: qualitySignals?.placeholderItemCount,
-        tokensSavedRatio: qualitySignals?.tokensSavedRatio,
-        failureSignature: qualitySignals?.failureSignature,
-        recallMemorySavedCount,
-        round,
-        thinkingLevel: this.agent.config.thinkingLevel,
-        usage,
-        actionTypes: result.actions?.map((action) => action.type).join(',') ?? '',
-        qualityWarnings: result.qualityWarnings?.join(',') ?? '',
-      };
-      this.agent.telemetry.track(
-        'compaction_finished',
-        compactionFinishedTelemetryProperties(finishedTelemetry),
-      );
-      this.agent.telemetry.track(
-        'compaction_v2_finished',
-        compactionV2FinishedTelemetryProperties(finishedTelemetry),
-      );
-      this.recordCompactionQuality({
-        recallEvalScore: qualitySignals?.recallEvalScore,
-        usedEmergencyBackstop,
-        evidenceRepairAttempted: repairAttempted,
-        evidenceRepairSucceeded: evidenceRepairSucceeded({
-          repairAttempted,
-          evidenceIdRecallScore: qualitySignals?.evidenceIdRecallScore,
-          qualityWarningCategories: result.qualityWarningCategories ?? [],
-        }),
-      });
-      const applied = this.agent.context.applyCompaction(result);
-      this.lastCompactedTokenCount = applied.tokensAfter;
-      return applied;
-    } catch (error) {
-      if (isAbortError(error)) return;
-      this.agent.telemetry.track('compaction_failed', {
-        source: data.source,
-        tokens_before: tokensBefore,
-        duration_ms: Date.now() - startedAt,
-        round,
-        retry_count: retryCount.value,
-        thinking_level: this.agent.config.thinkingLevel,
-        error_type: error instanceof Error ? error.name : 'Unknown',
-      });
-      if (isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED) throw error;
-      throw new LioraError(ErrorCodes.COMPACTION_FAILED, String(error), { cause: error });
-    }
-  }
-
-  /**
-   * Compaction is a logic-only summarizer slice (not a Subagent): no tools,
-   * thinking off, cost-aware model when configured.
-   */
   compactionModelAlias: string | undefined;
 
-  private createCompactionProvider(usedContextTokens: number): ChatProvider {
-    // When a dedicated compaction model is configured, summarize with it
-    // instead of the (usually more expensive) main model. Without an explicit
-    // alias, pick the lowest local models.*.cost (then name-heuristic cheap
-    // tier) so routine compaction does not spend main-model tokens. The alias
-    // is resolved through the same ModelProvider so auth/routing stays consistent.
-    const configuredCompactionModel = this.agent.kimiConfig?.loopControl?.compactionModel;
-    const compactionModelAlias = resolveCompactionModelAlias({
-      explicit: configuredCompactionModel,
-      models: this.agent.kimiConfig?.models,
-      minContextTokens: usedContextTokens > 0 ? usedContextTokens : undefined,
-    });
-    this.compactionModelAlias =
-      compactionModelAlias !== undefined && compactionModelAlias.length > 0
-        ? compactionModelAlias
-        : this.agent.config.modelAlias;
-    let resolvedCompaction: ResolvedRuntimeProvider | undefined;
-    if (compactionModelAlias !== undefined) {
-      try {
-        resolvedCompaction = this.agent.modelProvider?.resolveProviderConfig(compactionModelAlias);
-      } catch (error) {
-        // A misconfigured explicit compactionModel keeps surfacing; a merely
-        // inferred alias falls back to the main model instead of failing
-        // compaction.
-        if (configuredCompactionModel !== undefined) throw error;
-        this.agent.log.warn('inferred cheap compaction model did not resolve', error);
-        resolvedCompaction = undefined;
-        this.compactionModelAlias = this.agent.config.modelAlias;
-      }
-    }
-    const capability: ModelCapability = resolvedCompaction?.modelCapabilities
-      ?? this.agent.config.modelCapabilities;
-    const maxContextTokens = capability.max_context_tokens;
-    const defaultCompactionCap =
-      maxContextTokens > 0
-        ? Math.min(maxContextTokens, DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS)
-        : undefined;
-    const budget = resolveCompletionBudget({
-      maxOutputSize: this.agent.config.maxOutputSize ?? defaultCompactionCap,
-      reservedContextSize: this.agent.kimiConfig?.loopControl?.reservedContextSize,
-    });
-    // Compaction must emit visible summary text. Thinking models can spend the
-    // entire output budget on reasoning alone, which kosong surfaces as
-    // APIEmptyResponseError — the root cause of compaction.failed in production.
-    const baseProvider =
-      resolvedCompaction !== undefined
-        ? createProvider(resolvedCompaction.provider)
-        : this.agent.config.provider;
-    const withoutThinking = baseProvider.withThinking('off');
-    let provider = applyCompletionBudget({
-      provider: withoutThinking,
-      budget,
-      capability,
-      usedContextTokens,
-    });
-    if (provider.withMaxCompletionTokens !== undefined) {
-      const configuredCap = computeCompletionBudgetCap({
-        budget: budget ?? { fallback: COMPACTION_MIN_OUTPUT_TOKENS },
-        capability,
-      });
-      provider = provider.withMaxCompletionTokens(
-        Math.max(COMPACTION_MIN_OUTPUT_TOKENS, configuredCap),
-        {
-          usedContextTokens,
-          maxContextTokens,
-        },
-      );
-    }
-    return provider;
+  createCompactionProvider(usedContextTokens: number) {
+    return buildCompactionProvider(this, usedContextTokens);
   }
 
-  private compactionGenerateOptions(signal: AbortSignal): {
-    readonly signal: AbortSignal;
-    readonly runtimeModelAlias?: string;
-  } {
-    return {
-      signal,
-      runtimeModelAlias: this.compactionModelAlias,
-    };
-  }
-
-  private async triggerPreCompactHook(
+  async triggerPreCompactHook(
     data: Readonly<CompactionBeginData>,
     tokenCount: number,
     signal: AbortSignal,
@@ -1187,7 +635,7 @@ export class FullCompaction implements CompactionPipelineContext {
     signal.throwIfAborted();
   }
 
-  private triggerPostCompactHook(
+  triggerPostCompactHook(
     data: Readonly<CompactionBeginData>,
     result: CompactionResult,
   ): void {
