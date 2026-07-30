@@ -1,6 +1,6 @@
 import type { TeamPlan, WorkGraph, WorkGraphNode } from '@superliora/protocol';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { SwarmRoutingIntensity } from '../../../agent/plan/ultra-swarm-routing';
 import {
   consumeUltraSwarmRestaffRequests,
