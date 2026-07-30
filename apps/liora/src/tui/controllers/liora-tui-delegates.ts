@@ -10,7 +10,7 @@ import type {
   RendererTraceCommand,
   SkillListSession,
 } from '../commands';
-import * as slashCommands from '../commands/dispatch';
+import * as slashCommands from '../commands/hub/dispatch';
 import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
 import type { ColorToken, ResolvedTheme, ThemeName } from '../theme';
 import type { CenterModalMountOptions } from '../utils/ui/center-modal';

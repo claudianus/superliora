@@ -8,13 +8,13 @@ import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
 
-import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
-import type { AuthFlowController } from '../controllers/auth-flow';
-import type { BtwPanelController } from '../controllers/btw-panel';
-import type { StreamingUIController } from '../controllers/streaming-ui/index';
-import type { TasksBrowserController } from '../controllers/tasks-browser';
-import type { ResolvedTheme } from '../theme/colors';
-import type { TUIState } from '../tui-state';
+import { LLM_NOT_SET_MESSAGE } from '../../constant/liora-tui';
+import type { AuthFlowController } from '../../controllers/auth-flow';
+import type { BtwPanelController } from '../../controllers/btw-panel';
+import type { StreamingUIController } from '../../controllers/streaming-ui/index';
+import type { TasksBrowserController } from '../../controllers/tasks-browser';
+import type { ResolvedTheme } from '../../theme/colors';
+import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
 import type { MotionBeatController } from '../utils/render/motion-beats';
 import type {
@@ -23,44 +23,44 @@ import type {
   QueuedMessage,
   TranscriptDetailLevel,
   TranscriptEntry,
-} from '../types';
-import { formatErrorMessage } from '../utils/event-payload';
-import { handleAccountsCommand } from './accounts';
-import { handleLoginCommand, handleLogoutCommand } from './auth';
-import { handleBtwCommand } from './btw';
-import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission';
-import { handleAppearanceCommand } from './config/appearance';
-import { handleCompactCommand, handlePlanCommand } from './config/plan';
-import { handleContextCommand } from './config/context';
-import { handleEditorCommand, handleThemeCommand } from './config/editor-theme';
-import { handleModelCommand, showModelPicker } from './config/model';
-import { handleThinkingCommand } from './config/thinking';
-import { showExperimentsPanel } from './config/experiments';
-import { showSettingsSelector, showHarnessPanel } from './config/settings';
-import { showHarnessEyesReadiness, showToolsInventory } from './config/harness-tools';
-import { handleGoalCommand } from './goal';
-import { handleImproveHarnessCommand } from './improve-harness';
-import { handleCronCommand } from './cron';
-import { showDiff } from './diff';
-import { showLog } from './log';
-import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from './info';
-import { handleAddDirCommand } from './add-dir';
-import { handleAquariumCommand } from './aquarium';
-import { handleFeedCommand } from './feed';
-import { handleBenchCommand } from './bench';
-import { handleMemoryCommand } from './memory';
-import { handlePersonaCommand } from './persona';
+} from '../../types';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { handleAccountsCommand } from '../accounts';
+import { handleLoginCommand, handleLogoutCommand } from '../auth';
+import { handleBtwCommand } from '../btw';
+import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission';
+import { handleAppearanceCommand } from '../config/appearance';
+import { handleCompactCommand, handlePlanCommand } from '../config/plan';
+import { handleContextCommand } from '../config/context';
+import { handleEditorCommand, handleThemeCommand } from '../config/editor-theme';
+import { handleModelCommand, showModelPicker } from '../config/model';
+import { handleThinkingCommand } from '../config/thinking';
+import { showExperimentsPanel } from '../config/experiments';
+import { showSettingsSelector, showHarnessPanel } from '../config/settings';
+import { showHarnessEyesReadiness, showToolsInventory } from '../config/harness-tools';
+import { handleGoalCommand } from '../goal';
+import { handleImproveHarnessCommand } from '../improve-harness';
+import { handleCronCommand } from '../cron';
+import { showDiff } from '../diff';
+import { showLog } from '../log';
+import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from '../info';
+import { handleAddDirCommand } from '../add-dir';
+import { handleAquariumCommand } from '../aquarium';
+import { handleFeedCommand } from '../feed';
+import { handleBenchCommand } from '../bench/bench';
+import { handleMemoryCommand } from '../memory';
+import { handlePersonaCommand } from '../persona';
 import { parseSlashInput } from './parse';
-import { handlePluginsCommand } from './plugins';
-import { handlePreflightCommand } from './preflight/command';
-import { handlePremiumQualityCommand } from './premium';
+import { handlePluginsCommand } from '../plugins/plugins';
+import { handlePreflightCommand } from '../preflight/command';
+import { handlePremiumQualityCommand } from '../premium';
 import {
   handleRendererCommand,
   type RendererDiagnosticsOverlayCommand,
   type RendererTraceCommand,
-} from './renderer';
+} from '../renderer';
 import type { BuiltinSlashCommandName } from './registry';
-import { handleReloadCommand, handleReloadTuiCommand } from './reload';
+import { handleReloadCommand, handleReloadTuiCommand } from '../reload';
 import { resolveSlashCommandInput, slashBusyMessage } from './resolve';
 import {
   handleExportDebugZipCommand,
@@ -68,58 +68,58 @@ import {
   handleForkCommand,
   handleInitCommand,
   handleTitleCommand,
-} from './session';
-import { showSearch } from './search';
-import { handleSwarmCommand } from './swarm';
-import { handleOrchestratorCommand } from './orchestrator';
-import { showTerm } from './term';
+} from '../session';
+import { showSearch } from '../search';
+import { handleSwarmCommand } from '../swarm';
+import { handleOrchestratorCommand } from '../orchestrator';
+import { showTerm } from '../term';
 import {
   handleUltraGoalCommand,
   handleUltraPlanCommand,
   handleUltraSwarmCommand,
-} from './ultra-standalone';
-import { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
-import { handleLoopCommand } from './loop';
-import { handleRewindCommand } from './rewind';
-import { handleTranscriptCommand } from './transcript';
-import { handleUndoCommand } from './undo';
-import { handleUpgradeCommand } from './upgrade';
+} from '../ultrawork/ultra-standalone';
+import { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/ultrawork';
+import { handleLoopCommand } from '../loop';
+import { handleRewindCommand } from '../rewind';
+import { handleTranscriptCommand } from '../transcript';
+import { handleUndoCommand } from '../undo';
+import { handleUpgradeCommand } from '../upgrade';
 
 // ---------------------------------------------------------------------------
 // Re-exports — keep existing consumers working
 // ---------------------------------------------------------------------------
 
-export { handleLoginCommand, handleLogoutCommand } from './auth';
-export { handleBenchCommand } from './bench';
-export { handleBtwCommand } from './btw';
-export { handleAddDirCommand } from './add-dir';
-export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission';
-export { handleAppearanceCommand } from './config/appearance';
-export { handleCompactCommand, handlePlanCommand } from './config/plan';
-export { handleEditorCommand, handleThemeCommand } from './config/editor-theme';
-export { handleModelCommand, showModelPicker } from './config/model';
-export { handleThinkingCommand } from './config/thinking';
-export { showExperimentsPanel } from './config/experiments';
-export { showSettingsSelector } from './config/settings';
-export { handleSwarmCommand } from './swarm';
-export { handleUltraworkCommand, handleUltraworkModeToggle } from './ultrawork';
-export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
-export { handleMemoryCommand } from './memory';
-export { handlePersonaCommand } from './persona';
-export { handlePluginsCommand } from './plugins';
-export { handlePreflightCommand } from './preflight/command';
-export { handleReloadCommand, handleReloadTuiCommand } from './reload';
-export { handleGoalCommand } from './goal';
+export { handleLoginCommand, handleLogoutCommand } from '../auth';
+export { handleBenchCommand } from '../bench/bench';
+export { handleBtwCommand } from '../btw';
+export { handleAddDirCommand } from '../add-dir';
+export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission';
+export { handleAppearanceCommand } from '../config/appearance';
+export { handleCompactCommand, handlePlanCommand } from '../config/plan';
+export { handleEditorCommand, handleThemeCommand } from '../config/editor-theme';
+export { handleModelCommand, showModelPicker } from '../config/model';
+export { handleThinkingCommand } from '../config/thinking';
+export { showExperimentsPanel } from '../config/experiments';
+export { showSettingsSelector } from '../config/settings';
+export { handleSwarmCommand } from '../swarm';
+export { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/ultrawork';
+export { showMcpServers, showQuota, showStatusReport, showUsage } from '../info';
+export { handleMemoryCommand } from '../memory';
+export { handlePersonaCommand } from '../persona';
+export { handlePluginsCommand } from '../plugins/plugins';
+export { handlePreflightCommand } from '../preflight/command';
+export { handleReloadCommand, handleReloadTuiCommand } from '../reload';
+export { handleGoalCommand } from '../goal';
 export {
   handleExportDebugZipCommand,
   handleExportMdCommand,
   handleForkCommand,
   handleInitCommand,
   handleTitleCommand,
-} from './session';
-export { handleUndoCommand } from './undo';
-export { handleRewindCommand } from './rewind';
-export { handleLoopCommand } from './loop';
+} from '../session';
+export { handleUndoCommand } from '../undo';
+export { handleRewindCommand } from '../rewind';
+export { handleLoopCommand } from '../loop';
 
 // ---------------------------------------------------------------------------
 // Host interface

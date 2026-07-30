@@ -1,6 +1,6 @@
 import type { LioraHarness } from '@superliora/sdk';
 
-import * as slashCommands from '../commands/dispatch';
+import * as slashCommands from '../commands/hub/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '../config';
 import { registerReverseRPCHandlers } from '../reverse-rpc/index';
 import type { ApprovalPanelData, QuestionPanelData } from '../reverse-rpc/types';

@@ -34,7 +34,7 @@ import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { isMotionTheatreActive } from '../utils/render/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { loadPreflightHumanWriting } from './preflight/human-writing';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 function playStatusOpenBeat(host: SlashCommandHost, title: string, seed: string): void {
   host.motionBeats.play({

@@ -1,4 +1,4 @@
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 
 /** Cloud-hosted Claude model presets for Bedrock and Vertex AI. */

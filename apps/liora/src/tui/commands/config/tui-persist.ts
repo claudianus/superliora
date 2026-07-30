@@ -9,7 +9,7 @@ import {
   type OnboardingPreferences,
   type TuiConfig,
 } from '../../config';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 export function currentAppearance(host: {
   readonly state: { readonly appState: { readonly appearance?: AppearancePreferences } };

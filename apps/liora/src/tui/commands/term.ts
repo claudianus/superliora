@@ -7,7 +7,7 @@
 import { TerminalDiagnosticsPanel } from '../components/messages/terminal-diagnostics-panel';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { collectTerminalDiagnostics } from '../utils/terminal/terminal-diagnostics';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export function showTerm(host: SlashCommandHost): void {
   const report = collectTerminalDiagnostics(process.env);

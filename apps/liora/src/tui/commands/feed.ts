@@ -2,7 +2,7 @@ import { IdleStageComponent } from '../components/chrome/idle-stage';
 import { CHROME_GUTTER } from '../constant/rendering';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { ttui } from '../utils/tui-i18n';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 /**
  * Drop a pellet of food into the currently visible Jewel Tank.

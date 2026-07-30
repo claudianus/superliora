@@ -13,7 +13,7 @@ import type {
   SlashCommandHelpMode,
   SkillListSession,
 } from './commands';
-import * as slashCommands from './commands/dispatch';
+import * as slashCommands from './commands/hub/dispatch';
 import { CommandHubComponent } from './components/dialogs/command-hub/index';
 import {
   SessionLoadingOverlayComponent,

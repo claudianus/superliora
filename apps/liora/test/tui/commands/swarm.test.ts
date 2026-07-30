@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { handleSwarmCommand } from '#/tui/commands/index';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { currentTheme } from '#/tui/theme';
 
 const ENTER = '\r';

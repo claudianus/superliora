@@ -12,7 +12,7 @@ import { isAbortError } from '../utils/errors';
 import { formatErrorMessage } from '../utils/event-payload';
 import { buildExportMarkdown } from '../utils/export-markdown';
 import { ttui } from '../utils/tui-i18n';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 // ---------------------------------------------------------------------------
 // Session commands

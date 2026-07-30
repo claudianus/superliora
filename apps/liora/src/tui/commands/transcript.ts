@@ -1,7 +1,7 @@
 import type { AutocompleteItem } from '#/tui/renderer';
 
 import { handleAppearanceCommand } from './config/appearance';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 import {
   TRANSCRIPT_DETAIL_LEVELS,
   isTranscriptDetailLevel,

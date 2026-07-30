@@ -1,4 +1,4 @@
-import type { ParsedSlashInput } from './types';
+import type { ParsedSlashInput } from '../types';
 
 export function parseSlashInput(input: string): ParsedSlashInput | null {
   const commandText = input.trimStart();

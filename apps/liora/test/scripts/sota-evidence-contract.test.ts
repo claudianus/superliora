@@ -51,7 +51,7 @@ function completeUltraworkSummary(questionValidation: TestValidation) {
     inputTraces: [],
     workspace: {
       editFiles: [
-        'apps/liora/src/tui/commands/ultrawork-contract.ts',
+        'apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts',
         'apps/liora/test/tui/commands/ultrawork.test.ts',
       ],
       editedFileCount: 2,

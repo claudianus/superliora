@@ -6,7 +6,7 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import { PermissionSelectorComponent } from '../../components/dialogs/picker/permission-selector';
 import { ttui } from '#/tui/utils/tui-i18n';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { tuiConfigFromHost } from './tui-persist';
 
 /** Fire-and-forget persistence of the current permission mode to tui.toml. */

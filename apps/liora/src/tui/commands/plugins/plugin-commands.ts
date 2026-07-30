@@ -1,6 +1,6 @@
 import type { PluginCommandDef } from '@superliora/sdk';
 
-import type { LioraSlashCommand } from './types';
+import type { LioraSlashCommand } from '../types';
 
 export interface PluginSlashCommands {
   readonly commands: readonly LioraSlashCommand[];

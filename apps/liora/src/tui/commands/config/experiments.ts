@@ -7,7 +7,7 @@ import {
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
 import { setExperimentalFeatures } from '../experimental-flags';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 export async function showExperimentsPanel(host: SlashCommandHost): Promise<void> {
   let features: readonly ExperimentalFeatureState[];

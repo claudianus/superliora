@@ -8,7 +8,7 @@ import {
 } from '@superliora/oauth';
 
 import { handleAccountsCommand } from '#/tui/commands/accounts';
-import { BUILTIN_SLASH_COMMANDS } from '#/tui/commands/registry';
+import { BUILTIN_SLASH_COMMANDS } from '#/tui/commands/hub/registry';
 
 describe('/accounts command wiring', () => {
   it('registers /accounts in the builtin slash command registry', () => {

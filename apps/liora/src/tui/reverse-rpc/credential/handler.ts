@@ -1,7 +1,7 @@
 import type { CredentialHandler, CredentialRequest, CredentialResponse } from '@superliora/sdk';
 
 import { promptApiKey } from '#/tui/commands/prompts';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 export interface CredentialPromptHost {
   mountEditorReplacement(panel: import('#/tui/renderer').Component & import('#/tui/renderer').Focusable): void;

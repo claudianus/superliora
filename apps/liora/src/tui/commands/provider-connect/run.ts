@@ -14,7 +14,7 @@ import {
   type ProviderCatalogSelection,
 } from '#/tui/utils/model/provider-catalog-options';
 import { promptProviderCatalog } from '../prompts';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import {
   connectCatalogProvider,
   DEFAULT_CATALOG_URL,

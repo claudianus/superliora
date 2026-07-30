@@ -1,4 +1,4 @@
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 const CRON_USAGE =
   'Usage: /cron list — show scheduled jobs (id, schedule, prompt, status); /cron delete <jobId> — remove a job. Jobs persist across sessions; the agent manages them with the Cron tools.';

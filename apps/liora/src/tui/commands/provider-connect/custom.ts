@@ -17,7 +17,7 @@ import {
 import { formatErrorMessage } from '../../utils/event-payload';
 import { loadCatalog } from '#/utils/catalog-cache';
 import { applyCustomEndpointProvider, lookupModelCapability, probeModelsEndpoint } from '#/utils/custom-provider';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 /** Connects a custom OpenAI-compatible endpoint. Returns `false` on cancel. */
 export async function connectCustomEndpoint(host: SlashCommandHost): Promise<boolean> {

@@ -112,7 +112,7 @@ const ROOT_EVIDENCE_SUMMARY_FILES = new Set([
   'tui-real-workflow.json',
   'tui-ultrawork-workflow.json',
 ]);
-const ULTRAWORK_CONTRACT_PATH = 'apps/liora/src/tui/commands/ultrawork-contract.ts';
+const ULTRAWORK_CONTRACT_PATH = 'apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts';
 const WEB_UI_SUCCESS_BOUNDARY =
   'Do not use apps/vis or browser UI paths as a success surface';
 const KNOWLEDGE_MAP_CONTRACT_PHRASES = Object.freeze([

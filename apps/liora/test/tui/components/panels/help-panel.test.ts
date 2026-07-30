@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import type { LioraSlashCommand } from '#/tui/commands/index';
-import { BUILTIN_SLASH_COMMANDS, slashCommandsForHelp } from '#/tui/commands/registry';
+import { BUILTIN_SLASH_COMMANDS, slashCommandsForHelp } from '#/tui/commands/hub/registry';
 import {
   ADVANCED_HELP_INTRO,
   advancedKeyboardShortcuts,

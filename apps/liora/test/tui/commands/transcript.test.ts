@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import {
   handleTranscriptCommand,
   transcriptArgumentCompletions,

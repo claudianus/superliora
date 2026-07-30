@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { handleCronCommand } from '#/tui/commands/cron';
 
 function createHost() {

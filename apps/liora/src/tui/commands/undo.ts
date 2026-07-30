@@ -26,7 +26,7 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
 import { getTranscriptComponentEntry } from '../features/transcript/transcript-component-metadata';
 import { nextTranscriptId } from '../features/transcript/transcript-id';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 // ---------------------------------------------------------------------------

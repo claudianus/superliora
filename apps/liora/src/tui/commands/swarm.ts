@@ -15,7 +15,7 @@ import {
   resolveWarRoomReason,
   type WarRoomDockAction,
 } from '../features/agent-swarm/war-room-action';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export async function handleSwarmCommand(host: SlashCommandHost, args: string): Promise<void> {
   if (host.session === undefined) {

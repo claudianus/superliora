@@ -6,7 +6,7 @@
 
 import { searchProject } from '#/utils/fs/project-search';
 import { ttui } from '#/tui/utils/tui-i18n';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export function showSearch(host: SlashCommandHost, args?: string): void {
   const pattern = (args ?? '').trim();

@@ -29,7 +29,7 @@ import {
   clearFallbackModelsPatch,
   type ModelFallbackConfig,
 } from '#/tui/utils/model/model-fallback';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 const MODEL_PICKER_REFRESH_TIMEOUT_MS = 2_000;
 

@@ -1,6 +1,6 @@
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export async function handleOrchestratorCommand(
   host: SlashCommandHost,

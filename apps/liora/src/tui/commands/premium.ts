@@ -1,6 +1,6 @@
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 export async function handlePremiumQualityCommand(

@@ -9,12 +9,12 @@ import { basename, dirname, join, relative, resolve } from 'pathe';
 import type { AutocompleteItem } from '#/tui/renderer';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
-import { improveHarnessArgumentCompletions } from './improve-harness';
-import { PERSONA_PRESET_DESCRIPTIONS, PERSONA_PRESET_NAMES } from './persona';
-import { pluginsArgumentCompletions } from './plugins';
-import { rendererArgumentCompletions } from './renderer';
-import { transcriptArgumentCompletions } from './transcript';
-import type { SlashCommandAvailability } from './types';
+import { improveHarnessArgumentCompletions } from '../improve-harness';
+import { PERSONA_PRESET_DESCRIPTIONS, PERSONA_PRESET_NAMES } from '../persona';
+import { pluginsArgumentCompletions } from '../plugins/plugins';
+import { rendererArgumentCompletions } from '../renderer';
+import { transcriptArgumentCompletions } from '../transcript';
+import type { SlashCommandAvailability } from '../types';
 
 /** Subcommands offered when autocompleting `/goal <…>`. */
 const GOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [

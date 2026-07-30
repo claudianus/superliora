@@ -3,7 +3,7 @@ import { basename, dirname, join } from 'node:path';
 
 import { workspaceRelativePath } from '#/constant/workspace-data';
 
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import {
   budgetActionLines,
   budgetLine,

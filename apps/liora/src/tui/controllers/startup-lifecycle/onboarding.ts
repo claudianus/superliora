@@ -1,5 +1,5 @@
 import { setExperimentalFeatures } from '../../commands';
-import * as slashCommands from '../../commands/dispatch';
+import * as slashCommands from '../../commands/hub/dispatch';
 import { DEFAULT_ONBOARDING_PREFERENCES } from '../../config';
 import type { StartupLifecycleHost } from './types';
 

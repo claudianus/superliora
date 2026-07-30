@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 
 import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
-import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
+import { dispatchInput, type SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import {
   formatRendererDiagnosticsStatusReport,
   formatRendererTraceStatusReport,

@@ -6,7 +6,7 @@ import {
 } from '#/tui/utils/model/qwen-token-plan';
 import { type ProviderCatalogOption } from '#/tui/utils/model/provider-catalog-options';
 import { promptApiKeyForCatalogProvider } from '../prompts';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 
 /**

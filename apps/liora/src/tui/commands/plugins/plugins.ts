@@ -13,20 +13,20 @@ import {
   type PluginRemoveConfirmResult,
   type PluginsPanelSelection,
   type PluginsPanelTabId,
-} from '../components/dialogs/plugins/index';
+} from '../../components/dialogs/plugins-selector';
 import {
   buildPluginsInfoLines,
   buildPluginsListLines,
-} from '../components/messages/plugins-status-panel';
-import { UsagePanelComponent } from '../components/messages/usage-panel/index';
-import { formatErrorMessage } from '../utils/event-payload';
+} from '../../components/messages/plugins-status-panel';
+import { UsagePanelComponent } from '../../components/messages/usage-panel/index';
+import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
-import { formatPluginSourceLabel, isOfficialPluginSource } from '../utils/plugin-source-label';
+import { formatPluginSourceLabel, isOfficialPluginSource } from '../../utils/plugin-source-label';
 import { loadPluginMarketplace } from '#/utils/plugin-marketplace';
 import type { AutocompleteItem } from '#/tui/renderer';
 
-import type { SlashCommandHost } from './dispatch';
-import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
+import type { SlashCommandHost } from '../hub/dispatch';
+import { completeLeadingArg, type ArgCompletionSpec } from '../hub/complete-args';
 
 const PLUGINS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'List installed plugins' },

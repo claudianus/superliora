@@ -29,7 +29,7 @@ import {
 import { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call/index';
 import { UserMessageComponent } from '../components/messages/user-message';
-import type { ShowNoticeOptions } from '../commands/dispatch';
+import type { ShowNoticeOptions } from '../commands/hub/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '../config';
 import type { AppearanceController } from './appearance';
 import type { BtwPanelController } from './btw-panel';

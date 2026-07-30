@@ -1,6 +1,6 @@
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export async function handleBtwCommand(host: SlashCommandHost, args: string): Promise<void> {
   const prompt = args.trim();

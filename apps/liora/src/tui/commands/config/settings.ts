@@ -5,7 +5,7 @@ import { handleAccountsCommand } from '../accounts';
 import { showMcpServers, showUsage } from '../info';
 import { handlePremiumQualityCommand } from '../premium';
 import { handlePersonaCommand } from '../persona';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { showModelPicker, showLoopModelRoutingPicker, showModelFallbackPicker } from './model';
 import { showContextWorkingSetPicker } from './context';
 import { handleAppearanceCommand } from './appearance';

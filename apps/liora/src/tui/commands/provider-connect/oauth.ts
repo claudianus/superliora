@@ -25,7 +25,7 @@ import { openUrl } from '#/utils/open-url';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import { promptOAuthCallback } from '../prompts';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 
 export async function connectKimiManaged(host: SlashCommandHost): Promise<void> {

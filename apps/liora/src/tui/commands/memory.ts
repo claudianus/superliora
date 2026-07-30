@@ -5,7 +5,7 @@ import {
   CANONICAL_LLM_WIKI_ROOT,
 } from '#/constant/workspace-data';
 
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
 import {
   buildLlmWikiStatusLines,

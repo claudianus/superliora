@@ -6,8 +6,8 @@ import {
 } from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
 
-import type { SlashCommandHost } from './dispatch';
-import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
+import type { SlashCommandHost } from './hub/dispatch';
+import { completeLeadingArg, type ArgCompletionSpec } from './hub/complete-args';
 
 export type RendererDiagnosticsOverlayCommand = 'on' | 'off' | 'toggle' | 'status' | 'reset';
 export type RendererTraceCommand =

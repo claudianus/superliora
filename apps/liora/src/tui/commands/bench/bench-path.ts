@@ -1,6 +1,6 @@
 import { isAbsolute, relative, resolve } from 'node:path';
 
-import { quoteShellArg } from '../../utils/shell-quote';
+import { quoteShellArg } from '../../../utils/shell-quote';
 
 export function resolveInputPath(workDir: string, input: string): string {
   return isAbsolute(input) ? input : resolve(workDir, input);

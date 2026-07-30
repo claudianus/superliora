@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { applyPremiumQuality, handlePremiumQualityCommand } from '#/tui/commands/premium';
 
 function makePremiumHost(options: {
