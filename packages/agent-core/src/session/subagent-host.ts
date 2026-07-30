@@ -1,16 +1,11 @@
 import {
-  APIProviderRateLimitError,
-  APIStatusError,
-  isPermanentAuthError,
-  isPermanentQuotaOrBillingError,
   isProviderRateLimitError,
-  isRetryableGenerateError,
   type ContentPart,
   type TokenUsage,
 } from '@superliora/kosong';
 
 import type { Agent } from '../agent';
-import type { AgentEvent, SubagentToolDetail } from '@superliora/protocol';
+import type { AgentEvent } from '@superliora/protocol';
 import {
   DEFAULT_COMPACTION_CONFIG,
   DefaultCompactionStrategy,
@@ -20,16 +15,12 @@ import {
 } from '../agent/compaction';
 import type { PromptOrigin } from '../agent/context';
 import {
-  isRetryableProviderFailure,
   listSwitchableFailoverModels,
 } from '../agent/provider-failover';
-import { ErrorCodes, toKimiErrorPayload, type LioraErrorPayload } from '../errors';
 import { DenyAllPermissionPolicy } from '../agent/permission/policies/deny-all';
 import { InMemoryAgentRecordPersistence } from '../agent/records';
 import { isAbortError } from '../loop/errors';
 import { resolveExpertCatalogEntry } from '../expert-agents/catalog-extensions';
-import { renderExpertSystemPrompt, resolveExpertWhenToUse } from '../expert-agents/expert-persona';
-import type { ExpertCatalogEntry } from '../expert-agents/types';
 import {
   deliverSwarmBusCoordination,
   emitSwarmCollaborationMessage,
@@ -53,11 +44,9 @@ import {
   type ResolvedAgentProfile,
 } from '../profile';
 import {
-  linkAbortSignal,
   userCancellationReason,
 } from '../utils/abort';
 import { resolveSubagentModelAlias } from '../utils/cheap-model';
-import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { checkContractFile } from './contract-check';
 import { maybeRunRollingCheck, recordChildCompletion } from './rolling-integration';
 import { collectGitContext } from './git-context';
@@ -90,123 +79,56 @@ import {
 } from './subagent-batch';
 import SUMMARY_CONTINUATION_PROMPT from './summary-continuation.md?raw';
 
-export const DEFAULT_SUBAGENT_TIMEOUT_MS = 30 * 60 * 1000;
-export const DEFAULT_SUBAGENT_TIMEOUT_DESCRIPTION = '30 minutes';
+import {
+  DEFAULT_SUBAGENT_DEADLINE_MS,
+  DEFAULT_SUBAGENT_TIMEOUT_DESCRIPTION,
+  DEFAULT_SUBAGENT_TIMEOUT_MS,
+  SUBAGENT_DEADLINE_ENV,
+  SubagentDeadlineError,
+  SubagentMaxTokensError,
+  enrichPermanentProviderFailure,
+  isPermanentProviderFailureMessage,
+  isPermanentSubagentProviderFailure,
+  isSubagentDeadlineError,
+  isSubagentMaxTokensError,
+  resolveSubagentDeadlineMs,
+} from './subagent-errors';
+import {
+  collectSubagentProgressStats,
+  describeSubagentToolDetail,
+  previewSubagentToolArgs,
+  previewSubagentToolResult,
+  type SubagentProgressStats,
+} from './subagent-progress-preview';
+import {
+  __testing__,
+  createExpertSubagentProfile,
+  isModelAliasHealthy,
+  isRetryableSubagentProviderFailure,
+  runChildTurnToCompletion,
+  runWithActiveChild as runActiveChildLifecycle,
+  type ActiveChildEntry,
+} from './subagent-run-lifecycle';
 
-/**
- * Hard wall-clock deadline (ms) for a single subagent run. Unlike the soft
- * `timeoutMs` budget (which only steers finishing mode and telemetry),
- * exceeding this aborts the run so a wedged child cannot block the parent
- * forever. Defaults to 30 minutes; the `SUPERLIORA_SUBAGENT_DEADLINE_MS`
- * environment variable overrides every run (set it to `0` to disable the
- * deadline entirely).
- */
-export const DEFAULT_SUBAGENT_DEADLINE_MS = DEFAULT_SUBAGENT_TIMEOUT_MS;
-export const SUBAGENT_DEADLINE_ENV = 'SUPERLIORA_SUBAGENT_DEADLINE_MS';
+export {
+  DEFAULT_SUBAGENT_DEADLINE_MS,
+  DEFAULT_SUBAGENT_TIMEOUT_DESCRIPTION,
+  DEFAULT_SUBAGENT_TIMEOUT_MS,
+  SUBAGENT_DEADLINE_ENV,
+  SubagentDeadlineError,
+  SubagentMaxTokensError,
+  isPermanentProviderFailureMessage,
+  isPermanentSubagentProviderFailure,
+  isSubagentDeadlineError,
+  isSubagentMaxTokensError,
+  resolveSubagentDeadlineMs,
+  collectSubagentProgressStats,
+  describeSubagentToolDetail,
+  type SubagentProgressStats,
+  __testing__,
+};
 
-/**
- * Resolve the effective wall-clock deadline: the environment override wins
- * (operator-level kill switch); otherwise the per-run `timeoutMs` budget;
- * otherwise {@link DEFAULT_SUBAGENT_DEADLINE_MS}. Unparsable or negative
- * environment values fall back instead of disabling the deadline by accident.
- */
-export function resolveSubagentDeadlineMs(explicitTimeoutMs?: number): number {
-  const raw = process.env[SUBAGENT_DEADLINE_ENV];
-  if (raw !== undefined && raw.trim().length > 0) {
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
-  }
-  return explicitTimeoutMs ?? DEFAULT_SUBAGENT_DEADLINE_MS;
-}
 
-/**
- * Typed error thrown when a subagent run exceeds its wall-clock deadline and
- * is aborted. Identified via `instanceof` or the `code` discriminant; the
- * message is human-readable ("subagent timed out after 30m — …").
- */
-export class SubagentDeadlineError extends Error {
-  readonly code = 'subagent_deadline' as const;
-  readonly deadlineMs: number;
-
-  constructor(deadlineMs: number) {
-    super(
-      `subagent timed out after ${describeDeadlineDuration(deadlineMs)} — ` +
-        `aborted by the ${String(deadlineMs)}ms wall-clock deadline`,
-    );
-    this.name = 'SubagentDeadlineError';
-    this.deadlineMs = deadlineMs;
-  }
-}
-
-export function isSubagentDeadlineError(error: unknown): error is SubagentDeadlineError {
-  return error instanceof SubagentDeadlineError;
-}
-
-function describeDeadlineDuration(ms: number): string {
-  if (ms < 60_000) return `${String(Math.max(1, Math.round(ms / 1000)))}s`;
-  const totalMinutes = Math.round(ms / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${String(minutes)}m`;
-  return minutes === 0 ? `${String(hours)}h` : `${String(hours)}h ${String(minutes)}m`;
-}
-
-/** Stable prefix embedded in enriched permanent-failure messages. */
-const PERMANENT_PROVIDER_FAILURE_MARKER = 'Permanent provider failure';
-
-/**
- * Whether a subagent failure is a permanent auth/billing problem (401/403,
- * invalid credentials, expired subscription, …) that no retry can fix.
- * Delegates to kosong's classifiers, which also inspect copied `statusCode`
- * on flattened turn errors.
- */
-export function isPermanentSubagentProviderFailure(error: unknown): boolean {
-  return isPermanentAuthError(error) || isPermanentQuotaOrBillingError(error);
-}
-
-/**
- * Message-level variant for surfaces that only keep the flattened error
- * string (e.g. rendered swarm results): matches the enrichment marker plus
- * kosong's auth/billing message patterns.
- */
-export function isPermanentProviderFailureMessage(message: string | null | undefined): boolean {
-  if (message === undefined || message === null || message.length === 0) return false;
-  if (message.startsWith(PERMANENT_PROVIDER_FAILURE_MARKER)) return true;
-  const asError = new Error(message);
-  return isPermanentAuthError(asError) || isPermanentQuotaOrBillingError(asError);
-}
-
-/**
- * Wrap a permanent auth/billing failure with provider/model context and
- * "check billing/credentials" guidance before it is emitted or rethrown.
- * The original message and `statusCode` are preserved so downstream
- * classifiers (swarm fail-fast) still recognize the failure as permanent.
- * Non-permanent errors pass through unchanged.
- */
-function enrichPermanentProviderFailure(error: unknown, child: Agent): unknown {
-  if (!isPermanentSubagentProviderFailure(error)) return error;
-  const base = error instanceof Error ? error.message : String(error);
-  const modelAlias = child.config.modelAlias;
-  const providerName =
-    modelAlias === undefined ? undefined : child.kimiConfig?.models?.[modelAlias]?.provider;
-  const enriched = new Error(
-    `${PERMANENT_PROVIDER_FAILURE_MARKER} ` +
-      `(provider=${providerName ?? 'unknown'}, model=${modelAlias ?? 'unknown'}): ${base}. ` +
-      'Retrying cannot fix this — check billing/credentials for this provider.',
-  );
-  enriched.name = 'SubagentPermanentProviderError';
-  const statusCode = (error as { statusCode?: unknown } | null)?.statusCode;
-  if (typeof statusCode === 'number') {
-    (enriched as Error & { statusCode?: number }).statusCode = statusCode;
-  }
-  (enriched as Error & { cause?: unknown }).cause = error;
-  return enriched;
-}
-
-/**
- * How many fallback-model hops a spawned subagent may take after a retryable
- * provider failure exhausts the in-loop retries (A -> B -> C at most).
- */
 const SUBAGENT_MODEL_FALLBACK_HOPS = 2;
 
 export type {
@@ -235,13 +157,9 @@ const SUBAGENT_STALL_MS = 300_000;
 /** Checkpoint cadence: snapshot every N completed tool calls (T4-5). */
 const CHECKPOINT_TOOL_DELTA = 10;
 /** Args preview cap for `subagent.tool_call` payloads (Phase 1-A). */
-const SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH = 400;
 /** Result summary cap for `subagent.tool_result` payloads (Phase 1-A). */
-const SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH = 500;
 /** Bash command cap for structured `subagent.tool_call` detail (Phase 1-B). */
-const SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH = 120;
 /** LCS line-diff bound for Edit detail; larger edits fall back to raw counts. */
-const SUBAGENT_EDIT_DIFF_LINE_CAP = 300;
 /** Finishing mode starts when this much budget remains (T4-5). */
 const SUBAGENT_FINISHING_WINDOW_MS = 5 * 60 * 1000;
 const SUBAGENT_FINISHING_REMINDER = [
@@ -252,28 +170,6 @@ const SUBAGENT_FINISHING_REMINDER = [
 ].join('\n');
 const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
-const SUBAGENT_MAX_TOKENS_ERROR =
-  'Subagent turn failed before completing its final summary: reason=max_tokens';
-
-/**
- * Typed error thrown when a subagent turn exhausts its output token budget
- * before producing the required final summary. Callers (subagent-batch,
- * recovery prompts) can identify this class with `instanceof` or the
- * `code` discriminant instead of substring-matching the human message.
- */
-export class SubagentMaxTokensError extends Error {
-  readonly code = 'subagent_max_tokens' as const;
-
-  constructor(message: string = SUBAGENT_MAX_TOKENS_ERROR) {
-    super(message);
-    this.name = 'SubagentMaxTokensError';
-  }
-}
-
-/** Type guard for {@link SubagentMaxTokensError} thrown by `runChildTurnToCompletion`. */
-export function isSubagentMaxTokensError(error: unknown): error is SubagentMaxTokensError {
-  return error instanceof SubagentMaxTokensError;
-}
 const TOOL_CALL_DISABLED_MESSAGE =
   'Tool calls are disabled for side questions. Answer with text only.';
 const SUBAGENT_PROMPT_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'subagent' };
@@ -330,26 +226,8 @@ export type SubagentHandle = {
 };
 
 
-function isModelAliasHealthy(
-  alias: string | undefined,
-  models: Record<string, { provider?: string }> | undefined,
-): boolean {
-  if (alias === undefined || models === undefined) return true;
-  const entry = models[alias];
-  if (entry === undefined) return true;
-  const provider = entry.provider;
-  if (provider === undefined || provider.length === 0) return true;
-  return sharedCredentialHealthStore.isAvailable(provider);
-}
-
 export class SessionSubagentHost {
-  private readonly activeChildren = new Map<
-    string,
-    {
-      readonly controller: AbortController;
-      runInBackground: boolean;
-    }
-  >();
+  private readonly activeChildren = new Map<string, ActiveChildEntry>();
 
   constructor(
     private readonly session: Session,
@@ -670,39 +548,7 @@ export class SessionSubagentHost {
     options: RunSubagentOptions,
     run: (options: RunSubagentOptions) => Promise<SubagentCompletion>,
   ): Promise<SubagentCompletion> {
-    const controller = new AbortController();
-    const unlinkAbortSignal = linkAbortSignal(options.signal, controller);
-    this.activeChildren.set(childId, {
-      controller,
-      runInBackground: options.runInBackground,
-    });
-
-    // Hard wall-clock deadline: the soft `timeoutMs` budget only steers
-    // finishing mode, so a wedged child (stuck network, unresponsive
-    // gateway) must still be killed. The timer aborts the child controller;
-    // the human-readable deadline error then replaces the downstream abort
-    // noise in the failure path.
-    const deadlineMs = resolveSubagentDeadlineMs(options.timeoutMs);
-    let deadlineError: SubagentDeadlineError | undefined;
-    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
-    if (deadlineMs > 0) {
-      deadlineTimer = setTimeout(() => {
-        deadlineError = new SubagentDeadlineError(deadlineMs);
-        controller.abort(deadlineError);
-      }, deadlineMs);
-      deadlineTimer.unref?.();
-    }
-
-    return run({ ...options, signal: controller.signal })
-      .catch((error: unknown) => {
-        if (deadlineError !== undefined) throw deadlineError;
-        throw error;
-      })
-      .finally(() => {
-        if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
-        unlinkAbortSignal();
-        this.activeChildren.delete(childId);
-      });
+    return runActiveChildLifecycle(this.activeChildren, childId, options, run);
   }
 
   /**
@@ -714,6 +560,8 @@ export class SessionSubagentHost {
    * carries `fellBackToModel` when at least one hop happened, then rethrows.
    * Without candidates or for non-retryable failures this behaves exactly like
    * a single failed emit + rethrow.
+   *
+   * Kept on the class: each hop calls {@link runPromptTurn} / {@link emitSubagentFailed}.
    */
   private async runPromptTurnWithModelFallback(
     parent: Agent,
@@ -1382,47 +1230,6 @@ export class SessionSubagentHost {
   }
 }
 
-async function runChildTurnToCompletion(child: Agent, signal: AbortSignal): Promise<void> {
-  const completion = await child.turn.waitForCurrentTurn(signal);
-  const turnEnded = completion.event;
-  if (turnEnded.reason !== 'completed') {
-    if (turnEnded.reason === 'filtered') {
-      throw new Error('Subagent turn blocked by provider safety policy');
-    }
-    if (turnEnded.error?.code === ErrorCodes.PROVIDER_RATE_LIMIT) {
-      throw providerRateLimitErrorFromPayload(turnEnded.error);
-    }
-    const failure = new Error(
-      turnEnded.error === undefined
-        ? `Subagent turn ${turnEnded.reason}`
-        : `[${turnEnded.error.code}] ${turnEnded.error.message}`,
-    );
-    // Preserve the provider HTTP status so downstream classifiers can tell
-    // transient 5xx failures apart from permanent 4xx after payload flattening.
-    const failureStatusCode = turnEnded.error?.details?.['statusCode'];
-    if (typeof failureStatusCode === 'number') {
-      (failure as Error & { statusCode?: number }).statusCode = failureStatusCode;
-    }
-    throw failure;
-  }
-  if (completion.stopReason === 'max_tokens') {
-    throw new SubagentMaxTokensError(`${SUBAGENT_MAX_TOKENS_ERROR}.`);
-  }
-}
-
-function providerRateLimitErrorFromPayload(error: LioraErrorPayload): APIProviderRateLimitError {
-  const requestId =
-    typeof error.details?.['requestId'] === 'string' ? error.details['requestId'] : null;
-  return new APIProviderRateLimitError(error.message, requestId);
-}
-
-/**
- * Test-only export. Exposed so the request-id propagation path can be
- * pinned without spinning up a full subagent-host mock. Production callers
- * reach this through `runChildTurnToCompletion`.
- */
-export const __testing__ = { providerRateLimitErrorFromPayload };
-
 function lastAssistantText(agent: Agent): string {
   for (const message of [...agent.context.history].toReversed()) {
     if (message.role !== 'assistant') continue;
@@ -1463,222 +1270,4 @@ function shouldSuppressQueuedAttemptFailureEvent(
   return isAbortError(error) || options.signal.aborted;
 }
 
-/**
- * Whether a subagent turn failure deserves a model-fallback hop. Direct
- * provider errors (rate limit, status errors thrown before flattening) are
- * judged through their wire payload. Flattened turn failures arrive as plain
- * `Error`s with the provider HTTP status copied on, so rebuild a status error
- * and let kosong's classifier judge transient cases (e.g. body-less 400
- * gateway glitches) exactly the same way.
- */
-function isRetryableSubagentProviderFailure(error: unknown): boolean {
-  if (isAbortError(error)) return false;
-  if (isRetryableProviderFailure(toKimiErrorPayload(error))) return true;
-  if (!(error instanceof Error)) return false;
-  const statusCode = (error as Error & { statusCode?: unknown }).statusCode;
-  if (typeof statusCode !== 'number') return false;
-  return isRetryableGenerateError(new APIStatusError(statusCode, error.message));
-}
 
-function createExpertSubagentProfile(
-  expert: ExpertCatalogEntry,
-  baseProfile: ResolvedAgentProfile,
-): ResolvedAgentProfile {
-  return {
-    ...baseProfile,
-    name: expert.id,
-    description: expert.description,
-    whenToUse: resolveExpertWhenToUse(expert),
-    systemPrompt: (context) =>
-      renderExpertSystemPrompt(baseProfile.systemPrompt(context), expert, baseProfile.name),
-    tools: [...baseProfile.tools],
-    subagents: baseProfile.subagents,
-  };
-}
-
-
-export interface SubagentProgressStats {
-  readonly toolCount: number;
-  readonly lastTool: string | undefined;
-  readonly lastTarget: string | undefined;
-  readonly tokens: number;
-}
-
-/** Aggregate live progress stats for a running subagent (T3-7 telemetry). */
-export function collectSubagentProgressStats(child: Agent): SubagentProgressStats {
-  let toolCount = 0;
-  let lastTool: string | undefined;
-  let lastTarget: string | undefined;
-  for (const message of child.context.history) {
-    if (message.role !== 'assistant') continue;
-    for (const toolCall of message.toolCalls) {
-      toolCount += 1;
-      lastTool = toolCall.name;
-      lastTarget = summarizeToolTarget(toolCall.arguments ?? undefined);
-    }
-  }
-  const total = child.usage.data().total;
-  const tokens =
-    total === undefined
-      ? 0
-      : total.inputOther + total.output + total.inputCacheRead + total.inputCacheCreation;
-  return { toolCount, lastTool, lastTarget, tokens };
-}
-
-function summarizeToolTarget(argsJson: string | undefined): string | undefined {
-  if (argsJson === undefined || argsJson.length === 0) return undefined;
-  try {
-    const parsed = JSON.parse(argsJson) as Record<string, unknown>;
-    for (const key of ['path', 'command', 'pattern', 'query', 'url', 'description']) {
-      const value = parsed[key];
-      if (typeof value === 'string' && value.length > 0) {
-        return value.length > 80 ? `${value.slice(0, 80)}…` : value;
-      }
-    }
-  } catch {
-    // Fall through to the raw snippet below.
-  }
-  const raw = argsJson.trim();
-  return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
-}
-
-/**
- * Flatten a tool payload into a single-line preview and bound it, so
- * `subagent.tool_call` / `subagent.tool_result` events stay small on the
- * wire (Phase 1-A). The TUI never receives the full args / result.
- */
-function stringifyToolPayloadPreview(value: unknown): string | undefined {
-  if (value === undefined || value === null) return undefined;
-  let text: string;
-  if (typeof value === 'string') text = value;
-  else {
-    try {
-      const json = JSON.stringify(value);
-      if (json === undefined) return undefined;
-      text = json;
-    } catch {
-      text = String(value);
-    }
-  }
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > 0 ? flat : undefined;
-}
-
-function truncateToolPayloadPreview(text: string | undefined, maxLength: number): string | undefined {
-  if (text === undefined) return undefined;
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
-}
-
-function previewSubagentToolArgs(args: unknown): string | undefined {
-  return truncateToolPayloadPreview(
-    stringifyToolPayloadPreview(args),
-    SUBAGENT_TOOL_ARGS_PREVIEW_LENGTH,
-  );
-}
-
-function previewSubagentToolResult(output: unknown): string | undefined {
-  return truncateToolPayloadPreview(
-    stringifyToolPayloadPreview(output),
-    SUBAGENT_TOOL_RESULT_PREVIEW_LENGTH,
-  );
-}
-
-/**
- * Structured chip detail for the common child tools (Phase 1-B realtime
- * overhaul). Computed from the FULL child args before preview truncation so
- * clients can render the same numeric chips the main agent's tool stream
- * shows. Unknown tools and missing/invalid args yield `undefined`, keeping
- * the `subagent.tool_call` payload strictly additive.
- */
-export function describeSubagentToolDetail(
-  name: string,
-  args: unknown,
-): SubagentToolDetail | undefined {
-  if (typeof args !== 'object' || args === null) return undefined;
-  const record = args as Record<string, unknown>;
-  switch (name) {
-    case 'Edit': {
-      const path = toolDetailStringArg(record, 'path');
-      if (path === undefined) return undefined;
-      const oldString = typeof record['old_string'] === 'string' ? record['old_string'] : '';
-      const newString = typeof record['new_string'] === 'string' ? record['new_string'] : '';
-      const { added, removed } = countEditLineChanges(oldString, newString);
-      return { kind: 'edit', path, addedLines: added, removedLines: removed };
-    }
-    case 'Write': {
-      const path = toolDetailStringArg(record, 'path');
-      const content = typeof record['content'] === 'string' ? record['content'] : undefined;
-      if (path === undefined || content === undefined) return undefined;
-      const normalized = content.endsWith('\n') ? content.slice(0, -1) : content;
-      const lines = normalized.length > 0 ? normalized.split('\n').length : 0;
-      return { kind: 'write', path, lines, bytes: Buffer.byteLength(content, 'utf8') };
-    }
-    case 'Read': {
-      const path = toolDetailStringArg(record, 'path');
-      return path === undefined ? undefined : { kind: 'read', path };
-    }
-    case 'Bash': {
-      const command = toolDetailStringArg(record, 'command');
-      if (command === undefined) return undefined;
-      const flat = command.replace(/\s+/g, ' ').trim();
-      if (flat.length === 0) return undefined;
-      return {
-        kind: 'bash',
-        command: truncateToolPayloadPreview(flat, SUBAGENT_TOOL_COMMAND_PREVIEW_LENGTH) ?? flat,
-      };
-    }
-    case 'Grep':
-    case 'Glob': {
-      const pattern = toolDetailStringArg(record, 'pattern');
-      return pattern === undefined ? undefined : { kind: 'search', pattern };
-    }
-    default:
-      return undefined;
-  }
-}
-
-function toolDetailStringArg(
-  record: Record<string, unknown>,
-  key: string,
-): string | undefined {
-  const value = record[key];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-/**
- * Added / removed line counts between Edit `old_string` and `new_string`.
- * Uses an LCS line diff (same approach as the TUI chip) bounded by
- * {@link SUBAGENT_EDIT_DIFF_LINE_CAP}; larger edits fall back to raw line
- * counts so the emitter never runs an unbounded matrix.
- */
-function countEditLineChanges(
-  oldString: string,
-  newString: string,
-): { added: number; removed: number } {
-  if (oldString.length === 0 && newString.length === 0) return { added: 0, removed: 0 };
-  // Empty side counts as zero lines (matches the TUI diff chip semantics).
-  const oldLines = oldString.length > 0 ? oldString.split('\n') : [];
-  const newLines = newString.length > 0 ? newString.split('\n') : [];
-  if (
-    oldLines.length > SUBAGENT_EDIT_DIFF_LINE_CAP ||
-    newLines.length > SUBAGENT_EDIT_DIFF_LINE_CAP
-  ) {
-    return { added: newLines.length, removed: oldLines.length };
-  }
-  const oldCount = oldLines.length;
-  const newCount = newLines.length;
-  const dp: number[][] = Array.from({ length: oldCount + 1 }, () =>
-    new Array<number>(newCount + 1).fill(0),
-  );
-  for (let i = 1; i <= oldCount; i++) {
-    for (let j = 1; j <= newCount; j++) {
-      dp[i]![j] =
-        oldLines[i - 1] === newLines[j - 1]
-          ? dp[i - 1]![j - 1]! + 1
-          : Math.max(dp[i - 1]![j]!, dp[i]![j - 1]!);
-    }
-  }
-  const common = dp[oldCount]![newCount]!;
-  return { added: newCount - common, removed: oldCount - common };
-}
