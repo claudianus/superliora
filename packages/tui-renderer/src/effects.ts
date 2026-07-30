@@ -1,5 +1,5 @@
 import type { NativeFrameStatsHealth } from './frame/stats';
-import type { RendererQualityLevel } from './quality';
+import type { RendererQualityLevel } from './frame/quality';
 
 export type RendererEffectLevel = 'off' | 'subtle' | 'premium';
 export type RendererMotionPreference = 'normal' | 'reduced' | 'none';

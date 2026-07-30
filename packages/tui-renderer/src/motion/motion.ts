@@ -8,7 +8,7 @@ import {
   type RendererEffectLevel,
   type RendererEffectPolicyOptions,
   type RendererMotionPreference,
-} from './effects';
+} from '../effects';
 
 export type RendererMotionPreset = 'instant' | 'quick' | 'smooth' | 'emphasized' | 'ambient';
 

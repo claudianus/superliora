@@ -1,4 +1,4 @@
-import type { RendererRect } from './compositor';
+import type { RendererRect } from '../render/compositor';
 
 export type RendererLayoutDirection = 'horizontal' | 'vertical';
 

@@ -1,4 +1,4 @@
-import type { RendererRect } from './compositor';
+import type { RendererRect } from '../render/compositor';
 import type { RendererFrameRegion, RendererFrameRegionContent } from './layout-frame';
 
 export interface RendererStackFixedRegion<Id extends string = string> {

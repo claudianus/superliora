@@ -1,4 +1,4 @@
-import { planRendererDamage } from '../damage';
+import { planRendererDamage } from '../render/damage';
 import type {
   RendererCell,
   RendererCellPatch,

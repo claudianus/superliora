@@ -1,5 +1,5 @@
 import type { NativeFrameStatsSnapshot, NativeFrameStatsHealth } from '../frame/stats';
-import type { RendererQualitySnapshot } from '../quality';
+import type { RendererQualitySnapshot } from '../frame/quality';
 import {
   DEFAULT_CHANGED_CELL_RATIO_DEGRADED,
   DEFAULT_CHANGED_CELL_RATIO_WATCH,

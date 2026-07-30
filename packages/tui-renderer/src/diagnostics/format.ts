@@ -1,4 +1,4 @@
-import type { RendererQualitySnapshot } from '../quality';
+import type { RendererQualitySnapshot } from '../frame/quality';
 import {
   FRAME_TIME_SPARKLINE_WIDTH,
   SPARKLINE_LEVELS,

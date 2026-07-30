@@ -1,4 +1,4 @@
-import type { NativeRenderLoopScheduler } from '../render-loop';
+import type { NativeRenderLoopScheduler } from '../frame/render-loop';
 import {
   probeNativeSynchronizedOutputSupport,
   type NativeTerminalSynchronizedOutputProbeResult,

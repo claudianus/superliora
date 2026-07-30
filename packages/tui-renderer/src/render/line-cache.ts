@@ -1,5 +1,5 @@
-import { ansiTextToCells } from './ansi-text';
-import type { RendererCell, RendererCellStyle } from './cell-buffer/index';
+import { ansiTextToCells } from '../text/ansi-text';
+import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
 import type { RendererRegionLine } from './compositor';
 
 export interface RendererLineCellCacheOptions {

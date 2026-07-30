@@ -1,5 +1,5 @@
 import { Container } from '../component-primitives/index';
-import type { RendererRegionLine } from '../compositor';
+import type { RendererRegionLine } from '../render/compositor';
 import {
   renderRendererRightGutterRegionLines,
   renderRendererVerticalScrollbar,

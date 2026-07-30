@@ -1,10 +1,10 @@
-import { ansiTextToCells } from './ansi-text';
-import type { RendererCell, RendererCellStyle } from './cell-buffer/index';
-import { renderRendererDividerRow } from './component-primitives/index';
+import { ansiTextToCells } from '../text/ansi-text';
+import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
+import { renderRendererDividerRow } from '../component-primitives/index';
 import type { RendererRect, RendererRegionLine } from './compositor';
-import type { RendererFrameRegion } from './layout-frame';
-import { truncateToWidth, visibleWidth } from './text/component';
-import { textToCells } from './text/metrics';
+import type { RendererFrameRegion } from '../layout/layout-frame';
+import { truncateToWidth, visibleWidth } from '../text/component';
+import { textToCells } from '../text/metrics';
 
 export type RendererOverlayPlacement =
   | 'top-left'

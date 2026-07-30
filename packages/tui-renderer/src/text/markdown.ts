@@ -4,8 +4,8 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
   type RendererTextBackgroundFn,
-} from './text/component';
-import { renderRendererDividerRow } from './component-primitives/index';
+} from '../text/component';
+import { renderRendererDividerRow } from '../component-primitives/index';
 
 export interface DefaultTextStyle {
   readonly color?: RendererTextBackgroundFn;

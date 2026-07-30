@@ -1,5 +1,5 @@
 import type { NativeTerminalRendererFrameMetrics } from '../native-renderer/index';
-import type { RendererDamageScanStrategy } from '../damage';
+import type { RendererDamageScanStrategy } from '../render/damage';
 
 export interface NativeFrameStatsScanStrategyCounts {
   readonly none: number;

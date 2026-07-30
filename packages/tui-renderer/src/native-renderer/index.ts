@@ -5,7 +5,7 @@ import {
   type NativeAnimationFrameCallback,
   type NativeRenderCause,
   type NativeRenderFrame,
-} from '../render-loop';
+} from '../frame/render-loop';
 import {
   NativeTerminalSession,
   type NativeTerminalSize,
@@ -19,17 +19,17 @@ import {
   mergeNativeTerminalFeatureOptions,
 } from '../terminal/features';
 import { NativeFrameStats, type NativeFrameStatsSnapshot } from '../frame/stats';
-import { RendererLineCellCache } from '../line-cache';
-import { RendererCompositionCache } from '../compositor';
+import { RendererLineCellCache } from '../render/line-cache';
+import { RendererCompositionCache } from '../render/compositor';
 import {
   renderNativeLayoutFrame,
   type NativeLayoutFrameResult,
   type RendererFrameRegion,
-} from '../layout-frame';
+} from '../layout/layout-frame';
 import {
   RendererQualityController,
   type RendererQualitySnapshot,
-} from '../quality';
+} from '../frame/quality';
 import {
   RendererRegionVfxAnimationScheduler,
   type RendererRegionVfxAnimationSource,
@@ -40,11 +40,11 @@ import {
   type RendererChromeTraceOptions,
   type RendererTraceSnapshot,
 } from '../trace';
-import type { RendererAnimationFrameCallback } from '../animation';
+import type { RendererAnimationFrameCallback } from '../motion/animation';
 import {
   RendererAmbientSchedule,
   type RendererAmbientScheduleOptions,
-} from '../ambient-schedule';
+} from '../motion/ambient-schedule';
 import {
   createCompositionCache,
   createLineCache,

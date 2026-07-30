@@ -1,4 +1,4 @@
-import type { RendererDamageScanStrategy } from '../damage';
+import type { RendererDamageScanStrategy } from '../render/damage';
 import type { RendererDiagnosticsIssue } from './types';
 
 export function formatNumber(value: number): string {

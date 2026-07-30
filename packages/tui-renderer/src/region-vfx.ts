@@ -1,10 +1,10 @@
 import type { RendererCellStyle } from './cell-buffer/index';
-import type { RendererRegionVfx, RendererRect } from './compositor';
+import type { RendererRegionVfx, RendererRect } from './render/compositor';
 import {
   RendererAnimationFrameGate,
   type RendererAnimationClock,
   type RendererAnimationFrameCallback,
-} from './animation';
+} from './motion/animation';
 import {
   type RendererCellVfxDirection,
   type RendererCellVfxOptions,

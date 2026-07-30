@@ -1,4 +1,4 @@
-import type { NativeAnimationFrameCallback, NativeRenderCause } from '../render-loop';
+import type { NativeAnimationFrameCallback, NativeRenderCause } from '../frame/render-loop';
 import type { NativeTerminalOutput } from '../terminal/session';
 
 export interface NativeRendererBackpressureCallbacks {

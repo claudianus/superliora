@@ -1,5 +1,5 @@
 import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
-import { mixHexColor } from '../animation';
+import { mixHexColor } from '../motion/animation';
 import {
   type RendererColorMode,
 } from '../terminal/output';

@@ -15,7 +15,7 @@ import {
   type RendererOverlayPanelLineStyle,
   type RendererOverlayPanelRegion,
   type RendererOverlayPanelStyle,
-} from '../overlay';
+} from '../render/overlay';
 import { measureDisplayWidth, truncateDisplayText } from '../text/metrics';
 import { rendererDarkTheme, rendererThemeStyle, type RendererTheme } from '../theme';
 

@@ -1,4 +1,4 @@
-import type { RendererRect } from '../compositor';
+import type { RendererRect } from '../render/compositor';
 import type { NativeInputKeyEvent, NativeInputMouseEvent, NativeInputPasteEvent } from '../input-events/index';
 import {
   RendererTextInput,
