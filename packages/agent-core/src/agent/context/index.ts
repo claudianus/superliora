@@ -1,11 +1,22 @@
-import { createToolMessage, type ContentPart, type Message } from '@superliora/kosong';
+import { createToolMessage, type Message } from '@superliora/kosong';
 
 import type { Agent } from '..';
 import { ErrorCodes, LioraError } from '../../errors';
-import type { ExecutableToolResult, LoopRecordedEvent, LoopToolIntendEvent } from '../../loop';
-import { extractImageCompressionCaptions } from '../../tools/support/image-compress';
-import { estimateTokens, estimateTokensForMessages, estimateTokensForTools } from '../../utils/tokens';
+import type { LoopRecordedEvent, LoopToolIntendEvent } from '../../loop';
+import { estimateTokens, estimateTokensForMessages } from '../../utils/tokens';
 import { escapeXml } from '../../utils/xml-escape';
+import { buildContextComposition } from './composition';
+import {
+  formatUndoUnavailableMessage,
+  isRealUserPrompt,
+  isReclaimableEphemeralUserMessage,
+  splitImageCompressionCaptions,
+} from './message-helpers';
+import {
+  TOOL_INTERRUPTED_ON_RESUME_OUTPUT,
+  interruptedWithIntentMessage,
+  toolResultOutputForModel,
+} from './tool-result-output';
 import {
   COMPACTION_ELISION_VARIANT,
   buildCompactionElisionText,
@@ -23,11 +34,9 @@ import {
   trimTrailingOpenToolExchange,
 } from './projector';
 import {
-  isRealUserPromptOrigin,
   USER_PROMPT_ORIGIN,
   type AgentContextData,
   type ContextComposition,
-  type ContextCompositionSegment,
   type ContextMessage,
   type PromptOrigin,
 } from './types';
@@ -41,37 +50,6 @@ export const COMPACTION_PROJECTION_OPTIONS: ProjectOptions = {
   dropLeadingNonUser: true,
   mergeConsecutiveAssistants: true,
 };
-
-const TOOL_ERROR_STATUS = '<system>ERROR: Tool execution failed.</system>';
-const TOOL_EMPTY_STATUS = '<system>Tool output is empty.</system>';
-const TOOL_EMPTY_ERROR_STATUS =
-  '<system>ERROR: Tool execution failed. Tool output is empty.</system>';
-const TOOL_OUTPUT_EMPTY_TEXT = 'Tool output is empty.';
-const TOOL_INTERRUPTED_ON_RESUME_OUTPUT =
-  'Tool execution was interrupted before its result was recorded. Do not assume the tool completed successfully.';
-
-/**
- * Message synthesized on resume for a tool call that logged an intent but was
- * interrupted before its ack/result. Because a durable side effect may have
- * partially or fully applied, the model is told to verify before redoing the
- * work. For file writes, point it at the intended paths so it re-reads them.
- */
-function interruptedWithIntentMessage(intend: LoopToolIntendEvent): string {
-  const paths = intend.writePaths;
-  if (paths !== undefined && paths.length > 0) {
-    const listed = paths.map((p) => `  - ${p}`).join('\n');
-    return (
-      `Tool "${intend.name}" was interrupted mid-execution after its side effect ` +
-      `was started. The write to the following path(s) may have partially or fully applied:\n${listed}\n` +
-      `Re-read the file(s) to check the current contents before retrying — the change may already be present.`
-    );
-  }
-  return (
-    `Tool "${intend.name}" was interrupted mid-execution after it was started. ` +
-    `Its side effect may have partially or fully applied. Do not assume it either completed or did nothing — ` +
-    `verify the resulting state before retrying.`
-  );
-}
 
 // Invariant: _history must not contain an unresolved tool call exchange except
 // at the tail. When the tail is unresolved, pendingToolResultIds is exactly the
@@ -485,127 +463,7 @@ export class ContextMemory {
 
   /** Compute a full context-window composition breakdown. */
   composition(): ContextComposition {
-    const systemPromptTokens = estimateTokens(this.agent.config.systemPrompt);
-    const meta = this.agent.config.systemPromptMeta;
-    const systemPromptChildren: ContextCompositionSegment[] = [];
-    if (meta !== undefined) {
-      const knownTokens =
-        meta.agentsMdTokens + meta.cwdListingTokens + meta.skillsTokens + meta.additionalDirsTokens;
-      const baseTokens = Math.max(0, systemPromptTokens - knownTokens);
-      systemPromptChildren.push({ label: 'Base instructions', tokens: baseTokens });
-      if (meta.agentsMdTokens > 0) {
-        systemPromptChildren.push({ label: 'AGENTS.md', tokens: meta.agentsMdTokens });
-      }
-      if (meta.cwdListingTokens > 0) {
-        systemPromptChildren.push({ label: 'CWD listing', tokens: meta.cwdListingTokens });
-      }
-      if (meta.skillsTokens > 0) {
-        systemPromptChildren.push({ label: 'Skills', tokens: meta.skillsTokens });
-      }
-      if (meta.additionalDirsTokens > 0) {
-        systemPromptChildren.push({ label: 'Additional dirs', tokens: meta.additionalDirsTokens });
-      }
-    }
-
-    // Tool definitions: total + top-5 heaviest.
-    const loopTools = this.agent.tools.loopTools;
-    const toolTokens = estimateTokensForTools(loopTools);
-    const perTool = loopTools
-      .map((tool) => ({
-        label: tool.name,
-        tokens:
-          estimateTokens(tool.name) +
-          estimateTokens(tool.description) +
-          estimateTokens(JSON.stringify(tool.parameters)),
-      }))
-      .toSorted((a, b) => b.tokens - a.tokens);
-    const topTools = perTool.slice(0, 5);
-    const toolChildren: ContextCompositionSegment[] = topTools.map((t) => ({
-      label: t.label,
-      tokens: t.tokens,
-    }));
-    if (perTool.length > 5) {
-      const restTokens = perTool.slice(5).reduce((sum, t) => sum + t.tokens, 0);
-      toolChildren.push({ label: `… ${String(perTool.length - 5)} more`, tokens: restTokens });
-    }
-
-    // Message history: categorize by origin kind / role.
-    const buckets = new Map<string, number>();
-    const bump = (key: string, tokens: number): void => {
-      buckets.set(key, (buckets.get(key) ?? 0) + tokens);
-    };
-    for (const message of this._history) {
-      const tokens = estimateTokensForMessages([message]);
-      if (message.role === 'assistant') {
-        bump('Assistant', tokens);
-      } else if (message.role === 'tool') {
-        bump('Tool results', tokens);
-      } else {
-        // role === 'user' — classify by origin
-        const kind = message.origin?.kind;
-        switch (kind) {
-          case 'user':
-            bump('User prompts', tokens);
-            break;
-          case 'injection':
-            bump('Injections', tokens);
-            break;
-          case 'compaction_summary':
-            bump('Compaction summary', tokens);
-            break;
-          case 'shell_command':
-            bump('Shell commands', tokens);
-            break;
-          case 'skill_activation':
-            bump('Skill activations', tokens);
-            break;
-          case 'plugin_command':
-            bump('Plugin commands', tokens);
-            break;
-          case 'background_task':
-            bump('Background tasks', tokens);
-            break;
-          case 'cron_job':
-          case 'cron_missed':
-            bump('Cron notifications', tokens);
-            break;
-          default:
-            bump('Other', tokens);
-            break;
-        }
-      }
-    }
-    const conversationChildren: ContextCompositionSegment[] = [];
-    for (const [label, tokens] of buckets) {
-      if (tokens > 0) conversationChildren.push({ label, tokens });
-    }
-    conversationChildren.sort((a, b) => b.tokens - a.tokens);
-    const conversationTokens = conversationChildren.reduce((sum, c) => sum + c.tokens, 0);
-
-    const segments: ContextCompositionSegment[] = [
-      {
-        label: 'System prompt',
-        tokens: systemPromptTokens,
-        children: systemPromptChildren.length > 0 ? systemPromptChildren : undefined,
-      },
-      {
-        label: `Tool definitions`,
-        tokens: toolTokens,
-        children: toolChildren.length > 0 ? toolChildren : undefined,
-      },
-      {
-        label: 'Conversation',
-        tokens: conversationTokens,
-        children: conversationChildren.length > 0 ? conversationChildren : undefined,
-      },
-    ];
-
-    const maxContextTokens = this.agent.config.modelCapabilities.max_context_tokens ?? 0;
-    return {
-      totalTokens: systemPromptTokens + toolTokens + conversationTokens,
-      maxContextTokens,
-      segments,
-    };
+    return buildContextComposition(this.agent, this._history);
   }
 
   get tokenCount(): number {
@@ -975,90 +833,5 @@ export class ContextMemory {
         message,
       });
     }
-  }
-}
-
-function toolResultOutputForModel(result: ExecutableToolResult): string | ContentPart[] {
-  const output = result.output;
-  if (typeof output === 'string') {
-    if (result.isError === true) {
-      if (output.length === 0) return TOOL_EMPTY_ERROR_STATUS;
-      if (output.trimStart().startsWith('<system>ERROR:')) return output;
-      return `${TOOL_ERROR_STATUS}\n${output}`;
-    }
-    return isEmptyOutputText(output) ? TOOL_EMPTY_STATUS : output;
-  }
-
-  if (isEmptyEquivalentContentArray(output)) {
-    return [
-      {
-        type: 'text',
-        text: result.isError === true ? TOOL_EMPTY_ERROR_STATUS : TOOL_EMPTY_STATUS,
-      },
-    ];
-  }
-  if (result.isError === true) {
-    return [{ type: 'text', text: TOOL_ERROR_STATUS }, ...output];
-  }
-  return output;
-}
-
-function isEmptyEquivalentContentArray(output: readonly ContentPart[]): boolean {
-  return output.every((part) => part.type === 'text' && part.text.trim().length === 0);
-}
-
-// Split inline image-compression captions (see buildImageCompressionCaption)
-// out of user prompt content. A caption may be a standalone text part (server
-// route, ACP) or merged into an adjacent text segment (TUI paste), so each
-// text part is scanned rather than matched whole. Text left empty once its
-// captions are removed is dropped entirely.
-function splitImageCompressionCaptions(content: readonly ContentPart[]): {
-  captions: readonly string[];
-  parts: ContentPart[];
-} {
-  const captions: string[] = [];
-  const parts: ContentPart[] = [];
-  for (const part of content) {
-    if (part.type !== 'text') {
-      parts.push(part);
-      continue;
-    }
-    const extracted = extractImageCompressionCaptions(part.text);
-    if (extracted.captions.length === 0) {
-      parts.push(part);
-      continue;
-    }
-    captions.push(...extracted.captions);
-    if (extracted.text.trim().length > 0) {
-      parts.push({ type: 'text', text: extracted.text });
-    }
-  }
-  return { captions, parts };
-}
-
-function isReclaimableEphemeralUserMessage(message: ContextMessage): boolean {
-  if (message.role !== 'user') return false;
-  const kind = message.origin?.kind;
-  return kind === 'injection' || kind === 'background_task';
-}
-
-function isEmptyOutputText(output: string): boolean {
-  return output.trim().length === 0 || output.trim() === TOOL_OUTPUT_EMPTY_TEXT;
-}
-
-function isRealUserPrompt(message: ContextMessage): boolean {
-  return message.role === 'user' && isRealUserPromptOrigin(message.origin);
-}
-
-function formatUndoUnavailableMessage(
-  requestedCount: number,
-  undoableCount: number,
-  stoppedAtCompaction: boolean,
-): string {
-  const reason = stoppedAtCompaction ? ' after the last compaction' : '';
-  return `Cannot undo ${formatPromptCount(requestedCount)}; only ${formatPromptCount(undoableCount)} can be undone in the active context${reason}.`;
-
-  function formatPromptCount(count: number): string {
-    return `${String(count)} ${count === 1 ? 'prompt' : 'prompts'}`;
   }
 }
