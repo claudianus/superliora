@@ -1,21 +1,3 @@
-import {
-  isPermanentAuthError,
-  isPermanentQuotaOrBillingError,
-  isProviderRateLimitError,
-  isTransientProviderError,
-  type TokenUsage,
-} from '@superliora/kosong';
-import * as retry from 'retry';
-
-import type {
-  RunSubagentOptions,
-  SpawnSubagentOptions,
-  SubagentHandle,
-} from './subagent-host';
-import { isSubagentMaxTokensError } from './subagent-host';
-import { renderSubagentCompletionText } from './subagent-result-contract';
-import { isUserCancellation } from '../utils/abort';
-
 /*
 Subagent batch scheduling contract:
 Normal phase:
@@ -39,126 +21,40 @@ Results and cancellation:
 - The first task signal is the batch signal. User cancellation preserves existing results, marks ready or agent-known unfinished tasks aborted/started, and marks never-started tasks aborted/not_started. Non-user cancellation rejects.
 */
 
-const INITIAL_LAUNCH_LIMIT = 5;
-const INITIAL_LAUNCH_INTERVAL_MS = 700;
-const RATE_LIMIT_RETRY_BASE_MS = 3000;
-const RATE_LIMIT_RETRY_FACTOR = 2;
-const RATE_LIMIT_CAPACITY_SHRINK_INTERVAL_MS = 2000;
-const RATE_LIMIT_CAPACITY_RECOVERY_INTERVAL_MS = 3 * 60 * 1000;
-const RATE_LIMIT_SUSPENDED_REASON = 'Provider rate limit; subagent requeued for retry.';
+import { isUserCancellation } from '../utils/abort';
+import {
+  buildUserCancellationResults,
+  createInitialTaskStates,
+  linkAttemptSignals,
+  markAttemptReady,
+  runSubagentAttempt,
+} from './subagent-batch-attempt';
+import {
+  INITIAL_LAUNCH_INTERVAL_MS,
+  INITIAL_LAUNCH_LIMIT,
+} from './subagent-batch-constants';
+import type {
+  ActiveAttempt,
+  AttemptOutcome,
+  QueuedSubagentTask,
+  SubagentBatchLauncher,
+  SubagentBatchOptions,
+  SubagentResult,
+  TaskState,
+} from './subagent-batch-types';
+import { SubagentBatchRateLimit } from './subagent-batch-rate-limit';
 
-/**
- * Strictly monotonic millisecond counter. Used for the rate-limit capacity
- * "quiet window" / shrink-throttle checks so a wall-clock jump (NTP, suspend
- * resume on some platforms, manual change) cannot spuriously trigger or
- * suppress recovery. `Date.now()` is kept for `setTimeout` deadlines, which
- * the OS scheduler aligns to wall time anyway.
- */
-const monoNowMs = (): number => Number(process.hrtime.bigint() / 1_000_000n);
-
-/** Extra in-place attempts granted for transient provider failures. */
-const TRANSIENT_RETRY_MAX_ATTEMPTS = 2;
-/** Exponential backoff base for transient retries: 1000 ms, then 2000 ms. */
-const TRANSIENT_RETRY_BASE_DELAY_MS = 1000;
-
-const AGENT_SWARM_MAX_CONCURRENCY_ENV = 'SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY';
-
-type BaseQueuedSubagentTask<T> = {
-  readonly data: T;
-  readonly profileName: string;
-  readonly profileBaseName?: string;
-  readonly parentToolCallId: string;
-  readonly parentToolCallUuid?: string;
-  readonly prompt: string;
-  readonly description: string;
-  readonly swarmIndex?: number;
-  readonly swarmItem?: string;
-  readonly runInBackground: boolean;
-  readonly timeout?: number;
-  readonly contractPath?: string;
-  readonly signal?: AbortSignal;
-};
-
-export type SpawnQueuedSubagentTask<T = unknown> = BaseQueuedSubagentTask<T> & {
-  readonly kind: 'spawn';
-  readonly resumeAgentId?: undefined;
-};
-
-export type ResumeQueuedSubagentTask<T = unknown> = BaseQueuedSubagentTask<T> & {
-  readonly kind: 'resume';
-  readonly resumeAgentId: string;
-};
-
-export type QueuedSubagentTask<T = unknown> =
-  | SpawnQueuedSubagentTask<T>
-  | ResumeQueuedSubagentTask<T>;
-
-export type SubagentResult<T = unknown> = {
-  readonly task: QueuedSubagentTask<T>;
-  readonly agentId?: string;
-  readonly status: 'completed' | 'failed' | 'aborted';
-  readonly state?: 'started' | 'not_started';
-  readonly result?: string;
-  readonly usage?: TokenUsage;
-  readonly error?: string;
-  /**
-   * Structured reason for failed/aborted outcomes. Lets downstream recovery
-   * prompts distinguish recoverable failures (e.g. transient provider 5xx)
-   * from terminal ones (e.g. `max_tokens` — needs a larger context window,
-   * not a retry).
-   */
-  readonly failureReason?: 'max_tokens' | 'transient' | 'aborted' | 'other';
-};
-
-export type SubagentSuspendedEvent = {
-  readonly task: QueuedSubagentTask;
-  readonly agentId: string;
-  readonly reason: string;
-};
-
-export type SubagentBatchLauncher = {
-  spawn(options: SpawnSubagentOptions): Promise<SubagentHandle>;
-  resume(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle>;
-  retry(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle>;
-  suspended?(event: SubagentSuspendedEvent): void;
-};
-
-type RateLimitedOutcome = {
-  readonly type: 'rate_limited';
-  readonly agentId: string;
-  readonly error: string;
-};
-
-type AttemptOutcome<T> = SubagentResult<T> | RateLimitedOutcome;
-
-type TaskState<T> = {
-  readonly index: number;
-  readonly task: QueuedSubagentTask<T>;
-  agentId?: string;
-  retryAgentId?: string;
-  retryCount: number;
-  retryReadyAt: number;
-  started: boolean;
-  /** In-place retries spent on transient provider failures (bounded). */
-  transientRetryCount: number;
-};
-
-type ActiveAttempt<T> = {
-  readonly state: TaskState<T>;
-  readonly controller: AbortController;
-  cleanup: () => void;
-  ready: boolean;
-  timedOut: boolean;
-};
-
-export type SubagentBatchOptions = {
-  /**
-   * Optional cap on how many subagents may run concurrently during the normal
-   * phase. `undefined` means no cap (legacy ramp behavior). The rate-limit
-   * phase is governed by its own capacity logic and is not affected.
-   */
-  readonly maxConcurrency?: number;
-};
+export type {
+  QueuedSubagentTask,
+  ResumeQueuedSubagentTask,
+  SpawnQueuedSubagentTask,
+  SubagentBatchLauncher,
+  SubagentBatchOptions,
+  SubagentResult,
+  SubagentSuspendedEvent,
+} from './subagent-batch-types';
+export { classifySubagentFailureReason } from './subagent-batch-failure';
+export { DEFAULT_SWARM_MAX_CONCURRENCY, resolveSwarmMaxConcurrency } from './subagent-batch-concurrency';
 
 export class SubagentBatch<T> {
   private readonly states: Array<TaskState<T>>;
@@ -169,27 +65,14 @@ export class SubagentBatch<T> {
   private readonly batchSignal: AbortSignal | undefined;
   private readonly batchAbortListener: () => void;
   private readonly maxConcurrency: number | undefined;
+  private readonly rateLimit = new SubagentBatchRateLimit<T>();
   private normalLaunchCount = 0;
   private normalLaunchTimer: ReturnType<typeof setTimeout> | undefined;
-  private rateLimitLaunchTimer: ReturnType<typeof setTimeout> | undefined;
   private resolve: ((results: Array<SubagentResult<T>>) => void) | undefined;
   private reject: ((error: unknown) => void) | undefined;
   private finished = false;
   private started = false;
-  private rateLimitMode = false;
   private startedSuccessCount = 0;
-  private rateLimitCapacity = 1;
-  private lastRateLimitAt: number | undefined;
-  /** Monotonic companion to `lastRateLimitAt` for the 3-minute quiet window. */
-  private lastRateLimitMonoMs: number | undefined;
-  private lastCapacityShrinkAt: number | undefined;
-  /** Monotonic companion for the 2-second shrink throttle. */
-  private lastCapacityShrinkMonoMs: number | undefined;
-  private lastCapacityRecoveryAt: number | undefined;
-  /** Monotonic companion to `lastCapacityRecoveryAt` for the quiet window. */
-  private lastCapacityRecoveryMonoMs: number | undefined;
-  private globalRetryIntervalMs = RATE_LIMIT_RETRY_BASE_MS;
-  private nextRateLimitLaunchAt = 0;
 
   constructor(
     private readonly launcher: SubagentBatchLauncher,
@@ -197,14 +80,7 @@ export class SubagentBatch<T> {
     options: SubagentBatchOptions = {},
   ) {
     this.maxConcurrency = options.maxConcurrency;
-    this.states = tasks.map((task, index) => ({
-      index,
-      task,
-      retryCount: 0,
-      retryReadyAt: 0,
-      started: false,
-      transientRetryCount: 0,
-    }));
+    this.states = createInitialTaskStates(tasks);
     this.pending = [...this.states];
     this.results = Array.from({ length: tasks.length });
     this.batchSignal = tasks.find((task) => task.signal !== undefined)?.signal;
@@ -248,7 +124,7 @@ export class SubagentBatch<T> {
     if (this.finishIfComplete()) return;
     if (this.controller.signal.aborted) return;
 
-    if (this.rateLimitMode) {
+    if (this.rateLimit.rateLimitMode) {
       this.scheduleRateLimitLaunch();
     } else {
       this.scheduleNormalLaunch();
@@ -259,7 +135,7 @@ export class SubagentBatch<T> {
     while (
       this.normalLaunchCount < INITIAL_LAUNCH_LIMIT &&
       this.pending.length > 0 &&
-      !this.rateLimitMode &&
+      !this.rateLimit.rateLimitMode &&
       !this.isAtConcurrencyLimit()
     ) {
       this.startAttempt(this.pending.shift()!);
@@ -268,7 +144,7 @@ export class SubagentBatch<T> {
 
     if (
       this.pending.length === 0 ||
-      this.rateLimitMode ||
+      this.rateLimit.rateLimitMode ||
       this.normalLaunchTimer !== undefined ||
       this.isAtConcurrencyLimit()
     ) {
@@ -277,7 +153,7 @@ export class SubagentBatch<T> {
 
     this.normalLaunchTimer = setTimeout(() => {
       this.normalLaunchTimer = undefined;
-      if (this.finished || this.rateLimitMode || this.pending.length === 0) return;
+      if (this.finished || this.rateLimit.rateLimitMode || this.pending.length === 0) return;
       if (this.isAtConcurrencyLimit()) return;
       this.startAttempt(this.pending.shift()!);
       this.normalLaunchCount += 1;
@@ -290,30 +166,13 @@ export class SubagentBatch<T> {
   }
 
   private scheduleRateLimitLaunch(): void {
-    this.clearRateLimitTimer();
-    if (this.pending.length === 0) return;
-
-    const now = Date.now();
-    this.recoverRateLimitCapacity(now);
-    if (this.active.size >= this.rateLimitCapacity) {
-      this.scheduleRateLimitWakeup(this.nextRateLimitCapacityRecoveryAt(), now);
-      return;
-    }
-
-    const nextAllowedAt = Math.max(this.nextRateLimitLaunchAt, this.nextPendingReadyAt());
-    const nextWakeupAt = Math.min(nextAllowedAt, this.nextRateLimitCapacityRecoveryAt());
-    if (nextWakeupAt > now) {
-      this.scheduleRateLimitWakeup(nextWakeupAt, now);
-      return;
-    }
-
-    const pendingIndex = this.pending.findIndex((state) => state.retryReadyAt <= now);
-    if (pendingIndex === -1) return;
-
-    const [state] = this.pending.splice(pendingIndex, 1);
-    this.startAttempt(state!);
-    this.nextRateLimitLaunchAt = now + this.globalRetryIntervalMs;
-    this.scheduleNextRateLimitWakeup(now);
+    this.rateLimit.scheduleLaunch({
+      pending: this.pending,
+      active: this.active,
+      finished: this.finished,
+      startAttempt: (state) => this.startAttempt(state),
+      schedule: () => this.schedule(),
+    });
   }
 
   private startAttempt(state: TaskState<T>): void {
@@ -326,7 +185,7 @@ export class SubagentBatch<T> {
       ready: false,
       timedOut: false,
     };
-    attempt.cleanup = this.linkAttemptSignals(attempt, state.task);
+    attempt.cleanup = linkAttemptSignals(attempt, state.task, this.controller);
     this.active.add(attempt);
 
     this.runAttempt(attempt).then(
@@ -339,159 +198,23 @@ export class SubagentBatch<T> {
     );
   }
 
-  private async runAttempt(attempt: ActiveAttempt<T>): Promise<AttemptOutcome<T>> {
-    const task = attempt.state.task;
-    const runOptions: RunSubagentOptions = {
-      parentToolCallId: task.parentToolCallId,
-      parentToolCallUuid: task.parentToolCallUuid,
-      prompt: task.prompt,
-      description: task.description,
-      swarmIndex: task.swarmIndex,
-      runInBackground: task.runInBackground,
-      signal: attempt.controller.signal,
-      timeoutMs: task.timeout,
-      contractPath: task.contractPath,
-      onReady: () => {
-        this.markAttemptReady(attempt);
-      },
-      suppressRateLimitFailureEvent: true,
-    };
-
-    for (;;) {
-      let handle: SubagentHandle;
-      try {
-        attempt.controller.signal.throwIfAborted();
-        if (attempt.state.retryAgentId !== undefined) {
-          handle = await this.launcher.retry(attempt.state.retryAgentId, runOptions);
-        } else if (attempt.state.agentId !== undefined) {
-          // Transient retry after a failed completion: the agent instance still
-          // exists, so retry its failed turn in place instead of spawning anew.
-          handle = await this.launcher.retry(attempt.state.agentId, runOptions);
-        } else if (task.kind === 'resume') {
-          handle = await this.launcher.resume(task.resumeAgentId, runOptions);
-        } else {
-          const spawnOptions: SpawnSubagentOptions = {
-            profileName: task.profileName,
-            profileBaseName: task.profileBaseName,
-            swarmItem: task.swarmItem,
-            ...runOptions,
-          };
-          handle = await this.launcher.spawn(spawnOptions);
-        }
-      } catch (error) {
-        if (!this.shouldRetryTransient(attempt, error)) {
-          return this.failedAttemptOutcome(attempt, error);
-        }
-        attempt.state.transientRetryCount += 1;
-        if (!(await this.waitTransientBackoff(attempt))) {
-          return this.failedAttemptOutcome(attempt, error);
-        }
-        continue;
-      }
-
-      attempt.state.agentId = handle.agentId;
-      try {
-        const completion = await handle.completion;
-        return {
-          task,
-          agentId: handle.agentId,
-          status: 'completed',
-          result: renderSubagentCompletionText(completion),
-          usage: completion.usage,
-        };
-      } catch (error) {
-        // Permanent auth/quota failures (401/403, expired subscription,
-        // exhausted credit) never recover by waiting. Checked before the
-        // rate-limit branch so a quota error reported with a rate-limit
-        // shaped payload (e.g. 429 "exceeded your current quota") fails
-        // fast instead of being requeued into rate-limit phase; the failed
-        // outcome flows through the regular failure path.
-        if (isPermanentAuthError(error) || isPermanentQuotaOrBillingError(error)) {
-          return this.failedAttemptOutcome(attempt, error);
-        }
-        if (isProviderRateLimitError(error)) {
-          return {
-            type: 'rate_limited',
-            agentId: handle.agentId,
-            error: this.attemptErrorMessage(attempt, error, 'failed'),
-          };
-        }
-
-        if (!this.shouldRetryTransient(attempt, error)) {
-          return this.failedAttemptOutcome(attempt, error);
-        }
-        attempt.state.transientRetryCount += 1;
-        if (!(await this.waitTransientBackoff(attempt))) {
-          return this.failedAttemptOutcome(attempt, error);
-        }
-      }
-    }
-  }
-
-  /**
-   * Transient provider failures (5xx / overloaded / connection errors) earn a
-   * small bounded in-place retry, kept strictly separate from the rate-limit
-   * capacity scheduler. Timeouts, aborts, rate limits, and permanent errors
-   * never retry here.
-   */
-  private shouldRetryTransient(attempt: ActiveAttempt<T>, error: unknown): boolean {
-    if (this.finished) return false;
-    if (attempt.timedOut || attempt.controller.signal.aborted) return false;
-    if (attempt.state.transientRetryCount >= TRANSIENT_RETRY_MAX_ATTEMPTS) return false;
-    return isTransientProviderError(error);
-  }
-
-  /** Resolves true once the backoff elapses, false if the attempt is aborted. */
-  private waitTransientBackoff(attempt: ActiveAttempt<T>): Promise<boolean> {
-    const delay =
-      TRANSIENT_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attempt.state.transientRetryCount - 1);
-    return new Promise((resolve) => {
-      const abortSignal = attempt.controller.signal;
-      if (abortSignal.aborted) {
-        resolve(false);
-        return;
-      }
-      const onAbort = () => {
-        clearTimeout(timer);
-        resolve(false);
-      };
-      const timer = setTimeout(() => {
-        abortSignal.removeEventListener('abort', onAbort);
-        resolve(true);
-      }, delay);
-      abortSignal.addEventListener('abort', onAbort, { once: true });
+  private runAttempt(attempt: ActiveAttempt<T>): Promise<AttemptOutcome<T>> {
+    return runSubagentAttempt(attempt, this.launcher, this.finished, () => {
+      this.markAttemptReady(attempt);
     });
   }
 
-  private failedAttemptOutcome(attempt: ActiveAttempt<T>, error: unknown): SubagentResult<T> {
-    const status =
-      attempt.controller.signal.aborted && isUserCancellation(attempt.controller.signal.reason)
-        ? 'aborted'
-        : 'failed';
-    return {
-      task: attempt.state.task,
-      agentId: attempt.state.agentId,
-      status,
-      state: attempt.state.agentId === undefined ? 'not_started' : 'started',
-      error: this.attemptErrorMessage(attempt, error, status),
-      failureReason: classifySubagentFailureReason(error, status),
-    };
-  }
-
   private markAttemptReady(attempt: ActiveAttempt<T>): void {
-    if (this.finished || attempt.ready || !this.active.has(attempt)) return;
-
-    attempt.ready = true;
-    attempt.state.started = true;
-    if (!this.rateLimitMode) {
-      this.startedSuccessCount += 1;
-    }
-
-    if (this.rateLimitMode) {
-      this.globalRetryIntervalMs = RATE_LIMIT_RETRY_BASE_MS;
-      this.nextRateLimitLaunchAt = Date.now() + this.globalRetryIntervalMs;
-      this.schedule();
-    }
+    markAttemptReady(attempt, this.active, {
+      finished: this.finished,
+      rateLimitMode: this.rateLimit.rateLimitMode,
+      onReadyInNormalPhase: () => {
+        this.startedSuccessCount += 1;
+      },
+      onReadyInRateLimitPhase: () => {
+        this.rateLimit.onAttemptReadyInRateLimitPhase(() => this.schedule());
+      },
+    });
   }
 
   private handleAttemptOutcome(attempt: ActiveAttempt<T>, outcome: AttemptOutcome<T>): void {
@@ -509,7 +232,14 @@ export class SubagentBatch<T> {
         error: outcome.error,
       };
     } else {
-      this.requeueRateLimited(attempt, outcome.agentId);
+      this.rateLimit.requeueRateLimited(
+        attempt,
+        outcome.agentId,
+        this.launcher,
+        this.pending,
+        () => this.clearNormalTimer(),
+        this.startedSuccessCount,
+      );
     }
     this.schedule();
   }
@@ -532,148 +262,9 @@ export class SubagentBatch<T> {
     return true;
   }
 
-  private requeueRateLimited(attempt: ActiveAttempt<T>, agentId: string): void {
-    const state = attempt.state;
-    state.agentId = agentId;
-    state.retryAgentId = agentId;
-    this.launcher.suspended?.({
-      task: state.task,
-      agentId,
-      reason: RATE_LIMIT_SUSPENDED_REASON,
-    });
-
-    const now = Date.now();
-    this.lastRateLimitAt = now;
-    this.lastRateLimitMonoMs = monoNowMs();
-    state.retryCount += 1;
-    const retryDelay = retry.createTimeout(Math.max(0, state.retryCount - 1), {
-      minTimeout: RATE_LIMIT_RETRY_BASE_MS,
-      maxTimeout: Number.POSITIVE_INFINITY,
-      factor: RATE_LIMIT_RETRY_FACTOR,
-      randomize: false,
-    });
-    state.retryReadyAt = now + retryDelay;
-    this.pending.unshift(state);
-    this.enterRateLimitMode(now);
-
-    if (!attempt.ready) {
-      this.globalRetryIntervalMs = Math.max(this.globalRetryIntervalMs * 2, retryDelay);
-      this.nextRateLimitLaunchAt = Math.max(
-        this.nextRateLimitLaunchAt,
-        now + this.globalRetryIntervalMs,
-      );
-    } else {
-      this.nextRateLimitLaunchAt = Math.max(
-        this.nextRateLimitLaunchAt,
-        now + RATE_LIMIT_RETRY_BASE_MS,
-      );
-    }
-  }
-
-  private enterRateLimitMode(now: number): void {
-    if (!this.rateLimitMode) {
-      this.rateLimitMode = true;
-      this.clearNormalTimer();
-      this.rateLimitCapacity = Math.max(1, this.startedSuccessCount);
-      this.nextRateLimitLaunchAt = Math.max(
-        this.nextRateLimitLaunchAt,
-        now + RATE_LIMIT_RETRY_BASE_MS,
-      );
-      this.shrinkRateLimitCapacity(now, true);
-      return;
-    }
-
-    this.shrinkRateLimitCapacity(now, false);
-  }
-
-  private shrinkRateLimitCapacity(now: number, force: boolean): void {
-    if (!force && this.lastCapacityShrinkMonoMs !== undefined) {
-      // Use the monotonic clock so a wall-clock jump cannot bypass the
-      // 2-second shrink throttle.
-      const mono = monoNowMs();
-      if (mono - this.lastCapacityShrinkMonoMs < RATE_LIMIT_CAPACITY_SHRINK_INTERVAL_MS) {
-        return;
-      }
-      this.lastCapacityShrinkMonoMs = mono;
-    } else {
-      this.lastCapacityShrinkMonoMs = monoNowMs();
-    }
-
-    this.rateLimitCapacity = Math.max(1, this.rateLimitCapacity - 1);
-    this.lastCapacityShrinkAt = now;
-  }
-
-  private recoverRateLimitCapacity(now: number): void {
-    if (this.lastRateLimitMonoMs === undefined) return;
-    const mono = monoNowMs();
-    const nextRecoveryMonoMs = this.nextRateLimitCapacityRecoveryMonoMs();
-    if (nextRecoveryMonoMs > mono) return;
-
-    this.rateLimitCapacity += 1;
-    this.lastCapacityRecoveryAt = now;
-    this.lastCapacityRecoveryMonoMs = mono;
-    this.nextRateLimitLaunchAt = Math.min(this.nextRateLimitLaunchAt, now);
-  }
-
-  private nextRateLimitCapacityRecoveryAt(): number {
-    if (this.pending.length === 0 || this.lastRateLimitAt === undefined) {
-      return Number.POSITIVE_INFINITY;
-    }
-
-    const latestCapacityChangeAt = Math.max(
-      this.lastRateLimitAt,
-      this.lastCapacityRecoveryAt ?? 0,
-    );
-    return latestCapacityChangeAt + RATE_LIMIT_CAPACITY_RECOVERY_INTERVAL_MS;
-  }
-
-  /**
-   * Monotonic counterpart of {@link nextRateLimitCapacityRecoveryAt}. Returns
-   * the next monotonic millisecond at which the 3-minute quiet window
-   * elapses and capacity is allowed to recover by one slot.
-   */
-  private nextRateLimitCapacityRecoveryMonoMs(): number {
-    if (this.pending.length === 0 || this.lastRateLimitMonoMs === undefined) {
-      return Number.POSITIVE_INFINITY;
-    }
-    const latestCapacityChangeMonoMs = Math.max(
-      this.lastRateLimitMonoMs,
-      this.lastCapacityRecoveryMonoMs ?? 0,
-    );
-    return latestCapacityChangeMonoMs + RATE_LIMIT_CAPACITY_RECOVERY_INTERVAL_MS;
-  }
-
-  private scheduleRateLimitWakeup(wakeupAt: number, now: number): void {
-    if (!Number.isFinite(wakeupAt) || wakeupAt <= now) return;
-    this.rateLimitLaunchTimer = setTimeout(() => {
-      this.rateLimitLaunchTimer = undefined;
-      this.schedule();
-    }, wakeupAt - now);
-  }
-
-  private scheduleNextRateLimitWakeup(now: number): void {
-    if (this.pending.length === 0) return;
-
-    const nextWakeupAt =
-      this.active.size >= this.rateLimitCapacity
-        ? this.nextRateLimitCapacityRecoveryAt()
-        : Math.min(
-            Math.max(this.nextRateLimitLaunchAt, this.nextPendingReadyAt()),
-            this.nextRateLimitCapacityRecoveryAt(),
-          );
-
-    this.scheduleRateLimitWakeup(nextWakeupAt, now);
-  }
-
-  private nextPendingReadyAt(): number {
-    return this.pending.reduce((nextAt, state) => {
-      return Math.min(nextAt, state.retryReadyAt);
-    }, Number.POSITIVE_INFINITY);
-  }
-
   private finishIfComplete(): boolean {
     if (this.results.every((result) => result !== undefined)) {
-      this.finish(this.results);
+      this.finish(this.results as Array<SubagentResult<T>>);
       return true;
     }
     return false;
@@ -685,32 +276,7 @@ export class SubagentBatch<T> {
 
   private finishWithUserCancellation(): void {
     if (this.finished) return;
-
-    this.finish(
-      this.states.map((state) => {
-        const result = this.results[state.index];
-        if (result !== undefined) return result;
-
-        if (state.started || state.agentId !== undefined) {
-          return {
-            task: state.task,
-            agentId: state.agentId,
-            status: 'aborted',
-            state: 'started',
-            error:
-              'The user manually interrupted this subagent batch before this subagent finished.',
-          };
-        }
-
-        return {
-          task: state.task,
-          status: 'aborted',
-          state: 'not_started',
-          error:
-            'The user manually interrupted this subagent batch before this subagent was started.',
-        };
-      }),
-    );
+    this.finish(buildUserCancellationResults(this.states, this.results));
   }
 
   private finish(results: Array<SubagentResult<T>>): void {
@@ -730,7 +296,7 @@ export class SubagentBatch<T> {
   private cleanup(): void {
     this.batchSignal?.removeEventListener('abort', this.batchAbortListener);
     this.clearNormalTimer();
-    this.clearRateLimitTimer();
+    this.rateLimit.clearTimer();
     for (const attempt of this.active.values()) {
       attempt.cleanup();
     }
@@ -741,90 +307,4 @@ export class SubagentBatch<T> {
     if (this.normalLaunchTimer !== undefined) clearTimeout(this.normalLaunchTimer);
     this.normalLaunchTimer = undefined;
   }
-
-  private clearRateLimitTimer(): void {
-    if (this.rateLimitLaunchTimer !== undefined) clearTimeout(this.rateLimitLaunchTimer);
-    this.rateLimitLaunchTimer = undefined;
-  }
-
-  private linkAttemptSignals(attempt: ActiveAttempt<T>, task: QueuedSubagentTask<T>): () => void {
-    const abortFromBatch = () => {
-      attempt.controller.abort(this.controller.signal.reason);
-    };
-    const abortFromTask = () => {
-      attempt.controller.abort(task.signal?.reason);
-    };
-    const timeout =
-      task.timeout === undefined
-        ? undefined
-        : setTimeout(() => {
-            attempt.timedOut = true;
-            attempt.controller.abort(new Error('Aborted'));
-          }, task.timeout);
-
-    if (this.controller.signal.aborted) {
-      abortFromBatch();
-    } else if (task.signal?.aborted === true) {
-      abortFromTask();
-    } else {
-      this.controller.signal.addEventListener('abort', abortFromBatch, { once: true });
-      task.signal?.addEventListener('abort', abortFromTask, { once: true });
-    }
-
-    return () => {
-      if (timeout !== undefined) clearTimeout(timeout);
-      this.controller.signal.removeEventListener('abort', abortFromBatch);
-      task.signal?.removeEventListener('abort', abortFromTask);
-    };
-  }
-
-  private attemptErrorMessage(
-    attempt: ActiveAttempt<T>,
-    error: unknown,
-    status: SubagentResult<T>['status'],
-  ): string {
-    if (attempt.timedOut && attempt.state.task.timeout !== undefined) {
-      return 'Subagent timed out.';
-    }
-    if (status === 'aborted') return 'The user manually interrupted this subagent batch.';
-    return error instanceof Error ? error.message : String(error);
-  }
-}
-
-/**
- * Map a thrown subagent error to a structured `failureReason` for recovery
- * prompts. `max_tokens` is terminal (a retry with the same context window
- * will not help) and should steer the user toward a larger context budget
- * rather than a transient retry. Exported so tests can pin the
- * classification order without spinning up a full batch mock.
- */
-export function classifySubagentFailureReason(
-  error: unknown,
-  status: SubagentResult['status'],
-): SubagentResult['failureReason'] {
-  if (status === 'aborted') return 'aborted';
-  if (isSubagentMaxTokensError(error)) return 'max_tokens';
-  if (isTransientProviderError(error)) return 'transient';
-  return 'other';
-}
-
-/** Default normal-phase concurrency when env is unset/empty/invalid. */
-export const DEFAULT_SWARM_MAX_CONCURRENCY = 16;
-
-/**
- * Resolve the AgentSwarm normal-phase concurrency cap from the environment.
- *
- * Unset/empty/invalid values fall back to {@link DEFAULT_SWARM_MAX_CONCURRENCY}
- * so swarms never run fully uncapped by accident. A present positive integer wins.
- */
-export function resolveSwarmMaxConcurrency(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): number {
-  const raw = env[AGENT_SWARM_MAX_CONCURRENCY_ENV];
-  if (raw === undefined || raw.trim() === '') return DEFAULT_SWARM_MAX_CONCURRENCY;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value <= 0) {
-    return DEFAULT_SWARM_MAX_CONCURRENCY;
-  }
-  return value;
 }
