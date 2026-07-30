@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "alerts": {
+      "command": "node",
+      "args": ["-e", "setInterval(() => {}, 1e9)"]
+    }
+  }
+}

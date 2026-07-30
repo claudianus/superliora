@@ -149,6 +149,8 @@ function defaultOpts(): CLIOptions {
     outputFormat: undefined,
     prompt: undefined,
     skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
   };
 }
 

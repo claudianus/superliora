@@ -110,19 +110,30 @@ export function buildPluginsInfoLines(input: PluginsInfoPanelInput): readonly st
     const kindSuffix = info.manifestKind !== undefined ? ` ${muted(`(${info.manifestKind})`)}` : '';
     lines.push(`${muted('Manifest:')} ${value(info.manifestPath)}${kindSuffix}`);
   }
-  if (info.shadowedManifestPath !== undefined) {
-    lines.push(`${muted('Shadowed:')} ${value(info.shadowedManifestPath)}`);
-  }
-  const sessionStartSkill = info.manifest?.sessionStart?.skill;
-  if (sessionStartSkill !== undefined) {
-    lines.push(`${muted('Session start:')} ${value(sessionStartSkill)}`);
-  }
-  if (info.manifest?.skillInstructions !== undefined) {
-    lines.push(`${muted('Skill instructions:')} ${value('present')}`);
+  if (info.manifest?.displayName !== undefined) {
+    lines.push(`${muted('Display name:')} ${value(info.manifest.displayName)}`);
   }
   lines.push('');
   lines.push(value(`Skills (${info.manifest?.skills?.length ?? 0}):`));
   for (const dir of info.manifest?.skills ?? []) lines.push(`  ${muted('-')} ${value(dir)}`);
+  if ((info.manifest?.agents?.length ?? 0) > 0) {
+    lines.push('');
+    lines.push(value(`Agents (${info.manifest?.agents?.length ?? 0}):`));
+    for (const agent of info.manifest?.agents ?? []) {
+      lines.push(`  ${muted('-')} ${value(agent.name)} ${muted(`(${agent.path})`)}`);
+    }
+  }
+  if ((info.manifest?.commands?.length ?? 0) > 0) {
+    lines.push('');
+    lines.push(value(`Commands (${info.manifest?.commands?.length ?? 0}):`));
+    for (const command of info.manifest?.commands ?? []) {
+      lines.push(`  ${muted('-')} ${value(command.name)}`);
+    }
+  }
+  if (info.manifest?.binDir !== undefined) {
+    lines.push('');
+    lines.push(`${muted('bin/:')} ${value(info.manifest.binDir)}`);
+  }
 
   if (info.mcpServers.length > 0) {
     lines.push('');

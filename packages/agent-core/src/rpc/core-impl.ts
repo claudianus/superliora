@@ -1,5 +1,5 @@
 import { log } from '#/logging/logger';
-import { PluginManager } from '#/plugin/index';
+import { PluginHost, PluginManager } from '#/plugin/index';
 
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
@@ -28,6 +28,7 @@ import type { CoreRPCClient } from './client';
 import type { CoreAPI, CoreInfo } from './core-api';
 import type { SDKRPC } from './sdk-api';
 import type { Kaos } from '@superliora/kaos';
+import type { SessionMcpConfig } from '../mcp';
 import type { ToolServices } from '../tools/support/services';
 import * as configMethods from './core-config-methods';
 import { delegateContextMethod, delegateContextMethodWithOptions } from './core-delegate';
@@ -35,6 +36,7 @@ import type { LioraCoreOptions } from './core-impl-types';
 import * as memoryMethods from './core-memory-methods';
 import * as runtimeSupport from './core-runtime-support';
 import * as pluginMethods from './plugin-methods';
+import * as pluginWiring from './core-plugin-wiring';
 import * as sessionLifecycle from './session-lifecycle';
 import * as sessionAgentMethods from './session-agent-methods';
 
@@ -58,8 +60,12 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   readonly skillDirs: readonly string[];
   readonly sessionStore: SessionStore;
   readonly plugins: PluginManager;
+  readonly pluginHost: PluginHost;
   pluginsReady: Promise<void>;
   pluginsLoadError: Error | undefined;
+  private readonly pluginDirs: readonly string[];
+  private readonly channelServers: readonly string[];
+  private readonly projectDir: string;
   readonly appVersion: string | undefined;
   readonly experimentalFlags: FlagResolver;
   readonly memory: LioraRecallStore;
@@ -84,6 +90,9 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     this.kimiRequestHeaders = options.kimiRequestHeaders;
     this.resolveOAuthTokenProvider = options.resolveOAuthTokenProvider;
     this.skillDirs = options.skillDirs ?? [];
+    this.pluginDirs = options.pluginDirs ?? [];
+    this.channelServers = options.channelServers ?? [];
+    this.projectDir = options.projectDir ?? process.cwd();
     this.telemetry = options.telemetry ?? noopTelemetryClient;
     this.appVersion = options.appVersion;
     ensureLioraHome(this.homeDir);
@@ -110,7 +119,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       homeDir: this.homeDir,
       config: () => this.config.memory,
     });
-    this.plugins = new PluginManager({ kimiHomeDir: this.homeDir });
+    this.plugins = new PluginManager({
+      kimiHomeDir: this.homeDir,
+      projectDir: this.projectDir,
+      sessionPluginDirs: this.pluginDirs,
+      resolveMarketplaceSource: options.resolveMarketplaceSource,
+    });
+    this.pluginHost = new PluginHost(this.plugins);
     // Capture the error rather than swallow it: mutators and explicit /plugins
     // reads rethrow so the user sees what's wrong; createSession/resumeSession
     // degrade silently (no plugin skills, no sessionStart injections) so the harness still
@@ -271,12 +286,15 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   removePlugin = delegateContextMethod(pluginMethods.removePlugin);
   reloadPlugins = delegateContextMethod(pluginMethods.reloadPlugins);
   getPluginInfo = delegateContextMethod(pluginMethods.getPluginInfo);
+  listPluginThemes = delegateContextMethod(pluginMethods.listPluginThemes);
 
   buildSessionToolServices = delegateContextMethod(runtimeSupport.buildSessionToolServices);
   getKaos = delegateContextMethod(runtimeSupport.getKaos);
   resolveSessionSkillConfig = delegateContextMethod(runtimeSupport.resolveSessionSkillConfig);
   resolveProviderManager = delegateContextMethod(runtimeSupport.resolveProviderManager);
-  mergePluginMcpConfig = delegateContextMethod(runtimeSupport.mergePluginMcpConfig);
+  mergePluginMcpConfig(base: SessionMcpConfig | undefined): SessionMcpConfig | undefined {
+    return pluginWiring.mergePluginMcpConfigWithHost(this.pluginWiringContext(), base);
+  }
   requireSession = delegateContextMethod(runtimeSupport.requireSession);
   sessionApi = delegateContextMethod(runtimeSupport.sessionApi);
   clearRuntimeCache = delegateContextMethod(runtimeSupport.clearRuntimeCache);
@@ -284,5 +302,16 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
 
   reloadProviderManager(): LioraConfig {
     return configMethods.reloadRuntimeConfig(this);
+  }
+
+  private pluginWiringContext(): pluginWiring.CorePluginWiringContext {
+    return {
+      homeDir: this.homeDir,
+      projectDir: this.projectDir,
+      channelServers: this.channelServers,
+      config: this.config,
+      plugins: this.plugins,
+      pluginHost: this.pluginHost,
+    };
   }
 }

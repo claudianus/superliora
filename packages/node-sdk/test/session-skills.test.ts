@@ -441,12 +441,13 @@ async function writePluginCommand(
   body: string,
 ): Promise<string> {
   const root = await makeTempDir(tempDirs, 'kimi-sdk-plugin-command-root-');
+  await mkdir(join(root, '.claude-plugin'), { recursive: true });
   await mkdir(join(root, 'commands', commandFile.split('/').slice(0, -1).join('/')), {
     recursive: true,
   });
   await writeFile(
-    join(root, 'kimi.plugin.json'),
-    JSON.stringify({ name, commands: './commands' }),
+    join(root, '.claude-plugin', 'plugin.json'),
+    JSON.stringify({ name, version: '1.0.0' }),
     'utf8',
   );
   await writeFile(join(root, 'commands', commandFile), body, 'utf8');

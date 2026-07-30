@@ -87,6 +87,8 @@ function makeStartupInput(): LioraTUIStartupInput {
       outputFormat: undefined,
       prompt: undefined,
       skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
     },
     tuiConfig: {
       theme: 'dark',
@@ -4099,7 +4101,7 @@ command = "vim"
         mcpServers: [
           {
             name: 'metadata',
-            runtimeName: 'plugin-kimi-datasource-metadata',
+            runtimeName: 'plugin:kimi-datasource:metadata',
             enabled: serverEnabled.get('metadata') === true,
             transport: 'stdio',
             command: 'node',
@@ -4107,7 +4109,7 @@ command = "vim"
           },
           {
             name: 'data',
-            runtimeName: 'plugin-kimi-datasource-data',
+            runtimeName: 'plugin:kimi-datasource:data',
             enabled: serverEnabled.get('data') === true,
             transport: 'stdio',
             command: 'node',

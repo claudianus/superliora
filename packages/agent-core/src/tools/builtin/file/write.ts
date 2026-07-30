@@ -77,6 +77,10 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       readonly getSwarmLease?:
         | (() => { readonly ownerId?: string; readonly runId?: string } | undefined)
         | undefined;
+      /** Optional post-mutation hook (e.g. plugin LSP diagnostics). */
+      readonly onFileMutated?:
+        | ((path: string, content: string) => Promise<string | undefined> | string | undefined)
+        | undefined;
     },
   ) {}
 
@@ -134,8 +138,11 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       // length would only equal the byte count for pure ASCII content, so it
       // is not used here.
       const bytesWritten = Buffer.byteLength(args.content, 'utf8');
+      const base = `${mode === 'append' ? 'Appended' : 'Wrote'} ${String(bytesWritten)} bytes to ${args.path}`;
+      const extra = await this.options?.onFileMutated?.(safePath, args.content);
       return {
-        output: `${mode === 'append' ? 'Appended' : 'Wrote'} ${String(bytesWritten)} bytes to ${args.path}`,
+        output:
+          extra !== undefined && extra.trim() !== '' ? `${base}\n\n${extra.trim()}` : base,
       };
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;

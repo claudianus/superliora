@@ -181,6 +181,15 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
   if (effectiveStopReason === 'tool_use') {
     const toolBatch = await runToolCallBatch(step, response);
     if (toolBatch.stopTurn) effectiveStopReason = 'end_turn';
+    if (hooks?.afterToolBatch !== undefined) {
+      await hooks.afterToolBatch({
+        turnId,
+        stepNumber: currentStep,
+        signal,
+        llm,
+        toolCalls: response.toolCalls,
+      });
+    }
   }
 
   // When a tool batch runs, it drains paired `tool.result` events even when

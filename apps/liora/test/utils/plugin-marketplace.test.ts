@@ -207,7 +207,10 @@ describe('loadPluginMarketplace', () => {
       const marketplace = await loadPluginMarketplace({ workDir: '/tmp/work', fetchImpl });
 
       expect(fetchImpl).toHaveBeenCalledWith(SUPERLIORA_PLUGIN_MARKETPLACE_URL);
-      expect(marketplace.source).toBe(join(REPO_ROOT, 'plugins/marketplace.json'));
+      expect([
+        join(REPO_ROOT, 'plugins/.claude-plugin/marketplace.json'),
+        join(REPO_ROOT, 'plugins/marketplace.json'),
+      ]).toContain(marketplace.source);
       expect(marketplace.plugins).toContainEqual(
         expect.objectContaining({
           id: 'superpowers',
@@ -466,7 +469,7 @@ describe('loadPluginMarketplace', () => {
     await writeFile(file, JSON.stringify({ plugins: [{ displayName: 'Missing id' }] }), 'utf8');
 
     await expect(loadPluginMarketplace({ workDir: '/tmp/work', source: file })).rejects.toThrow(
-      /must define "id"/,
+      /must define "name" \(or legacy "id"\)/,
     );
   });
 

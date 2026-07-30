@@ -31,6 +31,7 @@ import type {
   MemorySearchResult,
   MemoryStats,
   MemoryUpdateInput,
+  PluginThemeDef,
   RenameSessionInput,
   ResumeSessionInput,
   ReloadSessionInput,
@@ -266,6 +267,11 @@ export class LioraHarness {
 
   async getExperimentalFeatures(): Promise<readonly ExperimentalFeatureState[]> {
     return this.rpc.getExperimentalFeatures();
+  }
+
+  /** Enabled-plugin Claude themes for the TUI `/theme` host (no session required). */
+  async listPluginThemes(): Promise<readonly PluginThemeDef[]> {
+    return this.rpc.listPluginThemes();
   }
 
   async ensureConfigFile(): Promise<void> {

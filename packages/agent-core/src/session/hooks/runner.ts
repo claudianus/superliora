@@ -9,6 +9,8 @@ export interface RunHookOptions {
   readonly cwd?: string;
   readonly env?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
+  /** Exec-form argv; when set, spawn without shell. */
+  readonly args?: readonly string[];
 }
 
 const DEFAULT_TIMEOUT_SECONDS = 30;
@@ -49,13 +51,22 @@ export async function runHook(
 ): Promise<HookResult> {
   let child: ChildProcessWithoutNullStreams;
   try {
-    child = spawn(command, {
-      shell: true,
-      cwd: options.cwd,
-      stdio: 'pipe',
-      detached: process.platform !== 'win32',
-      env: options.env ? { ...process.env, ...options.env } : undefined,
-    });
+    const useExec = options.args !== undefined;
+    child = useExec
+      ? spawn(command, [...options.args!], {
+          shell: false,
+          cwd: options.cwd,
+          stdio: 'pipe',
+          detached: process.platform !== 'win32',
+          env: options.env ? { ...process.env, ...options.env } : undefined,
+        })
+      : spawn(command, {
+          shell: true,
+          cwd: options.cwd,
+          stdio: 'pipe',
+          detached: process.platform !== 'win32',
+          env: options.env ? { ...process.env, ...options.env } : undefined,
+        });
   } catch (error) {
     return allowResult({ stderr: errorMessage(error) });
   }
@@ -106,7 +117,7 @@ export async function runHook(
       settle(allowResult({ stdout, stderr: stderr + errorMessage(error) }));
     });
     child.on('close', (code) => {
-      settle(resultFromExitCode(code ?? 0, stdout, stderr));
+      settle(hookResultFromOutput(code ?? 0, stdout, stderr));
     });
 
     child.stdin.on('error', () => {});
@@ -118,7 +129,12 @@ function timeoutSeconds(timeout: number): number {
   return Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_TIMEOUT_SECONDS;
 }
 
-function resultFromExitCode(exitCode: number, stdout: string, stderr: string): HookResult {
+/** Shared by command runner and http dispatch (body treated as stdout). */
+export function hookResultFromOutput(
+  exitCode: number,
+  stdout: string,
+  stderr: string,
+): HookResult {
   if (exitCode === 2) {
     const message = stderr.trim();
     return {

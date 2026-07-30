@@ -87,6 +87,8 @@ function makeStartupInput(
       outputFormat: undefined,
       prompt: undefined,
       skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       ...cliOptions,
     },
     tuiConfig: {

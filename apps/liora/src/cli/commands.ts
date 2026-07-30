@@ -78,6 +78,22 @@ export function createProgram(
     )
     .addOption(
       new Option(
+        '--plugin-dir <dir>',
+        t('cli.option.pluginDir'),
+      )
+        .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
+        .default([]),
+    )
+    .addOption(
+      new Option(
+        '--channels <server>',
+        'Opt-in Claude channel MCP server for inbound message inject (repeatable)',
+      )
+        .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
+        .default([]),
+    )
+    .addOption(
+      new Option(
         '--add-dir <dir>',
         t('cli.option.addDir'),
       )
@@ -144,6 +160,8 @@ export function createProgram(
       showThinking: raw['showThinking'] as boolean,
       prompt: raw['prompt'] as string | undefined,
       skillsDirs: raw['skillsDir'] as string[],
+      pluginDirs: (raw['pluginDir'] as string[] | undefined) ?? [],
+      channelServers: (raw['channels'] as string[] | undefined) ?? [],
       addDirs: raw['addDir'] as string[],
       resumeGoal: raw['resumeGoal'] as boolean,
       worktree: raw['worktree'] as boolean | string | undefined,

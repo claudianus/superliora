@@ -1,68 +1,46 @@
 # Plugins
 
-Plugins package reusable SuperLiora CLI capabilities into installable units — they can add [Agent Skills](./skills.md), automatically load a specified Skill at session start, and declare MCP servers to provide real tool capabilities. They are ideal for sharing workflows with a team, connecting to external services, or installing extensions from the official marketplace.
+Plugins package reusable SuperLiora CLI capabilities into installable units using the **Claude Code plugin format**. They can add [Agent Skills](./skills.md), slash commands, subagents, lifecycle [hooks](./hooks.md), and [MCP](./mcp.md) servers. They are ideal for sharing workflows with a team, connecting to external services, or installing extensions from the marketplace.
+
+> **Breaking change:** SuperLiora no longer reads `kimi.plugin.json` or `.kimi-plugin/plugin.json`. Reinstall plugins that still use those manifests after converting them to `.claude-plugin/plugin.json`.
 
 ## Installation and Management
 
-Run `/plugins` in the TUI to open the plugin manager. It is a single panel with four tabs — **Installed** (manage what you have), **Official** (Kimi-maintained marketplace plugins), **Third-party** (marketplace plugins from other publishers), and **Custom** (install from a URL) — switched with `Tab` / `Shift-Tab`. Common keys:
-
-| Key | Action |
-| --- | --- |
-| `Tab` / `Shift-Tab` | Switch between the Installed / Official / Third-party / Custom tabs |
-| `Space` | Enable or disable the selected installed plugin (Installed tab) |
-| `D` | Remove the selected installed plugin (Installed tab) |
-| `M` | Manage MCP servers for the selected plugin (Installed tab) |
-| `R` | Reload `installed.json` and all manifests (Installed tab) |
-| `Enter` | Installed tab: install the available update, or view details if up to date · Official/Third-party tab: install or update · Custom tab: install |
-| `I` | View plugin details (Installed tab) |
-| `Esc` | Go back or cancel |
-
-You can also use slash commands directly:
+Run `/plugins` in the TUI to open the plugin manager. It is a single panel with four tabs — **Installed**, **Official**, **Third-party**, and **Custom** — switched with `Tab` / `Shift-Tab`.
 
 | Command | Description |
 | --- | --- |
 | `/plugins` | Open the interactive plugin manager |
 | `/plugins list` | List installed plugins |
 | `/plugins install <path-or-url>` | Install from a local directory, zip URL, or GitHub repository URL |
-| `/plugins marketplace [source]` | Browse the official marketplace, or pass a custom marketplace JSON path or URL |
+| `/plugins marketplace [source]` | Browse the marketplace, or pass a custom marketplace JSON path or URL |
 | `/plugins info <id>` | View plugin details and diagnostics |
-| `/plugins enable <id>` | Enable a plugin |
-| `/plugins disable <id>` | Disable a plugin |
+| `/plugins enable <id>` / `/plugins disable <id>` | Enable or disable a plugin |
 | `/plugins remove <id>` | Remove a plugin (requires confirmation) |
 | `/plugins reload` | Reload `installed.json` and all plugin manifests |
 | `/plugins mcp enable <id> <server>` | Enable an MCP server declared by a plugin |
 | `/plugins mcp disable <id> <server>` | Disable an MCP server declared by a plugin |
 
-The **Installed** tab lists your installed plugins and shows an update badge when a newer version is available in the marketplace. The **Official** and **Third-party** tabs list marketplace plugins by tier; the **Custom** tab installs from a URL. Marketplace catalogs load automatically when needed. Each install shows a trust badge: `kimi-official` (from an official address), `curated` (from a curated address), or `third-party` (everything else). Installing a third-party plugin (anything not from the official address, including Custom installs) first shows a confirmation prompt that defaults to cancelling, so it is only installed if you choose to trust the source.
-
-### Installing from GitHub
-
-Use `/plugins install <url>` to install directly from a GitHub repository. Four URL forms are supported:
-
-- `https://github.com/<owner>/<repo>`: Install the latest release; falls back to the default branch if no release exists
-- `https://github.com/<owner>/<repo>/tree/<ref>`: Install a specific branch, tag, or short commit SHA
-- `https://github.com/<owner>/<repo>/releases/tag/<tag>`: Pin to a specific tag
-- `https://github.com/<owner>/<repo>/commit/<sha>`: Pin to a specific commit
-
-Network requests only go through `github.com` redirects and `codeload.github.com` downloads; `api.github.com` is not called.
-
 ### Notes
 
-- Plugin changes apply after `/reload` or in new sessions. After installing, enabling/disabling, or removing a plugin, run `/reload` or `/new`; the current session will not update.
-- Local installations are copied to `$SUPERLIORA_HOME/plugins/managed/<id>/`, and the CLI always runs from this managed copy. Editing the original source directory after installation has no effect; you must reinstall.
-- Removing a plugin only deletes the installation record; the managed copy and original source files remain on disk.
-- Plugins are currently installed per-user and apply to all projects; project-level installation scope is not yet supported.
+- Plugin changes apply after `/reload` or in new sessions.
+- Installations are copied to `$SUPERLIORA_HOME/plugins/cache/<id>/<version>/`. Editing the original source after install has no effect; reinstall to update.
+- Removing a plugin only deletes the installation record; the cache copy remains on disk.
+- **User scope** installs live in `$SUPERLIORA_HOME/plugins/installed.json` and apply across projects.
+- **Project scope** merges `.superliora/plugins/installed.json` from the session workdir (project wins on id clash). `/plugins` enable/disable/remove still mutate user installs only.
+- **Session scope:** `liora --plugin-dir <path>` (repeatable) loads a local Claude plugin for this process only; it is not persisted.
 
 ### Custom marketplace JSON
 
-Pass a custom marketplace JSON path or URL to `/plugins marketplace <source>`, or set [`SUPERLIORA_PLUGIN_MARKETPLACE_URL`](../configuration/env-vars.md) to override the default catalog. Each entry in the `plugins` array needs an `id` and a `source` (local path, zip URL, or GitHub URL):
+Pass a custom marketplace JSON path or URL to `/plugins marketplace <source>`, or set [`SUPERLIORA_PLUGIN_MARKETPLACE_URL`](../configuration/env-vars.md). The catalog uses the Claude Code marketplace shape (`name`, `owner`, `plugins[]` with `name` + `source`):
 
 ```json
 {
-  "version": "2",
+  "name": "my-marketplace",
+  "owner": { "name": "Example" },
   "plugins": [
     {
-      "id": "my-plugin",
+      "name": "my-plugin",
       "displayName": "My Plugin",
       "source": "./my-plugin"
     }
@@ -70,187 +48,140 @@ Pass a custom marketplace JSON path or URL to `/plugins marketplace <source>`, o
 }
 ```
 
-## Kimi Datasource
+## Plugin package layout
 
-Kimi Datasource is the official SuperLiora data plugin. It lets you query financial market data, macroeconomic indicators, corporate registration records, academic literature, and Chinese laws and regulations in natural language — no manual API calls or data account registration required.
-
-### Installation
-
-You must first complete OAuth login with a SuperLiora account via `/login`. The plugin relies on local credentials to access data services.
-
-1. Run `/plugins` and select **Official**
-2. Find **Kimi Datasource** and press `Enter` to install
-3. After installation completes, run `/reload` or `/new` to activate the plugin
-
-The current latest version is v3.2.0. The plugin does not update automatically — to upgrade to a newer version, repeat the installation steps above.
-
-### How to use
-
-Once installed, describe your need in natural language and SuperLiora will automatically invoke the data capabilities. You can also explicitly trigger the data query skill with `/skill:kimi-datasource`.
-
-### What you can do
-
-**Live market research**: Want to run a quantitative analysis on a stock? Pull three years of daily closing prices, MACD, and KDJ signals in a single query — no third-party data platforms needed.
-
-**Cross-country macro comparison**: Studying supply-chain shifts across China, India, and Vietnam? Get complete GDP growth, trade volume, and demographic time-series from World Bank data spanning 50+ years, all in one go.
-
-**Pre-contract risk check**: Need to vet a counterparty fast? Type the company name and instantly get business registration, equity structure, litigation disputes, and credit blacklist status — right when you need it.
-
-**Literature review acceleration**: Tracing the research arc of RLHF? Get the most-cited papers, key authors, and core findings in seconds, so your literature review outline takes shape in half the time.
-
-**On-the-spot legal lookup**: Stuck on which statute governs a residence-right contract dispute? Pinpoint the relevant Civil Code articles — full text, authority level, and validity — then pull a few comparable precedents to back them up, without digging through statute databases.
-
-### Coverage
-
-| Category | Scope |
-|---|---|
-| Stock market data | A-shares, HK, US, and major global markets — real-time/historical prices, technical indicators, financial statements, stock screening |
-| Macroeconomic data | World Bank data for 189 countries, 50+ years of time series (GDP, trade, population, climate, and more) |
-| Corporate data | Business registration, equity chain, legal risk, and related-entity graph for mainland Chinese companies |
-| Academic literature | Millions of papers across physics, mathematics, CS, quantitative finance, economics — including preprints |
-| Legal | Chinese laws, regulations, and judicial cases — semantic/keyword search and detail lookup for statutes across all authority levels (constitution, laws, judicial interpretations, departmental rules), plus ordinary and authoritative case search |
-
-### Billing and limitations
-
-- Data queries are billed per call and consume SuperLiora account credits
-- The plugin provides read-only queries; no write or trading functionality is available
-- Technical indicators and real-time prices are only available during active trading hours
-- AI-generated output is for reference only and does not constitute investment or business advice
-
-## Plugin Manifest
-
-A plugin is a directory or zip file containing a manifest. The manifest can be placed at either of the following locations:
-
-```text
-<plugin_root>/kimi.plugin.json
-<plugin_root>/.kimi-plugin/plugin.json
-```
-
-When both files exist, `kimi.plugin.json` takes precedence.
-
-Example:
-
-```json
-{
-  "name": "kimi-finance",
-  "version": "1.0.0",
-  "description": "Finance data and analysis workflows for SuperLiora CLI",
-  "skills": "./skills/",
-  "sessionStart": {
-    "skill": "using-finance"
-  },
-  "interface": {
-    "displayName": "Kimi Finance",
-    "shortDescription": "Market data and financial analysis workflows"
-  }
-}
-```
-
-Supported fields:
-
-| Field | Description |
-| --- | --- |
-| `name` | Required; serves as the plugin id. Must match `[a-z0-9][a-z0-9_-]{0,63}` |
-| `version`, `description`, `keywords`, `author`, `homepage`, `license` | Display metadata |
-| `interface` | Fields shown in `/plugins`: `displayName`, `shortDescription`, `longDescription`, `developerName`, `websiteURL` |
-| `skills` | One or more `./` paths; must be within the plugin root directory. When omitted, the `SKILL.md` in the root directory is treated as a single Skill root |
-| `sessionStart.skill` | Loads the specified plugin Skill into the main Agent when a new or resumed session starts |
-| `skillInstructions` | Additional instructions appended whenever a Skill from this plugin is loaded |
-| `mcpServers` | MCP server declarations; enabled by default, can be disabled from `/plugins` |
-| `hooks` | Hook rules run on lifecycle events while the plugin is enabled; see [Hooks in Plugins](#hooks-in-plugins) |
-
-Unsupported runtime fields such as `tools`, `commands`, `apps`, `inject`, and `configFile` appear as diagnostics and are ignored.
-
-## Skills and Session Start
-
-Plugin Skills use the same `SKILL.md` format as ordinary [Agent Skills](./skills.md). A typical directory structure:
+A plugin is a directory (or zip) that follows Claude Code conventions:
 
 ```text
 my-plugin/
-  kimi.plugin.json
-  skills/
-    using-my-plugin/
-      SKILL.md
-    another-workflow/
-      SKILL.md
+  .claude-plugin/
+    plugin.json          # optional metadata; components auto-discover without it
+  skills/<name>/SKILL.md
+  commands/*.md          # slash commands (legacy flat skills also work)
+  agents/*.md            # subagent definitions for the Agent tool
+  hooks/hooks.json       # Claude nested hooks schema
+  monitors/monitors.json # session background monitors
+  .mcp.json              # MCP servers
+  bin/                   # prepended to Bash PATH while enabled
+  settings.json          # in-memory session overlay (never writes config.toml)
+  output-styles/         # system-reminder style instructions when enabled
+  .lsp.json              # LSP servers (session reminder + Edit/Write stdio diagnostics)
+  themes/*.json          # Claude themes in `/theme` (id: plugin-<id>-<slug>)
+  workflows/             # *.md → slash command aliases; *.js/*.ts discovery only
+  SKILL.md               # optional single root skill when skills/ is absent
 ```
 
-`sessionStart.skill` loads a plugin Skill into the main Agent at session start, making it suitable for initialization instructions, workflow rules, or mapping terminology from other tools to SuperLiora CLI. It only injects text; it does not execute code.
+Do **not** put `skills/`, `commands/`, `agents/`, or `hooks/` inside `.claude-plugin/` — only `plugin.json` belongs there.
 
-Regardless of how a Skill is loaded (`sessionStart.skill`, `/skill:<name>`, or automatic model invocation), `skillInstructions` appears alongside that plugin's Skill.
+### Manifest
 
-## MCP Servers in Plugins
+Optional path: `.claude-plugin/plugin.json`
 
-When a plugin needs real tool capabilities, it can declare `mcpServers` in its manifest, reusing the [MCP](./mcp.md) schema.
+```json
+{
+  "name": "my-plugin",
+  "displayName": "My Plugin",
+  "version": "1.0.0",
+  "description": "Example workflows",
+  "skills": "./extra-skills/",
+  "mcpServers": "./.mcp.json"
+}
+```
 
-Stdio server (local command):
+| Field | Behavior |
+| --- | --- |
+| `name` | Required when a manifest exists; plugin id (`[a-z0-9][a-z0-9_-]{0,63}`). Without a manifest, the directory name is used. |
+| `displayName`, `version`, `description`, `keywords`, `author`, `homepage`, `repository`, `license` | Metadata |
+| `defaultEnabled` | Default enable state on first install (default `true`) |
+| `skills` | Extra `./` skill roots **added** to default `skills/` |
+| `commands` / `agents` / `hooks` | When set, **replace** the default directory for that component |
+| `mcpServers` | Inline servers, or path(s) that **supplement** `.mcp.json` |
+| `monitors` | Path or inline Claude monitors (default `monitors/monitors.json`) |
+| `userConfig` | Claude option schema; values expand as `${user_config.KEY}` / `CLAUDE_PLUGIN_OPTION_*` |
+| `dependencies` | Declared marketplace deps; auto-install missing ids when marketplace source resolves; warn on mismatch |
+
+Hosts today: skills, commands, agents, hooks (`command`/`http`/`mcp_tool`/`prompt`/`agent` + `if`/exec-form), MCP, bin, monitors, userConfig, `settings.json` overlay, output styles (`force-for-plugin`), themes (`/theme`), LSP (Edit/Write diagnostics), dependencies (semver + marketplace auto-install), markdown + JS workflows (`agent`/`pipeline`), channels (opt-in inbound inject via `--channels`). See [Claude migration](./claude-migration.md).
+
+### Themes
+
+Plugin `themes/*.json` follow Claude’s shape (`name`, `base`, `overrides`) and also accept SuperLiora `colors`. Enabled plugin themes appear in `/theme` as `plugin-<pluginId>-<slug>` (read-only catalog; copy into `~/.superliora/themes/` if you need a local edit).
+
+### Workflows and channels
+
+- `workflows/*.md` register as slash commands named `workflow:<slug>` (or frontmatter `name`).
+- `workflows/*.{js,mjs,cjs}` run in the dynamic workflow host (`agent` / `pipeline`). Project `.claude/workflows` and `~/.claude/workflows` are also loaded for migration. Use RPC `listWorkflows` / `runWorkflow` (or `/workflows` when wired in TUI).
+- `channels` bind to `mcpServers` keys. Enable inbound inject with `liora --channels <server>` (repeatable).
+
+### LSP and dependencies
+
+- `.lsp.json` servers are listed at session start. After Edit/Write, SuperLiora lazily talks stdio LSP and appends diagnostics to the tool result when the binary is available.
+- Declared `dependencies` missing from the install set are auto-installed from the marketplace when a source can be resolved; version mismatches stay warnings.
+
+## Skills and commands
+
+Plugin skills use the same `SKILL.md` format as ordinary [Agent Skills](./skills.md). Commands are markdown files under `commands/` (or paths listed in the manifest). Invoke with `/<pluginName>:<command>`.
+
+## Agents
+
+Markdown files under `agents/` register as Agent tool `subagent_type` values named `<pluginName>:<agentName>` (bare `<agentName>` also works when unique). Frontmatter may include `name`, `description`, `tools`, `disallowedTools`, `model`, `effort`, `maxTurns`, `skills`, `memory`, `background`, and `isolation`. Plugin agents may not set `hooks`, `mcpServers`, or `permissionMode`.
+
+## MCP servers
+
+Declare servers in `.mcp.json` or the manifest. Use `${CLAUDE_PLUGIN_ROOT}` (and `${user_config.KEY}` when configured) for paths inside the plugin:
 
 ```json
 {
   "mcpServers": {
-    "finance": {
-      "command": "uvx",
-      "args": ["kimi-finance-mcp"]
+    "data": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/server.mjs"],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}"
     }
   }
 }
 ```
 
-HTTP server (remote service):
+Runtime server names look like `plugin:<pluginId>:<serverName>`. Stdio processes receive `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `SUPERLIORA_HOME`, and any `CLAUDE_PLUGIN_OPTION_*` values.
+
+## Hooks
+
+Use Claude Code nested hooks JSON (`hooks/hooks.json` or inline `hooks` in the manifest). SuperLiora runs `command` and `http` hook types; `prompt` / `agent` / `mcp_tool` are registered fail-open until session-backed execution lands. Flat `config.toml` `[[hooks]]` entries stay command-only.
 
 ```json
 {
-  "mcpServers": {
-    "docs": {
-      "url": "https://example.com/mcp"
-    }
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/check.sh"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-For stdio servers, `command` can be a command on `PATH` or a path starting with `./` within the plugin root directory. `cwd` likewise must start with `./` and be within the plugin root directory; otherwise the server is ignored.
+Hook processes run with cwd set to the plugin root and receive `SUPERLIORA_HOME`, `CLAUDE_PLUGIN_ROOT`, and `CLAUDE_PLUGIN_DATA`. Prefer Claude `SessionStart` / `Setup` hooks for session initialization (there is no SuperLiora `sessionStart.skill` field).
 
-Plugin MCP servers start after `/reload` or in new sessions. To enable or disable a server:
+## Monitors
 
-```sh
-/plugins mcp disable kimi-finance finance
-/reload
+`monitors/monitors.json` entries with `name` + `command` (and optional `when: "always"`) start as detached background tasks when the plugin is enabled. Stdout lines fire `Notification` hooks and steer a short notification into the session.
 
-/plugins mcp enable kimi-finance finance
-/reload
-```
+## bin/
 
-## Hooks in Plugins
+Executables under `bin/` are prepended to the Bash tool `PATH` while the plugin is enabled.
 
-A plugin can declare hook rules in its manifest that run on lifecycle events while the plugin is enabled. Each entry uses the same fields as a [`[[hooks]]` rule in `config.toml`](./hooks.md#configuration) (`event`, `matcher`, `command`, `timeout`):
+## Kimi Datasource
 
-```json
-{
-  "hooks": [
-    {
-      "event": "PreToolUse",
-      "matcher": "Bash",
-      "command": "node ./hooks/check-bash.mjs",
-      "timeout": 5
-    }
-  ]
-}
-```
+Official data plugin (Claude layout under `plugins/official/kimi-datasource`). Install from the **Official** tab after `/login`, then `/reload` or `/new`.
 
-Plugin hooks reuse the same mechanism as global hooks — see [Hooks](./hooks.md) for the event list, the stdin JSON payload, and how exit codes and return values affect the main flow. The differences are:
+## Security model
 
-- A plugin's hooks are active only while the plugin is **enabled**; disabling the plugin stops its hooks.
-- Each hook runs with its working directory set to the plugin root, so `command` can use `./` paths inside the plugin.
-- The hook process receives two extra environment variables: `SUPERLIORA_HOME` and `KIMI_PLUGIN_ROOT` (the plugin root directory).
-
-Installing a plugin never runs its hooks by itself — they only fire when their matching event occurs while the plugin is enabled.
-
-## Security Model
-
-Plugins have a limited loading scope. The following operations do not occur during installation or session startup:
-
-- Command-type plugin tools and legacy tool runtimes are not executed
-- All paths must remain within the plugin root directory after symbolic link resolution
-- MCP servers of enabled plugins start after `/reload` or in new sessions and can be disabled at any time from `/plugins`
-- Broken manifests or unsafe paths appear in `/plugins info <id>` diagnostics and do not affect other sessions
-
+- Install and session startup do not execute arbitrary plugin tools beyond declared MCP/hooks.
+- Paths must stay inside the plugin root after symlink resolution.
+- MCP servers of enabled plugins start after `/reload` or in new sessions and can be disabled from `/plugins`.
+- Broken manifests appear in `/plugins info <id>` diagnostics.

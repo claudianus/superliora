@@ -7,7 +7,7 @@ import type { HookDef } from '../hooks';
 import type { PermissionRule } from '../../agent/permission';
 import type { BackgroundConfig } from '../../config';
 import type { SessionMcpConfig } from '../../mcp';
-import type { EnabledPluginSessionStart, PluginCommandDef } from '../../plugin';
+import type { EnabledPluginSessionStart, PluginAgentDef, PluginCommandDef } from '../../plugin';
 import type { ResolvedAgentProfile } from '../../profile';
 import type { ProviderManager } from '../provider/provider-manager';
 import type { SkillRoot } from '../../skill';
@@ -36,6 +36,8 @@ export interface SessionOptions {
   readonly telemetry?: TelemetryClient | undefined;
   readonly pluginSessionStarts?: readonly EnabledPluginSessionStart[];
   readonly pluginCommands?: readonly PluginCommandDef[];
+  readonly pluginAgents?: readonly PluginAgentDef[];
+  readonly pluginBinDirs?: readonly string[];
   readonly appVersion?: string;
   readonly experimentalFlags?: ExperimentalFlagResolver;
   readonly additionalDirs?: readonly string[];

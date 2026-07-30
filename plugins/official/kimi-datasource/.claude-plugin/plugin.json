@@ -1,0 +1,10 @@
+{
+  "name": "kimi-datasource",
+  "displayName": "Kimi Datasource",
+  "version": "3.2.0",
+  "description": "Finance, macro, enterprise, academic, and legal data tools for SuperLiora.",
+  "keywords": ["finance", "data-source", "mcp", "legal"],
+  "author": {
+    "name": "Moonshot AI"
+  }
+}

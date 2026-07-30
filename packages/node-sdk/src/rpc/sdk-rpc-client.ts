@@ -35,6 +35,12 @@ export interface SDKRpcClientOptions {
   readonly identity?: KimiHostIdentity;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
   readonly skillDirs?: readonly string[];
+  readonly projectDir?: string;
+  readonly pluginDirs?: readonly string[];
+  readonly channelServers?: readonly string[];
+  readonly resolveMarketplaceSource?: (
+    pluginId: string,
+  ) => Promise<string | undefined> | string | undefined;
   readonly telemetry?: TelemetryClient;
   readonly onOAuthRefresh?: (outcome: OAuthRefreshOutcome) => void;
 }
@@ -76,6 +82,10 @@ export class SDKRpcClient extends SDKRpcClientBase {
       resolveOAuthTokenProvider:
         options.resolveOAuthTokenProvider ?? this.auth.resolveOAuthTokenProvider,
       skillDirs: options.skillDirs,
+      projectDir: options.projectDir,
+      pluginDirs: options.pluginDirs,
+      channelServers: options.channelServers,
+      resolveMarketplaceSource: options.resolveMarketplaceSource,
       telemetry: this.telemetry,
       appVersion: this.identity?.version,
     });

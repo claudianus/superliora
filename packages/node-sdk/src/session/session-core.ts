@@ -34,6 +34,9 @@ import type {
   MemorySearchResult,
   PermissionMode,
   PluginCommandDef,
+  PluginInfo,
+  PluginSummary,
+  PluginThemeDef,
   PromptInput,
   ReloadSessionOptions,
   ResumedSessionState,
@@ -457,6 +460,11 @@ export abstract class SessionCore {
   async listPluginCommands(): Promise<readonly PluginCommandDef[]> {
     this.ensureOpen();
     return this.rpc.listPluginCommands({ sessionId: this.id });
+  }
+
+  async listPluginThemes(): Promise<readonly PluginThemeDef[]> {
+    this.ensureOpen();
+    return this.rpc.listPluginThemes();
   }
 
   async searchSkills(

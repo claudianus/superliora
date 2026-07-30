@@ -1,0 +1,11 @@
+{
+  "name": "mcp-data",
+  "version": "1.0.0",
+  "userConfig": {
+    "token": {
+      "type": "string",
+      "title": "Token",
+      "required": true
+    }
+  }
+}

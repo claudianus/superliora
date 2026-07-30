@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
     detectTerminalTheme: vi.fn(),
     kimiHarnessConstructor: vi.fn(),
     harnessEnsureConfigFile: vi.fn(),
+    harnessListPluginThemes: vi.fn(async () => []),
     harnessGetConfig: vi.fn(async () => ({
       providers: {},
       defaultModel: 'k2',
@@ -81,6 +82,7 @@ vi.mock('@superliora/sdk', async (importOriginal) => {
           getCachedAccessToken: mocks.harnessGetCachedAccessToken,
         },
         ensureConfigFile: mocks.harnessEnsureConfigFile,
+        listPluginThemes: mocks.harnessListPluginThemes,
         getConfig: mocks.harnessGetConfig,
         getConfigDiagnostics: mocks.harnessGetConfigDiagnostics,
         close: mocks.harnessClose,
@@ -180,6 +182,8 @@ describe('runShell', () => {
       outputFormat: undefined,
       prompt: undefined,
       skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       addDirs: ['../shared', '/tmp/extra'],
     };
 
@@ -263,6 +267,8 @@ describe('runShell', () => {
         outputFormat: undefined,
         prompt: undefined,
         skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -303,6 +309,8 @@ describe('runShell', () => {
         outputFormat: undefined,
         prompt: undefined,
         skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -346,6 +354,8 @@ describe('runShell', () => {
         outputFormat: undefined,
         prompt: undefined,
         skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -379,6 +389,8 @@ describe('runShell', () => {
         outputFormat: undefined,
         prompt: undefined,
         skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -430,6 +442,8 @@ describe('runShell', () => {
         outputFormat: undefined,
         prompt: undefined,
         skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -468,6 +482,8 @@ describe('runShell', () => {
         outputFormat: undefined,
         prompt: undefined,
         skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
       },
       '1.2.3-test',
     );
@@ -498,6 +514,8 @@ describe('runShell', () => {
           outputFormat: undefined,
           prompt: undefined,
           skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
         },
         '1.2.3-test',
       ),
@@ -535,6 +553,8 @@ describe('runShell', () => {
           outputFormat: undefined,
           prompt: undefined,
           skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
         },
         '1.2.3-test',
       );
@@ -589,6 +609,8 @@ describe('runShell', () => {
           outputFormat: undefined,
           prompt: undefined,
           skillsDirs: [],
+    pluginDirs: [],
+    channelServers: [],
         },
         '1.2.3-test',
       );

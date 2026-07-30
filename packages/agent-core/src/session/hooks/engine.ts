@@ -1,14 +1,23 @@
-import { runHook } from './runner';
+import { hookIfMatches } from '../../plugin/hook-if';
+import { dispatchHook, hookDedupeKey } from './dispatch';
 import type {
   HookBlockDecision,
   HookDef,
   HookEngineOptions,
   HookEngineTriggerArgs,
+  HookHostServices,
   HookMatcherValue,
   HookResult,
 } from './types';
 
 const DEFAULT_HOOK_TIMEOUT_SECONDS = 30;
+const TOOL_EVENTS_FOR_IF = new Set([
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'PermissionRequest',
+  'PermissionDenied',
+]);
 
 /**
  * Claude Agent Teams events ignore matchers and always fire.
@@ -19,16 +28,23 @@ const MATCHERLESS_EVENTS = new Set(['TeammateIdle', 'TaskCreated', 'TaskComplete
 export class HookEngine {
   private readonly byEvent = new Map<string, HookDef[]>();
   private readonly pendingTriggers = new Set<Promise<HookResult[]>>();
+  private host: HookHostServices | undefined;
 
   constructor(
     hooks: readonly HookDef[] = [],
     private readonly options: HookEngineOptions = {},
   ) {
+    this.host = options.host;
     for (const hook of hooks) {
       const entries = this.byEvent.get(hook.event) ?? [];
       entries.push(hook);
       this.byEvent.set(hook.event, entries);
     }
+  }
+
+  /** Attach/replace session-backed hosts for mcp_tool / prompt / agent hooks. */
+  setHost(host: HookHostServices | undefined): void {
+    this.host = host;
   }
 
   get summary(): Record<string, number> {
@@ -82,18 +98,20 @@ export class HookEngine {
       cwd: this.options.cwd ?? '',
       ...args.inputData,
     });
-    const matched = this.matchingHooks(event, matcherValue);
+    const matched = this.matchingHooks(event, matcherValue, inputData);
     if (matched.length === 0) return [];
 
     this.emitTriggered(event, matcherValue, matched.length);
     const startedAt = Date.now();
     const results = await Promise.all(
       matched.map((hook) =>
-        runHook(hook.command, inputData, {
+        dispatchHook(hook, inputData, {
           timeout: hook.timeout ?? DEFAULT_HOOK_TIMEOUT_SECONDS,
           cwd: hook.cwd ?? (this.options.cwd === '' ? undefined : this.options.cwd),
           env: hook.env,
           signal: args.signal,
+          host: this.host,
+          args: hook.args,
         }),
       ),
     );
@@ -102,14 +120,35 @@ export class HookEngine {
     return results;
   }
 
-  private matchingHooks(event: string, matcherValue: string): HookDef[] {
+  private matchingHooks(
+    event: string,
+    matcherValue: string,
+    inputData: Record<string, unknown>,
+  ): HookDef[] {
     const seen = new Set<string>();
     const matched: HookDef[] = [];
     const ignoreMatcher = MATCHERLESS_EVENTS.has(event);
+    const toolName =
+      typeof inputData['tool_name'] === 'string'
+        ? inputData['tool_name']
+        : typeof inputData['toolName'] === 'string'
+          ? inputData['toolName']
+          : matcherValue;
 
     for (const hook of this.byEvent.get(event) ?? []) {
       if (!ignoreMatcher && !matches(hook.matcher ?? '', matcherValue)) continue;
-      const key = (hook.cwd ?? '') + '\0' + hook.command;
+      if (hook.if !== undefined && hook.if.trim() !== '') {
+        if (!TOOL_EVENTS_FOR_IF.has(event)) continue;
+        if (
+          !hookIfMatches(hook.if, {
+            toolName,
+            toolInput: inputData['tool_input'] ?? inputData['toolInput'] ?? inputData,
+          })
+        ) {
+          continue;
+        }
+      }
+      const key = hookDedupeKey(hook);
       if (seen.has(key)) continue;
       seen.add(key);
       matched.push(hook);

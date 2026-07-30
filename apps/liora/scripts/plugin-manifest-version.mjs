@@ -1,19 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-// Read a local plugin directory's declared version from its manifest, mirroring
-// the plugin loader's precedence (packages/agent-core/src/plugin/manifest.ts):
-// `kimi.plugin.json` is authoritative once it exists, and `.kimi-plugin/plugin.json`
-// is only consulted when the root manifest is absent. Returns undefined when no
-// manifest is present or the chosen manifest has no version — callers then leave
-// the marketplace entry's existing version untouched.
+// Read a local plugin directory's declared version from its Claude Code
+// manifest (`.claude-plugin/plugin.json`). Returns undefined when no
+// manifest is present or the manifest has no version.
 export async function readPluginManifestVersion(pluginDir) {
-  for (const rel of ['kimi.plugin.json', '.kimi-plugin/plugin.json']) {
-    const raw = await readFileOrUndefined(resolve(pluginDir, rel));
-    if (raw === undefined) continue; // manifest absent — fall back to the next candidate
-    return versionFromManifest(raw); // the chosen manifest wins, even if it has no version
-  }
-  return undefined;
+  const raw = await readFileOrUndefined(resolve(pluginDir, '.claude-plugin/plugin.json'));
+  if (raw === undefined) return undefined;
+  return versionFromManifest(raw);
 }
 
 async function readFileOrUndefined(file) {
