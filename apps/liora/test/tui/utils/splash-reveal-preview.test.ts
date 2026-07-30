@@ -7,7 +7,7 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
 import { buildSplashMorphScene } from '#/tui/utils/splash/splash-reveal-preview';
-import { STAGE_MAX_WIDTH } from '#/tui/controllers/stage-layout';
+import { STAGE_MAX_WIDTH } from '#/tui/controllers/layout/stage-layout';
 
 const appState: AppState = {
   version: '1.2.3',

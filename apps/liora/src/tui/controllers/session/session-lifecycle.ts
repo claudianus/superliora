@@ -3,26 +3,26 @@ import { resolve } from 'pathe';
 
 import type { Component, Focusable } from '#/tui/renderer';
 
-import type { LioraSlashCommand } from '../commands';
-import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
-import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { createContext7CredentialHandler } from '../reverse-rpc/credential/handler';
-import type { ApprovalController } from '../reverse-rpc/approval/controller';
-import { createApprovalRequestHandler } from '../reverse-rpc/approval/handler';
-import type { QuestionController } from '../reverse-rpc/question/controller';
-import { createQuestionAskHandler } from '../reverse-rpc/question/handler';
-import type { ColorToken } from '../theme';
-import type { AppState } from '../types';
-import type { TUIState } from '../tui-state';
-import { contextWorkingSetSnapshotFromLoopControl } from '../utils/agent/context-working-set';
-import { formatErrorMessage } from '../utils/event-payload';
-import { ttui } from '../utils/tui-i18n';
-import type { BtwPanelController } from './btw-panel';
-import type { SessionEventHandler } from './session-event/handler';
-import type { SessionReplayRenderer } from './session-replay/index';
-import type { StreamingUIController } from './streaming-ui/index';
-import type { TasksBrowserController } from './tasks-browser';
-import type { TranscriptRenderController } from './transcript-render';
+import type { LioraSlashCommand } from '../../commands';
+import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
+import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { createContext7CredentialHandler } from '../../reverse-rpc/credential/handler';
+import type { ApprovalController } from '../../reverse-rpc/approval/controller';
+import { createApprovalRequestHandler } from '../../reverse-rpc/approval/handler';
+import type { QuestionController } from '../../reverse-rpc/question/controller';
+import { createQuestionAskHandler } from '../../reverse-rpc/question/handler';
+import type { ColorToken } from '../../theme';
+import type { AppState } from '../../types';
+import type { TUIState } from '../../tui-state';
+import { contextWorkingSetSnapshotFromLoopControl } from '../../utils/agent/context-working-set';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { ttui } from '../../utils/tui-i18n';
+import type { BtwPanelController } from '../panes/btw-panel';
+import type { SessionEventHandler } from '../session-event/handler';
+import type { SessionReplayRenderer } from '../session-replay/index';
+import type { StreamingUIController } from '../streaming-ui/index';
+import type { TasksBrowserController } from '../panes/tasks-browser';
+import type { TranscriptRenderController } from '../transcript/transcript-render';
 
 type MutableCreateSessionOptions = {
   -readonly [P in keyof CreateSessionOptions]: CreateSessionOptions[P];

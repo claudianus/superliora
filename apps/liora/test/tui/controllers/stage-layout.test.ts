@@ -5,7 +5,7 @@ import {
   resolveStageLayout,
   STAGE_MAX_HEIGHT,
   STAGE_MAX_WIDTH,
-} from '#/tui/controllers/stage-layout';
+} from '#/tui/controllers/layout/stage-layout';
 
 describe('resolveStageLayout', () => {
   it('uses the full terminal size on compact terminals', () => {

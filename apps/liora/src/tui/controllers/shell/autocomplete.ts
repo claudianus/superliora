@@ -11,12 +11,12 @@ import {
   type LioraSlashCommand,
   type SlashCommandHelpMode,
   type SkillListSession,
-} from '../commands';
+} from '../../commands';
 import {
   FileMentionProvider,
   type SlashAutocompleteCommand,
-} from '../components/editor/file-mention-provider';
-import type { TUIState } from '../tui-state';
+} from '../../components/editor/file-mention-provider';
+import type { TUIState } from '../../tui-state';
 
 /** Host surface required by slash-command autocomplete wiring. */
 export interface AutocompleteHost {

@@ -1,4 +1,4 @@
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import type { AgentSwarmProgressEstimator } from '#/tui/components/messages/agent-swarm-progress/estimator';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {

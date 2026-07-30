@@ -20,7 +20,7 @@ import { createTUIStateNativeRenderCallback } from '../../features/native-layout
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
-import { ClipboardImageHintController } from '../clipboard-image-hint';
+import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
 
 export interface StartupNativeRendererCallbacks {

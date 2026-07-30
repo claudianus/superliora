@@ -12,7 +12,7 @@ import type {
   WorkGraphNode,
 } from '@superliora/sdk';
 
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import { currentTheme, type ColorToken } from '#/tui/theme';
 import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 import {

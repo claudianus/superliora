@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { shouldRenderAmbientAnimationFrame } from '#/tui/controllers/appearance';
+import { shouldRenderAmbientAnimationFrame } from '#/tui/controllers/appearance/index';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
 import { createTUIState, type LioraTUIOptions } from '#/tui/liora-tui';
 import { resetTUIInputInteractionForTests } from '#/tui/utils/input/input-interaction';

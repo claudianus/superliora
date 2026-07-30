@@ -1,5 +1,5 @@
 import { STREAM_REVEAL_TICK_MS } from '../../constant/streaming';
-import { shouldAnimate } from '../appearance';
+import { shouldAnimate } from '../appearance/index';
 import { getActiveAppearancePreferences } from '../../features/appearance/appearance-effects';
 import {
   isRevealCaughtUp,

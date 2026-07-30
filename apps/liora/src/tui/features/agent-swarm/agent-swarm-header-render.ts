@@ -12,7 +12,7 @@ import type {
   WarRoomDebatePhase,
 } from '#/tui/components/messages/agent-swarm-progress/index';
 import { formatSwarmMemberTodoLines } from '#/tui/components/chrome/todo/todo-panel';
-import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
+import type { ResponsiveLayoutProfile } from '#/tui/controllers/layout/responsive-layout';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   collapseWhitespace,

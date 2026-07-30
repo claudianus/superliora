@@ -3,56 +3,56 @@ import type { DeviceAuthorization } from '@superliora/oauth';
 
 import { openUrl } from '#/utils/open-url';
 
-import type { Component } from '../renderer';
-import { encodeRendererClearInlineImages, Spacer } from '../renderer';
-import { DeviceCodeBoxComponent } from '../components/chrome/device-code-box';
-import { IdleStageComponent } from '../components/chrome/idle-stage';
-import { MoonLoader } from '../components/chrome/moon-loader';
-import { SplashComponent, shouldPlaySplash } from '../components/chrome/splash';
-import { WelcomeComponent } from '../components/chrome/welcome';
-import { CompactionComponent } from '../components/dialogs/session/compaction';
-import { AssistantMessageComponent } from '../components/messages/assistant-message';
-import { BackgroundAgentStatusComponent } from '../components/messages/background-agent-status';
-import { CronMessageComponent } from '../components/messages/cron-message';
-import { buildGoalMarker } from '../components/messages/goal/goal-markers';
+import type { Component } from '../../renderer';
+import { encodeRendererClearInlineImages, Spacer } from '../../renderer';
+import { DeviceCodeBoxComponent } from '../../components/chrome/device-code-box';
+import { IdleStageComponent } from '../../components/chrome/idle-stage';
+import { MoonLoader } from '../../components/chrome/moon-loader';
+import { SplashComponent, shouldPlaySplash } from '../../components/chrome/splash';
+import { WelcomeComponent } from '../../components/chrome/welcome';
+import { CompactionComponent } from '../../components/dialogs/session/compaction';
+import { AssistantMessageComponent } from '../../components/messages/assistant-message';
+import { BackgroundAgentStatusComponent } from '../../components/messages/background-agent-status';
+import { CronMessageComponent } from '../../components/messages/cron-message';
+import { buildGoalMarker } from '../../components/messages/goal/goal-markers';
 import {
   GoalCompletionMessageComponent,
   GoalSetMessageComponent,
-} from '../components/messages/goal/goal-panel';
-import { PluginCommandComponent } from '../components/messages/plugin-command';
-import { SkillActivationComponent } from '../components/messages/skill-activation';
-import { StepSummaryComponent } from '../components/messages/step-summary';
+} from '../../components/messages/goal/goal-panel';
+import { PluginCommandComponent } from '../../components/messages/plugin-command';
+import { SkillActivationComponent } from '../../components/messages/skill-activation';
+import { StepSummaryComponent } from '../../components/messages/step-summary';
 import {
   NoticeMessageComponent,
   StatusMessageComponent,
-} from '../components/messages/status-message';
-import { ThinkingComponent } from '../components/messages/thinking';
-import { ToolCallComponent } from '../components/messages/tool-call/index';
-import { UserMessageComponent } from '../components/messages/user-message';
-import type { ShowNoticeOptions } from '../commands/hub/dispatch';
-import { DEFAULT_APPEARANCE_PREFERENCES } from '../config';
-import type { AppearanceController } from './appearance';
-import type { BtwPanelController } from './btw-panel';
-import type { SessionEventHandler } from './session-event/handler';
-import type { StreamingUIController } from './streaming-ui/index';
-import { currentTheme } from '../theme';
-import type { ColorToken } from '../theme';
-import type { TUIState } from '../tui-state';
-import type { ImageAttachment, ImageAttachmentStore } from '../utils/image/image-attachment-store';
-import { resolveImageProtocol } from '../utils/image/image-protocol-detect';
+} from '../../components/messages/status-message';
+import { ThinkingComponent } from '../../components/messages/thinking';
+import { ToolCallComponent } from '../../components/messages/tool-call/index';
+import { UserMessageComponent } from '../../components/messages/user-message';
+import type { ShowNoticeOptions } from '../../commands/hub/dispatch';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '../../config';
+import type { AppearanceController } from '../appearance/index';
+import type { BtwPanelController } from '../panes/btw-panel';
+import type { SessionEventHandler } from '../session-event/handler';
+import type { StreamingUIController } from '../streaming-ui/index';
+import { currentTheme } from '../../theme';
+import type { ColorToken } from '../../theme';
+import type { TUIState } from '../../tui-state';
+import type { ImageAttachment, ImageAttachmentStore } from '../../utils/image/image-attachment-store';
+import { resolveImageProtocol } from '../../utils/image/image-protocol-detect';
 import type {
   LoginProgressSpinnerHandle,
   TranscriptEntry,
-} from '../types';
-import { buildSplashMorphScene } from '../utils/splash/splash-reveal-preview';
-import { hasDispose } from '../utils/component-capabilities';
-import { noteErrorFeedback } from '../utils/render/feedback-vfx';
-import { requestTUIContentRender, requestTUILayoutRender } from '../utils/render/frame-render';
+} from '../../types';
+import { buildSplashMorphScene } from '../../utils/splash/splash-reveal-preview';
+import { hasDispose } from '../../utils/component-capabilities';
+import { noteErrorFeedback } from '../../utils/render/feedback-vfx';
+import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   getTranscriptComponentEntry,
   markTranscriptComponent,
-} from '../features/transcript/transcript-component-metadata';
-import { nextTranscriptId } from '../features/transcript/transcript-id';
+} from '../../features/transcript/transcript-component-metadata';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import {
   TRANSCRIPT_HYSTERESIS,
   TRANSCRIPT_KEEP_RECENT_STEPS,
@@ -60,7 +60,7 @@ import {
   TRANSCRIPT_WINDOW_ENABLED,
   groupTurns,
   turnsToTrim,
-} from '../features/transcript/transcript-window';
+} from '../../features/transcript/transcript-window';
 
 /** Host surface required by transcript rendering, turn management, and the startup splash. */
 export interface TranscriptRenderHost {

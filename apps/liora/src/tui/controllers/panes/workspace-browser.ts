@@ -8,21 +8,21 @@ import { collectCommitDiff, type GitLogReport } from '#/utils/git/git-log';
 import { fetchWebContent } from '#/utils/web/web-content';
 import { resolve } from 'pathe';
 
-import { BlamePanelComponent } from '../components/dialogs/workspace/blame-panel';
-import { CommitBrowserComponent } from '../components/dialogs/workspace/commit-browser';
-import { DiffReviewComponent } from '../components/dialogs/workspace/diff-review';
-import { ErrorNavigatorComponent } from '../components/dialogs/workspace/error-navigator';
-import { FileExplorerComponent } from '../components/dialogs/workspace/file-explorer';
-import { FileViewerComponent } from '../components/dialogs/workspace/file-viewer';
-import { SearchResultsComponent } from '../components/dialogs/search/search-results';
-import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
-import type { ColorToken } from '../theme';
-import { currentTheme } from '../theme';
-import type { TUIState } from '../tui-state';
-import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
-import { collectTranscriptErrors } from '../features/transcript/transcript-errors';
-import { ttui } from '../utils/tui-i18n';
+import { BlamePanelComponent } from '../../components/dialogs/workspace/blame-panel';
+import { CommitBrowserComponent } from '../../components/dialogs/workspace/commit-browser';
+import { DiffReviewComponent } from '../../components/dialogs/workspace/diff-review';
+import { ErrorNavigatorComponent } from '../../components/dialogs/workspace/error-navigator';
+import { FileExplorerComponent } from '../../components/dialogs/workspace/file-explorer';
+import { FileViewerComponent } from '../../components/dialogs/workspace/file-viewer';
+import { SearchResultsComponent } from '../../components/dialogs/search/search-results';
+import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
+import type { ColorToken } from '../../theme';
+import { currentTheme } from '../../theme';
+import type { TUIState } from '../../tui-state';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { collectTranscriptErrors } from '../../features/transcript/transcript-errors';
+import { ttui } from '../../utils/tui-i18n';
 
 /** Host surface for workspace file / git / search browser dialogs. */
 export interface WorkspaceBrowserHost {

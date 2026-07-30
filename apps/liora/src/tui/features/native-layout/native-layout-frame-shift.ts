@@ -1,4 +1,4 @@
-import { resolveStageLayout } from '../../controllers/stage-layout';
+import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 
 export interface TUIStateNativeLayoutTracking {

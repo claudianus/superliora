@@ -1,43 +1,43 @@
 import type { LioraHarness } from '@superliora/sdk';
 
-import * as slashCommands from '../commands/hub/dispatch';
-import { DEFAULT_APPEARANCE_PREFERENCES } from '../config';
-import { registerReverseRPCHandlers } from '../reverse-rpc/index';
-import type { ApprovalPanelData, QuestionPanelData } from '../reverse-rpc/types';
-import { createTUIState } from '../tui-state';
-import { appearanceAnimationNow } from '../features/appearance/appearance-effects';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
-import { createInitialAppState } from '../utils/initial-app-state';
-import type { LioraTUIStartupInput } from '../types';
-import type { LioraTUI } from '../liora-tui';
+import * as slashCommands from '../../commands/hub/dispatch';
+import { DEFAULT_APPEARANCE_PREFERENCES } from '../../config';
+import { registerReverseRPCHandlers } from '../../reverse-rpc/index';
+import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
+import { createTUIState } from '../../tui-state';
+import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { createInitialAppState } from '../../utils/initial-app-state';
+import type { LioraTUIStartupInput } from '../../types';
+import type { LioraTUI } from '../../liora-tui';
 import { AppStateController } from './app-state';
-import { AuthFlowController } from './auth-flow';
-import { AutocompleteController } from './autocomplete';
-import { AppearanceController, shouldRenderAmbientAnimationFrame } from './appearance';
-import { BtwPanelController } from './btw-panel';
-import { ClipboardImageHintController } from './clipboard-image-hint';
-import { DialogsController } from './dialogs/index';
-import { EditorKeyboardController } from './editor-keyboard';
-import { MessageDispatchController } from './message-dispatch';
+import { AuthFlowController } from '../auth/auth-flow';
+import { AutocompleteController } from '../shell/autocomplete';
+import { AppearanceController, shouldRenderAmbientAnimationFrame } from '../appearance/index';
+import { BtwPanelController } from '../panes/btw-panel';
+import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
+import { DialogsController } from '../dialogs/index';
+import { EditorKeyboardController } from '../shell/editor-keyboard';
+import { MessageDispatchController } from '../transcript/message-dispatch';
 import {
   NativeRendererDiagnosticsController,
   nativeRendererDiagnosticsOverlayEnabled,
-} from './native-renderer-diagnostics';
-import { PanesController } from './panes';
-import { PromptIntelligenceController } from './prompt-intelligence';
-import { ReverseRpcPanelsController } from './reverse-rpc-panels';
-import { SessionBrowserController } from './session-browser';
-import { SessionEventHandler } from './session-event/handler';
-import { SessionLifecycleController } from './session-lifecycle';
-import { SessionReplayRenderer, type SessionReplayHost } from './session-replay/index';
-import { SessionRequestsController } from './session-requests';
-import { ShellInputController } from './shell-input';
-import { StartupLifecycleController } from './startup-lifecycle/index';
-import { StreamingUIController } from './streaming-ui/index';
-import { TasksBrowserController } from './tasks-browser';
-import { TranscriptRenderController } from './transcript-render';
-import { UsageMonitorController } from './usage-monitor';
-import { WorkspaceBrowserController } from './workspace-browser';
+} from '../diagnostics/native-renderer-diagnostics';
+import { PanesController } from '../panes/panes';
+import { PromptIntelligenceController } from '../prompt/prompt-intelligence';
+import { ReverseRpcPanelsController } from '../panes/reverse-rpc-panels';
+import { SessionBrowserController } from '../session/session-browser';
+import { SessionEventHandler } from '../session-event/handler';
+import { SessionLifecycleController } from '../session/session-lifecycle';
+import { SessionReplayRenderer, type SessionReplayHost } from '../session-replay/index';
+import { SessionRequestsController } from '../session/session-requests';
+import { ShellInputController } from '../shell/shell-input';
+import { StartupLifecycleController } from '../startup-lifecycle/index';
+import { StreamingUIController } from '../streaming-ui/index';
+import { TasksBrowserController } from '../panes/tasks-browser';
+import { TranscriptRenderController } from '../transcript/transcript-render';
+import { UsageMonitorController } from '../usage/usage-monitor';
+import { WorkspaceBrowserController } from '../panes/workspace-browser';
 
 function shouldRenderAmbientAnimationFrameFor(tui: LioraTUI): boolean {
   const selection = tui.state.transcriptSelection;

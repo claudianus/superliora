@@ -1,4 +1,4 @@
-import { buildClaudeImportPlan, formatClaudeImportSummary, resolveClaudeImportRoots, type ClaudeImportScanEntry } from '../utils/claude-import';
+import { buildClaudeImportPlan, formatClaudeImportSummary, resolveClaudeImportRoots, type ClaudeImportScanEntry } from '../../utils/claude-import';
 import type { SessionBrowserHost } from './session-browser';
 
 export async function runClaudeImportInventoryForHost(host: SessionBrowserHost): Promise<void> {

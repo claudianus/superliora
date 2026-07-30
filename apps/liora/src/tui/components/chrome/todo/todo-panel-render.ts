@@ -23,7 +23,7 @@ import {
 } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import type { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import type { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,

@@ -25,7 +25,7 @@ import {
   encodeKittyPlaceholderTransmit,
   type Component,
 } from '#/tui/renderer';
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image/image-attachment-store';
 import { resolveImageProtocol } from '#/tui/utils/image/image-protocol-detect';

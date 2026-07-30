@@ -24,7 +24,7 @@ import {
   renderGoalMonitorLines,
 } from '#/tui/components/chrome/goal-monitor';
 import { currentTheme } from '#/tui/theme/theme';
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import {
   appearanceAnimationNow,
 } from '#/tui/features/appearance/appearance-effects';

@@ -1,5 +1,5 @@
 import type { AppearancePreferences } from '#/tui/config';
-import type { ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
+import type { ResponsiveLayoutProfile } from '#/tui/controllers/layout/responsive-layout';
 import {
   hashRendererEffectSeed,
   mixHexColor,

@@ -8,7 +8,7 @@ import {
 import {
   resolveStageLayout,
   type StageLayout,
-} from '../../controllers/stage-layout';
+} from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 
 export interface TUINativeStageChrome {

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ClipboardImageHintController,
   type ClipboardImageHintHost,
-} from '#/tui/controllers/clipboard-image-hint';
+} from '#/tui/controllers/clipboard/clipboard-image-hint';
 import type { FooterComponent } from '#/tui/components/chrome/footer/footer';
 import { TERMINAL_FOCUS_IN, TERMINAL_FOCUS_OUT } from '#/tui/utils/terminal/terminal-focus';
 import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';

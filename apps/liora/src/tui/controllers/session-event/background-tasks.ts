@@ -13,7 +13,7 @@ import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import type { StreamingUIController } from '../streaming-ui/index';
-import type { TasksBrowserController } from '../tasks-browser';
+import type { TasksBrowserController } from '../panes/tasks-browser';
 
 /** Host surface required by background task lifecycle handling. */
 export interface BackgroundTaskEventHost {

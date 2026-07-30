@@ -22,7 +22,7 @@ import {
   resolveDebrisShardParams,
 } from '#/tui/features/stage/stage-letterbox-sky';
 import { stageFrameBundleRect, stageFrameLetterboxBands } from '#/tui/features/stage/stage-frame';
-import { resolveStageLayout } from '#/tui/controllers/stage-layout';
+import { resolveStageLayout } from '#/tui/controllers/layout/stage-layout';
 
 describe('stage letterbox night sky', () => {
   const previous = {

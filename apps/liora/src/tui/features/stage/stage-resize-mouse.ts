@@ -14,7 +14,7 @@ import {
   resolveStageLayout,
   STAGE_MIN_HEIGHT,
   STAGE_MIN_WIDTH,
-} from '../../controllers/stage-layout';
+} from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import { stageFrameVisible, type StageFrameBand } from '#/tui/features/stage/stage-frame';

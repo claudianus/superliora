@@ -24,7 +24,7 @@ import {
 import {
   resolveStageLayout,
   STAGE_MAX_WIDTH,
-} from '#/tui/controllers/stage-layout';
+} from '#/tui/controllers/layout/stage-layout';
 import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,

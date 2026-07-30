@@ -15,16 +15,16 @@ import {
   EXIT_CONFIRM_WINDOW_MS,
   LLM_NOT_SET_MESSAGE,
   NO_ACTIVE_SESSION_MESSAGE,
-} from '../constant/liora-tui';
-import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
-import type { ImageAttachmentStore } from '../utils/image/image-attachment-store';
-import { parseDroppedFilePaths } from '../utils/media/media-drop';
-import { copyTranscriptSelectionToClipboard } from '../features/transcript/transcript-selection';
-import type { PendingExit, QueuedMessage } from '../types';
-import type { TranscriptScrollAction } from '../features/transcript/transcript-viewport';
-import type { TUIState } from '../tui-state';
-import type { BtwPanelController } from './btw-panel';
+} from '../../constant/liora-tui';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
+import { parseDroppedFilePaths } from '../../utils/media/media-drop';
+import { copyTranscriptSelectionToClipboard } from '../../features/transcript/transcript-selection';
+import type { PendingExit, QueuedMessage } from '../../types';
+import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
+import type { TUIState } from '../../tui-state';
+import type { BtwPanelController } from '../panes/btw-panel';
 
 export type ShiftTabModeTarget = 'off' | 'ultrawork';
 

@@ -9,10 +9,10 @@ import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
 
 import { LLM_NOT_SET_MESSAGE } from '../../constant/liora-tui';
-import type { AuthFlowController } from '../../controllers/auth-flow';
-import type { BtwPanelController } from '../../controllers/btw-panel';
+import type { AuthFlowController } from '../../controllers/auth/auth-flow';
+import type { BtwPanelController } from '../../controllers/panes/btw-panel';
 import type { StreamingUIController } from '../../controllers/streaming-ui/index';
-import type { TasksBrowserController } from '../../controllers/tasks-browser';
+import type { TasksBrowserController } from '../../controllers/panes/tasks-browser';
 import type { ResolvedTheme } from '../../theme/colors';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';

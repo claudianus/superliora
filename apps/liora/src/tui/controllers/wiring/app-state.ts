@@ -1,15 +1,15 @@
-import type { CommandHubComponent } from '../components/dialogs/command-hub/index';
-import type { AppState, LivePaneState } from '../types';
-import { INITIAL_LIVE_PANE } from '../types';
-import type { TUIState } from '../tui-state';
-import { appearanceAnimationNow } from '../features/appearance/appearance-effects';
-import { requestTUIContentRender, requestTUILayoutRender } from '../utils/render/frame-render';
-import { isMotionTheatreActive, type MotionBeatController } from '../utils/render/motion-beats';
-import { hasPatchChanges } from '../utils/object-patch';
-import type { AppearanceController } from './appearance';
-import type { DialogsController } from './dialogs/index';
-import type { PromptIntelligenceController } from './prompt-intelligence';
-import type { SessionEventHandler } from './session-event/handler';
+import type { CommandHubComponent } from '../../components/dialogs/command-hub/index';
+import type { AppState, LivePaneState } from '../../types';
+import { INITIAL_LIVE_PANE } from '../../types';
+import type { TUIState } from '../../tui-state';
+import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
+import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
+import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import { hasPatchChanges } from '../../utils/object-patch';
+import type { AppearanceController } from '../appearance/index';
+import type { DialogsController } from '../dialogs/index';
+import type { PromptIntelligenceController } from '../prompt/prompt-intelligence';
+import type { SessionEventHandler } from '../session-event/handler';
 
 function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);

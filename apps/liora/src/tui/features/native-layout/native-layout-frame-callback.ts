@@ -9,8 +9,8 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
 
-import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../../controllers/appearance';
-import { resolveStageLayout } from '../../controllers/stage-layout';
+import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../../controllers/appearance/index';
+import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 import { IdleStageComponent } from '../../components/chrome/idle-stage';
 import {

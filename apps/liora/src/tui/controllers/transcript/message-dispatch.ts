@@ -1,17 +1,17 @@
 import type { LioraHarness, PromptPart, Session } from '@superliora/sdk';
 
-import { LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../constant/liora-tui';
-import type { ColorToken } from '../theme';
-import type { AppState, QueuedMessage, TranscriptEntry } from '../types';
-import type { TUIState } from '../tui-state';
-import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUIContentRender, requestTUILayoutRender } from '../utils/render/frame-render';
-import type { ImageAttachmentStore } from '../utils/image/image-attachment-store';
-import { extractMediaAttachments } from '../utils/image/image-placeholder';
-import { nextTranscriptId } from '../features/transcript/transcript-id';
-import { ttui } from '../utils/tui-i18n';
-import type { BtwPanelController } from './btw-panel';
-import type { StreamingUIController } from './streaming-ui/index';
+import { LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../../constant/liora-tui';
+import type { ColorToken } from '../../theme';
+import type { AppState, QueuedMessage, TranscriptEntry } from '../../types';
+import type { TUIState } from '../../tui-state';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
+import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
+import { extractMediaAttachments } from '../../utils/image/image-placeholder';
+import { nextTranscriptId } from '../../features/transcript/transcript-id';
+import { ttui } from '../../utils/tui-i18n';
+import type { BtwPanelController } from '../panes/btw-panel';
+import type { StreamingUIController } from '../streaming-ui/index';
 
 interface SendMessageOptions {
   readonly displayText?: string;
