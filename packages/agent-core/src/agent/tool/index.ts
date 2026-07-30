@@ -1,40 +1,33 @@
-import { uniq } from '@antfu/utils';
-import type { ChatProvider, ContentPart, Tool } from '@superliora/kosong';
-import picomatch from 'picomatch';
+import type { Tool } from '@superliora/kosong';
+
+import type { ExecutableTool } from '../../loop';
+import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
+import { isMcpToolName } from '../../mcp/tool-naming';
+import type { MCPClient } from '../../mcp/types';
 
 import type { Agent } from '..';
-import { resolveActivePremiumDensity } from '../injection/premium-quality';
-import { makeErrorPayload } from '../../errors';
-import type { ExecutableTool, ToolUpdate } from '../../loop';
-import { createMcpAuthTool } from '../../mcp/auth-tool';
+import { buildBuiltinTools } from './builtin-tools';
+import { hideVisualDensityTools, isMcpToolEnabled, resolveLoopTools } from './loop-tools';
 import type { McpConnectionManager, McpServerEntry } from '../../mcp';
-import { mcpResultToExecutableOutput } from '../../mcp/output';
-import { isMcpToolName, qualifyMcpToolName } from '../../mcp/tool-naming';
-import type { MCPClient } from '../../mcp/types';
-import { DEFAULT_AGENT_PROFILES } from '../../profile';
-import { ProviderManager } from '../../session/provider-manager';
-import { analyzeMediaPart } from '../../session/vision-analyzer';
-import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
-import * as b from '../../tools/builtin';
-import { createVisualDiffTool } from '../../tools/visual-diff-tool';
-import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../tools/store';
+import {
+  attachMcpTools as attachMcpToolsImpl,
+  handleMcpServerStatusChange as handleMcpServerStatusChangeImpl,
+  registerMcpServer as registerMcpServerImpl,
+  registerNeedsAuthMcpServer as registerNeedsAuthMcpServerImpl,
+  unregisterMcpServer as unregisterMcpServerImpl,
+  type McpToolEntry,
+} from './mcp-registration';
+import { cancelShellCommand, runShellCommand } from './shell-command';
 import type {
   BuiltinTool,
   McpServerRegistrationResult,
-  McpToolCollision,
   ToolInfo,
   UserToolRegistration,
 } from './types';
 
 export * from './types';
 
-/** Foreground timeout (seconds) for a user-initiated `!` shell command. */
-const SHELL_FOREGROUND_TIMEOUT_S = 2 * 60;
-
-interface McpToolEntry {
-  readonly tool: ExecutableTool;
-  readonly serverName: string;
-}
+export type { McpToolEntry };
 
 export class ToolManager {
   protected builtinTools: Map<string, BuiltinTool> = new Map();
@@ -73,17 +66,14 @@ export class ToolManager {
   attachMcpTools(): void {
     const mcp = this.agent.mcp;
     if (mcp === undefined) return;
-    if (this.mcpToolStatusUnsubscribe !== undefined) return;
-    for (const entry of mcp.list()) {
-      if (entry.status === 'connected') {
-        this.registerConnectedMcpServer(mcp, entry);
-      } else if (entry.status === 'needs-auth') {
-        this.registerNeedsAuthMcpServer(mcp, entry);
-      }
-    }
-    this.mcpToolStatusUnsubscribe = mcp.onStatusChange((entry) => {
-      this.handleMcpServerStatusChange(mcp, entry);
-    });
+    attachMcpToolsImpl(
+      this,
+      mcp,
+      (unsubscribe) => {
+        this.mcpToolStatusUnsubscribe = unsubscribe;
+      },
+      this.mcpToolStatusUnsubscribe !== undefined,
+    );
   }
 
   getStore(): ToolStore {
@@ -116,87 +106,11 @@ export class ToolManager {
     command: string,
     commandId?: string,
   ): Promise<{ stdout: string; stderr: string; isError?: boolean; backgrounded?: boolean }> {
-    this.agent.context.appendBashInput(command);
-    const bash = this.builtinTools.get('Bash');
-    if (bash === undefined) {
-      const error = 'Bash tool is not available.';
-      this.agent.context.appendBashOutput('', error);
-      return { stdout: '', stderr: error, isError: true };
-    }
-    let stdout = '';
-    let stderr = '';
-    let isError: boolean | undefined;
-    const controller = new AbortController();
-    if (commandId !== undefined) this.shellCommandControllers.set(commandId, controller);
-    try {
-      const execution = await bash.resolveExecution({ command, timeout: SHELL_FOREGROUND_TIMEOUT_S });
-      if (!('execute' in execution)) {
-        const output =
-          typeof execution.output === 'string' ? execution.output : 'Command failed.';
-        this.agent.context.appendBashOutput('', output);
-        return { stdout: '', stderr: output, isError: true };
-      }
-      const result = await execution.execute({
-        turnId: '',
-        toolCallId: 'shell-command',
-        signal: controller.signal,
-        onUpdate: (update: ToolUpdate) => {
-          if (update.kind === 'stdout') stdout += update.text ?? '';
-          else if (update.kind === 'stderr') stderr += update.text ?? '';
-          else return;
-          // Stream the chunk live to the TUI. Transient event — the final
-          // output is still recorded once below for resume.
-          if (commandId !== undefined) {
-            this.agent.emitEvent({ type: 'shell.output', commandId, update });
-          }
-        },
-        onForegroundTaskStart: (taskId: string) => {
-          // Surface the background-task id so the TUI can detach (ctrl+b) it.
-          if (commandId !== undefined) {
-            this.agent.emitEvent({ type: 'shell.started', commandId, taskId });
-          }
-        },
-      });
-      isError = result.isError === true;
-
-      // Detached to background (ctrl+b): the BashTool returns the background
-      // metadata (task_id / status / output path) — the same payload a normal
-      // foreground Bash call returns as its tool result when backgrounded.
-      // Inject it as a user-invisible message and immediately send it to the
-      // model (mirrors the background-task completion notification, but hidden).
-      if (typeof result.output === 'string' && result.output.startsWith('task_id: ')) {
-        this.agent.context.injectAndNotify(result.output, {
-          kind: 'injection',
-          variant: 'shell_command_backgrounded',
-        });
-        return { stdout: result.output, stderr: '', isError: false, backgrounded: true };
-      }
-
-      // When the command fails with no captured stdout/stderr, the failure
-      // reason lives in result.output (non-zero exit with no output, timeout,
-      // spawn failure). Surface it as stderr so the TUI and replay show what
-      // went wrong instead of "(no output)".
-      if (
-        isError &&
-        stdout.length === 0 &&
-        stderr.length === 0 &&
-        typeof result.output === 'string' &&
-        result.output.length > 0
-      ) {
-        stderr = result.output;
-      }
-    } catch (error) {
-      stderr += error instanceof Error ? error.message : String(error);
-      isError = true;
-    } finally {
-      if (commandId !== undefined) this.shellCommandControllers.delete(commandId);
-    }
-    this.agent.context.appendBashOutput(stdout, stderr, isError);
-    return { stdout, stderr, isError };
+    return runShellCommand(this, command, commandId);
   }
 
   cancelShellCommand(commandId: string): void {
-    this.shellCommandControllers.get(commandId)?.abort();
+    cancelShellCommand(this.shellCommandControllers, commandId);
   }
 
   registerUserTool(input: UserToolRegistration): void {
@@ -255,183 +169,19 @@ export class ToolManager {
     tools: readonly Tool[],
     enabledTools?: ReadonlySet<string>,
   ): McpServerRegistrationResult {
-    this.unregisterMcpServer(serverName);
-    const qualifiedNames: string[] = [];
-    const collisions: McpToolCollision[] = [];
-    const seenInThisCall = new Map<string, string>();
-    for (const tool of tools) {
-      if (enabledTools !== undefined && !enabledTools.has(tool.name)) continue;
-      const qualified = qualifyMcpToolName(serverName, tool.name);
-      const firstInThisCall = seenInThisCall.get(qualified);
-      if (firstInThisCall !== undefined) {
-        collisions.push({
-          qualified,
-          toolName: tool.name,
-          collidesWith: { kind: 'same_server', toolName: firstInThisCall },
-        });
-        continue;
-      }
-      const existingEntry = this.mcpTools.get(qualified);
-      if (existingEntry !== undefined) {
-        collisions.push({
-          qualified,
-          toolName: tool.name,
-          collidesWith: { kind: 'other_server', serverName: existingEntry.serverName },
-        });
-        continue;
-      }
-      seenInThisCall.set(qualified, tool.name);
-      const wrapped: ExecutableTool = {
-        name: qualified,
-        description: tool.description,
-        parameters: tool.parameters,
-        resolveExecution: (args) => {
-          return {
-            approvalRule: qualified,
-            execute: async (context) => {
-              // `args` has already been JSON-parsed and schema-validated by
-              // the loop's preflight (`loop/tool-call.ts`), so the MCP
-              // client gets a plain object directly.
-              const result = await client.callTool(
-                tool.name,
-                (args ?? {}) as Record<string, unknown>,
-                context.signal,
-              );
-              return mcpResultToExecutableOutput(result, qualified);
-            },
-          };
-        },
-      };
-      this.mcpTools.set(qualified, { tool: wrapped, serverName });
-      qualifiedNames.push(qualified);
-    }
-    this.mcpToolsByServer.set(serverName, qualifiedNames);
-    this.injectMcpServerInstructions(serverName, client);
-    return { registered: qualifiedNames, collisions };
-  }
-
-  /**
-   * Surface server-level usage instructions (from the MCP `initialize`
-   * handshake) into the agent context so the model learns how to use the
-   * server's tools without a per-turn prompt cost. Compliant servers
-   * (Claude Code, Cursor, opencode, ...) emit these at connection time.
-   */
-  private injectMcpServerInstructions(serverName: string, client: MCPClient): void {
-    const instructions = client.getInstructions?.();
-    if (instructions === undefined || instructions.trim().length === 0) return;
-    this.agent.context?.appendSystemReminder(
-      `MCP server "${serverName}" usage instructions:\n${instructions.trim()}`,
-      { kind: 'injection', variant: 'mcp_instructions' },
-    );
+    return registerMcpServerImpl(this, serverName, client, tools, enabledTools);
   }
 
   unregisterMcpServer(serverName: string): boolean {
-    const existing = this.mcpToolsByServer.get(serverName);
-    if (existing === undefined) return false;
-    for (const qualified of existing) {
-      this.mcpTools.delete(qualified);
-    }
-    this.mcpToolsByServer.delete(serverName);
-    return true;
+    return unregisterMcpServerImpl(this, serverName);
   }
 
   private handleMcpServerStatusChange(mcp: McpConnectionManager, entry: McpServerEntry): void {
-    if (entry.status === 'connected') {
-      this.registerConnectedMcpServer(mcp, entry);
-      return;
-    }
-    if (entry.status === 'needs-auth') {
-      this.registerNeedsAuthMcpServer(mcp, entry);
-      return;
-    }
-    if (entry.status === 'failed') {
-      this.unregisterMcpServer(entry.name);
-      this.agent.emitEvent({
-        type: 'tool.list.updated',
-        reason: 'mcp.failed',
-        serverName: entry.name,
-      });
-      return;
-    }
-    if (entry.status === 'disabled' || entry.status === 'pending') {
-      const removed = this.unregisterMcpServer(entry.name);
-      if (removed) {
-        this.agent.emitEvent({
-          type: 'tool.list.updated',
-          reason: 'mcp.disconnected',
-          serverName: entry.name,
-        });
-      }
-    }
+    handleMcpServerStatusChangeImpl(this, mcp, entry);
   }
 
   private registerNeedsAuthMcpServer(mcp: McpConnectionManager, entry: McpServerEntry): void {
-    // Replace whatever tools (real or synthetic) were registered before; a
-    // server flipping to needs-auth means previous tokens were invalidated.
-    this.unregisterMcpServer(entry.name);
-    const oauthService = mcp.oauthService;
-    const serverUrl = mcp.getRemoteServerUrl(entry.name);
-    if (oauthService === undefined || serverUrl === undefined) {
-      // Misconfiguration: a server reached needs-auth without the manager
-      // owning an OAuth service or being remote. Treat it as a no-op so the
-      // existing failure error message keeps the user informed.
-      return;
-    }
-    const tool = createMcpAuthTool({
-      serverName: entry.name,
-      serverUrl,
-      oauthService,
-      reconnect: async () => {
-        await mcp.reconnect(entry.name);
-      },
-    });
-    this.mcpTools.set(tool.name, { tool, serverName: entry.name });
-    this.mcpToolsByServer.set(entry.name, [tool.name]);
-    // The synthetic auth tool is now in the tool list; surface it the same way
-    // a real toolset would show up so the model picks it up.
-    this.agent.emitEvent({
-      type: 'tool.list.updated',
-      reason: 'mcp.connected',
-      serverName: entry.name,
-    });
-  }
-
-  private registerConnectedMcpServer(mcp: McpConnectionManager, entry: McpServerEntry): void {
-    const resolved = mcp.resolved(entry.name);
-    if (resolved === undefined) return;
-    const result = this.registerMcpServer(
-      entry.name,
-      resolved.client,
-      resolved.tools,
-      resolved.enabledNames,
-    );
-    this.emitMcpToolCollisions(entry.name, result.collisions);
-    this.agent.emitEvent({
-      type: 'tool.list.updated',
-      reason: 'mcp.connected',
-      serverName: entry.name,
-    });
-  }
-
-  private emitMcpToolCollisions(serverName: string, collisions: readonly McpToolCollision[]): void {
-    if (collisions.length === 0) return;
-    const summary = collisions
-      .map((c) =>
-        c.collidesWith.kind === 'same_server'
-          ? `"${c.toolName}" -> ${c.qualified} (collides with "${c.collidesWith.toolName}" from the same server)`
-          : `"${c.toolName}" -> ${c.qualified} (collides with server "${c.collidesWith.serverName}")`,
-      )
-      .join('; ');
-    this.agent.emitEvent({
-      type: 'error',
-      ...makeErrorPayload(
-        'mcp.tool_name_collision',
-        `MCP server "${serverName}" registered ${collisions.length} tool name` +
-          `${collisions.length === 1 ? '' : 's'} ` +
-          `that collide with existing qualified names; the losing tools were dropped: ${summary}`,
-        { details: { serverName, collisions: collisions as readonly unknown[] } },
-      ),
-    });
+    registerNeedsAuthMcpServerImpl(this, mcp, entry);
   }
 
   setActiveTools(names: readonly string[]): void {
@@ -465,7 +215,7 @@ export class ToolManager {
   }
 
   private isMcpToolEnabled(name: string): boolean {
-    return this.mcpAccessPatterns.some((pattern) => picomatch.isMatch(name, pattern));
+    return isMcpToolEnabled(this, name);
   }
 
   *toolInfos(): Iterable<ToolInfo> {
@@ -504,345 +254,15 @@ export class ToolManager {
   }
 
   initializeBuiltinTools() {
-    const {
-      kaos,
-      toolServices,
-      config: { cwd, provider, modelCapabilities },
-      background,
-    } = this.agent;
-    const videoUploader = this.createVideoUploader(provider);
-    const workspace = extendWorkspaceWithSkillRoots(
-      {
-        workspaceDir: cwd,
-        additionalDirs: this.agent.getAdditionalDirs(),
-        sandboxProfile: this.agent.sandboxProfile,
-      },
-      this.agent.skills?.registry.getSkillRoots() ?? [],
-    );
-    const allowBackground =
-      this.enabledTools.has('TaskList') &&
-      this.enabledTools.has('TaskOutput') &&
-      this.enabledTools.has('TaskStop');
-    const goalToolsEnabled = this.agent.type === 'main';
-    this.builtinTools = new Map(
-      [
-        ...this.createFileAndContextTools(
-          kaos,
-          workspace,
-          cwd,
-          background,
-          allowBackground,
-          modelCapabilities,
-          videoUploader,
-        ),
-        ...this.createPlanningGoalAndStateTools(background, goalToolsEnabled),
-        ...this.createSkillAndSubagentTools(background, allowBackground),
-        ...this.createGuiAndWebTools(toolServices),
-      ]
-        .filter((tool) => !!tool)
-        .map((tool) => [tool.name, tool] as const),
-    );
-  }
-
-  private createFileAndContextTools(
-    kaos: Agent['kaos'],
-    workspace: {
-      workspaceDir: string;
-      additionalDirs: readonly string[];
-      sandboxProfile?: Agent['sandboxProfile'];
-    },
-    cwd: string,
-    background: Agent['background'],
-    allowBackground: boolean,
-    modelCapabilities: Agent['config']['modelCapabilities'],
-    videoUploader: b.VideoUploader | undefined,
-  ): Array<BuiltinTool | false | undefined> {
-    const readMediaVisionFallback = this.buildReadMediaVisionFallback();
-    return [
-      this.shouldCreateBuiltin('Read') && new b.ReadTool(kaos, workspace),
-      this.shouldCreateBuiltin('Write') &&
-        new b.WriteTool(kaos, workspace, {
-          fileSnapshots: this.agent.fileSnapshots,
-          getTurnId: () =>
-            this.agent.turn.currentId !== undefined ? String(this.agent.turn.currentId) : undefined,
-          getSwarmLease: () => this.agent.swarmFileLease,
-        }),
-      this.shouldCreateBuiltin('Edit') &&
-        new b.EditTool(kaos, workspace, {
-          fileSnapshots: this.agent.fileSnapshots,
-          getTurnId: () =>
-            this.agent.turn.currentId !== undefined ? String(this.agent.turn.currentId) : undefined,
-          getSwarmLease: () => this.agent.swarmFileLease,
-        }),
-      this.shouldCreateBuiltin('Grep') && new b.GrepTool(kaos, workspace, this.agent.telemetry),
-      this.shouldCreateBuiltin('Glob') && new b.GlobTool(kaos, workspace, this.agent.telemetry),
-      this.shouldCreateBuiltin('LioraRead') && new b.LioraReadTool(kaos, workspace, this.toolStore),
-      this.shouldCreateBuiltin('LioraTree') && new b.LioraTreeTool(kaos, workspace),
-      this.shouldCreateBuiltin('LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
-      this.shouldCreateBuiltin('LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
-      this.shouldCreateBuiltin('LioraExpand') && new b.LioraExpandTool(this.toolStore),
-      this.shouldCreateBuiltin('Bash') &&
-        new b.BashTool(kaos, cwd, background, {
-          allowBackground,
-          store: this.toolStore,
-        }),
-      this.shouldCreateBuiltin('RunProjectChecks') &&
-        new b.RunProjectChecksTool(kaos, cwd, { store: this.toolStore }),
-      this.shouldCreateBuiltin('ReadMediaFile') &&
-        (modelCapabilities.image_in ||
-          modelCapabilities.video_in ||
-          readMediaVisionFallback !== undefined) &&
-        new b.ReadMediaFileTool(
-          kaos,
-          workspace,
-          modelCapabilities,
-          videoUploader,
-          readMediaVisionFallback,
-        ),
-      this.shouldCreateBuiltin('GenerateImage') &&
-        b.isGenerateImageAvailable(this.resolveMediaProviderEnv()) &&
-        new b.GenerateImageTool(kaos, workspace, this.resolveMediaProviderEnv()),
-      this.shouldCreateBuiltin('GenerateVideo') &&
-        b.isGenerateVideoAvailable(this.resolveMediaProviderEnv()) &&
-        new b.GenerateVideoTool(kaos, workspace, this.resolveMediaProviderEnv()),
-      this.shouldCreateBuiltin('LioraReview') && b.createLioraReviewTool(kaos, this.agent),
-      this.shouldCreateBuiltin('VisualDiff') && createVisualDiffTool(kaos),
-    ];
-  }
-
-  /**
-   * Vision analyzer fallback for ReadMediaFile on text-only models.
-   * Undefined when policy is 'block' or no provider manager is attached;
-   * 'path' returns a closure that yields undefined so the tool emits a
-   * path-only note; 'analyze' renders the media with a vision model.
-   */
-  private buildReadMediaVisionFallback(): b.ReadMediaVisionFallback | undefined {
-    const agent = this.agent;
-    const providerManager = agent.modelProvider;
-    if (!(providerManager instanceof ProviderManager)) return undefined;
-    const policy = agent.kimiConfig?.media?.nonVisionFallback ?? 'analyze';
-    if (policy === 'block') return undefined;
-    return async ({ kind, dataUrl }) => {
-      if (policy !== 'analyze') return undefined;
-      const part: ContentPart =
-        kind === 'video'
-          ? { type: 'video_url', videoUrl: { url: dataUrl } }
-          : { type: 'image_url', imageUrl: { url: dataUrl } };
-      const result = await analyzeMediaPart(
-        {
-          generate: agent.generate,
-          providerManager,
-          currentModelAlias: agent.config.modelAlias,
-          currentCapabilities: agent.config.modelCapabilities,
-        },
-        part,
-      );
-      return result?.text;
-    };
-  }
-
-  private resolveMediaProviderEnv(): b.GenerateImageProviderEnv & b.GenerateVideoProviderEnv {
-    const services = this.agent.toolServices;
-    return {
-      xaiGrokBuild: services?.xaiGrokBuild,
-      xaiApiKey: nonEmptyEnv('XAI_API_KEY'),
-      openaiApiKey: nonEmptyEnv('OPENAI_API_KEY'),
-      googleApiKey: nonEmptyEnv('GOOGLE_API_KEY') ?? nonEmptyEnv('GEMINI_API_KEY'),
-      qwenTokenPlanApiKey: nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY'),
-    };
-  }
-
-  private createPlanningGoalAndStateTools(
-    background: Agent['background'],
-    goalToolsEnabled: boolean,
-  ): Array<BuiltinTool | false | undefined> {
-    const hasQuestionTool = this.agent.rpc?.requestQuestion !== undefined;
-    const hasMemoryTool = this.agent.memory?.isEnabled() === true;
-    const hasCron = this.agent.cron !== null && this.agent.cron !== undefined;
-    return [
-      this.shouldCreateBuiltin('EnterPlanMode') && new b.EnterPlanModeTool(this.agent),
-      this.shouldCreateBuiltin('ExitPlanMode') && new b.ExitPlanModeTool(this.agent),
-      this.shouldCreateBuiltin('NextPhase') && new b.NextPhaseTool(this.agent),
-      this.shouldCreateBuiltin('RecordInterviewFinding') &&
-        new b.RecordInterviewFindingTool(this.agent),
-      goalToolsEnabled &&
-        this.shouldCreateBuiltin('CreateGoal') &&
-        new b.CreateGoalTool(this.agent),
-      goalToolsEnabled &&
-        this.shouldCreateBuiltin('CreateUltraGoal') &&
-        new b.CreateUltraGoalTool(this.agent),
-      goalToolsEnabled && this.shouldCreateBuiltin('GetGoal') && new b.GetGoalTool(this.agent),
-      goalToolsEnabled &&
-        this.shouldCreateBuiltin('SetGoalBudget') &&
-        new b.SetGoalBudgetTool(this.agent),
-      goalToolsEnabled &&
-        this.shouldCreateBuiltin('UpdateGoal') &&
-        new b.UpdateGoalTool(this.agent),
-      this.shouldCreateBuiltin('GetCurrentTime') && new b.GetCurrentTimeTool(),
-      hasQuestionTool &&
-        this.shouldCreateBuiltin('AskUserQuestion') &&
-        new b.AskUserQuestionTool(this.agent),
-      this.shouldCreateBuiltin('TodoList') && new b.TodoListTool(this.toolStore),
-      this.shouldCreateBuiltin('UltraworkGraph') &&
-        new b.UltraworkGraphTool(this.toolStore, this.agent),
-      hasMemoryTool && this.shouldCreateBuiltin('Memory') && new b.MemoryTool(this.agent.memory!),
-      this.shouldCreateBuiltin('TaskList') && new b.TaskListTool(background),
-      this.shouldCreateBuiltin('TaskOutput') && new b.TaskOutputTool(background),
-      this.shouldCreateBuiltin('TaskStop') && new b.TaskStopTool(background),
-      hasCron && this.shouldCreateBuiltin('CronCreate') && new b.CronCreateTool(this.agent.cron!),
-      hasCron && this.shouldCreateBuiltin('CronList') && new b.CronListTool(this.agent.cron!),
-      hasCron && this.shouldCreateBuiltin('CronDelete') && new b.CronDeleteTool(this.agent.cron!),
-    ];
-  }
-
-  private createSkillAndSubagentTools(
-    background: Agent['background'],
-    allowBackground: boolean,
-  ): Array<BuiltinTool | false | undefined> {
-    // Profile gating (shouldCreateBuiltin) is independent of invocable presence.
-    // Do not OR shouldCreateBuiltin into this — empty enabledTools makes it always
-    // true and would re-expose Skill/SearchSkill with no registry / no invocables.
-    // Deferred catalog load still works: registerBuiltinSkills + project skills
-    // usually provide invocables at start; tools call ensureCatalogLoaded on use.
-    const hasInvocableSkills =
-      (this.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
-    return [
-      this.shouldCreateBuiltin('SearchTools') && new b.SearchToolsTool(this.agent),
-      hasInvocableSkills && this.shouldCreateBuiltin('Skill') && new b.SkillTool(this.agent),
-      hasInvocableSkills &&
-        this.shouldCreateBuiltin('SearchSkill') &&
-        new b.SearchSkillTool(this.agent),
-      this.agent.subagentHost &&
-        this.shouldCreateBuiltin('Agent') &&
-        new b.AgentTool(
-          this.agent.subagentHost,
-          background,
-          DEFAULT_AGENT_PROFILES['agent']?.subagents,
-          {
-            allowBackground,
-            log: this.agent.log,
-          },
-        ),
-      this.agent.subagentHost &&
-        this.shouldCreateBuiltin('SearchExpert') &&
-        new b.SearchExpertTool(),
-      this.agent.subagentHost &&
-        this.shouldCreateBuiltin('AgentSwarm') &&
-        new b.AgentSwarmTool(this.agent.subagentHost, this.agent.swarmMode, this.toolStore),
-      this.agent.subagentHost &&
-        this.shouldCreateBuiltin('UltraSwarm') &&
-        new b.UltraSwarmTool(
-          this.agent.subagentHost,
-          this.agent.swarmMode,
-          this.toolStore,
-          this.agent,
-        ),
-    ];
-  }
-
-  private createGuiAndWebTools(
-    toolServices: Agent['toolServices'],
-  ): Array<BuiltinTool | false | undefined> {
-    return [
-      toolServices?.browserUse &&
-        this.shouldCreateBuiltin('BrowserStatus') &&
-        new b.BrowserStatusTool(toolServices.browserUse),
-      toolServices?.browserUse &&
-        this.shouldCreateBuiltin('BrowserObserve') &&
-        new b.BrowserObserveTool(toolServices.browserUse),
-      toolServices?.browserUse &&
-        this.shouldCreateBuiltin('BrowserScreenshot') &&
-        new b.BrowserScreenshotTool(toolServices.browserUse),
-      toolServices?.browserUse &&
-        this.shouldCreateBuiltin('BrowserAct') &&
-        new b.BrowserActTool(toolServices.browserUse),
-      toolServices?.browserUse &&
-        this.shouldCreateBuiltin('BrowserConsole') &&
-        new b.BrowserConsoleTool(toolServices.browserUse),
-      // Always register when profile allows: missing runtime returns a clear error, never a fake pass.
-      this.shouldCreateBuiltin('VerifySurface') &&
-        new b.VerifySurfaceTool(toolServices?.browserUse, {
-          kaos: this.agent.kaos,
-          cwd: this.agent.config.cwd,
-        }),
-      toolServices?.computerUse &&
-        this.shouldCreateBuiltin('ComputerCapture') &&
-        new b.ComputerCaptureTool(toolServices.computerUse),
-      toolServices?.computerUse &&
-        this.shouldCreateBuiltin('ComputerAct') &&
-        new b.ComputerActTool(toolServices.computerUse),
-      toolServices?.computerUse &&
-        this.shouldCreateBuiltin('ComputerStatus') &&
-        new b.ComputerStatusTool(toolServices.computerUse),
-      toolServices?.webSearcher &&
-        this.shouldCreateBuiltin('WebSearch') &&
-        new b.WebSearchTool(toolServices.webSearcher),
-      toolServices?.urlFetcher &&
-        this.shouldCreateBuiltin('FetchURL') &&
-        new b.FetchURLTool(toolServices.urlFetcher),
-      toolServices?.context7 &&
-        this.shouldCreateBuiltin('Context7Resolve') &&
-        new b.Context7ResolveTool(toolServices.context7),
-      toolServices?.context7 &&
-        this.shouldCreateBuiltin('Context7Docs') &&
-        new b.Context7DocsTool(toolServices.context7),
-    ];
-  }
-
-  /**
-   * When no active profile tools are set yet (bootstrap / tests), create the
-   * full builtin set. Once setActiveTools runs, only the active profile tools
-   * are instantiated.
-   */
-  private shouldCreateBuiltin(name: string): boolean {
-    if (this.enabledTools.size === 0) return true;
-    return this.enabledTools.has(name);
+    this.builtinTools = buildBuiltinTools(this);
   }
 
   refreshBuiltinTools(): void {
     this.initializeBuiltinTools();
   }
 
-  private createVideoUploader(provider: ChatProvider): b.VideoUploader | undefined {
-    const uploadVideo = provider.uploadVideo?.bind(provider);
-    if (uploadVideo === undefined) return undefined;
-
-    const modelAlias = this.agent.config.modelAlias!;
-    const withAuth = this.agent.modelProvider?.resolveAuth?.(modelAlias, {
-      log: this.agent.log,
-    });
-    if (withAuth === undefined) return (input) => uploadVideo(input);
-    return (input) => withAuth((auth) => uploadVideo(input, { auth }));
-  }
-
   get loopTools(): readonly ExecutableTool[] {
-    if (this.loopToolsOverride !== undefined) return this.loopToolsOverride;
-    const mcpNames = [...this.mcpTools.keys()].filter((name) => this.isMcpToolEnabled(name));
-    // Cache-stability: mode-gated tools are ALWAYS included in the serialized
-    // tool block regardless of active mode. Removing/adding tools between turns
-    // rewrites the tool block bytes and busts the provider's prefix cache for
-    // all subsequent messages. The model is guided by mode injections
-    // (PlanModeInjector, GoalInjector, etc.) to avoid calling inactive tools;
-    // the execution layer returns a clear error if called out-of-mode.
-    // Gated tools are sorted to the tail so the stable prefix is maximized.
-    return uniq([...this.enabledTools, ...mcpNames])
-      .toSorted((a, b) => {
-        const aGated = CACHE_GATED_TOOLS.has(a) ? 1 : 0;
-        const bGated = CACHE_GATED_TOOLS.has(b) ? 1 : 0;
-        if (aGated !== bGated) return aGated - bGated;
-        // Byte-wise (locale-independent) sort so the serialized tool order is
-        // identical across environments/ICU versions, keeping the prompt-cache
-        // tools block stable instead of varying with the host locale.
-        return a < b ? -1 : a > b ? 1 : 0;
-      })
-      .map(
-        (name) =>
-          this.userTools.get(name) ??
-          this.mcpTools.get(name)?.tool ??
-          this.ephemeralBuiltinTools.get(name) ??
-          this.builtinTools.get(name),
-      )
-      .filter((tool) => !!tool);
+    return resolveLoopTools(this);
   }
 
   private lastVisualGateDensity: 'visual' | 'code' | undefined;
@@ -853,60 +273,6 @@ export class ToolManager {
    * tool inclusion — all tools are always present for cache stability.
    */
   private hideVisualDensityTools(): boolean {
-    if (!this.agent.premiumQuality.isEnabled()) {
-      this.lastVisualGateDensity = undefined;
-      this.pendingVisualGateDensityCount = 0;
-      return false;
-    }
-    const density = resolveActivePremiumDensity(this.agent);
-    if (density === this.lastVisualGateDensity) {
-      this.pendingVisualGateDensityCount = 0;
-    } else {
-      this.pendingVisualGateDensityCount += 1;
-      if (this.pendingVisualGateDensityCount >= VISUAL_DENSITY_HYSTERESIS) {
-        this.lastVisualGateDensity = density;
-        this.pendingVisualGateDensityCount = 0;
-      }
-    }
-    const effective = this.lastVisualGateDensity ?? density;
-    return effective === 'code';
+    return hideVisualDensityTools(this);
   }
-}
-
-/**
- * Visual-surface tools previously gated on Premium density. Now always
- * included for cache stability; kept as a reference set for telemetry.
- */
-const VISUAL_DENSITY_TOOLS = new Set([
-  'GenerateImage',
-  'GenerateVideo',
-  'VerifySurface',
-  'VisualDiff',
-]);
-
-/**
- * Mode-gated tools sorted to the tail of the tool block. Their presence is
- * constant across turns (never filtered) so the prefix cache is preserved;
- * sorting them last maximizes the stable prefix length for providers that
- * cache the tools array head.
- */
-const CACHE_GATED_TOOLS = new Set([
-  'ExitPlanMode',
-  'GenerateImage',
-  'GenerateVideo',
-  'NextPhase',
-  'RecordInterviewFinding',
-  'SetGoalBudget',
-  'UltraworkGraph',
-  'UpdateGoal',
-  'VerifySurface',
-  'VisualDiff',
-]);
-
-/** Consecutive observations required before a density flip is recorded. */
-const VISUAL_DENSITY_HYSTERESIS = 3;
-
-function nonEmptyEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value !== undefined && value.length > 0 ? value : undefined;
 }
