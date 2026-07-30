@@ -4,32 +4,17 @@ import type { AgentGroupComponent } from '../components/messages/agent-group';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';
 import type { CompactionComponent } from '../components/dialogs/compaction';
 import type { ReadGroupComponent } from '../components/messages/read-group';
-import { ThinkingComponent } from '../components/messages/thinking';
+import type { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
-import { isGenericToolResult } from '../components/messages/tool-renderers/registry';
-import {
-  STREAMING_UI_FLUSH_BURST_DELTAS,
-  STREAMING_UI_FLUSH_MAX_MS,
-  STREAMING_UI_FLUSH_MS,
-} from '../constant/streaming';
-import {
-  appearanceAnimationNow,
-} from '../utils/appearance-effects';
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
-import { isMotionTheatreActive, type MotionBeatController } from '../utils/motion-beats';
-import { nextStreamingFlushDelay } from '../utils/streaming-flush-schedule';
+import { type MotionBeatController } from '../utils/motion-beats';
 import {
   createStreamingTextRevealState,
   resetRevealState,
-  setRevealTarget,
-  snapRevealToTarget,
-  tickReveal,
-  visibleText,
 } from '../utils/streaming-text-reveal';
 import { notifyUserAttentionOnce } from '../utils/terminal-notification';
-import { nextTranscriptId } from '../utils/transcript-id';
 import type { TodoItem } from '../components/chrome/todo-panel';
 import type {
   AppState,
@@ -40,13 +25,12 @@ import type {
   TranscriptEntry,
 } from '../types';
 import type { TUIState } from '../tui-state';
-import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/frame-render';
+import { requestTUILayoutRender } from '#/tui/utils/frame-render';
 import {
   applyBackgroundTaskTerminalStatus as applyBackgroundTaskTerminalStatusHelper,
   markSubagentBackgrounded as markSubagentBackgroundedHelper,
 } from './streaming-ui-background-agent';
 import {
-  ensureChainSummary as ensureChainSummaryHelper,
   settleActiveChainSummary as settleActiveChainSummaryHelper,
   type ChainSummaryState,
 } from './streaming-ui-chain-summary';
@@ -58,6 +42,16 @@ import {
   updateCompactionProgress as updateCompactionProgressHelper,
 } from './streaming-ui-compaction';
 import {
+  clearFlushTimerIfIdle as clearFlushTimerIfIdleHelper,
+  createStreamingFlushState,
+  discardPendingFlush as discardPendingFlushHelper,
+  flushNow as flushNowHelper,
+  hasPendingFlush,
+  runPendingFlush,
+  scheduleFlush as scheduleFlushHelper,
+  type StreamingFlushState,
+} from './streaming-ui-flush';
+import {
   clearRevealTimer as clearRevealTimerHelper,
   resetRevealChannels as resetRevealChannelsHelper,
   rescheduleRevealTimer as rescheduleRevealTimerHelper,
@@ -65,10 +59,26 @@ import {
   type StreamingRevealContext,
 } from './streaming-ui-reveal';
 import {
-  tryAttachAgentToolCall as attachAgentToolCall,
-  tryAttachReadToolCall as attachReadToolCall,
+  onStreamingTextEnd as onStreamingTextEndHelper,
+  onStreamingTextStart as onStreamingTextStartHelper,
+  onStreamingTextUpdate as onStreamingTextUpdateHelper,
+  onThinkingEnd as onThinkingEndHelper,
+  onThinkingUpdate as onThinkingUpdateHelper,
+  type StreamingTextBlock,
+  type TextRenderContext,
+} from './streaming-ui-text-render';
+import {
+  flushToolCallPreview as flushToolCallPreviewHelper,
+  onToolCallEnd as onToolCallEndHelper,
+  onToolCallStart as onToolCallStartHelper,
+  type ToolRenderContext,
+} from './streaming-ui-tool-render';
+import {
   type PendingToolGroup,
 } from './streaming-ui-tool-groups';
+import {
+  appearanceAnimationNow,
+} from '../utils/appearance-effects';
 
 export interface StreamingUIHost {
   state: TUIState;
@@ -87,15 +97,8 @@ export interface StreamingUIHost {
 }
 
 export class StreamingUIController {
-  private flushTimer: ReturnType<typeof setTimeout> | undefined;
-  private lastFlushAt: number | undefined;
-  /** Scheduled fire time (ms epoch) of the pending flushTimer, if any. */
-  private scheduledFlushAt: number | undefined;
-  /** Dirty marks since the last flush; drives adaptive burst coalescing. */
-  private dirtyMarksSinceFlush = 0;
-  private pendingAssistantFlush = false;
-  private pendingThinkingFlush = false;
-  readonly pendingToolCallFlushIds = new Set<string>();
+  private readonly _flushState: StreamingFlushState = createStreamingFlushState();
+  readonly pendingToolCallFlushIds = this._flushState.pendingToolCallFlushIds;
 
   /**
    * Shared catch-up reveal timer for assistant + thinking display lag.
@@ -119,7 +122,7 @@ export class StreamingUIController {
   private turnStartCueArmed = false;
   private _assistantDraft = '';
   private _thinkingDraft = '';
-  private _streamingBlock: { component: AssistantMessageComponent; entry: TranscriptEntry } | null = null;
+  private _streamingBlock: StreamingTextBlock | null = null;
   private _activeThinkingComponent: ThinkingComponent | undefined = undefined;
   private _activeCompactionBlock: CompactionComponent | undefined = undefined;
   private _activeToolCalls = new Map<string, ToolCallBlockData>();
@@ -170,8 +173,8 @@ export class StreamingUIController {
 
   appendThinkingDelta(delta: string): void {
     this._thinkingDraft += delta;
-    this.pendingThinkingFlush = true;
-    this.dirtyMarksSinceFlush += 1;
+    this._flushState.pendingThinkingFlush = true;
+    this._flushState.dirtyMarksSinceFlush += 1;
   }
 
   appendAssistantDelta(delta: string): void {
@@ -179,8 +182,8 @@ export class StreamingUIController {
       this.onStreamingTextStart();
     }
     this._assistantDraft += delta;
-    this.pendingAssistantFlush = true;
-    this.dirtyMarksSinceFlush += 1;
+    this._flushState.pendingAssistantFlush = true;
+    this._flushState.dirtyMarksSinceFlush += 1;
   }
 
   hasThinkingDraft(): boolean {
@@ -274,7 +277,7 @@ export class StreamingUIController {
   registerToolCall(toolCall: ToolCallBlockData): boolean {
     const existing = this._activeToolCalls.get(toolCall.id);
     this._activeToolCalls.set(toolCall.id, toolCall);
-    this.pendingToolCallFlushIds.delete(toolCall.id);
+    this._flushState.pendingToolCallFlushIds.delete(toolCall.id);
     this._streamingToolCallArguments.delete(toolCall.id);
     const existingComponent = this._pendingToolComponents.get(toolCall.id);
     if (existingComponent !== undefined) {
@@ -299,8 +302,8 @@ export class StreamingUIController {
     const name = eventName ?? existing?.name ?? this._activeToolCalls.get(id)?.name ?? 'Tool';
     const startedAtMs = existing?.startedAtMs ?? Date.now();
     this._streamingToolCallArguments.set(id, { name, argumentsText, startedAtMs });
-    this.pendingToolCallFlushIds.add(id);
-    this.dirtyMarksSinceFlush += 1;
+    this._flushState.pendingToolCallFlushIds.add(id);
+    this._flushState.dirtyMarksSinceFlush += 1;
   }
 
   getStreamingToolCallPreview(
@@ -362,7 +365,7 @@ export class StreamingUIController {
     this._currentTurnId = undefined;
     this._currentStep = 0;
     this._streamingToolCallArguments.clear();
-    this.pendingToolCallFlushIds.clear();
+    this._flushState.pendingToolCallFlushIds.clear();
     requestTUILayoutRender(this.host.state);
   }
 
@@ -398,94 +401,51 @@ export class StreamingUIController {
   // ---------------------------------------------------------------------------
 
   hasPending(): boolean {
-    return (
-      this.pendingAssistantFlush ||
-      this.pendingThinkingFlush ||
-      this.pendingToolCallFlushIds.size > 0
-    );
+    return hasPendingFlush(this._flushState);
   }
 
   clearFlushTimer(): void {
-    if (this.flushTimer === undefined) return;
-    clearTimeout(this.flushTimer);
-    this.flushTimer = undefined;
-    this.scheduledFlushAt = undefined;
-  }
-
-  private clearFlushTimerIfIdle(): void {
-    if (this.hasPending()) return;
-    this.clearFlushTimer();
-    this.dirtyMarksSinceFlush = 0;
+    if (this._flushState.flushTimer === undefined) return;
+    clearTimeout(this._flushState.flushTimer);
+    this._flushState.flushTimer = undefined;
+    this._flushState.scheduledFlushAt = undefined;
   }
 
   discardPending(): void {
-    this.clearFlushTimer();
+    discardPendingFlushHelper(this._flushState);
     this.resetRevealChannelsInternal();
-    this.pendingAssistantFlush = false;
-    this.pendingThinkingFlush = false;
-    this.pendingToolCallFlushIds.clear();
-    this.dirtyMarksSinceFlush = 0;
   }
 
   scheduleFlush(): void {
-    if (!this.hasPending()) return;
-    const now = Date.now();
-    const delay = nextStreamingFlushDelay({
-      now,
-      lastFlushAt: this.lastFlushAt,
-      pendingDeltaCount: this.dirtyMarksSinceFlush,
-      baseMs: STREAMING_UI_FLUSH_MS,
-      maxMs: STREAMING_UI_FLUSH_MAX_MS,
-      burstThreshold: STREAMING_UI_FLUSH_BURST_DELTAS,
-    });
-    const fireAt = now + delay;
-    if (this.flushTimer !== undefined) {
-      // A burst may stretch the window later; never pull a scheduled flush
-      // earlier than the fire time we already promised.
-      if (fireAt <= (this.scheduledFlushAt ?? Number.POSITIVE_INFINITY)) return;
-      this.clearFlushTimer();
-    }
-    this.scheduledFlushAt = fireAt;
-    this.flushTimer = setTimeout(() => {
-      this.flushTimer = undefined;
-      this.scheduledFlushAt = undefined;
-      this.flush();
-    }, delay);
+    scheduleFlushHelper(this._flushState, () => this.flush());
   }
 
   flushNow(): void {
-    this.clearFlushTimer();
-    this.flush();
+    flushNowHelper(this._flushState, () => this.flush());
   }
 
   private flush(): void {
-    if (!this.hasPending()) return;
-    this.lastFlushAt = Date.now();
-    const shouldFlushThinking = this.pendingThinkingFlush;
-    const shouldFlushAssistant = this.pendingAssistantFlush;
-    const toolCallIds = [...this.pendingToolCallFlushIds];
-    this.pendingThinkingFlush = false;
-    this.pendingAssistantFlush = false;
-    this.pendingToolCallFlushIds.clear();
-    this.dirtyMarksSinceFlush = 0;
-
-    if (shouldFlushThinking && this._thinkingDraft.length > 0) {
-      this.onThinkingUpdate(this._thinkingDraft);
-    }
-    if (shouldFlushAssistant) {
-      this.onStreamingTextUpdate(this._assistantDraft);
-    }
-    for (const id of toolCallIds) {
-      this.flushToolCallPreview(id);
-    }
+    runPendingFlush(this._flushState, {
+      onThinkingFlush: () => {
+        if (this._thinkingDraft.length > 0) {
+          this.onThinkingUpdate(this._thinkingDraft);
+        }
+      },
+      onAssistantFlush: () => {
+        this.onStreamingTextUpdate(this._assistantDraft);
+      },
+      onToolCallFlush: (id) => {
+        this.flushToolCallPreview(id);
+      },
+    });
   }
 
   markAssistantDirty(): void {
-    this.pendingAssistantFlush = true;
+    this._flushState.pendingAssistantFlush = true;
   }
 
   markThinkingDirty(): void {
-    this.pendingThinkingFlush = true;
+    this._flushState.pendingThinkingFlush = true;
   }
 
   // ---------------------------------------------------------------------------
@@ -510,9 +470,9 @@ export class StreamingUIController {
   }
 
   resetLiveText(): void {
-    this.pendingAssistantFlush = false;
-    this.pendingThinkingFlush = false;
-    this.clearFlushTimerIfIdle();
+    this._flushState.pendingAssistantFlush = false;
+    this._flushState.pendingThinkingFlush = false;
+    clearFlushTimerIfIdleHelper(this._flushState);
     this.resetRevealChannelsInternal();
     this._assistantDraft = '';
     this._streamingBlock = null;
@@ -521,8 +481,8 @@ export class StreamingUIController {
   }
 
   resetToolUi(): void {
-    this.pendingToolCallFlushIds.clear();
-    this.clearFlushTimerIfIdle();
+    this._flushState.pendingToolCallFlushIds.clear();
+    clearFlushTimerIfIdleHelper(this._flushState);
     this._streamingToolCallArguments.clear();
     this.disposeAndClearPendingToolComponents();
     this._pendingAgentGroup = null;
@@ -577,235 +537,31 @@ export class StreamingUIController {
   // ---------------------------------------------------------------------------
 
   onStreamingTextStart(): void {
-    const { state } = this.host;
-    // The answer phase begins: the minimal-density tool chain summary (if
-    // any) switches to its settled past-tense form.
-    this.settleActiveChainSummary();
-    this._pendingAgentGroup = null;
-    this._pendingReadGroup = null;
-    this.revealRuntime.channels.assistantReveal = resetRevealState(Date.now());
-    rescheduleRevealTimerHelper(this.revealContext());
-    const entry = {
-      id: nextTranscriptId(),
-      kind: 'assistant' as const,
-      turnId: this._currentTurnId,
-      renderMode: 'markdown' as const,
-      content: '',
-    };
-    const component = new AssistantMessageComponent();
-    if (this.turnStartCueArmed) {
-      this.turnStartCueArmed = false;
-      component.markTurnStartCue(appearanceAnimationNow());
-    }
-    this._streamingBlock = { component, entry };
-    this.host.pushTranscriptEntry(entry);
-    state.transcriptContainer.addChild(component);
-    requestTUILayoutRender(state);
+    onStreamingTextStartHelper(this.textRenderContext());
   }
 
   onStreamingTextUpdate(fullText: string): void {
-    const block = this._streamingBlock;
-    if (block === null) return;
-
-    // Truth source: full server draft always lives on the transcript entry.
-    block.entry.content = fullText;
-    const nowMs = Date.now();
-
-    if (!this.shouldSmoothStreamReveal()) {
-      this.revealRuntime.channels.assistantReveal = snapRevealToTarget(
-        setRevealTarget(this.revealRuntime.channels.assistantReveal, fullText, nowMs),
-        nowMs,
-      );
-      block.component.updateContent(fullText, { transient: true });
-      requestTUIContentRender(this.host.state);
-      rescheduleRevealTimerHelper(this.revealContext());
-      return;
-    }
-
-    this.revealRuntime.channels.assistantReveal = setRevealTarget(this.revealRuntime.channels.assistantReveal, fullText, nowMs);
-    // Immediate tick so the first chunk is not delayed until the timer fires.
-    this.revealRuntime.channels.assistantReveal = tickReveal(this.revealRuntime.channels.assistantReveal, nowMs);
-    block.component.updateContent(visibleText(this.revealRuntime.channels.assistantReveal), { transient: true });
-    requestTUIContentRender(this.host.state);
-    rescheduleRevealTimerHelper(this.revealContext());
+    onStreamingTextUpdateHelper(this.textRenderContext(), fullText);
   }
 
   onStreamingTextEnd(): void {
-    const block = this._streamingBlock;
-    if (block !== null) {
-      // Snap any lagging reveal so finalize never leaves a partial body.
-      const nowMs = Date.now();
-      this.revealRuntime.channels.assistantReveal = snapRevealToTarget(
-        setRevealTarget(this.revealRuntime.channels.assistantReveal, block.entry.content, nowMs),
-        nowMs,
-      );
-      block.component.updateContent(block.entry.content, { transient: false });
-    }
-    this._streamingBlock = null;
-    this.revealRuntime.channels.assistantReveal = resetRevealState();
-    rescheduleRevealTimerHelper(this.revealContext());
+    onStreamingTextEndHelper(this.textRenderContext());
   }
 
   onThinkingUpdate(fullText: string): void {
-    if (fullText.length === 0 && this._activeThinkingComponent === undefined) return;
-    const { state } = this.host;
-    const nowMs = Date.now();
-
-    if (!this.shouldSmoothStreamReveal()) {
-      this.revealRuntime.channels.thinkingReveal = snapRevealToTarget(
-        setRevealTarget(this.revealRuntime.channels.thinkingReveal, fullText, nowMs),
-        nowMs,
-      );
-      if (this._activeThinkingComponent === undefined) {
-        this._pendingAgentGroup = null;
-        this._pendingReadGroup = null;
-        this._activeThinkingComponent = new ThinkingComponent(
-          fullText,
-          true,
-          'live',
-          state.ui,
-        );
-        if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
-        state.transcriptContainer.addChild(this._activeThinkingComponent);
-        requestTUILayoutRender(state);
-        rescheduleRevealTimerHelper(this.revealContext());
-        return;
-      }
-      this._activeThinkingComponent.setText(fullText);
-      requestTUIContentRender(state);
-      rescheduleRevealTimerHelper(this.revealContext());
-      return;
-    }
-
-    this.revealRuntime.channels.thinkingReveal = setRevealTarget(this.revealRuntime.channels.thinkingReveal, fullText, nowMs);
-    this.revealRuntime.channels.thinkingReveal = tickReveal(this.revealRuntime.channels.thinkingReveal, nowMs);
-    const shown = visibleText(this.revealRuntime.channels.thinkingReveal);
-
-    if (this._activeThinkingComponent === undefined) {
-      this._pendingAgentGroup = null;
-      this._pendingReadGroup = null;
-      this._activeThinkingComponent = new ThinkingComponent(shown, true, 'live', state.ui);
-      if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
-      state.transcriptContainer.addChild(this._activeThinkingComponent);
-      requestTUILayoutRender(state);
-      rescheduleRevealTimerHelper(this.revealContext());
-      return;
-    }
-
-    this._activeThinkingComponent.setText(shown);
-    requestTUIContentRender(state);
-    rescheduleRevealTimerHelper(this.revealContext());
+    onThinkingUpdateHelper(this.textRenderContext(), fullText);
   }
 
   onThinkingEnd(): void {
-    if (this._activeThinkingComponent === undefined) return;
-    const nowMs = Date.now();
-    // Snap full thinking body before finalize so collapsed previews are complete.
-    this.revealRuntime.channels.thinkingReveal = snapRevealToTarget(this.revealRuntime.channels.thinkingReveal, nowMs);
-    if (this.revealRuntime.channels.thinkingReveal.target.length > 0) {
-      this._activeThinkingComponent.setText(this.revealRuntime.channels.thinkingReveal.target);
-    }
-    this._activeThinkingComponent.finalize();
-    this._activeThinkingComponent = undefined;
-    this.revealRuntime.channels.thinkingReveal = resetRevealState();
-    rescheduleRevealTimerHelper(this.revealContext());
-    requestTUILayoutRender(this.host.state);
-    this.host.mergeCurrentTurnSteps();
+    onThinkingEndHelper(this.textRenderContext());
   }
 
   onToolCallStart(toolCall: ToolCallBlockData): void {
-    if (toolCall.name === 'AskUserQuestion') return;
-
-    const { state } = this.host;
-    const tc = new ToolCallComponent(
-      toolCall,
-      undefined,
-      state.ui,
-      state.appState.workDir,
-      state.toolOutputViewports,
-    );
-    if (state.toolOutputExpanded) tc.setExpanded(true);
-    tc.setDetail(state.transcriptDetail);
-    this._pendingToolComponents.set(toolCall.id, tc);
-    if (state.transcriptDetail === 'minimal') {
-      // Mounts before this tool card is appended, so the aggregate line
-      // leads the turn's one-line tool block.
-      ensureChainSummaryHelper(state, this._chainSummary).setCurrentLabel(toolCall.name);
-    }
-
-    if (toolCall.name !== 'Agent') this._pendingAgentGroup = null;
-    if (toolCall.name !== 'Read') this._pendingReadGroup = null;
-
-    let handled = this.tryAttachAgentToolCall(toolCall, tc);
-    if (!handled) handled = this.tryAttachReadToolCall(toolCall, tc);
-    if (!handled) {
-      state.transcriptContainer.addChild(tc);
-      requestTUILayoutRender(state);
-    }
-
-    if (toolCall.name === 'ExitPlanMode' && typeof toolCall.args['plan'] !== 'string') {
-      const session = this.host.requireSession();
-      void (async () => {
-        try {
-          const plan = await session.getPlan();
-          tc.setPlanInfo(plan === null ? {} : { plan: plan.content, path: plan.path });
-        } catch {
-          tc.setPlanInfo({});
-        }
-      })();
-    }
+    onToolCallStartHelper(this.toolRenderContext(), toolCall);
   }
 
   onToolCallEnd(toolCallId: string, result: ToolResultBlockData): void {
-    const { state } = this.host;
-    const matchedCall = this._activeToolCalls.get(toolCallId);
-    const tc = this._pendingToolComponents.get(toolCallId);
-    if (tc) {
-      tc.setResult(result);
-      this._pendingToolComponents.delete(toolCallId);
-      if (state.transcriptDetail === 'minimal' && this._chainSummary.active !== null) {
-        const args = matchedCall?.args ?? {};
-        const file =
-          typeof args['file_path'] === 'string'
-            ? (args['file_path'] as string)
-            : typeof args['path'] === 'string'
-              ? (args['path'] as string)
-              : undefined;
-        this._chainSummary.active.record({
-          isError: result.is_error === true,
-          errorText: result.is_error === true ? result.output : undefined,
-          file,
-        });
-      }
-      const toolName = matchedCall?.name;
-      if (toolName !== undefined && isGenericToolResult(toolName)) {
-        this.host.motionBeats.play({
-          name: 'tool_settle',
-          seed: `tool:${toolCallId}`,
-          title: toolName,
-          nowMs: appearanceAnimationNow(),
-          streamThrottle: true,
-          theatreActive: isMotionTheatreActive(state.appState),
-        });
-      }
-      requestTUIContentRender(state);
-      this.host.mergeCurrentTurnSteps();
-      return;
-    }
-
-    if (matchedCall?.name === 'AskUserQuestion') {
-      const completed = new ToolCallComponent(
-        matchedCall,
-        result,
-        state.ui,
-        state.appState.workDir,
-      );
-      if (state.toolOutputExpanded) completed.setExpanded(true);
-      completed.setDetail(state.transcriptDetail);
-      state.transcriptContainer.addChild(completed);
-      requestTUILayoutRender(state);
-    }
-    this.host.mergeCurrentTurnSteps();
+    onToolCallEndHelper(this.toolRenderContext(), toolCallId, result);
   }
 
   setTodoList(todos: readonly TodoItem[]): void {
@@ -865,59 +621,62 @@ export class StreamingUIController {
   }
 
   // ---------------------------------------------------------------------------
-  // Tool call grouping
+  // Render context builders
   // ---------------------------------------------------------------------------
 
   private flushToolCallPreview(id: string): void {
-    const streaming = this._streamingToolCallArguments.get(id);
-    if (streaming === undefined) return;
-    const toolCall: ToolCallBlockData = {
-      id,
-      name: streaming.name ?? this._activeToolCalls.get(id)?.name ?? 'Tool',
-      args: parseStreamingArgs(streaming.argumentsText),
-      streamingArguments: streaming.argumentsText,
-      streamingStartedAtMs: streaming.startedAtMs,
-      step: this._currentStep,
-      turnId: this._currentTurnId,
+    flushToolCallPreviewHelper(this.toolRenderContext(), id);
+  }
+
+  private textRenderContext(): TextRenderContext {
+    return {
+      host: this.host,
+      revealRuntime: this.revealRuntime,
+      getStreamingBlock: () => this._streamingBlock,
+      setStreamingBlock: (block) => {
+        this._streamingBlock = block;
+      },
+      getTurnStartCueArmed: () => this.turnStartCueArmed,
+      setTurnStartCueArmed: (armed) => {
+        this.turnStartCueArmed = armed;
+      },
+      getCurrentTurnId: () => this._currentTurnId,
+      getActiveThinkingComponent: () => this._activeThinkingComponent,
+      setActiveThinkingComponent: (component) => {
+        this._activeThinkingComponent = component;
+      },
+      clearPendingToolGroups: () => {
+        this._pendingAgentGroup = null;
+        this._pendingReadGroup = null;
+      },
+      settleActiveChainSummary: () => this.settleActiveChainSummary(),
+      shouldSmoothStreamReveal: () => this.shouldSmoothStreamReveal(),
+      revealContext: () => this.revealContext(),
     };
-    this._activeToolCalls.set(id, toolCall);
-
-    if (this._thinkingDraft.length > 0 || this._streamingBlock !== null) {
-      this.finalizeLiveTextBuffers('tool');
-    }
-
-    const existingComponent = this._pendingToolComponents.get(id);
-    if (existingComponent !== undefined) {
-      existingComponent.updateToolCall(toolCall);
-    } else if (toolCall.name !== 'Agent' && !isSwarmProgressToolName(toolCall.name)) {
-      this.onToolCallStart(toolCall);
-    }
   }
 
-  private tryAttachAgentToolCall(toolCall: ToolCallBlockData, tc: ToolCallComponent): boolean {
-    const result = attachAgentToolCall(
-      this.host.state,
-      toolCall,
-      tc,
-      this._currentStep,
-      this._currentTurnId,
-      this._pendingAgentGroup,
-    );
-    this._pendingAgentGroup = result.pending;
-    return result.handled;
-  }
-
-  private tryAttachReadToolCall(toolCall: ToolCallBlockData, tc: ToolCallComponent): boolean {
-    const result = attachReadToolCall(
-      this.host.state,
-      toolCall,
-      tc,
-      this._currentStep,
-      this._currentTurnId,
-      this._pendingReadGroup,
-    );
-    this._pendingReadGroup = result.pending;
-    return result.handled;
+  private toolRenderContext(): ToolRenderContext {
+    return {
+      host: this.host,
+      getCurrentStep: () => this._currentStep,
+      getCurrentTurnId: () => this._currentTurnId,
+      getActiveToolCalls: () => this._activeToolCalls,
+      getPendingToolComponents: () => this._pendingToolComponents,
+      getStreamingToolCallArguments: () => this._streamingToolCallArguments,
+      getChainSummary: () => this._chainSummary,
+      getPendingAgentGroup: () => this._pendingAgentGroup,
+      setPendingAgentGroup: (group) => {
+        this._pendingAgentGroup = group;
+      },
+      getPendingReadGroup: () => this._pendingReadGroup,
+      setPendingReadGroup: (group) => {
+        this._pendingReadGroup = group;
+      },
+      getThinkingDraftLength: () => this._thinkingDraft.length,
+      hasStreamingBlock: () => this._streamingBlock !== null,
+      finalizeLiveTextBuffers: (mode) => this.finalizeLiveTextBuffers(mode),
+      onToolCallStart: (toolCall) => this.onToolCallStart(toolCall),
+    };
   }
 
   private shouldSmoothStreamReveal(): boolean {
