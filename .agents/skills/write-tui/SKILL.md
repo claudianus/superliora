@@ -19,6 +19,7 @@ For any list dialog, selector, input box, or status/toggle list, the interaction
   - `session-event-handler.ts` — routes SDK session events (`handleEvent` dispatch + the per-event `handleXxx`). Compaction handlers live in `session-event-compaction.ts`; goal-updated / queued-goal promotion live in `session-event-goal-queue.ts`; turn / step / assistant / thinking handlers live in `session-event-turn.ts`; tool / shell handlers live in `session-event-tools.ts`. Concrete event handling goes here, not in `LioraTUI`.
   - `streaming-ui.ts` — streaming render: assistant delta, thinking, tool call / result, compaction, subagent, background agent, transcript aggregation.
   - `session-lifecycle.ts` — session attach / switch / create / close (`setSession`, `switchToSession`, `createNewSession`, `closeSession`, `syncRuntimeState`). `LioraTUI` keeps thin public delegates.
+  - `message-dispatch.ts` — user-input / send / queue / steer (`handleUserInput`, `sendNormalUserInput`, `sendQueuedMessage`, `steerMessage`, `sendSkillActivation`). `LioraTUI` keeps thin public delegates.
   - `session-replay.ts` — resume/replay orchestration; drives replay records through the same live render hooks. Stateless replay parsing/limiting/projection helpers belong in `src/tui/utils/message-replay.ts`.
   - `tasks-browser.ts` — the tasks browser controller.
   - `editor-keyboard.ts` — editor keyboard handling, exit shortcuts, external editor, clipboard image.
