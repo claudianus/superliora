@@ -7,6 +7,27 @@
  * Skips immediately when shouldAnimate / motionEffectsAllowed is false.
  */
 
+export {
+  SPLASH_DURATION_MIN_MS,
+  SPLASH_DURATION_MAX_MS,
+  DEFAULT_SPLASH_DURATION_MS,
+  SPLASH_MORPH_MS,
+  clampSplashDurationMs,
+  shouldPlaySplash,
+  resolveSplashPhase,
+  resolveBannerRevealCount,
+  resolveMarkRiseProgress,
+  resolveFadeAlpha,
+  type SplashPhase,
+} from './splash-phase';
+export {
+  selectMarkTextureSkin,
+  resolveMarkTextureSkin,
+  applyMarkTexture,
+  captureSplashMarkRows,
+  type MarkTextureSkin,
+} from './splash-mark';
+
 import chalk from 'chalk';
 
 import {
@@ -16,7 +37,7 @@ import {
 import { shouldAnimate } from '#/tui/controllers/appearance';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import type { Component } from '#/tui/renderer';
-import { hashRendererEffectSeed, mixHexColor, visibleWidth } from '#/tui/renderer';
+import { mixHexColor, visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { mixHexColorStops } from '#/tui/theme/colors';
 import {
@@ -42,25 +63,19 @@ import {
   SPLASH_MORPH_MS,
 } from '#/tui/utils/splash/splash-iris';
 import { renderWelcomeBanner } from './welcome-banner';
-
-export { SPLASH_MORPH_MS };
-
-/** Inclusive lower bound for splash duration. */
-export const SPLASH_DURATION_MIN_MS = 1000;
-/** Inclusive upper bound for splash duration. */
-export const SPLASH_DURATION_MAX_MS = 2000;
-/** Default cinematic length (~1.6s). */
-export const DEFAULT_SPLASH_DURATION_MS = 1600;
-
-export type SplashPhase =
-  | 'void'
-  | 'rise'
-  | 'bloom'
-  | 'brand'
-  | 'hold'
-  | 'fade'
-  | 'morph'
-  | 'done';
+import {
+  clampSplashDurationMs,
+  DEFAULT_SPLASH_DURATION_MS,
+  resolveSplashPhase,
+  resolveBannerRevealCount,
+  resolveMarkRiseProgress,
+  resolveFadeAlpha,
+  type SplashPhase,
+} from './splash-phase';
+import {
+  applyMarkTexture,
+  resolveMarkTextureSkin,
+} from './splash-mark';
 
 export interface SplashComponentOptions {
   readonly appearance?: AppearancePreferences;
@@ -95,182 +110,6 @@ export interface SplashComponentOptions {
    */
   readonly onSplashActiveChange?: (active: boolean) => void;
 }
-
-/**
- * Clamp splash duration into the allowed cinematic window.
- * Non-finite values fall back to the default length.
- */
-export function clampSplashDurationMs(durationMs: number): number {
-  if (!Number.isFinite(durationMs)) return DEFAULT_SPLASH_DURATION_MS;
-  return Math.min(
-    SPLASH_DURATION_MAX_MS,
-    Math.max(SPLASH_DURATION_MIN_MS, Math.round(durationMs)),
-  );
-}
-
-/** True when startup should run the animated splash. */
-export function shouldPlaySplash(appearance: AppearancePreferences): boolean {
-  return shouldAnimate(appearance);
-}
-
-/**
- * Map elapsed time to a cinematic phase.
- * Timeline fractions are relative to the clamped duration.
- */
-export function resolveSplashPhase(
-  elapsedMs: number,
-  durationMs: number,
-  morphMs: number = SPLASH_MORPH_MS,
-): SplashPhase {
-  const duration = clampSplashDurationMs(durationMs);
-  const morph = Math.max(0, Math.round(morphMs));
-  if (duration <= 0) return 'done';
-  if (elapsedMs >= duration + morph) return 'done';
-  if (elapsedMs >= duration) return morph > 0 ? 'morph' : 'done';
-  const t = Math.max(0, elapsedMs) / duration;
-  if (t < 0.1) return 'void';
-  if (t < 0.32) return 'rise';
-  if (t < 0.48) return 'bloom';
-  if (t < 0.72) return 'brand';
-  if (t < 0.9) return 'hold';
-  return 'fade';
-}
-
-/** How many banner lines are revealed for the current phase progress. */
-export function resolveBannerRevealCount(
-  elapsedMs: number,
-  durationMs: number,
-  totalLines: number,
-  morphMs: number = SPLASH_MORPH_MS,
-): number {
-  if (totalLines <= 0) return 0;
-  const phase = resolveSplashPhase(elapsedMs, durationMs, morphMs);
-  if (phase === 'void' || phase === 'rise' || phase === 'bloom') return 0;
-  if (
-    phase === 'done' ||
-    phase === 'hold' ||
-    phase === 'fade' ||
-    phase === 'morph'
-  ) {
-    return totalLines;
-  }
-  // brand: progressive reveal
-  const duration = clampSplashDurationMs(durationMs);
-  const start = 0.48 * duration;
-  const end = 0.72 * duration;
-  const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, end - start)));
-  return Math.max(1, Math.ceil(local * totalLines));
-}
-
-/** Progress of the Liora mark rise within the rise+bloom window (0..1). */
-export function resolveMarkRiseProgress(elapsedMs: number, durationMs: number): number {
-  const duration = clampSplashDurationMs(durationMs);
-  const start = 0.1 * duration;
-  const end = 0.48 * duration;
-  return Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, end - start)));
-}
-
-/** Fade-out alpha in the final phase (1 → 0). */
-export function resolveFadeAlpha(
-  elapsedMs: number,
-  durationMs: number,
-  morphMs: number = SPLASH_MORPH_MS,
-): number {
-  const phase = resolveSplashPhase(elapsedMs, durationMs, morphMs);
-  if (phase === 'done') return 0;
-  if (phase === 'morph') return 0.62;
-  if (phase !== 'fade') return 1;
-  const duration = clampSplashDurationMs(durationMs);
-  const start = 0.9 * duration;
-  const local = Math.min(1, Math.max(0, (elapsedMs - start) / Math.max(1, duration - start)));
-  // Keep a readable backdrop when morph follows.
-  const floor = morphMs > 0 ? 0.55 : 0;
-  return Math.max(floor, 1 - local);
-}
-
-/** Texture skin for the rising Liora mark — monospace-safe block family only. */
-export type MarkTextureSkin = 'solid' | 'halfBlock' | 'braille' | 'line';
-
-const MARK_TEXTURE_SKINS: readonly MarkTextureSkin[] = [
-  'solid',
-  'halfBlock',
-  'braille',
-  'line',
-];
-
-const MARK_TEXTURE_BRUSHES: Readonly<
-  Record<Exclude<MarkTextureSkin, 'solid'>, readonly string[]>
-> = {
-  halfBlock: ['▀', '▄'],
-  braille: ['⣿', '⣶', '⣤', '⣀'],
-  line: ['─', '│'],
-};
-
-export function selectMarkTextureSkin(seed: number): MarkTextureSkin {
-  const index =
-    ((seed % MARK_TEXTURE_SKINS.length) + MARK_TEXTURE_SKINS.length) %
-    MARK_TEXTURE_SKINS.length;
-  return MARK_TEXTURE_SKINS[index] ?? 'solid';
-}
-
-/**
- * Theme-seeded mark texture pick. Reduced-motion / low-color profiles
- * (effect mode `'off'`) keep the solid mark — the static fallback.
- *
- * The live splash render passes no explicit seed and paints the canonical
- * solid brand mark, so the rising mark is stable and deterministic across
- * launches. Texture variants stay addressable through an explicit seed
- * (captures, golden output, demos) via `selectMarkTextureSkin`.
- */
-export function resolveMarkTextureSkin(
-  appearance: AppearancePreferences,
-  seed?: number,
-): MarkTextureSkin {
-  if (!motionEffectsAllowed() || resolveQualityAdjustedAmbientEffectMode(appearance) === 'off') {
-    return 'solid';
-  }
-  if (seed === undefined) {
-    return 'solid';
-  }
-  const palette = currentTheme.palette;
-  const themeSeed = hashRendererEffectSeed(
-    `splash:mark-texture:${palette.gradientStart}:${palette.gradientMid}:${palette.gradientEnd}`,
-  );
-  return selectMarkTextureSkin(themeSeed + seed);
-}
-
-/**
- * Re-skin solid '█' cells of the mark with a texture brush. Only '█' is
- * replaced and every brush glyph is one cell wide, so row widths and the
- * downstream centering / blit math stay untouched.
- */
-export function applyMarkTexture(
-  rows: readonly string[],
-  skin: MarkTextureSkin,
-): readonly string[] {
-  if (skin === 'solid') return rows;
-  const brush = MARK_TEXTURE_BRUSHES[skin];
-  return rows.map((row, rowIndex) => {
-    let out = '';
-    let col = 0;
-    for (const char of row) {
-      out += char === '█' ? brush[(rowIndex + col) % brush.length]! : char;
-      col += 1;
-    }
-    return out;
-  });
-}
-
-/** Deterministic capture of the textured splash mark (tests / golden output). */
-export function captureSplashMarkRows(
-  appearance: AppearancePreferences,
-  width: number,
-  seed?: number,
-): readonly string[] {
-  const base = width >= 40 ? LIORA_MARK_LARGE : LIORA_MARK_COMPACT;
-  return applyMarkTexture(base, resolveMarkTextureSkin(appearance, seed));
-}
-
 export class SplashComponent implements Component {
   private readonly appearance: AppearancePreferences;
   private readonly requestRender: () => void;
