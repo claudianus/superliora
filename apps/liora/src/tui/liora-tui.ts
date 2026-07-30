@@ -1,16 +1,7 @@
-import { writeFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
-
-import chalk from 'chalk';
 import {
-  encodeNativeInputAsLegacySequence,
   encodeRendererClearInlineImages,
-  LioraNativeRootUI,
-  NativeTerminalSession,
   type Component,
   type Focusable,
-  type NativeInputEvent,
-  type NativeInputKey,
   Spacer,
 } from '#/tui/renderer';
 import type { DeviceAuthorization } from '@superliora/oauth';
@@ -29,30 +20,11 @@ import type { CLIOptions } from '#/cli/options';
 import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
-import {
-  appendGlobalInputHistory,
-  appendInputHistory,
-  loadGlobalInputHistory,
-  loadInputHistory,
-} from '#/utils/history/input-history';
 import { openUrl } from '#/utils/open-url';
-import { getGlobalInputHistoryFile, getInputHistoryFile } from '#/utils/paths';
-import { detectFdPath, ensureFdPath } from '#/utils/process/fd-detect';
+import { detectFdPath } from '#/utils/process/fd-detect';
 import { ttui } from './utils/tui-i18n';
 
-import { BannerProvider } from './banner/banner-provider';
-import { readBannerDisplayState, writeBannerDisplayState } from './banner/state';
 import {
-  BUILTIN_SLASH_COMMANDS,
-  buildPluginSlashCommands,
-  buildSkillSlashCommands,
-  formatRendererDiagnosticsStatusReport,
-  formatRendererTraceStatusReport,
-  isExperimentalFlagEnabled,
-  setExperimentalFeatures,
-  slashCommandsForHelp,
-  sortSlashCommands,
-  thinkingArgumentCompletionsForModel,
   type LioraSlashCommand,
   type RendererDiagnosticsOverlayCommand,
   type RendererTraceCommand,
@@ -60,24 +32,17 @@ import {
   type SkillListSession,
 } from './commands';
 import * as slashCommands from './commands/dispatch';
-import { BannerComponent } from './components/chrome/banner';
 import { DeviceCodeBoxComponent } from './components/chrome/device-code-box';
 import { MoonLoader, type SpinnerStyle } from './components/chrome/moon-loader';
 import { IdleStageComponent } from './components/chrome/idle-stage';
 import { SplashComponent, shouldPlaySplash } from './components/chrome/splash';
-import type { TodoBoardScrollAction } from './components/chrome/todo-panel';
 import { buildSplashMorphScene } from './utils/splash-reveal-preview';
-import { WelcomeComponent } from './components/chrome/welcome';
 import { pickRandomWorkingTip, tipText } from './components/chrome/working-tips';
 import { CommandHubComponent } from './components/dialogs/command-hub';
 import {
   SessionLoadingOverlayComponent,
   type SessionLoadingPhase,
 } from './components/dialogs/session-loading-overlay';
-import {
-  FileMentionProvider,
-  type SlashAutocompleteCommand,
-} from './components/editor/file-mention-provider';
 
 import { AssistantMessageComponent } from './components/messages/assistant-message';
 import { CronMessageComponent } from './components/messages/cron-message';
@@ -111,11 +76,17 @@ import {
 import {
   NO_ACTIVE_SESSION_MESSAGE,
 } from './constant/liora-tui';
+import { AppStateController } from './controllers/app-state';
 import { AuthFlowController } from './controllers/auth-flow';
+import { AutocompleteController } from './controllers/autocomplete';
 import { AppearanceController, shouldRenderAmbientAnimationFrame } from './controllers/appearance';
 import { BtwPanelController } from './controllers/btw-panel';
 import { ClipboardImageHintController } from './controllers/clipboard-image-hint';
 import { EditorKeyboardController } from './controllers/editor-keyboard';
+import {
+  NativeRendererDiagnosticsController,
+  nativeRendererDiagnosticsOverlayEnabled,
+} from './controllers/native-renderer-diagnostics';
 import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { SessionEventHandler } from './controllers/session-event-handler';
 import { DialogsController } from './controllers/dialogs';
@@ -124,13 +95,15 @@ import { PanesController } from './controllers/panes';
 import { ReverseRpcPanelsController } from './controllers/reverse-rpc-panels';
 import { SessionBrowserController } from './controllers/session-browser';
 import { SessionLifecycleController } from './controllers/session-lifecycle';
+import { SessionRequestsController } from './controllers/session-requests';
+import { ShellInputController } from './controllers/shell-input';
+import { StartupLifecycleController } from './controllers/startup-lifecycle';
 import { WorkspaceBrowserController } from './controllers/workspace-browser';
 import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { TranscriptRenderController } from './controllers/transcript-render';
 import { UsageMonitorController } from './controllers/usage-monitor';
-import { setKittyGraphicsChannel } from './media/kitty-graphics-channel';
 import { ApprovalController } from './reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from './reverse-rpc/approval/handler';
 import { registerReverseRPCHandlers } from './reverse-rpc/index';
@@ -142,18 +115,9 @@ import { currentTheme, getColorPalette, getBuiltInPalette, isBuiltInTheme } from
 import { refreshShikiPalette } from './components/media/shiki-ansi';
 import type { ColorToken, ResolvedTheme, ThemeName } from './theme';
 import { createTUIState, type TUIState } from './tui-state';
-import {
-  appearanceAnimationNow,
-  resolveUltraworkBorderGlowHex,
-} from './utils/appearance-effects';
+import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from './utils/appearance-effects';
 import { noteErrorFeedback } from './utils/feedback-vfx';
-import {
-  createTUIStateNativeInputRouter,
-  type TUIStateNativeInputRouter,
-} from './utils/native-input-router';
-import {
-  createTUIStateNativeRenderCallback,
-} from './utils/native-layout-frame';
+import type { TUIStateNativeInputRouter } from './utils/native-input-router';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -167,28 +131,17 @@ import {
   type TUIStartupState,
 } from './types';
 import { hasDispose, isExpandable } from './utils/component-capabilities';
-import { isDeadTerminalError } from './utils/dead-terminal';
 import { DisposableRegistry } from './utils/disposables';
-import { formatErrorMessage } from './utils/event-payload';
 import { contextWorkingSetSnapshotFromLoopControl } from './utils/context-working-set';
 import type { CenterModalMountOptions } from './utils/center-modal';
-import {
-  requestTUIContentRender,
-  requestTUILayoutRender,
-  requestTUIScrollRender,
-} from './utils/frame-render';
-import { createMotionBeatController, isMotionTheatreActive } from './utils/motion-beats';
+import { requestTUILayoutRender } from './utils/frame-render';
+import { createMotionBeatController } from './utils/motion-beats';
 import { pickForegroundTasks } from './utils/foreground-task';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
 import { resolveImageProtocol } from './utils/image-protocol-detect';
-import { hasPatchChanges } from './utils/object-patch';
 import { PromptStash } from './utils/prompt-stash';
-import { combineStartupNotice, isOAuthLoginRequiredError } from './utils/startup';
-import { installTerminalFocusTracking } from './utils/terminal-focus';
-import { installTerminalThemeTracking } from './utils/terminal-theme';
-import { detectTmuxKeyboardWarning } from './utils/tmux-keyboard';
+import { combineStartupNotice } from './utils/startup';
 import { getTranscriptComponentEntry, markTranscriptComponent } from './utils/transcript-component-metadata';
-import { getTUIStateNativeTodoRect } from './utils/transcript-hit-test';
 import {
   TRANSCRIPT_EXPAND_TURNS,
   TRANSCRIPT_HYSTERESIS,
@@ -198,12 +151,7 @@ import {
   groupTurns,
   turnsToTrim,
 } from './utils/transcript-window';
-import {
-  scrollTranscriptViewport as applyTranscriptViewportScroll,
-  type TranscriptScrollAction,
-} from './utils/transcript-viewport';
-import { formatBashOutputForDisplay } from './utils/shell-output';
-import { nextTranscriptId } from './utils/transcript-id';
+import type { TranscriptScrollAction } from './utils/transcript-viewport';
 
 export type { TUIState } from './tui-state';
 export { createTUIState } from './tui-state';
@@ -225,14 +173,6 @@ export interface LioraTUIStartupInput {
   /** Optional session metadata (e.g. worktree) stamped on createSession. */
   readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
 }
-
-function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
-}
-
-type MutableCreateSessionOptions = {
-  -readonly [P in keyof CreateSessionOptions]: CreateSessionOptions[P];
-};
 
 function createInitialAppState(input: LioraTUIStartupInput): AppState {
   // Restore persisted permission mode; --auto CLI flag overrides.
@@ -297,33 +237,33 @@ export class LioraTUI {
   readonly motionBeats = createMotionBeatController();
   readonly approvalController = new ApprovalController();
   readonly questionController = new QuestionController();
-  private readonly reverseRpcDisposers: Array<() => void> = [];
-  skillCommands: readonly LioraSlashCommand[] = [];
-  private pluginCommands: readonly LioraSlashCommand[] = [];
+  readonly reverseRpcDisposers: Array<() => void> = [];
+  skillCommands: LioraSlashCommand[] = [];
+  pluginCommands: LioraSlashCommand[] = [];
   readonly skillCommandMap = new Map<string, string>();
   readonly pluginCommandMap = new Map<string, string>();
   readonly imageStore = new ImageAttachmentStore();
-  private fdPath: string | null = detectFdPath();
-  private fdDownloadStarted = false;
+  fdPath: string | null = detectFdPath();
+  fdDownloadStarted = false;
   sessionEventUnsubscribe: (() => void) | undefined;
   cancelInFlight: (() => void) | undefined;
   deferUserMessages = false;
   aborted = false;
-  private terminalFocusTrackingDispose: (() => void) | undefined;
-  private clipboardImageHintController: ClipboardImageHintController | undefined;
-  private signalCleanupHandlers: Array<() => void> = [];
-  private isShuttingDown = false;
+  terminalFocusTrackingDispose: (() => void) | undefined;
+  clipboardImageHintController: ClipboardImageHintController | undefined;
+  signalCleanupHandlers: Array<() => void> = [];
+  isShuttingDown = false;
   /** Central registry for timers, intervals, listeners, and watchers. */
-  private readonly disposables = new DisposableRegistry();
-  private eventLoopStarted = false;
-  private startupNotice: string | undefined;
+  readonly disposables = new DisposableRegistry();
+  eventLoopStarted = false;
+  startupNotice: string | undefined;
   /** Startup cinematic splash; disposed after play or on shutdown. */
   splash: SplashComponent | undefined;
   /** UI children saved while the full-screen splash owns the tree. */
   splashSavedChildren: (typeof this.state.ui.children)[number][] | undefined;
   /** While true, ambient schedule stays armed even if interaction gates pause it. */
   splashForcesAmbient = false;
-  private lastHistoryContent: string | undefined;
+  lastHistoryContent: string | undefined;
   /** LIFO stash of prompt drafts saved via Ctrl-X while the editor has text. */
   readonly promptStash = new PromptStash();
   // Live `!` shell output entries, keyed by commandId so concurrent commands
@@ -358,8 +298,15 @@ export class LioraTUI {
   centerModalSequence = 0;
   /** Live Command Hub instance while the center-modal stack owns it. */
   openCommandHub: CommandHubComponent | undefined;
-  private nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
+  nativeRendererDiagnosticsHudEnabled = nativeRendererDiagnosticsOverlayEnabled();
   private readonly sessionStartTime = Date.now();
+
+  readonly autocomplete: AutocompleteController;
+  readonly shellInput: ShellInputController;
+  readonly sessionRequests: SessionRequestsController;
+  readonly appStateController: AppStateController;
+  readonly startupLifecycle: StartupLifecycleController;
+  readonly nativeRendererDiagnostics: NativeRendererDiagnosticsController;
 
   /** Timer that auto-clears the one-shot "moved to background" footer hint. */
   detachHintClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -455,6 +402,12 @@ export class LioraTUI {
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
     this.sessionLifecycle = new SessionLifecycleController(this);
     this.messageDispatch = new MessageDispatchController(this);
+    this.autocomplete = new AutocompleteController(this);
+    this.shellInput = new ShellInputController(this);
+    this.appStateController = new AppStateController(this);
+    this.sessionRequests = new SessionRequestsController(this);
+    this.startupLifecycle = new StartupLifecycleController(this);
+    this.nativeRendererDiagnostics = new NativeRendererDiagnosticsController(this);
     this.tasksBrowserController = new TasksBrowserController(this);
     this.usageMonitor = new UsageMonitorController({
       harness: this.harness,
@@ -465,21 +418,14 @@ export class LioraTUI {
     this.editorKeyboard.install();
     this.promptIntelligence = new PromptIntelligenceController(this);
     this.promptIntelligence.install();
-    this.buildLayout();
+    this.startupLifecycle.buildLayout();
   }
 
   // =========================================================================
   // Autocomplete & Skill Commands
   // =========================================================================
-
   getSlashCommands(mode: SlashCommandHelpMode = 'primary'): readonly LioraSlashCommand[] {
-    const builtins = sortSlashCommands(BUILTIN_SLASH_COMMANDS).filter((command) =>
-      isExperimentalFlagEnabled(command.experimentalFlag),
-    );
-    const visibleBuiltins = slashCommandsForHelp(builtins, mode);
-    return mode === 'diagnostics'
-      ? visibleBuiltins
-      : [...visibleBuiltins, ...this.skillCommands, ...this.pluginCommands];
+    return this.autocomplete.getSlashCommands(mode);
   }
 
   /** Lets controllers (e.g. `DialogsController`) run a slash command without importing `dispatch` themselves. */
@@ -491,894 +437,54 @@ export class LioraTUI {
     return slashCommands.handlePluginsCommand(this, '');
   }
 
-  private setupAutocomplete(): void {
-    const primaryCommands = this.getSlashCommands('primary');
-    const advancedCommands = this
-      .getSlashCommands('advanced')
-      .filter((cmd) => !this.skillCommands.includes(cmd) && !this.pluginCommands.includes(cmd));
-    const slashCommands: SlashAutocompleteCommand[] = [
-      ...primaryCommands,
-      ...advancedCommands,
-    ].map((cmd) => {
-      const completer = cmd.name === 'thinking'
-        ? (prefix: string) => thinkingArgumentCompletionsForModel(
-            prefix,
-            this.state.appState.availableModels[this.state.appState.model],
-          )
-        : cmd.completeArgs;
-      return {
-        name: cmd.name,
-        aliases: cmd.aliases,
-        description: cmd.description,
-        visibility: cmd.visibility ?? 'primary',
-        ...(cmd.argumentHint !== undefined ? { argumentHint: cmd.argumentHint } : {}),
-        ...(completer !== undefined
-          ? { getArgumentCompletions: (prefix: string) => completer(prefix) }
-          : {}),
-      };
-    });
-    const provider = new FileMentionProvider(
-      slashCommands,
-      this.state.appState.workDir,
-      this.fdPath,
-      this.state.appState.additionalDirs,
-      (query, signal) => this.searchSkillSlashCommands(query, signal),
-      () => this.state.appState.inputMode,
-    );
-    this.state.editor.setAutocompleteProvider(provider);
-
-    const argumentHints = new Map<string, string>();
-    for (const cmd of slashCommands) {
-      if (cmd.argumentHint === undefined) continue;
-      argumentHints.set(cmd.name, cmd.argumentHint);
-      for (const alias of cmd.aliases ?? []) {
-        argumentHints.set(alias, cmd.argumentHint);
-      }
-    }
-    this.state.editor.setArgumentHints(argumentHints);
+  setupAutocomplete(): void {
+    this.autocomplete.setupAutocomplete();
   }
 
   refreshSlashCommandAutocomplete(): void {
-    this.setupAutocomplete();
+    this.autocomplete.refreshSlashCommandAutocomplete();
   }
 
   async refreshSkillCommands(session?: SkillListSession): Promise<void> {
-    if (session === undefined) {
-      this.skillCommands = [];
-      this.skillCommandMap.clear();
-      this.setupAutocomplete();
-      return;
-    }
-
-    let skills;
-    try {
-      skills = await session.listSkills();
-    } catch {
-      // Keep any previously loaded skills; still rebuild the provider so static
-      // slash commands stay wired after a failed RPC.
-      this.setupAutocomplete();
-      return;
-    }
-    // Drop stale results if the active session rotated while listSkills was in flight.
-    if (this.session !== undefined && session !== this.session) {
-      this.setupAutocomplete();
-      return;
-    }
-
-    const skillCommands = buildSkillSlashCommands(skills);
-    // Cap the static slash menu so huge skill catalogs stay scannable; deeper
-    // matches still arrive via dynamic `/skill:` search.
-    const MAX_STATIC_SKILL_COMMANDS = 64;
-    this.skillCommands = [...skillCommands.commands].slice(0, MAX_STATIC_SKILL_COMMANDS);
-    this.skillCommandMap.clear();
-    for (const [commandName, skillName] of skillCommands.commandMap) {
-      if (this.skillCommands.some((cmd) => cmd.name === commandName)) {
-        this.skillCommandMap.set(commandName, skillName);
-      }
-    }
-    this.setupAutocomplete();
-  }
-
-  private async refreshPluginCommands(session?: Session): Promise<void> {
-    this.pluginCommands = [];
-    this.pluginCommandMap.clear();
-    if (session === undefined) {
-      this.setupAutocomplete();
-      return;
-    }
-
-    let defs;
-    try {
-      defs = await session.listPluginCommands();
-    } catch {
-      this.setupAutocomplete();
-      return;
-    }
-    if (this.session !== session) return;
-
-    const pluginCommands = buildPluginSlashCommands(defs);
-    this.pluginCommands = pluginCommands.commands;
-    for (const [commandName, body] of pluginCommands.commandMap) {
-      this.pluginCommandMap.set(commandName, body);
-    }
-    this.setupAutocomplete();
+    return this.autocomplete.refreshSkillCommands(session);
   }
 
   async refreshDynamicSlashCommands(session?: Session): Promise<void> {
-    await this.refreshSkillCommands(session);
-    await this.refreshPluginCommands(session);
+    return this.autocomplete.refreshDynamicSlashCommands(session);
   }
-
-  private async searchSkillSlashCommands(
-    query: string,
-    signal: AbortSignal,
-  ): Promise<readonly LioraSlashCommand[]> {
-    const session = this.session;
-    if (session === undefined || signal.aborted) return [];
-    const skillQuery = query.startsWith('skill:') ? query.slice('skill:'.length) : query;
-    const trimmed = skillQuery.trim();
-    let skills;
-    try {
-      // Bare `/skill:` (or whitespace-only) reuses listSkills so the menu can
-      // surface activatable skills even when the static cache is still empty.
-      skills =
-        trimmed.length === 0
-          ? await session.listSkills()
-          : await session.searchSkills(trimmed, { limit: 12 });
-    } catch {
-      return [];
-    }
-    if (signal.aborted) return [];
-    const skillCommands = buildSkillSlashCommands(skills);
-    for (const [commandName, skillName] of skillCommands.commandMap) {
-      this.skillCommandMap.set(commandName, skillName);
-    }
-    // Cap dynamic results so the autocomplete menu stays scannable.
-    return skillCommands.commands.slice(0, 12);
-  }
-
   // =========================================================================
   // Lifecycle
   // =========================================================================
-
   async start(): Promise<void> {
-    // Signal handlers must be installed before raw mode to avoid EIO loops.
-    this.registerSignalHandlers();
-    // Outer try rolls back signal listeners on startup failure.
-    try {
-      const shouldReplayHistory = await this.initMainTui();
-      this.startEventLoop();
-      try {
-        // Mount Welcome + IdleStage before the splash so the saved UI tree
-        // (captured by playStartupSplash) already contains them. The morph
-        // target scene and the first post-splash frame are then 1:1 identical.
-        this.transcriptRender.renderWelcome();
-        // Cinematic splash after the renderer loop is live, before Welcome.
-        await this.transcriptRender.playStartupSplash();
-        void this.loadBanner();
-        this.startBackgroundFdAutocomplete();
-        await this.finishStartup(shouldReplayHistory);
-      } catch (error) {
-        this.transcriptRender.disposeStartupSplash();
-        this.disposeTerminalTracking();
-        this.state.renderer.stop();
-        throw error;
-      }
-    } catch (error) {
-      this.unregisterSignalHandlers();
-      throw error;
-    }
+    return this.startupLifecycle.start();
   }
 
   private async loadBanner(): Promise<void> {
-    const provider = new BannerProvider(this.state.appState.version);
-    const displayState = await readBannerDisplayState();
-    const now = new Date();
-    const banner = await provider.load(fetch, {
-      state: displayState,
-      now,
-    });
-    this.state.appState.banner = banner;
-    if (banner === null) return;
-
-    this.renderBanner();
-    requestTUILayoutRender(this.state);
-
-    if (banner.display === 'always') return;
-    try {
-      await writeBannerDisplayState({
-        version: 1,
-        shown: {
-          ...displayState.shown,
-          [banner.key]: { lastShownAt: now.toISOString() },
-        },
-      });
-    } catch {
-      // Best-effort: banner display state should never block startup.
-    }
-  }
-
-  private renderBanner(): void {
-    if (this.state.appState.banner === null || this.state.appState.banner === undefined) {
-      return;
-    }
-    if (this.state.transcriptContainer.children.some((child) => child instanceof BannerComponent)) {
-      return;
-    }
-    const welcomeIndex = this.state.transcriptContainer.children.findIndex(
-      (child) => child instanceof WelcomeComponent,
-    );
-    const banner = new BannerComponent(this.state.appState.banner);
-    if (welcomeIndex >= 0) {
-      this.state.transcriptContainer.children.splice(welcomeIndex + 1, 0, banner);
-    } else {
-      this.state.transcriptContainer.children.unshift(banner);
-    }
-    this.state.transcriptContainer.invalidate();
+    return this.startupLifecycle.loadBanner();
   }
 
   private async initMainTui(): Promise<boolean> {
-    const shouldReplayHistory = await this.init();
-
-    // Mount only after init() succeeds; see mountFooter() / mountHeader().
-    // Welcome is deferred until after the startup splash in start().
-    this.mountFooter();
-    this.mountHeader();
-    this.setupAutocomplete();
-    void this.loadPersistedInputHistory();
-    this.state.editorContainer.clear();
-    this.state.editorContainer.addChild(this.state.editor);
-    this.state.ui.setFocus(this.state.editor);
-    this.ensureNativeInputRouter();
-    this.attachNativeRendererCallback();
-
-    // First-run onboarding: when no model is configured and no provider exists
-    // yet, surface the unified provider picker so the user can connect in one
-    // step instead of having to discover /login on their own.
-    void this.maybeStartOnboarding().catch(() => {
-      // Onboarding is best-effort; a failure here must not block startup.
-    });
-
-    return shouldReplayHistory;
-  }
-
-  private async maybeStartOnboarding(): Promise<void> {
-    const config = await this.harness.getConfig({ reload: true });
-    const hasProvider =
-      config.defaultModel !== undefined ||
-      Object.keys(config.providers ?? {}).length > 0;
-    if (!hasProvider) {
-      // Auto-detect Qwen Token Plan: when the env key is set and no provider
-      // exists yet, configure it silently so the user gets a working setup
-      // without any interaction.
-      const qwenKey = process.env['QWEN_TOKEN_PLAN_API_KEY']?.trim();
-      if (qwenKey !== undefined && qwenKey.length > 0) {
-        const { applyQwenTokenPlanProvider } = await import('#/tui/utils/qwen-token-plan');
-        applyQwenTokenPlanProvider(config, qwenKey);
-        await this.harness.setConfig({
-          providers: config.providers,
-          models: config.models,
-          defaultModel: config.defaultModel,
-          defaultThinking: config.defaultThinking,
-        });
-        await this.authFlow.refreshConfigAfterLogin();
-        this.showStatus(
-          'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
-            'Text, image, and video generation enabled; harness tools run server-side on qwen3.7/3.8 models.',
-          'success',
-        );
-      } else {
-        // Route through the normal slash-command dispatch so /login's unified
-        // provider picker opens on first run.
-        slashCommands.dispatchInput(this, '/login');
-        return;
-      }
-    }
-
-    // One-shot Command Hub intro after login/provider is sorted.
-    // Skip when the user already typed something — don't steal the prompt.
-    const onboarding = this.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
-    const editorBusy = (this.state.editor.getText?.() ?? '').trim().length > 0;
-    if (!onboarding.hubIntroSeen && !editorBusy) {
-      this.showCommandHub({ intro: true });
-    }
-  }
-
-  private attachNativeRendererCallback(): void {
-    if (!(this.state.ui instanceof LioraNativeRootUI)) return;
-    const nativeRootUI = this.state.ui;
-    if (this.nativeInputRouter !== undefined) {
-      nativeRootUI.setInputRouter(this.nativeInputRouter.router);
-    }
-    const diagnosticsOverlay = () => this.nativeRendererDiagnosticsHudEnabled;
-    nativeRootUI.setRenderCallback(
-      createTUIStateNativeRenderCallback(this.state, {
-        diagnosticsOverlay,
-        onAuthoritativeFrame: () => {
-          this.appearanceController.reapplyTerminalPalette();
-        },
-      }),
-    );
-    // Toasts must repaint on show/hide even while the transcript auto-frame
-    // hold is active; 'manual' is exempt from that hold.
-    this.state.toast.onChanged = () => {
-      nativeRootUI.renderer.requestRender('manual');
-    };
-    // Occupy the full terminal viewport. The renderer is created with the
-    // `fullscreen-app` feature profile (alternate screen + clearOnStart), so
-    // the TUI owns the whole screen in its own buffer and the terminal's
-    // pre-session scrollback never shows through. The `measureFrameHeight`
-    // "grow with content" override is intentionally NOT set here — it would
-    // cap the frame to the transcript's content height and leave the rest of
-    // the alternate screen blank, which is the opposite of the forced
-    // full-screen occupation we want. It remains available for tests via
-    // createTUIStateNativeRenderer({ growWithContent: true }).
-  }
-
-
-  private startEventLoop(): void {
-    this.state.renderer.start();
-    // Kitty graphics escapes bypass the cell compositor; route them straight
-    // to the terminal while the event loop owns it.
-    setKittyGraphicsChannel((sequence) => {
-      this.state.terminal.write(sequence);
-    });
-    this.eventLoopStarted = true;
-    this.ensureNativeInputRouter();
-    this.attachNativeRendererCallback();
-    this.startClipboardImageHintController();
-    this.terminalFocusTrackingDispose = installTerminalFocusTracking(this.state);
-    this.refreshTerminalThemeTracking();
-  }
-
-  setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void {
-    if (command === 'status') {
-      const report = formatRendererDiagnosticsStatusReport({
-        hudEnabled: this.nativeRendererDiagnosticsHudEnabled,
-        nativeRendererEnabled: true,
-        diagnostics: this.nativeRendererDiagnosticsSnapshot(),
-      });
-      this.showStatus(report.message, report.color);
-      return;
-    }
-    if (command === 'reset') {
-      this.track('native_renderer_diagnostics_reset');
-      if (!this.resetNativeRendererDiagnostics()) {
-        this.showStatus(
-          'Native renderer diagnostics reset skipped: native renderer is not active.',
-          'warning',
-        );
-        return;
-      }
-      this.showStatus('Native renderer diagnostics reset.');
-      return;
-    }
-
-    const enabled = command === 'toggle'
-      ? !this.nativeRendererDiagnosticsHudEnabled
-      : command === 'on';
-    this.nativeRendererDiagnosticsHudEnabled = enabled;
-    this.track('native_renderer_diagnostics_hud', { enabled, command });
-
-    requestTUILayoutRender(this.state);
-    this.showStatus(`Native renderer diagnostics HUD: ${enabled ? 'ON' : 'OFF'}.`);
-  }
-
-  private nativeRendererDiagnosticsSnapshot() {
-    return this.state.renderer.nativeRuntime?.diagnostics;
-  }
-
-  private resetNativeRendererDiagnostics(): boolean {
-    const renderer = this.state.renderer.nativeRuntime;
-    if (renderer === undefined) return false;
-    renderer.resetStats();
-    requestTUILayoutRender(this.state);
-    return true;
-  }
-
-  setNativeRendererTrace(command: RendererTraceCommand): void {
-    if (command.action === 'status') {
-      const report = formatRendererTraceStatusReport({
-        nativeRendererEnabled: true,
-        trace: this.nativeRendererTraceSnapshot(),
-      });
-      this.showStatus(report.message, report.color);
-      return;
-    }
-
-    if (command.action === 'reset') {
-      this.track('native_renderer_trace_reset');
-      if (!this.resetNativeRendererTrace()) {
-        this.showStatus('Native renderer trace reset skipped: native renderer is not active.', 'warning');
-        return;
-      }
-      this.showStatus('Native renderer trace reset.');
-      return;
-    }
-
-    if (command.action === 'export') {
-      const outputPath = this.exportNativeRendererTrace(command.path);
-      if (outputPath === undefined) {
-        this.showStatus('Native renderer trace export skipped: native renderer is not active.', 'warning');
-        return;
-      }
-      this.track('native_renderer_trace_export');
-      this.showStatus(`Native renderer trace exported: ${outputPath}`);
-    }
-  }
-
-  private nativeRendererTraceSnapshot() {
-    return this.nativeRendererTraceRuntime()?.traceSnapshot;
-  }
-
-  private resetNativeRendererTrace(): boolean {
-    const renderer = this.nativeRendererTraceRuntime();
-    if (renderer === undefined) return false;
-    renderer.resetTrace();
-    requestTUILayoutRender(this.state);
-    return true;
-  }
-
-  private exportNativeRendererTrace(path: string | undefined): string | undefined {
-    const renderer = this.nativeRendererTraceRuntime();
-    if (renderer === undefined) return undefined;
-    const workDir = this.state.appState.workDir;
-    const outputPath = path === undefined
-      ? join(workDir, `renderer-trace-${String(Date.now())}.json`)
-      : resolve(workDir, path);
-    const rel = relative(workDir, outputPath);
-    if (rel === '' || rel.startsWith('..') || rel.includes(`..${sep}`)) {
-      this.showStatus('Trace export path must be inside the workspace.', 'error');
-      return undefined;
-    }
-    writeFileSync(
-      outputPath,
-      `${JSON.stringify(renderer.exportTrace({ processName: 'SuperLiora TUI' }), null, 2)}\n`,
-    );
-    return outputPath;
-  }
-
-  private nativeRendererTraceRuntime() {
-    return this.state.renderer.nativeRuntime;
-  }
-
-  private ensureNativeInputRouter(): void {
-    this.nativeInputRouter ??= createTUIStateNativeInputRouter(this.state, {
-      scrollTranscriptViewport: (action) => this.scrollTranscriptViewport(action),
-      scrollTodoPanel: (event) => this.scrollTodoPanelAtMouse(event),
-      // App shortcuts (especially `?` → Hub) must run before native text mutation.
-      handlePreEditorInput: (event) => {
-        if (event.type !== 'key' || event.eventType === 'release') return false;
-        // Alt+navigation scrolls the todo board while it overflows; when the
-        // board cannot scroll the event keeps its previous editor meaning.
-        if (event.alt && this.scrollTodoPanelByKey(event.key)) return true;
-        const legacy = encodeNativeInputAsLegacySequence(event);
-        if (legacy === undefined) return false;
-        return this.state.editor.tryHandleAppShortcut?.(legacy) === true;
-      },
-    });
-  }
-
-  private stopNativeRendererAdapters(): void {
-    this.nativeInputModalDispose?.();
-    this.nativeInputModalDispose = undefined;
-    this.nativeInputRouter?.dispose();
-    this.nativeInputRouter = undefined;
-  }
-
-  private startClipboardImageHintController(): void {
-    this.clipboardImageHintController = new ClipboardImageHintController({
-      ui: this.state.ui,
-      footer: this.state.footer,
-      getModelSupportsImage: () => this.supportsCurrentModelCapability('image_in'),
-      requestRender: () => {
-        requestTUIContentRender(this.state);
-      },
-    });
-    this.clipboardImageHintController.start();
-  }
-
-  private startBackgroundFdAutocomplete(): void {
-    if (this.fdPath !== null || this.fdDownloadStarted) return;
-    this.fdDownloadStarted = true;
-
-    void ensureFdPath()
-      .then((fdPath) => {
-        if (fdPath === null) return;
-        this.fdPath = fdPath;
-        this.setupAutocomplete();
-      })
-      .catch(() => {
-        // Best-effort background bootstrap: autocomplete keeps using the filesystem fallback.
-      });
-  }
-
-  private async refreshProviderModelsInBackground(): Promise<void> {
-    try {
-      const result = await this.authFlow.refreshProviderModels();
-      for (const c of result.changed) {
-        if (c.added <= 0) continue;
-        this.showStatus(`${c.providerName} · +${String(c.added)} model${c.added > 1 ? 's' : ''}.`);
-      }
-      for (const f of result.failed) {
-        this.showStatus(`Skipped refreshing ${f.provider}: ${f.reason}`, 'warning');
-      }
-    } catch {
-      // Best-effort: startup must not crash on background refresh failures.
-    }
-  }
-
-  private async finishStartup(shouldReplayHistory: boolean): Promise<void> {
-    if (this.startupNotice !== undefined) {
-      this.showStatus(this.startupNotice);
-      this.startupNotice = undefined;
-    }
-    void this.showTmuxKeyboardWarningIfNeeded();
-    if (this.state.startupState === 'picker') {
-      void this.sessionBrowser.bootstrapFromPicker();
-      return;
-    }
-    if (shouldReplayHistory) {
-      // Cold-start resume: paint the premium loading modal as soon as the
-      // splash yields so large histories never sit on a silent empty editor.
-      const session = this.requireSession();
-      const ownsColdStartOverlay = !this.isSessionLoadingOverlayActive();
-      if (ownsColdStartOverlay) {
-        this.beginSessionLoading(session.id, ttui('tui.sessionLoading.title'));
-        this.reportSessionLoading({
-          phase: 'loading',
-          progress: 0.22,
-          sessionId: session.id,
-          detail: ttui('tui.sessionLoading.phase.loading'),
-        });
-        await new Promise<void>((resolve) => setImmediate(resolve));
-      }
-      try {
-        await this.sessionReplay.hydrateFromReplay(session);
-        this.sessionBrowser.applyStartupPermissionAndPlanToAppState();
-      } finally {
-        // hydrate ends only when *it* opened the modal; we own this cold-start one.
-        if (ownsColdStartOverlay) {
-          this.endSessionLoading();
-        }
-      }
-    }
-    const resumeState = this.session?.getResumeState();
-    if (resumeState?.warning !== undefined) {
-      this.showStatus(`Warning: ${resumeState.warning}`, 'warning');
-    }
-    if (this.session !== undefined) {
-      this.sessionEventHandler.startSubscription();
-      void this.showSessionWarnings(this.session);
-    }
-    void this.sessionBrowser.fetchSessions();
-    if (this.session !== undefined) {
-      this.sessionBrowser.updateTerminalTitle();
-    }
-    void this.refreshDynamicSlashCommands(this.session);
-    this.usageMonitor.start();
-    // Goal-driven boot protocol: automatically resume the first goal in the queue
-    if (this.options.startup.resumeGoal === true) {
-      void this.resumeGoalFromQueue();
-    }
-  }
-
-  /**
-   * Goal-driven boot protocol: automatically resume the first goal in the queue.
-   * This is triggered by the --resume-goal CLI option.
-   */
-  private async resumeGoalFromQueue(): Promise<void> {
-    const session = this.session;
-    if (session === undefined) return;
-
-    try {
-      const { readGoalQueue, removeGoalQueueItem } = await import('./goal-queue-store');
-      const queue = await readGoalQueue(session);
-      const firstGoal = queue.goals[0];
-      if (firstGoal === undefined) {
-        this.showStatus('No goals in queue to resume.', 'textMuted');
-        return;
-      }
-
-      // Remove the goal from the queue before starting it
-      await removeGoalQueueItem(session, { goalId: firstGoal.id });
-
-      // Start the goal using the goal command handler
-      this.showStatus(`🎯 Resuming goal: ${firstGoal.objective.slice(0, 100)}...`, 'textMuted');
-
-      // Send the goal objective as a user input to start the goal
-      this.sendNormalUserInput(`/goal ${firstGoal.objective}`, {
-        displayText: `🎯 ${firstGoal.objective.slice(0, 50)}...`,
-      });
-    } catch (error) {
-      this.showStatus(`Failed to resume goal from queue: ${String(error)}`, 'error');
-    }
-  }
-
-  async showSessionWarnings(session: Session): Promise<void> {
-    try {
-      const warnings = await session.getSessionWarnings();
-      if (this.session !== session) return;
-      for (const warning of warnings) {
-        const severity = warning.severity === 'error' ? 'error' : 'warning';
-        this.showStatus(`Warning: ${warning.message}`, severity);
-      }
-    } catch {
-      // Best-effort: startup must not block on warning retrieval.
-    }
-  }
-
-  private async showTmuxKeyboardWarningIfNeeded(): Promise<void> {
-    try {
-      const warning = await detectTmuxKeyboardWarning();
-      if (warning === undefined || this.aborted) return;
-      this.showStatus(warning, 'warning');
-    } catch {
-      // Best-effort: startup must not block on warning retrieval.
-    }
+    return this.startupLifecycle.initMainTui();
   }
 
   private async init(): Promise<boolean> {
-    setExperimentalFeatures(await this.harness.getExperimentalFeatures(), true);
-    await this.authFlow.refreshAvailableModels();
-    void this.refreshProviderModelsInBackground();
-
-    const { startup } = this.options;
-    const { workDir } = this.state.appState;
-    let session: Session | undefined;
-    let shouldReplayHistory = false;
-    const isResumeStartup = startup.sessionFlag !== undefined || startup.continueLast;
-    const createSessionOptions: MutableCreateSessionOptions = {
-      workDir,
-      model: startup.model,
-      permission: startup.auto
-        ? 'auto'
-        : startup.yolo
-          ? 'yolo'
-          : this.state.appState.permissionMode,
-      planMode: startup.plan,
-    };
-    if (this.options.sessionMetadata !== undefined) {
-      createSessionOptions.metadata = this.options.sessionMetadata;
-    }
-    if (this.state.appState.additionalDirs.length > 0) {
-      createSessionOptions.additionalDirs = [...this.state.appState.additionalDirs];
-    }
-
-    try {
-      if (isResumeStartup) {
-        if (startup.sessionFlag === '') {
-          this.state.startupState = 'picker';
-          return false;
-        }
-
-        if (startup.sessionFlag !== undefined) {
-          const sessions = await this.harness.listSessions({
-            sessionId: startup.sessionFlag,
-            workDir,
-          });
-          const target = sessions[0];
-          if (target === undefined) {
-            throw new Error(`Session "${startup.sessionFlag}" not found.`);
-          }
-          if (resolve(target.workDir) !== resolve(workDir)) {
-            this.state.renderer.stop();
-            process.stderr.write(
-              `${currentTheme.fg(
-                'warning',
-                `Session "${startup.sessionFlag}" was created under a different directory.\n` +
-                  `  cd "${target.workDir}" && liora -r ${startup.sessionFlag}`,
-              )}\n\n`,
-            );
-            throw new Error(
-              `Session "${startup.sessionFlag}" was created under a different directory.`,
-            );
-          }
-          session = await this.harness.resumeSession({
-            id: startup.sessionFlag,
-            additionalDirs: createSessionOptions.additionalDirs,
-          });
-          shouldReplayHistory = true;
-        } else {
-          const sessions = await this.harness.listSessions({ workDir });
-          const target = sessions[0];
-          if (target !== undefined) {
-            session = await this.harness.resumeSession({
-              id: target.id,
-              additionalDirs: createSessionOptions.additionalDirs,
-            });
-            shouldReplayHistory = true;
-          } else {
-            session = await this.harness.createSession(createSessionOptions);
-            this.startupNotice = combineStartupNotice(
-              this.startupNotice,
-              `No sessions to continue under "${workDir}"; starting a fresh session.`,
-            );
-          }
-        }
-      } else {
-        session = await this.harness.createSession(createSessionOptions);
-      }
-      if (session !== undefined && shouldReplayHistory) {
-        await this.sessionBrowser.applyStartupModesToResumedSession(session);
-        if (startup.model !== undefined) {
-          await session.setModel(startup.model);
-        }
-      }
-    } catch (error) {
-      if (!isOAuthLoginRequiredError(error)) throw error;
-      this.authFlow.enterLoginRequiredStartupState();
-      return false;
-    }
-
-    if (session === undefined) {
-      throw new Error('Startup session was not initialized.');
-    }
-    await this.setSession(session);
-    await this.syncRuntimeState(session);
-    await this.refreshDynamicSlashCommands(session);
-    this.sessionBrowser.applyStartupPermissionAndPlanToAppState();
-    this.state.startupState = 'ready';
-    return shouldReplayHistory;
+    return this.startupLifecycle.init();
   }
 
   async stop(exitCode?: number): Promise<void> {
-    if (this.isShuttingDown) return;
-    this.isShuttingDown = true;
-    this.unregisterSignalHandlers();
-    this.dialogs.stopSessionLoadingPulse();
-    this.sessionLoadingOverlay = undefined;
-    this.aborted = true;
-    this.streamingUI.discardPending();
-    this.editorKeyboard.clearPendingExit();
-    // BUG-5: clear the detach-hint timer so it does not fire into a stopped
-    // renderer after exit.
-    if (this.detachHintClearTimer !== undefined) {
-      clearTimeout(this.detachHintClearTimer);
-      this.detachHintClearTimer = undefined;
-    }
-    for (const dispose of this.reverseRpcDisposers) {
-      dispose();
-    }
-    this.reverseRpcDisposers.length = 0;
-    this.disposeTerminalTracking();
-    this.transcriptRender.disposeStartupSplash();
-    this.appearanceController.dispose();
-    // BUG-2: dispose the footer's goal-timer interval and the header clock.
-    this.state.footer.dispose();
-    this.state.header.dispose();
-    await this.closeSession('shutting down');
-    await this.harness.close();
-    // BUG-3: clear any queued goal-promotion timer (and MCP spinners).
-    this.sessionEventHandler.resetRuntimeState();
-    // BUG-4: close the tasks browser so its 1s poll timer does not keep
-    // firing into a closed session.
-    this.tasksBrowserController.close();
-    this.usageMonitor.dispose();
-    this.promptIntelligence.dispose();
-    // Central teardown: any resource registered with the disposable registry
-    // (timers, intervals, listeners, watchers) is cleaned up here.
-    this.disposables.disposeAll();
-    await this.state.renderer.drainInput();
-    this.state.ui.stop();
-    if (this.onExit) {
-      await this.onExit(exitCode);
-    }
+    return this.startupLifecycle.stop(exitCode);
   }
 
-  // SIGHUP / dead-terminal EIO → emergencyTerminalExit (no cleanup, avoids
-  // EIO write-loop that can pin a CPU core). SIGTERM → normal stop().
   private registerSignalHandlers(): void {
-    this.unregisterSignalHandlers();
-
-    // Register a synchronous exit handler so the terminal is always restored —
-    // normal stop(), SIGHUP emergency exit, and even a mid-stop throw all run
-    // this. The restore sequences are written best-effort (EIO on a dead pty
-    // is swallowed) so this never throws at process exit.
-    const exitHandler = (): void => {
-      try {
-        NativeTerminalSession.writeRestoreSequencesSync(process.stdout);
-      } catch {
-        // Swallow — must never throw at process exit.
-      }
-    };
-    process.on('exit', exitHandler);
-    this.signalCleanupHandlers.push(() => {
-      process.off('exit', exitHandler);
-    });
-
-    const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
-    if (process.platform !== 'win32') {
-      signals.push('SIGHUP');
-    }
-
-    for (const signal of signals) {
-      const handler = (): void => {
-        if (signal === 'SIGHUP') {
-          // Best-effort synchronous flush before the emergency exit — a dead
-          // terminal can EIO-loop and pin a CPU, so we cannot run async
-          // cleanup, but we can still drain pending records to disk so the
-          // in-flight work survives the abrupt exit.
-          this.harness.emergencyFlushSync();
-          this.emergencyTerminalExit();
-          return;
-        }
-        // Registering a SIGTERM/SIGINT listener disables Node's default
-        // exit(128+signum), so we must reinstate it after stop() or on
-        // failure. Both take the graceful async path that flushes records
-        // and Ultrawork checkpoints via Session.close().
-        const code = 128 + (signal === 'SIGINT' ? 2 : 15);
-        this.stop(code).then(
-          () => {
-            process.exit(code);
-          },
-          () => {
-            this.emergencyTerminalExit(code);
-          },
-        );
-      };
-      process.prependListener(signal, handler);
-      this.signalCleanupHandlers.push(() => {
-        process.off(signal, handler);
-      });
-    }
-
-    const terminalErrorHandler = (error: Error): void => {
-      if (isDeadTerminalError(error)) {
-        this.emergencyTerminalExit();
-      }
-    };
-    process.stdout.on('error', terminalErrorHandler);
-    process.stderr.on('error', terminalErrorHandler);
-    this.signalCleanupHandlers.push(() => {
-      process.stdout.off('error', terminalErrorHandler);
-    });
-    this.signalCleanupHandlers.push(() => {
-      process.stderr.off('error', terminalErrorHandler);
-    });
+    this.startupLifecycle.registerSignalHandlers();
   }
 
   private unregisterSignalHandlers(): void {
-    const handlers = this.signalCleanupHandlers;
-    this.signalCleanupHandlers = [];
-    for (const cleanup of handlers) cleanup();
+    this.startupLifecycle.unregisterSignalHandlers();
   }
 
-  // Exit codes follow POSIX 128+signum: 129 = SIGHUP, 143 = SIGTERM.
   private emergencyTerminalExit(exitCode = 129): never {
-    this.isShuttingDown = true;
-    this.unregisterSignalHandlers();
-    // Last-resort synchronous flush so any state still pending after the
-    // graceful stop attempt (or a failed one) is not lost to the abrupt exit.
-    try {
-      this.harness.emergencyFlushSync();
-    } catch {
-      // Swallow — we are exiting regardless.
-    }
-    process.exit(exitCode);
-  }
-
-  private disposeTerminalTracking(): void {
-    this.stopNativeRendererAdapters();
-    setKittyGraphicsChannel(undefined);
-    this.eventLoopStarted = false;
-    this.panes.stopTerminalThemeTracking();
-    this.clipboardImageHintController?.stop();
-    this.clipboardImageHintController = undefined;
-    this.terminalFocusTrackingDispose?.();
-    this.terminalFocusTrackingDispose = undefined;
-  }
-
-  private buildLayout(): void {
-    const { ui } = this.state;
-    ui.clear();
-    ui.addChild(this.state.transcriptContainer);
-    ui.addChild(this.state.activityContainer);
-    ui.addChild(this.state.todoPanelContainer);
-    ui.addChild(this.state.queueContainer);
-    ui.addChild(this.state.btwPanelContainer);
-    ui.addChild(this.state.editorContainer);
-    // Footer is mounted later (mountFooter), not here.
+    return this.startupLifecycle.emergencyTerminalExit(exitCode);
   }
 
   private shouldRenderAmbientAnimationFrame(): boolean {
@@ -1390,103 +496,31 @@ export class LioraTUI {
   }
 
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
-    const changed = applyTranscriptViewportScroll(this.state.transcriptViewport, action);
-    if (changed) requestTUIScrollRender(this.state);
-    return changed;
+    return this.startupLifecycle.scrollTranscriptViewport(action);
   }
 
-  /**
-   * Wheel scrolls that land on the todo board move the board's viewport.
-   * Returns false when the pointer is outside the board or the board has
-   * no overflow to scroll, so the transcript viewport keeps its current
-   * behavior for every other wheel event.
-   */
-  private scrollTodoPanelAtMouse(event: NativeInputEvent): boolean {
-    if (event.type !== 'mouse') return false;
-    const rect = getTUIStateNativeTodoRect(this.state);
-    if (rect === undefined) return false;
-    if (
-      event.x < rect.x ||
-      event.x >= rect.x + rect.width ||
-      event.y < rect.y ||
-      event.y >= rect.y + rect.height
-    ) {
-      return false;
-    }
-    const action: TodoBoardScrollAction | undefined =
-      event.button === 'wheel-up'
-        ? 'line-up'
-        : event.button === 'wheel-down'
-          ? 'line-down'
-          : undefined;
-    if (action === undefined) return false;
-    if (!this.state.todoPanel.scrollBoard(action)) return false;
-    requestTUILayoutRender(this.state);
-    return true;
+  setNativeRendererDiagnosticsOverlay(command: RendererDiagnosticsOverlayCommand): void {
+    this.nativeRendererDiagnostics.setNativeRendererDiagnosticsOverlay(command);
   }
 
-  /**
-   * Alt+↑/↓ scrolls the board one row; Alt+PageUp/PageDown page it;
-   * Alt+Home/End jump to the edges. Only consumed while the board actually
-   * moves, so unbound alt keys keep reaching the editor untouched.
-   */
-  private scrollTodoPanelByKey(key: NativeInputKey): boolean {
-    let action: TodoBoardScrollAction | undefined;
-    switch (key) {
-      case 'up':
-        action = 'line-up';
-        break;
-      case 'down':
-        action = 'line-down';
-        break;
-      case 'pageup':
-        action = 'page-up';
-        break;
-      case 'pagedown':
-        action = 'page-down';
-        break;
-      case 'home':
-        action = 'top';
-        break;
-      case 'end':
-        action = 'bottom';
-        break;
-      default:
-        return false;
-    }
-    if (!this.state.todoPanel.scrollBoard(action)) return false;
-    requestTUILayoutRender(this.state);
-    return true;
+  setNativeRendererTrace(command: RendererTraceCommand): void {
+    this.nativeRendererDiagnostics.setNativeRendererTrace(command);
   }
 
-  // Footer is the only chrome with content before a session is ready, so
-  // mounting it at construction lets a stray pre-start render leak it to the
-  // terminal — e.g. above the error when resuming a missing session. Mount the
-  // prepared footer container only once init() succeeds.
-  private mountFooter(): void {
-    if (!this.state.footerContainer.children.includes(this.state.footer)) {
-      this.state.footerContainer.addChild(this.state.footer);
-    }
-    if (!this.state.ui.children.includes(this.state.footerContainer)) {
-      this.state.ui.addChild(this.state.footerContainer);
-    }
+  async showSessionWarnings(session: Session): Promise<void> {
+    return this.startupLifecycle.showSessionWarnings(session);
   }
 
-  // Header mirrors footer: mount after init() so its model label does not leak
-  // before the session is ready.
-  private mountHeader(): void {
-    if (!this.state.headerContainer.children.includes(this.state.header)) {
-      this.state.headerContainer.addChild(this.state.header);
-    }
-    if (!this.state.ui.children.includes(this.state.headerContainer)) {
-      this.state.ui.addChild(this.state.headerContainer);
-    }
+  private async finishStartup(shouldReplayHistory: boolean): Promise<void> {
+    return this.startupLifecycle.finishStartup(shouldReplayHistory);
   }
 
+  private async refreshProviderModelsInBackground(): Promise<void> {
+    return this.startupLifecycle.refreshProviderModelsInBackground();
+  }
   // =========================================================================
   // Input Dispatch
   // =========================================================================
-
   handlePlanToggle(next: boolean, ultra = false): void {
     void slashCommands.handlePlanCommand(this, next ? (ultra ? 'ultra' : 'on') : 'off');
   }
@@ -1509,119 +543,19 @@ export class LioraTUI {
   }
 
   runShellCommandFromInput(command: string): void {
-    const session = this.session;
-    if (session === undefined) {
-      this.showError('No active session for shell command.');
-      return;
-    }
-    // Echo the command locally (bash-input) with a `$` prompt. The agent also
-    // records it for resume; this is the live view.
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'user',
-      turnId: undefined,
-      renderMode: 'plain',
-      content: currentTheme.fg('shellMode', `$ ${command}`),
-      bullet: '',
-      timestamp: Date.now(),
-    });
-    // Create the live output entry up front. ShellRunComponent owns its own
-    // rendering (running card → final view) and is mutated in place as output
-    // streams in and on completion.
-    const commandId = nextTranscriptId();
-    const outputEntry: TranscriptEntry = {
-      id: commandId,
-      kind: 'status',
-      turnId: undefined,
-      renderMode: 'plain',
-      content: '',
-    };
-    const outputComponent = new ShellRunComponent(() => {
-      requestTUIContentRender(this.state);
-    });
-    this.shellOutputStreams.set(commandId, { entry: outputEntry, component: outputComponent });
-    this.state.transcriptEntries.push(outputEntry);
-    markTranscriptComponent(outputComponent, outputEntry);
-    this.state.transcriptContainer.addChild(outputComponent);
-    // Treat command execution as a streaming phase so input queues, the activity
-    // pane shows the moon spinner, and ctrl+b is enabled while it runs.
-    this.setAppState({ streamingPhase: 'shell' });
-    requestTUIContentRender(this.state);
-
-    void session.runShellCommand(command, { commandId }).then(
-      ({ stdout, stderr, isError, backgrounded }) => {
-        this.finishShellOutput(commandId, stdout, stderr, isError, backgrounded);
-      },
-      (error: unknown) => {
-        const message = formatErrorMessage(error);
-        this.finishShellOutput(commandId, '', message, true);
-        this.showError(`Shell command failed: ${message}`);
-      },
-    );
+    this.shellInput.runShellCommandFromInput(command);
   }
 
   handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void {
-    const stream = this.shellOutputStreams.get(event.commandId);
-    if (stream === undefined) return;
-    const text = event.update.text ?? '';
-    if (text.length === 0) return;
-    stream.component.append(text);
+    this.shellInput.handleShellOutput(event);
   }
 
   handleShellStarted(event: { commandId: string; taskId: string }): void {
-    const stream = this.shellOutputStreams.get(event.commandId);
-    if (stream === undefined) return;
-    stream.taskId = event.taskId;
+    this.shellInput.handleShellStarted(event);
   }
 
   cancelRunningShellCommand(): void {
-    const session = this.session;
-    if (session === undefined) return;
-    for (const commandId of this.shellOutputStreams.keys()) {
-      void session.cancelShellCommand(commandId).catch((error: unknown) => {
-        this.showError(`Failed to cancel shell command: ${formatErrorMessage(error)}`);
-      });
-    }
-  }
-
-  private finishShellOutput(
-    commandId: string,
-    stdout: string,
-    stderr: string,
-    isError?: boolean,
-    backgrounded?: boolean,
-  ): void {
-    const stream = this.shellOutputStreams.get(commandId);
-    if (stream === undefined) return;
-    if (backgrounded === true) {
-      // The command was moved to the background; detachRunningShellCommand owns
-      // the UI and the model notification, so there is nothing to render here.
-      return;
-    }
-    stream.component.finish(stdout, stderr, isError);
-    // Keep the transcript entry's metadata in sync for anything that reads it
-    // (export / copy). The component renders itself.
-    stream.entry.content = formatBashOutputForDisplay(stdout, stderr, isError);
-    this.shellOutputStreams.delete(commandId);
-    // When the last shell command finishes, leave the shell streaming phase,
-    // release one queued message (if any), and refresh the activity pane.
-    if (this.shellOutputStreams.size === 0) {
-      this.setAppState({ streamingPhase: 'idle' });
-      this.drainOneQueuedMessage();
-    }
-  }
-
-  private drainOneQueuedMessage(): void {
-    const item = this.shiftQueuedMessage();
-    if (item === undefined) return;
-    const session = this.session;
-    if (session === undefined) return;
-    if (item.mode === 'bash') {
-      this.runShellCommandFromInput(item.text);
-    } else {
-      this.sendQueuedMessage(session, item);
-    }
-    this.updateQueueDisplay();
+    this.shellInput.cancelRunningShellCommand();
   }
 
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void {
@@ -1635,56 +569,12 @@ export class LioraTUI {
     return capabilities.includes(capability);
   }
 
-  private async loadPersistedInputHistory(): Promise<void> {
-    try {
-      const file = getInputHistoryFile(this.state.appState.workDir);
-      const entries = await loadInputHistory(file);
-      const workdirContents = new Set(entries.map((entry) => entry.content));
-
-      // Load global (cross-workdir) history as a fallback. Entries not already
-      // present in the workdir-specific file are added first (older / less
-      // relevant), so the workdir entries remain the most recent when the user
-      // navigates backwards with ↑.
-      try {
-        const globalEntries = await loadGlobalInputHistory(getGlobalInputHistoryFile());
-        for (const entry of globalEntries) {
-          if (!workdirContents.has(entry.content)) {
-            this.state.editor.addToHistory(entry.content);
-          }
-        }
-      } catch {
-        // Global history is best-effort.
-      }
-
-      for (const entry of entries) {
-        this.state.editor.addToHistory(entry.content);
-      }
-      this.lastHistoryContent = entries.at(-1)?.content;
-    } catch (error) {
-      console.warn('Failed to load input history:', error);
-    }
+  async loadPersistedInputHistory(): Promise<void> {
+    return this.shellInput.loadPersistedInputHistory();
   }
 
   async persistInputHistory(text: string): Promise<void> {
-    const trimmed = text.trim();
-    if (trimmed.length === 0) return;
-    if (trimmed === this.lastHistoryContent) return;
-    this.state.editor.addToHistory(trimmed);
-    try {
-      const file = getInputHistoryFile(this.state.appState.workDir);
-      const written = await appendInputHistory(file, trimmed, this.lastHistoryContent);
-      if (written) this.lastHistoryContent = trimmed;
-    } catch (error) {
-      console.warn('Failed to persist input history:', error);
-      this.lastHistoryContent = trimmed;
-    }
-    // Also persist to the global (cross-workdir) history. Best-effort; the load
-    // path dedupes, so we append unconditionally here.
-    try {
-      await appendGlobalInputHistory(getGlobalInputHistoryFile(), trimmed);
-    } catch {
-      // Global history is best-effort.
-    }
+    return this.shellInput.persistInputHistory(text);
   }
 
   recallLastQueued(): QueuedMessage | undefined {
@@ -1693,32 +583,15 @@ export class LioraTUI {
     this.state.queuedMessages = this.state.queuedMessages.slice(0, -1);
     return last;
   }
-
   // =========================================================================
   // Session Requests / Queues
   // =========================================================================
-
   beginSessionRequest(): void {
-    this.streamingUI.setTurnId(undefined);
-    this.streamingUI.resetLiveText();
-    this.streamingUI.resetToolUi();
-    this.streamingUI.resetToolCallState();
-
-    this.patchLivePane({
-      mode: 'waiting',
-      pendingApproval: null,
-      pendingQuestion: null,
-    });
-    this.setAppState({
-      streamingPhase: 'waiting',
-      streamingStartTime: Date.now(),
-    });
+    this.sessionRequests.beginSessionRequest();
   }
 
   failSessionRequest(message: string): void {
-    this.setAppState({ streamingPhase: 'idle' });
-    this.resetLivePane();
-    this.showError(message);
+    this.sessionRequests.failSessionRequest(message);
   }
 
   sendQueuedMessage(session: Session, item: QueuedMessage): void {
@@ -1726,11 +599,11 @@ export class LioraTUI {
   }
 
   requestQueuedGoalPromotion(): void {
-    this.sessionEventHandler.requestQueuedGoalPromotion();
+    this.sessionRequests.requestQueuedGoalPromotion();
   }
 
   sendSkillActivation(session: Session, skillName: string, skillArgs: string): void {
-    this.messageDispatch.sendSkillActivation(session, skillName, skillArgs);
+    this.sessionRequests.sendSkillActivation(session, skillName, skillArgs);
   }
 
   activatePluginCommand(
@@ -1739,17 +612,12 @@ export class LioraTUI {
     commandName: string,
     args: string,
   ): void {
-    this.beginSessionRequest();
-    void session.activatePluginCommand(pluginId, commandName, args).catch((error: unknown) => {
-      const message = formatErrorMessage(error);
-      this.failSessionRequest(`Command "${pluginId}:${commandName}" failed: ${message}`);
-    });
+    this.sessionRequests.activatePluginCommand(session, pluginId, commandName, args);
   }
 
   steerMessage(session: Session, input: string[]): void {
-    this.messageDispatch.steerMessage(session, input);
+    this.sessionRequests.steerMessage(session, input);
   }
-
   // =========================================================================
   // State & Accessors
   // =========================================================================
@@ -1813,86 +681,20 @@ export class LioraTUI {
   }
 
   setAppState(patch: Partial<AppState>): void {
-    if (!hasPatchChanges(this.state.appState, patch)) return;
-    const additionalDirsChanged =
-      'additionalDirs' in patch &&
-      !sameStringArrays(this.state.appState.additionalDirs, patch.additionalDirs ?? []);
-    const busyChanged = 'streamingPhase' in patch || 'isCompacting' in patch;
-    const becameIdle =
-      'streamingPhase' in patch &&
-      this.state.appState.streamingPhase !== 'idle' &&
-      patch.streamingPhase === 'idle';
-    const goalChanged = 'goal' in patch;
-    const modeBeats = collectFooterModeBeats(this.state.appState, patch);
-    Object.assign(this.state.appState, patch);
-    if ('planMode' in patch || 'ultraworkMode' in patch) this.updateEditorBorderHighlight();
-    if ('appearance' in patch) this.appearanceController.apply();
-    if (
-      this.openCommandHub !== undefined &&
-      ('planMode' in patch ||
-        'swarmMode' in patch ||
-        'ultraworkMode' in patch ||
-        'premiumQualityMode' in patch ||
-        'permissionMode' in patch ||
-        'model' in patch ||
-        'thinkingLevel' in patch ||
-        'streamingPhase' in patch ||
-        'isCompacting' in patch)
-    ) {
-      this.dialogs.refreshOpenCommandHub();
-    }
-    const theatreActive = isMotionTheatreActive(this.state.appState);
-    for (const beat of modeBeats) {
-      const planBeat = beat.name === 'plan_enter' || beat.name === 'plan_exit';
-      this.motionBeats.play({
-        name: beat.name,
-        seed: planBeat ? 'plan' : `mode:${beat.title}`,
-        title: beat.title,
-        nowMs: appearanceAnimationNow(),
-        theatreActive,
-      });
-    }
-    this.state.footer.setState(this.state.appState);
-    this.state.header.setState(this.state.appState);
-    if (goalChanged) {
-      this.syncGoalMonitorPanel();
-    }
-    this.updateActivityPane();
-    if (busyChanged) {
-      this.updateQueueDisplay();
-      this.sessionEventHandler.retryQueuedGoalPromotion();
-    }
-    if (additionalDirsChanged) this.setupAutocomplete();
-    if (becameIdle) this.promptIntelligence.notifyIdle();
-    requestTUIContentRender(this.state);
+    this.appStateController.setAppState(patch);
   }
 
-  /**
-   * Keep the chrome todo/goal panel mounted for live goals even when the
-   * TodoList is empty, and unmount when both are gone.
-   */
   syncGoalMonitorPanel(): void {
-    this.state.todoPanel.setGoal(this.state.appState.goal);
-    this.state.todoPanelContainer.clear();
-    if (!this.state.todoPanel.isEmpty()) {
-      this.state.todoPanelContainer.addChild(this.state.todoPanel);
-    }
-    requestTUILayoutRender(this.state);
+    this.appStateController.syncGoalMonitorPanel();
   }
 
   patchLivePane(patch: Partial<LivePaneState>): void {
-    if (!hasPatchChanges(this.state.livePane, patch)) return;
-    Object.assign(this.state.livePane, patch);
-    this.updateActivityPane();
-    requestTUIContentRender(this.state);
+    this.appStateController.patchLivePane(patch);
   }
 
   resetLivePane(): void {
-    this.state.livePane = { ...INITIAL_LIVE_PANE };
-    this.updateActivityPane();
-    requestTUIContentRender(this.state);
+    this.appStateController.resetLivePane();
   }
-
   // =========================================================================
   // Session Runtime
   // =========================================================================
@@ -2300,54 +1102,3 @@ export class LioraTUI {
   }
 }
 
-function nativeRendererDiagnosticsOverlayEnabled(): boolean {
-  return truthyEnv(process.env['SUPERLIORA_NATIVE_RENDERER_DIAGNOSTICS']);
-}
-
-function truthyEnv(value: string | undefined): boolean {
-  if (value === undefined) return false;
-  const normalized = value.trim().toLowerCase();
-  return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
-}
-
-/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (ultrawork, swarm, yolo). */
-function collectFooterModeBeats(
-  prev: AppState,
-  patch: Partial<AppState>,
-): Array<{
-  readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
-  readonly title: string;
-}> {
-  const beats: Array<{
-    readonly name: 'mode_enter' | 'mode_exit' | 'plan_enter' | 'plan_exit';
-    readonly title: string;
-  }> = [];
-  if ('planMode' in patch && patch.planMode !== undefined && patch.planMode !== prev.planMode) {
-    beats.push({ name: patch.planMode ? 'plan_enter' : 'plan_exit', title: 'plan' });
-  }
-  if (
-    'ultraworkMode' in patch &&
-    patch.ultraworkMode !== undefined &&
-    patch.ultraworkMode !== prev.ultraworkMode
-  ) {
-    beats.push({
-      name: patch.ultraworkMode ? 'mode_enter' : 'mode_exit',
-      title: 'ultrawork',
-    });
-  }
-  if ('swarmMode' in patch && patch.swarmMode !== undefined && patch.swarmMode !== prev.swarmMode) {
-    beats.push({ name: patch.swarmMode ? 'mode_enter' : 'mode_exit', title: 'swarm' });
-  }
-  if (
-    'permissionMode' in patch &&
-    patch.permissionMode !== undefined &&
-    patch.permissionMode !== prev.permissionMode
-  ) {
-    const wasYolo = prev.permissionMode === 'yolo';
-    const nowYolo = patch.permissionMode === 'yolo';
-    if (wasYolo !== nowYolo) {
-      beats.push({ name: nowYolo ? 'mode_enter' : 'mode_exit', title: 'yolo' });
-    }
-  }
-  return beats;
-}
