@@ -2,7 +2,7 @@
  * Interview perspective descriptions for Ultra Plan.
  */
 
-import type { InterviewPerspective } from './ultra-plan-mode';
+import type { InterviewPerspective } from './ultra-plan-types';
 
 export const INTERVIEW_PERSPECTIVE_DESCRIPTIONS: Record<InterviewPerspective, string> = {
   researcher:

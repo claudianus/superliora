@@ -6,7 +6,7 @@ import {
   THINKING_PERSONA_SUMMARIES,
   questionsForThinkingPersona,
 } from './ultra-plan-persona-banks';
-import type { LateralThinkingResult, ThinkingPersona } from './ultra-plan-mode';
+import type { LateralThinkingResult, ThinkingPersona } from './ultra-plan-types';
 
 export function buildLateralThinkingResult(
   persona: ThinkingPersona,

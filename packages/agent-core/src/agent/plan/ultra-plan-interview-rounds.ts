@@ -6,7 +6,7 @@ import type {
   InterviewAnswerOrigin,
   InterviewRound,
   InterviewState,
-} from './ultra-plan-mode';
+} from './ultra-plan-types';
 
 export function formatInterviewAnswerText(
   answers: Record<string, string | true>,

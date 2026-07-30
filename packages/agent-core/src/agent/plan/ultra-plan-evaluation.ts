@@ -2,7 +2,7 @@
  * Pure default Evaluation Plan builder for Ultra Plan.
  */
 
-import type { EvaluationPlan } from './ultra-plan-mode';
+import type { EvaluationPlan } from './ultra-plan-types';
 
 export function buildDefaultEvaluationPlan(): EvaluationPlan {
   return {

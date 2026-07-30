@@ -9,7 +9,7 @@ import {
   ULTRA_PLAN_SECTION_GUIDANCE,
   type UltraPlanRequiredSection,
 } from './ultra-plan-section-guidance';
-import type { InterviewPerspective, UltraPlanReadiness } from './ultra-plan-mode';
+import type { InterviewPerspective, UltraPlanReadiness } from './ultra-plan-types';
 
 export interface InterviewReadinessGuideOptions {
   readonly perspective?: InterviewPerspective;

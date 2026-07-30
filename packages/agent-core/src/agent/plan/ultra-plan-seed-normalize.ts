@@ -6,7 +6,7 @@ import type {
   OntologyField,
   OntologySchema,
   SeedSpec,
-} from './ultra-plan-mode';
+} from './ultra-plan-types';
 
 export type BuildSeedSpecFn = (
   goal: string,
