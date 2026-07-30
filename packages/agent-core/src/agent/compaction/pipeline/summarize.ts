@@ -23,7 +23,7 @@ import { retryBackoffDelays, sleepForRetry } from '../../../loop/retry';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { estimateTokensForMessages } from '../../../utils/tokens';
 import { buildResponseLanguageDirective } from '../../injection/response-language';
-import compactionInstructionTemplate from '../compaction-instruction.md?raw';
+import compactionInstructionTemplate from '../prompts/compaction-instruction.md?raw';
 import {
   AdaptiveConcurrencyLimiter,
   CompactionTruncatedError,
@@ -33,19 +33,19 @@ import {
   isRateLimitLikeError,
   mapWithConcurrency,
   parseEnvConcurrency,
-} from '../adaptive-concurrency';
+} from '../full/adaptive-concurrency';
 import {
   buildEmergencyBackstopSummary,
   shouldUseClassicalCompactionFallback,
-} from '../backstop';
-import { blockDensity, formatRawRef } from '../context-helpers';
+} from '../full/backstop';
+import { blockDensity, formatRawRef } from '../plan/context-helpers';
 import {
   extractCompactionSummary,
   mergeTokenUsage,
   mergeTokenUsageOrNull,
-} from '../full-helpers';
-import { shouldUseParallelSummarize } from '../full-policy';
-import { splitMessagesIntoTokenBlocks, type CompactionPlan } from '../planner';
+} from '../full/full-helpers';
+import { shouldUseParallelSummarize } from '../full/full-policy';
+import { splitMessagesIntoTokenBlocks, type CompactionPlan } from '../plan/planner';
 import {
   compactionStreamCallbacks,
   emitCompactionProgress,

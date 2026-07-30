@@ -1,7 +1,7 @@
 import type { Message } from '@superliora/kosong';
 
-import { estimateTokensForMessage } from '../../utils/tokens';
-import type { CompactionSource } from './types';
+import { estimateTokensForMessage } from '../../../utils/tokens';
+import type { CompactionSource } from '../types';
 import {
   applyWorkingSetCap,
   DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,

@@ -1,6 +1,6 @@
 import type { ContentPart } from '@superliora/kosong';
 
-import type { ContextMessage } from '../context';
+import type { ContextMessage } from '../../context';
 import { isSwarmToolResult, maskStaleSwarmToolResult } from './boundary-compaction';
 export function contentPreview(parts: readonly ContentPart[]): string {
   return parts.map((part) => truncateForMarker(contentPartPreview(part), 80)).join('\n').trim();

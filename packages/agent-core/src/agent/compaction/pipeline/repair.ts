@@ -9,24 +9,24 @@
 import type { ChatProvider, Message, TokenUsage, Tool } from '@superliora/kosong';
 import { createUserMessage } from '@superliora/kosong';
 
-import type { CompactionPlan } from '../planner';
+import type { CompactionPlan } from '../plan/planner';
 import {
   mergeCompactionQualityResults,
   validateRenderedCompactionSummary,
   validateUltraworkCompactionContinuity,
   type CompactionQualityResult,
-} from '../quality';
-import { CompactionTruncatedError } from '../adaptive-concurrency';
+} from '../plan/quality';
+import { CompactionTruncatedError } from '../full/adaptive-concurrency';
 import {
   extractCompactionSummary,
   isMissingEvidenceQualityFailure,
   mergeTokenUsage,
-} from '../full-helpers';
-import { buildCompactionSummaryText } from '../handoff';
+} from '../full/full-helpers';
+import { buildCompactionSummaryText } from '../micro/handoff';
 import { estimateTokens, estimateTokensForMessages } from '../../../utils/tokens';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { captureUltraworkEnvelopeSnapshot } from '../../../ultrawork/envelope';
-import compactionInstructionTemplate from '../compaction-instruction.md?raw';
+import compactionInstructionTemplate from '../prompts/compaction-instruction.md?raw';
 
 import { postProcessSummary, renderStructuredV2Summary } from './enrich';
 import { compactionStreamCallbacks } from './progress';

@@ -8,7 +8,7 @@ import {
 } from '../../../ultrawork/envelope';
 import { renderTodoList, type TodoItem } from '../../../tools/builtin/state/todo-list';
 import { estimateTokens } from '../../../utils/tokens';
-import { extractAnchorDiff, mergeIntoAnchor, renderAnchor } from '../anchor';
+import { extractAnchorDiff, mergeIntoAnchor, renderAnchor } from '../full/anchor';
 import {
   extractNextActions,
   extractSwarmRunLines,
@@ -17,18 +17,18 @@ import {
   formatStringList,
   mergeStringLists,
   uniqueHints,
-} from '../context-helpers';
+} from '../plan/context-helpers';
 import {
   extractFactsFromSummary,
   formatFactsAsMemoryBlock,
   mergeFactSets,
   parseStructuredCompactionMemory,
 } from '../memory';
-import type { CompactionPlan } from '../planner';
+import type { CompactionPlan } from '../plan/planner';
 import {
   extractSwarmRunsFromMessages,
   renderSwarmRunsMemorySection,
-} from '../swarm-memory-extract';
+} from '../memory/swarm-memory-extract';
 import type { CompactionPipelineContext } from './types';
 
 export function enrichCompactionSummary(

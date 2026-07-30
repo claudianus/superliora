@@ -46,7 +46,7 @@ import {
   shouldIncludeCompactionQualitySignals,
 } from '../../../src/agent/compaction/full-helpers';
 import { CompactionQualityTracker } from '../../../src/agent/compaction/quality';
-import * as compactionQualityModule from '../../../src/agent/compaction/quality';
+import * as compactionQualityModule from '../../../src/agent/compaction/plan/quality';
 import type { LioraConfig } from '../../../src/config';
 import { FLAG_DEFINITIONS, FlagResolver, MASTER_ENV } from '../../../src/flags';
 import type { AgentMemoryRuntime, MemoryCreateInput, MemoryRecord } from '../../../src/memory';
