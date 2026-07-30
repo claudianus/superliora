@@ -1,26 +1,20 @@
 import type { CompactionPhase, Session } from '@superliora/sdk';
 
-import { AgentGroupComponent } from '../components/messages/agent-group';
+import type { AgentGroupComponent } from '../components/messages/agent-group';
 import { AssistantMessageComponent } from '../components/messages/assistant-message';
-import { currentWorkingTip, tipText } from '../components/chrome/working-tips';
-import { CompactionComponent } from '../components/dialogs/compaction';
-import { ReadGroupComponent } from '../components/messages/read-group';
+import type { CompactionComponent } from '../components/dialogs/compaction';
+import type { ReadGroupComponent } from '../components/messages/read-group';
 import { ThinkingComponent } from '../components/messages/thinking';
 import { ToolCallComponent } from '../components/messages/tool-call';
-import { ToolChainSummaryComponent } from '../components/messages/tool-chain-summary';
-import { UserMessageComponent } from '../components/messages/user-message';
 import { isSwarmProgressToolName } from '../components/messages/agent-swarm-progress';
 import { isGenericToolResult } from '../components/messages/tool-renderers/registry';
 import {
-  STREAM_REVEAL_TICK_MS,
   STREAMING_UI_FLUSH_BURST_DELTAS,
   STREAMING_UI_FLUSH_MAX_MS,
   STREAMING_UI_FLUSH_MS,
 } from '../constant/streaming';
-import { shouldAnimate } from './appearance';
 import {
   appearanceAnimationNow,
-  getActiveAppearancePreferences,
 } from '../utils/appearance-effects';
 import { hasDispose } from '../utils/component-capabilities';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../utils/event-payload';
@@ -28,13 +22,11 @@ import { isMotionTheatreActive, type MotionBeatController } from '../utils/motio
 import { nextStreamingFlushDelay } from '../utils/streaming-flush-schedule';
 import {
   createStreamingTextRevealState,
-  isRevealCaughtUp,
   resetRevealState,
   setRevealTarget,
   snapRevealToTarget,
   tickReveal,
   visibleText,
-  type StreamingTextRevealState,
 } from '../utils/streaming-text-reveal';
 import { notifyUserAttentionOnce } from '../utils/terminal-notification';
 import { nextTranscriptId } from '../utils/transcript-id';
@@ -49,6 +41,34 @@ import type {
 } from '../types';
 import type { TUIState } from '../tui-state';
 import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/frame-render';
+import {
+  applyBackgroundTaskTerminalStatus as applyBackgroundTaskTerminalStatusHelper,
+  markSubagentBackgrounded as markSubagentBackgroundedHelper,
+} from './streaming-ui-background-agent';
+import {
+  ensureChainSummary as ensureChainSummaryHelper,
+  settleActiveChainSummary as settleActiveChainSummaryHelper,
+  type ChainSummaryState,
+} from './streaming-ui-chain-summary';
+import {
+  beginCompaction as beginCompactionHelper,
+  cancelCompaction as cancelCompactionHelper,
+  endCompaction as endCompactionHelper,
+  promoteCompactionToBlocking as promoteCompactionToBlockingHelper,
+  updateCompactionProgress as updateCompactionProgressHelper,
+} from './streaming-ui-compaction';
+import {
+  clearRevealTimer as clearRevealTimerHelper,
+  resetRevealChannels as resetRevealChannelsHelper,
+  rescheduleRevealTimer as rescheduleRevealTimerHelper,
+  shouldSmoothStreamReveal as shouldSmoothStreamRevealHelper,
+  type StreamingRevealContext,
+} from './streaming-ui-reveal';
+import {
+  tryAttachAgentToolCall as attachAgentToolCall,
+  tryAttachReadToolCall as attachReadToolCall,
+  type PendingToolGroup,
+} from './streaming-ui-tool-groups';
 
 export interface StreamingUIHost {
   state: TUIState;
@@ -81,9 +101,13 @@ export class StreamingUIController {
    * Shared catch-up reveal timer for assistant + thinking display lag.
    * Runs only while at least one channel still lags its server draft.
    */
-  private revealTimer: ReturnType<typeof setTimeout> | undefined;
-  private assistantReveal: StreamingTextRevealState = createStreamingTextRevealState();
-  private thinkingReveal: StreamingTextRevealState = createStreamingTextRevealState();
+  private readonly revealRuntime = {
+    revealTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+    channels: {
+      assistantReveal: createStreamingTextRevealState(),
+      thinkingReveal: createStreamingTextRevealState(),
+    },
+  };
 
   // ---------------------------------------------------------------------------
   // Streaming runtime state (private — accessed via semantic methods below)
@@ -110,20 +134,9 @@ export class StreamingUIController {
    * when the assistant answer begins or a new user-message boundary shows
    * up. `null` outside minimal density or after settle.
    */
-  private _activeChainSummary: ToolChainSummaryComponent | null = null;
-  private _chainSummaryTurnIndex = -1;
-  private _pendingAgentGroup: {
-    readonly turnId: string | undefined;
-    readonly step: number;
-    solo?: ToolCallComponent;
-    group?: AgentGroupComponent;
-  } | null = null;
-  private _pendingReadGroup: {
-    readonly turnId: string | undefined;
-    readonly step: number;
-    solo?: ToolCallComponent;
-    group?: ReadGroupComponent;
-  } | null = null;
+  private _chainSummary: ChainSummaryState = { active: null, turnIndex: -1 };
+  private _pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null = null;
+  private _pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null = null;
 
   constructor(private readonly host: StreamingUIHost) {}
 
@@ -232,130 +245,27 @@ export class StreamingUIController {
     }
   }
 
-  /**
-   * Push the actual terminal status of a background agent task into the
-   * matching `Agent` tool call component so its snapshot phase no longer
-   * trusts the spawn-success ToolResult (which would otherwise label every
-   * terminated bg agent — including `lost` ones — as `✓ Completed`).
-   *
-   * Resolution policy: an `args.agentId` is treated as authoritative — we
-   * either find a card whose `getSubagentAgentId()` returns the same id
-   * (in-memory metadata for live foreground, parsed from the spawn-success
-   * `agent_id: ...` line for live backgrounded and replayed cards) or we
-   * skip. We deliberately do NOT fall back to description match when
-   * `agentId` is provided, because:
-   *   - On resume, `applyTerminalBackgroundAgentStatuses` iterates every
-   *     persisted terminal task, including ones whose tool calls fell
-   *     outside the `REPLAY_TURN_LIMIT` window. A description fallback
-   *     would let an old `lost` task stamp its status onto an unrelated
-   *     recent Agent card that happens to share `args.description`.
-   *   - During a live spawn / terminate race, the same card can briefly
-   *     appear in both `_pendingToolComponents` and `transcriptContainer`,
-   *     so a description match could double-visit the same component and
-   *     mark itself ambiguous. agentId match short-circuits on the first
-   *     hit and is immune.
-   *
-   * Description fallback is kept as a best-effort path only when
-   * `agentId` is unknown — that is, on resume of pre-PR sessions whose
-   * disk records pre-date `agent_id` persistence.
-   *
-   * Search scope includes both in-flight components and already-mounted
-   * cards (some live in `transcriptContainer` standalone, others are
-   * borrowed by an `AgentGroupComponent` and reachable only via
-   * `getToolComponents()`).
-   *
-   * Returns true iff a component was found and updated.
-   */
+  /** See `streaming-ui-background-agent.ts` for the resolution policy and rationale. */
   applyBackgroundTaskTerminalStatus(args: {
     agentId?: string | undefined;
     description: string;
     status: 'completed' | 'failed' | 'timed_out' | 'killed' | 'lost';
-    /**
-     * Real failure message to surface on the card. Pass the `subagent.failed`
-     * event's `error` for live crashes — it is far more useful than the
-     * friendly generic the card falls back to. Omit on the resume / terminate
-     * path where no real error is available.
-     */
     errorText?: string | undefined;
   }): boolean {
-    const useAgentIdOnly = args.agentId !== undefined;
-    let agentIdMatch: ToolCallComponent | undefined;
-    let descMatch: ToolCallComponent | undefined;
-    let descAmbiguous = false;
-    const visit = (tc: ToolCallComponent): void => {
-      if (agentIdMatch !== undefined) return;
-      if (useAgentIdOnly) {
-        if (tc.getSubagentAgentId() === args.agentId) agentIdMatch = tc;
-        return;
-      }
-      if (tc.getAgentToolDescription() !== args.description) return;
-      if (descMatch !== undefined) {
-        descAmbiguous = true;
-        return;
-      }
-      descMatch = tc;
-    };
-
-    for (const tc of this._pendingToolComponents.values()) {
-      visit(tc);
-      if (agentIdMatch !== undefined) break;
-    }
-    if (agentIdMatch === undefined) {
-      for (const child of this.host.state.transcriptContainer.children) {
-        if (child instanceof ToolCallComponent) {
-          visit(child);
-        } else if (child instanceof AgentGroupComponent) {
-          for (const tc of child.getToolComponents()) {
-            visit(tc);
-            if (agentIdMatch !== undefined) break;
-          }
-        }
-        if (agentIdMatch !== undefined) break;
-      }
-    }
-    const target = useAgentIdOnly
-      ? agentIdMatch
-      : descAmbiguous
-        ? undefined
-        : descMatch;
-    if (target === undefined) return false;
-    target.setBackgroundTaskTerminalStatus(args.status, { errorText: args.errorText });
-    return true;
+    return applyBackgroundTaskTerminalStatusHelper(
+      this._pendingToolComponents,
+      this.host.state.transcriptContainer,
+      args,
+    );
   }
 
-  /**
-   * Mark a foreground subagent card as detached-to-background (`◐ backgrounded`).
-   * Routed from a `background.task.started` event whose `info.kind === 'agent'`,
-   * keyed by `agentId`. Returns true iff a matching component was found.
-   *
-   * Gated to cards that are currently foreground-running: `background.task.started`
-   * also fires for `Agent(run_in_background=true)` launches and for background
-   * resumes, and those must not mutate older completed rows that happen to share
-   * the same `agentId` (a resume's new card has no parsed `agent_id` yet, so the
-   * search can otherwise hit the previous completed card).
-   */
+  /** See `streaming-ui-background-agent.ts` for the foreground/backgrounded gating. */
   markSubagentBackgrounded(agentId: string | undefined): boolean {
-    if (agentId === undefined) return false;
-    const visit = (tc: ToolCallComponent): boolean => {
-      if (tc.getSubagentAgentId() !== agentId) return false;
-      const phase = tc.getSubagentSnapshot().phase;
-      if (phase !== 'running' && phase !== 'queued' && phase !== 'spawning') return false;
-      tc.markBackgrounded();
-      return true;
-    };
-    for (const tc of this._pendingToolComponents.values()) {
-      if (visit(tc)) return true;
-    }
-    for (const child of this.host.state.transcriptContainer.children) {
-      if (child instanceof ToolCallComponent) {
-        if (visit(child)) return true;
-      } else if (child instanceof AgentGroupComponent) {
-        for (const tc of child.getToolComponents()) {
-          if (visit(tc)) return true;
-        }
-      }
-    }
-    return false;
+    return markSubagentBackgroundedHelper(
+      this._pendingToolComponents,
+      this.host.state.transcriptContainer,
+      agentId,
+    );
   }
 
   /** Registers a tool call that arrived via tool.call.started.
@@ -440,9 +350,9 @@ export class StreamingUIController {
 
   /** Tears down replay-specific state after session history has been rendered. */
   cleanupAfterReplay(completedToolCallIds: Set<string>): void {
-    this.clearRevealTimer();
-    this.assistantReveal = resetRevealState();
-    this.thinkingReveal = resetRevealState();
+    clearRevealTimerHelper(this.revealContext());
+    this.revealRuntime.channels.assistantReveal = resetRevealState();
+    this.revealRuntime.channels.thinkingReveal = resetRevealState();
     this._activeToolCalls.clear();
     for (const toolCallId of completedToolCallIds) {
       this._pendingToolComponents.delete(toolCallId);
@@ -465,8 +375,8 @@ export class StreamingUIController {
       this._activeThinkingComponent.dispose();
       this._activeThinkingComponent = undefined;
     }
-    this.thinkingReveal = resetRevealState();
-    this.rescheduleRevealTimer();
+    this.revealRuntime.channels.thinkingReveal = resetRevealState();
+    rescheduleRevealTimerHelper(this.revealContext());
   }
 
   disposeAndClearPendingToolComponents(): void {
@@ -510,7 +420,7 @@ export class StreamingUIController {
 
   discardPending(): void {
     this.clearFlushTimer();
-    this.resetRevealChannels();
+    this.resetRevealChannelsInternal();
     this.pendingAssistantFlush = false;
     this.pendingThinkingFlush = false;
     this.pendingToolCallFlushIds.clear();
@@ -603,7 +513,7 @@ export class StreamingUIController {
     this.pendingAssistantFlush = false;
     this.pendingThinkingFlush = false;
     this.clearFlushTimerIfIdle();
-    this.resetRevealChannels();
+    this.resetRevealChannelsInternal();
     this._assistantDraft = '';
     this._streamingBlock = null;
     this._thinkingDraft = '';
@@ -673,8 +583,8 @@ export class StreamingUIController {
     this.settleActiveChainSummary();
     this._pendingAgentGroup = null;
     this._pendingReadGroup = null;
-    this.assistantReveal = resetRevealState(Date.now());
-    this.rescheduleRevealTimer();
+    this.revealRuntime.channels.assistantReveal = resetRevealState(Date.now());
+    rescheduleRevealTimerHelper(this.revealContext());
     const entry = {
       id: nextTranscriptId(),
       kind: 'assistant' as const,
@@ -702,22 +612,22 @@ export class StreamingUIController {
     const nowMs = Date.now();
 
     if (!this.shouldSmoothStreamReveal()) {
-      this.assistantReveal = snapRevealToTarget(
-        setRevealTarget(this.assistantReveal, fullText, nowMs),
+      this.revealRuntime.channels.assistantReveal = snapRevealToTarget(
+        setRevealTarget(this.revealRuntime.channels.assistantReveal, fullText, nowMs),
         nowMs,
       );
       block.component.updateContent(fullText, { transient: true });
       requestTUIContentRender(this.host.state);
-      this.rescheduleRevealTimer();
+      rescheduleRevealTimerHelper(this.revealContext());
       return;
     }
 
-    this.assistantReveal = setRevealTarget(this.assistantReveal, fullText, nowMs);
+    this.revealRuntime.channels.assistantReveal = setRevealTarget(this.revealRuntime.channels.assistantReveal, fullText, nowMs);
     // Immediate tick so the first chunk is not delayed until the timer fires.
-    this.assistantReveal = tickReveal(this.assistantReveal, nowMs);
-    block.component.updateContent(visibleText(this.assistantReveal), { transient: true });
+    this.revealRuntime.channels.assistantReveal = tickReveal(this.revealRuntime.channels.assistantReveal, nowMs);
+    block.component.updateContent(visibleText(this.revealRuntime.channels.assistantReveal), { transient: true });
     requestTUIContentRender(this.host.state);
-    this.rescheduleRevealTimer();
+    rescheduleRevealTimerHelper(this.revealContext());
   }
 
   onStreamingTextEnd(): void {
@@ -725,104 +635,15 @@ export class StreamingUIController {
     if (block !== null) {
       // Snap any lagging reveal so finalize never leaves a partial body.
       const nowMs = Date.now();
-      this.assistantReveal = snapRevealToTarget(
-        setRevealTarget(this.assistantReveal, block.entry.content, nowMs),
+      this.revealRuntime.channels.assistantReveal = snapRevealToTarget(
+        setRevealTarget(this.revealRuntime.channels.assistantReveal, block.entry.content, nowMs),
         nowMs,
       );
       block.component.updateContent(block.entry.content, { transient: false });
     }
     this._streamingBlock = null;
-    this.assistantReveal = resetRevealState();
-    this.rescheduleRevealTimer();
-  }
-
-  // ---------------------------------------------------------------------------
-  // Smooth stream reveal (display lag catch-up) — assistant + thinking
-  // ---------------------------------------------------------------------------
-
-  private shouldSmoothStreamReveal(): boolean {
-    // Replay mounts full assistant/thinking bodies in one shot; smooth reveal
-    // only schedules timers and mid-pass frames that fight hydrate batching.
-    if (this.host.state.appState.isReplaying) return false;
-    return shouldAnimate(getActiveAppearancePreferences());
-  }
-
-  private resetRevealChannels(nowMs: number = 0): void {
-    this.clearRevealTimer();
-    this.assistantReveal = resetRevealState(nowMs);
-    this.thinkingReveal = resetRevealState(nowMs);
-  }
-
-  private clearRevealTimer(): void {
-    if (this.revealTimer === undefined) return;
-    clearTimeout(this.revealTimer);
-    this.revealTimer = undefined;
-  }
-
-  /** Start / stop the shared reveal timer based on remaining lag. */
-  private rescheduleRevealTimer(): void {
-    const assistantLag =
-      this._streamingBlock !== null && !isRevealCaughtUp(this.assistantReveal);
-    const thinkingLag =
-      this._activeThinkingComponent !== undefined && !isRevealCaughtUp(this.thinkingReveal);
-    if (!assistantLag && !thinkingLag) {
-      this.clearRevealTimer();
-      return;
-    }
-    if (this.revealTimer !== undefined) return;
-    this.revealTimer = setTimeout(() => {
-      this.revealTimer = undefined;
-      this.onRevealTick();
-    }, STREAM_REVEAL_TICK_MS);
-  }
-
-  private onRevealTick(): void {
-    if (!this.shouldSmoothStreamReveal()) {
-      this.snapAllActiveReveals();
-      return;
-    }
-
-    const nowMs = Date.now();
-    let painted = false;
-
-    const block = this._streamingBlock;
-    if (block !== null && !isRevealCaughtUp(this.assistantReveal)) {
-      this.assistantReveal = setRevealTarget(this.assistantReveal, block.entry.content, nowMs);
-      this.assistantReveal = tickReveal(this.assistantReveal, nowMs);
-      block.component.updateContent(visibleText(this.assistantReveal), { transient: true });
-      painted = true;
-    }
-
-    const thinking = this._activeThinkingComponent;
-    if (thinking !== undefined && !isRevealCaughtUp(this.thinkingReveal)) {
-      this.thinkingReveal = tickReveal(this.thinkingReveal, nowMs);
-      thinking.setText(visibleText(this.thinkingReveal));
-      painted = true;
-    }
-
-    if (painted) {
-      requestTUIContentRender(this.host.state);
-    }
-    this.rescheduleRevealTimer();
-  }
-
-  private snapAllActiveReveals(): void {
-    const nowMs = Date.now();
-    const block = this._streamingBlock;
-    if (block !== null) {
-      this.assistantReveal = snapRevealToTarget(
-        setRevealTarget(this.assistantReveal, block.entry.content, nowMs),
-        nowMs,
-      );
-      block.component.updateContent(block.entry.content, { transient: true });
-    }
-    const thinking = this._activeThinkingComponent;
-    if (thinking !== undefined) {
-      this.thinkingReveal = snapRevealToTarget(this.thinkingReveal, nowMs);
-      thinking.setText(this.thinkingReveal.target);
-    }
-    requestTUIContentRender(this.host.state);
-    this.clearRevealTimer();
+    this.revealRuntime.channels.assistantReveal = resetRevealState();
+    rescheduleRevealTimerHelper(this.revealContext());
   }
 
   onThinkingUpdate(fullText: string): void {
@@ -831,8 +652,8 @@ export class StreamingUIController {
     const nowMs = Date.now();
 
     if (!this.shouldSmoothStreamReveal()) {
-      this.thinkingReveal = snapRevealToTarget(
-        setRevealTarget(this.thinkingReveal, fullText, nowMs),
+      this.revealRuntime.channels.thinkingReveal = snapRevealToTarget(
+        setRevealTarget(this.revealRuntime.channels.thinkingReveal, fullText, nowMs),
         nowMs,
       );
       if (this._activeThinkingComponent === undefined) {
@@ -847,18 +668,18 @@ export class StreamingUIController {
         if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
         state.transcriptContainer.addChild(this._activeThinkingComponent);
         requestTUILayoutRender(state);
-        this.rescheduleRevealTimer();
+        rescheduleRevealTimerHelper(this.revealContext());
         return;
       }
       this._activeThinkingComponent.setText(fullText);
       requestTUIContentRender(state);
-      this.rescheduleRevealTimer();
+      rescheduleRevealTimerHelper(this.revealContext());
       return;
     }
 
-    this.thinkingReveal = setRevealTarget(this.thinkingReveal, fullText, nowMs);
-    this.thinkingReveal = tickReveal(this.thinkingReveal, nowMs);
-    const shown = visibleText(this.thinkingReveal);
+    this.revealRuntime.channels.thinkingReveal = setRevealTarget(this.revealRuntime.channels.thinkingReveal, fullText, nowMs);
+    this.revealRuntime.channels.thinkingReveal = tickReveal(this.revealRuntime.channels.thinkingReveal, nowMs);
+    const shown = visibleText(this.revealRuntime.channels.thinkingReveal);
 
     if (this._activeThinkingComponent === undefined) {
       this._pendingAgentGroup = null;
@@ -867,27 +688,27 @@ export class StreamingUIController {
       if (state.toolOutputExpanded) this._activeThinkingComponent.setExpanded(true);
       state.transcriptContainer.addChild(this._activeThinkingComponent);
       requestTUILayoutRender(state);
-      this.rescheduleRevealTimer();
+      rescheduleRevealTimerHelper(this.revealContext());
       return;
     }
 
     this._activeThinkingComponent.setText(shown);
     requestTUIContentRender(state);
-    this.rescheduleRevealTimer();
+    rescheduleRevealTimerHelper(this.revealContext());
   }
 
   onThinkingEnd(): void {
     if (this._activeThinkingComponent === undefined) return;
     const nowMs = Date.now();
     // Snap full thinking body before finalize so collapsed previews are complete.
-    this.thinkingReveal = snapRevealToTarget(this.thinkingReveal, nowMs);
-    if (this.thinkingReveal.target.length > 0) {
-      this._activeThinkingComponent.setText(this.thinkingReveal.target);
+    this.revealRuntime.channels.thinkingReveal = snapRevealToTarget(this.revealRuntime.channels.thinkingReveal, nowMs);
+    if (this.revealRuntime.channels.thinkingReveal.target.length > 0) {
+      this._activeThinkingComponent.setText(this.revealRuntime.channels.thinkingReveal.target);
     }
     this._activeThinkingComponent.finalize();
     this._activeThinkingComponent = undefined;
-    this.thinkingReveal = resetRevealState();
-    this.rescheduleRevealTimer();
+    this.revealRuntime.channels.thinkingReveal = resetRevealState();
+    rescheduleRevealTimerHelper(this.revealContext());
     requestTUILayoutRender(this.host.state);
     this.host.mergeCurrentTurnSteps();
   }
@@ -909,7 +730,7 @@ export class StreamingUIController {
     if (state.transcriptDetail === 'minimal') {
       // Mounts before this tool card is appended, so the aggregate line
       // leads the turn's one-line tool block.
-      this.ensureChainSummary(state).setCurrentLabel(toolCall.name);
+      ensureChainSummaryHelper(state, this._chainSummary).setCurrentLabel(toolCall.name);
     }
 
     if (toolCall.name !== 'Agent') this._pendingAgentGroup = null;
@@ -942,7 +763,7 @@ export class StreamingUIController {
     if (tc) {
       tc.setResult(result);
       this._pendingToolComponents.delete(toolCallId);
-      if (state.transcriptDetail === 'minimal' && this._activeChainSummary !== null) {
+      if (state.transcriptDetail === 'minimal' && this._chainSummary.active !== null) {
         const args = matchedCall?.args ?? {};
         const file =
           typeof args['file_path'] === 'string'
@@ -950,7 +771,7 @@ export class StreamingUIController {
             : typeof args['path'] === 'string'
               ? (args['path'] as string)
               : undefined;
-        this._activeChainSummary.record({
+        this._chainSummary.active.record({
           isError: result.is_error === true,
           errorText: result.is_error === true ? result.output : undefined,
           file,
@@ -987,42 +808,6 @@ export class StreamingUIController {
     this.host.mergeCurrentTurnSteps();
   }
 
-  /**
-   * Minimal-density chain summary lifecycle: one summary per turn. A new
-   * user message (turn boundary index change) or a prior settle closes the
-   * active summary before a fresh one mounts.
-   */
-  private ensureChainSummary(state: TUIState): ToolChainSummaryComponent {
-    const children = state.transcriptContainer.children;
-    let lastUserIndex = -1;
-    for (let i = children.length - 1; i >= 0; i--) {
-      if (children[i] instanceof UserMessageComponent) {
-        lastUserIndex = i;
-        break;
-      }
-    }
-    if (
-      this._activeChainSummary !== null &&
-      (this._activeChainSummary.isSettled() || this._chainSummaryTurnIndex !== lastUserIndex)
-    ) {
-      this._activeChainSummary.settle();
-      this._activeChainSummary = null;
-    }
-    if (this._activeChainSummary === null) {
-      this._activeChainSummary = new ToolChainSummaryComponent();
-      this._chainSummaryTurnIndex = lastUserIndex;
-      state.transcriptContainer.addChild(this._activeChainSummary);
-      requestTUILayoutRender(state);
-    }
-    return this._activeChainSummary;
-  }
-
-  private settleActiveChainSummary(): void {
-    if (this._activeChainSummary === null) return;
-    this._activeChainSummary.settle();
-    this._activeChainSummary = null;
-  }
-
   setTodoList(todos: readonly TodoItem[]): void {
     const { state } = this.host;
     // Preserve any live goal monitor chrome already bound via setAppState.
@@ -1039,66 +824,30 @@ export class StreamingUIController {
     instruction?: string,
     options?: { readonly background?: boolean; readonly modelAlias?: string },
   ): void {
-    const { state } = this.host;
-    if (this._activeCompactionBlock !== undefined) {
-      this._activeCompactionBlock.markDone();
-      this._activeCompactionBlock = undefined;
-    }
-    const workingTip = currentWorkingTip();
-    const block = new CompactionComponent(
-      state.ui,
+    this._activeCompactionBlock = beginCompactionHelper(
+      this.host,
+      this._activeCompactionBlock,
       instruction,
-      workingTip === undefined ? undefined : tipText(workingTip),
-      {
-        background: options?.background === true,
-        modelAlias: options?.modelAlias,
-      },
+      options,
     );
-    this._activeCompactionBlock = block;
-    state.transcriptContainer.addChild(block);
-    this.host.motionBeats.play({
-      name: 'compaction_start',
-      seed: 'compaction',
-      title: options?.background === true ? 'Compacting context (bg)' : 'Compacting context',
-      nowMs: appearanceAnimationNow(),
-      theatreActive: isMotionTheatreActive(state.appState),
-    });
-    requestTUILayoutRender(state);
   }
 
   endCompaction(tokensBefore?: number, tokensAfter?: number, detail?: string): void {
-    const block = this._activeCompactionBlock;
-    if (block === undefined) return;
-    block.markDone(tokensBefore, tokensAfter, detail);
-    this._activeCompactionBlock = undefined;
-    const { state } = this.host;
-    const tokenDelta =
-      tokensBefore !== undefined && tokensAfter !== undefined
-        ? `Compaction complete (${String(tokensBefore)} → ${String(tokensAfter)} tokens)`
-        : 'Compaction complete';
-    this.host.motionBeats.play({
-      name: 'compaction_done',
-      seed: 'compaction',
-      title: tokenDelta,
-      nowMs: appearanceAnimationNow(),
-      theatreActive: isMotionTheatreActive(state.appState),
-    });
-    requestTUILayoutRender(state);
+    this._activeCompactionBlock = endCompactionHelper(
+      this.host,
+      this._activeCompactionBlock,
+      tokensBefore,
+      tokensAfter,
+      detail,
+    );
   }
 
   cancelCompaction(): void {
-    const block = this._activeCompactionBlock;
-    if (block === undefined) return;
-    block.markCanceled();
-    this._activeCompactionBlock = undefined;
-    requestTUILayoutRender(this.host.state);
+    this._activeCompactionBlock = cancelCompactionHelper(this.host, this._activeCompactionBlock);
   }
 
   promoteCompactionToBlocking(): void {
-    const block = this._activeCompactionBlock;
-    if (block === undefined) return;
-    block.promoteToBlocking();
-    requestTUILayoutRender(this.host.state);
+    promoteCompactionToBlockingHelper(this.host, this._activeCompactionBlock);
   }
 
   updateCompactionProgress(
@@ -1112,16 +861,7 @@ export class StreamingUIController {
       readonly fraction?: number;
     },
   ): void {
-    const block = this._activeCompactionBlock;
-    if (block === undefined) return;
-    block.setPhase(phase);
-    if (meta !== undefined) {
-      block.setStreamMeta(meta);
-    }
-    if (delta !== undefined && delta.length > 0) {
-      block.appendSummaryDelta(delta);
-    }
-    requestTUILayoutRender(this.host.state);
+    updateCompactionProgressHelper(this.host, this._activeCompactionBlock, phase, delta, meta);
   }
 
   // ---------------------------------------------------------------------------
@@ -1155,116 +895,50 @@ export class StreamingUIController {
   }
 
   private tryAttachAgentToolCall(toolCall: ToolCallBlockData, tc: ToolCallComponent): boolean {
-    const { state } = this.host;
-    if (toolCall.name !== 'Agent') {
-      this._pendingAgentGroup = null;
-      return false;
-    }
-
-    const step = toolCall.step ?? this._currentStep;
-    const turnId = toolCall.turnId ?? this._currentTurnId;
-    const pending = this._pendingAgentGroup;
-
-    if (pending !== null && (pending.step !== step || pending.turnId !== turnId)) {
-      this._pendingAgentGroup = null;
-    }
-
-    const cur = this._pendingAgentGroup;
-    if (cur === null) {
-      this._pendingAgentGroup = { step, turnId, solo: tc };
-      state.transcriptContainer.addChild(tc);
-      requestTUILayoutRender(state);
-      return true;
-    }
-
-    if (cur.group !== undefined) {
-      cur.group.attach(toolCall.id, tc);
-      return true;
-    }
-
-    const solo = cur.solo;
-    if (solo === undefined) {
-      this._pendingAgentGroup = { step, turnId, solo: tc };
-      state.transcriptContainer.addChild(tc);
-      requestTUILayoutRender(state);
-      return true;
-    }
-    const group = this.upgradeSoloAgentToGroup(solo);
-    group.attach(toolCall.id, tc);
-    this._pendingAgentGroup = { step, turnId, group };
-    requestTUILayoutRender(state);
-    return true;
-  }
-
-  private upgradeSoloAgentToGroup(solo: ToolCallComponent): AgentGroupComponent {
-    const { state } = this.host;
-    const group = new AgentGroupComponent(state.ui);
-    const children = state.transcriptContainer.children;
-    const idx = children.indexOf(solo);
-    if (idx >= 0) {
-      children[idx] = group;
-      state.transcriptContainer.invalidate();
-    } else {
-      state.transcriptContainer.addChild(group);
-    }
-    group.attach(solo.toolCallView.id, solo);
-    return group;
+    const result = attachAgentToolCall(
+      this.host.state,
+      toolCall,
+      tc,
+      this._currentStep,
+      this._currentTurnId,
+      this._pendingAgentGroup,
+    );
+    this._pendingAgentGroup = result.pending;
+    return result.handled;
   }
 
   private tryAttachReadToolCall(toolCall: ToolCallBlockData, tc: ToolCallComponent): boolean {
-    const { state } = this.host;
-    if (toolCall.name !== 'Read') {
-      this._pendingReadGroup = null;
-      return false;
-    }
-
-    const step = toolCall.step ?? this._currentStep;
-    const turnId = toolCall.turnId ?? this._currentTurnId;
-    const pending = this._pendingReadGroup;
-
-    if (pending !== null && (pending.step !== step || pending.turnId !== turnId)) {
-      this._pendingReadGroup = null;
-    }
-
-    const cur = this._pendingReadGroup;
-    if (cur === null) {
-      this._pendingReadGroup = { step, turnId, solo: tc };
-      state.transcriptContainer.addChild(tc);
-      requestTUILayoutRender(state);
-      return true;
-    }
-
-    if (cur.group !== undefined) {
-      cur.group.attach(toolCall.id, tc);
-      return true;
-    }
-
-    const solo = cur.solo;
-    if (solo === undefined) {
-      this._pendingReadGroup = { step, turnId, solo: tc };
-      state.transcriptContainer.addChild(tc);
-      requestTUILayoutRender(state);
-      return true;
-    }
-    const group = this.upgradeSoloReadToGroup(solo);
-    group.attach(toolCall.id, tc);
-    this._pendingReadGroup = { step, turnId, group };
-    requestTUILayoutRender(state);
-    return true;
+    const result = attachReadToolCall(
+      this.host.state,
+      toolCall,
+      tc,
+      this._currentStep,
+      this._currentTurnId,
+      this._pendingReadGroup,
+    );
+    this._pendingReadGroup = result.pending;
+    return result.handled;
   }
 
-  private upgradeSoloReadToGroup(solo: ToolCallComponent): ReadGroupComponent {
-    const { state } = this.host;
-    const group = new ReadGroupComponent(state.ui);
-    const children = state.transcriptContainer.children;
-    const idx = children.indexOf(solo);
-    if (idx >= 0) {
-      children[idx] = group;
-      state.transcriptContainer.invalidate();
-    } else {
-      state.transcriptContainer.addChild(group);
-    }
-    group.attach(solo.toolCallView.id, solo);
-    return group;
+  private shouldSmoothStreamReveal(): boolean {
+    return shouldSmoothStreamRevealHelper(this.host.state.appState.isReplaying);
+  }
+
+  private resetRevealChannelsInternal(nowMs: number = 0): void {
+    resetRevealChannelsHelper(this.revealContext(), nowMs);
+  }
+
+  private revealContext(): StreamingRevealContext {
+    return {
+      state: this.host.state,
+      isReplaying: this.host.state.appState.isReplaying,
+      runtime: this.revealRuntime,
+      getStreamingBlock: () => this._streamingBlock,
+      getActiveThinkingComponent: () => this._activeThinkingComponent,
+    };
+  }
+
+  private settleActiveChainSummary(): void {
+    settleActiveChainSummaryHelper(this._chainSummary);
   }
 }
