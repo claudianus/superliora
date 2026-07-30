@@ -1,83 +1,120 @@
 import {
-  RENDERER_BRAILLE_PROGRESS_EMPTY,
   RENDERER_BRAILLE_PROGRESS_LEVELS,
-  RENDERER_BRAILLE_PROGRESS_SEPARATOR,
   renderRendererDividerRow,
   renderRendererLabeledDividerRow,
-  renderRendererSegmentedProgressBar,
-  renderRendererSteppedProgressBar,
   truncateToWidth,
   visibleWidth,
   type Component,
-  type RendererSteppedProgressBarCellProjection,
 } from '#/tui/renderer';
 import chalk from 'chalk';
-import { humanizeCollaborationEvent, looksLikeProtocolMessage } from '@superliora/sdk';
 
 import {
   AgentSwarmProgressEstimator,
   type AgentSwarmProgressEstimatorPhase,
 } from '#/tui/components/messages/agent-swarm-progress-estimator';
-import { FAILURE_MARK, SUCCESS_MARK } from '#/tui/constant/symbols';
 import {
   formatSwarmMemberTodoLines,
   type TodoItem,
 } from '#/tui/components/chrome/todo-panel';
 import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
 import { currentTheme } from '#/tui/theme';
-import type { ColorToken } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
-import {
-  getActiveAppearancePreferences,
-  renderAnimatedGradientText,
-  renderPulseGlyph,
-  renderPulseText,
-  shouldRenderAmbientEffects,
-} from '#/tui/utils/appearance-effects';
+import { renderAnimatedGradientText } from '#/tui/utils/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { renderRoundedPanel } from '#/tui/utils/panel-frame';
 import { resolveWarRoomReason } from '#/tui/utils/war-room-action';
+import {
+  ABORTED_LABEL,
+  ACTIVITY_SPINNER_PLACEHOLDER,
+  CANCELLED_LABEL,
+  COMPLETE_FILL_MS,
+  ORCHESTRATING_LABEL,
+  PROMPTING_LABEL,
+  activityPrefixForTotalStatus,
+  brailleBar,
+  cancelledLabelColor,
+  cancelledProgressColor,
+  collapseWhitespace,
+  compactTerminalMark,
+  feedThreadKey,
+  formatDebatePhaseLabel,
+  humanizeFeedBody,
+  isAgentConversationChannel,
+  isCodeWriteToolActivity,
+  isConversationFeedTag,
+  isTerminalPhase,
+  isTerminalTotalStatus,
+  latestNonEmptyLine,
+  normalizeFinalOutputText,
+  padAnsi,
+  renderCancelledUnstartedCell,
+  renderCellLabel,
+  renderPendingCell,
+  renderQueuedCell,
+  renderStatusLabel,
+  renderStatusPipBar,
+  runningCellLabelText,
+  shortExpertId,
+  shortExpertName,
+  stripAnsiText,
+  summarizeSnapshots,
+  swarmCollaborationFeedTag,
+  swarmMemberDisplayName,
+  totalStatus,
+  totalStatusLabel,
+  totalStatusLabelToken,
+  truncateStartToWidth,
+  truncateWithColor,
+  ultraSwarmMemberLabel,
+} from '#/tui/utils/agent-swarm-cell-render';
+import {
+  agentSwarmDescriptionFromArgs,
+  agentSwarmItemsFromArgs,
+  agentSwarmPartialItemsFromArguments,
+  agentSwarmPartialPromptTemplateFromArguments,
+  agentSwarmPartialResumeItemsFromArguments,
+  agentSwarmPromptTemplateFromArgs,
+  agentSwarmResumeItemsFromArgs,
+  normalizeFailureText,
+  parseAgentSwarmResultStatuses,
+  parseUltraSwarmIntegrationReport,
+  swarmWorkItemsStartedFromArguments,
+  ultraSwarmExpertItemsFromArgs,
+  ultraSwarmPartialExpertItemsFromArguments,
+  type UltraSwarmIntegrationReport,
+} from '#/tui/utils/agent-swarm-result-parser';
+import {
+  calculateAgentSwarmGridLayout,
+  type AgentSwarmGridLayout,
+} from '#/tui/utils/agent-swarm-grid-layout';
 
-const TEXT_CELL_PREFERRED_WIDTH = 30;
-const CELL_GAP = '  ';
+export {
+  agentSwarmPartialItemsCountFromArguments,
+  agentSwarmResultSummaryFromOutput,
+} from '#/tui/utils/agent-swarm-result-parser';
+export { agentSwarmGridHeightForTerminalRows } from '#/tui/utils/agent-swarm-grid-layout';
+export { CODE_WRITE_QUIET_MS } from '#/tui/utils/agent-swarm-cell-render';
+export {
+  calculateAgentSwarmGridLayout,
+  agentSwarmDescriptionFromArgs,
+  agentSwarmItemsFromArgs,
+  agentSwarmPartialItemsFromArguments,
+};
+
 const FRAME_INTERVAL_MS = 80;
-const TEXT_BRAILLE_BAR_MIN_WIDTH = 6;
-const BRAILLE_BAR_MAX_WIDTH = 8;
-const PHASE_LABEL_WIDTH = 'Completed'.length;
-const MIN_LABEL_WIDTH = PHASE_LABEL_WIDTH;
 const MAX_LATEST_MODEL_CHARS = 2_000;
-const COMPLETE_FILL_MS = 360;
-const FAILED_PLACEHOLDER_RED_FACTOR = 0.75;
-const FAILED_PLACEHOLDER_NON_RED_FACTOR = 0.25;
-const STATUS_BAR_CHAR = '━';
-const CANCELLED_MARK = '⊘ ';
 const TOTAL_STATUS_BAR_GAP = 2;
 const PROMPTING_TEXT_TRAILING_GAP = 1;
-const ACTIVITY_SPINNER_PLACEHOLDER = '  ';
 const AGENT_SWARM_LEFT_INDENT = ' ';
 const AGENT_SWARM_RIGHT_GAP = 1;
-const AGENT_SWARM_NON_GRID_LINES = 14;
-/** Extra transcript rows reserved for the UltraSwarm feed box (border + feed + padding). */
-export const AGENT_SWARM_OPS_FEED_LINE_BUDGET = 10;
 const SWARM_OPS_FEED_MAX_ENTRIES = 48;
 const SWARM_OPS_FEED_RENDER_LINES = 8;
 const SWARM_OPS_FEED_RENDER_LINES_TINY = 4;
 /** Max per-child activity lines shown under the swarm grid before collapsing. */
 const MAX_CHILD_ACTIVITY_LINES = 6;
-const CONVERSATION_FEED_TAGS = new Set<SwarmOpsFeedTag>([
-  'msg',
-  'mention',
-  'block',
-  'council',
-  // War-room dock / orchestrator signals (pause, restaff).
-  'stop',
-  'staff',
-]);
 const SWARM_FEED_BODY_MIN_WIDTH = 24;
 const SWARM_FEED_BODY_WIDTH_RATIO = 0.65;
 const SWARM_FEED_NARROW_WIDTH = 72;
-const SWARM_FEED_SHORT_NAME_MAX = 6;
-const SWARM_FEED_SHORT_ID_MAX = 6;
 /** War room debate reel: last N turns (tiny terminals show fewer). */
 const WAR_ROOM_DEBATE_REEL_MAX = 4;
 const WAR_ROOM_DEBATE_REEL_MAX_TINY = 2;
@@ -90,46 +127,9 @@ const WAR_ROOM_PATH_TOKEN =
   /(?:^|[\s`"'(])((?:\.?\.?\/)?[\w.-]+(?:\/[\w.-]+)+\.[A-Za-z][\w.-]{0,12}|[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|json|md|yml|yaml|py|go|rs|toml|css|scss|html|vue|svelte))(?=$|[\s`"'),:;])/g;
 /** Evidence id tokens (ev_… / evidence-…) found in feed text. */
 const WAR_ROOM_EVIDENCE_ID_TOKEN = /\b(?:ev[_-][\w.-]+|evidence[_-][\w.-]+)\b/gi;
-const COMPACT_TERMINAL_MARK_WIDTH = 1;
-const ORCHESTRATING_LABEL = 'Orchestrating...';
-const PROMPTING_LABEL = 'Prompting...';
-const WORKING_LABEL = 'Working...';
-const COMPLETED_LABEL = 'Completed.';
-const FAILED_LABEL = 'Failed.';
-const ABORTED_LABEL = 'Aborted.';
-const CANCELLED_LABEL = 'Cancelled.';
-const QUEUED_LABEL = 'Queued...';
-const SUSPENDED_LABEL = 'Rate limited...';
-const RESUMED_ITEM_LABEL = '(resumed)';
-const CANCELLED_LABEL_DARKEN_FACTOR = 0.72;
-/** Pulse glyph cycle prefixed to running grid cells. */
-const RUNNING_CELL_PULSE_GLYPHS = ['●', '◆', '✦', '◆'];
-const RUNNING_CELL_PULSE_FALLBACK = '●';
-/**
- * Code-write pulse (Phase 5-A): appended to running cells whose latest tool
- * activity is Write/Edit so parallel code writing is visible at a glance.
- */
-const CODE_WRITE_PULSE_GLYPHS = ['✎', '✐', '✎', '✐'];
-const CODE_WRITE_PULSE_FALLBACK = '✎';
-/** Quiet window after the last write tool before the ✎ pulse fades. */
-export const CODE_WRITE_QUIET_MS = 4_000;
-const CODE_WRITE_TOOL_NAMES = new Set(['write', 'edit']);
-const CODE_WRITE_BODY_TOKEN = /^(?:write|edit)\b/i;
-/** Max visible width of the per-cell model alias badge (` · <alias>`). */
-const MODEL_ALIAS_BADGE_MAX_WIDTH = 16;
-
-const STATUS_BAR_ORDER = [
-  'completed',
-  'working',
-  'suspended',
-  'queued',
-  'cancelled',
-  'failed',
-] as const;
 
 type AgentSwarmPhase = AgentSwarmProgressEstimatorPhase;
-type StatusBarPhase = typeof STATUS_BAR_ORDER[number];
-type TotalStatus = 'working' | 'completed' | 'suspended' | 'failed' | 'aborted';
+export type TotalStatus = 'working' | 'completed' | 'suspended' | 'failed' | 'aborted';
 type ClearableMemberKey =
   | 'completedAtMs'
   | 'completedText'
@@ -204,7 +204,7 @@ export interface UltraSwarmMemberMetadata {
   readonly taskIds?: readonly string[];
 }
 
-type SwarmOpsFeedTag =
+export type SwarmOpsFeedTag =
   | 'staff'
   | 'join'
   | 'live'
@@ -220,7 +220,7 @@ type SwarmOpsFeedTag =
   | 'standup'
   | 'council';
 
-interface SwarmCollaborationFeedMessage {
+export interface SwarmCollaborationFeedMessage {
   readonly id?: string;
   readonly from: { readonly expertId?: string; readonly name: string; readonly emoji?: string };
   readonly to?: { readonly expertId: string };
@@ -228,7 +228,7 @@ interface SwarmCollaborationFeedMessage {
   readonly body: string;
 }
 
-interface SwarmOpsFeedEntry {
+export interface SwarmOpsFeedEntry {
   readonly atMs: number;
   readonly tag: SwarmOpsFeedTag;
   readonly messageId?: string;
@@ -255,7 +255,7 @@ export interface AgentSwarmPauseRequest {
   readonly phase?: string;
 }
 
-type WarRoomDebatePhase = 'critic' | 'rebuttal' | 'counter-critique' | 'consensus' | 'steer';
+export type WarRoomDebatePhase = 'critic' | 'rebuttal' | 'counter-critique' | 'consensus' | 'steer';
 
 interface WarRoomDebateTurn {
   readonly atMs: number;
@@ -271,7 +271,7 @@ interface WarRoomFileLease {
   readonly atMs: number;
 }
 
-interface AgentSwarmMember {
+export interface AgentSwarmMember {
   readonly id: string;
   agentId?: string;
   phase: AgentSwarmPhase;
@@ -301,70 +301,18 @@ interface AgentSwarmMember {
   todos: TodoItem[];
 }
 
-interface AgentSwarmSnapshot {
+export interface AgentSwarmSnapshot {
   readonly phase: AgentSwarmPhase;
   readonly ticks: number;
   readonly latestModelText: string;
   readonly phaseElapsedMs: number;
 }
 
-interface AgentSwarmResultStatus {
-  readonly index: number;
-  readonly status: 'completed' | 'failed' | 'cancelled';
-  readonly verdict?: string;
-  readonly evidenceIds?: readonly string[];
-  readonly ultraSwarm?: UltraSwarmMemberMetadata;
-  readonly completedText?: string;
-  readonly failureText?: string;
-}
-
-interface UltraSwarmIntegrationReportAgent {
-  readonly expertId: string;
-  readonly name: string;
-  readonly emoji?: string;
-  readonly phase: string;
-  readonly focus?: string;
-  readonly outcome: string;
-  readonly verdict: string;
-  readonly summary?: string;
-  readonly findings?: string;
-  readonly risksAndGaps?: string;
-}
-
-interface UltraSwarmIntegrationReport {
-  readonly headline: string;
-  readonly agents: readonly UltraSwarmIntegrationReportAgent[];
-  readonly openGaps?: string;
-}
-
-export interface AgentSwarmResultSummary {
-  readonly completed: number;
-  readonly failed: number;
-  readonly aborted: number;
-  readonly parsed: boolean;
-}
-
-interface AgentSwarmSummary {
+export interface AgentSwarmSummary {
   readonly active: number;
   readonly completed: number;
   readonly failed: number;
   readonly cancelled: number;
-}
-
-export interface AgentSwarmGridLayoutInput {
-  readonly width: number;
-  readonly height: number;
-  readonly count: number;
-}
-
-export interface AgentSwarmGridLayout {
-  readonly renderText: boolean;
-  readonly barCells: number;
-  readonly columns: number;
-  readonly rows: number;
-  readonly cellWidth: number;
-  readonly columnGap: number;
-  readonly leftPadding: number;
 }
 
 export interface AgentSwarmProgressOptions {
@@ -383,16 +331,6 @@ export interface AgentSwarmProgressOptions {
    */
   readonly onRequestRestaff?: (request: AgentSwarmRestaffRequest) => void;
 }
-
-const PHASE_LABELS: Record<AgentSwarmPhase, string> = {
-  pending: QUEUED_LABEL,
-  queued: QUEUED_LABEL,
-  suspended: SUSPENDED_LABEL,
-  running: 'Running',
-  completed: 'Completed',
-  failed: 'Failed',
-  cancelled: ABORTED_LABEL,
-};
 
 export class AgentSwarmProgressComponent implements Component {
   private members: AgentSwarmMember[];
@@ -2141,10 +2079,6 @@ function clearMemberState(member: AgentSwarmMember, ...keys: ClearableMemberKey[
   for (const key of keys) delete member[key];
 }
 
-function isTerminalPhase(phase: AgentSwarmPhase): boolean {
-  return phase === 'completed' || phase === 'failed' || phase === 'cancelled';
-}
-
 function terminalPhaseElapsedMs(member: AgentSwarmMember, nowMs: number): number {
   const startedAtMs = member.phase === 'completed'
     ? member.completedAtMs
@@ -2154,1283 +2088,10 @@ function terminalPhaseElapsedMs(member: AgentSwarmMember, nowMs: number): number
   return startedAtMs === undefined ? 0 : Math.max(0, nowMs - startedAtMs);
 }
 
-export function agentSwarmItemsFromArgs(args: Record<string, unknown>): string[] {
-  const items = args['items'];
-  if (!Array.isArray(items)) return [];
-  return items.map(String);
-}
-
-function agentSwarmResumeItemsFromArgs(args: Record<string, unknown>): string[] {
-  const resumeAgentIds = args['resume_agent_ids'];
-  if (
-    typeof resumeAgentIds !== 'object' ||
-    resumeAgentIds === null ||
-    Array.isArray(resumeAgentIds)
-  ) {
-    return [];
-  }
-  return Object.keys(resumeAgentIds).map(() => RESUMED_ITEM_LABEL);
-}
-
-function ultraSwarmExpertItemsFromArgs(args: Record<string, unknown>): string[] {
-  const experts = args['experts'];
-  const requiredExperts = args['required_experts'];
-  return [
-    ...(Array.isArray(experts) ? experts.map(String) : []),
-    ...(Array.isArray(requiredExperts) ? requiredExperts.map(String) : []),
-  ];
-}
-
-export function agentSwarmPartialItemsCountFromArguments(argumentsText: string): number {
-  return agentSwarmPartialItemsFromArguments(argumentsText).length;
-}
-
-function swarmWorkItemsStartedFromArguments(argumentsText: string): boolean {
-  return (
-    /"items"\s*:/.test(argumentsText) ||
-    /"resume_agent_ids"\s*:/.test(argumentsText) ||
-    /"experts"\s*:/.test(argumentsText) ||
-    /"required_experts"\s*:/.test(argumentsText)
-  );
-}
-
-export function agentSwarmPartialItemsFromArguments(argumentsText: string): string[] {
-  const match = /"items"\s*:\s*\[/.exec(argumentsText);
-  if (match === null) return [];
-  const items: string[] = [];
-  for (let i = match.index + match[0].length; i < argumentsText.length; i += 1) {
-    const ch = argumentsText[i];
-    if (ch === ']') return items;
-    if (ch !== '"') continue;
-
-    const parsed = parsePartialJsonString(argumentsText, i + 1);
-    items.push(parsed.value);
-    if (parsed.closed) {
-      i = parsed.nextIndex;
-      continue;
-    }
-    return items;
-  }
-  return items;
-}
-
-function agentSwarmPartialResumeItemsFromArguments(argumentsText: string): string[] {
-  const match = /"resume_agent_ids"\s*:\s*\{/.exec(argumentsText);
-  if (match === null) return [];
-  return Array.from(
-    { length: countPartialJsonObjectEntries(argumentsText, match.index + match[0].length) },
-    () => RESUMED_ITEM_LABEL,
-  );
-}
-
-function ultraSwarmPartialExpertItemsFromArguments(argumentsText: string): string[] {
-  return [
-    ...partialStringArrayFromArguments(argumentsText, 'experts'),
-    ...partialStringArrayFromArguments(argumentsText, 'required_experts'),
-  ];
-}
-
-function partialStringArrayFromArguments(argumentsText: string, field: string): string[] {
-  const match = new RegExp(`"${field}"\\s*:\\s*\\[`).exec(argumentsText);
-  if (match === null) return [];
-  const items: string[] = [];
-  for (let i = match.index + match[0].length; i < argumentsText.length; i += 1) {
-    const ch = argumentsText[i];
-    if (ch === ']') return items;
-    if (ch !== '"') continue;
-
-    const parsed = parsePartialJsonString(argumentsText, i + 1);
-    items.push(parsed.value);
-    if (parsed.closed) {
-      i = parsed.nextIndex;
-      continue;
-    }
-    return items;
-  }
-  return items;
-}
-
-export function agentSwarmDescriptionFromArgs(args: Record<string, unknown>): string {
-  const description = args['description'];
-  return typeof description === 'string' ? description : '';
-}
-
-function agentSwarmPromptTemplateFromArgs(args: Record<string, unknown>): string {
-  const promptTemplate = args['prompt_template'];
-  return typeof promptTemplate === 'string' ? promptTemplate : '';
-}
-
-function agentSwarmPartialPromptTemplateFromArguments(argumentsText: string): string {
-  const match = /"prompt_template"\s*:\s*"/.exec(argumentsText);
-  if (match === null) return '';
-  return parsePartialJsonString(argumentsText, match.index + match[0].length).value;
-}
-
-export function agentSwarmResultSummaryFromOutput(output: string): AgentSwarmResultSummary {
-  const statuses = parseAgentSwarmResultStatuses(output);
-  let completed = 0;
-  let failed = 0;
-  let aborted = 0;
-  for (const status of statuses) {
-    if (status.status === 'completed') completed += 1;
-    if (status.status === 'failed') failed += 1;
-    if (status.status === 'cancelled') aborted += 1;
-  }
-  return {
-    completed,
-    failed,
-    aborted,
-    parsed: statuses.length > 0,
-  };
-}
-
-function parseAgentSwarmResultStatuses(output: string): AgentSwarmResultStatus[] {
-  const xmlStatuses = parseAgentSwarmXmlResultStatuses(output);
-  if (xmlStatuses.length > 0) return xmlStatuses;
-  const ultraXmlStatuses = parseUltraSwarmXmlResultStatuses(output);
-  if (ultraXmlStatuses.length > 0) return ultraXmlStatuses;
-  return parseAgentSwarmLegacyResultStatuses(output);
-}
-
-function forEachSubagentTag<T>(
-  output: string,
-  callback: (attrs: string, body: string, index: number) => T | undefined,
-): T[] {
-  const result: T[] = [];
-  const tagPattern = /<subagent\b([^>]*)>/g;
-  let match: RegExpExecArray | null;
-  let index = 0;
-  while ((match = tagPattern.exec(output)) !== null) {
-    const attrs = match[1] ?? '';
-    const closeIndex = output.indexOf('</subagent>', tagPattern.lastIndex);
-    if (closeIndex < 0) break;
-    const body = output.slice(tagPattern.lastIndex, closeIndex);
-    index += 1;
-    const value = callback(attrs, body, index);
-    if (value !== undefined) result.push(value);
-    tagPattern.lastIndex = closeIndex + '</subagent>'.length;
-  }
-  return result;
-}
-
-function parseAgentSwarmXmlResultStatuses(output: string): AgentSwarmResultStatus[] {
-  return forEachSubagentTag(output, (attrs, body, tagIndex) => {
-    const explicitIndex = Number(xmlAttribute(attrs, 'index'));
-    const index =
-      Number.isInteger(explicitIndex) && explicitIndex > 0 ? explicitIndex : tagIndex;
-    const outcome = xmlAttribute(attrs, 'outcome');
-    if (
-      outcome !== 'completed' &&
-      outcome !== 'failed' &&
-      outcome !== 'aborted' &&
-      outcome !== 'cancelled'
-    ) {
-      return undefined;
-    }
-    return {
-      index,
-      status: outcome === 'aborted' || outcome === 'cancelled' ? 'cancelled' : outcome,
-      completedText: outcome === 'completed' ? body : undefined,
-      failureText: outcome === 'failed' ? body : undefined,
-    };
-  });
-}
-
-function parseUltraSwarmXmlResultStatuses(output: string): AgentSwarmResultStatus[] {
-  const result: AgentSwarmResultStatus[] = [];
-  const tagPattern = /<expert\b([^>]*)>/g;
-  let match: RegExpExecArray | null;
-  let index = 0;
-  while ((match = tagPattern.exec(output)) !== null) {
-    const attrs = match[1] ?? '';
-    const closeIndex = output.indexOf('</expert>', tagPattern.lastIndex);
-    if (closeIndex < 0) break;
-    const body = output.slice(tagPattern.lastIndex, closeIndex);
-    index += 1;
-    const outcome = xmlAttribute(attrs, 'outcome');
-    if (
-      outcome === 'completed' ||
-      outcome === 'failed' ||
-      outcome === 'aborted' ||
-      outcome === 'cancelled'
-    ) {
-      result.push({
-        index,
-        status: outcome === 'aborted' || outcome === 'cancelled' ? 'cancelled' : outcome,
-        verdict: xmlAttribute(attrs, 'verdict'),
-        evidenceIds: commaSeparatedXmlAttribute(attrs, 'evidence_ids'),
-        ultraSwarm: {
-          expertId: xmlAttribute(attrs, 'expert_id') ?? xmlAttribute(attrs, 'name') ?? `expert-${String(index)}`,
-          name: xmlAttribute(attrs, 'name') ?? `Expert ${String(index)}`,
-          division: xmlAttribute(attrs, 'division'),
-          emoji: xmlAttribute(attrs, 'emoji'),
-          coverageLane: xmlAttribute(attrs, 'coverage_lane'),
-          selectionReason: selectionReasonFromUltraSwarmBody(body),
-          focus: xmlAttribute(attrs, 'focus'),
-          dependsOn: commaSeparatedXmlAttribute(attrs, 'depends_on'),
-          taskIds: commaSeparatedXmlAttribute(attrs, 'work_node_ids'),
-        },
-        completedText: outcome === 'completed' ? stripUltraSwarmMetadata(body) : undefined,
-        failureText: outcome === 'failed' ? stripUltraSwarmMetadata(body) : undefined,
-      });
-    }
-    tagPattern.lastIndex = closeIndex + '</expert>'.length;
-  }
-  return result;
-}
-
-function parseUltraSwarmIntegrationReport(output: string): UltraSwarmIntegrationReport | undefined {
-  const reportMatch = /<integration_report\b([^>]*)>([\s\S]*?)<\/integration_report>/i.exec(output);
-  if (reportMatch === null) return undefined;
-
-  const inner = reportMatch[2] ?? '';
-  const headline = xmlElementText(inner, 'headline') ?? '';
-  const openGaps = xmlElementText(inner, 'open_gaps');
-  const agents: UltraSwarmIntegrationReportAgent[] = [];
-  const agentPattern = /<agent\b([^>]*)>([\s\S]*?)<\/agent>/gi;
-  let agentMatch: RegExpExecArray | null;
-  while ((agentMatch = agentPattern.exec(inner)) !== null) {
-    const attrs = agentMatch[1] ?? '';
-    const body = agentMatch[2] ?? '';
-    const expertId = xmlAttribute(attrs, 'expert_id');
-    const name = xmlAttribute(attrs, 'name');
-    if (expertId === undefined || name === undefined) continue;
-    agents.push({
-      expertId,
-      name,
-      emoji: xmlAttribute(attrs, 'emoji'),
-      phase: xmlAttribute(attrs, 'phase') ?? 'unknown',
-      focus: xmlAttribute(attrs, 'focus'),
-      outcome: xmlAttribute(attrs, 'outcome') ?? 'unknown',
-      verdict: xmlAttribute(attrs, 'verdict') ?? 'UNKNOWN',
-      summary: xmlElementText(body, 'summary'),
-      findings: xmlElementText(body, 'findings'),
-      risksAndGaps: xmlElementText(body, 'risks_and_gaps'),
-    });
-  }
-
-  if (agents.length === 0 && headline.length === 0) return undefined;
-  return { headline, agents, openGaps };
-}
-
-function xmlElementText(xml: string, tag: string): string | undefined {
-  const match = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(xml);
-  const value = match?.[1]?.trim();
-  return value === undefined || value.length === 0 ? undefined : value;
-}
-
-function stripUltraSwarmMetadata(body: string): string {
-  return body.replaceAll(/<selection_reason>[\s\S]*?<\/selection_reason>\n?/g, '').trim();
-}
-
-function selectionReasonFromUltraSwarmBody(body: string): string | undefined {
-  const match = /<selection_reason>([\s\S]*?)<\/selection_reason>/.exec(body);
-  return match?.[1]?.trim();
-}
-
-function commaSeparatedXmlAttribute(attrs: string, name: string): readonly string[] | undefined {
-  const value = xmlAttribute(attrs, name);
-  if (value === undefined || value.trim().length === 0) return undefined;
-  const items = value.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
-  return items.length === 0 ? undefined : items;
-}
-
 export function isSwarmProgressToolName(toolName: string): boolean {
   return toolName === 'AgentSwarm' || toolName === 'UltraSwarm';
 }
 
 export function swarmProgressTitleForToolName(toolName: string): string {
   return toolName === 'UltraSwarm' ? 'UltraSwarm' : 'Agent Swarm';
-}
-
-function xmlAttribute(attrs: string, name: string): string | undefined {
-  const match = new RegExp(`\\b${name}="([^"]*)"`).exec(attrs);
-  return match?.[1];
-}
-
-function forEachAgentBlock<T>(
-  output: string,
-  callback: (block: string, index: number) => T | undefined,
-): T[] {
-  const result: T[] = [];
-  for (const block of output.split(/\n(?=\[agent \d+\]\n)/)) {
-    const indexMatch = /^\[agent (\d+)\]$/m.exec(block);
-    if (indexMatch === null) continue;
-    const value = callback(block, Number(indexMatch[1]));
-    if (value !== undefined) result.push(value);
-  }
-  return result;
-}
-
-function parseAgentSwarmLegacyResultStatuses(output: string): AgentSwarmResultStatus[] {
-  return forEachAgentBlock(output, (block, index) => {
-    const statusMatch = /^status: (completed|failed|aborted|cancelled)$/m.exec(block);
-    if (statusMatch === null) return undefined;
-    const status = statusMatch[1] as 'completed' | 'failed' | 'aborted' | 'cancelled';
-    return {
-      index,
-      status: status === 'aborted' || status === 'cancelled' ? 'cancelled' : status,
-      completedText: status === 'completed' ? parseAgentSwarmCompletedText(block) : undefined,
-      failureText: status === 'failed' ? parseAgentSwarmFailureText(block) : undefined,
-    };
-  });
-}
-
-function parseAgentSwarmCompletedText(block: string): string | undefined {
-  const marker = '\n[summary]\n';
-  const markerIndex = block.indexOf(marker);
-  if (markerIndex < 0) return undefined;
-  return normalizeFinalOutputText(block.slice(markerIndex + marker.length));
-}
-
-function parseAgentSwarmFailureText(block: string): string | undefined {
-  const match = /^subagent error:\s*([\s\S]*)$/m.exec(block);
-  if (match === null) return undefined;
-  return normalizeFailureText(match[1]);
-}
-
-function textGridLayout(
-  columns: number,
-  rows: number,
-  cellWidth: number,
-  gapWidth: number,
-  idWidth: number,
-): AgentSwarmGridLayout {
-  return {
-    renderText: true,
-    barCells: barCellsForTextCellWidth(cellWidth, idWidth),
-    columns,
-    rows,
-    cellWidth,
-    columnGap: gapWidth,
-    leftPadding: 0,
-  };
-}
-
-export function calculateAgentSwarmGridLayout(
-  input: AgentSwarmGridLayoutInput,
-): AgentSwarmGridLayout {
-  const count = Math.max(0, Math.floor(input.count));
-  const width = Math.max(0, Math.floor(input.width));
-  const height = Math.max(0, Math.floor(input.height));
-  const idWidth = agentSwarmGridIdWidth(count);
-
-  if (count === 0) {
-    return {
-      renderText: true,
-      barCells: 1,
-      columns: 0,
-      rows: 0,
-      cellWidth: 0,
-      columnGap: 0,
-      leftPadding: 0,
-    };
-  }
-
-  const textGapWidth = visibleWidth(CELL_GAP);
-  const compactGapWidth = textGapWidth;
-  const textColumns = columnsForCellWidth(width, count, TEXT_CELL_PREFERRED_WIDTH, textGapWidth);
-  const textRows = rowsForColumns(count, textColumns);
-  const textCellWidth = gridCellWidth(width, textColumns, textGapWidth);
-  if (textRows <= height && textCellWidth >= minTextCellWidth(idWidth)) {
-    return textGridLayout(textColumns, textRows, textCellWidth, textGapWidth, idWidth);
-  }
-  const targetTextColumns = height <= 0 ? count : Math.min(count, Math.ceil(count / height));
-  const targetTextCellWidth = gridCellWidth(width, targetTextColumns, textGapWidth);
-  const targetTextRows = rowsForColumns(count, targetTextColumns);
-  if (height > 0 && targetTextRows <= height && targetTextCellWidth >= minTextCellWidth(idWidth)) {
-    return textGridLayout(targetTextColumns, targetTextRows, targetTextCellWidth, textGapWidth, idWidth);
-  }
-
-  const compactColumns = compactColumnsForLayout(width, count, height, idWidth, compactGapWidth);
-  const compactCellWidthBudget = gridCellWidth(width, compactColumns, compactGapWidth);
-  const compactBarCells = compactBarCellsForCellWidth(compactCellWidthBudget, idWidth);
-  const compactActualCellWidth = compactCellWidth(idWidth, compactBarCells);
-  return {
-    renderText: false,
-    barCells: compactBarCells,
-    columns: compactColumns,
-    rows: rowsForColumns(count, compactColumns),
-    cellWidth: compactActualCellWidth,
-    columnGap: compactGapWidth,
-    leftPadding: 0,
-  };
-}
-
-export function agentSwarmGridHeightForTerminalRows(
-  rows: number | undefined,
-  followingRows = 0,
-  options?: { readonly opsFeed?: boolean },
-): number | undefined {
-  if (rows === undefined || !Number.isFinite(rows)) return undefined;
-  const rowsAfterSwarm = Number.isFinite(followingRows)
-    ? Math.max(0, Math.floor(followingRows))
-    : 0;
-  const nonGridLines =
-    AGENT_SWARM_NON_GRID_LINES +
-    (options?.opsFeed === true ? AGENT_SWARM_OPS_FEED_LINE_BUDGET : 0);
-  return Math.max(0, Math.floor(rows) - rowsAfterSwarm - nonGridLines);
-}
-
-function agentSwarmGridIdWidth(count: number): number {
-  return Math.max(3, String(Math.max(1, count)).length);
-}
-
-function columnsForCellWidth(
-  width: number,
-  count: number,
-  cellWidth: number,
-  gapWidth: number,
-): number {
-  if (count <= 1) return count <= 0 ? 0 : 1;
-  const columns = Math.floor((width + gapWidth) / (Math.max(1, cellWidth) + gapWidth));
-  return Math.max(1, Math.min(count, columns));
-}
-
-function rowsForColumns(count: number, columns: number): number {
-  if (count <= 0) return 0;
-  return Math.ceil(count / Math.max(1, columns));
-}
-
-function gridCellWidth(width: number, columns: number, gapWidth: number): number {
-  if (columns <= 0) return 0;
-  return Math.max(
-    1,
-    Math.floor((width - gapWidth * Math.max(0, columns - 1)) / columns),
-  );
-}
-
-function minTextCellWidth(idWidth: number): number {
-  return idWidth + TEXT_BRAILLE_BAR_MIN_WIDTH + 4 + MIN_LABEL_WIDTH;
-}
-
-function barCellsForTextCellWidth(cellWidth: number, idWidth: number): number {
-  const fixedWidth = idWidth + 1 + 2 + 1 + MIN_LABEL_WIDTH;
-  const availableForBar = cellWidth - fixedWidth;
-  return availableForBar >= TEXT_BRAILLE_BAR_MIN_WIDTH
-    ? Math.min(BRAILLE_BAR_MAX_WIDTH, availableForBar)
-    : TEXT_BRAILLE_BAR_MIN_WIDTH;
-}
-
-function compactColumnsForLayout(
-  width: number,
-  count: number,
-  height: number,
-  idWidth: number,
-  gapWidth: number,
-): number {
-  const maxColumns = columnsForCellWidth(width, count, compactCellWidth(idWidth, 1), gapWidth);
-  if (height <= 0) return maxColumns;
-  const targetColumns = Math.min(count, Math.ceil(count / height));
-  return Math.max(1, Math.min(targetColumns, maxColumns));
-}
-
-function compactBarCellsForCellWidth(cellWidth: number, idWidth: number): number {
-  return Math.max(
-    1,
-    cellWidth - compactFixedWidth(idWidth) - COMPACT_TERMINAL_MARK_WIDTH,
-  );
-}
-
-function compactCellWidth(idWidth: number, barCells: number): number {
-  return compactFixedWidth(idWidth) + Math.max(1, barCells) + COMPACT_TERMINAL_MARK_WIDTH;
-}
-
-function compactFixedWidth(idWidth: number): number {
-  return idWidth + 1 + 2;
-}
-
-function summarizeSnapshots(snapshots: readonly AgentSwarmSnapshot[]): AgentSwarmSummary {
-  let completed = 0;
-  let failed = 0;
-  let cancelled = 0;
-  for (const snapshot of snapshots) {
-    if (snapshot.phase === 'completed') completed += 1;
-    if (snapshot.phase === 'failed') failed += 1;
-    if (snapshot.phase === 'cancelled') cancelled += 1;
-  }
-  return {
-    active: snapshots.length - completed - failed - cancelled,
-    completed,
-    failed,
-    cancelled,
-  };
-}
-
-function brailleBar(
-  ticks: number,
-  phase: AgentSwarmPhase,
-  width: number,
-  colors: ColorPalette,
-  phaseElapsedMs: number,
-  phaseColorOverride?: string,
-): string {
-  const innerWidth = Math.max(1, width);
-  if (phase === 'pending') return '';
-  if (phase === 'failed') return bracketBar(failedBrailleBar(ticks, innerWidth, phaseElapsedMs, colors), colors);
-  const displayTicks = phase === 'completed' ? completedDisplayTicks(ticks, innerWidth, phaseElapsedMs) : ticks;
-  if (phase === 'cancelled') {
-    const cancelledColor = phaseColorOverride ?? colors.warning;
-    return bracketBar(
-      accumulatedBrailleBar(displayTicks, innerWidth, cancelledColor, colors, () => cancelledColor),
-      colors,
-    );
-  }
-  const colorMap: Record<Exclude<AgentSwarmPhase, 'pending' | 'failed' | 'cancelled'>, string> = {
-    queued: colors.textDim,
-    suspended: colors.textDim,
-    running: colors.success,
-    completed: colors.success,
-  };
-  return bracketBar(accumulatedBrailleBar(displayTicks, innerWidth, colorMap[phase], colors), colors);
-}
-
-function cancelledProgressColor(
-  member: AgentSwarmMember,
-  phase: AgentSwarmPhase,
-  colors: ColorPalette,
-): string | undefined {
-  if (phase !== 'cancelled') return undefined;
-  return member.cancelledBarColor ?? colors.warning;
-}
-
-function bracketBar(content: string, colors: ColorPalette): string {
-  const bracket = chalk.hex(colors.textMuted);
-  return bracket('[') + content + bracket(']');
-}
-
-function phaseColor(phase: AgentSwarmPhase, colors: ColorPalette): string {
-  const map: Record<AgentSwarmPhase, string> = {
-    pending: colors.textDim,
-    queued: colors.textDim,
-    suspended: colors.textDim,
-    running: colors.textDim,
-    completed: colors.success,
-    failed: colors.error,
-    cancelled: colors.warning,
-  };
-  return map[phase];
-}
-
-interface StatusBarCount {
-  readonly phase: StatusBarPhase;
-  readonly count: number;
-}
-
-function renderStatusPipBar(
-  members: readonly AgentSwarmMember[],
-  width: number,
-  colors: ColorPalette,
-): string {
-  const safeWidth = Math.max(1, width);
-  const counts = statusBarCounts(members);
-  return renderRendererSegmentedProgressBar({
-    width: safeWidth,
-    char: STATUS_BAR_CHAR,
-    emptyStyle: (text) => chalk.hex(colors.textMuted)(text),
-    segments: counts.map((entry) => ({
-      value: entry.count,
-      style: (text) => chalk.hex(statusBarColor(entry.phase, colors))(text),
-    })),
-  });
-}
-
-/**
- * Status label with premium motion (PREMIUM.md §7.2): active states
- * (Working…/Orchestrating…/Prompting…) pulse on the shared animation clock;
- * terminal states stay static. Falls back to plain themed text when motion
- * is unavailable.
- */
-function renderStatusLabel(label: string, token: ColorToken, active: boolean, seed: string): string {
-  const styled = active
-    ? renderPulseText(label, seed, token)
-    : currentTheme.fg(token, label);
-  return ` ${styled}`;
-}
-
-function activityPrefixForTotalStatus(status: TotalStatus, colors: ColorPalette): string {
-  const marks: Record<TotalStatus, string> = {
-    completed: SUCCESS_MARK.trimEnd(),
-    failed: FAILURE_MARK.trimEnd(),
-    aborted: CANCELLED_MARK.trimEnd(),
-    working: '',
-    suspended: '',
-  };
-  const mark = marks[status];
-  return mark.length > 0
-    ? ` ${chalk.hex(totalStatusColor(status, colors))(mark)}`
-    : ACTIVITY_SPINNER_PLACEHOLDER;
-}
-
-function statusBarCounts(members: readonly AgentSwarmMember[]): StatusBarCount[] {
-  const counts = new Map<StatusBarPhase, number>();
-  for (const member of members) {
-    const phase = statusBarPhase(member.phase);
-    counts.set(phase, (counts.get(phase) ?? 0) + 1);
-  }
-  return STATUS_BAR_ORDER.flatMap((phase) => {
-    const count = counts.get(phase) ?? 0;
-    return count > 0 ? [{ phase, count }] : [];
-  });
-}
-
-function statusBarPhase(phase: AgentSwarmPhase): StatusBarPhase {
-  const map: Record<AgentSwarmPhase, StatusBarPhase> = {
-    pending: 'queued',
-    queued: 'queued',
-    suspended: 'suspended',
-    running: 'working',
-    completed: 'completed',
-    failed: 'failed',
-    cancelled: 'cancelled',
-  };
-  return map[phase];
-}
-
-function statusBarColor(phase: StatusBarPhase, colors: ColorPalette): string {
-  const map: Record<StatusBarPhase, string> = {
-    queued: colors.textMuted,
-    working: colors.primary,
-    suspended: colors.textMuted,
-    completed: colors.success,
-    failed: colors.error,
-    cancelled: colors.warning,
-  };
-  return map[phase];
-}
-
-function totalStatus(
-  members: readonly AgentSwarmMember[],
-  force: { readonly failed: boolean; readonly aborted: boolean },
-): TotalStatus {
-  if (force.aborted) return 'aborted';
-  const phases = new Set(members.map((m) => m.phase));
-  const hasActive = phases.has('pending') || phases.has('queued') || phases.has('suspended') || phases.has('running');
-  if (!hasActive && members.length > 0) {
-    if (phases.has('cancelled')) return 'aborted';
-    if (phases.has('completed')) return 'completed';
-    return 'failed';
-  }
-  if (force.failed) return 'failed';
-  if (phases.has('suspended') && !phases.has('running')) return 'suspended';
-  return 'working';
-}
-
-function isTerminalTotalStatus(status: TotalStatus): boolean {
-  return status === 'completed' || status === 'failed' || status === 'aborted';
-}
-
-function totalStatusLabel(status: TotalStatus): string {
-  const map: Record<TotalStatus, string> = {
-    working: WORKING_LABEL,
-    completed: COMPLETED_LABEL,
-    suspended: SUSPENDED_LABEL,
-    failed: FAILED_LABEL,
-    aborted: ABORTED_LABEL,
-  };
-  return map[status];
-}
-
-function totalStatusColor(status: TotalStatus, colors: ColorPalette): string {
-  const map: Record<TotalStatus, string> = {
-    working: colors.success,
-    completed: colors.success,
-    suspended: colors.textDim,
-    failed: colors.error,
-    aborted: colors.warning,
-  };
-  return map[status];
-}
-
-function totalStatusLabelToken(
-  status: TotalStatus,
-  members: readonly AgentSwarmMember[],
-): ColorToken {
-  if (status === 'working' && !members.some((member) => member.phase === 'completed')) {
-    return 'primary';
-  }
-  switch (status) {
-    case 'working':
-    case 'completed':
-      return 'success';
-    case 'suspended':
-      return 'textDim';
-    case 'failed':
-      return 'error';
-    case 'aborted':
-      return 'warning';
-  }
-}
-
-function renderCellLabel(
-  member: AgentSwarmMember,
-  snapshot: AgentSwarmSnapshot,
-  width: number,
-  colors: ColorPalette,
-  nowMs: number,
-): string {
-  const latestLine = latestNonEmptyLine(snapshot.latestModelText);
-  if (snapshot.phase === 'running') {
-    return renderRunningCellLabel(member, width, colors, nowMs);
-  }
-  if (snapshot.phase === 'failed' && member.failureText !== undefined) {
-    return renderFailedCellLabel(member, width, colors);
-  }
-  if (snapshot.phase === 'completed') {
-    return renderCompletedCellLabel(
-      member,
-      completedCellText(member, member.completedText ?? latestLine),
-      width,
-      colors,
-    );
-  }
-  if (snapshot.phase === 'cancelled') {
-    return renderCancelledCellLabel(member, width, colors);
-  }
-  return truncateWithColor(PHASE_LABELS[snapshot.phase], width, phaseColor(snapshot.phase, colors));
-}
-
-/**
- * Running cell label: a time-seeded pulse glyph, the latest activity text,
- * then dim suffixes for per-member elapsed time and the model alias. The
- * suffixes reserve their width first so they survive narrow-cell truncation.
- * While the member's latest tool activity is a code write (Phase 5-A), a
- * clock-driven ✎ pulse joins the cell glyph and the action text picks up a
- * brand-tone emphasis so parallel writes stand out at a glance.
- */
-function renderRunningCellLabel(
-  member: AgentSwarmMember,
-  width: number,
-  colors: ColorPalette,
-  nowMs: number,
-): string {
-  const writePulse = isMemberWritingCode(member, nowMs) ? renderCodeWritePulseGlyph(member) : '';
-  const writePrefix = writePulse.length > 0 ? `${writePulse} ` : '';
-  const pulse = `${renderPulseGlyph(
-    RUNNING_CELL_PULSE_GLYPHS,
-    `agent-swarm-cell:${member.id}`,
-    RUNNING_CELL_PULSE_FALLBACK,
-    'primary',
-  )} `;
-  const suffix = `${runningElapsedSuffix(member, nowMs)}${modelAliasSuffix(member)}`;
-  const textWidth = Math.max(
-    1,
-    width - visibleWidth(pulse) - visibleWidth(writePrefix) - visibleWidth(suffix),
-  );
-  const textColor = writePrefix.length > 0 ? colors.primary : colors.textDim;
-  const text = truncateWithColor(runningCellLabelText(member), textWidth, textColor);
-  return truncateToWidth(`${pulse}${writePrefix}${text}${suffix}`, width);
-}
-
-/**
- * Phase 5-A: whether the member's latest tool activity is a code write that
- * is still fresh (inside the quiet window) and not in a terminal phase.
- */
-function isMemberWritingCode(member: AgentSwarmMember, nowMs: number): boolean {
-  return (
-    member.codeWriteAtMs !== undefined &&
-    !isTerminalPhase(member.phase) &&
-    nowMs - member.codeWriteAtMs <= CODE_WRITE_QUIET_MS
-  );
-}
-
-/**
- * Clock-driven ✎ glyph for members actively writing code (Phase 5-A).
- * Reuses the shared pulse primitive on the ambient animation clock and
- * renders nothing when motion is gated (off / SSH / NO_COLOR / CI) so
- * static output stays byte-identical.
- */
-function renderCodeWritePulseGlyph(member: AgentSwarmMember): string {
-  if (!shouldRenderAmbientEffects(getActiveAppearancePreferences())) return '';
-  return renderPulseGlyph(
-    CODE_WRITE_PULSE_GLYPHS,
-    `agent-swarm-write:${member.id}`,
-    CODE_WRITE_PULSE_FALLBACK,
-    'primary',
-  );
-}
-
-/**
- * Phase 5-A write detection: prefer the explicit tool name carried by the
- * feed event; fall back to the leading body token (`Edit src/a.ts +3 -1`)
- * for callers that only pass a rendered body.
- */
-function isCodeWriteToolActivity(toolName: string | undefined, body: string): boolean {
-  if (toolName !== undefined && toolName.length > 0) {
-    return CODE_WRITE_TOOL_NAMES.has(toolName.trim().toLowerCase());
-  }
-  return CODE_WRITE_BODY_TOKEN.test(body.trim());
-}
-
-function renderFailedCellLabel(
-  member: AgentSwarmMember,
-  width: number,
-  colors: ColorPalette,
-): string {
-  const mainText = `${FAILURE_MARK}${member.failureText ?? ''}`;
-  const suffix = `${retryNoteSuffix(member)}${modelAliasSuffix(member)}`;
-  return renderMainWithDimSuffix(mainText, suffix, width, colors.error);
-}
-
-function runningElapsedSuffix(member: AgentSwarmMember, nowMs: number): string {
-  if (member.startedAtMs === undefined) return '';
-  return currentTheme.dimFg('textMuted', ` (${formatElapsedTime(member.startedAtMs, nowMs)})`);
-}
-
-function retryNoteSuffix(member: AgentSwarmMember): string {
-  if (member.retryNote === undefined) return '';
-  return currentTheme.dimFg('textMuted', ` · ${member.retryNote}`);
-}
-
-function modelAliasSuffix(member: AgentSwarmMember): string {
-  if (member.modelAlias === undefined) return '';
-  const alias = truncateToWidth(member.modelAlias, MODEL_ALIAS_BADGE_MAX_WIDTH, '…');
-  return currentTheme.dimFg('textMuted', ` · ${alias}`);
-}
-
-/**
- * Render a colored main label followed by a pre-styled dim suffix, shrinking
- * the main text (with an ellipsis) so the suffix stays intact when possible.
- */
-function renderMainWithDimSuffix(
-  mainText: string,
-  dimSuffix: string,
-  width: number,
-  mainColor: string,
-): string {
-  if (dimSuffix.length === 0) return truncateWithColor(mainText, width, mainColor);
-  const suffixWidth = visibleWidth(dimSuffix);
-  if (suffixWidth >= width) {
-    return truncateToWidth(dimSuffix, width, currentTheme.dimFg('textMuted', '…'));
-  }
-  const colorize = chalk.hex(mainColor);
-  const mainWidth = Math.max(1, width - suffixWidth);
-  return truncateToWidth(colorize(mainText), mainWidth, colorize('…')) + dimSuffix;
-}
-
-function runningCellLabelText(member: AgentSwarmMember): string {
-  const latestLine = latestNonEmptyLine(member.latestModelText);
-  const itemText = collapseWhitespace(member.itemText);
-  const text = latestLine.length > 0 ? latestLine : itemText;
-  return text.length > 0 ? text : PHASE_LABELS.running;
-}
-
-function ultraSwarmMemberLabel(metadata: UltraSwarmMemberMetadata): string {
-  return metadata.emoji === undefined ? metadata.name : `${metadata.emoji} ${metadata.name}`;
-}
-
-function swarmMemberDisplayName(member: AgentSwarmMember): string {
-  const metadata = member.ultraSwarm;
-  if (metadata === undefined) return member.id;
-  return metadata.emoji === undefined ? metadata.name : `${metadata.emoji} ${metadata.name}`;
-}
-
-function swarmCollaborationFeedTag(
-  channel: SwarmCollaborationFeedMessage['channel'],
-): SwarmOpsFeedTag {
-  switch (channel) {
-    case 'standup':
-      return 'standup';
-    case 'blocker':
-      return 'block';
-    case 'council':
-      return 'council';
-    default:
-      return 'msg';
-  }
-}
-
-function feedThreadKey(entry: SwarmOpsFeedEntry): string {
-  return `${entry.fromExpertId ?? entry.fromName ?? ''}|${entry.toExpertId ?? ''}|${entry.tag}`;
-}
-
-function shortExpertName(name: string): string {
-  const collapsed = collapseWhitespace(name);
-  if (visibleWidth(collapsed) <= SWARM_FEED_SHORT_NAME_MAX) return collapsed;
-  const firstToken = collapsed.split(' ')[0] ?? collapsed;
-  if (visibleWidth(firstToken) <= SWARM_FEED_SHORT_NAME_MAX) return firstToken;
-  return truncateToWidth(firstToken, SWARM_FEED_SHORT_NAME_MAX, '…');
-}
-
-function formatDebatePhaseLabel(phase: WarRoomDebatePhase): string {
-  switch (phase) {
-    case 'counter-critique':
-      return 'counter-critique';
-    case 'critic':
-    case 'rebuttal':
-    case 'consensus':
-    case 'steer':
-      return phase;
-  }
-}
-
-function shortExpertId(expertId: string): string {
-  const parts = expertId.split('-').filter((part) => part.length > 0);
-  const candidate = parts.length >= 2 ? parts[parts.length - 2]! : parts[0] ?? expertId;
-  if (visibleWidth(candidate) <= SWARM_FEED_SHORT_ID_MAX) return candidate;
-  return truncateToWidth(candidate, SWARM_FEED_SHORT_ID_MAX, '…');
-}
-
-function stripAnsiText(text: string): string {
-  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
-}
-
-function isAgentConversationChannel(
-  channel: SwarmCollaborationFeedMessage['channel'],
-): boolean {
-  return channel === 'direct' || channel === 'blocker' || channel === 'lane';
-}
-
-function isConversationFeedTag(tag: SwarmOpsFeedTag): boolean {
-  return CONVERSATION_FEED_TAGS.has(tag);
-}
-
-function completedCellText(member: AgentSwarmMember, fallback: string): string {
-  if (member.verdict === undefined) return fallback;
-  const expert = member.ultraSwarm?.name === undefined ? '' : `${member.ultraSwarm.name}: `;
-  return `${expert}${member.verdict}`;
-}
-
-function renderCancelledCellLabel(
-  member: AgentSwarmMember,
-  width: number,
-  colors: ColorPalette,
-): string {
-  const labelText = member.cancelledLabelText ?? ABORTED_LABEL;
-  const labelColor = member.cancelledLabelColor ?? colors.warning;
-  const markColor = member.cancelledMarkColor ?? colors.warning;
-  const labelStyle = chalk.hex(labelColor);
-  return truncateToWidth(
-    chalk.hex(markColor)(CANCELLED_MARK) + labelStyle(labelText),
-    width,
-    labelStyle('…'),
-  );
-}
-
-function renderCompletedCellLabel(
-  member: AgentSwarmMember,
-  text: string,
-  width: number,
-  colors: ColorPalette,
-): string {
-  const finalText = normalizeFinalOutputText(text);
-  const label = finalText === undefined ? SUCCESS_MARK.trimEnd() : `${SUCCESS_MARK}${finalText}`;
-  return renderMainWithDimSuffix(label, modelAliasSuffix(member), width, colors.success);
-}
-
-function compactTerminalMark(
-  member: AgentSwarmMember,
-  phase: AgentSwarmPhase,
-  colors: ColorPalette,
-): string {
-  if (phase === 'completed') return chalk.hex(colors.success)(SUCCESS_MARK.trimEnd());
-  if (phase === 'failed') return chalk.hex(colors.error)(FAILURE_MARK.trimEnd());
-  if (phase === 'cancelled') {
-    return chalk.hex(member.cancelledMarkColor ?? colors.warning)(CANCELLED_MARK.trimEnd());
-  }
-  return '';
-}
-
-function renderPendingCell(
-  member: AgentSwarmMember,
-  width: number,
-  colors: ColorPalette,
-): string {
-  const id = chalk.hex(colors.primary)(member.id);
-  const prefix = `${id} `;
-  const itemText = collapseWhitespace(member.itemText);
-  const label = itemText.length > 0 ? itemText : QUEUED_LABEL;
-  const labelWidth = Math.max(1, width - visibleWidth(prefix));
-  return prefix + truncateWithColor(label, labelWidth, colors.textDim);
-}
-
-function renderQueuedCell(
-  member: AgentSwarmMember,
-  width: number,
-  colors: ColorPalette,
-): string {
-  const id = chalk.hex(colors.primary)(member.id);
-  const prefix = `${id} `;
-  const suffix = modelAliasSuffix(member);
-  const labelWidth = Math.max(1, width - visibleWidth(prefix) - visibleWidth(suffix));
-  const itemText = collapseWhitespace(member.itemText);
-  const label = member.ultraSwarm !== undefined && itemText.length > 0 ? itemText : QUEUED_LABEL;
-  return truncateToWidth(prefix + truncateWithColor(label, labelWidth, colors.textDim) + suffix, width);
-}
-
-function renderCancelledUnstartedCell(
-  member: AgentSwarmMember,
-  width: number,
-  colors: ColorPalette,
-): string {
-  const id = chalk.hex(colors.primary)(member.id);
-  const prefix = `${id} `;
-  const labelWidth = Math.max(1, width - visibleWidth(prefix));
-  return prefix + renderCancelledCellLabel(member, labelWidth, colors);
-}
-
-function truncateWithColor(text: string, width: number, color: string): string {
-  const colorize = chalk.hex(color);
-  return truncateToWidth(colorize(text), width, colorize('…'));
-}
-
-function truncateStartToWidth(text: string, width: number): string {
-  if (visibleWidth(text) <= width) return text;
-  const ellipsis = '…';
-  const ellipsisWidth = visibleWidth(ellipsis);
-  if (width <= ellipsisWidth) return truncateToWidth(ellipsis, width);
-
-  const targetWidth = width - ellipsisWidth;
-  const segments = Array.from(text);
-  let tail = '';
-  let tailWidth = 0;
-  for (let index = segments.length - 1; index >= 0; index -= 1) {
-    const segment = segments[index] ?? '';
-    const segmentWidth = visibleWidth(segment);
-    if (tailWidth + segmentWidth > targetWidth) break;
-    tail = segment + tail;
-    tailWidth += segmentWidth;
-  }
-  return ellipsis + tail;
-}
-
-function collapseWhitespace(text: string): string {
-  return text.replaceAll(/\s+/g, ' ').trim();
-}
-
-/**
- * Protocol/XML collaboration payloads become a short human-readable feed line.
- * Plain language messages pass through unchanged.
- */
-function humanizeFeedBody(
-  body: string,
-  meta: {
-    readonly channel?: string;
-    readonly tag?: string;
-    readonly fromName?: string;
-    readonly fromExpertId?: string;
-    readonly toExpertId?: string;
-  },
-): string {
-  const trimmed = body.trim();
-  if (trimmed.length === 0) return trimmed;
-  if (!looksLikeProtocolMessage(trimmed)) return collapseWhitespace(trimmed);
-
-  const humanized = humanizeCollaborationEvent({
-    body: trimmed,
-    channel: meta.channel,
-    tag: meta.tag,
-    fromName: meta.fromName,
-    fromExpertId: meta.fromExpertId,
-    toExpertId: meta.toExpertId,
-  });
-  if (!humanized.humanized) return collapseWhitespace(trimmed);
-
-  const headline = humanized.headline.trim();
-  const text = humanized.body.trim();
-  if (headline.length === 0) return text;
-  if (text.length === 0) return headline;
-  if (text.startsWith(headline)) return text;
-  return collapseWhitespace(`${headline}: ${text}`);
-}
-
-function normalizeFailureText(text: string | undefined): string | undefined {
-  if (text === undefined) return undefined;
-  const nestedFailureText = nestedAgentSwarmFailureText(text);
-  const normalized = stripAgentSwarmPrefix(collapseWhitespace(nestedFailureText ?? text));
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function nestedAgentSwarmFailureText(text: string): string | undefined {
-  const xmlFailureText = nestedAgentSwarmXmlFailureText(text);
-  if (xmlFailureText !== undefined) return nestedAgentSwarmFailureText(xmlFailureText) ?? xmlFailureText;
-
-  if (!/^\s*agent_swarm:\s*failed\b/m.test(text)) return undefined;
-  const match = /^\s*subagent error:\s*([\s\S]*?)(?=\n\[agent \d+\]\n|$)/m.exec(text);
-  if (match === null) return undefined;
-  const failureText = match[1];
-  if (failureText === undefined) return undefined;
-  return nestedAgentSwarmFailureText(failureText) ?? failureText;
-}
-
-function nestedAgentSwarmXmlFailureText(text: string): string | undefined {
-  if (!/<agent_swarm_result\b/.test(text)) return undefined;
-  const failed = parseAgentSwarmXmlResultStatuses(text).find((entry) => {
-    return entry.status === 'failed' && entry.failureText !== undefined;
-  });
-  return failed?.failureText;
-}
-
-function stripAgentSwarmPrefix(text: string): string {
-  return text.replace(/^agent_swarm:\s*(?:failed|completed)?\s*/i, '').trim();
-}
-
-function normalizeFinalOutputText(text: string | undefined): string | undefined {
-  if (text === undefined) return undefined;
-  const normalized = collapseWhitespace(text);
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function latestNonEmptyLine(text: string): string {
-  const lines = text.split(/\r?\n/);
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = collapseWhitespace(lines[index] ?? '');
-    if (line.length > 0) return line;
-  }
-  return '';
-}
-
-function countPartialJsonObjectEntries(text: string, startIndex: number): number {
-  let count = 0;
-  let expectKey = true;
-  for (let i = startIndex; i < text.length; i += 1) {
-    const ch = text[i];
-    if (ch === '}') return count;
-    if (ch === ',') {
-      expectKey = true;
-      continue;
-    }
-    if (ch !== '"') continue;
-
-    const parsed = parsePartialJsonString(text, i + 1);
-    if (expectKey) {
-      if (parsed.closed || parsed.value.length > 0) count += 1;
-      expectKey = false;
-    }
-    if (!parsed.closed) return count;
-    i = parsed.nextIndex;
-  }
-  return count;
-}
-
-function parsePartialJsonString(
-  text: string,
-  startIndex: number,
-): { value: string; closed: boolean; nextIndex: number } {
-  let value = '';
-  for (let i = startIndex; i < text.length; i += 1) {
-    const ch = text[i];
-    if (ch === '"') return { value, closed: true, nextIndex: i };
-    if (ch !== '\\') {
-      value += ch;
-      continue;
-    }
-
-    const escaped = text[i + 1];
-    if (escaped === undefined) return { value, closed: false, nextIndex: i };
-    switch (escaped) {
-      case 'n': value += '\n'; break;
-      case 't': value += '\t'; break;
-      case 'r': value += '\r'; break;
-      case 'b': value += '\b'; break;
-      case 'f': value += '\f'; break;
-      case '"':
-      case '\\':
-      case '/':
-        value += escaped;
-        break;
-      case 'u': {
-        const hex = text.slice(i + 2, i + 6);
-        if (hex.length < 4) return { value, closed: false, nextIndex: i };
-        const code = Number.parseInt(hex, 16);
-        if (Number.isNaN(code)) return { value, closed: false, nextIndex: i };
-        value += String.fromCodePoint(code);
-        i += 4;
-        break;
-      }
-      default:
-        value += escaped;
-    }
-    i += 1;
-  }
-  return { value, closed: false, nextIndex: text.length };
-}
-
-function padAnsi(text: string, width: number): string {
-  const truncated = truncateToWidth(text, width);
-  return truncated + ' '.repeat(Math.max(0, width - visibleWidth(truncated)));
-}
-
-function completedDisplayTicks(ticks: number, width: number, phaseElapsedMs: number): number {
-  const fullBarTicks = width * RENDERER_BRAILLE_PROGRESS_LEVELS.length;
-  if (ticks >= fullBarTicks) return fullBarTicks;
-  const fillProgress = Math.max(0, Math.min(1, phaseElapsedMs / COMPLETE_FILL_MS));
-  return Math.min(fullBarTicks, Math.ceil(ticks + (fullBarTicks - ticks) * fillProgress));
-}
-
-function failedBrailleBar(
-  ticks: number,
-  width: number,
-  phaseElapsedMs: number,
-  colors: ColorPalette,
-): string {
-  const redCellCount = Math.ceil(
-    completedDisplayTicks(ticks, width, phaseElapsedMs) / RENDERER_BRAILLE_PROGRESS_LEVELS.length,
-  );
-  const placeholderColor = darkenRedHexColor(colors.error);
-  return accumulatedBrailleBar(
-    ticks,
-    width,
-    colors.error,
-    colors,
-    (cellIndex) => cellIndex < redCellCount ? placeholderColor : colors.textDim,
-  );
-}
-
-function darkenRedHexColor(hex: string): string {
-  return darkenHexColor(
-    hex,
-    FAILED_PLACEHOLDER_RED_FACTOR,
-    FAILED_PLACEHOLDER_NON_RED_FACTOR,
-    FAILED_PLACEHOLDER_NON_RED_FACTOR,
-  );
-}
-
-function cancelledLabelColor(colors: ColorPalette): string {
-  return darkenHexColor(colors.warning, CANCELLED_LABEL_DARKEN_FACTOR);
-}
-
-function darkenHexColor(
-  hex: string,
-  redFactor: number,
-  greenFactor = redFactor,
-  blueFactor = redFactor,
-): string {
-  const match = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
-  if (match === null) return hex;
-  const darken = (channel: string, factor: number): string =>
-    Math.max(0, Math.min(255, Math.round(Number.parseInt(channel, 16) * factor)))
-      .toString(16)
-      .padStart(2, '0');
-  return `#${darken(match[1]!, redFactor)}${darken(match[2]!, greenFactor)}${darken(
-    match[3]!,
-    blueFactor,
-  )}`;
-}
-
-function accumulatedBrailleBar(
-  ticks: number,
-  width: number,
-  filledColor: string,
-  colors: ColorPalette,
-  emptyColorForCell?: (cellIndex: number) => string,
-): string {
-  return renderRendererSteppedProgressBar({
-    width,
-    ticks,
-    levels: RENDERER_BRAILLE_PROGRESS_LEVELS,
-    emptyChar: RENDERER_BRAILLE_PROGRESS_EMPTY,
-    separatorChar: RENDERER_BRAILLE_PROGRESS_SEPARATOR,
-    styleForCell: (cell) => rendererBrailleCellStyle(cell, filledColor, colors, emptyColorForCell),
-  });
-}
-
-function rendererBrailleCellStyle(
-  cell: RendererSteppedProgressBarCellProjection,
-  filledColor: string,
-  colors: ColorPalette,
-  emptyColorForCell: ((cellIndex: number) => string) | undefined,
-): (text: string) => string {
-  if (cell.filled) return (text) => chalk.hex(filledColor)(text);
-  return (text) => chalk.hex(emptyColorForCell?.(cell.index) ?? colors.textDim)(text);
 }
