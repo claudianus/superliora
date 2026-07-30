@@ -3,11 +3,11 @@ import type {
   RendererCellBuffer,
   RendererCellStyle,
   RendererDamageRect,
-} from './cell-buffer';
+} from './cell-buffer/index';
 import {
   applyRendererCellVfx,
   type RendererCellVfxOptions,
-} from './cell-vfx';
+} from './cell-buffer/vfx';
 import {
   rendererLineToCells,
   type RendererLineCellCache,

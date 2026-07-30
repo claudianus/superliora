@@ -1,6 +1,6 @@
-import type { RendererCellStyle } from '../cell-buffer';
+import type { RendererCellStyle } from '../cell-buffer/index';
 import type { RendererRegionLine } from '../compositor';
-import type { RendererCursorShape } from '../terminal-output';
+import type { RendererCursorShape } from '../terminal/output';
 import {
   composeGhostLine,
   computeCursorVisualPosition,

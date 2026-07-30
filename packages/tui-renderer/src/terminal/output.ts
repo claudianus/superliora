@@ -4,12 +4,12 @@ import {
   type RendererCellStyle,
   type RendererFrameDiff,
   type RendererRenderRun,
-} from '../cell-buffer';
+} from '../cell-buffer/index';
 import {
   encodeRendererClearInlineImages,
   type RendererInlineImageProtocol,
 } from './graphics';
-import { splitDisplayClusters } from '../text-metrics';
+import { splitDisplayClusters } from '../text/metrics';
 
 export const ANSI_BEGIN_SYNCHRONIZED_UPDATE = '\u001B[?2026h';
 export const ANSI_END_SYNCHRONIZED_UPDATE = '\u001B[?2026l';

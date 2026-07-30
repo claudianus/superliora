@@ -1,4 +1,4 @@
-import type { RendererCell, RendererCellStyle } from '../cell-buffer';
+import type { RendererCell, RendererCellStyle } from '../cell-buffer/index';
 import type { RendererRegionLine } from '../compositor';
 import {
   normalizeEditorFrameSize,
@@ -10,8 +10,8 @@ import type {
   RendererEditorArgumentHintProjectionOptions,
   RendererEditorPaint,
 } from './types';
-import { truncateToWidth, visibleWidth } from '../text-component';
-import { textToCells } from '../text-metrics';
+import { truncateToWidth, visibleWidth } from '../text/component';
+import { textToCells } from '../text/metrics';
 
 // oxlint-disable-next-line no-control-regex -- ESC (\x1b) is required to match ANSI SGR escape sequences.
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;

@@ -1,4 +1,4 @@
-import type { RendererCellStyle } from './cell-buffer';
+import type { RendererCellStyle } from './cell-buffer/index';
 import type { RendererRegionVfx, RendererRect } from './compositor';
 import {
   RendererAnimationFrameGate,
@@ -10,7 +10,7 @@ import {
   type RendererCellVfxOptions,
   type RendererCellVfxTarget,
   type RendererCellVfxTimingOptions,
-} from './cell-vfx';
+} from './cell-buffer/vfx';
 import {
   resolveRendererEffectLevel,
   type RendererEffectLevel,

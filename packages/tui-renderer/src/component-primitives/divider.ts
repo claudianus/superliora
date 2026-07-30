@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth } from '../text-component';
+import { truncateToWidth, visibleWidth } from '../text/component';
 import { normalizeLineCount, normalizeRenderWidth } from './normalize';
 
 export interface RendererDividerRowOptions {

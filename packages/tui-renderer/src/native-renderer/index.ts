@@ -1,5 +1,5 @@
-import { NativeFrameRenderer } from '../native-frame';
-import { NativeInputDecoder, type NativeInputEvent } from '../input-events';
+import { NativeFrameRenderer } from '../native/frame';
+import { NativeInputDecoder, type NativeInputEvent } from '../input-events/index';
 import {
   NativeRenderLoop,
   type NativeAnimationFrameCallback,
@@ -9,16 +9,16 @@ import {
 import {
   NativeTerminalSession,
   type NativeTerminalSize,
-} from '../terminal-session';
-import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal-probe';
+} from '../terminal/session';
+import type { NativeTerminalSynchronizedOutputProbeResult } from '../terminal/probe';
 import {
   diagnoseNativeRendererStats,
   type RendererDiagnosticsSnapshot,
-} from '../diagnostics';
+} from '../diagnostics/index';
 import {
   mergeNativeTerminalFeatureOptions,
-} from '../terminal-features';
-import { NativeFrameStats, type NativeFrameStatsSnapshot } from '../frame-stats';
+} from '../terminal/features';
+import { NativeFrameStats, type NativeFrameStatsSnapshot } from '../frame/stats';
 import { RendererLineCellCache } from '../line-cache';
 import { RendererCompositionCache } from '../compositor';
 import {

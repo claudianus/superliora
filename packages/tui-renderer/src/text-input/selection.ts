@@ -1,4 +1,4 @@
-import { displayClusterWidth } from '../text-metrics';
+import { displayClusterWidth } from '../text/metrics';
 
 /**
  * Pure text-geometry algorithms backing `RendererTextInput` cursor movement,

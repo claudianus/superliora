@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth } from './text-component';
+import { truncateToWidth, visibleWidth } from './text/component';
 
 export const RENDERER_BRAILLE_PROGRESS_EMPTY = '⣀';
 export const RENDERER_BRAILLE_PROGRESS_SEPARATOR = '⢸';

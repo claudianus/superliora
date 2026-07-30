@@ -1,4 +1,4 @@
-import type { RendererCellBuffer, RendererCellStyle } from './cell-buffer';
+import type { RendererCellBuffer, RendererCellStyle } from './cell-buffer/index';
 
 export interface RendererCellSnapshotOptions {
   readonly includeStyles?: boolean;

@@ -1,5 +1,5 @@
 import type { NativeAnimationFrameCallback, NativeRenderCause } from '../render-loop';
-import type { NativeTerminalOutput } from '../terminal-session';
+import type { NativeTerminalOutput } from '../terminal/session';
 
 export interface NativeRendererBackpressureCallbacks {
   readonly now: () => number;

@@ -1,4 +1,4 @@
-import type { NativeInputEvent } from '../input-events';
+import type { NativeInputEvent } from '../input-events/index';
 import type { RendererViewportScrollAction } from './types';
 
 export function rendererViewportActionForInput(

@@ -1,8 +1,8 @@
 import { ansiTextToCells } from './ansi-text';
-import type { RendererCell, RendererCellStyle } from './cell-buffer';
+import type { RendererCell, RendererCellStyle } from './cell-buffer/index';
 import type { RendererRect, RendererRegionLine } from './compositor';
-import { CURSOR_MARKER } from './component-primitives';
-import type { RendererCursorState } from './terminal-output';
+import { CURSOR_MARKER } from './component-primitives/index';
+import type { RendererCursorState } from './terminal/output';
 
 export interface RendererCursorMarkerLineProjectionOptions {
   readonly line: string;

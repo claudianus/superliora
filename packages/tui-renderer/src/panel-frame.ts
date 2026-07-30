@@ -1,5 +1,5 @@
 import type { RendererRect } from './compositor';
-import { truncateToWidth, visibleWidth } from './text-component';
+import { truncateToWidth, visibleWidth } from './text/component';
 
 // ---------------------------------------------------------------------------
 // Panel border hit-test types

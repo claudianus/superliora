@@ -6,13 +6,13 @@ import {
   type RendererRect,
   type RendererCompositionOptions,
 } from './compositor';
-import type { RendererCell } from './cell-buffer';
+import type { RendererCell } from './cell-buffer/index';
 import {
   NativeFrameRenderer,
   type NativeFramePresentResult,
-} from './native-frame';
+} from './native/frame';
 import { rendererRegionsRequireAnimationFrame } from './region-vfx';
-import type { RendererCursorState } from './terminal-output';
+import type { RendererCursorState } from './terminal/output';
 
 export interface RendererLineSource {
   render(width: number): readonly string[];

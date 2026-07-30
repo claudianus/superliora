@@ -1,4 +1,4 @@
-import type { NativeInputMouseEvent } from '../input-events';
+import type { NativeInputMouseEvent } from '../input-events/index';
 import {
   normalizeMouseCoordinate,
   normalizeRenderWidth,

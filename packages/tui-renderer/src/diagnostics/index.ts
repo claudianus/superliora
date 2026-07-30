@@ -1,4 +1,4 @@
-import type { NativeFrameStatsSnapshot } from '../frame-stats';
+import type { NativeFrameStatsSnapshot } from '../frame/stats';
 import type { RendererQualitySnapshot } from '../quality';
 import { formatFrameBudgetSparkline } from './format';
 import {

@@ -7,7 +7,7 @@ import {
   findParagraphTargetLine,
   type AtomicCursorBias,
 } from './selection';
-import { measureDisplayWidth } from '../text-metrics';
+import { measureDisplayWidth } from '../text/metrics';
 
 /**
  * Pure cursor-navigation algorithms backing `RendererTextInput` vertical,

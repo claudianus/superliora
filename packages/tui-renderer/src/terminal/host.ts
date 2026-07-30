@@ -1,4 +1,4 @@
-import type { Component } from '../text-component';
+import type { Component } from '../text/component';
 import type { NativeRenderCause } from '../render-loop';
 
 export type RendererInputListenerResult =

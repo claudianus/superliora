@@ -1,5 +1,5 @@
-import type { RendererCellStyle } from '../cell-buffer';
-import { renderRendererDividerRow } from '../component-primitives';
+import type { RendererCellStyle } from '../cell-buffer/index';
+import { renderRendererDividerRow } from '../component-primitives/index';
 import {
   DEFAULT_DIAGNOSTICS_PANEL_WIDTH,
   MIN_DIAGNOSTICS_PANEL_WIDTH,
@@ -16,7 +16,7 @@ import {
   type RendererOverlayPanelRegion,
   type RendererOverlayPanelStyle,
 } from '../overlay';
-import { measureDisplayWidth, truncateDisplayText } from '../text-metrics';
+import { measureDisplayWidth, truncateDisplayText } from '../text/metrics';
 import { rendererDarkTheme, rendererThemeStyle, type RendererTheme } from '../theme';
 
 export function formatRendererDiagnosticsPanel(

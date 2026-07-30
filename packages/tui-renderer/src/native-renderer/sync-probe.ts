@@ -2,8 +2,8 @@ import type { NativeRenderLoopScheduler } from '../render-loop';
 import {
   probeNativeSynchronizedOutputSupport,
   type NativeTerminalSynchronizedOutputProbeResult,
-} from '../terminal-probe';
-import type { NativeTerminalInput, NativeTerminalOutput } from '../terminal-session';
+} from '../terminal/probe';
+import type { NativeTerminalInput, NativeTerminalOutput } from '../terminal/session';
 
 export interface NativeRendererSyncProbeCallbacks {
   readonly now: () => number;

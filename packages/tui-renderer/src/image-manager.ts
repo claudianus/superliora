@@ -24,7 +24,7 @@ import {
   type RendererInlineImageFormat,
   type RendererInlineImageData,
   type RendererCellDimensions,
-} from './terminal-graphics';
+} from './terminal/graphics';
 
 // ---------------------------------------------------------------------------
 // Types

@@ -1,6 +1,6 @@
-import { ANSI_CLEAR_SCREEN, type NativeTerminalScreenMode, type NativeTerminalSize } from '../terminal-session';
-import { encodeTerminalClearBelowRow } from '../terminal-output';
-import type { NativeFrameRenderer } from '../native-frame';
+import { ANSI_CLEAR_SCREEN, type NativeTerminalScreenMode, type NativeTerminalSize } from '../terminal/session';
+import { encodeTerminalClearBelowRow } from '../terminal/output';
+import type { NativeFrameRenderer } from '../native/frame';
 import type { RendererCompositionCache } from '../compositor';
 
 export interface NativeRendererResizeContext {

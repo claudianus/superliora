@@ -1,5 +1,5 @@
-import type { RendererCellStyle } from '../cell-buffer';
-import type { NativeInputEvent, NativeInputKeyEvent, NativeInputMouseEvent } from '../input-events';
+import type { RendererCellStyle } from '../cell-buffer/index';
+import type { NativeInputEvent, NativeInputKeyEvent, NativeInputMouseEvent } from '../input-events/index';
 import type { RendererTextInputHistorySnapshot } from './edit';
 import {
   computeCharacterBackwardDelete,
@@ -29,7 +29,7 @@ import {
   resolveTextInputMouseOffset,
 } from './mouse';
 import { renderTextInputFrame } from './render';
-import type { RendererCursorShape } from '../terminal-output';
+import type { RendererCursorShape } from '../terminal/output';
 import {
   dispatchTextInputKey,
   type RendererTextInputKeyActions,
