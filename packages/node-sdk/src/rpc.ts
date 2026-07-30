@@ -1,5 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
-
 import {
   type AgentContextData,
   type ContextComposition,
@@ -13,20 +11,19 @@ import {
   type InlineCompleteResult,
   type QuestionRequest,
   type QuestionResult,
-  type SDKAPI,
-  type SessionTrace,
   type SuggestPromptsResult,
   type ToolCallRequest,
   type ToolCallResponse,
   type ToolInfo,
   type SwarmModeTrigger,
-  type TurnCancelSource,
+  type SessionTrace,
 } from '@superliora/agent-core';
 import type { Kaos } from '@superliora/kaos';
 
 import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/events';
-import { buildSessionStatus, type ResolvedCoreAPI } from '#/rpc-helpers';
+import { buildSessionStatus } from '#/rpc-helpers';
 import { SdkEventBridge } from './rpc-event-bridge';
+import { SDKRpcClientPluginsMixin } from './rpc-plugins-mixin';
 import type {
   AddAdditionalDirInput,
   AddAdditionalDirResult,
@@ -36,51 +33,24 @@ import type {
   DeleteConfigFieldPath,
   ExportSessionInput,
   ExportSessionResult,
-  CreateGoalInput,
-  CreateUltraworkRunInput,
-  PauseUltraworkInput,
-  SwarmRestaffInput,
-  CancelUltraworkInput,
-  UltraworkAutoActivationDecision,
-  UltraworkObjectiveProfileDecision,
   ForkSessionInput,
   GetConfigOptions,
-  GoalSnapshot,
-  GoalToolResult,
   LioraConfig,
   LioraConfigPatch,
   ListSessionsOptions,
-  MemoryConsolidateResult,
-  MemoryCreateInput,
-  MemoryExportResult,
-  MemoryImportResult,
-  MemoryListRequest,
-  MemoryRecord,
-  MemorySearchRequest,
-  MemorySearchResult,
-  MemoryStats,
-  MemoryUpdateInput,
   McpServerInfo,
   McpStartupMetrics,
-  PermissionMode,
-  PluginCommandDef,
-  PluginInfo,
-  PluginSummary,
   ProviderRouteStatus,
-  ReloadSummary,
-  ResumeUltraworkPayloadResult,
   CompactOptions,
   SessionPlan,
   SessionStatus,
   SessionUsage,
-  PromptInput,
   RenameSessionInput,
   ResumeSessionInput,
   ResumedSessionSummary,
   SessionSummary,
   SkillSearchResult,
   SkillSummary,
-  UltraworkRun,
   Unsubscribe,
 } from '#/types';
 import {
@@ -91,7 +61,6 @@ import {
   type InlineCompleteRpcInput,
   type ReconnectMcpServerRpcInput,
   type ReloadSessionRpcInput,
-  type RewindFilesRpcInput,
   type RewindFilesRpcResult,
   type RunShellCommandRpcInput,
   type RunShellCommandRpcResult,
@@ -119,6 +88,9 @@ export type {
   InlineCompleteRpcInput,
   ReconnectMcpServerRpcInput,
   ReloadSessionRpcInput,
+  RewindFilesRpcResult,
+  RunShellCommandRpcInput,
+  RunShellCommandRpcResult,
   SearchSkillsRpcInput,
   SessionIdRpcInput,
   SessionPromptRpcInput,
@@ -130,24 +102,15 @@ export type {
   SetSessionPremiumQualityRpcInput,
   SetSessionSwarmModeRpcInput,
   SetSessionThinkingRpcInput,
+  StartConversationLoopRpcInput,
+  StopConversationLoopRpcInput,
   SuggestPromptsRpcInput,
 } from './rpc-types';
 
-const MAIN_AGENT_ID = 'main';
+export { ClientAPI } from './rpc-client-api';
 
-export abstract class SDKRpcClientBase {
-  private readonly interactiveAgentScope = new AsyncLocalStorage<string>();
+export abstract class SDKRpcClientBase extends SDKRpcClientPluginsMixin {
   private readonly eventBridge = new SdkEventBridge();
-
-  get interactiveAgentId(): string {
-    return this.interactiveAgentScope.getStore() ?? MAIN_AGENT_ID;
-  }
-
-  withInteractiveAgent<T>(agentId: string, fn: () => T): T {
-    return this.interactiveAgentScope.run(agentId, fn);
-  }
-
-  protected abstract getRpc(): Promise<ResolvedCoreAPI>;
 
   /**
    * Emergency synchronous flush of all in-process sessions' pending state to
@@ -285,56 +248,6 @@ export abstract class SDKRpcClientBase {
     return rpc.removeKimiProvider({ providerId });
   }
 
-  async memorySearch(input: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
-    const rpc = await this.getRpc();
-    return rpc.memorySearch(input);
-  }
-
-  async memoryList(input: MemoryListRequest = {}): Promise<readonly MemoryRecord[]> {
-    const rpc = await this.getRpc();
-    return rpc.memoryList(input);
-  }
-
-  async memoryGet(id: string): Promise<MemoryRecord | undefined> {
-    const rpc = await this.getRpc();
-    return rpc.memoryGet({ id });
-  }
-
-  async memoryCreate(input: MemoryCreateInput): Promise<MemoryRecord> {
-    const rpc = await this.getRpc();
-    return rpc.memoryCreate(input);
-  }
-
-  async memoryUpdate(id: string, patch: MemoryUpdateInput): Promise<MemoryRecord> {
-    const rpc = await this.getRpc();
-    return rpc.memoryUpdate({ id, patch });
-  }
-
-  async memoryForget(id: string): Promise<boolean> {
-    const rpc = await this.getRpc();
-    return rpc.memoryForget({ id });
-  }
-
-  async memoryStats(): Promise<MemoryStats> {
-    const rpc = await this.getRpc();
-    return rpc.memoryStats({});
-  }
-
-  async memoryExport(input: MemoryListRequest = {}): Promise<MemoryExportResult> {
-    const rpc = await this.getRpc();
-    return rpc.memoryExport(input);
-  }
-
-  async memoryImport(records: readonly MemoryRecord[]): Promise<MemoryImportResult> {
-    const rpc = await this.getRpc();
-    return rpc.memoryImport({ records });
-  }
-
-  async memoryConsolidate(): Promise<MemoryConsolidateResult> {
-    const rpc = await this.getRpc();
-    return rpc.memoryConsolidate({});
-  }
-
   async prompt(input: SessionPromptRpcInput): Promise<void> {
     const agentId = this.interactiveAgentId;
     const rpc = await this.getRpc();
@@ -345,11 +258,7 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async runShellCommand(input: {
-    sessionId: string;
-    command: string;
-    commandId?: string;
-  }): Promise<{ stdout: string; stderr: string; isError?: boolean; backgrounded?: boolean }> {
+  async runShellCommand(input: RunShellCommandRpcInput): Promise<RunShellCommandRpcResult> {
     const agentId = this.interactiveAgentId;
     const rpc = await this.getRpc();
     return rpc.runShellCommand({
@@ -554,15 +463,7 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async rewindFiles(
-    input: SessionIdRpcInput & { turnId?: string | undefined },
-  ): Promise<{
-    readonly turnId: string;
-    readonly restored: readonly string[];
-    readonly deleted: readonly string[];
-    readonly skippedSensitive: readonly string[];
-    readonly errors: readonly { path: string; message: string }[];
-  }> {
+  async rewindFiles(input: SessionIdRpcInput & { turnId?: string | undefined }): Promise<RewindFilesRpcResult> {
     const rpc = await this.getRpc();
     return rpc.rewindFiles({
       sessionId: input.sessionId,
@@ -570,25 +471,7 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async startConversationLoop(
-    input: SessionIdRpcInput & {
-      prompt: string;
-      intervalMs?: number | undefined;
-      maxIterations?: number | undefined;
-      expiresAt?: number | undefined;
-    },
-  ): Promise<{
-    readonly id: string;
-    readonly prompt: string;
-    readonly intervalMs: number;
-    readonly maxIterations: number;
-    readonly expiresAt?: number | undefined;
-    readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
-    readonly iterations: number;
-    readonly createdAt: number;
-    readonly lastFiredAt: number | null;
-    readonly stopReason?: string | undefined;
-  }> {
+  async startConversationLoop(input: StartConversationLoopRpcInput): Promise<ConversationLoopState> {
     const rpc = await this.getRpc();
     return rpc.startConversationLoop({
       sessionId: input.sessionId,
@@ -599,23 +482,7 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async stopConversationLoop(
-    input: SessionIdRpcInput & { loopId?: string | undefined },
-  ): Promise<
-    | {
-        readonly id: string;
-        readonly prompt: string;
-        readonly intervalMs: number;
-        readonly maxIterations: number;
-        readonly expiresAt?: number | undefined;
-        readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
-        readonly iterations: number;
-        readonly createdAt: number;
-        readonly lastFiredAt: number | null;
-        readonly stopReason?: string | undefined;
-      }
-    | undefined
-  > {
+  async stopConversationLoop(input: StopConversationLoopRpcInput): Promise<ConversationLoopState | undefined> {
     const rpc = await this.getRpc();
     return rpc.stopConversationLoop({
       sessionId: input.sessionId,
@@ -623,20 +490,7 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async listConversationLoops(input: SessionIdRpcInput): Promise<
-    readonly {
-      readonly id: string;
-      readonly prompt: string;
-      readonly intervalMs: number;
-      readonly maxIterations: number;
-      readonly expiresAt?: number | undefined;
-      readonly status: 'active' | 'paused' | 'expired' | 'completed' | 'stopped';
-      readonly iterations: number;
-      readonly createdAt: number;
-      readonly lastFiredAt: number | null;
-      readonly stopReason?: string | undefined;
-    }[]
-  > {
+  async listConversationLoops(input: SessionIdRpcInput): Promise<readonly ConversationLoopState[]> {
     const rpc = await this.getRpc();
     return rpc.listConversationLoops({
       sessionId: input.sessionId,
@@ -763,11 +617,6 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async listPluginCommands(input: SessionIdRpcInput): Promise<readonly PluginCommandDef[]> {
-    const rpc = await this.getRpc();
-    return rpc.listPluginCommands({ sessionId: input.sessionId });
-  }
-
   async searchSkills(input: SearchSkillsRpcInput): Promise<readonly SkillSearchResult[]> {
     const rpc = await this.getRpc();
     return rpc.searchSkills({
@@ -824,130 +673,6 @@ export abstract class SDKRpcClientBase {
     });
   }
 
-  async createGoal(input: SessionIdRpcInput & CreateGoalInput): Promise<GoalSnapshot> {
-    const rpc = await this.getRpc();
-    return rpc.createGoal({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      objective: input.objective,
-      replace: input.replace,
-      source: input.source,
-    });
-  }
-
-  async getGoal(input: SessionIdRpcInput): Promise<GoalToolResult> {
-    const rpc = await this.getRpc();
-    return rpc.getGoal({ sessionId: input.sessionId, agentId: this.interactiveAgentId });
-  }
-
-  async pauseGoal(input: SessionIdRpcInput): Promise<GoalSnapshot> {
-    const rpc = await this.getRpc();
-    return rpc.pauseGoal({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async resumeGoal(input: SessionIdRpcInput): Promise<GoalSnapshot> {
-    const rpc = await this.getRpc();
-    return rpc.resumeGoal({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async cancelGoal(input: SessionIdRpcInput): Promise<GoalSnapshot> {
-    const rpc = await this.getRpc();
-    return rpc.cancelGoal({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async createUltraworkRun(
-    input: SessionIdRpcInput & CreateUltraworkRunInput,
-  ): Promise<UltraworkRun> {
-    const rpc = await this.getRpc();
-    return rpc.createUltraworkRun({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      id: input.id,
-      objective: input.objective,
-      source: input.source,
-      replaceGoal: input.replaceGoal,
-      evidenceRoot: input.evidenceRoot,
-      workDir: input.workDir,
-    });
-  }
-
-  async getUltraworkRun(input: SessionIdRpcInput): Promise<UltraworkRun | null> {
-    const rpc = await this.getRpc();
-    return rpc.getUltraworkRun({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async pauseUltrawork(
-    input: SessionIdRpcInput & PauseUltraworkInput,
-  ): Promise<UltraworkRun | null> {
-    const rpc = await this.getRpc();
-    return rpc.pauseUltrawork({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      reason: input.reason,
-    });
-  }
-
-  async swarmRestaff(input: SessionIdRpcInput & SwarmRestaffInput): Promise<boolean> {
-    const rpc = await this.getRpc();
-    return rpc.swarmRestaff({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      reason: input.reason,
-    });
-  }
-
-  async classifyUltraworkAutoActivation(
-    input: SessionIdRpcInput & { readonly text: string },
-  ): Promise<UltraworkAutoActivationDecision> {
-    const rpc = await this.getRpc();
-    return rpc.classifyUltraworkAutoActivation({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      text: input.text,
-    });
-  }
-  async classifyUltraworkObjectiveProfile(
-    input: SessionIdRpcInput & { readonly text: string },
-  ): Promise<UltraworkObjectiveProfileDecision> {
-    const rpc = await this.getRpc();
-    return rpc.classifyUltraworkObjectiveProfile({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      text: input.text,
-    });
-  }
-
-  async resumeUltrawork(input: SessionIdRpcInput): Promise<ResumeUltraworkPayloadResult | null> {
-    const rpc = await this.getRpc();
-    return rpc.resumeUltrawork({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
-
-  async cancelUltrawork(
-    input: SessionIdRpcInput & CancelUltraworkInput,
-  ): Promise<UltraworkRun | null> {
-    const rpc = await this.getRpc();
-    return rpc.cancelUltrawork({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      reason: input.reason,
-    });
-  }
-
   async listMcpServers(input: SessionIdRpcInput): Promise<readonly McpServerInfo[]> {
     const rpc = await this.getRpc();
     return rpc.listMcpServers({ sessionId: input.sessionId });
@@ -961,66 +686,6 @@ export abstract class SDKRpcClientBase {
   async reconnectMcpServer(input: ReconnectMcpServerRpcInput): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.reconnectMcpServer({ sessionId: input.sessionId, name: input.name });
-  }
-
-  async listPlugins(): Promise<readonly PluginSummary[]> {
-    const rpc = await this.getRpc();
-    return rpc.listPlugins({});
-  }
-
-  async installPlugin(source: string): Promise<PluginSummary> {
-    const rpc = await this.getRpc();
-    return rpc.installPlugin({ source });
-  }
-
-  async setPluginEnabled(id: string, enabled: boolean): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.setPluginEnabled({ id, enabled });
-  }
-
-  async setPluginMcpServerEnabled(
-    id: string,
-    server: string,
-    enabled: boolean,
-  ): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.setPluginMcpServerEnabled({ id, server, enabled });
-  }
-
-  async removePlugin(id: string): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.removePlugin({ id });
-  }
-
-  async reloadPlugins(): Promise<ReloadSummary> {
-    const rpc = await this.getRpc();
-    return rpc.reloadPlugins({});
-  }
-
-  async getPluginInfo(id: string): Promise<PluginInfo> {
-    const rpc = await this.getRpc();
-    return rpc.getPluginInfo({ id });
-  }
-
-  async activateSkill(input: ActivateSkillRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.activateSkill({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      name: input.name,
-      args: input.args,
-    });
-  }
-
-  async activatePluginCommand(input: ActivatePluginCommandRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.activatePluginCommand({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      pluginId: input.pluginId,
-      commandName: input.commandName,
-      args: input.args,
-    });
   }
 
   onEvent(listener: (event: Event) => void): Unsubscribe {
@@ -1070,36 +735,5 @@ export abstract class SDKRpcClientBase {
       output: `SDK custom tool calls are not supported: ${request.toolCallId}`,
       isError: true,
     };
-  }
-
-}
-
-export class ClientAPI implements SDKAPI {
-  constructor(readonly client: SDKRpcClientBase) {}
-
-  emitEvent(event: Event): void {
-    this.client.receiveEvent(event);
-  }
-
-  requestApproval(
-    request: ApprovalRequest & { sessionId: string; agentId: string },
-  ): Promise<ApprovalResponse> {
-    return this.client.requestApproval(request);
-  }
-
-  requestQuestion(
-    request: QuestionRequest & { sessionId: string; agentId: string },
-  ): Promise<QuestionResult> {
-    return this.client.requestQuestion(request);
-  }
-
-  requestCredential(
-    request: CredentialRequest & { sessionId: string; agentId: string },
-  ): Promise<CredentialResponse | null> {
-    return this.client.requestCredential(request);
-  }
-
-  toolCall(request: ToolCallRequest): Promise<ToolCallResponse> {
-    return this.client.toolCall(request);
   }
 }
