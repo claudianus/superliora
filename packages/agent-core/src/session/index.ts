@@ -1,58 +1,34 @@
-import { homedir } from 'node:os';
 import { join } from 'pathe';
 import { type Kaos } from '@superliora/kaos';
-import type { SessionWarning } from '@superliora/protocol';
 
 import { ErrorCodes, LioraError } from '#/errors';
 import { getRootLogger, log } from '#/logging/logger';
-import type { Logger, SessionLogHandle } from '#/logging/types';
-import type { LioraConfig, SDKSessionRPC } from '#/rpc';
-import { proxyWithExtraPayload } from '#/rpc/types';
-
-import { Agent, type AgentOptions, type AgentType } from '../agent';
+import type { SessionLogHandle } from '#/logging/types';
+import { Agent, type AgentOptions } from '../agent';
 import { type ConversationLoopState } from '../agent/conversation-loop';
-import { HookEngine, type HookDef } from './hooks';
-import type { PermissionManagerOptions, PermissionRule } from '../agent/permission';
-import type { SandboxProfile } from '../tools/policies/path-access';
+import { HookEngine } from './hooks';
 import { FileSnapshotStore } from './file-snapshot';
 import {
   appendWorkspaceAdditionalDir,
   normalizeAdditionalDirs,
   readWorkspaceAdditionalDirs,
   resolveWorkspaceAdditionalDirs,
-  type BackgroundConfig,
   type WorkspaceAdditionalDirsLoadResult,
 } from '../config';
-import { makeErrorPayload } from '../errors';
 import {
   McpConnectionManager,
   McpOAuthService,
-  type McpServerEntry,
-  type SessionMcpConfig,
 } from '../mcp';
-import type { EnabledPluginSessionStart, PluginCommandDef } from '../plugin';
+import { DEFAULT_AGENT_PROFILES } from '../profile';
 import {
-  DEFAULT_AGENT_PROFILES,
-  prepareSystemPromptContext,
-  type ResolvedAgentProfile,
-} from '../profile';
-import type { ProviderManager } from './provider-manager';
-import {
-  registerBuiltinSkills,
   SessionSkillRegistry,
-  resolveSkillRoots,
   summarizeSkill,
-  type SkillRoot,
   type SkillSearchHit,
   type SkillSummary,
 } from '../skill';
-import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
-import { SessionSubagentHost } from './subagent-host';
-import type { ToolServices } from '../tools/support/services';
-import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
-import type { SessionMemoryRuntime } from '../memory';
-import type { LioraRecallStore } from '../memory/store';
-import { responseLanguagePreferenceFromUnknown } from './response-language';
+import { noopTelemetryClient } from '../telemetry';
+import type { PluginCommandDef } from '../plugin';
+import { FlagResolver } from '../flags';
 import { SessionMetadataPersistence } from './metadata-persistence';
 import { ConversationLoopManager } from './conversation-loops';
 import { SessionCloseLifecycle } from './session-close-lifecycle';
@@ -60,105 +36,47 @@ import {
   appendPluginSessionStartReminder as applyPluginSessionStartReminder,
   runGenerateAgentsMd,
 } from './session-plugin-reminder';
+import { SessionAgentLifecycle } from './session-agent-lifecycle';
+import { SessionResources } from './session-resources';
+import { triggerSessionEnd, triggerSessionStart } from './session-lifecycle-hooks';
+import { notifyAdditionalDirAdded } from './session-workspace-dirs';
+import { collectSessionWarnings } from './session-warnings';
+import type {
+  AgentEntry,
+  CreateAgentOptions,
+  SessionMeta,
+  SessionOptions,
+} from './session-types';
 
-export interface SessionOptions {
-  readonly kaos: Kaos;
-  readonly persistenceKaos?: Kaos;
-  readonly config?: LioraConfig;
-  readonly id?: string | undefined;
-  readonly homedir: string;
-  readonly kimiHomeDir?: string;
-  readonly rpc: SDKSessionRPC;
-  readonly toolServices?: ToolServices;
-  readonly initializeMainAgent?: boolean | undefined;
-  readonly providerManager?: ProviderManager | undefined;
-  readonly background?: BackgroundConfig | undefined;
-  readonly hooks?: readonly HookDef[];
-  readonly permissionRules?: readonly PermissionRule[];
-  readonly skills?: SessionSkillConfig;
-  readonly mcpConfig?: SessionMcpConfig;
-  readonly telemetry?: TelemetryClient | undefined;
-  readonly pluginSessionStarts?: readonly EnabledPluginSessionStart[];
-  readonly pluginCommands?: readonly PluginCommandDef[];
-  readonly appVersion?: string;
-  readonly experimentalFlags?: ExperimentalFlagResolver;
-  readonly additionalDirs?: readonly string[];
-  readonly memory?: SessionMemoryRuntime;
-  readonly dreamStore?: LioraRecallStore;
-  /**
-   * Print-mode (`liora -p`) only: hold the main turn open while background
-   * subagents are still running before the run exits.
-   */
-  readonly drainAgentTasksOnStop?: boolean;
-}
-
-export interface SessionSkillConfig {
-  readonly userHomeDir?: string;
-  /** Brand data dir (SUPERLIORA_HOME); user brand skills live under `<brandHomeDir>/skills`. */
-  readonly brandHomeDir?: string;
-  readonly explicitDirs?: readonly string[];
-  readonly extraDirs?: readonly string[];
-  readonly pluginSkillRoots?: readonly SkillRoot[];
-  readonly mergeAllAvailableSkills?: boolean;
-  readonly builtinDir?: string;
-}
-
-export interface AgentMeta {
-  readonly homedir: string;
-  readonly type: AgentType;
-  readonly parentAgentId: string | null;
-  readonly swarmItem?: string;
-}
-
-interface ResumedAgent {
-  readonly agent: Agent;
-  readonly warning?: string;
-}
-
-type AgentEntry = Agent | Promise<ResumedAgent>;
-
-export interface CreateAgentOptions {
-  readonly profile?: ResolvedAgentProfile;
-  readonly parentAgentId?: string;
-  readonly swarmItem?: string;
-  readonly persistMetadata?: boolean;
-}
-
-export interface SessionMeta {
-  createdAt: string;
-  updatedAt: string;
-  title: string;
-  isCustomTitle: boolean;
-  lastPrompt?: string;
-  forkedFrom?: string;
-  /** Absolute working directory the session was created in. Persisted so the
-   *  session directory is self-describing and the global session index does not
-   *  have to be trusted for the (one-way-hashed) workDir. */
-  workDir?: string;
-  agents: Record<string, AgentMeta>;
-  custom: Record<string, any>;
-}
+export type {
+  AgentMeta,
+  CreateAgentOptions,
+  SessionMeta,
+  SessionOptions,
+  SessionSkillConfig,
+} from './session-types';
 
 export class Session {
-  readonly rpc: SDKSessionRPC;
-  readonly telemetry: TelemetryClient;
+  readonly rpc: SessionOptions['rpc'];
+  readonly telemetry: NonNullable<SessionOptions['telemetry']>;
   readonly skills: SessionSkillRegistry;
   readonly agents: Map<string, AgentEntry> = new Map();
   readonly mcp: McpConnectionManager;
-  readonly log: Logger;
+  readonly log: ReturnType<typeof log.createChild> | typeof log;
   /** Session-scoped write/edit snapshots shared by all agents for `/rewind`. */
   readonly fileSnapshots: FileSnapshotStore;
   private readonly logHandle: SessionLogHandle | undefined;
   readonly hookEngine: HookEngine;
-  readonly experimentalFlags: ExperimentalFlagResolver;
+  readonly experimentalFlags: NonNullable<SessionOptions['experimentalFlags']>;
   private toolKaos: Kaos;
   private persistenceKaos: Kaos;
   private additionalDirs: readonly string[];
-  private agentIdCounter = 0;
   private readonly skillsReady: Promise<void>;
   private readonly metadataPersistence: SessionMetadataPersistence;
   private readonly conversationLoopManager: ConversationLoopManager;
   private readonly closeLifecycle: SessionCloseLifecycle;
+  private readonly agentLifecycle: SessionAgentLifecycle;
+  private readonly resources: SessionResources;
   metadata: SessionMeta = {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -224,28 +142,60 @@ export class Session {
       log: this.log,
       stdioCwd: options.kaos.getcwd(),
     });
-    this.mcp.onStatusChange((entry) => {
-      this.onMcpServerStatusChange(entry);
+    this.resources = new SessionResources({
+      options: this.options,
+      skills: this.skills,
+      mcp: this.mcp,
+      telemetry: this.telemetry,
+      log: this.log,
+      rpc: this.rpc,
+      readyAgents: () => this.readyAgents(),
     });
-    this.skillsReady = this.loadSkills()
+    this.mcp.onStatusChange((entry) => {
+      this.resources.onMcpServerStatusChange(entry);
+    });
+    this.skillsReady = this.resources
+      .loadSkills()
       .catch((error: unknown) => {
         this.log.error('skills load failed', error);
       })
       .then(() => {
-        this.refreshAgentBuiltinTools();
+        this.resources.refreshAgentBuiltinTools();
       });
-    void this.loadMcpServers().catch((error: unknown) => {
-      this.emitInitialMcpLoadError(error);
+    this.agentLifecycle = new SessionAgentLifecycle({
+      session: this,
+      options: this.options,
+      agents: this.agents,
+      getMetadata: () => this.metadata,
+      skills: this.skills,
+      getSkillsReady: () => this.skillsReady,
+      mcp: this.mcp,
+      hookEngine: this.hookEngine,
+      telemetry: this.telemetry,
+      experimentalFlags: this.experimentalFlags,
+      fileSnapshots: this.fileSnapshots,
+      log: this.log,
+      rpc: this.rpc,
+      getToolKaos: () => this.toolKaos,
+      getAdditionalDirs: () => this.additionalDirs,
+      getAgentsMdWarning: () => this.agentsMdWarning,
+      setAgentsMdWarning: (warning) => {
+        this.agentsMdWarning = warning;
+      },
+      systemContextKaos: (cwd) => this.systemContextKaos(cwd),
+      writeMetadata: () => this.writeMetadata(),
+    });
+    void this.resources.loadMcpServers().catch((error: unknown) => {
+      this.resources.emitInitialMcpLoadError(error);
     });
   }
-
 
   setToolKaos(kaos: Kaos) {
     this.toolKaos = kaos;
     for (const agent of this.readyAgents()) {
       agent.setKaos(kaos.withCwd(agent.config.cwd));
     }
-    this.refreshAgentBuiltinTools();
+    this.resources.refreshAgentBuiltinTools();
   }
 
   getAdditionalDirs(): readonly string[] {
@@ -269,7 +219,7 @@ export class Session {
       const result = await appendWorkspaceAdditionalDir(systemKaos, cwd, path, this.additionalDirs);
       const additionalDirs = normalizeAdditionalDirs([...this.additionalDirs, ...result.additionalDirs]);
       await this.setAdditionalDirs(additionalDirs);
-      this.notifyAdditionalDirAdded(path, true, result.configPath);
+      notifyAdditionalDirAdded(this.requireMainAgent(), path, true, result.configPath);
       return { ...result, additionalDirs, persisted: true };
     }
 
@@ -277,20 +227,13 @@ export class Session {
     const additionalDirs = await resolveWorkspaceAdditionalDirs(systemKaos, cwd, [path]);
     const nextAdditionalDirs = normalizeAdditionalDirs([...this.additionalDirs, ...additionalDirs]);
     await this.setAdditionalDirs(nextAdditionalDirs);
-    this.notifyAdditionalDirAdded(path, false, workspace.configPath);
+    notifyAdditionalDirAdded(this.requireMainAgent(), path, false, workspace.configPath);
     return {
       projectRoot: workspace.projectRoot,
       configPath: workspace.configPath,
       additionalDirs: nextAdditionalDirs,
       persisted: false,
     };
-  }
-
-  private notifyAdditionalDirAdded(path: string, persisted: boolean, configPath: string): void {
-    const message = persisted
-      ? `Added workspace directory:\n  ${path}\n  Saved to:\n  ${configPath}`
-      : `Added workspace directory:\n  ${path}\n  For this session only`;
-    this.requireMainAgent().context.appendLocalCommandStdout(message);
   }
 
   /**
@@ -313,7 +256,7 @@ export class Session {
       agent.printDrainAgentTasksOnStop = true;
       agent.printDrainDeadlineMs = Date.now() + ceilingS * 1000;
     }
-    await this.triggerSessionStart('startup');
+    await triggerSessionStart(this.hookEngine, 'startup');
     return agent;
   }
 
@@ -325,7 +268,7 @@ export class Session {
     // Only the main agent is needed to reopen the session; subagents replay
     // lazily when an RPC or Agent(resume=...) call asks for their state.
     const { warning } =
-      agents['main'] === undefined ? { warning: undefined } : await this.resumeAgent('main');
+      agents['main'] === undefined ? { warning: undefined } : await this.agentLifecycle.resumeAgent('main');
     // A session migrated from an external tool ships a wire without the
     // `config.update` bootstrap events a natively-created agent writes, so the
     // main agent comes back with an empty system prompt and no tools. Apply the
@@ -334,9 +277,9 @@ export class Session {
     const main = this.getReadyAgent('main');
     const profile = DEFAULT_AGENT_PROFILES['agent'];
     if (main !== undefined && profile !== undefined && main.config.systemPrompt === '') {
-      await this.bootstrapAgentProfile(main, profile);
+      await this.agentLifecycle.bootstrapAgentProfile(main, profile);
     }
-    await this.triggerSessionStart('resume');
+    await triggerSessionStart(this.hookEngine, 'resume');
     return { warning };
   }
 
@@ -357,7 +300,7 @@ export class Session {
         }),
       );
       await this.flushMetadata();
-      await this.triggerSessionEnd('exit');
+      await triggerSessionEnd(this.hookEngine, 'exit');
     } finally {
       try {
         await this.mcp.shutdown();
@@ -388,12 +331,12 @@ export class Session {
   ): Promise<{ readonly id: string; readonly agent: Agent }> {
     await this.skillsReady;
     const type = config.type ?? 'main';
-    const id = type === 'main' ? 'main' : this.nextGeneratedAgentId();
+    const id = type === 'main' ? 'main' : this.agentLifecycle.nextGeneratedAgentId();
     const homedir = config.homedir ?? join(this.options.homedir, 'agents', id);
     const parentAgentId = options.parentAgentId ?? null;
-    const agent = this.instantiateAgent(id, homedir, type, config, parentAgentId);
+    const agent = this.agentLifecycle.instantiateAgent(id, homedir, type, config, parentAgentId);
     if (options.profile) {
-      await this.bootstrapAgentProfile(agent, options.profile);
+      await this.agentLifecycle.bootstrapAgentProfile(agent, options.profile);
     }
 
     this.agents.set(id, agent);
@@ -412,71 +355,24 @@ export class Session {
 
   async ensureAgentResumed(id: string): Promise<Agent> {
     const entry = this.agents.get(id);
-    if (entry !== undefined) return (await this.resolveAgentEntry(entry)).agent;
+    if (entry !== undefined) return (await this.agentLifecycle.resolveAgentEntry(entry)).agent;
     if (this.metadata.agents[id] === undefined) {
       throw new LioraError(ErrorCodes.AGENT_NOT_FOUND, `Agent "${id}" was not found`);
     }
-    return (await this.resumeAgent(id)).agent;
+    return (await this.agentLifecycle.resumeAgent(id)).agent;
   }
 
-  /**
-   * Applies a profile's derived config — cwd, system prompt, active tools — to
-   * an agent. Fresh creation and resume-of-an-incomplete-wire both route
-   * through here so the two paths cannot drift apart.
-   */
-  private async bootstrapAgentProfile(
-    agent: Agent,
-    profile: ResolvedAgentProfile,
-  ): Promise<void> {
-    const context = await prepareSystemPromptContext(
-      this.systemContextKaos(agent.kaos.getcwd()),
-      this.options.kimiHomeDir,
-      { additionalDirs: this.additionalDirs },
-    );
-    agent.useProfile(profile, context);
-    const { agentsMdWarning } = context;
-    if (agentsMdWarning !== undefined) {
-      this.agentsMdWarning = agentsMdWarning;
-      log.warn('AGENTS.md exceeds recommended size', { message: agentsMdWarning });
-      agent.emitEvent({
-        type: 'warning',
-        message: agentsMdWarning,
-        code: 'agents-md-oversized',
-      });
-    }
-  }
-
-  async getSessionWarnings(): Promise<readonly SessionWarning[]> {
-    const warnings: SessionWarning[] = [];
-    const agentsMdWarning = await this.computeAgentsMdWarning();
-    if (agentsMdWarning !== undefined) {
-      warnings.push({
-        code: 'agents-md-oversized',
-        message: agentsMdWarning,
-        severity: 'warning',
-      });
-    }
-    return warnings;
-  }
-
-  private async computeAgentsMdWarning(): Promise<string | undefined> {
-    if (this.agentsMdWarning !== undefined) {
-      return this.agentsMdWarning;
-    }
-    // Resumed sessions skip bootstrap when their system prompt is already set, so
-    // the cached value may be missing; recompute on demand so the warning still
-    // surfaces for long-lived sessions.
-    try {
-      const context = await prepareSystemPromptContext(
-        this.systemContextKaos(this.toolKaos.getcwd()),
-        this.options.kimiHomeDir,
-        { additionalDirs: this.additionalDirs },
-      );
-      this.agentsMdWarning = context.agentsMdWarning;
-    } catch (error) {
-      log.warn('failed to compute AGENTS.md warning', { error });
-    }
-    return this.agentsMdWarning;
+  async getSessionWarnings() {
+    return collectSessionWarnings({
+      kimiHomeDir: this.options.kimiHomeDir,
+      additionalDirs: this.additionalDirs,
+      systemContextKaos: (cwd) => this.systemContextKaos(cwd),
+      toolKaosCwd: () => this.toolKaos.getcwd(),
+      getAgentsMdWarning: () => this.agentsMdWarning,
+      setAgentsMdWarning: (warning) => {
+        this.agentsMdWarning = warning;
+      },
+    });
   }
 
   async generateAgentsMd(): Promise<void> {
@@ -577,91 +473,6 @@ export class Session {
     return this.skills.searchByQuery(query, limit);
   }
 
-  private async loadSkills(): Promise<void> {
-    const roots = await resolveSkillRoots({
-      paths: {
-        userHomeDir: this.options.skills?.userHomeDir ?? homedir(),
-        brandHomeDir: this.options.skills?.brandHomeDir ?? this.options.kimiHomeDir,
-        workDir: this.options.kaos.getcwd(),
-      },
-      explicitDirs: this.options.skills?.explicitDirs,
-      extraDirs: this.options.skills?.extraDirs,
-      pluginSkillRoots: this.options.skills?.pluginSkillRoots,
-      mergeAllAvailableSkills: this.options.skills?.mergeAllAvailableSkills,
-      builtinDir: this.options.skills?.builtinDir,
-    });
-    await this.skills.loadRoots(roots);
-    registerBuiltinSkills(this.skills);
-    // Builtin catalog skills load lazily on first SearchSkill/Skill use.
-  }
-
-  private async loadMcpServers(): Promise<void> {
-    const servers = this.options.mcpConfig?.servers;
-    if (servers === undefined || Object.keys(servers).length === 0) return;
-    await this.mcp.connectAll(servers);
-    const entries = this.mcp.list().filter((entry) => entry.status !== 'disabled');
-    const totalCount = entries.length;
-    if (totalCount === 0) return;
-
-    const connectedCount = entries.filter((entry) => entry.status === 'connected').length;
-    if (connectedCount > 0) {
-      this.telemetry.track('mcp_connected', {
-        server_count: connectedCount,
-        total_count: totalCount,
-      });
-    }
-
-    const failedCount = entries.filter((entry) => entry.status === 'failed').length;
-    if (failedCount > 0) {
-      this.telemetry.track('mcp_failed', {
-        failed_count: failedCount,
-        total_count: totalCount,
-      });
-    }
-  }
-
-  private emitInitialMcpLoadError(error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
-    this.log.error('mcp initial load failed', error);
-    void this.rpc.emitEvent({
-      type: 'error',
-      agentId: 'main',
-      ...makeErrorPayload(ErrorCodes.MCP_STARTUP_FAILED, message),
-    });
-  }
-
-  private onMcpServerStatusChange(entry: McpServerEntry): void {
-    // Always surface server-level status changes to clients so the TUI/SDK
-    // can keep its dashboard in sync, even before the main agent exists.
-    void this.rpc.emitEvent({
-      type: 'mcp.server.status',
-      agentId: 'main',
-      server: {
-        name: entry.name,
-        transport: entry.transport,
-        status: entry.status,
-        toolCount: entry.toolCount,
-        error: entry.error,
-      },
-    });
-  }
-
-  private refreshAgentBuiltinTools(): void {
-    for (const agent of this.readyAgents()) {
-      if (!agent.config.hasProvider) continue;
-      agent.tools.initializeBuiltinTools();
-    }
-  }
-
-  private resolveSandboxProfile(): SandboxProfile {
-    const raw = this.metadata.custom['sandboxProfile'];
-    if (raw === 'off' || raw === 'workspace' || raw === 'read-only') {
-      return raw;
-    }
-    // Default workspace sandbox for safer file tools / AC4 tests.
-    return 'workspace';
-  }
-
   /**
    * Restore disk files from a sealed turn snapshot.
    * When `turnId` is omitted, restores the latest sealed turn.
@@ -709,159 +520,16 @@ export class Session {
     return this.conversationLoopManager.tick();
   }
 
-  private instantiateAgent(
-    id: string,
-    homedir: string,
-    type: AgentType,
-    config: Partial<AgentOptions> = {},
-    parentAgentId: string | null = null,
-  ): Agent {
-    const parentAgent = parentAgentId !== null ? this.getReadyAgent(parentAgentId) : undefined;
-    const cwd = parentAgent?.config.cwd ?? this.toolKaos.getcwd();
-    return new Agent({
-      ...config,
-      type,
-      kaos: this.toolKaos.withCwd(cwd),
-      toolServices: this.options.toolServices,
-      config: this.options.config,
-      homedir,
-      skills: this.skills,
-      rpc: proxyWithExtraPayload(this.rpc, { agentId: id }),
-      modelProvider: this.options.providerManager,
-      hookEngine: config.hookEngine ?? this.hookEngine,
-      subagentHost: config.subagentHost ?? new SessionSubagentHost(this, id),
-      mcp: this.mcp,
-      permission: this.permissionOptions(parentAgentId, config.permission),
-      telemetry: this.telemetry,
-      log: this.log.createChild({ agentId: id }),
-      pluginSessionStarts: type === 'main' ? this.options.pluginSessionStarts : undefined,
-      pluginCommands: type === 'main' ? this.options.pluginCommands : undefined,
-      experimentalFlags: this.experimentalFlags,
-      additionalDirs: parentAgent?.getAdditionalDirs() ?? this.additionalDirs,
-      memory: this.options.memory?.forAgent({
-        sessionId: this.options.id ?? '',
-        agentId: id,
-        agentType: type,
-        workDir: cwd,
-      }),
-      responseLanguagePreference: () =>
-        responseLanguagePreferenceFromUnknown(this.metadata.custom['responseLanguage']),
-      dreamStore: type === 'main' ? this.options.dreamStore : undefined,
-      fileSnapshots: config.fileSnapshots ?? this.fileSnapshots,
-      sandboxProfile: config.sandboxProfile ?? this.resolveSandboxProfile(),
-    });
-  }
-
-  private permissionOptions(
-    parentAgentId: string | null,
-    input?: PermissionManagerOptions | undefined,
-  ): PermissionManagerOptions {
-    if (parentAgentId === null) {
-      return {
-        ...input,
-        initialRules: input?.initialRules ?? this.options.permissionRules,
-      };
-    }
-    return {
-      ...input,
-      parent: input?.parent ?? this.getReadyAgent(parentAgentId)?.permission,
-    };
-  }
-
   getReadyAgent(id: string): Agent | undefined {
-    const entry = this.agents.get(id);
-    return entry instanceof Agent ? entry : undefined;
+    return this.agentLifecycle.getReadyAgent(id);
   }
 
   *readyAgents(): Iterable<Agent> {
-    for (const entry of this.agents.values()) {
-      if (entry instanceof Agent) yield entry;
-    }
-  }
-
-  private async resolveAgentEntry(entry: AgentEntry): Promise<ResumedAgent> {
-    if (entry instanceof Agent) return { agent: entry };
-    return entry;
-  }
-
-  private resumeAgent(
-    id: string,
-    stack: readonly string[] = [],
-  ): Promise<ResumedAgent> {
-    if (stack.includes(id)) {
-      throw new LioraError(
-        ErrorCodes.SESSION_STATE_INVALID,
-        `Session agent parent chain contains a cycle: ${[...stack, id].join(' -> ')}`,
-      );
-    }
-
-    const entry = this.agents.get(id);
-    if (entry !== undefined) return this.resolveAgentEntry(entry);
-
-    const promise = this.resumePersistedAgent(id, stack);
-    this.agents.set(id, promise);
-    return promise;
-  }
-
-  private async resumePersistedAgent(
-    id: string,
-    stack: readonly string[] = [],
-  ): Promise<ResumedAgent> {
-    await this.skillsReady;
-    const meta = this.metadata.agents[id];
-    if (meta === undefined) {
-      throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, `Session agent "${id}" is missing`);
-    }
-
-    const parentAgentId = meta.parentAgentId ?? null;
-    const parent =
-      parentAgentId === null
-        ? undefined
-        : await this.resumeAgent(parentAgentId, [...stack, id]);
-
-    try {
-      const agent = this.instantiateAgent(id, meta.homedir, meta.type, {}, parentAgentId);
-      const result = await agent.resume();
-      this.agents.set(id, agent);
-      return { agent, warning: parent?.warning ?? result.warning };
-    } catch (error) {
-      const entry = this.agents.get(id);
-      if (entry instanceof Promise) {
-        this.agents.delete(id);
-      }
-      throw error;
-    }
-  }
-
-  private nextGeneratedAgentId(): string {
-    while (true) {
-      const id = `agent-${this.agentIdCounter++}`;
-      if (this.agents.has(id)) continue;
-      if (this.metadata.agents[id] !== undefined) continue;
-      return id;
-    }
+    yield* this.agentLifecycle.readyAgents();
   }
 
   private requireMainAgent(): Agent {
-    const agent = this.getReadyAgent('main');
-    if (agent === undefined) {
-      throw new LioraError(ErrorCodes.AGENT_NOT_FOUND, 'Main agent was not found');
-    }
-    return agent;
-  }
-
-  private async triggerSessionStart(source: 'startup' | 'resume'): Promise<void> {
-    await this.hookEngine.trigger('SessionStart', {
-      matcherValue: source,
-      inputData: { source },
-    });
-  }
-
-  private async triggerSessionEnd(reason: 'exit'): Promise<void> {
-    await this.hookEngine.trigger('SessionEnd', {
-      matcherValue: reason,
-      inputData: { reason },
-    });
+    return this.agentLifecycle.requireMainAgent();
   }
 }
 
@@ -872,4 +540,3 @@ export {
   type FileSnapshotStoreOptions,
   type TurnFileSnapshot,
 } from './file-snapshot';
-
