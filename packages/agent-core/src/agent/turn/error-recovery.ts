@@ -16,7 +16,7 @@ import {
 import type { TurnEndedEvent } from '../../rpc/events';
 import { isUserCancellation } from '../../utils/abort';
 import type { PromptOrigin } from '../context';
-import type { TurnEndResult } from './index';
+import type { TurnEndResult } from './types';
 import {
   isRetryableProviderFailure,
   resolveProviderRecovery,

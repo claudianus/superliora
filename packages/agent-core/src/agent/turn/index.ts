@@ -1,51 +1,28 @@
-import { createControlledPromise, type ControlledPromise } from '@antfu/utils';
-import {
-  APIContextOverflowError,
-  grandTotal,
-  type ContentPart,
-} from '@superliora/kosong';
+import { createControlledPromise } from '@antfu/utils';
+import type { ContentPart } from '@superliora/kosong';
 import { basename } from 'pathe';
 
 import type { Agent } from '..';
-import {
-  ErrorCodes,
-  isKimiError,
-  makeErrorPayload,
-  toKimiErrorPayload,
-} from '#/errors';
-import { isAbortError, isMaxStepsExceededError } from '../../loop/errors';
-import {
-  createLoopEventDispatcher,
-  runTurn,
-  type LoopEvent,
-  type LoopRecordedEvent,
-  type LoopTurnStopReason,
-  type RecordStepUsageInfo,
-} from '../../loop/index';
+import { makeErrorPayload } from '#/errors';
+import { isAbortError } from '../../loop/errors';
+import type { LoopTurnStopReason } from '../../loop/index';
 import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import type { TurnCancelSource } from '../../rpc/core-api';
 import { abortable, isUserCancellation, userCancellationReason } from '../../utils/abort';
 import { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
-import { renderUserPromptHookBlockResult, renderUserPromptHookResult } from '../../session/hooks';
-import { ToolCallDeduplicator } from './tool-dedup';
-import { budgetToolResultForModel } from './tool-result-budget';
 import { isRetryableProviderFailure } from '../provider-failover';
 import { GOAL_NO_PROGRESS_STREAK_K } from '../goal';
 import {
   TurnTelemetry,
   classifyApiError,
   currentTurnInputTokens,
-  toolInputRecord,
-  toolOutputText,
 } from './telemetry';
-import { mapLoopEvent } from './event-handler';
 import {
   GOAL_PROVIDER_FILTERED_PAUSE_REASON,
   summarizeTurnError,
   goalFailurePauseReason,
-  abandonedToolResultOutput,
   recoverFromProviderFailure,
 } from './error-recovery';
 import {
@@ -54,36 +31,24 @@ import {
   GOAL_BLOCKED_REMINDER_NAME,
   GOAL_COMPLETION_REMINDER_NAME,
   buildGoalProgressSignature,
-  isGoalOutcomeReminderOrigin,
-  hasStepBudgetRemaining,
 } from './goal-driver';
+import { applyUserPromptHook } from './prompt-hook';
+import {
+  closeAbandonedToolExchangeAtTurnEnd,
+  createTurnLoopDispatch,
+} from './loop-dispatch';
+import { runTurnStepLoop } from './step-loop';
+import type { ActiveTurn, TurnEndResult } from './types';
 
+export type { TurnEndResult };
 export {
   GOAL_BLOCKED_REMINDER_NAME,
   GOAL_COMPLETION_REMINDER_NAME,
 };
 
-interface ActiveTurn {
-  readonly turnId: number;
-  readonly controller: AbortController;
-  readonly promise: Promise<TurnEndResult>;
-  readonly firstRequest: ControlledPromise<void>;
-}
-
 interface BufferedSteer {
   readonly input: readonly ContentPart[];
   readonly origin: PromptOrigin;
-}
-
-export interface TurnEndResult {
-  readonly event: TurnEndedEvent;
-  readonly stopReason?: LoopTurnStopReason;
-  readonly blockedByUserPromptHook?: boolean;
-}
-
-interface PromptHookEndResult {
-  readonly event: TurnEndedEvent;
-  readonly blocked: boolean;
 }
 
 export class TurnFlow {
@@ -545,12 +510,19 @@ export class TurnFlow {
     let errorEvent: AgentEvent | undefined;
     try {
       await this.agent.fullCompaction.prepareForTurn(signal);
-      const promptHookEnded = await this.applyUserPromptHook(turnId, input, origin, signal, startedAt);
+      const promptHookEnded = await applyUserPromptHook(
+        this.agent,
+        turnId,
+        input,
+        origin,
+        signal,
+        startedAt,
+      );
       if (promptHookEnded !== undefined) {
         ended = promptHookEnded.event;
         blockedByUserPromptHook = promptHookEnded.blocked;
       } else {
-        const stopReason = await this.runStepLoop(turnId, signal);
+        const stopReason = await runTurnStepLoop(this.stepLoopDeps(), turnId, signal);
         completedStopReason = stopReason;
         const reason: TurnEndReason =
           stopReason === 'aborted' ? 'cancelled' : stopReason === 'filtered' ? 'filtered' : 'completed';
@@ -602,7 +574,7 @@ export class TurnFlow {
     }
     // A turn that ended with recorded tool calls still awaiting results must
     // close the exchange before turn.ended so later messages are not stranded.
-    this.closeAbandonedToolExchange(ended);
+    closeAbandonedToolExchangeAtTurnEnd(this.agent, ended);
     // Emit the terminal turn.ended and (for a standalone turn) release the active
     // turn in the SAME synchronous frame, so the session is observably idle the
     // instant turn.ended fires. A goal drive keeps the active turn across its
@@ -659,6 +631,24 @@ export class TurnFlow {
     return { event: ended, stopReason: completedStopReason, blockedByUserPromptHook };
   }
 
+  private stepLoopDeps() {
+    return {
+      agent: this.agent,
+      turnTelemetry: this.turnTelemetry,
+      flushSteerBuffer: () => this.flushSteerBuffer(),
+      buildDispatchEvent: (turnId: number) =>
+        createTurnLoopDispatch(
+          {
+            agent: this.agent,
+            turnTelemetry: this.turnTelemetry,
+            assistantThinkScrubber: this.assistantThinkScrubber,
+            getActiveTurn: () => this.activeTurn,
+          },
+          turnId,
+        ),
+    };
+  }
+
   private isUltraworkSwarmSession(): boolean {
     const ultrawork = this.agent.ultrawork;
     if (ultrawork === undefined) return false;
@@ -675,329 +665,6 @@ export class TurnFlow {
       await this.agent.memory?.recordTurn({ turnId, input, reason });
     } catch (error) {
       this.agent.log.warn('liora recall turn capture failed', error);
-    }
-  }
-
-  private async applyUserPromptHook(
-    turnId: number,
-    input: readonly ContentPart[],
-    origin: PromptOrigin,
-    signal: AbortSignal,
-    startedAt: number,
-  ): Promise<PromptHookEndResult | undefined> {
-    if (origin.kind !== 'user') return undefined;
-    signal.throwIfAborted();
-    const promptHookResults = await this.agent.hooks?.trigger('UserPromptSubmit', {
-      matcherValue: input,
-      signal,
-      inputData: { prompt: input },
-    });
-    signal.throwIfAborted();
-    const blockResult = renderUserPromptHookBlockResult(promptHookResults);
-    if (blockResult !== undefined) {
-      this.agent.context.appendMessage({
-        role: 'assistant',
-        content: [{ type: 'text', text: blockResult.text }],
-        toolCalls: [],
-        origin: { kind: 'hook_result', event: 'UserPromptSubmit', blocked: true },
-      });
-      this.agent.emitEvent({
-        type: 'hook.result',
-        turnId,
-        hookEvent: blockResult.event,
-        content: blockResult.message,
-        blocked: true,
-      });
-      // The terminal turn.ended is emitted by runOneTurn (synchronously with the
-      // activeTurn clear), not here, so the session is idle the moment it fires.
-      return {
-        event: { type: 'turn.ended', turnId, reason: 'completed', durationMs: Date.now() - startedAt },
-        blocked: true,
-      };
-    }
-
-    const hookResult = renderUserPromptHookResult(promptHookResults);
-    if (hookResult === undefined) return undefined;
-
-    this.agent.context.appendUserMessage([{ type: 'text', text: hookResult.text }], {
-      kind: 'hook_result',
-      event: 'UserPromptSubmit',
-    });
-    this.agent.emitEvent({
-      type: 'hook.result',
-      turnId,
-      hookEvent: hookResult.event,
-      content: hookResult.message,
-    });
-    return undefined;
-  }
-
-  private async runStepLoop(turnId: number, signal: AbortSignal): Promise<LoopTurnStopReason> {
-    let stopHookContinuationUsed = false;
-    let goalOutcomeMessageContinuationUsed = false;
-    const deduper = new ToolCallDeduplicator({ telemetry: this.agent.telemetry });
-    await this.agent.mcp?.waitForInitialLoad(signal);
-    // Surface the active goal at the start of the turn (append-only; no-op when
-    // there is no active goal). Each goal continuation is its own turn, so this
-    // re-injects the reminder once per turn rather than per step, preserving prompt caching.
-    await this.agent.injection.injectGoal();
-    while (true) {
-      signal.throwIfAborted();
-      const model = this.agent.config.model;
-      let stepUsageModel = model;
-      const loopControl = this.agent.kimiConfig?.loopControl;
-      let stopForGoalBudget = false;
-      try {
-        const result = await runTurn({
-          turnId: String(turnId),
-          signal,
-          llm: this.agent.llm,
-          buildMessages: () => this.agent.context.messages,
-          buildMessagesStrict: () => this.agent.context.strictMessages,
-          dispatchEvent: this.buildDispatchEvent(turnId),
-          tools: this.agent.tools.loopTools,
-          log: this.agent.log,
-          maxSteps: loopControl?.maxStepsPerTurn,
-          maxRetryAttempts: loopControl?.maxRetriesPerStep,
-          recordStepUsage: async (usage, info?: RecordStepUsageInfo) => {
-            stepUsageModel = info?.model ?? model;
-            try {
-              const snapshot = await this.agent.goal.recordTokenUsage(grandTotal(usage));
-              stopForGoalBudget = snapshot?.budget.overBudget === true;
-            } catch (error) {
-              this.agent.log.warn('goal token accounting failed', { error });
-            }
-          },
-          hooks: {
-            beforeStep: async ({ signal: stepSignal }) => {
-              this.flushSteerBuffer();
-              this.agent.microCompaction.detect();
-              await this.agent.fullCompaction.beforeStep(stepSignal);
-              await this.agent.injection.inject();
-              deduper.beginStep();
-              return;
-            },
-            afterStep: async ({ usage }) => {
-              this.agent.usage.record(stepUsageModel, usage, 'turn');
-              this.agent.usage.recordCacheDiagnostics(
-                this.agent.tools.loopTools,
-                0, // injection count tracked by batch injector
-                this.agent.context.history.length,
-              );
-              await this.agent.fullCompaction.afterStep();
-              deduper.endStep();
-              return stopForGoalBudget ? { stopTurn: true } : undefined;
-            },
-            // oxlint-disable-next-line no-loop-func -- stop hook continuation state is scoped to this turn.
-            shouldContinueAfterStop: async (ctx) => {
-              const { signal } = ctx;
-              // 1. Flush any steered user messages.
-              if (this.flushSteerBuffer()) return { continue: true };
-              signal.throwIfAborted();
-
-              if (this.agent.printDrainAgentTasksOnStop) {
-                const remaining = this.agent.printDrainDeadlineMs - Date.now();
-                const hasActiveAgentTask = this.agent.background
-                  .list(true)
-                  .some((task) => task.kind === 'agent');
-                if (hasActiveAgentTask && remaining > 0) {
-                  await this.agent.background.waitForActiveTasks(
-                    (task) => task.kind === 'agent',
-                    { timeoutMs: remaining, signal },
-                  );
-                  this.flushSteerBuffer();
-                  return { continue: true };
-                }
-              }
-
-              // 2. After UpdateGoal marks a goal terminal, ask the model for one
-              //    final user-facing outcome message before the turn ends.
-              if (
-                !goalOutcomeMessageContinuationUsed &&
-                isGoalOutcomeReminderOrigin(this.agent.context.history.at(-1)?.origin)
-              ) {
-                goalOutcomeMessageContinuationUsed = true;
-                if (!hasStepBudgetRemaining(loopControl?.maxStepsPerTurn, ctx.stepNumber)) {
-                  this.agent.context.popMatchedMessage(isGoalOutcomeReminderOrigin);
-                  return { continue: false };
-                }
-                return { continue: true };
-              }
-
-              // 3. The external Stop hook gets exactly one continuation; the cap
-              //    is intentionally separate from (and does not cap) goal mode.
-              if (!stopHookContinuationUsed) {
-                const stopBlock = await this.agent.hooks?.triggerBlock('Stop', {
-                  signal,
-                  inputData: { stopHookActive: stopHookContinuationUsed },
-                });
-                signal.throwIfAborted();
-                if (stopBlock !== undefined) {
-                  stopHookContinuationUsed = true;
-                  this.agent.context.appendUserMessage(
-                    [{ type: 'text', text: stopBlock.reason }],
-                    {
-                      kind: 'system_trigger',
-                      name: 'stop_hook',
-                    },
-                  );
-                  return { continue: true };
-                }
-              }
-
-              // 4. Otherwise stop. Goal continuation is no longer driven here:
-              //    each goal turn is an ordinary turn, and the goal driver decides
-              //    whether to run another after this one ends.
-              return { continue: false };
-            },
-            prepareToolExecution: async (ctx) => {
-              const cached = deduper.checkSameStep(
-                ctx.toolCall.id,
-                ctx.toolCall.name,
-                ctx.args,
-              );
-              if (cached !== null) return { syntheticResult: cached };
-              return undefined;
-            },
-            authorizeToolExecution: async (ctx) => {
-              return this.agent.permission.beforeToolCall(ctx);
-            },
-            finalizeToolResult: async (ctx) => {
-              // Resolve dedup BEFORE firing the PostToolUse hook so same-step
-              // dups (whose ctx.result is the dedup placeholder) report the
-              // original's real outcome, not an empty success.
-              const finalResult = await deduper.finalizeResult(
-                ctx.toolCall.id,
-                ctx.toolCall.name,
-                ctx.args,
-                ctx.result,
-              );
-              const { isError, output } = finalResult;
-              const event = isError === true ? 'PostToolUseFailure' : 'PostToolUse';
-              void this.agent.hooks?.fireAndForgetTrigger(event, {
-                matcherValue: ctx.toolCall.name,
-                inputData: {
-                  toolName: ctx.toolCall.name,
-                  toolInput: toolInputRecord(ctx.args),
-                  toolCallId: ctx.toolCall.id,
-                  error: isError === true ? toKimiErrorPayload(toolOutputText(output)) : undefined,
-                  toolOutput: isError === true ? undefined : toolOutputText(output).slice(0, 2000),
-                },
-              });
-              const budgeted = await budgetToolResultForModel({
-                homedir: this.agent.homedir,
-                toolName: ctx.toolCall.name,
-                toolCallId: ctx.toolCall.id,
-                result: finalResult,
-                contextWindowTokens: this.agent.config.modelCapabilities.max_context_tokens,
-              });
-              return budgeted;
-            },
-          },
-        });
-
-        return result.stopReason;
-      } catch (error) {
-        const isContextOverflow =
-          error instanceof APIContextOverflowError ||
-          (isKimiError(error) && error.code === ErrorCodes.CONTEXT_OVERFLOW);
-        const estimatedRequestTokens = isContextOverflow
-          ? this.agent.fullCompaction.estimateCurrentRequestTokens()
-          : undefined;
-        if (
-          isContextOverflow ||
-          this.agent.fullCompaction.shouldRecoverFromContextOverflow(error, estimatedRequestTokens)
-        ) {
-          this.agent.fullCompaction.observeContextOverflow(
-            estimatedRequestTokens ?? this.agent.fullCompaction.estimateCurrentRequestTokens(),
-          );
-          await this.agent.fullCompaction.handleOverflowError(signal, error);
-          continue; // Retry with compacted context
-        }
-        if (isMaxStepsExceededError(error)) {
-          this.agent.log.warn('turn hit max steps', {
-            turnId,
-            steps: this.turnTelemetry.currentStepForTurn(turnId),
-            limit: isKimiError(error) ? error.details?.['maxSteps'] : undefined,
-          });
-        } else {
-          this.agent.log.error('turn failed', { turnId, error });
-        }
-        throw error;
-      }
-    }
-  }
-
-  private closeAbandonedToolExchange(ended: TurnEndedEvent): void {
-    try {
-      const closed = this.agent.context.closeAbandonedToolExchange(
-        abandonedToolResultOutput(ended),
-      );
-      if (closed === 0) return;
-      this.agent.log.warn('closed abandoned tool exchange at turn end', {
-        turnId: ended.turnId,
-        reason: ended.reason,
-        closed,
-      });
-      this.agent.telemetry.track('tool_exchange_abandoned', {
-        reason: ended.reason,
-        closed,
-      });
-    } catch (error) {
-      this.agent.log.warn('failed to close abandoned tool exchange', { error });
-    }
-  }
-
-  private buildDispatchEvent(turnId: number) {
-    return createLoopEventDispatcher({
-      appendTranscriptRecord: async (event: LoopRecordedEvent) => {
-        this.agent.context.appendLoopEvent(event);
-        // A tool intent record must be durable (fsync'd) BEFORE the tool runs,
-        // so a crash mid-execution leaves proof that the side effect was
-        // attempted. The loop awaits this dispatch before starting execution,
-        // so flushing here establishes the durability boundary without
-        // blocking read-only tool calls.
-        if (event.type === 'tool.intend') {
-          await this.agent.records.flush();
-        }
-      },
-      emitLiveEvent: (event: LoopEvent) => {
-        this.noteFirstRequestEvent(event);
-        this.turnTelemetry.trackLoopTelemetry(event, turnId);
-        const mapped = this.mapLiveLoopEvent(event, turnId);
-        if (mapped !== undefined) this.agent.emitEvent(mapped);
-      },
-    });
-  }
-
-  private mapLiveLoopEvent(event: LoopEvent, turnId: number): AgentEvent | undefined {
-    if (event.type === 'text.delta') {
-      const scrubbed = this.assistantThinkScrubber.feed(event.delta);
-      if (scrubbed.length === 0) return undefined;
-      return {
-        type: 'assistant.delta',
-        turnId,
-        delta: scrubbed,
-      };
-    }
-    return mapLoopEvent(event, turnId);
-  }
-
-  private noteFirstRequestEvent(event: LoopEvent): void {
-    switch (event.type) {
-      case 'step.end':
-      case 'content.part':
-      case 'tool.call':
-      case 'text.delta':
-      case 'thinking.delta':
-      case 'tool.call.delta': {
-        const active = this.activeTurn;
-        if (active === null || active === 'resuming') return;
-        active.firstRequest.resolve();
-        return;
-      }
-      default:
-        return;
     }
   }
 }
