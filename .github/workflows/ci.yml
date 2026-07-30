@@ -82,6 +82,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run check:imports
+      - run: pnpm run check:layering
+      - run: pnpm run check:loc
+      - run: pnpm run check:unused-exports
       - run: pnpm run sherif
       - name: Theme contrast check (WCAG AA)
         run: pnpm --filter @superliora/liora run check:contrast
