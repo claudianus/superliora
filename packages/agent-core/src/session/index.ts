@@ -11,7 +11,6 @@ import { proxyWithExtraPayload } from '#/rpc/types';
 
 import { Agent, type AgentOptions, type AgentType } from '../agent';
 import { type ConversationLoopState } from '../agent/conversation-loop';
-import { renderPluginSessionStartReminder } from '../agent/injection/plugin-session-start';
 import { HookEngine, type HookDef } from './hooks';
 import type { PermissionManagerOptions, PermissionRule } from '../agent/permission';
 import type { SandboxProfile } from '../tools/policies/path-access';
@@ -19,10 +18,8 @@ import { FileSnapshotStore } from './file-snapshot';
 import {
   appendWorkspaceAdditionalDir,
   normalizeAdditionalDirs,
-  parseBooleanEnv,
   readWorkspaceAdditionalDirs,
   resolveWorkspaceAdditionalDirs,
-  resolveConfigValue,
   type BackgroundConfig,
   type WorkspaceAdditionalDirsLoadResult,
 } from '../config';
@@ -36,8 +33,6 @@ import {
 import type { EnabledPluginSessionStart, PluginCommandDef } from '../plugin';
 import {
   DEFAULT_AGENT_PROFILES,
-  DEFAULT_INIT_PROMPT,
-  loadAgentsMd,
   prepareSystemPromptContext,
   type ResolvedAgentProfile,
 } from '../profile';
@@ -55,12 +50,16 @@ import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import { SessionSubagentHost } from './subagent-host';
 import type { ToolServices } from '../tools/support/services';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
-import { abortError } from '../utils/abort';
 import type { SessionMemoryRuntime } from '../memory';
 import type { LioraRecallStore } from '../memory/store';
 import { responseLanguagePreferenceFromUnknown } from './response-language';
 import { SessionMetadataPersistence } from './metadata-persistence';
 import { ConversationLoopManager } from './conversation-loops';
+import { SessionCloseLifecycle } from './session-close-lifecycle';
+import {
+  appendPluginSessionStartReminder as applyPluginSessionStartReminder,
+  runGenerateAgentsMd,
+} from './session-plugin-reminder';
 
 export interface SessionOptions {
   readonly kaos: Kaos;
@@ -140,34 +139,6 @@ export interface SessionMeta {
   custom: Record<string, any>;
 }
 
-const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT';
-const ACTIVE_TURN_CLOSE_TIMEOUT_MS = 8_000;
-
-async function waitForSettlementOrTimeout(
-  promise: Promise<unknown>,
-  timeoutMs: number,
-): Promise<boolean> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise.then(
-        () => true,
-        () => true,
-      ),
-      new Promise<false>((resolve) => {
-        timeout = setTimeout(() => {
-          resolve(false);
-        }, timeoutMs);
-        timeout.unref?.();
-      }),
-    ]);
-  } finally {
-    if (timeout !== undefined) {
-      clearTimeout(timeout);
-    }
-  }
-}
-
 export class Session {
   readonly rpc: SDKSessionRPC;
   readonly telemetry: TelemetryClient;
@@ -187,6 +158,7 @@ export class Session {
   private readonly skillsReady: Promise<void>;
   private readonly metadataPersistence: SessionMetadataPersistence;
   private readonly conversationLoopManager: ConversationLoopManager;
+  private readonly closeLifecycle: SessionCloseLifecycle;
   metadata: SessionMeta = {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -235,6 +207,12 @@ export class Session {
       if (agent !== undefined) {
         agent.turn.prompt([{ type: 'text', text: prompt }]);
       }
+    });
+    this.closeLifecycle = new SessionCloseLifecycle({
+      log: this.log,
+      agents: this.agents,
+      readyAgents: () => this.readyAgents(),
+      background: this.options.background,
     });
     this.skills = new SessionSkillRegistry({
       sessionId: options.id,
@@ -367,8 +345,8 @@ export class Session {
       await Promise.allSettled(
         Array.from(this.readyAgents(), async (agent) => agent.cron?.stop()),
       );
-      await this.cancelActiveTurnsOnClose();
-      await this.stopBackgroundTasksOnExit();
+      await this.closeLifecycle.cancelActiveTurnsOnClose();
+      await this.closeLifecycle.stopBackgroundTasksOnExit();
       // Flush each active Ultrawork run to a flushed checkpoint before the
       // records flush below, so an in-flight run survives an interrupt or a
       // process restart and can be auto-resumed from its last checkpoint
@@ -402,102 +380,6 @@ export class Session {
         await this.logHandle?.close();
       }
     }
-  }
-
-  private async cancelActiveTurnsOnClose(): Promise<void> {
-    const backgroundAgentIds = this.activeBackgroundAgentIds();
-    const cancellations: Array<Promise<void>> = [];
-    for (const [agentId, entry] of this.agents) {
-      if (!(entry instanceof Agent) || backgroundAgentIds.has(agentId)) continue;
-      cancellations.push(this.cancelAgentTurnOnClose(entry));
-    }
-    await Promise.allSettled(cancellations);
-  }
-
-  private activeBackgroundAgentIds(): Set<string> {
-    const agentIds = new Set<string>();
-    for (const agent of this.readyAgents()) {
-      for (const task of agent.background.list(true)) {
-        if (task.kind === 'agent' && task.agentId !== undefined && task.detached !== false) {
-          agentIds.add(task.agentId);
-        }
-      }
-    }
-    return agentIds;
-  }
-
-  private async cancelAgentTurnOnClose(agent: Agent): Promise<void> {
-    if (!agent.turn.hasActiveTurn) return;
-
-    let waitForTurn: Promise<unknown>;
-    try {
-      waitForTurn = agent.turn.waitForCurrentTurn();
-    } catch (error: unknown) {
-      this.log.debug('active turn wait unavailable during session close', {
-        agentType: agent.type,
-        agentHomedir: agent.homedir,
-        error,
-      });
-      return;
-    }
-
-    agent.turn.cancel(undefined, abortError('Session closed'), 'session-close');
-    const settled = await waitForSettlementOrTimeout(waitForTurn, ACTIVE_TURN_CLOSE_TIMEOUT_MS);
-    if (!settled) {
-      this.log.warn('timed out waiting for active turn to cancel during session close', {
-        agentType: agent.type,
-        agentHomedir: agent.homedir,
-        timeoutMs: ACTIVE_TURN_CLOSE_TIMEOUT_MS,
-      });
-    }
-  }
-
-  private async stopBackgroundTasksOnExit(): Promise<void> {
-    const keepAliveOnExit = resolveConfigValue({
-      env: process.env,
-      envKey: BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV,
-      configValue: this.options.background?.keepAliveOnExit,
-      defaultValue: false,
-      parseEnv: parseBooleanEnv,
-    });
-    if (keepAliveOnExit) return;
-    // Include agents that were never lazily resumed — their entry is still a
-    // pending Promise. Resolve each (bounded by a short timeout so a stuck
-    // resume can't hang shutdown) so detached background tasks they hold are
-    // stopped too, instead of leaking past session close.
-    const entries = Array.from(this.agents.values());
-    const resolved = await Promise.all(
-      entries.map(async (entry): Promise<Agent | undefined> => {
-        if (entry instanceof Agent) return entry;
-        // Race the actual entry promise against a timeout — we need the
-        // resolved Agent (not just whether it settled), so extract `.agent`
-        // from the promise result directly rather than using
-        // waitForSettlementOrTimeout which only returns a boolean.
-        try {
-          return await Promise.race([
-            entry.then((r) => r.agent),
-            new Promise<undefined>((resolve) => {
-              const t = setTimeout(() => resolve(undefined), 2_000);
-              t.unref?.();
-            }),
-          ]);
-        } catch {
-          return undefined;
-        }
-      }),
-    );
-    await Promise.all(
-      resolved.map(async (agent) => {
-        if (agent === undefined) return;
-        const activeTasks = agent.background.list(true);
-        await Promise.all(
-          activeTasks.map((task) =>
-            agent.background.suppressTerminalNotification(task.taskId),
-          ),
-        );
-        await agent.background.stopAll('Session closed');
-      }),
-    );
   }
 
   async createAgent(
@@ -599,32 +481,7 @@ export class Session {
 
   async generateAgentsMd(): Promise<void> {
     await this.skillsReady;
-    const mainAgent = this.requireMainAgent();
-
-    try {
-      const handle = await mainAgent.subagentHost!.spawn({
-        profileName: 'coder',
-        parentToolCallId: 'generate-agents-md',
-        prompt: DEFAULT_INIT_PROMPT,
-        description: 'Initialize AGENTS.md',
-        runInBackground: false,
-        signal: new AbortController().signal,
-      });
-      await handle.completion;
-
-      const agentsMd = await loadAgentsMd(mainAgent.kaos, this.options.kimiHomeDir);
-      mainAgent.context.appendSystemReminder(initCompletionReminder(agentsMd), {
-        kind: 'injection',
-        variant: 'init',
-      });
-      await mainAgent.records.flush();
-    } catch (error) {
-      throw new LioraError(
-        ErrorCodes.SESSION_INIT_FAILED,
-        error instanceof Error ? error.message : 'Init failed',
-        { cause: error },
-      );
-    }
+    await runGenerateAgentsMd(this.requireMainAgent(), this.options.kimiHomeDir);
   }
 
   /**
@@ -642,39 +499,7 @@ export class Session {
    */
   async appendPluginSessionStartReminder(): Promise<void> {
     await this.skillsReady;
-    const mainAgent = this.requireMainAgent();
-    const reminder = await renderPluginSessionStartReminder({
-      sessionStarts: mainAgent.pluginSessionStarts,
-      registry: mainAgent.skills?.registry,
-      log: mainAgent.log,
-    });
-    if (reminder !== undefined) {
-      mainAgent.context.appendSystemReminder(
-        `${reminder}\n\nThis supersedes any earlier plugin_session_start reminder in this session.`,
-        { kind: 'injection', variant: 'plugin_session_start' },
-      );
-    } else if (this.shouldNeutralizePluginSessionStart(mainAgent)) {
-      mainAgent.context.appendSystemReminder(
-        'There are currently no active plugin session starts. This supersedes any earlier plugin_session_start reminder in this session.',
-        { kind: 'injection', variant: 'plugin_session_start' },
-      );
-    } else {
-      return;
-    }
-    await mainAgent.records.flush();
-  }
-
-  private shouldNeutralizePluginSessionStart(mainAgent: Agent): boolean {
-    return mainAgent.context.history.some((message) => {
-      const kind = message.origin?.kind;
-      if (kind === 'injection') {
-        return message.origin?.variant === 'plugin_session_start';
-      }
-      // A compaction summary replaces earlier messages (including any plugin
-      // session-start reminder) with a single summary that may still carry stale
-      // plugin guidance, so the origin-only check above is not sufficient.
-      return kind === 'compaction_summary';
-    });
+    await applyPluginSessionStartReminder(this.requireMainAgent());
   }
 
   get hasActiveTurn(): boolean {
@@ -1047,17 +872,4 @@ export {
   type FileSnapshotStoreOptions,
   type TurnFileSnapshot,
 } from './file-snapshot';
-
-function initCompletionReminder(agentsMd: string): string {
-  const latest =
-    agentsMd.trim().length === 0
-      ? 'No AGENTS.md content was found after `/init` completed.'
-      : agentsMd;
-  return [
-    'The user ran `/init`. The codebase was analyzed and `AGENTS.md` was generated.',
-    '',
-    'Latest AGENTS.md file content:',
-    latest,
-  ].join('\n');
-}
 
