@@ -50,6 +50,9 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/plan [on\|off]` | — | Toggle Plan mode. Without arguments, flips the current state; explicitly passing `on`/`off` forces the setting. Simply toggling does not create an empty plan file | Yes |
 | `/plan clear` | — | Clear the current plan | No |
 | `/swarm on\|off` | — | Turn swarm mode on or off without sending a prompt. | Yes |
+| `/swarm talk [expert]` | — | Open a War Room expert picker (or jump straight to that expert) to read their transcript and message them. Working experts get a steer; idle ones get a prompt. | Always when a war room is active |
+| `/swarm msg <expert> <text>` | — | Send a direct message to a War Room expert without opening the picker. | Always when a war room is active |
+| `/swarm pause\|restaff\|raw` | — | Control the active UltraSwarm war room dock (pause for steering, request restaff, toggle raw feed). | Always when a war room is active |
 | `/swarm <task>` | — | Turn swarm mode on, then send `<task>` as a normal prompt. If the turn completes normally, swarm mode turns off automatically. In `manual` permission mode, SuperLiora asks whether to switch to `auto` or `yolo` before starting. | No |
 | `/goal [...]` | — | Start or manage an autonomous goal | See below |
 

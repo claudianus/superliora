@@ -33,6 +33,8 @@ const GOAL_NEXT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 const SWARM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'on', description: 'Turn team mode on' },
   { value: 'off', description: 'Turn team mode off' },
+  { value: 'talk', description: 'Open a War Room expert transcript / message panel' },
+  { value: 'msg', description: 'Send a direct message to a War Room expert' },
   { value: 'pause', description: 'Pause the active UltraSwarm war room' },
   { value: 'restaff', description: 'Request restaff on the active UltraSwarm' },
   { value: 'raw', description: 'Toggle raw vs humanized team feed' },
@@ -248,6 +250,9 @@ export function swarmArgumentCompletions(argumentPrefix: string): AutocompleteIt
 export function swarmControlAvailability(args: string): SlashCommandAvailability {
   const head = args.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
   switch (head) {
+    case 'talk':
+    case 'msg':
+    case 'message':
     case 'pause':
     case 'restaff':
     case 'raw':

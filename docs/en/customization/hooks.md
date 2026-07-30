@@ -91,7 +91,7 @@ You can also return a JSON object via stdout to block:
 ```
 
 ::: info Which events support blocking?
-Only **blockable events** (`PreToolUse`, `Stop`, `UserPromptSubmit`) have return values that affect the main flow. All other events are **observation-only events** — they fire and forget; the main flow is unaffected regardless of what the script returns.
+**Blockable events** are `PreToolUse`, `Stop`, `UserPromptSubmit`, plus UltraSwarm team events `TeammateIdle`, `TaskCreated`, and `TaskCompleted`. Other events are observation-only — they fire and forget.
 :::
 
 ## Event Reference
@@ -109,11 +109,64 @@ Only **blockable events** (`PreToolUse`, `Stop`, `UserPromptSubmit`) have return
 | `SessionEnd` | `exit` | — | Triggered after a session closes |
 | `SubagentStart` | Sub-agent name | — | Triggered before a sub-agent starts running |
 | `SubagentStop` | Sub-agent name | — | Triggered after a sub-agent completes successfully (observation only) |
+| `TeammateIdle` | (unused) | ✓ | UltraSwarm: expert about to go idle. Exit `2` feeds stderr back and continues the expert; JSON `{"continue": false, "stopReason": "..."}` stops it |
+| `TaskCreated` | (unused) | ✓ | UltraSwarm: work node is being claimed. Exit `2` refuses the claim; `continue: false` halts the swarm |
+| `TaskCompleted` | (unused) | ✓ | UltraSwarm: work node finishing the swarm phase. Exit `2` keeps the node open; `continue: false` halts the swarm |
 | `StopFailure` | Error type | — | Triggered after the current turn fails due to an error (observation only) |
 | `Interrupt` | Empty string | — | Triggered when the user interrupts the current turn (e.g. pressing Esc); not fired for timeouts or other programmatic aborts. `Stop` does not fire on interrupts, so this event fires instead. The payload includes a `reason` field (observation only) |
 | `PreCompact` | `manual` or `auto` | — | Triggered before context compaction begins; return values are completely ignored |
 | `PostCompact` | `manual` or `auto` | — | Triggered after context compaction completes (observation only) |
 | `Notification` | Notification type (e.g. `task.completed`) | — | Triggered when a background task status changes (observation only) |
+
+### UltraSwarm team hooks (Claude Agent Teams mapping)
+
+UltraSwarm and `UltraworkGraph` host Claude-compatible team lifecycle hooks.
+
+| Event | When SuperLiora fires it |
+| --- | --- |
+| `TaskCreated` | New WorkGraph node added via `UltraworkGraph`, or UltraSwarm claims a node (`running`) |
+| `TaskCompleted` | Node transitions to `needs_integration` or `done` |
+| `TeammateIdle` | UltraSwarm expert about to finish a wave |
+
+Matchers on these three events are ignored (Claude-compatible). Exit `2` feeds stderr back to the model and retries/refuses the action; `{"continue":false,"stopReason":"..."}` stops the teammate/swarm and shows `stopReason` to the user via `hook.result`. Optional `systemMessage` is also shown to the user.
+
+Typical payloads:
+
+```json
+{
+  "hook_event_name": "TeammateIdle",
+  "teammate_name": "security-reviewer",
+  "team_name": "<ultra-swarm-run-id>"
+}
+```
+
+```json
+{
+  "hook_event_name": "TaskCreated",
+  "task_id": "ac_1",
+  "task_subject": "Add auth middleware",
+  "teammate_name": "implementer",
+  "team_name": "<ultra-swarm-run-id>"
+}
+```
+
+Quality-gate example (keep the expert working until `dist/output.js` exists):
+
+```bash
+#!/bin/bash
+# TeammateIdle
+if [ ! -f "./dist/output.js" ]; then
+  echo "Build artifact missing" >&2
+  exit 2
+fi
+```
+
+To stop the teammate instead of re-running it:
+
+```bash
+#!/bin/bash
+echo '{"continue":false,"stopReason":"Budget exhausted"}'
+```
 
 ## Example: Blocking Dangerous Shell Commands
 

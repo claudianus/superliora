@@ -90,6 +90,25 @@ describe('runHook process runner', () => {
     expect(result.reason).toBe('use rg');
   });
 
+  it('parses JSON continue:false into a halt result with stopReason', async () => {
+    const runHook = await importRunHook();
+    const cmd =
+      "node -e \"process.stdout.write(JSON.stringify({continue:false,stopReason:'stop teammate'}))\"";
+    const result = await runHook(cmd, { hook_event_name: 'TeammateIdle' }, { timeout: 5 });
+    expect(result.action).toBe('allow');
+    expect(result.halt).toBe(true);
+    expect(result.stopReason).toBe('stop teammate');
+  });
+
+  it('parses JSON systemMessage on allow', async () => {
+    const runHook = await importRunHook();
+    const cmd =
+      "node -e \"process.stdout.write(JSON.stringify({systemMessage:'watch this'}))\"";
+    const result = await runHook(cmd, {}, { timeout: 5 });
+    expect(result.action).toBe('allow');
+    expect(result.systemMessage).toBe('watch this');
+  });
+
   it('writes the input payload to the hook process stdin as JSON', async () => {
     const runHook = await importRunHook();
     const cmd =

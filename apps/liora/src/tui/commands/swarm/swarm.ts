@@ -1,5 +1,7 @@
 import type { PermissionMode } from '@superliora/sdk';
 
+import { WarRoomExpertPickerComponent } from '../../components/dialogs/war-room-expert-picker';
+import { WarRoomTranscriptPanelComponent } from '../../components/dialogs/war-room-transcript-panel';
 import {
   SwarmStartPermissionPromptComponent,
   type SwarmStartPermissionChoice,
@@ -15,7 +17,24 @@ import {
   resolveWarRoomReason,
   type WarRoomDockAction,
 } from '../../features/agent-swarm/war-room-action';
+import {
+  formatSessionTraceLines,
+  matchWarRoomExpert,
+  warRoomExpertLabel,
+  warRoomMessageMode,
+  type WarRoomExpertView,
+} from '../../utils/war-room-experts';
 import type { SlashCommandHost } from '../hub/dispatch';
+
+type WarRoomHost = SlashCommandHost & {
+  readonly sessionEventHandler?: {
+    invokeWarRoomAction?: (
+      action: WarRoomDockAction,
+      options?: { readonly reason?: string },
+    ) => number;
+    listWarRoomExperts?: () => readonly WarRoomExpertView[];
+  };
+};
 
 export async function handleSwarmCommand(host: SlashCommandHost, args: string): Promise<void> {
   if (host.session === undefined) {
@@ -24,9 +43,21 @@ export async function handleSwarmCommand(host: SlashCommandHost, args: string): 
   }
 
   const prompt = args.trim();
+  const talk = warRoomTalkSubcommand(prompt);
+  if (talk !== undefined) {
+    await openWarRoomTalk(host as WarRoomHost, talk.query);
+    return;
+  }
+
+  const message = warRoomMessageSubcommand(prompt);
+  if (message !== undefined) {
+    await sendWarRoomMessage(host as WarRoomHost, message.expertQuery, message.text);
+    return;
+  }
+
   const warRoom = warRoomDockSubcommand(prompt);
   if (warRoom !== undefined) {
-    invokeWarRoomDockAction(host, warRoom.action, warRoom.reason);
+    invokeWarRoomDockAction(host as WarRoomHost, warRoom.action, warRoom.reason);
     return;
   }
 
@@ -159,6 +190,24 @@ function swarmModeSubcommand(input: string): boolean | undefined {
   return undefined;
 }
 
+function warRoomTalkSubcommand(input: string): { readonly query: string } | undefined {
+  const [head, ...rest] = input.split(/\s+/);
+  if ((head ?? '').toLowerCase() !== 'talk') return undefined;
+  return { query: rest.join(' ').trim() };
+}
+
+function warRoomMessageSubcommand(
+  input: string,
+): { readonly expertQuery: string; readonly text: string } | undefined {
+  const [head, expertQuery, ...rest] = input.split(/\s+/);
+  const command = (head ?? '').toLowerCase();
+  if (command !== 'msg' && command !== 'message') return undefined;
+  if (expertQuery === undefined || expertQuery.length === 0) {
+    return { expertQuery: '', text: '' };
+  }
+  return { expertQuery, text: rest.join(' ').trim() };
+}
+
 function warRoomDockSubcommand(
   input: string,
 ): { readonly action: WarRoomDockAction; readonly reason: string } | undefined {
@@ -175,21 +224,153 @@ function warRoomDockSubcommand(
   };
 }
 
+function listExperts(host: WarRoomHost): readonly WarRoomExpertView[] | undefined {
+  const list = host.sessionEventHandler?.listWarRoomExperts;
+  if (list === undefined) return undefined;
+  return list();
+}
+
+async function openWarRoomTalk(host: WarRoomHost, query: string): Promise<void> {
+  const experts = listExperts(host);
+  if (experts === undefined) {
+    host.showError('War Room talk is unavailable in this host.');
+    return;
+  }
+  if (experts.length === 0) {
+    host.showError('No UltraSwarm / AgentSwarm war room experts to talk to.');
+    return;
+  }
+
+  if (query.length > 0) {
+    const expert = matchWarRoomExpert(experts, query);
+    if (expert === undefined) {
+      host.showError(`No War Room expert matches "${query}".`);
+      return;
+    }
+    await showWarRoomTranscript(host, expert);
+    return;
+  }
+
+  host.mountEditorReplacement(
+    new WarRoomExpertPickerComponent({
+      experts,
+      onSelect: (expert) => {
+        host.restoreEditor();
+        void showWarRoomTranscript(host, expert);
+      },
+      onCancel: () => {
+        host.restoreEditor();
+        host.showStatus('War Room talk cancelled.');
+      },
+    }),
+  );
+}
+
+async function showWarRoomTranscript(
+  host: WarRoomHost,
+  expert: WarRoomExpertView,
+): Promise<void> {
+  if (expert.agentId === undefined || expert.agentId.length === 0) {
+    host.showError(
+      `${warRoomExpertLabel(expert)} has no agent session yet — wait until they join the war room.`,
+    );
+    return;
+  }
+
+  const session = host.requireSession();
+  let lines: readonly string[] = [];
+  let error: string | undefined;
+  try {
+    const trace = await host.harness.withInteractiveAgent(expert.agentId, () =>
+      session.getSessionTrace(),
+    );
+    lines = formatSessionTraceLines(trace.context.history);
+  } catch (err) {
+    error = `Could not load transcript: ${formatErrorMessage(err)}`;
+  }
+
+  host.mountEditorReplacement(
+    new WarRoomTranscriptPanelComponent({
+      expert,
+      lines,
+      error,
+      onMessage: (text) => {
+        host.restoreEditor();
+        void deliverWarRoomMessage(host, expert, text);
+      },
+      onCancel: () => {
+        host.restoreEditor();
+      },
+    }),
+  );
+}
+
+async function sendWarRoomMessage(
+  host: WarRoomHost,
+  expertQuery: string,
+  text: string,
+): Promise<void> {
+  if (expertQuery.length === 0 || text.length === 0) {
+    host.showError('Usage: /swarm msg <expert> <message>');
+    return;
+  }
+  const experts = listExperts(host);
+  if (experts === undefined) {
+    host.showError('War Room messaging is unavailable in this host.');
+    return;
+  }
+  if (experts.length === 0) {
+    host.showError('No UltraSwarm / AgentSwarm war room experts to message.');
+    return;
+  }
+  const expert = matchWarRoomExpert(experts, expertQuery);
+  if (expert === undefined) {
+    host.showError(`No War Room expert matches "${expertQuery}".`);
+    return;
+  }
+  await deliverWarRoomMessage(host, expert, text);
+}
+
+async function deliverWarRoomMessage(
+  host: WarRoomHost,
+  expert: WarRoomExpertView,
+  text: string,
+): Promise<void> {
+  if (expert.agentId === undefined || expert.agentId.length === 0) {
+    host.showError(
+      `${warRoomExpertLabel(expert)} has no agent session yet — wait until they join the war room.`,
+    );
+    return;
+  }
+  const session = host.requireSession();
+  const mode = warRoomMessageMode(expert.phase);
+  try {
+    await host.harness.withInteractiveAgent(expert.agentId, async () => {
+      if (mode === 'steer') {
+        await session.steer(text);
+      } else {
+        await session.prompt(text);
+      }
+    });
+  } catch (error) {
+    host.showError(
+      `Failed to ${mode} ${warRoomExpertLabel(expert)}: ${formatErrorMessage(error)}`,
+    );
+    return;
+  }
+  host.showStatus(
+    mode === 'steer'
+      ? `Steered ${warRoomExpertLabel(expert)}.`
+      : `Messaged ${warRoomExpertLabel(expert)}.`,
+  );
+}
+
 function invokeWarRoomDockAction(
-  host: SlashCommandHost,
+  host: WarRoomHost,
   action: WarRoomDockAction,
   reason: string,
 ): void {
-  // LioraTUI is the slash host and owns sessionEventHandler.
-  const hostWithHandler = host as SlashCommandHost & {
-    readonly sessionEventHandler?: {
-      invokeWarRoomAction?: (
-        action: WarRoomDockAction,
-        options?: { readonly reason?: string },
-      ) => number;
-    };
-  };
-  const invoke = hostWithHandler.sessionEventHandler?.invokeWarRoomAction;
+  const invoke = host.sessionEventHandler?.invokeWarRoomAction;
   if (invoke === undefined) {
     host.showError('War Room actions are unavailable in this host.');
     return;

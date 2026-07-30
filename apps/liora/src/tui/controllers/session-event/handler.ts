@@ -15,6 +15,7 @@ import { McpOAuthAuthorizationUrlOpener } from '../../utils/mcp/mcp-oauth';
 import { openUrl } from '#/utils/open-url';
 import type { ColorToken } from '#/tui/theme';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../panes/tasks-browser';
@@ -210,6 +211,11 @@ export class SessionEventHandler {
     options: { readonly reason?: string } = {},
   ): number {
     return this.subAgentEventHandler.invokeWarRoomAction(action, options);
+  }
+
+  /** Snapshot of War Room experts for `/swarm talk` / `/swarm msg`. */
+  listWarRoomExperts(): readonly WarRoomExpertView[] {
+    return this.subAgentEventHandler.listWarRoomExperts();
   }
 
   syncAgentSwarmActivitySpinner(spinner: MoonLoader | undefined): void {

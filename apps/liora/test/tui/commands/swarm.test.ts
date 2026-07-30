@@ -23,14 +23,30 @@ function makeHost(
     permissionMode?: 'manual' | 'auto' | 'yolo';
     swarmMode?: boolean;
     warRoomInvoke?: ReturnType<typeof vi.fn>;
+    listWarRoomExperts?: ReturnType<typeof vi.fn>;
+    withInteractiveAgent?: ReturnType<typeof vi.fn>;
   } = {},
 ) {
   const session = {
     setPermission: vi.fn(async () => {}),
     setSwarmMode: vi.fn(async () => {}),
+    getSessionTrace: vi.fn(async () => ({
+      context: {
+        history: [
+          { role: 'user', content: [{ type: 'text', text: 'prior ask' }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'prior reply' }] },
+        ],
+      },
+    })),
+    steer: vi.fn(async () => {}),
+    prompt: vi.fn(async () => {}),
   };
   const hasSession = overrides.hasSession ?? true;
   const warRoomInvoke = overrides.warRoomInvoke;
+  const listWarRoomExperts = overrides.listWarRoomExperts;
+  const withInteractiveAgent =
+    overrides.withInteractiveAgent ??
+    vi.fn((_agentId: string, fn: () => unknown) => fn());
   const host = {
     state: {
       appState: {
@@ -44,6 +60,7 @@ function makeHost(
       renderer: { invalidateFrame: vi.fn() },
     },
     session: hasSession ? session : undefined,
+    harness: { withInteractiveAgent },
     requireSession: () => session,
     setAppState: vi.fn((patch: Record<string, unknown>) => Object.assign(host.state.appState, patch)),
     showError: vi.fn(),
@@ -52,15 +69,18 @@ function makeHost(
     restoreEditor: vi.fn(),
     restoreInputText: vi.fn(),
     sendNormalUserInput: vi.fn(),
-    ...(warRoomInvoke === undefined
+    ...(warRoomInvoke === undefined && listWarRoomExperts === undefined
       ? {}
       : {
           sessionEventHandler: {
-            invokeWarRoomAction: warRoomInvoke,
+            ...(warRoomInvoke === undefined ? {} : { invokeWarRoomAction: warRoomInvoke }),
+            ...(listWarRoomExperts === undefined
+              ? {}
+              : { listWarRoomExperts }),
           },
         }),
   } as unknown as SlashCommandHost;
-  return { host, session, warRoomInvoke };
+  return { host, session, warRoomInvoke, listWarRoomExperts, withInteractiveAgent };
 }
 
 interface TestPicker {
@@ -394,5 +414,94 @@ describe('handleSwarmCommand', () => {
 
     expect(warRoomInvoke).toHaveBeenCalledWith('raw', {});
     expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('raw feed'));
+  });
+
+  it('opens a War Room expert picker for /swarm talk', async () => {
+    const listWarRoomExperts = vi.fn(() => [
+      {
+        expertId: 'alice',
+        name: 'Alice',
+        agentId: 'agent-alice',
+        phase: 'running' as const,
+      },
+    ]);
+    const { host } = makeHost({ listWarRoomExperts });
+
+    await handleSwarmCommand(host, 'talk');
+
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    const text = stripAnsi(mountedPicker(host).render(80).join('\n'));
+    expect(text).toContain('Talk to a War Room expert');
+    expect(text).toContain('Alice');
+  });
+
+  it('opens a transcript panel for /swarm talk <expert>', async () => {
+    const listWarRoomExperts = vi.fn(() => [
+      {
+        expertId: 'alice',
+        name: 'Alice',
+        agentId: 'agent-alice',
+        phase: 'running' as const,
+      },
+    ]);
+    const { host, session, withInteractiveAgent } = makeHost({ listWarRoomExperts });
+
+    await handleSwarmCommand(host, 'talk Alice');
+
+    expect(withInteractiveAgent).toHaveBeenCalledWith('agent-alice', expect.any(Function));
+    expect(session.getSessionTrace).toHaveBeenCalledOnce();
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    const text = stripAnsi(mountedPicker(host).render(80).join('\n'));
+    expect(text).toContain('Alice');
+    expect(text).toContain('prior ask');
+    expect(text).toContain('prior reply');
+  });
+
+  it('steers a running expert via /swarm msg', async () => {
+    const listWarRoomExperts = vi.fn(() => [
+      {
+        expertId: 'alice',
+        name: 'Alice',
+        agentId: 'agent-alice',
+        phase: 'running' as const,
+      },
+    ]);
+    const { host, session } = makeHost({ listWarRoomExperts });
+
+    await handleSwarmCommand(host, 'msg Alice focus on auth');
+
+    expect(session.steer).toHaveBeenCalledWith('focus on auth');
+    expect(session.prompt).not.toHaveBeenCalled();
+    expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Steered'));
+  });
+
+  it('prompts an idle expert via /swarm msg', async () => {
+    const listWarRoomExperts = vi.fn(() => [
+      {
+        expertId: 'bob',
+        name: 'Bob',
+        agentId: 'agent-bob',
+        phase: 'completed' as const,
+      },
+    ]);
+    const { host, session } = makeHost({ listWarRoomExperts });
+
+    await handleSwarmCommand(host, 'msg Bob check the diff');
+
+    expect(session.prompt).toHaveBeenCalledWith('check the diff');
+    expect(session.steer).not.toHaveBeenCalled();
+    expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Messaged'));
+  });
+
+  it('errors when /swarm talk has no war room experts', async () => {
+    const listWarRoomExperts = vi.fn(() => []);
+    const { host } = makeHost({ listWarRoomExperts });
+
+    await handleSwarmCommand(host, 'talk');
+
+    expect(host.showError).toHaveBeenCalledWith(
+      expect.stringContaining('No UltraSwarm / AgentSwarm war room experts'),
+    );
+    expect(host.mountEditorReplacement).not.toHaveBeenCalled();
   });
 });

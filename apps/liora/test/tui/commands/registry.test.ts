@@ -544,6 +544,8 @@ describe('built-in slash command registry', () => {
     expect((swarm as LioraSlashCommand).experimentalFlag).toBeUndefined();
     expect(resolveSlashCommandAvailability(swarm!, 'on')).toBe('always');
     expect(resolveSlashCommandAvailability(swarm!, 'off')).toBe('always');
+    expect(resolveSlashCommandAvailability(swarm!, 'talk')).toBe('always');
+    expect(resolveSlashCommandAvailability(swarm!, 'msg Alice hi')).toBe('always');
     expect(resolveSlashCommandAvailability(swarm!, 'pause')).toBe('always');
     expect(resolveSlashCommandAvailability(swarm!, 'Ship feature X')).toBe('idle-only');
   });
@@ -746,8 +748,9 @@ describe('built-in slash command registry', () => {
       return items === null ? null : items.map((item) => item.value);
     };
 
-    expect(values('')).toEqual(['on', 'off', 'pause', 'restaff', 'raw']);
+    expect(values('')).toEqual(['on', 'off', 'talk', 'msg', 'pause', 'restaff', 'raw']);
     expect(values('O')).toEqual(['on', 'off']);
+    expect(values('t')).toEqual(['talk']);
     expect(values('p')).toEqual(['pause']);
     expect(values('re')).toEqual(['restaff']);
     expect(values('ra')).toEqual(['raw']);

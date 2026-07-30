@@ -36,6 +36,9 @@ const HookSpecificOutputSchema = z.preprocess(
 );
 const HookJsonOutputSchema = z.looseObject({
   message: OptionalStringSchema,
+  continue: z.unknown().optional(),
+  stopReason: OptionalStringSchema,
+  systemMessage: OptionalStringSchema,
   hookSpecificOutput: HookSpecificOutputSchema,
 });
 
@@ -129,11 +132,26 @@ function resultFromExitCode(exitCode: number, stdout: string, stderr: string): H
   }
 
   const structured = exitCode === 0 ? structuredOutput(stdout) : undefined;
+  if (structured?.halt === true) {
+    return {
+      action: 'allow',
+      halt: true,
+      stopReason: structured.stopReason,
+      systemMessage: structured.systemMessage,
+      message: structured.message ?? structured.stopReason,
+      reason: structured.stopReason,
+      stdout,
+      stderr,
+      exitCode,
+      structuredOutput: structured.structuredOutput,
+    };
+  }
   if (structured?.action === 'block') {
     return {
       action: 'block',
       message: structured.message ?? structured.reason,
       reason: structured.reason,
+      systemMessage: structured.systemMessage,
       stdout,
       stderr,
       exitCode,
@@ -143,6 +161,7 @@ function resultFromExitCode(exitCode: number, stdout: string, stderr: string): H
 
   return allowResult({
     message: structured?.message,
+    systemMessage: structured?.systemMessage,
     stdout,
     stderr,
     exitCode,
@@ -152,7 +171,15 @@ function resultFromExitCode(exitCode: number, stdout: string, stderr: string): H
 
 function structuredOutput(
   stdout: string,
-): { action?: 'block'; reason?: string; message?: string; structuredOutput: true } | undefined {
+): {
+  action?: 'block';
+  halt?: boolean;
+  stopReason?: string;
+  systemMessage?: string;
+  reason?: string;
+  message?: string;
+  structuredOutput: true;
+} | undefined {
   const text = stdout.trim();
   if (text.length === 0) return undefined;
 
@@ -161,18 +188,44 @@ function structuredOutput(
     const output = HookJsonOutputSchema.safeParse(parsed);
     if (!output.success) return undefined;
 
-    const { message, hookSpecificOutput } = output.data;
-    const result = {
-      message: message ?? hookSpecificOutput?.message,
-      structuredOutput: true as const,
-    };
+    const {
+      message,
+      hookSpecificOutput,
+      continue: continueFlag,
+      stopReason,
+      systemMessage,
+    } = output.data;
+    const resolvedMessage = message ?? hookSpecificOutput?.message;
+    const resolvedSystemMessage =
+      typeof systemMessage === 'string' && systemMessage.trim().length > 0
+        ? systemMessage.trim()
+        : undefined;
+    // Claude Agent Teams / Stop: continue:false stops the teammate entirely.
+    if (continueFlag === false) {
+      const reason =
+        typeof stopReason === 'string' && stopReason.trim().length > 0
+          ? stopReason.trim()
+          : resolvedMessage ?? 'Stopped by hook (continue: false)';
+      return {
+        halt: true,
+        stopReason: reason,
+        systemMessage: resolvedSystemMessage,
+        message: resolvedMessage,
+        structuredOutput: true,
+      };
+    }
     if (hookSpecificOutput?.permissionDecision !== 'deny') {
-      return result;
+      return {
+        message: resolvedMessage,
+        systemMessage: resolvedSystemMessage,
+        structuredOutput: true,
+      };
     }
     return {
       action: 'block',
-      message: result.message,
+      message: resolvedMessage,
       reason: hookSpecificOutput.permissionDecisionReason,
+      systemMessage: resolvedSystemMessage,
       structuredOutput: true,
     };
   } catch {
@@ -182,6 +235,7 @@ function structuredOutput(
 
 function allowResult(input: {
   readonly message?: string;
+  readonly systemMessage?: string;
   readonly stdout?: string;
   readonly stderr?: string;
   readonly exitCode?: number;
@@ -191,6 +245,7 @@ function allowResult(input: {
   return {
     action: 'allow',
     message: input.message,
+    systemMessage: input.systemMessage,
     stdout: input.stdout,
     stderr: input.stderr,
     exitCode: input.exitCode,

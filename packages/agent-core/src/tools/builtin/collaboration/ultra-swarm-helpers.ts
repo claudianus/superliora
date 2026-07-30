@@ -412,6 +412,8 @@ export interface DebateDraftHandoffEntry {
   readonly authorExpertId: string;
   readonly criticExpertId: string;
   readonly draftExcerpt: string;
+  /** Consensus text from a finished debate cycle, when available. */
+  readonly consensusVerdict?: string;
 }
 
 /**
@@ -433,8 +435,12 @@ export function buildDebateDraftHandoffPack(
   const lines = ['<debate_draft_pack>'];
   for (const debate of drafts.slice(-8)) {
     const excerpt = collapseForHandoff(debate.draftExcerpt).slice(0, 1_500);
+    const consensus =
+      debate.consensusVerdict !== undefined && debate.consensusVerdict.trim().length > 0
+        ? ` consensus="${escapeXml(collapseForHandoff(debate.consensusVerdict).slice(0, 240))}"`
+        : '';
     lines.push(
-      `<debate_draft debate_id="${escapeXml(debate.debateId)}" work_node="${escapeXml(debate.workNodeId)}" author="${escapeXml(debate.authorExpertId)}" critic="${escapeXml(debate.criticExpertId)}" risk="${escapeXml(debate.riskLevel)}" phase="${escapeXml(debate.phase)}">${escapeXml(excerpt)}</debate_draft>`,
+      `<debate_draft debate_id="${escapeXml(debate.debateId)}" work_node="${escapeXml(debate.workNodeId)}" author="${escapeXml(debate.authorExpertId)}" critic="${escapeXml(debate.criticExpertId)}" risk="${escapeXml(debate.riskLevel)}" phase="${escapeXml(debate.phase)}"${consensus}>${escapeXml(excerpt)}</debate_draft>`,
     );
   }
   lines.push('</debate_draft_pack>');

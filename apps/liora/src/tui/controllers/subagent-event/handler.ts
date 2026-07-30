@@ -7,6 +7,7 @@ import type {
 } from '../../types';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SessionEventHost } from '../session-event/handler';
+import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import { SubagentActivityPanel } from './activity';
 import {
   buildBackgroundAgentMetadata,
@@ -197,6 +198,14 @@ export class SubAgentEventHandler {
     options: { readonly reason?: string } = {},
   ): number {
     return this.swarm.invokeWarRoomAction(action, options);
+  }
+
+  /**
+   * Experts from the most recent active UltraSwarm / AgentSwarm war room card.
+   * Prefers a still-active tool call; otherwise the last registered progress card.
+   */
+  listWarRoomExperts(): readonly WarRoomExpertView[] {
+    return this.swarm.listWarRoomExperts();
   }
 
   hasActiveAgentSwarmToolCall(): boolean {

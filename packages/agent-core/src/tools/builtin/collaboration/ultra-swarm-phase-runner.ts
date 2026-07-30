@@ -7,6 +7,11 @@ import {
   type SessionSubagentHost,
 } from '../../../session/subagent/subagent-host';
 import {
+  fireTeammateIdle,
+  MAX_TEAMMATE_IDLE_CONTINUES,
+  publishTeamHookDecision,
+} from '../../../session/team-hooks';
+import {
   postOrchestratorStandup,
   postWaveStandup,
 } from '../../../collaboration/swarm-bus-coordination';
@@ -91,8 +96,32 @@ export class UltraSwarmPhaseRunner {
       const renderedWaveResults = results
         .map(({ task, ...result }) => ({ spec: task.data, ...result }))
         .map(withRenderedMetadata);
-      phaseResults.push(...renderedWaveResults);
-      dependencyHandoff = buildIntraPhaseDependencyHandoff(renderedWaveResults);
+
+      const settledWave: UltraSwarmRenderedResult[] = [];
+      for (const waveResult of renderedWaveResults) {
+        const settled = await this.applyTeammateIdleGate({
+          result: waveResult,
+          phase: input.phase,
+          phaseHandoff: input.phaseHandoff,
+          team: input.team,
+          busEnabled: input.busEnabled,
+          args: input.args,
+          workNodeContext: input.workNodeContext,
+          profileBaseName: input.profileBaseName,
+          toolCallId: input.toolCallId,
+          runId: input.runId,
+          dependencyHandoff,
+          signal: input.signal,
+        });
+        settledWave.push(settled);
+        if (settled.error?.startsWith('Team hook halt:')) {
+          phaseResults.push(...settledWave);
+          return phaseResults.map(withRenderedMetadata);
+        }
+      }
+
+      phaseResults.push(...settledWave);
+      dependencyHandoff = buildIntraPhaseDependencyHandoff(settledWave);
 
       if (shouldPostImplementWaveStandup(input.busEnabled, input.phase)) {
         postWaveStandup(
@@ -104,7 +133,7 @@ export class UltraSwarmPhaseRunner {
             phase: input.phase,
             waveIndex,
             waveCount: plannedWaves.length,
-            expertCount: renderedWaveResults.length,
+            expertCount: settledWave.length,
           },
           this.store,
         );
@@ -112,6 +141,84 @@ export class UltraSwarmPhaseRunner {
     }
 
     return phaseResults.map(withRenderedMetadata);
+  }
+
+  /**
+   * Claude TeammateIdle gate: exit 2 keeps the expert working with feedback;
+   * continue:false halts the teammate. Cap continues to avoid infinite loops.
+   */
+  private async applyTeammateIdleGate(input: {
+    readonly result: UltraSwarmRenderedResult;
+    readonly phase: UltraSwarmPhase;
+    readonly phaseHandoff: string;
+    readonly team: TeamPlan;
+    readonly busEnabled: boolean;
+    readonly args: UltraSwarmToolInput;
+    readonly workNodeContext: { readonly nodes: readonly WorkGraphNode[] } | undefined;
+    readonly profileBaseName: string | undefined;
+    readonly toolCallId: string;
+    readonly runId: string;
+    readonly dependencyHandoff: string;
+    readonly signal: AbortSignal;
+  }): Promise<UltraSwarmRenderedResult> {
+    let current = input.result;
+    for (let attempt = 0; attempt < MAX_TEAMMATE_IDLE_CONTINUES; attempt += 1) {
+      if (input.signal.aborted) return current;
+      const decision = await fireTeammateIdle(this.agent.hooks, {
+        teammateName: current.spec.expertName,
+        teamName: input.runId,
+        signal: input.signal,
+      });
+      publishTeamHookDecision(this.agent, 'TeammateIdle', decision, {
+        injectFeedback: decision.kind === 'block',
+      });
+      if (decision.kind === 'allow') return current;
+      if (decision.kind === 'halt') {
+        return withRenderedMetadata({
+          ...current,
+          status: 'aborted',
+          error: `Team hook halt: ${decision.reason}`,
+          result: undefined,
+        });
+      }
+
+      this.agent.telemetry.track('ultra_swarm_teammate_idle_continue', {
+        run_id: input.runId,
+        expert_id: current.spec.expertId,
+        attempt: attempt + 1,
+      });
+
+      const feedbackPrompt = `${this.buildExpertPrompt(
+        current.spec,
+        input.args.description,
+        input.workNodeContext?.nodes ?? [],
+        input.phaseHandoff,
+        input.team,
+        input.busEnabled,
+        input.dependencyHandoff,
+        input.phase,
+      )}\n\n<teammate_idle_feedback>\n${decision.feedback}\n</teammate_idle_feedback>\nContinue working. Address the feedback before going idle.`;
+
+      const [retry] = await this.subagentHost.runQueued([
+        {
+          kind: 'spawn',
+          data: current.spec,
+          profileName: current.spec.expertId,
+          profileBaseName: input.profileBaseName,
+          parentToolCallId: input.toolCallId,
+          prompt: feedbackPrompt,
+          description: `${input.args.description} (TeammateIdle continue ${String(attempt + 1)})`,
+          swarmIndex: current.spec.index,
+          runInBackground: false,
+          signal: input.signal,
+          timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
+        } satisfies QueuedSubagentTask<UltraSwarmSpec>,
+      ]);
+      if (retry === undefined) return current;
+      const { task, ...result } = retry;
+      current = withRenderedMetadata({ spec: task.data, ...result });
+    }
+    return current;
   }
 
   async retryFailedReviewExperts(input: {

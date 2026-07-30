@@ -54,6 +54,7 @@ export function ultraSwarmMembersFromTeam(team: TeamPlan): UltraSwarmMemberMetad
     focus: expert.focus,
     dependsOn: expert.dependsOn,
     taskIds: expert.taskIds,
+    agentId: expert.agentId,
   }));
 }
 

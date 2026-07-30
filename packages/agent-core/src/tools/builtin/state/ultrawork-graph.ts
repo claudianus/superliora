@@ -15,6 +15,12 @@ import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
 } from '../../../collaboration/swarm-evidence-gate';
+import {
+  fireTaskCompleted,
+  fireTaskCreated,
+  isTeamTaskCompletionTransition,
+  publishTeamHookDecision,
+} from '../../../session/team-hooks';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
 import {
@@ -141,13 +147,24 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
     const previous = this.getGraph();
     const now = new Date().toISOString();
     const gated = applyEvidenceHardGate(args.nodes);
+    const teamGate = await this.applyTeamTaskHooks(previous, gated.nodes, args.run_id);
+    if (teamGate.haltReason !== undefined) {
+      return {
+        isError: true,
+        output: `Team hook halt (continue: false): ${teamGate.haltReason}`,
+      };
+    }
+    if (teamGate.error !== undefined) {
+      return { isError: true, output: teamGate.error };
+    }
+
     const graph = cloneWorkGraph({
       id: args.graph_id ?? previous?.id ?? `${args.run_id}:work_graph`,
       runId: args.run_id,
       rootGoal: args.root_goal ?? previous?.rootGoal,
       createdAt: previous?.createdAt ?? now,
       updatedAt: now,
-      nodes: gated.nodes,
+      nodes: teamGate.nodes,
     });
 
     this.store.set(ULTRAWORK_GRAPH_STORE_KEY, graph);
@@ -169,10 +186,94 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
       evidence_gate_violations: gated.violations.length,
     });
     const todoLine = syncTodos ? `\n${renderTodoList(todosFromWorkGraph(graph), 'Synced TodoList:')}` : '';
+    const feedbackLine =
+      teamGate.feedbacks.length > 0
+        ? `\nTeam hook feedback:\n${teamGate.feedbacks.map((line) => `- ${line}`).join('\n')}`
+        : '';
     return {
       isError: false,
-      output: `Ultrawork graph updated: ${String(graph.nodes.length)} nodes, ${String(changedCount)} task events.${todoLine}`,
+      output: `Ultrawork graph updated: ${String(graph.nodes.length)} nodes, ${String(changedCount)} task events.${todoLine}${feedbackLine}`,
     };
+  }
+
+  /**
+   * Claude TaskCreated / TaskCompleted gates for WorkGraph mutations.
+   * - New node id → TaskCreated (omit node on block)
+   * - Transition to needs_integration/done → TaskCompleted (keep previous status on block)
+   * - continue:false → halt whole update
+   */
+  private async applyTeamTaskHooks(
+    previous: WorkGraph | undefined,
+    proposed: readonly WorkGraphNode[],
+    teamName: string,
+  ): Promise<{
+    readonly nodes: readonly WorkGraphNode[];
+    readonly feedbacks: readonly string[];
+    readonly haltReason?: string;
+    readonly error?: string;
+  }> {
+    const previousById = new Map((previous?.nodes ?? []).map((node) => [node.id, node]));
+    const accepted: WorkGraphNode[] = [];
+    const feedbacks: string[] = [];
+
+    for (const node of proposed) {
+      const before = previousById.get(node.id);
+      let next = node;
+
+      if (before === undefined) {
+        const created = await fireTaskCreated(this.agent.hooks, {
+          taskId: node.id,
+          taskSubject: node.title,
+          taskDescription: node.verificationSummary,
+          teammateName: node.ownerExpertId ?? node.ownerAgentId,
+          teamName,
+        });
+        publishTeamHookDecision(this.agent, 'TaskCreated', created);
+        if (created.kind === 'halt') {
+          return { nodes: previous?.nodes ?? [], feedbacks, haltReason: created.reason };
+        }
+        if (created.kind === 'block') {
+          feedbacks.push(`TaskCreated ${node.id}: ${created.feedback}`);
+          continue;
+        }
+      }
+
+      if (isTeamTaskCompletionTransition(before?.status, next.status)) {
+        const completed = await fireTaskCompleted(this.agent.hooks, {
+          taskId: next.id,
+          taskSubject: next.title,
+          taskDescription: next.verificationSummary,
+          teammateName: next.ownerExpertId ?? next.ownerAgentId ?? before?.ownerExpertId,
+          teamName,
+        });
+        publishTeamHookDecision(this.agent, 'TaskCompleted', completed);
+        if (completed.kind === 'halt') {
+          return { nodes: previous?.nodes ?? [], feedbacks, haltReason: completed.reason };
+        }
+        if (completed.kind === 'block') {
+          feedbacks.push(`TaskCompleted ${next.id}: ${completed.feedback}`);
+          if (before !== undefined) {
+            next = cloneWorkGraphNode(before);
+          } else {
+            // Brand-new node that tried to complete immediately — keep as queued.
+            next = { ...next, status: 'queued', verificationStatus: 'pending' };
+          }
+        }
+      }
+
+      accepted.push(next);
+    }
+
+    const validation = validateWorkGraphNodes(accepted);
+    if (validation !== undefined) {
+      return {
+        nodes: previous?.nodes ?? [],
+        feedbacks,
+        error: `${validation}${feedbacks.length > 0 ? ` Team hook feedback: ${feedbacks.join('; ')}` : ''}`,
+      };
+    }
+
+    return { nodes: accepted, feedbacks };
   }
 
   private getGraph(): WorkGraph | undefined {

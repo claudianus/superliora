@@ -15,6 +15,7 @@ import {
   formatWarRoomRestaffReason,
   resolveWarRoomReason,
 } from '../../features/agent-swarm/war-room-action';
+import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import type { StreamingUIController } from '../streaming-ui/index';
 import {
   isUserCancelledSubagentError,
@@ -120,6 +121,21 @@ export class SubagentSwarmCoordinator {
     }
     if (count > 0) this.requestRender();
     return count;
+  }
+
+  /**
+   * Experts from the most recent active UltraSwarm / AgentSwarm war room card.
+   * Prefers a still-active tool call; otherwise the last registered progress card.
+   */
+  listWarRoomExperts(): readonly WarRoomExpertView[] {
+    let fallback: WarRoomExpertView[] = [];
+    for (const progress of this.progressByToolCallId.values()) {
+      const experts = progress.listWarRoomExperts();
+      if (experts.length === 0) continue;
+      if (progress.isToolCallActive()) return experts;
+      fallback = [...experts];
+    }
+    return fallback;
   }
 
   hasActiveToolCall(): boolean {

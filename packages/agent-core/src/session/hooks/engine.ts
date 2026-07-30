@@ -10,6 +10,12 @@ import type {
 
 const DEFAULT_HOOK_TIMEOUT_SECONDS = 30;
 
+/**
+ * Claude Agent Teams events ignore matchers and always fire.
+ * (Keep UserPromptSubmit/Stop matcher filtering — SuperLiora configs rely on it.)
+ */
+const MATCHERLESS_EVENTS = new Set(['TeammateIdle', 'TaskCreated', 'TaskCompleted']);
+
 export class HookEngine {
   private readonly byEvent = new Map<string, HookDef[]>();
   private readonly pendingTriggers = new Set<Promise<HookResult[]>>();
@@ -99,9 +105,10 @@ export class HookEngine {
   private matchingHooks(event: string, matcherValue: string): HookDef[] {
     const seen = new Set<string>();
     const matched: HookDef[] = [];
+    const ignoreMatcher = MATCHERLESS_EVENTS.has(event);
 
     for (const hook of this.byEvent.get(event) ?? []) {
-      if (!matches(hook.matcher ?? '', matcherValue)) continue;
+      if (!ignoreMatcher && !matches(hook.matcher ?? '', matcherValue)) continue;
       const key = (hook.cwd ?? '') + '\0' + hook.command;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -152,9 +159,20 @@ function aggregateResults(
   event: string,
   results: readonly HookResult[],
 ): {
-  readonly action: 'allow' | 'block';
+  readonly action: 'allow' | 'block' | 'halt';
   readonly reason?: string;
 } {
+  const halt = results.find((result) => result.halt === true);
+  if (halt !== undefined) {
+    return {
+      action: 'halt',
+      reason:
+        halt.stopReason?.trim() ||
+        halt.reason?.trim() ||
+        halt.message?.trim() ||
+        `Halted by ${event} hook`,
+    };
+  }
   const block = blockDecision(event, results);
   if (block !== undefined) {
     return { action: 'block', reason: block.reason };

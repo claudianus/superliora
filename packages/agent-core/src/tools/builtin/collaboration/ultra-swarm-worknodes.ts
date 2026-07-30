@@ -9,6 +9,12 @@ import {
   SWARM_DAG_TERMINAL_STATUSES,
 } from '../../../collaboration/swarm-dag-scheduler';
 import { maybeFinishUltraworkRun } from '../../../ultrawork';
+import {
+  fireTaskCompleted,
+  fireTaskCreated,
+  isTeamTaskCompletionStatus,
+  publishTeamHookDecision,
+} from '../../../session/team-hooks';
 import type { ToolStore } from '../../store';
 import { TODO_STORE_KEY } from '../state/todo-list';
 import {
@@ -65,25 +71,76 @@ export class UltraSwarmWorkNodeCoordinator {
     return { graph: cloneWorkGraph(graph), nodes: nodes.map(cloneWorkGraphNode) };
   }
 
-  markWorkNodesRunning(nodeIds: readonly string[], ownerExpertId: string | undefined): void {
-    this.updateWorkNodes(nodeIds, (node) => ({
-      ...node,
-      status: 'running',
-      ownerExpertId: node.ownerExpertId ?? ownerExpertId,
-    }));
+  async markWorkNodesRunning(
+    nodeIds: readonly string[],
+    ownerExpertId: string | undefined,
+    teamName: string,
+    signal: AbortSignal,
+  ): Promise<{
+    readonly claimedIds: readonly string[];
+    readonly haltReason?: string;
+    readonly blockedFeedbacks: readonly string[];
+  }> {
+    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
+    const claimed: string[] = [];
+    const blockedFeedbacks: string[] = [];
+    for (const id of nodeIds) {
+      const node = graph?.nodes.find((entry) => entry.id === id);
+      const decision = await fireTaskCreated(this.agent.hooks, {
+        taskId: id,
+        taskSubject: node?.title ?? id,
+        taskDescription: node?.verificationSummary,
+        teammateName: ownerExpertId,
+        teamName,
+        signal,
+      });
+      publishTeamHookDecision(this.agent, 'TaskCreated', decision);
+      if (decision.kind === 'halt') {
+        return { claimedIds: claimed, haltReason: decision.reason, blockedFeedbacks };
+      }
+      if (decision.kind === 'block') {
+        blockedFeedbacks.push(`[${id}] ${decision.feedback}`);
+        this.agent.telemetry.track('ultra_swarm_task_created_blocked', {
+          task_id: id,
+          feedback: decision.feedback.slice(0, 240),
+        });
+        continue;
+      }
+      claimed.push(id);
+    }
+    if (claimed.length > 0) {
+      this.updateWorkNodes(claimed, (node) => ({
+        ...node,
+        status: 'running',
+        ownerExpertId: node.ownerExpertId ?? ownerExpertId,
+      }));
+    }
+    return { claimedIds: claimed, blockedFeedbacks };
   }
 
   /**
    * After a phase completes, mark claimed work nodes done/failed so the DAG
    * ready-set advances for subsequent phases.
    */
-  finishPhaseClaimedWorkNodes(
+  async finishPhaseClaimedWorkNodes(
     results: readonly UltraSwarmRenderedResult[],
-  ): void {
+    teamName: string,
+    signal: AbortSignal,
+  ): Promise<{ readonly haltReason?: string; readonly blockedFeedbacks: readonly string[] }> {
     const claimed = new Set<string>();
+    const blockedFeedbacks: string[] = [];
     for (const result of results) {
       if (result.spec.workNodeIds.length === 0) continue;
-      this.finishWorkNodes(result.spec.workNodeIds, [result]);
+      const finished = await this.finishWorkNodes(
+        result.spec.workNodeIds,
+        [result],
+        teamName,
+        signal,
+      );
+      if (finished.haltReason !== undefined) {
+        return { haltReason: finished.haltReason, blockedFeedbacks };
+      }
+      blockedFeedbacks.push(...finished.blockedFeedbacks);
       for (const id of result.spec.workNodeIds) claimed.add(id);
     }
     if (claimed.size > 0) {
@@ -92,6 +149,7 @@ export class UltraSwarmWorkNodeCoordinator {
         finished_ids: [...claimed].slice(0, 32).join(','),
       });
     }
+    return { blockedFeedbacks };
   }
 
   /**
@@ -101,16 +159,21 @@ export class UltraSwarmWorkNodeCoordinator {
    * Pure assignment lives in `rebindPhaseWorkNodeIds`; this method adds
    * telemetry and mark-running side effects.
    */
-  rebindPhaseSpecsToLiveReadyNodes(
+  async rebindPhaseSpecsToLiveReadyNodes(
     phaseSpecs: readonly UltraSwarmSpec[],
     boundWorkNodeIds: readonly string[],
     runId: string,
-  ): UltraSwarmSpec[] {
+    signal: AbortSignal,
+  ): Promise<{
+    readonly specs: UltraSwarmSpec[];
+    readonly haltReason?: string;
+    readonly blockedFeedbacks: readonly string[];
+  }> {
     if (phaseSpecs.length === 0 || boundWorkNodeIds.length === 0) {
-      return [...phaseSpecs];
+      return { specs: [...phaseSpecs], blockedFeedbacks: [] };
     }
     const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
-    if (graph === undefined) return [...phaseSpecs];
+    if (graph === undefined) return { specs: [...phaseSpecs], blockedFeedbacks: [] };
 
     const dagNodes = graph.nodes.map((node) => ({
       id: node.id,
@@ -127,9 +190,9 @@ export class UltraSwarmWorkNodeCoordinator {
       ready_ids: partition.readyIds.slice(0, 32).join(','),
     });
 
-    const rebound = rebindPhaseWorkNodeIds(phaseSpecs, boundWorkNodeIds, dagNodes);
+    let rebound = rebindPhaseWorkNodeIds(phaseSpecs, boundWorkNodeIds, dagNodes);
     const readyIds = preferReadyWorkNodeIds(boundWorkNodeIds, dagNodes);
-    if (readyIds.length === 0) return rebound;
+    if (readyIds.length === 0) return { specs: rebound, blockedFeedbacks: [] };
 
     const newlyRunning = uniqueStrings(rebound.flatMap((spec) => spec.workNodeIds)).filter(
       (id) => {
@@ -142,20 +205,77 @@ export class UltraSwarmWorkNodeCoordinator {
       },
     );
     if (newlyRunning.length > 0) {
-      this.markWorkNodesRunning(newlyRunning, ownerExpertIdForWorkNodes(rebound));
+      const claim = await this.markWorkNodesRunning(
+        newlyRunning,
+        ownerExpertIdForWorkNodes(rebound),
+        runId,
+        signal,
+      );
+      if (claim.haltReason !== undefined) {
+        return {
+          specs: rebound,
+          haltReason: claim.haltReason,
+          blockedFeedbacks: claim.blockedFeedbacks,
+        };
+      }
+      if (claim.claimedIds.length !== newlyRunning.length) {
+        const allowed = new Set(claim.claimedIds);
+        const refused = new Set(newlyRunning.filter((id) => !allowed.has(id)));
+        rebound = rebound.map((spec) => ({
+          ...spec,
+          workNodeIds: spec.workNodeIds.filter((id) => !refused.has(id)),
+        }));
+      }
+      return { specs: rebound, blockedFeedbacks: claim.blockedFeedbacks };
     }
-    return rebound;
+    return { specs: rebound, blockedFeedbacks: [] };
   }
 
-  finishWorkNodes(
+  async finishWorkNodes(
     nodeIds: readonly string[],
     results: readonly UltraSwarmRenderedResult[],
-  ): void {
+    teamName: string,
+    signal: AbortSignal,
+  ): Promise<{ readonly haltReason?: string; readonly blockedFeedbacks: readonly string[] }> {
     const outcome = workNodeOutcome(results);
     const owner = ownerResultForWorkNodes(results);
-    // Skip already-terminal nodes so multi-phase finish is idempotent.
-    // needs_integration / cancelled / failed / blocked count as terminal too.
-    this.updateWorkNodes(nodeIds, (node) => {
+    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
+    const allowedIds: string[] = [];
+    const blockedFeedbacks: string[] = [];
+
+    for (const id of nodeIds) {
+      const existing = graph?.nodes.find((entry) => entry.id === id);
+      if (existing !== undefined && SWARM_DAG_TERMINAL_STATUSES.has(existing.status)) {
+        continue;
+      }
+      if (isTeamTaskCompletionStatus(outcome.status)) {
+        const decision = await fireTaskCompleted(this.agent.hooks, {
+          taskId: id,
+          taskSubject: existing?.title ?? id,
+          taskDescription: existing?.verificationSummary,
+          teammateName: owner?.spec.expertName ?? owner?.spec.expertId,
+          teamName,
+          signal,
+        });
+        publishTeamHookDecision(this.agent, 'TaskCompleted', decision);
+        if (decision.kind === 'halt') {
+          return { haltReason: decision.reason, blockedFeedbacks };
+        }
+        if (decision.kind === 'block') {
+          blockedFeedbacks.push(`[${id}] ${decision.feedback}`);
+          this.agent.telemetry.track('ultra_swarm_task_completed_blocked', {
+            task_id: id,
+            feedback: decision.feedback.slice(0, 240),
+          });
+          continue;
+        }
+      }
+      allowedIds.push(id);
+    }
+
+    if (allowedIds.length === 0) return { blockedFeedbacks };
+
+    this.updateWorkNodes(allowedIds, (node) => {
       if (SWARM_DAG_TERMINAL_STATUSES.has(node.status)) return node;
       return {
         ...node,
@@ -167,6 +287,7 @@ export class UltraSwarmWorkNodeCoordinator {
         verificationSummary: outcome.summary,
       };
     });
+    return { blockedFeedbacks };
   }
 
   failWorkNodes(nodeIds: readonly string[], error: unknown): void {
