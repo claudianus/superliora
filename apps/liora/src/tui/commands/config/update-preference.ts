@@ -2,7 +2,7 @@ import { UpdatePreferenceSelectorComponent } from '../../components/dialogs/pick
 import { saveTuiConfig } from '../../config';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { tuiConfigFromHost } from './tui-persist';
 
 type UpdatePreferenceHost = {

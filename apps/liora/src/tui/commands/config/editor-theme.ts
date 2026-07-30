@@ -6,7 +6,7 @@ import { currentTheme, isBuiltInTheme, lightColors, loadCustomThemeMerged } from
 import { importThemeSource } from '#/tui/theme/importer';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../utils/ui/mount-picker';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { tuiConfigFromHost } from './tui-persist';
 
 export async function handleEditorCommand(host: SlashCommandHost, args: string): Promise<void> {

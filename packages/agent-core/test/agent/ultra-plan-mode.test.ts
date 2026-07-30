@@ -406,7 +406,7 @@ describe('UltraPlanModeEngine', () => {
           [
             'Use Ultrawork for this bounded source/test verification task.',
             'You are the implementation agent and verification owner.',
-            'Task: edit apps/liora/src/tui/commands/ultrawork-contract.ts and apps/liora/test/tui/commands/ultrawork.test.ts.',
+            'Task: edit apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts and apps/liora/test/tui/commands/ultrawork.test.ts.',
             'Inputs: the named source file, test file, and prompt.',
             'Outputs: add SUPER_KIMI_REAL_WORKFLOW_EVIDENCE and report concise evidence.',
             'Constraints: do not edit the harness verifier and make no other changes.',

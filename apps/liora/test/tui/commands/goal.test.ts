@@ -15,7 +15,7 @@ import {
   removeGoalQueueItem,
   updateGoalQueueItem,
 } from '#/tui/goal-queue-store';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { getBuiltInPalette } from '#/tui/theme';
 
 vi.mock('#/tui/goal-queue-store', () => ({

@@ -6,7 +6,7 @@
  */
 
 import { collectGitLog } from '#/utils/git/git-log';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export function showLog(host: SlashCommandHost, args?: string): void {
   const report = collectGitLog(host.state.appState.workDir);

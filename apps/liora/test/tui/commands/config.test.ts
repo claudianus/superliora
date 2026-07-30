@@ -13,7 +13,7 @@ import { handleThinkingCommand } from '#/tui/commands/config/thinking';
 import { showHarnessPanel, showSettingsSelector } from '#/tui/commands/config/settings';
 import { showToolsInventory, showHarnessEyesReadiness } from '#/tui/commands/config/harness-tools';
 import { LOOP_MODEL_ROUTING_ROLES } from '#/tui/utils/model/loop-model-routing';
-import { dispatchInput, type SlashCommandHost } from '#/tui/commands/dispatch';
+import { dispatchInput, type SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
 import {
   BALANCED_ASYNC_WORKING_SET_TOKENS,

@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { SUPERLIORA_CHANGELOG_URL, type UpgradePlan } from '#/cli/update/plan';
 import type { UpgradeInstallStage } from '#/cli/update/install-stages';
 import { handleUpgradeCommand } from '#/tui/commands/upgrade';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
-import { findBuiltInSlashCommand } from '#/tui/commands/registry';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { findBuiltInSlashCommand } from '#/tui/commands/hub/registry';
 import { UpgradeDialogComponent } from '#/tui/components/dialogs/upgrade/upgrade-dialog';
 
 const ESC = String.fromCodePoint(27);

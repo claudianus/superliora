@@ -2,8 +2,8 @@ import type { Session } from '@superliora/sdk';
 
 import { formatErrorMessage } from '../../utils/event-payload';
 import { flushSuppressedTUIFrame } from '../../utils/render/frame-render';
-import { autoResumeUltraworkFromSession } from '../../commands/ultrawork';
-import type { SlashCommandHost } from '../../commands/dispatch';
+import { autoResumeUltraworkFromSession } from '../../commands/ultrawork/ultrawork';
+import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import { isMotionTheatreActive } from '#/tui/utils/render/motion-beats';
 import { ttui } from '#/tui/utils/tui-i18n';

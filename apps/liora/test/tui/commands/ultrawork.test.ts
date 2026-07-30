@@ -13,9 +13,9 @@ import {
   handleUltraworkModeToggle,
   isActiveUltraworkRun,
   parseUltraworkCommand,
-} from '#/tui/commands/ultrawork';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
-import { dispatchInput } from '#/tui/commands/dispatch';
+} from '#/tui/commands/ultrawork/ultrawork';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { dispatchInput } from '#/tui/commands/hub/dispatch';
 import { currentTheme } from '#/tui/theme';
 
 const ENTER = '\r';

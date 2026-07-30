@@ -7,7 +7,7 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { isTranscriptDetailLevel } from '#/tui/features/transcript/transcript-density';
 import { currentAppearance, tuiConfigFromHost } from './tui-persist';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 const APPEARANCE_KEYS = [
   'profile',

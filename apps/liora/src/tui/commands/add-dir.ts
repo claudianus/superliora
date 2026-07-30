@@ -1,6 +1,6 @@
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { ChoicePickerComponent } from '../components/dialogs/picker/choice-picker';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 type AddDirChoice = 'session' | 'remember' | 'cancel';
 

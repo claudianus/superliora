@@ -4,13 +4,13 @@ import {
   type BuiltinSlashCommand,
   type BuiltinSlashCommandName,
 } from './registry';
-import { isExperimentalFlagEnabled } from './experimental-flags';
+import { isExperimentalFlagEnabled } from '../experimental-flags';
 import { parseSlashInput } from './parse';
 import type {
   LioraSlashCommand,
   SlashCommandBusyReason,
   SlashCommandInvalidReason,
-} from './types';
+} from '../../types';
 
 export type SlashCommandIntent =
   | { readonly kind: 'not-command' }

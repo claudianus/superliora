@@ -759,7 +759,7 @@ describe('preflight slash command status surface', () => {
       expect(humanWriting.ready).toBe(true);
       expect(text).toContain('Ready gates  9/9; blocked none');
       expect(text).toContain('Human writing  ready; anti-slop advisory-only');
-      expect(text).toContain('Human writing source  apps/liora/src/tui/commands/ultrawork-contract.ts; .superliora/bench/sota-criteria.json');
+      expect(text).toContain('Human writing source  apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts; .superliora/bench/sota-criteria.json');
       expect(text).toContain('Next  Ready: run the next bounded Ultrawork loop from this preflight.');
     } finally {
       rmSync(workDir, { recursive: true, force: true });

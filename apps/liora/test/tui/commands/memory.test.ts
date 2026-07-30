@@ -5,15 +5,15 @@ import { join } from 'node:path';
 import type { MemoryRecord, MemoryStats } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { memoryArgumentCompletions } from '#/tui/commands/registry';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import { memoryArgumentCompletions } from '#/tui/commands/hub/registry';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import {
   buildMemoryReadinessLines,
   handleMemoryCommand,
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
 } from '#/tui/commands/memory';
-import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork';
+import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork/ultrawork';
 
 describe('memory readiness slash command builders', () => {
   it('builds a concise redacted readiness panel from stats, recall, and evidence', () => {

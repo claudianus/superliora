@@ -17,7 +17,7 @@ import {
   previewContextWorkingSet,
   type ContextWorkingSetPresetId,
 } from '#/tui/utils/agent/context-working-set';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 /**
  * /context [economy|balanced|deep|full|status] — open the working-set picker

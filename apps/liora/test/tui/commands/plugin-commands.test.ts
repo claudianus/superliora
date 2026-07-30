@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPluginSlashCommands, pluginCommandName } from '#/tui/commands/plugin-commands';
+import { buildPluginSlashCommands, pluginCommandName } from '#/tui/commands/plugins/plugin-commands';
 
 describe('pluginCommandName', () => {
   it('namespaces a command with its plugin id', () => {

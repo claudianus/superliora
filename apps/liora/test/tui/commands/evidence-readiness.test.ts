@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { loadMemoryReadinessEvidence } from '#/tui/commands/evidence-readiness';
-import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork';
+import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork/ultrawork';
 
 describe('evidence readiness evaluator', () => {
   it('prefers wiki v2 index over legacy llm-wiki evidence paths', async () => {

@@ -6,7 +6,7 @@
 
 import { collectGitDiff } from '#/utils/git/git-diff';
 import { ttui } from '#/tui/utils/tui-i18n';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export function showDiff(host: SlashCommandHost, args?: string): void {
   if (host.isSessionLoadingOverlayActive()) {

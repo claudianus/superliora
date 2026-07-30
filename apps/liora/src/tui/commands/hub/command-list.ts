@@ -4,7 +4,7 @@
  * availability, argument hints, and completion function references).
  */
 
-import type { LioraSlashCommand } from './types';
+import type { LioraSlashCommand } from '../../types';
 import {
   toggleOnOffArgumentCompletions,
   permissionArgumentCompletions,
@@ -29,10 +29,10 @@ import {
   appearanceArgumentCompletions,
   personaArgumentCompletions,
 } from './completion-specs';
-import { improveHarnessArgumentCompletions } from './improve-harness';
-import { pluginsArgumentCompletions } from './plugins';
-import { rendererArgumentCompletions } from './renderer';
-import { transcriptArgumentCompletions } from './transcript';
+import { improveHarnessArgumentCompletions } from '../improve-harness';
+import { pluginsArgumentCompletions } from '../plugins/plugins';
+import { rendererArgumentCompletions } from '../renderer';
+import { transcriptArgumentCompletions } from '../transcript';
 
 export const BUILTIN_SLASH_COMMANDS = [
   {

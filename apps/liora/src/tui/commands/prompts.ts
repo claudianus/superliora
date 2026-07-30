@@ -16,7 +16,7 @@ import {
   type ProviderCatalogOption,
   type ProviderCatalogSelection,
 } from '#/tui/utils/model/provider-catalog-options';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 /**
  * Opens the unified provider picker built from the models.dev catalog and the

@@ -4,7 +4,7 @@ import { parseGoalCommand } from '#/tui/commands/goal';
 import {
   buildUltraworkPrompt,
   parseUltraworkCommand,
-} from '#/tui/commands/ultrawork-contract';
+} from '#/tui/commands/ultrawork/ultrawork-contract';
 
 /**
  * Headless goal-mode support for the `liora -p "/goal <objective>"` prompt path.

@@ -1,12 +1,12 @@
 export * from './experimental-flags';
-export * from './parse';
-export * from './registry';
-export * from './resolve';
+export * from './hub/parse';
+export * from './hub/registry';
+export * from './hub/resolve';
 export * from './skills';
-export * from './plugin-commands';
+export * from './plugins/plugin-commands';
 export * from './types';
 
-export { dispatchInput, type SlashCommandHost } from './dispatch';
+export { dispatchInput, type SlashCommandHost } from './hub/dispatch';
 export { handleAccountsCommand, openAccountsManager } from './accounts';
 export { handleLoginCommand, handleLogoutCommand } from './auth';
 export {
@@ -14,7 +14,7 @@ export {
   handleBenchCommand,
   loadBenchStatus,
   redactBenchStatusText,
-} from './bench';
+} from './bench/bench';
 export { handleBtwCommand } from './btw';
 export { handleCompactCommand, handlePlanCommand } from './config/plan';
 export { handleAppearanceCommand } from './config/appearance';
@@ -28,7 +28,7 @@ export { showSettingsSelector, showHarnessPanel } from './config/settings';
 export { showToolsInventory, showHarnessEyesReadiness } from './config/harness-tools';
 export { handleSwarmCommand } from './swarm';
 export { handleOrchestratorCommand } from './orchestrator';
-export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork';
+export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork/ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info';
 export {
   buildMemoryReadinessLines,
@@ -37,7 +37,7 @@ export {
   redactMemoryReadinessText,
 } from './memory';
 export { buildPreflightLines, buildPreflightStatus, handlePreflightCommand, loadPreflightStatus, redactPreflightText } from './preflight/command';
-export { handlePluginsCommand, pluginsArgumentCompletions } from './plugins';
+export { handlePluginsCommand, pluginsArgumentCompletions } from './plugins/plugins';
 export { handlePersonaCommand } from './persona';
 export { handleReloadCommand, handleReloadTuiCommand } from './reload';
 export {
@@ -49,7 +49,7 @@ export {
   type RendererTraceCommand,
 } from './renderer';
 export { handleGoalCommand, parseGoalCommand } from './goal';
-export { goalArgumentCompletions } from './registry';
+export { goalArgumentCompletions } from './hub/registry';
 export { handleForkCommand, handleInitCommand, handleTitleCommand } from './session';
 export { handleUndoCommand } from './undo';
 export { handleRewindCommand } from './rewind';

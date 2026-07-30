@@ -10,7 +10,7 @@ import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
 } from '#/tui/utils/model/thinking-effort';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 const THINKING_LEVELS = ['off', 'on', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 type ThinkingLevel = (typeof THINKING_LEVELS)[number];

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BenchStatus } from '#/tui/commands/bench';
+import type { BenchStatus } from '#/tui/commands/bench/bench';
 import type { MemoryReadinessSnapshot } from '#/tui/commands/evidence-readiness';
 import {
   buildPreflightRefreshPlan,

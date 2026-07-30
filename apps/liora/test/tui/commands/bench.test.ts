@@ -7,7 +7,7 @@ import {
   buildBenchStatusLines,
   loadBenchStatus,
   redactBenchStatusText,
-} from '#/tui/commands/bench';
+} from '#/tui/commands/bench/bench';
 
 describe('bench slash command status surface', () => {
   it('builds a concise redacted status transcript from gate evidence', () => {

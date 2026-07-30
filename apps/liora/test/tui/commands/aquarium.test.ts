@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { handleAquariumCommand } from '#/tui/commands/aquarium';
-import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { StatusMessageComponent } from '#/tui/components/messages/status-message';

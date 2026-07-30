@@ -13,7 +13,7 @@ import { loadCatalog } from '#/utils/catalog-cache';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { type ProviderCatalogOption } from '#/tui/utils/model/provider-catalog-options';
 import { promptApiKeyForCatalogProvider } from '../prompts';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 
 export { DEFAULT_CATALOG_URL, fetchCatalog };

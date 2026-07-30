@@ -1,6 +1,6 @@
 import { workspaceRelativePath, CANONICAL_EVIDENCE_ROOT, WORKSPACE_DATA_DIR } from '#/constant/workspace-data';
 
-import type { BenchStatus } from '../bench';
+import type { BenchStatus } from '../bench/bench';
 import type { MemoryReadinessSnapshot } from '../evidence-readiness';
 
 export const DEFAULT_PREFLIGHT_RECALL_QUERY = 'superliora harness knowledge-map browser-use computer-use llm-wiki readiness';
@@ -10,7 +10,7 @@ export const PREFLIGHT_REFRESH_COMMAND = 'node scripts/liora-preflight-refresh.m
 export const PREFLIGHT_BENCH_LOOP_COMMAND = 'node scripts/liora-agent-bench.mjs --loop --max-iterations 2';
 export const PREFLIGHT_BENCH_LOOP_MAX_ITERATIONS = 2;
 export const PREFLIGHT_BENCH_LOOP_MAX_TOTAL_MS = 600_000;
-export const PREFLIGHT_ULTRAWORK_CONTRACT_PATH = 'apps/liora/src/tui/commands/ultrawork-contract.ts';
+export const PREFLIGHT_ULTRAWORK_CONTRACT_PATH = 'apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts';
 
 export const CANONICAL_PREFLIGHT_REFRESH_EVIDENCE_ROOT = `${CANONICAL_EVIDENCE_ROOT}/superliora-preflight-refresh`;
 export const CANONICAL_PREFLIGHT_RUNTIME_EVIDENCE_ROOT = `${CANONICAL_EVIDENCE_ROOT}/preflight-readiness`;

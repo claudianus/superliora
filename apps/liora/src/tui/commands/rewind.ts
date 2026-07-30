@@ -5,7 +5,7 @@
 
 import { formatErrorMessage } from '../utils/event-payload';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 export async function handleRewindCommand(
   host: SlashCommandHost,

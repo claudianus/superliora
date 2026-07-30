@@ -4,7 +4,7 @@ import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
 } from '#/tui/utils/model/thinking-effort';
-import type { SlashCommandHost } from '../dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 export async function openModelPickerForProvider(
   host: SlashCommandHost,

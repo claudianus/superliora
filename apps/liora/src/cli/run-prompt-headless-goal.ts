@@ -5,7 +5,7 @@ import {
   prepareUltraworkSession,
   rollbackUltraworkSession,
   type UltraworkSessionSnapshot,
-} from '#/tui/commands/ultrawork-lifecycle';
+} from '#/tui/commands/ultrawork/ultrawork-lifecycle';
 import {
   formatGoalSummaryText,
   goalExitCode,

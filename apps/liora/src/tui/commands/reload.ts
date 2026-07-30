@@ -2,7 +2,7 @@ import type { LioraConfig } from '@superliora/sdk';
 
 import { currentTheme, lightColors } from '#/tui/theme';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig, type TuiConfig } from '../config';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 import { setExperimentalFeatures } from './experimental-flags';
 
 export async function handleReloadTuiCommand(host: SlashCommandHost): Promise<void> {

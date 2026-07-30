@@ -1,7 +1,7 @@
 import type { AutocompleteItem } from '#/tui/renderer';
 
-import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
-import type { SlashCommandHost } from './dispatch';
+import { completeLeadingArg, type ArgCompletionSpec } from './hub/complete-args';
+import type { SlashCommandHost } from './hub/dispatch';
 
 /**
  * /improve-harness command — lets the agent analyze and improve its own harness.

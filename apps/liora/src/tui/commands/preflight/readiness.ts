@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs';
 
-import type { BenchStatus } from '../bench';
+import type { BenchStatus } from '../bench/bench';
 import type { MemoryReadinessSnapshot } from '../evidence-readiness';
 import {
   CANONICAL_PREFLIGHT_REFRESH_EVIDENCE_ROOT,

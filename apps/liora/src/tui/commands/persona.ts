@@ -1,7 +1,7 @@
 import type { PersonaConfig } from '@superliora/sdk';
 
 import { formatErrorMessage } from '../utils/event-payload';
-import type { SlashCommandHost } from './dispatch';
+import type { SlashCommandHost } from './hub/dispatch';
 
 // ---------------------------------------------------------------------------
 // Presets
