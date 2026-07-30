@@ -12,6 +12,7 @@ import type {
 
 import type { ModelRoutingStrategy } from '../../config';
 import type { Logger } from '../../logging/types';
+import type { ProviderRouteRateLimitStatus } from '#/rpc';
 import type { CompletionBudgetConfig } from '../../utils/completion-budget';
 
 export type GenerateFn = typeof kosongGenerate;

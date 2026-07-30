@@ -9,8 +9,9 @@ describe('agent/turn/kosong-llm — buildMessagesWithSystem', () => {
     ];
     const result = buildMessagesWithSystem('SYSTEM', history);
     expect(result).toHaveLength(2);
-    expect(result[0].role).toBe('system');
-    expect((result[0] as { content: unknown }).content).toEqual([
+    const system = result[0]!;
+    expect(system.role).toBe('system');
+    expect((system as { content: unknown }).content).toEqual([
       { type: 'text', text: 'SYSTEM' },
     ]);
     expect(result[1]).toBe(history[0]);
@@ -19,8 +20,9 @@ describe('agent/turn/kosong-llm — buildMessagesWithSystem', () => {
   it('returns the system message as the only entry when history is empty', () => {
     const result = buildMessagesWithSystem('ONLY', []);
     expect(result).toHaveLength(1);
-    expect(result[0].role).toBe('system');
-    expect((result[0] as { content: unknown }).content).toEqual([
+    const system = result[0]!;
+    expect(system.role).toBe('system');
+    expect((system as { content: unknown }).content).toEqual([
       { type: 'text', text: 'ONLY' },
     ]);
   });
