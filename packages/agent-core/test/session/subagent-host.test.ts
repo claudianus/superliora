@@ -46,6 +46,7 @@ import {
   attachToolStreamBridge,
   startProgressReporter,
 } from '../../src/session/subagent-telemetry';
+import * as subagentCompletionFlow from '../../src/session/subagent-completion-flow';
 import { abortError, userCancellationReason } from '../../src/utils/abort';
 import { testAgent, type AgentTestContext } from '../agent/harness/agent';
 import { createScriptedGenerate } from '../agent/harness/scripted-generate';
@@ -1990,6 +1991,10 @@ describe('SessionSubagentHost', () => {
   });
 
   describe('model fallback on retryable provider failure', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     const testProviders = {
       'test-provider': { type: 'kimi' as const, apiKey: 'test-key' },
     };
@@ -2021,13 +2026,8 @@ describe('SessionSubagentHost', () => {
       return failure;
     }
 
-    function stubRunPromptTurn(host: SessionSubagentHost) {
-      return vi.spyOn(
-        host as unknown as {
-          runPromptTurn: (...args: unknown[]) => Promise<{ result: string; usage: TokenUsage }>;
-        },
-        'runPromptTurn',
-      );
+    function stubRunPromptTurn() {
+      return vi.spyOn(subagentCompletionFlow.completionFlowApi, 'runPromptTurn');
     }
 
     it('fails over the provider route to a fallback model candidate on a body-less 400', async () => {
@@ -2089,7 +2089,7 @@ describe('SessionSubagentHost', () => {
       });
       const session = fakeSession(parent.agent, child.agent);
       const host = new SessionSubagentHost(session, 'main');
-      const runPromptTurn = stubRunPromptTurn(host);
+      const runPromptTurn = stubRunPromptTurn();
       runPromptTurn
         .mockRejectedValueOnce(flattenedTransientFailure())
         .mockResolvedValueOnce({ result: summary, usage: emptyUsage() });
@@ -2143,7 +2143,7 @@ describe('SessionSubagentHost', () => {
       });
       const session = fakeSession(parent.agent, child.agent);
       const host = new SessionSubagentHost(session, 'main');
-      const runPromptTurn = stubRunPromptTurn(host);
+      const runPromptTurn = stubRunPromptTurn();
       runPromptTurn.mockRejectedValue(flattenedTransientFailure());
 
       const handle = await host.spawn({

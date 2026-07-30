@@ -1,4 +1,4 @@
-import type { ContentPart, TokenUsage } from '@superliora/kosong';
+import type { ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '../agent';
 import {
@@ -8,56 +8,12 @@ import {
   ToolCollapseStrategy,
   resolveCompactionBlockRatio,
 } from '../agent/compaction';
-import type { PromptOrigin } from '../agent/context';
 import {
-  listSwitchableFailoverModels,
-} from '../agent/provider-failover';
-import { DenyAllPermissionPolicy } from '../agent/permission/policies/deny-all';
-import { InMemoryAgentRecordPersistence } from '../agent/records';
-import { resolveExpertCatalogEntry } from '../expert-agents/catalog-extensions';
-import {
-  deliverSwarmBusCoordination,
-  emitSwarmCollaborationMessage,
-  emitSwarmCollaborationMention,
   startSwarmStandupTimer,
   type SwarmStandupTimerHandle,
   type SwarmStandupTimerInput,
 } from './swarm-bus-coordination';
-import {
-  SwarmChannelTool,
-} from '../tools/builtin/collaboration/swarm-channel';
-import { updateSwarmOrchestrationTodoStatus } from '../tools/builtin/state/todo-list';
-import { RunProjectChecksTool } from '../tools/builtin/ops/run-project-checks';
-import {
-  DEFAULT_AGENT_PROFILES,
-  prepareSystemPromptContext,
-  type ResolvedAgentProfile,
-} from '../profile';
-import {
-  userCancellationReason,
-} from '../utils/abort';
-import { resolveSubagentModelAlias } from '../utils/cheap-model';
-import { checkContractFile } from './contract-check';
-import { maybeRunRollingCheck, recordChildCompletion } from './rolling-integration';
-import { collectGitContext } from './git-context';
-import {
-  buildCheckpointRecoveryReminder,
-  clearSubagentCheckpoint,
-  readSubagentCheckpoint,
-} from './subagent-checkpoint';
-import { getDefaultSwarmFileLeaseRegistry } from './swarm-file-lease';
-import {
-  buildSubagentResultContract,
-  collectFilesChanged,
-  deriveVerificationPackageDir,
-  snapshotChildWork,
-  verdictFromCheckOutcomes,
-  VERIFICATION_NOT_RUN,
-  type GitWorkSnapshot,
-  type ProjectCheckOutcomeLike,
-  type SubagentResultContract,
-  type SubagentVerificationStatus,
-} from './subagent-result-contract';
+import { userCancellationReason } from '../utils/abort';
 import type { Session } from './index';
 import {
   SubagentBatch,
@@ -66,8 +22,6 @@ import {
   type SubagentSuspendedEvent,
   type QueuedSubagentTask,
 } from './subagent-batch';
-import SUMMARY_CONTINUATION_PROMPT from './summary-continuation.md?raw';
-
 import {
   DEFAULT_SUBAGENT_DEADLINE_MS,
   DEFAULT_SUBAGENT_TIMEOUT_DESCRIPTION,
@@ -83,26 +37,26 @@ import {
   resolveSubagentDeadlineMs,
 } from './subagent-errors';
 import {
-  createExpertSubagentProfile,
-  isModelAliasHealthy,
-  isRetryableSubagentProviderFailure,
-  runChildTurnToCompletion,
   runWithActiveChild as runActiveChildLifecycle,
   type ActiveChildEntry,
 } from './subagent-run-lifecycle';
+import { emitSubagentFailed, emitSubagentSpawned } from './subagent-events';
 import {
-  emitSubagentFailed,
-  emitSubagentSpawned,
-  emitSubagentStarted,
-  observeFirstRequest,
-  triggerSubagentStart,
-  triggerSubagentStop,
-} from './subagent-events';
-import {
-  attachSubagentTodoBridge,
-  attachToolStreamBridge,
-  startProgressReporter,
-} from './subagent-telemetry';
+  assertContractCompiles,
+  attachUltraSwarmChannelIfNeeded,
+  claimChildOwnership,
+  configureSubagentChild,
+  ensureIdleSubagent,
+  resolveSubagentProfile,
+} from './subagent-child-config';
+import * as subagentCompletionFlow from './subagent-completion-flow';
+import { createSideChannelSubagent } from './subagent-side-channel';
+import type {
+  RunSubagentOptions,
+  SpawnSubagentOptions,
+  SubagentCompletion,
+  SubagentHandle,
+} from './subagent-host-types';
 
 export {
   DEFAULT_SUBAGENT_DEADLINE_MS,
@@ -123,78 +77,16 @@ export {
   type SubagentProgressStats,
 } from './subagent-progress-preview';
 export { __testing__ } from './subagent-run-lifecycle';
-
-
-const SUBAGENT_MODEL_FALLBACK_HOPS = 2;
-
 export type {
-  SubagentResult as QueuedSubagentRunResult,
+  QueuedSubagentRunResult,
   QueuedSubagentTask,
   ResumeQueuedSubagentTask,
+  RunSubagentOptions,
   SpawnQueuedSubagentTask,
-} from './subagent-batch';
-
-/**
- * A subagent summary shorter than this many characters triggers one
- * follow-up turn that asks the subagent to expand it, so the parent
- * agent receives a technically complete handoff.
- */
-const SUMMARY_MIN_LENGTH = 200;
-
-/** Per-check timeout for the completion verification gate (T4-4). */
-const COMPLETION_CHECK_TIMEOUT_MS = 180_000;
-/** Overall ceiling for the completion verification gate (T4-4). */
-const COMPLETION_VERIFICATION_TOTAL_MS = 600_000;
-
-const SUMMARY_CONTINUATION_ATTEMPTS = 1;
-const TOOL_CALL_DISABLED_MESSAGE =
-  'Tool calls are disabled for side questions. Answer with text only.';
-const SUBAGENT_PROMPT_ORIGIN: PromptOrigin = { kind: 'system_trigger', name: 'subagent' };
-const SIDE_QUESTION_SYSTEM_REMINDER = `
-This is a side-channel conversation with the user. Answer from what you already know.
-
-- Lightweight instance; main agent continues independently.
-- All tool calls are disabled and will be rejected. Tool definitions are visible for cache only — do not call them.
-- Text only; say when you do not know.
-`;
-
-export interface RunSubagentOptions {
-  readonly parentToolCallId: string;
-  readonly parentToolCallUuid?: string;
-  readonly prompt: string;
-  readonly description: string;
-  readonly swarmIndex?: number;
-  readonly swarmItem?: string;
-  readonly runInBackground: boolean;
-  readonly signal: AbortSignal;
-  /** Wall-clock budget for the run; drives finishing mode and telemetry (T4-5). */
-  readonly timeoutMs?: number;
-  /** Shared contract file that must compile before the subagent is spawned (T4-3). */
-  readonly contractPath?: string;
-  /** File paths the subagent owns; claimed at spawn so overlaps fail fast (T4-2). */
-  readonly ownership?: readonly string[];
-  readonly onReady?: () => void;
-  readonly suppressRateLimitFailureEvent?: boolean;
-}
-
-export interface SpawnSubagentOptions extends RunSubagentOptions {
-  readonly profileName: string;
-  readonly profileBaseName?: string;
-}
-
-type SubagentCompletion = {
-  readonly result: string;
-  readonly usage?: TokenUsage;
-  readonly contract?: SubagentResultContract;
-};
-
-export type SubagentHandle = {
-  readonly agentId: string;
-  readonly profileName: string;
-  readonly resumed: boolean;
-  readonly completion: Promise<SubagentCompletion>;
-};
-
+  SpawnSubagentOptions,
+  SubagentCompletion,
+  SubagentHandle,
+} from './subagent-host-types';
 
 export class SessionSubagentHost {
   private readonly activeChildren = new Map<string, ActiveChildEntry>();
@@ -256,8 +148,8 @@ export class SessionSubagentHost {
     options.signal.throwIfAborted();
 
     const parent = await this.session.ensureAgentResumed(this.ownerAgentId);
-    await this.assertContractCompiles(parent, options);
-    const profile = this.resolveProfile(parent, options.profileName, options.profileBaseName);
+    await assertContractCompiles(parent, options);
+    const profile = resolveSubagentProfile(parent, options.profileName, options.profileBaseName);
     /** Subagent windows compact earlier than parent (MapReduce-style handoff). */
     const subTriggerRatio = 0.65;
     const { id, agent } = await this.session.createAgent(
@@ -278,26 +170,35 @@ export class SessionSubagentHost {
       },
       { parentAgentId: this.ownerAgentId, swarmItem: options.swarmItem },
     );
-    this.claimChildOwnership(agent, id, options);
+    claimChildOwnership(agent, id, options);
     const completion = this.runWithActiveChild(id, options, async (runOptions) => {
-      const modelAlias = resolveSubagentModelAlias(
+      const modelAlias = subagentCompletionFlow.spawnModelAlias(
         profile.name,
         options.profileBaseName,
-        parent.config.modelAlias,
-        parent.kimiConfig?.models,
-        parent.kimiConfig?.loopControl?.explorationModel,
-        {
-          isAliasHealthy: (alias) => isModelAliasHealthy(alias, parent.kimiConfig?.models),
-        },
+        parent,
       );
       emitSubagentSpawned(parent, this.ownerAgentId, id, profile.name, runOptions, modelAlias);
       try {
-        await this.configureChild(parent, agent, profile, id, runOptions, options.profileBaseName);
+        await configureSubagentChild(
+          this.session,
+          parent,
+          agent,
+          profile,
+          id,
+          runOptions,
+          options.profileBaseName,
+        );
       } catch (error) {
         emitSubagentFailed(parent, id, runOptions, error);
         throw error;
       }
-      return await this.runPromptTurnWithModelFallback(parent, id, agent, profile.name, runOptions);
+      return await subagentCompletionFlow.runPromptTurnWithModelFallback(
+        parent,
+        id,
+        agent,
+        profile.name,
+        runOptions,
+      );
     });
     return {
       agentId: id,
@@ -309,37 +210,34 @@ export class SessionSubagentHost {
 
   async resume(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
-    const { parent, child, profileName } = await this.ensureIdleSubagent(agentId);
+    const { parent, child, profileName } = await ensureIdleSubagent(
+      this.session,
+      this.ownerAgentId,
+      this.activeChildren,
+      agentId,
+    );
     child.swarmFileLease = { ownerId: agentId, runId: options.parentToolCallId };
-    const checkpoint = readSubagentCheckpoint(agentId);
-    if (checkpoint !== undefined) {
-      child.context.appendSystemReminder(buildCheckpointRecoveryReminder(checkpoint), {
-        kind: 'system_trigger',
-        name: 'subagent-checkpoint',
-      });
-      clearSubagentCheckpoint(agentId);
-    }
+    subagentCompletionFlow.prepareResumeCheckpoint(agentId, child);
     const completion = this.runWithActiveChild(agentId, options, async (runOptions) => {
-      const modelAlias = resolveSubagentModelAlias(
-        profileName,
-        undefined,
-        parent.config.modelAlias,
-        parent.kimiConfig?.models,
-        parent.kimiConfig?.loopControl?.explorationModel,
-        {
-          isAliasHealthy: (alias) =>
-            isModelAliasHealthy(alias, parent.kimiConfig?.models),
-        },
-      );
+      const modelAlias = subagentCompletionFlow.resolveResumeModelAlias(profileName, parent);
       emitSubagentSpawned(parent, this.ownerAgentId, agentId, profileName, runOptions, modelAlias);
       try {
-        // Read-only explore subagents run on a cheap configured model when one
-        // exists; every other profile keeps the parent agent's current model.
-        child.config.update({
-          modelAlias,
-        });
-        this.attachUltraSwarmChannelIfNeeded(parent, child, agentId, runOptions, profileName);
-        return await this.runPromptTurn(parent, agentId, child, profileName, runOptions);
+        child.config.update({ modelAlias });
+        attachUltraSwarmChannelIfNeeded(
+          this.session,
+          parent,
+          child,
+          agentId,
+          runOptions,
+          profileName,
+        );
+        return await subagentCompletionFlow.runPromptTurn(
+          parent,
+          agentId,
+          child,
+          profileName,
+          runOptions,
+        );
       } catch (error) {
         const failure = enrichPermanentProviderFailure(error, child);
         emitSubagentFailed(parent, agentId, runOptions, failure);
@@ -351,39 +249,21 @@ export class SessionSubagentHost {
 
   async retry(agentId: string, options: RunSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
-    const { parent, child, profileName } = await this.ensureIdleSubagent(agentId);
+    const { parent, child, profileName } = await ensureIdleSubagent(
+      this.session,
+      this.ownerAgentId,
+      this.activeChildren,
+      agentId,
+    );
     const completion = this.runWithActiveChild(agentId, options, async (runOptions) => {
       try {
         runOptions.signal.throwIfAborted();
-        // Read-only explore subagents run on a cheap configured model when one
-        // exists; every other profile keeps the parent agent's current model.
-        child.config.update({
-          modelAlias: resolveSubagentModelAlias(
-            profileName,
-            undefined,
-            parent.config.modelAlias,
-            parent.kimiConfig?.models,
-            parent.kimiConfig?.loopControl?.explorationModel,
-            {
-              isAliasHealthy: (alias) =>
-                isModelAliasHealthy(alias, parent.kimiConfig?.models),
-            },
-          ),
-        });
-        emitSubagentStarted(parent, agentId, runOptions);
-        const workSnapshot = await snapshotChildWork(child);
-        const turnId = child.turn.retry('agent-host');
-        if (turnId === null) {
-          throw new Error(`Agent instance "${agentId}" could not start a retry turn`);
-        }
-        observeFirstRequest(child, runOptions);
-        return await this.waitForChildCompletion(
+        return await subagentCompletionFlow.retrySubagentTurn(
           parent,
           agentId,
           child,
           profileName,
           runOptions,
-          workSnapshot,
         );
       } catch (error) {
         const failure = enrichPermanentProviderFailure(error, child);
@@ -392,26 +272,6 @@ export class SessionSubagentHost {
       }
     });
     return { agentId, profileName, resumed: true, completion };
-  }
-
-  private async ensureIdleSubagent(
-    agentId: string,
-  ): Promise<{ readonly parent: Agent; readonly child: Agent; readonly profileName: string }> {
-    const parent = await this.session.ensureAgentResumed(this.ownerAgentId);
-    const metadata = this.session.metadata.agents[agentId];
-    if (metadata?.type !== 'sub') {
-      throw new Error(`Agent instance "${agentId}" is not a subagent`);
-    }
-    if (metadata.parentAgentId !== this.ownerAgentId) {
-      throw new Error(`Agent instance "${agentId}" does not belong to this parent agent`);
-    }
-    const child = await this.session.ensureAgentResumed(agentId);
-    if (this.activeChildren.has(agentId) || child.turn.hasActiveTurn) {
-      throw new Error(`Agent instance "${agentId}" is already running and cannot run concurrently`);
-    }
-
-    const profileName = child.config.profileName ?? 'subagent';
-    return { parent, child, profileName };
   }
 
   async runQueued<T>(tasks: readonly QueuedSubagentTask<T>[]): Promise<Array<SubagentResult<T>>> {
@@ -429,29 +289,7 @@ export class SessionSubagentHost {
   }
 
   async startBtw(): Promise<string> {
-    const parent = await this.session.ensureAgentResumed(this.ownerAgentId);
-    const { id, agent: child } = await this.session.createAgent(
-      {
-        type: 'sub',
-        generate: parent.rawGenerate,
-        persistence: new InMemoryAgentRecordPersistence(),
-      },
-      { parentAgentId: this.ownerAgentId, persistMetadata: false },
-    );
-
-    child.config.update({
-      modelAlias: parent.config.modelAlias,
-      thinkingLevel: parent.config.thinkingLevel,
-      systemPrompt: parent.config.systemPrompt,
-    });
-    child.tools.copyLoopToolsFrom(parent.tools);
-    child.context.useProjectedHistoryFrom(parent.context);
-    child.context.appendSystemReminder(SIDE_QUESTION_SYSTEM_REMINDER.trim(), {
-      kind: 'system_trigger',
-      name: 'btw',
-    });
-    child.permission.policies.unshift(new DenyAllPermissionPolicy(TOOL_CALL_DISABLED_MESSAGE));
-    return id;
+    return createSideChannelSubagent(this.session, this.ownerAgentId);
   }
 
   cancelAll(reason: unknown = userCancellationReason()): void {
@@ -460,8 +298,6 @@ export class SessionSubagentHost {
     );
     for (const [childId, child] of foregroundChildren) {
       this.session.getReadyAgent(childId)?.subagentHost?.cancelAll(reason);
-      // Abort with the cancel reason (a user interruption by default) so the
-      // subagent's in-flight tools report the cause accurately to the model.
       child.controller.abort(reason);
     }
   }
@@ -487,32 +323,6 @@ export class SessionSubagentHost {
     return metadata.swarmItem;
   }
 
-  private resolveProfile(
-    parent: Agent,
-    profileName: string,
-    profileBaseName?: string,
-  ): ResolvedAgentProfile {
-    const profile =
-      DEFAULT_AGENT_PROFILES[parent.config.profileName ?? 'agent']?.subagents?.[profileName] ??
-      DEFAULT_AGENT_PROFILES['agent']?.subagents?.[profileName];
-    if (profile !== undefined) return profile;
-
-    const expert = resolveExpertCatalogEntry(profileName);
-    if (expert === undefined) {
-      throw new Error(`Subagent profile "${profileName}" was not found`);
-    }
-
-    const baseName = profileBaseName ?? 'coder';
-    const baseProfile =
-      DEFAULT_AGENT_PROFILES[parent.config.profileName ?? 'agent']?.subagents?.[baseName] ??
-      DEFAULT_AGENT_PROFILES['agent']?.subagents?.[baseName];
-    if (baseProfile === undefined) {
-      throw new Error(`Subagent profile "${baseName}" was not found`);
-    }
-
-    return createExpertSubagentProfile(expert, baseProfile);
-  }
-
   private runWithActiveChild(
     childId: string,
     options: RunSubagentOptions,
@@ -520,383 +330,4 @@ export class SessionSubagentHost {
   ): Promise<SubagentCompletion> {
     return runActiveChildLifecycle(this.activeChildren, childId, options, run);
   }
-
-  /**
-   * Run the child prompt turn, hopping through the child model's configured
-   * `fallbackModels` when a turn fails with a retryable provider failure
-   * (transient 5xx / body-less 400 gateway glitches, rate limits) — at most
-   * {@link SUBAGENT_MODEL_FALLBACK_HOPS} hops. Each intermediate failure emits
-   * `subagent.failed` with `retryAttempt` / `retryLimit`; the final failure
-   * carries `fellBackToModel` when at least one hop happened, then rethrows.
-   * Without candidates or for non-retryable failures this behaves exactly like
-   * a single failed emit + rethrow.
-   *
-   * Kept on the class: each hop calls {@link runPromptTurn} / {@link emitSubagentFailed}.
-   */
-  private async runPromptTurnWithModelFallback(
-    parent: Agent,
-    childId: string,
-    child: Agent,
-    profileName: string,
-    options: RunSubagentOptions,
-  ): Promise<SubagentCompletion> {
-    const fallbackAliases = listSwitchableFailoverModels(child).map((option) => option.alias);
-    const maxFallbackHops = Math.min(SUBAGENT_MODEL_FALLBACK_HOPS, fallbackAliases.length);
-    let lastAttemptedAlias = child.config.modelAlias;
-
-    for (let hop = 0; ; hop += 1) {
-      try {
-        return await this.runPromptTurn(parent, childId, child, profileName, options);
-      } catch (error) {
-        const nextAlias =
-          hop < maxFallbackHops && isRetryableSubagentProviderFailure(error)
-            ? fallbackAliases[hop]
-            : undefined;
-        if (nextAlias === undefined) {
-          const failure = enrichPermanentProviderFailure(error, child);
-          emitSubagentFailed(parent, childId, options, failure, {
-            ...(hop > 0 && lastAttemptedAlias !== undefined
-              ? { fellBackToModel: lastAttemptedAlias }
-              : {}),
-          });
-          throw failure;
-        }
-        emitSubagentFailed(parent, childId, options, error, {
-          retryAttempt: hop + 1,
-          retryLimit: maxFallbackHops,
-        });
-        child.config.update({ modelAlias: nextAlias });
-        lastAttemptedAlias = nextAlias;
-      }
-    }
-  }
-
-  private async runPromptTurn(
-    parent: Agent,
-    childId: string,
-    child: Agent,
-    profileName: string,
-    options: RunSubagentOptions,
-  ): Promise<SubagentCompletion> {
-    options.signal.throwIfAborted();
-    await triggerSubagentStart(parent, profileName, options.prompt, options.signal);
-    options.signal.throwIfAborted();
-
-    let childPrompt = options.prompt;
-    if (profileName === 'explore') {
-      const gitContext = await collectGitContext(child.kaos, child.config.cwd);
-      if (gitContext) childPrompt = `${gitContext}\n\n${childPrompt}`;
-    }
-
-    emitSubagentStarted(parent, childId, options);
-    const workSnapshot = await snapshotChildWork(child);
-    const turnId = child.turn.prompt([{ type: 'text', text: childPrompt }], SUBAGENT_PROMPT_ORIGIN);
-    if (turnId === null) {
-      throw new Error(`Agent instance "${childId}" could not start a turn`);
-    }
-    observeFirstRequest(child, options);
-    return this.waitForChildCompletion(parent, childId, child, profileName, options, workSnapshot);
-  }
-
-  private async waitForChildCompletion(
-    parent: Agent,
-    childId: string,
-    child: Agent,
-    profileName: string,
-    options: RunSubagentOptions,
-    workSnapshot: GitWorkSnapshot,
-  ): Promise<SubagentCompletion> {
-    const disposeProgress = startProgressReporter(
-      parent,
-      child,
-      childId,
-      profileName,
-      options.timeoutMs ?? DEFAULT_SUBAGENT_TIMEOUT_MS,
-    );
-    const disposeToolStream = attachToolStreamBridge(
-      parent,
-      child,
-      childId,
-      profileName,
-      options,
-    );
-    try {
-      return await this.collectChildCompletion(
-        parent,
-        child,
-        childId,
-        profileName,
-        options,
-        workSnapshot,
-      );
-    } finally {
-      disposeProgress();
-      disposeToolStream();
-    }
-  }
-
-  private async collectChildCompletion(
-    parent: Agent,
-    child: Agent,
-    childId: string,
-    profileName: string,
-    options: RunSubagentOptions,
-    workSnapshot: GitWorkSnapshot,
-  ): Promise<SubagentCompletion> {
-    await runChildTurnToCompletion(child, options.signal);
-
-    await child.fullCompaction.ensureBelowHandoffThreshold(options.signal);
-
-    // A subagent that returns an overly terse summary leaves the parent
-    // agent under-informed. Give it a bounded number of chances to expand
-    // the handoff; if it is still short after that, accept it as-is rather
-    // than retrying indefinitely.
-    let result = lastAssistantText(child);
-    let remainingContinuations = SUMMARY_CONTINUATION_ATTEMPTS;
-    while (remainingContinuations > 0 && result.length < SUMMARY_MIN_LENGTH) {
-      remainingContinuations -= 1;
-      options.signal.throwIfAborted();
-      child.turn.prompt([{ type: 'text', text: SUMMARY_CONTINUATION_PROMPT }], SUBAGENT_PROMPT_ORIGIN);
-      await runChildTurnToCompletion(child, options.signal);
-      result = lastAssistantText(child);
-    }
-    const usage = child.usage.data().total;
-    if (options.swarmItem !== undefined) {
-      updateSwarmOrchestrationTodoStatus(parent.tools.getStore(), options.swarmItem, 'done');
-    }
-    const contract = await this.buildChildResultContract(
-      child,
-      childId,
-      profileName,
-      result,
-      workSnapshot,
-      options.signal,
-    );
-    parent.emitEvent({
-      type: 'subagent.completed',
-      subagentId: childId,
-      resultSummary: result,
-      usage,
-      contextTokens: child.context.tokenCount,
-    });
-    triggerSubagentStop(parent, profileName, result);
-    clearSubagentCheckpoint(childId);
-    getDefaultSwarmFileLeaseRegistry().releaseAll(options.parentToolCallId);
-    if (options.swarmItem !== undefined) {
-      recordChildCompletion(options.parentToolCallId, contract.files_changed);
-      try {
-        await maybeRunRollingCheck(options.parentToolCallId, parent.kaos, parent.config.cwd);
-      } catch {
-        /* rolling integration must never break completion */
-      }
-    }
-    return { result, usage, contract };
-  }
-
-  /**
-   * All-mode file lease (harness reform T4-2): every spawned child gets a
-   * lease identity so its edits conflict-check against other owners, and any
-   * declared ownership is pre-claimed so overlaps fail at fan-out instead of
-   * mid-run.
-   */
-  private claimChildOwnership(
-    child: Agent,
-    childId: string,
-    options: RunSubagentOptions,
-  ): void {
-    const runId = options.parentToolCallId;
-    child.swarmFileLease = { ownerId: childId, runId };
-    const declared = options.ownership ?? [];
-    if (declared.length === 0) return;
-    const registry = getDefaultSwarmFileLeaseRegistry();
-    for (const rawPath of declared) {
-      const result = registry.claim(rawPath, childId, runId);
-      if (result.ok) continue;
-      registry.releaseAll(runId);
-      const holder = result.conflict.holder;
-      throw new Error(
-        `Ownership conflict on ${result.conflict.path}: already claimed by owner=${holder.ownerId} run=${holder.runId}. Resolve the overlap before fan-out.`,
-      );
-    }
-  }
-
-  /**
-   * Contract-first guard (harness reform T4-3): refuse fan-out while the
-   * shared contract file no longer compiles, so conflicting type changes are
-   * caught by the compiler before agents diverge.
-   */
-  private async assertContractCompiles(
-    parent: Agent,
-    options: RunSubagentOptions,
-  ): Promise<void> {
-    const contractPath = options.contractPath?.trim();
-    if (contractPath === undefined || contractPath.length === 0) return;
-    const check = await checkContractFile(parent.kaos, parent.config.cwd, contractPath);
-    if (check.ok) return;
-    const detail =
-      check.output !== undefined && check.output.length > 0 ? `\n${check.output}` : '';
-    throw new Error(
-      `Contract file did not compile (${check.kind}) — fix it before fan-out: ${contractPath}${detail}`,
-    );
-  }
-
-  private async buildChildResultContract(
-    child: Agent,
-    childId: string,
-    profileName: string,
-    summary: string,
-    workSnapshot: GitWorkSnapshot,
-    signal: AbortSignal | undefined,
-  ): Promise<SubagentResultContract> {
-    let filesChanged: string[] = [];
-    try {
-      filesChanged = await collectFilesChanged(child.kaos, child.config.cwd, workSnapshot);
-    } catch {
-      filesChanged = [];
-    }
-    const verification = await this.runCompletionVerification(
-      child,
-      profileName,
-      filesChanged,
-      signal,
-    );
-    return buildSubagentResultContract({
-      agentId: childId,
-      profile: profileName,
-      summary,
-      filesChanged,
-      verification,
-    });
-  }
-
-  /**
-   * Completion gate (harness reform T4-4): when the child's change set is
-   * scoped to a single workspace package, run that package's test /
-   * typecheck / lint scripts ourselves and record the verdicts on the
-   * result contract. Read-only profiles and ambiguous scopes skip the gate
-   * (verdicts stay `not_run`) rather than paying for a repo-wide run.
-   */
-  private async runCompletionVerification(
-    child: Agent,
-    profileName: string,
-    filesChanged: readonly string[],
-    signal: AbortSignal | undefined,
-  ): Promise<SubagentVerificationStatus> {
-    if (profileName === 'explore') return VERIFICATION_NOT_RUN;
-    const packageDir = deriveVerificationPackageDir(filesChanged);
-    if (packageDir === undefined) return VERIFICATION_NOT_RUN;
-    try {
-      const tool = new RunProjectChecksTool(child.kaos, child.config.cwd);
-      const execution = await tool.resolveExecution({
-        checks: ['test', 'typecheck', 'lint'],
-        packageDir,
-        timeoutMs: COMPLETION_CHECK_TIMEOUT_MS,
-      });
-      if (execution.isError === true) return VERIFICATION_NOT_RUN;
-      const gateSignal =
-        signal === undefined
-          ? AbortSignal.timeout(COMPLETION_VERIFICATION_TOTAL_MS)
-          : AbortSignal.any([signal, AbortSignal.timeout(COMPLETION_VERIFICATION_TOTAL_MS)]);
-      const result = await execution.execute({
-        turnId: 'subagent-verification',
-        toolCallId: 'subagent-verification',
-        signal: gateSignal,
-      });
-      const text = typeof result.output === 'string' ? result.output : '';
-      const parsed = JSON.parse(text) as {
-        readonly checks?: readonly ProjectCheckOutcomeLike[];
-      };
-      const checks = parsed.checks ?? [];
-      return {
-        tests: verdictFromCheckOutcomes(checks, 'test'),
-        typecheck: verdictFromCheckOutcomes(checks, 'typecheck'),
-        lint: verdictFromCheckOutcomes(checks, 'lint'),
-      };
-    } catch {
-      return VERIFICATION_NOT_RUN;
-    }
-  }
-
-  private async configureChild(
-    parent: Agent,
-    child: Agent,
-    profile: ResolvedAgentProfile,
-    childId: string,
-    options: RunSubagentOptions,
-    profileBaseName?: string,
-  ): Promise<void> {
-    // A subagent inherits the parent agent's model, except read-only explore
-    // subagents, which route to a cheap configured model when one exists so
-    // codebase exploration stays fast and cheap.
-    child.config.update({
-      cwd: parent.config.cwd,
-      modelAlias: resolveSubagentModelAlias(
-        profile.name,
-        profileBaseName,
-        parent.config.modelAlias,
-        parent.kimiConfig?.models,
-        parent.kimiConfig?.loopControl?.explorationModel,
-      {
-        isAliasHealthy: (alias) =>
-          isModelAliasHealthy(alias, parent.kimiConfig?.models),
-      },
-      ),
-      thinkingLevel: parent.config.thinkingLevel,
-    });
-
-    const context = await prepareSystemPromptContext(
-      this.session.systemContextKaos(child.kaos.getcwd()),
-      this.session.options.kimiHomeDir,
-      { additionalDirs: child.getAdditionalDirs() },
-    );
-    child.useProfile(profile, context);
-    child.tools.inheritUserTools(parent.tools);
-    attachSubagentTodoBridge(parent, child, childId, profile.name, options);
-    this.attachUltraSwarmChannelIfNeeded(parent, child, childId, options, profile.name);
-  }
-
-  private attachUltraSwarmChannelIfNeeded(
-    parent: Agent,
-    child: Agent,
-    childAgentId: string,
-    options: RunSubagentOptions,
-    profileName: string,
-  ): void {
-    const run = parent.ultraSwarmRun;
-    if (run === undefined || options.parentToolCallId !== run.parentToolCallId) {
-      return;
-    }
-    // Wire Edit/Write file-lease identity for this UltraSwarm worker (bus optional).
-    child.swarmFileLease = { ownerId: childAgentId, runId: run.runId };
-    if (!run.busEnabled) return;
-    const expert = run.team.experts.find((entry) => entry.id === profileName);
-    if (expert === undefined) return;
-    child.tools.attachEphemeralBuiltin(
-      new SwarmChannelTool({
-        parentAgent: parent,
-        parentStore: parent.tools.getStore(),
-        run,
-        expert,
-        childAgentId,
-        onMessagePosted: ({ message, mentionExpertIds }) => {
-          emitSwarmCollaborationMessage(parent, message);
-          emitSwarmCollaborationMention(parent, message, mentionExpertIds);
-          deliverSwarmBusCoordination(this.session, parent, message, mentionExpertIds);
-        },
-      }),
-    );
-  }
 }
-
-function lastAssistantText(agent: Agent): string {
-  for (const message of [...agent.context.history].toReversed()) {
-    if (message.role !== 'assistant') continue;
-    const text = message.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('');
-    if (text.trim().length > 0) return text.trim();
-  }
-  return '';
-}
-
