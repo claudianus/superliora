@@ -31,6 +31,7 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/lifecycle/session-workspace-dirs.ts',
   'session/response-language-llm.ts',
   'session/rpc.ts',
+  'session/rpc-prompt-handlers.ts',
   'session/store/session-store.ts',
   'session/subagent/subagent-child-config.ts',
   'session/subagent/subagent-completion-flow.ts',
