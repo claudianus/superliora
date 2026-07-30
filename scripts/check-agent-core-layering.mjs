@@ -33,6 +33,7 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/rpc.ts',
   'session/rpc-prompt-handlers.ts',
   'session/store/session-store.ts',
+  'session/store/session-store-helpers.ts',
   'session/subagent/subagent-child-config.ts',
   'session/subagent/subagent-completion-flow.ts',
   'session/subagent/subagent-errors.ts',
@@ -46,6 +47,7 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/subagent/subagent-verification-gate.ts',
   'session/trace.ts',
   'session/ultra-swarm-debate.ts',
+  'session/ultra-swarm-debate-cycle.ts',
   'session/vision-analyzer/types.ts',
 ]);
 
