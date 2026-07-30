@@ -42,9 +42,9 @@ import { ISkillService, SessionNotFoundError, SkillNotActivatableError, SkillNot
 import { z } from 'zod';
 
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
-import { parseActionSuffix } from './action-suffix';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
+import { parseActionSuffix } from '../action-suffix';
 
 interface SkillsRouteHost {
   get(

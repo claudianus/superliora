@@ -20,8 +20,8 @@ import {
 } from '@superliora/protocol';
 import { z } from 'zod';
 
-import { okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 
 interface MemoriesRouteHost {
   get(

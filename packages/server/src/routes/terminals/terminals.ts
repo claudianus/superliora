@@ -9,9 +9,9 @@ import { FsPathEscapesError, ITerminalService, SessionNotFoundError, TerminalNot
 import { z } from 'zod';
 
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
-import { parseActionSuffix } from './action-suffix';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
+import { parseActionSuffix } from '../action-suffix';
 
 interface TerminalsRouteHost {
   get(

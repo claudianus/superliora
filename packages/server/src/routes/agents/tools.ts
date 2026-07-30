@@ -28,9 +28,9 @@ import {
 import { IMcpService, IToolService, McpServerNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
-import { parseActionSuffix } from './action-suffix';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
+import { parseActionSuffix } from '../action-suffix';
 
 interface ToolsRouteHost {
   get(

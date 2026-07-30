@@ -17,9 +17,9 @@
 
 import { metaResponseSchema } from '@superliora/protocol';
 
-import { getAvailableOpenInApps } from '../lib/fileLaunch';
-import { okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { getAvailableOpenInApps } from '../../lib/fileLaunch';
+import { okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 import type { MetaResponse } from '@superliora/protocol';
 
 /**

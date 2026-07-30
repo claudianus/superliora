@@ -29,8 +29,8 @@ import {
 import { IOAuthService, type IInstantiationService } from '@superliora/agent-core';
 import { z } from 'zod';
 
-import { okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 
 /**
  * Structural Fastify subset — same shape as `meta.ts` / `auth.ts` so the

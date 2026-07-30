@@ -12,7 +12,7 @@ import {
 } from '@superliora/agent-core';
 import { ErrorCode } from '@superliora/protocol';
 
-import { errEnvelope } from '../envelope';
+import { errEnvelope } from '../../envelope';
 
 export function sendMappedError(
   reply: { send(payload: unknown): unknown },

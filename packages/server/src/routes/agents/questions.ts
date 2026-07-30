@@ -43,9 +43,9 @@ import { IQuestionService, questionToAgentCoreResponse, type IInstantiationServi
 import { z } from 'zod';
 
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
-import { parseActionSuffix } from './action-suffix';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
+import { parseActionSuffix } from '../action-suffix';
 import { QuestionService } from '#/services/question';
 
 interface QuestionRouteHost {

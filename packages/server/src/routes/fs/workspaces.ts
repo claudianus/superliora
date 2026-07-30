@@ -13,8 +13,8 @@ import {
 
 import { IWorkspaceRegistry, WorkspaceNotFoundError, WorkspaceRootNotFoundError, type IInstantiationService } from '@superliora/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 
 interface WorkspaceRouteHost {
   post(

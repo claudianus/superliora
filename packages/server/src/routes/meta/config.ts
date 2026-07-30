@@ -5,8 +5,8 @@ import {
 } from '@superliora/protocol';
 import { IConfigService, type IInstantiationService } from '@superliora/agent-core';
 
-import { errEnvelope, okEnvelope } from '../envelope';
-import { defineRoute } from '../middleware/defineRoute';
+import { errEnvelope, okEnvelope } from '../../envelope';
+import { defineRoute } from '../../middleware/defineRoute';
 
 interface ConfigRouteHost {
   get(
