@@ -1,34 +1,34 @@
 import type { BackgroundTaskInfo, Session } from '@superliora/sdk';
 import chalk from 'chalk';
 
-import type { Component } from '../renderer';
-import { ActivityPaneComponent, type ActivityPaneMode } from '../components/panes/activity-pane';
+import type { Component } from '../../renderer';
+import { ActivityPaneComponent, type ActivityPaneMode } from '../../components/panes/activity-pane';
 import {
   QueuePaneComponent,
   queuePaneSelectionIdentity,
   resolveHostOwnedQueueSettleStartedAtMs,
-} from '../components/panes/queue-pane';
-import { MoonLoader, type SpinnerStyle } from '../components/chrome/moon-loader';
-import { pickRandomWorkingTip, tipText } from '../components/chrome/working-tips';
-import { ShellRunComponent } from '../components/messages/shell/shell-run';
-import { ToolCallComponent } from '../components/messages/tool-call/index';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import type { AppearanceController } from './appearance';
-import type { SessionEventHandler } from './session-event/handler';
-import { currentTheme, getBuiltInPalette, getColorPalette, isBuiltInTheme } from '../theme';
-import type { ResolvedTheme, ThemeName } from '../theme';
-import { refreshShikiPalette } from '../components/media/shiki-ansi';
-import type { TUIState } from '../tui-state';
-import type { AppState, TranscriptDetailLevel, TranscriptEntry } from '../types';
-import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from '../features/appearance/appearance-effects';
-import { isExpandable } from '../utils/component-capabilities';
-import { formatErrorMessage } from '../utils/event-payload';
-import { pickForegroundTasks } from '../utils/foreground-task';
-import { requestTUIContentRender, requestTUILayoutRender } from '../utils/render/frame-render';
-import { isMotionTheatreActive, type MotionBeatController } from '../utils/render/motion-beats';
-import { installTerminalThemeTracking } from '../utils/terminal/terminal-theme';
-import { TRANSCRIPT_EXPAND_TURNS } from '../features/transcript/transcript-window';
-import { ttui } from '../utils/tui-i18n';
+} from '../../components/panes/queue-pane';
+import { MoonLoader, type SpinnerStyle } from '../../components/chrome/moon-loader';
+import { pickRandomWorkingTip, tipText } from '../../components/chrome/working-tips';
+import { ShellRunComponent } from '../../components/messages/shell/shell-run';
+import { ToolCallComponent } from '../../components/messages/tool-call/index';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import type { AppearanceController } from '../appearance/index';
+import type { SessionEventHandler } from '../session-event/handler';
+import { currentTheme, getBuiltInPalette, getColorPalette, isBuiltInTheme } from '../../theme';
+import type { ResolvedTheme, ThemeName } from '../../theme';
+import { refreshShikiPalette } from '../../components/media/shiki-ansi';
+import type { TUIState } from '../../tui-state';
+import type { AppState, TranscriptDetailLevel, TranscriptEntry } from '../../types';
+import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from '../../features/appearance/appearance-effects';
+import { isExpandable } from '../../utils/component-capabilities';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { pickForegroundTasks } from '../../utils/foreground-task';
+import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
+import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import { installTerminalThemeTracking } from '../../utils/terminal/terminal-theme';
+import { TRANSCRIPT_EXPAND_TURNS } from '../../features/transcript/transcript-window';
+import { ttui } from '../../utils/tui-i18n';
 
 /** How long the one-shot "moved to background" footer hint stays visible. */
 const DETACH_HINT_DISPLAY_MS = 4_000;

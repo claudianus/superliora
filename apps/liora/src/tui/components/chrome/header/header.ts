@@ -14,7 +14,7 @@ import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { HEADER_DIAMOND } from '#/tui/constant/symbols';
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import { currentTheme } from '#/tui/theme';
 import type { AppState } from '#/tui/types';
 import {

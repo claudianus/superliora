@@ -4,28 +4,28 @@ import { quoteShellArg } from '#/utils/shell-quote';
 import type { LioraHarness, Session } from '@superliora/sdk';
 import { resolve } from 'pathe';
 
-import { AgentDashboardComponent } from '../components/dialogs/session/agent-dashboard';
-import { ExtensionsModalComponent } from '../components/dialogs/session/extensions-modal';
-import type { SessionRow } from '../components/dialogs/session/session-picker';
-import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
-import { PRODUCT_NAME } from '../constant/liora-tui';
-import { MAX_TERMINAL_TITLE_LENGTH } from '../constant/terminal';
-import type { ColorToken } from '../theme';
-import type { AppState, LioraTUIOptions } from '../types';
-import type { TUIState } from '../tui-state';
+import { AgentDashboardComponent } from '../../components/dialogs/session/agent-dashboard';
+import { ExtensionsModalComponent } from '../../components/dialogs/session/extensions-modal';
+import type { SessionRow } from '../../components/dialogs/session/session-picker';
+import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
+import { PRODUCT_NAME } from '../../constant/liora-tui';
+import { MAX_TERMINAL_TITLE_LENGTH } from '../../constant/terminal';
+import type { ColorToken } from '../../theme';
+import type { AppState, LioraTUIOptions } from '../../types';
+import type { TUIState } from '../../tui-state';
 import {
   dashboardRowsFromSessions,
   type DashboardSessionRow,
   type DashboardSessionStatus,
   type DashboardStatusHints,
-} from '../utils/agent/agent-dashboard-rows';
-import type { CenterModalMountOptions } from '../utils/ui/center-modal';
+} from '../../utils/agent/agent-dashboard-rows';
+import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
 import {
   resolveExtensionsTab,
   type ExtensionsSnapshot,
   type ExtensionsTabId,
-} from '../utils/agent/extensions-rows';
-import { formatErrorMessage } from '../utils/event-payload';
+} from '../../utils/agent/extensions-rows';
+import { formatErrorMessage } from '../../utils/event-payload';
 import { runClaudeImportInventoryForHost } from './session-browser-claude-import';
 import {
   handleSessionPickerSelectFlow,
@@ -35,10 +35,10 @@ import {
   toggleSessionPickerScopeFlow,
   type SessionPickerControllerState,
 } from './session-browser-picker';
-import { sessionRowsForPicker } from '../utils/session/session-picker-rows';
-import { ttui } from '../utils/tui-i18n';
-import type { EditorKeyboardController } from './editor-keyboard';
-import type { SessionEventHandler } from './session-event/handler';
+import { sessionRowsForPicker } from '../../utils/session/session-picker-rows';
+import { ttui } from '../../utils/tui-i18n';
+import type { EditorKeyboardController } from '../shell/editor-keyboard';
+import type { SessionEventHandler } from '../session-event/handler';
 
 /** Host surface for session picker, agent dashboard, and extensions browser. */
 export interface SessionBrowserHost {

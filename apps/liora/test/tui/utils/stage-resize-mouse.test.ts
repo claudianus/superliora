@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { STAGE_MIN_WIDTH } from '#/tui/controllers/stage-layout';
+import { STAGE_MIN_WIDTH } from '#/tui/controllers/layout/stage-layout';
 import type { TUIState } from '#/tui/tui-state';
 import { createTUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';

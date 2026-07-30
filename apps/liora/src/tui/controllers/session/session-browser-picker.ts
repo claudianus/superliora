@@ -1,9 +1,9 @@
 import { resolve } from 'pathe';
 
-import { SessionPickerComponent, type SessionRow } from '../components/dialogs/session/session-picker';
-import { sessionRowsForPicker } from '../utils/session/session-picker-rows';
-import { formatErrorMessage } from '../utils/event-payload';
-import { ttui } from '../utils/tui-i18n';
+import { SessionPickerComponent, type SessionRow } from '../../components/dialogs/session/session-picker';
+import { sessionRowsForPicker } from '../../utils/session/session-picker-rows';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { ttui } from '../../utils/tui-i18n';
 import type { SessionBrowserHost } from './session-browser';
 
 export interface SessionPickerMountOptions {

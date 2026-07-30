@@ -1,4 +1,4 @@
-import { shouldAnimate } from '#/tui/controllers/appearance';
+import { shouldAnimate } from '#/tui/controllers/appearance/index';
 import type { AppearancePreferences } from '#/tui/config';
 import { SPLASH_MORPH_MS } from '#/tui/utils/splash/splash-iris';
 

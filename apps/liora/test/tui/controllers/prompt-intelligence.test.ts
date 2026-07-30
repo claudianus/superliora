@@ -4,7 +4,7 @@ import {
   isExperimentalFlagEnabled,
   setExperimentalFeatures,
 } from '#/tui/commands/experimental-flags';
-import { PromptIntelligenceController } from '#/tui/controllers/prompt-intelligence';
+import { PromptIntelligenceController } from '#/tui/controllers/prompt/prompt-intelligence';
 import type { AppState } from '#/tui/types';
 import type { TUIState } from '#/tui/tui-state';
 

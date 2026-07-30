@@ -5,7 +5,7 @@ import type {
   AgentSwarmMember,
   SwarmOpsFeedEntry,
 } from '#/tui/components/messages/agent-swarm-progress/index';
-import { resolveResponsiveLayout, type ResponsiveLayoutProfile } from '#/tui/controllers/responsive-layout';
+import { resolveResponsiveLayout, type ResponsiveLayoutProfile } from '#/tui/controllers/layout/responsive-layout';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   collapseWhitespace,

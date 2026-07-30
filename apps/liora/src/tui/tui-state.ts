@@ -18,9 +18,9 @@ import type { TUIEditor } from './components/editor/editor-contract';
 import { createTUIEditor } from './components/editor/editor-factory';
 import { TranscriptViewportComponent } from './components/messages/transcript-viewport';
 import { CHROME_GUTTER } from './constant/rendering';
-import type { TasksBrowserState } from './controllers/tasks-browser';
+import type { TasksBrowserState } from './controllers/panes/tasks-browser';
 import { currentTheme, type Theme } from './theme';
-import { resolveStageLayout } from './controllers/stage-layout';
+import { resolveStageLayout } from './controllers/layout/stage-layout';
 import { NativeEditorTextInputController } from './features/native-layout/native-editor-text-input';
 import { createTerminalState, type TerminalState } from './utils/terminal/terminal-state';
 import {

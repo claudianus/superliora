@@ -1,10 +1,10 @@
 import type { Session } from '@superliora/sdk';
 
-import type { AppState, LivePaneState } from '../types';
-import { formatErrorMessage } from '../utils/event-payload';
-import type { MessageDispatchController } from './message-dispatch';
-import type { SessionEventHandler } from './session-event/handler';
-import type { StreamingUIController } from './streaming-ui/index';
+import type { AppState, LivePaneState } from '../../types';
+import { formatErrorMessage } from '../../utils/event-payload';
+import type { MessageDispatchController } from '../transcript/message-dispatch';
+import type { SessionEventHandler } from '../session-event/handler';
+import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by session request / queue orchestration. */
 export interface SessionRequestsHost {

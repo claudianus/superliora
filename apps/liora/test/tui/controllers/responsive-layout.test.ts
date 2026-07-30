@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveResponsiveLayout,
   responsiveDensity,
-} from '#/tui/controllers/responsive-layout';
+} from '#/tui/controllers/layout/responsive-layout';
 
 describe('responsive layout controller', () => {
   it.each([

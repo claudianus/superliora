@@ -34,8 +34,8 @@ import {
   DEFAULT_APPEARANCE_PREFERENCES,
   type AppearancePreferences,
 } from '#/tui/config';
-import { shouldAnimate } from '#/tui/controllers/appearance';
-import { resolveResponsiveLayout } from '#/tui/controllers/responsive-layout';
+import { shouldAnimate } from '#/tui/controllers/appearance/index';
+import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import type { Component } from '#/tui/renderer';
 import { mixHexColor, visibleWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';

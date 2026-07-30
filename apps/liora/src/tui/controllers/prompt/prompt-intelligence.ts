@@ -2,13 +2,13 @@ import type { Session } from '@superliora/sdk';
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 
-import type { AppState } from '../types';
-import type { TUIState } from '../tui-state';
+import type { AppState } from '../../types';
+import type { TUIState } from '../../tui-state';
 import {
   isSameEffectiveModel,
   modelRouteDisplayName,
   resolveModelRouteIdentity,
-} from '../utils/model/model-route-notice';
+} from '../../utils/model/model-route-notice';
 
 /** Debounce before requesting an inline completion after the last keystroke. */
 const INLINE_DEBOUNCE_MS = 450;

@@ -9,13 +9,13 @@ import type {
   RendererDiagnosticsOverlayCommand,
   RendererTraceCommand,
   SkillListSession,
-} from '../commands';
-import * as slashCommands from '../commands/hub/dispatch';
-import type { SessionLoadingPhase } from '../components/dialogs/session/session-loading-overlay';
-import type { ColorToken, ResolvedTheme, ThemeName } from '../theme';
-import type { CenterModalMountOptions } from '../utils/ui/center-modal';
-import { combineStartupNotice } from '../utils/startup';
-import type { TranscriptScrollAction } from '../features/transcript/transcript-viewport';
+} from '../../commands';
+import * as slashCommands from '../../commands/hub/dispatch';
+import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
+import type { ColorToken, ResolvedTheme, ThemeName } from '../../theme';
+import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
+import { combineStartupNotice } from '../../utils/startup';
+import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import type {
   AppState,
   LivePaneState,
@@ -23,15 +23,15 @@ import type {
   QueuedMessage,
   TranscriptDetailLevel,
   TranscriptEntry,
-} from '../types';
-import type { TUIState } from '../tui-state';
-import type { LioraTUI } from '../liora-tui';
+} from '../../types';
+import type { TUIState } from '../../tui-state';
+import type { LioraTUI } from '../../liora-tui';
 import {
   handlePlanToggleFromHost,
   handleUltraworkModeToggleFromHost,
   openUndoSelectorFromHost,
 } from './liora-tui-wiring';
-import type { ApprovalPanelData, QuestionPanelData } from '../reverse-rpc/types';
+import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 
 type LioraTUIConstructor = new (...args: never[]) => LioraTUI;
 

@@ -6,13 +6,13 @@ import type {
   TurnEndedEvent,
 } from '@superliora/sdk';
 
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { BtwPanelComponent } from '../components/panes/btw-panel';
-import { formatErrorMessage } from '../utils/event-payload';
-import { formatHookResultPlain } from '../utils/hook-result-format';
-import { createMarkdownTheme } from '../theme/pi-tui-theme';
-import type { TUIState } from '../tui-state';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { BtwPanelComponent } from '../../components/panes/btw-panel';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { formatHookResultPlain } from '../../utils/hook-result-format';
+import { createMarkdownTheme } from '../../theme/pi-tui-theme';
+import type { TUIState } from '../../tui-state';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 
 const BTW_BUSY_NOTICE = 'Wait for /btw to finish before sending another question.';
 

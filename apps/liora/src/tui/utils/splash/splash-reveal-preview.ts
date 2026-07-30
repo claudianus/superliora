@@ -7,7 +7,7 @@ import chalk from 'chalk';
 
 import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
-import { resolveStageLayout } from '#/tui/controllers/stage-layout';
+import { resolveStageLayout } from '#/tui/controllers/layout/stage-layout';
 import type { AppearancePreferences } from '#/tui/config';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import type { AppState } from '#/tui/types';
