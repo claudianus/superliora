@@ -22,12 +22,6 @@ import type {
 import {
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
-  DefaultCompactionStrategy,
-  defaultAsyncTriggerRatioForWindow,
-  defaultTriggerRatioForWindow,
-  PipelineStrategy,
-  ToolCollapseStrategy,
-  resolveCompactionBlockRatio,
   SWARM_MICRO_PRESSURE_RATIO,
   type CompactionStrategy,
 } from '../strategy';
@@ -55,6 +49,7 @@ import {
   shouldSkipRecompactUntilGrowth as shouldSkipRecompactUntilGrowthPolicy,
 } from './full-policy';
 import type { CompactionPipelineContext } from '../pipeline/types';
+import { createDefaultFullCompactionStrategy } from './full-strategy-factory';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const OVERFLOW_CONTEXT_SAFETY_RATIO = 0.85;
@@ -87,64 +82,11 @@ export class FullCompaction implements CompactionPipelineContext {
     readonly agent: Agent,
     strategy?: CompactionStrategy,
   ) {
-    const loopControl = agent.kimiConfig?.loopControl;
-    const userTriggerRatio = loopControl?.compactionTriggerRatio;
-    const userAsyncTriggerRatio = loopControl?.compactionAsyncTriggerRatio;
-    // The context window is only known once the agent finishes constructing
-    // (`agent.config` is still undefined here), so the window-aware defaults are
-    // resolved lazily through the config getters below. They apply only when the
-    // user has not set an explicit ratio: on large windows this raises the default
-    // trigger so compaction starts later and fires less often. Explicit config
-    // always wins. The hard block ratio is derived from the explicit ratio (or the
-    // small-window default) so the safety ceiling never moves.
-    const maxContextTokens = () => this.getEffectiveMaxContextTokens();
-    const compactionBlockRatio = resolveCompactionBlockRatio(
-      userTriggerRatio ?? DEFAULT_COMPACTION_CONFIG.triggerRatio,
-      loopControl?.compactionBlockRatio,
+    this.strategy = createDefaultFullCompactionStrategy(
+      agent,
+      () => this.getEffectiveMaxContextTokens(),
+      strategy,
     );
-    const defaultTrigger = new DefaultCompactionStrategy(
-      maxContextTokens,
-      {
-        ...DEFAULT_COMPACTION_CONFIG,
-        get triggerRatio() {
-          return userTriggerRatio ?? defaultTriggerRatioForWindow(maxContextTokens());
-        },
-        get asyncTriggerRatio() {
-          return userAsyncTriggerRatio ?? defaultAsyncTriggerRatioForWindow(maxContextTokens());
-        },
-        // Working-set caps: keep agent live history near ~256k even on 1M windows.
-        // Explicit loopControl values win (including 0 = disable cap). Absolute
-        // floor still comes from compactionTriggerTokens when set.
-        get maxWorkingSetTokens() {
-          return (
-            loopControl?.maxWorkingSetTokens ??
-            DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens
-          );
-        },
-        get asyncWorkingSetTokens() {
-          return (
-            loopControl?.asyncWorkingSetTokens ??
-            DEFAULT_COMPACTION_CONFIG.asyncWorkingSetTokens
-          );
-        },
-        blockRatio: compactionBlockRatio,
-        reservedContextSize:
-          loopControl?.reservedContextSize ??
-          DEFAULT_COMPACTION_CONFIG.reservedContextSize,
-        absoluteTriggerTokens:
-          loopControl?.compactionTriggerTokens ??
-          DEFAULT_COMPACTION_CONFIG.absoluteTriggerTokens,
-        maxRecentMessages:
-          loopControl?.compactionMaxRecentMessages ??
-          DEFAULT_COMPACTION_CONFIG.maxRecentMessages,
-        absoluteTriggerBlocks: false,
-      },
-    );
-    // Observation masking: keep last 2 tool-call groups intact when collapsing.
-    // PipelineStrategy maps ToolCollapse 0 → no constraint (safe with few groups).
-    this.strategy =
-      strategy ??
-      new PipelineStrategy([new ToolCollapseStrategy(2)], defaultTrigger);
 
     const systemPrompt = agent.config?.systemPrompt?.trim();
     if (systemPrompt && systemPrompt.length > 0) {

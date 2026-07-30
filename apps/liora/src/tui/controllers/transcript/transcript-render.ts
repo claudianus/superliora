@@ -54,13 +54,11 @@ import {
 } from '../../features/transcript/transcript-component-metadata';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import {
-  TRANSCRIPT_HYSTERESIS,
-  TRANSCRIPT_KEEP_RECENT_STEPS,
-  TRANSCRIPT_MAX_TURNS,
-  TRANSCRIPT_WINDOW_ENABLED,
-  groupTurns,
-  turnsToTrim,
-} from '../../features/transcript/transcript-window';
+  isTurnBoundaryComponent,
+  mergeAllTurnSteps,
+  mergeCurrentTurnSteps,
+  trimTranscriptWindow,
+} from './transcript-render-window';
 
 /** Host surface required by transcript rendering, turn management, and the startup splash. */
 export interface TranscriptRenderHost {
@@ -184,11 +182,11 @@ export class TranscriptRenderController {
     // Session hydrate: frames are suppressed and merge uses a high water-mark
     // so we only collapse when a turn is far over the keep window (not every entry).
     if (host.state.appState.isReplaying) {
-      this.mergeCurrentTurnSteps();
+      mergeCurrentTurnSteps(host);
       return;
     }
-    const trimmed = this.trimTranscriptWindow();
-    const merged = this.mergeCurrentTurnSteps();
+    const trimmed = trimTranscriptWindow(host);
+    const merged = mergeCurrentTurnSteps(host);
     if (component || trimmed || merged) {
       requestTUIContentRender(host.state);
     }
@@ -363,218 +361,15 @@ export class TranscriptRenderController {
   }
 
   isTurnBoundaryComponent(child: Component): boolean {
-    if (!(child instanceof UserMessageComponent) && !(child instanceof PluginCommandComponent)) {
-      return false;
-    }
-    const entry = getTranscriptComponentEntry(child);
-    if (entry === undefined) return false;
-    // Live user messages have an undefined turnId; replayed user messages get a
-    // `replay:N` turnId. Both start a new turn. Steer messages carry a defined
-    // non-replay turnId and are not boundaries.
-    return entry.turnId === undefined || entry.turnId.startsWith('replay:');
-  }
-
-  private trimTranscriptWindow(): boolean {
-    const { host } = this;
-    if (!TRANSCRIPT_WINDOW_ENABLED || TRANSCRIPT_MAX_TURNS <= 0) return false;
-    // Session replay already caps history to its own turn limit; trimming during
-    // replay would shrink it further and fight that limit.
-    if (host.state.appState.isReplaying) return false;
-
-    const children = host.state.transcriptContainer.children;
-
-    // Trim whole turns by *position* in the child list rather than by entry
-    // lookup — otherwise only the (registered) user message would be removed and
-    // the rest of the turn would be left behind.
-    const boundaries: number[] = [];
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) boundaries.push(i);
-    }
-
-    const turns = groupTurns(host.state.transcriptEntries);
-
-    const toRemove = turnsToTrim(turns, TRANSCRIPT_MAX_TURNS, TRANSCRIPT_HYSTERESIS);
-    if (toRemove.size === 0) return false;
-
-    let boundariesToRemove = 0;
-    for (const entry of toRemove) {
-      if (entry.kind === 'user' && entry.turnId === undefined) boundariesToRemove++;
-    }
-    if (boundariesToRemove === 0) {
-      host.state.transcriptEntries = host.state.transcriptEntries.filter((e) => !toRemove.has(e));
-      return true;
-    }
-
-    let boundariesSeen = 0;
-    let cutoff = 0;
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) {
-        if (boundariesSeen === boundariesToRemove) {
-          cutoff = i;
-          break;
-        }
-        boundariesSeen++;
-      }
-    }
-
-    const componentsToRemove: Component[] = [];
-    for (let i = 0; i < cutoff; i++) {
-      const child = children[i]!;
-      if (child instanceof WelcomeComponent) continue;
-      componentsToRemove.push(child);
-    }
-    for (const child of componentsToRemove) {
-      // pi-tui Container.removeChild (not a DOM node); `child.remove()` does not exist.
-      // oxlint-disable-next-line unicorn/prefer-dom-node-remove
-      host.state.transcriptContainer.removeChild(child);
-      if (hasDispose(child)) child.dispose();
-    }
-
-    host.state.transcriptEntries = host.state.transcriptEntries.filter((e) => !toRemove.has(e));
-    return true;
+    return isTurnBoundaryComponent(child);
   }
 
   mergeCurrentTurnSteps(): boolean {
-    const { host } = this;
-    if (TRANSCRIPT_KEEP_RECENT_STEPS <= 0) return false;
-    const children = host.state.transcriptContainer.children;
-
-    // Find the start of the current turn (last turn-starting user message).
-    let turnStart = -1;
-    for (let i = children.length - 1; i >= 0; i--) {
-      if (this.isTurnBoundaryComponent(children[i]!)) {
-        turnStart = i;
-        break;
-      }
-    }
-    if (turnStart < 0) return false;
-
-    // Locate an existing summary, the assistant message, and the mergeable steps.
-    let summaryIndex = -1;
-    const stepIndices: number[] = [];
-    for (let i = turnStart + 1; i < children.length; i++) {
-      const child = children[i]!;
-      if (child instanceof StepSummaryComponent) {
-        summaryIndex = i;
-        continue;
-      }
-      if (child instanceof AssistantMessageComponent) continue;
-      stepIndices.push(i);
-    }
-
-    // Live: merge as soon as we exceed the keep window.
-    // Hydrate: wait until well over the window so we do not rebuild the turn
-    // on every tool result (O(n²)), while still bounding component count.
-    const mergeThreshold = host.state.appState.isReplaying
-      ? TRANSCRIPT_KEEP_RECENT_STEPS + Math.max(TRANSCRIPT_KEEP_RECENT_STEPS, 20)
-      : TRANSCRIPT_KEEP_RECENT_STEPS;
-    if (stepIndices.length <= mergeThreshold) return false;
-    const mergeCount = stepIndices.length - TRANSCRIPT_KEEP_RECENT_STEPS;
-    const toMergeIndices = stepIndices.slice(0, mergeCount);
-
-    let thinkingCount = 0;
-    let toolCount = 0;
-    for (const idx of toMergeIndices) {
-      const child = children[idx]!;
-      if (child instanceof ThinkingComponent) thinkingCount++;
-      else if (child instanceof ToolCallComponent) toolCount++;
-    }
-    if (thinkingCount === 0 && toolCount === 0) return false;
-
-    let summary: StepSummaryComponent;
-    if (summaryIndex >= 0) {
-      summary = children[summaryIndex] as StepSummaryComponent;
-      summary.addCounts(thinkingCount, toolCount);
-    } else {
-      summary = new StepSummaryComponent();
-      summary.addCounts(thinkingCount, toolCount);
-    }
-
-    // Rebuild children: keep everything except the merged steps, with the summary
-    // sitting right after the user message.
-    const toMergeSet = new Set(toMergeIndices);
-    const newChildren: Component[] = [];
-    for (let i = 0; i <= turnStart; i++) newChildren.push(children[i]!);
-    newChildren.push(summary);
-    for (let i = turnStart + 1; i < children.length; i++) {
-      if (i === summaryIndex) continue;
-      if (toMergeSet.has(i)) continue;
-      newChildren.push(children[i]!);
-    }
-
-    for (const idx of toMergeIndices) {
-      const child = children[idx]!;
-      if (hasDispose(child)) child.dispose();
-    }
-
-    children.splice(0, children.length, ...newChildren);
-    return true;
+    return mergeCurrentTurnSteps(this.host);
   }
 
   mergeAllTurnSteps(): void {
-    const { host } = this;
-    if (TRANSCRIPT_KEEP_RECENT_STEPS <= 0) return;
-    const children = host.state.transcriptContainer.children;
-
-    const boundaries: number[] = [];
-    for (let i = 0; i < children.length; i++) {
-      if (this.isTurnBoundaryComponent(children[i]!)) boundaries.push(i);
-    }
-    if (boundaries.length === 0) return;
-
-    const newChildren: Component[] = [];
-    const toDispose: Component[] = [];
-    for (let i = 0; i < boundaries[0]!; i++) newChildren.push(children[i]!);
-
-    for (let t = 0; t < boundaries.length; t++) {
-      const turnStart = boundaries[t]!;
-      const turnEnd = t + 1 < boundaries.length ? boundaries[t + 1]! : children.length;
-      newChildren.push(children[turnStart]!);
-
-      let summaryIndex = -1;
-      const stepIndices: number[] = [];
-      for (let i = turnStart + 1; i < turnEnd; i++) {
-        const child = children[i]!;
-        if (child instanceof StepSummaryComponent) summaryIndex = i;
-        else if (child instanceof AssistantMessageComponent) continue;
-        else stepIndices.push(i);
-      }
-
-      if (stepIndices.length > TRANSCRIPT_KEEP_RECENT_STEPS) {
-        const mergeCount = stepIndices.length - TRANSCRIPT_KEEP_RECENT_STEPS;
-        const toMergeIndices = stepIndices.slice(0, mergeCount);
-        let thinkingCount = 0;
-        let toolCount = 0;
-        for (const idx of toMergeIndices) {
-          const child = children[idx]!;
-          if (child instanceof ThinkingComponent) thinkingCount++;
-          else if (child instanceof ToolCallComponent) toolCount++;
-        }
-        let summary: StepSummaryComponent;
-        if (summaryIndex >= 0) {
-          summary = children[summaryIndex] as StepSummaryComponent;
-          summary.addCounts(thinkingCount, toolCount);
-        } else {
-          summary = new StepSummaryComponent();
-          summary.addCounts(thinkingCount, toolCount);
-        }
-        newChildren.push(summary);
-        for (const idx of toMergeIndices) toDispose.push(children[idx]!);
-        const toMergeSet = new Set(toMergeIndices);
-        for (let i = turnStart + 1; i < turnEnd; i++) {
-          if (i === summaryIndex) continue;
-          if (toMergeSet.has(i)) continue;
-          newChildren.push(children[i]!);
-        }
-      } else {
-        for (let i = turnStart + 1; i < turnEnd; i++) newChildren.push(children[i]!);
-      }
-    }
-
-    for (const child of toDispose) {
-      if (hasDispose(child)) child.dispose();
-    }
-    children.splice(0, children.length, ...newChildren);
+    mergeAllTurnSteps(this.host);
   }
 
   showStatus(message: string, color?: ColorToken): void {

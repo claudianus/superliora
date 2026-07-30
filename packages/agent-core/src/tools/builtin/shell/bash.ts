@@ -22,8 +22,7 @@
  *     foreground runs pass a callback to collect chunks for this call.
  */
 
-import type { Kaos, KaosProcess } from '@superliora/kaos';
-import { z } from 'zod';
+import type { Kaos } from '@superliora/kaos';
 
 import { ProcessBackgroundTask, type BackgroundManager } from '../../../agent/background';
 import type { BuiltinTool } from '../../../agent/tool';
@@ -52,105 +51,33 @@ import {
   formatShellSensitivePathError,
 } from '../../policies/shell-sensitive-path';
 import bashDescriptionTemplate from './bash.md?raw';
-
-const MS_PER_SECOND = 1000;
-const DEFAULT_TIMEOUT_S = 60;
-const MAX_TIMEOUT_S = 5 * 60;
-const DEFAULT_BACKGROUND_TIMEOUT_S = 10 * 60;
-const MAX_BACKGROUND_TIMEOUT_S = 24 * 60 * 60;
-const USER_INTERRUPT_REASON = 'Interrupted by user';
-
-export const BashInputSchema = z
-  .object({
-    command: z.string().min(1, 'Command cannot be empty.').describe('The command to execute.'),
-    cwd: z
-      .string()
-      .optional()
-      .describe(
-        "The working directory in which to run the command. When omitted, the command runs in the session's working directory.",
-      ),
-    timeout: z
-      .number()
-      .int()
-      .positive()
-      .default(DEFAULT_TIMEOUT_S)
-      .describe(
-        `Optional timeout in seconds for the command to execute. Foreground default ${String(DEFAULT_TIMEOUT_S)}s, max ${String(MAX_TIMEOUT_S)}s. Background default ${String(DEFAULT_BACKGROUND_TIMEOUT_S)}s, max ${String(MAX_BACKGROUND_TIMEOUT_S)}s. Ignored for background commands when disable_timeout=true.`,
-      )
-      .optional(),
-    description: z
-      .string()
-      .optional()
-      .describe(
-        'A short description for the background task. Required when run_in_background is true.',
-      ),
-    run_in_background: z
-      .boolean()
-      .optional()
-      .describe('Whether to run the command as a background task.'),
-    disable_timeout: z
-      .boolean()
-      .optional()
-      .describe(
-        'If true, do not apply a timeout to the command. Only applies when run_in_background is true.',
-      ),
-    compress_output: z
-      .boolean()
-      .optional()
-      .describe(
-        'When true, compress stdout/stderr for model context (test/build/git output patterns). Overflow can be recovered with LioraExpand when archived.',
-      ),
-  })
-  .superRefine((val, ctx) => {
-    if (val.timeout === undefined) return;
-    const isBackground = val.run_in_background === true;
-    if (!isValidTimeoutValue(val.timeout, isBackground)) {
-      const cap = isBackground ? MAX_BACKGROUND_TIMEOUT_S : MAX_TIMEOUT_S;
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['timeout'],
-        message: `timeout must be ≤ ${String(cap)}s (${isBackground ? 'background' : 'foreground'})`,
-      });
-    }
-  });
-
-export const BashOutputSchema = z.object({
-  exitCode: z.number().int(),
-  stdout: z.string(),
-  stderr: z.string(),
-});
-
-export type BashInput = z.Infer<typeof BashInputSchema>;
-export type BashOutput = z.Infer<typeof BashOutputSchema>;
-
-const SHELL_TIMEOUT_VARS = {
-  DEFAULT_TIMEOUT_S,
+import {
+  backgroundResultMessage,
+  BashInputSchema,
+  closeProcessStdin,
   DEFAULT_BACKGROUND_TIMEOUT_S,
+  DEFAULT_TIMEOUT_S,
+  foregroundDescription,
+  formatTimeoutLabel,
+  killSpawnedProcess,
+  MS_PER_SECOND,
   MAX_TIMEOUT_S,
-  MAX_BACKGROUND_TIMEOUT_S,
-};
+  normalizeTimeoutMs,
+  rewriteWindowsNullRedirect,
+  shellQuote,
+  shouldCompressOutput,
+  SHELL_TIMEOUT_VARS,
+  USER_INTERRUPT_REASON,
+  windowsPathToPosixPath,
+  type BashInput,
+} from './bash-support';
 
-function timeoutCapS(isBackground: boolean): number {
-  return isBackground ? MAX_BACKGROUND_TIMEOUT_S : MAX_TIMEOUT_S;
-}
-
-function isValidTimeoutValue(timeout: number, isBackground: boolean): boolean {
-  return timeout <= timeoutCapS(isBackground);
-}
-
-function normalizeTimeoutMs(timeout: number | undefined, isBackground: boolean): number {
-  const defaultSeconds = isBackground ? DEFAULT_BACKGROUND_TIMEOUT_S : DEFAULT_TIMEOUT_S;
-  const value = timeout ?? defaultSeconds;
-  return Math.min(value, timeoutCapS(isBackground)) * MS_PER_SECOND;
-}
-
-async function disposeProcess(proc: KaosProcess): Promise<void> {
-  try {
-    await proc.dispose();
-  } catch {
-    /* best-effort cleanup */
-  }
-}
+export {
+  BashInputSchema,
+  BashOutputSchema,
+  type BashInput,
+  type BashOutput,
+} from './bash-support';
 
 function renderBashDescription(shellName: string): string {
   return renderPrompt(bashDescriptionTemplate, { ...SHELL_TIMEOUT_VARS, SHELL_NAME: shellName });
@@ -582,73 +509,4 @@ export class BashTool implements BuiltinTool<BashInput> {
       'next_step: Use TaskStop only if the task must be cancelled.\n'
     );
   }
-}
-
-function backgroundResultMessage(title: string, suffix: string): string {
-  const normalized = title.endsWith('.') ? title : `${title}.`;
-  if (suffix.length === 0) return normalized;
-  return suffix.endsWith('.') ? `${normalized} ${suffix}` : `${normalized} ${suffix}.`;
-}
-
-function formatTimeoutLabel(timeoutMs: number): string {
-  return timeoutMs % 1000 === 0 ? `${String(timeoutMs / 1000)}s` : `${String(timeoutMs)}ms`;
-}
-
-function foregroundDescription(args: BashInput): string {
-  const explicit = args.description?.trim();
-  if (explicit !== undefined && explicit.length > 0) return explicit;
-  const preview = args.command.length > 60 ? `${args.command.slice(0, 60)}…` : args.command;
-  return `Bash: ${preview}`;
-}
-
-function shouldCompressOutput(args: BashInput, output: string): boolean {
-  if (args.compress_output === false) return false;
-  if (args.compress_output === true) return true;
-  if (output.length < 4_000) return false;
-  return /\b(?:pnpm|npm|yarn|vitest|jest|pytest|cargo|go\s+test|tsc|eslint|oxlint|oxfmt|ruff|mypy|pyright|docker|git)\b/u.test(
-    args.command,
-  );
-}
-
-function closeProcessStdin(proc: KaosProcess): void {
-  try {
-    proc.stdin.end();
-  } catch {
-    /* process already gone */
-  }
-}
-
-async function killSpawnedProcess(proc: KaosProcess): Promise<void> {
-  try {
-    await proc.kill('SIGTERM');
-  } catch {
-    /* process already gone */
-  } finally {
-    await disposeProcess(proc);
-  }
-}
-
-function shellQuote(s: string): string {
-  return `'${s.replaceAll("'", "'\\''")}'`;
-}
-
-function windowsPathToPosixPath(path: string): string {
-  if (path.startsWith('\\\\')) {
-    return path.replaceAll('\\', '/');
-  }
-
-  const driveMatch = /^([A-Za-z]):(?:[\\/]|$)/.exec(path);
-  if (driveMatch !== null) {
-    const drive = driveMatch[1]!.toLowerCase();
-    const rest = path.slice(2).replaceAll('\\', '/');
-    return `/${drive}${rest.startsWith('/') ? rest : `/${rest}`}`;
-  }
-
-  return path.replaceAll('\\', '/');
-}
-
-const WINDOWS_NUL_REDIRECT = /(\d?&?>+\s*)[Nn][Uu][Ll](?=\s|$|[|&;)\n])/g;
-
-function rewriteWindowsNullRedirect(command: string): string {
-  return command.replace(WINDOWS_NUL_REDIRECT, '$1/dev/null');
 }

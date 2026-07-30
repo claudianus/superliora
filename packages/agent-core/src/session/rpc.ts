@@ -60,28 +60,21 @@ import type {
 } from '#/rpc';
 import type { PromisableMethods } from '#/utils/types';
 
-import type { Session, SessionMeta } from '.';
-import type { ConversationLoopState } from '../agent/conversation-loop';
+import type { Session } from '.';
 import { buildSessionTrace } from './trace';
 import {
   promptMetadataTextFromPayload,
   promptMetadataTextFromPluginCommand,
   promptMetadataTextFromSkill,
-  titleFromPromptMetadataText,
 } from './prompt-metadata';
 import {
-  resolveResponseLanguagePreference,
-  responseLanguagePreferenceFromUnknown,
-} from './response-language';
-import { detectResponseLanguageWithLlm } from './response-language-llm';
-import { maybeTransformPromptForInterruptedWorkResume } from '../ultrawork/interrupted-work-resume';
-import { sessionMediaOriginalsDir } from '../tools/support/image-originals';
-import {
-  DEFAULT_NON_VISION_FALLBACK,
-  isVisionMediaPart,
-  transformMediaForNonVisionModel,
-} from './vision-analyzer';
-import type { NonVisionFallbackPolicy } from './vision-analyzer';
+  maybeResumeInterruptedWorkInput,
+  maybeResumeInterruptedWorkPrompt,
+  maybeTransformNonVisionMedia,
+  toConversationLoopStateData,
+  updatePromptMetadata,
+  updateResponseLanguagePreference,
+} from './rpc-prompt-handlers';
 
 type AgentScopedPayload<T> = T & { agentId: string };
 
@@ -178,11 +171,11 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async prompt({ agentId, ...payload }: AgentScopedPayload<PromptPayload>) {
     if (agentId === 'main') {
-      await this.updatePromptMetadata(promptMetadataTextFromPayload(payload));
-      await this.updateResponseLanguagePreference(payload.input);
-      payload = await this.maybeResumeInterruptedWorkPrompt(agentId, payload);
+      await updatePromptMetadata(this.session, promptMetadataTextFromPayload(payload));
+      await updateResponseLanguagePreference(this.session, payload.input);
+      payload = await maybeResumeInterruptedWorkPrompt(this.session, agentId, payload);
     }
-    const mediaTransformed = await this.maybeTransformNonVisionMedia(agentId, payload.input);
+    const mediaTransformed = await maybeTransformNonVisionMedia(this.session, agentId, payload.input);
     if (mediaTransformed !== undefined) {
       payload = { ...payload, input: mediaTransformed };
     }
@@ -191,13 +184,13 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async steer({ agentId, ...payload }: AgentScopedPayload<SteerPayload>) {
     if (agentId === 'main') {
-      await this.updateResponseLanguagePreference(payload.input);
-      const transformed = await this.maybeResumeInterruptedWorkInput(agentId, payload.input);
+      await updateResponseLanguagePreference(this.session, payload.input);
+      const transformed = await maybeResumeInterruptedWorkInput(this.session, agentId, payload.input);
       if (transformed !== undefined) {
         payload = { ...payload, input: transformed };
       }
     }
-    const mediaTransformed = await this.maybeTransformNonVisionMedia(agentId, payload.input);
+    const mediaTransformed = await maybeTransformNonVisionMedia(this.session, agentId, payload.input);
     if (mediaTransformed !== undefined) {
       payload = { ...payload, input: mediaTransformed };
     }
@@ -311,7 +304,7 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   async activateSkill({ agentId, ...payload }: AgentScopedPayload<ActivateSkillPayload>) {
     await (await this.getAgent(agentId)).activateSkill(payload);
     if (agentId === 'main') {
-      await this.updatePromptMetadata(promptMetadataTextFromSkill(payload));
+      await updatePromptMetadata(this.session, promptMetadataTextFromSkill(payload));
     }
   }
 
@@ -321,7 +314,7 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   }: AgentScopedPayload<ActivatePluginCommandPayload>) {
     await (await this.getAgent(agentId)).activatePluginCommand(payload);
     if (agentId === 'main') {
-      await this.updatePromptMetadata(promptMetadataTextFromPluginCommand(payload));
+      await updatePromptMetadata(this.session, promptMetadataTextFromPluginCommand(payload));
     }
   }
 
@@ -474,183 +467,4 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     const agent = await this.session.ensureAgentResumed(agentId);
     return agent.rpcMethods;
   }
-
-  private needUpdateEasyTitle(metadata: SessionMeta): boolean {
-    if (hasCustomTitle(metadata)) return false;
-    if (!isUntitled(metadata.title)) return false;
-    return true;
-  }
-
-  private async updatePromptMetadata(lastPrompt: string | undefined): Promise<void> {
-    if (lastPrompt === undefined) return;
-
-    const title = this.needUpdateEasyTitle(this.session.metadata)
-      ? titleFromPromptMetadataText(lastPrompt)
-      : undefined;
-    const now = new Date().toISOString();
-    const nextMetadata = {
-      ...this.session.metadata,
-      lastPrompt,
-      updatedAt: now,
-    };
-    if (title !== undefined) {
-      nextMetadata.title = title;
-      nextMetadata.isCustomTitle = false;
-    }
-
-    this.session.metadata = nextMetadata;
-    await this.session.writeMetadata();
-    await this.session.rpc.emitEvent({
-      type: 'session.meta.updated',
-      agentId: 'main',
-      title,
-      patch: {
-        title,
-        isCustomTitle: title === undefined ? undefined : false,
-        lastPrompt,
-      },
-    });
-  }
-
-  private async maybeResumeInterruptedWorkPrompt(
-    agentId: string,
-    payload: PromptPayload,
-  ): Promise<PromptPayload> {
-    const transformed = await this.maybeResumeInterruptedWorkInput(agentId, payload.input);
-    if (transformed === undefined) return payload;
-    return { input: transformed };
-  }
-
-  private async maybeResumeInterruptedWorkInput(
-    agentId: string,
-    input: PromptPayload['input'],
-  ): Promise<PromptPayload['input'] | undefined> {
-    const text = promptMetadataTextFromPayload({ input });
-    if (text === undefined) return undefined;
-    const agent = await this.session.ensureAgentResumed(agentId);
-    const resumed = await maybeTransformPromptForInterruptedWorkResume(agent, text, {
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (resumed === undefined) return undefined;
-    return [{ type: 'text', text: resumed.promptText }];
-  }
-
-  /**
-   * Vision analyzer fallback: when the target agent's current model cannot
-   * consume attached media, replace media parts with analyzer text (policy
-   * 'analyze') or path-only notes ('path'). 'block' is enforced by clients
-   * before submission. Returns undefined when nothing was transformed.
-   * Analyzer failures degrade to path notes — never block the prompt.
-   */
-  private async maybeTransformNonVisionMedia(
-    agentId: string,
-    input: PromptPayload['input'],
-  ): Promise<PromptPayload['input'] | undefined> {
-    const providerManager = this.session.options.providerManager;
-    if (providerManager === undefined) return undefined;
-    if (!input.some(isVisionMediaPart)) return undefined;
-
-    const policy: NonVisionFallbackPolicy =
-      providerManager.currentConfig().media?.nonVisionFallback ?? DEFAULT_NON_VISION_FALLBACK;
-    if (policy === 'block') return undefined;
-
-    const agent = await this.session.ensureAgentResumed(agentId);
-    const result = await transformMediaForNonVisionModel(
-      {
-        generate: agent.generate,
-        providerManager,
-        currentModelAlias: agent.config.modelAlias,
-        currentCapabilities: agent.config.modelCapabilities,
-      },
-      input,
-      { policy, originalsDir: sessionMediaOriginalsDir(this.session.options.homedir) },
-    );
-    if (result.analyzedCount === 0 && result.pathOnlyCount === 0) return undefined;
-    if (result.analyzedCount > 0) {
-      await this.session.rpc.emitEvent({
-        type: 'warning',
-        agentId,
-        code: 'vision_analyzer.analyzed',
-        message: `Analyzed ${result.analyzedCount} media attachment(s) with ${result.analyzerModels.join(', ')} because the current model is text-only.`,
-        details: {
-          analyzerModel: result.analyzerModels.join(', '),
-          kind:
-            result.analyzedKinds.length === 1
-              ? (result.analyzedKinds[0] as string)
-              : 'mixed',
-          count: result.analyzedCount,
-        },
-      });
-    }
-    return result.parts;
-  }
-
-  private async updateResponseLanguagePreference(input: PromptPayload['input']): Promise<void> {
-    const current = responseLanguagePreferenceFromUnknown(
-      this.session.metadata.custom['responseLanguage'],
-    );
-    const mainAgent = await this.session.ensureAgentResumed('main');
-    const next = await resolveResponseLanguagePreference(current, input, {
-      env: process.env,
-      detectWithLlm: async (text, currentPreference, hostLocale) => {
-        const provider = mainAgent.config.provider;
-        if (provider === undefined) return undefined;
-        return detectResponseLanguageWithLlm(
-          { generate: mainAgent.generate, provider },
-          {
-            text,
-            current: currentPreference,
-            hostLocale,
-            signal: AbortSignal.timeout(8_000),
-          },
-        );
-      },
-    });
-    if (next === current || responseLanguagePreferencesEqual(next, current)) return;
-
-    this.session.metadata = {
-      ...this.session.metadata,
-      updatedAt: new Date().toISOString(),
-      custom: {
-        ...this.session.metadata.custom,
-        responseLanguage: next,
-      },
-    };
-    await this.session.writeMetadata();
-  }
-}
-
-function responseLanguagePreferencesEqual(
-  a: ReturnType<typeof responseLanguagePreferenceFromUnknown>,
-  b: ReturnType<typeof responseLanguagePreferenceFromUnknown>,
-): boolean {
-  return (
-    a?.code === b?.code &&
-    a?.source === b?.source &&
-    a?.locked === b?.locked
-  );
-}
-
-function isUntitled(title: unknown): boolean {
-  return typeof title !== 'string' || title.trim().length === 0 || title === 'New Session';
-}
-
-function hasCustomTitle(metadata: SessionMeta): boolean {
-  if (metadata.isCustomTitle) return true;
-  return typeof (metadata as SessionMeta & { customTitle?: unknown }).customTitle === 'string';
-}
-
-function toConversationLoopStateData(state: ConversationLoopState): ConversationLoopStateData {
-  return {
-    id: state.id,
-    prompt: state.config.prompt,
-    intervalMs: state.config.intervalMs,
-    maxIterations: state.config.maxIterations,
-    expiresAt: state.config.expiresAt,
-    status: state.status,
-    iterations: state.iterations,
-    createdAt: state.createdAt,
-    lastFiredAt: state.lastFiredAt,
-    stopReason: state.stopReason,
-  };
 }
