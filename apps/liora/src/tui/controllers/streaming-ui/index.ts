@@ -74,27 +74,18 @@ import {
   type ToolRenderContext,
 } from './tool-render';
 import {
+  buildRevealContext,
+  buildTextRenderContext,
+  buildToolRenderContext,
+  type StreamingRenderContextState,
+} from './render-context';
+import {
   type PendingToolGroup,
 } from './tool-groups';
 import {
   appearanceAnimationNow,
 } from '../../features/appearance/appearance-effects';
-
-export interface StreamingUIHost {
-  state: TUIState;
-  session: Session | undefined;
-  readonly motionBeats: MotionBeatController;
-  setAppState(patch: Partial<AppState>): void;
-  patchLivePane(patch: Partial<LivePaneState>): void;
-  resetLivePane(): void;
-  updateActivityPane(): void;
-  updateQueueDisplay(): void;
-  requireSession(): Session;
-  deferUserMessages: boolean;
-  shiftQueuedMessage(): QueuedMessage | undefined;
-  pushTranscriptEntry(entry: TranscriptEntry): void;
-  mergeCurrentTurnSteps(): void;
-}
+export type { StreamingUIHost } from './host-types';
 
 export class StreamingUIController {
   private readonly _flushState: StreamingFlushState = createStreamingFlushState();
@@ -624,59 +615,53 @@ export class StreamingUIController {
   // Render context builders
   // ---------------------------------------------------------------------------
 
+  private renderContextState(): StreamingRenderContextState {
+    return {
+      host: this.host,
+      revealRuntime: this.revealRuntime,
+      turnStartCueArmed: this.turnStartCueArmed,
+      currentTurnId: this._currentTurnId,
+      currentStep: this._currentStep,
+      streamingBlock: this._streamingBlock,
+      activeThinkingComponent: this._activeThinkingComponent,
+      assistantDraft: this._assistantDraft,
+      thinkingDraft: this._thinkingDraft,
+      activeToolCalls: this._activeToolCalls,
+      pendingToolComponents: this._pendingToolComponents,
+      streamingToolCallArguments: this._streamingToolCallArguments,
+      chainSummary: this._chainSummary,
+      pendingAgentGroup: this._pendingAgentGroup,
+      pendingReadGroup: this._pendingReadGroup,
+      setStreamingBlock: (block) => {
+        this._streamingBlock = block;
+      },
+      setTurnStartCueArmed: (armed) => {
+        this.turnStartCueArmed = armed;
+      },
+      setActiveThinkingComponent: (component) => {
+        this._activeThinkingComponent = component;
+      },
+      setPendingAgentGroup: (group) => {
+        this._pendingAgentGroup = group;
+      },
+      setPendingReadGroup: (group) => {
+        this._pendingReadGroup = group;
+      },
+      finalizeLiveTextBuffers: (mode) => this.finalizeLiveTextBuffers(mode),
+      onToolCallStart: (toolCall) => this.onToolCallStart(toolCall),
+    };
+  }
+
   private flushToolCallPreview(id: string): void {
     flushToolCallPreviewHelper(this.toolRenderContext(), id);
   }
 
   private textRenderContext(): TextRenderContext {
-    return {
-      host: this.host,
-      revealRuntime: this.revealRuntime,
-      getStreamingBlock: () => this._streamingBlock,
-      setStreamingBlock: (block) => {
-        this._streamingBlock = block;
-      },
-      getTurnStartCueArmed: () => this.turnStartCueArmed,
-      setTurnStartCueArmed: (armed) => {
-        this.turnStartCueArmed = armed;
-      },
-      getCurrentTurnId: () => this._currentTurnId,
-      getActiveThinkingComponent: () => this._activeThinkingComponent,
-      setActiveThinkingComponent: (component) => {
-        this._activeThinkingComponent = component;
-      },
-      clearPendingToolGroups: () => {
-        this._pendingAgentGroup = null;
-        this._pendingReadGroup = null;
-      },
-      settleActiveChainSummary: () => this.settleActiveChainSummary(),
-      shouldSmoothStreamReveal: () => this.shouldSmoothStreamReveal(),
-      revealContext: () => this.revealContext(),
-    };
+    return buildTextRenderContext(this.renderContextState());
   }
 
   private toolRenderContext(): ToolRenderContext {
-    return {
-      host: this.host,
-      getCurrentStep: () => this._currentStep,
-      getCurrentTurnId: () => this._currentTurnId,
-      getActiveToolCalls: () => this._activeToolCalls,
-      getPendingToolComponents: () => this._pendingToolComponents,
-      getStreamingToolCallArguments: () => this._streamingToolCallArguments,
-      getChainSummary: () => this._chainSummary,
-      getPendingAgentGroup: () => this._pendingAgentGroup,
-      setPendingAgentGroup: (group) => {
-        this._pendingAgentGroup = group;
-      },
-      getPendingReadGroup: () => this._pendingReadGroup,
-      setPendingReadGroup: (group) => {
-        this._pendingReadGroup = group;
-      },
-      getThinkingDraftLength: () => this._thinkingDraft.length,
-      hasStreamingBlock: () => this._streamingBlock !== null,
-      finalizeLiveTextBuffers: (mode) => this.finalizeLiveTextBuffers(mode),
-      onToolCallStart: (toolCall) => this.onToolCallStart(toolCall),
-    };
+    return buildToolRenderContext(this.renderContextState());
   }
 
   private shouldSmoothStreamReveal(): boolean {
@@ -684,17 +669,11 @@ export class StreamingUIController {
   }
 
   private resetRevealChannelsInternal(nowMs: number = 0): void {
-    resetRevealChannelsHelper(this.revealContext(), nowMs);
+    resetRevealChannelsHelper(buildRevealContext(this.renderContextState()), nowMs);
   }
 
   private revealContext(): StreamingRevealContext {
-    return {
-      state: this.host.state,
-      isReplaying: this.host.state.appState.isReplaying,
-      runtime: this.revealRuntime,
-      getStreamingBlock: () => this._streamingBlock,
-      getActiveThinkingComponent: () => this._activeThinkingComponent,
-    };
+    return buildRevealContext(this.renderContextState());
   }
 
   private settleActiveChainSummary(): void {
