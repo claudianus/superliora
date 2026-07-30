@@ -18,37 +18,24 @@ import {
   type SwarmModeTrigger,
   type SessionTrace,
 } from '@superliora/agent-core';
-import type { Kaos } from '@superliora/kaos';
 
 import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/events';
 import { buildSessionStatus } from '#/rpc-helpers';
 import { SdkEventBridge } from './rpc-event-bridge';
-import { SDKRpcClientPluginsMixin } from './rpc-plugins-mixin';
+import { SDKRpcClientBackgroundMixin } from './rpc-background-mixin';
 import type {
   AddAdditionalDirInput,
   AddAdditionalDirResult,
-  BackgroundTaskInfo,
   ConfigDiagnostics,
-  CreateSessionOptions,
   DeleteConfigFieldPath,
-  ExportSessionInput,
-  ExportSessionResult,
-  ForkSessionInput,
   GetConfigOptions,
   LioraConfig,
   LioraConfigPatch,
-  ListSessionsOptions,
-  McpServerInfo,
-  McpStartupMetrics,
   ProviderRouteStatus,
   CompactOptions,
   SessionPlan,
   SessionStatus,
   SessionUsage,
-  RenameSessionInput,
-  ResumeSessionInput,
-  ResumedSessionSummary,
-  SessionSummary,
   SkillSearchResult,
   SkillSummary,
   Unsubscribe,
@@ -109,7 +96,7 @@ export type {
 
 export { ClientAPI } from './rpc-client-api';
 
-export abstract class SDKRpcClientBase extends SDKRpcClientPluginsMixin {
+export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
   private readonly eventBridge = new SdkEventBridge();
 
   /**
@@ -121,101 +108,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientPluginsMixin {
    */
   emergencyFlushSync(): void {
     // Default no-op for transports without an in-process core.
-  }
-
-  async createSession(input: CreateSessionOptions): Promise<SessionSummary> {
-    const rpc = await this.getRpc();
-    const { planMode, ...coreInput } = input;
-    void planMode;
-    return rpc.createSession(coreInput);
-  }
-
-  /**
-   * Create a session with a custom execution environment (Kaos).
-   *
-   * The base implementation ignores `kaos` and `persistenceKaos` because
-   * remote transports (e.g. WebSocket-backed RPC) cannot serialize a Kaos
-   * instance across the wire. In-process transports ({@link SDKRpcClient})
-   * override this to pass the overrides directly to the core.
-   */
-  async createSessionWithKaos(
-    input: CreateSessionOptions,
-    kaos: Kaos,
-    persistenceKaos?: Kaos,
-  ): Promise<SessionSummary> {
-    void kaos;
-    void persistenceKaos;
-    return this.createSession(input);
-  }
-
-  async resumeSession(input: ResumeSessionInput): Promise<ResumedSessionSummary> {
-    const rpc = await this.getRpc();
-    return rpc.resumeSession({ ...input, sessionId: input.id });
-  }
-
-  /**
-   * Resume a session with a custom execution environment (Kaos).
-   *
-   * Same transport limitation as {@link createSessionWithKaos}: the base
-   * implementation ignores `kaos` / `persistenceKaos`.
-   */
-  async resumeSessionWithKaos(
-    input: ResumeSessionInput,
-    kaos: Kaos,
-    persistenceKaos?: Kaos,
-  ): Promise<ResumedSessionSummary> {
-    void kaos;
-    void persistenceKaos;
-    return this.resumeSession(input);
-  }
-
-  async reloadSession(input: ReloadSessionRpcInput): Promise<ResumedSessionSummary> {
-    const rpc = await this.getRpc();
-    return rpc.reloadSession({
-      sessionId: input.sessionId,
-      forcePluginSessionStartReminder: input.forcePluginSessionStartReminder,
-    });
-  }
-
-  async forkSession(input: ForkSessionInput): Promise<SessionSummary> {
-    const rpc = await this.getRpc();
-    return rpc.forkSession({
-      sessionId: input.id,
-      id: input.forkId,
-      title: input.title,
-      metadata: input.metadata,
-      worktree: input.worktree,
-    });
-  }
-
-  async closeSession(input: SessionIdRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.closeSession({ sessionId: input.sessionId });
-  }
-
-  async listSessions(input: ListSessionsOptions = {}): Promise<readonly SessionSummary[]> {
-    const rpc = await this.getRpc();
-    return rpc.listSessions(input);
-  }
-
-  async renameSession(input: RenameSessionInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.renameSession({
-      sessionId: input.id,
-      title: input.title,
-    });
-  }
-
-  async exportSession(input: ExportSessionInput): Promise<ExportSessionResult> {
-    const rpc = await this.getRpc();
-    return rpc.exportSession({
-      sessionId: input.id,
-      outputPath: input.outputPath,
-      includeGlobalLog: input.includeGlobalLog,
-      version: input.version,
-      installSource: input.installSource,
-      shellEnv: input.shellEnv,
-    });
   }
 
   async getConfig(input?: GetConfigOptions): Promise<LioraConfig> {
@@ -624,68 +516,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientPluginsMixin {
       query: input.query,
       limit: input.limit,
     });
-  }
-
-  async listBackgroundTasks(
-    input: SessionIdRpcInput & { activeOnly?: boolean; limit?: number },
-  ): Promise<readonly BackgroundTaskInfo[]> {
-    const rpc = await this.getRpc();
-    return rpc.getBackground({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      activeOnly: input.activeOnly,
-      limit: input.limit,
-    });
-  }
-
-  async getBackgroundTaskOutput(
-    input: SessionIdRpcInput & { taskId: string; tail?: number },
-  ): Promise<string> {
-    const rpc = await this.getRpc();
-    return rpc.getBackgroundOutput({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      taskId: input.taskId,
-      tail: input.tail,
-    });
-  }
-
-  async stopBackgroundTask(
-    input: SessionIdRpcInput & { taskId: string; reason?: string },
-  ): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.stopBackground({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      taskId: input.taskId,
-      reason: input.reason,
-    });
-  }
-
-  async detachBackgroundTask(
-    input: SessionIdRpcInput & { taskId: string },
-  ): Promise<BackgroundTaskInfo | undefined> {
-    const rpc = await this.getRpc();
-    return rpc.detachBackground({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      taskId: input.taskId,
-    });
-  }
-
-  async listMcpServers(input: SessionIdRpcInput): Promise<readonly McpServerInfo[]> {
-    const rpc = await this.getRpc();
-    return rpc.listMcpServers({ sessionId: input.sessionId });
-  }
-
-  async getMcpStartupMetrics(input: SessionIdRpcInput): Promise<McpStartupMetrics> {
-    const rpc = await this.getRpc();
-    return rpc.getMcpStartupMetrics({ sessionId: input.sessionId });
-  }
-
-  async reconnectMcpServer(input: ReconnectMcpServerRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.reconnectMcpServer({ sessionId: input.sessionId, name: input.name });
   }
 
   onEvent(listener: (event: Event) => void): Unsubscribe {
