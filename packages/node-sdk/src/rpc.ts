@@ -1,14 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import {
-  ErrorCodes,
-  makeErrorPayload,
   type AgentContextData,
   type ContextComposition,
   type ContextOSRetrievalDiagnostics,
   type ApprovalRequest,
   type ApprovalResponse,
-  type CoreAPI,
   type CredentialRequest,
   type CredentialResponse,
   type Event,
@@ -16,7 +13,6 @@ import {
   type InlineCompleteResult,
   type QuestionRequest,
   type QuestionResult,
-  type RPCMethods,
   type SDKAPI,
   type SessionTrace,
   type SuggestPromptsResult,
@@ -29,6 +25,8 @@ import {
 import type { Kaos } from '@superliora/kaos';
 
 import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/events';
+import { buildSessionStatus, type ResolvedCoreAPI } from '#/rpc-helpers';
+import { SdkEventBridge } from './rpc-event-bridge';
 import type {
   AddAdditionalDirInput,
   AddAdditionalDirResult,
@@ -85,101 +83,61 @@ import type {
   UltraworkRun,
   Unsubscribe,
 } from '#/types';
+import {
+  type ActivatePluginCommandRpcInput,
+  type ActivateSkillRpcInput,
+  type CancelSessionRpcInput,
+  type ConversationLoopState,
+  type InlineCompleteRpcInput,
+  type ReconnectMcpServerRpcInput,
+  type ReloadSessionRpcInput,
+  type RewindFilesRpcInput,
+  type RewindFilesRpcResult,
+  type RunShellCommandRpcInput,
+  type RunShellCommandRpcResult,
+  type SearchSkillsRpcInput,
+  type SessionIdRpcInput,
+  type SessionPromptRpcInput,
+  type SetSessionModelRpcInput,
+  type SetSessionModelRpcResult,
+  type SetSessionOrchestratorModeRpcInput,
+  type SetSessionPermissionRpcInput,
+  type SetSessionPlanModeRpcInput,
+  type SetSessionPremiumQualityRpcInput,
+  type SetSessionSwarmModeRpcInput,
+  type SetSessionThinkingRpcInput,
+  type StartConversationLoopRpcInput,
+  type StopConversationLoopRpcInput,
+  type SuggestPromptsRpcInput,
+} from './rpc-types';
+
+export type {
+  ActivatePluginCommandRpcInput,
+  ActivateSkillRpcInput,
+  CancelSessionRpcInput,
+  ConversationLoopState,
+  InlineCompleteRpcInput,
+  ReconnectMcpServerRpcInput,
+  ReloadSessionRpcInput,
+  SearchSkillsRpcInput,
+  SessionIdRpcInput,
+  SessionPromptRpcInput,
+  SetSessionModelRpcInput,
+  SetSessionModelRpcResult,
+  SetSessionOrchestratorModeRpcInput,
+  SetSessionPermissionRpcInput,
+  SetSessionPlanModeRpcInput,
+  SetSessionPremiumQualityRpcInput,
+  SetSessionSwarmModeRpcInput,
+  SetSessionThinkingRpcInput,
+  SuggestPromptsRpcInput,
+} from './rpc-types';
 
 const MAIN_AGENT_ID = 'main';
 
-export interface SessionPromptRpcInput {
-  readonly sessionId: string;
-  readonly input: PromptInput;
-}
-
-export interface SessionIdRpcInput {
-  readonly sessionId: string;
-}
-
-export interface CancelSessionRpcInput extends SessionIdRpcInput {
-  readonly source?: TurnCancelSource;
-}
-
-export interface ReloadSessionRpcInput extends SessionIdRpcInput {
-  readonly forcePluginSessionStartReminder?: boolean;
-}
-
-export interface SetSessionModelRpcInput extends SessionIdRpcInput {
-  readonly model: string;
-}
-
-export interface SetSessionModelRpcResult {
-  readonly model: string;
-  readonly providerName?: string | undefined;
-}
-
-export interface SetSessionThinkingRpcInput extends SessionIdRpcInput {
-  readonly level: string;
-}
-
-export interface SetSessionPermissionRpcInput extends SessionIdRpcInput {
-  readonly mode: PermissionMode;
-}
-
-export interface SetSessionPremiumQualityRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-}
-
-export interface SetSessionOrchestratorModeRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-}
-
-export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-  readonly ultra?: boolean;
-  readonly initialContext?: string;
-  readonly source?: 'standalone' | 'ultrawork';
-}
-
-export type SetSessionSwarmModeRpcInput =
-  | (SessionIdRpcInput & { readonly enabled: true; readonly trigger: SwarmModeTrigger })
-  | (SessionIdRpcInput & { readonly enabled: false });
-
-export interface ActivateSkillRpcInput extends SessionIdRpcInput {
-  readonly name: string;
-  readonly args?: string | undefined;
-}
-
-export interface ActivatePluginCommandRpcInput extends SessionIdRpcInput {
-  readonly pluginId: string;
-  readonly commandName: string;
-  readonly args?: string | undefined;
-}
-
-export interface SearchSkillsRpcInput extends SessionIdRpcInput {
-  readonly query: string;
-  readonly limit?: number | undefined;
-}
-
-export interface ReconnectMcpServerRpcInput extends SessionIdRpcInput {
-  readonly name: string;
-}
-
-export interface InlineCompleteRpcInput extends SessionIdRpcInput {
-  readonly text: string;
-  readonly cursorLine: number;
-  readonly cursorCol: number;
-  readonly signal?: AbortSignal;
-}
-
-export interface SuggestPromptsRpcInput extends SessionIdRpcInput {
-  readonly signal?: AbortSignal;
-}
-
-type ResolvedCoreAPI = RPCMethods<CoreAPI>;
-
 export abstract class SDKRpcClientBase {
   private readonly interactiveAgentScope = new AsyncLocalStorage<string>();
-  private readonly eventListeners = new Set<(event: Event) => void>();
-  private readonly approvalHandlers = new Map<string, ApprovalHandler>();
-  private readonly questionHandlers = new Map<string, QuestionHandler>();
-  private readonly credentialHandlers = new Map<string, CredentialHandler>();
+  private readonly eventBridge = new SdkEventBridge();
 
   get interactiveAgentId(): string {
     return this.interactiveAgentScope.getStore() ?? MAIN_AGENT_ID;
@@ -772,30 +730,16 @@ export abstract class SDKRpcClientBase {
         rpc.getUsage(scoped).catch(() => undefined),
         rpc.getProviderRouteStatus(scoped).catch(() => null),
       ]);
-    const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
-    const contextTokens = context.tokenCount;
-    const contextUsage = maxContextTokens > 0 ? contextTokens / maxContextTokens : 0;
-    const hasUsage =
-      usage !== undefined &&
-      (usage.byModel !== undefined || usage.total !== undefined || usage.currentTurn !== undefined);
-    return {
-      model: config.modelAlias ?? config.provider?.model,
-      thinkingLevel: config.thinkingLevel,
-      permission: permission.mode,
-      planMode: plan !== null,
+    return buildSessionStatus({
+      config,
+      context,
+      permission,
+      plan,
       swarmMode,
       premiumQualityMode,
-      contextTokens,
-      maxContextTokens,
-      contextUsage,
-      cacheHitRate: usage?.cacheHitRate,
-      roleModels: config.roleModels,
-      usage: hasUsage ? usage : undefined,
+      usage,
       providerRouteStatus,
-      contextOS: context.contextOS,
-      microCompaction: context.microCompaction,
-      autoDream: context.autoDream,
-    };
+    });
   }
 
   async resetProviderRouteStatus(input: SessionIdRpcInput): Promise<ProviderRouteStatus | null> {
@@ -1080,111 +1024,45 @@ export abstract class SDKRpcClientBase {
   }
 
   onEvent(listener: (event: Event) => void): Unsubscribe {
-    this.eventListeners.add(listener);
-    return () => {
-      this.eventListeners.delete(listener);
-    };
+    return this.eventBridge.onEvent(listener);
   }
 
   receiveEvent(event: Event): void {
-    for (const listener of this.eventListeners) {
-      listener(event);
-    }
+    this.eventBridge.receiveEvent(event);
   }
 
   setApprovalHandler(sessionId: string, handler: ApprovalHandler | undefined): void {
-    if (handler === undefined) {
-      this.approvalHandlers.delete(sessionId);
-      return;
-    }
-    this.approvalHandlers.set(sessionId, handler);
+    this.eventBridge.setApprovalHandler(sessionId, handler);
   }
 
   setQuestionHandler(sessionId: string, handler: QuestionHandler | undefined): void {
-    if (handler === undefined) {
-      this.questionHandlers.delete(sessionId);
-      return;
-    }
-    this.questionHandlers.set(sessionId, handler);
+    this.eventBridge.setQuestionHandler(sessionId, handler);
   }
 
   setCredentialHandler(sessionId: string, handler: CredentialHandler | undefined): void {
-    if (handler === undefined) {
-      this.credentialHandlers.delete(sessionId);
-      return;
-    }
-    this.credentialHandlers.set(sessionId, handler);
+    this.eventBridge.setCredentialHandler(sessionId, handler);
   }
 
   clearSessionHandlers(sessionId: string): void {
-    this.approvalHandlers.delete(sessionId);
-    this.questionHandlers.delete(sessionId);
-    this.credentialHandlers.delete(sessionId);
+    this.eventBridge.clearSessionHandlers(sessionId);
   }
 
   async requestApproval(
     request: ApprovalRequest & { sessionId: string; agentId: string },
   ): Promise<ApprovalResponse> {
-    const handler = this.approvalHandlers.get(request.sessionId);
-    if (handler === undefined) {
-      return {
-        decision: 'cancelled',
-        feedback: 'No approval handler registered.',
-      };
-    }
-
-    try {
-      return await handler(request);
-    } catch (error) {
-      this.receiveEvent({
-        type: 'error',
-        sessionId: request.sessionId,
-        agentId: request.agentId,
-        ...makeErrorPayload(ErrorCodes.SESSION_APPROVAL_HANDLER_ERROR, errorMessage(error)),
-      });
-      return {
-        decision: 'cancelled',
-        feedback: 'Approval handler failed.',
-      };
-    }
+    return this.eventBridge.requestApproval(request);
   }
 
   async requestQuestion(
     request: QuestionRequest & { sessionId: string; agentId: string },
   ): Promise<QuestionResult> {
-    const handler = this.questionHandlers.get(request.sessionId);
-    if (handler === undefined) return null;
-
-    try {
-      return await handler(request);
-    } catch (error) {
-      this.receiveEvent({
-        type: 'error',
-        sessionId: request.sessionId,
-        agentId: request.agentId,
-        ...makeErrorPayload(ErrorCodes.SESSION_QUESTION_HANDLER_ERROR, errorMessage(error)),
-      });
-      return null;
-    }
+    return this.eventBridge.requestQuestion(request);
   }
 
   async requestCredential(
     request: CredentialRequest & { sessionId: string; agentId: string },
   ): Promise<CredentialResponse | null> {
-    const handler = this.credentialHandlers.get(request.sessionId);
-    if (handler === undefined) return null;
-
-    try {
-      return await handler(request);
-    } catch (error) {
-      this.receiveEvent({
-        type: 'error',
-        sessionId: request.sessionId,
-        agentId: request.agentId,
-        ...makeErrorPayload(ErrorCodes.SESSION_CREDENTIAL_HANDLER_ERROR, errorMessage(error)),
-      });
-      return null;
-    }
+    return this.eventBridge.requestCredential(request);
   }
 
   async toolCall(request: ToolCallRequest): Promise<ToolCallResponse> {
@@ -1224,8 +1102,4 @@ export class ClientAPI implements SDKAPI {
   toolCall(request: ToolCallRequest): Promise<ToolCallResponse> {
     return this.client.toolCall(request);
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
