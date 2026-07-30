@@ -14,13 +14,29 @@
  */
 
 import {Container, Key, matchesKey, projectRendererScrollableLineWindow, RendererSelectableListViewport, renderRendererFrameRows, renderRendererVerticalScrollbar, type RendererTerminalHost, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
-import type { BackgroundTaskInfo, BackgroundTaskStatus } from '@superliora/sdk';
+import type { BackgroundTaskInfo } from '@superliora/sdk';
 
 import {renderSelectPointer} from '@/tui/utils/ui/select-pointer';
 import {currentTheme} from '#/tui/theme';
 import {printableChar} from '@/tui/utils/printable-key';
-
-const ELLIPSIS = '…';
+import {
+  compareTasks,
+  countByStatus,
+  ELLIPSIS,
+  fitExactly,
+  formatRelativeTime,
+  isTerminal,
+  LIST_COL_MAX,
+  LIST_COL_MIN,
+  LIST_COL_RATIO,
+  MIN_HEIGHT,
+  MIN_WIDTH,
+  singleLine,
+  STATUS_LABEL,
+  statusColor,
+  STOP_CONFIRM_TIMEOUT_MS,
+  visibleTasks,
+} from './tasks-browser-helpers';
 
 export type TasksFilter = 'all' | 'active';
 
@@ -41,129 +57,6 @@ export interface TasksBrowserProps {
   readonly onOpenOutput: (taskId: string) => void;
   /** Fired when stop is requested on a task that cannot be stopped. */
   readonly onStopIgnored?: (taskId: string, reason: 'terminal') => void;
-}
-
-const STATUS_LABEL: Record<BackgroundTaskStatus, string> = {
-  running: 'running',
-  completed: 'completed',
-  failed: 'failed',
-  timed_out: 'timed out',
-  killed: 'killed',
-  lost: 'lost',
-};
-
-/** Auto-cancel the inline stop confirmation after this many ms. */
-const STOP_CONFIRM_TIMEOUT_MS = 5_000;
-
-/** Minimum dimensions before we just print a "too small" message. */
-const MIN_WIDTH = 48;
-const MIN_HEIGHT = 10;
-
-/** Hard caps so a tiny / huge terminal still gets a sensible left-column width. */
-const LIST_COL_MIN = 28;
-const LIST_COL_MAX = 44;
-const LIST_COL_RATIO = 0.32;
-
-function statusColor(status: BackgroundTaskStatus): 'success' | 'textMuted' | 'error' {
-  switch (status) {
-    case 'running':
-      return 'success';
-    case 'completed':
-      return 'textMuted';
-    case 'failed':
-    case 'timed_out':
-    case 'killed':
-    case 'lost':
-      return 'error';
-  }
-}
-
-function isTerminal(status: BackgroundTaskStatus): boolean {
-  return (
-    status === 'completed' ||
-    status === 'failed' ||
-    status === 'timed_out' ||
-    status === 'killed' ||
-    status === 'lost'
-  );
-}
-
-function formatRelativeTime(ts: number | null | undefined): string {
-  if (ts === null || ts === undefined || !Number.isFinite(ts) || ts <= 0) return '';
-  const diffSec = Math.floor(Math.max(0, Date.now() - ts) / 1000);
-  if (diffSec < 60) return 'just now';
-  const minutes = Math.floor(diffSec / 60);
-  if (minutes < 60) return `${String(minutes)}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${String(hours)}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${String(days)}d ago`;
-}
-
-function singleLine(text: string): string {
-  return text.replaceAll(/\s+/g, ' ').trim();
-}
-
-function padToWidth(line: string, width: number): string {
-  const w = visibleWidth(line);
-  if (w === width) return line;
-  if (w > width) return truncateToWidth(line, width, ELLIPSIS);
-  return line + ' '.repeat(width - w);
-}
-
-/** Fit `line` into exactly `width` columns, even after CJK-edge truncation. */
-function fitExactly(line: string, width: number): string {
-  let s = line;
-  if (visibleWidth(s) > width) s = truncateToWidth(s, width, ELLIPSIS);
-  return padToWidth(s, width);
-}
-
-function visibleTasks(
-  tasks: readonly BackgroundTaskInfo[],
-  filter: TasksFilter,
-): BackgroundTaskInfo[] {
-  // The /tasks panel is for background task management. Foreground tasks
-  // (detached === false) are shown in the main transcript instead, and only
-  // appear here after being detached via Ctrl+B. `detached !== false` keeps
-  // reconcile ghosts whose `detached` field may be undefined.
-  const backgroundOnly = tasks.filter((t) => t.detached !== false);
-  if (filter === 'all') return [...backgroundOnly];
-  return backgroundOnly.filter((t) => !isTerminal(t.status));
-}
-
-function compareTasks(a: BackgroundTaskInfo, b: BackgroundTaskInfo): number {
-  const aTerminal = isTerminal(a.status);
-  const bTerminal = isTerminal(b.status);
-  if (aTerminal !== bTerminal) return aTerminal ? 1 : -1;
-  if (!aTerminal) return a.startedAt - b.startedAt;
-  return (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt);
-}
-
-interface StatusCounts {
-  running: number;
-  completed: number;
-  terminalFailed: number;
-}
-
-function countByStatus(tasks: readonly BackgroundTaskInfo[]): StatusCounts {
-  const counts: StatusCounts = { running: 0, completed: 0, terminalFailed: 0 };
-  for (const t of tasks) {
-    switch (t.status) {
-      case 'running':
-        counts.running += 1;
-        break;
-      case 'completed':
-        counts.completed += 1;
-        break;
-      case 'failed':
-      case 'timed_out':
-      case 'killed':
-      case 'lost':
-        counts.terminalFailed += 1;
-        break;
-    }
-  }
-  return counts;
 }
 
 export class TasksBrowserApp extends Container implements Focusable {
