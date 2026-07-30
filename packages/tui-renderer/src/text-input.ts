@@ -1,41 +1,61 @@
 import type { RendererCellStyle } from './cell-buffer';
-import type { RendererRegionLine } from './compositor';
 import type { NativeInputEvent, NativeInputKeyEvent, NativeInputMouseEvent } from './input-events';
-import type { RendererCursorShape, RendererCursorState } from './terminal-output';
+import type { RendererTextInputHistorySnapshot } from './text-input-edit';
 import {
-  cloneAtomicRange,
-  historySnapshotsEqual,
+  computeCharacterBackwardDelete,
+  computeCharacterForwardDelete,
+  computeLineEndDelete,
+  computeLineStartDelete,
+  computeWordBackwardDelete,
+  computeWordForwardDelete,
+  executeTextInputDelete,
+} from './text-input-delete';
+import {
   normalizeAtomicRanges,
   shiftAtomicRangesAfterDelete,
-  shiftAtomicRangesAfterInsert,
-  type RendererTextInputHistorySnapshot,
 } from './text-input-edit';
 import {
+  computeTextInputInsert,
+  normalizeInsertText,
+} from './text-input-insert';
+import {
+  computeMoveLeftOffset,
+  computeMoveRightOffset,
+  computeMoveWordLeftOffset,
+  computeMoveWordRightOffset,
+} from './text-input-horizontal-move';
+import {
+  handleTextInputMouse,
+  resolveTextInputMouseOffset,
+} from './text-input-mouse';
+import { renderTextInputFrame } from './text-input-render';
+import type { RendererCursorShape } from './terminal-output';
+import {
+  dispatchTextInputKey,
+  type RendererTextInputKeyActions,
+} from './text-input-key-dispatch';
+import {
+  createTextInputHistorySnapshot,
+  pushTextInputUndoSnapshot,
+  restoreTextInputHistorySnapshot,
+} from './text-input-history';
+import {
   buildVisualLines,
-  composeGhostLine,
-  computeCursorVisualPosition,
   computeVisualLineIndexForCursor,
   normalizeHistoryLimit,
   normalizeInputText,
   normalizeMaxLength,
-  normalizeMouseCoordinate,
   normalizeOptionalLayoutWidth,
   normalizeRenderHeight,
   normalizeRenderWidth,
-  normalizeViewportRow,
-  renderVisualLineCells,
   type VisualLine,
 } from './text-input-layout';
 import {
-  clampOffsetOutsideAtomicRange,
-  computeCursorForOffset,
-  computeOffsetForCursor,
-  computeOffsetForLine,
-  expandToAtomicBoundaries,
-  findContainingAtomicRange,
-  findNextEditableOffset,
-  findPreviousEditableOffset,
-} from './text-input-offsets';
+  moveTextInputPage,
+  moveTextInputParagraph,
+  moveTextInputVertical,
+} from './text-input-vertical-move';
+import type { NavigationMoveResult } from './text-input-navigation';
 import {
   nextWordBoundary,
   previousWordBoundary,
@@ -43,89 +63,37 @@ import {
   snapTextOffsetToBoundary,
   type AtomicCursorBias,
 } from './text-input-selection';
+import type {
+  RendererTextInputAtomicRange,
+  RendererTextInputCursor,
+  RendererTextInputMouseOptions,
+  RendererTextInputOptions,
+  RendererTextInputRenderOptions,
+  RendererTextInputRenderResult,
+  RendererTextInputSelection,
+  RendererTextInputSelectionRange,
+} from './text-input-types';
+
+export type {
+  RendererTextInputAtomicRange,
+  RendererTextInputCursor,
+  RendererTextInputMouseOptions,
+  RendererTextInputOptions,
+  RendererTextInputRenderOptions,
+  RendererTextInputRenderResult,
+  RendererTextInputSelection,
+  RendererTextInputSelectionRange,
+} from './text-input-types';
+
 import {
-  dispatchTextInputKey,
-  type RendererTextInputKeyActions,
-} from './text-input-key-dispatch';
-import {
-  computeHardLineVerticalMoveOffset,
-  computeMouseTextOffset,
-  computePageMoveOffset,
-  computeParagraphMoveOffset,
-  computeVisualLineMoveOffset,
-  type NavigationMoveResult,
-} from './text-input-navigation';
-
-export interface RendererTextInputOptions {
-  readonly text?: string;
-  readonly multiline?: boolean;
-  readonly focused?: boolean;
-  readonly cursorShape?: RendererCursorShape;
-  readonly cursorBlinking?: boolean;
-  readonly maxLength?: number;
-  readonly placeholder?: string;
-  readonly style?: RendererCellStyle;
-  readonly placeholderStyle?: RendererCellStyle;
-  readonly atomicRanges?: readonly RendererTextInputAtomicRange[];
-  readonly layoutWidth?: number;
-  readonly selection?: RendererTextInputSelection;
-  readonly selectionStyle?: RendererCellStyle;
-  readonly historyLimit?: number;
-  readonly layoutHeight?: number;
-}
-
-export interface RendererTextInputCursor {
-  readonly line: number;
-  readonly column: number;
-}
-
-export interface RendererTextInputAtomicRange {
-  readonly start: number;
-  readonly end: number;
-  readonly id?: string;
-}
-
-export interface RendererTextInputSelection {
-  readonly anchor: number;
-  readonly head: number;
-}
-
-export interface RendererTextInputSelectionRange {
-  readonly start: number;
-  readonly end: number;
-}
-
-export interface RendererTextInputRenderOptions {
-  readonly width: number;
-  readonly height?: number;
-  readonly focused?: boolean;
-  readonly style?: RendererCellStyle;
-  readonly placeholderStyle?: RendererCellStyle;
-  readonly selectionStyle?: RendererCellStyle;
-  /**
-   * Optional "ghost" text rendered dimmed right after the cursor (inline
-   * autocomplete / next-task suggestion). Tab acceptance is handled by the
-   * editor layer; this only paints the preview cells.
-   */
-  readonly ghostText?: string;
-  readonly ghostStyle?: RendererCellStyle;
-}
-
-export interface RendererTextInputMouseOptions {
-  readonly x: number;
-  readonly y: number;
-  readonly width?: number;
-  readonly viewportRow?: number;
-}
-
-export interface RendererTextInputRenderResult {
-  readonly lines: readonly RendererRegionLine[];
-  readonly cursor: RendererCursorState;
-  readonly contentRows: number;
-  readonly viewportRow: number;
-}
-
-const DEFAULT_SELECTION_STYLE: RendererCellStyle = { inverse: true };
+  clampOffsetOutsideAtomicRange,
+  computeCursorForOffset,
+  computeOffsetForCursor,
+  computeOffsetForLine,
+  expandToAtomicBoundaries,
+  findNextEditableOffset,
+  findPreviousEditableOffset,
+} from './text-input-offsets';
 
 export class RendererTextInput {
   private lines: string[];
@@ -318,100 +286,40 @@ export class RendererTextInput {
   }
 
   handleMouse(event: NativeInputMouseEvent, options: RendererTextInputMouseOptions): boolean {
-    if (event.button !== 'left' && event.button !== 'none') return false;
-    if (event.action !== 'press' && event.action !== 'drag' && event.action !== 'release') return false;
-
-    const offset = this.textOffsetForMouse(options);
-    if (event.action === 'release') {
-      if (this.draggingSelectionAnchor === undefined) return false;
-      this.moveCursorToOffset(offset, 'nearest', true, this.draggingSelectionAnchor);
-      this.draggingSelectionAnchor = undefined;
-      this.clearPreferredDisplayColumn();
-      return true;
-    }
-
-    if (event.action === 'press') {
-      if (event.shift) {
-        this.moveCursorToOffset(offset, 'nearest', true);
-      } else {
-        this.clearSelection();
-        this.setCursorFromTextOffset(offset, 'nearest');
-      }
-      this.draggingSelectionAnchor = this.selectionAnchor ?? this.textOffsetForCursor();
-      this.clearPreferredDisplayColumn();
-      return true;
-    }
-
-    this.draggingSelectionAnchor ??= this.selectionAnchor ?? this.textOffsetForCursor();
-    this.moveCursorToOffset(offset, 'nearest', true, this.draggingSelectionAnchor);
-    this.clearPreferredDisplayColumn();
-    return true;
+    return handleTextInputMouse(event, options, {
+      textOffsetForMouse: (mouseOptions) => this.textOffsetForMouse(mouseOptions),
+      textOffsetForCursor: () => this.textOffsetForCursor(),
+      selectionAnchor: () => this.selectionAnchor,
+      moveCursorToOffset: (offset, bias, extend, anchorOverride) =>
+        this.moveCursorToOffset(offset, bias, extend, anchorOverride),
+      setCursorFromTextOffset: (offset, bias) => this.setCursorFromTextOffset(offset, bias),
+      clearSelection: () => this.clearSelection(),
+      clearPreferredDisplayColumn: () => this.clearPreferredDisplayColumn(),
+      getDraggingSelectionAnchor: () => this.draggingSelectionAnchor,
+      setDraggingSelectionAnchor: (anchor) => {
+        this.draggingSelectionAnchor = anchor;
+      },
+    });
   }
 
   render(options: RendererTextInputRenderOptions): RendererTextInputRenderResult {
     const width = normalizeRenderWidth(options.width);
     this.layoutWidth = width;
-    const focused = options.focused ?? this.focused;
-    const style = options.style ?? this.style;
-    const placeholderStyle = options.placeholderStyle ?? this.placeholderStyle;
-    const selectionStyle = options.selectionStyle ?? this.selectionStyle ?? DEFAULT_SELECTION_STYLE;
+    this.layoutHeight = normalizeRenderHeight(options.height);
     const visualLines = this.createVisualLines(width);
-    const selection = this.selectionRange();
-    const absoluteCursor = this.cursorToVisualPosition(visualLines);
-    const height = normalizeRenderHeight(options.height);
-    this.layoutHeight = height;
-    const viewportRow = height === undefined
-      ? 0
-      : Math.min(
-          Math.max(0, absoluteCursor.y - height + 1),
-          Math.max(0, visualLines.length - height),
-        );
-    const visibleLines =
-      height === undefined ? visualLines : visualLines.slice(viewportRow, viewportRow + height);
-
-    const cursor: {
-      x: number;
-      y: number;
-      visible: boolean;
-      shape: RendererCursorShape;
-      blinking?: boolean;
-    } = {
-      x: absoluteCursor.x,
-      y: Math.max(0, absoluteCursor.y - viewportRow),
-      visible: focused,
-      shape: this.cursorShape,
-    };
-    if (this.cursorBlinking !== undefined) cursor.blinking = this.cursorBlinking;
-
-    const lines: RendererRegionLine[] = visibleLines.map((line) =>
-      this.renderVisualLine(line, {
-        style,
-        placeholderStyle,
-        selectionStyle,
-        selection,
-      }),
-    );
-
-    const ghostText = options.ghostText;
-    if (ghostText !== undefined && ghostText.length > 0 && selection === undefined) {
-      const ghostRow = absoluteCursor.y - viewportRow;
-      if (ghostRow >= 0 && ghostRow < lines.length) {
-        lines[ghostRow] = composeGhostLine(
-          lines[ghostRow] ?? [],
-          absoluteCursor.x,
-          ghostText,
-          options.ghostStyle,
-          width,
-        );
-      }
-    }
-
-    return {
-      lines,
-      cursor,
-      contentRows: visualLines.length,
-      viewportRow,
-    };
+    return renderTextInputFrame(options, {
+      visualLines,
+      cursor: this.cursor,
+      currentLine: this.currentLine(),
+      selection: this.selectionRange(),
+      focused: this.focused,
+      cursorShape: this.cursorShape,
+      cursorBlinking: this.cursorBlinking,
+      style: this.style,
+      placeholderStyle: this.placeholderStyle,
+      selectionStyle: this.selectionStyle,
+      lineOffset: (line) => this.textOffsetForLine(line),
+    });
   }
 
   private handleKey(event: NativeInputKeyEvent): boolean {
@@ -448,233 +356,153 @@ export class RendererTextInput {
   }
 
   private insertText(text: string): void {
-    const normalized = this.multiline
-      ? text.replaceAll('\r\n', '\n').replaceAll('\r', '\n')
-      : text.replaceAll(/[\r\n]/g, '');
-    if (normalized.length === 0) return;
+    const normalized = normalizeInsertText(text, this.multiline);
+    const result = computeTextInputInsert({
+      normalized,
+      multiline: this.multiline,
+      maxLength: this.maxLength,
+      currentText: this.getText(),
+      lines: this.lines,
+      atomicRanges: this.atomicRanges,
+      selection: this.selectionRange(),
+      cursorOffset: this.textOffsetForCursor(),
+      snapOffset: (offset, bias) => this.snapOffsetOutOfAtomicRange(offset, bias),
+    });
+    if (result === undefined) return;
     const before = this.createHistorySnapshot();
-    const current = this.getText();
-    const selection = this.selectionRange();
-    const insertAt =
-      selection?.start ?? this.snapOffsetOutOfAtomicRange(this.textOffsetForCursor(), 'forward');
-    const replaceEnd = selection?.end ?? insertAt;
-    const selectedLength = replaceEnd - insertAt;
-    const maxInsertLength =
-      this.maxLength === undefined
-        ? normalized.length
-        : Math.max(0, this.maxLength - (current.length - selectedLength));
-    if (maxInsertLength === 0 && selectedLength === 0) return;
-    const nextText =
-      current.slice(0, insertAt) +
-      normalized.slice(0, maxInsertLength) +
-      current.slice(replaceEnd);
-    const nextOffset = insertAt + Math.min(normalized.length, maxInsertLength);
-    this.lines = normalizeInputText(nextText);
-    const rangesAfterDelete =
-      selection === undefined
-        ? this.atomicRanges
-        : shiftAtomicRangesAfterDelete(this.atomicRanges, selection.start, selection.end);
-    this.atomicRanges = shiftAtomicRangesAfterInsert(rangesAfterDelete, insertAt, nextOffset - insertAt);
+    this.lines = [...result.lines];
+    this.atomicRanges = result.atomicRanges;
     this.clearSelection();
-    this.setCursorFromTextOffset(nextOffset, 'forward');
+    this.setCursorFromTextOffset(result.nextOffset, 'forward');
     this.clampCursor();
     this.clearPreferredDisplayColumn();
     this.pushUndoSnapshot(before);
   }
 
   private deleteBackward(): void {
-    const before = this.createHistorySnapshot();
-    if (this.deleteSelection()) {
-      this.clearPreferredDisplayColumn();
-      this.pushUndoSnapshot(before);
-      return;
-    }
-    const end = this.textOffsetForCursor();
-    if (end <= 0) return;
-    const start = this.previousEditableOffset(end);
-    this.deleteTextRange(start, end);
-    this.setCursorFromTextOffset(start, 'backward');
-    this.clearPreferredDisplayColumn();
-    this.pushUndoSnapshot(before);
+    executeTextInputDelete(this.deleteActions, () =>
+      computeCharacterBackwardDelete(this.textOffsetForCursor(), (offset) =>
+        this.previousEditableOffset(offset),
+      ),
+    );
   }
 
   private deleteForward(): void {
-    const before = this.createHistorySnapshot();
-    if (this.deleteSelection()) {
-      this.clearPreferredDisplayColumn();
-      this.pushUndoSnapshot(before);
-      return;
-    }
-    const start = this.textOffsetForCursor();
-    const text = this.getText();
-    if (start >= text.length) return;
-    const end = this.nextEditableOffset(start);
-    this.deleteTextRange(start, end);
-    this.setCursorFromTextOffset(start, 'forward');
-    this.clearPreferredDisplayColumn();
-    this.pushUndoSnapshot(before);
+    executeTextInputDelete(this.deleteActions, () =>
+      computeCharacterForwardDelete(this.textOffsetForCursor(), this.getText().length, (offset) =>
+        this.nextEditableOffset(offset),
+      ),
+    );
   }
 
   private moveLeft(extend = false): void {
-    const selection = this.selectionRange();
-    const offset =
-      !extend && selection !== undefined
-        ? selection.start
-        : this.previousEditableOffset(this.textOffsetForCursor());
+    const offset = computeMoveLeftOffset(
+      this.selectionRange(),
+      extend,
+      this.textOffsetForCursor(),
+      (value) => this.previousEditableOffset(value),
+    );
     this.moveCursorToOffset(offset, 'backward', extend);
     this.clearPreferredDisplayColumn();
   }
 
   private moveRight(extend = false): void {
-    const selection = this.selectionRange();
-    const offset =
-      !extend && selection !== undefined
-        ? selection.end
-        : this.nextEditableOffset(this.textOffsetForCursor());
+    const offset = computeMoveRightOffset(
+      this.selectionRange(),
+      extend,
+      this.textOffsetForCursor(),
+      (value) => this.nextEditableOffset(value),
+    );
     this.moveCursorToOffset(offset, 'forward', extend);
     this.clearPreferredDisplayColumn();
   }
 
   private moveWordLeft(extend = false): void {
-    const selection = this.selectionRange();
-    const offset =
-      !extend && selection !== undefined
-        ? selection.start
-        : this.previousWordOffset(this.textOffsetForCursor());
+    const offset = computeMoveWordLeftOffset(
+      this.selectionRange(),
+      extend,
+      this.textOffsetForCursor(),
+      (value) => this.previousWordOffset(value),
+    );
     this.moveCursorToOffset(offset, 'backward', extend);
     this.clearPreferredDisplayColumn();
   }
 
   private moveWordRight(extend = false): void {
-    const selection = this.selectionRange();
-    const offset =
-      !extend && selection !== undefined
-        ? selection.end
-        : this.nextWordOffset(this.textOffsetForCursor());
+    const offset = computeMoveWordRightOffset(
+      this.selectionRange(),
+      extend,
+      this.textOffsetForCursor(),
+      (value) => this.nextWordOffset(value),
+    );
     this.moveCursorToOffset(offset, 'forward', extend);
     this.clearPreferredDisplayColumn();
   }
 
   private deleteWordBackward(): void {
-    const before = this.createHistorySnapshot();
-    if (this.deleteSelection()) {
-      this.clearPreferredDisplayColumn();
-      this.pushUndoSnapshot(before);
-      return;
-    }
-    const end = this.textOffsetForCursor();
-    const start = this.previousWordOffset(end);
-    if (start === end) return;
-    this.deleteTextRange(start, end);
-    this.setCursorFromTextOffset(start, 'backward');
-    this.clearPreferredDisplayColumn();
-    this.pushUndoSnapshot(before);
+    executeTextInputDelete(this.deleteActions, () =>
+      computeWordBackwardDelete(this.textOffsetForCursor(), (offset) => this.previousWordOffset(offset)),
+    );
   }
 
   private deleteWordForward(): void {
-    const before = this.createHistorySnapshot();
-    if (this.deleteSelection()) {
-      this.clearPreferredDisplayColumn();
-      this.pushUndoSnapshot(before);
-      return;
-    }
-    const start = this.textOffsetForCursor();
-    const end = this.nextWordOffset(start);
-    if (start === end) return;
-    this.deleteTextRange(start, end);
-    this.setCursorFromTextOffset(start, 'forward');
-    this.clearPreferredDisplayColumn();
-    this.pushUndoSnapshot(before);
+    executeTextInputDelete(this.deleteActions, () =>
+      computeWordForwardDelete(this.textOffsetForCursor(), (offset) => this.nextWordOffset(offset)),
+    );
   }
 
   private deleteToLineStart(): void {
-    const before = this.createHistorySnapshot();
-    if (this.deleteSelection()) {
-      this.clearPreferredDisplayColumn();
-      this.pushUndoSnapshot(before);
-      return;
-    }
-    const start = this.textOffsetForLine(this.cursor.line);
-    const end = this.textOffsetForCursor();
-    if (start === end) return;
-    this.deleteTextRange(start, end);
-    this.setCursorFromTextOffset(start, 'backward');
-    this.clearPreferredDisplayColumn();
-    this.pushUndoSnapshot(before);
+    executeTextInputDelete(this.deleteActions, () =>
+      computeLineStartDelete(this.textOffsetForLine(this.cursor.line), this.textOffsetForCursor()),
+    );
   }
 
   private deleteToLineEnd(): void {
-    const before = this.createHistorySnapshot();
-    if (this.deleteSelection()) {
-      this.clearPreferredDisplayColumn();
-      this.pushUndoSnapshot(before);
-      return;
-    }
-    const start = this.textOffsetForCursor();
-    const end = this.textOffsetForLine(this.cursor.line) + this.currentLine().length;
-    if (start === end) return;
-    this.deleteTextRange(start, end);
-    this.setCursorFromTextOffset(start, 'forward');
-    this.clearPreferredDisplayColumn();
-    this.pushUndoSnapshot(before);
+    executeTextInputDelete(this.deleteActions, () =>
+      computeLineEndDelete(
+        this.textOffsetForCursor(),
+        this.textOffsetForLine(this.cursor.line) + this.currentLine().length,
+      ),
+    );
   }
 
   private moveVertical(direction: -1 | 1, extend = false): void {
-    if (this.moveVisualLine(direction, extend)) return;
-    const move = computeHardLineVerticalMoveOffset(
-      this.lines,
-      this.cursor,
-      direction,
-      this.preferredDisplayColumn,
-    );
-    if (move === undefined) return;
-    this.applyNavigationMove(move, extend);
-  }
-
-  private moveVisualLine(direction: -1 | 1, extend: boolean): boolean {
-    const width = this.layoutWidth;
-    if (width === undefined || width <= 0) return false;
-    const visualLines = this.createVisualLines(width);
-    if (visualLines.length === 0) return false;
-    const move = computeVisualLineMoveOffset(
-      this.lines,
-      this.cursor,
-      visualLines,
-      this.visualLineIndexForCursor(visualLines),
-      direction,
-      this.preferredDisplayColumn,
-    );
-    if (move === undefined) return false;
-    this.applyNavigationMove(move, extend);
-    return true;
+    moveTextInputVertical(direction, extend, this.verticalMoveActions);
   }
 
   private moveParagraph(direction: -1 | 1, extend = false): void {
-    const move = computeParagraphMoveOffset(
-      this.lines,
-      this.cursor,
-      direction,
-      this.getText().length,
-      this.preferredDisplayColumn,
-    );
-    this.applyNavigationMove(move, extend);
+    moveTextInputParagraph(direction, extend, this.verticalMoveActions);
   }
 
   private movePage(direction: -1 | 1, extend = false): void {
-    const pageRows = Math.max(1, this.layoutHeight ?? 1);
-    const width = this.layoutWidth;
-    const visualLines = width === undefined ? [] : this.createVisualLines(width);
-    const move = computePageMoveOffset(
-      this.lines,
-      this.cursor,
-      visualLines,
-      width === undefined ? 0 : this.visualLineIndexForCursor(visualLines),
-      direction,
-      pageRows,
-      width,
-      this.preferredDisplayColumn,
-    );
-    this.applyNavigationMove(move, extend);
+    moveTextInputPage(direction, extend, this.verticalMoveActions);
+  }
+
+  private get deleteActions() {
+    return {
+      createHistorySnapshot: () => this.createHistorySnapshot(),
+      deleteSelection: () => this.deleteSelection(),
+      applyDeleteRange: (range: { readonly start: number; readonly end: number; readonly cursorOffset: number; readonly bias: AtomicCursorBias }) =>
+        this.applyDeleteRange(range),
+      clearPreferredDisplayColumn: () => this.clearPreferredDisplayColumn(),
+      pushUndoSnapshot: (snapshot: RendererTextInputHistorySnapshot) => this.pushUndoSnapshot(snapshot),
+    };
+  }
+
+  private get verticalMoveActions() {
+    return {
+      lines: this.lines,
+      cursor: this.cursor,
+      layoutWidth: this.layoutWidth,
+      layoutHeight: this.layoutHeight,
+      preferredDisplayColumn: this.preferredDisplayColumn,
+      createVisualLines: (width: number) => this.createVisualLines(width),
+      visualLineIndexForCursor: (visualLines: readonly VisualLine[]) =>
+        this.visualLineIndexForCursor(visualLines),
+      textLength: () => this.getText().length,
+      applyNavigationMove: (move: NavigationMoveResult, extend: boolean) =>
+        this.applyNavigationMove(move, extend),
+    };
   }
 
   private applyNavigationMove(move: NavigationMoveResult, extend: boolean): void {
@@ -687,28 +515,17 @@ export class RendererTextInput {
     return buildVisualLines(this.lines, this.placeholder, width);
   }
 
-  private cursorToVisualPosition(visualLines: readonly VisualLine[]): { readonly x: number; readonly y: number } {
-    return computeCursorVisualPosition(this.cursor, this.currentLine(), visualLines);
-  }
-
   private visualLineIndexForCursor(visualLines: readonly VisualLine[]): number {
     return computeVisualLineIndexForCursor(this.cursor, visualLines);
   }
 
-  private renderVisualLine(
-    line: VisualLine,
-    options: {
-      readonly style: RendererCellStyle | undefined;
-      readonly placeholderStyle: RendererCellStyle | undefined;
-      readonly selectionStyle: RendererCellStyle;
-      readonly selection: RendererTextInputSelectionRange | undefined;
-    },
-  ): RendererRegionLine {
-    return renderVisualLineCells(line, this.textOffsetForLine(line.logicalLine), options);
-  }
-
   private currentLine(): string {
     return this.lines[this.cursor.line] ?? '';
+  }
+
+  private applyDeleteRange(range: { readonly start: number; readonly end: number; readonly cursorOffset: number; readonly bias: AtomicCursorBias }): void {
+    this.deleteTextRange(range.start, range.end);
+    this.setCursorFromTextOffset(range.cursorOffset, range.bias);
   }
 
   private deleteSelection(): boolean {
@@ -786,10 +603,6 @@ export class RendererTextInput {
     return clampOffsetOutsideAtomicRange(this.getText(), this.atomicRanges, offset, bias);
   }
 
-  private atomicRangeContainingOffset(offset: number): RendererTextInputAtomicRange | undefined {
-    return findContainingAtomicRange(this.atomicRanges, offset);
-  }
-
   private clampCursor(bias: AtomicCursorBias = 'nearest'): void {
     const line = Math.max(0, Math.min(this.lines.length - 1, Math.floor(this.cursor.line)));
     const text = this.lines[line] ?? '';
@@ -827,50 +640,46 @@ export class RendererTextInput {
   }
 
   private textOffsetForMouse(options: RendererTextInputMouseOptions): number {
-    const width = normalizeRenderWidth(options.width ?? this.layoutWidth ?? 1);
-    this.layoutWidth = width;
-    const visualLines = this.createVisualLines(width);
-    return computeMouseTextOffset(
-      visualLines,
-      normalizeViewportRow(options.viewportRow),
-      normalizeMouseCoordinate(options.x),
-      normalizeMouseCoordinate(options.y),
+    const resolved = resolveTextInputMouseOffset(
+      this.createVisualLines(normalizeRenderWidth(options.width ?? this.layoutWidth ?? 1)),
+      options,
+      this.layoutWidth,
       (line) => this.textOffsetForLine(line),
     );
+    this.layoutWidth = resolved.width;
+    return resolved.offset;
   }
 
   private createHistorySnapshot(): RendererTextInputHistorySnapshot {
-    const snapshot: {
-      lines: readonly string[];
-      cursor: RendererTextInputCursor;
-      atomicRanges: readonly RendererTextInputAtomicRange[];
-      selectionAnchor?: number;
-    } = {
-      lines: [...this.lines],
-      cursor: { ...this.cursor },
-      atomicRanges: this.atomicRanges.map(cloneAtomicRange),
-    };
-    if (this.selectionAnchor !== undefined) snapshot.selectionAnchor = this.selectionAnchor;
-    return snapshot;
+    return createTextInputHistorySnapshot({
+      lines: this.lines,
+      cursor: this.cursor,
+      atomicRanges: this.atomicRanges,
+      selectionAnchor: this.selectionAnchor,
+    });
   }
 
   private restoreHistorySnapshot(snapshot: RendererTextInputHistorySnapshot): void {
-    this.lines = [...snapshot.lines];
-    this.cursor = { ...snapshot.cursor };
-    this.atomicRanges = snapshot.atomicRanges.map(cloneAtomicRange);
-    this.selectionAnchor = snapshot.selectionAnchor;
+    const restored = restoreTextInputHistorySnapshot(snapshot);
+    this.lines = restored.lines;
+    this.cursor = restored.cursor;
+    this.atomicRanges = restored.atomicRanges;
+    this.selectionAnchor = restored.selectionAnchor;
     this.clampCursor();
     this.normalizeSelection();
     this.clearPreferredDisplayColumn();
   }
 
   private pushUndoSnapshot(snapshot: RendererTextInputHistorySnapshot): void {
-    if (this.historyLimit <= 0 || historySnapshotsEqual(snapshot, this.createHistorySnapshot())) return;
-    this.undoStack.push(snapshot);
-    if (this.undoStack.length > this.historyLimit) {
-      this.undoStack.splice(0, this.undoStack.length - this.historyLimit);
-    }
-    this.redoStack = [];
+    const stacks = pushTextInputUndoSnapshot(
+      this.undoStack,
+      this.redoStack,
+      snapshot,
+      this.createHistorySnapshot(),
+      this.historyLimit,
+    );
+    this.undoStack = stacks.undoStack;
+    this.redoStack = stacks.redoStack;
   }
 
   private clearPreferredDisplayColumn(): void {
@@ -881,4 +690,3 @@ export class RendererTextInput {
     this.selectionAnchor = undefined;
   }
 }
-

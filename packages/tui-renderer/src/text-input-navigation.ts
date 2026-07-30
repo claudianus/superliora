@@ -1,4 +1,4 @@
-import type { RendererTextInputCursor } from './text-input';
+import type { RendererTextInputCursor } from './text-input-types';
 import type { VisualLine } from './text-input-layout';
 import { computeOffsetForLine } from './text-input-offsets';
 import {

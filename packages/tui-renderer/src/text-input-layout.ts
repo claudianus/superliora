@@ -1,6 +1,6 @@
 import type { RendererCell, RendererCellStyle } from './cell-buffer';
 import type { RendererRegionLine } from './compositor';
-import type { RendererTextInputCursor, RendererTextInputSelectionRange } from './text-input';
+import type { RendererTextInputCursor, RendererTextInputSelectionRange } from './text-input-types';
 import { rangesOverlap, splitClusters } from './text-input-selection';
 import { measureDisplayWidth, textToCells } from './text-metrics';
 

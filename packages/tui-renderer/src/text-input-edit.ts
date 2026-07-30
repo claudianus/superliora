@@ -1,4 +1,4 @@
-import type { RendererTextInputAtomicRange, RendererTextInputCursor } from './text-input';
+import type { RendererTextInputAtomicRange, RendererTextInputCursor } from './text-input-types';
 import { snapTextOffsetToBoundary } from './text-input-selection';
 
 /**
