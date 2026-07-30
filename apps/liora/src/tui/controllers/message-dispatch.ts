@@ -52,7 +52,26 @@ export interface MessageDispatchHost {
  * LioraTUI keeps thin public delegates so call sites stay stable.
  */
 export class MessageDispatchController {
+  private lastTurnFailed = false;
+
   constructor(private readonly host: MessageDispatchHost) {}
+
+  setLastTurnFailed(failed: boolean): void {
+    this.lastTurnFailed = failed;
+  }
+
+  async retryLastTurn(): Promise<void> {
+    const { host } = this;
+    const session = host.session;
+    if (session === undefined || host.lastUserInput === undefined) {
+      host.showError(ttui('tui.retry.none'));
+      return;
+    }
+    if (host.state.appState.streamingPhase !== 'idle') return;
+    this.lastTurnFailed = false;
+    host.showStatus(ttui('tui.retry.resending'), 'primary');
+    this.sendMessageInternal(session, host.lastUserInput);
+  }
 
   handleUserInput(text: string): void {
     const { host } = this;

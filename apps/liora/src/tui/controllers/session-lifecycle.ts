@@ -1,16 +1,28 @@
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
 import { resolve } from 'pathe';
 
+import type { Component, Focusable } from '#/tui/renderer';
+
+import type { LioraSlashCommand } from '../commands';
 import type { SessionLoadingPhase } from '../components/dialogs/session-loading-overlay';
 import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
+import { createContext7CredentialHandler } from '../reverse-rpc/credential/handler';
+import type { ApprovalController } from '../reverse-rpc/approval/controller';
+import { createApprovalRequestHandler } from '../reverse-rpc/approval/handler';
+import type { QuestionController } from '../reverse-rpc/question/controller';
+import { createQuestionAskHandler } from '../reverse-rpc/question/handler';
 import type { ColorToken } from '../theme';
 import type { AppState } from '../types';
 import type { TUIState } from '../tui-state';
 import { contextWorkingSetSnapshotFromLoopControl } from '../utils/context-working-set';
 import { formatErrorMessage } from '../utils/event-payload';
 import { ttui } from '../utils/tui-i18n';
+import type { BtwPanelController } from './btw-panel';
 import type { SessionEventHandler } from './session-event-handler';
 import type { SessionReplayRenderer } from './session-replay';
+import type { StreamingUIController } from './streaming-ui';
+import type { TasksBrowserController } from './tasks-browser';
+import type { TranscriptRenderController } from './transcript-render';
 
 type MutableCreateSessionOptions = {
   -readonly [P in keyof CreateSessionOptions]: CreateSessionOptions[P];
@@ -25,14 +37,27 @@ export interface SessionLifecycleHost {
   state: TUIState;
   session: Session | undefined;
   sessionEventUnsubscribe: (() => void) | undefined;
+  aborted: boolean;
+  skillCommands: LioraSlashCommand[];
+  pluginCommands: LioraSlashCommand[];
+  readonly skillCommandMap: Map<string, string>;
+  readonly pluginCommandMap: Map<string, string>;
   readonly harness: LioraHarness;
   readonly sessionEventHandler: SessionEventHandler;
   readonly sessionReplay: SessionReplayRenderer;
+  readonly streamingUI: StreamingUIController;
+  readonly tasksBrowserController: TasksBrowserController;
+  readonly btwPanelController: BtwPanelController;
+  readonly approvalController: ApprovalController;
+  readonly questionController: QuestionController;
+  readonly transcriptRender: TranscriptRenderController;
 
   requireSession(): Session;
   setAppState(patch: Partial<AppState>): void;
-  resetSessionRuntime(): void;
   updateTerminalTitle(): void;
+  updateQueueDisplay(): void;
+  mountEditorReplacement(panel: Component & Focusable): void;
+  restoreEditor(): void;
   refreshDynamicSlashCommands(session?: Session): Promise<void>;
   clearTranscriptAndRedraw(): void;
   showError(msg: string): void;
@@ -55,7 +80,6 @@ export interface SessionLifecycleHost {
     readonly sessionId?: string;
     readonly title?: string;
   }): void;
-  registerSessionHandlers(session: Session): void;
   clearReverseRpcPanels(): void;
   cancelPendingReverseRpc(reason: string): void;
 }
@@ -67,11 +91,46 @@ export interface SessionLifecycleHost {
 export class SessionLifecycleController {
   constructor(private readonly host: SessionLifecycleHost) {}
 
+  registerSessionHandlers(session: Session): void {
+    const { host } = this;
+    session.setApprovalHandler(
+      createApprovalRequestHandler(host.approvalController, (request, response) => {
+        host.transcriptRender.appendApprovalTranscriptEntry(request, response);
+      }),
+    );
+    session.setQuestionHandler(createQuestionAskHandler(host.questionController));
+    session.setCredentialHandler(createContext7CredentialHandler(host));
+  }
+
+  resetSessionRuntime(): void {
+    const { host } = this;
+    host.aborted = false;
+    host.streamingUI.discardPending();
+    host.state.queuedMessages = [];
+    host.state.swarmModeEntry = undefined;
+    host.streamingUI.resetToolCallState();
+    host.streamingUI.resetToolUi();
+    host.sessionEventHandler.resetRuntimeState();
+    host.skillCommands = [];
+    host.skillCommandMap.clear();
+    host.pluginCommands = [];
+    host.pluginCommandMap.clear();
+    host.tasksBrowserController.close();
+    host.btwPanelController.clear();
+    host.state.footer.setBackgroundCounts({ bashTasks: 0, agentTasks: 0 });
+    host.streamingUI.setTodoList([]);
+    host.streamingUI.setTurnId(undefined);
+    host.setAppState({ mcpServersSummary: null });
+    host.streamingUI.setStep(0);
+    host.streamingUI.resetLiveText();
+    host.updateQueueDisplay();
+  }
+
   async setSession(session: Session): Promise<void> {
     const { host } = this;
     if (host.session === session) {
       host.harness.setTelemetryContext({ sessionId: session.id });
-      host.registerSessionHandlers(session);
+      this.registerSessionHandlers(session);
       this.syncAdditionalDirs(session);
       return;
     }
@@ -83,7 +142,7 @@ export class SessionLifecycleController {
       host.state.appState.workDir = session.workDir;
     }
     host.harness.setTelemetryContext({ sessionId: session.id });
-    host.registerSessionHandlers(session);
+    this.registerSessionHandlers(session);
     this.syncAdditionalDirs(session);
   }
 
@@ -132,7 +191,7 @@ export class SessionLifecycleController {
 
   async switchToSession(session: Session, statusMessage: string): Promise<void> {
     const { host } = this;
-    host.resetSessionRuntime();
+    this.resetSessionRuntime();
     await this.setSession(session);
     await this.syncRuntimeState(session);
     host.updateTerminalTitle();
@@ -181,7 +240,7 @@ export class SessionLifecycleController {
           return;
         }
 
-        host.resetSessionRuntime();
+        this.resetSessionRuntime();
         host.setAppState({
           ultraworkMode: false,
           ultraworkPriorState: null,
