@@ -20,9 +20,9 @@ import type {
 } from '#/memory';
 import type { SessionWarning } from '@superliora/protocol';
 
-import type { ProviderRouteStatus, UsageStatus } from './events';
-import type { WithAgentId, WithSessionId } from './types';
-import type { SessionTrace } from './core-api-session-trace';
+import type { ProviderRouteStatus, UsageStatus } from '../events';
+import type { WithAgentId, WithSessionId } from '../types';
+import type { SessionTrace } from './session-trace';
 import type {
   AddAdditionalDirPayload,
   AddAdditionalDirResult,
@@ -45,7 +45,7 @@ import type {
   StartConversationLoopPayload,
   StopConversationLoopPayload,
   UpdateSessionMetadataPayload,
-} from './core-api-payloads-session';
+} from './payloads-session';
 import type {
   ActivatePluginCommandPayload,
   ActivateSkillPayload,
@@ -64,7 +64,7 @@ import type {
   SetPluginMcpServerEnabledPayload,
   SkillSearchResult,
   SkillSummary,
-} from './core-api-payloads-plugins';
+} from './payloads-plugins';
 import type {
   BeginCompactionPayload,
   CancelPayload,
@@ -96,7 +96,7 @@ import type {
   UndoHistoryPayload,
   UnregisterToolPayload,
   SetActiveToolsPayload,
-} from './core-api-payloads-agent';
+} from './payloads-agent';
 import type {
   CancelUltraworkPayload,
   ClassifyUltraworkAutoActivationPayload,
@@ -108,14 +108,14 @@ import type {
   UltraworkAutoActivationDecision,
   UltraworkObjectiveProfileDecision,
   UltraworkRunSnapshot,
-} from './core-api-payloads-goal';
+} from './payloads-goal';
 import type {
   ConfigDiagnostics,
   DeleteConfigFieldsPayload,
   GetKimiConfigPayload,
   RemoveKimiProviderPayload,
   SetKimiConfigPayload,
-} from './core-api-payloads-config';
+} from './payloads-config';
 import type {
   MemoryCreatePayload,
   MemoryForgetPayload,
@@ -124,7 +124,7 @@ import type {
   MemoryListPayload,
   MemorySearchPayload,
   MemoryUpdatePayload,
-} from './core-api-payloads-memory';
+} from './payloads-memory';
 
 export interface AgentAPI {
   prompt: (payload: PromptPayload) => void;

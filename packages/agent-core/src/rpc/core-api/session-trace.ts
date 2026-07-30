@@ -1,6 +1,6 @@
 import type { AgentContextData } from '#/agent/context';
 
-import type { JsonObject } from './core-api-json';
+import type { JsonObject } from './json';
 
 export type SessionTraceSource = 'records' | 'context_fallback';
 
