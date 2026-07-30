@@ -2,7 +2,7 @@ import type {
   RendererTextInputAtomicRange,
   RendererTextInputCursor,
   RendererTextInputSelectionRange,
-} from './text-input';
+} from './text-input-types';
 import {
   nextClusterBoundary,
   previousClusterBoundary,
