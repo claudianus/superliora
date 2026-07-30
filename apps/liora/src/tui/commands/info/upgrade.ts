@@ -9,7 +9,7 @@ import {
   type UpgradeDialogChoice,
 } from '#/tui/components/dialogs/upgrade/upgrade-dialog';
 
-import type { SlashCommandHost } from './hub/dispatch';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 export interface UpgradeCommandDeps {
   readonly resolveUpgradePlan: typeof resolveUpgradePlan;

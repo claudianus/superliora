@@ -24,7 +24,7 @@ import { loadCatalog } from '#/utils/catalog-cache';
 import { openUrl } from '#/utils/open-url';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
-import { promptOAuthCallback } from '../prompts';
+import { promptOAuthCallback } from '../auth/prompts';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 

@@ -3,19 +3,19 @@ import type { PermissionMode } from '@superliora/sdk';
 import {
   SwarmStartPermissionPromptComponent,
   type SwarmStartPermissionChoice,
-} from '../components/dialogs/goal/swarm-start-permission-prompt';
+} from '../../components/dialogs/goal/swarm-start-permission-prompt';
 import {
   SwarmModeMarkerComponent,
   type SwarmModeMarkerState,
-} from '../components/messages/swarm-markers';
-import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
-import { formatErrorMessage } from '../utils/event-payload';
-import { requestTUILayoutRender } from '../utils/render/frame-render';
+} from '../../components/messages/swarm-markers';
+import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import { formatErrorMessage } from '../../utils/event-payload';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   resolveWarRoomReason,
   type WarRoomDockAction,
-} from '../features/agent-swarm/war-room-action';
-import type { SlashCommandHost } from './hub/dispatch';
+} from '../../features/agent-swarm/war-room-action';
+import type { SlashCommandHost } from '../hub/dispatch';
 
 export async function handleSwarmCommand(host: SlashCommandHost, args: string): Promise<void> {
   if (host.session === undefined) {

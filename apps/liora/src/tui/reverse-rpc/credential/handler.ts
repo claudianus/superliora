@@ -1,6 +1,6 @@
 import type { CredentialHandler, CredentialRequest, CredentialResponse } from '@superliora/sdk';
 
-import { promptApiKey } from '#/tui/commands/prompts';
+import { promptApiKey } from '#/tui/commands/auth/prompts';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 export interface CredentialPromptHost {

@@ -25,8 +25,8 @@ import type {
   TranscriptEntry,
 } from '../../types';
 import { formatErrorMessage } from '../../utils/event-payload';
-import { handleAccountsCommand } from '../accounts';
-import { handleLoginCommand, handleLogoutCommand } from '../auth';
+import { handleAccountsCommand } from '../auth/accounts';
+import { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 import { handleBtwCommand } from '../btw';
 import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission';
 import { handleAppearanceCommand } from '../config/appearance';
@@ -41,14 +41,14 @@ import { showHarnessEyesReadiness, showToolsInventory } from '../config/harness-
 import { handleGoalCommand } from '../goal';
 import { handleImproveHarnessCommand } from '../improve-harness';
 import { handleCronCommand } from '../cron';
-import { showDiff } from '../diff';
+import { showDiff } from '../session/diff';
 import { showLog } from '../log';
-import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from '../info';
-import { handleAddDirCommand } from '../add-dir';
+import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
+import { handleAddDirCommand } from '../session/add-dir';
 import { handleAquariumCommand } from '../aquarium';
 import { handleFeedCommand } from '../feed';
 import { handleBenchCommand } from '../bench/bench';
-import { handleMemoryCommand } from '../memory';
+import { handleMemoryCommand } from '../memory/memory';
 import { handlePersonaCommand } from '../persona';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from '../plugins/plugins';
@@ -60,7 +60,7 @@ import {
   type RendererTraceCommand,
 } from '../renderer';
 import type { BuiltinSlashCommandName } from './registry';
-import { handleReloadCommand, handleReloadTuiCommand } from '../reload';
+import { handleReloadCommand, handleReloadTuiCommand } from '../session/reload';
 import { resolveSlashCommandInput, slashBusyMessage } from './resolve';
 import {
   handleExportDebugZipCommand,
@@ -68,10 +68,10 @@ import {
   handleForkCommand,
   handleInitCommand,
   handleTitleCommand,
-} from '../session';
+} from '../session/session';
 import { showSearch } from '../search';
-import { handleSwarmCommand } from '../swarm';
-import { handleOrchestratorCommand } from '../orchestrator';
+import { handleSwarmCommand } from '../swarm/swarm';
+import { handleOrchestratorCommand } from '../swarm/orchestrator';
 import { showTerm } from '../term';
 import {
   handleUltraGoalCommand,
@@ -80,19 +80,19 @@ import {
 } from '../ultrawork/ultra-standalone';
 import { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/ultrawork';
 import { handleLoopCommand } from '../loop';
-import { handleRewindCommand } from '../rewind';
-import { handleTranscriptCommand } from '../transcript';
-import { handleUndoCommand } from '../undo';
-import { handleUpgradeCommand } from '../upgrade';
+import { handleRewindCommand } from '../session/rewind';
+import { handleTranscriptCommand } from '../session/transcript';
+import { handleUndoCommand } from '../session/undo';
+import { handleUpgradeCommand } from '../info/upgrade';
 
 // ---------------------------------------------------------------------------
 // Re-exports — keep existing consumers working
 // ---------------------------------------------------------------------------
 
-export { handleLoginCommand, handleLogoutCommand } from '../auth';
+export { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 export { handleBenchCommand } from '../bench/bench';
 export { handleBtwCommand } from '../btw';
-export { handleAddDirCommand } from '../add-dir';
+export { handleAddDirCommand } from '../session/add-dir';
 export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission';
 export { handleAppearanceCommand } from '../config/appearance';
 export { handleCompactCommand, handlePlanCommand } from '../config/plan';
@@ -101,14 +101,14 @@ export { handleModelCommand, showModelPicker } from '../config/model';
 export { handleThinkingCommand } from '../config/thinking';
 export { showExperimentsPanel } from '../config/experiments';
 export { showSettingsSelector } from '../config/settings';
-export { handleSwarmCommand } from '../swarm';
+export { handleSwarmCommand } from '../swarm/swarm';
 export { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/ultrawork';
-export { showMcpServers, showQuota, showStatusReport, showUsage } from '../info';
-export { handleMemoryCommand } from '../memory';
+export { showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
+export { handleMemoryCommand } from '../memory/memory';
 export { handlePersonaCommand } from '../persona';
 export { handlePluginsCommand } from '../plugins/plugins';
 export { handlePreflightCommand } from '../preflight/command';
-export { handleReloadCommand, handleReloadTuiCommand } from '../reload';
+export { handleReloadCommand, handleReloadTuiCommand } from '../session/reload';
 export { handleGoalCommand } from '../goal';
 export {
   handleExportDebugZipCommand,
@@ -116,9 +116,9 @@ export {
   handleForkCommand,
   handleInitCommand,
   handleTitleCommand,
-} from '../session';
-export { handleUndoCommand } from '../undo';
-export { handleRewindCommand } from '../rewind';
+} from '../session/session';
+export { handleUndoCommand } from '../session/undo';
+export { handleRewindCommand } from '../session/rewind';
 export { handleLoopCommand } from '../loop';
 
 // ---------------------------------------------------------------------------

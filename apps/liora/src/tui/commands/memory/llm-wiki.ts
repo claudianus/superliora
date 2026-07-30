@@ -6,7 +6,7 @@ import {
   resolveLlmWikiPaths,
 } from '#/constant/workspace-data';
 
-import type { UltraworkActivationSource } from './ultrawork/ultrawork-contract';
+import type { UltraworkActivationSource } from '../ultrawork/ultrawork-contract';
 
 export const LLM_WIKI_INDEX_PATH = `${CANONICAL_LLM_WIKI_ROOT}/index.md`;
 export const LLM_WIKI_MANIFEST_PATH = `${CANONICAL_LLM_WIKI_ROOT}/manifest.json`;

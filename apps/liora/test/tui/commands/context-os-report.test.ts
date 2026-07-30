@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildContextOsReportLines } from '#/tui/commands/info';
+import { buildContextOsReportLines } from '#/tui/commands/info/info';
 import type { ContextOSRetrievalDiagnostics } from '@superliora/sdk';
 
 const sample: ContextOSRetrievalDiagnostics = {

@@ -6,7 +6,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { KNOWLEDGE_MAP_FILENAME, resolveLlmWikiPaths, resolveUltraworkEvidenceRoot } from '#/constant/workspace-data';
-import { writeProjectLlmWikiSeed } from '../llm-wiki';
+import { writeProjectLlmWikiSeed } from '../memory/llm-wiki';
 import {
   buildUltraworkCoverageMatrix,
   type UltraworkCoverageLane,

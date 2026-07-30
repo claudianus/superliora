@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { BannerProvider } from '#/tui/banner/banner-provider';
 import { readBannerDisplayState } from '#/tui/banner/state';
-import { handleLoginCommand, handleLogoutCommand } from '#/tui/commands/auth';
-import { promptProviderCatalog, promptLogoutProviderSelection } from '#/tui/commands/prompts';
+import { handleLoginCommand, handleLogoutCommand } from '#/tui/commands/auth/login';
+import { promptProviderCatalog, promptLogoutProviderSelection } from '#/tui/commands/auth/prompts';
 import { loadCatalogWithSpinner } from '#/tui/commands/provider-connect/catalog';
 import { BannerComponent } from '#/tui/components/chrome/banner';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
@@ -28,8 +28,8 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
 
-vi.mock('#/tui/commands/prompts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/tui/commands/prompts')>();
+vi.mock('#/tui/commands/auth/prompts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/tui/commands/auth/prompts')>();
   return { ...actual, promptProviderCatalog: vi.fn(), promptLogoutProviderSelection: vi.fn() };
 });
 vi.mock('#/tui/commands/provider-connect/catalog', async (importOriginal) => {

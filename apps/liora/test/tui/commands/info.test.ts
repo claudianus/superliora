@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { loadStatusRecoveryReadiness } from '#/tui/commands/info';
+import { loadStatusRecoveryReadiness } from '#/tui/commands/info/info';
 
 let workDir: string;
 

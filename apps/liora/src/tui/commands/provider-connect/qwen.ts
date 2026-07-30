@@ -5,7 +5,7 @@ import {
   validateQwenTokenPlanKeyFormat,
 } from '#/tui/utils/model/qwen-token-plan';
 import { type ProviderCatalogOption } from '#/tui/utils/model/provider-catalog-options';
-import { promptApiKeyForCatalogProvider } from '../prompts';
+import { promptApiKeyForCatalogProvider } from '../auth/prompts';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 

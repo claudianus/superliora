@@ -6,7 +6,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   loadMemoryReadinessEvidence,
   type MemoryReadinessSnapshot,
-} from '../evidence-readiness';
+} from '../memory/evidence-readiness';
 import { loadPreflightHumanWriting } from './human-writing';
 import { buildPreflightLines as renderPreflightLines } from './lines';
 import { loadPreflightLoopRun } from './loop';
@@ -31,7 +31,7 @@ import {
   type PreflightStatus,
 } from './types';
 import { formatPreflightError } from './utils';
-import { redactMemoryReadinessText } from '../memory';
+import { redactMemoryReadinessText } from '../memory/memory';
 
 export async function handlePreflightCommand(host: SlashCommandHost, rawArgs: string): Promise<void> {
   const { UsagePanelComponent } = await import('../components/messages/usage-panel/index');
