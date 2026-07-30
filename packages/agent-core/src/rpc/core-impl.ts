@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 
 import { ErrorCodes, LioraError } from '#/errors';
-import { getRootLogger, log } from '#/logging/logger';
+import { log } from '#/logging/logger';
 import { PluginManager } from '#/plugin';
 
 import {
@@ -11,16 +11,12 @@ import {
 } from '#/tools/providers/context7-session';
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
-import { resolveThinkingLevel } from '../agent/config/thinking';
 
 import {
   ensureLioraHome,
   loadRuntimeConfigSafe,
   mergeConfigPatch,
   readConfigFileForUpdate,
-  normalizeAdditionalDirs,
-  readWorkspaceAdditionalDirs,
-  resolveWorkspaceAdditionalDirs,
   resolveConfigPath,
   resolveLioraHome,
   writeConfigFile,
@@ -35,12 +31,6 @@ import type { Logger } from '../logging/types';
 import { resolveSessionMcpConfig, mergeCallerMcpServers, type SessionMcpConfig } from '../mcp';
 import { LioraRecallStore } from '../memory';
 import { Session, type SessionMeta, type SessionSkillConfig } from '../session';
-import {
-  responseLanguagePreferenceFromHostLocale,
-  responseLanguagePreferenceFromUnknown,
-} from '../session/response-language';
-import { exportSessionDirectory } from '../session/export';
-import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktree';
 import {
   ProviderManager,
   type OAuthTokenProviderResolver
@@ -161,15 +151,6 @@ import { proxyWithExtraPayload } from './types';
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 import type { ToolServices } from '../tools/support/services';
 import { createRuntimeConfig, hasStatefulGuiRuntime } from './runtime-factory';
-import {
-  clientTelemetryProperties,
-  createSessionId,
-  requiredWorkDir,
-  resumeSessionResult,
-  telemetryErrorReason,
-  warnIfLogFlushFails,
-  withAdditionalDirs,
-} from './session-helpers';
 import { applyDeleteConfigFields, removeProviderFromConfig, validateDeleteConfigFields } from './config-ops';
 import * as pluginMethods from './plugin-methods';
 import {
@@ -177,6 +158,8 @@ import {
   managedKimiCodeEnvForPlugins,
   withManagedKimiPluginEnv,
 } from './plugin-mcp-env';
+import * as sessionLifecycle from './session-lifecycle';
+import * as sessionAgentMethods from './session-agent-methods';
 
 type AgentScopedPayload<T> = T & { readonly agentId: string };
 type SessionScopedPayload<T> = T & { readonly sessionId: string };
@@ -211,13 +194,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   private readonly kimiRequestHeaders: Record<string, string> | undefined;
   private readonly resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined;
   private readonly skillDirs: readonly string[];
-  private readonly sessionStore: SessionStore;
+  readonly sessionStore: SessionStore;
   readonly plugins: PluginManager;
   pluginsReady: Promise<void>;
   pluginsLoadError: Error | undefined;
-  private readonly appVersion: string | undefined;
-  private readonly experimentalFlags: FlagResolver;
-  private readonly memory: LioraRecallStore;
+  readonly appVersion: string | undefined;
+  readonly experimentalFlags: FlagResolver;
+  readonly memory: LioraRecallStore;
   private readonly uncaughtListener:
     | ((error: Error, origin: NodeJS.UncaughtExceptionOrigin) => void)
     | undefined;
@@ -292,145 +275,14 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   }
 
   async createSession(input: CreateSessionPayload): Promise<SessionSummary> {
-    return this.createSessionWithOverrides(input, {});
+    return sessionLifecycle.createSession(this, input);
   }
 
   async createSessionWithOverrides(
     input: CreateSessionPayload,
     overrides: { kaos?: Kaos; persistenceKaos?: Kaos },
   ): Promise<SessionSummary> {
-    const options = input;
-    const workDir = requiredWorkDir('createSession', options.workDir);
-    const config = this.reloadProviderManager();
-    const id = options.id ?? createSessionId();
-    const modelAlias = options.model ?? config.defaultModel;
-    const thinkingLevel = resolveThinkingLevel(options.thinking, {
-      ...config,
-      model: modelAlias === undefined ? undefined : config.models?.[modelAlias],
-    });
-    const permissionMode = options.permission ?? config.defaultPermissionMode;
-    const baseMcpConfig = await resolveSessionMcpConfig({
-      cwd: workDir,
-      homeDir: this.homeDir,
-    });
-    const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, options.mcpServers);
-    const parentKaos = overrides.kaos ?? (await this.getKaos());
-    const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
-    // Read the workspace local config (`.superliora/local.toml`) through the
-    // persistence (local) kaos, not the tool kaos. In ACP mode the tool kaos is
-    // the reverse-RPC bridge and the client does not know the session yet during
-    // `session/new`, so reading through it fails with "unknown session"
-    // (https://github.com/claudianus/superliora/issues/988). The local config is
-    // a system file and must not depend on the tool bridge — same reason
-    // `Session.systemContextKaos` is backed by the persistence sink.
-    const localWorkspaceDirs = await readWorkspaceAdditionalDirs(persistenceKaos, workDir);
-    const callerAdditionalDirs = await resolveWorkspaceAdditionalDirs(
-      parentKaos,
-      workDir,
-      options.additionalDirs ?? [],
-    );
-    const additionalDirs = normalizeAdditionalDirs([
-      ...localWorkspaceDirs.additionalDirs,
-      ...callerAdditionalDirs,
-    ]);
-    const summary = await this.sessionStore.create({
-      id,
-      workDir,
-    });
-    const result: SessionSummary = {
-      ...summary,
-      metadata: options.metadata,
-    };
-    const clientTelemetry = clientTelemetryProperties(options.client);
-    const sessionTelemetryBase = withTelemetryContext(this.telemetry, { sessionId: summary.id });
-    const sessionTelemetry =
-      Object.keys(clientTelemetry).length === 0
-        ? sessionTelemetryBase
-        : withTelemetryProperties(sessionTelemetryBase, clientTelemetry);
-
-    await this.pluginsReady;
-    const pluginSessionStarts = this.plugins.enabledSessionStarts();
-    const pluginCommands = await this.plugins.enabledCommands();
-    const mcpConfig = this.mergePluginMcpConfig(withCallerMcp);
-
-    // Session ctor attaches its own log sink. If anything in the setup-after-
-    // ctor block throws, `session.close()` releases the sink (and mcp).
-    const runtime = await this.buildSessionToolServices(config, summary.id);
-    const session = new Session({
-      kaos: parentKaos.withCwd(workDir),
-      persistenceKaos,
-      toolServices: runtime,
-      config,
-      id,
-      homedir: summary.sessionDir,
-      kimiHomeDir: this.homeDir,
-      rpc: proxyWithExtraPayload(await this.sdk, { sessionId: summary.id }),
-      providerManager: this.resolveProviderManager(summary.id),
-      background: config.background,
-      hooks: [...(config.hooks ?? []), ...this.plugins.enabledHooks()],
-      permissionRules: config.permission?.rules,
-      skills: this.resolveSessionSkillConfig(config),
-      mcpConfig,
-      experimentalFlags: this.experimentalFlags,
-      telemetry: sessionTelemetry,
-      pluginSessionStarts,
-      appVersion: this.appVersion,
-      additionalDirs,
-      memory: this.memory.runtimeForSession({ sessionId: summary.id, workDir }),
-      dreamStore: this.memory,
-      pluginCommands,
-      drainAgentTasksOnStop: options.drainAgentTasksOnStop,
-    });
-    try {
-      session.metadata = {
-        ...session.metadata,
-        createdAt: new Date(summary.createdAt).toISOString(),
-        updatedAt: new Date(summary.updatedAt).toISOString(),
-        workDir,
-        ...(summary.title !== undefined
-          ? {
-              title: summary.title,
-              isCustomTitle: true,
-            }
-          : {}),
-        custom: options.metadata === undefined ? {} : { ...options.metadata },
-      };
-      if (responseLanguagePreferenceFromUnknown(session.metadata.custom['responseLanguage']) === undefined) {
-        const seeded = responseLanguagePreferenceFromHostLocale();
-        if (seeded !== undefined) {
-          session.metadata = {
-            ...session.metadata,
-            custom: {
-              ...session.metadata.custom,
-              responseLanguage: seeded,
-            },
-          };
-        }
-      }
-      const mainAgent = await session.createMain();
-      mainAgent.config.update({
-        modelAlias: options.model ?? config.defaultModel,
-        thinkingLevel,
-      });
-      if (permissionMode !== undefined) {
-        mainAgent.permission.setMode(permissionMode);
-      }
-      // Honor config.defaultPlanMode for fresh sessions. Resumed sessions
-      // restore their own plan state from records and never re-apply this.
-      if (config.defaultPlanMode === true) {
-        await mainAgent.planMode.enter();
-      }
-      await session.writeMetadata();
-      await session.flushMetadata();
-    } catch (error) {
-      await session.close().catch(() => {});
-      throw error;
-    }
-    this.sessions.set(id, session);
-    if (Object.keys(clientTelemetry).length > 0) {
-      sessionTelemetry.track('session_started', { resumed: false });
-    }
-    return withAdditionalDirs(result, session);
+    return sessionLifecycle.createSessionWithOverrides(this, input, overrides);
   }
 
   getCoreInfo(): CoreInfo {
@@ -481,20 +333,10 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return this.memory.consolidate();
   }
 
-  async closeSession({ sessionId }: CloseSessionPayload): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      await session.close();
-      this.sessions.delete(sessionId);
-    }
+  async closeSession(payload: CloseSessionPayload): Promise<void> {
+    return sessionLifecycle.closeSession(this, payload);
   }
 
-  /**
-   * Emergency synchronous flush of every active session's pending state to
-   * disk (Ultrawork mirrors + wire-log records, with fsync). Intended only for
-   * crash paths (signal handlers, `uncaughtExceptionMonitor`) where no async
-   * work can complete before the process exits. Never throws.
-   */
   emergencyFlushSync(): void {
     for (const session of this.sessions.values()) {
       try {
@@ -505,13 +347,12 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     }
   }
 
-  async archiveSession({ sessionId }: ArchiveSessionPayload): Promise<void> {
-    await this.closeSession({ sessionId });
-    await this.sessionStore.archive(sessionId);
+  async archiveSession(payload: ArchiveSessionPayload): Promise<void> {
+    return sessionLifecycle.archiveSession(this, payload);
   }
 
   async resumeSession(input: ResumeSessionPayload): Promise<ResumeSessionResult> {
-    return this.resumeSessionWithOverrides(input, {});
+    return sessionLifecycle.resumeSession(this, input);
   }
 
   async resumeSessionWithOverrides(
@@ -522,209 +363,27 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       forcePluginSessionStartReminder?: boolean;
     },
   ): Promise<ResumeSessionResult> {
-    const summary = await this.sessionStore.get(input.sessionId);
-    const parentKaosForRead = overrides.kaos ?? (await this.getKaos());
-    // Read `.superliora/local.toml` through the persistence (local) kaos, not the
-    // tool kaos — see createSessionWithOverrides and issue #988.
-    const localWorkspaceDirs = await readWorkspaceAdditionalDirs(
-      overrides.persistenceKaos ?? parentKaosForRead,
-      summary.workDir,
-    );
-    const callerAdditionalDirs = await resolveWorkspaceAdditionalDirs(
-      parentKaosForRead,
-      summary.workDir,
-      input.additionalDirs ?? [],
-    );
-    const additionalDirs = normalizeAdditionalDirs([
-      ...localWorkspaceDirs.additionalDirs,
-      ...callerAdditionalDirs,
-    ]);
-    const active = this.sessions.get(summary.id);
-    if (active !== undefined) {
-      if (overrides.kaos !== undefined) {
-        active.setToolKaos(overrides.kaos.withCwd(summary.workDir));
-      }
-      await active.setAdditionalDirs(additionalDirs);
-      return withAdditionalDirs(await resumeSessionResult(summary, active), active);
-    }
-
-    const config = this.reloadProviderManager();
-    const baseMcpConfig = await resolveSessionMcpConfig({
-      cwd: summary.workDir,
-      homeDir: this.homeDir,
-    });
-    const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, input.mcpServers);
-    await this.pluginsReady;
-    const pluginSessionStarts = this.plugins.enabledSessionStarts();
-    const pluginCommands = await this.plugins.enabledCommands();
-    const mcpConfig = this.mergePluginMcpConfig(withCallerMcp);
-    const runtime = await this.buildSessionToolServices(config, summary.id);
-    const parentKaos = parentKaosForRead;
-    const persistenceKaos = overrides.persistenceKaos ?? parentKaos;
-    const session = new Session({
-      kaos: parentKaos.withCwd(summary.workDir),
-      persistenceKaos,
-      toolServices: runtime,
-      config,
-      id: summary.id,
-      homedir: summary.sessionDir,
-      kimiHomeDir: this.homeDir,
-      rpc: proxyWithExtraPayload(await this.sdk, { sessionId: summary.id }),
-      providerManager: this.resolveProviderManager(summary.id),
-      background: config.background,
-      hooks: [...(config.hooks ?? []), ...this.plugins.enabledHooks()],
-      permissionRules: config.permission?.rules,
-      skills: this.resolveSessionSkillConfig(config),
-      mcpConfig,
-      experimentalFlags: this.experimentalFlags,
-      telemetry: withTelemetryContext(this.telemetry, { sessionId: summary.id }),
-      initializeMainAgent: false,
-      pluginSessionStarts,
-      appVersion: this.appVersion,
-      additionalDirs,
-      memory: this.memory.runtimeForSession({ sessionId: summary.id, workDir: summary.workDir }),
-      dreamStore: this.memory,
-      pluginCommands,
-    });
-    let warning: string | undefined;
-    try {
-      const resumeResult = await session.resume();
-      warning = resumeResult.warning;
-      await this.refreshSessionRuntimeConfig(session, config);
-    } catch (error) {
-      await session.close().catch(() => {});
-      withTelemetryContext(this.telemetry, { sessionId: summary.id }).track('session_load_failed', {
-        reason: telemetryErrorReason(error),
-      });
-      throw error;
-    }
-    this.sessions.set(summary.id, session);
-    if (overrides.forcePluginSessionStartReminder === true) {
-      // Append before constructing the result so the returned ResumeSessionResult
-      // (and any SDK caller's resumeState) reflects the refreshed plugin context.
-      await session.appendPluginSessionStartReminder();
-    }
-    return resumeSessionResult(summary, session, warning);
+    return sessionLifecycle.resumeSessionWithOverrides(this, input, overrides);
   }
 
   async reloadSession(input: ReloadSessionPayload): Promise<ResumeSessionResult> {
-    const summary = await this.sessionStore.get(input.sessionId);
-    const active = this.sessions.get(summary.id);
-    if (active?.hasActiveTurn === true) {
-      throw new LioraError(
-        ErrorCodes.TURN_AGENT_BUSY,
-        `Session "${summary.id}" cannot be reloaded while a turn is running`,
-        { details: { sessionId: summary.id } },
-      );
-    }
-
-    this.reloadProviderManager();
-    this.clearRuntimeCache();
-    await this.reloadPlugins({});
-
-    if (active !== undefined) {
-      await active.closeForReload();
-      this.sessions.delete(summary.id);
-    }
-    return this.resumeSessionWithOverrides(
-      { sessionId: summary.id },
-      { forcePluginSessionStartReminder: input.forcePluginSessionStartReminder },
-    );
+    return sessionLifecycle.reloadSession(this, input);
   }
 
   async forkSession(input: ForkSessionPayload): Promise<ResumeSessionResult> {
-    const source = await this.sessionStore.get(input.sessionId);
-    const active = this.sessions.get(source.id);
-    if (active?.hasActiveTurn === true) {
-      throw new LioraError(
-        ErrorCodes.SESSION_FORK_ACTIVE_TURN,
-        `Session "${source.id}" cannot be forked while a turn is running`,
-        { details: { sessionId: source.id } },
-      );
-    }
-
-    if (active !== undefined) {
-      await active.flushMetadata();
-    }
-
-    const id = input.id ?? createSessionId();
-    let forkWorkDir: string | undefined;
-    let worktreeMetadata: JsonObject | undefined;
-
-    if (input.worktree === true || (typeof input.worktree === 'object' && input.worktree !== null)) {
-      const worktreeOpts = typeof input.worktree === 'object' ? input.worktree : {};
-      const kaos = await this.getKaos();
-      const created = await createSessionWorktree(kaos, {
-        repoPath: source.workDir,
-        name: worktreeOpts.name,
-        baseRef: worktreeOpts.baseRef,
-        homeDir: this.homeDir,
-        sessionId: id,
-      });
-      forkWorkDir = created.workDir;
-      worktreeMetadata = buildWorktreeMetadata(created.meta) as JsonObject;
-    }
-
-    const mergedMetadata: JsonObject | undefined =
-      worktreeMetadata === undefined
-        ? input.metadata
-        : {
-            ...input.metadata,
-            ...worktreeMetadata,
-          };
-
-    await this.sessionStore.fork({
-      sourceId: source.id,
-      targetId: id,
-      title: input.title,
-      metadata: mergedMetadata,
-      workDir: forkWorkDir,
-    });
-    return this.resumeSession({ sessionId: id });
+    return sessionLifecycle.forkSession(this, input);
   }
 
   async listSessions(input: ListSessionsPayload = {}): Promise<readonly SessionSummary[]> {
-    return this.sessionStore.list(input);
+    return sessionLifecycle.listSessions(this, input);
   }
 
-  async renameSession({ sessionId, ...payload }: RenameSessionRequest): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (session !== undefined) {
-      await new SessionAPIImpl(session).renameSession(payload);
-      return;
-    }
-    await this.sessionStore.rename(sessionId, payload.title);
+  async renameSession(request: RenameSessionRequest): Promise<void> {
+    return sessionLifecycle.renameSession(this, request);
   }
 
   async exportSession(input: ExportSessionPayload): Promise<ExportSessionResult> {
-    const summary = await this.sessionStore.get(input.sessionId);
-    const active = this.sessions.get(input.sessionId);
-    // Closed sessions have no `Session.log`; create an ad-hoc child bound to
-    // their id so the entries still route to the session log file.
-    const exportLog =
-      active?.log ?? log.createChild({ sessionId: input.sessionId });
-    if (active !== undefined) {
-      try {
-        await active.flushMetadata();
-      } catch (error) {
-        exportLog.warn('flushMetadata failed before export', { error });
-      }
-    }
-    await warnIfLogFlushFails(exportLog, 'export session log flush failed', () =>
-      getRootLogger().flushSession(input.sessionId),
-    );
-    if (input.includeGlobalLog === true) {
-      await warnIfLogFlushFails(exportLog, 'export global log flush failed', () =>
-        getRootLogger().flushGlobal(),
-      );
-    }
-    const result = await exportSessionDirectory({
-      request: input,
-      summary,
-      homeDir: this.homeDir,
-      globalLogPath: getRootLogger().getConfig()?.globalLogPath,
-    });
-    return result;
+    return sessionLifecycle.exportSession(this, input);
   }
 
   async getKimiConfig(input?: GetKimiConfigPayload): Promise<LioraConfig> {
@@ -760,386 +419,306 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return this.reloadRuntimeConfig();
   }
 
-  prompt({ sessionId, ...payload }: SessionAgentPayload<PromptPayload>) {
-    return this.sessionApi(sessionId).prompt(payload);
+  prompt(request: Parameters<typeof sessionAgentMethods.prompt>[1]) {
+    return sessionAgentMethods.prompt(this, request);
   }
 
-  runShellCommand({ sessionId, ...payload }: SessionAgentPayload<RunShellCommandPayload>) {
-    return this.sessionApi(sessionId).runShellCommand(payload);
+  runShellCommand(request: Parameters<typeof sessionAgentMethods.runShellCommand>[1]) {
+    return sessionAgentMethods.runShellCommand(this, request);
   }
 
-  cancelShellCommand({ sessionId, ...payload }: SessionAgentPayload<CancelShellCommandPayload>) {
-    return this.sessionApi(sessionId).cancelShellCommand(payload);
+  cancelShellCommand(request: Parameters<typeof sessionAgentMethods.cancelShellCommand>[1]) {
+    return sessionAgentMethods.cancelShellCommand(this, request);
   }
 
-  steer({ sessionId, ...payload }: SessionAgentPayload<SteerPayload>) {
-    return this.sessionApi(sessionId).steer(payload);
+  steer(request: Parameters<typeof sessionAgentMethods.steer>[1]) {
+    return sessionAgentMethods.steer(this, request);
   }
 
-  cancel({ sessionId, ...payload }: SessionAgentPayload<CancelPayload>) {
-    return this.sessionApi(sessionId).cancel(payload);
+  cancel(request: Parameters<typeof sessionAgentMethods.cancel>[1]) {
+    return sessionAgentMethods.cancel(this, request);
   }
 
-  undoHistory({ sessionId, ...payload }: SessionAgentPayload<UndoHistoryPayload>) {
-    return this.sessionApi(sessionId).undoHistory(payload);
+  undoHistory(request: Parameters<typeof sessionAgentMethods.undoHistory>[1]) {
+    return sessionAgentMethods.undoHistory(this, request);
   }
 
-  async setModel({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<SetModelPayload>): Promise<SetModelResult> {
-    this.reloadProviderManager();
-    return this.sessionApi(sessionId).setModel(payload);
+  setModel(request: SessionAgentPayload<SetModelPayload>): Promise<SetModelResult> {
+    return sessionAgentMethods.setModel(this, request);
   }
 
-  setThinking({ sessionId, ...payload }: SessionAgentPayload<SetThinkingPayload>) {
-    return this.sessionApi(sessionId).setThinking(payload);
+  setThinking(request: Parameters<typeof sessionAgentMethods.setThinking>[1]) {
+    return sessionAgentMethods.setThinking(this, request);
   }
 
-  setPermission({ sessionId, ...payload }: SessionAgentPayload<SetPermissionPayload>) {
-    return this.sessionApi(sessionId).setPermission(payload);
+  setPermission(request: Parameters<typeof sessionAgentMethods.setPermission>[1]) {
+    return sessionAgentMethods.setPermission(this, request);
   }
 
-  getModel({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getModel(payload);
+  getModel(request: Parameters<typeof sessionAgentMethods.getModel>[1]) {
+    return sessionAgentMethods.getModel(this, request);
   }
 
-  enterPlan({ sessionId, ...payload }: SessionAgentPayload<EnterPlanPayload>) {
-    return this.sessionApi(sessionId).enterPlan(payload);
+  enterPlan(request: Parameters<typeof sessionAgentMethods.enterPlan>[1]) {
+    return sessionAgentMethods.enterPlan(this, request);
   }
 
-  cancelPlan({ sessionId, ...payload }: SessionAgentPayload<CancelPlanPayload>) {
-    return this.sessionApi(sessionId).cancelPlan(payload);
+  cancelPlan(request: Parameters<typeof sessionAgentMethods.cancelPlan>[1]) {
+    return sessionAgentMethods.cancelPlan(this, request);
   }
 
-  clearPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).clearPlan(payload);
+  clearPlan(request: Parameters<typeof sessionAgentMethods.clearPlan>[1]) {
+    return sessionAgentMethods.clearPlan(this, request);
   }
 
-  enterSwarm({ sessionId, ...payload }: SessionAgentPayload<EnterSwarmPayload>) {
-    return this.sessionApi(sessionId).enterSwarm(payload);
+  enterSwarm(request: Parameters<typeof sessionAgentMethods.enterSwarm>[1]) {
+    return sessionAgentMethods.enterSwarm(this, request);
   }
 
-  exitSwarm({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).exitSwarm(payload);
+  exitSwarm(request: Parameters<typeof sessionAgentMethods.exitSwarm>[1]) {
+    return sessionAgentMethods.exitSwarm(this, request);
   }
 
-  getSwarmMode({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getSwarmMode(payload);
+  getSwarmMode(request: Parameters<typeof sessionAgentMethods.getSwarmMode>[1]) {
+    return sessionAgentMethods.getSwarmMode(this, request);
   }
 
-  setPremiumQuality({ sessionId, ...payload }: SessionAgentPayload<SetPremiumQualityPayload>) {
-    return this.sessionApi(sessionId).setPremiumQuality(payload);
+  setPremiumQuality(request: Parameters<typeof sessionAgentMethods.setPremiumQuality>[1]) {
+    return sessionAgentMethods.setPremiumQuality(this, request);
   }
 
-  getPremiumQuality({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getPremiumQuality(payload);
+  getPremiumQuality(request: Parameters<typeof sessionAgentMethods.getPremiumQuality>[1]) {
+    return sessionAgentMethods.getPremiumQuality(this, request);
   }
 
-  setOrchestratorMode({ sessionId, ...payload }: SessionAgentPayload<SetOrchestratorModePayload>) {
-    return this.sessionApi(sessionId).setOrchestratorMode(payload);
+  setOrchestratorMode(request: Parameters<typeof sessionAgentMethods.setOrchestratorMode>[1]) {
+    return sessionAgentMethods.setOrchestratorMode(this, request);
   }
 
-  getOrchestratorMode({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getOrchestratorMode(payload);
+  getOrchestratorMode(request: Parameters<typeof sessionAgentMethods.getOrchestratorMode>[1]) {
+    return sessionAgentMethods.getOrchestratorMode(this, request);
   }
 
-  beginCompaction({ sessionId, ...payload }: SessionAgentPayload<BeginCompactionPayload>) {
-    return this.sessionApi(sessionId).beginCompaction(payload);
+  beginCompaction(request: Parameters<typeof sessionAgentMethods.beginCompaction>[1]) {
+    return sessionAgentMethods.beginCompaction(this, request);
   }
 
-  cancelCompaction({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).cancelCompaction(payload);
+  cancelCompaction(request: Parameters<typeof sessionAgentMethods.cancelCompaction>[1]) {
+    return sessionAgentMethods.cancelCompaction(this, request);
   }
 
-  registerTool({ sessionId, ...payload }: SessionAgentPayload<RegisterToolPayload>) {
-    return this.sessionApi(sessionId).registerTool(payload);
+  registerTool(request: Parameters<typeof sessionAgentMethods.registerTool>[1]) {
+    return sessionAgentMethods.registerTool(this, request);
   }
 
-  unregisterTool({ sessionId, ...payload }: SessionAgentPayload<UnregisterToolPayload>) {
-    return this.sessionApi(sessionId).unregisterTool(payload);
+  unregisterTool(request: Parameters<typeof sessionAgentMethods.unregisterTool>[1]) {
+    return sessionAgentMethods.unregisterTool(this, request);
   }
 
-  setActiveTools({ sessionId, ...payload }: SessionAgentPayload<SetActiveToolsPayload>) {
-    return this.sessionApi(sessionId).setActiveTools(payload);
+  setActiveTools(request: Parameters<typeof sessionAgentMethods.setActiveTools>[1]) {
+    return sessionAgentMethods.setActiveTools(this, request);
   }
 
-  stopBackground({ sessionId, ...payload }: SessionAgentPayload<StopBackgroundPayload>) {
-    return this.sessionApi(sessionId).stopBackground(payload);
+  stopBackground(request: Parameters<typeof sessionAgentMethods.stopBackground>[1]) {
+    return sessionAgentMethods.stopBackground(this, request);
   }
 
-  detachBackground({ sessionId, ...payload }: SessionAgentPayload<DetachBackgroundPayload>) {
-    return this.sessionApi(sessionId).detachBackground(payload);
+  detachBackground(request: Parameters<typeof sessionAgentMethods.detachBackground>[1]) {
+    return sessionAgentMethods.detachBackground(this, request);
   }
 
-  clearContext({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).clearContext(payload);
+  clearContext(request: Parameters<typeof sessionAgentMethods.clearContext>[1]) {
+    return sessionAgentMethods.clearContext(this, request);
   }
 
-  activateSkill({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<ActivateSkillPayload>): Promise<void> {
-    return this.sessionApi(sessionId).activateSkill(payload);
+  activateSkill(request: SessionAgentPayload<ActivateSkillPayload>): Promise<void> {
+    return sessionAgentMethods.activateSkill(this, request);
   }
 
-  activatePluginCommand({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<ActivatePluginCommandPayload>): Promise<void> {
-    return this.sessionApi(sessionId).activatePluginCommand(payload);
+  activatePluginCommand(request: SessionAgentPayload<ActivatePluginCommandPayload>): Promise<void> {
+    return sessionAgentMethods.activatePluginCommand(this, request);
   }
 
-  getBackgroundOutput({ sessionId, ...payload }: SessionAgentPayload<GetBackgroundOutputPayload>) {
-    return this.sessionApi(sessionId).getBackgroundOutput(payload);
+  getBackgroundOutput(request: Parameters<typeof sessionAgentMethods.getBackgroundOutput>[1]) {
+    return sessionAgentMethods.getBackgroundOutput(this, request);
   }
 
-  getContext({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getContext(payload);
+  getContext(request: Parameters<typeof sessionAgentMethods.getContext>[1]) {
+    return sessionAgentMethods.getContext(this, request);
   }
 
-  getContextComposition({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getContextComposition(payload);
+  getContextComposition(request: Parameters<typeof sessionAgentMethods.getContextComposition>[1]) {
+    return sessionAgentMethods.getContextComposition(this, request);
   }
 
-  diagnoseContextOS({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<DiagnoseContextOSPayload>) {
-    return this.sessionApi(sessionId).diagnoseContextOS(payload);
+  diagnoseContextOS(request: Parameters<typeof sessionAgentMethods.diagnoseContextOS>[1]) {
+    return sessionAgentMethods.diagnoseContextOS(this, request);
   }
 
-  getSessionTrace({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getSessionTrace(payload);
+  getSessionTrace(request: Parameters<typeof sessionAgentMethods.getSessionTrace>[1]) {
+    return sessionAgentMethods.getSessionTrace(this, request);
   }
 
-  getConfig({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getConfig(payload);
+  getConfig(request: Parameters<typeof sessionAgentMethods.getConfig>[1]) {
+    return sessionAgentMethods.getConfig(this, request);
   }
 
-  getPermission({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getPermission(payload);
+  getPermission(request: Parameters<typeof sessionAgentMethods.getPermission>[1]) {
+    return sessionAgentMethods.getPermission(this, request);
   }
 
-  getPlan({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getPlan(payload);
+  getPlan(request: Parameters<typeof sessionAgentMethods.getPlan>[1]) {
+    return sessionAgentMethods.getPlan(this, request);
   }
 
-  getUsage({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getUsage(payload);
+  getUsage(request: Parameters<typeof sessionAgentMethods.getUsage>[1]) {
+    return sessionAgentMethods.getUsage(this, request);
   }
 
-  getProviderRouteStatus({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getProviderRouteStatus(payload);
+  getProviderRouteStatus(request: Parameters<typeof sessionAgentMethods.getProviderRouteStatus>[1]) {
+    return sessionAgentMethods.getProviderRouteStatus(this, request);
   }
 
-  resetProviderRouteStatus({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).resetProviderRouteStatus(payload);
+  resetProviderRouteStatus(request: Parameters<typeof sessionAgentMethods.resetProviderRouteStatus>[1]) {
+    return sessionAgentMethods.resetProviderRouteStatus(this, request);
   }
 
-  getTools({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-    return this.sessionApi(sessionId).getTools(payload);
+  getTools(request: Parameters<typeof sessionAgentMethods.getTools>[1]) {
+    return sessionAgentMethods.getTools(this, request);
   }
 
-  getBackground({ sessionId, ...payload }: SessionAgentPayload<GetBackgroundPayload>) {
-    return this.sessionApi(sessionId).getBackground(payload);
+  getBackground(request: Parameters<typeof sessionAgentMethods.getBackground>[1]) {
+    return sessionAgentMethods.getBackground(this, request);
   }
 
   inlineComplete(
-    { sessionId, ...payload }: SessionAgentPayload<InlineCompletePayload>,
+    request: SessionAgentPayload<InlineCompletePayload>,
     options?: PromptIntelligenceCallOptions,
   ) {
-    return this.sessionApi(sessionId).inlineComplete(payload, options);
+    return sessionAgentMethods.inlineComplete(this, request, options);
   }
 
   suggestPrompts(
-    { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+    request: SessionAgentPayload<EmptyPayload>,
     options?: PromptIntelligenceCallOptions,
   ) {
-    return this.sessionApi(sessionId).suggestPrompts(payload, options);
+    return sessionAgentMethods.suggestPrompts(this, request, options);
   }
 
-  updateSessionMetadata({ sessionId, ...payload }: UpdateSessionMetadataRequest): Promise<void> {
-    return this.sessionApi(sessionId).updateSessionMetadata(payload);
+  updateSessionMetadata(request: UpdateSessionMetadataRequest): Promise<void> {
+    return sessionAgentMethods.updateSessionMetadata(this, request);
   }
 
-  getSessionMetadata({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): SessionMeta {
-    return this.sessionApi(sessionId).getSessionMetadata(payload);
+  getSessionMetadata(request: SessionScopedPayload<EmptyPayload>): SessionMeta {
+    return sessionAgentMethods.getSessionMetadata(this, request);
   }
 
-  listSkills({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<EmptyPayload>): Promise<readonly SkillSummary[]> {
-    return this.sessionApi(sessionId).listSkills(payload);
+  listSkills(request: Parameters<typeof sessionAgentMethods.listSkills>[1]) {
+    return sessionAgentMethods.listSkills(this, request);
   }
 
-  listPluginCommands({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<EmptyPayload>): readonly PluginCommandDef[] {
-    return this.sessionApi(sessionId).listPluginCommands(payload);
+  listPluginCommands(request: Parameters<typeof sessionAgentMethods.listPluginCommands>[1]) {
+    return sessionAgentMethods.listPluginCommands(this, request);
   }
 
-  searchSkills({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<SearchSkillsPayload>): Promise<readonly SkillSearchResult[]> {
-    return this.sessionApi(sessionId).searchSkills(payload);
+  searchSkills(request: Parameters<typeof sessionAgentMethods.searchSkills>[1]) {
+    return sessionAgentMethods.searchSkills(this, request);
   }
 
-  listMcpServers({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<EmptyPayload>): readonly McpServerInfo[] {
-    return this.sessionApi(sessionId).listMcpServers(payload);
+  listMcpServers(request: Parameters<typeof sessionAgentMethods.listMcpServers>[1]) {
+    return sessionAgentMethods.listMcpServers(this, request);
   }
 
-  getMcpStartupMetrics({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<EmptyPayload>): Promise<McpStartupMetrics> {
-    return this.sessionApi(sessionId).getMcpStartupMetrics(payload);
+  getMcpStartupMetrics(request: Parameters<typeof sessionAgentMethods.getMcpStartupMetrics>[1]) {
+    return sessionAgentMethods.getMcpStartupMetrics(this, request);
   }
 
-  reconnectMcpServer({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<ReconnectMcpServerPayload>): Promise<void> {
-    return this.sessionApi(sessionId).reconnectMcpServer(payload);
+  reconnectMcpServer(request: Parameters<typeof sessionAgentMethods.reconnectMcpServer>[1]) {
+    return sessionAgentMethods.reconnectMcpServer(this, request);
   }
 
-  generateAgentsMd({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): Promise<void> {
-    return this.sessionApi(sessionId).generateAgentsMd(payload);
+  generateAgentsMd(request: Parameters<typeof sessionAgentMethods.generateAgentsMd>[1]) {
+    return sessionAgentMethods.generateAgentsMd(this, request);
   }
 
-  getSessionWarnings({ sessionId, ...payload }: SessionScopedPayload<EmptyPayload>): Promise<readonly SessionWarning[]> {
-    return this.sessionApi(sessionId).getSessionWarnings(payload);
+  getSessionWarnings(request: Parameters<typeof sessionAgentMethods.getSessionWarnings>[1]) {
+    return sessionAgentMethods.getSessionWarnings(this, request);
   }
 
-  addAdditionalDir({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<AddAdditionalDirPayload>): Promise<AddAdditionalDirResult> {
-    return this.requireSession(sessionId).addAdditionalDir(payload.path, payload.persist);
+  addAdditionalDir(request: Parameters<typeof sessionAgentMethods.addAdditionalDir>[1]) {
+    return sessionAgentMethods.addAdditionalDir(this, request);
   }
 
-  rewindFiles({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<RewindFilesPayload>): Promise<RewindFilesResult> {
-    return this.sessionApi(sessionId).rewindFiles(payload);
+  rewindFiles(request: Parameters<typeof sessionAgentMethods.rewindFiles>[1]) {
+    return sessionAgentMethods.rewindFiles(this, request);
   }
 
-  startConversationLoop({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<StartConversationLoopPayload>): Promise<ConversationLoopStateData> {
-    return Promise.resolve(this.sessionApi(sessionId).startConversationLoop(payload));
+  startConversationLoop(request: Parameters<typeof sessionAgentMethods.startConversationLoop>[1]) {
+    return sessionAgentMethods.startConversationLoop(this, request);
   }
 
-  stopConversationLoop({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<StopConversationLoopPayload>): Promise<ConversationLoopStateData | undefined> {
-    return Promise.resolve(this.sessionApi(sessionId).stopConversationLoop(payload));
+  stopConversationLoop(request: Parameters<typeof sessionAgentMethods.stopConversationLoop>[1]) {
+    return sessionAgentMethods.stopConversationLoop(this, request);
   }
 
-  listConversationLoops({
-    sessionId,
-    ...payload
-  }: SessionScopedPayload<EmptyPayload>): Promise<readonly ConversationLoopStateData[]> {
-    return Promise.resolve(this.sessionApi(sessionId).listConversationLoops(payload));
+  listConversationLoops(request: Parameters<typeof sessionAgentMethods.listConversationLoops>[1]) {
+    return sessionAgentMethods.listConversationLoops(this, request);
   }
 
-  startBtw({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>): Promise<string> {
-    return this.sessionApi(sessionId).startBtw(payload);
+  startBtw(request: Parameters<typeof sessionAgentMethods.startBtw>[1]) {
+    return sessionAgentMethods.startBtw(this, request);
   }
 
-  createGoal({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<CreateGoalPayload>): Promise<GoalSnapshot> {
-    return Promise.resolve(this.sessionApi(sessionId).createGoal(payload));
+  createGoal(request: Parameters<typeof sessionAgentMethods.createGoal>[1]) {
+    return sessionAgentMethods.createGoal(this, request);
   }
 
-  getGoal({ sessionId, ...payload }: SessionAgentPayload<EmptyPayload>): Promise<GoalToolResult> {
-    return Promise.resolve(this.sessionApi(sessionId).getGoal(payload));
+  getGoal(request: Parameters<typeof sessionAgentMethods.getGoal>[1]) {
+    return sessionAgentMethods.getGoal(this, request);
   }
 
-  pauseGoal({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<EmptyPayload>): Promise<GoalSnapshot> {
-    return Promise.resolve(this.sessionApi(sessionId).pauseGoal(payload));
+  pauseGoal(request: Parameters<typeof sessionAgentMethods.pauseGoal>[1]) {
+    return sessionAgentMethods.pauseGoal(this, request);
   }
 
-  resumeGoal({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<EmptyPayload>): Promise<GoalSnapshot> {
-    return Promise.resolve(this.sessionApi(sessionId).resumeGoal(payload));
+  resumeGoal(request: Parameters<typeof sessionAgentMethods.resumeGoal>[1]) {
+    return sessionAgentMethods.resumeGoal(this, request);
   }
 
-  cancelGoal({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<EmptyPayload>): Promise<GoalSnapshot> {
-    return Promise.resolve(this.sessionApi(sessionId).cancelGoal(payload));
+  cancelGoal(request: Parameters<typeof sessionAgentMethods.cancelGoal>[1]) {
+    return sessionAgentMethods.cancelGoal(this, request);
   }
 
-  createUltraworkRun({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<CreateUltraworkRunPayload>): Promise<UltraworkRunSnapshot> {
-    return Promise.resolve(this.sessionApi(sessionId).createUltraworkRun(payload));
+  createUltraworkRun(request: Parameters<typeof sessionAgentMethods.createUltraworkRun>[1]) {
+    return sessionAgentMethods.createUltraworkRun(this, request);
   }
 
-  getUltraworkRun({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<EmptyPayload>): Promise<UltraworkRunSnapshot | null> {
-    return Promise.resolve(this.sessionApi(sessionId).getUltraworkRun(payload));
+  getUltraworkRun(request: Parameters<typeof sessionAgentMethods.getUltraworkRun>[1]) {
+    return sessionAgentMethods.getUltraworkRun(this, request);
   }
 
-  pauseUltrawork({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<PauseUltraworkPayload>): Promise<UltraworkRunSnapshot | null> {
-    return Promise.resolve(this.sessionApi(sessionId).pauseUltrawork(payload));
+  pauseUltrawork(request: Parameters<typeof sessionAgentMethods.pauseUltrawork>[1]) {
+    return sessionAgentMethods.pauseUltrawork(this, request);
   }
 
-  swarmRestaff({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<SwarmRestaffPayload>): Promise<boolean> {
-    return Promise.resolve(this.sessionApi(sessionId).swarmRestaff(payload));
+  swarmRestaff(request: Parameters<typeof sessionAgentMethods.swarmRestaff>[1]) {
+    return sessionAgentMethods.swarmRestaff(this, request);
   }
 
-  resumeUltrawork({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<EmptyPayload>): Promise<ResumeUltraworkPayloadResult | null> {
-    return Promise.resolve(this.sessionApi(sessionId).resumeUltrawork(payload));
+  resumeUltrawork(request: Parameters<typeof sessionAgentMethods.resumeUltrawork>[1]) {
+    return sessionAgentMethods.resumeUltrawork(this, request);
   }
 
-  cancelUltrawork({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<CancelUltraworkPayload>): Promise<UltraworkRunSnapshot | null> {
-    return Promise.resolve(this.sessionApi(sessionId).cancelUltrawork(payload));
+  cancelUltrawork(request: Parameters<typeof sessionAgentMethods.cancelUltrawork>[1]) {
+    return sessionAgentMethods.cancelUltrawork(this, request);
   }
-  async classifyUltraworkAutoActivation({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<ClassifyUltraworkAutoActivationPayload>): Promise<UltraworkAutoActivationDecision> {
-    return this.sessionApi(sessionId).classifyUltraworkAutoActivation(payload);
+
+  classifyUltraworkAutoActivation(request: SessionAgentPayload<ClassifyUltraworkAutoActivationPayload>): Promise<UltraworkAutoActivationDecision> {
+    return sessionAgentMethods.classifyUltraworkAutoActivation(this, request);
   }
-  async classifyUltraworkObjectiveProfile({
-    sessionId,
-    ...payload
-  }: SessionAgentPayload<ClassifyUltraworkObjectiveProfilePayload>): Promise<UltraworkObjectiveProfileDecision> {
-    return this.sessionApi(sessionId).classifyUltraworkObjectiveProfile(payload);
+
+  classifyUltraworkObjectiveProfile(request: SessionAgentPayload<ClassifyUltraworkObjectiveProfilePayload>): Promise<UltraworkObjectiveProfileDecision> {
+    return sessionAgentMethods.classifyUltraworkObjectiveProfile(this, request);
   }
 
   async installPlugin(payload: InstallPluginPayload): Promise<PluginSummary> {
@@ -1184,7 +763,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return runtime;
   }
 
-  private async buildSessionToolServices(
+  async buildSessionToolServices(
     config: LioraConfig,
     sessionId: string,
   ): Promise<ToolServices> {
@@ -1216,7 +795,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return { ...runtime, context7 };
   }
 
-  private getKaos(): Promise<Kaos> {
+  getKaos(): Promise<Kaos> {
     this.kaos ??= LocalKaos.create().catch((error: unknown) => {
       if (error instanceof KaosShellNotFoundError) {
         throw new LioraError(ErrorCodes.SHELL_GIT_BASH_NOT_FOUND, error.message);
@@ -1226,7 +805,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return this.kaos;
   }
 
-  private resolveSessionSkillConfig(config: LioraConfig): SessionSkillConfig {
+  resolveSessionSkillConfig(config: LioraConfig): SessionSkillConfig {
     const explicitDirs = this.skillDirs.length > 0 ? this.skillDirs : undefined;
     return {
       userHomeDir: this.userHomeDir,
@@ -1238,7 +817,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     };
   }
 
-  private resolveProviderManager(sessionId: string): ProviderManager {
+  resolveProviderManager(sessionId: string): ProviderManager {
     return new ProviderManager({
       config: () => this.config,
       kimiRequestHeaders: this.kimiRequestHeaders,
@@ -1247,13 +826,13 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     });
   }
 
-  private mergePluginMcpConfig(base: SessionMcpConfig | undefined): SessionMcpConfig | undefined {
+  mergePluginMcpConfig(base: SessionMcpConfig | undefined): SessionMcpConfig | undefined {
     const managedEnv = managedKimiCodeEnvForPlugins(this.config);
     const pluginServers = withManagedKimiPluginEnv(this.plugins.enabledMcpServers(), managedEnv);
     return combinePluginMcpConfig(base, pluginServers);
   }
 
-  private requireSession(sessionId: string): Session {
+  requireSession(sessionId: string): Session {
     const session = this.sessions.get(sessionId);
     if (session === undefined) {
       throw new LioraError(ErrorCodes.SESSION_NOT_FOUND, `Session "${sessionId}" was not found`, {
@@ -1263,11 +842,11 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return session;
   }
 
-  private sessionApi(sessionId: string): SessionAPIImpl {
+  sessionApi(sessionId: string): SessionAPIImpl {
     return new SessionAPIImpl(this.requireSession(sessionId));
   }
 
-  private reloadProviderManager(): LioraConfig {
+  reloadProviderManager(): LioraConfig {
     return this.reloadRuntimeConfig();
   }
 
@@ -1300,12 +879,12 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return this.config;
   }
 
-  private clearRuntimeCache(): void {
+  clearRuntimeCache(): void {
     if (this.runtimeOverride !== undefined) return;
     this.runtime = undefined;
   }
 
-  private async refreshSessionRuntimeConfig(
+  async refreshSessionRuntimeConfig(
     session: Session,
     config: LioraConfig,
   ): Promise<void> {
