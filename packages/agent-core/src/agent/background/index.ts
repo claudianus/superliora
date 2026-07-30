@@ -10,17 +10,35 @@
  * registration, lifecycle state, persistence, output, and notifications.
  */
 
-import { randomBytes } from 'node:crypto';
-
-import { createControlledPromise, type ControlledPromise } from '@antfu/utils';
-import type { ContentPart } from '@superliora/kosong';
+import { createControlledPromise } from '@antfu/utils';
 
 import type { Agent } from '../..';
 import { errorMessage } from '../../loop/errors';
-import { resettableTimeoutOutcome, timeoutOutcome, type ResettableTimeoutPromise } from '../../utils/promise';
-import { escapeXml, escapeXmlAttr } from '../../utils/xml-escape';
+import { resettableTimeoutOutcome, timeoutOutcome } from '../../utils/promise';
 import type { BackgroundTaskOrigin } from '../context';
 import { renderNotificationXml } from '../context/notification-xml';
+import {
+  abortRejecter,
+  emptyOutputSnapshot,
+  generateTaskId,
+  MAX_OUTPUT_BYTES,
+  SIGTERM_GRACE_MS,
+  USER_INTERRUPT_REASON,
+  type BackgroundTaskOutputSnapshot,
+  type ForegroundTaskReleaseReason,
+  type ManagedTask,
+  type RegisterBackgroundTaskOptions,
+  type TerminalOutcome,
+} from './managed-types';
+import { MAX_MULTI_WAIT_TASKS, MultiWaitLimitError, normalizeMultiWaitIds } from './multi-wait';
+import {
+  buildBackgroundTaskNotificationBody,
+  backgroundTaskNotificationChildren,
+  NOTIFICATION_FALLBACK_PREVIEW_BYTES,
+  notificationKey,
+  type BackgroundTaskNotification,
+  type BackgroundTaskNotificationContext,
+} from './notification';
 import { type BackgroundTaskPersistence } from './persist';
 import {
   TERMINAL_STATUSES,
@@ -42,33 +60,7 @@ export function isBackgroundTaskTerminal(status: BackgroundTaskStatus): boolean 
   return TERMINAL_STATUSES.has(status);
 }
 
-/** Hard cap for wait_any / wait_all batch size (Grok-aligned DoS bound). */
-export const MAX_MULTI_WAIT_TASKS = 20;
-
-export class MultiWaitLimitError extends Error {
-  readonly code = 'MULTI_WAIT_LIMIT' as const;
-  constructor(count: number) {
-    super(
-      `Too many task ids for multi-wait (${String(count)}). Maximum is ${String(MAX_MULTI_WAIT_TASKS)}.`,
-    );
-    this.name = 'MultiWaitLimitError';
-  }
-}
-
-function normalizeMultiWaitIds(taskIds: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const raw of taskIds) {
-    const id = raw.trim();
-    if (id === '' || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  if (ids.length > MAX_MULTI_WAIT_TASKS) {
-    throw new MultiWaitLimitError(ids.length);
-  }
-  return ids;
-}
+export { MAX_MULTI_WAIT_TASKS, MultiWaitLimitError } from './multi-wait';
 
 export { AgentBackgroundTask } from './agent-task';
 export type { AgentBackgroundTaskInfo } from './agent-task';
@@ -81,152 +73,7 @@ export type {
   BackgroundTaskInfo,
   BackgroundTaskStatus,
 } from './task';
-
-interface ManagedTask {
-  readonly taskId: string;
-  readonly task: BackgroundTask;
-  readonly outputChunks: string[];
-  /** Total UTF-8 bytes observed, including chunks dropped from the live ring buffer. */
-  outputSizeBytes: number;
-  status: BackgroundTaskStatus;
-  /** Normalized registration options. Current mutable state stays on ManagedTask. */
-  readonly options: RegisterBackgroundTaskOptions;
-  readonly startedAt: number;
-  endedAt: number | null;
-  /** Foreground tool call release signal, present only for non-detached starts. */
-  foregroundRelease?: ControlledPromise<ForegroundTaskReleaseReason>;
-  /** Resettable deadline timer; reset on detach to apply `detachTimeoutMs`. */
-  timeoutHandle?: ResettableTimeoutPromise<TerminalOutcome>;
-  /** User/tool stop request. */
-  readonly stop: ControlledPromise<StopRequest>;
-  /** Resolved once manager has finalized the task. */
-  readonly terminal: ControlledPromise<void>;
-  /** Human-readable reason for the terminal status, when available. */
-  stopReason?: string | undefined;
-  /** Suppress automatic terminal notifications/reminders for this task. */
-  terminalNotificationSuppressed?: boolean | undefined;
-  /** Cancellation signal owned by the manager and observed by the concrete task. */
-  readonly abortController: AbortController;
-  persistWriteQueue: Promise<void>;
-  outputWriteQueue: Promise<void>;
-  /**
-   * Full output buffered in memory while a foreground task has not yet
-   * persisted to disk. Flushed to `output.log` (in order, ahead of the live
-   * stream) when the task detaches or spills, then released.
-   */
-  pendingOutput: string[];
-  pendingOutputBytes: number;
-  /**
-   * Whether `output.log` writes have begun. True from the start for tasks
-   * registered already-detached; flipped on detach or memory-bound spill for
-   * foreground tasks. Until then output stays in `pendingOutput`.
-   */
-  outputPersistStarted: boolean;
-}
-
-/**
- * Maximum bytes of combined output kept in the in-memory ring buffer per
- * task. When exceeded, the oldest chunks are dropped.
- *
- * The ring buffer is a lightweight tail intended for the `/tasks` UI and
- * terminal notifications only — it deliberately discards old output to
- * cap memory. It is NOT the authoritative full output: the complete,
- * never-truncated log lives on disk at `<sessionDir>/tasks/<id>/output.log`.
- * Callers that need task output should use `getOutputSnapshot()`, which
- * reads the persisted log when available.
- */
-const MAX_OUTPUT_BYTES = 1024 * 1024; // 1 MiB
-const NOTIFICATION_FALLBACK_PREVIEW_BYTES = 3_000;
-
-const SIGTERM_GRACE_MS = 5_000;
-const USER_INTERRUPT_REASON = 'Interrupted by user';
-
-const _ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
-
-/**
- * Generate `{prefix}-{8 base36 chars}`.
- *
- * `randomBytes(8) % 36` has a modest modulo bias (256 % 36 = 4) but
- * over an 8-char suffix yields ~36^8 ≈ 2.8e12 distinct ids which is
- * more than enough uniqueness for per-session task ids.
- */
-function generateTaskId(kind: string): string {
-  const bytes = randomBytes(8);
-  let suffix = '';
-  for (let i = 0; i < 8; i++) {
-    suffix += _ALPHABET[bytes[i]! % 36];
-  }
-  return `${kind}-${suffix}`;
-}
-
-export interface BackgroundTaskOutputSnapshot {
-  readonly outputPath?: string;
-  readonly outputSizeBytes: number;
-  readonly previewBytes: number;
-  readonly truncated: boolean;
-  readonly fullOutputAvailable: boolean;
-  readonly preview: string;
-}
-
-function emptyOutputSnapshot(): BackgroundTaskOutputSnapshot {
-  return {
-    outputSizeBytes: 0,
-    previewBytes: 0,
-    truncated: false,
-    fullOutputAvailable: false,
-    preview: '',
-  };
-}
-
-type BackgroundTaskNotification = Record<string, unknown> & {
-  readonly id: string;
-  readonly category: 'task';
-  readonly type: string;
-  readonly source_kind: 'background_task';
-  readonly source_id: string;
-  /** Subagent id accepted by Agent(resume=...). Omitted for process tasks. */
-  readonly agent_id?: string | undefined;
-  readonly title: string;
-  readonly severity: 'info' | 'warning';
-  readonly body: string;
-  readonly children?: readonly string[] | undefined;
-};
-
-interface BackgroundTaskNotificationContext {
-  readonly content: readonly ContentPart[];
-  readonly origin: BackgroundTaskOrigin;
-  readonly notification: BackgroundTaskNotification;
-}
-
-export interface RegisterBackgroundTaskOptions {
-  /**
-   * When false, the task is tracked by the manager but a foreground tool call
-   * is still waiting for it. It can later be detached through RPC.
-   */
-  readonly detached?: boolean;
-  /** Deadline owned by BackgroundManager. `0` and `undefined` do not arm a timer. */
-  readonly timeoutMs?: number;
-  /**
-   * When set, detaching a foreground task resets its deadline to this value
-   * (counted from the detach moment). Lets a command started with a short
-   * foreground timeout run longer once it is moved to the background.
-   */
-  readonly detachTimeoutMs?: number;
-  /** Foreground caller signal. Ignored for tasks created already detached. */
-  readonly signal?: AbortSignal;
-}
-
-export type ForegroundTaskReleaseReason = 'detached' | 'terminal';
-
-interface StopRequest {
-  readonly reason?: string;
-  readonly abortReason?: unknown;
-}
-
-type TerminalOutcome =
-  | { readonly kind: 'worker'; readonly settlement: BackgroundTaskSettlement }
-  | { readonly kind: 'timeout' }
-  | { readonly kind: 'stop'; readonly request: StopRequest };
+export type { BackgroundTaskOutputSnapshot, ForegroundTaskReleaseReason, RegisterBackgroundTaskOptions } from './managed-types';
 
 // ── Manager ──────────────────────────────────────────────────────────
 
@@ -986,76 +833,4 @@ export class BackgroundManager {
     };
     return entry.task.toInfo(base);
   }
-}
-
-function backgroundTaskNotificationChildren(
-  output: BackgroundTaskOutputSnapshot,
-): readonly string[] | undefined {
-  if (output.fullOutputAvailable && output.outputPath !== undefined) {
-    return [renderOutputFileBlock(output.outputPath, output.outputSizeBytes)];
-  }
-  if (output.preview.length === 0) return undefined;
-  return [renderOutputPreviewBlock(output)];
-}
-
-function renderOutputFileBlock(outputPath: string, outputSizeBytes: number): string {
-  return [
-    `<output-file path="${escapeXmlAttr(outputPath)}" bytes="${String(outputSizeBytes)}">`,
-    `Read the output file to retrieve the result: ${escapeXml(outputPath)}`,
-    '</output-file>',
-  ].join('\n');
-}
-
-function renderOutputPreviewBlock(output: BackgroundTaskOutputSnapshot): string {
-  return [
-    `<output-preview bytes="${String(output.previewBytes)}" total_bytes="${String(output.outputSizeBytes)}" truncated="${String(output.truncated)}">`,
-    output.truncated
-      ? `Showing the last ${String(output.previewBytes)} bytes. No persisted full output is available.`
-      : 'No persisted full output is available; this preview is the currently buffered task output.',
-    escapeXml(output.preview),
-    '</output-preview>',
-  ].join('\n');
-}
-
-function notificationKey(origin: BackgroundTaskOrigin): string {
-  return `${origin.taskId}\0${origin.status}\0${origin.notificationId}`;
-}
-
-function buildBackgroundTaskNotificationBody(info: BackgroundTaskInfo): string {
-  const baseLine =
-    info.status === 'timed_out'
-      ? `${info.description} timed out.`
-      : info.stopReason
-        ? `${info.description} ${info.status === 'killed' ? 'was killed' : info.status}: ${info.stopReason
-        }.`
-        : `${info.description} ${info.status}.`;
-
-  if (info.kind !== 'agent') return baseLine;
-  if (info.status === 'completed') return baseLine;
-  const agentId = info.agentId;
-  if (agentId === undefined || agentId === info.taskId) return baseLine;
-
-  const recovery = [
-    '',
-    `To recover or continue this subagent, call Agent(resume="${agentId}", prompt="Pick up where you left off; redo the last tool call if its result was never observed.").`,
-    `Use agent_id ("${agentId}"), NOT source_id / task_id ("${info.taskId}") — the two look alike but only agent_id is accepted by the resume parameter.`,
-    'Add run_in_background=true to keep it backgrounded, or omit it to take the result inline in the current turn.',
-    'The subagent retains its full prior context across the restart, but any in-flight tool call lost its result and may need to be redone.',
-    'Before redoing a file edit/write, re-read the target file — the prior process may have completed the write before dying (an interrupted tool.intend marker records this), so the change may already be present.',
-  ].join('\n');
-
-  return `${baseLine}${recovery}`;
-}
-
-function abortRejecter(signal: AbortSignal): Promise<never> {
-  if (signal.aborted) {
-    return Promise.reject(signal.reason ?? new Error('Aborted'));
-  }
-  return new Promise<never>((_, reject) => {
-    signal.addEventListener(
-      'abort',
-      () => reject(signal.reason ?? new Error('Aborted')),
-      { once: true },
-    );
-  });
 }
