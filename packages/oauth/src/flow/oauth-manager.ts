@@ -17,12 +17,12 @@ import { dirname } from 'node:path';
 
 import lockfile from 'proper-lockfile';
 
-import { DeviceCodeTimeoutError, OAuthError, OAuthUnauthorizedError } from './errors';
+import { DeviceCodeTimeoutError, OAuthError, OAuthUnauthorizedError } from '../errors';
 import { pollDeviceToken, refreshAccessToken, requestDeviceAuthorization } from './oauth';
 import type { DevicePollResult, RefreshOptions } from './oauth';
-import type { TokenStorage } from './storage';
-import { classifyToken, revokedTombstone, type TokenState } from './token-state';
-import type { DeviceAuthorization, DeviceHeaders, OAuthFlowConfig, TokenInfo } from './types';
+import type { TokenStorage } from '../storage';
+import { classifyToken, revokedTombstone, type TokenState } from '../token-state';
+import type { DeviceAuthorization, DeviceHeaders, OAuthFlowConfig, TokenInfo } from '../types';
 
 const MIN_REFRESH_THRESHOLD_SECONDS = 300;
 const REFRESH_THRESHOLD_RATIO = 0.5;

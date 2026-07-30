@@ -21,7 +21,7 @@ import {
   refreshAccessToken,
   requestDeviceAuthorization,
   type RefreshOptions,
-} from '../src/oauth';
+} from '../src/flow/oauth';
 import { SUPERLIORA_PLATFORM } from '../src/identity';
 import type { DeviceHeaders, OAuthFlowConfig } from '../src/types';
 

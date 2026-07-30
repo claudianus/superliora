@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OAuthError } from '../src/errors';
-import { OAuthManager } from '../src/oauth-manager';
+import { OAuthManager } from '../src/flow/oauth-manager';
 import type { TokenStorage } from '../src/storage';
 import type { OAuthFlowConfig, TokenInfo } from '../src/types';
 

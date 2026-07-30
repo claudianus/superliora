@@ -1,4 +1,4 @@
-import { OAuthUnauthorizedError } from './errors';
+import { OAuthUnauthorizedError } from '../errors';
 import { SUPERLIORA_PROVIDER_NAME } from './managed-kimi-code-constants';
 
 export type ManagedKimiCodeProtocol = 'anthropic';

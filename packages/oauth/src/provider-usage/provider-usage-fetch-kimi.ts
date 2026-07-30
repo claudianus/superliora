@@ -1,5 +1,5 @@
-import { readApiErrorMessage } from './api-error';
-import { kimiCodeUsageUrl, parseManagedUsagePayload } from './managed-usage';
+import { readApiErrorMessage } from '../api-error';
+import { kimiCodeUsageUrl, parseManagedUsagePayload } from '../kimi/managed-usage';
 import { providerDisplayName } from './provider-usage-display';
 import { toProviderUsageRow } from './provider-usage-parse';
 import type { ProviderUsageSnapshot } from './provider-usage-types';

@@ -8,7 +8,7 @@ import {
   SUPERLIORA_OAUTH_KEY,
   SUPERLIORA_PLATFORM_ID,
   SUPERLIORA_PROVIDER_NAME,
-} from '../src/managed-kimi-code';
+} from '../src/kimi';
 
 describe('oauth/managed-kimi-code — pure helpers', () => {
   it('exposes the documented SuperLiora / managed-kimi constants', () => {

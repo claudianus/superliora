@@ -6,7 +6,7 @@ import {
   CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT,
   CustomRegistryApiError,
   type CustomRegistryModelEntry,
-} from '../src/custom-registry';
+} from '../src/registry/custom-registry';
 
 describe('oauth/custom-registry — pure helpers', () => {
   it('exposes the documented default constants', () => {

@@ -1,5 +1,5 @@
-import type { UsageRow } from './managed-usage';
-import { isRecord } from './utils';
+import type { UsageRow } from '../kimi/managed-usage';
+import { isRecord } from '../utils';
 import type { ProviderUsageRow } from './provider-usage-types';
 
 export function toProviderUsageRow(row: UsageRow): ProviderUsageRow {

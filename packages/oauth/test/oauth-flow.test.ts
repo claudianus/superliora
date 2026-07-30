@@ -10,7 +10,7 @@ import {
   postForm,
   startCallbackServer,
   waitForCallbackOrManual,
-} from '../src/oauth-flow-http';
+} from '../src/flow/oauth-flow-http';
 import {
   ANTHROPIC_PROFILE,
   EXPERIMENTAL_PROVIDER_PROFILES,
@@ -31,9 +31,9 @@ import {
 import {
   requestOpenAiUserCode,
   toTokenInfo as toOpenAiTokenInfo,
-} from '../src/oauth-flow-openai';
-import { toTokenInfo as toXaiTokenInfo } from '../src/oauth-flow-xai';
-import { OAuthProviderManager } from '../src/oauth-provider-manager';
+} from '../src/flow/oauth-flow-openai';
+import { toTokenInfo as toXaiTokenInfo } from '../src/flow/oauth-flow-xai';
+import { OAuthProviderManager } from '../src/flow/oauth-provider-manager';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

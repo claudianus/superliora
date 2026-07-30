@@ -1,4 +1,4 @@
-import { isRecord } from './utils';
+import { isRecord } from '../utils';
 import { providerDisplayName } from './provider-usage-display';
 import { firstRecord, formatResetHint, numField } from './provider-usage-parse';
 import type { ProviderUsageRow, ProviderUsageSnapshot } from './provider-usage-types';

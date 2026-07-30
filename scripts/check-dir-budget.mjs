@@ -28,7 +28,6 @@ const FAIL_AT = 40;
  * Paths are repo-relative with trailing slash omitted.
  */
 const FAIL_ALLOWLIST = new Set([
-  'packages/oauth/src',
 ]);
 
 const ROOTS = [

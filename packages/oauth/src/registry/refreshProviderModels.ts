@@ -13,7 +13,7 @@ import {
   type ManagedKimiConfigShape,
   type ManagedKimiModelAlias,
   type ManagedKimiOAuthRef,
-} from './managed-kimi-code';
+} from '../kimi';
 import {
   applyOpenPlatformConfig,
   fetchOpenPlatformModels,

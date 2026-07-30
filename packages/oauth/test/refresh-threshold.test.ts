@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { defaultRefreshThreshold } from '../src/oauth-manager';
+import { defaultRefreshThreshold } from '../src/flow/oauth-manager';
 
 describe('defaultRefreshThreshold — boundary cases', () => {
   it('returns expiresIn * 0.5 when ratio exceeds the 300s minimum (expiresIn=1800 → 900)', () => {

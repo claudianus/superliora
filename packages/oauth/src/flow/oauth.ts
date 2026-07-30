@@ -10,15 +10,15 @@
  * when to poll / refresh / store.
  */
 
-import { extractApiErrorMessage } from './api-error';
+import { extractApiErrorMessage } from '../api-error';
 import {
   OAuthConnectionError,
   OAuthError,
   OAuthUnauthorizedError,
   RetryableRefreshError,
-} from './errors';
-import type { DeviceAuthorization, DeviceHeaders, OAuthFlowConfig, TokenInfo } from './types';
-import { isRecord } from './utils';
+} from '../errors';
+import type { DeviceAuthorization, DeviceHeaders, OAuthFlowConfig, TokenInfo } from '../types';
+import { isRecord } from '../utils';
 
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 

@@ -10,8 +10,8 @@
  * there instead.
  */
 
-import { OAuthError, OAuthUnauthorizedError } from './errors';
-import type { TokenInfo } from './types';
+import { OAuthError, OAuthUnauthorizedError } from '../errors';
+import type { TokenInfo } from '../types';
 import {
   generateNonce,
   generatePkcePair,
@@ -22,7 +22,7 @@ import {
   waitForCallbackOrManual,
   type PkcePair,
 } from './oauth-flow-http';
-import type { ProviderFlowConfig } from './profiles';
+import type { ProviderFlowConfig } from '../profiles';
 
 interface OidcDiscovery {
   readonly authorization_endpoint?: string;

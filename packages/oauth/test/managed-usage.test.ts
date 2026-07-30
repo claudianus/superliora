@@ -8,7 +8,7 @@ import {
   kimiCodeBaseUrl,
   kimiCodeUsageUrl,
   parseManagedUsagePayload,
-} from '../src/managed-usage';
+} from '../src/kimi/managed-usage';
 
 describe('oauth/managed-usage — pure helpers', () => {
   it('exposes the canonical SuperLiora base URL constant', () => {
