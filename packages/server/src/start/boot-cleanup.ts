@@ -1,7 +1,7 @@
 import type { InstantiationService } from '@superliora/agent-core';
 
 import type { TokenStore } from '#/services/auth/tokenStore';
-import type { AcquireLockResult } from './lock';
+import type { AcquireLockResult } from '../lock';
 
 export interface BootFailureCleanup {
   tokenStore: TokenStore;
