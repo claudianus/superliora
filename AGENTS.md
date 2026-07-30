@@ -79,4 +79,4 @@ Two independent lines:
 
 ## Nested guides
 
-Directory-specific rules override this file when both apply: `apps/liora/AGENTS.md`, `packages/server/AGENTS.md`, `packages/server-e2e/AGENTS.md`, `packages/agent-core/src/services/AGENTS.md`, `docs/AGENTS.md`.
+Directory-specific rules override this file when both apply: `apps/liora/AGENTS.md`, `packages/server/AGENTS.md`, `packages/server-e2e/AGENTS.md`, `packages/agent-core/AGENTS.md`, `packages/agent-core/src/services/AGENTS.md`, `docs/AGENTS.md`.

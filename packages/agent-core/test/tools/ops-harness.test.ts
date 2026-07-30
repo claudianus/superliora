@@ -12,7 +12,7 @@ import {
   getToolCallPatternCount,
   resetToolFailureTracker,
   trackToolCallPattern,
-} from '../../src/loop/tool-call';
+} from '../../src/loop/tool-call-guards';
 import { ToolCallDeduplicator, __testing } from '../../src/agent/turn/tool-dedup';
 import { TaskOutputInputSchema } from '../../src/tools/background/task-output';
 

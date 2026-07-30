@@ -16,6 +16,9 @@ bridging. Those are host-layer responsibilities.
   pure; preparation dispatches recorded `tool.call` events in provider
   order; terminal `tool.result` events are recorded in provider order before
   `step.end` seals the step.
+- `tool-call-guards.ts` owns turn/session-scoped guard state: consecutive
+  failure tracking, circuit breakers, idempotency keys, repetition/doom-loop
+  detection, and side-effect helpers. Reset at turn or session boundaries.
 - `tool-scheduler.ts` owns stateful tool execution scheduling:
   tasks with non-conflicting resource accesses may overlap, while conflicting
   tasks are serialized at provider-order boundaries.

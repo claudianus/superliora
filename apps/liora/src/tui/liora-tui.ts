@@ -21,7 +21,6 @@ import type {
   CreateSessionOptions,
   LioraHarness,
   PermissionMode,
-  PromptPart,
   Session,
 } from '@superliora/sdk';
 import { resolve } from 'pathe';
@@ -163,8 +162,6 @@ import {
   type TuiConfig,
 } from './config';
 import {
-  LLM_NOT_SET_MESSAGE,
-  MAIN_AGENT_ID,
   NO_ACTIVE_SESSION_MESSAGE,
   PRODUCT_NAME,
 } from './constant/liora-tui';
@@ -176,6 +173,8 @@ import { ClipboardImageHintController } from './controllers/clipboard-image-hint
 import { EditorKeyboardController } from './controllers/editor-keyboard';
 import { PromptIntelligenceController } from './controllers/prompt-intelligence';
 import { SessionEventHandler } from './controllers/session-event-handler';
+import { MessageDispatchController } from './controllers/message-dispatch';
+import { SessionLifecycleController } from './controllers/session-lifecycle';
 import { SessionReplayRenderer, type SessionReplayHost } from './controllers/session-replay';
 import { StreamingUIController } from './controllers/streaming-ui';
 import { TasksBrowserController } from './controllers/tasks-browser';
@@ -233,7 +232,6 @@ import { createMotionBeatController, isMotionTheatreActive } from './utils/motio
 import { pickForegroundTasks } from './utils/foreground-task';
 import { collectTranscriptErrors } from './utils/transcript-errors';
 import { ImageAttachmentStore, type ImageAttachment } from './utils/image-attachment-store';
-import { extractMediaAttachments } from './utils/image-placeholder';
 import { resolveImageProtocol } from './utils/image-protocol-detect';
 import { hasPatchChanges } from './utils/object-patch';
 import { PromptStash } from './utils/prompt-stash';
@@ -372,13 +370,6 @@ function createInitialAppState(input: LioraTUIStartupInput): AppState {
   };
 }
 
-interface SendMessageOptions {
-  readonly displayText?: string;
-  readonly parts?: readonly PromptPart[];
-  readonly imageAttachmentIds?: readonly number[];
-  readonly hasMedia?: boolean;
-}
-
 /** How long the one-shot "moved to background" footer hint stays visible. */
 const DETACH_HINT_DISPLAY_MS = 4_000;
 
@@ -396,7 +387,7 @@ export class LioraTUI {
   private pluginCommands: readonly LioraSlashCommand[] = [];
   readonly skillCommandMap = new Map<string, string>();
   readonly pluginCommandMap = new Map<string, string>();
-  private readonly imageStore = new ImageAttachmentStore();
+  readonly imageStore = new ImageAttachmentStore();
   private fdPath: string | null = detectFdPath();
   private fdDownloadStarted = false;
   sessionEventUnsubscribe: (() => void) | undefined;
@@ -438,6 +429,8 @@ export class LioraTUI {
   readonly appearanceController: AppearanceController;
   readonly btwPanelController: BtwPanelController;
   readonly sessionEventHandler: SessionEventHandler;
+  readonly sessionLifecycle: SessionLifecycleController;
+  readonly messageDispatch: MessageDispatchController;
   readonly sessionReplay: SessionReplayRenderer;
   readonly tasksBrowserController: TasksBrowserController;
   readonly usageMonitor: UsageMonitorController;
@@ -460,7 +453,7 @@ export class LioraTUI {
   private queueSettleStartedAtMs: number | undefined;
 
   /** Last user-submitted text, for `/retry` / Hub → Chat → Retry. */
-  private lastUserInput: string | undefined;
+  lastUserInput: string | undefined;
   /** True when the most recent turn ended in an error; cleared on a clean turn. */
   private lastTurnFailed = false;
 
@@ -555,6 +548,8 @@ export class LioraTUI {
     this.btwPanelController = new BtwPanelController(this);
     this.sessionEventHandler = new SessionEventHandler(this);
     this.sessionReplay = new SessionReplayRenderer(this as unknown as SessionReplayHost);
+    this.sessionLifecycle = new SessionLifecycleController(this);
+    this.messageDispatch = new MessageDispatchController(this);
     this.tasksBrowserController = new TasksBrowserController(this);
     this.usageMonitor = new UsageMonitorController({
       harness: this.harness,
@@ -695,7 +690,7 @@ export class LioraTUI {
     this.setupAutocomplete();
   }
 
-  private async refreshDynamicSlashCommands(session?: Session): Promise<void> {
+  async refreshDynamicSlashCommands(session?: Session): Promise<void> {
     await this.refreshSkillCommands(session);
     await this.refreshPluginCommands(session);
   }
@@ -1186,7 +1181,7 @@ export class LioraTUI {
     }
   }
 
-  private async showSessionWarnings(session: Session): Promise<void> {
+  async showSessionWarnings(session: Session): Promise<void> {
     try {
       const warnings = await session.getSessionWarnings();
       if (this.session !== session) return;
@@ -1592,38 +1587,14 @@ export class LioraTUI {
   }
 
   handleUserInput(text: string): void {
-    const wasBashMode = this.state.appState.inputMode === 'bash';
-    if (wasBashMode) {
-      // A submit always exits bash mode (the `!` is consumed by this command).
-      this.state.editor.inputMode = 'prompt';
-      this.handleInputModeChange('prompt');
-    }
-    if (text.trim().length === 0) return;
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-    // Shell commands are stored with a leading `!` so ↑ recall can tell them
-    // apart from prompts and restore bash mode. The `!` is stripped again when
-    // the entry is recalled.
-    const historyText = wasBashMode ? `!${text}` : text;
-    void this.persistInputHistory(historyText);
-    if (wasBashMode) {
-      // Only one foreground action at a time: queue the shell command while
-      // another shell command is running or an agent turn is in progress.
-      if (this.state.appState.streamingPhase !== 'idle') {
-        this.enqueueMessage(text, undefined, 'bash');
-        this.updateQueueDisplay();
-        requestTUILayoutRender(this.state);
-        return;
-      }
-      this.runShellCommandFromInput(text);
-      return;
-    }
+    this.messageDispatch.handleUserInput(text);
+  }
+
+  dispatchSlashInput(text: string): void {
     slashCommands.dispatchInput(this, text);
   }
 
-  private runShellCommandFromInput(command: string): void {
+  runShellCommandFromInput(command: string): void {
     const session = this.session;
     if (session === undefined) {
       this.showError('No active session for shell command.');
@@ -1740,87 +1711,10 @@ export class LioraTUI {
   }
 
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void {
-    if (this.btwPanelController.sendUserInput(text)) return;
-    if (this.state.appState.model.trim().length === 0) {
-      this.showError(LLM_NOT_SET_MESSAGE);
-      return;
-    }
-    const extraction = extractMediaAttachments(text, this.imageStore);
-    if (!this.validateMediaCapabilities(extraction)) return;
-    const session = this.session;
-    if (session === undefined) {
-      this.showError(LLM_NOT_SET_MESSAGE);
-      return;
-    }
-    if (extraction.hasMedia) {
-      this.sendMessage(session, text, {
-        displayText: options?.displayText,
-        hasMedia: true,
-        parts: extraction.parts,
-        imageAttachmentIds: extraction.imageAttachmentIds,
-      });
-    } else {
-      this.sendMessage(session, text, { displayText: options?.displayText });
-    }
-    this.updateQueueDisplay();
-    requestTUIContentRender(this.state);
+    this.messageDispatch.sendNormalUserInput(text, options);
   }
 
-  private validateMediaCapabilities(
-    extraction: ReturnType<typeof extractMediaAttachments>,
-  ): boolean {
-    if (!extraction.hasMedia) return true;
-    const imageUnsupported =
-      extraction.imageAttachmentIds.length > 0 &&
-      !this.supportsCurrentModelCapability('image_in');
-    const videoUnsupported =
-      extraction.videoAttachmentIds.length > 0 &&
-      !this.supportsCurrentModelCapability('video_in');
-    if (!imageUnsupported && !videoUnsupported) return true;
-
-    // 'block' keeps the legacy hard error. 'analyze'/'path' send anyway: the
-    // core transforms media (analyzer text or path note) before the model
-    // sees it, so the prompt is never lost.
-    if ((this.state.appState.nonVisionFallbackPolicy ?? 'analyze') === 'block') {
-      this.showError(
-        imageUnsupported
-          ? 'Current model does not support image input.'
-          : 'Current model does not support video input.',
-      );
-      return false;
-    }
-    if ((this.state.appState.nonVisionFallbackPolicy ?? 'analyze') === 'analyze') {
-      const analyzer = this.findVisionAnalyzerModel(videoUnsupported && !imageUnsupported);
-      if (analyzer !== undefined) {
-        this.showStatus(
-          `현재 모델은 텍스트 전용입니다 — 첨부 미디어를 ${analyzer}로 분석해 전송합니다.`,
-          'success',
-        );
-      }
-    }
-    return true;
-  }
-
-  /**
-   * Catalog heuristic for the pre-send toast: a vision-capable model whose
-   * provider entry exists, preferring the current model's provider. The core
-   * makes the authoritative (credential-aware) selection at send time.
-   */
-  private findVisionAnalyzerModel(video: boolean): string | undefined {
-    const models = this.state.appState.availableModels;
-    const wanted = video ? 'video_in' : 'image_in';
-    const currentProvider = models[this.state.appState.model]?.provider;
-    let first: string | undefined;
-    for (const alias of Object.keys(models).sort()) {
-      const entry = models[alias];
-      if (entry?.capabilities?.includes(wanted) !== true) continue;
-      if (currentProvider !== undefined && entry.provider === currentProvider) return alias;
-      first ??= alias;
-    }
-    return first;
-  }
-
-  private supportsCurrentModelCapability(capability: string): boolean {
+  supportsCurrentModelCapability(capability: string): boolean {
     const capabilities =
       this.state.appState.availableModels[this.state.appState.model]?.capabilities;
     if (capabilities === undefined) return true;
@@ -1857,7 +1751,7 @@ export class LioraTUI {
     }
   }
 
-  private async persistInputHistory(text: string): Promise<void> {
+  async persistInputHistory(text: string): Promise<void> {
     const trimmed = text.trim();
     if (trimmed.length === 0) return;
     if (trimmed === this.lastHistoryContent) return;
@@ -1890,25 +1784,6 @@ export class LioraTUI {
   // Session Requests / Queues
   // =========================================================================
 
-  private enqueueMessage(
-    text: string,
-    options?: SendMessageOptions,
-    mode?: 'prompt' | 'bash',
-  ): void {
-    this.state.queuedMessages.push({
-      text,
-      displayText: options?.displayText,
-      agentId: this.harness.interactiveAgentId,
-      parts: options?.parts,
-      imageAttachmentIds:
-        options?.imageAttachmentIds !== undefined && options.imageAttachmentIds.length > 0
-          ? options.imageAttachmentIds
-          : undefined,
-      mode,
-    });
-    this.track('input_queue');
-  }
-
   beginSessionRequest(): void {
     this.streamingUI.setTurnId(undefined);
     this.streamingUI.resetLiveText();
@@ -1933,57 +1808,15 @@ export class LioraTUI {
   }
 
   sendQueuedMessage(session: Session, item: QueuedMessage): void {
-    if (item.mode === 'bash') {
-      this.runShellCommandFromInput(item.text);
-      return;
-    }
-    this.harness.withInteractiveAgent(item.agentId ?? MAIN_AGENT_ID, () => {
-      this.sendMessageInternal(session, item.text, {
-        displayText: item.displayText,
-        parts: item.parts,
-        imageAttachmentIds: item.imageAttachmentIds,
-      });
-    });
+    this.messageDispatch.sendQueuedMessage(session, item);
   }
 
   requestQueuedGoalPromotion(): void {
     this.sessionEventHandler.requestQueuedGoalPromotion();
   }
 
-  private sendMessageInternal(session: Session, input: string, options?: SendMessageOptions): void {
-    const imageAttachmentIds =
-      options?.imageAttachmentIds !== undefined && options.imageAttachmentIds.length > 0
-        ? options.imageAttachmentIds
-        : undefined;
-    const displayInput = options?.displayText ?? input;
-    this.appendTranscriptEntry({
-      id: nextTranscriptId(),
-      kind: 'user',
-      turnId: undefined,
-      renderMode: 'plain',
-      content: displayInput,
-      imageAttachmentIds,
-      timestamp: Date.now(),
-    });
-
-    // Track the last user input for `/retry` / Hub → Chat → Retry.
-    if (options?.displayText === undefined) this.lastUserInput = input;
-
-    this.beginSessionRequest();
-
-    const sdkInput = options?.parts ?? input;
-    void session.prompt(sdkInput).catch((error: unknown) => {
-      const message = formatErrorMessage(error);
-      this.failSessionRequest(`Failed to send: ${message}`);
-    });
-  }
-
   sendSkillActivation(session: Session, skillName: string, skillArgs: string): void {
-    this.beginSessionRequest();
-    void session.activateSkill(skillName, skillArgs).catch((error: unknown) => {
-      const message = formatErrorMessage(error);
-      this.failSessionRequest(`Skill "${skillName}" failed: ${message}`);
-    });
+    this.messageDispatch.sendSkillActivation(session, skillName, skillArgs);
   }
 
   activatePluginCommand(
@@ -1999,47 +1832,8 @@ export class LioraTUI {
     });
   }
 
-  private sendMessage(session: Session, input: string, options?: SendMessageOptions): void {
-    if (
-      this.deferUserMessages ||
-      this.state.appState.streamingPhase !== 'idle' ||
-      this.state.appState.isCompacting
-    ) {
-      this.enqueueMessage(input, options);
-      return;
-    }
-    this.sendMessageInternal(session, input, options);
-  }
-
   steerMessage(session: Session, input: string[]): void {
-    if (this.deferUserMessages || this.state.appState.isCompacting) {
-      for (const part of input) {
-        this.enqueueMessage(part);
-      }
-      return;
-    }
-    if (this.state.appState.streamingPhase === 'idle') {
-      for (const part of input) {
-        this.sendMessageInternal(session, part);
-      }
-      return;
-    }
-
-    for (const part of input) {
-      this.appendTranscriptEntry({
-        id: nextTranscriptId(),
-        kind: 'user',
-        turnId: this.streamingUI.getTurnContext().turnId,
-        renderMode: 'plain',
-        content: part,
-        timestamp: Date.now(),
-      });
-    }
-
-    void session.steer(input.join('\n\n')).catch((error: unknown) => {
-      const message = formatErrorMessage(error);
-      this.showError(`Failed to steer: ${message}`);
-    });
+    this.messageDispatch.steerMessage(session, input);
   }
 
   // =========================================================================
@@ -2185,12 +1979,6 @@ export class LioraTUI {
     requestTUIContentRender(this.state);
   }
 
-  private syncAdditionalDirs(session: Session): void {
-    const additionalDirs = session.summary?.additionalDirs ?? [];
-    if (sameStringArrays(this.state.appState.additionalDirs, additionalDirs)) return;
-    this.setAppState({ additionalDirs: [...additionalDirs] });
-  }
-
   // =========================================================================
   // Session Runtime
   // =========================================================================
@@ -2202,82 +1990,12 @@ export class LioraTUI {
     return this.session;
   }
 
-  private async createSessionFromCurrentState(): Promise<Session> {
-    const model = this.state.appState.model.trim();
-    if (model.length === 0) {
-      throw new Error(LLM_NOT_SET_MESSAGE);
-    }
-    const options: MutableCreateSessionOptions = {
-      workDir: this.state.appState.workDir,
-      model,
-      thinking:
-        this.session === undefined
-          ? undefined
-          : (this.state.appState.thinkingLevel ??
-            (this.state.appState.thinking ? 'on' : 'off')),
-      permission: this.state.appState.permissionMode,
-      planMode: this.state.appState.planMode,
-    };
-    if (this.state.appState.additionalDirs.length > 0) {
-      options.additionalDirs = [...this.state.appState.additionalDirs];
-    }
-    return this.harness.createSession(options);
-  }
-
   async setSession(session: Session): Promise<void> {
-    if (this.session === session) {
-      this.harness.setTelemetryContext({ sessionId: session.id });
-      this.registerSessionHandlers(session);
-      this.syncAdditionalDirs(session);
-      return;
-    }
-    const previous = this.unloadCurrentSession('switching session');
-    await previous?.close();
-    this.session = session;
-    // Keep TUI workspace aligned when forking into a worktree (different workDir).
-    if (resolve(session.workDir) !== resolve(this.state.appState.workDir)) {
-      this.state.appState.workDir = session.workDir;
-    }
-    this.harness.setTelemetryContext({ sessionId: session.id });
-    this.registerSessionHandlers(session);
-    this.syncAdditionalDirs(session);
+    return this.sessionLifecycle.setSession(session);
   }
 
   async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
-    const [status, goalResult, config] = await Promise.all([
-      session.getStatus(),
-      session.getGoal(),
-      this.harness.getConfig({ reload: false }).catch(() => null),
-    ]);
-    this.setAppState({
-      sessionId: session.id,
-      model: status.model ?? '',
-      thinking: status.thinkingLevel !== 'off',
-      thinkingLevel: status.thinkingLevel,
-      permissionMode: status.permission,
-      planMode: status.planMode,
-      ultraworkMode: this.state.appState.ultraworkMode,
-      premiumQualityMode: status.premiumQualityMode ?? false,
-      swarmMode: status.swarmMode ?? false,
-      contextTokens: status.contextTokens,
-      maxContextTokens: status.maxContextTokens,
-      contextUsage: status.contextUsage,
-      contextOS: status.contextOS ?? null,
-      microCompaction: status.microCompaction ?? null,
-      autoDream: status.autoDream ?? null,
-      providerRouteStatus: status.providerRouteStatus ?? null,
-      sessionTitle: session.summary?.title ?? null,
-      goal: goalResult.goal,
-      ...(config !== null
-        ? {
-            workingSet: contextWorkingSetSnapshotFromLoopControl({
-              maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
-              asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
-            }),
-          }
-        : {}),
-    });
-    this.syncAdditionalDirs(session);
+    return this.sessionLifecycle.syncRuntimeState(session);
   }
 
   // Apply --auto/--yolo/--plan startup flags (or the persisted tui.toml
@@ -2319,43 +2037,22 @@ export class LioraTUI {
     }
   }
 
-  // Plan mode is set by createSession — do not re-enter it here.
-  private async activateRuntime(): Promise<void> {
-    const session = this.requireSession();
-    await session.setPermission(this.state.appState.permissionMode);
-    await this.syncRuntimeState(session);
-  }
-
   async closeSession(reason: string): Promise<void> {
-    const previous = this.unloadCurrentSession(reason);
-    await previous?.close();
+    return this.sessionLifecycle.closeSession(reason);
   }
 
-  private unloadCurrentSession(reason: string): Session | undefined {
-    const previous = this.session;
-    this.sessionEventUnsubscribe?.();
-    this.sessionEventUnsubscribe = undefined;
-    this.clearReverseRpcPanels();
-    previous?.setApprovalHandler(undefined);
-    previous?.setQuestionHandler(undefined);
-    previous?.setCredentialHandler(undefined);
-    this.approvalController.cancelAll(reason);
-    this.questionController.cancelAll(reason);
-    this.session = undefined;
-    this.state.toolOutputViewports.clear();
-    this.state.swarmModeEntry = undefined;
-    this.harness.setTelemetryContext({ sessionId: null });
-    this.setAppState({ goal: null });
-    return previous;
-  }
-
-  private clearReverseRpcPanels(): void {
+  clearReverseRpcPanels(): void {
     for (const dispose of this.reverseRpcDisposers) {
       dispose();
     }
   }
 
-  private registerSessionHandlers(session: Session): void {
+  cancelPendingReverseRpc(reason: string): void {
+    this.approvalController.cancelAll(reason);
+    this.questionController.cancelAll(reason);
+  }
+
+  registerSessionHandlers(session: Session): void {
     session.setApprovalHandler(
       createApprovalRequestHandler(this.approvalController, (request, response) => {
         this.appendApprovalTranscriptEntry(request, response);
@@ -2474,30 +2171,7 @@ export class LioraTUI {
   }
 
   async switchToSession(session: Session, statusMessage: string): Promise<void> {
-    this.resetSessionRuntime();
-    await this.setSession(session);
-    await this.syncRuntimeState(session);
-    this.updateTerminalTitle();
-    try {
-      await this.refreshDynamicSlashCommands(this.session);
-    } catch {
-      /* keep the switched session usable even if dynamic skills fail */
-    }
-    this.clearTranscriptAndRedraw();
-    try {
-      await this.sessionReplay.hydrateFromReplay(session);
-    } catch (error) {
-      const msg = formatErrorMessage(error);
-      this.showError(`Failed to replay session history: ${msg}`);
-    } finally {
-      this.sessionEventHandler.startSubscription();
-    }
-    const resumeState = session.getResumeState();
-    if (resumeState?.warning !== undefined) {
-      this.showStatus(`Warning: ${resumeState.warning}`, 'warning');
-    }
-    this.showStatus(statusMessage);
-    void this.showSessionWarnings(session);
+    return this.sessionLifecycle.switchToSession(session, statusMessage);
   }
 
   async reloadCurrentSessionView(session: Session, statusMessage: string): Promise<void> {
@@ -2530,80 +2204,7 @@ export class LioraTUI {
   }
 
   async createNewSession(): Promise<void> {
-    if (this.state.appState.isReplaying || this.isSessionLoadingOverlayActive()) {
-      this.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-
-    await this.runWithBusyOverlay(
-      {
-        title: ttui('tui.sessionLoading.creating'),
-        detail: ttui('tui.sessionLoading.creating'),
-        phase: 'working',
-      },
-      async () => {
-        let session: Session;
-        try {
-          session = await this.createSessionFromCurrentState();
-        } catch (error) {
-          const msg = formatErrorMessage(error);
-          this.showError(`Failed to start a new session: ${msg}`);
-          return;
-        }
-
-        this.resetSessionRuntime();
-        this.setAppState({
-          ultraworkMode: false,
-          ultraworkPriorState: null,
-          activityTip: null,
-          isCompacting: false,
-          isBackgroundCompacting: false,
-          streamingPhase: 'idle',
-          // New session has no goal yet; clear before redraw so the monitor
-          // does not reappear from the previous session's snapshot.
-          goal: null,
-        });
-        await this.setSession(session);
-        this.setAppState({ sessionId: session.id });
-        this.clearTranscriptAndRedraw();
-        this.reportSessionLoading({
-          phase: 'finishing',
-          progress: 0.85,
-          detail: ttui('tui.sessionLoading.phase.finishing'),
-          sessionId: session.id,
-        });
-        try {
-          await this.activateRuntime();
-          await this.syncRuntimeState(session);
-        } catch (error) {
-          this.sessionEventHandler.startSubscription();
-          const msg = formatErrorMessage(error);
-          this.showError(`Post-create setup failed: ${msg}`);
-          return;
-        }
-        try {
-          await this.refreshDynamicSlashCommands(this.session);
-        } catch {
-          /* keep the new session usable even if dynamic skills fail */
-        }
-        this.sessionEventHandler.startSubscription();
-        this.showStatus(`Started a new session (${session.id}).`);
-        void this.showSessionWarnings(session);
-        void this.showConfigWarningsIfAny();
-      },
-    );
-  }
-
-  /** Surface config.toml load warnings (degraded or kept-previous config) in the status bar. */
-  private async showConfigWarningsIfAny(): Promise<void> {
-    try {
-      const { warnings } = await this.harness.getConfigDiagnostics();
-      for (const warning of warnings) {
-        this.showStatus(warning, 'warning');
-      }
-    } catch {
-      /* diagnostics are best-effort */
-    }
+    return this.sessionLifecycle.createNewSession();
   }
 
   // =========================================================================
@@ -2856,7 +2457,7 @@ export class LioraTUI {
     if (sequence.length > 0) this.state.terminal.write(sequence);
   }
 
-  private clearTranscriptAndRedraw(): void {
+  clearTranscriptAndRedraw(): void {
     this.streamingUI.discardPending();
     this.state.transcriptEntries = [];
     this.streamingUI.disposeActiveCompactionBlock();
@@ -4367,7 +3968,7 @@ export class LioraTUI {
     if (this.state.appState.streamingPhase !== 'idle') return;
     this.lastTurnFailed = false;
     this.showStatus(ttui('tui.retry.resending'), 'primary');
-    this.sendMessageInternal(session, this.lastUserInput);
+    this.messageDispatch.sendMessageInternal(session, this.lastUserInput);
   }
 
   setLastTurnFailed(failed: boolean): void {

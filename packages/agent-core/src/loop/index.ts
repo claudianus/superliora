@@ -88,5 +88,5 @@ export {
   resetToolFailureTracker,
   toolCallIdempotencyKey,
   trackToolCallPattern,
-} from './tool-call';
-export type { CircuitBreakerState, ToolCallPatternVerdict } from './tool-call';
+} from './tool-call-guards';
+export type { CircuitBreakerState, ToolCallPatternVerdict } from './tool-call-guards';
