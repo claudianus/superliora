@@ -12,19 +12,19 @@ import {
   selectRehydrationRawRefKinds,
   uniqueHints,
   uniqueSorted,
-} from '../context-helpers';
+} from '../plan/context-helpers';
 import {
   buildEmergencyBackstopActions,
   emergencyBackstopWarnings,
   formatContextManagementCapability,
   mergeQualityWarningLists,
   shouldIncludeCompactionQualitySignals,
-} from '../full-helpers';
+} from '../full/full-helpers';
 import { parseStructuredCompactionMemory } from '../memory';
-import { groupMessages, type CompactionPlan } from '../planner';
-import type { CompactionQualityResult } from '../quality';
-import { renderMessagesToText } from '../render-messages';
-import { persistCompactionSidecar } from '../sidecar';
+import { groupMessages, type CompactionPlan } from '../plan/planner';
+import type { CompactionQualityResult } from '../plan/quality';
+import { renderMessagesToText } from '../plan/render-messages';
+import { persistCompactionSidecar } from '../memory/sidecar';
 import type {
   CompactionBeginData,
   CompactionContextOS,

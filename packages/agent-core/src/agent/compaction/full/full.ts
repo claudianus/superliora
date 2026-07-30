@@ -8,17 +8,17 @@ import {
   APIStatusError,
 } from '@superliora/kosong';
 
-import type { Agent } from '..';
+import type { Agent } from '../..';
 import {
   estimateTokens,
   estimateTokensForMessages,
   estimateTokensForTools,
-} from '../../utils/tokens';
-import { resolveCompactionModelAlias } from '../../utils/cheap-model';
+} from '../../../utils/tokens';
+import { resolveCompactionModelAlias } from '../../../utils/cheap-model';
 import type {
   CompactionBeginData,
   CompactionResult,
-} from './types';
+} from '../types';
 import {
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
@@ -30,16 +30,16 @@ import {
   resolveCompactionBlockRatio,
   SWARM_MICRO_PRESSURE_RATIO,
   type CompactionStrategy,
-} from './strategy';
+} from '../strategy';
 import {
   CompactionPlanner,
-} from './planner';
+} from '../plan/planner';
 import {
   CompactionQualityTracker,
-} from './quality';
+} from '../plan/quality';
 import {
   type ExtractedFact,
-} from './memory';
+} from '../memory';
 import {
   type AnchorDocument,
   createAnchorDocument,
@@ -54,7 +54,7 @@ import {
   shouldRecoverFromOverflowStatus,
   shouldSkipRecompactUntilGrowth as shouldSkipRecompactUntilGrowthPolicy,
 } from './full-policy';
-import type { CompactionPipelineContext } from './pipeline/types';
+import type { CompactionPipelineContext } from '../pipeline/types';
 
 export const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const OVERFLOW_CONTEXT_SAFETY_RATIO = 0.85;

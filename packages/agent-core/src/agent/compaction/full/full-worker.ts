@@ -4,18 +4,18 @@
 
 import { toKimiErrorPayload } from '#/errors/index';
 
-import { isAbortError } from '../../loop/errors';
+import { isAbortError } from '../../../loop/errors';
 import type {
   CompactionBeginData,
   CompactionResult,
   CompactionResultAction,
   CompactionResultRawRef,
-} from './types';
+} from '../types';
 import {
   injectResumeRecheckReminder,
-} from './pipeline/assemble';
-import type { FullCompactionWorkerHost } from './pipeline/types';
-import { runCompactionRound } from './pipeline/round';
+} from '../pipeline/assemble';
+import type { FullCompactionWorkerHost } from '../pipeline/types';
+import { runCompactionRound } from '../pipeline/round';
 
 export async function runCompactionWorker(
   host: FullCompactionWorkerHost,

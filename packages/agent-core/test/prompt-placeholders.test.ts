@@ -25,7 +25,7 @@ const TEMPLATED = new Set([
   'profile/default/system.md',
   'profile/default/layer2-session.md',
   'profile/default/layer3-dynamic.md',
-  'agent/compaction/compaction-instruction.md',
+  'agent/compaction/prompts/compaction-instruction.md',
   'tools/builtin/file/read.md',
   'tools/builtin/file/read-media.md',
   'tools/builtin/shell/bash.md',
@@ -90,7 +90,7 @@ describe('prompt placeholders', () => {
 
   it('compaction prompt asks for a first-person handoff and verification caution', () => {
     const content = readFileSync(
-      join(SRC, 'agent/compaction/compaction-instruction.md'),
+      join(SRC, 'agent/compaction/prompts/compaction-instruction.md'),
       'utf-8',
     );
     expect(content.toLowerCase()).toContain('first-person handoff');

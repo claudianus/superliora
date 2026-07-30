@@ -9,10 +9,10 @@ import type { ChatProvider, Message, TokenUsage } from '@superliora/kosong';
 
 import type { Agent } from '../..';
 import type { CompactionStrategy } from '../strategy';
-import { type CompactionPlanner, type CompactionPlan } from '../planner';
+import { type CompactionPlanner, type CompactionPlan } from '../plan/planner';
 import type { ExtractedFact } from '../memory';
-import type { AnchorDocument } from '../anchor';
-import type { CompactionQualityResult } from '../quality';
+import type { AnchorDocument } from '../full/anchor';
+import type { CompactionQualityResult } from '../plan/quality';
 import type { CompactionBeginData, CompactionResult } from '../types';
 
 /**

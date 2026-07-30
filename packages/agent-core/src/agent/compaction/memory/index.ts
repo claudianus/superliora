@@ -1,4 +1,4 @@
-import { estimateTokens } from '../../utils/tokens';
+import { estimateTokens } from '../../../utils/tokens';
 
 export interface ExtractedFact {
   readonly category: 'file' | 'decision' | 'error' | 'dependency' | 'config' | 'api' | 'state';

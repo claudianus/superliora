@@ -1,6 +1,6 @@
 import type { Message } from '@superliora/kosong';
 
-import type { CompactionSource } from './types';
+import type { CompactionSource } from '../types';
 
 export interface CompactionStrategy {
   shouldCompact(usedSize: number): boolean;

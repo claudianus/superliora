@@ -15,8 +15,8 @@ import type { Message, TokenUsage } from '@superliora/kosong';
 
 import { isAbortError } from '../../../loop/errors';
 import { estimateTokens, estimateTokensForMessages } from '../../../utils/tokens';
-import { buildEmergencyBackstopSummary } from '../backstop';
-import { buildCompactionSummaryText } from '../handoff';
+import { buildEmergencyBackstopSummary } from '../full/backstop';
+import { buildCompactionSummaryText } from '../micro/handoff';
 import {
   compactionFinishedTelemetryProperties,
   compactionV2FinishedTelemetryProperties,
@@ -25,7 +25,7 @@ import {
   isMissingEvidenceQualityFailure,
   mergeTokenUsage,
   stripResolvedEvidenceCriticals,
-} from '../full-helpers';
+} from '../full/full-helpers';
 import {
   injectMissingDurableEvidenceIds,
   mergeCompactionQualityResults,
@@ -33,7 +33,7 @@ import {
   validateRenderedCompactionSummary,
   validateUltraworkCompactionContinuity,
   type CompactionQualityResult,
-} from '../quality';
+} from '../plan/quality';
 import type { CompactionBeginData, CompactionResult } from '../types';
 import { emitCompactionProgress, fractionForMergeDone, fractionForFinalizing } from './progress';
 import { summarizeCompactedPrefix } from './summarize';
