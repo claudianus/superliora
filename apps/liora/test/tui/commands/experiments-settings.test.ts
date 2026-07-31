@@ -7,6 +7,8 @@ import {
   formatExperimentsLiveLine,
   summarizeExperimentalFeatures,
 } from '#/tui/utils/experiments/experiments-glance';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function feature(
   overrides: Partial<ExperimentalFeatureState> = {},
@@ -54,7 +56,7 @@ function makeExperimentsHost(
       appState: {},
       renderer: { invalidateFrame: vi.fn() },
     },
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('experiments glance', () => {
@@ -104,10 +106,8 @@ describe('experiments settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Live flags:');
     expect(text).toContain('micro_compaction ON (config)');
     expect(text).toContain('prompt_intelligence OFF (config)');
@@ -120,9 +120,7 @@ describe('experiments settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toContain('rpc unavailable');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('rpc unavailable');
   });
 });

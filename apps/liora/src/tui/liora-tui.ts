@@ -321,4 +321,7 @@ export interface LioraTUIHost {
   showQuestionDialog(payload: QuestionPanelData): void;
 }
 
+/** Prototype-mixed delegate methods from {@link installLioraTUIDelegates}. */
+export interface LioraTUI extends LioraTUIHost {}
+
 installLioraTUIDelegates(LioraTUI);

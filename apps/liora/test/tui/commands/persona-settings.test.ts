@@ -5,6 +5,8 @@ import {
   buildPersonaSettingsLines,
   formatActivePersonaLine,
 } from '#/tui/utils/persona/persona-glance';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makePersonaHost(
   options: {
@@ -34,7 +36,7 @@ function makePersonaHost(
       appState: {},
       renderer: { invalidateFrame: vi.fn() },
     },
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('persona glance', () => {
@@ -73,10 +75,8 @@ describe('persona settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Active persona: Coach');
     expect(text).toContain('friendly, professional');
     expect(host.harness.getConfig).toHaveBeenCalledWith({ reload: true });
@@ -88,9 +88,7 @@ describe('persona settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toContain('config read failed');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('config read failed');
   });
 });

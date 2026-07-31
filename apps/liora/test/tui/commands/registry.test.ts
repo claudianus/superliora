@@ -111,7 +111,7 @@ describe('built-in slash command registry', () => {
     expect(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').some((c) => c.name === 'profile')).toBe(
       true,
     );
-    expect(profileArgumentCompletions('')?.some((item) => item.description.includes('Core waist'))).toBe(
+    expect(profileArgumentCompletions('')?.some((item) => item.description?.includes('Core waist'))).toBe(
       true,
     );
   });

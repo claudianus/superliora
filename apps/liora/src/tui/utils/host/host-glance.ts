@@ -72,7 +72,7 @@ interface ServerLockContents {
   readonly host?: string;
 }
 
-type HarnessWithRpc = LioraHarness & { readonly rpc?: unknown };
+type HarnessWithRpc = { readonly rpc?: unknown };
 
 function firstNonBlankEnv(
   env: NodeJS.ProcessEnv,
@@ -154,7 +154,7 @@ export function readLocalServerDaemon(
 
 /** True when the harness RPC client owns an in-process LioraCore (default TUI path). */
 export function isInProcessHarness(harness: LioraHarness): boolean {
-  const rpc = (harness as HarnessWithRpc).rpc;
+  const rpc = (harness as unknown as HarnessWithRpc).rpc;
   return rpc instanceof SDKRpcClient;
 }
 

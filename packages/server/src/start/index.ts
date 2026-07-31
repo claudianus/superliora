@@ -93,7 +93,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
 
   const serverVersion = opts.coreProcessOptions?.identity?.version ?? getServerVersion();
 
-  await registerServerOpenApi(app, serverVersion);
+  await registerServerOpenApi(app as unknown as import('./openapi').OpenApiHost, serverVersion);
 
   const envService: IEnvironmentService = {
     _serviceBrand: undefined,
@@ -210,7 +210,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     enableTerminals: bindClass === 'loopback' || allowRemoteTerminals,
   });
 
-  registerMetaDocumentRoutes(app, serverVersion, opts.host);
+  registerMetaDocumentRoutes(app as unknown as import('./openapi').OpenApiHost, serverVersion, opts.host);
 
   try {
     await app.ready();

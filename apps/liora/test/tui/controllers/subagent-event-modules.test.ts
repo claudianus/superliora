@@ -136,9 +136,9 @@ describe('subagent-event-background', () => {
 
   it('surfaces explore-model notices only for divergent explore profiles', () => {
     const models = {
-      'kimi-model': { alias: 'kimi-model', model: 'kimi-k2', provider: 'kimi' },
-      'cheap-model': { alias: 'cheap-model', model: 'cheap-1', provider: 'kimi' },
-    };
+      'kimi-model': { model: 'kimi-k2', provider: 'kimi', maxContextSize: 256_000 },
+      'cheap-model': { model: 'cheap-1', provider: 'kimi', maxContextSize: 128_000 },
+    } as import('#/tui/types').AppState['availableModels'];
     expect(
       shouldSurfaceSubagentModelNotice({
         modelAlias: 'cheap-model',
@@ -159,9 +159,9 @@ describe('subagent-event-background', () => {
 
   it('formats model route notice text with display names', () => {
     const text = subagentModelRouteNoticeText('Explore agent', 'kimi-model', 'cheap-model', {
-      'kimi-model': { alias: 'kimi-model', model: 'kimi-k2', provider: 'kimi', displayName: 'Kimi K2' },
-      'cheap-model': { alias: 'cheap-model', model: 'cheap-1', provider: 'kimi', displayName: 'Cheap' },
-    });
+      'kimi-model': { model: 'kimi-k2', provider: 'kimi', maxContextSize: 256_000, displayName: 'Kimi K2' },
+      'cheap-model': { model: 'cheap-1', provider: 'kimi', maxContextSize: 128_000, displayName: 'Cheap' },
+    } as import('#/tui/types').AppState['availableModels']);
     expect(text).toBe('Explore agent: Kimi K2 → Cheap');
   });
 });

@@ -57,13 +57,13 @@ describe('showThemeSettings', () => {
         transcriptContainer: { addChild: vi.fn() },
         renderer: { invalidateFrame: vi.fn() },
       },
-    } as never;
+    } as unknown as import('#/tui/commands/hub/dispatch').SlashCommandHost;
 
     showThemeSettings(host);
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Theme: dark · live palette dark');
 
     currentTheme.setPalette(previousPalette);

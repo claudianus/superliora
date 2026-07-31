@@ -60,7 +60,7 @@ describe('handleTranscriptCommand', () => {
     const host = makeHost('compact');
     await handleTranscriptCommand(host, '');
     expect(host.showNotice).toHaveBeenCalled();
-    const detail = String(host.showNotice.mock.calls[0]?.[1]);
+    const detail = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]);
     expect(detail).toContain('compact');
     expect(detail).toContain('minimal');
     expect(host.setTranscriptDetail).not.toHaveBeenCalled();

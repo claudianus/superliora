@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { showCompactionSettings } from '#/tui/commands/config/compaction-settings';
 import { showContextSettings } from '#/tui/commands/config/context-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeSettingsHost(
   options: {
@@ -50,7 +52,7 @@ function makeSettingsHost(
         ),
       },
     },
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('W9 compaction/context settings tips', () => {
@@ -74,10 +76,8 @@ describe('W9 compaction/context settings tips', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Structured handoff');
     expect(lines).toContain('Objective · Work state · Next move · Relevant files');
     expect(lines).toContain('Expand recover');
@@ -96,10 +96,8 @@ describe('W9 compaction/context settings tips', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Instruction vs Learning');
     expect(lines).toContain('Live');
     expect(lines).toContain('Instruction files:');

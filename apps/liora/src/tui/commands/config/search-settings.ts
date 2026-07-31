@@ -105,9 +105,11 @@ async function showSearchStatusPanel(host: SlashCommandHost): Promise<void> {
   let freeOnlyKpiLine: string | null = null;
   try {
     const sessionStatus = await host.requireSession().getStatus();
-    neverEmptyTelemetryLine = formatSearchNeverEmptyTelemetryGlance(sessionStatus.usage);
-    localResearchCacheHitLine = formatLocalResearchCacheHitGlance(sessionStatus.usage);
-    freeOnlyKpiLine = formatSearchFreeOnlyKpiSessionGlance(sessionStatus.usage);
+    const usage = sessionStatus.usage as import('../../utils/search/search-never-empty-telemetry').UsageSearchNeverEmptyLike &
+      import('../../utils/search/local-research-cache-glance').UsageLocalResearchCacheLike;
+    neverEmptyTelemetryLine = formatSearchNeverEmptyTelemetryGlance(usage);
+    localResearchCacheHitLine = formatLocalResearchCacheHitGlance(usage);
+    freeOnlyKpiLine = formatSearchFreeOnlyKpiSessionGlance(usage);
   } catch {
     /* no session — env/config only */
   }

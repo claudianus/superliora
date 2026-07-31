@@ -337,7 +337,7 @@ function fnv1aUpdate(h: number, value: number): number {
 
 function fnv1aStr(h: number, s: string): number {
   for (let i = 0; i < s.length; i++) {
-    h ^= s.codePointAt(i);
+    h ^= s.codePointAt(i) ?? 0;
     h = Math.imul(h, 0x01000193);
   }
   return h >>> 0;

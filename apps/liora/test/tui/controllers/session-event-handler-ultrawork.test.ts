@@ -83,7 +83,7 @@ function makeHost() {
 }
 
 function renderedTheatre(host: ReturnType<typeof makeHost>): string {
-  const component = host.state.transcriptContainer.addChild.mock.calls.at(-1)?.[0] as
+  const component = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
     | TestComponent
     | undefined;
   return stripAnsi(component?.render(100).join('\n') ?? '');
@@ -124,7 +124,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
         createdAt: '2026-07-01T00:00:00.000Z',
         updatedAt: '2026-07-01T00:00:01.000Z',
       },
-    } as Event, vi.fn());
+    } as unknown as Event, vi.fn());
 
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledTimes(1);
     expect(renderedTheatre(host)).toContain('plan');
@@ -280,7 +280,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
       expect.stringContaining('Ship feature X'),
       expect.objectContaining({ coalesceKey: 'ultrawork-completed:uw_done' }),
     );
-    const markerText = host.state.transcriptContainer.addChild.mock.calls
+    const markerText = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls
       .map((call: unknown[]) => stripAnsi((call[0] as TestComponent | undefined)?.render(100).join('\n') ?? ''))
       .join('\n');
     expect(markerText).toContain('Mission completed');
@@ -345,7 +345,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
         agentId: 'main',
         sessionId: 's1',
         swarmMode: false,
-      } as Event,
+      } as unknown as Event,
       vi.fn(),
     );
 

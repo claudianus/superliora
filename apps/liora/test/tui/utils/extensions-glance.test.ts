@@ -41,8 +41,8 @@ describe('extensions glance', () => {
         },
       ],
       skills: [
-        { name: 'write-tui', source: 'builtin', path: '/builtin/write-tui' },
-        { name: 'custom', source: 'user', path: '/home/skills/custom' },
+        { name: 'write-tui', description: '', source: 'builtin', path: '/builtin/write-tui' },
+        { name: 'custom', description: '', source: 'user', path: '/home/skills/custom' },
       ],
       skillsDisabled: ['custom'],
       mcpServers: [

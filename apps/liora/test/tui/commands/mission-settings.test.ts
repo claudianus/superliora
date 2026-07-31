@@ -16,6 +16,7 @@ import {
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { readGoalQueue } from '#/tui/goal-queue-store';
 import { MISSION_DUAL_EMIT_ENV } from '@superliora/sdk';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 vi.mock('#/tui/goal-queue-store', () => ({
   readGoalQueue: vi.fn(async () => ({ goals: [] })),
@@ -148,7 +149,7 @@ function makeHost(options: {
             throw new Error('no session');
           })
         : vi.fn(() => session),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('showMissionSettings', () => {
@@ -165,7 +166,7 @@ describe('showMissionSettings', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('── Session (live) ─');
     expect(text).toContain('Mission run: active · stage plan');
     expect(text).toContain('Active goal: active · turns 2 · tokens 500');
@@ -182,7 +183,7 @@ describe('showMissionSettings', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Mission run: (session unavailable)');
     expect(text).toContain('Active goal: (session unavailable)');
     expect(text).toContain('Upcoming goals: (session unavailable)');

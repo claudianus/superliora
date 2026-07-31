@@ -27,6 +27,8 @@ function plugin(partial: Partial<PluginSummary> & { readonly id: string }): Plug
     commandCount: partial.commandCount ?? 0,
     hasErrors: partial.hasErrors ?? false,
     source: partial.source ?? 'local-path',
+    scope: partial.scope ?? 'user',
+    agentCount: partial.agentCount ?? 0,
   };
 }
 

@@ -327,44 +327,52 @@ async function readClaudeMcpFile(
   }
 }
 
+function readStringRecord(raw: unknown): Record<string, string> | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string') out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function normalizeClaudeMcpEntry(raw: unknown): McpServerFileConfig | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const entry = raw as Record<string, unknown>;
-  const command = typeof entry.command === 'string' ? entry.command : undefined;
-  const url = typeof entry.url === 'string' ? entry.url : undefined;
+  const command = typeof entry['command'] === 'string' ? entry['command'] : undefined;
+  const url = typeof entry['url'] === 'string' ? entry['url'] : undefined;
   if (command === undefined && url === undefined) return null;
 
-  const config: McpServerFileConfig = {
-    enabled: entry.enabled !== false,
+  const shared: McpServerFileConfig = {
+    enabled: entry['enabled'] !== false,
+    ...(typeof entry['cwd'] === 'string' ? { cwd: entry['cwd'] } : {}),
+    ...(typeof entry['bearerTokenEnvVar'] === 'string'
+      ? { bearerTokenEnvVar: entry['bearerTokenEnvVar'] }
+      : {}),
+    ...(typeof entry['startupTimeoutMs'] === 'number'
+      ? { startupTimeoutMs: entry['startupTimeoutMs'] }
+      : {}),
+    ...(typeof entry['toolTimeoutMs'] === 'number' ? { toolTimeoutMs: entry['toolTimeoutMs'] } : {}),
+    ...(readStringRecord(entry['env']) !== undefined ? { env: readStringRecord(entry['env']) } : {}),
+    ...(readStringRecord(entry['headers']) !== undefined
+      ? { headers: readStringRecord(entry['headers']) }
+      : {}),
   };
+
   if (command !== undefined) {
-    config.transport = 'stdio';
-    config.command = command;
-    if (Array.isArray(entry.args)) {
-      config.args = entry.args.filter((a): a is string => typeof a === 'string');
-    }
+    return {
+      ...shared,
+      transport: 'stdio',
+      command,
+      ...(Array.isArray(entry['args'])
+        ? { args: entry['args'].filter((a): a is string => typeof a === 'string') }
+        : {}),
+    };
   }
-  if (url !== undefined) {
-    config.transport = 'http';
-    config.url = url;
-  }
-  if (typeof entry.cwd === 'string') config.cwd = entry.cwd;
-  if (typeof entry.bearerTokenEnvVar === 'string') config.bearerTokenEnvVar = entry.bearerTokenEnvVar;
-  if (typeof entry.startupTimeoutMs === 'number') config.startupTimeoutMs = entry.startupTimeoutMs;
-  if (typeof entry.toolTimeoutMs === 'number') config.toolTimeoutMs = entry.toolTimeoutMs;
-  if (typeof entry.env === 'object' && entry.env !== null && !Array.isArray(entry.env)) {
-    const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries(entry.env as Record<string, unknown>)) {
-      if (typeof v === 'string') env[k] = v;
-    }
-    if (Object.keys(env).length > 0) config.env = env;
-  }
-  if (typeof entry.headers === 'object' && entry.headers !== null && !Array.isArray(entry.headers)) {
-    const headers: Record<string, string> = {};
-    for (const [k, v] of Object.entries(entry.headers as Record<string, unknown>)) {
-      if (typeof v === 'string') headers[k] = v;
-    }
-    if (Object.keys(headers).length > 0) config.headers = headers;
-  }
-  return config;
+
+  return {
+    ...shared,
+    transport: 'http',
+    url: url!,
+  };
 }

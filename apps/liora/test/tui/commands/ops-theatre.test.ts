@@ -73,7 +73,7 @@ describe('showOpsTheatre', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Parallel tools: 2 in flight · peak 3');
     expect(text).not.toContain(OPS_FLEET_PARALLEL_FANOUT_TIP);
   });
@@ -84,7 +84,7 @@ describe('showOpsTheatre', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toMatch(/Parallel: independent tool_calls fan/);
   });
 
@@ -100,7 +100,7 @@ describe('showOpsTheatre', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Cascade: ch1→ch3→ch4 · hops 2');
   });
 

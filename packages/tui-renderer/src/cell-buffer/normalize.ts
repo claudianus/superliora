@@ -56,7 +56,7 @@ export function cellPositionHash(x: number, cell: RendererCell): number {
   const pos = Math.imul(x + 1, 0x9e3779b9);
   let h = pos;
   // Character code point mixed with position (BMP fast path).
-  const code = cell.char.length === 1 ? cell.char.codePointAt(0) : (cell.char.codePointAt(0) ?? 0);
+  const code = cell.char.length === 1 ? (cell.char.codePointAt(0) ?? 0) : (cell.char.codePointAt(0) ?? 0);
   h ^= Math.imul(code + 1, pos);
   // Width and continuation flags.
   h ^= (cell.width ?? 1) << 16;
@@ -72,8 +72,8 @@ export function cellPositionHash(x: number, cell: RendererCell): number {
   if (cell.link !== undefined) {
     h ^= Math.imul(cell.link.length + 1, 0xc2b2ae35);
     // Sample first/last char codes for cheap discrimination.
-    h ^= cell.link.codePointAt(0) << 8;
-    if (cell.link.length > 1) h ^= cell.link.codePointAt(cell.link.length - 1);
+    h ^= (cell.link.codePointAt(0) ?? 0) << 8;
+    if (cell.link.length > 1) h ^= cell.link.codePointAt(cell.link.length - 1) ?? 0;
   }
   return h >>> 0;
 }
@@ -183,7 +183,7 @@ function normalizedStyleHash(style: RendererCellStyle | undefined): number {
 function hashShortString(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
-    h ^= s.codePointAt(i);
+    h ^= s.codePointAt(i) ?? 0;
     h = Math.imul(h, 0x01000193);
   }
   return h >>> 0;

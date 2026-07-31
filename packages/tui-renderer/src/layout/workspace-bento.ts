@@ -231,6 +231,10 @@ function buildCell(
 
 export type BentoHitResult = { cellId: string; cell: BentoGridCell } | null;
 
+function bentoContainsPoint(rect: RendererRect, x: number, y: number): boolean {
+  return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+}
+
 /**
  * Hit-test a bento grid: returns the cell that contains the given point.
  */

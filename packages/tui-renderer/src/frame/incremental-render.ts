@@ -454,7 +454,7 @@ function encodeCursorPosition(row: number, col: number): string {
 export function fnv1a(str: string): number {
   let hash = FNV_OFFSET_BASIS;
   for (let i = 0; i < str.length; i++) {
-    hash ^= str.codePointAt(i);
+    hash ^= str.codePointAt(i) ?? 0;
     hash = Math.imul(hash, FNV_PRIME);
   }
   return hash >>> 0; // Ensure unsigned

@@ -7,7 +7,7 @@ import { transformOpenApiDocument } from '../openapi/transforms';
  * generic mismatch between Fastify's default `FastifyInstance` and the
  * server's pino-typed variant (`FastifyInstance<…, ServerLogger>`).
  */
-interface OpenApiHost {
+export interface OpenApiHost {
   register(
     plugin: unknown,
     opts: Record<string, unknown>,
@@ -56,7 +56,7 @@ export async function registerServerOpenApi(
       if (!('openapiObject' in documentObject)) {
         return (documentObject as { swaggerObject: unknown }).swaggerObject;
       }
-      return transformOpenApiDocument(documentObject.openapiObject as Record<string, unknown>);
+      return transformOpenApiDocument(documentObject['openapiObject'] as Record<string, unknown>);
     },
   });
 }

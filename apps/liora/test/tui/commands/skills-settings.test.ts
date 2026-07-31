@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showSkillsSettings } from '#/tui/commands/config/skills-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 vi.mock('#/utils/skills/skills-state', () => ({
   loadSkillsState: vi.fn(async () => ({ disabled: ['disabled-skill'] })),
@@ -31,7 +33,7 @@ function makeSkillsHost(options: { searchSkillActive?: boolean; hasSession?: boo
             throw new Error('no session');
           })
         : vi.fn(() => ({ listSkills, getTools })),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('skills settings', () => {
@@ -41,10 +43,8 @@ describe('skills settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Skills (read-only)');
     expect(lines).toContain('Installed skills: 3 in catalog · 2 slash-enabled · 1 disabled');
     expect(lines).toContain('Catalog sources (live): builtin 1 · user 1 · project 1');
@@ -59,9 +59,7 @@ describe('skills settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toContain('open a session to count catalog');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('open a session to count catalog');
   });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { showCacheSettings } from '#/tui/commands/config/cache-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { currentTheme } from '#/tui/theme';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function makeHost(options: {
   cacheMeter?: { rate: number; streak: number } | null;
@@ -35,7 +36,7 @@ function makeHost(options: {
             throw new Error('no session');
           })
         : vi.fn(() => session),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('showCacheSettings', () => {

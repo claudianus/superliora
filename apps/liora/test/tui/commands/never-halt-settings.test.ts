@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { showNeverHaltSettings } from '#/tui/commands/config/never-halt-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function makeHost(options: {
   circuitBreakers?: {
@@ -48,7 +49,7 @@ function makeHost(options: {
             throw new Error('no session');
           })
         : vi.fn(() => session),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('showNeverHaltSettings', () => {

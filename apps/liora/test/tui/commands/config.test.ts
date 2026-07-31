@@ -36,6 +36,7 @@ import {
   ECONOMY_ASYNC_WORKING_SET_TOKENS,
   ECONOMY_MAX_WORKING_SET_TOKENS,
 } from '#/tui/utils/agent/context-working-set';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeHost(options: { planMode?: boolean; planPath?: string | undefined } = {}) {
   const session = {
@@ -563,7 +564,7 @@ describe('harness panel and tools inventory', () => {
     optionIndex: number,
   ): Promise<void> {
     showHarnessPanel(host as unknown as SlashCommandHost);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < optionIndex; i++) {
@@ -578,7 +579,7 @@ describe('harness panel and tools inventory', () => {
     const host = makeHarnessHost();
     showHarnessPanel(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     expect(component).toBeTruthy();
@@ -597,7 +598,7 @@ describe('harness panel and tools inventory', () => {
     ]);
     const host = makeHarnessHost({ session: { getTools } });
     showHarnessPanel(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     // First option is tools; Enter selects it.
@@ -608,13 +609,13 @@ describe('harness panel and tools inventory', () => {
     expect(host.restoreEditor).toHaveBeenCalled();
     expect(getTools).toHaveBeenCalledOnce();
     expect(host.showNotice).toHaveBeenCalledOnce();
-    expect(String(host.showNotice.mock.calls[0]?.[0] ?? '')).toContain('Tools:');
+    expect(String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '')).toContain('Tools:');
   });
 
   it('routes harness panel eyes selection to eyes readiness panel', async () => {
     const host = makeHarnessHost();
     showHarnessPanel(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     // Move to eyes (second option) then Enter.
@@ -683,7 +684,7 @@ describe('harness panel and tools inventory', () => {
     await showToolsInventory(host);
     expect(getTools).toHaveBeenCalledOnce();
     expect(host.showNotice).toHaveBeenCalledOnce();
-    const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+    const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
     expect(notice).toContain('── Session (live) ──');
     expect(notice).toContain('Core waist: ON (default) · Profile: core');
     expect(notice).toContain('Tools: 3 active / 5 registered');
@@ -721,14 +722,14 @@ describe('harness panel and tools inventory', () => {
       },
     });
     await showToolsInventory(host);
-    const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+    const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
     expect(notice).toContain('ApplyPatch+RepoQuery');
     expect(notice).toContain('SearchTools dumps tool schemas mid-turn');
   });
 
   it('shows hide-legacy live status when SUPERLIORA_SOVEREIGN=1', async () => {
-    const prev = process.env.SUPERLIORA_SOVEREIGN;
-    process.env.SUPERLIORA_SOVEREIGN = '1';
+    const prev = process.env['SUPERLIORA_SOVEREIGN'];
+    process.env['SUPERLIORA_SOVEREIGN'] = '1';
     try {
       const host = makeHarnessHost({
         session: {
@@ -744,20 +745,20 @@ describe('harness panel and tools inventory', () => {
         },
       });
       await showToolsInventory(host);
-      const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+      const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
       expect(notice).toContain('── Session (live) ──');
       expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN=1) · Profile: core');
       expect(notice).toContain('Hide legacy: ON (SUPERLIORA_SOVEREIGN=1)');
       expect(notice).not.toContain('soft-hides legacy tool aliases');
     } finally {
-      if (prev === undefined) delete process.env.SUPERLIORA_SOVEREIGN;
-      else process.env.SUPERLIORA_SOVEREIGN = prev;
+      if (prev === undefined) delete process.env['SUPERLIORA_SOVEREIGN'];
+      else process.env['SUPERLIORA_SOVEREIGN'] = prev;
     }
   });
 
   it('shows sovereign core live status when SUPERLIORA_SOVEREIGN_CORE=1', async () => {
-    const prev = process.env.SUPERLIORA_SOVEREIGN_CORE;
-    process.env.SUPERLIORA_SOVEREIGN_CORE = '1';
+    const prev = process.env['SUPERLIORA_SOVEREIGN_CORE'];
+    process.env['SUPERLIORA_SOVEREIGN_CORE'] = '1';
     try {
       const host = makeHarnessHost({
         session: {
@@ -773,11 +774,11 @@ describe('harness panel and tools inventory', () => {
         },
       });
       await showToolsInventory(host);
-      const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+      const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
       expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN_CORE=1) · Profile: core');
     } finally {
-      if (prev === undefined) delete process.env.SUPERLIORA_SOVEREIGN_CORE;
-      else process.env.SUPERLIORA_SOVEREIGN_CORE = prev;
+      if (prev === undefined) delete process.env['SUPERLIORA_SOVEREIGN_CORE'];
+      else process.env['SUPERLIORA_SOVEREIGN_CORE'] = prev;
     }
   });
 
@@ -810,7 +811,7 @@ describe('harness panel and tools inventory', () => {
     await selectHarnessOption(host, 3);
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(() => {
-      expect(host.mountCenterModal.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect((host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -832,7 +833,7 @@ describe('harness panel and tools inventory', () => {
     // picker remounts via mountEditorReplacement after restore
     await vi.waitFor(() => {
       expect(host.harness.getConfig).toHaveBeenCalled();
-      expect(host.mountCenterModal.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect((host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -846,7 +847,7 @@ describe('harness panel and tools inventory', () => {
       expect(getTools).toHaveBeenCalledOnce();
     });
     expect(host.showNotice).toHaveBeenCalled();
-    expect(String(host.showNotice.mock.calls[0]?.[0] ?? '')).toContain('Tools:');
+    expect(String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '')).toContain('Tools:');
   });
 
   it('routes /eyes slash command to eyes readiness panel', async () => {
@@ -876,7 +877,7 @@ describe('harness panel and tools inventory', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     const firstPage = component.render(120).join('\n');
@@ -893,7 +894,7 @@ describe('harness panel and tools inventory', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { render: (width: number) => string[] },
     ];
     const firstPage = component.render(120).join('\n');
@@ -916,7 +917,7 @@ describe('harness panel and tools inventory', () => {
       additionalDirs: [],
     });
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     // security is index 4: model, routing, fallback, permission, security
@@ -945,7 +946,7 @@ describe('harness panel and tools inventory', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     let combined = component.render(120).join('\n');
@@ -964,7 +965,7 @@ describe('harness panel and tools inventory', () => {
   it('routes settings compaction selection to compaction panel', async () => {
     const host = makeHarnessHost({ session: {} });
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < settingsOptionIndex('compaction'); i++) {
@@ -975,20 +976,18 @@ describe('harness panel and tools inventory', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toContain('/compact');
-    expect(panel.buildLines(1).join('\n')).toContain('compactionTriggerRatio');
-    expect(panel.buildLines(1).join('\n')).toContain('Expand recover');
-    expect(panel.buildLines(1).join('\n')).toContain('Expand(id=<archiveId>)');
-    expect(panel.buildLines(1).join('\n')).toContain('context-archive store');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('/compact');
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('compactionTriggerRatio');
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('Expand recover');
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('Expand(id=<archiveId>)');
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('context-archive store');
   });
 
   it('routes settings context selection to context tips panel', async () => {
     const host = makeHarnessHost({ session: {} });
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < settingsOptionIndex('context'); i++) {
@@ -999,10 +998,8 @@ describe('harness panel and tools inventory', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Instruction vs Learning');
     expect(lines).toContain('/context');
   });
@@ -1012,7 +1009,7 @@ describe('harness panel and tools inventory', () => {
       session: { getUltraworkRun: vi.fn(async () => null) },
     });
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < settingsOptionIndex('mission'); i++) {
@@ -1023,10 +1020,8 @@ describe('harness panel and tools inventory', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('/mission');
     expect(lines).toContain('MISSION.md');
     expect(lines).toContain('soft advisory');
@@ -1041,9 +1036,11 @@ describe('harness panel and tools inventory', () => {
         getStatus: vi.fn(async () => ({ permission: 'auto' })),
       },
     });
-    host.harness.listSessions = vi.fn(async () => [{ id: 'a' }, { id: 'b' }]);
+    host.harness.listSessions = vi.fn(async () =>
+      [{ id: 'a' }, { id: 'b' }] as unknown as Awaited<ReturnType<typeof host.harness.listSessions>>,
+    );
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < settingsOptionIndex('fleet'); i++) {
@@ -1054,10 +1051,8 @@ describe('harness panel and tools inventory', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('background.maxRunningTasks');
     expect(lines).toContain('Independent tool_calls in one turn run in parallel');
     expect(lines).toContain('Maker≠Checker');
@@ -1094,7 +1089,7 @@ describe('harness panel and tools inventory', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     let combined = component.render(120).join('\n');
@@ -1119,7 +1114,7 @@ describe('harness panel and tools inventory', () => {
       session: { listPlugins: vi.fn(async () => [{ id: 'p', enabled: true, hookCount: 1 }]) },
     });
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < settingsOptionIndex('hooks'); i++) {
@@ -1130,16 +1125,14 @@ describe('harness panel and tools inventory', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toContain('PreToolUse');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('PreToolUse');
   });
 
   it('routes settings bench-diagnostics selection to bench panel', async () => {
     const host = makeHarnessHost({ session: {} });
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < settingsOptionIndex('bench-diagnostics'); i++) {
@@ -1150,23 +1143,19 @@ describe('harness panel and tools inventory', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toMatch(/Bench \(SSOT\)|\/bench|Bench \/ Diagnostics/);
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toMatch(/Bench \(SSOT\)|\/bench|Bench \/ Diagnostics/);
   });
 
   it('renders network settings panel with proxy env', () => {
-    const prior = process.env.HTTPS_PROXY;
-    process.env.HTTPS_PROXY = 'http://127.0.0.1:3128';
+    const prior = process.env['HTTPS_PROXY'];
+    process.env['HTTPS_PROXY'] = 'http://127.0.0.1:3128';
     const host = makeHarnessHost();
     showNetworkSettings(host);
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toContain('127.0.0.1:3128');
-    if (prior != null) process.env.HTTPS_PROXY = prior;
-    else delete process.env.HTTPS_PROXY;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('127.0.0.1:3128');
+    if (prior != null) process.env['HTTPS_PROXY'] = prior;
+    else delete process.env['HTTPS_PROXY'];
   });
 
   it('renders bench diagnostics panel without session', () => {
@@ -1186,7 +1175,7 @@ describe('harness panel and tools inventory', () => {
   it('routes settings eyes selection to eyes readiness panel', async () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < settingsOptionIndex('eyes'); i++) {
@@ -1213,7 +1202,7 @@ describe('harness panel and tools inventory', () => {
     await showLoopModelRoutingPicker(host);
 
     expect(host.harness.getConfig).toHaveBeenCalledWith({ reload: true });
-    const [routingPicker] = host.mountCenterModal.mock.calls[0] as [
+    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     const routingBody = routingPicker.render(120).join('\n');
@@ -1224,7 +1213,7 @@ describe('harness panel and tools inventory', () => {
 
     for (let i = 0; i < 3; i++) routingPicker.handleInput('\u001B[B');
     routingPicker.handleInput('\r');
-    const [modelPicker] = host.mountCenterModal.mock.calls[1] as [
+    const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
       { handleInput: (data: string) => void },
     ];
     modelPicker.handleInput('\r');
@@ -1246,11 +1235,11 @@ describe('harness panel and tools inventory', () => {
   it('does not mutate loop routing when the role model picker is cancelled', async () => {
     const host = makeHarnessHost();
     await showLoopModelRoutingPicker(host);
-    const [routingPicker] = host.mountCenterModal.mock.calls[0] as [
+    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     routingPicker.handleInput('\r');
-    const [modelPicker] = host.mountCenterModal.mock.calls[1] as [
+    const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
       { handleInput: (data: string) => void },
     ];
     modelPicker.handleInput('\u001B');
@@ -1263,12 +1252,12 @@ describe('harness panel and tools inventory', () => {
     const host = makeHarnessHost();
     host.harness.getConfig.mockResolvedValue({ loopControl: { codingModel: 'code-pro' } });
     await showLoopModelRoutingPicker(host);
-    const [routingPicker] = host.mountCenterModal.mock.calls[0] as [
+    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     for (let i = 0; i < 3; i++) routingPicker.handleInput('\u001B[B');
     routingPicker.handleInput('\r');
-    const [modelPicker] = host.mountCenterModal.mock.calls[1] as [
+    const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
       { handleInput: (data: string) => void },
     ];
     modelPicker.handleInput('\u001Br');

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showBenchDiagnosticsSettings } from '#/tui/commands/config/bench-diagnostics-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 describe('bench-diagnostics settings stub', () => {
   it('mounts read-only bench panel with /bench, /ops, and visual smoke tips', () => {
@@ -9,15 +11,13 @@ describe('bench-diagnostics settings stub', () => {
         transcriptContainer: { addChild: vi.fn() },
         renderer: { invalidateFrame: vi.fn() },
       },
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showBenchDiagnosticsSettings(host);
 
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('/bench');
     expect(lines).toContain('/ops');
     expect(lines).toContain('smoke:visual');

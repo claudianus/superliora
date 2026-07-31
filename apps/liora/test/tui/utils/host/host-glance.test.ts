@@ -35,7 +35,7 @@ describe('host-glance', () => {
   it('isInProcessHarness is true for createLioraHarness default', () => {
     const harness = createLioraHarness({ homeDir: '/tmp/host-glance-home' });
     expect(isInProcessHarness(harness)).toBe(true);
-    expect((harness as { rpc?: unknown }).rpc).toBeInstanceOf(SDKRpcClient);
+    expect((harness as unknown as { rpc?: unknown }).rpc).toBeInstanceOf(SDKRpcClient);
   });
 
   it('loadHostGlance reports in-process runtime with session + config paths', () => {

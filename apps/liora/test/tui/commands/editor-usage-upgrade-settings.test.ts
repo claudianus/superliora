@@ -21,9 +21,10 @@ import {
   isAutoUpdateDisabledByEnv,
   loadUpgradeGlance,
 } from '#/tui/utils/upgrade/upgrade-glance';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
-function panelText(host: { state: { transcriptContainer: { addChild: ReturnType<typeof vi.fn> } } }): string {
-  const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as UsagePanelComponent;
+function panelText(host: SlashCommandHost): string {
+  const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
   return panel.render(100).join('\n');
 }
 
@@ -109,7 +110,7 @@ describe('editor settings panel', () => {
         transcriptContainer: { addChild: vi.fn() },
         renderer: { invalidateFrame: vi.fn() },
       },
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showEditorSettings(host);
     const text = panelText(host);
@@ -148,7 +149,7 @@ describe('usage settings panel', () => {
           maxContextTokens: 128_000,
         }),
       }),
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showUsageSettings(host);
     await vi.waitFor(() => {
@@ -175,7 +176,7 @@ describe('usage settings panel', () => {
       requireSession: () => {
         throw new Error('no session');
       },
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showUsageSettings(host);
     await vi.waitFor(() => {
@@ -197,7 +198,7 @@ describe('upgrade settings panel', () => {
         transcriptContainer: { addChild: vi.fn() },
         renderer: { invalidateFrame: vi.fn() },
       },
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showUpgradeSettings(host);
     const text = panelText(host);

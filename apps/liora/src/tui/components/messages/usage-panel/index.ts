@@ -113,6 +113,10 @@ export class UsagePanelComponent implements Component {
     this.lines = this.buildLines(this.resolveFillProgress());
   }
 
+  snapshotBodyLines(fillProgress = 1): readonly string[] {
+    return this.buildLines(fillProgress);
+  }
+
   render(width: number): string[] {
     this.tickClockDrivenAnimation();
     // Rebuild when ambient fill progress advances between frames.

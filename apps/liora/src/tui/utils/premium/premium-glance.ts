@@ -90,10 +90,10 @@ export function formatAppearanceMotionLine(glance: PremiumVisualGlance): string 
 
 /** Adaptive renderer quality + frame health wired from native renderer onFrame. */
 export function formatLiveRenderQualityLine(glance: PremiumVisualGlance): string {
+  const qualityLevel = glance.diagnostics?.quality?.level;
   const adaptive =
-    glance.diagnostics?.quality.level !== undefined &&
-    glance.diagnostics.quality.level !== glance.renderQuality
-      ? ` · adaptive ${glance.diagnostics.quality.level}`
+    qualityLevel !== undefined && qualityLevel !== glance.renderQuality
+      ? ` · adaptive ${qualityLevel}`
       : '';
   return `Render quality: ${glance.renderQuality}${adaptive} · frame health: ${glance.renderHealth}`;
 }
