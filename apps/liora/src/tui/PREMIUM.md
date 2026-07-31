@@ -213,9 +213,9 @@ Hard rules: success/warn/error/info tokens only; one card = one Fleet worker or 
 interrupt tray stays visible without scroll. Density never hides approvals.
 
 **Visual verification:** Ops Theatre grid has a deterministic fixture at
-`tui/features/ops-theatre/smoke-fixture.ts` (`renderOpsTheatreSmokeGrid`) — unit-tested
-today; `pnpm -C apps/liora run smoke:visual` still drives `/status` only (live `/ops`
-PTY path is a future harness slice).
+`tui/features/ops-theatre/smoke-fixture.ts` (`renderOpsTheatreSmokeSnapshot`) — unit-tested
+and written to `.superliora/visual-smoke/ops-theatre.txt` by `pnpm -C apps/liora run smoke:visual`
+alongside the live `/status` PTY chrome slice (live `/ops` PTY path remains a future harness slice).
 
 ---
 

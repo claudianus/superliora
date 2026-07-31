@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderOpsTheatreSmokeGrid } from '#/tui/features/ops-theatre/smoke-fixture';
+import {
+  renderOpsTheatreSmokeGrid,
+  renderOpsTheatreSmokeSnapshot,
+} from '#/tui/features/ops-theatre/smoke-fixture';
 
 describe('renderOpsTheatreSmokeGrid', () => {
   it('includes Mission/Fleet pane headers and representative body lines', () => {
@@ -21,5 +24,14 @@ describe('renderOpsTheatreSmokeGrid', () => {
     expect(joined).toContain('Dual-emit:');
     expect(joined).toContain('Cascade: ch1→ch3→ch4 · hops 2');
     expect(joined).toContain('Freeze: idle');
+  });
+
+  it('snapshot includes git pane and intervention tray tips', () => {
+    const snapshot = renderOpsTheatreSmokeSnapshot();
+    const joined = snapshot.join('\n');
+
+    expect(joined).toContain('Git: main · dirty · 5 files · +12/−3');
+    expect(joined).toContain('▼ Intervention tray');
+    expect(joined).toContain('Ctrl-S steer mid-turn · /ops auto-refreshes');
   });
 });

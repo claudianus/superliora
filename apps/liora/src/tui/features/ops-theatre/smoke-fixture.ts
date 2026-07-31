@@ -1,11 +1,15 @@
 /**
  * Deterministic Ops Theatre grid for visual-smoke / snapshot fixtures.
- * Future harness: call `renderOpsTheatreSmokeGrid()` from `pnpm -C apps/liora run smoke:visual`.
+ * `renderOpsTheatreSmokeSnapshot()` is invoked from `pnpm -C apps/liora run smoke:visual`.
  */
 
 import { fleetDualEmitStatusLine, missionDualEmitStatusLine } from '@superliora/sdk';
 
-import { buildOpsTheatrePanes, type OpsTheatreInput } from './build-panes';
+import {
+  buildOpsTheatreInterventionTray,
+  buildOpsTheatrePanes,
+  type OpsTheatreInput,
+} from './build-panes';
 import { DEFAULT_OPS_THEATRE_WIDTH, renderOpsTheatreGrid } from './layout';
 
 export function buildOpsTheatreSmokeInput(
@@ -61,4 +65,20 @@ export function renderOpsTheatreSmokeGrid(
 ): string[] {
   const panes = buildOpsTheatrePanes(buildOpsTheatreSmokeInput());
   return renderOpsTheatreGrid(panes, width);
+}
+
+/** Grid plus intervention tray — matches `/ops` panel body layout. */
+export function renderOpsTheatreSmokeSnapshot(
+  width = DEFAULT_OPS_THEATRE_WIDTH,
+): string[] {
+  const input = buildOpsTheatreSmokeInput();
+  const panes = buildOpsTheatrePanes(input);
+  const grid = renderOpsTheatreGrid(panes, width);
+  const intervention = buildOpsTheatreInterventionTray({
+    pendingApprovalToolName: input.pendingApprovalToolName,
+    interventionCount: input.interventionCount,
+    staleInterventionCount: input.staleInterventionCount,
+    oldestInterventionAgeMs: input.oldestInterventionAgeMs,
+  });
+  return [...grid, ...intervention];
 }
