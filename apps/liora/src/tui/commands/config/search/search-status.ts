@@ -79,6 +79,7 @@ export interface SearchConfigSlice {
       readonly freeFallback?: boolean;
       readonly strategy?: SearchRoutingStrategySetting;
       readonly browserEscalate?: boolean;
+      readonly preferXai?: boolean;
     };
   };
 }
@@ -201,6 +202,30 @@ export function formatSearchStrategyLine(strategy: SearchRoutingStrategySetting)
 
 export function formatSearchBrowserEscalateLine(enabled: boolean): string {
   return `Browser escalate (Ch4/Ch5): ${enabled ? 'on' : 'off'} (research.search.browserEscalate)`;
+}
+
+/** Patch shape for harness.setConfig — research.search.preferXai. */
+export function buildSearchPreferXaiConfigPatch(enabled: boolean): {
+  readonly research: { readonly search: { readonly preferXai: boolean } };
+} {
+  return {
+    research: {
+      search: {
+        preferXai: enabled,
+      },
+    },
+  };
+}
+
+/** Default-on: PreferXai wrap when an xAI client is available. */
+export function resolveSearchPreferXai(
+  config: SearchConfigSlice | null | undefined,
+): boolean {
+  return config?.research?.search?.preferXai !== false;
+}
+
+export function formatSearchPreferXaiLine(enabled: boolean): string {
+  return `PreferXai (Grok Build first): ${enabled ? 'on' : 'off'} (research.search.preferXai)`;
 }
 
 export function formatLocalResearchCacheLine(status: LocalResearchCacheStatus): string {
@@ -589,6 +614,7 @@ export function buildSearchSettingsStatusLines(input: {
   readonly freeFallback: boolean;
   readonly strategy?: SearchRoutingStrategySetting;
   readonly browserEscalate?: boolean;
+  readonly preferXai?: boolean;
   readonly neverEmptyTelemetryLine?: string | null;
   readonly localResearchCacheHitLine?: string | null;
   readonly freeOnlyKpiLine?: string | null;
@@ -603,6 +629,7 @@ export function buildSearchSettingsStatusLines(input: {
     freeFallback,
     strategy = 'auto',
     browserEscalate = true,
+    preferXai = true,
     neverEmptyTelemetryLine,
     localResearchCacheHitLine,
     freeOnlyKpiLine,
@@ -646,6 +673,7 @@ export function buildSearchSettingsStatusLines(input: {
       : []),
     formatSearchStrategyLine(strategy),
     formatSearchBrowserEscalateLine(browserEscalate),
+    formatSearchPreferXaiLine(preferXai),
     `Free fallback: ${freeFallback ? 'on' : 'off'} (research.search.freeFallback)`,
     `· ${SEARCH_FREE_FALLBACK_FORCE_TIP}`,
     '',

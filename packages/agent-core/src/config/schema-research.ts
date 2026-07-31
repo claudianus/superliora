@@ -128,6 +128,11 @@ export const ResearchSearchConfigSchema = z.object({
    * Default true (WebSearch). DeepResearch passes an explicit per-call flag.
    */
   browserEscalate: z.boolean().optional(),
+  /**
+   * Prefer xAI Grok Build web search before the ResearchSearchEngine cascade.
+   * Default true when an xAI client is available; set false to skip PreferXai wrap.
+   */
+  preferXai: z.boolean().optional(),
 });
 
 export type ResearchSearchConfig = z.infer<typeof ResearchSearchConfigSchema>;

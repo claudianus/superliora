@@ -3,10 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { showSearchSettings } from '#/tui/commands/config/search/search-settings';
 import {
   buildSearchBrowserEscalateConfigPatch,
+  buildSearchPreferXaiConfigPatch,
   buildSearchStrategyConfigPatch,
   formatSearchBrowserEscalateLine,
+  formatSearchPreferXaiLine,
   formatSearchStrategyLine,
   resolveSearchBrowserEscalate,
+  resolveSearchPreferXai,
   resolveSearchStrategy,
 } from '#/tui/commands/config/search/search-status';
 import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
@@ -45,7 +48,12 @@ function makeHost(options: {
         vi.fn(async () => ({
           research: {
             localSearch: { enabled: true },
-            search: { freeFallback: true, strategy: 'parallel', browserEscalate: false },
+            search: {
+              freeFallback: true,
+              strategy: 'parallel',
+              browserEscalate: false,
+              preferXai: false,
+            },
           },
         })),
       setConfig: vi.fn(),
@@ -72,10 +80,15 @@ describe('search strategy / browser escalate helpers', () => {
     expect(buildSearchBrowserEscalateConfigPatch(false)).toEqual({
       research: { search: { browserEscalate: false } },
     });
+    expect(buildSearchPreferXaiConfigPatch(false)).toEqual({
+      research: { search: { preferXai: false } },
+    });
     expect(resolveSearchStrategy(undefined)).toBe('auto');
     expect(resolveSearchBrowserEscalate(undefined)).toBe(true);
+    expect(resolveSearchPreferXai(undefined)).toBe(true);
     expect(formatSearchStrategyLine('auto')).toContain('auto');
     expect(formatSearchBrowserEscalateLine(false)).toContain('off');
+    expect(formatSearchPreferXaiLine(false)).toContain('off');
   });
 });
 
@@ -102,6 +115,7 @@ describe('showSearchSettings status panel', () => {
     expect(text).toContain('LocalResearchCache: hit 80% · 4/5 lookups');
     expect(text).toContain('Strategy: parallel');
     expect(text).toContain('Browser escalate (Ch4/Ch5): off');
+    expect(text).toContain('PreferXai (Grok Build first): off');
   });
 
   it('writes strategy via setConfig from nested strategy picker', async () => {
