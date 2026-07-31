@@ -8,9 +8,16 @@ import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
-import { buildIndexSettingsLines } from '../../../utils/index/index-glance';
+import {
+  buildIndexSettingsLines,
+  INDEX_ENGINE_TIP,
+  INDEX_FTS_TIP,
+  INDEX_WARM_TIP,
+} from '../../../utils/index/index-glance';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+
+export { INDEX_ENGINE_TIP, INDEX_FTS_TIP, INDEX_WARM_TIP };
 
 export function showIndexSettings(host: SlashCommandHost): void {
   mountPickerDialog(
@@ -30,6 +37,21 @@ export function showIndexSettings(host: SlashCommandHost): void {
           label: 'Rebuild now',
           description: 'Clear and rebuild symbol codemap + sqlite FTS content index.',
         },
+        {
+          value: 'tip-warm',
+          label: 'Warm-on-default tip',
+          description: 'Session-start codemap + sqlite FTS warm (default ON) · opt-out env.',
+        },
+        {
+          value: 'tip-fts',
+          label: 'FTS backend tip',
+          description: 'SQLite FTS5 bundled vs Zoekt sidecar (opt-in, high-perf).',
+        },
+        {
+          value: 'tip-engine',
+          label: 'SQLite engine tip',
+          description: 'Default engine=sqlite · stub/zoekt opt-outs via env.',
+        },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -37,7 +59,21 @@ export function showIndexSettings(host: SlashCommandHost): void {
           void showIndexRebuildPanel(host);
           return;
         }
-        void showIndexSettingsPanel(host);
+        if (value === 'status') {
+          void showIndexSettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-warm') {
+          host.showStatus(INDEX_WARM_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-fts') {
+          host.showStatus(INDEX_FTS_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-engine') {
+          host.showStatus(INDEX_ENGINE_TIP, 'info');
+        }
       },
       onCancel: () => {
         dismissPickerDialog(host);
@@ -77,13 +113,15 @@ async function showIndexSettingsPanel(
   rebuildResult?: ReturnType<typeof rebuildRepoIndex>,
 ): Promise<void> {
   const workDir = resolveIndexWorkDir(host);
+  const env = process.env;
   const repoQueryActive = await resolveRepoQueryActive(host);
-  const repoIndex = getRepoIndexStatus();
+  const repoIndex = getRepoIndexStatus(env);
   const codemap = getCodemapStatus(workDir);
   const lines = buildIndexSettingsLines({
     repoQueryActive,
     codemap,
     repoIndex,
+    env,
     rebuildResult,
   });
 

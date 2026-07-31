@@ -14,6 +14,7 @@ import {
 import {
   buildIndexSessionLiveLines,
   buildIndexSettingsLines,
+  formatIndexStatusGlanceLine,
 } from '#/tui/utils/index/index-glance';
 
 const codemapWarm = {
@@ -28,6 +29,33 @@ const codemapWarm = {
 describe('index glance', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it('formatIndexStatusGlanceLine summarizes repo query, codemap, engine, and FTS wire', () => {
+    const repoIndex = getRepoIndexStatus({});
+    const line = formatIndexStatusGlanceLine({
+      repoQueryActive: true,
+      codemap: codemapWarm,
+      repoIndex,
+    });
+    expect(line).toBe('Glance: RepoQuery on · codemap warm · engine=sqlite · FTS live');
+  });
+
+  it('formatIndexStatusGlanceLine reflects cold codemap and inactive RepoQuery', () => {
+    const repoIndex = getRepoIndexStatus({ [REPO_INDEX_ENGINE_ENV]: 'stub' });
+    const line = formatIndexStatusGlanceLine({
+      repoQueryActive: false,
+      codemap: {
+        warmth: 'cold',
+        dbPath: '/tmp/cold.sqlite',
+        gitRepo: true,
+        fileCount: null,
+        symbolCount: null,
+        note: 'cold note',
+      },
+      repoIndex,
+    });
+    expect(line).toBe('Glance: RepoQuery off · codemap cold · engine=stub · FTS not live');
   });
 
   it('surfaces live engine/driver/wired lines in Status by default (sqlite)', () => {

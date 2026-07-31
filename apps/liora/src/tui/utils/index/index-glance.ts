@@ -14,10 +14,39 @@ import {
   getRepoIndexStatus,
   type RepoIndexRebuildResult,
   type RepoIndexStatus,
+  REPO_INDEX_FTS_BACKEND_TIP,
+  REPO_INDEX_PREFERRED_ENGINE_TIP,
   REPO_INDEX_WARM_PARALLEL_TIP,
   repoIndexPreferredEngineTipLine,
   repoIndexWarmStatusLine,
 } from '@superliora/sdk';
+
+/** ChoicePicker tip — session-start warm path (default ON). */
+export const INDEX_WARM_TIP = REPO_INDEX_WARM_PARALLEL_TIP;
+
+/** ChoicePicker tip — bundled SQLite FTS5 vs Zoekt sidecar. */
+export const INDEX_FTS_TIP = REPO_INDEX_FTS_BACKEND_TIP;
+
+/** ChoicePicker tip — default engine=sqlite and env opt-outs. */
+export const INDEX_ENGINE_TIP = REPO_INDEX_PREFERRED_ENGINE_TIP;
+
+export interface IndexStatusGlanceInput {
+  readonly repoQueryActive: boolean;
+  readonly codemap: CodemapStatus;
+  readonly repoIndex: RepoIndexStatus;
+}
+
+/** One-line at-a-glance summary for the status panel header. */
+export function formatIndexStatusGlanceLine(input: IndexStatusGlanceInput): string {
+  const repoQuery = input.repoQueryActive ? 'RepoQuery on' : 'RepoQuery off';
+  const codemap =
+    input.codemap.warmth === 'warm'
+      ? 'codemap warm'
+      : `codemap ${input.codemap.warmth}`;
+  const engine = `engine=${input.repoIndex.engine}`;
+  const fts = input.repoIndex.wired ? 'FTS live' : 'FTS not live';
+  return `Glance: ${repoQuery} · ${codemap} · ${engine} · ${fts}`;
+}
 
 export interface IndexSessionLiveGlance {
   readonly env?: NodeJS.ProcessEnv;
@@ -56,6 +85,7 @@ export function buildIndexSettingsLines(input: IndexSettingsGlanceInput): readon
   return [
     '── Repo index (read-only) ────────────────────',
     'RepoQuery + symbol codemap + FTS warm path — Sovereign Reform §6.',
+    formatIndexStatusGlanceLine({ repoQueryActive, codemap, repoIndex }),
     '',
     ...buildIndexSessionLiveLines({ env, repoIndex }),
     '── Status ───────────────────────────────────',
