@@ -2,19 +2,26 @@
  * Settings → Security — read-only sandbox / redaction / MCP glance (SSOT §9.2).
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { loadNetworkGlance } from '../../../utils/network/network-glance';
 import {
   buildSecuritySettingsLines,
+  SECURITY_MCP_ALLOWLIST_TIP,
+  SECURITY_REDACTION_TIP,
+  SECURITY_SANDBOX_TIP,
   type McpAllowlistSummary,
   type PermissionInterventionGlance,
   type SecurityGlanceInput,
   type SecuritySandboxProfile,
 } from '../../../utils/security/security-glance';
 import { readMcpJsonFile, resolveMcpJsonPaths, type McpServerFileConfig } from '#/utils/mcp/mcp-config-file';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+
+export { SECURITY_MCP_ALLOWLIST_TIP, SECURITY_REDACTION_TIP, SECURITY_SANDBOX_TIP };
 
 async function loadMcpAllowlistSummary(cwd: string): Promise<McpAllowlistSummary | undefined> {
   try {
@@ -116,7 +123,63 @@ async function loadSecurityGlance(host: SlashCommandHost): Promise<SecurityGlanc
   }
 }
 
-export async function showSecuritySettings(host: SlashCommandHost): Promise<void> {
+export function showSecuritySettings(host: SlashCommandHost): void {
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Security',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Security status',
+          description:
+            'Permission mode · path sandbox · network egress · redaction · MCP allowlist inventory.',
+        },
+        {
+          value: 'tip-sandbox',
+          label: 'Path sandbox tip',
+          description: 'off / workspace / read-only profiles · workspace roots · /add-dir.',
+        },
+        {
+          value: 'tip-redaction',
+          label: 'Secrets & redaction tip',
+          description: 'redactSecretsInText · PATH_SENSITIVE · bash hard-blocks · Glob/Grep filters.',
+        },
+        {
+          value: 'tip-mcp-allowlist',
+          label: 'MCP tool allowlist tip',
+          description: 'enabledTools / disabledTools in mcp.json · per-server scope · Settings → MCP.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showSecuritySettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-sandbox') {
+          host.showStatus(SECURITY_SANDBOX_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-redaction') {
+          host.showStatus(SECURITY_REDACTION_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-mcp-allowlist') {
+          host.showStatus(SECURITY_MCP_ALLOWLIST_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Security' },
+  );
+}
+
+async function showSecuritySettingsPanel(host: SlashCommandHost): Promise<void> {
   const lines = buildSecuritySettingsLines(await loadSecurityGlance(host));
 
   const panel = new UsagePanelComponent({
@@ -124,7 +187,9 @@ export async function showSecuritySettings(host: SlashCommandHost): Promise<void
     borderToken: 'primary',
     title: ' Security ',
     enterBeatSeed: 'security',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
