@@ -4,7 +4,7 @@ import {
   detectUltraworkAutoActivationWithLlm,
   isOpenEndedImprovementLoop,
   shouldActOnUltraworkAutoActivation,
-} from '../../src/ultrawork/auto-activate-llm';
+} from '#/mission';
 
 describe('ultrawork auto-activation classifier', () => {
   it('parses activate intent from the classifier response', async () => {

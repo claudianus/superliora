@@ -19,7 +19,7 @@ import {
   McpConnectionManager,
   McpOAuthService,
 } from '../mcp';
-import { DEFAULT_AGENT_PROFILES } from '../profile';
+import { DEFAULT_AGENT_PROFILES, resolveMainAgentProfile } from '../profile';
 import {
   SessionSkillRegistry,
   summarizeSkill,
@@ -259,8 +259,9 @@ export class Session {
   }
 
   async createMain() {
+    const profile = resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, this.options.config);
     const { agent } = await this.createAgent({ type: 'main' }, {
-      profile: DEFAULT_AGENT_PROFILES['agent'],
+      profile,
     });
     if (this.options.drainAgentTasksOnStop) {
       const ceilingS = this.options.background?.printWaitCeilingS ?? 3600;
@@ -286,7 +287,7 @@ export class Session {
     // default profile so the resumed session is usable. Native sessions always
     // replay a non-empty system prompt and never enter this branch.
     const main = this.getReadyAgent('main');
-    const profile = DEFAULT_AGENT_PROFILES['agent'];
+    const profile = resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, this.options.config);
     if (main !== undefined && profile !== undefined && main.config.systemPrompt === '') {
       await this.agentLifecycle.bootstrapAgentProfile(main, profile);
     }
@@ -477,6 +478,15 @@ export class Session {
     await this.skillsReady;
     await this.skills.ensureCatalogLoaded();
     return this.skills.listSkills().map(summarizeSkill);
+  }
+
+  getHookRegistry(): { readonly totalCount: number; readonly events: Readonly<Record<string, number>> } {
+    const events = this.hookEngine.summary;
+    let totalCount = 0;
+    for (const count of Object.values(events)) {
+      totalCount += count;
+    }
+    return { totalCount, events };
   }
 
   listPluginCommands(): readonly PluginCommandDef[] {

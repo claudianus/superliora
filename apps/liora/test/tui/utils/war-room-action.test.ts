@@ -31,7 +31,7 @@ describe('war-room-action helpers', () => {
       reason: 'Close QA gaps',
       phase: 'review',
     });
-    expect(directive).toContain('UltraSwarm restaff requested from war room.');
+    expect(directive).toContain('Fleet restaff requested from war room.');
     expect(directive).toContain('Close QA gaps');
     expect(directive).toContain('(phase: review)');
     expect(directive).toContain('staffing additional specialists');

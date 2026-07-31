@@ -9,7 +9,7 @@ import {
   emitSwarmCollaborationMention,
   startSwarmStandupTimer,
   SWARM_STANDUP_INTERVAL_MS,
-} from '../../src/collaboration/swarm-bus-coordination';
+} from '#/fleet';
 import { createUltraSwarmRunContext } from '../../src/agent/ultra-swarm-run';
 import type { TeamPlan } from '@superliora/protocol';
 import { initSwarmRunBus } from '../../src/tools/builtin/state/swarm-bus';

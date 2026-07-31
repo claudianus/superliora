@@ -339,8 +339,8 @@ describe('createTUIState', () => {
 
     state.transcriptContainer.addChild(
       new NoticeMessageComponent(
-        'Ultrawork mode: ON',
-        'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.',
+        'Mission mode: ON',
+        'Shift-Tab routes the next task through Plan before any Goal or Fleet work.',
       ),
     );
     const second = detectTUIStateNativeLayoutShift(state, width, first.next);
@@ -397,9 +397,9 @@ describe('createTUIState', () => {
     for (let i = 0; i < 12; i++) {
       state.transcriptContainer.addChild(
         new NoticeMessageComponent(
-          i % 2 === 0 ? 'Ultrawork mode: ON' : 'Ultrawork mode: OFF',
+          i % 2 === 0 ? 'Mission mode: ON' : 'Mission mode: OFF',
           i % 2 === 0
-            ? 'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.'
+            ? 'Shift-Tab routes the next task through Plan before any Goal or Fleet work.'
             : undefined,
         ),
       );
@@ -466,7 +466,7 @@ describe('createTUIState', () => {
     expect(countVisibleTranscriptCellsWithForeground(animated.renderer.frame)).toBeGreaterThan(0);
 
     state.transcriptContainer.addChild(
-      new NoticeMessageComponent('Ultrawork mode: ON', 'Shift-Tab routes the next task.'),
+      new NoticeMessageComponent('Mission mode: ON', 'Shift-Tab routes the next task.'),
     );
     const grown = renderTUIStateNativeFrame(state, {
       renderer: animated.renderer,

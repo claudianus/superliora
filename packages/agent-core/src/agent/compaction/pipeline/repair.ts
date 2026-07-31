@@ -25,7 +25,7 @@ import {
 import { buildCompactionSummaryText } from '../micro/handoff';
 import { estimateTokens, estimateTokensForMessages } from '../../../utils/tokens';
 import { renderPrompt } from '../../../utils/render-prompt';
-import { captureUltraworkEnvelopeSnapshot } from '../../../ultrawork/envelope';
+import { captureUltraworkEnvelopeSnapshot } from '#/mission';
 import compactionInstructionTemplate from '../prompts/compaction-instruction.md?raw';
 
 import { postProcessSummary, renderStructuredV2Summary } from './enrich';

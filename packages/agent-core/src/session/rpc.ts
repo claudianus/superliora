@@ -112,6 +112,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return this.session.listSkills();
   }
 
+  getHookRegistry(_payload: EmptyPayload) {
+    return this.session.getHookRegistry();
+  }
+
   listPluginCommands(_payload: EmptyPayload): readonly PluginCommandDef[] {
     return this.session.listPluginCommands();
   }
@@ -423,6 +427,18 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async getPermission({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).getPermission(payload);
+  }
+
+  async getCircuitBreakers({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getCircuitBreakers(payload);
+  }
+
+  async getCacheFrozen({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getCacheFrozen(payload);
+  }
+
+  async getParallelToolsStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getParallelToolsStatus(payload);
   }
 
   async getPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {

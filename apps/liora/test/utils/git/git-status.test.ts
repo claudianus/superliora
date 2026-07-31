@@ -11,7 +11,11 @@ vi.mock('node:child_process', () => ({
   spawnSync: mocks.spawnSync,
 }));
 
-import { createGitStatusCache, formatGitBadge } from '#/utils/git/git-status';
+import {
+  createGitStatusCache,
+  formatGitBadge,
+  formatPorcelainChangedFile,
+} from '#/utils/git/git-status';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -60,6 +64,8 @@ describe('git status cache', () => {
       behind: 1,
       diffAdded: 4,
       diffDeleted: 1,
+      changedFileCount: 1,
+      changedFiles: ['M src/app.ts'],
       pullRequest: null,
     });
     expect(cache.getStatus()).toEqual({
@@ -69,6 +75,8 @@ describe('git status cache', () => {
       behind: 1,
       diffAdded: 4,
       diffDeleted: 1,
+      changedFileCount: 1,
+      changedFiles: ['M src/app.ts'],
       pullRequest: null,
     });
     expect(mocks.spawnSync).toHaveBeenCalledTimes(4);
@@ -129,6 +137,8 @@ describe('git status cache', () => {
       behind: 0,
       diffAdded: 10,
       diffDeleted: 8,
+      changedFileCount: 1,
+      changedFiles: ['M src/app.ts'],
       pullRequest: null,
     });
 
@@ -142,6 +152,8 @@ describe('git status cache', () => {
       behind: 0,
       diffAdded: 10,
       diffDeleted: 8,
+      changedFileCount: 1,
+      changedFiles: ['M src/app.ts'],
       pullRequest: {
         number: 12,
         url: 'https://github.com/acme/repo/pull/12',
@@ -183,6 +195,8 @@ describe('git status cache', () => {
       behind: 0,
       diffAdded: 2,
       diffDeleted: 1,
+      changedFileCount: 1,
+      changedFiles: ['M src/app.ts'],
       pullRequest: null,
     });
 
@@ -196,6 +210,8 @@ describe('git status cache', () => {
       behind: 0,
       diffAdded: 2,
       diffDeleted: 1,
+      changedFileCount: 1,
+      changedFiles: ['M src/app.ts'],
       pullRequest: null,
     });
   });
@@ -211,6 +227,8 @@ describe('git status cache', () => {
         behind: 1,
         diffAdded: 12,
         diffDeleted: 3,
+        changedFileCount: 0,
+        changedFiles: [],
         pullRequest: null,
       }),
     ).toBe('main [+12 -3 ↑2↓1]');
@@ -222,9 +240,59 @@ describe('git status cache', () => {
         behind: 0,
         diffAdded: 0,
         diffDeleted: 0,
+        changedFileCount: 0,
+        changedFiles: [],
         pullRequest: null,
       }),
     ).toBe('main [±]');
+  });
+
+  it('caps changed-file previews at three porcelain entries', () => {
+    mocks.execFile.mockImplementation(
+      (
+        _cmd: string,
+        _args: string[],
+        _options: unknown,
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        callback(new Error('no pull request'), '', '');
+      },
+    );
+    mocks.spawnSync.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('rev-parse')) {
+        return { status: 0, stdout: 'true\n' };
+      }
+      if (args.includes('branch')) {
+        return { status: 0, stdout: 'main\n' };
+      }
+      if (args.includes('status')) {
+        return {
+          status: 0,
+          stdout:
+            '## main\n' +
+            ' M a.ts\n' +
+            '?? b.ts\n' +
+            ' D c.ts\n' +
+            'A  d.ts\n' +
+            ' M e.ts\n',
+        };
+      }
+      if (args.includes('diff')) {
+        return { status: 0, stdout: '1\t1\ta.ts\n' };
+      }
+      return { status: 1, stdout: '' };
+    });
+
+    const status = createGitStatusCache('/tmp/repo').getStatus();
+    expect(status?.changedFiles).toEqual(['M a.ts', '~ b.ts', 'D c.ts']);
+    expect(status?.changedFileCount).toBe(5);
+  });
+
+  it('formats compact porcelain previews for modified and untracked paths', () => {
+    expect(formatPorcelainChangedFile(' M apps/liora/src/foo.ts')).toBe('M apps/liora/src/foo.ts');
+    expect(formatPorcelainChangedFile('?? notes.tmp')).toBe('~ notes.tmp');
+    expect(formatPorcelainChangedFile('R  old.ts -> new.ts')).toBe('R new.ts');
+    expect(formatPorcelainChangedFile('## main...origin/main')).toBeNull();
   });
 
   it('formats pull request badges as terminal hyperlinks when requested', () => {
@@ -236,6 +304,8 @@ describe('git status cache', () => {
         behind: 0,
         diffAdded: 0,
         diffDeleted: 0,
+        changedFileCount: 0,
+        changedFiles: [],
         pullRequest: {
           number: 12,
           url: 'https://github.com/acme/repo/pull/12',

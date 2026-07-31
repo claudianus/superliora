@@ -19,14 +19,14 @@ export interface UltraworkModeMarkerOptions {
   readonly progress?: string;
 }
 
-const ULTRAWORK_PIPELINE = 'Research -> UltraPlan -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn';
-const ULTRAWORK_COMPACT_PIPELINE = 'Research>UltraPlan>UltraGoal>Swarm?>Integrate>Verify>Learn';
-const ULTRAWORK_STAGE_STATUS = 'One Ultrawork: source-backed questions → verifiable goal → team → verify';
+const ULTRAWORK_PIPELINE = 'Research -> Plan -> Goal -> Fleet decision -> Integrate -> Verify -> Learn';
+const ULTRAWORK_COMPACT_PIPELINE = 'Research>Plan>Goal>Fleet?>Integrate>Verify>Learn';
+const ULTRAWORK_STAGE_STATUS = 'One Mission: source-backed questions → verifiable goal → team → verify';
 const ULTRAWORK_RESEARCH_STATUS = 'Research: local + provider/MCP accelerators; verified sources only';
-const ULTRAWORK_NEXT_ACTION = 'Next: evidence pack before UltraPlan questions';
+const ULTRAWORK_NEXT_ACTION = 'Next: evidence pack before Plan questions';
 const ULTRAWORK_COMPLETION_STATUS =
-  'Goal complete — Research → UltraPlan → Swarm → Integrate → Verify → Learn finished.';
-const ULTRAWORK_COMPLETION_NEXT = 'Ultrawork mode is off. Continue with normal prompts or Shift-Tab for a new run.';
+  'Goal complete — Research → Plan → Fleet → Integrate → Verify → Learn finished.';
+const ULTRAWORK_COMPLETION_NEXT = 'Mission mode is off. Continue with normal prompts or Shift-Tab for a new run.';
 
 export class UltraworkModeMarkerComponent implements Component {
   constructor(
@@ -107,8 +107,8 @@ export class UltraworkModeMarkerComponent implements Component {
 function ultraworkMarkerLabel(state: UltraworkModeMarkerState): string {
   switch (state) {
     case 'active':
-      return 'Ultrawork activated';
+      return 'Mission activated';
     case 'ended':
-      return 'Ultrawork completed';
+      return 'Mission completed';
   }
 }

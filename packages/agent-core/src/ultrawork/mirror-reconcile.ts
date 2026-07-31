@@ -1,8 +1,8 @@
 import type { UltraworkRun } from '@superliora/protocol';
 import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
 import type { Agent } from '../agent';
-import { applyEvidenceHardGate } from '../collaboration/swarm-evidence-gate';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
+import { applyEvidenceHardGate } from '#/fleet';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';
 import { resolveApprovedUltraworkPlanPath } from './approved-plan';
 import { inferUltraPlanPhaseFromPlanContent } from './plan-phase';
 import { releaseUltraworkPlanModeIfComplete, shouldKeepPlanModeForUltraworkRun } from './recovery-resume';

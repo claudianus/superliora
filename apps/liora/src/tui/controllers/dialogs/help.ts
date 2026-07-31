@@ -29,7 +29,9 @@ export function showHelpPanel(
         : advancedHelpIntro(),
       commandSectionTitle: mode === 'diagnostics'
         ? 'Diagnostic commands'
-        : 'All slash commands',
+        : mode === 'advanced'
+          ? 'Advanced Mission controls'
+          : 'All slash commands',
       shortcuts: mode === 'advanced' ? advancedKeyboardShortcuts() : undefined,
       onClose: () => {
         closeCenterModal(host, delegate);

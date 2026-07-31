@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { providerRouteStatusSchema, type ProviderRouteStatus } from '../providerRoute';
 import { permissionModeSchema, usageStatusSchema, type PermissionMode, type UsageStatus } from './common';
+import { circuitBreakerStatusSchema, type CircuitBreakerStatus } from './runtime';
 
 export interface AgentStatusContextOS {
   readonly pageCount: number;
@@ -60,6 +61,14 @@ export interface AgentStatusUpdatedEvent {
   readonly orchestratorMode?: boolean;
   /** Summary of active orchestrator workers for TUI display. */
   readonly orchestratorWorkers?: readonly AgentStatusOrchestratorWorker[];
+  /** Non-blocking permission interventions waiting on host approval. */
+  readonly pendingInterventions?: number;
+  /** Queue entries older than 120s (visibility only; no auto-deny). */
+  readonly staleInterventions?: number;
+  /** Age in ms of the longest-waiting queued intervention (Ops/Never-Halt glance). */
+  readonly oldestInterventionAgeMs?: number;
+  /** Never-Halt circuit breaker registry snapshot when wired by agent-core. */
+  readonly circuitBreakers?: CircuitBreakerStatus;
 }
 
 export const agentStatusContextOSSchema = z.object({
@@ -112,4 +121,8 @@ export const agentStatusUpdatedEventSchema = z.object({
     status: z.enum(['running', 'completed', 'failed']),
     tokenOutput: z.number().optional(),
   })).optional(),
+  pendingInterventions: z.number().int().nonnegative().optional(),
+  staleInterventions: z.number().int().nonnegative().optional(),
+  oldestInterventionAgeMs: z.number().int().nonnegative().optional(),
+  circuitBreakers: circuitBreakerStatusSchema.optional(),
 }) satisfies z.ZodType<AgentStatusUpdatedEvent>;

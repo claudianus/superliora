@@ -90,6 +90,24 @@ jobs:
       - name: Theme contrast check (WCAG AA)
         run: pnpm --filter @superliora/liora run check:contrast
 
+  soft-checks:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check:settings-inventory
+      - run: pnpm run check:mission-fleet-path
+
   typecheck:
     runs-on: ubuntu-latest
 

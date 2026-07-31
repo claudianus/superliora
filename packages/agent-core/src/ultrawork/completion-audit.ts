@@ -12,7 +12,7 @@ import type { UltraworkRun, WorkGraphNode } from '@superliora/protocol';
 import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
-} from '../collaboration/swarm-evidence-gate';
+} from '#/fleet';
 import {
   collectVerificationGapNodes,
   formatBlockedNodeNextActions,

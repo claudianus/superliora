@@ -290,7 +290,7 @@ function nextMemoryReadinessAction(snapshot: MemoryReadinessSnapshot): string {
   if (snapshot.query.length === 0) return 'Run /memory readiness <query> to verify recall retrieval.';
   if (snapshot.searchError !== undefined) return 'Fix recall search, then rerun /memory readiness <query>.';
   if ((snapshot.searchResults?.length ?? 0) === 0) return 'Add or refine durable memories for this query.';
-  if (!snapshot.evidence.llmWiki.ready) return `Start Ultrawork to create project-local LLM Wiki evidence under ${CANONICAL_LLM_WIKI_ROOT}.`;
+  if (!snapshot.evidence.llmWiki.ready) return `Start a Mission to create project-local LLM Wiki evidence under ${CANONICAL_LLM_WIKI_ROOT}.`;
   if (!snapshot.evidence.llmWiki.verified) {
     return `Run /memory verify to promote LLM Wiki seed to verified, then rerun /memory readiness.`;
   }

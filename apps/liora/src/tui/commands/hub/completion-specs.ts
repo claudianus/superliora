@@ -35,8 +35,8 @@ const SWARM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'off', description: 'Turn team mode off' },
   { value: 'talk', description: 'Open a War Room expert transcript / message panel' },
   { value: 'msg', description: 'Send a direct message to a War Room expert' },
-  { value: 'pause', description: 'Pause the active UltraSwarm war room' },
-  { value: 'restaff', description: 'Request restaff on the active UltraSwarm' },
+  { value: 'pause', description: 'Pause the active Fleet war room' },
+  { value: 'restaff', description: 'Request restaff on the active Fleet' },
   { value: 'raw', description: 'Toggle raw vs humanized team feed' },
 ];
 
@@ -63,9 +63,9 @@ const PLAN_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const PREMIUM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'on', description: 'Enable Premium Quality mode' },
-  { value: 'off', description: 'Disable Premium Quality mode' },
-  { value: 'status', description: 'Show Premium Quality status' },
+  { value: 'on', description: 'Enable Visual Quality (motion/density)' },
+  { value: 'off', description: 'Disable Visual Quality' },
+  { value: 'status', description: 'Show Visual Quality status' },
 ];
 
 const CONTEXT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -98,7 +98,7 @@ const EXTENSIONS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const ULTRAGOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'replace', description: 'Replace the active UltraGoal objective' },
+  { value: 'replace', description: 'Replace the active CreateGoal objective' },
   { value: '--loop', description: 'Open self-improvement loop with circuit breaker' },
 ];
 
@@ -185,7 +185,7 @@ const EDITOR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'replace', description: 'Replace the current Ultrawork objective' },
+  { value: 'replace', description: 'Replace the current Mission objective' },
 ];
 
 const HELP_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -250,14 +250,14 @@ export function swarmArgumentCompletions(argumentPrefix: string): AutocompleteIt
 export function swarmControlAvailability(args: string): SlashCommandAvailability {
   const head = args.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
   switch (head) {
+    case 'on':
+    case 'off':
     case 'talk':
     case 'msg':
     case 'message':
     case 'pause':
     case 'restaff':
     case 'raw':
-    case 'on':
-    case 'off':
       return 'always';
     default:
       return 'idle-only';
@@ -526,3 +526,5 @@ function formatDirectoryCompletionValue(argumentPrefix: string, parentInput: str
   }
   return `${join(parentInput, entryName)}/`;
 }
+
+export { profileArgumentCompletions } from '../config/agent-profile';

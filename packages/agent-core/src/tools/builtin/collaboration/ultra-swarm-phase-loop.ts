@@ -19,13 +19,13 @@ import {
   type DebateParticipant,
   type RiskLevel,
 } from '../../../session/ultra-swarm-debate';
-import { postOrchestratorStandup } from '../../../collaboration/swarm-bus-coordination';
 import {
   createSwarmBudgetState,
+  postOrchestratorStandup,
   recordSwarmBudgetRound,
   suggestSwarmBudgetKill,
   type SwarmBudgetState,
-} from '../../../collaboration/swarm-budget';
+} from '#/fleet';
 import type { SessionSubagentHost } from '../../../session/subagent/subagent-host';
 import type { ToolStore } from '../../store';
 import { renderSwarmBusDigest } from '../state/swarm-bus';

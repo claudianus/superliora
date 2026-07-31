@@ -22,7 +22,8 @@ declare module '../../store' {
   }
 }
 
-const MAX_ARCHIVE_ENTRIES = 512;
+export const CONTEXT_ARCHIVE_MAX_ENTRIES = 512;
+const MAX_ARCHIVE_ENTRIES = CONTEXT_ARCHIVE_MAX_ENTRIES;
 
 function hashContent(content: string): string {
   return createHash('sha256').update(content).digest('hex').slice(0, 12);
@@ -34,6 +35,10 @@ function emptyArchive(): LioraContextArchiveState {
 
 export function getContextArchive(store: ToolStore): LioraContextArchiveState {
   return store.get(LIORA_CONTEXT_ARCHIVE_STORE_KEY) ?? emptyArchive();
+}
+
+export function contextArchiveEntryCount(store: ToolStore): number {
+  return Object.keys(getContextArchive(store).entries).length;
 }
 
 export function setContextArchive(store: ToolStore, state: LioraContextArchiveState): void {

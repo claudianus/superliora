@@ -46,7 +46,7 @@ describe('t()', () => {
   it('falls back to English for keys missing from the Korean catalog', () => {
     setCliLocale('ko');
     // A key that only exists in the English catalog still renders English.
-    expect(t('cli.option.plan')).toBe('Ultrawork 플랜 조향으로 시작합니다.');
+    expect(t('cli.option.plan')).toBe('Mission 플랜 조향으로 시작합니다.');
   });
 
   it('substitutes {placeholder} params', () => {
@@ -76,7 +76,7 @@ describe('createProgram localization', () => {
     });
     expect(() => program.parse(['node', 'liora', '--help'])).toThrow();
     expect(output).toContain('차세대 에이전트의 시작점');
-    expect(output).toContain('Ultrawork 플랜 조향으로 시작합니다.');
+    expect(output).toContain('Mission 플랜 조향으로 시작합니다.');
     // Subcommand summary in the help listing.
     expect(output).toContain('세션을 ZIP 아카이브로 내보냅니다.');
   });
@@ -95,7 +95,7 @@ describe('createProgram localization', () => {
     });
     expect(() => program.parse(['node', 'liora', '--help'])).toThrow();
     expect(output).toContain('The Starting Point for Next-Gen Agents');
-    expect(output).toContain('Start with Ultrawork plan steering.');
+    expect(output).toContain('Start with Mission plan steering.');
   });
 
   it('localizes runtime export messages when locale is Korean', () => {

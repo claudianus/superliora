@@ -5,7 +5,7 @@ import {
   fallbackUltraworkObjectiveProfile,
   resolveUltraworkObjectiveProfile,
   shouldTrustUltraworkObjectiveProfile,
-} from '../../src/ultrawork/objective-profile-llm';
+} from '#/mission';
 
 describe('ultrawork objective profile classifier', () => {
   it('parses visual multi-lane profiles from the classifier response', async () => {

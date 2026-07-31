@@ -77,7 +77,7 @@ export interface Translation {
     note: string;
   };
   terminal: TerminalStep[];
-  ultra: {
+  mission: {
     kicker: string;
     title: string;
     body: string;
@@ -146,12 +146,12 @@ export const translations: Record<Lang, Translation> = {
     meta: {
       title: 'SuperLiora — Blood Moon 터미널 AI 코딩 하네스',
       description:
-        'SuperLiora는 Blood Moon(#E63946) 브랜드의 터미널 AI 코딩 하네스입니다. Ultrawork로 조사·계획·목표·스웜·검증·학습을 한 흐름에 묶고, Liora Recall·LLM Wiki·브라우저/컴퓨터 사용까지 같은 조종석에서 다룹니다.',
+        'SuperLiora는 Blood Moon(#E63946) 브랜드의 터미널 AI 코딩 하네스입니다. Mission으로 조사·계획·목표·Fleet·검증·학습을 한 흐름에 묶고, Liora Recall·LLM Wiki·브라우저/컴퓨터 사용까지 같은 조종석에서 다룹니다.',
       ogLocale: 'ko_KR',
     },
     skip: '본문으로 이동',
     nav: {
-      workflow: 'Ultrawork',
+      workflow: 'Mission',
       harness: 'Harness',
       memory: 'Memory',
       capabilities: 'Capabilities',
@@ -161,23 +161,23 @@ export const translations: Record<Lang, Translation> = {
       eyebrow: 'Blood Moon · terminal harness v0.20.1',
       h1: '긴 개발 작업을 터미널에서 끝까지 이어 붙입니다',
       lead:
-        'SuperLiora는 계획, 조사, 목표, 병렬 실행, 검증, 기억, 문서화, 브라우저·컴퓨터 사용을 하나의 Ultrawork 흐름으로 묶습니다. Blood Moon 팔레트 위에서 근거와 완료 기준을 잃지 않게 합니다.',
+        'SuperLiora는 계획, 조사, 목표, 병렬 실행, 검증, 기억, 문서화, 브라우저·컴퓨터 사용을 하나의 Mission 흐름으로 묶습니다. Blood Moon 팔레트 위에서 근거와 완료 기준을 잃지 않게 합니다.',
       install: '설치하기',
       github: 'GitHub',
       secondary: '라이브 데모',
       stats: [
         { value: '0.20.1', label: 'liora release' },
         { value: '128', label: 'max specialists' },
-        { value: '7', label: 'Ultrawork stages' },
+        { value: '7', label: 'Mission stages' },
         { value: 'MIT', label: 'open license' },
       ],
       chips: [
         {
-          title: 'UltraPlan',
+          title: 'Plan',
           body: '목표가 true/false로 검증 가능해질 때까지 요구를 좁힙니다.',
         },
         {
-          title: 'UltraSwarm',
+          title: 'Fleet',
           body: 'ENGAGE/DEFER gate 뒤에서 최대 128명의 specialist를 운용합니다.',
         },
         {
@@ -201,7 +201,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'Feature delivery',
-          body: '요구사항과 acceptance criteria를 UltraGoal로 고정한 채 구현합니다.',
+          body: '요구사항과 acceptance criteria를 Goal로 고정한 채 구현합니다.',
         },
         {
           title: 'Incident response',
@@ -215,40 +215,40 @@ export const translations: Record<Lang, Translation> = {
     },
     solution: {
       kicker: 'Operator path',
-      title: 'Shift-Tab 한 번으로 Ultrawork',
-      body: '가벼운 질문은 일반 프롬프트로, 복잡한 작업은 인터랙티브 세션에서 Ultrawork로 전환합니다. research → UltraPlan interview → UltraGoal → research loop → Swarm decision → integrate → verify → learn 순서로 진행합니다.',
-      note: 'Shift + Tab · /ultrawork · liora --plan',
+      title: 'Shift-Tab 한 번으로 Mission',
+      body: '가벼운 질문은 일반 프롬프트로, 복잡한 작업은 인터랙티브 세션에서 Mission으로 전환합니다. research → Plan interview → Goal → research loop → Fleet decision → integrate → verify → learn 순서로 진행합니다.',
+      note: 'Shift + Tab · /mission · liora --plan',
     },
     terminal: [
       { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
       { cmd: 'liora', output: 'Interactive session ready · Blood Moon TUI' },
-      { cmd: 'liora --plan', output: 'Plan steering on · UltraPlan interview armed' },
+      { cmd: 'liora --plan', output: 'Plan steering on · Plan interview armed' },
       {
-        cmd: 'liora -p "/ultrawork harden auth refresh path"',
-        output: 'Ultrawork: research → interview → goal → swarm → verify',
+        cmd: 'liora -p "/mission harden auth refresh path"',
+        output: 'Mission: research → interview → goal → fleet → verify',
       },
       { cmd: 'liora --continue', output: 'Resumed last session in cwd' },
       { cmd: 'liora server run --foreground', output: 'Server listening on 127.0.0.1:58627' },
       { cmd: 'liora provider list', output: 'Routes ranked by quota · cooldown · latency' },
     ],
-    ultra: {
-      kicker: 'Ultrawork spine',
+    mission: {
+      kicker: 'Mission spine',
       title: '조사에서 학습까지 끊기지 않는 실행 구조',
-      body: 'Ultrawork는 모호한 요청을 인터뷰로 좁히고, 검증 가능한 목표를 잠근 뒤, 필요하면 Swarm을 켜고, 통합·검증·학습까지 한 런으로 남깁니다.',
-      copyTitle: 'Research → Plan → Goal → Swarm → Verify → Learn',
+      body: 'Mission은 모호한 요청을 인터뷰로 좁히고, 검증 가능한 목표를 잠근 뒤, 필요하면 Fleet을 켜고, 통합·검증·학습까지 한 런으로 남깁니다.',
+      copyTitle: 'Research → Plan → Goal → Fleet → Verify → Learn',
       copyBody:
-        '각 단계는 이전 단계의 산출물을 입력으로 받습니다. 리스크가 크면 UltraSwarm ENGAGE, 단독으로 충분하면 DEFER. 완료는 테스트·런타임 증거로 닫습니다.',
+        '각 단계는 이전 단계의 산출물을 입력으로 받습니다. 리스크가 크면 Fleet ENGAGE, 단독으로 충분하면 DEFER. 완료는 테스트·런타임 증거로 닫습니다.',
       copyList: [
-        'UltraPlan interview로 요구·제약·비목표·위험을 true/false 기준까지 좁힙니다.',
-        'UltraGoal이 목표, 예산, acceptance criteria를 고정합니다.',
-        'UltraSwarm은 ENGAGE/DEFER를 먼저 기록한 뒤 specialist를 붙입니다.',
+        'Plan interview로 요구·제약·비목표·위험을 true/false 기준까지 좁힙니다.',
+        'Goal이 목표, 예산, acceptance criteria를 고정합니다.',
+        'Fleet은 ENGAGE/DEFER를 먼저 기록한 뒤 specialist를 붙입니다.',
         'Learn 단계에서 프로젝트 로컬 LLM Wiki와 필요한 Recall 항목을 갱신합니다.',
       ],
       steps: [
         { num: '01', title: 'Research', body: 'API, 릴리스 노트, 코드 사실을 먼저 확인합니다.' },
-        { num: '02', title: 'Plan', body: 'UltraPlan interview로 요구를 검증 가능한 기준으로 다듬습니다.' },
-        { num: '03', title: 'Goal', body: 'UltraGoal로 완료 기준과 예산을 잠급니다.' },
-        { num: '04', title: 'Swarm', body: 'ENGAGE/DEFER 뒤 전문 에이전트를 배치합니다.' },
+        { num: '02', title: 'Plan', body: 'Plan interview로 요구를 검증 가능한 기준으로 다듬습니다.' },
+        { num: '03', title: 'Goal', body: 'Goal로 완료 기준과 예산을 잠급니다.' },
+        { num: '04', title: 'Fleet', body: 'ENGAGE/DEFER 뒤 전문 에이전트를 배치합니다.' },
         { num: '05', title: 'Verify', body: '테스트, 런타임, 레드팀으로 닫습니다.' },
         { num: '06', title: 'Learn', body: 'Wiki·Recall에 검증된 지식만 남깁니다.' },
       ],
@@ -282,7 +282,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'LLM Wiki',
-          body: 'Ultrawork 런 근거와 코드 지식을 프로젝트 로컬 위키로 남겨 사람이 검토합니다.',
+          body: 'Mission 런 근거와 코드 지식을 프로젝트 로컬 위키로 남겨 사람이 검토합니다.',
         },
       ],
     },
@@ -319,22 +319,22 @@ export const translations: Record<Lang, Translation> = {
       body: '아래는 코드에 실제로 존재하는 SuperLiora 표면입니다. 마케팅용 가상 기능이 아닙니다.',
       items: [
         {
-          title: 'UltraPlan',
+          title: 'Plan',
           tag: 'interview',
           body: '목표가 true/false로 검증 가능해질 때까지 요구·제약·위험을 인터뷰합니다.',
         },
         {
-          title: 'UltraResearch',
+          title: 'Research',
           tag: 'evidence',
           body: 'API, 논문, 릴리스 노트, 보안 권고를 확인하고 근거를 남깁니다.',
         },
         {
-          title: 'UltraGoal',
+          title: 'Goal',
           tag: 'budget',
           body: '조사 뒤 목표와 예산, acceptance criteria를 잠급니다.',
         },
         {
-          title: 'UltraSwarm',
+          title: 'Fleet',
           tag: 'parallel',
           body: '최대 128 specialist를 ENGAGE/DEFER gate 뒤에서 운용합니다.',
         },
@@ -401,7 +401,7 @@ export const translations: Record<Lang, Translation> = {
     },
     cta: {
       title: '복잡한 작업도 한 흐름으로 끝까지',
-      body: 'SuperLiora를 설치하고 Blood Moon 조종석에서 첫 Ultrawork 세션을 시작하세요.',
+      body: 'SuperLiora를 설치하고 Blood Moon 조종석에서 첫 Mission 세션을 시작하세요.',
       install: '지금 설치',
       github: 'GitHub 보기',
     },
@@ -421,12 +421,12 @@ export const translations: Record<Lang, Translation> = {
     meta: {
       title: 'SuperLiora — Blood Moon terminal AI coding harness',
       description:
-        'SuperLiora is a Blood Moon (#E63946) terminal AI coding harness. Ultrawork binds research, planning, goals, swarm execution, verification, and learning — with Liora Recall, LLM Wiki, browser-use, and computer-use in one cockpit.',
+        'SuperLiora is a Blood Moon (#E63946) terminal AI coding harness. Mission binds research, planning, goals, fleet execution, verification, and learning — with Liora Recall, LLM Wiki, browser-use, and computer-use in one cockpit.',
       ogLocale: 'en_US',
     },
     skip: 'Skip to main content',
     nav: {
-      workflow: 'Ultrawork',
+      workflow: 'Mission',
       harness: 'Harness',
       memory: 'Memory',
       capabilities: 'Capabilities',
@@ -436,23 +436,23 @@ export const translations: Record<Lang, Translation> = {
       eyebrow: 'Blood Moon · terminal harness v0.20.1',
       h1: 'Carry long development work to the finish in your terminal',
       lead:
-        'SuperLiora binds planning, research, goals, parallel execution, verification, memory, documentation, browser-use, and computer-use into one Ultrawork flow. The Blood Moon palette keeps dense status readable without losing evidence.',
+        'SuperLiora binds planning, research, goals, parallel execution, verification, memory, documentation, browser-use, and computer-use into one Mission flow. The Blood Moon palette keeps dense status readable without losing evidence.',
       install: 'Install',
       github: 'GitHub',
       secondary: 'Live demo',
       stats: [
         { value: '0.20.1', label: 'liora release' },
         { value: '128', label: 'max specialists' },
-        { value: '7', label: 'Ultrawork stages' },
+        { value: '7', label: 'Mission stages' },
         { value: 'MIT', label: 'open license' },
       ],
       chips: [
         {
-          title: 'UltraPlan',
+          title: 'Plan',
           body: 'Interview requirements until the goal is true/false verifiable.',
         },
         {
-          title: 'UltraSwarm',
+          title: 'Fleet',
           body: 'Run up to 128 specialists behind an ENGAGE/DEFER gate.',
         },
         {
@@ -476,7 +476,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'Feature delivery',
-          body: 'Lock requirements and acceptance criteria with UltraGoal while you build.',
+          body: 'Lock requirements and acceptance criteria with Goal while you build.',
         },
         {
           title: 'Incident response',
@@ -490,40 +490,40 @@ export const translations: Record<Lang, Translation> = {
     },
     solution: {
       kicker: 'Operator path',
-      title: 'One Shift-Tab into Ultrawork',
-      body: 'Use normal prompts for light questions. For hard work, flip Ultrawork inside an interactive session: research → UltraPlan interview → UltraGoal → research loop → Swarm decision → integrate → verify → learn.',
-      note: 'Shift + Tab · /ultrawork · liora --plan',
+      title: 'One Shift-Tab into Mission',
+      body: 'Use normal prompts for light questions. For hard work, flip Mission inside an interactive session: research → Plan interview → Goal → research loop → Fleet decision → integrate → verify → learn.',
+      note: 'Shift + Tab · /mission · liora --plan',
     },
     terminal: [
       { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
       { cmd: 'liora', output: 'Interactive session ready · Blood Moon TUI' },
-      { cmd: 'liora --plan', output: 'Plan steering on · UltraPlan interview armed' },
+      { cmd: 'liora --plan', output: 'Plan steering on · Plan interview armed' },
       {
-        cmd: 'liora -p "/ultrawork harden auth refresh path"',
-        output: 'Ultrawork: research → interview → goal → swarm → verify',
+        cmd: 'liora -p "/mission harden auth refresh path"',
+        output: 'Mission: research → interview → goal → fleet → verify',
       },
       { cmd: 'liora --continue', output: 'Resumed last session in cwd' },
       { cmd: 'liora server run --foreground', output: 'Server listening on 127.0.0.1:58627' },
       { cmd: 'liora provider list', output: 'Routes ranked by quota · cooldown · latency' },
     ],
-    ultra: {
-      kicker: 'Ultrawork spine',
+    mission: {
+      kicker: 'Mission spine',
       title: 'An execution structure that does not drop the thread',
-      body: 'Ultrawork narrows fuzzy asks with an interview, locks a verifiable goal, engages Swarm only when needed, then closes with integrate, verify, and learn — as one durable run.',
-      copyTitle: 'Research → Plan → Goal → Swarm → Verify → Learn',
+      body: 'Mission narrows fuzzy asks with an interview, locks a verifiable goal, engages Fleet only when needed, then closes with integrate, verify, and learn — as one durable run.',
+      copyTitle: 'Research → Plan → Goal → Fleet → Verify → Learn',
       copyBody:
-        'Each stage consumes the previous artifact. High risk means UltraSwarm ENGAGE; otherwise DEFER. Completion is closed with tests and runtime evidence.',
+        'Each stage consumes the previous artifact. High risk means Fleet ENGAGE; otherwise DEFER. Completion is closed with tests and runtime evidence.',
       copyList: [
-        'UltraPlan interview narrows requirements, constraints, non-goals, and risks to true/false criteria.',
-        'UltraGoal locks objectives, budgets, and acceptance criteria.',
-        'UltraSwarm records ENGAGE/DEFER first, then attaches specialists.',
+        'Plan interview narrows requirements, constraints, non-goals, and risks to true/false criteria.',
+        'Goal locks objectives, budgets, and acceptance criteria.',
+        'Fleet records ENGAGE/DEFER first, then attaches specialists.',
         'Learn updates the project-local LLM Wiki and only the Recall facts that deserve durability.',
       ],
       steps: [
         { num: '01', title: 'Research', body: 'Ground in APIs, release notes, and code facts.' },
-        { num: '02', title: 'Plan', body: 'Make the ask verifiable with UltraPlan interview.' },
-        { num: '03', title: 'Goal', body: 'Lock completion criteria and budget with UltraGoal.' },
-        { num: '04', title: 'Swarm', body: 'Place specialists after ENGAGE/DEFER.' },
+        { num: '02', title: 'Plan', body: 'Make the ask verifiable with Plan interview.' },
+        { num: '03', title: 'Goal', body: 'Lock completion criteria and budget with Goal.' },
+        { num: '04', title: 'Fleet', body: 'Place specialists after ENGAGE/DEFER.' },
         { num: '05', title: 'Verify', body: 'Close with tests, runtime, and red-team checks.' },
         { num: '06', title: 'Learn', body: 'Write only verified knowledge into Wiki/Recall.' },
       ],
@@ -557,7 +557,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'LLM Wiki',
-          body: 'Project-local Ultrawork evidence and codebase knowledge for human review.',
+          body: 'Project-local Mission evidence and codebase knowledge for human review.',
         },
       ],
     },
@@ -594,22 +594,22 @@ export const translations: Record<Lang, Translation> = {
       body: 'These are real SuperLiora surfaces present in the monorepo — not brochure fiction.',
       items: [
         {
-          title: 'UltraPlan',
+          title: 'Plan',
           tag: 'interview',
           body: 'Interview requirements until the goal is true/false verifiable.',
         },
         {
-          title: 'UltraResearch',
+          title: 'Research',
           tag: 'evidence',
           body: 'Check APIs, papers, release notes, and advisories; leave citations.',
         },
         {
-          title: 'UltraGoal',
+          title: 'Goal',
           tag: 'budget',
           body: 'Lock objectives, budgets, and acceptance criteria after research.',
         },
         {
-          title: 'UltraSwarm',
+          title: 'Fleet',
           tag: 'parallel',
           body: 'Run up to 128 specialists behind ENGAGE/DEFER.',
         },
@@ -676,7 +676,7 @@ export const translations: Record<Lang, Translation> = {
     },
     cta: {
       title: 'One flow from first ask to verified finish',
-      body: 'Install SuperLiora and start your first Ultrawork session from the Blood Moon cockpit.',
+      body: 'Install SuperLiora and start your first Mission session from the Blood Moon cockpit.',
       install: 'Install now',
       github: 'View on GitHub',
     },

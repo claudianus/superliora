@@ -16,7 +16,7 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     return {
       prefer: 'Read',
       pattern: 'cat file',
-      message: 'Use Read (edit-ready bytes) or LioraRead (signatures/map/lines) instead of cat.',
+      message: 'Use Read (edit-ready bytes) or RepoQuery (outline/content) instead of cat.',
     };
   }
   // Windows cmd `type file` / `type.exe file` and PowerShell Get-Content single-file dumps
@@ -162,7 +162,7 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     return {
       prefer: 'Read',
       pattern: 'head/tail file',
-      message: 'Use Read with line_offset/n_lines (or LioraRead mode=lines) instead of head/tail.',
+      message: 'Use Read with line_offset/n_lines (or RepoQuery mode=outline) instead of head/tail.',
     };
   }
   // less/more/most/nl path — pure pagers / numberers dumping a single file.
@@ -223,7 +223,7 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     return {
       prefer: 'Read',
       pattern: 'bat/tac/rev file',
-      message: 'Use Read or LioraRead instead of bat/tac/rev for file contents.',
+      message: 'Use Read or RepoQuery instead of bat/tac/rev for file contents.',
     };
   }
   // highlight / source-highlight whole-file pretty dumps to stdout
@@ -314,7 +314,7 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     return {
       prefer: 'Read',
       pattern: 'fmt/pr/fold file',
-      message: 'Use Read or LioraRead instead of text formatters for file contents.',
+      message: 'Use Read or RepoQuery instead of text formatters for file contents.',
     };
   }
 

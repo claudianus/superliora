@@ -33,7 +33,13 @@ export async function runToolCallBatch(
   if (response.toolCalls.length === 0) return { stopTurn: false };
   const batchStep = { ...step, toolCalls: response.toolCalls };
   const calls = response.toolCalls.map((toolCall) => preflightToolCall(step, toolCall));
-  const scheduler = new ToolScheduler<PendingToolResult>();
+  const scheduler = new ToolScheduler<PendingToolResult>(
+    step.toolParallelStatus === undefined
+      ? undefined
+      : (inFlight, maxParallel) => {
+          step.toolParallelStatus!.sync(inFlight, maxParallel);
+        },
+  );
   const pendingResults: Array<Promise<PendingToolResult>> = [];
   // toolCallIds that received a `tool.intend` and therefore need a `tool.ack`
   // once execution settles, so the intend→ack durability window is closed.

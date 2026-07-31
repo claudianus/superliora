@@ -86,7 +86,11 @@ function formatDecodeSplit(input: StepTimingInput): string {
   return `; server ${formatDuration(server)} + client ${formatDuration(client)}`;
 }
 
-function formatDuration(ms: number): string {
+export function formatTtftDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatDuration(ms: number): string {
+  return formatTtftDuration(ms);
 }

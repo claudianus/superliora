@@ -20,7 +20,7 @@ export const NextPhaseInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'Only valid for interview→design. Soft-fills remaining seed gaps with conservative defaults; useful when advancing with a not-yet-verifiable UltraGoal.',
+      'Only valid for interview→design. Soft-fills remaining seed gaps with conservative defaults; useful when advancing with a not-yet-verifiable Goal.',
     ),
 }).strict();
 
@@ -31,7 +31,7 @@ export class NextPhaseTool implements BuiltinTool<NextPhaseInput> {
   readonly description = `Advance to the next phase in Ultra Plan Mode workflow. Call when the current phase is complete.
 
 - research → interview: after a compact evidence pack for upcoming questions
-- interview → design: recommended once the UltraGoal is verifiable (readiness READY). Verifiability, soft seed gaps, and ambiguity floors are recommendations, not hard blockers — advancing before READY appends a non-blocking warning. Capture a true/false Completion Criterion via AskUserQuestion when you can; do not Write the plan file or repeat resolved questions.
+- interview → design: recommended once the Goal is verifiable (readiness READY). Verifiability, soft seed gaps, and ambiguity floors are recommendations, not hard blockers — advancing before READY appends a non-blocking warning. Capture a true/false Completion Criterion via AskUserQuestion when you can; do not Write the plan file or repeat resolved questions.
 - design → review → write → exit: advance one phase at a time
 
 This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advance phases. Forward only, never backward.`;
@@ -110,7 +110,7 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
 
     let output = `Advanced from ${currentPhase} phase to ${targetPhase} phase.\n\n${this.phaseInstructions(targetPhase)}`;
     if (verifiabilityWarning !== undefined) {
-      output += `\n\n---\n## Advisory (non-blocking): UltraGoal not yet verifiable\n${verifiabilityWarning}`;
+      output += `\n\n---\n## Advisory (non-blocking): Goal not yet verifiable\n${verifiabilityWarning}`;
     }
     return { output };
   }
@@ -118,7 +118,7 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
   private phaseInstructions(phase: string): string {
     const instructions: Record<string, string> = {
       interview:
-        "Interview Phase: Act as an expert leader — teach brief insights, surface unknown-unknowns, Baseline + Upgrade choices with read-only research. PATH 1/3 → RecordInterviewFinding; PATH 2 → AskUserQuestion. After 3 consecutive non-user findings, must AskUserQuestion. When the UltraGoal is verifiable, call NextPhase({ phase: 'design' }). Soft seed gaps may still be auto-filled; they are not Design blockers.",
+        "Interview Phase: Act as an expert leader — teach brief insights, surface unknown-unknowns, Baseline + Upgrade choices with read-only research. PATH 1/3 → RecordInterviewFinding; PATH 2 → AskUserQuestion. After 3 consecutive non-user findings, must AskUserQuestion. When the Goal is verifiable, call NextPhase({ phase: 'design' }). Soft seed gaps may still be auto-filled; they are not Design blockers.",
       design:
         "Design Phase: Read-only tools + TodoList progress tracking (Context7Resolve/Docs, WebSearch/FetchURL, Liora*, SearchSkill/Skill/SearchExpert, Bash read-only). Explore coverage lanes and expert candidates. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip to write.",
       review:

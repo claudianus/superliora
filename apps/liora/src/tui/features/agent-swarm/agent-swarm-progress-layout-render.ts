@@ -19,6 +19,7 @@ import {
   renderAgentSwarmFileMapContent,
   renderAgentSwarmHeaderLines,
   renderAgentSwarmIntegrationReportContent,
+  renderAgentSwarmMakerCheckerWarnContent,
   renderAgentSwarmMemberTodoSection,
   renderAgentSwarmMissionContent,
   type WarRoomDebateTurn,
@@ -52,6 +53,7 @@ export interface AgentSwarmProgressLayoutRenderInput {
   readonly colors: ColorPalette;
   readonly members: readonly AgentSwarmMember[];
   readonly integrationReport: UltraSwarmIntegrationReport | undefined;
+  readonly makerCheckerSoftWarn: string | undefined;
   readonly debateReel: readonly WarRoomDebateTurn[];
   readonly feedEvidenceIds: ReadonlySet<string>;
   readonly feedPathHints: ReadonlySet<string>;
@@ -160,6 +162,11 @@ function renderUltraSwarmLayout(
     teamContent: renderGrid(input, width, members, snapshots, nowMs),
     activityContent: renderAgentSwarmChildActivitySection(width, input.members, input.colors),
     reportContent: renderAgentSwarmIntegrationReportContent(width, input.integrationReport, input.colors),
+    governanceContent: renderAgentSwarmMakerCheckerWarnContent(
+      width,
+      input.makerCheckerSoftWarn,
+      input.colors,
+    ),
     debateContent: renderAgentSwarmDebateReelContent(width, profile, input.debateReel, input.colors),
     evidenceContent: renderAgentSwarmEvidenceWallContent(
       width,
@@ -222,11 +229,17 @@ export function renderAgentSwarmProgressLayout(
   }
   const headerLines = renderAgentSwarmHeaderLines(width, input.title, input.description, input.colors);
   const statusLine = renderAgentSwarmStatusLine(width, statusLineContext(input));
+  const governanceLines = renderAgentSwarmMakerCheckerWarnContent(
+    width,
+    input.makerCheckerSoftWarn,
+    input.colors,
+  );
   return [
     '',
     ...headerLines,
     '',
     statusLine,
+    ...(governanceLines.length > 0 ? ['', ...governanceLines] : []),
     '',
     ...renderGrid(input, width, sortedMembers, sortedSnapshots, nowMs),
     ...renderAgentSwarmChildActivitySection(width, input.members, input.colors),

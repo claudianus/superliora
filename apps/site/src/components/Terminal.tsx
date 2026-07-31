@@ -110,9 +110,9 @@ export function Terminal({ steps }: TerminalProps) {
     }
 
     let colorClass = 'text-muted';
-    if (line.includes('UltraPlan') || line.includes('interview')) colorClass = 'text-soft';
+    if (line.includes('Plan interview') || line.includes('interview')) colorClass = 'text-soft';
     if (line.includes('goal locked') || line.includes('passed')) colorClass = 'text-emerald';
-    if (line.includes('Ultrawork') || line.includes('Routes')) colorClass = 'text-rose';
+    if (line.includes('Mission') || line.includes('Routes')) colorClass = 'text-rose';
     if (line.includes('Server listening') || line.includes('Resumed')) colorClass = 'text-soft';
     if (line.includes('Blood Moon')) colorClass = 'text-cyan-dim';
 

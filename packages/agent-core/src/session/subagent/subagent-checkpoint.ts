@@ -2,7 +2,7 @@ import { readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { resolveLioraHome } from '#/config/path';
-import { writeFileAtomic } from '#/ultrawork/run-store';
+import { writeFileAtomic } from '#/mission';
 
 export const SUBAGENT_CHECKPOINT_VERSION = 1;
 

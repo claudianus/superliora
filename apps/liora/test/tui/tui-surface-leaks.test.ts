@@ -4,19 +4,19 @@ import {
   defaultUserSurfaceLeakFailures,
   hasLoggedOutSetupNextAction,
   hasHarnessRadarStatusContract,
-  hasUltraworkAdvancedHelpContract,
-  hasUltraworkFooterNextAction,
-  hasUltraworkHelpContract,
-  hasUltraworkStatusContract,
-  hasUltraworkTaskEntryCopy,
+  hasMissionAdvancedHelpContract,
+  hasMissionFooterNextAction,
+  hasMissionHelpContract,
+  hasMissionStatusContract,
+  hasMissionTaskEntryCopy,
   hasStatusPanelSetupNextAction,
   hasXpDodReadinessContract,
   shouldRequireModelSetupAction,
 } from '../../../../scripts/tui-surface-leaks.mjs';
 
 describe('TUI surface leak checks', () => {
-  it('allows Ultrawork brand copy while still blocking manual slash commands', () => {
-    const brandCopy = 'Shift-Tab toggles Ultrawork and off.';
+  it('allows Mission brand copy while still blocking manual slash commands', () => {
+    const brandCopy = 'Shift-Tab toggles Mission and off.';
 
     expect(defaultUserSurfaceLeakFailures('help', brandCopy)).toEqual([]);
     expect(defaultUserSurfaceLeakFailures('status', brandCopy)).toEqual([]);
@@ -68,59 +68,64 @@ describe('TUI surface leak checks', () => {
     );
   });
 
-  it('recognizes the unified Ultrawork task-entry, help, and status surface contract', () => {
+  it('recognizes the unified Mission task-entry, help, and status surface contract', () => {
     expect(
-      hasUltraworkTaskEntryCopy(
-        'Shift-Tab toggles Ultrawork and off.',
+      hasMissionTaskEntryCopy(
+        'Shift-Tab toggles Mission and off.',
       ),
     ).toBe(true);
     expect(
-      hasUltraworkTaskEntryCopy('Describe task; Ultrawork runs UltraPlan, UltraResearch, UltraGoal, UltraSwarm.'),
+      hasMissionTaskEntryCopy('Describe task; Ultrawork runs UltraPlan, UltraResearch, UltraGoal, UltraSwarm.'),
     ).toBe(false);
     expect(
-      hasUltraworkFooterNextAction(
-        'next: describe task; Ultrawork will interview before goal, swarm, and edits',
+      hasMissionFooterNextAction(
+        'next: describe task; Mission will interview before goal, swarm, and edits',
       ),
     ).toBe(true);
     expect(
-      hasUltraworkFooterNextAction(
+      hasMissionFooterNextAction(
+        'Mission: research → interview → goal → swarm → integrate → verify → learn',
+      ),
+    ).toBe(true);
+    expect(
+      hasMissionFooterNextAction(
         'Workflow interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
       ),
     ).toBe(true);
     expect(
-      hasUltraworkHelpContract(
+      hasMissionHelpContract(
         [
-          'Shift-Tab toggles Ultrawork and off.',
-          'Normal messages stay lightweight unless Ultrawork is on.',
+          'Shift-Tab toggles Mission and off.',
+          'Normal messages stay lightweight unless Mission is on.',
         ].join('\n'),
       ),
     ).toBe(true);
     expect(
-      hasUltraworkStatusContract(
+      hasMissionStatusContract(
         [
-          'Ultrawork    mode on',
+          'Mission      mode on',
           'Workflow      interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
-          'Engine        UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn',
-          'Auto          Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks',
+          'Engine        Plan | Goal | Research | Fleet decision | Integrate | Verify | Learn',
+          'Auto          Shift-Tab toggles Mission/off; no regex promotion for plain tasks',
           'Autonomy      bounded now -> headless target',
           'Recovery      resumable evidence ready -> durable target',
           'Tools         search first; load tools on demand',
           'Memory        prefs | session recall | long-run notes | auto-dream',
           'Flow          ███░ 3/4 verify queued',
           'Stages        Plan on | Goal ready | Swarm armed | Verify queued',
-          'Next          Type task; Ultrawork will interview before goal, swarm, and edits.',
+          'Next          Type task; Mission will interview before goal, swarm, and edits.',
         ].join('\n'),
       ),
     ).toBe(true);
     expect(
-      hasUltraworkStatusContract(
+      hasMissionStatusContract(
         [
           'Model        not set',
-          'Ultrawork    needs readiness',
+          'Mission      needs readiness',
           'State         Model needed',
           'Workflow      interview -> goal -> research -> swarm decision -> integrate -> verify -> learn',
-          'Engine        UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn',
-          'Auto          Shift-Tab toggles Ultrawork/off; no regex promotion for plain tasks',
+          'Engine        Plan | Goal | Research | Fleet decision | Integrate | Verify | Learn',
+          'Auto          Shift-Tab toggles Mission/off; no regex promotion for plain tasks',
           'Flow          ███░ 3/4 verify blocked',
           'Stages        Plan off | Goal ready | Swarm off | Verify blocked',
           'Next          Run /login to add a provider, then /model to pick one.',
@@ -128,8 +133,8 @@ describe('TUI surface leak checks', () => {
       ),
     ).toBe(true);
 
-    expect(hasUltraworkHelpContract('Run /ultrawork manually.')).toBe(false);
-    expect(hasUltraworkStatusContract('Ultrawork    ready')).toBe(false);
+    expect(hasMissionHelpContract('Run /ultrawork manually.')).toBe(false);
+    expect(hasMissionStatusContract('Mission    ready')).toBe(false);
     expect(
       hasHarnessRadarStatusContract(
         [
@@ -143,27 +148,27 @@ describe('TUI surface leak checks', () => {
     expect(hasHarnessRadarStatusContract('Tools         all tools loaded')).toBe(false);
   });
 
-  it('recognizes the advanced Ultrawork steering help contract', () => {
+  it('recognizes the advanced Mission steering help contract', () => {
     expect(
-      hasUltraworkAdvancedHelpContract(
+      hasMissionAdvancedHelpContract(
         [
-          'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.',
-          'Shift-Tab toggles Ultrawork/off; /plan steers UltraPlan from Hub or slash.',
-          'Advanced Ultrawork controls',
-          '/plan Advanced steering for UltraPlan; Ultrawork auto-enables it',
-          '/swarm Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal',
+          'Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.',
+          'Shift-Tab toggles Mission/off; /plan steers Plan from Hub or slash.',
+          'Advanced Mission controls',
+          '/plan Plan mode — model writes a plan file, you approve (interview → write)',
+          '/swarm Fleet parallel delegation — specialists split the task (prefer /fleet)',
         ].join('\n'),
       ),
     ).toBe(true);
 
     expect(
-      hasUltraworkAdvancedHelpContract(
+      hasMissionAdvancedHelpContract(
         [
-          'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.',
-          'Shift-Tab toggles Ultrawork/off; /plan steers UltraPlan from Hub or slash.',
-          'Advanced Ultrawork controls',
-          '/plan Steer UltraPlan stage; Ultrawork enables it automatically',
-          '/swarm Advanced steering for UltraSwarm; Ultrawork decides after UltraGoal',
+          'Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.',
+          'Shift-Tab toggles Mission/off; /plan steers Plan from Hub or slash.',
+          'Advanced Mission controls',
+          '/plan Steer Plan stage; Mission enables it automatically',
+          '/swarm Parallel specialists only',
         ].join('\n'),
       ),
     ).toBe(false);
@@ -177,7 +182,7 @@ describe('TUI surface leak checks', () => {
       'Coverage      test public behavior changes',
       'Screen check  open changed screen before finishing',
       'Done gate     tests + typecheck/lint/build + clean diff + TUI',
-      'next: Shift-Tab toggles Ultrawork/off · /bench for LioraBench',
+      'next: Shift-Tab toggles Mission/off · /bench for Bench',
     ].join('\n');
     const setupScreen = [
       'Model: not set',

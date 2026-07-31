@@ -1,0 +1,22 @@
+# Core≤12 waist: includes ApplyPatch+RepoQuery; excludes DeepResearch (opt-in via agent profile).
+# TaskGraph is opt-in via agent/full profiles — not in the Core≤12 waist.
+name: core
+description: Sovereign Reform Core waist — exactly 12 universal tools (Core≤12 SSOT).
+
+systemPromptPath: ./system.md
+promptVars:
+  roleAdditional: ''
+
+tools:
+  - Read
+  - Edit
+  - ApplyPatch
+  - Write
+  - Grep
+  - Glob
+  - Bash
+  - RepoQuery
+  - TodoList
+  - AskUserQuestion
+  - RunProjectChecks
+  - WebSearch

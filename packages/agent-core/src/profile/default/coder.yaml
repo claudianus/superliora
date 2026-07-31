@@ -13,20 +13,19 @@ tools:
   - Read
   - Write
   - Edit
+  - ApplyPatch
   - Grep
   - Glob
   - Bash
+  - Expand
   - RunProjectChecks
-  - LioraRead
-  - LioraTree
-  - LioraSymbol
-  - LioraCallgraph
-  - LioraExpand
+  - RepoQuery
   - WebSearch
+  - DeepResearch
   - FetchURL
   - ReadMediaFile
   - VerifySurface
-  - LioraReview
+  - Review
   - VisualDiff
   - AskUserQuestion
   - Memory

@@ -4,6 +4,9 @@
  * kimi-core defines the interface; the host provides the real search
  * implementation via `WebSearchProvider`. If no provider is supplied,
  * the tool should not be registered (not exposed to the LLM).
+ *
+ * Never-empty: failures and empty results soft-return with `degraded: true`
+ * so Goal/Mission loops keep running (see loop-dispatch runtime.degraded emit).
  */
 
 import { z } from 'zod';
@@ -11,6 +14,13 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
+import type { ResearchSearchStatus } from '../../providers/research-search-types';
+import {
+  assessSearchChannelHealth,
+  buildSearchNeverEmptyNextStep,
+  inferSearchChannelsFromStatus,
+} from '../../providers/research-search-health';
+import { recordSearchNeverEmptySoftDegrade } from '../../providers/search-never-empty-telemetry';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesGlobRuleSubject } from '../../support/rule-match';
 import { ToolResultBuilder } from '../../support/result-builder';
@@ -31,6 +41,8 @@ export interface WebSearchProvider {
     query: string,
     options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
   ): Promise<WebSearchResult[]>;
+  /** When implemented (e.g. ResearchSearchEngine), enables channel health hints. */
+  status?(): ResearchSearchStatus;
 }
 
 // ── Input schema ─────────────────────────────────────────────────────
@@ -79,12 +91,18 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
     };
   }
 
+  private providerHealth() {
+    const status = this.provider.status?.();
+    return status === undefined ? undefined : assessSearchChannelHealth(status);
+  }
+
   private async execution(
     args: WebSearchInput,
     {
     toolCallId,
     }: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
+    const healthBefore = this.providerHealth();
     try {
       const opts: { limit?: number; includeContent?: boolean; toolCallId?: string } = {
         toolCallId,
@@ -92,16 +110,16 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
       if (args.limit !== undefined) opts.limit = args.limit;
       if (args.include_content !== undefined) opts.includeContent = args.include_content;
       const results = await this.provider.search(args.query, opts);
-      // Hard token budget even when include_content is on.
+      const healthAfter = this.providerHealth() ?? healthBefore;
+
+      if (results.length === 0) {
+        return this.softOk(buildEmptySearchMessage(healthAfter), healthAfter);
+      }
+
       const builder = new ToolResultBuilder({
         maxChars: args.include_content === true ? 8_000 : 4_000,
         maxLineLength: null,
       });
-
-      if (results.length === 0) {
-        builder.write('No search results found.');
-        return builder.ok();
-      }
 
       let first = true;
       for (const result of results) {
@@ -115,26 +133,85 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
         if (result.content) builder.write(`${result.content}\n\n`);
       }
 
+      appendSearchHealthFooter(builder, healthAfter, { hadResults: true });
       return builder.ok();
     } catch (error) {
-      return {
-        isError: true,
-        output: classifySearchError(error),
-      };
+      const message = classifySearchError(error);
+      return this.softOk(message, healthBefore);
     }
   }
 
+  private softOk(
+    body: string,
+    health: ReturnType<typeof assessSearchChannelHealth> | undefined,
+  ): ExecutableToolResult {
+    const builder = new ToolResultBuilder({ maxChars: 4_000, maxLineLength: null });
+    builder.write(body);
+    appendSearchHealthFooter(builder, health, {
+      hadResults: false,
+      channelsTried: this.providerChannelsTried(),
+    });
+    return builder.ok();
+  }
+
+  private providerChannelsTried(): readonly string[] {
+    const status = this.provider.status?.();
+    return status === undefined ? [] : inferSearchChannelsFromStatus(status);
+  }
+}
+
+function buildEmptySearchMessage(
+  health: ReturnType<typeof assessSearchChannelHealth> | undefined,
+): string {
+  if (health?.reason === 'paid_channels_cooling') {
+    return (
+      'No live search hits from paid channels (cooling). Free fallback may still apply on retry; ' +
+      'otherwise escalate to browser automation (Ch4) or Chrome extension bridge (Ch5).'
+    );
+  }
+  if (health?.hard === true) {
+    return (
+      'No live search hits across all configured channels. ' +
+      'Browser automation (Ch4) or Chrome extension bridge (Ch5) may still help, ' +
+      'or continue from FetchURL / local repo evidence.'
+    );
+  }
+  return (
+    'No live search hits. Retry with a sharper query, browser automation (Ch4) or ' +
+    'Chrome extension bridge (Ch5), FetchURL on a known URL, or local repo evidence.'
+  );
+}
+
+function appendSearchHealthFooter(
+  builder: ToolResultBuilder,
+  health: ReturnType<typeof assessSearchChannelHealth> | undefined,
+  options: {
+    readonly hadResults: boolean;
+    readonly channelsTried?: readonly string[];
+  },
+): void {
+  const degraded =
+    health?.degraded === true || !options.hadResults;
+  if (degraded) {
+    recordSearchNeverEmptySoftDegrade();
+  }
+  builder.write(`\ndegraded: ${degraded ? 'true' : 'false'}`);
+  if (health?.hint !== undefined && health.hint.length > 0) {
+    builder.write(`\nhint: ${health.hint}`);
+  }
+  if (degraded) {
+    const channelsTried = options.channelsTried ?? [];
+    if (channelsTried.length > 0) {
+      builder.write(`\nchannelsTried: ${channelsTried.join(' | ')}`);
+    }
+    builder.write(
+      `\nnext: ${buildSearchNeverEmptyNextStep({ health, channelsTried })}`,
+    );
+  }
 }
 
 // ── Error classification ─────────────────────────────────────────────
 
-/**
- * Maps a thrown search error to a categorised, human-readable message.
- *
- * The original error text is always preserved so the model can still see the
- * underlying detail; the prefix only adds a category so failures are easier to
- * reason about (e.g. retry vs. surface to the user).
- */
 function classifySearchError(error: unknown): string {
   const name = error instanceof Error ? error.name : '';
   const message = error instanceof Error ? error.message : String(error);

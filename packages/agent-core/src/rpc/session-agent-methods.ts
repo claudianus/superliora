@@ -11,6 +11,8 @@ import type { SessionAPIImpl } from '../session/rpc';
 import type { LioraConfig } from '../config';
 import type { SessionWarning } from '@superliora/protocol';
 
+import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
+
 import type {
   ActivateSkillPayload,
   ActivatePluginCommandPayload,
@@ -319,9 +321,46 @@ export function getPermission(
   return context.sessionApi(sessionId).getPermission(payload);
 }
 
+export function getCircuitBreakers(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+) {
+  return context.sessionApi(sessionId).getCircuitBreakers(payload);
+}
+
+export function getCacheFrozen(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+) {
+  return context.sessionApi(sessionId).getCacheFrozen(payload);
+}
+
+export function getParallelToolsStatus(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+) {
+  return context.sessionApi(sessionId).getParallelToolsStatus(payload);
+}
+
+export async function getOAuthStatus(
+  context: SessionAgentMethodsContext & {
+    readonly config: LioraConfig;
+    readonly homeDir: string;
+  },
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+) {
+  const agentConfig = await context.sessionApi(sessionId).getConfig(payload);
+  return buildSessionOAuthStatus({
+    config: context.config,
+    homeDir: context.homeDir,
+    modelAlias: agentConfig.modelAlias,
+  });
+}
+
 export function getPlan(
   context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+) {
   return context.sessionApi(sessionId).getPlan(payload);
 }
 
@@ -388,6 +427,7 @@ export function getSessionMetadata(
 
 export {
   listSkills,
+  getHookRegistry,
   listPluginCommands,
   searchSkills,
   listMcpServers,

@@ -7,6 +7,7 @@ import type {
   PluginCommandDef,
   ReconnectMcpServerPayload,
   SearchSkillsPayload,
+  HookRegistrySummary,
   SkillSearchResult,
   SkillSummary,
 } from './core-api';
@@ -22,6 +23,15 @@ export function listSkills(
   ...payload
 }: SessionScopedPayload<EmptyPayload>): Promise<readonly SkillSummary[]> {
   return context.sessionApi(sessionId).listSkills(payload);
+}
+
+export function getHookRegistry(
+  context: SessionAgentMethodsContext,
+  {
+  sessionId,
+  ...payload
+}: SessionScopedPayload<EmptyPayload>): HookRegistrySummary {
+  return context.sessionApi(sessionId).getHookRegistry(payload);
 }
 
 export function listPluginCommands(

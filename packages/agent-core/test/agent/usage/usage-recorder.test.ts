@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { UsageRecorder } from '#/agent/usage/index';
 import type { Agent } from '#/agent';
+import {
+  recordLocalResearchCacheHit,
+  resetLocalResearchCacheTelemetry,
+} from '#/tools/providers/local-research-cache-telemetry';
+import { resetSearchNeverEmptyTelemetry } from '#/tools/providers/search-never-empty-telemetry';
 import type { TokenUsage } from '@superliora/kosong';
 
 const u = (over: Partial<TokenUsage> = {}): TokenUsage => ({
@@ -121,9 +126,124 @@ describe('agent/usage — UsageRecorder', () => {
     expect(status?.cacheHitRate).toBe(0);
   });
 
+  it('tracks warmHitStreak across consecutive warm turns with enough input tokens', () => {
+    const rec = new UsageRecorder();
+    const warmTurn = u({ inputOther: 1, inputCacheRead: 199 });
+    rec.beginTurn();
+    rec.record('m', warmTurn, 'turn');
+    rec.endTurn();
+    expect(rec.status()?.cacheWarmStreak).toBe(1);
+
+    rec.beginTurn();
+    rec.record('m', warmTurn, 'turn');
+    rec.endTurn();
+    expect(rec.status()?.cacheWarmStreak).toBe(2);
+  });
+
+  it('resets warmHitStreak when a qualifying turn misses the 99% target', () => {
+    const rec = new UsageRecorder();
+    const warmTurn = u({ inputOther: 1, inputCacheRead: 199 });
+    rec.beginTurn();
+    rec.record('m', warmTurn, 'turn');
+    rec.endTurn();
+
+    rec.beginTurn();
+    rec.record('m', u({ inputOther: 50, inputCacheRead: 50 }), 'turn');
+    rec.endTurn();
+    expect(rec.status()?.cacheWarmStreak).toBeUndefined();
+  });
+
+  it('ignores turns below the minimum input token threshold for warm streak', () => {
+    const rec = new UsageRecorder();
+    rec.beginTurn();
+    rec.record('m', u({ inputOther: 1, inputCacheRead: 98 }), 'turn');
+    rec.endTurn();
+    expect(rec.status()?.cacheWarmStreak).toBeUndefined();
+  });
+
+  it('increments warm streak at most once per agent turn', () => {
+    const rec = new UsageRecorder();
+    const warmStep = u({ inputOther: 0, inputCacheRead: 60 });
+    rec.beginTurn();
+    rec.record('m', warmStep, 'turn');
+    rec.record('m', warmStep, 'turn');
+    rec.endTurn();
+    expect(rec.status()?.cacheWarmStreak).toBe(1);
+  });
+
   it('returns undefined status when no session-scope record has been made', () => {
     const rec = new UsageRecorder();
     // turn-scope records still aggregate into byModel; record nothing.
     expect(rec.status()).toBeUndefined();
+  });
+
+  it('exposes localResearchCache from process telemetry when lookups occurred', () => {
+    resetLocalResearchCacheTelemetry();
+    resetSearchNeverEmptyTelemetry();
+    const rec = new UsageRecorder();
+    recordLocalResearchCacheHit(2);
+    expect(rec.status()).toEqual({
+      localResearchCache: { hits: 2, misses: 0, hitRate: 1 },
+      searchNeverEmpty: { hardFailCount: 0, softDegradeCount: 0 },
+    });
+  });
+
+  it('accumulates cache miss-reason histogram on sub-target step cache hit rate', () => {
+    const rec = new UsageRecorder();
+    const tools = [{ name: 'Read', description: 'read files' }];
+    const coldStep = u({ inputOther: 50, inputCacheRead: 50 });
+    const warmStep = u({ inputOther: 1, inputCacheRead: 199 });
+
+    rec.record('gpt-4o', coldStep, 'turn');
+    rec.recordCacheDiagnostics(tools, 0, 10, coldStep, 'gpt-4o');
+    expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({ schema_change: 1 });
+
+    rec.record('gpt-4o', warmStep, 'turn');
+    rec.recordCacheDiagnostics(tools, 0, 11, warmStep, 'gpt-4o');
+    expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({ schema_change: 1 });
+
+    rec.record('gpt-4o', coldStep, 'turn');
+    rec.recordCacheDiagnostics(tools, 0, 12, coldStep, 'gpt-4o');
+    expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({ schema_change: 2 });
+  });
+
+  it('classifies tool-block changes as prefix_drift misses', () => {
+    const rec = new UsageRecorder();
+    const coldStep = u({ inputOther: 50, inputCacheRead: 50 });
+    rec.record('gpt-4o', coldStep, 'turn');
+    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 5, coldStep, 'gpt-4o');
+    rec.record('gpt-4o', coldStep, 'turn');
+    rec.recordCacheDiagnostics(
+      [{ name: 'Write', description: 'write files' }],
+      0,
+      6,
+      coldStep,
+      'gpt-4o',
+    );
+    expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({
+      schema_change: 1,
+      prefix_drift: 1,
+    });
+  });
+
+  it('classifies model switches as model_switch misses', () => {
+    const rec = new UsageRecorder();
+    const coldStep = u({ inputOther: 50, inputCacheRead: 50 });
+    rec.record('gpt-4o', coldStep, 'turn');
+    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 5, coldStep, 'gpt-4o');
+    rec.record('claude', coldStep, 'turn');
+    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 6, coldStep, 'claude');
+    expect(rec.status()?.cacheDiagnostics?.missReasons).toEqual({
+      schema_change: 1,
+      model_switch: 1,
+    });
+  });
+
+  it('ignores steps below the warm-streak input threshold for miss reasons', () => {
+    const rec = new UsageRecorder();
+    const tinyStep = u({ inputOther: 5, inputCacheRead: 0 });
+    rec.record('gpt-4o', tinyStep, 'turn');
+    rec.recordCacheDiagnostics([{ name: 'Read', description: 'read files' }], 0, 1, tinyStep, 'gpt-4o');
+    expect(rec.status()?.cacheDiagnostics?.missReasons).toBeUndefined();
   });
 });

@@ -9,6 +9,7 @@ import { isManagedUsageProvider } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { type LoopModelRoutingConfig } from '#/tui/utils/model/loop-model-routing';
 import type { SlashCommandHost } from '../hub/dispatch';
+import { filterToolsForPrimaryHelp } from '#/tui/utils/tool/tool-help-filter';
 
 export interface SessionUsageResult {
   readonly usage?: SessionUsage;
@@ -55,7 +56,7 @@ export async function loadActiveToolNames(host: SlashCommandHost): Promise<reado
   if (session === undefined || typeof session.getTools !== 'function') return undefined;
   try {
     const tools = await session.getTools();
-    return tools.filter((tool) => tool.active).map((tool) => tool.name);
+    return filterToolsForPrimaryHelp(tools.filter((tool) => tool.active)).map((tool) => tool.name);
   } catch {
     return undefined;
   }

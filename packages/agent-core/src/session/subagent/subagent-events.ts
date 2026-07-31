@@ -13,7 +13,7 @@ import { isProviderRateLimitError } from '@superliora/kosong';
 import type { Agent } from '../../agent';
 import { isAbortError } from '../../loop/errors';
 import { updateSwarmOrchestrationTodoStatus } from '../../tools/builtin/state/todo-list';
-import { getDefaultSwarmFileLeaseRegistry } from '../../collaboration/swarm-file-lease';
+import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
 import type { RunSubagentOptions } from './subagent-host-types';
 
 const HOOK_TEXT_PREVIEW_LENGTH = 500;

@@ -4,7 +4,7 @@ import {
   checkSwarmFileLease,
   createSwarmFileLeaseRegistry,
   normalizeLeasePath,
-} from '../../src/collaboration/swarm-file-lease';
+} from '#/fleet';
 
 describe('swarm-file-lease', () => {
   it('claims a path for an owner and lists by runId', () => {

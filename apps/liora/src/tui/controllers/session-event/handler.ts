@@ -5,6 +5,8 @@ import type {
   GoalChange,
   Session,
 } from '@superliora/sdk';
+// W5 soft path: mission/fleet event aliases — prefer `@superliora/sdk` (agent-core `#/mission`) over local ultrawork normalization.
+import { normalizeMissionOrFleetUltraworkEventAlias } from '@superliora/sdk';
 import type { QueuedMessage } from '../../types';
 
 import { MoonLoader } from '../../components/chrome/moon-loader';
@@ -14,7 +16,10 @@ import {
 import { McpOAuthAuthorizationUrlOpener } from '../../utils/mcp/mcp-oauth';
 import { openUrl } from '#/utils/open-url';
 import type { ColorToken } from '#/tui/theme';
+import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { isMotionTheatreActive } from '../../utils/render/motion-beats';
+import { searchCascadePatchFromDegraded } from '../../utils/search/search-cascade';
 import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
@@ -247,6 +252,8 @@ export class SessionEventHandler {
   }
 
   handleEvent(event: Event, sendQueued: (item: QueuedMessage) => void): void {
+    event = normalizeMissionOrFleetUltraworkEventAlias(event);
+
     if (this.subAgentEventHandler.routeChildAgentEvent(event)) return;
 
     if ('turnId' in event && event.turnId !== undefined) {
@@ -303,6 +310,36 @@ export class SessionEventHandler {
       case 'tool.call.delta': this.tools.handleToolCallDelta(event); break;
       case 'tool.result': this.tools.handleToolResult(event); break;
       case 'agent.status.updated': this.notices.handleStatusUpdate(event); break;
+      case 'runtime.degraded': {
+        const atMs = event.atMs ?? Date.now();
+        const cascadePatch = searchCascadePatchFromDegraded(
+          event.scope,
+          event.reason,
+          event.hint,
+          atMs,
+        );
+        const patch = {
+          runtimeDegraded: {
+            scope: event.scope,
+            reason: event.reason,
+            hint: event.hint,
+            atMs,
+          },
+          ...cascadePatch,
+        };
+        this.host.setAppState(patch);
+        if (cascadePatch !== null) {
+          this.host.motionBeats.play({
+            name: 'tool_settle',
+            seed: 'research-cascade',
+            title: 'Research cascade',
+            nowMs: appearanceAnimationNow(),
+            streamThrottle: true,
+            theatreActive: isMotionTheatreActive(this.host.state.appState),
+          });
+        }
+        break;
+      }
       case 'session.meta.updated': this.notices.handleSessionMetaChanged(event); break;
       case 'goal.updated': this.goalQueue.handleUpdated(event); break;
       case 'skill.activated': this.notices.handleSkillActivated(event); break;

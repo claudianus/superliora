@@ -5,7 +5,7 @@ import type {
   CompactionQualitySignals,
   CompactionQualityWarningCategory,
 } from '../types';
-import type { UltraworkRunMirror } from '../../../ultrawork/types';
+import type { UltraworkRunMirror } from '#/mission';
 import {
   isPlaceholderCompactionMemoryItem,
   isUsefulCompactionMemoryItem,

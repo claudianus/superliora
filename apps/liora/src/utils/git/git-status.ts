@@ -15,6 +15,8 @@ const PULL_REQUEST_TTL_MS = 60_000;
 const SPAWN_TIMEOUT_MS = 500;
 const PR_SPAWN_TIMEOUT_MS = 5_000;
 
+export const GIT_CHANGED_FILES_PREVIEW_MAX = 3;
+
 export interface GitStatus {
   readonly branch: string;
   readonly dirty: boolean;
@@ -22,6 +24,10 @@ export interface GitStatus {
   readonly behind: number;
   readonly diffAdded: number;
   readonly diffDeleted: number;
+  /** Full porcelain changed-file count (not capped). */
+  readonly changedFileCount: number;
+  /** Up to {@link GIT_CHANGED_FILES_PREVIEW_MAX} compact porcelain previews, e.g. `M src/foo.ts`. */
+  readonly changedFiles: readonly string[];
   readonly pullRequest: PullRequestInfo | null;
 }
 
@@ -50,6 +56,8 @@ interface StatusState {
   behind: number;
   diffAdded: number;
   diffDeleted: number;
+  changedFileCount: number;
+  changedFiles: readonly string[];
   fetchedAt: number;
 }
 
@@ -75,6 +83,8 @@ export function createGitStatusCache(
     behind: 0,
     diffAdded: 0,
     diffDeleted: 0,
+    changedFileCount: 0,
+    changedFiles: [],
     fetchedAt: 0,
   };
   let pullRequest: PullRequestState = {
@@ -107,6 +117,8 @@ export function createGitStatusCache(
         behind: status.behind,
         diffAdded: status.diffAdded,
         diffDeleted: status.diffDeleted,
+        changedFileCount: status.changedFileCount,
+        changedFiles: status.changedFiles,
         pullRequest: pullRequest.branch === branch.value ? pullRequest.value : null,
       };
     },
@@ -175,6 +187,8 @@ function readStatus(workDir: string): {
   behind: number;
   diffAdded: number;
   diffDeleted: number;
+  changedFileCount: number;
+  changedFiles: readonly string[];
 } {
   try {
     const result = spawnSync('git', ['-C', workDir, 'status', '--porcelain', '-b'], {
@@ -183,12 +197,22 @@ function readStatus(workDir: string): {
       maxBuffer: 4 * 1024 * 1024,
     });
     if (result.status !== 0) {
-      return { dirty: false, ahead: 0, behind: 0, diffAdded: 0, diffDeleted: 0 };
+      return {
+        dirty: false,
+        ahead: 0,
+        behind: 0,
+        diffAdded: 0,
+        diffDeleted: 0,
+        changedFileCount: 0,
+        changedFiles: [],
+      };
     }
 
     let dirty = false;
     let ahead = 0;
     let behind = 0;
+    let changedFileCount = 0;
+    const changedFiles: string[] = [];
     for (const line of result.stdout.split('\n')) {
       if (line.startsWith('## ')) {
         const m = AHEAD_BEHIND_RE.exec(line);
@@ -198,6 +222,11 @@ function readStatus(workDir: string): {
         }
       } else if (line.trim().length > 0) {
         dirty = true;
+        changedFileCount += 1;
+        const preview = formatPorcelainChangedFile(line);
+        if (preview != null && changedFiles.length < GIT_CHANGED_FILES_PREVIEW_MAX) {
+          changedFiles.push(preview);
+        }
       }
     }
     const diff = dirty ? readDiffStats(workDir) : { added: 0, deleted: 0 };
@@ -207,10 +236,50 @@ function readStatus(workDir: string): {
       behind,
       diffAdded: diff.added,
       diffDeleted: diff.deleted,
+      changedFileCount,
+      changedFiles,
     };
   } catch {
-    return { dirty: false, ahead: 0, behind: 0, diffAdded: 0, diffDeleted: 0 };
+    return {
+      dirty: false,
+      ahead: 0,
+      behind: 0,
+      diffAdded: 0,
+      diffDeleted: 0,
+      changedFileCount: 0,
+      changedFiles: [],
+    };
   }
+}
+
+/** Compact porcelain preview: `M path`, `~ path` (untracked), `D path`, … */
+export function formatPorcelainChangedFile(line: string): string | null {
+  if (line.startsWith('## ') || line.trim().length === 0) return null;
+  const match = /^(.)(.)\s+(.+)$/.exec(line);
+  if (match == null) return null;
+
+  const indexStatus = match[1] ?? ' ';
+  const workTreeStatus = match[2] ?? ' ';
+  let path = match[3] ?? '';
+  const renameArrow = path.indexOf(' -> ');
+  if (renameArrow >= 0) {
+    path = path.slice(renameArrow + 4);
+  }
+
+  if (indexStatus === '?' && workTreeStatus === '?') {
+    return `~ ${path}`;
+  }
+
+  const code =
+    indexStatus !== ' ' && indexStatus !== '?'
+      ? indexStatus
+      : workTreeStatus !== ' ' && workTreeStatus !== '?'
+        ? workTreeStatus
+        : 'M';
+  if (code === 'M' || code === 'A' || code === 'D' || code === 'R' || code === 'U') {
+    return `${code} ${path}`;
+  }
+  return `M ${path}`;
 }
 
 function readDiffStats(workDir: string): { added: number; deleted: number } {

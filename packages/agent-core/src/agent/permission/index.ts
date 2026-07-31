@@ -1,6 +1,8 @@
 import type { Agent } from '..';
 import type { PrepareToolExecutionResult } from '../../loop';
 import { createPermissionDecisionPolicies } from './policies';
+import { NonBlockingPermissionQueue } from './non-blocking-queue';
+import type { QueuedPermissionItem } from './non-blocking-queue';
 import type {
   ApprovalResponse,
   PermissionApprovalResultRecord,
@@ -12,8 +14,11 @@ import type {
   PermissionPolicyResult,
   PermissionRule,
 } from './types';
+import { PERMISSION_AUTO_EXPIRE_ENV, STALE_INTERVENTION_AGE_MS } from './types';
 
 export * from './types';
+export { NonBlockingPermissionQueue } from './non-blocking-queue';
+export type { PermissionQueueSnapshot, QueuedPermissionItem } from './non-blocking-queue';
 
 export interface PermissionManagerOptions {
   readonly initialRules?: readonly PermissionRule[];
@@ -27,10 +32,13 @@ interface PolicyEvaluation {
 
 export class PermissionManager {
   readonly policies: PermissionPolicy[];
+  readonly interventionQueue = new NonBlockingPermissionQueue();
   readonly rules: PermissionRule[] = [];
   private modeOverride: PermissionMode | undefined;
   private readonly parent: PermissionManager | undefined;
   private readonly localSessionApprovalRulePatterns = new Set<string>();
+  /** Queue ids with an active approval RPC — skipped by opt-in auto-expire. */
+  private readonly inFlightInterventionIds = new Set<string>();
 
   constructor(
     protected readonly agent: Agent,
@@ -50,10 +58,41 @@ export class PermissionManager {
     this.modeOverride = mode;
   }
 
+  staleInterventionCount(maxAgeMs: number, nowMs = Date.now()): number {
+    return this.interventionQueue.snapshot().items.filter(
+      (item) => nowMs - item.enqueuedAtMs >= maxAgeMs,
+    ).length;
+  }
+
+  oldestInterventionAgeMs(nowMs = Date.now()): number | undefined {
+    const items = this.interventionQueue.snapshot().items;
+    if (items.length === 0) return undefined;
+    return Math.max(...items.map((item) => nowMs - item.enqueuedAtMs));
+  }
+
+  /** Drop orphaned queue entries when {@link PERMISSION_AUTO_EXPIRE_ENV} is set. */
+  touchInterventionQueueForStatus(nowMs = Date.now()): void {
+    const maxAgeMs = parsePermissionAutoExpireMs();
+    if (maxAgeMs !== undefined) {
+      this.interventionQueue.autoExpire(maxAgeMs, nowMs, {
+        skipIds: this.inFlightInterventionIds,
+      });
+    }
+  }
+
   data(): PermissionData {
+    const nowMs = Date.now();
+    this.touchInterventionQueueForStatus(nowMs);
+    const pendingInterventions = this.interventionQueue.snapshot().count;
+    const staleInterventions = this.staleInterventionCount(STALE_INTERVENTION_AGE_MS, nowMs);
+    const oldestInterventionAgeMs =
+      pendingInterventions > 0 ? this.oldestInterventionAgeMs(nowMs) : undefined;
     return {
       mode: this.mode,
       rules: this.effectiveRules,
+      ...(pendingInterventions > 0 ? { pendingInterventions } : {}),
+      ...(staleInterventions > 0 ? { staleInterventions } : {}),
+      ...(oldestInterventionAgeMs !== undefined ? { oldestInterventionAgeMs } : {}),
     };
   }
 
@@ -133,6 +172,13 @@ export class PermissionManager {
 
     let response: ApprovalResponse;
     let requestedApproval = false;
+    const queued = this.interventionQueue.enqueue({
+      toolName: name,
+      rule: context.execution.approvalRule ?? `${name}(*)`,
+      risk: display.kind === 'shell' ? 'high' : 'low',
+    });
+    this.inFlightInterventionIds.add(queued.id);
+    this.agent.emitStatusUpdated();
     if (this.agent.rpc?.requestApproval) {
       requestedApproval = true;
       void this.agent.hooks?.fireAndForgetTrigger?.('PermissionRequest', {
@@ -157,7 +203,12 @@ export class PermissionManager {
           },
           { signal },
         );
+        this.resolveIntervention(
+          queued.id,
+          response.decision === 'approved' ? 'approved' : 'denied',
+        );
       } catch (error) {
+        this.resolveIntervention(queued.id, 'denied');
         this.agent.telemetry.track('permission_approval_result', {
           policy_name: policyName ?? null,
           tool_name: name,
@@ -189,6 +240,7 @@ export class PermissionManager {
       // safest default is to allow the call so the agent isn't deadlocked,
       // but surface it via telemetry + a debug log so a misconfigured host
       // doesn't silently run in yolo for every `ask` policy.
+      this.resolveIntervention(queued.id, 'approved');
       this.agent.telemetry.track('permission_approval_result', {
         policy_name: policyName ?? null,
         tool_name: name,
@@ -278,6 +330,16 @@ export class PermissionManager {
     };
   }
 
+  private resolveIntervention(
+    id: string,
+    decision: 'approved' | 'denied',
+  ): QueuedPermissionItem | undefined {
+    this.inFlightInterventionIds.delete(id);
+    const item = this.interventionQueue.resolve(id, decision);
+    if (item !== undefined) this.agent.emitStatusUpdated();
+    return item;
+  }
+
   private async evaluatePolicies(
     context: PermissionPolicyContext,
   ): Promise<PolicyEvaluation | undefined> {
@@ -357,4 +419,12 @@ export class PermissionManager {
     }
     return prefix;
   }
+}
+
+function parsePermissionAutoExpireMs(): number | undefined {
+  const raw = process.env[PERMISSION_AUTO_EXPIRE_ENV]?.trim();
+  if (raw === undefined || raw.length === 0) return undefined;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
+  return parsed;
 }

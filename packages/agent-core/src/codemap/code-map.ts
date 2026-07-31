@@ -119,7 +119,8 @@ export function getCodeMapForWorkspace(workspaceDir: string): CodeMap {
   return codemap;
 }
 
-function resolveCodemapDbPath(workspaceDir: string): string {
+/** Persistent sqlite path for a workspace (creates home/codemap dir when writable). */
+export function resolveCodemapDbPath(workspaceDir: string): string {
   const digest = createHash('sha256').update(workspaceDir).digest('hex').slice(0, 16);
   const fileName = `${digest}.sqlite`;
   try {

@@ -22,7 +22,7 @@ export class XaiGrokWebSearchProvider implements WebSearchProvider {
 export class PreferXaiGrokWebSearchProvider implements WebSearchProvider {
   constructor(
     private readonly xai: WebSearchProvider,
-    private readonly fallback: WebSearchProvider,
+    readonly researchFallback: WebSearchProvider,
   ) {}
 
   async search(
@@ -32,7 +32,7 @@ export class PreferXaiGrokWebSearchProvider implements WebSearchProvider {
     try {
       return await this.xai.search(query, options);
     } catch {
-      return this.fallback.search(query, options);
+      return this.researchFallback.search(query, options);
     }
   }
 }

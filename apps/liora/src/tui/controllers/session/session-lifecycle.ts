@@ -1,4 +1,5 @@
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
+import { maybeWarmCodemapAtSessionStart } from '@superliora/sdk';
 import { resolve } from 'pathe';
 
 import type { Component, Focusable } from '#/tui/renderer';
@@ -15,7 +16,9 @@ import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { contextWorkingSetSnapshotFromLoopControl } from '../../utils/agent/context-working-set';
+import { cacheMeterFromHitRate } from '../../utils/cache/cache-glance';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { resetGoalSoftAdvisoryLedger } from '../../utils/goal/goal-soft-advisory-glance';
 import { ttui } from '../../utils/tui-i18n';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { SessionEventHandler } from '../session-event/handler';
@@ -133,7 +136,8 @@ export class SessionLifecycleController {
     host.state.footer.setBackgroundCounts({ bashTasks: 0, agentTasks: 0 });
     host.streamingUI.setTodoList([]);
     host.streamingUI.setTurnId(undefined);
-    host.setAppState({ mcpServersSummary: null });
+    resetGoalSoftAdvisoryLedger(host.state.appState.sessionId);
+    host.setAppState({ mcpServersSummary: null, goalSoftAdvisory: null });
     host.streamingUI.setStep(0);
     host.streamingUI.resetLiveText();
     host.updateQueueDisplay();
@@ -157,6 +161,7 @@ export class SessionLifecycleController {
     host.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);
     this.syncAdditionalDirs(session);
+    maybeWarmCodemapAtSessionStart(session.workDir);
   }
 
   async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
@@ -185,6 +190,12 @@ export class SessionLifecycleController {
       providerRouteStatus: status.providerRouteStatus ?? null,
       sessionTitle: session.summary?.title ?? null,
       goal: goalResult.goal,
+      ...(cacheMeterFromHitRate(status.cacheHitRate, status.cacheWarmStreak) != null
+        ? { cacheMeter: cacheMeterFromHitRate(status.cacheHitRate, status.cacheWarmStreak)! }
+        : {}),
+      ...(status.circuitBreakers !== undefined
+        ? { circuitBreakers: status.circuitBreakers }
+        : {}),
       ...(config !== null
         ? {
             workingSet: contextWorkingSetSnapshotFromLoopControl({

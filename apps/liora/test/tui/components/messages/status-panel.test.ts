@@ -67,6 +67,8 @@ describe('status panel report lines', () => {
         behind: 0,
         diffAdded: 12,
         diffDeleted: 3,
+        changedFileCount: 0,
+        changedFiles: [],
         pullRequest: null,
       },
       managedUsage: {
@@ -84,14 +86,15 @@ describe('status panel report lines', () => {
 
     const output = lines.join('\n');
     expect(output).toContain('>_ SuperLiora (v1.2.3)');
-    expect(output).toContain('Model        Kimi K2 (thinking high)');
-    expect(output).toContain('Directory    /tmp/project');
-    expect(output).toContain('Worktree     main [+12 -3 ↑1] clean');
-    expect(output).toContain('Permissions  auto');
-    expect(output).toMatch(/Ultrawork\s+goal active/);
+    expect(output).toMatch(/Model\s+Kimi K2 \(thinking high\)/);
+    expect(output).toMatch(/Directory\s+\/tmp\/project/);
+    expect(output).toMatch(/Worktree\s+main \[\+12 -3 ↑1\] clean/);
+    expect(output).toMatch(/Permissions\s+auto/);
+    expect(output).toMatch(/Mission\s+goal active/);
+    expect(output).toMatch(/Visual Quality\s+mode off/);
     expect(output).not.toMatch(/Planning\s+Ultrawork/);
-    expect(output).toContain('Session      ses-1');
-    expect(output).toContain('Title        Implement status');
+    expect(output).toMatch(/Session\s+ses-1/);
+    expect(output).toMatch(/Title\s+Implement status/);
     expect(output).toContain('Context window');
     expect(output).toContain('0.5%');
     expect(output).toContain('(1.4K / 12.0K)');
@@ -99,13 +102,13 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
     expect(output).toMatch(/Workflow\s+research → interview → goal → swarm → integrate → verify → learn/);
-    expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion/);
+    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Fleet decision \| Integrate \| Verify \| Learn/);
+    expect(output).toMatch(/Auto\s+Shift-Tab toggles Mission\/off; no regex promotion/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
+    expect(output).toMatch(/Bench\s+Bench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -120,7 +123,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(
-      /Next\s+Press Shift-Tab to toggle Ultrawork\/off, or type normally\./,
+      /Next\s+Press Shift-Tab to toggle Mission\/off, or type normally\./,
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');
@@ -131,10 +134,10 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('internal QA');
     expect(output).not.toContain('/preflight');
     expect(output).not.toContain('/bench');
-    expect(output).toContain('Ultrawork');
-    expect(output).toContain('UltraPlan');
-    expect(output).toContain('UltraGoal');
-    expect(output).toContain('Swarm decision');
+    expect(output).toContain('Mission');
+    expect(output).toContain('Plan');
+    expect(output).toContain('Goal');
+    expect(output).toContain('Fleet decision');
     expect(output).not.toContain('/ultraswarm');
     expect(output).toContain('Plan usage');
     expect(output).toContain('8% used');
@@ -183,20 +186,21 @@ describe('status panel report lines', () => {
     }).map(strip);
 
     const output = lines.join('\n');
-    expect(output).toContain('Model        not set');
-    expect(output).toContain('Session      none');
-    expect(output).toContain('Warning      No active session');
+    expect(output).toMatch(/Model\s+not set/);
+    expect(output).toMatch(/Session\s+none/);
+    expect(output).toMatch(/Warning\s+No active session/);
+    expect(output).toMatch(/Visual Quality\s+mode off/);
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
     expect(output).toMatch(/Workflow\s+research → interview → goal → swarm → integrate → verify → learn/);
-    expect(output).toMatch(/Engine\s+UltraPlan \| UltraGoal \| Research \| Swarm decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab toggles Ultrawork\/off; no regex promotion/);
+    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Fleet decision \| Integrate \| Verify \| Learn/);
+    expect(output).toMatch(/Auto\s+Shift-Tab toggles Mission\/off; no regex promotion/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+LioraBench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
+    expect(output).toMatch(/Bench\s+Bench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -210,7 +214,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(/Next\s+Run \/login to add a provider, then \/model to pick one\./);
-    expect(output).toMatch(/Ultrawork\s+needs readiness/);
+    expect(output).toMatch(/Mission\s+needs readiness/);
     expect(output).not.toMatch(/Planning\s+Ultrawork/);
   });
 
@@ -397,6 +401,8 @@ describe('status panel report lines', () => {
     expect(toolsRow ?? '').toMatch(/5 active tools/);
     expect(toolsRow ?? '').toContain('SearchTools on');
     expect(toolsRow ?? '').toContain('SearchSkill on');
+    expect(toolsRow ?? '').toContain('Core≤12');
+    expect(toolsRow ?? '').toContain('TaskGraph');
   });
 
 
@@ -447,7 +453,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm decision pending \| Verify ready/);
     expect(output).toMatch(/Blockers\s+none detected/);
     expect(output).toMatch(
-      /Next\s+Press Shift-Tab to toggle Ultrawork\/off, or type normally\./,
+      /Next\s+Press Shift-Tab to toggle Mission\/off, or type normally\./,
     );
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');
@@ -499,12 +505,14 @@ describe('status panel report lines', () => {
         behind: 0,
         diffAdded: 0,
         diffDeleted: 0,
+        changedFileCount: 0,
+        changedFiles: [],
         pullRequest: null,
       },
     }).map(strip);
 
     const output = lines.join('\n');
-    expect(output).toContain('Worktree     feature [±] dirty');
+    expect(output).toMatch(/Worktree\s+feature \[±\] dirty/);
     expect(output).toMatch(/State\s+Worktree dirty/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
     expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Swarm off \| Verify blocked/);
@@ -720,6 +728,27 @@ describe('status panel report lines', () => {
     expect(off).toContain('Telemetry OFF');
   });
 
+  it('labels premium harness toggle as Visual Quality in runtime rows', () => {
+    const output = buildStatusReportLines({
+      version: '0.0.0-test',
+      model: 'test-model',
+      workDir: '/tmp/work',
+      sessionId: 'sess-1',
+      sessionTitle: null,
+      thinking: false,
+      permissionMode: 'manual',
+      planMode: false,
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 10000,
+      availableModels: {},
+      premiumQualityMode: true,
+    })
+      .map(strip)
+      .join('\n');
+    expect(output).toMatch(/Visual Quality\s+mode on/);
+  });
+
   describe('field value crossfade', () => {
     const previous = {
       TERM: process.env['TERM'],
@@ -831,6 +860,50 @@ describe('status panel report lines', () => {
 
     const withoutRate = buildStatusReportLines({ ...base, status }).map(strip);
     expect(withoutRate.join('\n')).not.toContain('Cache hit');
+  });
+
+  it('shows cache warm streak and CacheFreezeGuard state when status exposes them', () => {
+    const base = {
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null as string | null,
+      thinking: false,
+      permissionMode: 'manual' as const,
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      availableModels: {},
+    };
+    const status = {
+      model: 'k2',
+      thinkingLevel: 'high',
+      permission: 'auto' as const,
+      planMode: false,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      contextUsage: 0.1,
+      cacheHitRate: 0.995,
+      cacheWarmStreak: 4,
+      cacheFrozen: true,
+    };
+
+    const output = buildStatusReportLines({ ...base, status }).map(strip).join('\n');
+    expect(output).toContain('Cache hit');
+    expect(output).toContain('streak×4');
+    expect(output).toContain('Cache freeze');
+    expect(output).toContain('active (mid-turn)');
+
+    const idle = buildStatusReportLines({
+      ...base,
+      status: { ...status, cacheFrozen: false },
+    })
+      .map(strip)
+      .join('\n');
+    expect(idle).toContain('Cache freeze');
+    expect(idle).toContain('idle');
   });
 
   it('shows Role models rows with auto fallback for unset roles', () => {

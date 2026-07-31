@@ -3,6 +3,10 @@ import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-sear
 
 import { LocalResearchCache } from './local-web-search-cache';
 import {
+  recordLocalResearchCacheHit,
+  recordLocalResearchCacheMiss,
+} from './local-research-cache-telemetry';
+import {
   parseDuckDuckGoLiteResults,
   parseDuckDuckGoResults,
 } from './local-web-search-ddg-parse';
@@ -114,10 +118,10 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     const now = Date.now();
 
     if (this.offlineMode === 'always') {
-      return this.cache?.get(cacheKey, now, { allowStale: true, mark: 'offline cache' }) ?? [];
+      return this.lookupCache(cacheKey, now, { allowStale: true, mark: 'offline cache' }) ?? [];
     }
 
-    const cached = this.cache?.get(cacheKey, now, { allowStale: false });
+    const cached = this.lookupCache(cacheKey, now, { allowStale: false });
     if (cached !== undefined) return cached.slice(0, limit);
 
     // Free-stack quality+efficiency:
@@ -161,7 +165,7 @@ export class LocalWebSearchProvider implements WebSearchProvider {
 
     let results = rankAndDedupeResults(adapterResults, trimmed).slice(0, limit);
     if (results.length === 0) {
-      return this.cache?.get(cacheKey, now, { allowStale: true, mark: 'stale local cache' }) ?? [];
+      return this.lookupCache(cacheKey, now, { allowStale: true, mark: 'stale local cache' }) ?? [];
     }
 
     if (includeContent && this.urlFetcher !== undefined) {
@@ -170,6 +174,21 @@ export class LocalWebSearchProvider implements WebSearchProvider {
 
     this.cache?.set(cacheKey, shapedQuery, results, this.cacheTtlMs, now);
     return results;
+  }
+
+  private lookupCache(
+    cacheKey: string,
+    now: number,
+    options: { readonly allowStale: boolean; readonly mark?: string },
+  ): WebSearchResult[] | undefined {
+    if (this.cache === undefined) return undefined;
+    const cached = this.cache.get(cacheKey, now, options);
+    if (cached !== undefined) {
+      recordLocalResearchCacheHit();
+      return cached;
+    }
+    recordLocalResearchCacheMiss();
+    return undefined;
   }
 
   private async searchAdapters(

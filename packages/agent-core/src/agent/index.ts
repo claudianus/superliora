@@ -12,6 +12,7 @@ import type { Logger } from '#/logging/types';
 import type {
   AgentAPI,
   AgentEvent,
+  CircuitBreakerStatus,
   LioraConfig,
   ProviderRouteStatus,
   SDKAgentRPC,
@@ -33,6 +34,8 @@ import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import type { SandboxProfile } from '../tools/policies/path-access';
 import type { PromisableMethods } from '../utils/types';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
+import { CacheFreezeGuard } from './cache';
+import { ToolParallelStatus } from '../loop/tool-parallel-status';
 import {
   FullCompaction,
   MicroCompaction,
@@ -44,14 +47,16 @@ import { CronManager } from './cron';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
-import { UltraworkMode } from '../ultrawork';
-import { UltraworkObjectiveProfileCache } from '../ultrawork/objective-profile-cache';
+import {
+  reconcileUltraworkFromMirror,
+  UltraworkMode,
+  UltraworkObjectiveProfileCache,
+} from '#/mission';
 import { AutoDreamService } from './dream/auto-dream';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
 import { AutopilotMode } from '../autopilot';
 import { LioraRecallStore } from '../memory/store';
 import { PremiumQualityMode } from '../premium-quality';
-import { reconcileUltraworkFromMirror } from '../ultrawork/mirror-reconcile';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
@@ -89,8 +94,21 @@ import { createRpcMethods } from './rpc-methods';
 import { buildPersonaRoleAdditional } from './persona';
 import { ORCHESTRATOR_SYSTEM_PREFIX, registerOrchestratorTools as registerOrchestratorToolsImpl } from './orchestrator';
 import { createGenerateProxy, buildLLMRoute as buildLLMRouteImpl } from './generate-facade';
+import { CircuitBreakerRegistry } from '../runtime/circuit-breaker';
+import { buildCircuitBreakerDegradedEvent } from '../runtime/circuit-breaker-degraded';
+import { buildOAuthRefreshDegradedEvent } from '../runtime/oauth-refresh-degraded';
+import type { RuntimeDegradedEvent } from '@superliora/protocol';
+import { attachResearchSearchCircuitBreakers } from '../tools/providers/research-search-circuit-breaker';
+import { attachLlmProviderCircuitBreakers } from './llm-provider-circuit-breaker';
+import { mapCircuitBreakerRegistrySnapshot } from '../runtime/circuit-breaker-status';
 import { buildAgentStatusUpdatedEvent, durableTraceRecordType } from './agent-status-updated';
+import { maybeEmitFleetUltraworkAliasLive } from '../fleet/event-alias';
+import { maybeEmitMissionUltraworkAliasLive } from '../mission/event-alias';
 import { buildRecordsWriteErrorEvent } from './agent-records-write-error';
+import {
+  createVerificationSensorLedger,
+  type VerificationSensorLedger,
+} from '../sensors/verification-sensor-ledger';
 
 export type { AgentRecord } from './records';
 export type { ModeActivationSource } from './mode-activation';
@@ -181,6 +199,8 @@ export class Agent {
   readonly blobStore: BlobStore | undefined;
   readonly records: AgentRecords;
   readonly fullCompaction: FullCompaction;
+  readonly cacheFreezeGuard: CacheFreezeGuard;
+  readonly toolParallelStatus: ToolParallelStatus;
   readonly microCompaction: MicroCompaction;
   readonly contextOS: ContextOSManager;
   readonly context: ContextMemory;
@@ -218,10 +238,14 @@ export class Agent {
   readonly ultraworkObjectiveProfile: UltraworkObjectiveProfileCache;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
+  /** Never-Halt circuit breakers for search slots / LLM provider channels. */
+  readonly circuitBreakerRegistry: CircuitBreakerRegistry;
   /** Session-shared file snapshots for write/edit capture + `/rewind`. */
   readonly fileSnapshots: FileSnapshotStore | undefined;
   /** Sandbox profile applied when constructing file-tool workspaces. */
   readonly sandboxProfile: SandboxProfile | undefined;
+  /** W6 PostToolUse verification sensor — recent test/command failure evidence. */
+  readonly verificationSensorLedger: VerificationSensorLedger;
 
   /**
    * Print-mode (`liora -p`) only: when true and the agent ends a turn while
@@ -258,6 +282,7 @@ export class Agent {
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
     this.fileSnapshots = options.fileSnapshots;
     this.sandboxProfile = options.sandboxProfile;
+    this.verificationSensorLedger = createVerificationSensorLedger();
 
     this.llmRequestLogger = new LlmRequestLogger(this.log);
     this.blobStore = options.homedir
@@ -276,6 +301,8 @@ export class Agent {
           : undefined),
     );
     this.fullCompaction = new FullCompaction(this, options.compactionStrategy);
+    this.cacheFreezeGuard = new CacheFreezeGuard();
+    this.toolParallelStatus = new ToolParallelStatus();
     this.microCompaction = new MicroCompaction(this, options.microCompaction);
     this.contextOS = new ContextOSManager(this);
     this.context = new ContextMemory(this);
@@ -306,6 +333,16 @@ export class Agent {
     this.ultraworkObjectiveProfile = new UltraworkObjectiveProfileCache();
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
+    this.circuitBreakerRegistry = new CircuitBreakerRegistry({
+      onScopeOpened: (scopeId, reason) => this.emitCircuitBreakerDegraded(scopeId, reason),
+    });
+    if (this.type === 'main') {
+      attachResearchSearchCircuitBreakers(
+        this.toolServices?.webSearcher,
+        this.circuitBreakerRegistry,
+        () => this.emitStatusUpdated(),
+      );
+    }
 
     // Register orchestrator tools when in orchestrator mode.
     if (this.orchestratorMode && options.subagentHost !== undefined) {
@@ -384,6 +421,7 @@ export class Agent {
       route: this.buildLLMRoute(loopControl?.reservedContextSize),
       routeState: this.providerRouteState,
       onRouteStatusChanged: () => this.emitStatusUpdated(),
+      circuitObserver: attachLlmProviderCircuitBreakers(this, () => this.emitStatusUpdated()),
       log: this.log,
     });
   }
@@ -525,11 +563,21 @@ export class Agent {
       });
     }
     void this.rpc?.emitEvent?.(event);
+    maybeEmitMissionUltraworkAliasLive((alias) => {
+      void this.rpc?.emitEvent?.(alias);
+    }, event);
+    maybeEmitFleetUltraworkAliasLive((alias) => {
+      void this.rpc?.emitEvent?.(alias);
+    }, event);
   }
 
   providerRouteStatus(): ProviderRouteStatus | null {
     const route = this.buildLLMRoute(this.kimiConfig?.loopControl?.reservedContextSize);
     return route === undefined ? null : this.providerRouteState.snapshot(route);
+  }
+
+  circuitBreakerStatus(): CircuitBreakerStatus | undefined {
+    return mapCircuitBreakerRegistrySnapshot(this.circuitBreakerRegistry.snapshot());
   }
 
   resetProviderRouteStatus(): ProviderRouteStatus | null {
@@ -545,6 +593,23 @@ export class Agent {
     if (this.records.restoring) return;
     if (!this.config.hasModel) return;
     this.emitEvent(buildAgentStatusUpdatedEvent(this));
+  }
+
+  /** Never-Halt: surface breaker open as volatile runtime.degraded (Ops/footer). */
+  emitCircuitBreakerDegraded(scopeId: string, lastTripReason?: string): void {
+    if (this.records.restoring) return;
+    this.emitEvent(buildCircuitBreakerDegradedEvent(scopeId, lastTripReason));
+    this.emitStatusUpdated();
+  }
+
+  /** Never-Halt: OAuth refresh failure during LLM/token fetch (Ops/footer). */
+  emitOAuthRefreshDegraded(event: RuntimeDegradedEvent): void {
+    if (this.records.restoring) return;
+    this.emitEvent(event);
+  }
+
+  emitOAuthRefreshDegradedFromReason(reason: string, atMs: number = Date.now()): void {
+    this.emitOAuthRefreshDegraded(buildOAuthRefreshDegradedEvent(reason, atMs));
   }
 
   private emitRecordsWriteError(error: unknown, record?: AgentRecord | undefined): void {

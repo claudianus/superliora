@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import { ErrorCodes, LioraError } from '#/errors/index';
 import type { Agent } from '..';
+import type { CompletionAuditRejection } from '#/mission';
 import {
   maybeAdvanceUltraworkOnGoalComplete,
   maybeAdvanceUltraworkStage,
-} from '../../ultrawork';
-import type { CompletionAuditRejection } from '../../ultrawork/completion-audit';
+} from '#/mission';
 import type { ModeActivationSource } from '../mode-activation';
 import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import type { AgentRecordOf } from '../records/types';

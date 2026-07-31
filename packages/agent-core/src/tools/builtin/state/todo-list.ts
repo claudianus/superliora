@@ -24,16 +24,15 @@ import DESCRIPTION from './todo-list.md?raw';
 // ── TODO state shape ─────────────────────────────────────────────────
 
 export const TODO_LIST_TOOL_NAME = 'TodoList' as const;
-export const TODO_STORE_KEY = 'todo';
+export {
+  TODO_STORE_KEY,
+  type TodoItem,
+  type TodoStatus,
+} from './todo-list-store-key';
+import { TODO_STORE_KEY, type TodoItem, type TodoStatus } from './todo-list-store-key';
+
 const TODO_LIST_WRITE_REMINDER =
   'Keep this Kanban live: split vague cards, add discovered work, move in_progress after each batch of 3+ tool calls, mark done only after verification, keep one in_progress unless real parallel tracks exist.';
-
-export type TodoStatus = 'pending' | 'in_progress' | 'done';
-
-export interface TodoItem {
-  readonly title: string;
-  readonly status: TodoStatus;
-}
 
 declare module '../../store' {
   interface ToolStoreData {

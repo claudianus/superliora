@@ -1,14 +1,17 @@
 import type { WorkGraph, WorkGraphNode } from '@superliora/protocol';
 
 import type { Agent } from '../../../agent/index';
-import { applyEvidenceHardGate } from '../../../collaboration/swarm-evidence-gate';
 import {
+  applyEvidenceHardGate,
+  cloneWorkGraph,
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
   rebindPhaseWorkNodeIds,
   SWARM_DAG_TERMINAL_STATUSES,
-} from '../../../collaboration/swarm-dag-scheduler';
-import { maybeFinishUltraworkRun } from '../../../ultrawork';
+  todosFromWorkGraph,
+  ULTRAWORK_GRAPH_STORE_KEY,
+} from '#/fleet';
+import { maybeFinishUltraworkRun } from '#/mission';
 import {
   fireTaskCompleted,
   fireTaskCreated,
@@ -17,11 +20,6 @@ import {
 } from '../../../session/team-hooks';
 import type { ToolStore } from '../../store';
 import { TODO_STORE_KEY } from '../state/todo-list';
-import {
-  ULTRAWORK_GRAPH_STORE_KEY,
-  cloneWorkGraph,
-  todosFromWorkGraph,
-} from '../state/ultrawork-graph';
 import { cloneWorkGraphNode, uniqueStrings } from './ultra-swarm-helpers';
 import {
   ownerExpertIdForWorkNodes,

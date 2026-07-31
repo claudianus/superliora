@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assessContextPressure, assessTurnBudget } from '#/ultrawork/stage-progress-health';
+import { assessContextPressure, assessTurnBudget } from '#/mission';
 
 describe('stage-progress-health', () => {
   it('assesses context pressure bands', () => {

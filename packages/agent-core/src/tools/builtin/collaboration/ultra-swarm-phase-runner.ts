@@ -1,6 +1,7 @@
 import type { TeamPlan, WorkGraphNode } from '@superliora/protocol';
 
 import type { Agent } from '../../../agent/index';
+import { applyFleetWorktreeToSpawnTasks } from '#/fleet';
 import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   type QueuedSubagentTask,
@@ -14,7 +15,7 @@ import {
 import {
   postOrchestratorStandup,
   postWaveStandup,
-} from '../../../collaboration/swarm-bus-coordination';
+} from '#/fleet';
 import { buildDependencyWaves } from '../../../session/subagent/subagent-wave-scheduler';
 import type { ToolStore } from '../../store';
 import { renderSwarmBusDigest } from '../state/swarm-bus';
@@ -92,7 +93,13 @@ export class UltraSwarmPhaseRunner {
         timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
       }));
 
-      const results = await this.subagentHost.runQueued(tasks);
+      const { tasks: fleetTasks } = await applyFleetWorktreeToSpawnTasks(tasks, {
+        kaos: this.agent.kaos,
+        repoPath: this.agent.config.cwd,
+        parentToolCallId: input.toolCallId,
+        log: this.agent.log,
+      });
+      const results = await this.subagentHost.runQueued(fleetTasks);
       const renderedWaveResults = results
         .map(({ task, ...result }) => ({ spec: task.data, ...result }))
         .map(withRenderedMetadata);
@@ -199,21 +206,33 @@ export class UltraSwarmPhaseRunner {
         input.phase,
       )}\n\n<teammate_idle_feedback>\n${decision.feedback}\n</teammate_idle_feedback>\nContinue working. Address the feedback before going idle.`;
 
-      const [retry] = await this.subagentHost.runQueued([
-        {
-          kind: 'spawn',
-          data: current.spec,
-          profileName: current.spec.expertId,
-          profileBaseName: input.profileBaseName,
-          parentToolCallId: input.toolCallId,
-          prompt: feedbackPrompt,
-          description: `${input.args.description} (TeammateIdle continue ${String(attempt + 1)})`,
-          swarmIndex: current.spec.index,
-          runInBackground: false,
-          signal: input.signal,
-          timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
-        } satisfies QueuedSubagentTask<UltraSwarmSpec>,
-      ]);
+      const [retry] = await this.subagentHost.runQueued(
+        (
+          await applyFleetWorktreeToSpawnTasks(
+            [
+              {
+                kind: 'spawn',
+                data: current.spec,
+                profileName: current.spec.expertId,
+                profileBaseName: input.profileBaseName,
+                parentToolCallId: input.toolCallId,
+                prompt: feedbackPrompt,
+                description: `${input.args.description} (TeammateIdle continue ${String(attempt + 1)})`,
+                swarmIndex: current.spec.index,
+                runInBackground: false,
+                signal: input.signal,
+                timeout: DEFAULT_SUBAGENT_TIMEOUT_MS,
+              } satisfies QueuedSubagentTask<UltraSwarmSpec>,
+            ],
+            {
+              kaos: this.agent.kaos,
+              repoPath: this.agent.config.cwd,
+              parentToolCallId: input.toolCallId,
+              log: this.agent.log,
+            },
+          )
+        ).tasks,
+      );
       if (retry === undefined) return current;
       const { task, ...result } = retry;
       current = withRenderedMetadata({ spec: task.data, ...result });

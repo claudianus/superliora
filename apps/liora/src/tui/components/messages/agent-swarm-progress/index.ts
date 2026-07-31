@@ -116,11 +116,13 @@ export class AgentSwarmProgressComponent implements Component {
       aborted: false,
       swarmStartedAtMs: undefined,
       integrationReport: undefined,
+      makerCheckerSoftWarn: undefined,
     };
     this.memberEvents = new AgentSwarmProgressMemberEvents(
       this.runtime,
       this.progressEstimator,
       () => this.colors,
+      options.onGovernanceSoftWarn,
     );
     this.warRoom = new AgentSwarmProgressWarRoom(
       this.title,
@@ -449,6 +451,7 @@ export class AgentSwarmProgressComponent implements Component {
       colors: this.colors,
       members: this.runtime.members,
       integrationReport: this.runtime.integrationReport,
+      makerCheckerSoftWarn: this.runtime.makerCheckerSoftWarn,
       debateReel: warRoom.debateReel,
       feedEvidenceIds: warRoom.feedEvidenceIds,
       feedPathHints: warRoom.feedPathHints,

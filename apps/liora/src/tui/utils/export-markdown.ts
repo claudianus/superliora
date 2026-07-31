@@ -288,7 +288,7 @@ function formatTraceMd(trace: SessionTrace): string {
     `- **Messages**: ${String(trace.completeness.messageCount)} total | ${String(trace.completeness.filteredInternalMessageCount)} internal filtered from conversation view`,
     `- **Tools**: ${String(trace.completeness.toolCallCount)} calls | ${String(trace.completeness.toolResultCount)} results`,
     `- **Subagents**: ${String(trace.completeness.subagentLifecycleCount)} lifecycle events`,
-    `- **Ultrawork**: ${String(trace.completeness.ultraworkEventCount)} events`,
+    `- **Mission**: ${String(trace.completeness.ultraworkEventCount)} events`,
     `- **Redactions**: ${String(trace.completeness.redactedCount)}`,
   ];
 
@@ -307,7 +307,7 @@ function formatTraceMd(trace: SessionTrace): string {
     }
   }
 
-  lines.push('', '### Ultrawork Events', '');
+  lines.push('', '### Mission Events', '');
   if (ultraworkEvents.length === 0) {
     lines.push('- (none recorded)');
   } else {

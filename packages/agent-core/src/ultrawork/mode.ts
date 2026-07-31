@@ -8,7 +8,7 @@ import type {
 
 import type { Agent } from '../agent';
 import type { AgentRecordOf } from '../agent/records';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';
 import { checkpointUltraworkRun } from './run-store';
 import {
   UltraworkRunStateMachine,

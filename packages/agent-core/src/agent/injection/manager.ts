@@ -11,8 +11,8 @@ import { PlanModeInjector } from './plan-mode';
 import { PremiumQualityInjector } from './premium-quality';
 import { ResponseLanguageInjector } from './response-language';
 import { TodoListReminderInjector } from './todo-list';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph';
-import { injectUltraworkPostCompactionContinuation } from '../../ultrawork/recovery';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph-store-key';
+import { injectUltraworkPostCompactionContinuation } from '#/mission';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
   'Context compacted; background tasks still run. Do not start duplicates — TaskOutput for results, TaskList, TaskStop to cancel.';

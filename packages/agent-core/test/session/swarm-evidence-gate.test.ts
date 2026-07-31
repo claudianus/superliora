@@ -12,7 +12,7 @@ import {
   requiresNonEmptyRequiredEvidence,
   withDefaultRequiredEvidence,
   type EvidenceGateNode,
-} from '../../src/collaboration/swarm-evidence-gate';
+} from '#/fleet';
 
 function node(over: Partial<EvidenceGateNode> & { id: string }): EvidenceGateNode {
   return {

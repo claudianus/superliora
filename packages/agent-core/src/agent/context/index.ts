@@ -25,6 +25,10 @@ import {
   appendSystemReminderToContext,
   appendUserMessageToContext,
 } from './context-memory-user-messages';
+import {
+  CONTEXT_ARCHIVE_MAX_ENTRIES,
+  contextArchiveEntryCount,
+} from '../../tools/builtin/context/context-archive';
 import type { CompactionInput, CompactionResult } from '../compaction';
 import {
   project,
@@ -181,9 +185,17 @@ export class ContextMemory {
   data(): AgentContextData {
     const health = this.agent.contextOS.health();
     const micro = this.agent.microCompaction.triggers.snapshot();
+    const archiveEntryCount = contextArchiveEntryCount(this.agent.tools.getStore());
     return {
       history: this.history,
       tokenCount: this.tokenCount,
+      contextArchive:
+        archiveEntryCount === 0
+          ? undefined
+          : {
+              entryCount: archiveEntryCount,
+              maxEntries: CONTEXT_ARCHIVE_MAX_ENTRIES,
+            },
       contextOS:
         health.pageCount === 0
           ? undefined

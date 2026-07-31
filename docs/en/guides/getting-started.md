@@ -141,7 +141,7 @@ For a first-time user, the following is all you need to know:
 | --- | --- |
 | `Esc` | Interrupt streaming output / close a popup |
 | `Ctrl-C` | Interrupt output; press twice while idle to exit |
-| `Shift-Tab` | Toggle Ultrawork mode |
+| `Shift-Tab` | Toggle Mission mode |
 | `Ctrl-S` | Inject a message mid-stream without waiting for the current response to finish |
 | `Ctrl-O` | Collapse / expand tool output |
 

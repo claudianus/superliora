@@ -85,7 +85,7 @@ describe('CLI options parsing', () => {
   });
 
   describe('--help', () => {
-    it('describes --plan as Ultrawork plan steering instead of plan mode', () => {
+    it('describes --plan as Mission plan steering instead of plan mode', () => {
       let output = '';
       const program = createProgram(
         '1.2.3',
@@ -101,7 +101,7 @@ describe('CLI options parsing', () => {
 
       expect(() => program.parse(['node', 'kimi', '--help'])).toThrow();
       expect(output).toContain('--plan');
-      expect(output).toContain('Start with Ultrawork plan steering.');
+      expect(output).toContain('Start with Mission plan steering.');
       expect(output).not.toContain('Start in plan mode.');
     });
   });

@@ -4,7 +4,7 @@ import type { Agent } from '../../../agent/index';
 import {
   injectUltraworkPostSwarmContinuation,
   maybeAdvanceUltraworkStage,
-} from '../../../ultrawork';
+} from '#/mission';
 
 export function emitUltraSwarmTeamStaffedEvent(
   agent: Agent,

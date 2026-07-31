@@ -6,19 +6,20 @@ promptVars:
   roleAdditional: ''
 
 tools:
-  # Core coding tools — everyday software engineering.
+  # Core waist + session orchestration (bisect-safe: keep ApplyPatch, RepoQuery, DeepResearch).
   - Read
   - Write
   - Edit
+  - ApplyPatch
   - Grep
   - Glob
   - Bash
+  - Expand
   - RunProjectChecks
-  # Lean context tools — kept until merged into Read/Grep advanced modes.
-  - LioraRead
+  - RepoQuery
   # Progress transparency and long-run autonomy (main agent only).
   - TodoList
-  - UltraworkGraph
+  - TaskGraph
   - EnterPlanMode
   - NextPhase
   - ExitPlanMode
@@ -34,9 +35,10 @@ tools:
   - Agent
   - SearchExpert
   - AgentSwarm
-  - UltraSwarm
   # External information and user clarification.
   - WebSearch
+  # never-empty; Ch3 실패 시 Ch4/Ch5 escalate.
+  - DeepResearch
   - FetchURL
   - Context7Resolve
   - Context7Docs
@@ -49,7 +51,7 @@ tools:
   - GenerateImage
   - GenerateVideo
   - VerifySurface
-  - LioraReview
+  - Review
   - VisualDiff
   # MCP tools are gated separately by the profile.
   - mcp__*

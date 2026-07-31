@@ -29,7 +29,7 @@ import {
   type SessionSubagentHost,
   type SubagentHandle,
 } from '../../../session/subagent/subagent-host';
-import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../collaboration/spawn-agents';
+import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '#/fleet';
 import { isUserCancellation } from '../../../utils/abort';
 import { AgentBackgroundTask, type BackgroundManager } from '../../../agent/background';
 import { resolvePluginAgentType, type PluginAgentDef } from '../../../plugin';

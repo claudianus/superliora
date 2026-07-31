@@ -58,7 +58,7 @@ export function footerNextAction(state: AppState, git: GitStatus | null): string
     return 'durable evidence missing after compaction — verify IDs before resume';
   }
   if (state.ultraworkMode) {
-    return ttui('tui.footer.ultrawork');
+    return ttui('tui.footer.mission');
   }
   if (state.premiumQualityMode) {
     return ttui('tui.footer.premium');

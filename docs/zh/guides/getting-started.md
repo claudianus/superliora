@@ -141,7 +141,7 @@ SuperLiora CLI 会规划步骤、修改代码、运行测试，并在每一步�
 | --- | --- |
 | `Esc` | 中断流式输出 / 关闭弹窗 |
 | `Ctrl-C` | 中断输出；空闲时连按两次退出 |
-| `Shift-Tab` | 切换 Ultrawork mode |
+| `Shift-Tab` | 切换 Mission mode |
 | `Ctrl-S` | 输出中途插入消息，无需等待结束 |
 | `Ctrl-O` | 折叠 / 展开工具输出 |
 

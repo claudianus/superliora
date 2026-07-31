@@ -453,7 +453,7 @@ const ultraSwarmChip: ChipProvider = (_toolCall, result) => {
   for (const line of result.output.split('\n')) {
     if (/<expert\b/.test(line)) count++;
   }
-  return count > 0 ? pluralize(count, 'expert') : 'ultra-swarm';
+  return count > 0 ? pluralize(count, 'expert') : 'fleet';
 };
 
 const todoListChip: ChipProvider = (_toolCall, result) => {
@@ -496,6 +496,7 @@ Read: readChip,
 LioraRead: lioraReadChip,
 LioraSymbol: lioraSymbolChip,
 LioraTree: lioraTreeChip,
+Expand: lioraExpandChip,
 LioraExpand: lioraExpandChip,
 LioraCallgraph: lioraCallgraphChip,
 ReadMediaFile: readMediaChip,
@@ -516,12 +517,14 @@ EnterPlanMode: enterPlanModeChip,
 ExitPlanMode: exitPlanModeChip,
 AskUserQuestion: askUserQuestionChip,
 LioraReview: lioraReviewChip,
+Review: lioraReviewChip,
 TaskList: taskListChip,
 TaskOutput: taskOutputChip,
 TaskStop: taskStopChip,
 CronList: cronListChip,
 CronCreate: cronCreateChip,
 CronDelete: cronDeleteChip,
+TaskGraph: ultraworkGraphChip,
 UltraworkGraph: ultraworkGraphChip,
 SwarmChannel: swarmChannelChip,
 Agent: agentChip,

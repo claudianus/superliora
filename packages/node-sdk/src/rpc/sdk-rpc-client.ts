@@ -65,11 +65,18 @@ export class SDKRpcClient extends SDKRpcClientBase {
       configPath: options.configPath,
     });
     this.telemetry = options.telemetry ?? noopTelemetryClient;
+
+    let coreRef: LioraCore | undefined;
     this.auth = new LioraAuthFacade({
       homeDir: this.homeDir,
       configPath: this.configPath,
       identity: this.identity,
-      onRefresh: options.onOAuthRefresh,
+      onRefresh: (outcome) => {
+        options.onOAuthRefresh?.(outcome);
+        if (!outcome.success) {
+          coreRef?.broadcastOAuthRefreshDegraded(outcome);
+        }
+      },
     });
 
     void getRootLogger().configure(resolveLoggingConfig({ homeDir: this.homeDir }));
@@ -89,6 +96,7 @@ export class SDKRpcClient extends SDKRpcClientBase {
       telemetry: this.telemetry,
       appVersion: this.identity?.version,
     });
+    coreRef = this.core;
     this.ready = sdkRpc(new ClientAPI(this));
   }
 

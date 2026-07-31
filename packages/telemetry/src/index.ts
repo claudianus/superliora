@@ -33,6 +33,19 @@ export async function shutdownTelemetry(
 export { initializeTelemetry } from './bootstrap';
 export type { TelemetryBootstrapOptions } from './bootstrap';
 
+export {
+  getTelemetryRuntimeGlance,
+  isTelemetryDisabledByEnv,
+  isTelemetryOptInEnvSet,
+  resolveTelemetryEndpoint,
+  shouldEnableTelemetry,
+  TELEMETRY_DISABLE_ENV,
+  TELEMETRY_ENDPOINT,
+  TELEMETRY_ENDPOINT_ENV,
+  TELEMETRY_OPT_IN_ENV,
+} from './glance';
+export type { TelemetryRuntimeGlance } from './glance';
+
 export { installCrashHandlers, setCrashPhase } from './crash';
 export type { CrashPhase } from './crash';
 
@@ -40,3 +53,4 @@ export { normalizeRemote } from './remote';
 
 export type { TelemetryPrimitive, TelemetryProperties } from './types';
 export type { TelemetryClient, TelemetryContextIds } from './client';
+export { resetDefaultTelemetryClientForTests } from './client';

@@ -6,7 +6,7 @@ promptVars:
 
     Read-only implementation planning specialist. Produce a step-by-step plan, identify key files, and analyze architectural trade-offs before any code changes. Do not execute the plan yourself; return it to the parent agent.
 
-    - Prefer LioraRead and Grep before broad Glob on unknown code
+    - Prefer RepoQuery and Grep before broad Glob on unknown code
     - Glob: anchor patterns (extension/subdir); bare `*`/`**/*` may hit the cap
     - Grep for content; Read for known paths; Bash only read-only (ls, git status/log/diff, find)
     - Match caller thoroughness; parallelize independent reads/searches
@@ -21,17 +21,16 @@ tools:
   - Read
   - Write
   - Edit
+  - ApplyPatch
   - Grep
   - Glob
   - Bash
-  - LioraRead
-  - LioraTree
-  - LioraSymbol
-  - LioraCallgraph
-  - LioraExpand
+  - RepoQuery
   - WebSearch
+  - DeepResearch
   - FetchURL
   - ReadMediaFile
+  - Review
   - AskUserQuestion
   - TodoList
   - Skill

@@ -122,6 +122,13 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     availability: 'always',
   },
   {
+    name: 'ops',
+    aliases: ['ops-theatre', 'monitor'],
+    description: 'Ops Theatre — live Fleet/Goal/Git/Health monitor',
+    priority: 86,
+    availability: 'always',
+  },
+  {
     name: 'extensions',
     aliases: ['ext', 'import-claude'],
     description: '확장 기능 — 플러그인/훅/스킬/MCP · Claude 가져오기',
@@ -156,7 +163,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'mcp',
     aliases: [],
-    description: 'Show MCP server status',
+    description: 'Manage MCP servers (install, toggle, remove, status)',
     priority: 60,
     availability: 'always',
   },
@@ -438,6 +445,13 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     priority: 60,
     argumentHint: '[auto|dark|light|import <source>]',
     completeArgs: themeArgumentCompletions,
+    availability: 'always',
+  },
+  {
+    name: 'media',
+    aliases: [],
+    description: 'Set media fallback when the chat model is text-only',
+    priority: 55,
     availability: 'always',
   },
   {

@@ -130,4 +130,6 @@ export interface AgentSwarmProgressOptions {
    * Parent may emit collaboration/steer or invoke UltraSwarm restaff path.
    */
   readonly onRequestRestaff?: (request: AgentSwarmRestaffRequest) => void;
+  /** Host callback when swarm governance soft warn is resolved from tool output. */
+  readonly onGovernanceSoftWarn?: (warn: string | undefined) => void;
 }

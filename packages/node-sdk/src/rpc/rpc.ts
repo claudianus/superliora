@@ -38,6 +38,7 @@ import type {
   SessionUsage,
   SkillSearchResult,
   SkillSummary,
+  HookRegistrySummary,
   Unsubscribe,
 } from '#/session/types';
 import {
@@ -465,17 +466,33 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
 
     // Fetch all facets in parallel. Individual failures degrade to undefined
     // instead of failing the entire status query.
-    const [config, context, permission, plan, swarmMode, premiumQualityMode, usage, providerRouteStatus] =
-      await Promise.all([
-        rpc.getConfig(scoped),
-        rpc.getContext(scoped),
-        rpc.getPermission(scoped),
-        rpc.getPlan(scoped),
-        rpc.getSwarmMode(scoped).catch(() => undefined),
-        rpc.getPremiumQuality(scoped).catch(() => undefined),
-        rpc.getUsage(scoped).catch(() => undefined),
-        rpc.getProviderRouteStatus(scoped).catch(() => null),
-      ]);
+    const [
+      config,
+      context,
+      permission,
+      plan,
+      swarmMode,
+      premiumQualityMode,
+      usage,
+      providerRouteStatus,
+      circuitBreakers,
+      cacheFrozen,
+      parallelTools,
+      oauth,
+    ] = await Promise.all([
+      rpc.getConfig(scoped),
+      rpc.getContext(scoped),
+      rpc.getPermission(scoped),
+      rpc.getPlan(scoped),
+      rpc.getSwarmMode(scoped).catch(() => undefined),
+      rpc.getPremiumQuality(scoped).catch(() => undefined),
+      rpc.getUsage(scoped).catch(() => undefined),
+      rpc.getProviderRouteStatus(scoped).catch(() => null),
+      rpc.getCircuitBreakers(scoped).catch(() => undefined),
+      rpc.getCacheFrozen(scoped).catch(() => undefined),
+      rpc.getParallelToolsStatus(scoped).catch(() => undefined),
+      rpc.getOAuthStatus(scoped).catch(() => undefined),
+    ]);
     return buildSessionStatus({
       config,
       context,
@@ -485,6 +502,10 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       premiumQualityMode,
       usage,
       providerRouteStatus,
+      circuitBreakers,
+      cacheFrozen,
+      parallelTools,
+      oauth,
     });
   }
 
@@ -499,6 +520,11 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
   async listSkills(input: SessionIdRpcInput): Promise<readonly SkillSummary[]> {
     const rpc = await this.getRpc();
     return rpc.listSkills({ sessionId: input.sessionId });
+  }
+
+  async getHookRegistry(input: SessionIdRpcInput): Promise<HookRegistrySummary> {
+    const rpc = await this.getRpc();
+    return rpc.getHookRegistry({ sessionId: input.sessionId });
   }
 
   async getTools(input: SessionIdRpcInput): Promise<readonly ToolInfo[]> {

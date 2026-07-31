@@ -14,6 +14,7 @@ import type { ModelRoutingStrategy } from '../../config';
 import type { Logger } from '../../logging/types';
 import type { ProviderRouteRateLimitStatus } from '#/rpc';
 import type { CompletionBudgetConfig } from '../../utils/completion-budget';
+import type { LlmProviderCircuitObserver } from '../llm-provider-circuit-breaker';
 
 export type GenerateFn = typeof kosongGenerate;
 
@@ -122,6 +123,8 @@ export interface KosongLLMConfig {
   readonly route?: KosongLLMRoute | undefined;
   readonly routeState?: ProviderRouteState | undefined;
   readonly onRouteStatusChanged?: (() => void) | undefined;
+  /** Optional Never-Halt observer (Agent.circuitBreakerRegistry when wired). */
+  readonly circuitObserver?: LlmProviderCircuitObserver | undefined;
   readonly log?: Logger | undefined;
 }
 

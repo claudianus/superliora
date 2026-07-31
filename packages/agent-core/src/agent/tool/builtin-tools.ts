@@ -8,8 +8,14 @@ import * as b from '../../tools/builtin';
 import { createVisualDiffTool } from '../../tools/visual-diff-tool';
 import type { ToolStore } from '../../tools/store';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
+import {
+  HIDE_LEGACY_TOOL_NAMES_ENV,
+  isHideLegacyToolNamesEnabled,
+} from '../../profile/sovereign-soft-gates';
 import { nonEmptyEnv } from './env';
 import type { BuiltinTool } from './types';
+
+export { HIDE_LEGACY_TOOL_NAMES_ENV, isHideLegacyToolNamesEnabled };
 
 export interface BuiltinToolsHost {
   readonly agent: Agent;
@@ -25,6 +31,23 @@ export interface BuiltinToolsHost {
 export function shouldCreateBuiltin(host: BuiltinToolsHost, name: string): boolean {
   if (host.enabledTools.size === 0) return true;
   return host.enabledTools.has(name);
+}
+
+/**
+ * Register a legacy compat alias only when the profile or bootstrap set asks for
+ * it. When `SUPERLIORA_HIDE_LEGACY_TOOL_NAMES=1` or `SUPERLIORA_SOVEREIGN=1`,
+ * omit the alias whenever the sovereign twin would also register — keeps journal
+ * replay working when the legacy name is explicitly selected.
+ */
+export function shouldRegisterLegacyCompat(
+  host: BuiltinToolsHost,
+  legacyName: string,
+  sovereignName: string,
+): boolean {
+  if (!shouldCreateBuiltin(host, legacyName)) return false;
+  if (!isHideLegacyToolNamesEnabled()) return true;
+  if (host.enabledTools.size > 0 && host.enabledTools.has(legacyName)) return true;
+  return !shouldCreateBuiltin(host, sovereignName);
 }
 
 export function buildBuiltinTools(host: BuiltinToolsHost): Map<string, BuiltinTool> {
@@ -102,13 +125,23 @@ function createFileAndContextTools(
         getSwarmLease: () => host.agent.swarmFileLease,
         onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
       }),
+    shouldCreateBuiltin(host, 'ApplyPatch') &&
+      new b.ApplyPatchTool(kaos, workspace, {
+        fileSnapshots: host.agent.fileSnapshots,
+        getTurnId: () =>
+          host.agent.turn.currentId !== undefined ? String(host.agent.turn.currentId) : undefined,
+        getSwarmLease: () => host.agent.swarmFileLease,
+        onFileMutated: (path, content) => host.agent.fileMutationHook?.(path, content),
+      }),
     shouldCreateBuiltin(host, 'Grep') && new b.GrepTool(kaos, workspace, host.agent.telemetry),
     shouldCreateBuiltin(host, 'Glob') && new b.GlobTool(kaos, workspace, host.agent.telemetry),
+    shouldCreateBuiltin(host, 'RepoQuery') && new b.RepoQueryTool(kaos, workspace, host.agent.telemetry),
     shouldCreateBuiltin(host, 'LioraRead') && new b.LioraReadTool(kaos, workspace, host.toolStore),
     shouldCreateBuiltin(host, 'LioraTree') && new b.LioraTreeTool(kaos, workspace),
     shouldCreateBuiltin(host, 'LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
     shouldCreateBuiltin(host, 'LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
-    shouldCreateBuiltin(host, 'LioraExpand') && new b.LioraExpandTool(host.toolStore),
+    shouldCreateBuiltin(host, 'LioraExpand') && b.createLioraExpandTool(host.toolStore),
+    shouldCreateBuiltin(host, 'Expand') && b.createExpandTool(host.toolStore),
     shouldCreateBuiltin(host, 'Bash') &&
       new b.BashTool(kaos, cwd, background, {
         allowBackground,
@@ -134,7 +167,9 @@ function createFileAndContextTools(
     shouldCreateBuiltin(host, 'GenerateVideo') &&
       b.isGenerateVideoAvailable(resolveMediaProviderEnv(host.agent)) &&
       new b.GenerateVideoTool(kaos, workspace, resolveMediaProviderEnv(host.agent)),
-    shouldCreateBuiltin(host, 'LioraReview') && b.createLioraReviewTool(kaos, host.agent),
+    shouldRegisterLegacyCompat(host, 'LioraReview', 'Review') &&
+      b.createLioraReviewTool(kaos, host.agent),
+    shouldCreateBuiltin(host, 'Review') && b.createReviewTool(kaos, host.agent),
     shouldCreateBuiltin(host, 'VisualDiff') && createVisualDiffTool(kaos),
   ];
 }
@@ -197,8 +232,9 @@ function createPlanningGoalAndStateTools(
     goalToolsEnabled &&
       shouldCreateBuiltin(host, 'CreateGoal') &&
       new b.CreateGoalTool(host.agent),
+    // Compat alias — CreateGoal is primary in help/SearchTools; keep for legacy prompts.
     goalToolsEnabled &&
-      shouldCreateBuiltin(host, 'CreateUltraGoal') &&
+      shouldRegisterLegacyCompat(host, 'CreateUltraGoal', 'CreateGoal') &&
       new b.CreateUltraGoalTool(host.agent),
     goalToolsEnabled && shouldCreateBuiltin(host, 'GetGoal') && new b.GetGoalTool(host.agent),
     goalToolsEnabled &&
@@ -212,8 +248,10 @@ function createPlanningGoalAndStateTools(
       shouldCreateBuiltin(host, 'AskUserQuestion') &&
       new b.AskUserQuestionTool(host.agent),
     shouldCreateBuiltin(host, 'TodoList') && new b.TodoListTool(host.toolStore),
-    shouldCreateBuiltin(host, 'UltraworkGraph') &&
-      new b.UltraworkGraphTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'TaskGraph') &&
+      b.createTaskGraphTool(host.toolStore, host.agent),
+    shouldRegisterLegacyCompat(host, 'UltraworkGraph', 'TaskGraph') &&
+      b.createUltraworkGraphTool(host.toolStore, host.agent),
     hasMemoryTool && shouldCreateBuiltin(host, 'Memory') && new b.MemoryTool(host.agent.memory!),
     shouldCreateBuiltin(host, 'TaskList') && new b.TaskListTool(background),
     shouldCreateBuiltin(host, 'TaskOutput') && new b.TaskOutputTool(background),
@@ -264,7 +302,7 @@ function createSkillAndSubagentTools(
       new b.SearchExpertTool(),
     host.agent.subagentHost &&
       shouldCreateBuiltin(host, 'AgentSwarm') &&
-      new b.AgentSwarmTool(host.agent.subagentHost, host.agent.swarmMode, host.toolStore),
+      new b.AgentSwarmTool(host.agent.subagentHost, host.agent.swarmMode, host.toolStore, host.agent),
     host.agent.subagentHost &&
       shouldCreateBuiltin(host, 'UltraSwarm') &&
       new b.UltraSwarmTool(
@@ -314,6 +352,9 @@ function createGuiAndWebTools(
     toolServices?.webSearcher &&
       shouldCreateBuiltin(host, 'WebSearch') &&
       new b.WebSearchTool(toolServices.webSearcher),
+    toolServices?.webSearcher &&
+      shouldCreateBuiltin(host, 'DeepResearch') &&
+      new b.DeepResearchTool(toolServices.webSearcher),
     toolServices?.urlFetcher &&
       shouldCreateBuiltin(host, 'FetchURL') &&
       new b.FetchURLTool(toolServices.urlFetcher),

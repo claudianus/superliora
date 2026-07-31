@@ -4,6 +4,7 @@ import type { ContextOSRetrievalDiagnostics } from '#/agent/context-os';
 import type { BackgroundTaskInfo } from '#/agent/background';
 import type { GoalSnapshot, GoalToolResult } from '#/agent/goal';
 import type { PermissionData } from '#/agent/permission';
+import type { CircuitBreakerStatus } from '@superliora/protocol';
 import type { PlanData } from '#/agent/plan';
 import type { ToolInfo } from '#/agent/tool';
 import type { LioraConfig } from '#/config';
@@ -62,6 +63,7 @@ import type {
   SearchSkillsPayload,
   SetPluginEnabledPayload,
   SetPluginMcpServerEnabledPayload,
+  HookRegistrySummary,
   SkillSearchResult,
   SkillSummary,
 } from './payloads-plugins';
@@ -182,6 +184,19 @@ export interface AgentAPI {
   diagnoseContextOS: (payload: DiagnoseContextOSPayload) => ContextOSRetrievalDiagnostics;
   getConfig: (payload: EmptyPayload) => AgentConfigData;
   getPermission: (payload: EmptyPayload) => PermissionData;
+  getCircuitBreakers: (payload: EmptyPayload) => CircuitBreakerStatus | undefined;
+  getCacheFrozen: (payload: EmptyPayload) => boolean;
+  getParallelToolsStatus: (payload: EmptyPayload) => {
+    readonly parallelToolsInFlight: number;
+    readonly maxParallelTools?: number;
+  };
+  getOAuthStatus: (payload: EmptyPayload) => Promise<
+    | {
+        readonly poolSize?: number;
+        readonly nextRefreshAtMs?: number;
+      }
+    | undefined
+  >;
   getPlan: (payload: EmptyPayload) => PlanData;
   getUsage: (payload: EmptyPayload) => UsageStatus;
   getProviderRouteStatus: (payload: EmptyPayload) => ProviderRouteStatus | null;
@@ -205,6 +220,7 @@ export interface SessionAPI extends AgentAPIWithId {
   updateSessionMetadata: (payload: UpdateSessionMetadataPayload) => void;
   getSessionMetadata: (payload: EmptyPayload) => SessionMeta;
   listSkills: (payload: EmptyPayload) => readonly SkillSummary[];
+  getHookRegistry: (payload: EmptyPayload) => HookRegistrySummary;
   searchSkills: (payload: SearchSkillsPayload) => readonly SkillSearchResult[];
   listPluginCommands: (payload: EmptyPayload) => readonly PluginCommandDef[];
   listMcpServers: (payload: EmptyPayload) => readonly McpServerInfo[];

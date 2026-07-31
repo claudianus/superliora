@@ -142,6 +142,23 @@ export function renderAgentSwarmIntegrationReportContent(
   return lines;
 }
 
+export function renderAgentSwarmMakerCheckerWarnContent(
+  width: number,
+  warn: string | undefined,
+  colors: ColorPalette,
+): string[] {
+  if (warn === undefined || warn.trim().length === 0) return [];
+  const lines = [
+    chalk.hex(colors.textDim)('governance'),
+    ...warn
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => chalk.hex(colors.warning)(truncateToWidth(`⚠ ${line}`, width))),
+  ];
+  return lines;
+}
+
 export function renderAgentSwarmDebateReelContent(
   width: number,
   profile: ResponsiveLayoutProfile,

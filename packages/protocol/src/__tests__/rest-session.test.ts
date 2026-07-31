@@ -534,6 +534,25 @@ describe('sessionStatusResponseSchema', () => {
     expect(parsed.micro_compaction?.total).toBe(2);
     expect(parsed.micro_compaction?.last_trigger).toBe('usage_pressure');
   });
+
+  it('accepts optional oauth pool snapshot', () => {
+    const parsed = sessionStatusResponseSchema.parse({
+      status: 'idle',
+      thinking_level: 'off',
+      permission: 'manual',
+      plan_mode: false,
+      swarm_mode: false,
+      context_tokens: 0,
+      max_context_tokens: 0,
+      context_usage: 0,
+      oauth: {
+        pool_size: 2,
+        next_refresh_at_ms: 1_700_000_300_000,
+      },
+    });
+    expect(parsed.oauth?.pool_size).toBe(2);
+    expect(parsed.oauth?.next_refresh_at_ms).toBe(1_700_000_300_000);
+  });
 });
 
 describe('compactSessionRequestSchema', () => {

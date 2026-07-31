@@ -69,7 +69,7 @@ describe('ChoicePickerComponent', () => {
     expect(lines[titleIdx]).not.toContain('type to filter');
     // Hint sits directly under the title and uses lowercase key vocabulary.
     const hint = lines[titleIdx + 1];
-    expect(hint).toContain('↑↓ navigate');
+    expect(hint).toContain('?? navigate');
     expect(hint).toContain('Enter select');
     expect(hint).toContain('Esc cancel');
     expect(hint).not.toContain('enter select');
@@ -100,9 +100,24 @@ describe('ChoicePickerComponent', () => {
 
     const out = picker.render(120).map(strip);
 
-    expect(out).toContain('  ❯ Manual ← current');
+    expect(out).toContain('  ? Manual ? current');
     expect(out).toContain('    Ask before commands, edits, and other risky actions.');
     expect(out).toContain('    Automatically approve tool actions and plan transitions.');
+  });
+
+  it('filters the settings selector by label and description (One-search Settings)', () => {
+    const settings = new SettingsSelectorComponent({
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const initial = settings.render(120).map(strip).join('\n');
+    expect(initial).toContain('(type to search)');
+
+    for (const ch of 'sandbox') settings.handleInput(ch);
+    const filtered = settings.render(120).map(strip).join('\n');
+    expect(filtered).toContain('Security');
+    expect(filtered).toContain('Sandbox');
+    expect(filtered).not.toContain('Switch the active model');
   });
 
   it('renders domain selector wrappers with their configured options', () => {
@@ -114,43 +129,45 @@ describe('ChoicePickerComponent', () => {
       onSelect,
       onCancel,
     });
-    expect(editor.render(120).map(strip)).toContain('  ❯ Vim ← current');
+    expect(editor.render(120).map(strip)).toContain('  ? Vim ? current');
 
     const theme = new ThemeSelectorComponent({
       currentValue: 'light',
       onSelect,
       onCancel,
     });
-    expect(theme.render(120).map(strip)).toContain('  ❯ Light ← current');
+    expect(theme.render(120).map(strip)).toContain('  ? Light ? current');
 
     const permission = new PermissionSelectorComponent({
       currentValue: 'manual',
       onSelect,
       onCancel,
     });
-    expect(permission.render(120).map(strip)).toContain('  ❯ Manual ← current');
+    expect(permission.render(120).map(strip)).toContain('  ? Manual ? current');
 
     const settings = new SettingsSelectorComponent({
       onSelect,
       onCancel,
     });
     const settingsOutput = settings.render(120).map(strip);
-    expect(settingsOutput).toContain('  ❯ Model');
+    expect(settingsOutput).toContain('  ? Model');
     expect(settingsOutput).toContain('    Switch the active model and thinking mode.');
+    expect(settingsOutput.join('\n')).toContain('Security');
+    expect(settingsOutput.join('\n')).toContain('Sandbox, secret redaction');
     expect(settingsOutput).toContain('    Model routing');
     expect(settingsOutput).toContain(
       '    Set future loop-role model overrides without changing this session.',
     );
     // The list paginates at 8 items per page; Model fallback pushed Tools and
     // Eyes readiness to page 2 (Tools first) and Usage/Telemetry to page 3.
-    settings.handleInput('\u001B[C'); // → page 2
+    settings.handleInput('\u001B[C'); // ? page 2
     const settingsPage2 = settings.render(120).map(strip);
-    expect(settingsPage2).toContain('  ❯ Tools');
+    expect(settingsPage2).toContain('  ? Tools');
     expect(settingsPage2).toContain('    Eyes readiness');
     expect(settingsPage2).toContain('    List active agent tools (SearchTools inventory).');
-    settings.handleInput('\u001B[C'); // → page 3
+    settings.handleInput('\u001B[C'); // ? page 3
     const settingsPage3 = settings.render(120).map(strip);
-    expect(settingsPage3).toContain('  ❯ Experiments');
+    expect(settingsPage3).toContain('  ? Experiments');
     expect(settingsPage3).toContain('    Automatic updates');
     expect(settingsPage3).toContain('    Turn automatic CLI updates on or off.');
 
@@ -160,7 +177,7 @@ describe('ChoicePickerComponent', () => {
       onCancel,
     });
     const upgradePreferenceOutput = upgradePreference.render(120).map(strip);
-    expect(upgradePreferenceOutput).toContain('  ❯ On ← current');
+    expect(upgradePreferenceOutput).toContain('  ? On ? current');
     expect(upgradePreferenceOutput).toContain('    Install new versions in the background.');
   });
 
@@ -178,12 +195,12 @@ describe('ChoicePickerComponent', () => {
       });
       const out = theme.render(120).map(strip);
 
-      expect(out).toContain('  ❯ Dark · SuperLiora Neon Noir ← current');
-      expect(out).toContain('    Dark theme · Bundled SuperLiora preset.');
+      expect(out).toContain('  ? Dark ? SuperLiora Neon Noir ? current');
+      expect(out).toContain('    Dark theme ? Bundled SuperLiora preset.');
       // The list paginates at 8 items per page; page until the custom entry shows.
       let page = out;
       for (let i = 0; i < 10 && !page.includes('    Custom: studio'); i++) {
-        theme.handleInput('\u001B[C'); // → pages forward
+        theme.handleInput('\u001B[C'); // ? pages forward
         page = theme.render(120).map(strip);
       }
       expect(page).toContain('    Loaded from ~/.superliora/themes.');
@@ -203,7 +220,7 @@ describe('ChoicePickerComponent', () => {
       });
 
       const out = theme.render(120).map(strip).join('\n');
-      expect(out).toContain('Preview · Light');
+      expect(out).toContain('Preview ? Light');
       expect(out).toContain('const skin = createTheme');
       expect(onHighlight).toHaveBeenCalledWith('light');
       expect(currentTheme.palette).toBe(darkColors);
@@ -252,7 +269,7 @@ describe('ChoicePickerComponent', () => {
       onCancel: vi.fn(),
     });
 
-    expect(picker.render(120).map(strip)).toContain('  ❯ Hidden ← current');
+    expect(picker.render(120).map(strip)).toContain('  ? Hidden ? current');
   });
 
   it('keeps external terminal themes out of the default theme list but includes them in search', () => {
@@ -267,7 +284,7 @@ describe('ChoicePickerComponent', () => {
 
       for (const ch of 'dracula') theme.handleInput(ch);
       const out = theme.render(120).map(strip).join('\n');
-      expect(out).toContain('Dark · dracula (Alacritty)');
+      expect(out).toContain('Dark ? dracula (Alacritty)');
       expect(out).toContain('Bundled external terminal theme.');
     });
   });
@@ -354,7 +371,7 @@ describe('ChoicePickerComponent', () => {
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
-    // Should not throw — the first option is selected by default.
+    // Should not throw ? the first option is selected by default.
     expect(() => picker.render(80)).not.toThrow();
     const lines = picker.render(80).map(strip);
     expect(lines.some((line) => line.includes('A description without a tone'))).toBe(true);

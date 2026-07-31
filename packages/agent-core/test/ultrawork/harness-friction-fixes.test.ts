@@ -7,12 +7,12 @@ import {
 } from '../../src/tools/builtin/collaboration/ultra-swarm-integration-report';
 import { inferVerdict } from '../../src/tools/builtin/collaboration/ultra-swarm-helpers';
 import { workNodeOutcome } from '../../src/tools/builtin/collaboration/ultra-swarm-phase';
-import { todosFromWorkGraph } from '../../src/tools/builtin/state/ultrawork-graph';
 import {
   inferEffectiveUltraworkStage,
   summarizeWorkGraphProgress,
-} from '../../src/ultrawork/stage-progress';
-import { isUltraworkWorkflowReportWritePath } from '../../src/ultrawork/workflow-report';
+  isUltraworkWorkflowReportWritePath,
+  todosFromWorkGraph,
+} from '#/mission';
 
 describe('harness friction fixes (H1–H4)', () => {
   it('keeps all-done WorkGraph auto-stage below verify/done', () => {

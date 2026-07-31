@@ -17,6 +17,7 @@ import {
   planArgumentCompletions,
   preflightArgumentCompletions,
   premiumArgumentCompletions,
+  profileArgumentCompletions,
   pluginsArgumentCompletions,
   rendererArgumentCompletions,
   slashCommandsForHelp,
@@ -67,8 +68,12 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('up')?.name).toBe('ultraplan');
     expect(findBuiltInSlashCommand('ultraresearch')).toBeUndefined();
     expect(findBuiltInSlashCommand('ur')).toBeUndefined();
-    expect(findBuiltInSlashCommand('ultraswarm')?.name).toBe('ultraswarm');
-    expect(findBuiltInSlashCommand('us')?.name).toBe('ultraswarm');
+    expect(findBuiltInSlashCommand('fleet')?.name).toBe('fleet');
+    expect(findBuiltInSlashCommand('ultraswarm')?.name).toBe('fleet');
+    expect(findBuiltInSlashCommand('us')?.name).toBe('fleet');
+    expect(findBuiltInSlashCommand('mission')?.name).toBe('mission');
+    expect(findBuiltInSlashCommand('ultrawork')?.name).toBe('mission');
+    expect(findBuiltInSlashCommand('uw')?.name).toBe('mission');
     expect(findBuiltInSlashCommand('ultragoal')?.name).toBe('ultragoal');
     expect(findBuiltInSlashCommand('ug')?.name).toBe('ultragoal');
     expect(findBuiltInSlashCommand('vibe')).toBeUndefined();
@@ -81,6 +86,7 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('harness')?.name).toBe('harness');
     expect(findBuiltInSlashCommand('premium')?.name).toBe('premium');
     expect(findBuiltInSlashCommand('pq')?.name).toBe('premium');
+    expect(findBuiltInSlashCommand('profile')?.name).toBe('profile');
     expect(findBuiltInSlashCommand('persona')?.name).toBe('persona');
     expect(findBuiltInSlashCommand('character')?.name).toBe('persona');
     expect(findBuiltInSlashCommand('feed')?.name).toBe('feed');
@@ -95,6 +101,19 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('web')?.name).toBe('web');
     expect(findBuiltInSlashCommand('fetch')?.name).toBe('web');
     expect(findBuiltInSlashCommand('unknown')).toBeUndefined();
+  });
+
+  it('registers /profile in advanced help with Core waist guidance', () => {
+    const profile = findBuiltInSlashCommand('profile');
+    expect(profile?.name).toBe('profile');
+    expect(profile?.description).toContain('Core waist');
+    expect(profile?.visibility).toBe('advanced');
+    expect(slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').some((c) => c.name === 'profile')).toBe(
+      true,
+    );
+    expect(profileArgumentCompletions('')?.some((item) => item.description.includes('Core waist'))).toBe(
+      true,
+    );
   });
 
   it('lists harness observation commands in help with eyes aliases', () => {
@@ -146,7 +165,7 @@ describe('built-in slash command registry', () => {
     expect(values('o')).toEqual(['on', 'off']);
     expect(values('s')).toEqual(['status']);
     expect(premiumArgumentCompletions('st')).toEqual([
-      { value: 'status', label: 'status', description: 'Show Premium Quality status' },
+      { value: 'status', label: 'status', description: 'Show Visual Quality status' },
     ]);
     expect(values('on')).toBeNull();
     expect(values('off')).toBeNull();
@@ -560,6 +579,10 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('renderer');
     expect(primaryNames).toContain('plan');
     expect(primaryNames).toContain('swarm');
+    expect(primaryNames).toContain('mission');
+    expect(primaryNames).toContain('fleet');
+    expect(primaryNames).toContain('ops');
+    expect(findBuiltInSlashCommand('ops')?.description).toContain('Ops Theatre');
     expect(primaryNames).not.toContain('ultrawork');
     expect(primaryNames).not.toContain('ultraswarm');
     expect(primaryNames).not.toContain('experiments');
@@ -580,20 +603,20 @@ describe('built-in slash command registry', () => {
         'reload',
         'reload-tui',
         'ultragoal',
-        'ultraswarm',
         'ultraplan',
-        'ultrawork',
         'usage',
         'yolo',
       ]),
     );
+    expect(advancedNames).not.toContain('ultrawork');
+    expect(advancedNames).not.toContain('ultraswarm');
     expect(advancedNames).not.toContain('permission');
     expect(advancedNames).not.toContain('settings');
     expect(diagnosticNames).not.toContain('ultraswarm');
-    const ultrawork = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').find(
-      (command) => command.name === 'ultrawork',
+    const mission = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').find(
+      (command) => command.name === 'mission',
     );
-    expect(ultrawork?.aliases).toEqual(['uw']);
+    expect((mission as LioraSlashCommand | undefined)?.hiddenAliases).toEqual(['ultrawork', 'uw']);
     expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight', 'renderer']));
     const help = findBuiltInSlashCommand('help') as LioraSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);
@@ -667,15 +690,16 @@ describe('built-in slash command registry', () => {
     );
 
     // Highest-priority primary commands sort first (then alphabetically).
+    // Mission/Fleet share priority 100 with help/model/… and win alphabetical slots.
     expect(primaryNames.slice(0, 8)).toEqual([
+      'fleet',
       'help',
+      'mission',
       'model',
       'permission',
       'premium',
       'settings',
       'status',
-      'thinking',
-      'btw',
     ]);
   });
 
@@ -718,28 +742,29 @@ describe('built-in slash command registry', () => {
     })).toEqual(['off']);
   });
 
-  it('describes plan, goal, swarm, and ultrawork controls', () => {
+  it('describes plan, goal, swarm, mission, and fleet controls', () => {
     const plan = findBuiltInSlashCommand('plan');
     const goal = findBuiltInSlashCommand('goal');
     const swarm = findBuiltInSlashCommand('swarm');
-    const ultrawork = findBuiltInSlashCommand('ultrawork');
+    const mission = findBuiltInSlashCommand('mission');
+    const fleet = findBuiltInSlashCommand('fleet');
 
     expect(plan?.description).toBe(
-      'Free-form plan: model writes a plan file, you approve (interview → write)',
+      'Plan mode — model writes a plan file, you approve (interview → write)',
     );
     expect(goal?.description).toBe(
       'Simple goal loop: set objective, agent iterates until done (Ralph Loop)',
     );
     expect(goal?.description).not.toContain('/goal');
     expect(swarm?.description).toBe(
-      'Parallel delegation: send task to specialist subagents (model decides split)',
+      'Fleet parallel delegation — specialists split the task (prefer /fleet)',
     );
     expect(swarm?.description).not.toContain('/swarm');
-    expect(ultrawork?.description).toBe(
-      'Run Ultrawork: UltraPlan interview, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn',
-    );
-    expect(ultrawork?.description).not.toContain('/ultrawork');
-    expect((ultrawork as LioraSlashCommand | undefined)?.hiddenAliases).toBeUndefined();
+    expect(mission?.description).toBe('Mission mode — long-running goal execution');
+    expect(mission?.description).not.toContain('/ultrawork');
+    expect((mission as LioraSlashCommand | undefined)?.hiddenAliases).toEqual(['ultrawork', 'uw']);
+    expect(fleet?.description).toBe('Fleet mode — multi-agent orchestration');
+    expect((fleet as LioraSlashCommand | undefined)?.hiddenAliases).toEqual(['ultraswarm', 'us']);
   });
 
   it('offers swarm subcommand argument completions', () => {

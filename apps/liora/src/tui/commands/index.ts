@@ -28,7 +28,8 @@ export { showSettingsSelector, showHarnessPanel } from './config/settings';
 export { showToolsInventory, showHarnessEyesReadiness } from './config/harness-tools';
 export { handleSwarmCommand } from './swarm/swarm';
 export { handleOrchestratorCommand } from './swarm/orchestrator';
-export { buildUltraworkPrompt, handleUltraworkCommand, parseUltraworkCommand } from './ultrawork/ultrawork';
+export { buildUltraworkPrompt, parseUltraworkCommand } from '#/tui/utils/mission/mission-contract';
+export { handleUltraworkCommand } from './ultrawork/ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info/info';
 export {
   buildMemoryReadinessLines,

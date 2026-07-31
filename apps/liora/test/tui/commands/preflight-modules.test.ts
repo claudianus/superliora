@@ -40,7 +40,7 @@ describe('preflight extracted helpers', () => {
       score: 1,
       passRate: 1,
       noSecret: true,
-      nextAction: 'Run the next bounded Ultrawork loop.',
+      nextAction: 'Run the next bounded Mission loop.',
       warnings: [],
     };
     const memory: MemoryReadinessSnapshot = {
@@ -71,7 +71,7 @@ describe('preflight extracted helpers', () => {
       score: 1,
       passRate: 1,
       noSecret: true,
-      nextAction: 'Run the next bounded Ultrawork loop.',
+      nextAction: 'Run the next bounded Mission loop.',
       warnings: [],
     };
     const memory: MemoryReadinessSnapshot = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { UltraworkRunStateMachine } from '../../src/ultrawork';
+import { UltraworkRunStateMachine } from '#/mission';
 
 describe('UltraworkRunStateMachine', () => {
   it('creates a run and advances through the fixed Ultrawork spine', () => {

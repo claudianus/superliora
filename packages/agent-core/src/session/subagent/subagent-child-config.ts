@@ -12,7 +12,7 @@ import {
   deliverSwarmBusCoordination,
   emitSwarmCollaborationMessage,
   emitSwarmCollaborationMention,
-} from '../../collaboration/swarm-bus-coordination';
+} from '#/fleet';
 import { SwarmChannelTool } from '../../tools/builtin/collaboration/swarm-channel';
 import {
   DEFAULT_AGENT_PROFILES,
@@ -21,7 +21,7 @@ import {
 } from '../../profile';
 import { resolveSubagentModelAlias } from '../../utils/cheap-model';
 import { checkContractFile } from '../contract-check';
-import { getDefaultSwarmFileLeaseRegistry } from '../../collaboration/swarm-file-lease';
+import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
 import type { Session } from '../index';
 import {
   createExpertSubagentProfile,
@@ -139,8 +139,9 @@ export async function configureSubagentChild(
   options: RunSubagentOptions,
   profileBaseName?: string,
 ): Promise<void> {
+  const cwd = options.worktreeDir ?? parent.config.cwd;
   child.config.update({
-    cwd: parent.config.cwd,
+    cwd,
     modelAlias: resolveSubagentModelAlias(
       profile.name,
       profileBaseName,
@@ -153,6 +154,9 @@ export async function configureSubagentChild(
     ),
     thinkingLevel: parent.config.thinkingLevel,
   });
+  if (options.worktreeDir !== undefined) {
+    child.setKaos(parent.kaos.withCwd(cwd));
+  }
 
   const context = await prepareSystemPromptContext(
     session.systemContextKaos(child.kaos.getcwd()),

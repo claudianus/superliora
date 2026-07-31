@@ -21,6 +21,7 @@ import type { LoopInterruptReason, LoopEventDispatcher, LoopTurnInterruptedEvent
 import type { LLM } from './llm';
 import { resetToolFailureTracker } from './tool-call-guards';
 import { executeLoopStep } from './turn-step';
+import type { ToolParallelStatus } from './tool-parallel-status';
 import type {
   ExecutableTool,
   LoopHooks,
@@ -44,6 +45,7 @@ export interface RunTurnInput {
   readonly log?: Logger | undefined;
   readonly maxSteps?: number | undefined;
   readonly maxRetryAttempts?: number;
+  readonly toolParallelStatus?: ToolParallelStatus | undefined;
   readonly recordStepUsage?:
     | ((
         usage: TokenUsage,
@@ -66,6 +68,7 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     maxSteps,
     maxRetryAttempts,
     recordStepUsage: hostRecordStepUsage,
+    toolParallelStatus,
   } = input;
   // Reset tool failure tracking at turn boundary to prevent cross-turn leaks.
   resetToolFailureTracker();
@@ -106,6 +109,7 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
         currentStep: steps,
         maxRetryAttempts,
         recordUsage: recordStepUsage,
+        toolParallelStatus,
       });
       activeStep = undefined;
 

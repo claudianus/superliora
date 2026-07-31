@@ -4,7 +4,7 @@ This page collects typical SuperLiora CLI scenarios along with ready-to-use prom
 
 ## Understanding an unfamiliar project
 
-When taking over an unfamiliar repository, a good first step is to use `kimi --plan` for a read-only research plan. In the TUI, press `Shift-Tab` only when you want Ultrawork mode to interview first, set a verifiable goal, and carry the work through verification.
+When taking over an unfamiliar repository, a good first step is to use `kimi --plan` for a read-only research plan. In the TUI, press `Shift-Tab` only when you want Mission mode to interview first, set a verifiable goal, and carry the work through verification.
 
 ```
 Give me an overview of this repository's architecture. Specifically:

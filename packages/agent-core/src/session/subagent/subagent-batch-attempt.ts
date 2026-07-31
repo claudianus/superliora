@@ -109,6 +109,7 @@ export async function runSubagentAttempt<T>(
     signal: attempt.controller.signal,
     timeoutMs: task.timeout,
     contractPath: task.contractPath,
+    worktreeDir: task.worktreeDir,
     onReady,
     suppressRateLimitFailureEvent: true,
   };

@@ -1,3 +1,4 @@
+import { collectFooterStaleAppStatePatches } from '../../components/chrome/footer/footer-badges';
 import type { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { AppState, LivePaneState } from '../../types';
 import { INITIAL_LIVE_PANE } from '../../types';
@@ -89,7 +90,10 @@ export class AppStateController {
 
   setAppState(patch: Partial<AppState>): void {
     const { host } = this;
-    if (!hasPatchChanges(host.state.appState, patch)) return;
+    const footerStale = collectFooterStaleAppStatePatches(host.state.appState);
+    const mergedPatch =
+      Object.keys(footerStale).length > 0 ? { ...footerStale, ...patch } : patch;
+    if (!hasPatchChanges(host.state.appState, mergedPatch)) return;
     const additionalDirsChanged =
       'additionalDirs' in patch &&
       !sameStringArrays(host.state.appState.additionalDirs, patch.additionalDirs ?? []);
@@ -100,7 +104,7 @@ export class AppStateController {
       patch.streamingPhase === 'idle';
     const goalChanged = 'goal' in patch;
     const modeBeats = collectFooterModeBeats(host.state.appState, patch);
-    Object.assign(host.state.appState, patch);
+    Object.assign(host.state.appState, mergedPatch);
     if ('planMode' in patch || 'ultraworkMode' in patch) host.updateEditorBorderHighlight();
     if ('appearance' in patch) host.appearanceController.apply();
     if (

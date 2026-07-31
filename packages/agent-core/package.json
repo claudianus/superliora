@@ -27,6 +27,10 @@
   ],
   "type": "module",
   "imports": {
+    "#/mission": "./src/mission/index.ts",
+    "#/fleet": "./src/fleet/index.ts",
+    "#/ultrawork": "./src/ultrawork/index.ts",
+    "#/collaboration": "./src/fleet/index.ts",
     "#/*": [
       "./src/*.ts",
       "./src/*/index.ts"
@@ -44,6 +48,22 @@
     "./session/store": {
       "types": "./src/session/store/index.ts",
       "default": "./src/session/store/index.ts"
+    },
+    "./mission": {
+      "types": "./src/mission/index.ts",
+      "default": "./src/mission/index.ts"
+    },
+    "./fleet": {
+      "types": "./src/fleet/index.ts",
+      "default": "./src/fleet/index.ts"
+    },
+    "./ultrawork": {
+      "types": "./src/ultrawork/index.ts",
+      "default": "./src/ultrawork/index.ts"
+    },
+    "./collaboration": {
+      "types": "./src/fleet/index.ts",
+      "default": "./src/fleet/index.ts"
     },
     "./*": {
       "types": "./src/*.ts",

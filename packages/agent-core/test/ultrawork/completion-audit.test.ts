@@ -5,7 +5,7 @@ import type { UltraworkRun, WorkGraphNode } from '@superliora/protocol';
 import {
   auditUltraworkCompletion,
   formatCompletionAuditRejection,
-} from '../../src/ultrawork/completion-audit';
+} from '#/mission';
 
 function baseRun(overrides: Partial<UltraworkRun> = {}): UltraworkRun {
   return {

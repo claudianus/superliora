@@ -66,6 +66,10 @@ export interface SessionStatusFacets {
     | undefined;
   readonly usage: Awaited<ReturnType<ResolvedCoreAPI['getUsage']>> | undefined;
   readonly providerRouteStatus: ProviderRouteStatus | null;
+  readonly circuitBreakers: Awaited<ReturnType<ResolvedCoreAPI['getCircuitBreakers']>> | undefined;
+  readonly cacheFrozen: Awaited<ReturnType<ResolvedCoreAPI['getCacheFrozen']>> | undefined;
+  readonly parallelTools: Awaited<ReturnType<ResolvedCoreAPI['getParallelToolsStatus']>> | undefined;
+  readonly oauth: Awaited<ReturnType<ResolvedCoreAPI['getOAuthStatus']>> | undefined;
 }
 
 /**
@@ -76,8 +80,20 @@ export interface SessionStatusFacets {
  * derives, it never fetches.
  */
 export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
-  const { config, context, permission, plan, swarmMode, premiumQualityMode, usage, providerRouteStatus } =
-    facets;
+  const {
+    config,
+    context,
+    permission,
+    plan,
+    swarmMode,
+    premiumQualityMode,
+    usage,
+    providerRouteStatus,
+    circuitBreakers,
+    cacheFrozen,
+    parallelTools,
+    oauth,
+  } = facets;
   const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
   const contextTokens = context.tokenCount;
   const contextUsage = maxContextTokens > 0 ? contextTokens / maxContextTokens : 0;
@@ -95,11 +111,30 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     maxContextTokens,
     contextUsage,
     cacheHitRate: usage?.cacheHitRate,
+    cacheWarmStreak: usage?.cacheWarmStreak,
+    ...(cacheFrozen !== undefined ? { cacheFrozen } : {}),
+    ...(parallelTools !== undefined && parallelTools.parallelToolsInFlight > 0
+      ? { parallelToolsInFlight: parallelTools.parallelToolsInFlight }
+      : {}),
+    ...(parallelTools?.maxParallelTools !== undefined && parallelTools.maxParallelTools > 0
+      ? { maxParallelTools: parallelTools.maxParallelTools }
+      : {}),
+    ...(permission.pendingInterventions !== undefined
+      ? { pendingInterventions: permission.pendingInterventions }
+      : {}),
+    ...(permission.staleInterventions !== undefined
+      ? { staleInterventions: permission.staleInterventions }
+      : {}),
+    ...(permission.oldestInterventionAgeMs !== undefined
+      ? { oldestInterventionAgeMs: permission.oldestInterventionAgeMs }
+      : {}),
+    ...(circuitBreakers !== undefined ? { circuitBreakers } : {}),
     roleModels: config.roleModels,
     usage: hasUsage ? usage : undefined,
     providerRouteStatus,
     contextOS: context.contextOS,
     microCompaction: context.microCompaction,
     autoDream: context.autoDream,
+    ...(oauth !== undefined ? { oauth } : {}),
   };
 }

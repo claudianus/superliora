@@ -25,7 +25,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: 'python -c open(file)',
-        message: 'Use Read or LioraRead instead of python -c open(...) for file contents.',
+        message: 'Use Read or RepoQuery instead of python -c open(...) for file contents.',
       };
     }
   }
@@ -50,7 +50,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: `node ${flag} readFile`,
-        message: `Use Read or LioraRead instead of node ${flag} readFile for file contents.`,
+        message: `Use Read or RepoQuery instead of node ${flag} readFile for file contents.`,
       };
     }
   }
@@ -71,7 +71,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: 'bun -e readFile',
-        message: 'Use Read or LioraRead instead of bun -e for file contents.',
+        message: 'Use Read or RepoQuery instead of bun -e for file contents.',
       };
     }
   }
@@ -91,7 +91,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: 'deno eval readFile',
-        message: 'Use Read or LioraRead instead of deno eval for file contents.',
+        message: 'Use Read or RepoQuery instead of deno eval for file contents.',
       };
     }
   }
@@ -103,7 +103,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: 'ruby -e File.read',
-        message: 'Use Read or LioraRead instead of ruby -e File.read for file contents.',
+        message: 'Use Read or RepoQuery instead of ruby -e File.read for file contents.',
       };
     }
   }
@@ -115,7 +115,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: 'php -r file_get_contents',
-        message: 'Use Read or LioraRead instead of php -r file_get_contents for file contents.',
+        message: 'Use Read or RepoQuery instead of php -r file_get_contents for file contents.',
       };
     }
   }
@@ -144,7 +144,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
         return {
           prefer: 'Read',
           pattern: 'perl -e open/read',
-          message: 'Use Read or LioraRead instead of perl one-liners for file contents.',
+          message: 'Use Read or RepoQuery instead of perl one-liners for file contents.',
         };
       }
       // perl -ne/-nE/-pe/-pE/-lne 'print' path  (file arg, no pipe)
@@ -161,7 +161,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
           return {
             prefer: 'Read',
             pattern: 'perl -ne file',
-            message: 'Use Read or LioraRead instead of perl -ne for file contents.',
+            message: 'Use Read or RepoQuery instead of perl -ne for file contents.',
           };
         }
       }
@@ -191,7 +191,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: 'ruby -ne file',
-        message: 'Use Read or LioraRead instead of ruby -ne/-pe for file contents.',
+        message: 'Use Read or RepoQuery instead of ruby -ne/-pe for file contents.',
       };
     }
   }
@@ -203,7 +203,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       return {
         prefer: 'Read',
         pattern: 'lua -e io.open',
-        message: 'Use Read or LioraRead instead of lua -e io.open for file contents.',
+        message: 'Use Read or RepoQuery instead of lua -e io.open for file contents.',
       };
     }
   }

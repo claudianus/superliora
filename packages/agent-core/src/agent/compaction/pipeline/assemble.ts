@@ -317,7 +317,7 @@ export function archiveCompactedToolExchanges(
     }
     guidance =
       `\n\n<compaction-archives>Tool exchanges compacted above were archived. ` +
-      `Use LioraExpand(id=...) to recover a group's original content when the summary is insufficient. ` +
+      `Use Expand (id=...) to recover a group's original content when the summary is insufficient. ` +
       `archive_ids="${inlineIds.join(',')}"${overflowNote}</compaction-archives>`;
   }
   return { rawRefs, guidance };

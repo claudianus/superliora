@@ -8,7 +8,7 @@ import {
   isWastedBudgetRound,
   recordSwarmBudgetRound,
   suggestSwarmBudgetKill,
-} from '../../src/collaboration/swarm-budget';
+} from '#/fleet';
 
 describe('swarm-budget.ts — high-signal detection', () => {
   describe('hasHighSignalBudgetProgress', () => {

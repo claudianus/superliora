@@ -12,7 +12,7 @@ import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'pathe';
 
 import { resolveLioraHome } from '../config/path';
-import { writeFileAtomic } from '../ultrawork/run-store';
+import { writeFileAtomic } from '#/mission';
 
 export interface StaffingOutcomeInput {
   /** Hire was kept / accepted into the team. */

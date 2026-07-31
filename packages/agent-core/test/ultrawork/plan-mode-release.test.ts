@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Agent } from '../../src/agent';
-import { maybeFinishUltraworkRun } from '../../src/ultrawork/finish-run';
+import { maybeFinishUltraworkRun } from '#/mission';
 import { testKaos } from '../fixtures/test-kaos';
 
 function ultraworkActivation(id: string) {

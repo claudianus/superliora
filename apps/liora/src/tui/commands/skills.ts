@@ -29,33 +29,40 @@ function getSkillSlashCommandGroup(source: SkillSummary['source']): number {
   return source === 'builtin' ? 0 : 1;
 }
 
-export function buildSkillSlashCommands(skills: readonly SkillSummary[]): SkillSlashCommands {
+export function buildSkillSlashCommands(
+  skills: readonly SkillSummary[],
+  options: { readonly disabledNames?: ReadonlySet<string> } = {},
+): SkillSlashCommands {
   const commandMap = new Map<string, string>();
+  const disabled = options.disabledNames;
   const sortedSkills = [...skills].toSorted(compareSkillSlashCommands);
-  const commands = sortedSkills.filter(isUserActivatableSkill).map((skill) => {
-    const commandName =
-      skill.source === 'builtin' || skill.isSubSkill === true
-        ? skill.name
-        : `skill:${skill.name}`;
-    commandMap.set(commandName, skill.name);
-    const sourceHint =
-      skill.source === 'builtin'
-        ? 'builtin'
-        : skill.source === undefined
-          ? undefined
-          : String(skill.source);
-    const baseDesc = (skill.description ?? '').trim();
-    const description =
-      sourceHint !== undefined && sourceHint !== 'builtin' && baseDesc.length > 0
-        ? `${baseDesc} · ${sourceHint}`
-        : sourceHint !== undefined && sourceHint !== 'builtin'
-          ? sourceHint
-          : baseDesc;
-    return {
-      name: commandName,
-      aliases: [],
-      description,
-    };
-  });
+  const commands = sortedSkills
+    .filter(isUserActivatableSkill)
+    .filter((skill) => disabled === undefined || !disabled.has(skill.name))
+    .map((skill) => {
+      const commandName =
+        skill.source === 'builtin' || skill.isSubSkill === true
+          ? skill.name
+          : `skill:${skill.name}`;
+      commandMap.set(commandName, skill.name);
+      const sourceHint =
+        skill.source === 'builtin'
+          ? 'builtin'
+          : skill.source === undefined
+            ? undefined
+            : String(skill.source);
+      const baseDesc = (skill.description ?? '').trim();
+      const description =
+        sourceHint !== undefined && sourceHint !== 'builtin' && baseDesc.length > 0
+          ? `${baseDesc} · ${sourceHint}`
+          : sourceHint !== undefined && sourceHint !== 'builtin'
+            ? sourceHint
+            : baseDesc;
+      return {
+        name: commandName,
+        aliases: [],
+        description,
+      };
+    });
   return { commands, commandMap };
 }

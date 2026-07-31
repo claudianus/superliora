@@ -48,6 +48,7 @@ import type {
   SessionUsage,
   SkillSearchResult,
   SkillSummary,
+  HookRegistrySummary,
   ToolInfo,
   Unsubscribe,
 } from '#/session/types';
@@ -450,6 +451,11 @@ export abstract class SessionCore {
   async listSkills(): Promise<readonly SkillSummary[]> {
     this.ensureOpen();
     return this.rpc.listSkills({ sessionId: this.id });
+  }
+
+  getHookRegistry(): Promise<HookRegistrySummary> {
+    this.ensureOpen();
+    return this.rpc.getHookRegistry({ sessionId: this.id });
   }
 
   async getTools(): Promise<readonly ToolInfo[]> {

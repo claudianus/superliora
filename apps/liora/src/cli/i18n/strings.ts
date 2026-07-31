@@ -37,7 +37,7 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
     'Load a Claude plugin from this directory for the current session only (not persisted). Can be repeated.',
   'cli.option.addDir':
     'Add an additional workspace directory for this session. Can be repeated.',
-  'cli.option.plan': 'Start with Ultrawork plan steering.',
+  'cli.option.plan': 'Start with Mission plan steering.',
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
   'cli.option.worktree':
     'Create a git worktree for this session (optional name). Isolates file edits from the main checkout.',
@@ -84,7 +84,7 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.pluginDir':
     '이 세션에만 Claude 플러그인을 디렉터리에서 로드합니다(저장되지 않음). 여러 번 지정할 수 있습니다.',
   'cli.option.addDir': '이 세션에 추가 작업 디렉터리를 등록합니다. 여러 번 지정할 수 있습니다.',
-  'cli.option.plan': 'Ultrawork 플랜 조향으로 시작합니다.',
+  'cli.option.plan': 'Mission 플랜 조향으로 시작합니다.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
   'cli.option.worktree':
     '이 세션용 git worktree를 만듭니다(이름 선택). 메인 checkout과 파일 편집을 격리합니다.',

@@ -9,6 +9,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { flushTelemetrySync, initializeTelemetry, shutdownTelemetry, track } from '../src';
 import { isTelemetryDisabledByEnv } from '../src/bootstrap';
+import {
+  getTelemetryRuntimeGlance,
+  isTelemetryOptInEnvSet,
+  resolveTelemetryEndpoint,
+  TELEMETRY_ENDPOINT,
+  TELEMETRY_ENDPOINT_ENV,
+  TELEMETRY_OPT_IN_ENV,
+} from '../src/glance';
 import { TelemetryClient, resetDefaultTelemetryClientForTests } from '../src/client';
 import { installCrashHandlersForClient, setCrashPhase, uninstallCrashHandlers } from '../src/crash';
 import { EventSink } from '../src/sink';
@@ -616,6 +624,51 @@ describe('AsyncTransport', () => {
 
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(() => statSync(join(homeDir, 'telemetry'))).toThrow();
+  });
+});
+
+describe('telemetry glance', () => {
+  it('resolves default and env override endpoints', () => {
+    expect(resolveTelemetryEndpoint({})).toBe(TELEMETRY_ENDPOINT);
+    expect(
+      resolveTelemetryEndpoint({ [TELEMETRY_ENDPOINT_ENV]: 'https://example.test/events' }),
+    ).toBe('https://example.test/events');
+  });
+
+  it('detects SUPERLIORA_TELEMETRY opt-in marker env', () => {
+    expect(isTelemetryOptInEnvSet({ [TELEMETRY_OPT_IN_ENV]: '1' })).toBe(true);
+    expect(isTelemetryOptInEnvSet({})).toBe(false);
+  });
+
+  it('reports live sink + endpoint after initializeTelemetry', async () => {
+    initializeTelemetry({
+      homeDir: await tempHome(),
+      deviceId: 'dev',
+      appName: 'kimi-code-cli',
+      version: '1.2.3',
+      enabled: true,
+    });
+
+    expect(getTelemetryRuntimeGlance()).toEqual({
+      liveEnabled: true,
+      endpoint: TELEMETRY_ENDPOINT,
+    });
+
+    await shutdownTelemetry();
+  });
+
+  it('exposes upload endpoint from EventSink transport', () => {
+    const transport = new AsyncTransport({
+      homeDir: '/tmp/home',
+      deviceId: 'dev',
+      endpoint: 'https://mock.test/events',
+    });
+    const sink = new EventSink({
+      transport,
+      context: { appName: 'test', version: '1' },
+    });
+    expect(sink.getUploadEndpoint()).toBe('https://mock.test/events');
+    expect(transport.getEndpoint()).toBe('https://mock.test/events');
   });
 });
 

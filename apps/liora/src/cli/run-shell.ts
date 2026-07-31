@@ -32,6 +32,10 @@ import type { CLIOptions } from './options';
 import { resolveSessionWorkDir } from './resolve-worktree';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import type { UpdateNoticeInfo } from './update/preflight';
+import type { RuntimeDegradedEvent } from '@superliora/protocol';
+
+import { startHarnessOAuthProactiveRefresh, buildOAuthRefreshDegradedEventFromOutcome } from '#/utils/oauth/proactive-refresh-host';
+
 import { createLioraHostIdentity } from './version';
 
 export async function runShell(opts: CLIOptions, version: string, updateNotice?: UpdateNoticeInfo): Promise<void> {
@@ -75,12 +79,14 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
         track('oauth_refresh', { success: true });
         return;
       }
-      track('oauth_refresh', {
-        success: false,
-        reason: outcome.reason,
-      });
+      track('oauth_refresh', { success: false, reason: outcome.reason });
+      surfaceOAuthDegraded?.(buildOAuthRefreshDegradedEventFromOutcome(outcome));
     },
     sessionStartedProperties: { yolo: opts.yolo, auto: opts.auto, plan: opts.plan, afk: false },
+  });
+  let surfaceOAuthDegraded: ((event: RuntimeDegradedEvent) => void) | undefined;
+  const oauthProactiveRefresh = startHarnessOAuthProactiveRefresh(harness, {
+    onDegraded: (event) => surfaceOAuthDegraded?.(event),
   });
   log.info('liora starting', {
     version,
@@ -116,6 +122,16 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
     updateNotice,
     sessionMetadata: resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined,
   });
+  surfaceOAuthDegraded = (event) => {
+    tui.setAppState({
+      runtimeDegraded: {
+        scope: event.scope,
+        reason: event.reason,
+        hint: event.hint,
+        atMs: event.atMs ?? Date.now(),
+      },
+    });
+  };
 
   initializeCliTelemetry({
     harness,
@@ -142,6 +158,7 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
   };
 
   tui.onExit = async (exitCode = 0) => {
+    oauthProactiveRefresh?.stop();
     const sessionId = tui.getCurrentSessionId();
     const hasContent = tui.hasSessionContent();
     setCrashPhase('shutdown');
@@ -179,6 +196,7 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
       mcp_ms: mcpMs,
     });
   } catch (error) {
+    oauthProactiveRefresh?.stop();
     setCrashPhase('shutdown');
     trackLifecycle('exit', { duration_s: (Date.now() - startedAt) / 1000 });
     await shutdownTelemetry({ timeoutMs: CLI_SHUTDOWN_TIMEOUT_MS });

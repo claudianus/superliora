@@ -1,5 +1,6 @@
 import { arch, platform, release } from 'node:os';
 
+import { AsyncTransport } from './transport';
 import type {
   EnrichedTelemetryEvent,
   TelemetryContext,
@@ -75,6 +76,14 @@ export class EventSink {
 
   clearBuffer(): void {
     this.buffer = [];
+  }
+
+  /** Upload URL when the sink uses {@link AsyncTransport}; undefined for custom transports. */
+  getUploadEndpoint(): string | undefined {
+    if (this.transport instanceof AsyncTransport) {
+      return this.transport.getEndpoint();
+    }
+    return undefined;
   }
 
   async flush(signal?: AbortSignal): Promise<void> {

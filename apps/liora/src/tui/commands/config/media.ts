@@ -7,6 +7,14 @@ import type { SlashCommandHost } from '../hub/dispatch';
  * Settings → Media fallback: policy for attached images/videos when the
  * current chat model is text-only. Persisted to config.toml `[media]`.
  */
+export function handleMediaCommand(host: SlashCommandHost, args: string): void {
+  if (args.trim().length > 0) {
+    host.showError('Usage: /media');
+    return;
+  }
+  showMediaFallbackPicker(host);
+}
+
 export function showMediaFallbackPicker(host: SlashCommandHost): void {
   const current = host.state.appState.nonVisionFallbackPolicy;
   const mark = (value: string, label: string): string =>

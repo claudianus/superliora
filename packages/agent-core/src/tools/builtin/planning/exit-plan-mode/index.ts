@@ -8,7 +8,7 @@
 
 import type { Agent } from '#/agent/index';
 import { seedUltraworkGraphFromApprovedPlan } from '#/agent/plan/work-graph-from-plan';
-import { maybeAdvanceUltraworkStage, maybeFinishUltraworkRun } from '../../../../ultrawork';
+import { maybeAdvanceUltraworkStage, maybeFinishUltraworkRun } from '#/mission';
 import { ultraSwarmDecision } from '#/agent/plan/ultra-swarm-decision';
 import { routeFromPlanSignals } from '#/agent/plan/ultra-swarm-routing';
 import type { PlanData } from '#/agent/plan';

@@ -63,8 +63,8 @@ describe('NoticeComponent', () => {
 
     try {
       const component = new NoticeMessageComponent(
-        'Ultrawork mode: ON',
-        'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.',
+        'Mission mode: ON',
+        'Shift-Tab routes the next task through Plan before any Goal or Fleet work.',
       );
       component.invalidate();
       const rendered = component.render(120).join('\n');
@@ -73,8 +73,8 @@ describe('NoticeComponent', () => {
       // Premium ambient effects substitute some spaces with particle glyphs
       // (· ∙ • ◦ *); normalize them back to spaces before checking the title.
       const normalized = strip(rendered).replaceAll(/[·∙•◦*]/g, ' ');
-      expect(normalized).toContain('Ultrawork mode: ON');
-      expect(normalized).toContain('Shift-Tab routes the next task through UltraPlan');
+      expect(normalized).toContain('Mission mode: ON');
+      expect(normalized).toContain('Shift-Tab routes the next task through Plan');
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];

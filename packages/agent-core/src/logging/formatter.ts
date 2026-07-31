@@ -1,3 +1,5 @@
+import { redactSecretsInText } from '#/security/redaction';
+
 import type { LogContext, LogEntry } from './types';
 
 export const MSG_MAX_CHARS = 200;
@@ -113,7 +115,7 @@ function redactString(value: string): string {
   for (const pattern of RAW_SECRET_PATTERNS) {
     out = out.replace(pattern, `$1${REDACTED}`);
   }
-  return out;
+  return redactSecretsInText(out).text;
 }
 
 function quote(value: string): string {

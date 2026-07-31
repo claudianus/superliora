@@ -4,16 +4,14 @@ import type { UltraworkRun } from '@superliora/protocol';
 import { Agent } from '../../src/agent';
 import { testKaos } from '../fixtures/test-kaos';
 import {
+  CONTINUE_GOAL_INPUT,
   detectInterruptedWorkResumeIntentWithLlm,
   hasInterruptedWorkResumeContext,
   matchExplicitResumePhrase,
   shouldActOnResumeIntent,
-} from '../../src/ultrawork/resume-intent-llm';
-import {
   buildResumeWithSteering,
   maybeTransformPromptForInterruptedWorkResume,
-} from '../../src/ultrawork/interrupted-work-resume';
-import { CONTINUE_GOAL_INPUT } from '../../src/ultrawork/resume-intent-llm';
+} from '#/mission';
 
 describe('interrupted work resume intent', () => {
   it('detects resumable context from paused goals and blocked ultrawork runs', () => {

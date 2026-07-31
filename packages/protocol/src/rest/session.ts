@@ -17,6 +17,7 @@
 import { z } from 'zod';
 
 import { messageSchema } from '../message';
+import { circuitBreakerStatusSchema } from '../events/runtime';
 import { cursorQuerySchema, pageResponseSchema } from '../pagination';
 import { providerRouteStatusSchema } from '../providerRoute';
 import {
@@ -115,6 +116,13 @@ export const microCompactionDashboardSchema = z.object({
   by_trigger: z.record(z.string(), z.number().int().nonnegative()),
 });
 
+export const sessionOAuthStatusSchema = z.object({
+  pool_size: z.number().int().positive().optional(),
+  next_refresh_at_ms: z.number().int().nonnegative().optional(),
+});
+
+export type SessionOAuthStatus = z.infer<typeof sessionOAuthStatusSchema>;
+
 export const sessionStatusResponseSchema = z.object({
   status: sessionStatusSchema,
   model: z.string().optional(),
@@ -126,6 +134,9 @@ export const sessionStatusResponseSchema = z.object({
   max_context_tokens: z.number().int().nonnegative(),
   context_usage: z.number().min(0).max(1),
   cache_hit_rate: z.number().min(0).max(1).optional(),
+  cache_warm_streak: z.number().int().nonnegative().optional(),
+  cache_frozen: z.boolean().optional(),
+  circuit_breakers: circuitBreakerStatusSchema.optional(),
   role_models: z
     .object({
       compaction: z.string().min(1).nullable().optional(),
@@ -139,6 +150,7 @@ export const sessionStatusResponseSchema = z.object({
   provider_route: providerRouteStatusSchema.nullable().optional(),
   context_os: contextOsHealthSchema.optional(),
   micro_compaction: microCompactionDashboardSchema.optional(),
+  oauth: sessionOAuthStatusSchema.optional(),
 });
 export type SessionStatusResponse = z.infer<typeof sessionStatusResponseSchema>;
 

@@ -24,6 +24,7 @@ import { isMotionTheatreActive, type MotionBeatController } from '../../utils/re
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { noteGoalCompletionMeteorBurst } from '../../features/stage/stage-letterbox-sky';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
+import { shouldGoalXpPulse } from '../../utils/goal/goal-xp-pulse';
 
 /** Host surface required by goal-updated / queued-goal promotion handling. */
 export interface GoalQueueEventHost {
@@ -76,7 +77,30 @@ export class SessionEventGoalQueue {
   }
 
   handleUpdated(event: GoalUpdatedEvent): void {
-    this.host.setAppState({ goal: event.snapshot });
+    const prevGoal = this.host.state.appState.goal;
+    const patch: Partial<AppState> = { goal: event.snapshot };
+    if (event.snapshot === null) {
+      patch.goalEvidenceCount = 0;
+    } else if (
+      prevGoal !== null &&
+      prevGoal !== undefined &&
+      prevGoal.goalId !== event.snapshot.goalId
+    ) {
+      patch.goalEvidenceCount = 0;
+    }
+    if (shouldGoalXpPulse(prevGoal, event.snapshot)) {
+      const nowMs = appearanceAnimationNow();
+      patch.goalXpPulse = { atMs: nowMs };
+      patch.goalEvidenceCount = (this.host.state.appState.goalEvidenceCount ?? 0) + 1;
+      this.host.motionBeats.play({
+        name: 'status_open',
+        seed: 'goal-xp',
+        title: 'Goal progress',
+        nowMs,
+        theatreActive: isMotionTheatreActive(this.host.state.appState),
+      });
+    }
+    this.host.setAppState(patch);
     if (event.snapshot === null && this.goalCompletionAwaitingClear) {
       this.goalCompletionAwaitingClear = false;
       this.queuedGoalPromotionPending = true;

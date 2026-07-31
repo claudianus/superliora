@@ -11,7 +11,7 @@ import {
   ExitPlanModeTool,
 } from '../../src/tools/builtin/planning/exit-plan-mode';
 import { TODO_STORE_KEY } from '../../src/tools/builtin/state/todo-list';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '#/mission';
 import { executeTool } from './fixtures/execute-tool';
 
 const signal = new AbortController().signal;

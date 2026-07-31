@@ -56,9 +56,21 @@ export interface PermissionApprovalResultRecord {
   readonly result: ApprovalResponse;
 }
 
+/** Ops / Never-Halt visibility threshold for stale intervention badges. */
+export const STALE_INTERVENTION_AGE_MS = 120_000;
+
+/** Opt-in: drop orphaned queue entries older than this ms (env-only). */
+export const PERMISSION_AUTO_EXPIRE_ENV = 'SUPERLIORA_PERMISSION_AUTO_EXPIRE_MS';
+
 export interface PermissionData {
   mode: PermissionMode;
   rules: PermissionRule[];
+  /** Non-blocking approval queue depth while host RPC is pending. */
+  pendingInterventions?: number;
+  /** Queue entries older than {@link STALE_INTERVENTION_AGE_MS} (visibility only). */
+  staleInterventions?: number;
+  /** Age in ms of the longest-waiting queued intervention (Ops/Never-Halt glance). */
+  oldestInterventionAgeMs?: number;
 }
 
 export type PermissionDecision = 'approve' | 'deny' | 'ask';

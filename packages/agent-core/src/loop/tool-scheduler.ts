@@ -25,9 +25,27 @@ interface ScheduledToolCallTask<Result> extends ToolCallTask<Result> {
   readonly result: ControlledPromise<Result>;
 }
 
+export type ToolParallelChangeListener = (
+  inFlight: number,
+  maxParallel: number,
+) => void;
+
 export class ToolScheduler<Result> {
   private readonly activeTasks: Array<ScheduledToolCallTask<Result>> = [];
   private queuedTasks: Array<ScheduledToolCallTask<Result>> = [];
+  private peakParallel = 0;
+
+  constructor(private readonly onParallelChange?: ToolParallelChangeListener) {}
+
+  /** Active tool tasks currently executing (non-conflicting fanout). */
+  get parallelToolsInFlight(): number {
+    return this.activeTasks.length;
+  }
+
+  /** Peak concurrent active tasks observed for this scheduler instance. */
+  get maxParallelTools(): number {
+    return this.peakParallel;
+  }
 
   add(task: ToolCallTask<Result>): Promise<Result> {
     const result = createControlledPromise<Result>();
@@ -63,6 +81,7 @@ export class ToolScheduler<Result> {
 
   private start(task: ScheduledToolCallTask<Result>): void {
     this.activeTasks.push(task);
+    this.notifyParallelChange();
     let started: Promise<{ readonly result: Promise<Result> }>;
     try {
       started = task.start();
@@ -83,7 +102,14 @@ export class ToolScheduler<Result> {
   private finish(task: ScheduledToolCallTask<Result>): void {
     const index = this.activeTasks.indexOf(task);
     if (index >= 0) this.activeTasks.splice(index, 1);
+    this.notifyParallelChange();
     this.startQueuedTasks();
+  }
+
+  private notifyParallelChange(): void {
+    const inFlight = this.parallelToolsInFlight;
+    if (inFlight > this.peakParallel) this.peakParallel = inFlight;
+    this.onParallelChange?.(inFlight, this.peakParallel);
   }
 
   private startQueuedTasks(): void {

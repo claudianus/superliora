@@ -20,6 +20,8 @@ export interface CLIOptions {
   addDirs?: string[];
   /** Automatically resume the first goal in the queue on startup. */
   resumeGoal?: boolean;
+  /** Main agent tool profile override (sets SUPERLIORA_PROFILE for this process). */
+  profile?: string;
   /**
    * Create a git worktree for this session.
    * - `true`: auto-generated name

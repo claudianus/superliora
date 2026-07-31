@@ -1,5 +1,5 @@
 import type { Agent } from '../..';
-import { isUltraworkWorkflowReportWritePath } from '../../../ultrawork/workflow-report';
+import { isUltraworkWorkflowReportWritePath } from '#/mission';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 

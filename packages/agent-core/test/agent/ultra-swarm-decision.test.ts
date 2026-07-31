@@ -275,7 +275,7 @@ describe('UltraSwarmEngageGate emits routing event', () => {
 });
 
 
-import { buildResumeWithSteering } from '../../src/ultrawork/interrupted-work-resume';
+import { buildResumeWithSteering } from '#/mission';
 import {
   consumeUltraSwarmRestaffRequests,
   createUltraSwarmRunContext,

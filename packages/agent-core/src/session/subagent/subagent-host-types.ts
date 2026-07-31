@@ -31,6 +31,8 @@ export interface RunSubagentOptions {
   readonly contractPath?: string;
   /** File paths the subagent owns; claimed at spawn so overlaps fail fast (T4-2). */
   readonly ownership?: readonly string[];
+  /** Isolated git worktree cwd for fleet workers (SUPERLIORA_FLEET_WORKTREE=1 soft path). */
+  readonly worktreeDir?: string;
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }

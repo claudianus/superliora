@@ -56,6 +56,8 @@ describe('accounts-manager dialogs', () => {
     });
     const out = picker.render(120).map(strip);
     expect(out.some((line) => line.includes('Accounts · xai-grok'))).toBe(true);
+    expect(out.some((line) => line.includes('Proactive refresh'))).toBe(true);
+    expect(out.some((line) => line.includes('401/quota'))).toBe(true);
     expect(out.some((line) => line.includes('work · primary'))).toBe(true);
     expect(out.some((line) => line.includes('fallback'))).toBe(true);
     expect(out.some((line) => line.includes(ACCOUNTS_PRIMARY_MARK))).toBe(true);

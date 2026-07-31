@@ -20,6 +20,10 @@ import {
   type CompactionStartedEvent,
 } from './compaction';
 import { errorEventSchema, warningEventSchema, type ErrorEvent, type WarningEvent } from './common';
+import {
+  runtimeDegradedEventSchema,
+  type RuntimeDegradedEvent,
+} from './runtime';
 import { goalUpdatedEventSchema, type GoalUpdatedEvent } from './goal';
 import {
   cronFiredEventSchema,
@@ -111,6 +115,7 @@ import {
   type TurnStepRetryingEvent,
   type TurnStepStartedEvent,
 } from './turn';
+import { normalizeMissionOrFleetUltraworkEventAlias } from './fleet-alias';
 import {
   ultraworkCollaborationDebateEventSchema,
   ultraworkCollaborationMentionEventSchema,
@@ -213,11 +218,12 @@ export type AgentEvent =
   | BackgroundTaskStartedEvent
   | BackgroundTaskTerminatedEvent
   | CronFiredEvent
-  | PromptSubmittedEvent;
+  | PromptSubmittedEvent
+  | RuntimeDegradedEvent;
 
 export type Event = AgentEvent & { agentId: string; sessionId: string };
 
-export const agentEventSchema = z.discriminatedUnion('type', [
+const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   errorEventSchema,
   warningEventSchema,
   agentStatusUpdatedEventSchema,
@@ -284,7 +290,20 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   backgroundTaskTerminatedEventSchema,
   cronFiredEventSchema,
   promptSubmittedEventSchema,
-]) satisfies z.ZodType<AgentEvent>;
+  runtimeDegradedEventSchema,
+]);
+
+export const agentEventSchema = z.preprocess((value) => {
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    'type' in value &&
+    typeof (value as { type: unknown }).type === 'string'
+  ) {
+    return normalizeMissionOrFleetUltraworkEventAlias(value as { type: string });
+  }
+  return value;
+}, agentEventDiscriminatedSchema) as z.ZodType<AgentEvent>;
 
 export const eventSchema = agentEventSchema.and(
   z.object({
@@ -316,6 +335,7 @@ export const VOLATILE_EVENT_TYPES = [
   'subagent.todo.updated',
   'tools.update_store',
   'compaction.progress',
+  'runtime.degraded',
 ] as const satisfies readonly AgentEvent['type'][];
 
 export type VolatileEventType = (typeof VOLATILE_EVENT_TYPES)[number];

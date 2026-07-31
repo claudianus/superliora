@@ -18,6 +18,7 @@ import {
   isStatefulOrMutatingTool,
   maskSwarmToolResultIfStale,
   pruneClearedReceipts,
+  resolveArchiveRecoverToolName,
   toolNameForMessage,
   truncateForMarker,
 } from './micro-helpers';
@@ -422,11 +423,13 @@ export class MicroCompaction {
       .map((part) => part.text)
       .join('\n');
     // Archive ids come from the context-archive marker; keep them recoverable
-    // across micro-compaction so LioraExpand still works on cleared results.
-    const archiveId = /\[liora-archived id=([a-f0-9]{12})\]/u.exec(fullText)?.[1];
+    // across micro-compaction (Expand preferred, LioraExpand legacy fallback).
+    const archiveId = /\[liora-archived id=([a-f0-9]{12})\b/u.exec(fullText)?.[1];
     if (archiveId !== undefined) {
       lines.push(`archiveId=${archiveId}`);
-      lines.push('recover=LioraExpand');
+      lines.push(
+        `recover=${resolveArchiveRecoverToolName(this.agent.tools.loopTools.map((tool) => tool.name))}`,
+      );
     } else if (policyReason === 'family_budget_overflow') {
       // Harness reform T1-4: a family-overflow clear used to destroy the
       // payload outright. Persist it under the Liora home and leave a

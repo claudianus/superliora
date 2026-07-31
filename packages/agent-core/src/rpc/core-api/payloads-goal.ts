@@ -71,7 +71,7 @@ export type UltraworkRunSnapshot = import('@superliora/protocol').UltraworkRun;
 
 export interface ResumeUltraworkPayloadResult {
   readonly run: UltraworkRunSnapshot;
-  readonly report: import('../../ultrawork').UltraworkRecoveryReport;
+  readonly report: import('#/mission').UltraworkRecoveryReport;
   readonly goalResumed: boolean;
   readonly recoveryPrompt: string;
 }

@@ -534,7 +534,7 @@ export function matchGlobLike(command: string): ShellDedicatedBypassHit | undefi
     return {
       prefer: 'Glob',
       pattern: 'tree',
-      message: 'Use Glob or LioraTree for directory trees instead of tree.',
+      message: 'Use Glob or RepoQuery (mode=path) for directory trees instead of tree.',
     };
   }
   // `ls -R` recursive listing (not plain `ls`).
@@ -542,7 +542,7 @@ export function matchGlobLike(command: string): ShellDedicatedBypassHit | undefi
     return {
       prefer: 'Glob',
       pattern: 'ls -R',
-      message: 'Use Glob or LioraTree for recursive listings instead of ls -R.',
+      message: 'Use Glob or RepoQuery (mode=path) for recursive listings instead of ls -R.',
     };
   }
   // `where /r . *.ts` recursive file search (not `where.exe python` which is PATH lookup).

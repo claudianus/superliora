@@ -1,5 +1,5 @@
 import type { Agent } from '..';
-import type { CompletionAuditRejection } from '../../ultrawork/completion-audit';
+import type { CompletionAuditRejection } from '#/mission';
 import type { ModeActivationSource } from '../mode-activation';
 import type {
   GoalActor,

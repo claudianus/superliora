@@ -1,5 +1,6 @@
 import { log } from '#/logging/logger';
 import { PluginHost, PluginManager } from '#/plugin/index';
+import type { OAuthRefreshOutcome } from '@superliora/oauth';
 
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
@@ -39,6 +40,7 @@ import * as pluginMethods from './plugin-methods';
 import * as pluginWiring from './core-plugin-wiring';
 import * as sessionLifecycle from './session-lifecycle';
 import * as sessionAgentMethods from './session-agent-methods';
+import { buildOAuthRefreshDegradedEventFromOutcome } from '../runtime/oauth-refresh-degraded';
 
 export type { LioraCoreOptions, SessionAgentPayload } from './core-impl-types';
 
@@ -194,6 +196,17 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     }
   }
 
+  /** Broadcast oauth-scoped runtime.degraded to ready main agents (LLM-path refresh). */
+  broadcastOAuthRefreshDegraded(
+    outcome: Extract<OAuthRefreshOutcome, { success: false }>,
+  ): void {
+    const event = buildOAuthRefreshDegradedEventFromOutcome(outcome);
+    for (const session of this.sessions.values()) {
+      const main = session.getReadyAgent('main');
+      main?.emitOAuthRefreshDegraded(event);
+    }
+  }
+
   getKimiConfig = delegateContextMethod(configMethods.getKimiConfig);
   getConfigDiagnostics = delegateContextMethod(configMethods.getConfigDiagnostics);
   setKimiConfig = delegateContextMethod(configMethods.setKimiConfig);
@@ -237,6 +250,10 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   getSessionTrace = delegateContextMethod(sessionAgentMethods.getSessionTrace);
   getConfig = delegateContextMethod(sessionAgentMethods.getConfig);
   getPermission = delegateContextMethod(sessionAgentMethods.getPermission);
+  getCircuitBreakers = delegateContextMethod(sessionAgentMethods.getCircuitBreakers);
+  getCacheFrozen = delegateContextMethod(sessionAgentMethods.getCacheFrozen);
+  getParallelToolsStatus = delegateContextMethod(sessionAgentMethods.getParallelToolsStatus);
+  getOAuthStatus = delegateContextMethod(sessionAgentMethods.getOAuthStatus);
   getPlan = delegateContextMethod(sessionAgentMethods.getPlan);
   getUsage = delegateContextMethod(sessionAgentMethods.getUsage);
   getProviderRouteStatus = delegateContextMethod(sessionAgentMethods.getProviderRouteStatus);
@@ -248,6 +265,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   updateSessionMetadata = delegateContextMethod(sessionAgentMethods.updateSessionMetadata);
   getSessionMetadata = delegateContextMethod(sessionAgentMethods.getSessionMetadata);
   listSkills = delegateContextMethod(sessionAgentMethods.listSkills);
+  getHookRegistry = delegateContextMethod(sessionAgentMethods.getHookRegistry);
   listPluginCommands = delegateContextMethod(sessionAgentMethods.listPluginCommands);
   searchSkills = delegateContextMethod(sessionAgentMethods.searchSkills);
   listMcpServers = delegateContextMethod(sessionAgentMethods.listMcpServers);

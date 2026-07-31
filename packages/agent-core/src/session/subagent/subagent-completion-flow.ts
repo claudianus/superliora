@@ -19,7 +19,7 @@ import {
   clearSubagentCheckpoint,
   readSubagentCheckpoint,
 } from './subagent-checkpoint';
-import { getDefaultSwarmFileLeaseRegistry } from '../../collaboration/swarm-file-lease';
+import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
 import { snapshotChildWork, type GitWorkSnapshot } from './subagent-result-contract';
 import {
   enrichPermanentProviderFailure,

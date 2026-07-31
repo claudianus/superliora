@@ -25,14 +25,14 @@ Pressing `Ctrl-C` **during streaming** cancels immediately — no second confirm
 | `Ctrl-F` | Search the transcript |
 | `Ctrl-X` | Stash or restore the draft prompt |
 | `Ctrl-G` | Edit the current input in an external editor |
-| `Shift-Tab` | Toggle Ultrawork mode |
+| `Shift-Tab` | Toggle Mission mode |
 | `↑` / `↓` | Browse input history (empty prompt) |
 | `PgUp` / `PgDn` | Scroll the transcript (empty prompt) |
 | `!` | Enter shell mode (empty prompt) |
 
 If a gated key cannot run (for example Hub while a turn is streaming, or `Ctrl-R` with a non-empty prompt), the TUI shows a short toast instead of doing nothing.
 
-Press `Shift-Tab` to enable or disable Ultrawork mode. When enabled, the next normal prompt is routed through a read-only research prelude first, then UltraPlan interview, a verifiable UltraGoal, Swarm decision, integration, verification, and learning. Plain prompts do not enter this workflow unless Ultrawork mode is on or the prompt explicitly asks for UltraWork.
+Press `Shift-Tab` to enable or disable Mission mode. When enabled, the next normal prompt is routed through a read-only research prelude first, then Plan interview, a verifiable goal, Swarm decision, integration, verification, and learning. Plain prompts do not enter this workflow unless Mission mode is on or the prompt explicitly asks for Mission.
 
 Type `!` in an empty input box to enter shell mode and run terminal commands directly; while a command is running, press `Ctrl-B` to move it to a background task. See [Interaction and input](../guides/interaction.md#shell-mode).
 
@@ -67,7 +67,7 @@ When pasting an image or video, a placeholder is shown in the input box — the 
 
 ## Hub & slash (not main chords)
 
-Tool-output expansion, todo expansion, UltraPlan steering, and retry live in Command Hub or slash commands (`/plan`, `/retry`, …) — not as separate main-prompt chords.
+Tool-output expansion, todo expansion, Plan steering, and retry live in Command Hub or slash commands (`/plan`, `/retry`, …) — not as separate main-prompt chords.
 
 ## Approval Panel
 

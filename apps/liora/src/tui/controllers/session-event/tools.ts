@@ -19,13 +19,21 @@ import {
   isTodoItemShape,
   serializeToolResultOutput,
 } from '../../utils/event-payload';
+import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
+import {
+  isMotionTheatreActive,
+  type MotionBeatController,
+} from '../../utils/render/motion-beats';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { searchCascadePatchFromToolResult } from '../../utils/search/search-cascade';
+import { goalSoftAdvisoryPatchFromToolResult } from '../../utils/goal/goal-soft-advisory-glance';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by tool / shell event handling. */
 export interface ToolsEventHost {
   state: TUIState;
   readonly streamingUI: StreamingUIController;
+  readonly motionBeats?: MotionBeatController;
   setAppState(patch: Partial<AppState>): void;
   patchLivePane(patch: Partial<LivePaneState>): void;
   handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void;
@@ -164,6 +172,30 @@ export class SessionEventTools {
       resultData,
       event.isError === true,
     );
+    if (matchedCall !== undefined) {
+      const cascadePatch = searchCascadePatchFromToolResult(matchedCall.name, resultData.output);
+      if (cascadePatch !== null) {
+        this.host.setAppState(cascadePatch);
+        this.host.motionBeats?.play({
+          name: 'tool_settle',
+          seed: 'research-cascade',
+          title: 'Research cascade',
+          nowMs: appearanceAnimationNow(),
+          streamThrottle: true,
+          theatreActive: isMotionTheatreActive(this.host.state.appState),
+        });
+      }
+      const advisoryPatch = goalSoftAdvisoryPatchFromToolResult(
+        this.host.state.appState.sessionId,
+        matchedCall.name,
+        matchedCall.args,
+        event.isError === true,
+        resultData.output,
+      );
+      if (advisoryPatch.goalSoftAdvisory !== this.host.state.appState.goalSoftAdvisory) {
+        this.host.setAppState(advisoryPatch);
+      }
+    }
     if (matchedCall !== undefined && matchedCall.name === 'TodoList' && !event.isError) {
       const rawTodos = (matchedCall.args as { todos?: unknown }).todos;
       if (Array.isArray(rawTodos)) {

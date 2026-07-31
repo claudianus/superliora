@@ -244,7 +244,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('renders UltraSwarm expert metadata and verdict summaries', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
 
     component.applyUltraSwarmTeam([
       {
@@ -259,7 +259,7 @@ describe('AgentSwarmProgressComponent', () => {
 
     let output = renderText(component);
     expect(output).toContain('╭');
-    expect(output).toContain('UltraSwarm');
+    expect(output).toContain('Fleet');
     expect(output).toContain('AppSec Engineer');
     expect(output).toContain('war room');
     expect(output).toContain('awaiting team messages');
@@ -289,8 +289,51 @@ describe('AgentSwarmProgressComponent', () => {
     expect(output).not.toContain('DONE');
   });
 
+  it('surfaces Maker≠Checker soft warn when the same expert implements and reviews', () => {
+    const component = createComponent({ title: 'Fleet' });
+    component.applyUltraSwarmTeam([
+      {
+        expertId: 'solo-expert',
+        name: 'Solo Expert',
+        coverageLane: 'architecture_implementation',
+        focus: 'implement',
+      },
+    ]);
+    component.markInputComplete();
+    component.applyResult([
+      '<ultra_swarm_result run_id="uw_mc">',
+      '<expert expert_id="solo-expert" name="Solo Expert" phase="implement" focus="implement" outcome="completed" verdict="PASS">built</expert>',
+      '<expert expert_id="solo-expert" name="Solo Expert" phase="review" focus="review" outcome="completed" verdict="PASS">reviewed</expert>',
+      '</ultra_swarm_result>',
+    ].join('\n'));
+
+    const output = renderText(component);
+    expect(output).toContain('governance');
+    expect(output).toContain('Maker≠Checker');
+    expect(output).toContain('Solo Expert');
+  });
+
+  it('surfaces Cost Guard soft warn when swarm output includes over-cap tip', () => {
+    const component = createComponent({ title: 'Fleet' });
+    component.markInputComplete();
+    component.applyResult([
+      '<agent_swarm_result>',
+      '<summary>completed: 2, failed: 0</summary>',
+      '<subagent index="1" agent_id="agent-1" outcome="completed">done a</subagent>',
+      '<subagent index="2" agent_id="agent-2" outcome="completed">done b</subagent>',
+      '</agent_swarm_result>',
+      '',
+      'Cost Guard (soft): SUPERLIORA_FLEET_BUDGET_USD caps session spend — soft-stop + summary before kill (not swarm-budget rounds). Spent $6.00 / $5.00 cap — over $1.00 · pause + summary (no kill).',
+    ].join('\n'));
+
+    const output = renderText(component);
+    expect(output).toContain('governance');
+    expect(output).toContain('Cost Guard');
+    expect(output).toContain('soft-stop');
+  });
+
   it('does not stream operator work logs into the UltraSwarm feed', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'impl-engineer',
@@ -324,7 +367,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('renders only agent conversation in the UltraSwarm feed', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'security-appsec-engineer',
@@ -379,7 +422,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('keeps tool call and result activity out of the War Room conversation', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'impl-engineer',
@@ -425,7 +468,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('renders failed tool activity only in the tool section', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'impl-engineer',
@@ -463,7 +506,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('bounds retained tool entries and truncates each tool row to the available width', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'impl-engineer',
@@ -504,7 +547,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('collapses consecutive feed messages from the same thread', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'security-appsec-engineer',
@@ -534,7 +577,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('paints the same collaboration message_id only once even when message and mention both fire', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'security-appsec-engineer',
@@ -577,7 +620,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('uses a two-line feed layout on narrow terminals to preserve message bodies', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'security-appsec-engineer',
@@ -601,7 +644,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('humanizes protocol XML collaboration bodies in the war room feed', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'impl-engineer',
@@ -624,7 +667,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('renders war room debate reel, evidence wall, file map, and action dock', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'security-appsec-engineer',
@@ -709,7 +752,7 @@ describe('AgentSwarmProgressComponent', () => {
   it('shows paused status on the war room action dock', () => {
     const onRequestPause = vi.fn();
     const component = createComponent({
-      title: 'UltraSwarm',
+      title: 'Fleet',
       onRequestPause,
     });
     component.applyUltraSwarmTeam([
@@ -752,7 +795,7 @@ describe('AgentSwarmProgressComponent', () => {
   it('shows restaffing status on the war room action dock', () => {
     const onRequestRestaff = vi.fn();
     const component = createComponent({
-      title: 'UltraSwarm',
+      title: 'Fleet',
       onRequestRestaff,
     });
     component.applyUltraSwarmTeam([
@@ -785,7 +828,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('toggles war room feed between humanized and raw protocol bodies', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'impl-engineer',
@@ -1261,7 +1304,7 @@ describe('AgentSwarmProgressComponent', () => {
   });
 
   it('labels UltraSwarm child activity with expert names and in-flight tools', () => {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam([
       {
         expertId: 'impl-engineer',
@@ -1627,7 +1670,7 @@ describe('AgentSwarmProgressComponent code-write pulse (Phase 5-A)', () => {
   }
 
   function createWritingSwarm(memberCount: number): AgentSwarmProgressComponent {
-    const component = createComponent({ title: 'UltraSwarm' });
+    const component = createComponent({ title: 'Fleet' });
     component.applyUltraSwarmTeam(
       Array.from({ length: memberCount }, (_item, index) => ({
         expertId: `expert-${String(index + 1)}`,

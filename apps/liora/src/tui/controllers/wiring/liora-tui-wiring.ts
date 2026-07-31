@@ -124,6 +124,9 @@ export function wireLioraTUIControllers(
   tui.autocomplete = new AutocompleteController(tui);
   tui.shellInput = new ShellInputController(tui);
   tui.appStateController = new AppStateController(tui);
+  tui.state.footer.setStaleAppStateHandler((patch) => {
+    tui.appStateController.setAppState(patch);
+  });
   tui.sessionRequests = new SessionRequestsController(tui);
   tui.startupLifecycle = new StartupLifecycleController(tui);
   tui.nativeRendererDiagnostics = new NativeRendererDiagnosticsController(tui);

@@ -84,8 +84,8 @@ describe('buildToolWorkflowGuidance', () => {
   });
 
   it('omits skill/research lines when tools are absent', () => {
-    const full = buildToolWorkflowGuidance(resolveToolWorkflowCapability(['LioraRead', 'TodoList']));
-    expect(full).toContain('LioraRead');
+    const full = buildToolWorkflowGuidance(resolveToolWorkflowCapability(['RepoQuery', 'TodoList']));
+    expect(full).toContain('RepoQuery');
     expect(full).toContain('TodoList');
     expect(full).not.toContain('SearchSkill');
     expect(full).not.toContain('WebSearch');
@@ -93,9 +93,10 @@ describe('buildToolWorkflowGuidance', () => {
 
   it('builds a short sparse checkpoint', () => {
     const sparse = buildToolWorkflowSparseGuidance(
-      resolveToolWorkflowCapability(['SearchSkill', 'WebSearch', 'LioraRead']),
+      resolveToolWorkflowCapability(['SearchSkill', 'WebSearch', 'RepoQuery']),
     );
     expect(sparse).toContain('SearchSkill→Skill');
+    expect(sparse).toContain('RepoQuery before dumps');
     expect(sparse.length).toBeLessThan(200);
   });
 });

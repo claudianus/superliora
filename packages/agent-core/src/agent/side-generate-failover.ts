@@ -17,6 +17,7 @@ import type {
   ProviderRouteState,
 } from './turn/kosong-llm';
 import { classifyProviderRouteFailure } from './turn/kosong-llm';
+import type { LlmProviderCircuitObserver } from './llm-provider-circuit-breaker';
 
 export type SideGenerateCandidateAttempt<T> = {
   readonly candidate: KosongLLMRouteCandidate;
@@ -36,6 +37,7 @@ export type SideGenerateFailoverParams<T> = {
   }) => void;
   readonly onSuccess?: (candidate: KosongLLMRouteCandidate) => void;
   readonly onRouteStatusChanged?: () => void;
+  readonly circuitObserver?: LlmProviderCircuitObserver | undefined;
 };
 
 /**
@@ -63,6 +65,7 @@ export async function runSideGenerateWithSharedFailover<T>(
       params.routeState.recordSuccess(params.route, candidate);
       params.onSuccess?.(candidate);
       params.onRouteStatusChanged?.();
+      params.circuitObserver?.onSuccess({ route: params.route, candidate });
       return result;
     } catch (error) {
       lastError = error;
@@ -75,6 +78,12 @@ export async function runSideGenerateWithSharedFailover<T>(
       if (switched) {
         params.onRouteStatusChanged?.();
       }
+      params.circuitObserver?.onFailure({
+        route: params.route,
+        candidate,
+        failure,
+        error,
+      });
 
       const hasNext = index < ordered.length - 1;
       params.onCandidateFailed?.({ candidate, failure, error, hasNext });

@@ -7,6 +7,7 @@ import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { isUserCancellation } from '../../utils/abort';
 import type { StreamingThinkScrubber } from '../../utils/think-scrubber';
+import { buildTurnPrefixMaterial } from '../cache';
 import type { PromptOrigin } from '../context';
 import { isRetryableProviderFailure } from '../provider-failover';
 import {
@@ -42,6 +43,7 @@ export async function runOneTurnFlow(
   turnTelemetry.resetForTurn(turnId, telemetryMode);
   agent.telemetry.track('turn_started', { mode: telemetryMode });
   agent.fullCompaction.resetForTurn();
+  agent.cacheFreezeGuard.freeze(buildTurnPrefixMaterial(agent.tools.enabledTools));
   agent.usage.beginTurn();
   agent.emitEvent({ type: 'turn.started', turnId, origin });
   agent.context.appendUserMessage(input, origin);
@@ -156,5 +158,7 @@ export async function runOneTurnFlow(
     turnTelemetry.trackTurnInterrupted(turnId, turnTelemetry.currentStepForTurn(turnId));
   }
   turnTelemetry.cleanupTurn(turnId);
+  agent.cacheFreezeGuard.clear();
+  agent.toolParallelStatus.clearTurn();
   return { event: ended, stopReason: completedStopReason, blockedByUserPromptHook };
 }

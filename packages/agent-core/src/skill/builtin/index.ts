@@ -10,7 +10,7 @@ import {
 } from './sub-skill';
 import { UPDATE_CONFIG_SKILL } from './update-config';
 import { AVOID_AI_WRITING_SKILL } from './avoid-ai-writing';
-import { ULTRAWORK_SKILL } from './ultrawork';
+import { MISSION_SKILL, ULTRAWORK_SKILL } from './ultrawork';
 import { WRITE_GOAL_SKILL } from './write-goal';
 import { registerCatalogSkills as loadCatalogSkills } from '../catalog-loader';
 
@@ -21,6 +21,7 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(CUSTOM_THEME_SKILL);
   registry.registerBuiltinSkill(WRITE_GOAL_SKILL);
   registry.registerBuiltinSkill(RECURSIVE_IMPROVE_SKILL);
+  registry.registerBuiltinSkill(MISSION_SKILL);
   registry.registerBuiltinSkill(ULTRAWORK_SKILL);
   registry.registerBuiltinSkill(AVOID_AI_WRITING_SKILL);
   registry.registerBuiltinSkill(SUB_SKILL_PARENT);
@@ -41,6 +42,7 @@ export {
   SUB_SKILL_CONSOLIDATE,
   SUB_SKILL_PARENT,
   SUB_SKILL_REVIEW,
+  MISSION_SKILL,
   ULTRAWORK_SKILL,
   UPDATE_CONFIG_SKILL,
   WRITE_GOAL_SKILL,

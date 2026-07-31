@@ -1,5 +1,18 @@
 export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@superliora/protocol';
 
+export {
+  isMissionUltraworkEventType,
+  isUltraworkOrMissionEventType,
+  missionUltraworkEventAlias,
+  normalizeMissionUltraworkEventAlias,
+  isFleetUltraworkEventType,
+  isUltraworkOrFleetEventType,
+  fleetUltraworkEventAlias,
+  normalizeFleetUltraworkEventAlias,
+  normalizeMissionOrFleetUltraworkEventAlias,
+  ultraworkFleetEventAlias,
+} from '@superliora/protocol';
+
 export type {
   AgentEvent,
   AgentStatusUpdatedEvent,
@@ -7,6 +20,8 @@ export type {
   BackgroundTaskStartedEvent,
   BackgroundTaskTerminatedEvent,
   CacheDiagnostics,
+  CacheMissReason,
+  CacheMissReasonHistogram,
   CompactionBlockedEvent,
   CompactionCancelledEvent,
   CompactionCompletedEvent,
@@ -29,6 +44,10 @@ export type {
   ProviderRouteRateLimitStatus,
   ProviderRouteSelection,
   ProviderRouteStatus,
+  RuntimeDegradedEvent,
+  RuntimeDegradedScope,
+  CircuitBreakerStatus,
+  CircuitBreakerScopeStatus,
   SessionCreatedEvent,
   SessionMetaUpdatedEvent,
   SessionStatusChangedEvent,

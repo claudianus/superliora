@@ -228,7 +228,7 @@ describe('FooterComponent', () => {
       const footer = new FooterComponent(appState);
       const [, line2 = ''] = footer.render(160);
       // Only assert the next-action line — rotating tips may mention media keys.
-      expect(line2).toMatch(/Ultrawork|LioraBench|type normally/i);
+      expect(line2).toMatch(/Ultrawork|Bench|type normally/i);
       expect(line2).not.toMatch(/OPENAI_API_KEY or GOOGLE_API_KEY for image\/video/);
     } finally {
       for (const [key, value] of Object.entries(previous)) {
@@ -249,6 +249,16 @@ describe('FooterComponent', () => {
       if (previous === undefined) delete process.env['OPENAI_API_KEY'];
       else process.env['OPENAI_API_KEY'] = previous;
     }
+  });
+
+  it('shows perm✓ dopamine badge after permission approval', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      permissionApproveFlourish: { atMs: Date.now() },
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).toContain('perm✓');
   });
 });
 

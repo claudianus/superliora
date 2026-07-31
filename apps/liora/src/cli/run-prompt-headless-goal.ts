@@ -85,7 +85,7 @@ export async function maybeAutoResumeHeadlessUltrawork(
   const result = await session.tryAutoResumeUltrawork();
   if (result === null) return undefined;
   stderr.write(
-    `Ultrawork auto-resumed at stage ${result.resumed.run.stage} (run ${result.resumed.run.id}).\n`,
+    `Mission auto-resumed at stage ${result.resumed.run.stage} (run ${result.resumed.run.id}).\n`,
   );
   return result.resumed.recoveryPrompt;
 }
@@ -106,7 +106,7 @@ async function prepareHeadlessUltrawork(
     status.swarmMode === true,
     status.premiumQualityMode === true,
   );
-  // Spec/contract: headless Ultrawork defaults to Manual interview mode (no TUI chooser).
+  // Spec/contract: headless Mission defaults to Manual interview mode (no TUI chooser).
   if (status.permission !== 'manual') {
     await session.setPermission('manual');
   }

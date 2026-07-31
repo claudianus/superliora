@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { inferUltraPlanPhaseFromPlanContent } from '../../src/ultrawork/plan-phase';
+import { inferUltraPlanPhaseFromPlanContent } from '#/mission';
 
 describe('ultrawork/plan-phase.ts — inferUltraPlanPhaseFromPlanContent', () => {
   it('returns undefined for empty or whitespace-only content', () => {

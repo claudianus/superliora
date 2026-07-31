@@ -5,7 +5,7 @@ import {
   captureUltraworkEnvelopeSnapshot,
   extractUltraworkRunLines,
   renderUltraworkRunsMemorySection,
-} from '../../../ultrawork/envelope';
+} from '#/mission';
 import { renderTodoList, type TodoItem } from '../../../tools/builtin/state/todo-list';
 import { estimateTokens } from '../../../utils/tokens';
 import { extractAnchorDiff, mergeIntoAnchor, renderAnchor } from '../full/anchor';

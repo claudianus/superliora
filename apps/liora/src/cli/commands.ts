@@ -103,6 +103,12 @@ export function createProgram(
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false))
     .option('--plan', t('cli.option.plan'), false)
+    .addOption(
+      new Option(
+        '--profile <name>',
+        'Main agent tool profile (core, agent, superliora-full; default: core)',
+      ),
+    )
     .option('--resume-goal', t('cli.option.resumeGoal'), false)
     .addOption(
       new Option('--worktree [name]', t('cli.option.worktree')).argParser(
@@ -165,6 +171,7 @@ export function createProgram(
       addDirs: raw['addDir'] as string[],
       resumeGoal: raw['resumeGoal'] as boolean,
       worktree: raw['worktree'] as boolean | string | undefined,
+      profile: raw['profile'] as string | undefined,
     };
 
     onMain(opts);
