@@ -2,7 +2,7 @@
  * Covers: ResearchSearchEngine multi-provider routing + adapters.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assessSearchChannelHealth,
@@ -11,6 +11,7 @@ import {
   ResearchSearchEngine,
   resolveResearchApiKey,
 } from '../../../src/tools/providers/research-search';
+import { ALLOW_DISABLE_FREE_FALLBACK_ENV } from '../../../src/tools/providers/research-search-free-fallback';
 import { inferSearchChannelsFromStatus } from '../../../src/tools/providers/research-search-health';
 
 
@@ -66,6 +67,14 @@ describe('resolveResearchApiKey', () => {
 });
 
 describe('ResearchSearchEngine', () => {
+  beforeEach(() => {
+    process.env[ALLOW_DISABLE_FREE_FALLBACK_ENV] = '1';
+  });
+
+  afterEach(() => {
+    delete process.env[ALLOW_DISABLE_FREE_FALLBACK_ENV];
+  });
+
   it('falls back to free local search when no paid keys are configured', async () => {
     const html = [
       '<html><body>',

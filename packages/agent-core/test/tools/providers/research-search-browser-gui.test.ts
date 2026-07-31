@@ -3,7 +3,7 @@
  */
 
 import type { BrowserUseRuntime } from '@superliora/gui-use';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   GuiUseBrowserSearchChannel,
@@ -158,6 +158,13 @@ describe('createBrowserSearchChannel', () => {
 });
 
 describe('ResearchSearchEngine browser escalate with GuiUseBrowserSearchChannel', () => {
+  beforeEach(() => {
+    process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK = '1';
+  });
+
+  afterEach(() => {
+    delete process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK;
+  });
   it('returns parsed browser results when paid and free slots are empty', async () => {
     const runtime = fakeBrowserRuntime();
     const browserChannel = new GuiUseBrowserSearchChannel(runtime);

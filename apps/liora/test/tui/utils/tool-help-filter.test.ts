@@ -39,10 +39,16 @@ describe('tool-help-filter', () => {
     ]);
   });
 
-  it('hides UltraSwarm from primary /tools when AgentSwarm is registered', () => {
-    const catalog: ToolInfo[] = [tool('AgentSwarm'), tool('UltraSwarm', 'advanced')];
-    expect(filterToolsForPrimaryHelp(catalog).map((entry) => entry.name)).toEqual(['AgentSwarm']);
-    expect(listHiddenCompatAliases(catalog)).toEqual(['UltraSwarm→AgentSwarm']);
+  it('hides UltraSwarm from primary /tools when Fleet is registered', () => {
+    const catalog: ToolInfo[] = [tool('Fleet'), tool('UltraSwarm', 'advanced')];
+    expect(filterToolsForPrimaryHelp(catalog).map((entry) => entry.name)).toEqual(['Fleet']);
+    expect(listHiddenCompatAliases(catalog)).toEqual(['UltraSwarm→Fleet']);
+  });
+
+  it('hides AgentSwarm from primary /tools when Fleet is registered', () => {
+    const catalog: ToolInfo[] = [tool('Fleet'), tool('AgentSwarm', 'advanced')];
+    expect(filterToolsForPrimaryHelp(catalog).map((entry) => entry.name)).toEqual(['Fleet']);
+    expect(listHiddenCompatAliases(catalog)).toEqual(['AgentSwarm→Fleet']);
   });
 
   it('hides UltraworkGraph from primary /tools when TaskGraph is registered', () => {

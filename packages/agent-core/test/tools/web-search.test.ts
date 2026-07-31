@@ -154,6 +154,8 @@ describe('WebSearchTool', () => {
   });
 
   it('soft-degrades when ResearchSearchEngine empty-cascades with freeFallback off', async () => {
+    process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK = '1';
+    try {
     const browserSearch = vi.fn<() => Promise<never[]>>().mockResolvedValue([]);
     const chromeSearch = vi.fn<() => Promise<never[]>>().mockResolvedValue([]);
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
@@ -192,6 +194,9 @@ describe('WebSearchTool', () => {
     expect(content).toContain('ch5');
     expect(browserSearch).toHaveBeenCalledTimes(1);
     expect(chromeSearch).toHaveBeenCalledTimes(1);
+    } finally {
+      delete process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK;
+    }
   });
 
   it('truncates oversized result content through the shared builder', async () => {

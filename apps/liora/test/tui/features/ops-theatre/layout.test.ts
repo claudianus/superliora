@@ -3,6 +3,8 @@ import { describe, expect, it, afterEach } from 'vitest';
 import {
   buildOpsTheatreInterventionTray,
   buildOpsTheatrePanes,
+  collectOpsGitDiffSnippetLines,
+  formatOpsGitDiffSnippetLines,
   resolveOpsMissionRunLine,
   type OpsTheatreInput,
 } from '#/tui/features/ops-theatre/build-panes';
@@ -58,6 +60,39 @@ function sampleInput(overrides: Partial<OpsTheatreInput> = {}): OpsTheatreInput 
 function lineWidth(line: string): number {
   return line.length;
 }
+
+describe('formatOpsGitDiffSnippetLines', () => {
+  it('skips context rows and caps output lines', () => {
+    expect(
+      formatOpsGitDiffSnippetLines([
+        { kind: 'context', code: 'unchanged' },
+        { kind: 'add', code: 'added' },
+        { kind: 'delete', code: 'removed' },
+      ]),
+    ).toEqual(['+added', '−removed']);
+    expect(
+      formatOpsGitDiffSnippetLines(
+        [
+          { kind: 'add', code: 'one' },
+          { kind: 'add', code: 'two' },
+          { kind: 'add', code: 'three' },
+          { kind: 'add', code: 'four' },
+          { kind: 'add', code: 'five' },
+        ],
+        4,
+      ),
+    ).toHaveLength(4);
+  });
+
+  it('collects snippet lines across files', () => {
+    expect(
+      collectOpsGitDiffSnippetLines([
+        { lines: [{ kind: 'add', code: 'a' }] },
+        { lines: [{ kind: 'delete', code: 'b' }] },
+      ]),
+    ).toEqual(['+a', '−b']);
+  });
+});
 
 describe('renderOpsTheatreGrid', () => {
   it('renders a 2×2 bordered grid with pane titles', () => {
@@ -719,6 +754,45 @@ describe('renderOpsTheatreGrid', () => {
     );
 
     expect(panes.git[0]).toBe('Git: main · clean · +0/−0');
+  });
+
+  it('shows git diff snippet lines in the Git pane when wired', () => {
+    const panes = buildOpsTheatrePanes(
+      sampleInput({
+        git: {
+          branch: 'main',
+          dirty: true,
+          changedFileCount: 1,
+          diffAdded: 2,
+          diffDeleted: 1,
+          ahead: 0,
+          behind: 0,
+          changedFiles: ['M src/foo.ts'],
+          diffSnippet: ['+const x = 1;', '−const x = 0;'],
+        },
+      }),
+    );
+    expect(panes.git).toContain('+const x = 1;');
+    expect(panes.git).toContain('−const x = 0;');
+  });
+
+  it('caps git diff snippet at four lines', () => {
+    const panes = buildOpsTheatrePanes(
+      sampleInput({
+        git: {
+          branch: 'main',
+          dirty: true,
+          changedFileCount: 1,
+          diffAdded: 5,
+          diffDeleted: 0,
+          ahead: 0,
+          behind: 0,
+          diffSnippet: ['+one', '+two', '+three', '+four', '+five'],
+        },
+      }),
+    );
+    const snippetLines = panes.git.filter((line) => line.startsWith('+') || line.startsWith('−'));
+    expect(snippetLines).toHaveLength(4);
   });
 
   it('renders changed files inside the grid layout', () => {

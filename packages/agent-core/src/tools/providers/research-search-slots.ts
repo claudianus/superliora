@@ -13,6 +13,7 @@ import {
   TavilySearchAdapter,
 } from './research-search-adapters';
 import { detectSearchProviderEnvKeys, resolveResearchApiKey } from './research-search-env';
+import { resolveResearchSearchFreeFallback } from './research-search-free-fallback';
 import type {
   ResearchSearchEngineOptions,
   ResearchSearchProviderStatus,
@@ -91,8 +92,8 @@ export function buildProviderSlots(options: ResearchSearchEngineOptions): Provid
     index += 1;
   }
 
-  // Free local fallback always available unless explicitly disabled.
-  if (options.search?.freeFallback !== false) {
+  // Free local fallback always available unless explicitly disabled with advanced override.
+  if (resolveResearchSearchFreeFallback(options.search?.freeFallback)) {
     const local = new LocalWebSearchProvider({
       ...options.local,
       fetchImpl,

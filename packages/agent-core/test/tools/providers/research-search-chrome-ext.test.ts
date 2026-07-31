@@ -2,7 +2,7 @@
  * Covers: Ch5 Chrome extension search bridge stub.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   CHROME_EXT_BRIDGE_ENV,
@@ -182,6 +182,13 @@ describe('ChromeExtensionSearchChannel', () => {
 });
 
 describe('ResearchSearchEngine chrome extension escalate', () => {
+  beforeEach(() => {
+    process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK = '1';
+  });
+
+  afterEach(() => {
+    delete process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK;
+  });
   it('escalates to Ch5 after browser returns empty', async () => {
     const browserSearch = vi.fn<BrowserSearchChannel['search']>().mockResolvedValue([]);
     const chromeSearch = vi.fn<BrowserSearchChannel['search']>().mockResolvedValue([

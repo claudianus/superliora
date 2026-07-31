@@ -51,6 +51,8 @@ export interface OpsTheatreGitData {
   readonly ahead: number;
   readonly behind: number;
   readonly changedFiles?: readonly string[];
+  /** Short unified-diff hunk preview (+/− lines only), frame-budget capped. */
+  readonly diffSnippet?: readonly string[];
   /** Delta vs previous Ops tick when churn spark fired. */
   readonly churnDelta?: number;
 }
@@ -76,6 +78,44 @@ export interface OpsTheatreSearchData {
 export interface OpsTheatreFleetWorker {
   readonly name: string;
   readonly status: 'idle' | 'running';
+}
+
+/** Max +/− diff body lines shown in the Ops Git pane (frame budget). */
+export const OPS_GIT_DIFF_SNIPPET_MAX_LINES = 4;
+
+export interface OpsGitDiffSnippetLine {
+  readonly kind: 'add' | 'delete' | 'context';
+  readonly code: string;
+}
+
+/** Compact unified-diff preview for Ops Theatre — skips context rows. */
+export function formatOpsGitDiffSnippetLines(
+  lines: readonly OpsGitDiffSnippetLine[],
+  maxLines: number = OPS_GIT_DIFF_SNIPPET_MAX_LINES,
+): readonly string[] {
+  const out: string[] = [];
+  for (const line of lines) {
+    if (line.kind === 'context') continue;
+    if (out.length >= maxLines) break;
+    const prefix = line.kind === 'add' ? '+' : '−';
+    out.push(truncate(`${prefix}${line.code}`, 56));
+  }
+  return out;
+}
+
+export function collectOpsGitDiffSnippetLines(
+  files: readonly { readonly lines: readonly OpsGitDiffSnippetLine[] }[],
+  maxLines: number = OPS_GIT_DIFF_SNIPPET_MAX_LINES,
+): readonly string[] {
+  const merged: OpsGitDiffSnippetLine[] = [];
+  for (const file of files) {
+    for (const line of file.lines) {
+      merged.push(line);
+      if (merged.length >= maxLines * 4) break;
+    }
+    if (merged.length >= maxLines * 4) break;
+  }
+  return formatOpsGitDiffSnippetLines(merged, maxLines);
 }
 
 export interface OpsTheatreInput {
@@ -269,10 +309,12 @@ function buildGitPane(input: OpsTheatreInput): string[] {
   const changedLines = (input.git.changedFiles ?? [])
     .slice(0, 3)
     .map((entry) => truncate(entry, 56));
+  const diffSnippet = (input.git.diffSnippet ?? []).slice(0, OPS_GIT_DIFF_SNIPPET_MAX_LINES);
   return [
     gitLine,
     ...(churnLine != null ? [churnLine] : []),
     ...changedLines,
+    ...diffSnippet,
     `cwd: ${input.cwd}`,
   ];
 }

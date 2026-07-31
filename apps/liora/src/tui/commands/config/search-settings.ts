@@ -12,6 +12,7 @@ import { formatLocalResearchCacheHitGlance } from '../../utils/search/local-rese
 import { formatSearchFreeOnlyKpiSessionGlance } from '../../utils/search/search-free-only-kpi';
 import { formatSearchNeverEmptyTelemetryGlance } from '../../utils/search/search-never-empty-telemetry';
 import {
+  ALLOW_DISABLE_FREE_FALLBACK_ENV,
   buildSearchFreeFallbackConfigPatch,
   buildSearchSettingsStatusLines,
   detectSearchLateChannelEnv,
@@ -42,9 +43,9 @@ export function showSearchSettings(host: SlashCommandHost): void {
         },
         {
           value: 'free-off',
-          label: 'Free fallback OFF (paid/meta only)',
+          label: 'Free fallback OFF (advanced — blocked by default)',
           description:
-            'harness.setConfig → research.search.freeFallback = false · avoid for unattended runs.',
+            `Requires ${ALLOW_DISABLE_FREE_FALLBACK_ENV}=1 · otherwise free fallback stays ON.`,
         },
         {
           value: 'tips',
@@ -63,6 +64,13 @@ export function showSearchSettings(host: SlashCommandHost): void {
           return;
         }
         if (value === 'free-off') {
+          if (process.env[ALLOW_DISABLE_FREE_FALLBACK_ENV] !== '1') {
+            host.showStatus(
+              'Free fallback stays ON ($0 DDG/local last resort). Set SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK=1 to disable.',
+              'warning',
+            );
+            return;
+          }
           void setFreeFallback(host, false);
         }
       },

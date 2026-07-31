@@ -2,7 +2,7 @@
  * Covers: browser channel escalate stub on empty paid/free results.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   HintBrowserSearchChannel,
@@ -12,6 +12,14 @@ import {
 } from '../../../src/tools/providers/research-search';
 
 describe('ResearchSearchEngine browser escalate', () => {
+  beforeEach(() => {
+    process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK = '1';
+  });
+
+  afterEach(() => {
+    delete process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK;
+  });
+
   it('calls browser channel once when paid and free return empty', async () => {
     const search = vi.fn<BrowserSearchChannel['search']>().mockResolvedValue([]);
     const browserChannel: BrowserSearchChannel = {

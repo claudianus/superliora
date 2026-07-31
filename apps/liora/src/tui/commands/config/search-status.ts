@@ -72,11 +72,19 @@ export function resolveLocalResearchCacheStatus(
   return 'on-disk';
 }
 
-/** Default-on: only explicit `false` disables DDG/local last resort. */
+/** Advanced override env for disabling $0 free fallback (product default: forced on). */
+export const ALLOW_DISABLE_FREE_FALLBACK_ENV = 'SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK';
+
+/** Default-on: config false is ignored unless {@link ALLOW_DISABLE_FREE_FALLBACK_ENV}=1. */
 export function resolveSearchFreeFallback(
   config: SearchConfigSlice | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return config?.research?.search?.freeFallback !== false;
+  if (config?.research?.search?.freeFallback === false) {
+    if (env[ALLOW_DISABLE_FREE_FALLBACK_ENV] === '1') return false;
+    return true;
+  }
+  return true;
 }
 
 /** Patch shape for harness.setConfig — research.search.freeFallback. */

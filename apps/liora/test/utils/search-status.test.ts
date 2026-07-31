@@ -427,10 +427,18 @@ describe('buildSearchSettingsStatusLines', () => {
 });
 
 describe('search freeFallback config path', () => {
-  it('defaults to on unless explicitly false', () => {
+  const envKey = 'SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK';
+
+  afterEach(() => {
+    delete process.env[envKey];
+  });
+
+  it('defaults to on unless explicitly false with advanced override', () => {
     expect(resolveSearchFreeFallback(undefined)).toBe(true);
     expect(resolveSearchFreeFallback({})).toBe(true);
     expect(resolveSearchFreeFallback({ research: { search: { freeFallback: true } } })).toBe(true);
+    expect(resolveSearchFreeFallback({ research: { search: { freeFallback: false } } })).toBe(true);
+    process.env[envKey] = '1';
     expect(resolveSearchFreeFallback({ research: { search: { freeFallback: false } } })).toBe(
       false,
     );

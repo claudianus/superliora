@@ -91,7 +91,8 @@ describe('default agent profiles', () => {
       expect(mainTools).not.toContain(legacy);
     }
     expect(mainTools).not.toContain('UltraworkGraph');
-    expect(mainTools).toContain('AgentSwarm');
+    expect(mainTools).toContain('Fleet');
+    expect(mainTools).not.toContain('AgentSwarm');
     expect(mainTools).not.toContain('UltraSwarm');
   });
 
@@ -142,7 +143,7 @@ describe('default agent profiles', () => {
         'CreateGoal',
         'UpdateGoal',
         'SearchExpert',
-        'AgentSwarm',
+        'Fleet',
         'UltraSwarm',
       ]),
     );
