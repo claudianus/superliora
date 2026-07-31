@@ -24,6 +24,18 @@ const POLICY_LABELS: Record<MediaFallbackPolicy, string> = {
   block: 'Block the send',
 };
 
+/** ChoicePicker tip — analyze policy when the chat model lacks vision. */
+export const MEDIA_ANALYZE_TIP =
+  'analyze — a vision-capable catalog model renders attached media to text before the chat model sees the prompt. Clipboard paste and drag-drop use the same policy at send time.';
+
+/** ChoicePicker tip — path policy keeps the send alive for later vision tools. */
+export const MEDIA_PATH_TIP =
+  'path — attached media is replaced with a pointer note so the send completes; a vision tool can read the file later. Clipboard paste and drag-drop use the same policy.';
+
+/** ChoicePicker tip — block policy refuses unsupported media at send time. */
+export const MEDIA_BLOCK_TIP =
+  'block — hard error when image_in or video_in is missing on the active model. Switch to a vision-capable model to skip fallback entirely.';
+
 export function resolveModelVisionSupport(input: {
   readonly model: string;
   readonly availableModels: AppState['availableModels'];
