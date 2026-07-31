@@ -9,7 +9,9 @@ import {
   installUpdate as installUpdateForeground,
   renderInstallSuccessMessage,
   renderManualUpdateMessage,
+  startObservedUpgradeInstall,
 } from '#/cli/update/preflight';
+import { CliUpgradeProgressWriter } from '#/cli/update/cli-progress';
 import {
   resolveUpgradePlan,
   type UpgradePlan,
@@ -26,6 +28,7 @@ import {
 
 interface WritableLike {
   write(chunk: string): boolean;
+  isTTY?: boolean;
 }
 
 type UpgradeTrack = (event: string, properties?: TelemetryProperties) => void;
@@ -203,7 +206,17 @@ export async function handleUpgrade(
       target_version: plan.target.version,
       source: plan.source,
     });
-    await deps.installUpdate(plan.source, plan.target.version, deps.platform);
+    const useTheatre = deps.isInteractive && deps.stdout.isTTY === true;
+    if (useTheatre) {
+      await installWithCliTheatre(
+        deps,
+        currentVersion,
+        plan.source,
+        plan.target.version,
+      );
+    } else {
+      await deps.installUpdate(plan.source, plan.target.version, deps.platform);
+    }
     await deps.updateGuiUseAfterUpgrade();
     trackUpgradeEvent(deps.track, 'upgrade_command_succeeded', {
       current_version: currentVersion,
@@ -252,6 +265,76 @@ export async function handleUpgrade(
     );
     return 1;
   }
+}
+
+/** Observed install with live stage frame on a TTY (Upgrade Studio language). */
+async function installWithCliTheatre(
+  deps: UpgradeDeps,
+  currentVersion: string,
+  source: InstallSource,
+  targetVersion: string,
+): Promise<void> {
+  const progress = new CliUpgradeProgressWriter(deps.stdout);
+  progress.start();
+  progress.update({ source, stage: 'checking', targetVersion });
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const settleOk = (): void => {
+      if (settled) return;
+      settled = true;
+      progress.finish();
+      resolve();
+    };
+    const settleErr = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      progress.finish();
+      reject(error);
+    };
+
+    void startObservedUpgradeInstall({
+      currentVersion,
+      targetVersion,
+      source,
+      platform: deps.platform,
+      onStage: (stage, detail) => {
+        if (stage === 'done') {
+          progress.update({ source, stage: 'done', targetVersion });
+          settleOk();
+          return;
+        }
+        if (stage === 'failed') {
+          progress.update({
+            source,
+            stage: 'failed',
+            targetVersion,
+            detail: detail?.trim() || 'install failed',
+          });
+          settleErr(new Error(detail?.trim() || 'install failed'));
+          return;
+        }
+        progress.update({
+          source,
+          stage,
+          targetVersion,
+          detail: detail?.trim() || undefined,
+        });
+      },
+    }).then((started) => {
+      if (!started.started) {
+        settleErr(
+          new Error(
+            started.reason === 'lock-held' || started.reason === 'already-active'
+              ? 'upgrade already in progress'
+              : 'could not start upgrade',
+          ),
+        );
+      }
+    }).catch((error: unknown) => {
+      settleErr(error instanceof Error ? error : new Error(String(error)));
+    });
+  });
 }
 
 function createDefaultUpgradeDeps(overrides: Partial<UpgradeDeps>): UpgradeDeps {

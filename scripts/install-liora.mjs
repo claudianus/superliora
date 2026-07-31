@@ -23,6 +23,8 @@ if (process.platform === 'win32') {
 }
 
 await mkdir(binDir, { recursive: true });
+// Shared with install.sh / liora upgrade theatre.
+writeStdout('__LIORA_UPGRADE_STAGE__=installing\n');
 await installWrapper(commandPath);
 
 const shellFiles = ! args.shellRc ? [] : await installShellPath(binDir);
@@ -33,6 +35,7 @@ if (shellFiles.length > 0) {
   writeStdout('Open a new shell, or source your shell startup file, then run:\n');
   writeStdout(`  ${commandName} --version\n`);
 }
+writeStdout('__LIORA_UPGRADE_STAGE__=done\n');
 
 async function installWrapper(filePath) {
   if (existsSync(filePath) && !(await isManagedWrapper(filePath)) && !args.force) {

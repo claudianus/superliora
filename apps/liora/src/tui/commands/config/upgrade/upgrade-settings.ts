@@ -15,6 +15,7 @@ import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { handleUpgradeCommand } from '../../info/upgrade';
 
 export { UPGRADE_AUTO_INSTALL_TIP, UPGRADE_ENV_TIP, UPGRADE_MANUAL_TIP };
 
@@ -26,6 +27,11 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        {
+          value: 'studio',
+          label: 'Open Upgrade Studio',
+          description: 'Check for updates, install with live progress, manage preferences.',
+        },
         {
           value: 'status',
           label: 'Update status',
@@ -49,6 +55,10 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'studio') {
+          void handleUpgradeCommand(host);
+          return;
+        }
         if (value === 'status') {
           showUpgradeSettingsPanel(host);
           return;
