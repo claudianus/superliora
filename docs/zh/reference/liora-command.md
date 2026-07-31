@@ -120,7 +120,7 @@ liora -p "List changed files" --output-format stream-json
 
 ## 子命令
 
-`liora` 提供以下子命令：`login`（非交互式登录）、`acp`（ACP IDE 模式）、`server`（运行并管理本地 REST/WebSocket/web 服务）、`web`（`liora server run --open` 的别名）、`doctor`（校验配置文件）、`export`（导出会话）、`migrate`（迁移旧版数据）、`upgrade`（检查更新）、`provider`（管理供应商）。
+`liora` 提供以下子命令：`login`（非交互式登录）、`acp`（ACP IDE 模式）、`server`（运行并管理本地 REST/WebSocket/web 服务）、`web`（`liora server run --open` 的别名）、`doctor`（校验配置文件）、`export`（导出会话）、`migrate`（迁移旧版数据）、`upgrade` / `update`（检查并安装更新）、`provider`（管理供应商）。
 
 ### `liora login`
 
@@ -262,15 +262,16 @@ liora export 01HZ...XYZ -o ./bug-report.zip
 liora export 01HZ...XYZ -o ./bug-report.zip --no-include-global-log
 ```
 
-### `liora upgrade`
+### `liora upgrade` / `liora update`
 
-立即检查最新版本并展示更新提示，选择操作后退出。也可以使用别名 `liora update`。
+`liora update` 与 `liora upgrade` 是同一命令。都会进入更新流程：检查新版本，并在安装源支持时带实时进度安装（TUI 为 Upgrade Studio；交互式 CLI TTY 为 stage theatre）。
 
 ```sh
+liora update
 liora upgrade
 ```
 
-对全局 npm、pnpm、yarn、bun 以及 macOS / Linux native 安装，`liora upgrade` 会展示更新选项；选择 `Install update now` 后运行对应的前台安装命令。当前安装方式无法自动升级时（如 Windows native 安装），改为打印手动更新命令。
+对全局 npm、pnpm、yarn、bun、GitHub source 安装以及 macOS / Linux native 安装，确认后可自动安装。当前安装方式无法自动升级时（如 Windows native 安装），改为打印手动更新命令。
 
 ### `liora vis`
 

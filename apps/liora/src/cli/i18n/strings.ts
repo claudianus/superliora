@@ -41,7 +41,8 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
   'cli.option.worktree':
     'Create a git worktree for this session (optional name). Isolates file edits from the main checkout.',
-  'cli.sub.upgrade.description': 'Upgrade SuperLiora to the latest version.',
+  'cli.sub.upgrade.description':
+    'Check for SuperLiora updates and install the latest version (same as update).',
   'cli.error.unknownCommand': "unknown command '{arg}'. See '{cmd} --help'.",
 
   'cli.sub.export.description': 'Export a session as a ZIP archive.',
@@ -88,7 +89,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
   'cli.option.worktree':
     '이 세션용 git worktree를 만듭니다(이름 선택). 메인 checkout과 파일 편집을 격리합니다.',
-  'cli.sub.upgrade.description': 'SuperLiora를 최신 버전으로 업그레이드합니다.',
+  'cli.sub.upgrade.description':
+    'SuperLiora 업데이트를 확인하고 최신 버전을 설치합니다 (update와 동일).',
   'cli.error.unknownCommand': "알 수 없는 명령 '{arg}'. '{cmd} --help'를 참고하세요.",
 
   'cli.sub.export.description': '세션을 ZIP 아카이브로 내보냅니다.',

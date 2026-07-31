@@ -233,8 +233,9 @@ export function buildDefaultCommandHubItems(state: {
     {
       id: 'account.upgrade',
       section: 'Account',
-      label: 'Upgrade',
-      description: 'Check for CLI updates',
+      label: 'Update',
+      description: 'Upgrade Studio — check and install CLI updates (/update · /upgrade)',
+      keywords: ['upgrade', 'update', 'version', 'install', 'release', 'liora update'],
     },
     {
       id: 'help.searchTip',

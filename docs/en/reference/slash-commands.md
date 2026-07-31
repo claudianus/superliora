@@ -17,6 +17,7 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/login` | — | Select an account or platform and log in: SuperLiora uses OAuth device-code flow; Kimi Platform uses API key login | No |
 | `/logout` | — | Clear credentials for the currently selected account | No |
 | `/model` | — | Switch the LLM model used in the current session | Yes |
+| `/upgrade` | `/update` | Open Upgrade Studio — check for SuperLiora CLI updates and install with live progress | Yes |
 | `/settings` | `/config` | Open the settings panel inside the TUI | Yes |
 | `/experiments` | `/experimental` | Open the experimental feature panel | Yes |
 | `/permission` | — | Select a permission mode | Yes |
