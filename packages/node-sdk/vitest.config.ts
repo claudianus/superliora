@@ -4,12 +4,44 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@superliora/agent-core': fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
-      '@superliora/oauth': fileURLToPath(
-        new URL('../oauth/src/index.ts', import.meta.url),
-      ),
-    },
+    alias: [
+      // More-specific subpaths first — bare `@superliora/agent-core` → index.ts
+      // would otherwise swallow `@superliora/agent-core/mission` as index.ts/mission.
+      {
+        find: /^@superliora\/agent-core\/mission$/,
+        replacement: fileURLToPath(
+          new URL('../agent-core/src/mission/index.ts', import.meta.url),
+        ),
+      },
+      {
+        find: /^@superliora\/agent-core\/fleet$/,
+        replacement: fileURLToPath(new URL('../agent-core/src/fleet/index.ts', import.meta.url)),
+      },
+      {
+        find: /^@superliora\/agent-core\/ultrawork$/,
+        replacement: fileURLToPath(
+          new URL('../agent-core/src/ultrawork/index.ts', import.meta.url),
+        ),
+      },
+      {
+        find: /^@superliora\/agent-core\/session\/store$/,
+        replacement: fileURLToPath(
+          new URL('../agent-core/src/session/store/index.ts', import.meta.url),
+        ),
+      },
+      {
+        find: /^@superliora\/agent-core\/(.+)$/,
+        replacement: fileURLToPath(new URL('../agent-core/src/$1.ts', import.meta.url)),
+      },
+      {
+        find: '@superliora/agent-core',
+        replacement: fileURLToPath(new URL('../agent-core/src/index.ts', import.meta.url)),
+      },
+      {
+        find: '@superliora/oauth',
+        replacement: fileURLToPath(new URL('../oauth/src/index.ts', import.meta.url)),
+      },
+    ],
   },
   test: {
     name: 'kimi-sdk',
