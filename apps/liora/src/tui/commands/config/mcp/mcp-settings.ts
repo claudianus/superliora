@@ -8,6 +8,9 @@ import { readMcpJsonFile, resolveMcpJsonPaths } from '#/utils/mcp/mcp-config-fil
 import { getDataDir } from '#/utils/paths';
 import {
   buildMcpSettingsLines,
+  MCP_ALLOWLIST_TIP,
+  MCP_CONFIG_SCOPES_TIP,
+  MCP_OAUTH_TIP,
   type McpConfigGlance,
   type McpGlanceInput,
 } from '../../../utils/mcp/mcp-glance';
@@ -17,6 +20,8 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { showMcpManagePanel } from './mcp-manage';
+
+export { MCP_ALLOWLIST_TIP, MCP_CONFIG_SCOPES_TIP, MCP_OAUTH_TIP };
 
 async function loadMcpConfigGlance(workDir: string): Promise<McpConfigGlance | undefined> {
   try {
@@ -66,18 +71,35 @@ export function showMcpSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: 'MCP servers',
-      hint: '↑↓ · Enter · Esc · Claude-compatible mcp.json',
+      hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {
           value: 'status',
-          label: 'Live status',
-          description: 'Session server count, connection states, config scopes.',
+          label: 'MCP status',
+          description:
+            'Live session server count · connection states · mcp.json scope inventory.',
         },
         {
           value: 'manage',
           label: 'Manage servers',
-          description: 'Install, toggle, remove, reload MCP.',
+          description: 'Install (stdio/HTTP), toggle, remove, reload · /mcp same picker.',
+        },
+        {
+          value: 'tip-config-scopes',
+          label: 'mcp.json scopes tip',
+          description:
+            'project/.superliora · project-root/.mcp.json · ~/.superliora merge order.',
+        },
+        {
+          value: 'tip-oauth',
+          label: 'OAuth tip',
+          description: 'needs-auth status · /mcp-config login · browser authorization flow.',
+        },
+        {
+          value: 'tip-allowlist',
+          label: 'Tool allowlist tip',
+          description: 'enabledTools / disabledTools per server · Security glance cross-link.',
         },
       ],
       onSelect: (value) => {
@@ -86,9 +108,25 @@ export function showMcpSettings(host: SlashCommandHost): void {
           void showMcpStatusPanel(host);
           return;
         }
-        void showMcpManagePanel(host);
+        if (value === 'manage') {
+          void showMcpManagePanel(host);
+          return;
+        }
+        if (value === 'tip-config-scopes') {
+          host.showStatus(MCP_CONFIG_SCOPES_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-oauth') {
+          host.showStatus(MCP_OAUTH_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-allowlist') {
+          host.showStatus(MCP_ALLOWLIST_TIP, 'info');
+        }
       },
-      onCancel: () =>{  dismissPickerDialog(host); },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
     }),
     { label: 'MCP' },
   );
@@ -103,7 +141,9 @@ async function showMcpStatusPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' MCP ',
     enterBeatSeed: 'mcp-settings',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
