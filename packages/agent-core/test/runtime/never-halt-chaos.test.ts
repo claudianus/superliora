@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  NEVER_HALT_OAUTH_REFRESH_FAILED_REASON,
+  NEVER_HALT_SEARCH_429_TOOL_OUTPUT,
+  runNeverHaltBreaker429LoopDispatchChaos,
+  runNeverHaltDegradedLoopDispatchChaos,
   simulateNeverHaltChaosSequence,
   simulateNeverHaltDegradedChaos,
   simulateNeverHaltOAuthChaosSequence,
@@ -59,5 +63,53 @@ describe('Never-Halt chaos — runtime.degraded soft-survive', () => {
       reason: 'oauth_refresh_failed',
       atMs: 77_000,
     });
+  });
+
+  it('runs search 429 + oauth refresh through loop-dispatch without aborting the goal tick', async () => {
+    const result = await runNeverHaltDegradedLoopDispatchChaos(66_000);
+
+    expect(result.goalTickCompleted).toBe(true);
+    expect(result.detail).toContain('goal tick completed');
+    expect(result.degradedEvents).toHaveLength(2);
+    expect(result.degradedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'runtime.degraded',
+        scope: 'search',
+        reason: 'tool_result_degraded',
+        toolCallId: 'chaos-brave-429',
+      }),
+    );
+    expect(result.degradedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'runtime.degraded',
+        scope: 'oauth',
+        reason: NEVER_HALT_OAUTH_REFRESH_FAILED_REASON,
+        atMs: 66_000,
+      }),
+    );
+  });
+
+  it('runs breaker 429 + degraded tool result through loop-dispatch without aborting the goal tick', async () => {
+    const result = await runNeverHaltBreaker429LoopDispatchChaos(55_000);
+
+    expect(result.goalTickCompleted).toBe(true);
+    expect(result.detail).toContain('goal tick completed');
+    expect(result.degradedEvents.length).toBeGreaterThanOrEqual(2);
+    expect(result.degradedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'runtime.degraded',
+        scope: 'search',
+        reason: 'brave 429',
+        atMs: 55_000,
+      }),
+    );
+    expect(result.degradedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'runtime.degraded',
+        scope: 'search',
+        reason: 'tool_result_degraded',
+        toolCallId: 'chaos-breaker-429',
+      }),
+    );
   });
 });
