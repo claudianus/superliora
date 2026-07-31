@@ -6,6 +6,15 @@ import type { PersonaConfig } from '@superliora/sdk';
 
 import { PERSONA_PRESET_NAMES } from '#/tui/commands/persona';
 
+export const PERSONA_PRESET_TIP =
+  'Apply a preset: /persona set <name> — stacks custom tone/personality/instructions on top.';
+
+export const PERSONA_CUSTOMIZE_TIP =
+  'Customize: /persona name|tone|personality|instructions … · /persona clear resets config.toml [persona].';
+
+export const PERSONA_PERSIST_TIP =
+  'Persisted in config.toml [persona] · reloads the active session · no inline editor yet.';
+
 export interface PersonaGlanceInput {
   readonly persona?: PersonaConfig;
   readonly configPath: string;

@@ -1,15 +1,112 @@
 /**
- * Settings → Ops Theatre — read-only glance + /ops tips (SSOT §9.2).
+ * Settings → Ops Theatre — ChoicePicker + live glance (SSOT §9.2).
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
-import { buildOpsTheatreSettingsLines } from '../../../utils/ops/ops-theatre-glance';
+import {
+  buildOpsTheatreSettingsLines,
+  OPS_THEATRE_GIT_TIP,
+  OPS_THEATRE_LAYOUT_TIP,
+  OPS_THEATRE_OPEN_TIP,
+  OPS_THEATRE_PREMIUM_TIP,
+  OPS_THEATRE_STEER_TIP,
+  OPS_THEATRE_TRAY_TIP,
+} from '../../../utils/ops/ops-theatre-glance';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
+export {
+  OPS_THEATRE_GIT_TIP,
+  OPS_THEATRE_LAYOUT_TIP,
+  OPS_THEATRE_OPEN_TIP,
+  OPS_THEATRE_PREMIUM_TIP,
+  OPS_THEATRE_STEER_TIP,
+  OPS_THEATRE_TRAY_TIP,
+};
+
 export function showOpsTheatreSettings(host: SlashCommandHost): void {
-  void showOpsTheatreSettingsPanel(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Ops Theatre',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Ops Theatre status',
+          description: 'Live intervention queue · permission · /ops layout tips.',
+        },
+        {
+          value: 'tip-open',
+          label: 'Open theatre tip',
+          description: OPS_THEATRE_OPEN_TIP,
+        },
+        {
+          value: 'tip-layout',
+          label: 'Layout tip',
+          description: OPS_THEATRE_LAYOUT_TIP,
+        },
+        {
+          value: 'tip-git',
+          label: 'Git tip',
+          description: OPS_THEATRE_GIT_TIP,
+        },
+        {
+          value: 'tip-tray',
+          label: 'Interrupt tray tip',
+          description: OPS_THEATRE_TRAY_TIP,
+        },
+        {
+          value: 'tip-steer',
+          label: 'Steer tip',
+          description: OPS_THEATRE_STEER_TIP,
+        },
+        {
+          value: 'tip-premium',
+          label: 'Dopamine Ops tip',
+          description: OPS_THEATRE_PREMIUM_TIP,
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showOpsTheatreSettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-open') {
+          host.showStatus(OPS_THEATRE_OPEN_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-layout') {
+          host.showStatus(OPS_THEATRE_LAYOUT_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-git') {
+          host.showStatus(OPS_THEATRE_GIT_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-tray') {
+          host.showStatus(OPS_THEATRE_TRAY_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-steer') {
+          host.showStatus(OPS_THEATRE_STEER_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-premium') {
+          host.showStatus(OPS_THEATRE_PREMIUM_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Ops' },
+  );
 }
 
 async function showOpsTheatreSettingsPanel(host: SlashCommandHost): Promise<void> {
