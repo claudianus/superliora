@@ -18,3 +18,5 @@ export {
   buildOpsTheatreSmokeInput,
   renderOpsTheatreSmokeGrid,
 } from './smoke-fixture';
+export { OpsTheatrePanelComponent, type OpsTheatrePanelOptions } from './ops-theatre-panel';
+export { OPS_APPROVAL_FOCUS_HINT } from './build-panes';

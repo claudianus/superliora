@@ -157,6 +157,8 @@ export interface SlashCommandHost {
   closeAllCenterModals?(): void;
   restoreEditor(): void;
   restoreInputText(text: string): void;
+  focusPendingApprovalPanel(): boolean;
+  showApprovalPanel(payload: import('../../reverse-rpc/types').ApprovalPanelData): void;
   refreshSlashCommandAutocomplete(): void;
   showCommandHub?(options?: { readonly initialQuery?: string; readonly intro?: boolean }): void;
 

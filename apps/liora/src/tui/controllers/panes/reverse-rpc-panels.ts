@@ -110,6 +110,21 @@ export class ReverseRpcPanelsController {
     this.host.restoreEditor();
   }
 
+  /** Re-mount the live approval panel when Ops or other surfaces request focus. */
+  focusPendingApprovalPanel(): boolean {
+    const pending = this.host.state.livePane.pendingApproval;
+    if (pending !== null) {
+      this.showApprovalPanel(pending.data);
+      return true;
+    }
+    const deferred = this.host.deferredApproval;
+    if (deferred !== undefined) {
+      this.showApprovalPanel(deferred);
+      return true;
+    }
+    return false;
+  }
+
   showQuestionDialog(payload: QuestionPanelData): void {
     if (
       this.host.state.activeDialog === 'command' ||

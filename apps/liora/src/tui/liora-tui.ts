@@ -318,6 +318,7 @@ export interface LioraTUIHost {
   hideSessionPicker(): void;
   openUndoSelector(): void;
   showApprovalPanel(payload: ApprovalPanelData): void;
+  focusPendingApprovalPanel(): boolean;
   showQuestionDialog(payload: QuestionPanelData): void;
 }
 

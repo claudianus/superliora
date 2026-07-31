@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { showOpsTheatre } from '#/tui/commands/ops/ops-theatre';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
-import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
+import { OpsTheatrePanelComponent } from '#/tui/features/ops-theatre/ops-theatre-panel';
 import { currentTheme } from '#/tui/theme';
 import { OPS_FLEET_PARALLEL_FANOUT_TIP } from '#/tui/utils/fleet/fleet-glance';
 import { SEARCH_CASCADE_BADGE_TTL_MS } from '#/tui/utils/search/search-cascade';
@@ -50,7 +50,7 @@ function makeHost(status: Record<string, unknown> = {}, appStateOverrides: Recor
       },
       livePane: { pendingApproval: null },
       theme: currentTheme,
-      transcriptContainer: { addChild: vi.fn() },
+      transcriptContainer: { isBatchMounting: false, addChild: vi.fn() },
       ui: { requestRender: vi.fn() },
       renderer: { invalidateFrame: vi.fn() },
     },
@@ -62,8 +62,16 @@ function makeHost(status: Record<string, unknown> = {}, appStateOverrides: Recor
     setAppState: vi.fn(),
     motionBeats: { play: vi.fn() },
     showError: vi.fn(),
+    mountEditorReplacement: vi.fn(),
+    restoreEditor: vi.fn(),
+    focusPendingApprovalPanel: vi.fn(() => true),
+    showApprovalPanel: vi.fn(),
   } as unknown as SlashCommandHost;
   return host;
+}
+
+function mountedOpsPanel(host: SlashCommandHost): OpsTheatrePanelComponent {
+  return (host.mountEditorReplacement as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as OpsTheatrePanelComponent;
 }
 
 describe('showOpsTheatre', () => {
@@ -71,8 +79,7 @@ describe('showOpsTheatre', () => {
     const host = makeHost({ parallelToolsInFlight: 2, maxParallelTools: 3 });
     await showOpsTheatre(host);
 
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
-      .calls[0]?.[0] as UsagePanelComponent;
+    const panel = mountedOpsPanel(host);
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Parallel tools: 2 in flight · peak 3');
     expect(text).not.toContain(OPS_FLEET_PARALLEL_FANOUT_TIP);
@@ -82,8 +89,7 @@ describe('showOpsTheatre', () => {
     const host = makeHost({});
     await showOpsTheatre(host);
 
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
-      .calls[0]?.[0] as UsagePanelComponent;
+    const panel = mountedOpsPanel(host);
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toMatch(/Parallel: independent tool_calls fan/);
   });
@@ -98,8 +104,7 @@ describe('showOpsTheatre', () => {
     );
     await showOpsTheatre(host);
 
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
-      .calls[0]?.[0] as UsagePanelComponent;
+    const panel = mountedOpsPanel(host);
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Cascade: ch1→ch3→ch4 · hops 2');
   });
@@ -117,5 +122,22 @@ describe('showOpsTheatre', () => {
     await showOpsTheatre(host);
 
     expect(host.setAppState).toHaveBeenCalledWith({ searchCascade: null });
+  });
+
+  it('surfaces Enter approval focus hint when pendingApproval is set', async () => {
+    const host = makeHost();
+    host.state.livePane.pendingApproval = {
+      data: {
+        id: 'ap-1',
+        tool_name: 'Shell',
+        action: 'run',
+        display: [],
+      },
+    };
+    await showOpsTheatre(host);
+
+    const text = mountedOpsPanel(host).snapshotBodyLines(1).join('\n');
+    expect(text).toContain('Enter → open approval panel · Esc close');
+    expect(text).toContain('Approval: Shell');
   });
 });

@@ -473,6 +473,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.showApprovalPanel = function (payload: ApprovalPanelData) {
     this.reverseRpcPanels.showApprovalPanel(payload);
   };
+  proto.focusPendingApprovalPanel = function () {
+    return this.reverseRpcPanels.focusPendingApprovalPanel();
+  };
   proto.showQuestionDialog = function (payload: QuestionPanelData) {
     this.reverseRpcPanels.showQuestionDialog(payload);
   };
