@@ -5,10 +5,14 @@
 
 import { homedir } from 'node:os';
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import {
   buildContextSettingsLines,
+  CONTEXT_INSTRUCTION_SOFT_TIP,
+  CONTEXT_LEARNING_SOFT_TIP,
+  CONTEXT_WORKING_SET_TIP,
   discoverInstructionFiles,
   type ContextMemoryGlance,
 } from '#/tui/utils/agent/context-glance';
@@ -17,12 +21,68 @@ import {
   formatTokenCount,
   matchContextWorkingSetPreset,
 } from '#/tui/utils/agent/context-working-set';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import { getDataDir } from '#/utils/paths';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
+export { CONTEXT_INSTRUCTION_SOFT_TIP, CONTEXT_LEARNING_SOFT_TIP, CONTEXT_WORKING_SET_TIP };
+
 export function showContextSettings(host: SlashCommandHost): void {
-  void showContextSettingsPanel(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Context',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Context status',
+          description:
+            'Working-set preset · soft/async caps · instruction files · Liora Recall counts.',
+        },
+        {
+          value: 'tip-working-set',
+          label: 'Working-set tip',
+          description:
+            'Soft cap before auto-compact · presets economy/balanced/deep/full · /context to change.',
+        },
+        {
+          value: 'tip-instruction',
+          label: 'Instruction memory tip',
+          description: 'AGENTS.md, rules, skills — human SSOT; do not auto-write.',
+        },
+        {
+          value: 'tip-learning',
+          label: 'Learning memory tip',
+          description: 'Liora Recall (/memory remember) — agent-curated durable facts.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showContextSettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-working-set') {
+          host.showStatus(CONTEXT_WORKING_SET_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-instruction') {
+          host.showStatus(CONTEXT_INSTRUCTION_SOFT_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-learning') {
+          host.showStatus(CONTEXT_LEARNING_SOFT_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Context' },
+  );
 }
 
 async function loadMemoryGlance(host: SlashCommandHost): Promise<ContextMemoryGlance> {
@@ -73,7 +133,9 @@ async function showContextSettingsPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Context ',
     enterBeatSeed: 'context-settings',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

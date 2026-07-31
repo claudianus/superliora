@@ -1,17 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showCompactionSettings } from '#/tui/commands/config/context/compaction-settings';
-import { showContextSettings } from '#/tui/commands/config/context/context-settings';
+import {
+  CONTEXT_INSTRUCTION_SOFT_TIP,
+  CONTEXT_LEARNING_SOFT_TIP,
+  CONTEXT_WORKING_SET_TIP,
+  showContextSettings,
+} from '#/tui/commands/config/context/context-settings';
 import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
-function selectCompactionStatus(host: SlashCommandHost): void {
+function selectPickerAction(host: SlashCommandHost, value: string): void {
   const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
     | ChoicePickerComponent
     | undefined;
   expect(picker).toBeDefined();
-  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect('status');
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
 }
 
 function makeSettingsHost(
@@ -88,7 +93,7 @@ describe('W9 compaction/context settings tips', () => {
       getContext: vi.fn(async () => ({ contextArchive: { entryCount: 1, maxEntries: 512 } })),
     })) as never;
     showCompactionSettings(host);
-    selectCompactionStatus(host);
+    selectPickerAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -106,9 +111,56 @@ describe('W9 compaction/context settings tips', () => {
     expect(lines).toContain('── Session (live) ──');
   });
 
+  it('exports working-set, instruction, and learning tips', () => {
+    expect(CONTEXT_WORKING_SET_TIP).toContain('soft cap');
+    expect(CONTEXT_INSTRUCTION_SOFT_TIP).toContain('AGENTS.md');
+    expect(CONTEXT_LEARNING_SOFT_TIP).toContain('Liora Recall');
+  });
+});
+
+describe('showContextSettings', () => {
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeSettingsHost();
+    showContextSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-working-set',
+      'tip-instruction',
+      'tip-learning',
+    ]);
+  });
+
+  it('shows working-set tip via showStatus', () => {
+    const host = makeSettingsHost();
+    showContextSettings(host);
+    selectPickerAction(host, 'tip-working-set');
+    expect(host.showStatus).toHaveBeenCalledWith(CONTEXT_WORKING_SET_TIP, 'info');
+  });
+
+  it('shows instruction tip via showStatus', () => {
+    const host = makeSettingsHost();
+    showContextSettings(host);
+    selectPickerAction(host, 'tip-instruction');
+    expect(host.showStatus).toHaveBeenCalledWith(CONTEXT_INSTRUCTION_SOFT_TIP, 'info');
+  });
+
+  it('shows learning tip via showStatus', () => {
+    const host = makeSettingsHost();
+    showContextSettings(host);
+    selectPickerAction(host, 'tip-learning');
+    expect(host.showStatus).toHaveBeenCalledWith(CONTEXT_LEARNING_SOFT_TIP, 'info');
+  });
+
   it('context panel explains Instruction vs Learning memory with live wiring', async () => {
     const host = makeSettingsHost();
     showContextSettings(host);
+    selectPickerAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
