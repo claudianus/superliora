@@ -45,7 +45,7 @@ export interface ProviderManagerOptions {
   readonly config: LioraConfig | (() => LioraConfig);
   readonly kimiRequestHeaders?: Record<string, string>;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver;
-  readonly promptCacheKey?: string;
+  readonly promptCacheKey?: string | (() => string | undefined);
 }
 
 export type AuthorizedRequest = <T>(

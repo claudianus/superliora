@@ -1,5 +1,6 @@
 export * from './merge';
 export * from './path';
+export * from './prompt-cache-key';
 export * from './resolve';
 export * from './schema';
 export * from './toml';

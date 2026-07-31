@@ -22,6 +22,8 @@ export function transformTomlData(data: Record<string, unknown>): Record<string,
       result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'memory' && isPlainObject(value)) {
       result[targetKey] = transformPlainObject(value);
+    } else if (targetKey === 'cache' && isPlainObject(value)) {
+      result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'research' && isPlainObject(value)) {
       result[targetKey] = transformResearchData(value);
     } else if (targetKey === 'mission' && isPlainObject(value)) {
