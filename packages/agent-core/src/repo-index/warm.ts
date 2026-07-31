@@ -36,10 +36,11 @@ export function repoIndexWarmStatusLine(env: NodeJS.ProcessEnv = process.env): s
  * never throws; no-op when env off, empty workDir, or non-git workspace.
  */
 export function maybeWarmCodemapAtSessionStart(
-  workspaceDir: string,
+  workspaceDir: string | undefined | null,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
   if (!isRepoIndexWarmEnabled(env)) return;
+  if (typeof workspaceDir !== 'string') return;
   const dir = workspaceDir.trim();
   if (dir.length === 0) return;
   if (!isCodemapGitWorkspace(dir)) return;

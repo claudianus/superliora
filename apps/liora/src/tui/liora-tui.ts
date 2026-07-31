@@ -181,6 +181,8 @@ export interface LioraTUIHost {
   emergencyTerminalExit(exitCode?: number): never;
   initMainTui(): Promise<boolean>;
   init(): Promise<boolean>;
+  /** Wire native input router after `init()` when tests skip `initMainTui()`. */
+  ensureNativeInputRouter(): void;
   loadBanner(): Promise<void>;
   finishStartup(shouldReplayHistory: boolean): Promise<void>;
   refreshProviderModelsInBackground(): Promise<void>;

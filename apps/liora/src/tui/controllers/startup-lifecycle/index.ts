@@ -192,7 +192,8 @@ export class StartupLifecycleController {
     });
   }
 
-  private ensureNativeInputRouter(): void {
+  /** Public for tests that call `init()` without `initMainTui()`. */
+  ensureNativeInputRouter(): void {
     ensureStartupNativeInputRouter(this.host, {
       scrollTranscriptViewport: (action) => this.scrollTranscriptViewport(action),
     });

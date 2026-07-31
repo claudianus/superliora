@@ -82,6 +82,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.init = function () {
     return this.startupLifecycle.init();
   };
+  proto.ensureNativeInputRouter = function () {
+    this.startupLifecycle.ensureNativeInputRouter();
+  };
   proto.loadBanner = function () {
     return this.startupLifecycle.loadBanner();
   };
