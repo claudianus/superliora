@@ -17,6 +17,7 @@ export interface OpsTheatrePanelOptions extends UsagePanelComponentOptions {
 
 /** Bordered Ops grid with keyboard hooks for the intervention tray. */
 export class OpsTheatrePanelComponent implements Component, Focusable {
+  focused = true;
   private readonly usage: UsagePanelComponent;
   private readonly hasPendingApproval: () => boolean;
   private readonly onFocusApproval: () => void;

@@ -946,7 +946,13 @@ describe('status panel report lines', () => {
       },
     };
 
-    const output = buildStatusReportLines({ ...base, status }).map(strip).join('\n');
+    // Runtime usage carries cacheDiagnostics (UsageStatus); SessionUsage typing lags.
+    const output = buildStatusReportLines({
+      ...base,
+      status: status as Parameters<typeof buildStatusReportLines>[0]['status'],
+    })
+      .map(strip)
+      .join('\n');
     expect(output).toContain('Miss reasons');
     expect(output).toContain('schema_change');
     expect(output).toContain('prefix_drift');
@@ -962,7 +968,7 @@ describe('status panel report lines', () => {
             missReasons: {},
           },
         },
-      },
+      } as Parameters<typeof buildStatusReportLines>[0]['status'],
     })
       .map(strip)
       .join('\n');

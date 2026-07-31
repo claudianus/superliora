@@ -24,6 +24,7 @@ import {
   isSettingsHubActionId,
   settingsSelectionFromHubId,
 } from '../../commands/config/settings-keywords';
+import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import {
   buildSlashJumpHubItems,
   isSlashHubActionId,
@@ -223,12 +224,14 @@ function handleCommandHubAction(
   item: CommandHubItem,
   options: { readonly nest: boolean },
 ): void {
+  // Runtime host is LioraTUI (full SlashCommandHost); DialogsHost is the mount slice.
+  const slashHost = host as unknown as SlashCommandHost;
   if (item.id === 'settings.open') {
-    showSettingsSelector(host);
+    showSettingsSelector(slashHost);
     return;
   }
   if (isSettingsHubActionId(item.id)) {
-    openSettingsPane(host, settingsSelectionFromHubId(item.id));
+    openSettingsPane(slashHost, settingsSelectionFromHubId(item.id));
     return;
   }
   if (item.id === 'help.shortcuts') {
