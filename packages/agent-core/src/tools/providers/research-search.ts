@@ -251,7 +251,12 @@ export class ResearchSearchEngine implements WebSearchProvider {
 
   async search(
     query: string,
-    options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
+    options?: {
+      limit?: number;
+      includeContent?: boolean;
+      toolCallId?: string;
+      allowBrowser?: boolean;
+    },
   ): Promise<WebSearchResult[]> {
     const trimmed = query.trim();
     if (trimmed.length === 0) return [];
@@ -260,18 +265,19 @@ export class ResearchSearchEngine implements WebSearchProvider {
     // Never ask every remote provider for full page bodies — content is
     // attached once after ranking (local Defuddle fetch).
     const metadataOptions = { ...options, includeContent: false as const };
+    const allowBrowser = options?.allowBrowser !== false;
     const now = this.now();
 
     const ready = this.slots.filter((slot) => slot.cooldownUntil <= now);
     if (ready.length === 0) {
       const free = orderByCost(this.slots.filter(isFreeCascadeSlot));
       if (free.length === 0) {
-        return this.maybeBrowserEscalate(trimmed, limit);
+        return this.maybeBrowserEscalate(trimmed, limit, allowBrowser);
       }
       const last = await this.searchSlot(free[0]!, trimmed, metadataOptions, limit);
       let results = await this.maybeAttachContent(rankAndDedupe(last, trimmed).slice(0, limit), options);
       if (results.length === 0) {
-        results = await this.maybeBrowserEscalate(trimmed, limit);
+        results = await this.maybeBrowserEscalate(trimmed, limit, allowBrowser);
       }
       return results;
     }
@@ -306,7 +312,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
 
     results = await this.maybeAttachContent(results, options);
     if (results.length === 0) {
-      results = await this.maybeBrowserEscalate(trimmed, limit);
+      results = await this.maybeBrowserEscalate(trimmed, limit, allowBrowser);
     }
     return results;
   }
@@ -314,7 +320,9 @@ export class ResearchSearchEngine implements WebSearchProvider {
   private async maybeBrowserEscalate(
     query: string,
     limit: number,
+    allowBrowser = true,
   ): Promise<WebSearchResult[]> {
+    if (!allowBrowser) return [];
     if (this.browserChannel !== undefined && this.browserChannel.available()) {
       try {
         const browserResults = await this.browserChannel.search(query, limit);

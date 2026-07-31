@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildDeepResearchOutput,
+  clampDeepResearchBudgetUsd,
   DeepResearchTool,
   depthIncludesContent,
   depthSearchLimit,
@@ -13,6 +14,7 @@ import {
   mergeResearchSources,
   normalizeResearchUrl,
   planDeepResearchQueries,
+  resolveDeepResearchAllowBrowser,
 } from '../../../src/tools/builtin/web/deep-research';
 import type { UrlFetcher } from '../../../src/tools/builtin/web/fetch-url';
 import { ResearchSearchEngine } from '../../../src/tools/providers/research-search';
@@ -120,6 +122,28 @@ describe('mergeResearchSources', () => {
   });
 });
 
+describe('resolveDeepResearchAllowBrowser', () => {
+  it('defaults to exhaustive-only escalate when allow_browser omitted', () => {
+    expect(resolveDeepResearchAllowBrowser(undefined, 'quick')).toBe(false);
+    expect(resolveDeepResearchAllowBrowser(undefined, 'standard')).toBe(false);
+    expect(resolveDeepResearchAllowBrowser(undefined, 'exhaustive')).toBe(true);
+  });
+
+  it('honors explicit allow_browser over depth', () => {
+    expect(resolveDeepResearchAllowBrowser(true, 'quick')).toBe(true);
+    expect(resolveDeepResearchAllowBrowser(false, 'exhaustive')).toBe(false);
+  });
+});
+
+describe('clampDeepResearchBudgetUsd', () => {
+  it('clamps to 0..100', () => {
+    expect(clampDeepResearchBudgetUsd(undefined)).toBeUndefined();
+    expect(clampDeepResearchBudgetUsd(-1)).toBe(0);
+    expect(clampDeepResearchBudgetUsd(250)).toBe(100);
+    expect(clampDeepResearchBudgetUsd(1.5)).toBe(1.5);
+  });
+});
+
 describe('buildDeepResearchOutput', () => {
   it('emits structured sections and degraded hints when empty', () => {
     const output = buildDeepResearchOutput({
@@ -129,14 +153,19 @@ describe('buildDeepResearchOutput', () => {
       degraded: true,
       hops: 2,
       channelsTried: ['ch3'],
+      allowBrowser: false,
     });
 
     expect(output).toContain('answer_outline:');
     expect(output).toContain('claims:');
     expect(output).toContain('sources:');
-    expect(output).toContain('channels_used: Rust async | Rust async overview');
+    expect(output).toContain('queries: Rust async | Rust async overview');
+    expect(output).toContain('channels_used: ch3');
+    expect(output).toContain('offline_stub:');
+    expect(output).toContain('mode: local-only');
     expect(output).toContain('hops: 2');
     expect(output).toContain('channelsTried: ch3');
+    expect(output).toContain('allow_browser: false');
     expect(output).toContain('degraded: true');
     expect(output).toContain('next:');
     expect(output).toContain('Ch4');
@@ -349,10 +378,67 @@ describe('DeepResearchTool', () => {
     expect(result.isError).toBe(false);
     const content = toolContentString(result);
     expect(content).toContain('degraded: true');
+    expect(content).toContain('offline_stub:');
     expect(content).toContain('next:');
     expect(content).toContain('Ch4');
     expect(content).toContain('Ch5');
     expect(content).toContain('No live sources returned');
+    expect(content).toMatch(/channels_used: /);
+    expect(content).not.toMatch(/channels_used: empty cascade/);
+    expect(browserSearch).not.toHaveBeenCalled();
+    expect(chromeSearch).not.toHaveBeenCalled();
+    } finally {
+      delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
+    }
+  });
+
+  it('escalates to browser when allow_browser is true', async () => {
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
+    try {
+      const browserSearch = vi
+        .fn<() => Promise<Array<{ title: string; url: string; snippet: string }>>>()
+        .mockResolvedValue([
+          {
+            title: 'Browser hit',
+            url: 'https://example.com/browser-hit',
+            snippet: 'from Ch4',
+          },
+        ]);
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ web: { results: [] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+      const engine = new ResearchSearchEngine({
+        fetchImpl,
+        browserChannel: { available: () => true, search: browserSearch },
+        search: {
+          strategy: 'fallback',
+          freeFallback: false,
+          providers: [{ kind: 'brave', apiKey: 'brave-test-key' }],
+        },
+      });
+
+      const tool = new DeepResearchTool(engine);
+      const result = await executeTool(tool, {
+        turnId: 't1',
+        toolCallId: 'c-deep-browser',
+        args: {
+          question: 'need browser escalate',
+          depth: 'quick',
+          allow_browser: true,
+          max_sources: 3,
+        },
+        signal,
+      });
+
+      expect(result.isError).toBe(false);
+      expect(browserSearch).toHaveBeenCalled();
+      const content = toolContentString(result);
+      expect(content).toContain('Browser hit');
+      expect(content).toContain('allow_browser: true');
     } finally {
       delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
     }

@@ -49,9 +49,34 @@ export const DeepResearchInputSchema = z.object({
     .default(8)
     .describe('Maximum merged sources to return (default 8).')
     .optional(),
+  allow_browser: z
+    .boolean()
+    .describe(
+      'Escalate to browser automation (Ch4) / Chrome extension bridge (Ch5) after empty SERP. Default: true when depth is exhaustive, otherwise false.',
+    )
+    .optional(),
+  budget_usd: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe('Soft research spend hint in USD (recorded in output; not a hard kill switch).')
+    .optional(),
 });
 
 export type DeepResearchInput = z.infer<typeof DeepResearchInputSchema>;
+
+/** Escalate Ch4/Ch5 when explicitly allowed, or when depth is exhaustive. */
+export function resolveDeepResearchAllowBrowser(
+  allowBrowser: boolean | undefined,
+  depth: DeepResearchDepth,
+): boolean {
+  return allowBrowser ?? depth === 'exhaustive';
+}
+
+export function clampDeepResearchBudgetUsd(budgetUsd: number | undefined): number | undefined {
+  if (budgetUsd === undefined || !Number.isFinite(budgetUsd)) return undefined;
+  return Math.min(100, Math.max(0, budgetUsd));
+}
 
 // ── Query planning & merge helpers (pure) ────────────────────────────
 
@@ -207,6 +232,18 @@ export function formatDeepResearchChannelsTried(channels: readonly string[]): st
   return channels.length === 0 ? '(none)' : channels.join(' | ');
 }
 
+/** Ch6 last resort: structured offline stub so Goal/Mission loops never halt. */
+export function formatDeepResearchOfflineStub(question: string): string[] {
+  return [
+    'offline_stub:',
+    '- mode: local-only',
+    '- network: unavailable or all search channels empty',
+    `- question: ${question.trim()}`,
+    '- continue: use repo evidence (Read/Grep/RepoQuery), prior session notes, or FetchURL on a known URL',
+    '- do_not: halt the Goal/Mission loop because live search failed',
+  ];
+}
+
 export function buildDeepResearchOutput(options: {
   question: string;
   queries: readonly string[];
@@ -214,11 +251,16 @@ export function buildDeepResearchOutput(options: {
   degraded: boolean;
   hops: number;
   channelsTried: readonly string[];
+  /** Truthful channel ids (ch1…ch6); falls back to channelsTried. */
+  channelsUsed?: readonly string[];
   freshness?: DeepResearchFreshness;
+  allowBrowser?: boolean;
+  budgetUsd?: number | undefined;
   health?: ReturnType<typeof assessSearchChannelHealth> | undefined;
 }): string {
   const freshness = options.freshness ?? 'any';
   const claims = buildClaimsFromSources(options.sources, { freshness, maxClaims: 6 });
+  const channelsUsed = options.channelsUsed ?? options.channelsTried;
   const lines: string[] = [];
   lines.push(`question: ${options.question.trim()}`);
   lines.push('');
@@ -226,6 +268,7 @@ export function buildDeepResearchOutput(options: {
   lines.push('answer_outline:');
   if (options.sources.length === 0) {
     lines.push('- No live sources returned across planned queries.');
+    lines.push('- Offline stub active: continue from local repo evidence without halting.');
   } else {
     for (const source of options.sources.slice(0, 5)) {
       lines.push(`- ${source.title}: ${truncateSnippet(source.snippet, 160)}`);
@@ -260,9 +303,21 @@ export function buildDeepResearchOutput(options: {
   }
   lines.push('');
 
-  lines.push(`channels_used: ${options.queries.join(' | ')}`);
+  if (options.sources.length === 0) {
+    lines.push(...formatDeepResearchOfflineStub(options.question));
+    lines.push('');
+  }
+
+  lines.push(`queries: ${options.queries.length === 0 ? '(none)' : options.queries.join(' | ')}`);
+  lines.push(`channels_used: ${formatDeepResearchChannelsTried(channelsUsed)}`);
   lines.push(`hops: ${String(options.hops)}`);
   lines.push(`channelsTried: ${formatDeepResearchChannelsTried(options.channelsTried)}`);
+  if (options.allowBrowser !== undefined) {
+    lines.push(`allow_browser: ${String(options.allowBrowser)}`);
+  }
+  if (options.budgetUsd !== undefined) {
+    lines.push(`budget_usd: ${String(options.budgetUsd)}`);
+  }
   lines.push(
     ...formatSearchNeverEmptySoftFailLines({
       degraded: options.degraded,
@@ -312,6 +367,8 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
       const depth = args.depth ?? 'standard';
       const maxSources = args.max_sources ?? 8;
       const includeContent = depthIncludesContent(depth);
+      const allowBrowser = resolveDeepResearchAllowBrowser(args.allow_browser, depth);
+      const budgetUsd = clampDeepResearchBudgetUsd(args.budget_usd);
       const queries = planDeepResearchQueries(args.question, freshness);
       const perQueryLimit = depthSearchLimit(depth);
 
@@ -322,6 +379,7 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
             limit: perQueryLimit,
             includeContent,
             toolCallId,
+            allowBrowser,
           }),
         })),
       );
@@ -349,7 +407,10 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
           degraded,
           hops,
           channelsTried,
+          channelsUsed: channelsTried,
           freshness,
+          allowBrowser,
+          budgetUsd,
           health,
         }),
       );
@@ -359,12 +420,21 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
       const health = status === undefined ? undefined : assessSearchChannelHealth(status);
       const channelsTried =
         status === undefined ? [] : inferSearchChannelsFromStatus(status);
+      const depth = args.depth ?? 'standard';
+      const allowBrowser = resolveDeepResearchAllowBrowser(args.allow_browser, depth);
+      const budgetUsd = clampDeepResearchBudgetUsd(args.budget_usd);
       return {
         isError: false,
         output: [
           classifyResearchError(error),
+          '',
+          ...formatDeepResearchOfflineStub(args.question),
+          '',
           'hops: 0',
+          `channels_used: ${formatDeepResearchChannelsTried(channelsTried)}`,
           `channelsTried: ${formatDeepResearchChannelsTried(channelsTried)}`,
+          `allow_browser: ${String(allowBrowser)}`,
+          ...(budgetUsd === undefined ? [] : [`budget_usd: ${String(budgetUsd)}`]),
           ...formatSearchNeverEmptySoftFailLines({
             degraded: true,
             health,
