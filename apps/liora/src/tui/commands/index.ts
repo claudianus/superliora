@@ -25,7 +25,8 @@ export { handlePermissionCommand, handleYoloCommand, showPermissionPicker } from
 export { handleThinkingCommand } from './config/thinking';
 export { showExperimentsPanel } from './config/experiments';
 export { showSettingsSelector, showHarnessPanel } from './config/settings';
-export { showToolsInventory, showHarnessEyesReadiness } from './config/harness-tools';
+export { showToolsInventory } from './config/harness-tools';
+export { showHarnessEyesReadiness } from './config/eyes-settings';
 export { handleSwarmCommand } from './swarm/swarm';
 export { handleOrchestratorCommand } from './swarm/orchestrator';
 export { buildUltraworkPrompt, parseUltraworkCommand } from '#/tui/utils/mission/mission-contract';
