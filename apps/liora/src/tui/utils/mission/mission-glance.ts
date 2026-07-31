@@ -92,6 +92,23 @@ export function formatMissionAutoStartLine(autoStart: boolean): string {
   return `Auto-start opt-in: ${autoStart ? 'ON' : 'OFF'} (mission.autoStart)`;
 }
 
+/** Status bar tip on session open when mission.autoStart opt-in is ON. */
+export const MISSION_AUTOSTART_SESSION_TIP =
+  'Mission auto-start opt-in ON — use `/mission resume` or `/mission <objective>` (no objective invented on session open).';
+
+export interface MissionAutoStartSessionTipInput {
+  readonly autoStart: boolean;
+  readonly missionAlreadyActive?: boolean;
+}
+
+/** Returns session-open tip text, or null when opt-in is OFF or a Mission run is already active. */
+export function resolveMissionAutoStartSessionTip(
+  input: MissionAutoStartSessionTipInput,
+): string | null {
+  if (!input.autoStart || input.missionAlreadyActive === true) return null;
+  return MISSION_AUTOSTART_SESSION_TIP;
+}
+
 const MAX_OBJECTIVE_PREVIEW = 56;
 
 function truncateObjective(objective: string): string {
@@ -197,7 +214,7 @@ export function buildMissionSettingsLines(
     '── Auto-start ───────────────────────────────',
     formatMissionAutoStartLine(session.autoStart === true),
     'Default OFF — Mission never invents an objective on session open.',
-    'ON records opt-in intent only; still start with `/mission <objective>` or `/mission resume`.',
+    'ON records opt-in intent only; session open shows a status tip — still start with `/mission <objective>` or `/mission resume`.',
     'Toggle: Settings → Mission → Auto-start ON/OFF → mission.autoStart.',
     '',
     '── Commands ─────────────────────────────────',

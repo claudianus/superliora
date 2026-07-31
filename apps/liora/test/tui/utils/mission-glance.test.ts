@@ -9,7 +9,9 @@ import {
   formatGoalQueueLine,
   formatMissionAutoStartLine,
   formatMissionRunLine,
+  MISSION_AUTOSTART_SESSION_TIP,
   resolveMissionAutoStart,
+  resolveMissionAutoStartSessionTip,
 } from '#/tui/utils/mission/mission-glance';
 
 const baseGoal = (over: Partial<GoalSnapshot> = {}): GoalSnapshot =>
@@ -115,6 +117,20 @@ describe('mission.autoStart helpers', () => {
     });
     expect(formatMissionAutoStartLine(false)).toContain('OFF');
   });
+
+  it('returns session-open tip only when opt-in ON and no active run', () => {
+    expect(
+      resolveMissionAutoStartSessionTip({ autoStart: false, missionAlreadyActive: false }),
+    ).toBeNull();
+    expect(
+      resolveMissionAutoStartSessionTip({ autoStart: true, missionAlreadyActive: true }),
+    ).toBeNull();
+    expect(resolveMissionAutoStartSessionTip({ autoStart: true })).toBe(
+      MISSION_AUTOSTART_SESSION_TIP,
+    );
+    expect(MISSION_AUTOSTART_SESSION_TIP).toContain('/mission resume');
+    expect(MISSION_AUTOSTART_SESSION_TIP).toContain('no objective invented');
+  });
 });
 
 describe('buildMissionSettingsLines', () => {
@@ -135,6 +151,7 @@ describe('buildMissionSettingsLines', () => {
     expect(text).toContain('Mission Resume: artifacts');
     expect(text).toContain('Auto-start opt-in: ON');
     expect(text).toContain('mission.autoStart');
+    expect(text).toContain('session open shows a status tip');
     expect(text).not.toContain('not wired in Settings');
   });
 });
