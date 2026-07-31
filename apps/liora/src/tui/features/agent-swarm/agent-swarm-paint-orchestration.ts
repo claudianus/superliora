@@ -13,6 +13,7 @@ export interface UltraSwarmWarRoomPanelSections {
   readonly teamContent: readonly string[];
   readonly activityContent: readonly string[];
   readonly reportContent: readonly string[];
+  readonly governanceContent: readonly string[];
   readonly debateContent: readonly string[];
   readonly evidenceContent: readonly string[];
   readonly fileMapContent: readonly string[];
@@ -42,6 +43,7 @@ export function renderUltraSwarmWarRoomPanel(
     ...teamBody,
     ...(sections.activityContent.length > 0 ? ['', ...sections.activityContent] : []),
     ...(sections.reportContent.length > 0 ? ['', ...sections.reportContent] : []),
+    ...(sections.governanceContent.length > 0 ? ['', ...sections.governanceContent] : []),
     ...(sections.debateContent.length > 0 ? ['', ...sections.debateContent] : []),
     ...(sections.evidenceContent.length > 0 ? ['', ...sections.evidenceContent] : []),
     ...(sections.fileMapContent.length > 0 ? ['', ...sections.fileMapContent] : []),
@@ -59,7 +61,7 @@ export function renderUltraSwarmWarRoomPanel(
   return [
     '',
     ...renderRoundedPanel({
-      title: ' UltraSwarm ',
+      title: ' Fleet ',
       content: panelContent,
       width,
       borderToken: 'primary',

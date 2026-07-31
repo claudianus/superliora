@@ -3,6 +3,10 @@
 // node-pty, drive a short input scenario, capture ANSI frames, and assert the
 // live chrome actually renders. Snapshots land in .superliora/visual-smoke/
 // so regressions can be diffed by hand.
+//
+// Ops Theatre: deterministic grid lives in
+// src/tui/features/ops-theatre/smoke-fixture.ts (renderOpsTheatreSmokeGrid) —
+// covered by unit tests; this script still exercises /status PTY chrome only.
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';

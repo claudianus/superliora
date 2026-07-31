@@ -127,7 +127,7 @@ export function Sections() {
                     {t.hero.github}
                   </a>
                   <a
-                    href="#ultra"
+                    href="#mission"
                     className="btn inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-soft transition hover:text-text"
                   >
                     {t.hero.secondary}
@@ -222,22 +222,22 @@ export function Sections() {
         </div>
       </section>
 
-      {/* Ultra workflow */}
-      <section id="ultra" className="section-pad">
+      {/* Mission workflow */}
+      <section id="mission" className="section-pad">
         <div className="mx-auto max-w-7xl">
-          <SectionHead kicker={t.ultra.kicker} title={t.ultra.title} body={t.ultra.body} />
+          <SectionHead kicker={t.mission.kicker} title={t.mission.title} body={t.mission.body} />
 
           <Reveal className="mb-10">
-            <WorkflowRail steps={t.ultra.steps} />
+            <WorkflowRail steps={t.mission.steps} />
           </Reveal>
 
           <div className="grid items-start gap-8 lg:grid-cols-12">
             <Reveal stagger={1} className="lg:col-span-5">
               <div className="surface p-7">
-                <Eyebrow>{t.ultra.copyTitle}</Eyebrow>
-                <p className="mt-4 text-lg leading-relaxed text-soft">{t.ultra.copyBody}</p>
+                <Eyebrow>{t.mission.copyTitle}</Eyebrow>
+                <p className="mt-4 text-lg leading-relaxed text-soft">{t.mission.copyBody}</p>
                 <ul className="mt-6 space-y-3 text-soft">
-                  {t.ultra.copyList.map((item) => (
+                  {t.mission.copyList.map((item) => (
                     <li key={item} className="flex gap-3 text-sm leading-relaxed">
                       <span className="mt-1 text-cyan" aria-hidden="true">
                         ›
@@ -250,7 +250,7 @@ export function Sections() {
             </Reveal>
             <Reveal stagger={2} className="lg:col-span-7">
               <div className="grid gap-4 sm:grid-cols-2">
-                {t.ultra.steps.map((s, i) => {
+                {t.mission.steps.map((s, i) => {
                   const Icon = workflowIcons[i] ?? CogIcon;
                   return (
                     <SpotlightCard key={s.title} className="surface p-5 card-hover">

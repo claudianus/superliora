@@ -126,36 +126,38 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(offLine).not.toContain('k2 thinking');
   });
 
-  it('labels Ultrawork mode separately from plain plan mode in the footer', () => {
+  it('labels mission mode separately from plain plan mode in the footer', () => {
     const footer = new FooterComponent(baseState({ planMode: true, ultraworkMode: true }));
 
     const [line1, line2] = footer.render(120);
     const out = strip(line1 ?? '');
 
-    expect(out).toContain('ultrawork');
+    expect(out).toContain('mission');
+    expect(out).not.toContain('ultrawork');
     expect(out).not.toContain('ultrawork-ready');
     expect(out).not.toContain('plan-first');
     expect(out).not.toContain('plan  k2');
     expect(strip(line2 ?? '')).toContain(
-      'Workflow: research → interview → goal → swarm → integrate → verify → learn',
+      'Mission: research → interview → goal → swarm → integrate → verify → learn',
     );
     expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
     expect(strip(line2 ?? '')).not.toContain('helpers');
   });
 
-  it('keeps the Ultrawork pipeline visible after plan mode exits', () => {
+  it('keeps the mission pipeline visible after plan mode exits', () => {
     const footer = new FooterComponent(baseState({ planMode: false, ultraworkMode: true }));
 
     const [line1, line2] = footer.render(120);
 
-    expect(strip(line1 ?? '')).toContain('ultrawork');
+    expect(strip(line1 ?? '')).toContain('mission');
+    expect(strip(line1 ?? '')).not.toContain('ultrawork');
     expect(strip(line1 ?? '')).not.toContain('plan');
     expect(strip(line2 ?? '')).toContain(
-      'Workflow: research → interview → goal → swarm → integrate → verify → learn',
+      'Mission: research → interview → goal → swarm → integrate → verify → learn',
     );
   });
 
-  it('keeps the Ultrawork pipeline visible while streaming', () => {
+  it('keeps the mission pipeline visible while streaming', () => {
     const footer = new FooterComponent(
       baseState({ planMode: false, ultraworkMode: true, streamingPhase: 'thinking' }),
     );
@@ -163,7 +165,7 @@ describe('FooterComponent — context NaN resilience', () => {
     const [, line2] = footer.render(120);
 
     expect(strip(line2 ?? '')).toContain(
-      'Workflow: research → interview → goal → swarm → integrate → verify → learn',
+      'Mission: research → interview → goal → swarm → integrate → verify → learn',
     );
   });
 
@@ -185,7 +187,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
       const [, line2] = footer.render(120);
 
-      expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Ultrawork/off · /bench for LioraBench');
+      expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Mission/off · /bench for Bench');
       expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
       expect(strip(line2 ?? '')).not.toContain('helpers');
       expect(strip(line2 ?? '')).toMatch(/context:.*0\.0%/);
@@ -266,6 +268,8 @@ describe('FooterComponent — context NaN resilience', () => {
           behind: 0,
           diffAdded: 0,
           diffDeleted: 0,
+          changedFileCount: 0,
+          changedFiles: [],
           pullRequest: {
             number: 6,
             url: 'https://github.com/acme/repo/pull/6',

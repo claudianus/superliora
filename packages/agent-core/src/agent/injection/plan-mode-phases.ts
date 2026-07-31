@@ -17,7 +17,7 @@ Plan file: ${planFilePath}`;
 
 /** Shared read-only research tool list (keeps names tests and model routing need). */
 const ULTRA_PLAN_READ_TOOLS =
-  'Context7Resolve, Context7Docs, WebSearch, FetchURL, LioraRead, LioraTree, LioraSymbol, LioraCallgraph, LioraExpand, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking';
+  'Context7Resolve, Context7Docs, WebSearch, FetchURL, RepoQuery, Read, Grep, Glob, ReadMediaFile, SearchSkill, Skill, SearchExpert, read-only Bash, TodoList progress tracking';
 
 /** Harness-enforced plan-mode guards (true denies); everything else is guidance. */
 const ULTRA_PLAN_RESEARCH_GUARDS =
@@ -32,7 +32,7 @@ ${ULTRA_PLAN_RESEARCH_GUARDS}
 
 Goal: source-backed context + improvement levers before UltraPlan interview elevates goals.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
-Evidence-first: prefer Grep, LioraSymbol, Glob, LioraRead before broad Read; cite concrete paths. Research is product-write read-only; defer plan-file writing to the Write phase (guidance).
+Evidence-first: prefer RepoQuery, Grep, Glob before broad Read; cite concrete paths. Research is product-write read-only; defer plan-file writing to the Write phase (guidance).
 Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
@@ -46,7 +46,7 @@ Routing:
 - PATH 1 auto-answer from code/config via RecordInterviewFinding(origin="code").
 - PATH 2 user judgment (goal, acceptance, trade-offs, visual/scope) via AskUserQuestion.
 - PATH 3 external facts: research first, RecordInterviewFinding(origin="research"); confirm surprises with the user.
-- When in doubt → PATH 2. After 3 consecutive non-user findings, must AskUserQuestion. Research-first before AskUserQuestion when options need evidence. Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; LioraRead, Grep, Glob for codebase facts.
+- When in doubt → PATH 2. After 3 consecutive non-user findings, must AskUserQuestion. Research-first before AskUserQuestion when options need evidence. Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; RepoQuery, Grep, Glob for codebase facts.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 
 UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
@@ -73,7 +73,7 @@ Guidance: verification only; defer plan edits to the Write phase. ExitPlanMode i
 Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
-You may ONLY write to the current plan file. All other file edits BLOCKED. Reading (Read, Grep, Glob, WebSearch, FetchURL, Liora*) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
+You may ONLY write to the current plan file. All other file edits BLOCKED. Reading (Read, Grep, Glob, RepoQuery, WebSearch, FetchURL) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
 
 Before writing user-visible plan prose: ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
 No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if the light pass fails.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { humanizeCollaborationEvent, looksLikeProtocolMessage } from '../../src/collaboration/swarm-humanize';
+import { humanizeCollaborationEvent, looksLikeProtocolMessage } from '#/fleet';
 
 describe('swarm-humanize.ts — looksLikeProtocolMessage', () => {
   it('returns true for a string containing an XML tag', () => {

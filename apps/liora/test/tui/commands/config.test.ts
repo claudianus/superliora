@@ -11,7 +11,22 @@ import { handlePlanCommand } from '#/tui/commands/config/plan';
 import { handleThemeCommand } from '#/tui/commands/config/editor-theme';
 import { handleThinkingCommand } from '#/tui/commands/config/thinking';
 import { showHarnessPanel, showSettingsSelector } from '#/tui/commands/config/settings';
-import { showToolsInventory, showHarnessEyesReadiness } from '#/tui/commands/config/harness-tools';
+import { showSecuritySettings } from '#/tui/commands/config/security-settings';
+import { showCompactionSettings } from '#/tui/commands/config/compaction-settings';
+import { showMissionSettings } from '#/tui/commands/config/mission-settings';
+import { showFleetSettings } from '#/tui/commands/config/fleet-settings';
+import { showHooksSettings } from '#/tui/commands/config/hooks-settings';
+import { showNetworkSettings } from '#/tui/commands/config/network-settings';
+import { showBenchDiagnosticsSettings } from '#/tui/commands/config/bench-diagnostics-settings';
+import { showHarnessEyesReadiness } from '#/tui/commands/config/eyes-settings';
+import { showToolsInventory } from '#/tui/commands/config/harness-tools';
+import { SETTINGS_OPTIONS } from '#/tui/components/dialogs/picker/settings-selector';
+
+function settingsOptionIndex(value: string): number {
+  const index = SETTINGS_OPTIONS.findIndex((option) => option.value === value);
+  if (index < 0) throw new Error(`missing settings option: ${value}`);
+  return index;
+}
 import { LOOP_MODEL_ROUTING_ROLES } from '#/tui/utils/model/loop-model-routing';
 import { dispatchInput, type SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
@@ -166,7 +181,7 @@ describe('handlePlanCommand', () => {
     await handlePlanCommand(host, 'ultra');
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
-    expect(host.showNotice).toHaveBeenCalledWith('UltraPlan mode: ON (structured pipeline)', undefined);
+    expect(host.showNotice).toHaveBeenCalledWith('Plan mode: ON (structured pipeline)', undefined);
   });
 });
 
@@ -570,7 +585,7 @@ describe('harness panel and tools inventory', () => {
     const body = component.render(80).join('\n');
     expect(body).toContain('Tools inventory');
     expect(body).toContain('Eyes readiness');
-    expect(body).toContain('Premium Quality');
+    expect(body).toContain('Visual Quality');
     expect(body).toContain('MCP servers');
     expect(body).toContain('Experiments');
     expect(body).toContain('Context working set');
@@ -596,7 +611,7 @@ describe('harness panel and tools inventory', () => {
     expect(String(host.showNotice.mock.calls[0]?.[0] ?? '')).toContain('Tools:');
   });
 
-  it('routes harness panel eyes selection to eyes readiness report', async () => {
+  it('routes harness panel eyes selection to eyes readiness panel', async () => {
     const host = makeHarnessHost();
     showHarnessPanel(host);
     const [component] = host.mountCenterModal.mock.calls[0] as [
@@ -606,12 +621,9 @@ describe('harness panel and tools inventory', () => {
     component.handleInput('\u001B[B');
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
-    // loadHarnessEyesReadiness may need a few ticks / package root probe
     await vi.waitFor(
       () => {
-        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
-          0,
-        );
+        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
       },
       { timeout: 5000 },
     );
@@ -636,18 +648,35 @@ describe('harness panel and tools inventory', () => {
         description: 'Write a file',
         source: 'builtin',
         active: true,
+        helpVisibility: 'primary',
       },
       {
         name: 'Read',
         description: 'Read a file',
         source: 'builtin',
         active: true,
+        helpVisibility: 'primary',
+      },
+      {
+        name: 'Review',
+        description: 'Review diff',
+        source: 'builtin',
+        active: true,
+        helpVisibility: 'primary',
+      },
+      {
+        name: 'LioraReview',
+        description: 'Legacy review',
+        source: 'builtin',
+        active: true,
+        helpVisibility: 'advanced',
       },
       {
         name: 'LegacyTool',
         description: 'old',
         source: 'plugin',
         active: false,
+        helpVisibility: 'primary',
       },
     ]);
     const host = makeHarnessHost({ session: { getTools } });
@@ -655,11 +684,101 @@ describe('harness panel and tools inventory', () => {
     expect(getTools).toHaveBeenCalledOnce();
     expect(host.showNotice).toHaveBeenCalledOnce();
     const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
-    expect(notice).toContain('Tools: 2 active / 3 registered');
+    expect(notice).toContain('── Session (live) ──');
+    expect(notice).toContain('Core waist: ON (default) · Profile: core');
+    expect(notice).toContain('Tools: 3 active / 5 registered');
+    expect(notice).toContain('Hide legacy: OFF');
     expect(notice).toContain('Read');
     expect(notice).toContain('Write');
+    expect(notice).toContain('Review');
+    expect(notice).not.toContain('  LioraReview');
+    expect(notice).toContain('Compat aliases hidden (1): LioraReview→Review');
     expect(notice).toContain('Inactive (1): LegacyTool');
-    expect(notice).toContain('SearchTools');
+    expect(notice).toContain('ApplyPatch+RepoQuery');
+    expect(notice).toContain('DeepResearch via agent/full');
+    expect(notice).not.toContain('SearchTools dumps');
+  });
+
+  it('appends SearchTools schema tip when SearchTools is registered', async () => {
+    const host = makeHarnessHost({
+      session: {
+        getTools: vi.fn(async () => [
+          {
+            name: 'Read',
+            description: 'Read a file',
+            source: 'builtin',
+            active: true,
+            helpVisibility: 'primary',
+          },
+          {
+            name: 'SearchTools',
+            description: 'Search tool inventory',
+            source: 'builtin',
+            active: true,
+            helpVisibility: 'primary',
+          },
+        ]),
+      },
+    });
+    await showToolsInventory(host);
+    const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+    expect(notice).toContain('ApplyPatch+RepoQuery');
+    expect(notice).toContain('SearchTools dumps tool schemas mid-turn');
+  });
+
+  it('shows hide-legacy live status when SUPERLIORA_SOVEREIGN=1', async () => {
+    const prev = process.env.SUPERLIORA_SOVEREIGN;
+    process.env.SUPERLIORA_SOVEREIGN = '1';
+    try {
+      const host = makeHarnessHost({
+        session: {
+          getTools: vi.fn(async () => [
+            {
+              name: 'Read',
+              description: 'Read a file',
+              source: 'builtin',
+              active: true,
+              helpVisibility: 'primary',
+            },
+          ]),
+        },
+      });
+      await showToolsInventory(host);
+      const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+      expect(notice).toContain('── Session (live) ──');
+      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN=1) · Profile: core');
+      expect(notice).toContain('Hide legacy: ON (SUPERLIORA_SOVEREIGN=1)');
+      expect(notice).not.toContain('soft-hides legacy tool aliases');
+    } finally {
+      if (prev === undefined) delete process.env.SUPERLIORA_SOVEREIGN;
+      else process.env.SUPERLIORA_SOVEREIGN = prev;
+    }
+  });
+
+  it('shows sovereign core live status when SUPERLIORA_SOVEREIGN_CORE=1', async () => {
+    const prev = process.env.SUPERLIORA_SOVEREIGN_CORE;
+    process.env.SUPERLIORA_SOVEREIGN_CORE = '1';
+    try {
+      const host = makeHarnessHost({
+        session: {
+          getTools: vi.fn(async () => [
+            {
+              name: 'Read',
+              description: 'Read a file',
+              source: 'builtin',
+              active: true,
+              helpVisibility: 'primary',
+            },
+          ]),
+        },
+      });
+      await showToolsInventory(host);
+      const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
+      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN_CORE=1) · Profile: core');
+    } finally {
+      if (prev === undefined) delete process.env.SUPERLIORA_SOVEREIGN_CORE;
+      else process.env.SUPERLIORA_SOVEREIGN_CORE = prev;
+    }
   });
 
   it('surfaces getTools failures without crashing', async () => {
@@ -675,41 +794,30 @@ describe('harness panel and tools inventory', () => {
   });
 
 
-  it('routes harness panel premium selection to premium status notice', async () => {
-    const host = makeHarnessHost({ session: {}, premiumQualityMode: false });
+  it('routes harness panel premium selection to Visual Quality settings panel', async () => {
+    const host = makeHarnessHost({ session: {}, premiumQualityMode: true });
     // tools=0, eyes=1, premium=2
     await selectHarnessOption(host, 2);
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(() => {
-      expect(host.showNotice).toHaveBeenCalled();
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const notice = String(host.showNotice.mock.calls[0]?.[0] ?? '');
-    expect(notice.length).toBeGreaterThan(0);
   });
 
-  it('routes harness panel mcp selection to MCP report or error surface', async () => {
-    const listMcpServers = vi.fn(async () => []);
-    const host = makeHarnessHost({ session: { listMcpServers } });
-    // mcp=3
+  it('routes harness panel mcp selection to MCP manage panel', async () => {
+    const host = makeHarnessHost({ session: {} });
+    // mcp=3 (tools, eyes, premium, mcp)
     await selectHarnessOption(host, 3);
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(() => {
-      expect(listMcpServers).toHaveBeenCalled();
+      expect(host.mountCenterModal.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
-    await vi.waitFor(() => {
-      const ok =
-        host.showError.mock.calls.length > 0 ||
-        host.state.transcriptContainer.addChild.mock.calls.length > 0 ||
-        host.showNotice.mock.calls.length > 0;
-      expect(ok).toBe(true);
-    });
-    expect(host.motionBeats.play).toHaveBeenCalled();
   });
 
   it('routes harness panel experiments selection to experiments panel', async () => {
     const host = makeHarnessHost({ session: {} });
-    // experiments=4
-    await selectHarnessOption(host, 4);
+    // experiments=5 (extensions inserted at 4)
+    await selectHarnessOption(host, 5);
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(() => {
       expect(host.harness.getExperimentalFeatures).toHaveBeenCalled();
@@ -718,8 +826,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel context selection to context working-set picker', async () => {
     const host = makeHarnessHost({ session: {} });
-    // context=5
-    await selectHarnessOption(host, 5);
+    // context=6 (extensions inserted at 4)
+    await selectHarnessOption(host, 6);
     expect(host.restoreEditor).toHaveBeenCalled();
     // picker remounts via mountEditorReplacement after restore
     await vi.waitFor(() => {
@@ -741,27 +849,23 @@ describe('harness panel and tools inventory', () => {
     expect(String(host.showNotice.mock.calls[0]?.[0] ?? '')).toContain('Tools:');
   });
 
-  it('routes /eyes slash command to eyes readiness report', async () => {
+  it('routes /eyes slash command to eyes readiness panel', async () => {
     const host = makeHarnessHost();
     await dispatchInput(host, '/eyes');
     await vi.waitFor(
       () => {
-        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
-          0,
-        );
+        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
       },
       { timeout: 5000 },
     );
   });
 
-  it('routes /eye alias to eyes readiness report', async () => {
+  it('routes /eye alias to eyes readiness panel', async () => {
     const host = makeHarnessHost();
     await dispatchInput(host, '/eye');
     await vi.waitFor(
       () => {
-        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
-          0,
-        );
+        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
       },
       { timeout: 5000 },
     );
@@ -777,43 +881,331 @@ describe('harness panel and tools inventory', () => {
     ];
     const firstPage = component.render(120).join('\n');
     expect(firstPage).toContain('Model routing');
-    expect(firstPage).toContain('Harness');
+    expect(firstPage).toContain('Security');
 
-    // Tools and Eyes readiness live on page 2 (8 items per page).
+    // Harness, tools, and Eyes readiness live on page 2 (Security shifted page 1).
     component.handleInput('\u001B[C');
+    expect(component.render(120).join('\n')).toContain('Harness');
     expect(component.render(120).join('\n')).toContain('Eyes readiness');
   });
 
-  it('routes settings eyes selection to eyes readiness report', async () => {
+  it('lists Security alongside Permission in the settings selector', () => {
+    const host = makeHarnessHost();
+    showSettingsSelector(host);
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { render: (width: number) => string[] },
+    ];
+    const firstPage = component.render(120).join('\n');
+    expect(firstPage).toContain('Security');
+    expect(firstPage).toContain('Sandbox');
+  });
+
+  it('routes settings security selection to security panel', async () => {
+    const host = makeHarnessHost({
+      session: {
+        getStatus: vi.fn(async () => ({ permission: 'auto' })),
+        listMcpServers: vi.fn(async () => [
+          { name: 'demo', transport: 'stdio', status: 'connected', toolCount: 2 },
+        ]),
+      },
+    });
+    Object.assign(host.state.appState, {
+      permissionMode: 'auto',
+      workDir: '/tmp/security-ws',
+      additionalDirs: [],
+    });
+    showSettingsSelector(host);
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    // security is index 4: model, routing, fallback, permission, security
+    for (let i = 0; i < 4; i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+  });
+
+  it('renders security panel without session', async () => {
+    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
+    Object.assign(host.state.appState, {
+      permissionMode: 'manual',
+      workDir: '/tmp/no-session',
+      additionalDirs: [],
+    });
+    await showSecuritySettings(host);
+    expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
+  });
+
+  it('lists Mission, Fleet, and Compaction in the settings selector', () => {
+    const host = makeHarnessHost();
+    showSettingsSelector(host);
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void; render: (width: number) => string[] },
+    ];
+    let combined = component.render(120).join('\n');
+    for (let page = 0; page < 4; page++) {
+      component.handleInput('\u001B[C');
+      combined += `\n${component.render(120).join('\n')}`;
+    }
+    expect(combined).toContain('Compaction');
+    expect(combined).toContain('/compact');
+    expect(combined).toContain('Mission / Goals');
+    expect(combined).toContain('/mission');
+    expect(combined).toContain('Fleet / Parallel');
+    expect(combined).toContain('/fleet');
+  });
+
+  it('routes settings compaction selection to compaction panel', async () => {
+    const host = makeHarnessHost({ session: {} });
+    showSettingsSelector(host);
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < settingsOptionIndex('compaction'); i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
+      buildLines: (n: number) => string[];
+    };
+    expect(panel.buildLines(1).join('\n')).toContain('/compact');
+    expect(panel.buildLines(1).join('\n')).toContain('compactionTriggerRatio');
+    expect(panel.buildLines(1).join('\n')).toContain('Expand recover');
+    expect(panel.buildLines(1).join('\n')).toContain('Expand(id=<archiveId>)');
+    expect(panel.buildLines(1).join('\n')).toContain('context-archive store');
+  });
+
+  it('routes settings context selection to context tips panel', async () => {
+    const host = makeHarnessHost({ session: {} });
+    showSettingsSelector(host);
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < settingsOptionIndex('context'); i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
+      buildLines: (n: number) => string[];
+    };
+    const lines = panel.buildLines(1).join('\n');
+    expect(lines).toContain('Instruction vs Learning');
+    expect(lines).toContain('/context');
+  });
+
+  it('routes settings mission selection to mission panel', async () => {
+    const host = makeHarnessHost({
+      session: { getUltraworkRun: vi.fn(async () => null) },
+    });
+    showSettingsSelector(host);
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < settingsOptionIndex('mission'); i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
+      buildLines: (n: number) => string[];
+    };
+    const lines = panel.buildLines(1).join('\n');
+    expect(lines).toContain('/mission');
+    expect(lines).toContain('MISSION.md');
+    expect(lines).toContain('soft advisory');
+    expect(lines).toContain('RunProjectChecks');
+    expect(lines).toContain('No persist controls here');
+  });
+
+  it('routes settings fleet selection to fleet panel', async () => {
+    const host = makeHarnessHost({
+      session: {
+        workDir: '/tmp/fleet-ws',
+        getStatus: vi.fn(async () => ({ permission: 'auto' })),
+      },
+    });
+    host.harness.listSessions = vi.fn(async () => [{ id: 'a' }, { id: 'b' }]);
+    showSettingsSelector(host);
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < settingsOptionIndex('fleet'); i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
+      buildLines: (n: number) => string[];
+    };
+    const lines = panel.buildLines(1).join('\n');
+    expect(lines).toContain('background.maxRunningTasks');
+    expect(lines).toContain('Independent tool_calls in one turn run in parallel');
+    expect(lines).toContain('Maker≠Checker');
+    expect(lines).toContain('swarm-budget');
+    expect(lines).toContain('/fleet');
+    expect(lines).toContain('worktree');
+    expect(lines).toContain('SUPERLIORA_FLEET_WORKTREE');
+    expect(lines).toContain('SpawnWorker');
+  });
+
+  it('renders mission panel without session', async () => {
+    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
+    showMissionSettings(host);
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+  });
+
+  it('renders fleet settings panel without session', async () => {
+    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
+    await showFleetSettings(host);
+    expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
+  });
+
+  it('renders compaction settings panel without session', async () => {
+    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
+    showCompactionSettings(host);
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+  });
+
+  it('lists Hooks, Skills, Bench, Network, and Storage in the settings selector', () => {
+    const host = makeHarnessHost();
+    showSettingsSelector(host);
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void; render: (width: number) => string[] },
+    ];
+    let combined = component.render(120).join('\n');
+    for (let page = 0; page < 5; page++) {
+      component.handleInput('\u001B[C');
+      combined += `\n${component.render(120).join('\n')}`;
+    }
+    expect(combined).toContain('Hooks');
+    expect(combined).toContain('Pre/Post/Stop');
+    expect(combined).toContain('Skills');
+    expect(combined).toContain('SearchSkill');
+    expect(combined).toContain('Bench / Diagnostics');
+    expect(combined).toContain('/ops');
+    expect(combined).toContain('Network / Proxy');
+    expect(combined).toContain('HTTPS_PROXY');
+    expect(combined).toContain('Storage');
+    expect(combined).toContain('~/.superliora');
+  });
+
+  it('routes settings hooks selection to hooks panel', async () => {
+    const host = makeHarnessHost({
+      session: { listPlugins: vi.fn(async () => [{ id: 'p', enabled: true, hookCount: 1 }]) },
+    });
+    showSettingsSelector(host);
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < settingsOptionIndex('hooks'); i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
+      buildLines: (n: number) => string[];
+    };
+    expect(panel.buildLines(1).join('\n')).toContain('PreToolUse');
+  });
+
+  it('routes settings bench-diagnostics selection to bench panel', async () => {
+    const host = makeHarnessHost({ session: {} });
+    showSettingsSelector(host);
+    const [component] = host.mountCenterModal.mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+    for (let i = 0; i < settingsOptionIndex('bench-diagnostics'); i++) {
+      component.handleInput('\u001B[B');
+    }
+    component.handleInput('\r');
+    expect(host.restoreEditor).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
+      buildLines: (n: number) => string[];
+    };
+    expect(panel.buildLines(1).join('\n')).toMatch(/Bench \(SSOT\)|\/bench|Bench \/ Diagnostics/);
+  });
+
+  it('renders network settings panel with proxy env', () => {
+    const prior = process.env.HTTPS_PROXY;
+    process.env.HTTPS_PROXY = 'http://127.0.0.1:3128';
+    const host = makeHarnessHost();
+    showNetworkSettings(host);
+    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
+      buildLines: (n: number) => string[];
+    };
+    expect(panel.buildLines(1).join('\n')).toContain('127.0.0.1:3128');
+    if (prior != null) process.env.HTTPS_PROXY = prior;
+    else delete process.env.HTTPS_PROXY;
+  });
+
+  it('renders bench diagnostics panel without session', () => {
+    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
+    showBenchDiagnosticsSettings(host);
+    expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
+  });
+
+  it('renders hooks panel without session', async () => {
+    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
+    showHooksSettings(host);
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+  });
+
+  it('routes settings eyes selection to eyes readiness panel', async () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     const [component] = host.mountCenterModal.mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // Settings options order: model, model routing, model fallback, permission, accounts, context, media, harness, tools, eyes, ...
-    // eyes is index 9 (Model fallback shifted it by one)
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < settingsOptionIndex('eyes'); i++) {
       component.handleInput('\u001B[B');
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(
       () => {
-        expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(
-          0,
-        );
+        expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
       },
       { timeout: 5000 },
     );
   });
 
-  it('surfaces eyes readiness load failures without crashing', async () => {
+  it('surfaces eyes readiness load failures in panel without crashing', async () => {
     const host = makeHarnessHost();
-    // force package root path that still exercises the catch path by monkeypatching is hard;
-    // call with a host that has no package root helpers — function should still return.
     await showHarnessEyesReadiness(host);
-    // either notice or error is acceptable; never throw
-    expect(host.showNotice.mock.calls.length + host.showError.mock.calls.length).toBeGreaterThan(0);
+    expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
   });
 
   it('routes a selected loop role model through setConfig and reloads the routing picker', async () => {

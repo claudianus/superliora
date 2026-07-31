@@ -19,17 +19,20 @@ export type LioraExpandInput = z.infer<typeof LioraExpandInputSchema>;
 /** Default page size for unscoped expand — full dumps thrash long sessions. */
 export const LIORA_EXPAND_DEFAULT_LIMIT = 120;
 
-const DESCRIPTION = [
+const EXPAND_DESCRIPTION = [
   'Recover reversibly archived compressed output bytes.',
   'Use when LioraRead/Bash compressed output and you need the omitted section.',
 ].join(' ');
 
+const LIORA_EXPAND_DESCRIPTION =
+  `Legacy/advanced alias of Expand. Prefer Expand for new work. ${EXPAND_DESCRIPTION}`;
+
 export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {
-  readonly name = LIORA_EXPAND_TOOL_NAME;
-  readonly description = DESCRIPTION;
+  readonly name: string = LIORA_EXPAND_TOOL_NAME;
+  readonly description: string = LIORA_EXPAND_DESCRIPTION;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(LioraExpandInputSchema);
 
-  constructor(private readonly store: ToolStore) {}
+  constructor(protected readonly store: ToolStore) {}
 
   resolveExecution(args: LioraExpandInput): ToolExecution {
     const parsed = LioraExpandInputSchema.safeParse(args);
@@ -74,4 +77,18 @@ export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {
       ].join('\n'),
     };
   }
+}
+
+/** Sovereign public name — same implementation as {@link LioraExpandTool}. */
+export class ExpandTool extends LioraExpandTool {
+  override readonly name = 'Expand' as const;
+  override readonly description = EXPAND_DESCRIPTION;
+}
+
+export function createLioraExpandTool(store: ToolStore): LioraExpandTool {
+  return new LioraExpandTool(store);
+}
+
+export function createExpandTool(store: ToolStore): ExpandTool {
+  return new ExpandTool(store);
 }

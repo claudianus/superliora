@@ -67,7 +67,7 @@ export function loadBenchStatus(workDir: string, args: string): BenchStatus {
 
 export function buildBenchStatusLines(status: BenchStatus): string[] {
   const lines = [
-    'LioraBench',
+    'Bench',
     `Latest status  ${redactBenchStatusText(status.status)}`,
   ];
 

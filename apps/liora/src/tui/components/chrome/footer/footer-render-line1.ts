@@ -13,7 +13,23 @@ import {
 import type { MotionBeatSnapshot } from '#/tui/utils/render/motion-beats';
 import type { GitStatus } from '#/utils/git/git-status';
 
-import { formatMediaFooterBadge } from '#/tui/components/chrome/footer/footer-badges';
+import {
+  formatExtensionsReloadFooterBadge,
+  formatMediaFooterBadge,
+  formatMcpHealthFooterBadge,
+  formatRuntimeDegradedFooterBadge,
+  formatSearchCascadeFooterBadge,
+  formatCacheHitFooterBadge,
+  styleFooterBadge,
+} from '#/tui/components/chrome/footer/footer-badges';
+import { formatGoalXpPulseFooterBadge } from '#/tui/utils/goal/goal-xp-pulse';
+import { formatFleetFlourishFooterBadge } from '#/tui/utils/fleet/fleet-flourish';
+import { formatPermissionApproveFooterBadge } from '#/tui/utils/never-halt/permission-approve-flourish';
+import { formatGitChurnFooterBadge } from '#/tui/utils/git/git-churn-spark';
+import {
+  computeOpsComboPulse,
+  formatOpsComboFooterBadge,
+} from '#/tui/utils/ops/ops-combo-pulse';
 import {
   formatFooterGitBadge,
   formatTranscriptViewportBadge,
@@ -85,8 +101,8 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
   if (state.ultraworkMode) {
     modes.push(
       withModeBeat(
-        'ultrawork',
-        renderAnimatedGradientText('ultrawork', 'footer:ultrawork', appearance),
+        'mission',
+        renderAnimatedGradientText('mission', 'footer:ultrawork', appearance),
       ),
     );
   } else if (state.planMode) {
@@ -142,6 +158,47 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
 
   const goalBadge = formatGoalBadge(state.goal, goalWallClockMs, appearance);
   if (goalBadge !== null) left.push(goalBadge);
+
+  const goalXpBadge = formatGoalXpPulseFooterBadge(state.goalXpPulse);
+  if (goalXpBadge !== null) {
+    left.push(renderPulseText(goalXpBadge.text, 'footer:goal-xp', 'accent', appearance));
+  }
+
+  const fleetFlourishBadge = formatFleetFlourishFooterBadge(state.fleetFlourish);
+  if (fleetFlourishBadge !== null) {
+    left.push(renderPulseText(fleetFlourishBadge.text, 'footer:fleet-flourish', 'primary', appearance));
+  }
+
+  const permissionApproveBadge = formatPermissionApproveFooterBadge(state.permissionApproveFlourish);
+  if (permissionApproveBadge !== null) {
+    left.push(renderPulseText(permissionApproveBadge.text, 'footer:perm-approve', 'primary', appearance));
+  }
+
+  const gitChurnBadge = formatGitChurnFooterBadge(state.gitChurn);
+  if (gitChurnBadge !== null) {
+    left.push(styleFooterBadge(gitChurnBadge, appearance));
+  }
+
+  const opsCombo = computeOpsComboPulse(state);
+  const opsComboBadge = formatOpsComboFooterBadge(opsCombo);
+  if (opsComboBadge !== null) {
+    left.push(renderPulseText(opsComboBadge.text, 'footer:ops-combo', 'accent', appearance));
+  }
+
+  const mcpBadge = formatMcpHealthFooterBadge(state.mcpServersSummary);
+  if (mcpBadge !== null) left.push(styleFooterBadge(mcpBadge, appearance));
+
+  const extReloadBadge = formatExtensionsReloadFooterBadge(state.extensionsReload);
+  if (extReloadBadge !== null) left.push(styleFooterBadge(extReloadBadge, appearance));
+
+  const cacheBadge = formatCacheHitFooterBadge(state.cacheMeter);
+  if (cacheBadge !== null) left.push(styleFooterBadge(cacheBadge, appearance));
+
+  const degradedBadge = formatRuntimeDegradedFooterBadge(state.runtimeDegraded);
+  if (degradedBadge !== null) left.push(styleFooterBadge(degradedBadge, appearance));
+
+  const cascadeBadge = formatSearchCascadeFooterBadge(state.searchCascade);
+  if (cascadeBadge !== null) left.push(styleFooterBadge(cascadeBadge, appearance));
 
   const model = modelDisplayName(state);
   if (model) {

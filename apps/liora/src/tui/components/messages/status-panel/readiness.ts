@@ -1,4 +1,5 @@
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
+import { CORE_WAIST_STATUS_HINT } from '#/tui/commands/config/agent-profile';
 import { safeUsageRatio } from '#/utils/usage/usage-format';
 
 import { contextValues } from './context';
@@ -138,12 +139,12 @@ function formatQwenTokenPlanGate(options: StatusReportOptions): string {
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
 const WORKFLOW_GATE = 'research → interview → goal → swarm → integrate → verify → learn';
-const ENGINE_GATE = 'UltraPlan | UltraGoal | Research | Swarm decision | Integrate | Verify | Learn';
-const AUTO_GATE = 'Shift-Tab toggles Ultrawork/off; no regex promotion';
+const ENGINE_GATE = 'Plan | Goal | Research | Fleet decision | Integrate | Verify | Learn';
+const AUTO_GATE = 'Shift-Tab toggles Mission/off; no regex promotion';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'LioraBench seed/holdout · web/media/office/ZDR · a1/m2/sw800/s8';
+const BENCH_GATE = 'Bench seed/holdout · web/media/office/ZDR · a1/m2/sw800/s8';
 const MEDIA_GATE =
   'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const OFFICE_GATE =
@@ -157,11 +158,13 @@ const DONE_GATE = 'tests + typecheck/lint/build + clean diff + TUI';
 
 function formatToolsGate(options: StatusReportOptions): string {
   const names = options.activeToolNames;
-  if (names === undefined) return TOOLS_GATE;
+  if (names === undefined) {
+    return `${TOOLS_GATE} · ${CORE_WAIST_STATUS_HINT}`;
+  }
   const count = names.length;
   const inventory = names.includes('SearchTools') ? ' · SearchTools on' : ' · SearchTools off';
   const skills = names.includes('SearchSkill') ? ' · SearchSkill on' : '';
-  return `${String(count)} active tools${inventory}${skills} · /tools for full list`;
+  return `${String(count)} active tools${inventory}${skills} · /tools for full list · ${CORE_WAIST_STATUS_HINT}`;
 }
 
 function formatMemoryGate(options: StatusReportOptions): string {
@@ -340,8 +343,8 @@ export function readinessRows(options: StatusReportOptions): readonly StatusFiel
     {
       label: 'Next',
       value: options.ultraworkMode === true
-        ? 'Type task; Ultrawork will interview before goal, swarm, and edits.'
-        : 'Press Shift-Tab to toggle Ultrawork/off, or type normally.',
+        ? 'Type task; Mission will interview before goal, swarm, and edits.'
+        : 'Press Shift-Tab to toggle Mission/off, or type normally.',
     },
   ];
 }

@@ -237,7 +237,7 @@ async function openWarRoomTalk(host: WarRoomHost, query: string): Promise<void> 
     return;
   }
   if (experts.length === 0) {
-    host.showError('No UltraSwarm / AgentSwarm war room experts to talk to.');
+    host.showError('No Fleet / AgentSwarm war room experts to talk to.');
     return;
   }
 
@@ -320,7 +320,7 @@ async function sendWarRoomMessage(
     return;
   }
   if (experts.length === 0) {
-    host.showError('No UltraSwarm / AgentSwarm war room experts to message.');
+    host.showError('No Fleet / AgentSwarm war room experts to message.');
     return;
   }
   const expert = matchWarRoomExpert(experts, expertQuery);
@@ -377,7 +377,7 @@ function invokeWarRoomDockAction(
   }
   const count = invoke(action, reason.length > 0 ? { reason } : {});
   if (count === 0) {
-    host.showError('No active UltraSwarm / AgentSwarm war room to control.');
+    host.showError('No active Fleet / AgentSwarm war room to control.');
     return;
   }
   if (action === 'pause') {

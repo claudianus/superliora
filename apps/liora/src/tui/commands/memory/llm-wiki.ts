@@ -6,7 +6,7 @@ import {
   resolveLlmWikiPaths,
 } from '#/constant/workspace-data';
 
-import type { UltraworkActivationSource } from '../ultrawork/ultrawork-contract';
+import type { MissionActivationSource } from '#/tui/utils/mission/mission-contract';
 
 export const LLM_WIKI_INDEX_PATH = `${CANONICAL_LLM_WIKI_ROOT}/index.md`;
 export const LLM_WIKI_MANIFEST_PATH = `${CANONICAL_LLM_WIKI_ROOT}/manifest.json`;
@@ -37,7 +37,7 @@ export interface LlmWikiSeedInput {
   readonly runId: string;
   readonly createdAt: string;
   readonly objective: string;
-  readonly source: UltraworkActivationSource;
+  readonly source: MissionActivationSource;
   readonly replaceGoal: boolean;
   readonly coverageMatrix: readonly LlmWikiCoverageLane[];
   readonly evidenceFiles: LlmWikiEvidenceFiles;
@@ -54,7 +54,7 @@ interface LlmWikiManifestRun {
   readonly runId: string;
   readonly createdAt: string;
   readonly objective: string;
-  readonly source: UltraworkActivationSource;
+  readonly source: MissionActivationSource;
   readonly replaceGoal: boolean;
   readonly evidenceState?: LlmWikiEvidenceState;
   readonly path: string;
@@ -375,7 +375,7 @@ function renderIndexPage(manifest: LlmWikiManifest): string {
 Updated: ${manifest.updatedAt}
 Workspace root: ${manifest.workspaceRoot}
 
-This project-local wiki stores human-reviewable, source-backed Ultrawork knowledge. Code remains the source of truth. Liora Recall remains the global searchable memory and should only receive concise durable facts, decisions, or user preferences.
+This project-local wiki stores human-reviewable, source-backed Mission knowledge. Code remains the source of truth. Liora Recall remains the global searchable memory and should only receive concise durable facts, decisions, or user preferences.
 
 ## Latest Run
 
@@ -408,7 +408,7 @@ function renderRunPage(input: LlmWikiSeedInput, artifacts: LlmWikiArtifacts): st
   const lanes = input.coverageMatrix
     .map((lane) => `- ${lane.id}: ${lane.reason} Owner: ${lane.owner}. Evidence: ${lane.evidenceNeeded.join(', ')}.`)
     .join('\n');
-  return `# Ultrawork Run - ${input.runId}
+  return `# Mission Run - ${input.runId}
 
 Created: ${input.createdAt}
 Source: ${input.source}
@@ -420,7 +420,7 @@ ${input.objective}
 
 ## Current Understanding
 
-- This page is the project-local LLM Wiki record for the Ultrawork run.
+- This page is the project-local LLM Wiki record for the Mission run.
 - Startup content is a seed. During Learn, replace placeholders with verified findings, durable decisions, and source-backed evidence.
 - Liora Recall remains global searchable memory; this wiki is project-local review material.
 
@@ -464,8 +464,8 @@ ${lanes}
 }
 
 function nextLlmWikiAction(status: LlmWikiStatus): string {
-  if (!status.exists) return 'Start an Ultrawork run to create project-local LLM Wiki artifacts.';
-  if (!status.indexExists) return 'Regenerate the LLM Wiki index with the next Ultrawork run.';
-  if (!status.manifestValid) return 'Regenerate the LLM Wiki manifest with the next Ultrawork run.';
+  if (!status.exists) return 'Start a Mission to create project-local LLM Wiki artifacts.';
+  if (!status.indexExists) return 'Regenerate the LLM Wiki index with the next Mission run.';
+  if (!status.manifestValid) return 'Regenerate the LLM Wiki manifest with the next Mission run.';
   return 'Open the index path above or run /memory readiness to verify recall plus evidence.';
 }

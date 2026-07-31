@@ -1,7 +1,7 @@
 import type { PromptPayload } from '#/rpc';
 import type { ConversationLoopState } from '../agent/conversation-loop';
 import type { ConversationLoopStateData } from '#/rpc';
-import { maybeTransformPromptForInterruptedWorkResume } from '../ultrawork/interrupted-work-resume';
+import { maybeTransformPromptForInterruptedWorkResume } from '#/mission';
 import { sessionMediaOriginalsDir } from '../tools/support/image-originals';
 import {
   DEFAULT_NON_VISION_FALLBACK,

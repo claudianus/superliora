@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 
 import { Agent } from '../../src/agent';
-import { resolveApprovedUltraworkPlanPath } from '../../src/ultrawork/approved-plan';
+import { resolveApprovedUltraworkPlanPath } from '#/mission';
 import { testKaos } from '../fixtures/test-kaos';
 
 const APPROVED_PLAN = `# Ultra Plan

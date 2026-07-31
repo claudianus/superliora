@@ -24,6 +24,7 @@ import {
 } from '../../loop/index';
 import { ToolCallDeduplicator } from './tool-dedup';
 import { budgetToolResultForModel } from './tool-result-budget';
+import { observeVerificationToolResult } from '../../sensors/verification-sensor-ledger';
 import { toolInputRecord, toolOutputText, type TurnTelemetry } from './telemetry';
 import {
   hasStepBudgetRemaining,
@@ -70,6 +71,7 @@ export async function runTurnStepLoop(
         log: agent.log,
         maxSteps: loopControl?.maxStepsPerTurn,
         maxRetryAttempts: loopControl?.maxRetriesPerStep,
+        toolParallelStatus: agent.toolParallelStatus,
         recordStepUsage: async (usage, info?: RecordStepUsageInfo) => {
           stepUsageModel = info?.model ?? model;
           try {
@@ -94,6 +96,8 @@ export async function runTurnStepLoop(
               agent.tools.loopTools,
               0, // injection count tracked by batch injector
               agent.context.history.length,
+              usage,
+              stepUsageModel,
             );
             await agent.fullCompaction.afterStep();
             deduper.endStep();
@@ -184,6 +188,12 @@ export async function runTurnStepLoop(
               ctx.result,
             );
             const { isError, output } = finalResult;
+            observeVerificationToolResult(
+              agent.verificationSensorLedger,
+              ctx.toolCall.name,
+              ctx.args,
+              finalResult,
+            );
             const event = isError === true ? 'PostToolUseFailure' : 'PostToolUse';
             void agent.hooks?.fireAndForgetTrigger(event, {
               matcherValue: ctx.toolCall.name,

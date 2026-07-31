@@ -56,7 +56,7 @@ export function nextActionFor(preflight: string | undefined, missingEnv: readonl
   if (preflight === 'blocked_missing_env' || missingEnv.length > 0) {
     return `Set ${missingEnv.join('/')} and rerun node scripts/liora-agent-bench.mjs --suite holdout --runner provider.`;
   }
-  return 'Run the next bounded Ultrawork loop only after recording fresh benchmark evidence.';
+  return 'Run the next bounded Mission loop only after recording fresh benchmark evidence.';
 }
 
 export function budgetLine(status: BenchStatus): string {

@@ -30,10 +30,12 @@ const TOOL_CAPABILITY_NAMES = {
   FetchURL: 'hasFetchUrl',
   Context7Resolve: 'hasContext7',
   Context7Docs: 'hasContext7',
+  RepoQuery: 'hasLeanRead',
   LioraRead: 'hasLeanRead',
   LioraSymbol: 'hasLeanRead',
   LioraTree: 'hasLeanRead',
   LioraCallgraph: 'hasLeanRead',
+  Expand: 'hasLeanRead',
   LioraExpand: 'hasLeanRead',
   VerifySurface: 'hasVerifySurface',
   RunProjectChecks: 'hasRunProjectChecks',
@@ -99,7 +101,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
 
   if (cap.hasLeanRead) {
     lines.push(
-      '- Codebase: LioraRead(signatures|map|lines)/LioraSymbol/LioraTree before full Read dumps; expand [liora-archived] only on failure paths.',
+      '- Codebase: RepoQuery (content/path/symbol/outline) before full Read dumps; expand archived overflow only on failure paths.',
     );
   }
 
@@ -147,7 +149,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
   if (cap.hasSearchSkill) available.push('SearchSkill');
   if (cap.hasWebSearch) available.push('WebSearch');
   if (cap.hasContext7) available.push('Context7');
-  if (cap.hasLeanRead) available.push('Liora*');
+  if (cap.hasLeanRead) available.push('RepoQuery');
   if (cap.hasFetchUrl) available.push('FetchURL');
   if (available.length > 0) {
     lines.push(
@@ -169,7 +171,7 @@ export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): st
   if (cap.hasSearchSkill) bits.push('SearchSkill→Skill');
   if (cap.hasWebSearch || cap.hasFetchUrl) bits.push('WebSearch/FetchURL when stale');
   if (cap.hasContext7) bits.push('Context7 for libs');
-  if (cap.hasLeanRead) bits.push('Liora* before dumps');
+  if (cap.hasLeanRead) bits.push('RepoQuery before dumps');
   bits.push('dedicated tools > Bash');
   bits.push('Write≠shell I/O');
   bits.push('no secret shell');

@@ -20,6 +20,8 @@ type BaseQueuedSubagentTask<T> = {
   readonly timeout?: number;
   readonly contractPath?: string;
   readonly signal?: AbortSignal;
+  /** Per-worker git worktree cwd when fleet env opt-in is enabled. */
+  readonly worktreeDir?: string;
 };
 
 export type SpawnQueuedSubagentTask<T = unknown> = BaseQueuedSubagentTask<T> & {

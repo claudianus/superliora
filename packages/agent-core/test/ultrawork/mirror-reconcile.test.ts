@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest';
 
 import { Agent } from '../../src/agent';
 import { validateUltraworkCompactionContinuity } from '../../src/agent/compaction/quality';
-import { buildUltraworkCompactionEnvelope, renderUltraworkRunsMemorySection, captureUltraworkEnvelopeSnapshot } from '../../src/ultrawork/envelope';
 import {
+  buildUltraworkCompactionEnvelope,
+  renderUltraworkRunsMemorySection,
+  captureUltraworkEnvelopeSnapshot,
   inferUltraPlanPhaseFromPlanContent,
   reconcileUltraworkFromMirror,
-} from '../../src/ultrawork/mirror-reconcile';
-import { mirrorUltraworkRunToDisk } from '../../src/ultrawork/run-store';
+  mirrorUltraworkRunToDisk,
+} from '#/mission';
 import { testKaos } from '../fixtures/test-kaos';
 
 describe('Ultrawork mirror reconcile', () => {

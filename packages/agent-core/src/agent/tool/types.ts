@@ -2,6 +2,8 @@ import type { ExecutableTool } from '../../loop';
 
 export type ToolSource = 'builtin' | 'user' | 'mcp';
 
+export type ToolHelpVisibility = 'primary' | 'advanced';
+
 export type BuiltinTool<Input = unknown> = ExecutableTool<Input>;
 
 export interface UserToolRegistration {
@@ -15,6 +17,8 @@ export interface ToolInfo {
   readonly description: string;
   readonly active: boolean;
   readonly source: ToolSource;
+  /** Primary = beginner/help catalog; advanced = compat alias (SearchTools query only). */
+  readonly helpVisibility?: ToolHelpVisibility;
 }
 
 export interface McpToolCollision {

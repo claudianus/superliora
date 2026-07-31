@@ -43,6 +43,19 @@ export function createTurnLoopDispatch(deps: LoopDispatchDeps, turnId: number) {
       deps.turnTelemetry.trackLoopTelemetry(event, turnId);
       const mapped = mapLiveLoopEvent(deps.assistantThinkScrubber, event, turnId);
       if (mapped !== undefined) deps.agent.emitEvent(mapped);
+      if (event.type === 'tool.result') {
+        const output = event.result.output;
+        if (typeof output === 'string' && /\bdegraded:\s*true\b/.test(output)) {
+          deps.agent.emitEvent({
+            type: 'runtime.degraded',
+            scope: 'search',
+            reason: 'tool_result_degraded',
+            hint: 'Search ran on free fallback only; retry with a simpler query, FetchURL, or local repo evidence.',
+            toolCallId: event.toolCallId,
+            atMs: Date.now(),
+          });
+        }
+      }
     },
   });
 }

@@ -2,9 +2,9 @@ import type { GoalSnapshot } from '@superliora/sdk';
 
 import { parseGoalCommand } from '#/tui/commands/goal';
 import {
-  buildUltraworkPrompt,
-  parseUltraworkCommand,
-} from '#/tui/commands/ultrawork/ultrawork-contract';
+  buildMissionPrompt,
+  parseMissionCommand,
+} from '#/tui/utils/mission/mission-contract';
 
 /**
  * Headless goal-mode support for the `liora -p "/goal <objective>"` prompt path.
@@ -64,12 +64,12 @@ export function parseHeadlessGoalCreate(prompt: string): HeadlessGoalCreate | un
   const trimmed = prompt.trim();
   if (ULTRAGOAL_PREFIX.test(trimmed)) {
     const args = trimmed.replace(/^\/(?:ultragoal|ultrawork|uw|ug)/, '').trim();
-    const parsed = parseUltraworkCommand(args);
+    const parsed = parseMissionCommand(args);
     if (parsed.kind !== 'create') return undefined;
     return {
       objective: parsed.objective,
       replace: parsed.replace,
-      prompt: buildUltraworkPrompt(parsed.objective, 'headless'),
+      prompt: buildMissionPrompt(parsed.objective, 'headless'),
       ultrawork: true,
     };
   }
@@ -80,7 +80,7 @@ export function parseHeadlessGoalCreate(prompt: string): HeadlessGoalCreate | un
   return {
     objective: parsed.objective,
     replace: parsed.replace,
-    prompt: buildUltraworkPrompt(parsed.objective, 'goal', parsed.replace, {
+    prompt: buildMissionPrompt(parsed.objective, 'goal', parsed.replace, {
       activeGoalAlreadyCreated: true,
     }),
     ultrawork: true,

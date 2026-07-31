@@ -26,7 +26,7 @@ import {
   getDefaultSwarmFileLeaseRegistry,
   normalizeLeasePath,
   resetDefaultSwarmFileLeaseRegistry,
-} from '../../src/collaboration/swarm-file-lease';
+} from '#/fleet';
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {

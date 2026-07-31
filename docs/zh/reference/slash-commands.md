@@ -50,7 +50,7 @@
 | `/swarm on\|off` | — | 开启或关闭 swarm mode，但不发送提示词。 | 是 |
 | `/swarm talk [expert]` | — | 打开 War Room expert 选择器（或直接进入指定 expert）以查看 transcript 并发送消息。进行中的 expert 使用 steer，空闲则使用 prompt。 | War Room 活跃时可用 |
 | `/swarm msg <expert> <text>` | — | 不打开选择器，直接向 War Room expert 发送消息。 | War Room 活跃时可用 |
-| `/swarm pause\|restaff\|raw` | — | 控制当前 UltraSwarm War Room（暂停转向、请求 restaff、切换原始 feed）。 | War Room 活跃时可用 |
+| `/swarm pause\|restaff\|raw` | — | 控制当前 Fleet War Room（暂停转向、请求 restaff、切换原始 feed）。 | War Room 活跃时可用 |
 | `/swarm <task>` | — | 先开启 swarm mode，再把 `<task>` 作为普通提示词发送。如果该轮次正常完成，swarm mode 会自动关闭。若当前是 `manual` 权限模式，启动前会提示是否切换到 `auto` 或 `yolo`。 | 否 |
 | `/goal [...]` | — | 开始或管理目标模式 | 见下文 |
 

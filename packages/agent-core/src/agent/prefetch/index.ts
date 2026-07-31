@@ -157,6 +157,7 @@ export function getSuggestedPrefetchContext(predictedTools: PrefetchCandidate[])
     switch (candidate.tool) {
       case 'Read':
       case 'LioraRead':
+      case 'RepoQuery':
         suggestions.push('recently_mentioned_files');
         break;
       case 'Grep':

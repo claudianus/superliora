@@ -1,11 +1,13 @@
 ---
-name: ultrawork
-description: Ultrawork workflow methodology — run a long, multi-domain objective through UltraResearch -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn. Load on /ultrawork (울트라워크) activation, or when orchestrating UltraResearch, UltraPlan, UltraGoal, UltraSwarm, or an UltraworkGraph work ledger.
+name: mission
+aliases:
+  - ultrawork
+description: Mission workflow methodology (ultrawork compat) — run a long, multi-domain objective through UltraResearch -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn. Load via Skill as `mission` (preferred) or `ultrawork` on /ultrawork (울트라워크) activation, or when orchestrating UltraResearch, UltraPlan, UltraGoal, UltraSwarm, or an UltraworkGraph work ledger.
 ---
 
-# Ultrawork workflow methodology
+# Mission workflow methodology
 
-Ultrawork is the full harness workflow for a long objective: interview the ambiguity out of it, plan with verifiable acceptance criteria, fan out specialist work when it pays, integrate, verify on real surfaces, and persist what was learned. This skill is guidance the agent follows itself — phase checkpoints are advisory, not hard gates. The only enforced gates are safety policies (plan-mode read-only, destructive-action confirmation).
+Mission is the full harness workflow for a long objective: interview the ambiguity out of it, plan with verifiable acceptance criteria, fan out specialist work when it pays, integrate, verify on real surfaces, and persist what was learned. Load via Skill as `mission` (preferred); the `ultrawork` compat alias keeps the same body. This skill is guidance the agent follows itself — phase checkpoints are advisory, not hard gates. The only enforced gates are safety policies (plan-mode read-only, destructive-action confirmation).
 
 ## One workflow, one run
 
@@ -20,7 +22,7 @@ Normalize synonyms — 울트라플랜 / 울트라리서치 / 울트라골 / 울
 
 ## Activation and mode
 
-- Shift-Tab turns Ultrawork mode ON; mode cannot turn off while a run is active. `/ultrawork` overrides the run; `/plan` is separate steering.
+- Shift-Tab turns Mission mode ON; mode cannot turn off while a run is active. `/mission` is preferred; `/ultrawork` compat alias overrides the run; `/plan` is separate steering.
 - Start mode: the TUI shows the Auto/YOLO/Manual chooser on create (default Manual, no memory). Headless/auto without TUI defaults to Manual. Resume inherits the current permission mode and skips the chooser.
 - Activation forces Ultra Plan Research first: gather source-backed evidence before `AskUserQuestion`, and interview until the UltraGoal is true/false-verifiable.
 
@@ -85,10 +87,10 @@ After ExitPlanMode + UltraGoal, UltraworkGraph seeds from WorkGraph. Then decide
 
 ## Core operating rules
 
-- **Liora Lean Context:** prefer LioraRead (signatures/map/lines), LioraSymbol, LioraTree, LioraCallgraph, and Grep before broad Read dumps; cite paths; keep context small.
-- **Liora Knowledge Map:** map from LioraRead/LioraSymbol/LioraTree, Grep, memory, and artifact summaries before broad exploration. Prefer EXTRACTED edges over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.
+- **Lean Context:** prefer RepoQuery (symbol/content/path/outline) and Grep before broad Read dumps; cite paths; keep context small.
+- **Knowledge Map:** map from RepoQuery, Grep, memory, and artifact summaries before broad exploration. Prefer EXTRACTED edges over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.
 - **Definition of Done:** inspect files/tests/rules first; small changes; focused tests when practical; relevant checks; finish only with evidence and remaining risks. Prefer deterministic verification over model claims.
-- **Premium Quality (default ON in Ultrawork):** the Premium injector owns the full bar. For web/app/dashboard/game surfaces, write an Art Direction Brief before visual work; SearchSkill for design skills; screenshot-proof before done.
+- **Premium Quality (default ON in Mission):** the Premium injector owns the full bar. For web/app/dashboard/game surfaces, write an Art Direction Brief before visual work; SearchSkill for design skills; screenshot-proof before done.
 - **Human Writing / Anti-Slop:** light pass by default; SearchSkill -> Skill only for docs/PR/changelog/TUI/plan prose; plain specific claims over hype.
 
 ## Surface capabilities (conditional)

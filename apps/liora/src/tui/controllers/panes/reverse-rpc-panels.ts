@@ -14,7 +14,8 @@ import type { ApprovalController } from '../../reverse-rpc/approval/controller';
 import type { QuestionController } from '../../reverse-rpc/question/controller';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import type { TUIState } from '../../tui-state';
-import type { LivePaneState } from '../../types';
+import type { AppState, LivePaneState } from '../../types';
+import { shouldPermissionApproveFlourish } from '../../utils/never-halt/permission-approve-flourish';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { notifyUserAttentionOnce } from '../../utils/terminal/terminal-notification';
 
@@ -28,6 +29,7 @@ export interface ReverseRpcPanelsHost {
   readonly reverseRpcDisposers: Array<() => void>;
 
   patchLivePane(patch: Partial<LivePaneState>): void;
+  setAppState(patch: Partial<AppState>): void;
   mountEditorReplacement(panel: Component & Focusable): void;
   restoreEditor(): void;
   toggleToolOutputExpansion(): void;
@@ -81,6 +83,9 @@ export class ReverseRpcPanelsController {
           .filter((block): block is { type: 'brief'; text: string } => block.type === 'brief')
           .map((block) => block.text)
           .join('\n');
+        if (shouldPermissionApproveFlourish(response)) {
+          this.host.setAppState({ permissionApproveFlourish: { atMs: Date.now() } });
+        }
         this.host.approvalController.respond(
           adaptPanelResponse(response, {
             plan: planFromDisplay.length > 0 ? planFromDisplay : undefined,

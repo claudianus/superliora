@@ -8,13 +8,13 @@ import {
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent/index';
-import { maybeFinishUltraworkRun } from '../../../ultrawork/finish-run';
 import type { BuiltinTool } from '../../../agent/tool';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
-} from '../../../collaboration/swarm-evidence-gate';
+} from '#/fleet';
+import { maybeFinishUltraworkRun } from '../../../ultrawork/finish-run';
 import {
   fireTaskCompleted,
   fireTaskCreated,
@@ -23,16 +23,25 @@ import {
 } from '../../../session/team-hooks';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
+import { renderTodoList } from './todo-list';
+import { TODO_STORE_KEY } from './todo-list-store-key';
 import {
-  TODO_STORE_KEY,
-  renderTodoList,
-  type TodoItem,
-  type TodoStatus,
-} from './todo-list';
+  cloneWorkGraph,
+  cloneWorkGraphNode,
+  todosFromWorkGraph,
+} from './ultrawork-graph-helpers';
 import DESCRIPTION from './ultrawork-graph.md?raw';
 
+const TASK_GRAPH_DESCRIPTION = DESCRIPTION;
+
+const ULTRAWORK_GRAPH_DESCRIPTION =
+  `Legacy/advanced alias of TaskGraph. Prefer TaskGraph (or CreateGoal + TodoList) for new work. ${DESCRIPTION}`;
+
+export { ULTRAWORK_GRAPH_STORE_KEY } from './ultrawork-graph-store-key';
+import { ULTRAWORK_GRAPH_STORE_KEY } from './ultrawork-graph-store-key';
+
+export const TASK_GRAPH_TOOL_NAME = 'TaskGraph' as const;
 export const ULTRAWORK_GRAPH_TOOL_NAME = 'UltraworkGraph' as const;
-export const ULTRAWORK_GRAPH_STORE_KEY = 'ultrawork_graph' as const;
 
 /**
  * Stage synonyms agents commonly emit in plan tables. Normalized at the tool
@@ -66,7 +75,7 @@ export const UltraworkGraphInputSchema = z
       .min(1)
       .optional()
       .describe('Ultrawork run id. Required when replacing nodes.'),
-    root_goal: z.string().trim().min(1).optional().describe('Optional root UltraGoal summary.'),
+    root_goal: z.string().trim().min(1).optional().describe('Optional root Goal summary.'),
     nodes: z
       .array(workGraphNodeInputSchema)
       .optional()
@@ -81,13 +90,13 @@ export const UltraworkGraphInputSchema = z
 export type UltraworkGraphInput = z.infer<typeof UltraworkGraphInputSchema>;
 
 export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
-  readonly name = ULTRAWORK_GRAPH_TOOL_NAME;
-  readonly description = DESCRIPTION;
+  readonly name: string = ULTRAWORK_GRAPH_TOOL_NAME;
+  readonly description: string = ULTRAWORK_GRAPH_DESCRIPTION;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(UltraworkGraphInputSchema);
 
   constructor(
-    private readonly store: ToolStore,
-    private readonly agent: Agent,
+    protected readonly store: ToolStore,
+    protected readonly agent: Agent,
   ) {}
 
   resolveExecution(args: UltraworkGraphInput): ToolExecution {
@@ -118,7 +127,7 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
       const graph = this.getGraph();
       return {
         isError: false,
-        output: graph === undefined ? 'Ultrawork graph is empty.' : renderUltraworkGraph(graph),
+        output: graph === undefined ? 'TaskGraph is empty.' : renderUltraworkGraph(graph),
       };
     }
 
@@ -292,9 +301,23 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
   }
 }
 
+/** Sovereign public name — same implementation as {@link UltraworkGraphTool}. */
+export class TaskGraphTool extends UltraworkGraphTool {
+  override readonly name = TASK_GRAPH_TOOL_NAME;
+  override readonly description = TASK_GRAPH_DESCRIPTION;
+}
+
+export function createUltraworkGraphTool(store: ToolStore, agent: Agent): UltraworkGraphTool {
+  return new UltraworkGraphTool(store, agent);
+}
+
+export function createTaskGraphTool(store: ToolStore, agent: Agent): TaskGraphTool {
+  return new TaskGraphTool(store, agent);
+}
+
 export function renderUltraworkGraph(graph: WorkGraph): string {
   if (graph.nodes.length === 0) {
-    return `Ultrawork graph ${graph.id} for ${graph.runId} has no nodes.`;
+    return `TaskGraph ${graph.id} for ${graph.runId} has no nodes.`;
   }
   const lines = [
     `Ultrawork graph ${graph.id} for ${graph.runId}:`,
@@ -313,53 +336,7 @@ export function renderUltraworkGraph(graph: WorkGraph): string {
   return lines.join('\n');
 }
 
-export function todosFromWorkGraph(graph: WorkGraph): readonly TodoItem[] {
-  return graph.nodes.map((node) => ({
-    title: `[${node.id}] ${node.title}`,
-    status: todoStatusFromNode(node.status),
-  }));
-}
-
-export function cloneWorkGraph(graph: WorkGraph): WorkGraph {
-  return {
-    id: graph.id,
-    runId: graph.runId,
-    rootGoal: graph.rootGoal,
-    createdAt: graph.createdAt,
-    updatedAt: graph.updatedAt,
-    nodes: graph.nodes.map(cloneWorkGraphNode),
-  };
-}
-
-function cloneWorkGraphNode(node: WorkGraphNode): WorkGraphNode {
-  return {
-    id: node.id,
-    title: node.title,
-    kind: node.kind,
-    stage: node.stage,
-    parentId: node.parentId,
-    acceptanceCriterionId: node.acceptanceCriterionId,
-    laneId: node.laneId,
-    ownerExpertId: node.ownerExpertId,
-    ownerAgentId: node.ownerAgentId,
-    status: node.status,
-    dependsOn: cloneArray(node.dependsOn),
-    evidenceIds: cloneArray(node.evidenceIds),
-    requiredEvidence: cloneArray(node.requiredEvidence),
-    verificationStatus: node.verificationStatus,
-    verificationSummary: node.verificationSummary,
-  };
-}
-
-function cloneArray(values: readonly string[] | undefined): readonly string[] | undefined {
-  return values === undefined ? undefined : [...values];
-}
-
-function todoStatusFromNode(status: WorkGraphNode['status']): TodoStatus {
-  if (status === 'running' || status === 'needs_integration') return 'in_progress';
-  if (status === 'done') return 'done';
-  return 'pending';
-}
+export { cloneWorkGraph, todosFromWorkGraph } from './ultrawork-graph-helpers';
 
 function validateWorkGraphNodes(nodes: readonly WorkGraphNode[]): string | undefined {
   const ids = new Set<string>();

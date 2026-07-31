@@ -4,15 +4,17 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { seedUltraworkWorkflowReport } from '../../../../../packages/agent-core/src/ultrawork/workflow-report';
+import { seedUltraworkWorkflowReport } from '@superliora/sdk/mission';
+import {
+  buildUltraworkPrompt,
+  isActiveUltraworkRun,
+  parseUltraworkCommand,
+} from '#/tui/utils/mission/mission-contract';
 import {
   autoResumeUltraworkFromSession,
   buildUltraworkCoverageMatrix,
-  buildUltraworkPrompt,
   handleUltraworkCommand,
   handleUltraworkModeToggle,
-  isActiveUltraworkRun,
-  parseUltraworkCommand,
 } from '#/tui/commands/ultrawork/ultrawork';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { dispatchInput } from '#/tui/commands/hub/dispatch';
@@ -266,25 +268,29 @@ describe('buildUltraworkCoverageMatrix', () => {
 });
 
 describe('buildUltraworkPrompt', () => {
-  it('wraps the objective in a lean contract that points at the ultrawork skill', () => {
+  it('wraps the objective in a lean contract that points at the mission skill', () => {
     const prompt = buildUltraworkPrompt('Ship feature X', 'manual');
 
     expect(prompt).toContain('<ultrawork_flow>');
     expect(prompt).toContain('Ship feature X');
-    expect(prompt).toContain('activation: manual');
+    expect(prompt).toContain('brand: Mission');
+    expect(prompt).not.toContain('brand: Ultrawork');
     expect(prompt).toContain('active_goal_already_created: false');
     expect(prompt).toContain('capability_visual_surface: false');
     expect(prompt).toContain('capability_bench_surface: false');
 
-    // Methodology lives in the `ultrawork` builtin skill; the prompt is a lean pointer plus runtime data.
-    expect(prompt).toContain('load the `ultrawork` builtin skill via the Skill tool');
+    // Methodology lives in the `mission` builtin skill; the prompt is a lean pointer plus runtime data.
+    expect(prompt).toContain('load the `mission` builtin skill via the Skill tool');
+    expect(prompt).toContain('`ultrawork` compat alias still works');
     expect(prompt).toContain('phase checkpoints are advisory, not hard blocks');
     expect(prompt).toContain(
-      'UltraResearch -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn',
+      'Research prelude -> Plan interview -> Goal -> Swarm decision -> Integrate -> Verify -> Learn',
     );
     expect(prompt).toContain('ExitPlanMode is the approval point before post-plan implementation');
-    expect(prompt).toContain('do not ask the user to choose /ultraplan, /ultraresearch, /ultragoal, or /ultraswarm');
-    expect(prompt).toContain('울트라플랜');
+    expect(prompt).toContain('do not ask the user to choose branded sub-commands');
+    expect(prompt).not.toContain('UltraResearch');
+    expect(prompt).toContain('플랜/리서치/골/플릿');
+    expect(prompt).not.toContain('울트라플랜');
     expect(prompt).toContain('UpdateGoal complete/blocked');
 
     // Methodology detail is no longer injected inline.
@@ -321,8 +327,9 @@ describe('buildUltraworkPrompt', () => {
       { capabilities: { visualSurface: false, benchSurface: true } },
     );
     expect(prompt).toContain('capability_bench_surface: true');
-    expect(prompt).toContain('LioraBench');
+    expect(prompt).toContain('Bench');
     expect(prompt).toContain('Bench surface detected');
+    expect(prompt).not.toContain('LioraBench');
     expect(prompt).toContain('do not treat browser-only UI as TUI success');
     expect(prompt).not.toContain('Browser / computer-use verification');
   });
@@ -389,8 +396,8 @@ describe('parseUltraworkCommand', () => {
 
     expect(parsed.kind).toBe('error');
     if (parsed.kind !== 'error') return;
-    expect(parsed.message).toContain('/ultrawork Ship feature X');
-    expect(parsed.message).toContain('/ultrawork replace Ship feature X');
+    expect(parsed.message).toContain('/mission Ship feature X');
+    expect(parsed.message).toContain('/mission replace Ship feature X');
     expect(parsed.message).not.toMatch(/ultragoal/i);
   });
 
@@ -407,7 +414,7 @@ describe('parseUltraworkCommand', () => {
 
     expect(parsed.kind).toBe('error');
     if (parsed.kind !== 'error') return;
-    expect(parsed.message).toContain('/ultrawork replace Ship feature X');
+    expect(parsed.message).toContain('/mission replace Ship feature X');
     expect(parsed.message).not.toContain('/goal Ship feature X');
   });
 });
@@ -439,18 +446,18 @@ describe('handleUltraworkCommand', () => {
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(session.createUltraworkRun).toHaveBeenCalled();
     expect(host.setAppState).toHaveBeenCalledWith({
-      activityTip: 'Ultrawork mode: research first, then UltraPlan interview, verifiable UltraGoal, Swarm decision, verify',
+      activityTip: 'Mission mode: research first, then Plan interview, verifiable Goal, Fleet decision, verify',
     });
-    expect(renderedMarker(host)).toContain('Ultrawork activated');
-    expect(renderedMarker(host)).toContain('Research>UltraPlan>UltraGoal>Swarm?>Integrate>Verify>Learn');
+    expect(renderedMarker(host)).toContain('Mission activated');
+    expect(renderedMarker(host)).toContain('Research -> Plan -> Goal -> Fleet decision -> Integrate -> Verify -> Learn');
     expect(renderedMarker(host)).toContain(
-      'One Ultrawork: source-backed questions → verifiable goal → team → verify',
+      'One Mission: source-backed questions → verifiable goal → team → verify',
     );
     expect(renderedMarker(host)).toContain(
       'Research: local + provider/MCP accelerators; verified sources only',
     );
     expect(renderedMarker(host)).toContain(
-      'Next: evidence pack before UltraPlan questions',
+      'Next: evidence pack before Plan questions',
     );
     expect(renderedMarker(host)).toContain('Ship feature X');
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
@@ -471,7 +478,7 @@ describe('handleUltraworkCommand', () => {
     expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
     expect(session.createUltraworkRun).not.toHaveBeenCalled();
     const text = stripAnsi(mountedPicker(host).render(80).join('\n'));
-    expect(text).toContain('How should Ultrawork interview and approvals run?');
+    expect(text).toContain('How should Mission interview and approvals run?');
     expect(text).toContain('Manual (default)');
     expect(text).toContain('You answer every AskUserQuestion');
     expect(text).toContain('not remembered');
@@ -520,7 +527,7 @@ describe('handleUltraworkCommand', () => {
     mountedPicker(host).handleInput(ESCAPE);
 
     expect(host.restoreInputText).toHaveBeenCalledWith('/ultrawork Ship feature X');
-    expect(host.showStatus).toHaveBeenCalledWith('Ultrawork not started.');
+    expect(host.showStatus).toHaveBeenCalledWith('Mission not started.');
     expect(session.setPermission).not.toHaveBeenCalled();
     expect(session.createUltraworkRun).not.toHaveBeenCalled();
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
@@ -620,7 +627,7 @@ describe('handleUltraworkCommand', () => {
       expect(prompt).toContain('.superliora/evidence/ultrawork-runs');
       expect(prompt).toContain('.superliora/wiki/index.md');
       expect(prompt).toContain('knowledge_persistence_ledger');
-      expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Ultrawork evidence seed: '));
+      expect(host.showStatus).toHaveBeenCalledWith(expect.stringContaining('Mission evidence seed: '));
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
@@ -761,7 +768,7 @@ describe('handleUltraworkCommand', () => {
     expect(session.resumeUltrawork).toHaveBeenCalled();
     expect(host.sendNormalUserInput).toHaveBeenCalledWith(
       expect.stringContaining('<ultrawork_recovery>'),
-      { displayText: 'Resume Ultrawork: Resume me' },
+      { displayText: 'Resume Mission: Resume me' },
     );
   });
 
@@ -802,7 +809,7 @@ describe('handleUltraworkModeToggle', () => {
 
     expect(session.setPlanMode).not.toHaveBeenCalled();
     expect(host.showError).toHaveBeenCalledWith(
-      expect.stringContaining('Ultrawork mode stays on while a workflow run is active.'),
+      expect.stringContaining('Mission mode stays on while a workflow run is active.'),
     );
     expect(host.state.appState.ultraworkMode).toBe(true);
   });
@@ -836,7 +843,7 @@ describe('handleUltraworkModeToggle', () => {
 
     expect(session.setPlanMode).toHaveBeenCalledWith(false, false);
     expect(host.state.appState.ultraworkMode).toBe(false);
-    expect(host.showNotice).toHaveBeenCalledWith('Ultrawork mode: OFF', undefined, {
+    expect(host.showNotice).toHaveBeenCalledWith('Mission mode: OFF', undefined, {
       coalesceKey: 'ultrawork-mode',
     });
   });

@@ -4,6 +4,55 @@ import { ToolAccesses } from '../../src/loop';
 import { ToolScheduler, type ToolCallTask } from '../../src/loop/tool-scheduler';
 
 describe('ToolScheduler', () => {
+  it('tracks peak concurrent active tasks', async () => {
+    const started: string[] = [];
+    const peaks: number[] = [];
+    const scheduler = new ToolScheduler<string>((_inFlight, maxParallel) => {
+      peaks.push(maxParallel);
+    });
+    const first = makeControlledTask('first', readPath('/repo/a.ts'), started);
+    const second = makeControlledTask('second', readPath('/repo/b.ts'), started);
+    const third = makeControlledTask('third', readPath('/repo/c.ts'), started);
+
+    scheduler.add(first.task);
+    scheduler.add(second.task);
+    scheduler.add(third.task);
+
+    expect(scheduler.parallelToolsInFlight).toBe(3);
+    expect(scheduler.maxParallelTools).toBe(3);
+    expect(peaks.at(-1)).toBe(3);
+
+    first.resolve();
+    second.resolve();
+    third.resolve();
+    await Promise.all([
+      scheduler.add(first.task),
+      scheduler.add(second.task),
+      scheduler.add(third.task),
+    ]);
+  });
+
+  it('exposes parallelToolsInFlight while tasks are active', async () => {
+    const started: string[] = [];
+    const drained: string[] = [];
+    const scheduler = new ToolScheduler<string>();
+    const results: Array<Promise<string>> = [];
+    const first = makeControlledTask('first', readPath('/repo/a.ts'), started);
+    const second = makeControlledTask('second', readPath('/repo/b.ts'), started);
+
+    results.push(scheduler.add(first.task));
+    results.push(scheduler.add(second.task));
+
+    expect(started).toEqual(['first', 'second']);
+    expect(scheduler.parallelToolsInFlight).toBe(2);
+
+    first.resolve();
+    second.resolve();
+    for (const task of results) {
+      drained.push(await task);
+    }
+  });
+
   it('starts read accesses on the same path concurrently', async () => {
     const started: string[] = [];
     const drained: string[] = [];

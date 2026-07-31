@@ -15,6 +15,10 @@ export type FinishReason =
   | 'paused'
   | 'other';
 
+export type CacheMissReason = 'schema_change' | 'prefix_drift' | 'model_switch';
+
+export type CacheMissReasonHistogram = Partial<Record<CacheMissReason, number>>;
+
 export interface CacheDiagnostics {
   /** Deterministic hash of the serialized tool block (name+description+schema). */
   readonly toolBlockHash: string;
@@ -24,6 +28,21 @@ export interface CacheDiagnostics {
   readonly injectionCount: number;
   /** Total conversation message count at the last step. */
   readonly messageCount: number;
+  /** Session step-level prompt-cache miss buckets (harness stub until provider reports). */
+  readonly missReasons?: CacheMissReasonHistogram;
+}
+
+/** W13 never-empty search counters (WebSearch / DeepResearch degrade paths). */
+export interface SearchNeverEmptyTelemetry {
+  readonly hardFailCount: number;
+  readonly softDegradeCount: number;
+}
+
+/** W13 LocalResearchCache session lookup counters (WebSearch / DeepResearch). */
+export interface LocalResearchCacheTelemetry {
+  readonly hits: number;
+  readonly misses: number;
+  readonly hitRate?: number;
 }
 
 export interface UsageStatus {
@@ -38,10 +57,20 @@ export interface UsageStatus {
    */
   readonly cacheHitRate?: number;
   /**
+   * Consecutive completed turns whose turn-level prompt-cache hit rate was
+   * ≥0.99 with enough input tokens (≥100). Resets when a qualifying turn
+   * misses the target.
+   */
+  readonly cacheWarmStreak?: number;
+  /**
    * Cache-prefix stability diagnostics. Present once the agent has recorded
    * at least one step; used by TUI/status to surface cache-busting events.
    */
   readonly cacheDiagnostics?: CacheDiagnostics;
+  /** W13 never-empty counters when search tools record degrade paths. */
+  readonly searchNeverEmpty?: SearchNeverEmptyTelemetry;
+  /** W13 LocalResearchCache hit/miss when disk cache lookups occur in session. */
+  readonly localResearchCache?: LocalResearchCacheTelemetry;
 }
 
 export type PermissionMode = 'manual' | 'yolo' | 'auto';
@@ -170,19 +199,42 @@ export const finishReasonSchema = z.enum([
   'other',
 ]) satisfies z.ZodType<FinishReason>;
 
+const cacheMissReasonHistogramSchema = z
+  .object({
+    schema_change: z.number().int().nonnegative().optional(),
+    prefix_drift: z.number().int().nonnegative().optional(),
+    model_switch: z.number().int().nonnegative().optional(),
+  })
+  .partial() satisfies z.ZodType<CacheMissReasonHistogram>;
+
 export const cacheDiagnosticsSchema = z.object({
   toolBlockHash: z.string(),
   toolBlockChanged: z.boolean(),
   injectionCount: z.number(),
   messageCount: z.number(),
+  missReasons: cacheMissReasonHistogramSchema.optional(),
 }) satisfies z.ZodType<CacheDiagnostics>;
+
+export const searchNeverEmptyTelemetrySchema = z.object({
+  hardFailCount: z.number().int().nonnegative(),
+  softDegradeCount: z.number().int().nonnegative(),
+}) satisfies z.ZodType<SearchNeverEmptyTelemetry>;
+
+export const localResearchCacheTelemetrySchema = z.object({
+  hits: z.number().int().nonnegative(),
+  misses: z.number().int().nonnegative(),
+  hitRate: z.number().min(0).max(1).optional(),
+}) satisfies z.ZodType<LocalResearchCacheTelemetry>;
 
 export const usageStatusSchema = z.object({
   byModel: z.record(z.string(), tokenUsageSchema).optional(),
   currentTurn: tokenUsageSchema.optional(),
   total: tokenUsageSchema.optional(),
   cacheHitRate: z.number().optional(),
+  cacheWarmStreak: z.number().int().nonnegative().optional(),
   cacheDiagnostics: cacheDiagnosticsSchema.optional(),
+  searchNeverEmpty: searchNeverEmptyTelemetrySchema.optional(),
+  localResearchCache: localResearchCacheTelemetrySchema.optional(),
 }) satisfies z.ZodType<UsageStatus>;
 
 export const permissionModeSchema = z.enum(['manual', 'yolo', 'auto']) satisfies z.ZodType<PermissionMode>;

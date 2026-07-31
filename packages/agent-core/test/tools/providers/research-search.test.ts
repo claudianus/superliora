@@ -5,10 +5,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  assessSearchChannelHealth,
+  buildSearchNeverEmptyNextStep,
   detectSearchProviderEnvKeys,
   ResearchSearchEngine,
   resolveResearchApiKey,
 } from '../../../src/tools/providers/research-search';
+import { inferSearchChannelsFromStatus } from '../../../src/tools/providers/research-search-health';
 
 
 function requestUrl(input: string | URL | { readonly url: string }): string {
@@ -28,6 +31,19 @@ describe('detectSearchProviderEnvKeys', () => {
     } as NodeJS.ProcessEnv);
 
     expect(detected.map((d) => d.kind).sort()).toEqual(['brave', 'exa', 'serper', 'tavily']);
+  });
+
+  it('detects SearXNG from SUPERLIORA_SEARXNG_URL', () => {
+    const detected = detectSearchProviderEnvKeys({
+      SUPERLIORA_SEARXNG_URL: 'http://127.0.0.1:8080',
+    } as NodeJS.ProcessEnv);
+    expect(detected).toEqual([
+      {
+        kind: 'searxng',
+        baseUrl: 'http://127.0.0.1:8080',
+        label: 'searxng',
+      },
+    ]);
   });
 });
 
@@ -477,4 +493,172 @@ describe('ResearchSearchEngine', () => {
     expect(body).toMatchObject({ search_depth: 'basic', include_raw_content: false });
   });
 
+});
+
+describe('assessSearchChannelHealth', () => {
+  it('is healthy when a paid slot is ready', () => {
+    const health = assessSearchChannelHealth({
+      strategy: 'auto',
+      freeFallback: true,
+      browser: { configured: false, ready: false },
+      chromeExtension: { configured: false, enabled: false, ready: false },
+      providers: [
+        {
+          id: 'brave-0',
+          kind: 'brave',
+          label: 'Brave',
+          ready: true,
+          source: 'env',
+        },
+        {
+          id: 'ddg-0',
+          kind: 'duckduckgo',
+          label: 'DuckDuckGo',
+          ready: true,
+          source: 'local',
+        },
+      ],
+    });
+    expect(health).toEqual({ degraded: false, hard: false });
+  });
+
+  it('soft-degrades when all paid slots are cooling but free fallback is ready', () => {
+    const health = assessSearchChannelHealth({
+      strategy: 'auto',
+      freeFallback: true,
+      browser: { configured: false, ready: false },
+      chromeExtension: { configured: false, enabled: false, ready: false },
+      providers: [
+        {
+          id: 'brave-0',
+          kind: 'brave',
+          label: 'Brave',
+          ready: false,
+          source: 'env',
+          cooldownUntil: Date.now() + 60_000,
+        },
+        {
+          id: 'ddg-0',
+          kind: 'duckduckgo',
+          label: 'DuckDuckGo',
+          ready: true,
+          source: 'local',
+        },
+      ],
+    });
+    expect(health.degraded).toBe(true);
+    expect(health.hard).toBe(false);
+    expect(health.reason).toBe('paid_channels_cooling');
+  });
+
+  it('hard-degrades when paid slots cool and free fallback is disabled', () => {
+    const health = assessSearchChannelHealth({
+      strategy: 'fallback',
+      freeFallback: false,
+      browser: { configured: false, ready: false },
+      chromeExtension: { configured: false, enabled: false, ready: false },
+      providers: [
+        {
+          id: 'tavily-0',
+          kind: 'tavily',
+          label: 'Tavily',
+          ready: false,
+          source: 'config',
+          cooldownUntil: Date.now() + 60_000,
+        },
+      ],
+    });
+    expect(health.degraded).toBe(true);
+    expect(health.hard).toBe(true);
+    expect(health.reason).toBe('paid_channels_cooling_no_fallback');
+  });
+
+  it('soft-degrades when only late channels (Ch5) remain ready', () => {
+    const health = assessSearchChannelHealth({
+      strategy: 'fallback',
+      freeFallback: false,
+      browser: { configured: false, ready: false },
+      chromeExtension: { configured: true, enabled: true, ready: true },
+      providers: [
+        {
+          id: 'tavily-0',
+          kind: 'tavily',
+          label: 'Tavily',
+          ready: false,
+          source: 'config',
+          cooldownUntil: Date.now() + 60_000,
+        },
+      ],
+    });
+    expect(health.degraded).toBe(true);
+    expect(health.hard).toBe(false);
+    expect(health.reason).toBe('paid_channels_cooling_late_channels');
+    expect(health.hint).toContain('Chrome extension bridge');
+  });
+});
+
+describe('buildSearchNeverEmptyNextStep', () => {
+  it('always mentions Ch4/Ch5 on the never-empty path', () => {
+    const next = buildSearchNeverEmptyNextStep();
+    expect(next).toContain('Ch4');
+    expect(next).toContain('Ch5');
+  });
+
+  it('still mentions Ch4/Ch5 when late channels were already tried', () => {
+    const next = buildSearchNeverEmptyNextStep({ channelsTried: ['ch4', 'ch5'] });
+    expect(next).toContain('Ch4');
+    expect(next).toContain('Ch5');
+  });
+});
+
+describe('inferSearchChannelsFromStatus', () => {
+  it('includes ch2 when searxng provider is ready', () => {
+    const channels = inferSearchChannelsFromStatus({
+      strategy: 'auto',
+      freeFallback: true,
+      browser: { configured: false, ready: false },
+      chromeExtension: { configured: false, enabled: false, ready: false },
+      providers: [
+        {
+          id: 'searxng-0',
+          kind: 'searxng',
+          label: 'searxng',
+          ready: true,
+          source: 'env',
+        },
+        {
+          id: 'duckduckgo-1',
+          kind: 'duckduckgo',
+          label: 'duckduckgo',
+          ready: true,
+          source: 'local',
+        },
+      ],
+    });
+    expect(channels).toEqual(['ch2', 'ch3']);
+  });
+
+  it('includes ch5 when chrome extension escalate was attempted', () => {
+    const channels = inferSearchChannelsFromStatus({
+      strategy: 'fallback',
+      freeFallback: false,
+      browser: { configured: true, ready: true, escalateAttempted: true },
+      chromeExtension: {
+        configured: true,
+        enabled: true,
+        ready: false,
+        escalateAttempted: true,
+      },
+      providers: [
+        {
+          id: 'brave-0',
+          kind: 'brave',
+          label: 'Brave',
+          ready: true,
+          source: 'env',
+        },
+      ],
+    });
+    expect(channels).toEqual(['ch1', 'ch4', 'ch5']);
+  });
 });

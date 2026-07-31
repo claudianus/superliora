@@ -18,6 +18,10 @@ await runAcpServer(harness);
 
 See `docs/zh/reference/liora-acp.md` for the full capability matrix (which `Agent` methods are wired, which extensions are stubbed, image / MCP support) and `docs/zh/guides/ides.md` for Zed and JetBrains setup.
 
+## Naming (Sovereign Reform SSOT)
+
+Session/wire APIs may still use legacy `ultrawork` / `swarm` identifiers. The interactive Liora TUI surfaces **Mission** and **Fleet** instead of Ultra\* user strings. This adapter does not expose Ultra\* labels to ACP clients.
+
 ## License
 
 MIT

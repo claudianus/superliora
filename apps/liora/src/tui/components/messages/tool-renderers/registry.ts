@@ -104,6 +104,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return lioraSymbolSummary;
     case 'LioraTree':
       return lioraTreeSummary;
+    case 'Expand':
     case 'LioraExpand':
       return lioraExpandSummary;
     case 'LioraCallgraph':
@@ -143,6 +144,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
     case 'AskUserQuestion':
       return askUserQuestionSummary;
     case 'LioraReview':
+    case 'Review':
       return lioraReviewSummary;
     case 'TaskList':
       return taskListSummary;
@@ -156,6 +158,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return cronCreateSummary;
     case 'CronDelete':
       return cronDeleteSummary;
+    case 'TaskGraph':
     case 'UltraworkGraph':
       return ultraworkGraphSummary;
     case 'SwarmChannel':

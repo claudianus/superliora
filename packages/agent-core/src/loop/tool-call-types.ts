@@ -1,6 +1,7 @@
 import type { LoopEventDispatcher, LoopToolCallEvent } from './events';
 import type { LLM } from './llm';
 import type { ToolCallTask } from './tool-scheduler';
+import type { ToolParallelStatus } from './tool-parallel-status';
 import type { Logger } from '#/logging/types';
 import type {
   ExecutableTool,
@@ -20,6 +21,7 @@ export interface ToolCallStepContext {
   readonly currentStep: number;
   readonly stepUuid: string;
   readonly toolPreamble: ToolPreambleState;
+  readonly toolParallelStatus?: ToolParallelStatus | undefined;
 }
 
 export interface ToolCallBatchContext extends ToolCallStepContext {

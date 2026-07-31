@@ -194,7 +194,7 @@ export class UltraworkTheatreComponent implements Component {
 
     const appearance = getActiveAppearancePreferences();
     const panel = renderRoundedPanel({
-      title: ' Ultrawork ',
+      title: ' Mission ',
       content,
       width: safeWidth,
       borderToken: 'success',

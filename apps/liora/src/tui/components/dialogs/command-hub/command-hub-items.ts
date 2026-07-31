@@ -72,7 +72,7 @@ export function buildDefaultCommandHubItems(state: {
     {
       id: 'modes.ultrawork',
       section: 'Modes',
-      label: 'Ultrawork',
+      label: 'Mission',
       description: 'Space flips · Enter flips & close · full pipeline',
       badge: onOff(state.ultraworkMode),
       kind: 'toggle',
@@ -80,7 +80,7 @@ export function buildDefaultCommandHubItems(state: {
     {
       id: 'modes.premium',
       section: 'Modes',
-      label: 'Premium Quality',
+      label: 'Visual Quality',
       description: 'Space flips · Enter flips & close · higher effort',
       badge: onOff(state.premiumQualityMode),
       kind: 'toggle',

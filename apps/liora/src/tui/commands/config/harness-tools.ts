@@ -1,11 +1,17 @@
 import {
-  formatHarnessEyesReadiness,
-  loadHarnessEyesReadiness,
-} from '#/tui/utils/harness-eyes-readiness';
-import { getHostPackageRoot } from '#/cli/version';
+  filterToolsForPrimaryHelp,
+  listHiddenCompatAliases,
+} from '#/tui/utils/tool/tool-help-filter';
+import { loadProfileLiveGlance } from '#/tui/utils/agent/profile-glance';
+import {
+  buildToolsSessionLiveLines,
+  isHideLegacyToolNamesEnabled,
+  resolveHideLegacyToolsGlance,
+} from '#/tui/utils/tool/tools-glance';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
 import type { SlashCommandHost } from '../hub/dispatch';
+import { SEARCHTOOLS_SCHEMA_TIP, TOOLS_WAIST_TIP } from './agent-profile';
 
 /** List active tools for the current session (TUI eyes for the tool surface). */
 export async function showToolsInventory(host: SlashCommandHost): Promise<void> {
@@ -19,9 +25,21 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
     return;
   }
   try {
+    let configProfile: string | undefined;
+    try {
+      const config = await host.harness.getConfig();
+      configProfile = config.agent?.profile?.trim();
+    } catch {
+      /* profile glance falls back to env-only resolution */
+    }
+    const profile = loadProfileLiveGlance({ configProfile });
     const tools = await session.getTools();
     const active = tools.filter((tool) => tool.active);
     const inactive = tools.filter((tool) => !tool.active);
+    const publicActive = filterToolsForPrimaryHelp(active);
+    const publicInactive = filterToolsForPrimaryHelp(inactive);
+    const hiddenCompat = listHiddenCompatAliases(tools);
+    const hideLegacy = resolveHideLegacyToolsGlance({ hiddenCompatAliases: hiddenCompat });
     const bySource = (list: typeof tools) => {
       const m = new Map<string, number>();
       for (const tool of list) {
@@ -30,11 +48,17 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
       return [...m.entries()].map(([k, v]) => `${k}:${String(v)}`).join(' · ') || 'none';
     };
     const lines: string[] = [
-      `Tools: ${String(active.length)} active / ${String(tools.length)} registered (${bySource(tools)})`,
+      ...buildToolsSessionLiveLines({
+        activeCount: publicActive.length,
+        registeredCount: tools.length,
+        hideLegacy,
+        profile,
+      }),
+      `Sources: ${bySource(tools)}`,
       '',
       'Active:',
     ];
-    const sorted = [...active].sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...publicActive].sort((a, b) => a.name.localeCompare(b.name));
     const cap = 48;
     for (const tool of sorted.slice(0, cap)) {
       const desc = tool.description.replace(/\s+/g, ' ').trim();
@@ -44,22 +68,31 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
     if (sorted.length > cap) {
       lines.push(`  … +${String(sorted.length - cap)} more active`);
     }
-    if (inactive.length > 0) {
-      lines.push('', `Inactive (${String(inactive.length)}): ${inactive.map((t) => t.name).sort().slice(0, 24).join(', ')}${inactive.length > 24 ? '…' : ''}`);
+    if (publicInactive.length > 0) {
+      lines.push(
+        '',
+        `Inactive (${String(publicInactive.length)}): ${publicInactive.map((t) => t.name).sort().slice(0, 24).join(', ')}${publicInactive.length > 24 ? '…' : ''}`,
+      );
     }
-    lines.push('', 'Tip: agent can call SearchTools for the same inventory mid-turn.');
+    if (hiddenCompat.length > 0) {
+      lines.push(
+        '',
+        `Compat aliases hidden (${String(hiddenCompat.length)}): ${hiddenCompat.join(', ')}`,
+        'SearchTools query finds compat names when needed.',
+      );
+    }
+    const tipParts = [TOOLS_WAIST_TIP];
+    if (!isHideLegacyToolNamesEnabled()) {
+      tipParts.push(
+        'Legacy compat aliases register unless SUPERLIORA_HIDE_LEGACY_TOOL_NAMES or SUPERLIORA_SOVEREIGN is set.',
+      );
+    }
+    if (tools.some((tool) => tool.name === 'SearchTools')) {
+      tipParts.push(SEARCHTOOLS_SCHEMA_TIP);
+    }
+    lines.push('', `Tip: ${tipParts.join(' ')}`);
     host.showNotice(lines.join('\n'));
   } catch (error) {
     host.showError(`Failed to load tools: ${formatErrorMessage(error)}`);
-  }
-}
-
-/** Browser-use / computer-use runtime readiness (Harness eyes). */
-export async function showHarnessEyesReadiness(host: SlashCommandHost): Promise<void> {
-  try {
-    const report = await loadHarnessEyesReadiness({ packageRoot: getHostPackageRoot() });
-    host.showNotice(formatHarnessEyesReadiness(report));
-  } catch (error) {
-    host.showError(`Failed to load eyes readiness: ${formatErrorMessage(error)}`);
   }
 }

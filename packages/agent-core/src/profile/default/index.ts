@@ -1,3 +1,4 @@
+import coreYaml from './core.yaml?raw';
 import agentYaml from './agent.yaml?raw';
 import coderYaml from './coder.yaml?raw';
 import exploreYaml from './explore.yaml?raw';
@@ -11,6 +12,7 @@ import { loadAgentProfilesFromSources } from '../load';
 // Keyed by the source path the profile loader expects: profile YAML files
 // plus any file referenced through `systemPromptPath`.
 const PROFILE_SOURCES: Record<string, string> = {
+  'profile/default/core.yaml': coreYaml,
   'profile/default/agent.yaml': agentYaml,
   'profile/default/coder.yaml': coderYaml,
   'profile/default/explore.yaml': exploreYaml,
@@ -22,8 +24,14 @@ const PROFILE_SOURCES: Record<string, string> = {
 
 export const DEFAULT_INIT_PROMPT = initMd;
 
+/**
+ * Sovereign Core waist (Core≤12 SSOT) — recommended default.
+ * Opt-in: `SUPERLIORA_PROFILE=core`, `agent.profile = "core"`, `SUPERLIORA_SOVEREIGN_CORE=1`, or `SUPERLIORA_SOVEREIGN=1`.
+ */
+export const SOVEREIGN_CORE_WAIST_PROFILE = 'core';
+
 export const DEFAULT_AGENT_PROFILES = loadAgentProfilesFromSources(
-  ['agent.yaml', 'coder.yaml', 'explore.yaml', 'full.yaml', 'plan.yaml', 'ultra-plan.yaml'].map(
+  ['core.yaml', 'agent.yaml', 'coder.yaml', 'explore.yaml', 'full.yaml', 'plan.yaml', 'ultra-plan.yaml'].map(
     (file) => `profile/default/${file}`,
   ),
   PROFILE_SOURCES,

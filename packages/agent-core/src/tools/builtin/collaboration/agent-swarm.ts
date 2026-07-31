@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
+import type { Agent } from '../../../agent';
 import type { SwarmMode } from '../../../agent/swarm';
 import type { BuiltinTool } from '../../../agent/tool';
+import {
+  applyFleetWorktreeToSpawnTasks,
+  fleetCostGuardSoftTipFromAgent,
+  makerCheckerSoftWarnFromAgentSwarmItems,
+} from '#/fleet';
 import {
   DEFAULT_SUBAGENT_TIMEOUT_MS,
   type QueuedSubagentTask,
@@ -13,6 +19,7 @@ import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from 
 import { toInputJsonSchema } from '../../support/input-schema';
 import AGENT_SWARM_DESCRIPTION from './agent-swarm.md?raw';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
+import { resolveArchiveRecoverToolName } from '../../../agent/compaction/micro/micro-helpers';
 import type { ToolStore } from '../../store';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 import {
@@ -105,6 +112,7 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
     private readonly subagentHost: SessionSubagentHost,
     private readonly swarmMode: SwarmMode,
     private readonly store: ToolStore,
+    private readonly agent: Agent,
   ) {}
 
   resolveExecution(args: AgentSwarmToolInput): ToolExecution {
@@ -177,15 +185,33 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
         kind: 'spawn',
       };
     });
-    const results = await this.subagentHost.runQueued(tasks);
+    const { tasks: fleetTasks, tips: fleetWorktreeTips } = await applyFleetWorktreeToSpawnTasks(
+      tasks,
+      {
+        kaos: this.agent.kaos,
+        repoPath: this.agent.config.cwd,
+        parentToolCallId: toolCallId,
+        log: this.agent.log,
+      },
+    );
+    const results = await this.subagentHost.runQueued(fleetTasks);
     const rawResult = renderSwarmResults(
       results.map(({ task, ...result }) => ({ spec: task.data, ...result })),
     );
-    const compacted = compactSwarmToolResult(this.store, rawResult);
+    const recoverToolName = resolveArchiveRecoverToolName(this.subagentHost.parentLoopToolNames());
+    const compacted = compactSwarmToolResult(this.store, rawResult, { recoverToolName });
     const rollingWarning = takeRollingIntegrationWarning(toolCallId);
-    return rollingWarning === undefined
-      ? compacted.output
-      : `${compacted.output}\n\n${rollingWarning}`;
+    const fleetTip =
+      fleetWorktreeTips.length > 0 ? fleetWorktreeTips.join('\n') : undefined;
+    const makerCheckerTip = makerCheckerSoftWarnFromAgentSwarmItems(
+      args.items ?? [],
+      args.prompt_template,
+    );
+    const costGuardTip = fleetCostGuardSoftTipFromAgent(this.agent, fleetTasks.length);
+    const suffix = [rollingWarning, fleetTip, makerCheckerTip, costGuardTip]
+      .filter((line) => line !== undefined)
+      .join('\n\n');
+    return suffix.length > 0 ? `${compacted.output}\n\n${suffix}` : compacted.output;
   }
 }
 

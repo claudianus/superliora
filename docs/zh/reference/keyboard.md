@@ -25,14 +25,14 @@ SuperLiora CLI 的 TUI 交互模式把主提示区快捷键保持精简，多数
 | `Ctrl-F` | 搜索对话记录 |
 | `Ctrl-X` | 暂存或恢复草稿提示 |
 | `Ctrl-G` | 在外部编辑器中编辑当前输入 |
-| `Shift-Tab` | 切换 Ultrawork mode |
+| `Shift-Tab` | 切换 Mission mode |
 | `↑` / `↓` | 浏览输入历史（空提示） |
 | `PgUp` / `PgDn` | 滚动对话记录（空提示） |
 | `!` | 进入 Shell 模式（空提示） |
 
 若快捷键因条件不满足无法执行（例如流式中打开 Hub，或提示非空时按 `Ctrl-R`），TUI 会显示简短 toast，而不是静默无响应。
 
-按 `Shift-Tab` 可开启或关闭 Ultrawork mode。开启后，下一个普通 prompt 会先进入只读 research prelude，再进入 UltraPlan interview，形成可验证的 UltraGoal，然后按 Swarm decision、integration、verification、learning 的顺序推进。除非 Ultrawork mode 已开启，或 prompt 明确要求 UltraWork，普通 prompt 不会进入这个工作流。
+按 `Shift-Tab` 可开启或关闭 Mission mode。开启后，下一个普通 prompt 会先进入只读 research prelude，再进入 Plan interview，形成可验证 goal，然后按 Swarm decision、integration、verification、learning 的顺序推进。除非 Mission mode 已开启，或 prompt 明确要求 Mission，普通 prompt 不会进入这个工作流。
 
 在空输入框中键入 `!` 进入 Shell 模式，可直接运行终端命令；命令运行期间按 `Ctrl+B` 可将其转为后台任务。详见[交互与输入](../guides/interaction.md#shell-模式)。
 
@@ -67,7 +67,7 @@ SuperLiora CLI 的 TUI 交互模式把主提示区快捷键保持精简，多数
 
 ## Hub 与斜杠（非主区和弦）
 
-工具输出展开、待办展开、UltraPlan 调向与重试在 Command Hub 或斜杠命令（`/plan`、`/retry` 等）中提供，不再作为主提示区独立和弦。
+工具输出展开、待办展开、Plan 调向与重试在 Command Hub 或斜杠命令（`/plan`、`/retry` 等）中提供，不再作为主提示区独立和弦。
 
 ## 审批面板
 

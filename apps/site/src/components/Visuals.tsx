@@ -60,18 +60,18 @@ export function HeroCommandCenter() {
             <br />
             <span className="text-cyan">$</span> liora --plan
             <br />
-            <span className="text-muted">›</span> UltraPlan interview armed
+            <span className="text-muted">›</span> Plan interview armed
             <br />
-            <span className="text-cyan">$</span> /ultrawork harden auth
+            <span className="text-cyan">$</span> /mission harden auth
             <br />
-            <span className="text-emerald">›</span> goal locked · swarm deferred
+            <span className="text-emerald">›</span> goal locked · fleet deferred
           </div>
         </Panel>
 
         <Panel>
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-text">
             <GoalIcon className={`${iconSize} text-cyan`} />
-            <span>UltraGoal</span>
+            <span>Goal</span>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-soft">
@@ -205,7 +205,7 @@ export function AgentCockpit() {
             context index
           </div>
           <div>
-            <span className="text-muted">14:05</span> <span className="text-cyan">$</span> swarm
+            <span className="text-muted">14:05</span> <span className="text-cyan">$</span> fleet
             dispatch --research
           </div>
           <div>

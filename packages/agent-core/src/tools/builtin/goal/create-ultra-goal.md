@@ -1,6 +1,6 @@
-Create a structured UltraGoal with loop engineering protocols.
+Create a structured Goal with loop engineering protocols.
 
-Unlike `CreateGoal` (simple persistence), `CreateUltraGoal` activates a structured loop:
+Prefer CreateGoal (or Mission) for new work. `CreateUltraGoal` is a legacy/advanced alias that activates a structured loop:
 
 - **closed** mode (default): Evaluator-Optimizer loop. Define 2-5 acceptance criteria, iterate until ALL have passing evidence.
 - **open** mode: Self-improvement loop with quality floor + circuit breaker. Runs until user cancels.

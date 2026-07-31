@@ -71,7 +71,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork',
+    'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Mission',
   'tui.welcome.prompt.loggedOut':
     'Run /login or paste an API key — media/web/office ready after that, no MCP.',
   'tui.welcome.modelUnset': 'not set, run /login',
@@ -97,7 +97,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.next.review': 'next: review changes',
   'tui.footer.next.media': 'next: set OPENAI_API_KEY or GOOGLE_API_KEY for image/video, or /status',
   'tui.footer.next.history': 'next: ctrl-o toggles clean chat vs tool history',
-  'tui.footer.next.default': 'next: Shift-Tab toggles Ultrawork/off · /bench for LioraBench',
+  'tui.footer.next.default': 'next: Shift-Tab toggles Mission/off · /bench for Bench',
   'tui.footer.compacting': 'compacting context',
   'tui.footer.compacting.background': 'compacting in background · turn continues',
   'tui.footer.replaying': 'replaying session',
@@ -122,10 +122,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.sessionLoading.dashboard': 'Loading agent dashboard…',
   'tui.sessionLoading.extensions': 'Loading extensions…',
   'tui.sessionLoading.exporting': 'Exporting session…',
-  'tui.footer.ultrawork': 'Workflow: research → interview → goal → swarm → integrate → verify → learn',
-  'tui.ultrawork.autoResume.title': 'Ultrawork auto-resumed',
-  'tui.ultrawork.autoResume.detail': 'Resuming the interrupted run at stage {stage}.',
-  'tui.footer.premium': 'Premium Quality ON — art direction, anti-slop, screenshot proof',
+  'tui.footer.mission': 'Mission: research → interview → goal → swarm → integrate → verify → learn',
+  'tui.ultrawork.autoResume.title': 'Mission auto-resumed',
+  'tui.ultrawork.autoResume.detail': 'Resuming the interrupted Mission run at stage {stage}.',
+  'tui.footer.premium': 'Visual Quality ON — motion/density, anti-slop, screenshot proof',
   'tui.footer.exitConfirmCtrlC': 'Press Ctrl+C again to exit',
   'tui.footer.exitConfirmCtrlD': 'Press Ctrl+D again to exit',
   'tui.footer.detachHint': 'Detached. Output continues in background (/tasks).',
@@ -159,30 +159,30 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'All actions will be approved automatically. Use with caution.',
   'tui.permission.setFailed': 'Failed to set permission mode: {message}',
 
-  // ── Premium / Ultrawork ──────────────────────────────────────────────────
-  'tui.premium.alreadyOn': 'Premium Quality mode is already on',
-  'tui.premium.alreadyOff': 'Premium Quality mode is already off',
-  'tui.premium.on.title': 'Premium Quality mode: ON',
-  'tui.premium.off.title': 'Premium Quality mode: OFF',
+  // ── Premium / Mission ────────────────────────────────────────────────────
+  'tui.premium.alreadyOn': 'Visual Quality mode is already on',
+  'tui.premium.alreadyOff': 'Visual Quality mode is already off',
+  'tui.premium.on.title': 'Visual Quality mode: ON',
+  'tui.premium.off.title': 'Visual Quality mode: OFF',
   'tui.premium.on.detail':
-    'Visual-first premium harness active — art direction, anti-slop visuals, skill routing, screenshot proof.',
+    'Visual Quality active — art direction, anti-slop visuals, skill routing, screenshot proof.',
   'tui.premium.on.detail.apply':
-    'Visual-first premium harness active — art direction, skill routing, rubric, screenshot verification.',
+    'Visual Quality active — art direction, skill routing, rubric, screenshot verification.',
   'tui.premium.usage': 'Usage: /premium [on|off|status]',
-  'tui.premium.setFailed': 'Failed to set Premium Quality mode: {message}',
-  'tui.premium.enableFailed': 'Failed to enable Premium Quality mode: {message}',
+  'tui.premium.setFailed': 'Failed to set Visual Quality mode: {message}',
+  'tui.premium.enableFailed': 'Failed to enable Visual Quality mode: {message}',
   'tui.aquarium.restored':
     'Jewel Tank overlay on — click to feed; send a message to return to your chat.',
   'tui.aquarium.replaying': 'Cannot show the aquarium while session history is replaying.',
   'tui.feed.noTank': 'No Jewel Tank is visible — open /aquarium or wait for the idle tank.',
   'tui.feed.full': 'The tank is full of food already.',
   'tui.feed.dropped': 'Food dropped — watch the fish go.',
-  'tui.ultrawork.on.title': 'Ultrawork mode: ON',
-  'tui.ultrawork.off.title': 'Ultrawork mode: OFF',
+  'tui.ultrawork.on.title': 'Mission mode: ON',
+  'tui.ultrawork.off.title': 'Mission mode: OFF',
   'tui.ultrawork.on.detail':
-    'Shift-Tab routes the next task through UltraPlan before any UltraGoal or Swarm work.',
-  'tui.ultrawork.enableFailed': 'Failed to enable Ultrawork mode: {message}',
-  'tui.ultrawork.disableFailed': 'Failed to disable Ultrawork mode: {message}',
+    'Shift-Tab routes the next task through Plan before any Goal or Fleet work.',
+  'tui.ultrawork.enableFailed': 'Failed to enable Mission mode: {message}',
+  'tui.ultrawork.disableFailed': 'Failed to disable Mission mode: {message}',
 
   // ── Goal / swarm start prompts ───────────────────────────────────────────
   'tui.goal.start.title.manual': 'Start a goal with approvals on?',
@@ -224,10 +224,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Manual mode asks you before SuperLiora runs commands, edits files, or takes other risky actions.',
   'tui.swarm.start.notice.2': 'Manual mode can block swarm work while agents are running.',
   'tui.swarm.start.notice.3': 'You can go back without losing your command.',
-  'tui.ultrawork.start.title': 'How should Ultrawork interview and approvals run?',
+  'tui.ultrawork.start.title': 'How should Mission interview and approvals run?',
   'tui.ultrawork.start.option.manual': 'Manual (default)',
   'tui.ultrawork.start.option.manual.desc':
-    'You answer every AskUserQuestion and approve tools, edits, and high-risk gates. Best when you want full control during the Ultrawork interview.',
+    'You answer every AskUserQuestion and approve tools, edits, and high-risk gates. Best when you want full control during the Mission interview.',
   'tui.ultrawork.start.option.auto': 'Auto',
   'tui.ultrawork.start.option.auto.desc':
     'SuperLiora auto-answers AskUserQuestion and auto-approves tools. Same interview questions as Manual; only the responder changes.',
@@ -235,10 +235,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.ultrawork.start.option.yolo.desc':
     'SuperLiora auto-answers AskUserQuestion and most tools. Humans still gate delete/destructive actions and credential/secret access.',
   'tui.ultrawork.start.notice.1':
-    'Choose who answers the Ultrawork interview and high-risk gates.',
+    'Choose who answers the Mission interview and high-risk gates.',
   'tui.ultrawork.start.notice.2':
     'The interview script is the same in every mode — only the responder and tool approvals change.',
-  'tui.ultrawork.start.notice.3': 'This choice is not remembered; Manual is selected by default on every new Ultrawork start.',
+  'tui.ultrawork.start.notice.3': 'This choice is not remembered; Manual is selected by default on every new Mission start.',
 
   // ── Device code / OAuth box ──────────────────────────────────────────────
   'tui.device.visitUrl': 'Visit the URL below in your browser to authorize:',
@@ -246,10 +246,10 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab toggles Ultrawork and off.\n/status shows media, web/Context7, ZDR, LioraBench readiness.\nNormal messages stay lightweight unless Ultrawork is on.',
+    'Shift-Tab toggles Mission and off.\n/status shows media, web/Context7, ZDR, Bench readiness.\nNormal messages stay lightweight unless Mission is on.',
   'tui.help.intro.advanced':
-    'Ultrawork is one workflow: UltraPlan, UltraGoal, Research, Swarm decision, Integrate, Verify, Learn.\nShift-Tab toggles Ultrawork/off; /plan steers UltraPlan from Hub or slash.\n/status shows media, web/Context7, ZDR, LioraBench readiness.',
-  'tui.help.shortcut.shiftTab': 'Toggle Ultrawork / off',
+    'Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab toggles Mission/off; /plan steers Plan from Hub or slash.\n/status shows media, web/Context7, ZDR, Bench readiness.',
+  'tui.help.shortcut.shiftTab': 'Toggle Mission / off',
   'tui.help.shortcut.ctrlG': 'Edit in external editor ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': 'Toggle tool output expansion (recent turns)',
   'tui.help.shortcut.ctrlB': 'Background a long-running shell task · /tasks',
@@ -263,7 +263,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.help.shortcut.escEsc': 'Open undo selector (idle prompt)',
   'tui.help.shortcut.history': 'Browse input history',
   'tui.help.shortcut.enter': 'Submit',
-  'tui.help.shortcut.ctrlShiftTab': 'Steer UltraPlan',
+  'tui.help.shortcut.ctrlShiftTab': 'Steer Plan',
 
   // ── Provider / login flows ───────────────────────────────────────────────
   'tui.provider.catalogLoading': 'Loading provider catalog',
@@ -338,7 +338,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.sessions': '/sessions to browse and resume earlier sessions',
   'tui.tip.outcome': 'describe the outcome and Liora will keep the work organized',
   'tui.tip.goalNext': '/goal next to queue follow-up work while the current goal keeps running',
-  'tui.tip.shiftTab': 'shift-tab toggles Ultrawork and off',
+  'tui.tip.shiftTab': 'shift-tab toggles Mission and off',
   'tui.tip.mention': '@: mention files',
   'tui.tip.shell': '! to run a shell command',
   'tui.tip.ctrlO': 'Command Hub → Workspace: toggle clean chat vs full tool history',
@@ -354,14 +354,14 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.ctrlK': 'Ctrl-K: open Command Hub — modes, model, sessions',
   'tui.tip.help': 'Ctrl-K or ?: Command Hub (slash commands still work)',
   'tui.tip.compact': '/compact compresses context when it gets long',
-  'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · LioraBench',
+  'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · Bench',
   'tui.tip.context': '/context: memory continuity + privacy (ZDR)',
   'tui.tip.mediaKeys': 'media: OPENAI/GOOGLE key → GenerateImage/Video — no MCP',
   'tui.tip.research': 'research: Context7 + WebSearch/FetchURL — no MCP',
   'tui.tip.office':
     'office: SearchSkill → docx / pptx / xlsx — Word, slides, sheets with zero MCP setup',
   'tui.tip.websearch': 'WebSearch defaults to 3 hits — sharpen the query before raising limit',
-  'tui.tip.bench': '/bench: LioraBench score · loop · next rerun',
+  'tui.tip.bench': '/bench: Bench score · loop · next rerun',
   'tui.tip.browser': 'browser/computer tools are built-in for screenshot proof — no MCP',
   'tui.tip.firstRun': 'first run: /login then type a task — no complex config needed',
   'tui.tip.footerBadges':
@@ -387,7 +387,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'media: footer img/vid badges appear only when OPENAI/GOOGLE keys make GenerateImage/Video ready',
   'tui.tip.backgroundAgent':
     'background Agent only for independent work — never TaskOutput-wait after bg launch',
-  'tui.tip.shiftTabOff': 'shift-tab again turns Ultrawork back off',
+  'tui.tip.shiftTabOff': 'shift-tab again turns Mission back off',
   'tui.tip.model': '/model: switch model',
   'tui.tip.loginMedia':
     '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video',
@@ -461,7 +461,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    '작업을 입력하세요 · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork',
+    '작업을 입력하세요 · /status web·office·media·ZDR · /bench · Shift-Tab Mission',
   'tui.welcome.prompt.loggedOut':
     '/login 또는 API 키를 붙여넣으세요 — 이후 media/web/office 사용 가능, MCP 불필요.',
   'tui.welcome.modelUnset': '미설정, /login 실행',
@@ -487,7 +487,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.next.review': '다음: 변경사항 검토',
   'tui.footer.next.media': '다음: OPENAI_API_KEY 또는 GOOGLE_API_KEY로 이미지/영상, 또는 /status',
   'tui.footer.next.history': '다음: ctrl-o로 깔끔한 채팅 ↔ 전체 도구 기록',
-  'tui.footer.next.default': '다음: Shift-Tab로 Ultrawork 켜기/끄기 · /bench로 LioraBench',
+  'tui.footer.next.default': '다음: Shift-Tab로 Mission 켜기/끄기 · /bench로 Bench',
   'tui.footer.compacting': '컨텍스트 압축 중',
   'tui.footer.compacting.background': '백그라운드 압축 중 · 턴 계속 진행',
   'tui.footer.replaying': '세션 재생 중',
@@ -512,10 +512,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.sessionLoading.dashboard': '에이전트 대시보드 불러오는 중…',
   'tui.sessionLoading.extensions': '확장 목록 불러오는 중…',
   'tui.sessionLoading.exporting': '세션 내보내는 중…',
-  'tui.footer.ultrawork': '워크플로: 조사 → 인터뷰 → 목표 → 스웜 → 통합 → 검증 → 학습',
-  'tui.ultrawork.autoResume.title': 'Ultrawork 자동 재개',
-  'tui.ultrawork.autoResume.detail': '중단된 실행을 stage {stage}에서 이어갑니다.',
-  'tui.footer.premium': '프리미엄 품질 ON — 아트 디렉션, 안티 슬롭, 스크린샷 증명',
+  'tui.footer.mission': '미션: 조사 → 인터뷰 → 목표 → 스웜 → 통합 → 검증 → 학습',
+  'tui.ultrawork.autoResume.title': 'Mission 자동 재개',
+  'tui.ultrawork.autoResume.detail': '중단된 Mission 실행을 stage {stage}에서 이어갑니다.',
+  'tui.footer.premium': '시각 품질 ON — 모션/밀도, 안티 슬롭, 스크린샷 증명',
   'tui.footer.exitConfirmCtrlC': '종료하려면 Ctrl+C를 다시 누르세요',
   'tui.footer.exitConfirmCtrlD': '종료하려면 Ctrl+D를 다시 누르세요',
   'tui.footer.detachHint': '분리됨. 백그라운드 출력 계속 (/tasks).',
@@ -547,30 +547,30 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.permission.replay.yoloOn.detail': '모든 작업이 자동 승인됩니다. 주의해서 사용하세요.',
   'tui.permission.setFailed': '권한 모드 설정 실패: {message}',
 
-  // ── Premium / Ultrawork ──────────────────────────────────────────────────
-  'tui.premium.alreadyOn': '프리미엄 품질 모드가 이미 켜져 있습니다',
-  'tui.premium.alreadyOff': '프리미엄 품질 모드가 이미 꺼져 있습니다',
-  'tui.premium.on.title': '프리미엄 품질 모드: ON',
-  'tui.premium.off.title': '프리미엄 품질 모드: OFF',
+  // ── Premium / Mission ────────────────────────────────────────────────────
+  'tui.premium.alreadyOn': '시각 품질 모드가 이미 켜져 있습니다',
+  'tui.premium.alreadyOff': '시각 품질 모드가 이미 꺼져 있습니다',
+  'tui.premium.on.title': '시각 품질 모드: ON',
+  'tui.premium.off.title': '시각 품질 모드: OFF',
   'tui.premium.on.detail':
-    '시각 우선 프리미엄 하네스 활성 — 아트 디렉션, 안티 슬롭, 스킬 라우팅, 스크린샷 증명.',
+    '시각 품질 모드 활성 — 아트 디렉션, 안티 슬롭, 스킬 라우팅, 스크린샷 증명.',
   'tui.premium.on.detail.apply':
-    '시각 우선 프리미엄 하네스 활성 — 아트 디렉션, 스킬 라우팅, 루브릭, 스크린샷 검증.',
+    '시각 품질 모드 활성 — 아트 디렉션, 스킬 라우팅, 루브릭, 스크린샷 검증.',
   'tui.premium.usage': '사용법: /premium [on|off|status]',
-  'tui.premium.setFailed': '프리미엄 품질 모드 설정 실패: {message}',
-  'tui.premium.enableFailed': '프리미엄 품질 모드 활성화 실패: {message}',
+  'tui.premium.setFailed': '시각 품질 모드 설정 실패: {message}',
+  'tui.premium.enableFailed': '시각 품질 모드 활성화 실패: {message}',
   'tui.aquarium.restored':
     'Jewel Tank 오버레이 — 클릭으로 밥 주기, 메시지를 보내면 채팅으로 돌아갑니다.',
   'tui.aquarium.replaying': '세션 기록 재생 중에는 어항을 표시할 수 없습니다.',
   'tui.feed.noTank': '보이는 Jewel Tank가 없습니다 — /aquarium을 열거나 대기 화면을 기다리세요.',
   'tui.feed.full': '이미 먹이가 가득합니다.',
   'tui.feed.dropped': '먹이를 넣었습니다 — 물고기를 지켜보세요.',
-  'tui.ultrawork.on.title': 'Ultrawork 모드: ON',
-  'tui.ultrawork.off.title': 'Ultrawork 모드: OFF',
+  'tui.ultrawork.on.title': 'Mission 모드: ON',
+  'tui.ultrawork.off.title': 'Mission 모드: OFF',
   'tui.ultrawork.on.detail':
-    'Shift-Tab은 다음 작업을 UltraGoal/Swarm 전에 UltraPlan으로 보냅니다.',
-  'tui.ultrawork.enableFailed': 'Ultrawork 모드 활성화 실패: {message}',
-  'tui.ultrawork.disableFailed': 'Ultrawork 모드 비활성화 실패: {message}',
+    'Shift-Tab은 다음 작업을 Goal/Fleet 전에 Plan으로 보냅니다.',
+  'tui.ultrawork.enableFailed': 'Mission 모드 활성화 실패: {message}',
+  'tui.ultrawork.disableFailed': 'Mission 모드 비활성화 실패: {message}',
 
   // ── Goal / swarm start prompts ───────────────────────────────────────────
   'tui.goal.start.title.manual': '승인 확인을 켠 채로 목표를 시작할까요?',
@@ -611,10 +611,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'Manual 모드는 SuperLiora가 명령 실행·파일 편집 등 위험 작업 전에 확인합니다.',
   'tui.swarm.start.notice.2': 'Manual 모드는 에이전트 실행 중 스웜 작업을 막을 수 있습니다.',
   'tui.swarm.start.notice.3': '명령을 잃지 않고 돌아갈 수 있습니다.',
-  'tui.ultrawork.start.title': 'Ultrawork 인터뷰와 승인을 어떻게 진행할까요?',
+  'tui.ultrawork.start.title': 'Mission 인터뷰와 승인을 어떻게 진행할까요?',
   'tui.ultrawork.start.option.manual': 'Manual (기본)',
   'tui.ultrawork.start.option.manual.desc':
-    '모든 AskUserQuestion에 직접 답하고 도구·편집·고위험 게이트를 승인합니다. Ultrawork 인터뷰를 완전히 제어하고 싶을 때 최적입니다.',
+    '모든 AskUserQuestion에 직접 답하고 도구·편집·고위험 게이트를 승인합니다. Mission 인터뷰를 완전히 제어하고 싶을 때 최적입니다.',
   'tui.ultrawork.start.option.auto': 'Auto',
   'tui.ultrawork.start.option.auto.desc':
     'AskUserQuestion 자동 응답 + 도구 자동 승인. 인터뷰 질문은 Manual과 같고 응답자만 다릅니다.',
@@ -622,10 +622,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.ultrawork.start.option.yolo.desc':
     'AskUserQuestion과 대부분 도구를 자동 처리합니다. 삭제/파괴적 작업·자격증명/시크릿은 사람이 게이트합니다.',
   'tui.ultrawork.start.notice.1':
-    'Ultrawork 인터뷰와 고위험 게이트에 누가 답할지 선택하세요.',
+    'Mission 인터뷰와 고위험 게이트에 누가 답할지 선택하세요.',
   'tui.ultrawork.start.notice.2':
     '인터뷰 스크립트는 모든 모드에서 동일합니다 — 응답자와 도구 승인만 바뀝니다.',
-  'tui.ultrawork.start.notice.3': '이 선택은 기억되지 않으며, 새 Ultrawork 시작마다 Manual이 기본 선택됩니다.',
+  'tui.ultrawork.start.notice.3': '이 선택은 기억되지 않으며, 새 Mission 시작마다 Manual이 기본 선택됩니다.',
 
   // ── Device code / OAuth box ──────────────────────────────────────────────
   'tui.device.visitUrl': '아래 URL을 브라우저에서 열어 인증하세요:',
@@ -633,10 +633,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab으로 Ultrawork 켜기/끄기.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.\nUltrawork가 꺼져 있으면 일반 메시지는 가볍게 유지됩니다.',
+    'Shift-Tab으로 Mission 켜기/끄기.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.\nMission이 꺼져 있으면 일반 메시지는 가볍게 유지됩니다.',
   'tui.help.intro.advanced':
-    'Ultrawork는 하나의 워크플로: UltraPlan, UltraGoal, Research, Swarm 결정, Integrate, Verify, Learn.\nShift-Tab으로 Ultrawork 켜기/끄기; /plan은 Hub 또는 슬래시로 UltraPlan 조향.\n/status로 media, web/Context7, ZDR, LioraBench 준비 상태 확인.',
-  'tui.help.shortcut.shiftTab': 'Ultrawork 켜기/끄기',
+    'Mission은 하나의 워크플로: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab으로 Mission 켜기/끄기; /plan은 Hub 또는 슬래시로 Plan 조향.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
+  'tui.help.shortcut.shiftTab': 'Mission 켜기/끄기',
   'tui.help.shortcut.ctrlG': '외부 에디터에서 편집 ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': '도구 출력 확장 토글 (최근 턴)',
   'tui.help.shortcut.ctrlB': '긴 셸 작업을 백그라운드로 · /tasks',
@@ -650,7 +650,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.help.shortcut.escEsc': '실행 취소 선택기 열기 (유휴 프롬프트)',
   'tui.help.shortcut.history': '입력 히스토리 탐색',
   'tui.help.shortcut.enter': '제출',
-  'tui.help.shortcut.ctrlShiftTab': 'UltraPlan 조향',
+  'tui.help.shortcut.ctrlShiftTab': 'Plan 조향',
 
   // ── Provider / login flows ───────────────────────────────────────────────
   'tui.provider.catalogLoading': '프로바이더 카탈로그 로드 중',
@@ -723,7 +723,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.sessions': '/sessions로 이전 세션을 찾아 이어가세요',
   'tui.tip.outcome': '원하는 결과를 설명하면 Liora가 작업을 정리합니다',
   'tui.tip.goalNext': '/goal next로 현재 목표를 유지한 채 후속 작업을 대기열에 넣습니다',
-  'tui.tip.shiftTab': 'shift-tab으로 Ultrawork 켜기/끄기',
+  'tui.tip.shiftTab': 'shift-tab으로 Mission 켜기/끄기',
   'tui.tip.mention': '@: 파일 멘션',
   'tui.tip.shell': '!: 셸 명령 실행',
   'tui.tip.ctrlO': 'Command Hub → Workspace: 깔끔한 채팅 ↔ 전체 도구 기록',
@@ -739,14 +739,14 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.ctrlK': 'Ctrl-K: Command Hub — 모드, 모델, 세션',
   'tui.tip.help': 'Ctrl-K 또는 ?: Command Hub (슬래시도 그대로 동작)',
   'tui.tip.compact': '/compact로 길어지면 컨텍스트 압축',
-  'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · LioraBench',
+  'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · Bench',
   'tui.tip.context': '/context: 메모리 연속성 + 프라이버시 (ZDR)',
   'tui.tip.mediaKeys': 'media: OPENAI/GOOGLE 키 → GenerateImage/Video — MCP 불필요',
   'tui.tip.research': 'research: Context7 + WebSearch/FetchURL — MCP 불필요',
   'tui.tip.office':
     'office: SearchSkill → docx / pptx / xlsx — Word, 슬라이드, 시트, MCP 설정 없음',
   'tui.tip.websearch': 'WebSearch 기본 3건 — limit 올리기 전에 쿼리를 구체적으로',
-  'tui.tip.bench': '/bench: LioraBench 점수 · 루프 · 다음 재실행',
+  'tui.tip.bench': '/bench: Bench 점수 · 루프 · 다음 재실행',
   'tui.tip.browser': 'browser/computer 도구는 스크린샷 증명용 내장 — MCP 불필요',
   'tui.tip.firstRun': '첫 실행: /login 후 작업 입력 — 복잡한 설정 불필요',
   'tui.tip.footerBadges':
@@ -772,7 +772,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'media: OPENAI/GOOGLE 키가 GenerateImage/Video를 준비할 때만 footer img/vid 배지',
   'tui.tip.backgroundAgent':
     'background Agent는 독립 작업에만 — bg 실행 후 TaskOutput-wait 금지',
-  'tui.tip.shiftTabOff': 'shift-tab을 다시 누르면 Ultrawork가 꺼집니다',
+  'tui.tip.shiftTabOff': 'shift-tab을 다시 누르면 Mission이 꺼집니다',
   'tui.tip.model': '/model: 모델 전환',
   'tui.tip.loginMedia':
     '/login으로 프로바이더 연결; 이미지/영상은 OPENAI_API_KEY 또는 GOOGLE_API_KEY',

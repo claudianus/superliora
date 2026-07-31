@@ -173,6 +173,7 @@ describe('Event public types', () => {
         case 'ultrawork.routing.decided':
         case 'ultrawork.swarm.paused':
         case 'ultrawork.swarm.resumed':
+        case 'runtime.degraded':
           return;
         default:
           assertNever(event);

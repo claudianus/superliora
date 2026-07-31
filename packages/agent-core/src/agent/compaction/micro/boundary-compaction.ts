@@ -9,6 +9,7 @@ import {
   SWARM_ARCHIVED_INLINE_SUMMARY_MAX_CHARS,
   SWARM_EXPERT_BODY_MAX_CHARS,
 } from './handoff-collapse';
+import { resolveArchiveRecoverToolName } from './micro-helpers';
 
 export const SWARM_TOTAL_RESULT_MAX_CHARS = 6_000;
 
@@ -16,6 +17,8 @@ export interface BoundaryCompactionOptions {
   readonly expertBodyMaxChars?: number;
   readonly totalResultMaxChars?: number;
   readonly runId?: string;
+  /** Recover tool hint for archived bodies; defaults to Expand when registered, else LioraExpand. */
+  readonly recoverToolName?: string;
 }
 
 export interface BoundaryCompactionResult {
@@ -48,6 +51,7 @@ export function compactSwarmToolResult(
   const expertBodyMaxChars = options.expertBodyMaxChars ?? SWARM_EXPERT_BODY_MAX_CHARS;
   const totalResultMaxChars = options.totalResultMaxChars ?? SWARM_TOTAL_RESULT_MAX_CHARS;
   const runId = options.runId ?? extractRunId(rawXml);
+  const recoverToolName = options.recoverToolName ?? resolveArchiveRecoverToolName([]);
   const archiveIds: string[] = [];
 
   let output = rawXml;
@@ -57,12 +61,20 @@ export function compactSwarmToolResult(
     output = compactSubagentBlocks(rawXml, store, runId, expertBodyMaxChars, archiveIds);
   }
 
-  output = enforceTotalBudget(output, store, runId, expertBodyMaxChars, archiveIds, totalResultMaxChars);
-  output = injectArchiveGuidance(output, archiveIds);
+  output = enforceTotalBudget(
+    output,
+    store,
+    runId,
+    expertBodyMaxChars,
+    archiveIds,
+    totalResultMaxChars,
+    recoverToolName,
+  );
+  output = injectArchiveGuidance(output, archiveIds, recoverToolName);
   // Guidance injection can re-grow the payload; re-apply the densify hard floor last
-  // while preserving integration tags and a short LioraExpand trailer.
+  // while preserving integration tags and a short archive-recover trailer.
   if (output.length > totalResultMaxChars) {
-    output = applyHardFloorWithIntegration(output, archiveIds, totalResultMaxChars);
+    output = applyHardFloorWithIntegration(output, archiveIds, totalResultMaxChars, recoverToolName);
   }
 
   return {
@@ -188,6 +200,7 @@ function enforceTotalBudget(
   expertBodyMaxChars: number,
   archiveIds: string[],
   totalResultMaxChars: number,
+  recoverToolName: string,
 ): string {
   if (output.length <= totalResultMaxChars) return output;
   // Re-compact expert/subagent bodies more aggressively under denser total caps.
@@ -196,7 +209,7 @@ function enforceTotalBudget(
     : compactSubagentBlocks(output, store, runId, Math.min(expertBodyMaxChars, 120), archiveIds);
   if (next.length <= totalResultMaxChars) return next;
   // Hard floor with integration preservation — never drop Ultrawork handoff tags.
-  return applyHardFloorWithIntegration(next, archiveIds, totalResultMaxChars);
+  return applyHardFloorWithIntegration(next, archiveIds, totalResultMaxChars, recoverToolName);
 }
 
 function extractIntegrationChunks(output: string): { readonly chunks: string[]; readonly without: string } {
@@ -216,6 +229,7 @@ function applyHardFloorWithIntegration(
   output: string,
   archiveIds: readonly string[],
   totalResultMaxChars: number,
+  recoverToolName: string,
 ): string {
   // Keep parent-agent integration tags even under denser total caps. Head+tail
   // collapse alone can drop the closing integration blocks that Ultrawork needs.
@@ -229,7 +243,7 @@ function applyHardFloorWithIntegration(
     : '';
   const expandTrailer =
     archiveIds.length > 0
-      ? `\n[LioraExpand archives: ${archiveIds.slice(0, 6).join(',')}${archiveIds.length > 6 ? '…' : ''}]`
+      ? `\n[${recoverToolName} archives: ${archiveIds.slice(0, 6).join(',')}${archiveIds.length > 6 ? '…' : ''}]`
       : '';
   const fixedTail = `${integrationTail}${restaffNote}${expandTrailer}`;
   const headBudget = Math.max(0, totalResultMaxChars - fixedTail.length);
@@ -250,15 +264,19 @@ function applyHardFloorWithIntegration(
   return next;
 }
 
-function injectArchiveGuidance(output: string, archiveIds: readonly string[]): string {
+function injectArchiveGuidance(
+  output: string,
+  archiveIds: readonly string[],
+  recoverToolName: string,
+): string {
   if (archiveIds.length === 0) return output;
   const guidance =
-    '<boundary_compaction>Archived expert bodies: use LioraExpand(id=...) on failure paths. ' +
+    `<boundary_compaction>Archived expert bodies: use ${recoverToolName}(id=...) on failure paths. ` +
     `archive_ids="${archiveIds.join(',')}"</boundary_compaction>`;
   if (output.includes('</integration_handoff>')) {
     return output.replace(
       '</integration_handoff>',
-      `Archived bodies available via LioraExpand. archive_ids="${archiveIds.join(',')}"</integration_handoff>`,
+      `Archived bodies available via ${recoverToolName}. archive_ids="${archiveIds.join(',')}"</integration_handoff>`,
     );
   }
   if (output.includes('</agent_swarm_result>')) {

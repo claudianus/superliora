@@ -668,6 +668,32 @@ describe('MicroCompaction', () => {
     expect(textOf(ctx.agent.context.history[2])).toContain('very important lookup result');
   });
 
+  it('preserves Expand recover hint when clearing archived tool output', () => {
+    vi.useFakeTimers();
+    const ctx = testAgent({
+      microCompaction: {
+        keepRecentMessages: 0,
+        minContentTokens: 1,
+        cacheMissedThresholdMs: 60 * MINUTE,
+        minContextUsageRatio: 0,
+      },
+    });
+    ctx.configure({ tools: ['Expand', 'Read'] });
+
+    vi.setSystemTime(0);
+    const archiveId = 'abc123def456';
+    appendMicroToolExchange(ctx, 1, {
+      output: `swarm output\n[liora-archived id=${archiveId} label=test]\narchived_summary: lines\n${'payload '.repeat(160)}`,
+    });
+
+    vi.setSystemTime(61 * MINUTE);
+    ctx.agent.microCompaction.detect();
+
+    const [marker] = toolTexts(ctx.agent.context.messages, { raw: true });
+    expect(marker).toContain(`archiveId=${archiveId}`);
+    expect(marker).toContain('recover=Expand');
+  });
+
   it('keeps raw pending token accounting even when projection truncates tool output', () => {
     vi.useFakeTimers();
     const ctx = testAgent({

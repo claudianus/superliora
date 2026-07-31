@@ -2,6 +2,7 @@ import type {
   ResearchSearchProviderConfig,
   ResearchSearchProviderKind,
 } from '#/config/schema';
+import { resolveSearxngUrl } from './research-meta-status';
 
 const ENV_KEY_MAP: ReadonlyArray<{
   readonly kind: ResearchSearchProviderKind;
@@ -29,6 +30,14 @@ export function detectSearchProviderEnvKeys(
         break;
       }
     }
+  }
+  const searxngUrl = resolveSearxngUrl(env);
+  if (searxngUrl !== undefined) {
+    detected.push({
+      kind: 'searxng',
+      baseUrl: searxngUrl,
+      label: 'searxng',
+    });
   }
   return detected;
 }

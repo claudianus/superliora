@@ -449,7 +449,7 @@ describe('Plan mode permission policy', () => {
 
     expect(result.isError).not.toBe(true);
     expect(result.output).toContain('Advanced from interview phase to design phase');
-    expect(result.output).toContain('Advisory (non-blocking): UltraGoal not yet verifiable');
+    expect(result.output).toContain('Advisory (non-blocking): Goal not yet verifiable');
     expect(planMode.phase).toBe('design');
   });
 
@@ -474,7 +474,7 @@ describe('Plan mode permission policy', () => {
 
     expect(result.isError).not.toBe(true);
     expect(result.output).toContain('Advanced from interview phase to design phase');
-    expect(result.output).toContain('Advisory (non-blocking): UltraGoal not yet verifiable');
+    expect(result.output).toContain('Advisory (non-blocking): Goal not yet verifiable');
     expect(planMode.phase).toBe('design');
   });
 

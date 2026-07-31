@@ -10,7 +10,7 @@ import { isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
 import type { UltraworkRun } from '@superliora/protocol';
 
-import { auditUltraworkCompletion } from '../../ultrawork/completion-audit';
+import { auditUltraworkCompletion } from '#/mission';
 import type {
   GoalPredicateEvalResult,
   GoalPredicateFailure,

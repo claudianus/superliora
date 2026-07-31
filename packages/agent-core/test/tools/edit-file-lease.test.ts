@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getDefaultSwarmFileLeaseRegistry,
   resetDefaultSwarmFileLeaseRegistry,
-} from '../../src/collaboration/swarm-file-lease';
+} from '#/fleet';
 import { EditTool } from '../../src/tools/builtin/file/edit';
 import { WriteTool } from '../../src/tools/builtin/file/write';
 import { createFakeKaos, PERMISSIVE_WORKSPACE } from './fixtures/fake-kaos';

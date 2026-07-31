@@ -131,7 +131,7 @@ export class SessionEventUltrawork {
       }),
     );
     this.host.showNotice(
-      failed ? 'Ultrawork ended' : 'Ultrawork completed',
+      failed ? 'Mission ended' : 'Mission completed',
       [
         objective,
         reason !== undefined && reason.length > 0
@@ -139,7 +139,7 @@ export class SessionEventUltrawork {
           : failed
             ? 'Run cancelled or failed.'
             : 'All stages finished successfully.',
-        'Ultrawork mode is off. Use Shift-Tab or /ultrawork to start another run.',
+        'Mission mode is off. Use Shift-Tab or /ultrawork to start another run.',
       ].join('\n'),
       { coalesceKey: `ultrawork-completed:${runId}` },
     );

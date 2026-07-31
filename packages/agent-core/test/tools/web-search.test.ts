@@ -4,6 +4,10 @@
  * Uses a fake WebSearchProvider to test tool behaviour in isolation.
  */
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -14,6 +18,15 @@ import {
 import type { UrlFetcher } from '../../src/tools/builtin/web/fetch-url';
 import { LocalWebSearchProvider } from '../../src/tools/providers/local-web-search';
 import { MoonshotWebSearchProvider } from '../../src/tools/providers/moonshot-web-search';
+import { ResearchSearchEngine } from '../../src/tools/providers/research-search';
+import {
+  getLocalResearchCacheTelemetry,
+  resetLocalResearchCacheTelemetry,
+} from '../../src/tools/providers/local-research-cache-telemetry';
+import {
+  getSearchNeverEmptyTelemetry,
+  resetSearchNeverEmptyTelemetry,
+} from '../../src/tools/providers/search-never-empty-telemetry';
 import { toolContentString } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 
@@ -123,6 +136,7 @@ describe('WebSearchTool', () => {
   });
 
   it('returns no results message when provider returns empty', async () => {
+    resetSearchNeverEmptyTelemetry();
     const tool = new WebSearchTool(fakeProvider([]));
     const result = await executeTool(tool, {
       turnId: 't1',
@@ -131,7 +145,53 @@ describe('WebSearchTool', () => {
       signal,
     });
     expect(result.isError).toBe(false);
-    expect(toolContentString(result)).toContain('No search results found');
+    expect(toolContentString(result)).toContain('No live search hits');
+    expect(toolContentString(result)).toContain('degraded: true');
+    expect(toolContentString(result)).toContain('Ch4');
+    expect(toolContentString(result)).toContain('Ch5');
+    expect(getSearchNeverEmptyTelemetry().softDegradeCount).toBe(1);
+    expect(getSearchNeverEmptyTelemetry().hardFailCount).toBe(0);
+  });
+
+  it('soft-degrades when ResearchSearchEngine empty-cascades with freeFallback off', async () => {
+    const browserSearch = vi.fn<() => Promise<never[]>>().mockResolvedValue([]);
+    const chromeSearch = vi.fn<() => Promise<never[]>>().mockResolvedValue([]);
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ web: { results: [] } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      browserChannel: { available: () => true, search: browserSearch },
+      chromeExtensionChannel: { available: () => true, search: chromeSearch },
+      search: {
+        strategy: 'fallback',
+        freeFallback: false,
+        providers: [{ kind: 'brave', apiKey: 'brave-test-key' }],
+      },
+    });
+
+    const tool = new WebSearchTool(engine);
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c-empty-cascade',
+      args: { query: 'empty cascade test' },
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    const content = toolContentString(result);
+    expect(content).toContain('degraded: true');
+    expect(content).toContain('next:');
+    expect(content).toContain('Ch4');
+    expect(content).toContain('Ch5');
+    expect(content).toContain('channelsTried:');
+    expect(content).toContain('ch5');
+    expect(browserSearch).toHaveBeenCalledTimes(1);
+    expect(chromeSearch).toHaveBeenCalledTimes(1);
   });
 
   it('truncates oversized result content through the shared builder', async () => {
@@ -172,8 +232,13 @@ describe('WebSearchTool', () => {
       args: { query: 'fail' },
       signal,
     });
-    expect(result.isError).toBe(true);
-    expect(toolContentString(result)).toContain('network error');
+    expect(result.isError).toBe(false);
+    const content = toolContentString(result);
+    expect(content).toContain('network error');
+    expect(content).toContain('degraded: true');
+    expect(content).toContain('next:');
+    expect(content).toContain('Ch4');
+    expect(content).toContain('Ch5');
   });
 
   it('classifies authentication failures', async () => {
@@ -191,12 +256,16 @@ describe('WebSearchTool', () => {
       args: { query: 'fail' },
       signal,
     });
-    expect(result.isError).toBe(true);
+    expect(result.isError).toBe(false);
     const content = toolContentString(result);
+    expect(content).toContain('degraded: true');
     // Assert the classification prefix, not text that already appears in the raw error.
     expect(content).toContain('Search failed (authentication):');
     // The original error text is preserved alongside the prefix.
     expect(content).toContain('HTTP 401');
+    expect(content).toContain('next:');
+    expect(content).toContain('Ch4');
+    expect(content).toContain('Ch5');
   });
 
   it('classifies timeout failures', async () => {
@@ -210,8 +279,9 @@ describe('WebSearchTool', () => {
       args: { query: 'fail' },
       signal,
     });
-    expect(result.isError).toBe(true);
+    expect(result.isError).toBe(false);
     const content = toolContentString(result);
+    expect(content).toContain('degraded: true');
     // Assert the classification prefix, which does not overlap with the raw error text.
     expect(content).toContain('Search timed out:');
     // The original error text is preserved alongside the prefix.
@@ -229,12 +299,56 @@ describe('WebSearchTool', () => {
       args: { query: 'fail' },
       signal,
     });
-    expect(result.isError).toBe(true);
+    expect(result.isError).toBe(false);
     const content = toolContentString(result);
+    expect(content).toContain('degraded: true');
     // Assert the classification prefix, not text that already appears in the raw error.
     expect(content).toContain('Search cancelled:');
     // The original error text is preserved alongside the prefix.
     expect(content).toContain('The operation was aborted');
+  });
+
+  it('emits degraded when provider status reports soft channel degrade with results', async () => {
+    const provider: WebSearchProvider = {
+      search: vi.fn().mockResolvedValue([
+        { title: 'Hit', url: 'https://example.com/hit', snippet: 'from free fallback' },
+      ]),
+      status: () => ({
+        strategy: 'auto',
+        freeFallback: true,
+        browser: { configured: false, ready: false },
+        chromeExtension: { configured: false, enabled: false, ready: false },
+        providers: [
+          {
+            id: 'brave-0',
+            kind: 'brave',
+            label: 'Brave',
+            ready: false,
+            source: 'env',
+            cooldownUntil: Date.now() + 60_000,
+          },
+          {
+            id: 'ddg-0',
+            kind: 'duckduckgo',
+            label: 'DuckDuckGo',
+            ready: true,
+            source: 'local',
+          },
+        ],
+      }),
+    };
+    const tool = new WebSearchTool(provider);
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c-soft-degrade',
+      args: { query: 'test' },
+      signal,
+    });
+    const content = toolContentString(result);
+    expect(result.isError).toBe(false);
+    expect(content).toContain('Hit');
+    expect(content).toContain('degraded: true');
+    expect(content).toContain('Paid search slots are cooling');
   });
 
   it('passes limit and includeContent to provider', async () => {
@@ -501,6 +615,43 @@ describe('LocalWebSearchProvider', () => {
     const hosts = fetchImpl.mock.calls.map((call) => (call[0] as URL).hostname);
     expect(hosts.some((h) => h === 'api.github.com')).toBe(false);
     expect(hosts.some((h) => h === 'registry.npmjs.org')).toBe(false);
+  });
+
+  it('records LocalResearchCache hit/miss telemetry on disk cache lookups', async () => {
+    resetLocalResearchCacheTelemetry();
+    const cacheDir = await mkdtemp(join(tmpdir(), 'liora-local-cache-'));
+    const cachePath = join(cacheDir, 'search.sqlite');
+    const html = [
+      '<html><body>',
+      '<div class="result">',
+      '<a class="result__a" href="https://example.com/cache-test">Cache Test</a>',
+      '<a class="result__snippet">cached snippet</a>',
+      '</div>',
+      '</body></html>',
+    ].join('');
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(html, {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    }));
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      searchUrl: 'https://duckduckgo.com/html/',
+      cachePath,
+      directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+    });
+
+    try {
+      await provider.search('cache telemetry query', { limit: 1 });
+      await provider.search('cache telemetry query', { limit: 1 });
+      expect(getLocalResearchCacheTelemetry()).toEqual({
+        hits: 1,
+        misses: 1,
+        hitRate: 0.5,
+      });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -71,12 +71,24 @@ const HIGH_VALUE_REPLAY_TOOL_FAMILIES = new Set([
   'Grep',
   'LioraRead',
   'Read',
+  'RepoQuery',
   'SearchExpert',
   'SearchSkill',
   'SearchTools',
   'TaskOutput',
   'WebSearch',
 ]);
+
+export const ARCHIVE_RECOVER_LEGACY_TOOL = 'LioraExpand';
+export const ARCHIVE_RECOVER_PREFERRED_TOOL = 'Expand';
+
+/** Prefer sovereign Expand when registered; fall back to legacy LioraExpand. */
+export function resolveArchiveRecoverToolName(availableTools: Iterable<string>): string {
+  const names = new Set(availableTools);
+  if (names.has(ARCHIVE_RECOVER_PREFERRED_TOOL)) return ARCHIVE_RECOVER_PREFERRED_TOOL;
+  if (names.has(ARCHIVE_RECOVER_LEGACY_TOOL)) return ARCHIVE_RECOVER_LEGACY_TOOL;
+  return ARCHIVE_RECOVER_LEGACY_TOOL;
+}
 
 /**
  * Within the micro-clearable prefix [0, cutoff), keep the newest `keep` tool

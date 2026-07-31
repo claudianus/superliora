@@ -625,6 +625,10 @@ hooks = [{ type = "pre-tool-call", command = "echo hi" }]
 describe('harness config schema and patch merge', () => {
   it('accepts the empty public config and requires model context size in full configs', () => {
     expect(LioraConfigSchema.parse({})).toEqual({ providers: {} });
+    expect(LioraConfigSchema.parse({ agent: { profile: 'core' } })).toEqual({
+      providers: {},
+      agent: { profile: 'core' },
+    });
     expect(() =>
       validateConfig({
         providers: {

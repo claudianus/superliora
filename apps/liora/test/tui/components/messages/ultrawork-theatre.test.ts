@@ -57,7 +57,7 @@ describe('UltraworkTheatreComponent', () => {
     });
 
     const output = theatre.render(100).join('\n');
-    expect(output).toContain('Ultrawork');
+    expect(output).toContain('Mission');
     expect(output).toContain('Ship auth middleware');
     expect(output).toContain('LocalResearchStack');
     expect(output).not.toContain('Ultrawork Theatre');

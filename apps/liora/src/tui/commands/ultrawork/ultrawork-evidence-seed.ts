@@ -11,7 +11,10 @@ import {
   buildUltraworkCoverageMatrix,
   type UltraworkCoverageLane,
 } from './ultrawork-coverage';
-import type { UltraworkActivationSource, UltraworkEvidenceSeed } from './ultrawork-contract';
+import type {
+  MissionActivationSource,
+  MissionEvidenceSeed,
+} from '#/tui/utils/mission/mission-contract';
 
 export function buildUltraworkRunId(objective: string, now = new Date()): string {
   const createdAt = now.toISOString();
@@ -21,12 +24,12 @@ export function buildUltraworkRunId(objective: string, now = new Date()): string
 export async function createUltraworkEvidenceSeed(
   workDir: string,
   objective: string,
-  source: UltraworkActivationSource,
+  source: MissionActivationSource,
   replaceGoal: boolean,
   runId = buildUltraworkRunId(objective),
   now = new Date(),
   profile?: Parameters<typeof buildUltraworkCoverageMatrix>[1],
-): Promise<UltraworkEvidenceSeed> {
+): Promise<MissionEvidenceSeed> {
   const createdAt = now.toISOString();
   const root = join(resolveUltraworkEvidenceRoot(workDir), runId);
   const absoluteRoot = join(workDir, root);
@@ -66,13 +69,13 @@ export async function createUltraworkEvidenceSeed(
         extractionPolicy: 'Relationships must be labelled EXTRACTED, INFERRED, or AMBIGUOUS.',
         relationship_confidence: [],
         path_affected_questions: [
-          'Which files, tests, tools, and visible surfaces are connected to this UltraGoal?',
+          'Which files, tests, tools, and visible surfaces are connected to this Goal?',
           'Which acceptance criteria need runtime, browser, computer-use, or expert evidence?',
         ],
         linked_from: [wikiArtifacts.wikiIndexPath],
         linked_to: [wikiArtifacts.wikiIndexPath],
         nodes: [
-          { id: 'ultragoal_seed', type: 'goal', label: 'Provisional UltraGoal seed', confidence: 'EXTRACTED' },
+          { id: 'ultragoal_seed', type: 'goal', label: 'Provisional Goal seed', confidence: 'EXTRACTED' },
           { id: 'coverage_matrix', type: 'artifact', label: files.coverageMatrixPath, confidence: 'EXTRACTED' },
           { id: 'expert_review_loop', type: 'artifact', label: files.reviewLoopPath, confidence: 'EXTRACTED' },
         ],

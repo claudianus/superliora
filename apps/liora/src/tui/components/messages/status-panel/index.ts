@@ -63,8 +63,8 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     { label: 'Model', value: formatModelStatus(options) },
     { label: 'Directory', value: options.workDir },
     { label: 'Permissions', value: permission },
-    { label: 'Ultrawork', value: formatUltraworkStatus(options) },
-    { label: 'Premium', value: formatPremiumQualityStatus(options) },
+    { label: 'Mission', value: formatUltraworkStatus(options) },
+    { label: 'Visual Quality', value: formatPremiumQualityStatus(options) },
     ...contextOSStatusRows(options),
     ...microCompactionStatusRows(options),
     ...privacyStatusRows(options),
@@ -116,9 +116,31 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
 
   const cacheHitRate = options.status?.cacheHitRate;
   if (cacheHitRate !== undefined && Number.isFinite(cacheHitRate)) {
+    const streak = options.status?.cacheWarmStreak;
+    const streakSuffix =
+      streak !== undefined && streak > 0 ? ` · streak×${String(streak)}` : '';
     addStatusFieldRows(
       lines,
-      [{ label: 'Cache hit', value: `${(cacheHitRate * 100).toFixed(0)}%` }],
+      [{ label: 'Cache hit', value: `${(cacheHitRate * 100).toFixed(0)}%${streakSuffix}` }],
+      muted,
+      value,
+      errorStyle,
+      warningStyle,
+      options.fieldMotion,
+    );
+  }
+
+  const cacheFrozen = options.status?.cacheFrozen;
+  if (cacheFrozen !== undefined) {
+    addStatusFieldRows(
+      lines,
+      [
+        {
+          label: 'Cache freeze',
+          value: cacheFrozen ? 'active (mid-turn)' : 'idle',
+          severity: cacheFrozen ? 'warning' : undefined,
+        },
+      ],
       muted,
       value,
       errorStyle,

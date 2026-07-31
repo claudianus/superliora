@@ -18,9 +18,11 @@ tools:
   - Grep
   - SearchTools
   - WebSearch
+  - DeepResearch
   - FetchURL
   - Context7Resolve
   - Context7Docs
   - Write
   - Edit
+  - ApplyPatch
   - Bash

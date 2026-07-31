@@ -390,7 +390,7 @@ describe('handleSwarmCommand', () => {
       reason: 'User requested restaff',
     });
     expect(host.showError).toHaveBeenCalledWith(
-      expect.stringContaining('No active UltraSwarm'),
+      expect.stringContaining('No active Fleet'),
     );
   });
 
@@ -500,7 +500,7 @@ describe('handleSwarmCommand', () => {
     await handleSwarmCommand(host, 'talk');
 
     expect(host.showError).toHaveBeenCalledWith(
-      expect.stringContaining('No UltraSwarm / AgentSwarm war room experts'),
+      expect.stringContaining('No Fleet / AgentSwarm war room experts'),
     );
     expect(host.mountEditorReplacement).not.toHaveBeenCalled();
   });

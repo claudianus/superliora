@@ -31,6 +31,8 @@ import {
 import { resolvePromptSession } from './run-prompt-session';
 import { runPromptTurn } from './run-prompt-turn';
 import { writeResumeHint } from './run-prompt-writers';
+import { startHarnessOAuthProactiveRefresh } from '#/utils/oauth/proactive-refresh-host';
+
 import { createLioraHostIdentity } from './version';
 
 const PROMPT_UI_MODE = 'print';
@@ -71,6 +73,16 @@ export async function runPrompt(
     },
     sessionStartedProperties: { yolo: false, plan: false, afk: true },
   });
+  const oauthProactiveRefresh = startHarnessOAuthProactiveRefresh(harness, {
+    // Headless runs have no TUI footer — log only (runtime.degraded gap).
+    onDegraded: (event) => {
+      log.warn('oauth proactive refresh degraded', {
+        scope: event.scope,
+        reason: event.reason,
+        hint: event.hint,
+      });
+    },
+  });
   log.info('liora starting', {
     version,
     uiMode: PROMPT_UI_MODE,
@@ -83,6 +95,7 @@ export async function runPrompt(
   let cleanupPromise: Promise<void> | undefined;
   const cleanupPromptRun = async (): Promise<void> => {
     const pending = (cleanupPromise ??= (async () => {
+      oauthProactiveRefresh?.stop();
       removeTerminationCleanup?.();
       setCrashPhase('shutdown');
       try {

@@ -62,7 +62,7 @@ import { createUltraSwarmRunContext } from '../../src/agent/ultra-swarm-run';
 import { initSwarmRunBus, renderSwarmBusDigest } from '../../src/tools/builtin/state/swarm-bus';
 import { appendSwarmResearchAutonomy } from '../../src/tools/builtin/collaboration/swarm-research-autonomy';
 import { TODO_STORE_KEY } from '../../src/tools/builtin/state/todo-list';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../../src/tools/builtin/state/ultrawork-graph';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '#/mission';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
 
 vi.mock('../../src/tools/support/rg-locator', () => ({
@@ -179,6 +179,7 @@ function mockSubagentHost<T extends Partial<SessionSubagentHost>>(
     resume: vi.fn(),
     runQueued: vi.fn(),
     getSwarmItem: vi.fn(),
+    parentLoopToolNames: vi.fn(() => []),
     parentAgentId: 'parent-agent-1',
     startSwarmStandupTimer: vi.fn(() => ({ stop: vi.fn() })),
     ...host,
@@ -193,9 +194,27 @@ function mockSwarmMode(): SwarmMode {
   return { enter: vi.fn() } as unknown as SwarmMode;
 }
 
-function agentSwarmTool(host: SessionSubagentHost, swarmMode: SwarmMode): AgentSwarmTool {
+function mockSwarmAgent(cwd = '/workspace/project'): Agent {
+  return {
+    kaos: createFakeKaos(cwd),
+    config: { cwd },
+    log: {
+      warn: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+      createChild: vi.fn(),
+    },
+  } as unknown as Agent;
+}
+
+function agentSwarmTool(
+  host: SessionSubagentHost,
+  swarmMode: SwarmMode,
+  agent: Agent = mockSwarmAgent(),
+): AgentSwarmTool {
   const { store } = mockToolStore();
-  return new AgentSwarmTool(host, swarmMode, store);
+  return new AgentSwarmTool(host, swarmMode, store, agent);
 }
 
 function processWithOutput(stdout: string, exitCode = 0): KaosProcess {

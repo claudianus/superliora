@@ -190,6 +190,28 @@ describe('formatter — auto-redact', () => {
     expect(text).not.toContain('ghi789');
   });
 
+  it('redacts sk-* and AIza* shapes via security/redaction hook', () => {
+    const { text } = formatEntry(
+      baseEntry({
+        ctx: {
+          toolStdout: 'export KEY=sk-abcdefghijklmnopqrstuvwxyz',
+        },
+      }),
+    );
+    expect(text).toContain('[REDACTED]');
+    expect(text).not.toContain('sk-abcdefghijklmnopqrstuvwxyz');
+
+    const { text: googleText } = formatEntry(
+      baseEntry({
+        ctx: {
+          envDump: 'GOOGLE_API_KEY=AIzaSyD-example-key-should-vanish',
+        },
+      }),
+    );
+    expect(googleText).toContain('[REDACTED]');
+    expect(googleText).not.toContain('AIzaSyD-example-key-should-vanish');
+  });
+
   it('recurses into nested objects', () => {
     const out = redactCtx({ headers: { Authorization: 'Bearer xxx', 'X-Trace': '1' } });
     const headers = out['headers'] as Record<string, unknown>;

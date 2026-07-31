@@ -7,6 +7,7 @@ import type { ToolCall } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import { budgetToolResultForModel } from '../../src/agent/turn/tool-result-budget';
+import { buildTurnPrefixMaterial } from '../../src/agent/cache/cache-freeze-guard';
 import { HookEngine } from '../../src/session/hooks';
 import type { SessionSubagentHost } from '../../src/session/subagent/subagent-host';
 import { FLAG_DEFINITIONS, FlagResolver } from '../../src/flags';
@@ -51,6 +52,17 @@ describe('Agent tools', () => {
       expect(tool.description.length).toBeGreaterThan(0);
       expect(tool.parameters).toMatchObject({ type: 'object' });
     }
+  });
+
+  it('rejects setActiveTools while CacheFreezeGuard is frozen', () => {
+    const ctx = testAgent();
+    ctx.configure();
+    ctx.agent.cacheFreezeGuard.freeze(
+      buildTurnPrefixMaterial(ctx.agent.tools.enabledTools),
+    );
+    expect(() => ctx.agent.tools.setActiveTools(['Read'])).toThrow(
+      /Cache Sacred: enabled tools cannot change mid-turn/,
+    );
   });
 
   it('instantiates only active profile builtins after setActiveTools', () => {

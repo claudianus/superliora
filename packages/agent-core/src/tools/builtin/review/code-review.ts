@@ -38,10 +38,12 @@ export interface ReviewComment {
   readonly message: string;
 }
 
+const LIORA_REVIEW_DESCRIPTION =
+  'Legacy/advanced alias of Review. Prefer Review for new work. Reviews a git diff for bugs, security issues, and improvements; returns structured comments with file paths and line numbers resolved from the diff (not trusted from the model).';
+
 export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
-  readonly name = 'LioraReview' as const;
-  readonly description =
-    'Review a git diff for bugs, security issues, and improvements. Returns structured comments with file paths and line numbers resolved from the diff (not trusted from the model).';
+  readonly name: string = 'LioraReview';
+  readonly description: string = LIORA_REVIEW_DESCRIPTION;
   readonly parameters = toInputJsonSchema(inputSchema);
 
   constructor(
@@ -150,7 +152,18 @@ function mapHeuristicSeverity(
   return severity;
 }
 
+/** Sovereign public name — same implementation as {@link CodeReviewTool}. */
+export class ReviewTool extends CodeReviewTool {
+  override readonly name = 'Review' as const;
+  override readonly description =
+    'Review a git diff for bugs, security issues, and improvements. Returns structured comments with file paths and line numbers resolved from the diff (not trusted from the model).';
+}
+
 /** Factory alias used by ToolManager registration. */
 export function createLioraReviewTool(kaos: Kaos, agent: Agent): CodeReviewTool {
   return new CodeReviewTool(kaos, agent);
+}
+
+export function createReviewTool(kaos: Kaos, agent: Agent): ReviewTool {
+  return new ReviewTool(kaos, agent);
 }

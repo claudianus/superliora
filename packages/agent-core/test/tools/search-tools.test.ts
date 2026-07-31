@@ -49,4 +49,92 @@ describe('SearchToolsTool', () => {
     const result = await exec.execute();
     expect(result.output).toContain('InactiveThing');
   });
+
+  it('hides advanced compat aliases from the default list when preferred tools exist', async () => {
+    const compat: ToolInfo[] = [
+      { name: 'Review', description: 'Review diff', active: true, source: 'builtin', helpVisibility: 'primary' },
+      {
+        name: 'LioraReview',
+        description: 'Legacy review',
+        active: true,
+        source: 'builtin',
+        helpVisibility: 'advanced',
+      },
+      { name: 'CreateGoal', description: 'Create goal', active: true, source: 'builtin', helpVisibility: 'primary' },
+      {
+        name: 'CreateUltraGoal',
+        description: 'Legacy ultra goal',
+        active: true,
+        source: 'builtin',
+        helpVisibility: 'advanced',
+      },
+    ];
+    const tool = new SearchToolsTool(agentWithTools(compat));
+    const exec = tool.resolveExecution({});
+    if (exec.isError) throw new Error('unexpected parse error');
+    const result = await exec.execute();
+    expect(result.output).toContain('Review');
+    expect(result.output).toContain('CreateGoal');
+    expect(result.output).not.toContain('LioraReview');
+    expect(result.output).not.toContain('CreateUltraGoal');
+  });
+
+  it('lists ApplyPatch in the primary default catalog when registered', async () => {
+    const patchSurface: ToolInfo[] = [
+      {
+        name: 'ApplyPatch',
+        description: 'Apply multi-file patches',
+        active: true,
+        source: 'builtin',
+        helpVisibility: 'primary',
+      },
+      { name: 'Edit', description: 'Edit a file', active: true, source: 'builtin', helpVisibility: 'primary' },
+      { name: 'Read', description: 'Read a file', active: true, source: 'builtin', helpVisibility: 'primary' },
+    ];
+    const tool = new SearchToolsTool(agentWithTools(patchSurface));
+    const exec = tool.resolveExecution({});
+    if (exec.isError) throw new Error('unexpected parse error');
+    const result = await exec.execute();
+    expect(result.output).toContain('ApplyPatch');
+    expect(result.output).toContain('Edit');
+  });
+
+  it('lists DeepResearch in the primary default catalog when registered', async () => {
+    const searchSurface: ToolInfo[] = [
+      { name: 'WebSearch', description: 'Search the web', active: true, source: 'builtin', helpVisibility: 'primary' },
+      {
+        name: 'DeepResearch',
+        description: 'Multi-hop web research',
+        active: true,
+        source: 'builtin',
+        helpVisibility: 'primary',
+      },
+      { name: 'Read', description: 'Read a file', active: true, source: 'builtin', helpVisibility: 'primary' },
+    ];
+    const tool = new SearchToolsTool(agentWithTools(searchSurface));
+    const exec = tool.resolveExecution({});
+    if (exec.isError) throw new Error('unexpected parse error');
+    const result = await exec.execute();
+    expect(result.output).toContain('DeepResearch');
+    expect(result.output).toContain('WebSearch');
+  });
+
+  it('still finds compat aliases when queried explicitly', async () => {
+    const compat: ToolInfo[] = [
+      { name: 'Review', description: 'Review diff', active: true, source: 'builtin', helpVisibility: 'primary' },
+      {
+        name: 'LioraReview',
+        description: 'Legacy review',
+        active: true,
+        source: 'builtin',
+        helpVisibility: 'advanced',
+      },
+    ];
+    const tool = new SearchToolsTool(agentWithTools(compat));
+    const exec = tool.resolveExecution({ query: 'LioraReview' });
+    if (exec.isError) throw new Error('unexpected parse error');
+    const result = await exec.execute();
+    expect(result.output).toContain('LioraReview');
+    expect(result.output).toContain('compat alias — prefer Review');
+  });
 });

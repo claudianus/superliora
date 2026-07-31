@@ -8,6 +8,11 @@ import { z } from 'zod';
 
 import type { Agent } from '../../../agent/index';
 import type { BuiltinTool, ToolInfo } from '../../../agent/tool';
+import {
+  filterToolsForPublicHelp,
+  formatCompatToolHelpHint,
+  isCompatBrandingTool,
+} from '../../../agent/tool/help-visibility';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { escapeXml, escapeXmlAttr } from '../../../utils/xml-escape';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -62,7 +67,9 @@ export class SearchToolsTool implements BuiltinTool<SearchToolsInput> {
     const limit = args.limit ?? 24;
     const query = (args.query ?? '').trim().toLowerCase();
     const all = this.agent.tools.data();
-    const filtered = all.filter((tool) => {
+    const catalog =
+      query.length === 0 ? filterToolsForPublicHelp(all, 'primary') : all;
+    const filtered = catalog.filter((tool) => {
       if (activeOnly && !tool.active) return false;
       if (query.length === 0) return true;
       return (
@@ -119,7 +126,13 @@ function scoreName(name: string, query: string): number {
 
 function renderToolHit(tool: ToolInfo, rank: number): string {
   const desc = tool.description.replace(/\s+/g, ' ').trim();
-  const short = desc.length > 160 ? `${desc.slice(0, 157)}…` : desc;
+  const aliasHint =
+    isCompatBrandingTool(tool.name) ? formatCompatToolHelpHint(tool.name) : undefined;
+  const body =
+    aliasHint !== undefined
+      ? `${desc} (${aliasHint})`
+      : desc;
+  const short = body.length > 160 ? `${body.slice(0, 157)}…` : body;
   return [
     `<tool rank="${String(rank)}" name="${escapeXmlAttr(tool.name)}" active="${String(tool.active)}" source="${escapeXmlAttr(tool.source)}">`,
     `  <description>${escapeXml(short)}</description>`,

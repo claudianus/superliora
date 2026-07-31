@@ -4,16 +4,16 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { Agent } from '../../src/agent';
-import { UltraworkMode } from '../../src/ultrawork/mode';
 import { testKaos } from '../fixtures/test-kaos';
 import {
+  UltraworkMode,
   ensureUltraworkWorkflowArtifacts,
   isUltraworkWorkflowReportWritePath,
   recordUltraworkWorkflowStage,
   seedUltraworkWorkflowReport,
   WORKFLOW_REPORT_FILENAME,
   WORKFLOW_STAGES_FILENAME,
-} from '../../src/ultrawork/workflow-report';
+} from '#/mission';
 
 function mockAgent(workDir: string) {
   const reminders: string[] = [];

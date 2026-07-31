@@ -157,6 +157,7 @@ export class SessionEventTurn {
     if (event.usage !== undefined) {
       this.currentTurnUsage = addTokenUsage(this.currentTurnUsage, event.usage);
     }
+    this.maybeCaptureHostTtftSample(event);
     this.maybeShowDebugTiming(event);
     this.maybeSurfaceProviderRouteSelection(event);
 
@@ -344,6 +345,19 @@ export class SessionEventTurn {
     this.host.setAppState(patch);
   }
 
+  private maybeCaptureHostTtftSample(event: TurnStepCompletedEvent): void {
+    const ms = event.llmFirstTokenLatencyMs;
+    if (ms === undefined) return;
+    this.host.setAppState({
+      lastStepTtft: {
+        ms,
+        turnId: event.turnId,
+        step: event.step,
+        atMs: Date.now(),
+      },
+    });
+  }
+
   private maybeShowDebugTiming(event: TurnStepCompletedEvent): void {
     if (process.env['SUPERLIORA_DEBUG'] !== '1') return;
     const text = formatStepDebugTiming(event);
@@ -369,8 +383,8 @@ export class SessionEventTurn {
       const run = await this.host.requireSession().getUltraworkRun();
       if (run === null || run.status === 'done' || run.status === 'failed') return;
       this.host.showNotice(
-        'Ultrawork interrupted',
-        `${reason}\nStage: ${run.stage}\nUse /ultrawork resume to continue.`,
+        'Mission interrupted',
+        `${reason}\nStage: ${run.stage}\nUse /mission resume to continue.`,
         { coalesceKey: 'ultrawork-interrupted' },
       );
     } catch {

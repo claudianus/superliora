@@ -23,6 +23,7 @@ import type { AppState, LivePaneState, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';
 import { computeSessionCostUsd } from '#/tui/utils/session/session-cost';
+import { cacheMeterFromHitRate } from '#/tui/utils/cache/cache-glance';
 import {
   formatErrorPayload,
   stringValue,
@@ -32,6 +33,10 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyError } from '../../utils/notification/desktop-notification';
+import { INTERVENTION_NEVER_HALT_TIP } from '../../utils/never-halt/intervention-glance';
+import { staleRuntimeDegradedClearPatch } from '../../utils/never-halt/runtime-degraded';
+import { staleSearchCascadeClearPatch } from '../../utils/search/search-cascade';
+import { shouldFleetFlourishPulse } from '../../utils/fleet/fleet-flourish';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by session notice / transcript side-effect handlers. */
@@ -127,6 +132,21 @@ export class SessionEventNotices {
       const costUsd = computeSessionCostUsd(event.usage.total, pricing);
       if (costUsd !== undefined) patch.sessionCostUsd = costUsd;
     }
+    const cacheMeter = cacheMeterFromHitRate(
+      event.usage?.cacheHitRate,
+      event.usage?.cacheWarmStreak,
+    );
+    if (cacheMeter !== undefined) patch.cacheMeter = cacheMeter;
+    if (event.circuitBreakers !== undefined) {
+      patch.circuitBreakers = event.circuitBreakers;
+    } else if (
+      'circuitBreakers' in event ||
+      event.model !== undefined ||
+      event.contextTokens !== undefined ||
+      event.permission !== undefined
+    ) {
+      patch.circuitBreakers = null;
+    }
     if ('contextOS' in event) patch.contextOS = event.contextOS ?? null;
     if ('microCompaction' in event) patch.microCompaction = event.microCompaction ?? null;
     if ('autoDream' in event) patch.autoDream = event.autoDream ?? null;
@@ -141,6 +161,10 @@ export class SessionEventNotices {
       patch.orchestratorMode = event.orchestratorMode;
     }
     if (event.orchestratorWorkers !== undefined) {
+      const prevWorkers = this.host.state.appState.orchestratorWorkers;
+      if (shouldFleetFlourishPulse(prevWorkers, event.orchestratorWorkers)) {
+        patch.fleetFlourish = { atMs: Date.now() };
+      }
       patch.orchestratorWorkers = event.orchestratorWorkers;
     }
     if (event.permission !== undefined) {
@@ -148,6 +172,45 @@ export class SessionEventNotices {
     }
     if (event.model !== undefined) patch.model = event.model;
     if ('providerRoute' in event) patch.providerRouteStatus = event.providerRoute ?? null;
+    if (typeof event.pendingInterventions === 'number') {
+      const prev = this.host.state.appState.interventionCount ?? 0;
+      patch.interventionCount = event.pendingInterventions;
+      if (event.pendingInterventions > prev) {
+        this.host.showStatus(INTERVENTION_NEVER_HALT_TIP, 'textMuted');
+      }
+    } else if (
+      'pendingInterventions' in event ||
+      event.model !== undefined ||
+      event.contextTokens !== undefined ||
+      event.permission !== undefined
+    ) {
+      // Full snapshots omit pendingInterventions when the queue is empty.
+      patch.interventionCount = 0;
+    }
+    if (typeof event.staleInterventions === 'number') {
+      patch.staleInterventionCount = event.staleInterventions;
+    } else if (
+      'staleInterventions' in event ||
+      event.model !== undefined ||
+      event.contextTokens !== undefined ||
+      event.permission !== undefined
+    ) {
+      patch.staleInterventionCount = 0;
+    }
+    if (typeof event.oldestInterventionAgeMs === 'number') {
+      patch.oldestInterventionAgeMs = event.oldestInterventionAgeMs;
+    } else if (
+      'oldestInterventionAgeMs' in event ||
+      event.model !== undefined ||
+      event.contextTokens !== undefined ||
+      event.permission !== undefined
+    ) {
+      patch.oldestInterventionAgeMs = undefined;
+    }
+    const staleDegraded = staleRuntimeDegradedClearPatch(this.host.state.appState.runtimeDegraded);
+    if (staleDegraded !== null) Object.assign(patch, staleDegraded);
+    const staleCascade = staleSearchCascadeClearPatch(this.host.state.appState.searchCascade);
+    if (staleCascade !== null) Object.assign(patch, staleCascade);
     if (Object.keys(patch).length > 0) this.host.setAppState(patch);
     if (event.swarmMode === false) {
       this.host.state.swarmModeEntry = undefined;

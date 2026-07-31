@@ -1,6 +1,7 @@
 import type { AgentStatusUpdatedEvent } from '@superliora/protocol';
+import type { CircuitBreakerStatus } from '@superliora/protocol';
 import type { ProviderRouteStatus, UsageStatus } from '#/rpc';
-import type { PermissionMode } from './permission';
+import { STALE_INTERVENTION_AGE_MS, type PermissionMode } from './permission';
 import type { MicroTriggerKind } from './compaction/micro';
 
 /** Minimal host surface for building `agent.status.updated` payloads. */
@@ -47,7 +48,14 @@ export interface AgentStatusUpdatedHost {
       readonly tokenUsage?: { readonly output?: number | undefined } | undefined;
     }
   >;
-  readonly permission: { readonly mode: string };
+  readonly permission: {
+    readonly mode: string;
+    readonly interventionQueue: { snapshot(): { readonly count: number } };
+    touchInterventionQueueForStatus(nowMs?: number): void;
+    staleInterventionCount(maxAgeMs: number, nowMs?: number): number;
+    oldestInterventionAgeMs(nowMs?: number): number | undefined;
+  };
+  circuitBreakerStatus(): CircuitBreakerStatus | undefined;
   readonly dream: { snapshot(): unknown } | null;
 }
 
@@ -62,6 +70,12 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
   const providerRoute = host.providerRouteStatus();
   const contextOSHealth = host.contextOS.health();
   const microSnap = host.microCompaction.triggers.snapshot();
+  host.permission.touchInterventionQueueForStatus();
+  const pendingInterventions = host.permission.interventionQueue.snapshot().count;
+  const staleInterventions = host.permission.staleInterventionCount(STALE_INTERVENTION_AGE_MS);
+  const oldestInterventionAgeMs =
+    pendingInterventions > 0 ? host.permission.oldestInterventionAgeMs() : undefined;
+  const circuitBreakers = host.circuitBreakerStatus();
 
   return {
     type: 'agent.status.updated',
@@ -110,6 +124,10 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
       host.dream === null
         ? null
         : (host.dream.snapshot() as AgentStatusUpdatedEvent['autoDream']),
+    ...(pendingInterventions > 0 ? { pendingInterventions } : {}),
+    ...(staleInterventions > 0 ? { staleInterventions } : {}),
+    ...(oldestInterventionAgeMs !== undefined ? { oldestInterventionAgeMs } : {}),
+    ...(circuitBreakers !== undefined ? { circuitBreakers } : {}),
   };
 }
 
@@ -117,6 +135,6 @@ export function durableTraceRecordType(
   eventType: AgentStatusUpdatedEvent['type'] | string,
 ): 'subagent.lifecycle' | 'ultrawork.event' | undefined {
   if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
-  if (eventType.startsWith('ultrawork.')) return 'ultrawork.event';
+  if (eventType.startsWith('ultrawork.') || eventType.startsWith('mission.')) return 'ultrawork.event';
   return undefined;
 }

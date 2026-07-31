@@ -5,6 +5,7 @@
 import { generate } from '@superliora/kosong';
 import { resolveCompletionBudget } from '../utils/completion-budget';
 import { runSideGenerateWithSharedFailover } from './side-generate-failover';
+import { attachLlmProviderCircuitBreakers } from './llm-provider-circuit-breaker';
 import { splitGenerateOptions } from './llm-request-logger';
 import type { KosongLLMRoute, KosongLLMRouteCandidate } from './turn/kosong-llm';
 import type { Agent } from './index';
@@ -146,6 +147,7 @@ export function generateWithSharedFailover(agent: Agent, params: {
     attempts,
     signal: params.signal,
     onRouteStatusChanged: () => agent.emitStatusUpdated(),
+    circuitObserver: attachLlmProviderCircuitBreakers(agent, () => agent.emitStatusUpdated()),
     onCandidateFailed: ({ candidate, failure, hasNext }) => {
       if (!hasNext) return;
       agent.log.warn('side generate credential failed; trying next candidate', {

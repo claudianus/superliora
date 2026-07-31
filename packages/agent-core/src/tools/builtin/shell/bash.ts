@@ -403,14 +403,15 @@ export class BashTool implements BuiltinTool<BashInput> {
     return {
       ...result,
       output: appendTextToolMeta(
-        `${compressed.text}\n${archived.marker}\nrecover: LioraExpand(id="${archived.id}")`,
+        `${compressed.text}\n${archived.marker}\nrecover: Expand(id="${archived.id}")`,
         {
           tool: this.name,
           mode: 'foreground',
           truncated: result.truncated,
           partial: true,
           summary: `Shell output compressed and archived (~${String(compressed.savedPercent)}% saved).`,
-          nextStep: 'Use LioraExpand to inspect archived overflow, or compress_output=false for raw output.',
+          nextStep:
+            'Use Expand to inspect archived overflow, or compress_output=false for raw output.',
         },
       ),
     };

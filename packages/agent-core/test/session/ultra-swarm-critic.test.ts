@@ -1,7 +1,7 @@
 import type { TeamPlan } from '@superliora/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { buildTeamRosterXml, buildSwarmChannelRulesXml, buildSwarmCollaborationRequiredXml } from '../../src/collaboration/swarm-bus-coordination';
+import { buildTeamRosterXml, buildSwarmChannelRulesXml, buildSwarmCollaborationRequiredXml } from '#/fleet';
 import {
   assignDiverseCriticEdges,
   buildCriticAssignmentXml,

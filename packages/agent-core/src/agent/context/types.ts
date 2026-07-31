@@ -183,6 +183,11 @@ export interface AgentContextData {
     readonly evidenceIdRecallScore: number;
     readonly latestContinuityStatus: string;
   };
+  /** Context-archive store size for Expand(id=…) recover (micro + full compaction). */
+  contextArchive?: {
+    readonly entryCount: number;
+    readonly maxEntries: number;
+  };
   /** Micro-compaction trigger dashboard (tool-result clearing path). */
   microCompaction?: {
     readonly total: number;

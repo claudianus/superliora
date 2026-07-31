@@ -14,6 +14,7 @@ import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
 import {currentTheme, type ColorToken} from '#/tui/theme';
 import {getActiveAppearancePreferences, renderAnimatedGradientText, renderParticleDivider, renderPremiumHeadline, renderShimmerPrefix, shouldRenderAmbientEffects} from '#/tui/features/appearance/appearance-effects';
 import {printableChar} from '#/tui/utils/printable-key';
+import {ttui} from '#/tui/utils/tui-i18n';
 import {SearchableList} from '#/tui/utils/ui/searchable-list';
 
 export interface ChoiceOption {
@@ -147,7 +148,7 @@ export class ChoicePickerComponent extends Container implements Focusable {
 
     const titleSuffix =
       searchable && view.query.length === 0
-        ? currentTheme.fg('textMuted', '  (type to search)')
+        ? currentTheme.fg('textMuted', ttui('tui.common.typeToSearch'))
         : '';
     const hintLines = hint.split(/\r?\n/);
     const title = animated
@@ -179,7 +180,7 @@ export class ChoicePickerComponent extends Container implements Focusable {
     }
 
     if (options.length === 0) {
-      lines.push(currentTheme.fg('textMuted', '   No matches'));
+      lines.push(currentTheme.fg('textMuted', `   ${ttui('tui.common.noMatches')}`));
     }
     for (let i = view.page.start; i < view.page.end; i++) {
       const opt = options[i]!;

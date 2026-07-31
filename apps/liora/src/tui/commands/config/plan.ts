@@ -3,7 +3,10 @@ import type { Session } from '@superliora/sdk';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
 import type { SlashCommandHost } from '../hub/dispatch';
-import { isActiveUltraworkRun, ultraworkModeDisableBlockedMessage } from '../ultrawork/ultrawork-contract';
+import {
+  isActiveMissionRun,
+  missionModeDisableBlockedMessage,
+} from '#/tui/utils/mission/mission-contract';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
@@ -40,8 +43,8 @@ export async function handlePlanCommand(host: SlashCommandHost, args: string): P
 async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {
   if (!enabled) {
     const run = await session.getUltraworkRun();
-    if (isActiveUltraworkRun(run)) {
-      host.showError(ultraworkModeDisableBlockedMessage(run));
+    if (isActiveMissionRun(run)) {
+      host.showError(missionModeDisableBlockedMessage(run));
       return;
     }
   }
@@ -51,7 +54,7 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
     if (enabled) {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(
-        ultra ? 'UltraPlan mode: ON (structured pipeline)' : 'Plan mode: ON (free-form)',
+        ultra ? 'Plan mode: ON (structured pipeline)' : 'Plan mode: ON (free-form)',
         plan?.path !== undefined ? `Plan file: ${plan.path}` : undefined,
       );
       return;

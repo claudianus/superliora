@@ -28,7 +28,7 @@ export {
   type HumanizeCollaborationEventInput,
   type HumanizeSeverity,
   type HumanizedCollaborationEvent,
-} from './collaboration/swarm-humanize';
+} from '#/fleet';
 export {
   DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD,
   createSwarmBudgetState,
@@ -41,7 +41,7 @@ export {
   type SwarmBudgetRoundRecord,
   type SwarmBudgetState,
   type SwarmBudgetSuggestion,
-} from './collaboration/swarm-budget';
+} from '#/fleet';
 export {
   SWARM_DAG_DONE_STATUSES,
   SWARM_DAG_TERMINAL_STATUSES,
@@ -53,7 +53,7 @@ export {
   type PhaseWorkNodeBinding,
   type SwarmDagNode,
   type SwarmDagNodeStatus,
-} from './collaboration/swarm-dag-scheduler';
+} from '#/fleet';
 export {
   buildRestaffSpecs,
   canAttemptRestaff,
@@ -71,7 +71,7 @@ export {
   normalizeEvidenceToken,
   type EvidenceGateNode,
   type EvidenceGateResult,
-} from './collaboration/swarm-evidence-gate';
+} from '#/fleet';
 export {
   attachDraftToDebate,
   buildDebateContext,
@@ -233,8 +233,23 @@ export type {
   FlagId,
   FlagSurface,
 } from './flags';
-export { shouldKeepPlanModeForUltraworkRun } from './ultrawork';
-export type { UltraworkRecoveryReport } from './ultrawork';
+export { shouldKeepPlanModeForUltraworkRun } from '#/mission';
+export type { UltraworkRecoveryReport } from '#/mission';
+export {
+  MissionRunStateMachine,
+  buildMissionRecoveryPrompt,
+  maybeAdvanceMissionStage,
+  maybeFinishMissionRun,
+  MISSION_STAGE_ORDER,
+} from './mission/aliases';
+export type { CreateMissionStateMachineInput } from './mission/aliases';
+export {
+  dualEmitMissionUltraworkAlias,
+  isMissionDualEmitEnabled,
+  maybeEmitMissionUltraworkAliasLive,
+  missionDualEmitStatusLine,
+  MISSION_DUAL_EMIT_ENV,
+} from './mission/event-alias';
 export { Emitter } from './base/common/event';
 
 export {
@@ -369,3 +384,79 @@ export {
   formatContextOSDiagnoseLine,
   formatContextOSHealthLine,
 } from './agent/context-os';
+
+export type { RepoIndexBackend, RepoIndexEngine, RepoIndexStatus } from './repo-index/status';
+export type { RepoIndexContentQueryResult, RepoIndexEngineWireStatus, SqliteDriver } from './repo-index/engine';
+export {
+  REPO_INDEX_ENGINE_ENV,
+  REPO_INDEX_FTS_BACKEND_TIP,
+  REPO_INDEX_FUTURE_ENABLE_TIP,
+  REPO_INDEX_PREFERRED_ENGINE,
+  REPO_INDEX_PREFERRED_ENGINE_TIP,
+  REPO_INDEX_WARM_PARALLEL_TIP,
+  formatRepoIndexBackendLine,
+  formatRepoIndexEngineLine,
+  formatRepoIndexWiredLine,
+  getRepoIndexStatus,
+  isRepoIndexEngineEnvUnset,
+  isRepoIndexEngineModulePresent,
+  isRepoIndexEngineWired,
+  parseRepoIndexEngineEnv,
+  repoIndexPreferredEngineTipLine,
+} from './repo-index/status';
+export {
+  REPO_INDEX_CONTENT_STUB_HINT,
+  REPO_INDEX_CONTENT_STUB_NEXT_STEP,
+  REPO_INDEX_ZOEKT_STUB_HINT,
+  REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
+  getRepoIndexEngineWireStatus,
+  probeSqliteDriver,
+  queryRepoIndexContent,
+  queryRepoIndexContentAsync,
+} from './repo-index/engine';
+export {
+  REPO_INDEX_WARM_ENV,
+  isRepoIndexWarmEnabled,
+  maybeWarmCodemapAtSessionStart,
+  repoIndexWarmEnableReason,
+  repoIndexWarmStatusLine,
+} from './repo-index/warm';
+
+export {
+  REDTEAM_SOFT_SUITE_REL_PATH,
+  REDTEAM_SOFT_SUITE_TIP,
+  formatRedteamSoftSuitePresentLine,
+  isRedteamSoftSuitePresent,
+  redactSecretsStatusLine,
+} from './security/status';
+
+export {
+  VERIFICATION_SENSOR_GOAL_DONE_TIP,
+  VERIFICATION_SENSOR_GOAL_DONE_TIP_KO,
+  VERIFICATION_SENSOR_MAX_FAILURES,
+  VERIFICATION_SENSOR_RECENCY_MS,
+  buildTestFailureSoftTips,
+  createVerificationSensorLedger,
+  filterRecentVerificationFailures,
+  formatGoalSoftAdvisoryOpsLine,
+  goalSoftAdvisoryFromLedger,
+  isCheckLikeBashCommand,
+  isVerificationCheckTool,
+  observeVerificationToolResult,
+  recordVerificationFailure,
+  recordVerificationPass,
+} from './sensors/verification-sensor-ledger';
+export type {
+  VerificationFailureRecord,
+  VerificationSensorLedger,
+} from './sensors/verification-sensor-ledger';
+
+export type { CodemapStatus, CodemapWarmth } from './codemap/status';
+export {
+  CODEMAP_SYMBOL_VIA_REPOQUERY_TIP,
+  formatCodemapDbLine,
+  formatCodemapStatusLine,
+  getCodemapStatus,
+  isCodemapGitWorkspace,
+} from './codemap/status';
+export { resolveCodemapDbPath } from './codemap/code-map';

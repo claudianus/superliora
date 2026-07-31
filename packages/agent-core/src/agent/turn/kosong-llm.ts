@@ -93,6 +93,7 @@ export class KosongLLM implements LLM {
   private readonly route: KosongLLMRoute | undefined;
   private readonly routeState: ProviderRouteState | undefined;
   private readonly onRouteStatusChanged: (() => void) | undefined;
+  private readonly circuitObserver: KosongLLMConfig['circuitObserver'];
   private readonly log: Logger | undefined;
 
   constructor(config: KosongLLMConfig) {
@@ -107,6 +108,7 @@ export class KosongLLM implements LLM {
     this.route = config.route;
     this.routeState = config.routeState;
     this.onRouteStatusChanged = config.onRouteStatusChanged;
+    this.circuitObserver = config.circuitObserver;
     this.log = config.log;
   }
 
@@ -174,6 +176,7 @@ export class KosongLLM implements LLM {
         if (successChanged || rateLimitsChanged || cooldownChanged) {
           this.onRouteStatusChanged?.();
         }
+        this.circuitObserver?.onSuccess({ route, candidate });
         return response;
       } catch (error) {
         lastError = error;
@@ -184,6 +187,7 @@ export class KosongLLM implements LLM {
         if (this.routeState?.recordFailure(route, candidate, failure) === true) {
           this.onRouteStatusChanged?.();
         }
+        this.circuitObserver?.onFailure({ route, candidate, failure, error });
         if (index === orderedCandidates.length - 1) {
           throw error;
         }

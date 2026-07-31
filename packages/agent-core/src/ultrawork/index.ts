@@ -3,18 +3,20 @@ export * from './types';
 export * from './run-store';
 export * from './mode';
 export {
+  applyUltraworkResumeSkipInterview,
   buildUltraworkRecoveryPrompt,
   buildUltraworkResumeCursor,
+  inferResumeStageFloor,
+  injectUltraworkPostCompactionContinuation,
+  injectUltraworkPostSwarmContinuation,
   maybeAdvanceUltraworkOnGoalComplete,
   maybeAdvanceUltraworkStage,
   maybeFinishUltraworkRun,
-  injectUltraworkPostSwarmContinuation,
-  injectUltraworkPostCompactionContinuation,
+  promoteUltraworkRunStageForResume,
   reconcileUltraworkRunForResume,
   releaseUltraworkPlanModeIfComplete,
   shouldKeepPlanModeForUltraworkRun,
   shouldSkipInterviewOnUltraworkResume,
-  applyUltraworkResumeSkipInterview,
 } from './recovery';
 export {
   auditUltraworkCompletion,
@@ -33,10 +35,12 @@ export {
   CONTINUE_GOAL_INPUT,
   detectInterruptedWorkResumeIntentWithLlm,
   hasInterruptedWorkResumeContext,
+  matchExplicitResumePhrase,
   shouldActOnResumeIntent,
 } from './resume-intent-llm';
 export {
   detectUltraworkAutoActivationWithLlm,
+  isOpenEndedImprovementLoop,
   shouldActOnUltraworkAutoActivation,
 } from './auto-activate-llm';
 export type {
@@ -56,9 +60,11 @@ export type {
 } from './objective-profile-llm';
 export { UltraworkObjectiveProfileCache } from './objective-profile-cache';
 export {
+  buildResumeWithSteering,
   maybeTransformPromptForInterruptedWorkResume,
   readInterruptedWorkResumeContext,
 } from './interrupted-work-resume';
+export { resolveApprovedUltraworkPlanPath } from './approved-plan';
 export {
   analyzeFailedNodes,
   applyWorkGraphProgressToRun,
@@ -95,7 +101,13 @@ export {
   inferUltraPlanPhaseFromPlanContent,
   reconcileUltraworkFromMirror,
 } from './mirror-reconcile';
-export { readUltraworkMirrorFromDisk, validateCheckpointMirror } from './run-store';
+export {
+  mirrorUltraworkRunToDisk,
+  readUltraworkMirrorFromDisk,
+  resolveUltraworkRunStatePath,
+  validateCheckpointMirror,
+  writeFileAtomic,
+} from './run-store';
 export type { CheckpointValidationResult } from './run-store';
 export {
   ensureUltraworkWorkflowArtifacts,

@@ -63,6 +63,17 @@ export {
 export type { LoginOptions, OAuthManagerOptions, OAuthRefreshOutcome } from './flow/oauth-manager';
 export { OAuthManager, defaultRefreshThreshold, newInstanceId } from './flow/oauth-manager';
 
+export type {
+  ProactiveRefreshOptions,
+  ProactiveRefreshTimerHandle,
+  StartProactiveRefreshTimerOptions,
+} from './flow/proactive-refresh';
+export {
+  OAUTH_PROACTIVE_REFRESH_INTERVAL_MS,
+  startProactiveRefreshTimer,
+  tokenNeedsProactiveRefresh,
+} from './flow/proactive-refresh';
+
 export {
   assertKimiHostIdentity,
   createKimiDefaultHeaders,

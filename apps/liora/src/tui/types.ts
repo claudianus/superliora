@@ -40,10 +40,10 @@ export interface AppState {
   sessionId: string;
   permissionMode: PermissionMode;
   planMode: boolean;
-  /** Local TUI mode: normal prompts are routed into the Ultrawork workflow. */
+  /** Local TUI mode: normal prompts are routed into the Mission workflow. */
   ultraworkMode?: boolean;
   /**
-   * Snapshot of the session flags an active Ultrawork run took over (plan /
+   * Snapshot of the session flags an active Mission run took over (plan /
    * swarm / premium), captured when the run started so the finish handler can
    * restore them. Cleared on completion. Null/undefined means no run is active.
    */
@@ -53,7 +53,7 @@ export interface AppState {
     readonly swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
     readonly premiumQualityMode: boolean;
   } | null;
-  /** Visual-first premium harness: art direction, anti-slop visuals, skill routing, screenshot proof. */
+  /** Visual Quality mode: art direction, anti-slop visuals, skill routing, screenshot proof. */
   premiumQualityMode?: boolean;
   /** True when the agent runs in orchestrator mode (delegates to background workers). */
   orchestratorMode?: boolean;
@@ -112,6 +112,12 @@ export interface AppState {
     readonly minHours: number;
     readonly minActiveRecords: number;
   } | null;
+  /** Permission interventions queued while waiting on host approval. */
+  interventionCount?: number;
+  /** Queue entries older than agent-core stale threshold (Ops tray stale×N). */
+  staleInterventionCount?: number;
+  /** Longest-waiting queued intervention age in ms (Ops/Never-Halt glance). */
+  oldestInterventionAgeMs?: number;
   isCompacting: boolean;
   /**
    * Background (async) full compaction is summarizing while the turn may continue.
@@ -168,13 +174,69 @@ export interface AppState {
   sessionTitle: string | null;
   /** Current goal snapshot for the footer badge; null/undefined when no active goal. */
   goal?: GoalSnapshot | null;
+  /** Brief goal progress pulse (Dopamine Ops) — ~2s footer `xp` badge. */
+  goalXpPulse?: { readonly atMs: number } | null;
+  /** Goal progress/evidence ticks for Ops Goal pane when contextOS pages are absent. */
+  goalEvidenceCount?: number;
+  /** W6 verification sensor soft advisory for Ops Goal pane (recent test/check failures). */
+  goalSoftAdvisory?: string | null;
+  /** Brief fleet worker completion pulse (Dopamine Ops) — ~2s footer `fleet✓` badge. */
+  fleetFlourish?: { readonly atMs: number } | null;
+  /** Live Maker≠Checker soft collision warn from AgentSwarm/UltraSwarm result (swarm-maker-checker). */
+  makerCheckerSoftWarn?: string | null;
+  /** Brief permission approval pulse (Dopamine Ops) — ~2s footer `perm✓` badge. */
+  permissionApproveFlourish?: { readonly atMs: number } | null;
+  /** Brief git file-count churn pulse (Dopamine Ops) — ~2s footer `diff↑` badge. */
+  gitChurn?: { readonly atMs: number; readonly count: number } | null;
+  /** Ephemeral triple-alignment combo (goal-xp + cache target + fleet); render-computed. */
+  opsCombo?: { readonly atMs: number; readonly score: number } | null;
   mcpServersSummary: string | null;
+  /** Short-lived footer badge after extensions hot-reload (MCP/skills/import). */
+  extensionsReload?: { readonly atMs: number } | null;
+  /**
+   * Never-Halt degraded runtime (search/oauth/llm/…). Cleared on turn end or recovery.
+   * Drives Ops footer badge without hard-stopping Goal/Mission.
+   */
+  runtimeDegraded?: {
+    readonly scope: string;
+    readonly reason: string;
+    readonly hint?: string;
+    readonly atMs: number;
+  } | null;
+  /** Brief DeepResearch / search channel cascade hint for footer + Ops (~30s). */
+  searchCascade?: {
+    readonly channelsTried: readonly string[];
+    readonly hops?: number;
+    readonly atMs: number;
+  } | null;
   /** Optional banner shown below the welcome panel; null means no banner to render. */
   banner?: BannerState | null;
   /** Live provider quota / usage snapshot for the footer badge and /usage panel. */
   providerQuota?: AllProvidersUsageSnapshot | null;
+  /** Prompt-cache hit meter synced from agent.status.updated / getStatus. */
+  cacheMeter?: { readonly rate: number; readonly streak: number } | null;
+  /** Circuit breaker registry synced from agent.status.updated / getStatus. */
+  circuitBreakers?: {
+    readonly closed: number;
+    readonly open: number;
+    readonly halfOpen: number;
+    readonly lastTripReason?: string;
+    readonly scopes?: ReadonlyArray<{
+      readonly id: string;
+      readonly state: string;
+      readonly failures: number;
+      readonly lastTripReason?: string;
+    }>;
+  } | null;
   /** Update notice from preflight; shown as a header badge instead of stdout. */
   updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string } | null;
+  /** Last completed step TTFT sample for Host settings (W8 latency profile). */
+  lastStepTtft?: {
+    readonly ms: number;
+    readonly turnId?: number;
+    readonly step?: number;
+    readonly atMs: number;
+  } | null;
 }
 
 export interface ToolCallBlockData {

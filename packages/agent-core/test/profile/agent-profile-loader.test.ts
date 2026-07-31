@@ -167,8 +167,9 @@ describe('default agent profiles', () => {
     );
 
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob']),
+      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'AgentSwarm']),
     );
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).not.toContain('UltraSwarm');
     expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toEqual(
       expect.arrayContaining([
         'Read',
@@ -191,15 +192,54 @@ describe('default agent profiles', () => {
       ]),
     );
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Memory', 'WebSearch', 'FetchURL', 'TodoList']),
+      expect.arrayContaining([
+        'Read',
+        'Write',
+        'Edit',
+        'ApplyPatch',
+        'Bash',
+        'Memory',
+        'WebSearch',
+        'DeepResearch',
+        'FetchURL',
+        'TodoList',
+      ]),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'TodoList']),
+      expect.arrayContaining([
+        'Read',
+        'Grep',
+        'Glob',
+        'RepoQuery',
+        'WebSearch',
+        'DeepResearch',
+        'FetchURL',
+        'TodoList',
+      ]),
     );
     expect(DEFAULT_AGENT_PROFILES['plan']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'TodoList']),
+      expect.arrayContaining([
+        'Read',
+        'Write',
+        'Edit',
+        'ApplyPatch',
+        'Grep',
+        'Glob',
+        'RepoQuery',
+        'WebSearch',
+        'DeepResearch',
+        'FetchURL',
+        'TodoList',
+      ]),
     );
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Write');
+    expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('ApplyPatch');
+    for (const name of ['explore', 'plan'] as const) {
+      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
+      for (const legacy of ['LioraRead', 'LioraTree', 'LioraSymbol', 'LioraCallgraph', 'LioraExpand']) {
+        expect(tools).not.toContain(legacy);
+      }
+    }
   });
 
   it('renders stable skill runtime guidance for bundled prompts', () => {

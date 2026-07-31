@@ -19,9 +19,14 @@
  */
 
 import type { ResearchSearchRoutingStrategy } from '#/config/schema';
+import type { CircuitBreakerRegistry } from '#/runtime/circuit-breaker';
 import type { UrlFetcher } from '../builtin/web/fetch-url';
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
 import { clampInt, isRateLimitError } from './research-search-adapters';
+import {
+  assessSearchChannelHealth,
+  type SearchChannelHealth,
+} from './research-search-health';
 import {
   fuseSearchResults,
   needsSearchEscalation,
@@ -34,14 +39,70 @@ import {
   truncateResultContent,
 } from './research-search-helpers';
 import { buildProviderSlots, type ProviderSlot } from './research-search-slots';
+import {
+  formatSearchChannelFailureReason,
+  searchChannelScopeId,
+} from './research-search-circuit-breaker';
+import {
+  HintBrowserSearchChannel,
+  type BrowserSearchChannel,
+} from './research-search-browser';
+import { ChromeExtensionSearchChannel } from './research-search-chrome-ext';
 import type { ResearchSearchEngineOptions, ResearchSearchStatus } from './research-search-types';
+import { getSearchNeverEmptyTelemetry } from './search-never-empty-telemetry';
 
 export type {
   ResearchSearchEngineOptions,
   ResearchSearchProviderStatus,
   ResearchSearchStatus,
 } from './research-search-types';
+export {
+  assessSearchChannelHealth,
+  buildSearchNeverEmptyNextStep,
+  type SearchChannelHealth,
+} from './research-search-health';
+export {
+  formatSearchNeverEmptyTelemetryLine,
+  getSearchNeverEmptyTelemetry,
+  recordSearchNeverEmptyHardFail,
+  recordSearchNeverEmptySoftDegrade,
+  resetSearchNeverEmptyTelemetry,
+  type SearchNeverEmptyTelemetry,
+} from './search-never-empty-telemetry';
+export {
+  HintBrowserSearchChannel,
+  UnavailableBrowserSearchChannel,
+  type BrowserSearchChannel,
+} from './research-search-browser';
+export {
+  GuiUseBrowserSearchChannel,
+  createBrowserSearchChannel,
+  DDG_HTML_BROWSER_SEARCH_URL,
+} from './research-search-browser-gui';
+export {
+  ChromeExtensionSearchChannel,
+  createChromeExtensionSearchChannel,
+  buildChromeExtensionBridgeStatus,
+  chromeExtensionDegradeHint,
+  DEFAULT_CHROME_EXT_BRIDGE_URL,
+  CHROME_EXT_BRIDGE_ENV,
+  CHROME_EXT_URL_ENV,
+  isChromeExtensionBridgeEnabled,
+  resolveChromeExtensionBridgeUrl,
+} from './research-search-chrome-ext';
 export { detectSearchProviderEnvKeys, resolveResearchApiKey } from './research-search-env';
+export {
+  buildMetaChannelStatus,
+  researchMetaCh2Tip,
+  resolveSearxngUrl,
+  SEARXNG_URL_ENV,
+} from './research-meta-status';
+export {
+  attachResearchSearchCircuitBreakers,
+  formatSearchChannelFailureReason,
+  resolveResearchSearchEngine,
+  searchChannelScopeId,
+} from './research-search-circuit-breaker';
 
 const DEFAULT_COOLDOWN_MS = 60_000;
 const DEFAULT_CONCURRENCY = 2;
@@ -64,7 +125,12 @@ export class ResearchSearchEngine implements WebSearchProvider {
   private readonly maxContentChars: number;
   private readonly contentFetchLimit: number;
   private readonly urlFetcher: UrlFetcher | undefined;
+  private readonly browserChannel: BrowserSearchChannel | undefined;
+  private readonly chromeExtensionChannel: BrowserSearchChannel | undefined;
   private readonly now: () => number;
+  private chromeExtensionEscalateAttempted = false;
+  private circuitBreakers: CircuitBreakerRegistry | undefined;
+  private onCircuitBreakerChanged: (() => void) | undefined;
   private readonly slots: ProviderSlot[];
   private rrCursor = 0;
 
@@ -94,8 +160,23 @@ export class ResearchSearchEngine implements WebSearchProvider {
       8,
     );
     this.urlFetcher = options.urlFetcher ?? options.local?.urlFetcher;
+    this.browserChannel = options.browserChannel;
+    this.chromeExtensionChannel = options.chromeExtensionChannel;
     this.now = options.now ?? Date.now;
+    this.circuitBreakers = options.circuitBreakers;
+    this.onCircuitBreakerChanged = options.onCircuitBreakerChanged;
     this.slots = buildProviderSlots(options);
+  }
+
+  /** Late-bind Agent registry when the engine is constructed before Agent exists. */
+  attachCircuitBreakers(
+    registry: CircuitBreakerRegistry,
+    onChanged?: () => void,
+  ): void {
+    this.circuitBreakers = registry;
+    if (onChanged !== undefined) {
+      this.onCircuitBreakerChanged = onChanged;
+    }
   }
 
   status(): ResearchSearchStatus {
@@ -112,6 +193,49 @@ export class ResearchSearchEngine implements WebSearchProvider {
         cooldownUntil: slot.cooldownUntil > now ? slot.cooldownUntil : undefined,
         rpm: slot.rpm,
       })),
+      browser: this.browserStatus(),
+      chromeExtension: this.chromeExtensionStatus(),
+      neverEmpty: getSearchNeverEmptyTelemetry(),
+    };
+  }
+
+  channelHealth(): SearchChannelHealth {
+    return assessSearchChannelHealth(this.status());
+  }
+
+  private browserStatus(): ResearchSearchStatus['browser'] {
+    if (this.browserChannel === undefined) {
+      return { configured: false, ready: false, escalateAttempted: undefined };
+    }
+    const status: ResearchSearchStatus['browser'] = {
+      configured: true,
+      ready: this.browserChannel.available(),
+      escalateAttempted: undefined,
+    };
+    if (this.browserChannel instanceof HintBrowserSearchChannel) {
+      return { ...status, escalateAttempted: this.browserChannel.escalateAttempted };
+    }
+    return status;
+  }
+
+  private chromeExtensionStatus(): ResearchSearchStatus['chromeExtension'] {
+    if (this.chromeExtensionChannel === undefined) {
+      return { configured: false, enabled: false, ready: false };
+    }
+    if (this.chromeExtensionChannel instanceof ChromeExtensionSearchChannel) {
+      return {
+        ...this.chromeExtensionChannel.status(),
+        escalateAttempted:
+          this.chromeExtensionEscalateAttempted ||
+          this.chromeExtensionChannel.escalateAttempted,
+      };
+    }
+    const ready = this.chromeExtensionChannel.available();
+    return {
+      configured: true,
+      enabled: ready,
+      ready,
+      escalateAttempted: this.chromeExtensionEscalateAttempted ? true : undefined,
     };
   }
 
@@ -131,9 +255,15 @@ export class ResearchSearchEngine implements WebSearchProvider {
     const ready = this.slots.filter((slot) => slot.cooldownUntil <= now);
     if (ready.length === 0) {
       const free = this.slots.filter((slot) => slot.kind === 'duckduckgo' || slot.source === 'local');
-      if (free.length === 0) return [];
+      if (free.length === 0) {
+        return this.maybeBrowserEscalate(trimmed, limit);
+      }
       const last = await this.searchSlot(free[0]!, trimmed, metadataOptions, limit);
-      return this.maybeAttachContent(rankAndDedupe(last, trimmed).slice(0, limit), options);
+      let results = await this.maybeAttachContent(rankAndDedupe(last, trimmed).slice(0, limit), options);
+      if (results.length === 0) {
+        results = await this.maybeBrowserEscalate(trimmed, limit);
+      }
+      return results;
     }
 
     let results: WebSearchResult[];
@@ -164,7 +294,52 @@ export class ResearchSearchEngine implements WebSearchProvider {
         break;
     }
 
-    return this.maybeAttachContent(results, options);
+    results = await this.maybeAttachContent(results, options);
+    if (results.length === 0) {
+      results = await this.maybeBrowserEscalate(trimmed, limit);
+    }
+    return results;
+  }
+
+  private async maybeBrowserEscalate(
+    query: string,
+    limit: number,
+  ): Promise<WebSearchResult[]> {
+    if (this.browserChannel !== undefined && this.browserChannel.available()) {
+      try {
+        const browserResults = await this.browserChannel.search(query, limit);
+        if (browserResults.length > 0) {
+          this.recordChannelSuccess('browser');
+          return browserResults;
+        }
+      } catch (error) {
+        this.recordChannelFailure('browser', error);
+      }
+    }
+    return this.maybeChromeExtensionEscalate(query, limit);
+  }
+
+  private async maybeChromeExtensionEscalate(
+    query: string,
+    limit: number,
+  ): Promise<WebSearchResult[]> {
+    if (
+      this.chromeExtensionChannel === undefined ||
+      !this.chromeExtensionChannel.available()
+    ) {
+      return [];
+    }
+    this.chromeExtensionEscalateAttempted = true;
+    try {
+      const results = await this.chromeExtensionChannel.search(query, limit);
+      if (results.length > 0) {
+        this.recordChannelSuccess('chrome-ext');
+      }
+      return results;
+    } catch (error) {
+      this.recordChannelFailure('chrome-ext', error);
+      return [];
+    }
   }
 
   /**
@@ -325,13 +500,40 @@ export class ResearchSearchEngine implements WebSearchProvider {
         toolCallId: options?.toolCallId,
       });
       slot.useCount += 1;
+      if (!this.isFreeSlot(slot)) {
+        this.recordChannelSuccess(slot.kind);
+      }
       return results;
     } catch (error) {
       if (isRateLimitError(error)) {
         slot.cooldownUntil = this.now() + this.cooldownMs;
       }
+      if (!this.isFreeSlot(slot)) {
+        this.recordChannelFailure(slot.kind, error);
+      }
       return [];
     }
+  }
+
+  private isFreeSlot(slot: ProviderSlot): boolean {
+    return slot.kind === 'duckduckgo' || slot.kind === 'searxng' || slot.source === 'local';
+  }
+
+  private recordChannelSuccess(channel: Parameters<typeof searchChannelScopeId>[0]): void {
+    if (this.circuitBreakers === undefined) return;
+    this.circuitBreakers.get(searchChannelScopeId(channel)).recordSuccess();
+    this.onCircuitBreakerChanged?.();
+  }
+
+  private recordChannelFailure(
+    channel: Parameters<typeof searchChannelScopeId>[0],
+    error: unknown,
+  ): void {
+    if (this.circuitBreakers === undefined) return;
+    this.circuitBreakers
+      .get(searchChannelScopeId(channel))
+      .recordFailure(formatSearchChannelFailureReason(error));
+    this.onCircuitBreakerChanged?.();
   }
 
   /**

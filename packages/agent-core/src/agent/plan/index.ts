@@ -3,7 +3,7 @@ import { dirname, join } from 'pathe';
 
 import type { Agent } from '..';
 import { generateHeroSlug } from '../../utils/hero-slug';
-import { maybeAdvanceUltraworkStage } from '../../ultrawork';
+import { maybeAdvanceUltraworkStage } from '#/mission';
 import type { ModeActivationSource } from '../mode-activation';
 import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import {

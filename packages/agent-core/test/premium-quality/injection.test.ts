@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { PremiumQualityInjector } from '../../src/agent/injection/premium-quality';
-import { UltraworkObjectiveProfileCache } from '../../src/ultrawork/objective-profile-cache';
+import { UltraworkObjectiveProfileCache } from '#/mission';
 import {
   PREMIUM_QUALITY_CODE_FULL_GUIDANCE,
   PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE,

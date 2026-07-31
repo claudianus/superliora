@@ -22,6 +22,10 @@ import {
   resolveProviderRecovery,
   type ProviderRecoveryState,
 } from '../provider-failover';
+import {
+  recordLlmTurnProviderFailure,
+  recordLlmTurnProviderSuccess,
+} from '../llm-provider-circuit-breaker';
 import { isAbortError } from '../../loop/errors';
 
 // ---------------------------------------------------------------------------
@@ -169,6 +173,10 @@ export async function recoverFromProviderFailure(
       return end;
     }
 
+    if (outcome.type === 'auto_retry' || outcome.type === 'switch') {
+      recordLlmTurnProviderFailure(ctx.agent, end.event.error!);
+    }
+
     if (outcome.type === 'switch') {
       ctx.agent.config.update({ modelAlias: outcome.modelAlias });
       recoveryState = { ...recoveryState, userPrompted: true };
@@ -182,6 +190,10 @@ export async function recoverFromProviderFailure(
     }
 
     end = await ctx.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
+
+    if (end.event.reason !== 'failed') {
+      recordLlmTurnProviderSuccess(ctx.agent);
+    }
 
     if (
       recoveryState.userPrompted &&

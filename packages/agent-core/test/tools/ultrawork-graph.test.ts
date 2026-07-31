@@ -86,7 +86,7 @@ describe('UltraworkGraphTool', () => {
       signal,
     });
 
-    expect(result).toEqual({ isError: false, output: 'Ultrawork graph is empty.' });
+    expect(result).toEqual({ isError: false, output: 'TaskGraph is empty.' });
   });
 
   it('writes the graph, syncs TodoList, emits changed node events, and defensively copies', async () => {

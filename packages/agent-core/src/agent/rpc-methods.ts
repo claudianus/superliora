@@ -15,12 +15,13 @@ import {
 import {
   detectUltraworkAutoActivationWithLlm,
   shouldActOnUltraworkAutoActivation,
-} from '../ultrawork/auto-activate-llm';
+} from '#/mission';
 import {
   detectUltraworkObjectiveProfileWithLlm,
   fallbackUltraworkObjectiveProfile,
   resolveUltraworkObjectiveProfile,
-} from '../ultrawork/objective-profile-llm';
+} from '#/mission';
+import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
 import type { Agent } from './index';
 
 export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
@@ -320,8 +321,21 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       agent.contextOS.diagnose(payload.query ?? '', payload.limit),
     getConfig: () => agent.config.data(),
     getPermission: () => agent.permission.data(),
+    getCircuitBreakers: () => agent.circuitBreakerStatus(),
+    getCacheFrozen: () => agent.cacheFreezeGuard.isFrozen(),
+    getParallelToolsStatus: () => agent.toolParallelStatus.snapshot(),
+    getOAuthStatus: async () => {
+      if (agent.kimiConfig === undefined || agent.homedir === undefined) {
+        return undefined;
+      }
+      return buildSessionOAuthStatus({
+        config: agent.kimiConfig,
+        homeDir: agent.homedir,
+        modelAlias: agent.config.data().modelAlias,
+      });
+    },
     getPlan: () => agent.planMode.data(),
-    getUsage: () => agent.usage.data(),
+    getUsage: () => agent.usage.status() ?? agent.usage.data(),
     getProviderRouteStatus: () => agent.providerRouteStatus(),
     resetProviderRouteStatus: () => agent.resetProviderRouteStatus(),
     getTools: () => agent.tools.data(),

@@ -1,14 +1,14 @@
 import type { WorkGraph, WorkGraphNode, UltraworkStage } from '@superliora/protocol';
 
-import { withDefaultRequiredEvidence } from '../../collaboration/swarm-evidence-gate';
+import { withDefaultRequiredEvidence } from '#/fleet';
 
 import type { Agent } from '..';
 import {
   cloneWorkGraph,
   todosFromWorkGraph,
-  ULTRAWORK_GRAPH_STORE_KEY,
-} from '../../tools/builtin/state/ultrawork-graph';
-import { TODO_STORE_KEY } from '../../tools/builtin/state/todo-list';
+} from '../../tools/builtin/state/ultrawork-graph-helpers';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph-store-key';
+import { TODO_STORE_KEY } from '../../tools/builtin/state/todo-list-store-key';
 
 const ULTRAWORK_STAGES = new Set<UltraworkStage>([
   'intake',

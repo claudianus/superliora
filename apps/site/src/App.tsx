@@ -62,7 +62,7 @@ function Navbar() {
   }, []);
 
   const links = [
-    { href: '#ultra', label: t.nav.workflow },
+    { href: '#mission', label: t.nav.workflow },
     { href: '#harness', label: t.nav.harness },
     { href: '#memory', label: t.nav.memory },
     { href: '#capabilities', label: t.nav.capabilities },

@@ -28,10 +28,10 @@ import {
   isActiveUltraworkRun,
   parseUltraworkCommand,
   ultraworkModeDisableBlockedMessage,
-  type UltraworkEvidenceSeed,
   type UltraworkActivationSource,
   type UltraworkCreateRequest,
-} from './ultrawork-contract';
+  type UltraworkEvidenceSeed,
+} from '#/tui/utils/mission/mission-contract';
 
 import { buildUltraworkCoverageMatrix } from './ultrawork-coverage';
 import {
@@ -47,16 +47,16 @@ export { buildUltraworkRunId, createUltraworkEvidenceSeed } from './ultrawork-ev
 // so Goal and Ultrawork share one TUI setup path.
 
 const ULTRAWORK_ACTIVITY_TIP =
-  'Ultrawork mode: research first, then UltraPlan interview, verifiable UltraGoal, Swarm decision, verify';
+  'Mission mode: research first, then Plan interview, verifiable Goal, Fleet decision, verify';
 
 export {
   buildUltraworkPrompt,
   isActiveUltraworkRun,
   parseUltraworkCommand,
   ultraworkModeDisableBlockedMessage,
-  type UltraworkEvidenceSeed,
   type UltraworkActivationSource,
-};
+  type UltraworkEvidenceSeed,
+} from '#/tui/utils/mission/mission-contract';
 
 async function resolveUltraworkObjectiveProfile(
   host: Pick<SlashCommandHost, 'session'>,
@@ -152,7 +152,7 @@ export async function handleUltraworkCommand(
         host.sendNormalUserInput(args.trim());
         return;
       }
-      host.showError('An Ultrawork run is already active. Continue in chat or use /ultrawork pause.');
+      host.showError('A Mission run is already active. Continue in chat or use /mission pause.');
       return;
     }
   }
@@ -176,7 +176,7 @@ export async function handleUltraworkCommand(
   showUltraworkStartModePrompt(
     host,
     commandText,
-    'Ultrawork not started.',
+    'Mission not started.',
     async (choice) => {
       await startUltraworkWithPermission(host, parsed, source, choice);
     },
@@ -209,7 +209,11 @@ export async function handleUltraworkModeToggle(
       await host.requireSession().setPlanMode(false, false);
     }
   } catch (error) {
-    host.showError(`Failed to ${enabled ? 'enable' : 'disable'} Ultrawork mode: ${formatErrorMessage(error)}`);
+    host.showError(
+      enabled
+        ? ttui('tui.ultrawork.enableFailed', { message: formatErrorMessage(error) })
+        : ttui('tui.ultrawork.disableFailed', { message: formatErrorMessage(error) }),
+    );
     return;
   }
   host.setAppState({
@@ -277,7 +281,7 @@ async function startUltrawork(
     await prepareUltraworkTuiSetup(host, setup, request.objective);
   } catch (error) {
     await rollbackUltraworkTuiSetup(host, setup);
-    host.showError(`Failed to start ultrawork: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to start Mission: ${formatErrorMessage(error)}`);
     return;
   }
 
@@ -296,7 +300,7 @@ async function startUltrawork(
     });
   } catch (error) {
     await rollbackUltraworkTuiSetup(host, setup);
-    host.showError(`Failed to register Ultrawork run: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to register Mission run: ${formatErrorMessage(error)}`);
     return;
   }
   let evidenceSeed: UltraworkEvidenceSeed | undefined;
@@ -311,10 +315,10 @@ async function startUltrawork(
       new Date(),
       objectiveProfile,
     );
-    host.showStatus(`Ultrawork evidence seed: ${evidenceSeed.root}`);
+    host.showStatus(`Mission evidence seed: ${evidenceSeed.root}`);
   } catch (error) {
     evidenceSeedError = formatErrorMessage(error);
-    host.showStatus(`Ultrawork evidence seed blocked: ${evidenceSeedError}`);
+    host.showStatus(`Mission evidence seed blocked: ${evidenceSeedError}`);
   }
   host.setAppState({ activityTip: ULTRAWORK_ACTIVITY_TIP });
   host.state.transcriptContainer.addChild(
@@ -364,13 +368,13 @@ function mapUltraworkActivationSource(
 async function showUltraworkStatus(host: SlashCommandHost): Promise<void> {
   const run = await host.requireSession().getUltraworkRun();
   if (run === null) {
-    host.showStatus('No active Ultrawork run.');
+    host.showStatus('No active Mission run.');
     return;
   }
   const goal = (await host.requireSession().getGoal()).goal;
   const pendingNodes = run.workGraph?.nodes.filter((node) => node.status !== 'done').length ?? 0;
   host.showNotice(
-    'Ultrawork status',
+    'Mission status',
     [
       `Run: ${run.id}`,
       `Stage: ${run.stage}`,
@@ -387,12 +391,12 @@ async function pauseUltrawork(host: SlashCommandHost): Promise<void> {
   try {
     const run = await host.requireSession().pauseUltrawork({ reason: 'Paused by user' });
     if (run === null) {
-      host.showStatus('No active Ultrawork run to pause.');
+      host.showStatus('No active Mission run to pause.');
       return;
     }
-    host.showStatus(`Ultrawork paused at stage ${run.stage}. Use /ultrawork resume to continue.`);
+    host.showStatus(`Mission paused at stage ${run.stage}. Use /mission resume to continue.`);
   } catch (error) {
-    host.showError(`Failed to pause Ultrawork: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to pause Mission: ${formatErrorMessage(error)}`);
   }
 }
 
@@ -400,11 +404,11 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
   const session = host.requireSession();
   const current = await session.getUltraworkRun();
   if (current === null) {
-    host.showError('No Ultrawork run is available to resume in this session.');
+    host.showError('No Mission run is available to resume in this session.');
     return;
   }
   if (runId !== undefined && current.id !== runId) {
-    host.showError(`Active Ultrawork run is ${current.id}, not ${runId}.`);
+    host.showError(`Active Mission run is ${current.id}, not ${runId}.`);
     return;
   }
 
@@ -435,14 +439,14 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
     }
   } catch (error) {
     await rollbackUltraworkTuiSetup(host, setup);
-    host.showError(`Failed to restore Ultrawork setup: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to restore Mission setup: ${formatErrorMessage(error)}`);
     return;
   }
 
   try {
     const result = await session.resumeUltrawork();
     if (result === null) {
-      host.showError('Ultrawork run cannot be resumed from its current state.');
+      host.showError('Mission run cannot be resumed from its current state.');
       return;
     }
     host.setAppState({
@@ -466,12 +470,12 @@ async function resumeUltrawork(host: SlashCommandHost, runId?: string): Promise<
     );
     requestTUILayoutRender(host.state);
     host.sendNormalUserInput(result.recoveryPrompt, {
-      displayText: `Resume Ultrawork: ${current.objective}`,
+      displayText: `Resume Mission: ${current.objective}`,
     });
-    host.showStatus(`Ultrawork resumed at stage ${result.run.stage}.`);
+    host.showStatus(`Mission resumed at stage ${result.run.stage}.`);
   } catch (error) {
     await rollbackUltraworkTuiSetup(host, setup);
-    host.showError(`Failed to resume Ultrawork: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to resume Mission: ${formatErrorMessage(error)}`);
   }
 }
 
@@ -479,7 +483,7 @@ async function cancelUltrawork(host: SlashCommandHost): Promise<void> {
   try {
     const run = await host.requireSession().cancelUltrawork({ reason: 'Cancelled by user' });
     if (run === null) {
-      host.showStatus('No active Ultrawork run to cancel.');
+      host.showStatus('No active Mission run to cancel.');
       return;
     }
     // Restore session flags captured at run start (mirrors finishUltraworkRun
@@ -501,9 +505,9 @@ async function cancelUltrawork(host: SlashCommandHost): Promise<void> {
     void session.setPlanMode(restorePlanMode, false).catch(() => {});
     void session.setSwarmMode(restoreSwarmMode, 'task').catch(() => {});
     void session.setPremiumQuality(restorePremiumQuality).catch(() => {});
-    host.showStatus(`Ultrawork run ${run.id} cancelled.`);
+    host.showStatus(`Mission run ${run.id} cancelled.`);
   } catch (error) {
-    host.showError(`Failed to cancel Ultrawork: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to cancel Mission: ${formatErrorMessage(error)}`);
   }
 }
 
@@ -540,12 +544,12 @@ export async function autoResumeUltraworkFromSession(
       { coalesceKey: 'ultrawork-auto-resume' },
     );
     host.sendNormalUserInput(result.resumed.recoveryPrompt, {
-      displayText: `Resume Ultrawork: ${run.objective}`,
+      displayText: `Resume Mission: ${run.objective}`,
     });
-    host.showStatus(`Ultrawork resumed at stage ${run.stage}.`);
+    host.showStatus(`Mission resumed at stage ${run.stage}.`);
     return true;
   } catch (error) {
-    host.showError(`Failed to resume Ultrawork: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to resume Mission: ${formatErrorMessage(error)}`);
     return false;
   }
 }

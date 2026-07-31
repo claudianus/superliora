@@ -2,11 +2,11 @@
  * Standalone Ultra mode commands: /ultragoal, /ultraswarm, /ultraplan.
  *
  * These commands activate individual modes (Goal, Swarm, Plan) WITHOUT creating
- * or advancing an Ultrawork orchestration run. Each Ultra command provides
+ * or advancing a Mission workflow run. Each Ultra command provides
  * enhanced behavior compared to its base counterpart:
  *
  * - /ultragoal vs /goal: Enforces verifiable acceptance criteria, research-first
- *   approach, and evidence-based completion. No full Ultrawork pipeline.
+ *   approach, and evidence-based completion. No full Mission pipeline.
  * - /ultraswarm vs /swarm: Adds specialist lane analysis, capability coverage
  *   matrix, and structured ENGAGE/DEFER decision framework.
  * - /ultraplan vs /plan: Activates the full Ultra Plan interview engine with
@@ -17,6 +17,7 @@ import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/l
 import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SlashCommandHost } from '../hub/dispatch';
+import { showFleetStatus } from '../ops/fleet-status';
 import { GoalSetMessageComponent } from '../../components/messages/goal/goal-panel';
 import {
   GoalStartPermissionPromptComponent,
@@ -46,7 +47,7 @@ export type UltraGoalMode = 'closed' | 'open';
  */
 function buildUltraGoalClosedPrompt(objective: string): string {
   return [
-    `UltraGoal [closed loop] objective: ${objective}`,
+    `Goal [closed loop] objective: ${objective}`,
     '',
     'Loop protocol (Evaluator-Optimizer pattern):',
     '1. DEFINE VERIFIER: Before any implementation, define 2-5 acceptance criteria.',
@@ -70,7 +71,7 @@ function buildUltraGoalClosedPrompt(objective: string): string {
  */
 function buildUltraGoalOpenPrompt(objective: string): string {
   return [
-    `UltraGoal [open loop] objective: ${objective}`,
+    `Goal [open loop] objective: ${objective}`,
     '',
     'Loop protocol (Open Loop with Circuit Breaker):',
     '1. QUALITY FLOOR: Define the minimum quality standard that must NEVER degrade.',
@@ -217,9 +218,9 @@ async function startUltraGoal(
  */
 function buildUltraSwarmPrompt(task: string): string {
   return [
-    `UltraSwarm task: ${task}`,
+    `Fleet task: ${task}`,
     '',
-    'UltraSwarm delegation framework (standalone — no Ultrawork pipeline):',
+    'Fleet delegation framework (standalone — no Mission pipeline):',
     '1. LANE ANALYSIS: Decompose this task into independent specialist lanes (e.g. frontend, backend, testing, design, infrastructure). For each lane, identify: required expertise, expected deliverable, verification method.',
     '2. COVERAGE MATRIX: Build a capability coverage matrix mapping: criterion/risk → expertise → evidence → specialist → owner.',
     '3. SWARM DECISION: Emit exactly `Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>`.',
@@ -247,8 +248,7 @@ export async function handleUltraSwarmCommand(host: SlashCommandHost, args: stri
   }
 
   if (prompt.length === 0) {
-    // Toggle swarm mode
-    await applyUltraSwarmMode(host, !host.state.appState.swarmMode);
+    await showFleetStatus(host);
     return;
   }
 
@@ -273,7 +273,7 @@ function showUltraSwarmPermissionPrompt(
 ): void {
   const cancelStart = (): void => {
     host.restoreInputText(commandText);
-    host.showStatus('UltraSwarm task not started.');
+    host.showStatus('Fleet task not started.');
   };
   host.mountEditorReplacement(
     new SwarmStartPermissionPromptComponent({
@@ -330,11 +330,11 @@ function renderUltraSwarmMarker(host: SlashCommandHost, state: SwarmModeMarkerSt
 
 async function applyUltraSwarmMode(host: SlashCommandHost, enabled: boolean): Promise<void> {
   if (enabled && host.state.appState.swarmMode) {
-    host.showStatus('Swarm mode is already on.');
+    host.showStatus('Fleet mode is already on.');
     return;
   }
   if (!enabled && !host.state.appState.swarmMode) {
-    host.showStatus('Swarm mode is already off.');
+    host.showStatus('Fleet mode is already off.');
     return;
   }
   try {
@@ -346,7 +346,7 @@ async function applyUltraSwarmMode(host: SlashCommandHost, enabled: boolean): Pr
   host.setAppState({ swarmMode: enabled });
   host.state.swarmModeEntry = enabled ? 'manual' : undefined;
   host.track('ultraswarm_mode', { enabled });
-  host.showStatus(enabled ? 'Swarm mode enabled (standalone).' : 'Swarm mode disabled.');
+  host.showStatus(enabled ? 'Fleet mode enabled (standalone).' : 'Fleet mode disabled.');
 }
 
 function parseSwarmSubcommand(input: string): boolean | undefined {
@@ -381,12 +381,12 @@ export async function handleUltraPlanCommand(host: SlashCommandHost, args: strin
       return;
     }
     host.setAppState({ planMode: false, activityTip: null });
-    host.showStatus('Ultra Plan mode disabled.');
+    host.showStatus('Plan mode disabled.');
     return;
   }
 
   if (host.state.appState.planMode) {
-    host.showStatus('Ultra Plan mode is already active.');
+    host.showStatus('Plan interview mode is already active.');
     return;
   }
 
@@ -394,16 +394,16 @@ export async function handleUltraPlanCommand(host: SlashCommandHost, args: strin
   try {
     await host.requireSession().setPlanMode(true, true, prompt || undefined, 'standalone');
   } catch (error) {
-    host.showError(`Failed to enter Ultra Plan mode: ${formatErrorMessage(error)}`);
+    host.showError(`Failed to enter Plan interview mode: ${formatErrorMessage(error)}`);
     return;
   }
 
   host.setAppState({
     planMode: true,
-    activityTip: 'Ultra Plan interview mode (standalone): research, interview, verifiable criteria',
+    activityTip: 'Plan interview mode (standalone): research, interview, verifiable criteria',
   });
   host.track('ultraplan_start');
-  host.showStatus('Ultra Plan interview mode active. Answer questions to build a verifiable plan.');
+  host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');
 
   // If user provided initial context, send it as input
   if (prompt.length > 0) {

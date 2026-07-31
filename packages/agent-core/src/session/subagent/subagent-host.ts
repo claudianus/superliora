@@ -12,7 +12,7 @@ import {
   startSwarmStandupTimer,
   type SwarmStandupTimerHandle,
   type SwarmStandupTimerInput,
-} from '../../collaboration/swarm-bus-coordination';
+} from '#/fleet';
 import { userCancellationReason } from '../../utils/abort';
 import type { Session } from '../index';
 import {
@@ -98,6 +98,10 @@ export class SessionSubagentHost {
 
   get parentAgentId(): string {
     return this.ownerAgentId;
+  }
+
+  parentLoopToolNames(): readonly string[] {
+    return this.session.getReadyAgent(this.ownerAgentId)?.tools.loopTools.map((tool) => tool.name) ?? [];
   }
 
   hasActiveForegroundChildren(): boolean {

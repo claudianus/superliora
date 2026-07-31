@@ -15,7 +15,7 @@ import type { Agent } from '../agent';
 import { isBackgroundTaskTerminal } from '../agent/background';
 import { seedUltraworkGraphFromApprovedPlan } from '../agent/plan/work-graph-from-plan';
 import type { UltraPlanPhase } from '../agent/plan/ultra-plan-mode';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph';
+import { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';
 import { resolveApprovedUltraworkPlanPath } from './approved-plan';
 import { readUltraworkMirrorFromDisk } from './run-store';
 import {

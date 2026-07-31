@@ -17,6 +17,9 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './create-ultra-goal.md?raw';
 import { goalForModel } from './serialize';
 
+const CREATE_ULTRA_GOAL_DESCRIPTION =
+  `Legacy/advanced alias of CreateGoal. Prefer CreateGoal for new work. ${DESCRIPTION}`;
+
 export const CreateUltraGoalToolInputSchema = z
   .object({
     objective: z.string().min(1).describe('The objective to pursue.'),
@@ -43,7 +46,7 @@ export type CreateUltraGoalToolInput = z.infer<typeof CreateUltraGoalToolInputSc
 
 export class CreateUltraGoalTool implements BuiltinTool<CreateUltraGoalToolInput> {
   readonly name = 'CreateUltraGoal' as const;
-  readonly description: string = DESCRIPTION;
+  readonly description: string = CREATE_ULTRA_GOAL_DESCRIPTION;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(CreateUltraGoalToolInputSchema);
 
   constructor(private readonly agent: Agent) {}
@@ -53,7 +56,7 @@ export class CreateUltraGoalTool implements BuiltinTool<CreateUltraGoalToolInput
     const mode = args.mode ?? 'closed';
 
     return {
-      description: `Creating UltraGoal (${mode} loop)`,
+      description: `Creating Goal (legacy CreateUltraGoal) (${mode} loop)`,
       display: this.resolveDisplay(args, mode),
       approvalRule: this.name,
       execute: async () => {

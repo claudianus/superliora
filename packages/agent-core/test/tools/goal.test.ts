@@ -302,6 +302,8 @@ describe('UpdateGoalTool', () => {
     expect(reminders[0]?.origin).toEqual({ kind: 'system_trigger', name: 'goal_completion' });
     expect(reminders[0]?.content).toContain('Goal completed successfully.');
     expect(reminders[0]?.content).toContain('Write a concise final message for the user');
+    expect(String(result.output)).toContain('Advisory (soft — not blocking)');
+    expect(String(result.output)).toContain('RunProjectChecks');
   });
 
   it('`blocked` marks the goal blocked (resumable) and asks for a blocker reason', async () => {

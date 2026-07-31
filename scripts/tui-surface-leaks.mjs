@@ -53,50 +53,62 @@ export function hasXpDodReadinessContract(output) {
   ].every((pattern) => pattern.test(output));
 }
 
-export function hasUltraworkTaskEntryCopy(output) {
-  return /\bShift-Tab toggles Ultrawork and off\.?/i.test(output);
+export function hasMissionTaskEntryCopy(output) {
+  return /\bShift-Tab toggles Mission and off\.?/i.test(output);
 }
 
-export function hasUltraworkFooterNextAction(output) {
+export function hasMissionFooterNextAction(output) {
   return [
-    /\bnext:\s*describe task;\s*Ultrawork will interview before goal,\s*swarm,\s*and edits\b/i,
+    /\bnext:\s*describe task;\s*Mission will interview before goal,\s*swarm,\s*and edits\b/i,
+    /\bMission:\s+research\s*→\s*interview\s*→\s*goal\s*→\s*swarm\s*→\s*integrate\s*→\s*verify\s*→\s*learn/i,
     /\bWorkflow\b\s+interview\s*->\s*goal\s*->\s*research\s*->\s*swarm decision\s*->\s*integrate\s*->\s*verify\s*->\s*learn/i,
-    /\bnext:\s*Shift-Tab toggles Ultrawork\/off,\s*or type normally\b/i,
+    /\bnext:\s*Shift-Tab toggles Mission\/off,\s*or type normally\b/i,
   ].some((pattern) => pattern.test(output));
 }
 
-export function hasUltraworkHelpContract(output) {
+export function hasMissionHelpContract(output) {
   return (
-    hasUltraworkTaskEntryCopy(output) &&
-    /\bNormal messages stay lightweight unless Ultrawork is on\.?/i.test(output)
+    hasMissionTaskEntryCopy(output) &&
+    /\bNormal messages stay lightweight unless Mission is on\.?/i.test(output)
   );
 }
 
-export function hasUltraworkAdvancedHelpContract(output) {
+export function hasMissionAdvancedHelpContract(output) {
   return [
-    /\bUltrawork is one workflow:\s*UltraPlan,\s*UltraGoal,\s*Research,\s*Swarm decision,\s*Integrate,\s*Verify,\s*Learn\.?/i,
-    /\bShift-Tab toggles Ultrawork\/off\b/i,
-    /(?:^|[\s;])\/plan steers UltraPlan from Hub or slash\.?/i,
-    /\bAdvanced Ultrawork controls\b/i,
-    /\bAdvanced steering for UltraPlan;\s*Ultrawork auto-enables it\b/i,
-    /\bAdvanced steering for UltraSwarm;\s*Ultrawork decides after UltraGoal\b/i,
+    /\bMission is one workflow:\s*Plan,\s*Goal,\s*Research,\s*Fleet decision,\s*Integrate,\s*Verify,\s*Learn\.?/i,
+    /\bShift-Tab toggles Mission\/off\b/i,
+    /(?:^|[\s;])\/plan steers Plan from Hub or slash\.?/i,
+    /\bAdvanced Mission controls\b/i,
+    /\bPlan mode\b.*\bplan file\b/i,
+    /\bFleet parallel delegation\b|\bFleet mode\b/i,
   ].every((pattern) => pattern.test(output));
 }
 
-export function hasUltraworkStatusContract(output) {
+export function hasMissionStatusContract(output) {
   const requiredContract = [
-    /\bUltrawork\b\s+(?:mode on|mode off|goal active|goal blocked|needs readiness)/i,
+    /\bMission\b\s+(?:mode on|mode off|goal active|goal blocked|needs readiness)/i,
     /\bWorkflow\b\s+interview\s*->\s*goal\s*->\s*research\s*->\s*swarm decision\s*->\s*integrate\s*->\s*verify\s*->\s*learn/i,
-    /\bEngine\b\s+UltraPlan\s*\|\s*UltraGoal\s*\|\s*Research\s*\|\s*Swarm decision\s*\|\s*Integrate\s*\|\s*Verify\s*\|\s*Learn/i,
-    /\bAuto\b\s+Shift-Tab toggles Ultrawork\/off;\s*no regex promotion for plain tasks/i,
+    /\bEngine\b\s+Plan\s*\|\s*Goal\s*\|\s*Research\s*\|\s*Fleet decision\s*\|\s*Integrate\s*\|\s*Verify\s*\|\s*Learn/i,
+    /\bAuto\b\s+Shift-Tab toggles Mission\/off;\s*no regex promotion(?: for plain tasks)?/i,
     /\bFlow\b\s+[█░]{4}\s+(?:3|4)\/4\s+(?:verify queued|verify blocked|ready to run|verified)/i,
     /\bStages\b\s+Plan (?:on|required|off)\s*\|\s*Goal (?:ready|active|blocked|done)\s*\|\s*Swarm (?:armed|decision pending|off)\s*\|\s*Verify (?:queued|blocked|ready|done)/i,
   ].every((pattern) => pattern.test(output));
   const taskNextAction =
-    /\bNext\b\s+(?:Type task;\s*Ultrawork will interview before goal,\s*swarm,\s*and edits\.?|Press Shift-Tab to toggle Ultrawork\/off,\s*or type normally\.?)/i.test(output);
+    /\bNext\b\s+(?:Type task;\s*Mission will interview before goal,\s*swarm,\s*and edits\.?|Press Shift-Tab to toggle Mission\/off,\s*or type normally\.?)/i.test(output);
   const setupNextAction = shouldRequireModelSetupAction(output) && hasStatusPanelSetupNextAction(output);
   return requiredContract && (taskNextAction || setupNextAction);
 }
+
+/** @deprecated Use hasMissionTaskEntryCopy */
+export const hasUltraworkTaskEntryCopy = hasMissionTaskEntryCopy;
+/** @deprecated Use hasMissionFooterNextAction */
+export const hasUltraworkFooterNextAction = hasMissionFooterNextAction;
+/** @deprecated Use hasMissionHelpContract */
+export const hasUltraworkHelpContract = hasMissionHelpContract;
+/** @deprecated Use hasMissionAdvancedHelpContract */
+export const hasUltraworkAdvancedHelpContract = hasMissionAdvancedHelpContract;
+/** @deprecated Use hasMissionStatusContract */
+export const hasUltraworkStatusContract = hasMissionStatusContract;
 
 export function hasHarnessRadarStatusContract(output) {
   return [

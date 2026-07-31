@@ -24,8 +24,19 @@ import type {
   ToolInfo,
   UserToolRegistration,
 } from './types';
+import { resolveToolHelpVisibility } from './help-visibility';
 
 export * from './types';
+export {
+  COMPAT_BRANDING_TOOL_HELP,
+  filterToolsForPublicHelp,
+  formatCompatToolHelpHint,
+  isCompatBrandingTool,
+  preferredPublicToolName,
+  resolveToolHelpVisibility,
+  shouldIncludeToolInPublicHelp,
+  type CompatBrandingToolName,
+} from './help-visibility';
 
 export type { McpToolEntry };
 
@@ -185,6 +196,11 @@ export class ToolManager {
   }
 
   setActiveTools(names: readonly string[]): void {
+    if (this.agent.cacheFreezeGuard.isFrozen()) {
+      throw new Error(
+        'Cache Sacred: enabled tools cannot change mid-turn (CacheFreezeGuard is frozen)',
+      );
+    }
     this.agent.records.logRecord({
       type: 'tools.set_active_tools',
       names,
@@ -225,6 +241,7 @@ export class ToolManager {
         description: tool.description,
         active: this.enabledTools.has(tool.name),
         source: 'builtin',
+        helpVisibility: resolveToolHelpVisibility(tool.name),
       };
     }
     for (const tool of this.userTools.values()) {
@@ -233,6 +250,7 @@ export class ToolManager {
         description: tool.description,
         active: this.enabledTools.has(tool.name),
         source: 'user',
+        helpVisibility: resolveToolHelpVisibility(tool.name),
       };
     }
     for (const entry of this.mcpTools.values()) {
@@ -241,6 +259,7 @@ export class ToolManager {
         description: entry.tool.description,
         active: this.isMcpToolEnabled(entry.tool.name),
         source: 'mcp',
+        helpVisibility: resolveToolHelpVisibility(entry.tool.name),
       };
     }
   }

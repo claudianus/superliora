@@ -3,5 +3,5 @@ export function isSwarmProgressToolName(toolName: string): boolean {
 }
 
 export function swarmProgressTitleForToolName(toolName: string): string {
-  return toolName === 'UltraSwarm' ? 'UltraSwarm' : 'Agent Swarm';
+  return toolName === 'UltraSwarm' ? 'Fleet' : 'Agent Swarm';
 }

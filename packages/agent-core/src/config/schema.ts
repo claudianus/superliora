@@ -395,6 +395,17 @@ export const McpServerConfigSchema = z.preprocess((raw) => {
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
+export const AgentConfigSchema = z.object({
+  /**
+   * Bundled main agent profile (`core`, `agent`, `superliora-full`, …).
+   * Overridden by SUPERLIORA_PROFILE. Recommended sovereign default: `core` (Core≤12).
+   * Process-wide soft default: SUPERLIORA_SOVEREIGN_CORE=1 or SUPERLIORA_SOVEREIGN=1 when profile env/config unset.
+   */
+  profile: z.string().optional(),
+});
+
+export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+
 export const LioraConfigSchema = z.object({
   providers: z.record(z.string(), ProviderConfigSchema).default({}),
   defaultProvider: z.string().optional(),
@@ -423,6 +434,7 @@ export const LioraConfigSchema = z.object({
   browserUse: BrowserUseConfigSchema.optional(),
   computerUse: ComputerUseConfigSchema.optional(),
   persona: PersonaConfigSchema.optional(),
+  agent: AgentConfigSchema.optional(),
   experimental: ExperimentalConfigSchema.optional(),
   telemetry: z.boolean().optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
@@ -452,6 +464,7 @@ const ModelCatalogConfigPatchSchema = ModelCatalogConfigSchema.partial();
 const BrowserUseConfigPatchSchema = BrowserUseConfigSchema.partial();
 const ComputerUseConfigPatchSchema = ComputerUseConfigSchema.partial();
 const ExperimentalConfigPatchSchema = ExperimentalConfigSchema;
+const AgentConfigPatchSchema = AgentConfigSchema.partial();
 const MoonshotServiceConfigPatchSchema = MoonshotServiceConfigSchema.partial();
 const ServicesConfigPatchSchema = z.object({
   moonshotSearch: MoonshotServiceConfigPatchSchema.optional(),
@@ -487,6 +500,7 @@ export const LioraConfigPatchSchema = z
     browserUse: BrowserUseConfigPatchSchema.optional(),
     computerUse: ComputerUseConfigPatchSchema.optional(),
     persona: PersonaConfigSchema.partial().optional(),
+    agent: AgentConfigPatchSchema.optional(),
     experimental: ExperimentalConfigPatchSchema.optional(),
     telemetry: z.boolean().optional(),
   })

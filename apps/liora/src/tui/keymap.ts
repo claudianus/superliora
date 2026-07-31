@@ -13,6 +13,8 @@ export interface KeymapBinding {
   /** When the binding applies / where it is listed. */
   readonly surface: KeymapSurface;
   readonly category: 'menu' | 'edit' | 'session' | 'navigate' | 'agent';
+  /** Slash commands this binding supports (Settings glance + docs). */
+  readonly relatedSlash?: readonly string[];
 }
 
 /** Always-on bindings (any prompt state). */
@@ -37,6 +39,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     description: 'Stop the current turn (or confirm exit when idle)',
     surface: 'always',
     category: 'agent',
+    relatedSlash: ['/mission', '/fleet'],
   },
   {
     id: 'newline',
@@ -58,6 +61,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     description: 'Toggle tool output and reasoning expansion',
     surface: 'always',
     category: 'navigate',
+    relatedSlash: ['/ops'],
   },
   {
     id: 'expand-todo',
@@ -65,6 +69,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     description: 'Expand or collapse the todo list',
     surface: 'always',
     category: 'navigate',
+    relatedSlash: ['/ops'],
   },
 ];
 
@@ -108,9 +113,10 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
   {
     id: 'ultrawork',
     key: 'Shift-Tab',
-    description: 'Toggle Ultrawork mode',
+    description: 'Toggle Mission mode',
     surface: 'idle',
     category: 'agent',
+    relatedSlash: ['/mission'],
   },
 ];
 
@@ -122,6 +128,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     description: 'Steer while a turn is running',
     surface: 'streaming',
     category: 'agent',
+    relatedSlash: ['/mission', '/ops', '/fleet'],
   },
   {
     id: 'background',
@@ -129,6 +136,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     description: 'Background the current work',
     surface: 'streaming',
     category: 'agent',
+    relatedSlash: ['/fleet'],
   },
 ];
 
@@ -173,4 +181,31 @@ export function keymapFrontTips(): readonly {
     { key: 'tui.tip.menuHub', priority: 8, solo: true },
     { key: 'tui.tip.ctrlK', priority: 5, solo: true },
   ];
+}
+
+export interface KeymapSurfaceCounts {
+  readonly always: number;
+  readonly idle: number;
+  readonly streaming: number;
+  readonly total: number;
+}
+
+/** Live binding counts per surface — Settings → Keybindings glance. */
+export function keymapSurfaceCounts(): KeymapSurfaceCounts {
+  return {
+    always: KEYMAP_ALWAYS.length,
+    idle: KEYMAP_IDLE.length,
+    streaming: KEYMAP_STREAMING.length,
+    total: KEYMAP_ALL.length,
+  };
+}
+
+/** Bindings tagged for a slash command prefix (exact match on relatedSlash). */
+export function keymapBindingsForSlash(slash: string): readonly KeymapBinding[] {
+  return KEYMAP_ALL.filter((binding) => binding.relatedSlash?.includes(slash));
+}
+
+/** One-line sample for Settings / diagnostics panels. */
+export function formatKeymapBindingSample(binding: KeymapBinding): string {
+  return `${binding.key} — ${binding.description} (${binding.surface})`;
 }

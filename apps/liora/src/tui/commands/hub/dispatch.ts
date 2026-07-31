@@ -33,11 +33,13 @@ import { handleAppearanceCommand } from '../config/appearance';
 import { handleCompactCommand, handlePlanCommand } from '../config/plan';
 import { handleContextCommand } from '../config/context';
 import { handleEditorCommand, handleThemeCommand } from '../config/editor-theme';
+import { handleMediaCommand } from '../config/media';
 import { handleModelCommand, showModelPicker } from '../config/model';
 import { handleThinkingCommand } from '../config/thinking';
 import { showExperimentsPanel } from '../config/experiments';
 import { showSettingsSelector, showHarnessPanel } from '../config/settings';
-import { showHarnessEyesReadiness, showToolsInventory } from '../config/harness-tools';
+import { showHarnessEyesReadiness } from '../config/eyes-settings';
+import { showToolsInventory } from '../config/harness-tools';
 import { handleGoalCommand } from '../goal';
 import { handleImproveHarnessCommand } from '../improve-harness';
 import { handleCronCommand } from '../cron';
@@ -224,6 +226,8 @@ export interface SlashCommandHost {
   ): void;
   readonly skillCommandMap: Map<string, string>;
   readonly pluginCommandMap: Map<string, string>;
+  refreshSkillCommands?(session?: Session): Promise<void>;
+  refreshDynamicSlashCommands?(session?: Session): Promise<void>;
 
   // Controller refs
   readonly streamingUI: StreamingUIController;
@@ -358,6 +362,9 @@ async function handleBuiltInSlashCommand(
     case 'dashboard':
       void host.showAgentDashboard();
       return;
+    case 'ops':
+      void import('../ops/ops-theatre').then(({ showOpsTheatre }) => showOpsTheatre(host));
+      return;
     case 'extensions':
       void host.showExtensionsModal(args);
       return;
@@ -368,7 +375,7 @@ async function handleBuiltInSlashCommand(
       handleCronCommand(host, args);
       return;
     case 'mcp':
-      void showMcpServers(host);
+      void import('../config/mcp-manage').then(({ showMcpManagePanel }) => showMcpManagePanel(host));
       return;
     case 'tools':
       void showToolsInventory(host);
@@ -403,11 +410,19 @@ async function handleBuiltInSlashCommand(
     case 'theme':
       await handleThemeCommand(host, args);
       return;
+    case 'media':
+      handleMediaCommand(host, args);
+      return;
     case 'appearance':
       await handleAppearanceCommand(host, args);
       return;
     case 'persona':
       await handlePersonaCommand(host, args);
+      return;
+    case 'profile':
+      await import('../config/agent-profile').then(({ handleProfileCommand }) =>
+        handleProfileCommand(host, args),
+      );
       return;
     case 'model':
       await handleModelCommand(host, args);
@@ -493,13 +508,13 @@ async function handleBuiltInSlashCommand(
     case 'orchestrator':
       await handleOrchestratorCommand(host, args);
       return;
-    case 'ultrawork':
+    case 'mission':
       await handleUltraworkCommand(host, args);
       return;
     case 'ultragoal':
       await handleUltraGoalCommand(host, args);
       return;
-    case 'ultraswarm':
+    case 'fleet':
       await handleUltraSwarmCommand(host, args);
       return;
     case 'ultraplan':

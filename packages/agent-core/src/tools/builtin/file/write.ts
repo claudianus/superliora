@@ -14,7 +14,7 @@ import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { FileSnapshotStore } from '../../../session/file-snapshot';
-import { checkSwarmFileLease } from '../../../collaboration/swarm-file-lease';
+import { checkSwarmFileLease } from '#/fleet';
 import {
   policyForSandboxProfile,
   resolvePathAccessPath,

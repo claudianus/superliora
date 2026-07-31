@@ -1,5 +1,7 @@
 Launch multiple subagents from one `prompt_template` with `{{item}}`, `resume_agent_ids`, or both.
 
+In the TUI, `/fleet` is the Mission orchestration entry for live swarm progress and war-room controls.
+
 Use when the same task shape applies to many inputs. For few different tasks, use separate `Agent` calls.
 
 Enforced: at least 2 `items` unless resuming; `prompt_template` with `{{item}}` required when `items` present; filled prompts must be distinct.

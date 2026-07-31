@@ -8,7 +8,7 @@ import {
 } from '../../components/messages/agent-swarm-progress/index';
 import type { TodoItem } from '../../components/chrome/todo/todo-panel-types';
 import { describeSubagentToolFeedBody } from '../../components/subagents/subagent-activity';
-import type { ToolResultBlockData } from '../../types';
+import type { ToolResultBlockData, AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { argsRecord } from '../../utils/event-payload';
 import {
@@ -29,6 +29,7 @@ import {
 /** Host surface required by swarm progress coordination. */
 export interface SubagentSwarmHost {
   readonly state: TUIState;
+  setAppState(patch: Partial<AppState>): void;
   readonly session:
     | {
         pauseUltrawork(input: { reason: string }): Promise<unknown>;
@@ -53,6 +54,7 @@ export class SubagentSwarmCoordinator {
   reset(): void {
     this.clearProgress();
     this.teamsByToolCallId.clear();
+    this.host.setAppState({ makerCheckerSoftWarn: null });
   }
 
   hasProgress(toolCallId: string): boolean {
@@ -462,7 +464,7 @@ export class SubagentSwarmCoordinator {
     const reason = resolveWarRoomReason('pause', request.reason);
     void session.pauseUltrawork({ reason }).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
-      this.host.showError(`Failed to pause UltraSwarm: ${message}`);
+      this.host.showError(`Failed to pause Fleet: ${message}`);
     });
   }
 
@@ -487,7 +489,7 @@ export class SubagentSwarmCoordinator {
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
-        this.host.showError(`Failed to request UltraSwarm restaff: ${message}`);
+        this.host.showError(`Failed to request Fleet restaff: ${message}`);
       });
   }
 
@@ -523,6 +525,9 @@ export class SubagentSwarmCoordinator {
             this.handleWarRoomRestaffRequest(request);
           }
         : undefined,
+      onGovernanceSoftWarn: (warn) => {
+        this.host.setAppState({ makerCheckerSoftWarn: warn ?? null });
+      },
     });
     progress.updateArgs(args, options);
     const team = this.teamsByToolCallId.get(toolCallId);

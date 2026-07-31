@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { SessionSkillRegistry, ULTRAWORK_SKILL, registerBuiltinSkills } from '../../src/skill';
+import { SessionSkillRegistry, MISSION_SKILL, ULTRAWORK_SKILL, registerBuiltinSkills } from '../../src/skill';
 
-describe('builtin skill: ultrawork', () => {
+describe('builtin skill: ultrawork / mission', () => {
   it('has the expected identity and inline metadata', () => {
+    expect(MISSION_SKILL.name).toBe('mission');
     expect(ULTRAWORK_SKILL.name).toBe('ultrawork');
-    expect(ULTRAWORK_SKILL.source).toBe('builtin');
-    expect(ULTRAWORK_SKILL.description.length).toBeGreaterThan(0);
-    expect(ULTRAWORK_SKILL.metadata.type).toBe('inline');
+    expect(MISSION_SKILL.source).toBe('builtin');
+    expect(MISSION_SKILL.description.length).toBeGreaterThan(0);
+    expect(MISSION_SKILL.metadata.type).toBe('inline');
+  });
+
+  it('exposes mission as SSOT primary with ultrawork compat alias', () => {
+    expect(MISSION_SKILL.metadata.aliases).toEqual(['ultrawork']);
+    expect(MISSION_SKILL.content).toBe(ULTRAWORK_SKILL.content);
+    expect(ULTRAWORK_SKILL.metadata.aliases).toEqual(['mission']);
   });
 
   it('is model-invocable (does not disable model invocation)', () => {
@@ -18,9 +25,14 @@ describe('builtin skill: ultrawork', () => {
     const registry = new SessionSkillRegistry();
     registerBuiltinSkills(registry);
 
-    const skill = registry.getSkill('ultrawork');
-    expect(skill).toBeDefined();
-    expect(skill?.metadata.disableModelInvocation).not.toBe(true);
+    const ultrawork = registry.getSkill('ultrawork');
+    expect(ultrawork).toBeDefined();
+    expect(ultrawork?.metadata.disableModelInvocation).not.toBe(true);
+
+    const mission = registry.getSkill('mission');
+    expect(mission).toBeDefined();
+    expect(mission?.content).toBe(ultrawork?.content);
+    expect(mission?.metadata.disableModelInvocation).not.toBe(true);
   });
 
   it('carries the full workflow methodology the lean activation prompt no longer injects', () => {
@@ -29,7 +41,9 @@ describe('builtin skill: ultrawork', () => {
     // Workflow spine and activation.
     expect(content).toContain('UltraResearch prelude -> UltraPlan interview -> UltraGoal');
     expect(content).toContain('Ultra Plan Research first');
-    expect(content).toContain('Shift-Tab turns Ultrawork mode ON');
+    expect(content).toContain('# Mission workflow methodology');
+    expect(content).toContain('Shift-Tab turns Mission mode ON');
+    expect(content).toContain('`/mission` is preferred');
     expect(content).toContain('Headless/auto without TUI defaults to Manual');
     expect(content).toContain('울트라플랜');
 
@@ -56,7 +70,7 @@ describe('builtin skill: ultrawork', () => {
     expect(content).toContain('liora_recall');
     expect(content).toContain('llm_wiki');
     expect(content).toContain('wrote|skipped|blocked');
-    expect(content).toContain('Liora Knowledge Map');
+    expect(content).toContain('Knowledge Map');
     expect(content).toContain('EXTRACTED');
     expect(content).toContain('Definition of Done');
     expect(content).toContain('Premium injector owns the full bar');

@@ -50,7 +50,7 @@ export function buildWarRoomRestaffSteerDirective(input: {
       ? undefined
       : ` (phase: ${input.phase.trim()})`;
   return [
-    'UltraSwarm restaff requested from war room.',
+    'Fleet restaff requested from war room.',
     reason,
     phase,
     'Close unresolved required gaps by staffing additional specialists when slots allow.',

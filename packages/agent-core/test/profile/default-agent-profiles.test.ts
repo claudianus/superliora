@@ -17,6 +17,30 @@ const promptContext = {
   skills: '- test-skill: does things\n  Path: /skills/test/SKILL.md',
 } as const;
 
+/** Legacy Liora* lean-context tools — excluded from sovereign waist profiles. */
+const LEGACY_LIORA_TOOLS = [
+  'LioraRead',
+  'LioraTree',
+  'LioraSymbol',
+  'LioraCallgraph',
+  'LioraExpand',
+  'LioraReview',
+] as const;
+
+/** Lean-context Liora* tools — excluded even from superliora-full (public aliases cover them). */
+const LEGACY_LEAN_LIORA_TOOLS = [...LEGACY_LIORA_TOOLS] as const;
+
+/** Compat aliases dropped from superliora-full when the preferred tool is already listed. */
+const FULL_PROFILE_COMPAT_ALIASES = [
+  'LioraReview',
+  'LioraExpand',
+  'CreateUltraGoal',
+  'UltraworkGraph',
+] as const;
+
+/** Tools that must not appear on Core≤12 or default coding waist surfaces. */
+const WAIST_EXCLUDED_TOOLS = [...LEGACY_LIORA_TOOLS, 'UltraworkGraph', 'CreateUltraGoal'] as const;
+
 describe('default agent profiles', () => {
   it('loads the bundled default system prompt from embedded sources', () => {
     const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext);
@@ -57,10 +81,27 @@ describe('default agent profiles', () => {
     );
   });
 
+  it('prefers CreateGoal and compact repo search on the default agent profile', () => {
+    const mainTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
+    expect(mainTools).toContain('CreateGoal');
+    expect(mainTools).not.toContain('CreateUltraGoal');
+    expect(mainTools).toContain('RepoQuery');
+    expect(mainTools).toEqual(expect.arrayContaining(['Grep', 'Glob']));
+    for (const legacy of LEGACY_LIORA_TOOLS) {
+      expect(mainTools).not.toContain(legacy);
+    }
+    expect(mainTools).not.toContain('UltraworkGraph');
+    expect(mainTools).toContain('AgentSwarm');
+    expect(mainTools).not.toContain('UltraSwarm');
+  });
+
   it('lists goal tools on the main agent and full profile, not on subagent profiles', () => {
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
     const mainTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(fullTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal', 'GetCurrentTime']));
+    expect(fullTools).not.toContain('CreateUltraGoal');
+    expect(fullTools).toContain('TaskGraph');
+    expect(fullTools).not.toContain('UltraworkGraph');
     expect(mainTools).toEqual(
       expect.arrayContaining([
         'CreateGoal',
@@ -68,7 +109,6 @@ describe('default agent profiles', () => {
         'SetGoalBudget',
         'UpdateGoal',
         'TodoList',
-        'UltraworkGraph',
         'EnterPlanMode',
         'ExitPlanMode',
         'Skill',
@@ -77,6 +117,7 @@ describe('default agent profiles', () => {
         'Agent',
       ]),
     );
+    expect(mainTools).not.toContain('CreateUltraGoal');
     for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).not.toContain('CreateGoal');
@@ -86,7 +127,9 @@ describe('default agent profiles', () => {
 
   it('exposes GetCurrentTime on explore for time-sensitive web research', () => {
     const exploreTools = DEFAULT_AGENT_PROFILES['explore']?.tools ?? [];
-    expect(exploreTools).toEqual(expect.arrayContaining(['GetCurrentTime', 'WebSearch']));
+    expect(exploreTools).toEqual(
+      expect.arrayContaining(['GetCurrentTime', 'WebSearch', 'DeepResearch']),
+    );
   });
 
   it('exposes Ultrawork orchestration tools on the full profile', () => {
@@ -113,30 +156,101 @@ describe('default agent profiles', () => {
     expect(prompt).toContain('Discover with SearchSkill');
   });
 
-  it('exposes Liora lean context tools to coding profiles as the default compact exploration surface', () => {
-    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('LioraRead');
-    for (const name of ['coder', 'explore', 'plan']) {
-      for (const tool of ['LioraRead', 'LioraTree', 'LioraExpand']) {
-        expect(DEFAULT_AGENT_PROFILES[name]?.tools).toContain(tool);
+  it('exposes RepoQuery as the default compact exploration surface on coding profiles', () => {
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('RepoQuery');
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('ApplyPatch');
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('DeepResearch');
+    for (const name of ['coder', 'plan']) {
+      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
+      expect(tools).toContain('RepoQuery');
+      expect(tools).toContain('DeepResearch');
+      expect(tools).toContain('ApplyPatch');
+      expect(tools).toEqual(expect.arrayContaining(['Grep', 'Glob']));
+      for (const legacy of LEGACY_LIORA_TOOLS) {
+        expect(tools).not.toContain(legacy);
       }
     }
-    for (const tool of ['LioraSymbol', 'LioraCallgraph']) {
-      expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain(tool);
+    const exploreTools = DEFAULT_AGENT_PROFILES['explore']?.tools ?? [];
+    expect(exploreTools).toContain('RepoQuery');
+    expect(exploreTools).toContain('DeepResearch');
+    expect(exploreTools).toEqual(expect.arrayContaining(['Grep', 'Glob']));
+    expect(exploreTools).not.toContain('ApplyPatch');
+    for (const legacy of LEGACY_LIORA_TOOLS) {
+      expect(exploreTools).not.toContain(legacy);
+    }
+    expect(DEFAULT_AGENT_PROFILES['ultra-plan']?.tools).toEqual(
+      expect.arrayContaining(['WebSearch', 'DeepResearch']),
+    );
+    const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    expect(fullTools).toEqual(
+      expect.arrayContaining(['ApplyPatch', 'RepoQuery', 'DeepResearch', 'Review']),
+    );
+    for (const legacy of LEGACY_LEAN_LIORA_TOOLS) {
+      expect(fullTools).not.toContain(legacy);
     }
   });
 
-  it('exposes LioraReview and VisualDiff on main coding profiles', () => {
-    for (const name of ['agent', 'coder', 'superliora-full']) {
-      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
-      expect(tools, name).toContain('LioraReview');
-      expect(tools, name).toContain('VisualDiff');
+  it('defines the core waist profile with exactly 12 SSOT tools', () => {
+    const coreTools = DEFAULT_AGENT_PROFILES['core']?.tools ?? [];
+    expect(coreTools).toHaveLength(12);
+    expect(coreTools).toEqual([
+      'Read',
+      'Edit',
+      'ApplyPatch',
+      'Write',
+      'Grep',
+      'Glob',
+      'Bash',
+      'RepoQuery',
+      'TodoList',
+      'AskUserQuestion',
+      'RunProjectChecks',
+      'WebSearch',
+    ]);
+    expect(coreTools).toEqual(expect.arrayContaining(['ApplyPatch', 'RepoQuery']));
+    for (const excluded of WAIST_EXCLUDED_TOOLS) {
+      expect(coreTools).not.toContain(excluded);
     }
-    // Read-only / plan profiles stay lean — no review/visual surface by default.
-    for (const name of ['explore', 'plan']) {
+  });
+
+  it('exposes Expand without compat alias bloat on main coding profiles', () => {
+    for (const name of ['agent', 'coder']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
-      expect(tools).not.toContain('LioraReview');
-      expect(tools).not.toContain('VisualDiff');
+      expect(tools, name).toContain('Expand');
+      expect(tools, name).not.toContain('LioraExpand');
     }
+    const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    expect(fullTools).toContain('Expand');
+    expect(fullTools).not.toContain('LioraExpand');
+    for (const legacy of LEGACY_LEAN_LIORA_TOOLS) {
+      expect(fullTools).not.toContain(legacy);
+    }
+    for (const alias of FULL_PROFILE_COMPAT_ALIASES) {
+      expect(fullTools).not.toContain(alias);
+    }
+  });
+
+  it('exposes Review plus VisualDiff on write profiles without compat alias bloat on full', () => {
+    for (const name of ['agent', 'coder', 'plan']) {
+      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
+      expect(tools, name).toContain('Review');
+      expect(tools, name).not.toContain('LioraReview');
+      if (name !== 'plan') {
+        expect(tools, name).toContain('VisualDiff');
+      }
+    }
+    const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    expect(fullTools).toContain('Review');
+    expect(fullTools).not.toContain('LioraReview');
+    expect(fullTools).toContain('VisualDiff');
+    for (const alias of FULL_PROFILE_COMPAT_ALIASES) {
+      expect(fullTools).not.toContain(alias);
+    }
+    // Read-only explore stays lean — no review/visual surface.
+    const exploreTools = DEFAULT_AGENT_PROFILES['explore']?.tools ?? [];
+    expect(exploreTools).not.toContain('Review');
+    expect(exploreTools).not.toContain('LioraReview');
+    expect(exploreTools).not.toContain('VisualDiff');
   });
 
   it('exposes Liora Recall only to writable coding profiles', () => {

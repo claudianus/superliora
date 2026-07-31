@@ -84,7 +84,8 @@ export async function setupSessionFromExisting(
   try {
     await session.tryAutoResumeUltrawork();
   } catch {
-    // Best-effort Ultrawork restore; ACP clients own the next prompt turn.
+    // Best-effort Mission resume (wire: tryAutoResumeUltrawork); ACP clients own the next prompt turn.
+    // User-facing Liora TUI labels: Mission/Fleet — not Ultra* (Sovereign Reform SSOT).
   }
   const resumeState = session.getResumeState?.();
   const resumedModelAlias = resumeState?.agents?.['main']?.config?.modelAlias;

@@ -9,19 +9,38 @@ export type SettingsSelection =
   | 'persona'
   | 'editor'
   | 'permission'
+  | 'providers-api'
+  | 'security'
   | 'accounts'
+  | 'keybindings'
   | 'context'
+  | 'compaction'
+  | 'mission'
+  | 'fleet'
   | 'media'
   | 'harness'
   | 'tools'
   | 'eyes'
   | 'premium'
   | 'mcp'
+  | 'extensions'
+  | 'hooks'
+  | 'skills'
+  | 'search'
+  | 'index'
+  | 'host'
+  | 'cache'
+  | 'never-halt'
+  | 'telemetry'
+  | 'bench-diagnostics'
+  | 'network'
+  | 'storage'
   | 'experiments'
   | 'upgrade'
   | 'usage';
 
-const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
+/** Exported for Settings → Harness → Settings inventory (SSOT §9 audit). */
+export const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
   {
     value: 'model',
     label: 'Model',
@@ -43,19 +62,49 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     description: 'Choose how tool actions are approved.',
   },
   {
+    value: 'providers-api',
+    label: 'Providers & API',
+    description: '/login, Accounts, API key env names — read-only tips (no key storage).',
+  },
+  {
+    value: 'security',
+    label: 'Security',
+    description: 'Sandbox, secret redaction, MCP allowlist — read-only glance + tips.',
+  },
+  {
     value: 'accounts',
     label: 'Accounts',
-    description: 'Manage OAuth account pools (promote, label, remove).',
+    description: 'Manage OAuth account pools — proactive refresh, promote, label, remove.',
+  },
+  {
+    value: 'keybindings',
+    label: 'Keyboard / Keybindings',
+    description: 'Read-only tips — keymap.ts SSOT, /help shortcut reference.',
   },
   {
     value: 'context',
     label: 'Context',
-    description: 'Set when auto-compaction reclaims context on large windows.',
+    description: 'Working-set glance + Instruction vs Learning memory tips; /context to change preset.',
+  },
+  {
+    value: 'compaction',
+    label: 'Compaction',
+    description: 'Threshold/template tips — /compact, loopControl keys, keep-tokens.',
+  },
+  {
+    value: 'mission',
+    label: 'Mission / Goals',
+    description: 'Auto-start opt-in, /mission, evidence checks, artifact paths.',
+  },
+  {
+    value: 'fleet',
+    label: 'Fleet / Parallel',
+    description: 'Max workers, /fleet, budget tip, worktree isolation.',
   },
   {
     value: 'media',
     label: 'Media fallback',
-    description: 'What happens when the current model cannot see attached images/videos.',
+    description: 'Live policy when the chat model is text-only; picker via panel tips.',
   },
   {
     value: 'harness',
@@ -65,27 +114,87 @@ const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
   {
     value: 'tools',
     label: 'Tools',
-    description: 'List active agent tools (SearchTools inventory).',
+    description: 'Active tools inventory · Core≤12 product waist; TaskGraph via agent/full · /profile core',
   },
   {
     value: 'eyes',
     label: 'Eyes readiness',
-    description: 'Browser-use / computer-use runtime status.',
+    description: 'Live browser-use / computer-use runtime status.',
   },
   {
     value: 'premium',
-    label: 'Premium Quality',
-    description: 'Toggle visual-first premium harness mode.',
+    label: 'Visual Quality',
+    description: 'Toggle Visual Quality mode (motion, density, anti-slop).',
   },
   {
     value: 'mcp',
     label: 'MCP servers',
-    description: 'Show Model Context Protocol server status.',
+    description: 'Live server count + manage (install, toggle, remove, reload).',
+  },
+  {
+    value: 'extensions',
+    label: 'Extensions',
+    description: 'Live installed counts + manage hub (plugins, skills, MCP).',
+  },
+  {
+    value: 'hooks',
+    label: 'Hooks',
+    description: 'Pre/Post/Stop tips — user hooks via config.toml + plugin hooks.',
+  },
+  {
+    value: 'skills',
+    label: 'Skills',
+    description: 'Catalog sources, SearchSkill workflow, risk filter tips.',
+  },
+  {
+    value: 'search',
+    label: 'Search',
+    description: 'Deep research channels, API keys, free fallback status.',
+  },
+  {
+    value: 'index',
+    label: 'Index',
+    description: 'Read-only RepoQuery, symbol codemap sqlite, and FTS status.',
+  },
+  {
+    value: 'host',
+    label: 'Host',
+    description: 'Read-only in-process vs server URL — future transport switch (W8).',
+  },
+  {
+    value: 'cache',
+    label: 'Cache',
+    description: 'Prompt-cache hit rate, tool-block stability, Cache Sacred tips.',
+  },
+  {
+    value: 'never-halt',
+    label: 'Never-Halt',
+    description: 'Resilience: search fallback, OAuth refresh, permission queue, circuit breaker.',
+  },
+  {
+    value: 'telemetry',
+    label: 'Telemetry',
+    description: 'Read-only on/off posture · local-only · config.toml tips.',
+  },
+  {
+    value: 'bench-diagnostics',
+    label: 'Bench / Diagnostics',
+    description: '/bench, /ops, internal bench, branding debt tips.',
+  },
+  {
+    value: 'network',
+    label: 'Network / Proxy',
+    description: 'HTTPS_PROXY / NO_PROXY posture when env vars are set.',
+  },
+  {
+    value: 'storage',
+    label: 'Storage',
+    description: '~/.superliora home layout · session retention · log level tips.',
   },
   {
     value: 'theme',
     label: 'Theme',
-    description: 'Change the terminal UI theme.',
+    description: 'Live palette + catalog glance; picker via /theme or panel tips.',
   },
   {
     value: 'appearance',
@@ -129,14 +238,32 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'persona' ||
     value === 'editor' ||
     value === 'permission' ||
+    value === 'providers-api' ||
+    value === 'security' ||
     value === 'accounts' ||
+    value === 'keybindings' ||
     value === 'context' ||
+    value === 'compaction' ||
+    value === 'mission' ||
+    value === 'fleet' ||
     value === 'media' ||
     value === 'harness' ||
     value === 'tools' ||
     value === 'eyes' ||
     value === 'premium' ||
     value === 'mcp' ||
+    value === 'extensions' ||
+    value === 'hooks' ||
+    value === 'skills' ||
+    value === 'search' ||
+    value === 'index' ||
+    value === 'host' ||
+    value === 'cache' ||
+    value === 'never-halt' ||
+    value === 'telemetry' ||
+    value === 'bench-diagnostics' ||
+    value === 'network' ||
+    value === 'storage' ||
     value === 'experiments' ||
     value === 'upgrade' ||
     value === 'usage'
@@ -152,6 +279,7 @@ export class SettingsSelectorComponent extends ChoicePickerComponent {
   constructor(opts: SettingsSelectorOptions) {
     super({
       title: 'Settings',
+      searchable: true,
       options: [...SETTINGS_OPTIONS],
       onSelect: (value) => {
         if (isSettingsSelection(value)) opts.onSelect(value);

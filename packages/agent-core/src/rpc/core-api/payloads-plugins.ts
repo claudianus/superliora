@@ -11,6 +11,12 @@ export interface SkillSummary {
   readonly isSubSkill?: boolean | undefined;
 }
 
+/** Live HookEngine registry — config.toml [[hooks]] + enabled plugin hooks. */
+export interface HookRegistrySummary {
+  readonly totalCount: number;
+  readonly events: Readonly<Record<string, number>>;
+}
+
 export type SkillSearchResult = SkillSearchHit;
 
 export interface SearchSkillsPayload {

@@ -33,6 +33,7 @@ const DEFAULT_APPROVE_TOOLS = new Set([
   'LioraTree',
   'LioraSymbol',
   'LioraCallgraph',
+  'Expand',
   'LioraExpand',
   'Context7Resolve',
   'Context7Docs',

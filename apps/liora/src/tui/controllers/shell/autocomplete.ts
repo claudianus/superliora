@@ -17,6 +17,7 @@ import {
   type SlashAutocompleteCommand,
 } from '../../components/editor/file-mention-provider';
 import type { TUIState } from '../../tui-state';
+import { loadSkillsState } from '#/utils/skills/skills-state';
 
 /** Host surface required by slash-command autocomplete wiring. */
 export interface AutocompleteHost {
@@ -122,7 +123,9 @@ export class AutocompleteController {
       return;
     }
 
-    const skillCommands = buildSkillSlashCommands(skills);
+    const skillsState = await loadSkillsState();
+    const disabledNames = new Set(skillsState.disabled);
+    const skillCommands = buildSkillSlashCommands(skills, { disabledNames });
     // Cap the static slash menu so huge skill catalogs stay scannable; deeper
     // matches still arrive via dynamic `/skill:` search.
     const MAX_STATIC_SKILL_COMMANDS = 64;
@@ -188,7 +191,10 @@ export class AutocompleteController {
       return [];
     }
     if (signal.aborted) return [];
-    const skillCommands = buildSkillSlashCommands(skills);
+    const skillsState = await loadSkillsState();
+    const skillCommands = buildSkillSlashCommands(skills, {
+      disabledNames: new Set(skillsState.disabled),
+    });
     for (const [commandName, skillName] of skillCommands.commandMap) {
       host.skillCommandMap.set(commandName, skillName);
     }

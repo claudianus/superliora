@@ -2,7 +2,7 @@
  * Footer/status bar — multi-line status display at the bottom of the TUI.
  *
  * Layout:
- *   Line 1: [yolo] [ultrawork] [plan] <model> <cwd>  <git-badge>  <shortcut hints>
+ *   Line 1: [yolo] [mission] [plan] <model> <cwd>  <git-badge>  <shortcut hints>
  *   Line 2: context: XX.X% (tokens/max)
  */
 
@@ -17,6 +17,7 @@ import {
 } from '#/utils/git/git-status';
 
 import type { FooterTranscriptViewportSnapshot } from '#/tui/components/chrome/footer/footer-chrome';
+import { collectFooterStaleAppStatePatches } from '#/tui/components/chrome/footer/footer-badges';
 import {
   GOAL_TIMER_INTERVAL_MS,
   goalSnapshotKey,
@@ -31,6 +32,7 @@ export { buildWeightedTips } from '#/tui/components/chrome/footer/footer-tips';
 export {
   contextUsageSeverity,
   formatContextOSFooterBadge,
+  formatCacheHitFooterBadge,
   formatMediaFooterBadge,
   formatMicroCompactionFooterBadge,
   formatProviderQuotaFooterBadge,
@@ -47,6 +49,7 @@ export class FooterComponent implements Component {
   private state: AppState;
   private readonly onRefresh: () => void;
   private readonly getTranscriptViewport: (() => FooterTranscriptViewportSnapshot) | undefined;
+  private onStaleAppState: ((patch: Partial<AppState>) => void) | undefined;
   private gitCache: GitStatusCache;
   private gitCacheWorkDir: string;
   private transientHint: string | null = null;
@@ -82,6 +85,11 @@ export class FooterComponent implements Component {
   /** Optional source for mode_enter/mode_exit shimmer while a beat is live. */
   setMotionBeatSource(getActive: () => MotionBeatSnapshot | undefined): void {
     this.getActiveMotionBeat = getActive;
+  }
+
+  /** Clears expired TTL footer glance fields (search cascade, runtime degraded). */
+  setStaleAppStateHandler(handler: (patch: Partial<AppState>) => void): void {
+    this.onStaleAppState = handler;
   }
 
   setState(state: AppState): void {
@@ -121,6 +129,10 @@ export class FooterComponent implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
+    const stalePatch = collectFooterStaleAppStatePatches(this.state);
+    if (Object.keys(stalePatch).length > 0) {
+      this.onStaleAppState?.(stalePatch);
+    }
     const state = this.state;
     const appearance = state.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
     const activeBeat = this.getActiveMotionBeat?.();

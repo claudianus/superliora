@@ -8,6 +8,14 @@ import {
 } from '#/tui/utils/agent/context-working-set';
 
 import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
+import { formatCacheHitMeter } from '#/tui/utils/cache/cache-hit-meter';
+import { resolveCacheHitFromAppState } from '#/tui/utils/cache/cache-glance';
+import {
+  isRuntimeDegradedActive,
+  RUNTIME_DEGRADED_BADGE_TTL_MS,
+  staleRuntimeDegradedClearPatch,
+} from '#/tui/utils/never-halt/runtime-degraded';
+import { staleSearchCascadeClearPatch } from '#/tui/utils/search/search-cascade';
 
 export type FooterBadgeSeverity = 'muted' | 'info' | 'warning' | 'danger';
 
@@ -50,6 +58,94 @@ export function formatContextOSFooterBadge(
       text: `ctx-os:${contextOS.latestContinuityStatus}`,
       severity: 'warning',
     };
+  }
+  return null;
+}
+
+export { RUNTIME_DEGRADED_BADGE_TTL_MS };
+export const EXTENSIONS_RELOAD_BADGE_TTL_MS = 45_000;
+
+export { formatSearchCascadeFooterBadge } from '#/tui/utils/search/search-cascade';
+
+/** True while extensions reload snapshot is within the footer TTL window. */
+export function isExtensionsReloadActive(
+  reload: AppState['extensionsReload'],
+  nowMs: number = Date.now(),
+): reload is NonNullable<AppState['extensionsReload']> {
+  if (reload === undefined || reload === null) return false;
+  return nowMs - reload.atMs < EXTENSIONS_RELOAD_BADGE_TTL_MS;
+}
+
+/** Patch to clear expired extensionsReload from AppState; null when no update needed. */
+export function staleExtensionsReloadClearPatch(
+  reload: AppState['extensionsReload'],
+  nowMs: number = Date.now(),
+): Pick<AppState, 'extensionsReload'> | null {
+  if (reload === undefined || reload === null) return null;
+  if (isExtensionsReloadActive(reload, nowMs)) return null;
+  return { extensionsReload: null };
+}
+
+/** Drop expired TTL footer glance fields from AppState. */
+export function collectFooterStaleAppStatePatches(
+  state: Pick<AppState, 'runtimeDegraded' | 'searchCascade' | 'extensionsReload'>,
+  nowMs: number = Date.now(),
+): Partial<AppState> {
+  const patch: Partial<AppState> = {};
+  const degraded = staleRuntimeDegradedClearPatch(state.runtimeDegraded, nowMs);
+  if (degraded !== null) Object.assign(patch, degraded);
+  const cascade = staleSearchCascadeClearPatch(state.searchCascade, nowMs);
+  if (cascade !== null) Object.assign(patch, cascade);
+  const extensionsReload = staleExtensionsReloadClearPatch(state.extensionsReload, nowMs);
+  if (extensionsReload !== null) Object.assign(patch, extensionsReload);
+  return patch;
+}
+
+/** Patch for setAppState after a successful extensions hot-reload. */
+export function extensionsReloadAppStatePatch(
+  nowMs: number = Date.now(),
+): Pick<AppState, 'extensionsReload'> {
+  return { extensionsReload: { atMs: nowMs } };
+}
+
+/** Extensions hot-reload badge (MCP/skills/import) — ~45s TTL. */
+export function formatExtensionsReloadFooterBadge(
+  reload: AppState['extensionsReload'],
+  nowMs: number = Date.now(),
+): FooterBadge | null {
+  if (!isExtensionsReloadActive(reload, nowMs)) return null;
+  return { text: 'ext↻', severity: 'info' };
+}
+
+/** Never-Halt search/runtime degraded badge (Ops glance). */
+export function formatRuntimeDegradedFooterBadge(
+  degraded: AppState['runtimeDegraded'],
+  nowMs: number = Date.now(),
+): FooterBadge | null {
+  if (!isRuntimeDegradedActive(degraded, nowMs)) return null;
+  const scope = degraded.scope.trim().length > 0 ? degraded.scope : 'runtime';
+  const severity: FooterBadgeSeverity =
+    scope === 'oauth' || scope === 'llm' ? 'danger' : 'warning';
+  return {
+    text: scope === 'search' ? 'search↓' : `${scope}↓`,
+    severity,
+  };
+}
+
+/** MCP health badge when any server failed / needs auth (Ops glance). */
+export function formatMcpHealthFooterBadge(
+  summary: AppState['mcpServersSummary'],
+): FooterBadge | null {
+  if (summary === undefined || summary === null || summary.trim().length === 0) return null;
+  const lower = summary.toLowerCase();
+  if (lower.includes('fail') || lower.includes('error')) {
+    return { text: 'mcp!', severity: 'danger' };
+  }
+  if (lower.includes('auth') || lower.includes('need')) {
+    return { text: 'mcp?', severity: 'warning' };
+  }
+  if (lower.includes('connected') || lower.includes('ok')) {
+    return { text: 'mcp', severity: 'info' };
   }
   return null;
 }
@@ -159,6 +255,15 @@ export function formatMediaFooterBadge(
   if (image && video) return { label: 'img·vid', severity: 'info' };
   if (image) return { label: 'img', severity: 'info' };
   return { label: 'vid', severity: 'info' };
+}
+
+/** Prompt-cache warm-streak badge — SSOT: AppState.cacheMeter via resolveCacheHitFromAppState. */
+export function formatCacheHitFooterBadge(
+  cacheMeter: AppState['cacheMeter'],
+): FooterBadge | null {
+  const hit = resolveCacheHitFromAppState(cacheMeter);
+  if (hit == null) return null;
+  return formatCacheHitMeter(hit.rate, hit.streak).footerBadge;
 }
 
 /** Context usage line severity aligned with soft/hard reclaim ladder. */

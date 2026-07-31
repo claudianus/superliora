@@ -9,7 +9,7 @@ import {
   restaffSlotsAvailable,
   shouldPlanRestaffWave,
 } from '../../../session/ultra-swarm-restaff';
-import { postOrchestratorStandup } from '../../../collaboration/swarm-bus-coordination';
+import { postOrchestratorStandup } from '#/fleet';
 import { globalUltraSwarmOrchestrator } from '../../../expert-agents/orchestrator';
 import type { ExpertSwarmPlan } from '../../../expert-agents/types';
 import type { SessionSubagentHost } from '../../../session/subagent/subagent-host';

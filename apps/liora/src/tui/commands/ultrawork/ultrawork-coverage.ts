@@ -18,8 +18,8 @@ const LANE_CATALOG: Readonly<Record<string, Omit<UltraworkCoverageLane, 'id'>>> 
   product_requirements: {
     label: 'Product / requirements',
     reason:
-      'The UltraGoal needs explicit scope, non-goals, acceptance criteria, and user-visible completion criteria.',
-    evidenceNeeded: ['UltraGoal seed', 'AC Tree', 'Acceptance Criteria', 'non-goals'],
+      'The Goal needs explicit scope, non-goals, acceptance criteria, and user-visible completion criteria.',
+    evidenceNeeded: ['Goal seed', 'AC Tree', 'Acceptance Criteria', 'non-goals'],
     owner: 'main integration owner',
   },
   architecture_implementation: {

@@ -19,8 +19,8 @@ export interface UpgradeCommandDeps {
 
 /**
  * `/upgrade` — resolve an update plan, show the premium dialog, and optionally
- * start an observed background install. Settings → Upgrade remains the
- * auto-install preference picker (`showUpdatePreferencePicker`).
+ * start an observed background install. Settings → Automatic updates shows
+ * live config/env glance; use the picker via tui.toml tips or re-open Settings.
  */
 export async function handleUpgradeCommand(
   host: SlashCommandHost,

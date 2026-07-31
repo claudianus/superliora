@@ -111,6 +111,54 @@ export type {
   ContextOSRetrievalDiagnostics,
 } from '@superliora/agent-core';
 
+export type { RepoIndexBackend, RepoIndexEngine, RepoIndexStatus } from '@superliora/agent-core';
+export {
+  REPO_INDEX_ENGINE_ENV,
+  REPO_INDEX_FTS_BACKEND_TIP,
+  REPO_INDEX_FUTURE_ENABLE_TIP,
+  REPO_INDEX_PREFERRED_ENGINE,
+  REPO_INDEX_PREFERRED_ENGINE_TIP,
+  REPO_INDEX_WARM_ENV,
+  REPO_INDEX_WARM_PARALLEL_TIP,
+  formatRepoIndexBackendLine,
+  formatRepoIndexEngineLine,
+  formatRepoIndexWiredLine,
+  getRepoIndexStatus,
+  isRepoIndexEngineEnvUnset,
+  isRepoIndexEngineWired,
+  isRepoIndexWarmEnabled,
+  maybeWarmCodemapAtSessionStart,
+  parseRepoIndexEngineEnv,
+  repoIndexPreferredEngineTipLine,
+  repoIndexWarmEnableReason,
+  repoIndexWarmStatusLine,
+} from '@superliora/agent-core';
+
+export {
+  REDTEAM_SOFT_SUITE_REL_PATH,
+  REDTEAM_SOFT_SUITE_TIP,
+  formatRedteamSoftSuitePresentLine,
+  isRedteamSoftSuitePresent,
+  redactSecretsStatusLine,
+  VERIFICATION_SENSOR_GOAL_DONE_TIP,
+  VERIFICATION_SENSOR_GOAL_DONE_TIP_KO,
+  createVerificationSensorLedger,
+  formatGoalSoftAdvisoryOpsLine,
+  goalSoftAdvisoryFromLedger,
+  observeVerificationToolResult,
+} from '@superliora/agent-core';
+export type { VerificationSensorLedger } from '@superliora/agent-core';
+
+export type { CodemapStatus, CodemapWarmth } from '@superliora/agent-core';
+export {
+  CODEMAP_SYMBOL_VIA_REPOQUERY_TIP,
+  formatCodemapDbLine,
+  formatCodemapStatusLine,
+  getCodemapStatus,
+  isCodemapGitWorkspace,
+  resolveCodemapDbPath,
+} from '@superliora/agent-core';
+
 export {
   humanizeCollaborationEvent,
   looksLikeProtocolMessage,
@@ -246,6 +294,84 @@ export type {
 
 export * from '#/session/events';
 export type * from '#/session/types';
+
+export {
+  formatSearchNeverEmptyTelemetryLine,
+  getSearchNeverEmptyTelemetry,
+  recordSearchNeverEmptyHardFail,
+  recordSearchNeverEmptySoftDegrade,
+  resetSearchNeverEmptyTelemetry,
+  type SearchNeverEmptyTelemetry,
+} from '@superliora/agent-core/tools/providers/search-never-empty-telemetry';
+
+export {
+  simulateNeverHaltChaosSequence,
+  simulateNeverHaltDegradedChaos,
+  simulateNeverHaltOAuthChaosSequence,
+  type NeverHaltChaosSequencePhase,
+  type NeverHaltChaosSequenceResult,
+  type NeverHaltChaosTickResult,
+  type NeverHaltOAuthChaosSequencePhase,
+  type NeverHaltOAuthChaosSequenceResult,
+} from '@superliora/agent-core/runtime/never-halt-chaos';
+
+export {
+  MissionRunStateMachine,
+  buildMissionRecoveryPrompt,
+  maybeAdvanceMissionStage,
+  maybeFinishMissionRun,
+  MISSION_STAGE_ORDER,
+  dualEmitMissionUltraworkAlias,
+  isMissionDualEmitEnabled,
+  maybeEmitMissionUltraworkAliasLive,
+  missionDualEmitStatusLine,
+  MISSION_DUAL_EMIT_ENV,
+} from '#/mission';
+export type { CreateMissionStateMachineInput } from '#/mission';
+
+export {
+  FLEET_DUAL_EMIT_ENV,
+  FLEET_EVENT_PREFIX,
+  FLEET_WORKTREE_ENV,
+  FLEET_WORKTREE_FALLBACK_TIP,
+  applyFleetWorktreeToSpawnTasks,
+  dualEmitFleetUltraworkAlias,
+  fleetDualEmitStatusLine,
+  fleetUltraworkEventAlias,
+  isFleetDualEmitEnabled,
+  isFleetUltraworkEventType,
+  isFleetWorktreeEnvEnabled,
+  isUltraworkOrFleetEventType,
+  maybeEmitFleetUltraworkAliasLive,
+  normalizeFleetUltraworkEventAlias,
+  normalizeMissionOrFleetUltraworkEventAlias,
+  resolveFleetWorkerWorktreeDir,
+  ultraworkFleetEventAlias,
+  SWARM_MAKER_CHECKER_AGENT_SWARM_TIP,
+  SWARM_MAKER_CHECKER_SOFT_TIP,
+  classifyExpertRoleString,
+  classifySwarmLaneRole,
+  classifySwarmPhaseRole,
+  detectAgentSwarmItemRoleCollision,
+  detectMakerCheckerCollisions,
+  detectMakerCheckerCollisionsFromAssignments,
+  detectMakerCheckerCollisionsFromSwarmOutput,
+  detectMakerCheckerCollisionsFromUltraSwarmResults,
+  formatMakerCheckerSoftWarn,
+  makerCheckerSoftWarnFromAgentSwarmItems,
+  makerCheckerSoftWarnFromSwarmOutput,
+  makerCheckerSoftWarnFromUltraSwarmResults,
+  FLEET_BUDGET_USD_ENV,
+  SWARM_COST_GUARD_SOFT_TIP,
+  evaluateFleetCostGuardSoft,
+  estimateSessionCostUsd,
+  fleetCostGuardSoftTipFromAgent,
+  fleetCostGuardSoftTipFromSwarmOutput,
+  fleetCostGuardSoftTipFromUsage,
+  formatFleetCostGuardSoftTip,
+  loadFleetBudgetGlance,
+} from '#/fleet';
+export type { FleetUltraworkEventSuffix, MakerCheckerCollision, SwarmMakerCheckerRole, SwarmRoleAssignment } from '#/fleet';
 
 // Browser-use runtime for in-app browser
 export {

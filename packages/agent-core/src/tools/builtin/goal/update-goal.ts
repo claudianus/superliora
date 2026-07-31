@@ -18,6 +18,10 @@ import {
   GOAL_COMPLETION_REMINDER_NAME,
 } from '../../../agent/turn/reminder-names';
 import {
+  evaluateGoalCompletionSoftAdvisory,
+  formatGoalCompletionSoftAdvisory,
+} from '../../../agent/goal/goal-completion-soft-advisory';
+import {
   buildGoalBlockedReasonPrompt,
   buildGoalCompletionSummaryPrompt,
 } from './outcome-prompts';
@@ -67,7 +71,18 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
               kind: 'system_trigger',
               name: GOAL_COMPLETION_REMINDER_NAME,
             });
-            return { output: 'Goal marked complete.', stopTurn: true };
+            const advisory = evaluateGoalCompletionSoftAdvisory({
+              ultraworkRun: this.agent.ultrawork?.getRun() ?? null,
+              completionCriterion: completed.completionCriterion,
+              recentVerificationFailures: this.agent.verificationSensorLedger.failures,
+            });
+            const output =
+              advisory === null
+                ? 'Goal marked complete.'
+                : ['Goal marked complete.', '', formatGoalCompletionSoftAdvisory(advisory)].join(
+                    '\n',
+                  );
+            return { output, stopTurn: true };
           }
           // Ultrawork completion audit rejected a false complete — keep the
           // loop running (do not stopTurn) so the model continues work.

@@ -86,10 +86,12 @@ export async function handleMainCommand(
       : undefined;
 
   if (validated.uiMode === 'print') {
+    applyCliProfileOverride(validated.options.profile);
     await runPrompt(validated.options, version);
     return { headlessCompleted: true };
   }
 
+  applyCliProfileOverride(validated.options.profile);
   await runShell(validated.options, version, updateNotice);
   return { headlessCompleted: false };
 }
@@ -201,6 +203,12 @@ export function main(): void {
 }
 
 main();
+
+function applyCliProfileOverride(profile: string | undefined): void {
+  const trimmed = profile?.trim();
+  if (trimmed === undefined || trimmed.length === 0) return;
+  process.env['SUPERLIORA_PROFILE'] = trimmed;
+}
 
 async function logStartupFailure(operation: string, error: unknown): Promise<void> {
   log.error('startup failed', { operation, error });

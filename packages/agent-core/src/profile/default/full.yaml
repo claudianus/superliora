@@ -10,13 +10,10 @@ tools:
   - Read
   - Write
   - Edit
+  - ApplyPatch
   - Grep
   - Glob
-  - LioraRead
-  - LioraTree
-  - LioraSymbol
-  - LioraCallgraph
-  - LioraExpand
+  - RepoQuery
   - Bash
   - RunProjectChecks
   - TaskList
@@ -29,20 +26,22 @@ tools:
   - GenerateImage
   - GenerateVideo
   - TodoList
-  - UltraworkGraph
+  - TaskGraph
   - Memory
   - Skill
   - SearchSkill
   - SearchTools
   - SearchExpert
   - WebSearch
+  - DeepResearch
   - BrowserStatus
   - BrowserObserve
   - BrowserScreenshot
   - BrowserAct
   - BrowserConsole
   - VerifySurface
-  - LioraReview
+  - Review
+  - Expand
   - VisualDiff
   - ComputerCapture
   - ComputerAct

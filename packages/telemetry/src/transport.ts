@@ -61,6 +61,10 @@ export class AsyncTransport {
     this.now = options.now ?? Date.now;
   }
 
+  getEndpoint(): string {
+    return this.endpoint;
+  }
+
   async send(events: readonly EnrichedTelemetryEvent[], signal?: AbortSignal): Promise<void> {
     if (events.length === 0) return;
     let savedToDisk = false;

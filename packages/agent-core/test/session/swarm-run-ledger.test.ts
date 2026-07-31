@@ -12,7 +12,7 @@ import {
   swarmRunLedgerRelativePath,
   type SwarmRunLedgerExpert,
   type SwarmRunLedgerResultLike,
-} from '../../src/collaboration/swarm-run-ledger';
+} from '#/fleet';
 
 function makeResult(over: Partial<SwarmRunLedgerResultLike> & { expertId: string }): SwarmRunLedgerResultLike {
   return {

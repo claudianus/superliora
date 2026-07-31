@@ -58,7 +58,7 @@ export function nextPreflightAction(
   if (!freshness.ready) {
     return 'Run the Refresh commands below, recapture runtime evidence, then rerun /preflight.';
   }
-  return 'Ready: run the next bounded Ultrawork loop from this preflight.';
+  return 'Ready: run the next bounded Mission loop from this preflight.';
 }
 
 function preflightRecallMemoryCommand(query: string): string {

@@ -149,7 +149,7 @@ describe('resolveSlashCommandInput', () => {
     });
     expect(resolve('/ultrawork Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'mission',
       args: 'Ship feature X',
     });
     expect(resolve('/ultraplan Ship feature X')).toMatchObject({
@@ -169,7 +169,7 @@ describe('resolveSlashCommandInput', () => {
     });
     expect(resolve('/uw Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultrawork',
+      name: 'mission',
       args: 'Ship feature X',
     });
     expect(resolve('/ug Ship feature X')).toMatchObject({
@@ -179,12 +179,12 @@ describe('resolveSlashCommandInput', () => {
     });
     expect(resolve('/ultraswarm Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultraswarm',
+      name: 'fleet',
       args: 'Ship feature X',
     });
     expect(resolve('/us Ship feature X')).toMatchObject({
       kind: 'builtin',
-      name: 'ultraswarm',
+      name: 'fleet',
       args: 'Ship feature X',
     });
   });
@@ -230,12 +230,18 @@ describe('resolveSlashCommandInput', () => {
       commandName: 'experiments',
       reason: 'streaming',
     });
-    expect(resolve('/swarm on', { isStreaming: true })).toEqual({
-      kind: 'blocked',
-      commandName: 'swarm',
-      reason: 'streaming',
+    // War Room toggles stay available while streaming; free-form tasks stay idle-only.
+    expect(resolve('/swarm on', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'swarm',
+      args: 'on',
     });
-    expect(resolve('/swarm off', { isStreaming: true })).toEqual({
+    expect(resolve('/swarm off', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'swarm',
+      args: 'off',
+    });
+    expect(resolve('/swarm Ship feature X', { isStreaming: true })).toEqual({
       kind: 'blocked',
       commandName: 'swarm',
       reason: 'streaming',
@@ -243,6 +249,11 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/ultrawork Ship feature X', { isStreaming: true })).toEqual({
       kind: 'blocked',
       commandName: 'ultrawork',
+      reason: 'streaming',
+    });
+    expect(resolve('/mission Ship feature X', { isStreaming: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'mission',
       reason: 'streaming',
     });
     expect(resolve('/ultraplan Ship feature X', { isStreaming: true })).toEqual({
@@ -259,6 +270,11 @@ describe('resolveSlashCommandInput', () => {
       kind: 'blocked',
       commandName: 'ultraswarm',
       reason: 'streaming',
+    });
+    expect(resolve('/fleet on', { isStreaming: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'fleet',
+      args: 'on',
     });
   });
 
@@ -288,12 +304,18 @@ describe('resolveSlashCommandInput', () => {
       commandName: 'experiments',
       reason: 'compacting',
     });
-    expect(resolve('/swarm on', { isCompacting: true })).toEqual({
-      kind: 'blocked',
-      commandName: 'swarm',
-      reason: 'compacting',
+    // War Room toggles stay available (availability: always); free-form tasks stay idle-only.
+    expect(resolve('/swarm on', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'swarm',
+      args: 'on',
     });
-    expect(resolve('/swarm off', { isCompacting: true })).toEqual({
+    expect(resolve('/swarm off', { isCompacting: true })).toMatchObject({
+      kind: 'builtin',
+      name: 'swarm',
+      args: 'off',
+    });
+    expect(resolve('/swarm Ship feature X', { isCompacting: true })).toEqual({
       kind: 'blocked',
       commandName: 'swarm',
       reason: 'compacting',
@@ -301,6 +323,11 @@ describe('resolveSlashCommandInput', () => {
     expect(resolve('/ultrawork Ship feature X', { isCompacting: true })).toEqual({
       kind: 'blocked',
       commandName: 'ultrawork',
+      reason: 'compacting',
+    });
+    expect(resolve('/mission Ship feature X', { isCompacting: true })).toEqual({
+      kind: 'blocked',
+      commandName: 'mission',
       reason: 'compacting',
     });
     expect(resolve('/up Ship feature X', { isCompacting: true })).toEqual({

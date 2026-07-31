@@ -10,8 +10,13 @@ import { join } from 'pathe';
 
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { LocalWebSearchProvider } from '#/tools/providers/local-web-search';
+import { resolveSearxngUrl } from '#/tools/providers/research-meta-status';
 import { MoonshotFetchURLProvider } from '#/tools/providers/moonshot-fetch-url';
-import { ResearchSearchEngine } from '#/tools/providers/research-search';
+import {
+  ResearchSearchEngine,
+  createBrowserSearchChannel,
+  createChromeExtensionSearchChannel,
+} from '#/tools/providers/research-search';
 import {
   PreferXaiGrokWebSearchProvider,
   XaiGrokBuildClient,
@@ -19,6 +24,7 @@ import {
   createXaiGrokBuildClientFromEnv,
 } from '#/tools/providers/xai-grok-build';
 import type { LioraConfig, MoonshotServiceConfig } from '../config';
+import type { CircuitBreakerRegistry } from '../runtime/circuit-breaker';
 import type { BearerTokenProvider, OAuthTokenProviderResolver } from '../session/provider/provider-manager';
 import type { ToolServices } from '../tools/support/services';
 import {
@@ -39,6 +45,8 @@ export async function createRuntimeConfig(input: {
   readonly homeDir?: string | undefined;
   readonly kimiRequestHeaders?: Record<string, string> | undefined;
   readonly resolveOAuthTokenProvider?: OAuthTokenProviderResolver | undefined;
+  readonly circuitBreakers?: CircuitBreakerRegistry | undefined;
+  readonly onCircuitBreakerChanged?: (() => void) | undefined;
 }): Promise<ToolServices> {
   const localFetcher = new LocalFetchURLProvider();
   const localSearch = input.config.research?.localSearch;
@@ -46,7 +54,7 @@ export async function createRuntimeConfig(input: {
     urlFetcher: localFetcher,
     concurrency: localSearch?.concurrency,
     timeoutMs: localSearch?.timeoutMs,
-    searxngUrl: localSearch?.searxngUrl,
+    searxngUrl: resolveSearxngUrl(process.env, localSearch?.searxngUrl),
     yacyUrl: localSearch?.yacyUrl,
     directSources: localSearch?.directSources,
     offlineMode: localSearch?.offlineMode,
@@ -63,6 +71,27 @@ export async function createRuntimeConfig(input: {
     searchService === undefined
       ? undefined
       : serviceCredentials(searchService, input.resolveOAuthTokenProvider);
+  const browserUseEnabled = input.config.browserUse?.enabled !== false;
+  const browserUse =
+    input.config.browserUse?.enabled === false
+      ? undefined
+      : createBrowserUseRuntime({
+          provider: input.config.browserUse?.provider,
+          fallbackProvider: input.config.browserUse?.fallbackProvider,
+          fallbackEnabled: input.config.browserUse?.fallbackEnabled,
+          autoInstall: input.config.browserUse?.autoInstall,
+          autoUpdate: input.config.browserUse?.autoUpdate,
+          cacheDir: input.config.browserUse?.cacheDir,
+          binaryPath: input.config.browserUse?.binaryPath,
+          version: input.config.browserUse?.version,
+          licenseKeyEnv: input.config.browserUse?.licenseKeyEnv,
+          host: input.config.browserUse?.host,
+          port: input.config.browserUse?.port,
+          obeyRobots: input.config.browserUse?.obeyRobots,
+          disableHostVerification: input.config.browserUse?.disableHostVerification,
+        });
+  const browserChannel = await createBrowserSearchChannel(browserUse, browserUseEnabled);
+  const chromeExtensionChannel = createChromeExtensionSearchChannel();
   const researchSearcher =
     localSearch?.enabled === false
       ? undefined
@@ -70,6 +99,10 @@ export async function createRuntimeConfig(input: {
           search: input.config.research?.search,
           local: localOptions,
           urlFetcher: localFetcher,
+          browserChannel,
+          chromeExtensionChannel,
+          circuitBreakers: input.circuitBreakers,
+          onCircuitBreakerChanged: input.onCircuitBreakerChanged,
           moonshot:
             searchService?.baseUrl === undefined
               ? undefined
@@ -108,24 +141,7 @@ export async function createRuntimeConfig(input: {
           }),
     webSearcher,
     xaiGrokBuild,
-    browserUse:
-      input.config.browserUse?.enabled === false
-        ? undefined
-        : createBrowserUseRuntime({
-            provider: input.config.browserUse?.provider,
-            fallbackProvider: input.config.browserUse?.fallbackProvider,
-            fallbackEnabled: input.config.browserUse?.fallbackEnabled,
-            autoInstall: input.config.browserUse?.autoInstall,
-            autoUpdate: input.config.browserUse?.autoUpdate,
-            cacheDir: input.config.browserUse?.cacheDir,
-            binaryPath: input.config.browserUse?.binaryPath,
-            version: input.config.browserUse?.version,
-            licenseKeyEnv: input.config.browserUse?.licenseKeyEnv,
-            host: input.config.browserUse?.host,
-            port: input.config.browserUse?.port,
-            obeyRobots: input.config.browserUse?.obeyRobots,
-            disableHostVerification: input.config.browserUse?.disableHostVerification,
-          }),
+    browserUse,
     computerUse:
       input.config.computerUse?.enabled === false
         ? undefined

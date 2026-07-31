@@ -22,6 +22,8 @@ import {
   parseUltraSwarmIntegrationReport,
   type UltraSwarmIntegrationReport,
 } from '#/tui/features/agent-swarm/agent-swarm-result-parser';
+import { resolveFleetCostGuardSoftWarn } from '#/tui/utils/fleet/fleet-cost-guard-glance';
+import { resolveMakerCheckerSoftWarn } from '#/tui/utils/fleet/fleet-maker-checker-glance';
 
 export interface AgentSwarmProgressMemberRuntime {
   members: AgentSwarmMember[];
@@ -30,6 +32,7 @@ export interface AgentSwarmProgressMemberRuntime {
   aborted: boolean;
   swarmStartedAtMs: number | undefined;
   integrationReport: UltraSwarmIntegrationReport | undefined;
+  makerCheckerSoftWarn: string | undefined;
 }
 
 /**
@@ -41,6 +44,7 @@ export class AgentSwarmProgressMemberEvents {
     private readonly runtime: AgentSwarmProgressMemberRuntime,
     private readonly progressEstimator: AgentSwarmProgressEstimator,
     private readonly getColors: () => ColorPalette,
+    private readonly onGovernanceSoftWarn?: (warn: string | undefined) => void,
   ) {}
 
   get members(): AgentSwarmMember[] {
@@ -237,6 +241,19 @@ export class AgentSwarmProgressMemberEvents {
     if (integrationReport !== undefined) {
       this.runtime.integrationReport = integrationReport;
     }
+    const makerCheckerWarn = resolveMakerCheckerSoftWarn({
+      output,
+      members: this.runtime.members,
+      integrationReport: this.runtime.integrationReport,
+    });
+    this.runtime.makerCheckerSoftWarn = combineGovernanceSoftWarns(
+      makerCheckerWarn,
+      resolveFleetCostGuardSoftWarn({
+        output,
+        workerCount: this.runtime.members.length,
+      }),
+    );
+    this.onGovernanceSoftWarn?.(makerCheckerWarn);
     return true;
   }
 
@@ -289,4 +306,9 @@ export class AgentSwarmProgressMemberEvents {
       this.progressEstimator.markCancelled(member.id, nowMs);
     });
   }
+}
+
+function combineGovernanceSoftWarns(...lines: (string | undefined)[]): string | undefined {
+  const parts = lines.filter((line): line is string => line !== undefined && line.trim().length > 0);
+  return parts.length > 0 ? parts.join('\n') : undefined;
 }

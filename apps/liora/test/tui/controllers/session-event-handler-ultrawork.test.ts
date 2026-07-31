@@ -106,6 +106,30 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(host.setAppState).toHaveBeenCalledWith({ planMode: false });
   });
 
+  it('accepts mission.stage.changed alias and routes to Ultrawork theatre', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent({
+      type: 'mission.stage.changed',
+      agentId: 'main',
+      sessionId: 's1',
+      from: 'intake',
+      to: 'plan',
+      run: {
+        id: 'uw_mission_alias',
+        objective: 'Mission alias smoke',
+        status: 'running',
+        stage: 'plan',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        updatedAt: '2026-07-01T00:00:01.000Z',
+      },
+    } as Event, vi.fn());
+
+    expect(host.state.transcriptContainer.addChild).toHaveBeenCalledTimes(1);
+    expect(renderedTheatre(host)).toContain('plan');
+  });
+
   it('renders one live theatre panel and updates it across research, team, verify, and learn', () => {
     const host = makeHost();
     const handler = new SessionEventHandler(host);
@@ -128,7 +152,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     } satisfies Event, vi.fn());
 
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledTimes(1);
-    expect(renderedTheatre(host)).toContain('Ultrawork');
+    expect(renderedTheatre(host)).toContain('Mission');
     expect(renderedTheatre(host)).toContain('research');
 
     handler.handleEvent({
@@ -205,7 +229,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     } satisfies Event, vi.fn());
 
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledTimes(1);
-    expect(renderedTheatre(host)).toContain('Ultrawork');
+    expect(renderedTheatre(host)).toContain('Mission');
     expect(renderedTheatre(host)).toContain('Ship current-library feature');
     expect(renderedTheatre(host)).toContain('LocalResearchStack');
     expect(renderedTheatre(host)).toContain('1 expert');
@@ -252,14 +276,14 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(host.session.setPremiumQuality).toHaveBeenCalledWith(false);
     expect(host.state.swarmModeEntry).toBeUndefined();
     expect(host.showNotice).toHaveBeenCalledWith(
-      'Ultrawork completed',
+      'Mission completed',
       expect.stringContaining('Ship feature X'),
       expect.objectContaining({ coalesceKey: 'ultrawork-completed:uw_done' }),
     );
     const markerText = host.state.transcriptContainer.addChild.mock.calls
       .map((call: unknown[]) => stripAnsi((call[0] as TestComponent | undefined)?.render(100).join('\n') ?? ''))
       .join('\n');
-    expect(markerText).toContain('Ultrawork completed');
+    expect(markerText).toContain('Mission completed');
   });
 
   it('restores prior state when a cancelled run emits the terminal failed stage event', () => {
@@ -302,7 +326,7 @@ describe('SessionEventHandler Ultrawork theatre events', () => {
     expect(host.session.setSwarmMode).toHaveBeenCalledWith(false, 'task');
     expect(host.session.setPremiumQuality).toHaveBeenCalledWith(false);
     expect(host.showNotice).toHaveBeenCalledWith(
-      'Ultrawork ended',
+      'Mission ended',
       expect.stringContaining('Cancelled by user'),
       expect.objectContaining({ coalesceKey: 'ultrawork-completed:uw_cancel' }),
     );

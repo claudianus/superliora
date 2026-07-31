@@ -23,7 +23,7 @@ describe('preflight slash command status surface', () => {
         providerBlock: 'not blocked',
         redaction: 'PASS',
         noSecret: true,
-        nextAction: 'Run the next bounded Ultrawork loop.',
+        nextAction: 'Run the next bounded Mission loop.',
         warnings: [],
       },
       memory: {
@@ -119,7 +119,7 @@ describe('preflight slash command status surface', () => {
     expect(text).toContain('Computer-use age  fresh; 0m');
     expect(text).toContain('Boundary  no secret-looking strings displayed');
     expect(text).toContain('No-web  browser UI excluded');
-    expect(text).toContain('Next  Ready: run the next bounded Ultrawork loop from this preflight.');
+    expect(text).toContain('Next  Ready: run the next bounded Mission loop from this preflight.');
     expect(text).toContain('Loop cue  run_next_loop; refresh_due unknown');
     expect(text).toContain('Loop command  node scripts/liora-agent-bench.mjs --loop --max-iterations 2');
     expect(text).toContain('Loop evidence  .superliora/evidence/liora-agent-bench');
@@ -323,7 +323,7 @@ describe('preflight slash command status surface', () => {
         providerBlock: 'not blocked',
         redaction: 'PASS',
         noSecret: true,
-        nextAction: 'Run the next bounded Ultrawork loop.',
+        nextAction: 'Run the next bounded Mission loop.',
         warnings: [],
       },
       memory: {
@@ -381,7 +381,7 @@ describe('preflight slash command status surface', () => {
         providerBlock: 'not blocked',
         redaction: 'PASS',
         noSecret: true,
-        nextAction: 'Run the next bounded Ultrawork loop.',
+        nextAction: 'Run the next bounded Mission loop.',
         warnings: [],
       },
       memory: {
@@ -445,7 +445,7 @@ describe('preflight slash command status surface', () => {
         providerBlock: 'not blocked',
         redaction: 'PASS',
         noSecret: true,
-        nextAction: 'Run the next bounded Ultrawork loop.',
+        nextAction: 'Run the next bounded Mission loop.',
         warnings: [],
       },
       memory: {
@@ -511,7 +511,7 @@ describe('preflight slash command status surface', () => {
         providerBlock: 'not blocked',
         redaction: 'PASS',
         noSecret: true,
-        nextAction: 'Run the next bounded Ultrawork loop.',
+        nextAction: 'Run the next bounded Mission loop.',
         warnings: [],
       },
       memory: {
@@ -622,7 +622,7 @@ describe('preflight slash command status surface', () => {
         providerBlock: 'not blocked',
         redaction: 'PASS',
         noSecret: true,
-        nextAction: 'Run the next bounded Ultrawork loop.',
+        nextAction: 'Run the next bounded Mission loop.',
         warnings: [],
       },
       memory: {
@@ -760,7 +760,7 @@ describe('preflight slash command status surface', () => {
       expect(text).toContain('Ready gates  9/9; blocked none');
       expect(text).toContain('Human writing  ready; anti-slop advisory-only');
       expect(text).toContain('Human writing source  apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts; .superliora/bench/sota-criteria.json');
-      expect(text).toContain('Next  Ready: run the next bounded Ultrawork loop from this preflight.');
+      expect(text).toContain('Next  Ready: run the next bounded Mission loop from this preflight.');
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
@@ -955,7 +955,7 @@ describe('preflight slash command status surface', () => {
           providerBlock: 'not blocked',
           redaction: 'PASS',
           noSecret: true,
-          nextAction: 'Run the next bounded Ultrawork loop.',
+          nextAction: 'Run the next bounded Mission loop.',
           warnings: [],
         },
         memory: {
@@ -1077,7 +1077,7 @@ function readyPreflightInput(
       providerBlock: 'not blocked',
       redaction: 'PASS',
       noSecret: true,
-      nextAction: 'Run the next bounded Ultrawork loop.',
+      nextAction: 'Run the next bounded Mission loop.',
       warnings: [],
     },
     memory: {

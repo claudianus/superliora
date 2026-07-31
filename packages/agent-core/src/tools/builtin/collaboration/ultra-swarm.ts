@@ -10,26 +10,26 @@ import {
   createUltraSwarmRunContext,
 } from '../../../agent/ultra-swarm-run';
 import {
-  emitCouncilDecisionFromReview,
-  type SwarmStandupTimerHandle,
-} from '../../../collaboration/swarm-bus-coordination';
-import {
   buildSwarmRunLedgerFromResults,
-  writeSwarmRunLedgerArtifact,
-} from '../../../collaboration/swarm-run-ledger';
-import {
+  emitCouncilDecisionFromReview,
+  fleetCostGuardSoftTipFromAgent,
   getDefaultSwarmFileLeaseRegistry,
-} from '../../../collaboration/swarm-file-lease';
-import {
+  makerCheckerSoftWarnFromUltraSwarmResults,
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
-} from '../../../collaboration/swarm-dag-scheduler';
+  type SwarmStandupTimerHandle,
+  writeSwarmRunLedgerArtifact,
+} from '#/fleet';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import ULTRA_SWARM_DESCRIPTION from './ultra-swarm.md?raw';
+import ULTRA_SWARM_BODY from './ultra-swarm.md?raw';
+
+const ULTRA_SWARM_DESCRIPTION =
+  `Legacy/advanced swarm orchestration. Prefer AgentSwarm for new work, or /fleet in the TUI. ${ULTRA_SWARM_BODY}`;
 import { toInputJsonSchema } from '../../support/input-schema';
 import { recordOutcomesFromSwarmResults } from '../../../expert-agents/staffing-outcome';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
+import { resolveArchiveRecoverToolName } from '../../../agent/compaction/micro/micro-helpers';
 import { SWARM_HANDOFF_COMPACTION_RATIO } from '../../../agent/compaction/strategy';
 import {
   MAX_ULTRA_SWARM_SUBAGENTS,
@@ -368,8 +368,19 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     const steerSuffix = pausedForSteer
       ? '\n\n<user_steering_applied>UltraSwarm paused after user steering. Incorporate the steering note in the phase handoff and continue from the remaining work.</user_steering_applied>'
       : '';
-    const rawResult = renderUltraSwarmResults(rendered, plan, runId) + steerSuffix;
-    const compacted = compactSwarmToolResult(this.store, rawResult, { runId });
+    const makerCheckerTip = makerCheckerSoftWarnFromUltraSwarmResults(rendered);
+    const costGuardTip = fleetCostGuardSoftTipFromAgent(this.agent, rendered.length);
+    const governanceSuffix = [makerCheckerTip, costGuardTip]
+      .filter((line) => line !== undefined)
+      .join('\n\n');
+    const rawResult =
+      renderUltraSwarmResults(rendered, plan, runId) +
+      steerSuffix +
+      (governanceSuffix.length > 0 ? `\n\n${governanceSuffix}` : '');
+    const recoverToolName = resolveArchiveRecoverToolName(
+      this.agent.tools.loopTools.map((tool) => tool.name),
+    );
+    const compacted = compactSwarmToolResult(this.store, rawResult, { runId, recoverToolName });
     if (compacted.archiveIds.length > 0) {
       this.agent.telemetry.track('boundary_compaction_applied', {
         archive_count: compacted.archiveIds.length,

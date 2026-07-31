@@ -203,7 +203,7 @@ describe('TodoListReminderInjector', () => {
     const todos: TodoItem[] = [{ title: 'Read code', status: 'in_progress' }];
     const history = [
       todoListWrite(todos),
-      assistantWithToolCalls(['Read', 'Grep', 'Glob', 'LioraRead', 'WebSearch']),
+      assistantWithToolCalls(['Read', 'Grep', 'Glob', 'RepoQuery', 'WebSearch']),
     ];
     const agent = todoAgent({ history, todos, todoListActive: true });
     const injector = new TodoListReminderInjector(agent);

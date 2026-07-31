@@ -3,7 +3,7 @@ import {
   auditUltraworkCompletion,
   formatCompletionAuditRejection,
   type CompletionAuditRejection,
-} from '../../ultrawork/completion-audit';
+} from '#/mission';
 import { GOAL_COMPLETE_REJECT_COOLDOWN_TURNS } from './goal-constants';
 import type { GoalModeHost } from './goal-mode-host';
 import { parseGoalPredicateCriterion } from './predicate';

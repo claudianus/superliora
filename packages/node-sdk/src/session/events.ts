@@ -10,6 +10,22 @@ import type {
 // Event union plus shared fields/payloads used across event families.
 export type { LioraErrorPayload, Event } from '@superliora/agent-core';
 
+export {
+  isMissionUltraworkEventType,
+  isUltraworkOrMissionEventType,
+  missionUltraworkEventAlias,
+  normalizeMissionUltraworkEventAlias,
+} from '@superliora/agent-core/mission';
+
+export {
+  isFleetUltraworkEventType,
+  isUltraworkOrFleetEventType,
+  fleetUltraworkEventAlias,
+  normalizeFleetUltraworkEventAlias,
+  normalizeMissionOrFleetUltraworkEventAlias,
+  ultraworkFleetEventAlias,
+} from '@superliora/agent-core/fleet';
+
 export { MCP_OAUTH_AUTHORIZATION_URL_TOOL_UPDATE } from '@superliora/agent-core';
 
 // Session lifecycle/status events and their status payload.
@@ -117,6 +133,8 @@ export type {
 } from '@superliora/agent-core';
 
 export type { CronFiredEvent } from '@superliora/agent-core';
+
+export type { RuntimeDegradedEvent, RuntimeDegradedScope } from '@superliora/agent-core';
 
 // Ultrawork lifecycle events for theatre-style orchestration UIs.
 export type {

@@ -90,6 +90,7 @@ export type {
   ShellEnvironment,
   SkillSearchResult,
   SkillSummary,
+  HookRegistrySummary,
   SuggestPromptsResult,
   TeamPlan,
   ThinkingConfig,
@@ -318,6 +319,33 @@ export interface SessionStatus {
   readonly contextUsage: number;
   /** Prompt-cache hit rate (0..1) from session usage accounting, when recorded. */
   readonly cacheHitRate?: number;
+  /** Consecutive warm turns (turn-level hit rate ≥99% with enough input tokens). */
+  readonly cacheWarmStreak?: number;
+  /** CacheFreezeGuard mid-turn freeze when wired by agent-core. */
+  readonly cacheFrozen?: boolean;
+  /** Same-turn independent tool_calls currently executing (ToolScheduler). */
+  readonly parallelToolsInFlight?: number;
+  /** Peak concurrent tool_calls this turn (ToolScheduler). */
+  readonly maxParallelTools?: number;
+  /** Permission interventions queued while waiting on host approval. */
+  readonly pendingInterventions?: number;
+  /** Queue entries older than 120s (visibility only; no auto-deny). */
+  readonly staleInterventions?: number;
+  /** Age in ms of the longest-waiting queued intervention (Ops/Never-Halt glance). */
+  readonly oldestInterventionAgeMs?: number;
+  /** Never-Halt circuit breaker registry snapshot when wired by agent-core. */
+  readonly circuitBreakers?: {
+    readonly closed: number;
+    readonly open: number;
+    readonly halfOpen: number;
+    readonly lastTripReason?: string;
+    readonly scopes?: ReadonlyArray<{
+      readonly id: string;
+      readonly state: string;
+      readonly failures: number;
+      readonly lastTripReason?: string;
+    }>;
+  };
   /** Loop-control role → model alias assignments; unset entries mean auto-inferred. */
   readonly roleModels?: {
     readonly compaction?: string;
@@ -353,6 +381,11 @@ export interface SessionStatus {
     readonly lastMerged: number | null;
     readonly minHours: number;
     readonly minActiveRecords: number;
+  };
+  /** OAuth account pool + proactive refresh schedule when wired by agent-core. */
+  readonly oauth?: {
+    readonly poolSize?: number;
+    readonly nextRefreshAtMs?: number;
   };
 }
 

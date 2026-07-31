@@ -364,6 +364,7 @@ export class SubAgentEventHandler {
       info !== undefined &&
       this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
     ) {
+      this.host.setAppState({ fleetFlourish: { atMs: Date.now() } });
       handleForegroundSubagentCompleted(this.host, this.swarm, event, info);
       return;
     }
