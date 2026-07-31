@@ -4,6 +4,14 @@
 
 import { formatRedteamSoftSuitePresentLine } from '@superliora/sdk';
 
+/** Compact /bench tip — Settings → Bench / Diagnostics picker + status panel. */
+export const BENCH_SLASH_TIP =
+  '/bench — latest evidence score, pass rate, holdout, replay hints · default evidence/superliora-provider-bench/final-quality-gate · pass a path to override.';
+
+/** Compact /ops tip — Settings → Bench / Diagnostics picker + status panel. */
+export const OPS_SLASH_TIP =
+  '/ops — Ops Theatre 4-pane grid: Mission/Fleet · git diff · channel health · intervention tray · Enter focuses approval · Esc dismisses.';
+
 export function buildBenchDiagnosticsSettingsLines(): readonly string[] {
   return [
     '── Bench / Diagnostics (read-only) ───────────',
@@ -22,7 +30,7 @@ export function buildBenchDiagnosticsSettingsLines(): readonly string[] {
     '── W6 redteam (live) ────────────────────────',
     `· ${formatRedteamSoftSuitePresentLine()}`,
     '',
-    '── Branding debt ────────────────────────────',
+    '── Branding debt (glance-only) ──────────────',
     '· Public copy prefers Bench; /bench panel uses Bench (SSOT)',
     '· Sovereign Reform: keep Mission/Fleet wording; drop Ultra* on user surfaces',
     '· Tool-name branding debt gate: pnpm run check:branding (3 compat aliases)',
