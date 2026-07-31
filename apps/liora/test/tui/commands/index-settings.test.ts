@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showIndexSettings } from '#/tui/commands/config/index/index-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
@@ -22,11 +23,26 @@ const codemapCold = {
   note: 'Symbol index via RepoQuery mode=symbol (builds on first use in git repos).',
 };
 
+const rebuildWarm = {
+  ok: true,
+  ms: 1200,
+  warmth: 'warm' as const,
+  codemapFiles: 42,
+  codemapSymbols: 128,
+  contentFiles: 87,
+  contentLines: 900,
+  contentMs: 400,
+  contentSkipped: false,
+  contentSkipReason: null,
+  note: null,
+};
+
 vi.mock('@superliora/sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@superliora/sdk')>();
   return {
     ...actual,
     getCodemapStatus: vi.fn(() => codemapWarm),
+    rebuildRepoIndex: vi.fn(() => rebuildWarm),
   };
 });
 
@@ -42,19 +58,34 @@ function makeIndexHost(options: { repoQueryActive?: boolean; workDir?: string } 
       transcriptContainer,
       appState: { workDir: options.workDir ?? '/workspace/demo' },
       renderer: { invalidateFrame: vi.fn() },
+      centerModalStack: [] as readonly unknown[],
     },
     requireSession: vi.fn(() => ({ getTools, workDir: options.workDir ?? '/workspace/demo' })),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
+}
+
+function selectIndexAction(host: SlashCommandHost, value: 'status' | 'rebuild'): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
 }
 
 describe('index settings', () => {
   it('mounts read-only index panel with real codemap status when warm', async () => {
     const host = makeIndexHost({ repoQueryActive: true });
     showIndexSettings(host);
+    selectIndexAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('RepoQuery: registered');
     expect(lines).toContain('Symbol codemap: warm · 42 files · 128 symbols');
@@ -68,16 +99,20 @@ describe('index settings', () => {
     expect(lines).toContain('Codemap warm: ON');
     expect(lines).toContain('default ON');
     expect(lines).toContain('fire-and-forget ensureReady');
-    expect(lines).toContain('No rebuild action here until RepoIndex engine lands.');
+    expect(lines).toContain('── Rebuild ──');
+    expect(lines).toContain('Rebuild now');
+    expect(lines).not.toContain('No rebuild action here until RepoIndex engine lands.');
   });
 
   it('reports RepoQuery missing when not active in session', async () => {
     const host = makeIndexHost({ repoQueryActive: false });
     showIndexSettings(host);
+    selectIndexAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('RepoQuery: not active');
   });
 
@@ -87,12 +122,34 @@ describe('index settings', () => {
 
     const host = makeIndexHost({ repoQueryActive: true });
     showIndexSettings(host);
+    selectIndexAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Symbol codemap: cold');
     expect(text).toContain('Symbol index via RepoQuery mode=symbol');
+  });
+
+  it('runs rebuild and surfaces result line with files/ms/warmth', async () => {
+    const sdk = await import('@superliora/sdk');
+    const host = makeIndexHost({ repoQueryActive: true, workDir: '/workspace/demo' });
+    showIndexSettings(host);
+    selectIndexAction(host, 'rebuild');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+
+    expect(vi.mocked(sdk.rebuildRepoIndex)).toHaveBeenCalledWith('/workspace/demo');
+    expect(host.showStatus).toHaveBeenCalledWith('Repo index rebuild finished.', 'success');
+
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
+    expect(text).toContain('Last rebuild: warm · 42 files · 128 symbols');
+    expect(text).toContain('FTS 87 files');
+    expect(text).toContain('1200ms');
   });
 });

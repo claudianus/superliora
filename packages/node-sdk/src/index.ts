@@ -134,6 +134,12 @@ export {
   repoIndexWarmStatusLine,
 } from '@superliora/agent-core';
 
+export type { RepoIndexRebuildResult, RebuildRepoIndexOptions } from '@superliora/agent-core';
+export {
+  formatRepoIndexRebuildResultLine,
+  rebuildRepoIndex,
+} from '@superliora/agent-core';
+
 export {
   REDTEAM_SOFT_SUITE_REL_PATH,
   REDTEAM_SOFT_SUITE_TIP,

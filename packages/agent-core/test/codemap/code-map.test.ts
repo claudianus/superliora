@@ -106,6 +106,25 @@ describe('CodeMap', () => {
     expect(codemap.outlineFile(join(dir, 'nope.ts'))).toEqual([]);
     codemap.close();
   });
+
+  it('rebuild clears persisted rows and re-indexes symbols', () => {
+    writeFileSync(join(dir, 'a.ts'), 'export function alpha() {}\n');
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    spawnSync('git', ['add', 'a.ts'], { cwd: dir });
+
+    const codemap = new CodeMap(dir, ':memory:');
+    expect(codemap.ensureReady()).toBe(true);
+    expect(codemap.findSymbol('alpha', 10)).toHaveLength(1);
+
+    writeFileSync(join(dir, 'a.ts'), 'export function beta() {}\n');
+    spawnSync('git', ['add', 'a.ts'], { cwd: dir });
+
+    const rebuilt = codemap.rebuild();
+    expect(rebuilt.ok).toBe(true);
+    expect(codemap.findSymbol('alpha', 10)).toEqual([]);
+    expect(codemap.findSymbol('beta', 10)).toHaveLength(1);
+    codemap.close();
+  });
 });
 
 describe('CodeMap persistent db', () => {
