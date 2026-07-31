@@ -18,6 +18,7 @@ export type SettingsSelection =
   | 'compaction'
   | 'mission'
   | 'fleet'
+  | 'ops'
   | 'media'
   | 'harness'
   | 'tools'
@@ -101,6 +102,11 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
     value: 'fleet',
     label: 'Fleet / Parallel',
     description: 'Max workers, /fleet, budget tip, worktree isolation.',
+  },
+  {
+    value: 'ops',
+    label: 'Ops Theatre',
+    description: '/ops 4-pane theatre — git diff, intervention tray, Visual Quality link.',
   },
   {
     value: 'media',
@@ -260,6 +266,7 @@ function isSettingsSelection(value: string): value is SettingsSelection {
     value === 'compaction' ||
     value === 'mission' ||
     value === 'fleet' ||
+    value === 'ops' ||
     value === 'media' ||
     value === 'harness' ||
     value === 'tools' ||

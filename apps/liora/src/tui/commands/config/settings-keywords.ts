@@ -15,6 +15,7 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   compaction: ['compact', 'threshold', 'keep-tokens', 'template'],
   mission: ['goals', 'ultrawork', 'evidence', 'artifact', 'objective'],
   fleet: ['parallel', 'workers', 'swarm', 'budget', 'worktree'],
+  ops: ['ops-theatre', 'theatre', 'git-diff', 'intervention', 'tray', 'dopamine'],
   media: ['text-only', 'vision', 'image', 'fallback'],
   harness: ['hands', 'control-plane'],
   tools: ['inventory', 'profile', 'core', 'waist', 'toolset'],

@@ -28,6 +28,7 @@ const SSOT_REQUIRED = [
   { node: 'Cache', value: 'cache', panel: 'cache-settings.ts' },
   { node: 'Index', value: 'index', panel: 'index-settings.ts' },
   { node: 'Fleet / Parallel', value: 'fleet', panel: 'fleet-settings.ts' },
+  { node: 'Ops Theatre', value: 'ops', panel: 'ops-theatre-settings.ts' },
   { node: 'Mission / Goals', value: 'mission', panel: 'mission-settings.ts' },
   { node: 'Never-Halt', value: 'never-halt', panel: 'never-halt-settings.ts' },
   { node: 'Search', value: 'search', panel: 'search-settings.ts' },
