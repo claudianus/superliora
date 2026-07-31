@@ -4,6 +4,18 @@
 
 import type { McpServerInfo, PluginSummary, SkillSummary } from '@superliora/sdk';
 
+/** Compact audit tip — tabbed modal and focused glances. */
+export const EXTENSIONS_AUDIT_TIP =
+  'Audit extensions: /extensions tabbed modal (plugins · hooks · skills · MCP) · Settings → Hooks / Skills / MCP for focused glances · footer ext↻ badge after install/toggle/import (~45s).';
+
+/** Compact manage tip — install/toggle paths without opening the hub. */
+export const EXTENSIONS_MANAGE_TIP =
+  'Manage extensions: /plugins /skills /mcp · Plugins (install/enable/marketplace) · Skills (slash enable/disable · Claude import) · MCP (mcp.json install/toggle/reload) · Import from Claude (~/.claude skills + MCP + plugins).';
+
+/** Compact hot-reload tip — session reload and recovery. */
+export const EXTENSIONS_HOT_RELOAD_TIP =
+  'Hot-reload: install/toggle/import reloads session when possible; otherwise Never-Halt + ext↻ · stuck? Manage → MCP → Reload session or /reload.';
+
 import { formatMcpLiveSessionLine } from '../mcp/mcp-glance';
 import { summarizeSkillsCatalog } from '../skills/skills-glance';
 

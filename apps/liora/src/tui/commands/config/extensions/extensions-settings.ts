@@ -6,6 +6,9 @@ import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import {
   buildExtensionsSettingsLines,
+  EXTENSIONS_AUDIT_TIP,
+  EXTENSIONS_HOT_RELOAD_TIP,
+  EXTENSIONS_MANAGE_TIP,
   type ExtensionsSessionLiveGlance,
 } from '../../../utils/agent/extensions-glance';
 import { formatErrorMessage } from '../../../utils/event-payload';
@@ -15,6 +18,8 @@ import { loadSkillsState } from '#/utils/skills/skills-state';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { showExtensionsHub } from './extensions-hub';
+
+export { EXTENSIONS_AUDIT_TIP, EXTENSIONS_HOT_RELOAD_TIP, EXTENSIONS_MANAGE_TIP };
 
 async function loadExtensionsSessionLiveGlance(
   host: SlashCommandHost,
@@ -52,13 +57,29 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
       options: [
         {
           value: 'status',
-          label: 'Live status',
-          description: 'Installed plugins, skills, MCP counts from this session.',
+          label: 'Extensions status',
+          description:
+            'Live plugins, skills, MCP, and hook counts from this session.',
         },
         {
           value: 'manage',
           label: 'Manage extensions',
           description: 'Plugins, skills, MCP, Claude import, core waist.',
+        },
+        {
+          value: 'tip-audit',
+          label: 'Audit surfaces tip',
+          description: '/extensions modal · Settings glances · footer ext↻ badge.',
+        },
+        {
+          value: 'tip-manage',
+          label: 'Manage paths tip',
+          description: '/plugins /skills /mcp · marketplace · Claude import.',
+        },
+        {
+          value: 'tip-hot-reload',
+          label: 'Hot-reload tip',
+          description: 'Session reload after install/toggle · Never-Halt + ext↻ recovery.',
         },
       ],
       onSelect: (value) => {
@@ -67,9 +88,25 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
           void showExtensionsStatusPanel(host);
           return;
         }
-        showExtensionsHub(host);
+        if (value === 'manage') {
+          showExtensionsHub(host);
+          return;
+        }
+        if (value === 'tip-audit') {
+          host.showStatus(EXTENSIONS_AUDIT_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-manage') {
+          host.showStatus(EXTENSIONS_MANAGE_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-hot-reload') {
+          host.showStatus(EXTENSIONS_HOT_RELOAD_TIP, 'info');
+        }
       },
-      onCancel: () =>{  dismissPickerDialog(host); },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
     }),
     { label: 'Extensions' },
   );
@@ -84,7 +121,9 @@ async function showExtensionsStatusPanel(host: SlashCommandHost): Promise<void> 
     borderToken: 'primary',
     title: ' Extensions ',
     enterBeatSeed: 'extensions-settings',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
