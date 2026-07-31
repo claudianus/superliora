@@ -128,7 +128,6 @@ export function rebuildToolCallComponentSubagentBlock(host: ToolCallInternalsHos
 }
 
 export function rebuildToolCallCallPreviewBlock(host: ToolCallInternalsHost): void {
-  const previewHost = host.callPreview as unknown as ToolCallCallPreviewHost;
-  host.callPreview.rebuildBlock(previewHost, host.children);
+  host.callPreview.rebuildBlock(host.callPreviewHost, host.children);
 }
 
