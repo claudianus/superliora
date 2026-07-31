@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showSkillsSettings } from '#/tui/commands/config/skills/skills-settings';
+import {
+  SKILLS_MANAGE_TIP,
+  SKILLS_RISK_FILTER_TIP,
+  SKILLS_SEARCH_SKILL_TIP,
+  SKILLS_TRACE_SKILL_TIP,
+  showSkillsSettings,
+} from '#/tui/commands/config/skills/skills-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
@@ -24,6 +31,7 @@ function makeSkillsHost(options: { searchSkillActive?: boolean; hasSession?: boo
     harness: { homeDir: '/home/.superliora' },
     state: {
       transcriptContainer,
+      centerModalStack: [] as readonly unknown[],
       appState: {},
       renderer: { invalidateFrame: vi.fn() },
     },
@@ -33,17 +41,65 @@ function makeSkillsHost(options: { searchSkillActive?: boolean; hasSession?: boo
             throw new Error('no session');
           })
         : vi.fn(() => ({ listSkills, getTools })),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
-describe('skills settings', () => {
+function selectSkillsAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
+describe('skills settings tips', () => {
+  it('exports SearchSkill, risk filter, Trace→Skill, and manage tips', () => {
+    expect(SKILLS_SEARCH_SKILL_TIP).toContain('SearchSkill');
+    expect(SKILLS_RISK_FILTER_TIP).toContain('metadata.risk=high');
+    expect(SKILLS_TRACE_SKILL_TIP).toContain('Trace→Skill');
+    expect(SKILLS_MANAGE_TIP).toContain('Extensions → Skills');
+  });
+});
+
+describe('showSkillsSettings', () => {
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeSkillsHost();
+    showSkillsSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-search-skill',
+      'tip-risk-filter',
+      'tip-trace-skill',
+      'tip-manage',
+    ]);
+  });
+
+  it('shows SearchSkill tip via showStatus', () => {
+    const host = makeSkillsHost();
+    showSkillsSettings(host);
+    selectSkillsAction(host, 'tip-search-skill');
+    expect(host.showStatus).toHaveBeenCalledWith(SKILLS_SEARCH_SKILL_TIP, 'info');
+  });
+
   it('mounts read-only skills panel with live catalog and SearchSkill tips', async () => {
     const host = makeSkillsHost({ searchSkillActive: true });
     showSkillsSettings(host);
+    selectSkillsAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Skills (read-only)');
     expect(lines).toContain('Installed skills: 3 in catalog · 2 slash-enabled · 1 disabled');
@@ -56,10 +112,12 @@ describe('skills settings', () => {
   it('works without session', async () => {
     const host = makeSkillsHost({ hasSession: false });
     showSkillsSettings(host);
+    selectSkillsAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('open a session to count catalog');
   });
 });

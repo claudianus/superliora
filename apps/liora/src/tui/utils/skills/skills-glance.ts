@@ -4,6 +4,22 @@
 
 import type { SkillSummary } from '@superliora/sdk';
 
+/** Compact SearchSkill tip — catalog discovery workflow. */
+export const SKILLS_SEARCH_SKILL_TIP =
+  'SearchSkill — model discovers skills via SearchSkill → Skill (not full catalog dump) · use 3–12 concise English task keywords · retry with broader terms if weak · locale-specific skills are discovered, not hardcoded in Settings.';
+
+/** Compact risk filter tip — metadata exclusions from SearchSkill. */
+export const SKILLS_RISK_FILTER_TIP =
+  'Risk filter — metadata.risk=high skills are excluded from SearchSkill results · inline/prompt skills only; reference/expert types use different paths · disableModelInvocation=true skills never appear in model search.';
+
+/** Compact Trace→Skill tip — session-end draft suggestions. */
+export const SKILLS_TRACE_SKILL_TIP =
+  'Trace→Skill — session end may suggest skill drafts (manual merge only; no auto pipeline) · drafts stay out of SearchSkill until you edit + move to ~/.superliora/skills · no skill PR bot yet — copy/paste stubs or Extensions → Skills install.';
+
+/** Compact manage tip — enable/disable, import, hot-reload. */
+export const SKILLS_MANAGE_TIP =
+  'Manage skills: Extensions → Skills — enable/disable slash activation · import Claude Code ~/.claude/skills → ~/.superliora/skills · plugin skills via Extensions → Plugins · hot-reload on install/toggle (~45s ext↻ badge) · /skills lists slash-discoverable skills · stuck? /reload or Extensions → MCP → Reload session.';
+
 export interface SkillsCatalogGlance {
   readonly installedCount: number;
   readonly enabledCount: number;
