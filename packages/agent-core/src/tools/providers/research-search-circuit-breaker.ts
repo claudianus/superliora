@@ -13,6 +13,7 @@ export function searchChannelScopeId(channel: SearchCircuitChannel): string {
     case 'serper':
       return 'search:google';
     case 'duckduckgo':
+    case 'duckduckgo_ia':
     case 'searxng':
       return 'search:free';
     case 'browser':

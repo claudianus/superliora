@@ -9,7 +9,8 @@
  *   5. Cache-friendly local stack remains available for zero-config.
  *
  * Composes paid/free backends (Brave, Tavily, Exa, Serper, Google CSE, Bing,
- * SearXNG, DuckDuckGo/local) with rate-limit cooldowns and free fallback.
+ * SearXNG, DuckDuckGo Instant Answer, DuckDuckGo/local) with rate-limit cooldowns
+ * and free fallback.
  *
  * Official endpoints (verified against public docs 2026-07):
  *   - Brave:      GET  https://api.search.brave.com/res/v1/web/search       (X-Subscription-Token)
@@ -18,6 +19,7 @@
  *   - Serper:     POST https://google.serper.dev/search                    (X-API-KEY)
  *   - Google CSE: GET  https://www.googleapis.com/customsearch/v1          (key + cx query params)
  *   - Bing:       GET  https://api.bing.microsoft.com/v7.0/search           (Ocp-Apim-Subscription-Key)
+ *   - DDG IA:     GET  https://api.duckduckgo.com/?format=json              (no key; polite UA)
  */
 
 import type { ResearchSearchRoutingStrategy } from '#/config/schema';
@@ -35,6 +37,7 @@ import {
   type SearchProviderBatch,
 } from './research-search-fusion';
 import {
+  isFreeCascadeSlot,
   orderByCost,
   rankAndDedupe,
   runWithConcurrency,
@@ -257,7 +260,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
 
     const ready = this.slots.filter((slot) => slot.cooldownUntil <= now);
     if (ready.length === 0) {
-      const free = this.slots.filter((slot) => slot.kind === 'duckduckgo' || slot.source === 'local');
+      const free = orderByCost(this.slots.filter(isFreeCascadeSlot));
       if (free.length === 0) {
         return this.maybeBrowserEscalate(trimmed, limit);
       }
@@ -357,9 +360,9 @@ export class ResearchSearchEngine implements WebSearchProvider {
     limit: number,
   ): Promise<WebSearchResult[]> {
     const remote = orderByCost(
-      slots.filter((slot) => slot.kind !== 'duckduckgo' && slot.source !== 'local'),
+      slots.filter((slot) => !isFreeCascadeSlot(slot)),
     );
-    const free = slots.filter((slot) => slot.kind === 'duckduckgo' || slot.source === 'local');
+    const free = orderByCost(slots.filter(isFreeCascadeSlot));
     const targetCount = Math.min(limit, this.minResultsToStop);
     const batches: SearchProviderBatch[] = [];
     const initialCount = Math.min(remote.length, this.maxProviderCalls, 2);
@@ -418,9 +421,9 @@ export class ResearchSearchEngine implements WebSearchProvider {
   ): Promise<WebSearchResult[]> {
     // Parallel is opt-in and still budgeted: only the cheapest N paid slots.
     const paid = orderByCost(
-      slots.filter((s) => s.kind !== 'duckduckgo' && s.source !== 'local'),
+      slots.filter((s) => !isFreeCascadeSlot(s)),
     ).slice(0, this.maxProviderCalls);
-    const free = slots.filter((s) => s.kind === 'duckduckgo' || s.source === 'local');
+    const free = orderByCost(slots.filter(isFreeCascadeSlot));
     const primary = paid.length > 0 ? paid : free;
     const secondary = paid.length > 0 && this.freeFallback ? free : [];
 
@@ -439,12 +442,12 @@ export class ResearchSearchEngine implements WebSearchProvider {
     limit: number,
   ): Promise<WebSearchResult[]> {
     const ordered = [
-      ...orderByCost(slots.filter((s) => s.kind !== 'duckduckgo' && s.source !== 'local')),
-      ...slots.filter((s) => s.kind === 'duckduckgo' || s.source === 'local'),
+      ...orderByCost(slots.filter((s) => !isFreeCascadeSlot(s))),
+      ...orderByCost(slots.filter(isFreeCascadeSlot)),
     ];
     let paidCalls = 0;
     for (const slot of ordered) {
-      const isPaid = slot.kind !== 'duckduckgo' && slot.source !== 'local';
+      const isPaid = !isFreeCascadeSlot(slot);
       if (isPaid) {
         if (paidCalls >= this.maxProviderCalls) continue;
         paidCalls += 1;
@@ -465,10 +468,10 @@ export class ResearchSearchEngine implements WebSearchProvider {
     if (slot === undefined) return [];
     const results = await this.searchSlot(slot, query, options, limit);
     if (results.length > 0) return results.slice(0, limit);
-    let paidCalls = slot.kind !== 'duckduckgo' && slot.source !== 'local' ? 1 : 0;
+    let paidCalls = !isFreeCascadeSlot(slot) ? 1 : 0;
     for (const other of orderByCost(allReady)) {
       if (other.id === slot.id) continue;
-      const isPaid = other.kind !== 'duckduckgo' && other.source !== 'local';
+      const isPaid = !isFreeCascadeSlot(other);
       if (isPaid) {
         if (paidCalls >= this.maxProviderCalls) continue;
         paidCalls += 1;
@@ -519,7 +522,12 @@ export class ResearchSearchEngine implements WebSearchProvider {
   }
 
   private isFreeSlot(slot: ProviderSlot): boolean {
-    return slot.kind === 'duckduckgo' || slot.kind === 'searxng' || slot.source === 'local';
+    return (
+      slot.kind === 'duckduckgo' ||
+      slot.kind === 'duckduckgo_ia' ||
+      slot.kind === 'searxng' ||
+      slot.source === 'local'
+    );
   }
 
   private recordChannelSuccess(channel: Parameters<typeof searchChannelScopeId>[0]): void {

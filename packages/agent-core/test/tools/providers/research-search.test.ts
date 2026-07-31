@@ -11,6 +11,9 @@ import {
   ResearchSearchEngine,
   resolveResearchApiKey,
 } from '../../../src/tools/providers/research-search';
+import {
+  parseDuckDuckGoInstantAnswerResponse,
+} from '../../../src/tools/providers/research-search-adapters';
 import { ALLOW_DISABLE_FREE_FALLBACK_ENV } from '../../../src/tools/providers/research-search-free-fallback';
 import { inferSearchChannelsFromStatus } from '../../../src/tools/providers/research-search-health';
 
@@ -19,6 +22,13 @@ function requestUrl(input: string | URL | { readonly url: string }): string {
   if (typeof input === 'string') return input;
   if (input instanceof URL) return input.href;
   return input.url;
+}
+
+function emptyDdgInstantAnswerResponse(): Response {
+  return new Response(JSON.stringify({}), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 describe('detectSearchProviderEnvKeys', () => {
@@ -129,12 +139,16 @@ describe('ResearchSearchEngine', () => {
       '</div>',
       '</body></html>',
     ].join('');
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(html, {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.duckduckgo.com')) {
+        return emptyDdgInstantAnswerResponse();
+      }
+      return new Response(html, {
         status: 200,
         headers: { 'content-type': 'text/html' },
-      }),
-    );
+      });
+    });
 
     const engine = new ResearchSearchEngine({
       fetchImpl,
@@ -152,27 +166,29 @@ describe('ResearchSearchEngine', () => {
   });
 
   it('calls Brave when a key is configured and cools down on 429', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ web: { results: [] } }), {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.search.brave.com')) {
+        return new Response(JSON.stringify({ web: { results: [] } }), {
           status: 429,
           headers: { 'content-type': 'application/json' },
-        }),
-      )
-      .mockResolvedValue(
-        new Response(
-          [
-            '<html><body>',
-            '<div class="result">',
-            '<a class="result__a" href="https://example.com/fallback">Fallback</a>',
-            '<a class="result__snippet">Free fallback</a>',
-            '</div>',
-            '</body></html>',
-          ].join(''),
-          { status: 200, headers: { 'content-type': 'text/html' } },
-        ),
+        });
+      }
+      if (url.includes('api.duckduckgo.com')) {
+        return emptyDdgInstantAnswerResponse();
+      }
+      return new Response(
+        [
+          '<html><body>',
+          '<div class="result">',
+          '<a class="result__a" href="https://example.com/fallback">Fallback</a>',
+          '<a class="result__snippet">Free fallback</a>',
+          '</div>',
+          '</body></html>',
+        ].join(''),
+        { status: 200, headers: { 'content-type': 'text/html' } },
       );
+    });
 
     const engine = new ResearchSearchEngine({
       fetchImpl,
@@ -428,6 +444,9 @@ describe('ResearchSearchEngine', () => {
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
+      if (url.includes('api.duckduckgo.com')) {
+        return emptyDdgInstantAnswerResponse();
+      }
       if (url.includes('duckduckgo.com/html')) {
         freeCalls += 1;
         return new Response(
@@ -619,6 +638,9 @@ describe('ResearchSearchEngine', () => {
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
+      if (url.includes('api.duckduckgo.com')) {
+        return emptyDdgInstantAnswerResponse();
+      }
       if (url.includes('duckduckgo.com/html')) {
         freeCalls += 1;
         return new Response(
@@ -686,6 +708,137 @@ describe('ResearchSearchEngine', () => {
     expect(body).toMatchObject({ search_depth: 'basic', include_raw_content: false });
   });
 
+  it('parses DuckDuckGo Instant Answer JSON results', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      const url = requestUrl(input);
+      expect(url).toContain('api.duckduckgo.com');
+      expect(url).toContain('format=json');
+      expect(url).toContain('q=typescript');
+      expect(init?.headers).toMatchObject({
+        Accept: 'application/json',
+        'User-Agent': expect.stringContaining('SuperLiora'),
+      });
+      return new Response(
+        JSON.stringify({
+          Heading: 'TypeScript',
+          AbstractText: 'TypeScript is a typed superset of JavaScript.',
+          AbstractURL: 'https://example.com/typescript',
+          RelatedTopics: [
+            { Text: 'JavaScript language', FirstURL: 'https://example.com/js' },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: {
+        strategy: 'fallback',
+        freeFallback: true,
+        providers: [{ kind: 'duckduckgo_ia' }],
+      },
+    });
+
+    const results = await engine.search('typescript', { limit: 2 });
+    expect(results).toEqual([
+      expect.objectContaining({
+        title: 'TypeScript',
+        url: 'https://example.com/typescript',
+        snippet: 'TypeScript is a typed superset of JavaScript.',
+      }),
+      expect.objectContaining({
+        title: 'JavaScript language',
+        url: 'https://example.com/js',
+      }),
+    ]);
+  });
+
+  it('tries DDG IA JSON before DDG HTML when free cascade escalates', async () => {
+    const callOrder: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.duckduckgo.com')) {
+        callOrder.push('ia');
+        return emptyDdgInstantAnswerResponse();
+      }
+      if (url.includes('duckduckgo.com/html')) {
+        callOrder.push('html');
+        return new Response(
+          [
+            '<html><body>',
+            '<div class="result">',
+            '<a class="result__a" href="https://example.com/html-hit">HTML Hit</a>',
+            '<a class="result__snippet">from html scraper</a>',
+            '</div>',
+            '</body></html>',
+          ].join(''),
+          { status: 200, headers: { 'content-type': 'text/html' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: { strategy: 'auto', freeFallback: true, minResultsToStop: 1 },
+      local: {
+        searchUrl: 'https://duckduckgo.com/html/',
+        directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+      },
+    });
+
+    const results = await engine.search('empty ia query', { limit: 1 });
+    expect(callOrder.indexOf('ia')).toBeGreaterThanOrEqual(0);
+    expect(callOrder.indexOf('html')).toBeGreaterThan(callOrder.indexOf('ia'));
+    expect(results[0]?.url).toContain('example.com/html-hit');
+    expect(engine.status().providers.some((p) => p.kind === 'duckduckgo_ia')).toBe(true);
+  });
+
+});
+
+describe('parseDuckDuckGoInstantAnswerResponse', () => {
+  it('maps abstract, related topics, nested topics, and results', () => {
+    const results = parseDuckDuckGoInstantAnswerResponse(
+      {
+        Heading: 'Example Topic',
+        AbstractText: 'Main abstract text.',
+        AbstractURL: 'https://example.com/topic',
+        RelatedTopics: [
+          { Text: 'Flat related', FirstURL: 'https://example.com/related' },
+          {
+            Name: 'Nested group',
+            Topics: [{ Text: 'Nested related', FirstURL: 'https://example.com/nested' }],
+          },
+        ],
+        Results: [{ Text: 'Direct result', FirstURL: 'https://example.com/result' }],
+      },
+      5,
+    );
+
+    expect(results.map((r) => r.url)).toEqual([
+      'https://example.com/topic',
+      'https://example.com/related',
+      'https://example.com/nested',
+      'https://example.com/result',
+    ]);
+    expect(results[0]).toMatchObject({
+      title: 'Example Topic',
+      snippet: 'Main abstract text.',
+    });
+  });
+
+  it('skips entries without usable URLs', () => {
+    const results = parseDuckDuckGoInstantAnswerResponse(
+      {
+        AbstractText: 'No link',
+        AbstractURL: '',
+        RelatedTopics: [{ Text: 'Bad', FirstURL: 'not-a-url' }],
+      },
+      3,
+    );
+    expect(results).toEqual([]);
+  });
 });
 
 describe('assessSearchChannelHealth', () => {

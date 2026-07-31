@@ -11,13 +11,18 @@ export interface SearchChannelHealth {
 function isPaidProvider(provider: ResearchSearchProviderStatus): boolean {
   return (
     provider.kind !== 'duckduckgo' &&
+    provider.kind !== 'duckduckgo_ia' &&
     provider.kind !== 'searxng' &&
     provider.source !== 'local'
   );
 }
 
 function isFreeProvider(provider: ResearchSearchProviderStatus): boolean {
-  return provider.kind === 'duckduckgo' || provider.source === 'local';
+  return (
+    provider.kind === 'duckduckgo' ||
+    provider.kind === 'duckduckgo_ia' ||
+    provider.source === 'local'
+  );
 }
 
 function isMetaProvider(provider: ResearchSearchProviderStatus): boolean {
