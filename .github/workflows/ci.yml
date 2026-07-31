@@ -112,6 +112,8 @@ jobs:
         run: pnpm -C packages/agent-core run cache:warm-kpi
       - name: Search never-empty KPI (free-only mock)
         run: pnpm -C packages/agent-core run search:never-empty-kpi
+      - name: DeepResearch never-empty KPI (empty-cascade mock)
+        run: pnpm -C packages/agent-core run deep-research:never-empty-kpi
 
   typecheck:
     runs-on: ubuntu-latest
