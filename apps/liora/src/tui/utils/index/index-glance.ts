@@ -9,8 +9,10 @@ import {
   formatCodemapStatusLine,
   formatRepoIndexBackendLine,
   formatRepoIndexEngineLine,
+  formatRepoIndexRebuildResultLine,
   formatRepoIndexWiredLine,
   getRepoIndexStatus,
+  type RepoIndexRebuildResult,
   type RepoIndexStatus,
   REPO_INDEX_WARM_PARALLEL_TIP,
   repoIndexPreferredEngineTipLine,
@@ -45,10 +47,11 @@ export interface IndexSettingsGlanceInput {
   readonly codemap: CodemapStatus;
   readonly repoIndex: RepoIndexStatus;
   readonly env?: NodeJS.ProcessEnv;
+  readonly rebuildResult?: RepoIndexRebuildResult | null;
 }
 
 export function buildIndexSettingsLines(input: IndexSettingsGlanceInput): readonly string[] {
-  const { repoQueryActive, codemap, repoIndex, env } = input;
+  const { repoQueryActive, codemap, repoIndex, env, rebuildResult } = input;
 
   return [
     '── Repo index (read-only) ────────────────────',
@@ -66,6 +69,12 @@ export function buildIndexSettingsLines(input: IndexSettingsGlanceInput): readon
     formatRepoIndexBackendLine(repoIndex),
     formatRepoIndexWiredLine(repoIndex),
     '',
+    '── Rebuild ──────────────────────────────────',
+    'Settings → Index → Rebuild now clears symbol + sqlite FTS and rebuilds.',
+    ...(rebuildResult !== undefined && rebuildResult !== null
+      ? [formatRepoIndexRebuildResultLine(rebuildResult)]
+      : []),
+    '',
     '── Today ────────────────────────────────────',
     '· Use RepoQuery, Grep, Glob for codebase evidence',
     '· Grep remains fallback when index is cold or missing',
@@ -77,8 +86,5 @@ export function buildIndexSettingsLines(input: IndexSettingsGlanceInput): readon
     `· ${CODEMAP_SYMBOL_VIA_REPOQUERY_TIP}`,
     `· ${repoIndex.ftsBackendTip}`,
     '· Experiments may expose codegraph/index flags first',
-    '· Footer index pill + rebuild controls ship with the engine',
-    '',
-    'No rebuild action here until RepoIndex engine lands.',
   ];
 }

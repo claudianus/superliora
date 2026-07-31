@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { extractSymbols } from '#/codemap/extract';
-import { CodeIndexer } from '#/codemap/indexer';
-import type { SymbolHit } from '#/codemap/store';
+import { CodeIndexer, type IndexReport } from '#/codemap/indexer';
+import { SymbolIndexStore, type SymbolHit } from '#/codemap/store';
 import { resolveLioraHome } from '#/config/path';
 
 export interface CodeMapHit {
@@ -91,6 +91,35 @@ export class CodeMap {
     this.indexer = undefined;
     this.ready = false;
   }
+
+  /** Drop persisted rows and rebuild the symbol index from scratch. Never throws. */
+  rebuild(): { readonly ok: boolean; readonly report: IndexReport | null } {
+    this.close();
+    this.unusable = false;
+    try {
+      const store = new SymbolIndexStore(this.dbPath);
+      try {
+        store.clearAll();
+      } finally {
+        store.close();
+      }
+    } catch {
+      this.unusable = true;
+      return { ok: false, report: null };
+    }
+    try {
+      const indexer = new CodeIndexer({ root: this.root, dbPath: this.dbPath });
+      const report = indexer.update();
+      this.indexer = indexer;
+      this.ready = true;
+      return { ok: true, report };
+    } catch {
+      this.unusable = true;
+      this.indexer = undefined;
+      this.ready = false;
+      return { ok: false, report: null };
+    }
+  }
 }
 
 function toCodeMapHit(hit: SymbolHit): CodeMapHit {
@@ -117,6 +146,13 @@ export function getCodeMapForWorkspace(workspaceDir: string): CodeMap {
   const codemap = new CodeMap(workspaceDir, resolveCodemapDbPath(workspaceDir));
   workspaceMaps.set(workspaceDir, codemap);
   return codemap;
+}
+
+/** @internal Close and drop a workspace codemap singleton (Vitest isolation). */
+export function resetCodeMapForWorkspace(workspaceDir: string): void {
+  const existing = workspaceMaps.get(workspaceDir);
+  existing?.close();
+  workspaceMaps.delete(workspaceDir);
 }
 
 /** Persistent sqlite path for a workspace (creates home/codemap dir when writable). */

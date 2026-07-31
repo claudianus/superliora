@@ -421,6 +421,11 @@ export {
   repoIndexWarmEnableReason,
   repoIndexWarmStatusLine,
 } from './repo-index/warm';
+export type { RepoIndexRebuildResult, RebuildRepoIndexOptions } from './repo-index/rebuild';
+export {
+  formatRepoIndexRebuildResultLine,
+  rebuildRepoIndex,
+} from './repo-index/rebuild';
 
 export {
   REDTEAM_SOFT_SUITE_REL_PATH,

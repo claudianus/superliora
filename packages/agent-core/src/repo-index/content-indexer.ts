@@ -385,6 +385,24 @@ class WorkspaceContentIndex {
     this.indexer = undefined;
     this.ready = false;
   }
+
+  /** Clear FTS rows and rebuild from workspace files. Never throws. */
+  rebuild(): { readonly ok: boolean; readonly report: ContentIndexReport | null } {
+    this.close();
+    this.unusable = false;
+    try {
+      const indexer = new ContentIndexer({ root: this.root, dbPath: this.dbPath });
+      const report = indexer.update();
+      this.indexer = indexer;
+      this.ready = true;
+      return { ok: true, report };
+    } catch {
+      this.unusable = true;
+      this.indexer = undefined;
+      this.ready = false;
+      return { ok: false, report: null };
+    }
+  }
 }
 
 const workspaceIndexes = new Map<string, WorkspaceContentIndex>();
@@ -436,4 +454,11 @@ export function resetContentIndexForTests(): void {
     index.close();
   }
   workspaceIndexes.clear();
+}
+
+/** @internal Close and drop one workspace content index singleton. */
+export function resetContentIndexForWorkspace(workspaceDir: string): void {
+  const existing = workspaceIndexes.get(workspaceDir);
+  existing?.close();
+  workspaceIndexes.delete(workspaceDir);
 }

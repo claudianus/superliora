@@ -179,4 +179,30 @@ describe('index glance', () => {
     expect(statusIdx).toBeGreaterThan(liveIdx);
     expect(wiredInLive).toBe(true);
   });
+
+  it('buildIndexSettingsLines surfaces rebuild result when provided', () => {
+    const repoIndex = getRepoIndexStatus({});
+    const lines = buildIndexSettingsLines({
+      repoQueryActive: true,
+      codemap: codemapWarm,
+      repoIndex,
+      rebuildResult: {
+        ok: true,
+        ms: 900,
+        warmth: 'warm',
+        codemapFiles: 10,
+        codemapSymbols: 25,
+        contentFiles: 8,
+        contentLines: 100,
+        contentMs: 200,
+        contentSkipped: false,
+        contentSkipReason: null,
+        note: null,
+      },
+    });
+    const text = lines.join('\n');
+    expect(text).toContain('── Rebuild ──');
+    expect(text).toContain('Last rebuild: warm · 10 files · 25 symbols');
+    expect(text).toContain('900ms');
+  });
 });
