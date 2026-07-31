@@ -1,7 +1,8 @@
 /**
  * CommandPalette — unified fuzzy-search omnibox for power users.
  *
- * Opened from the Command Hub (Help → Command palette); Esc returns to the
+ * Legacy nested omnibox (deprecated — Hub One-search covers the same catalog).
+ * Opened only via leftover wiring; Esc returns to the
  * Hub when it is stacked below. Merges slash commands, skills, and a small
  * set of session actions into one searchable list. Reuses
  * {@link SearchableList} like the other pickers. On select, the host receives

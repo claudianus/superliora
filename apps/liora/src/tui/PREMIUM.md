@@ -291,10 +291,13 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
   (Settings → child picker). Only the top panel renders and receives keys.
   Pickers opened under an existing center modal default to `push` so Esc
   returns (breadcrumb `Hub › Model` when entries carry `label`).
-- **Command Hub.** Status strip + Space flips modes in place; Enter flips and
-  closes (return to chat). `1`–`9` hotkeys when not filtering; Esc clears
-  filter then closes. Nested pickers push; Stop interrupts; Recent pins;
-  first-run intro uses `tui.toml` `[onboarding] hub_intro_seen`.
+- **Command Hub (One-search Command Surface).** Status strip + Space flips
+  modes in place; Enter flips and closes (return to chat). `1`–`9` hotkeys
+  when not filtering; Esc clears filter then closes. Typing fuzzy-filters
+  curated rows, Settings jumps, and slash/skills (`searchOnly`) with the same
+  `fuzzyFilter` as Settings — do not add a second searchable omnibox for the
+  same catalog. Nested pickers (Settings, model, …) push; Stop interrupts;
+  Recent pins; first-run intro uses `tui.toml` `[onboarding] hub_intro_seen`.
 - **Z-order.** Center modal (~8000) sits above stage/toast chrome and below
   diagnostics HUD (~10000).
 - **Do not use center modal for:** approval/question/credential, session

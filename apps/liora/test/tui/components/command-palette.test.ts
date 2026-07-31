@@ -120,12 +120,12 @@ describe('CommandPaletteComponent', () => {
 });
 
 describe('palette hub wiring', () => {
-  it('exposes the palette as a nested Help action the host handles', () => {
+  it('exposes Search tip as a non-nested Help action (Hub One-search)', () => {
     const items = buildDefaultCommandHubItems({});
     const item = items.find((candidate) => candidate.id === 'help.palette');
     expect(item?.section).toBe('Help');
-    expect(item?.label).toBe('Command palette');
-    expect(commandHubNestsPicker('help.palette')).toBe(true);
+    expect(item?.label).toBe('Search tip');
+    expect(commandHubNestsPicker('help.palette')).toBe(false);
     expect(commandHubActionToSlash('help.palette')).toBeUndefined();
   });
 });

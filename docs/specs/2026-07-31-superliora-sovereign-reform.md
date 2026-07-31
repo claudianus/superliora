@@ -531,6 +531,7 @@ Settings에 **Security** 톱레벨 신설 (아래 §9).
 | **Mission Resume** | 아티팩트만으로 새 세션 재개 |
 | **Cost Guard** | 예산 초과 전 soft-stop + 요약 |
 | **One-search Settings** | fuzzy로 모든 설정 키 검색 |
+| **One-search Command Surface** | Command Hub 단일 검색면 — 설정 점프 + slash/skills + curated actions (`fuzzyFilter`); 병렬 omnibox/palette 카탈로그 금지 |
 | **Trace→Skill suggest** | 세션 종료 시 스킬 초안 제안 (사람 merge) |
 | **Ops Theatre `/ops`** | Fleet·Goal·git diff·헬스 한눈 + 개입 트레이 |
 | **DeepResearch** | 멀티홉 검색→크롤→인용 리포트 (채널 cascade 시각화) |

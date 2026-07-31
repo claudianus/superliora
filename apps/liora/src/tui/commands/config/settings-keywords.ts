@@ -1,6 +1,6 @@
 /**
  * Search-only aliases for One-search Settings (SSOT §9.4).
- * Matched by Settings picker, Command Hub filter, and Command Palette.
+ * Matched by Settings picker and Command Hub One-search.
  */
 export const SETTINGS_SEARCH_KEYWORDS = {
   model: ['llm', 'thinking', 'provider'],

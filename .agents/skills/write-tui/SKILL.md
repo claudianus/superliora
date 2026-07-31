@@ -42,7 +42,8 @@ The feature type decides the landing spot:
 - **Skill-derived commands** → hook into `buildSkillSlashCommands` / the skill command map; do not hard-code a single skill.
 - **Transcript message types** → define the shape in `src/tui/types.ts`, add/extend a `components/messages/` component, register the renderer in the transcript builder.
 - **Tool-result display** → extend `components/messages/tool-renderers/registry.ts` and the renderer; do not stack branches inside `ToolCallComponent`.
-- **Popup / selector** → `components/dialogs/`, mounted via `mountEditorReplacement`; follow [PREMIUM.md](../../../apps/liora/src/tui/PREMIUM.md). If triggered by an SDK callback, check whether `reverse-rpc/` needs an adapter/controller/handler.
+- **Popup / selector** → `components/dialogs/`, mounted via `mountEditorReplacement` or center modal; follow [PREMIUM.md](../../../apps/liora/src/tui/PREMIUM.md). If triggered by an SDK callback, check whether `reverse-rpc/` needs an adapter/controller/handler.
+- **Discoverable action (slash, Settings pane, mode, workspace tool)** → register in the **Command Hub** catalog so One-search finds it: curated row in `components/dialogs/command-hub/command-hub-items.ts`, Settings jump in `commands/config/settings-hub-jumps.ts` (+ keywords), slash/skills via `commands/hub/slash-hub-jumps.ts` (auto from `getSlashCommands`). Do **not** add a parallel searchable palette/omnibox catalog. Nested Settings panes stay under the Hub; `/` editor autocomplete stays.
 - **SDK event handling** → add the dispatch in `session-event-handler.ts`'s `handleEvent`, then the matching `handleXxx`.
 - **Streaming render** → `controllers/streaming-ui.ts`.
 - **Session start / resume behavior** → `controllers/session-lifecycle.ts` (attach/switch/create/close); startup wiring stays on `LioraTUI`; replay behavior → `controllers/session-replay.ts`, reusing live render paths.

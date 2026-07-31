@@ -31,7 +31,7 @@ describe('buildDefaultCommandHubItems', () => {
       true,
     );
     expect(items.some((item) => item.section === 'Start')).toBe(true);
-    expect(items.some((item) => item.id === 'help.palette' && item.section === 'Help')).toBe(
+    expect(items.some((item) => item.id === 'help.palette' && item.label === 'Search tip')).toBe(
       true,
     );
     expect(isCommandHubToggleId('modes.plan')).toBe(true);

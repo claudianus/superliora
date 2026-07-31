@@ -238,8 +238,9 @@ export function buildDefaultCommandHubItems(state: {
     {
       id: 'help.palette',
       section: 'Help',
-      label: 'Command palette',
-      description: 'Fuzzy search · run any command or skill',
+      label: 'Search tip',
+      description: 'Type here — settings, /commands, skills (one search)',
+      keywords: ['palette', 'omnibox', 'fuzzy', 'slash', 'command palette'],
     },
     {
       id: 'help.shortcuts',

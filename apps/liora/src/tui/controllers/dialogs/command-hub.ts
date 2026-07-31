@@ -31,6 +31,11 @@ import {
   type SettingsKeywordSelection,
 } from '../../commands/config/settings-keywords';
 import { buildSettingsJumpPaletteEntries } from '../../commands/config/settings-hub-jumps';
+import {
+  buildSlashJumpHubItems,
+  isSlashHubActionId,
+  slashNameFromHubId,
+} from '../../commands/hub/slash-hub-jumps';
 import { commandHubActionToSlash } from '../../utils/command/command-hub-actions';
 import { noteSuccessFeedback } from '../../utils/render/feedback-vfx';
 import { requestTUIContentRender } from '../../utils/render/frame-render';
@@ -57,10 +62,9 @@ export function showCommandPalette(delegate: CommandHubDelegate): void {
 }
 
 /**
- * Power-user omnibox: fuzzy-search every slash command, skill, and a few
- * session actions, then run the selection. Opened from the Hub
- * (Help → Command palette); Esc returns to the Hub when it is stacked
- * below. Recently run entries float to the top via Hub recency scoring.
+ * Legacy nested omnibox (deprecated). Prefer Command Hub One-search —
+ * slash/skills are already `searchOnly` Hub rows. Kept for wiring until PR2
+ * removes the nested surface.
  */
 export function showCommandPaletteOmnibox(host: DialogsHost, delegate: CommandHubDelegate): void {
   if (
@@ -204,18 +208,22 @@ function buildCommandHubItems(host: DialogsHost): CommandHubItem[] {
   const signedIn =
     host.state.appState.model.trim().length > 0 ||
     Object.keys(host.state.appState.availableProviders).length > 0;
-  return buildDefaultCommandHubItems({
-    planMode: host.state.appState.planMode,
-    swarmMode: host.state.appState.swarmMode,
-    ultraworkMode: host.state.appState.ultraworkMode,
-    premiumQualityMode: host.state.appState.premiumQualityMode,
-    permissionMode: host.state.appState.permissionMode,
-    model: host.state.appState.model,
-    thinkingLevel: host.state.appState.thinkingLevel,
-    streamingPhase: host.state.appState.streamingPhase,
-    isCompacting: host.state.appState.isCompacting,
-    signedIn,
-  });
+  const skillNames = new Set(host.skillCommands.map((command) => command.name));
+  return [
+    ...buildDefaultCommandHubItems({
+      planMode: host.state.appState.planMode,
+      swarmMode: host.state.appState.swarmMode,
+      ultraworkMode: host.state.appState.ultraworkMode,
+      premiumQualityMode: host.state.appState.premiumQualityMode,
+      permissionMode: host.state.appState.permissionMode,
+      model: host.state.appState.model,
+      thinkingLevel: host.state.appState.thinkingLevel,
+      streamingPhase: host.state.appState.streamingPhase,
+      isCompacting: host.state.appState.isCompacting,
+      signedIn,
+    }),
+    ...buildSlashJumpHubItems(host.getSlashCommands('advanced'), skillNames),
+  ];
 }
 
 /** Also called directly from `LioraTUI#setAppState` when Hub-visible state changes. */
@@ -254,6 +262,20 @@ function handleCommandHubSelect(
   mode: CommandHubSelectMode,
 ): void {
   noteHubActionUse(item.id);
+
+  // Search tip — stay in Hub; One-search already covers slash/settings/skills.
+  if (item.id === 'help.palette') {
+    noteSuccessFeedback();
+    host.state.toast.show('Type to search — settings, slash commands, skills', 2800);
+    return;
+  }
+
+  if (isSlashHubActionId(item.id)) {
+    closeAllCenterModals(host);
+    noteSuccessFeedback();
+    host.dispatchSlash(`/${slashNameFromHubId(item.id)}`);
+    return;
+  }
 
   // Permission: Space cycles in place; Enter opens the picker (nested).
   if (isCommandHubCycleId(item.id)) {
@@ -318,10 +340,6 @@ function handleCommandHubAction(
   item: CommandHubItem,
   options: { readonly nest: boolean },
 ): void {
-  if (item.id === 'help.palette') {
-    delegate.showCommandPaletteOmnibox();
-    return;
-  }
   if (item.id === 'settings.open') {
     showSettingsSelector(host);
     return;
