@@ -20,6 +20,10 @@ import {
 } from '../../providers/research-search-health';
 import { recordSearchNeverEmptySoftDegrade } from '../../providers/search-never-empty-telemetry';
 import type { WebSearchProvider, WebSearchResult } from './web-search';
+import {
+  buildClaimsFromSources,
+  formatStructuredClaimLine,
+} from './deep-research-claims';
 import DESCRIPTION from './deep-research.md?raw';
 
 // ── Input schema ─────────────────────────────────────────────────────
@@ -100,6 +104,10 @@ export function depthSearchLimit(depth: DeepResearchDepth = 'standard'): number 
   }
 }
 
+export function depthIncludesContent(depth: DeepResearchDepth = 'standard'): boolean {
+  return depth !== 'quick';
+}
+
 export function extractKeyTerms(question: string): string[] {
   const words = question
     .toLowerCase()
@@ -171,6 +179,12 @@ export function mergeResearchSources(
           existing.title = result.title;
           if (result.date !== undefined) existing.date = result.date;
         }
+        if (
+          result.content !== undefined &&
+          result.content.length > (existing.content?.length ?? 0)
+        ) {
+          existing.content = result.content;
+        }
         continue;
       }
       byUrl.set(key, {
@@ -201,8 +215,11 @@ export function buildDeepResearchOutput(options: {
   degraded: boolean;
   hops: number;
   channelsTried: readonly string[];
+  freshness?: DeepResearchFreshness;
   health?: ReturnType<typeof assessSearchChannelHealth> | undefined;
 }): string {
+  const freshness = options.freshness ?? 'any';
+  const claims = buildClaimsFromSources(options.sources, { freshness, maxClaims: 6 });
   const lines: string[] = [];
   lines.push(`question: ${options.question.trim()}`);
   lines.push('');
@@ -218,11 +235,11 @@ export function buildDeepResearchOutput(options: {
   lines.push('');
 
   lines.push('claims:');
-  if (options.sources.length === 0) {
+  if (claims.length === 0) {
     lines.push('- (none — insufficient evidence)');
   } else {
-    for (const source of options.sources.slice(0, 6)) {
-      lines.push(`- ${truncateSnippet(source.snippet, 200)} (${source.url})`);
+    for (const claim of claims) {
+      lines.push(formatStructuredClaimLine(claim));
     }
   }
   lines.push('');
@@ -237,6 +254,9 @@ export function buildDeepResearchOutput(options: {
       if (source.date) lines.push(`   date: ${source.date}`);
       lines.push(`   hits: ${String(source.hitCount)} | queries: ${source.matchedQueries.join(', ')}`);
       lines.push(`   snippet: ${truncateSnippet(source.snippet, 240)}`);
+      if (source.content !== undefined && source.content.trim().length > 0) {
+        lines.push(`   excerpt: ${truncateSnippet(source.content, 480)}`);
+      }
     }
   }
   lines.push('');
@@ -294,13 +314,18 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
       const freshness = args.freshness ?? 'any';
       const depth = args.depth ?? 'standard';
       const maxSources = args.max_sources ?? 8;
+      const includeContent = depthIncludesContent(depth);
       const queries = planDeepResearchQueries(args.question, freshness);
       const perQueryLimit = depthSearchLimit(depth);
 
       const settled = await Promise.allSettled(
         queries.map(async (query) => ({
           query,
-          results: await this.provider.search(query, { limit: perQueryLimit, toolCallId }),
+          results: await this.provider.search(query, {
+            limit: perQueryLimit,
+            includeContent,
+            toolCallId,
+          }),
         })),
       );
 
@@ -330,6 +355,7 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
           degraded,
           hops,
           channelsTried,
+          freshness,
           health,
         }),
       );

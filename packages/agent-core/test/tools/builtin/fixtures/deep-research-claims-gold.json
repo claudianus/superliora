@@ -1,0 +1,90 @@
+{
+  "freshness": "month",
+  "referenceNow": "2026-07-31T12:00:00.000Z",
+  "minCoverage": 0.95,
+  "sources": [
+    {
+      "title": "Tokio guide",
+      "url": "https://example.com/tokio",
+      "snippet": "Tokio is the async runtime for Rust.",
+      "date": "2026-07-15",
+      "hitCount": 2
+    },
+    {
+      "title": "Async book",
+      "url": "https://example.com/async-book",
+      "snippet": "Rust async/await builds on futures and executors.",
+      "date": "2026-06-01",
+      "hitCount": 1
+    },
+    {
+      "title": "Futures crate",
+      "url": "https://example.com/futures",
+      "snippet": "The futures crate provides core async primitives.",
+      "date": "2026-07-20",
+      "hitCount": 2
+    },
+    {
+      "title": "Rust blog",
+      "url": "https://example.com/rust-blog",
+      "snippet": "Rust 2024 edition stabilizes several async APIs.",
+      "date": "2026-07-10",
+      "hitCount": 1
+    },
+    {
+      "title": "Benchmarks",
+      "url": "https://example.com/bench",
+      "snippet": "Tokio and async-std show comparable throughput on IO-bound workloads.",
+      "date": "2026-05-15",
+      "hitCount": 1
+    },
+    {
+      "title": "Docs",
+      "url": "https://example.com/docs",
+      "snippet": "Spawn tasks with tokio::spawn for concurrent work.",
+      "hitCount": 1
+    },
+    {
+      "title": "Release notes",
+      "url": "https://example.com/releases",
+      "snippet": "Tokio 1.40 adds runtime metrics hooks.",
+      "date": "2026-07-28",
+      "hitCount": 3
+    },
+    {
+      "title": "Community thread",
+      "url": "https://example.com/forum",
+      "snippet": "Prefer bounded channels for backpressure in async services.",
+      "date": "2026-07-05",
+      "hitCount": 1
+    },
+    {
+      "title": "Tutorial",
+      "url": "https://example.com/tutorial",
+      "snippet": "Use select! to multiplex multiple async streams.",
+      "date": "2026-07-01",
+      "hitCount": 1
+    },
+    {
+      "title": "Patterns",
+      "url": "https://example.com/patterns",
+      "snippet": "Structured concurrency keeps task lifetimes explicit.",
+      "date": "2026-06-20",
+      "hitCount": 2
+    },
+    {
+      "title": "Stale overview",
+      "url": "https://example.com/stale",
+      "snippet": "Legacy callback-style async patterns predate async/await.",
+      "date": "2024-01-01",
+      "hitCount": 1
+    },
+    {
+      "title": "Uncited draft",
+      "url": "",
+      "snippet": "This draft claim lacks a resolvable source URL.",
+      "date": "2026-07-01",
+      "hitCount": 1
+    }
+  ]
+}
