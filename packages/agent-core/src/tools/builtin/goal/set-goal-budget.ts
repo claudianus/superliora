@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
 import type { GoalBudgetLimits } from '../../../agent/goal';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './set-goal-budget.md?raw';
@@ -40,6 +41,7 @@ export class SetGoalBudgetTool implements BuiltinTool<SetGoalBudgetToolInput> {
 
     const normalizedArgs = normalizeBudgetInput(args);
     return {
+      accesses: ToolAccesses.all(),
       description: `Setting goal budget: ${formatBudget(
         normalizedArgs.value,
         normalizedArgs.unit,

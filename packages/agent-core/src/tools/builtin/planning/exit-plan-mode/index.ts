@@ -19,6 +19,7 @@ import {
 } from '#/agent/plan/ultra-plan-mode';
 
 import type { BuiltinTool } from '../../../../agent/tool';
+import { ToolAccesses } from '../../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../../loop/types';
 import type { ToolInputDisplay } from '../../../display';
 import { toInputJsonSchema } from '../../../support/input-schema';
@@ -56,6 +57,7 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
 
   async resolveExecution(args: ExitPlanModeInput): Promise<ToolExecution> {
     return {
+      accesses: ToolAccesses.all(),
       description: 'Presenting plan and exiting plan mode',
       display: await this.resolvePlanReviewDisplay(args),
       approvalRule: this.name,

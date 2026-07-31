@@ -16,6 +16,7 @@
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
@@ -114,6 +115,7 @@ export class TodoListTool implements BuiltinTool<TodoListInput> {
           ? 'Clearing todo list'
           : 'Updating todo list';
     return {
+      accesses: validArgs.todos === undefined ? ToolAccesses.none() : ToolAccesses.all(),
       description,
       readOnly: true,
       approvalRule: this.name,

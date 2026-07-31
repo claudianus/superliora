@@ -8,6 +8,7 @@ import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 
@@ -44,6 +45,7 @@ Rhythm Guard: after 3 consecutive non-user findings, you MUST AskUserQuestion ne
 
   resolveExecution(args: RecordInterviewFindingInput): ToolExecution {
     return {
+      accesses: ToolAccesses.all(),
       description: `Recording ${args.origin} finding: ${args.question_answered.slice(0, 80)}`,
       approvalRule: this.name,
       execute: async () => this.execution(args),

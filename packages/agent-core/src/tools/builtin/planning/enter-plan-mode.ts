@@ -9,6 +9,7 @@ import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './enter-plan-mode.md?raw';
@@ -34,6 +35,7 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
 
   resolveExecution(args: EnterPlanModeInput): ToolExecution {
     return {
+      accesses: ToolAccesses.all(),
       description: args.ultra ? 'Requesting to enter Ultra Plan mode' : 'Requesting to enter plan mode',
       approvalRule: this.name,
       execute: async () => {

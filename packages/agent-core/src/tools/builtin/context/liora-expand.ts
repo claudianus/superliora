@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
@@ -40,6 +41,7 @@ export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {
       return { isError: true, output: parsed.error.issues.map((issue) => issue.message).join('\n') };
     }
     return {
+      accesses: ToolAccesses.none(),
       description: `Expanding archive ${parsed.data.id}`,
       readOnly: true,
       approvalRule: this.name,

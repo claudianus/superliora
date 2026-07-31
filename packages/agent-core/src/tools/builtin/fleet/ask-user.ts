@@ -18,6 +18,7 @@ import { QuestionBackgroundTask } from '../../../agent/background';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ErrorCodes, LioraError } from '../../../errors';
 import { errorMessage, isAbortError } from '../../../loop/errors';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { isQuestionResponse } from '../../../rpc/question-result';
 import type {
@@ -117,6 +118,7 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
     const normalizedArgs = normalizeAskUserQuestionInput(args);
     const isBackground = normalizedArgs.background === true;
     return {
+      accesses: ToolAccesses.all(),
       description: isBackground
         ? `Starting background question: ${questionDescription(normalizedArgs.questions)}`
         : 'Asking user questions',

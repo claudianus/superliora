@@ -26,6 +26,7 @@ import type { Kaos, KaosProcess } from '@superliora/kaos';
 
 import { ProcessBackgroundTask, type BackgroundManager } from '../../../agent/background';
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution, ToolUpdate } from '../../../loop/types';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -147,6 +148,7 @@ export class BashTool implements BuiltinTool<BashInput> {
   resolveExecution(args: BashInput): ToolExecution {
     const preview = args.command.length > 50 ? `${args.command.slice(0, 50)}…` : args.command;
     return {
+      accesses: ToolAccesses.all(),
       description: args.run_in_background
         ? `Starting background: ${preview}`
         : `Running: ${preview}`,
