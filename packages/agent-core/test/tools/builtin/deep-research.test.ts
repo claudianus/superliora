@@ -7,12 +7,14 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildDeepResearchOutput,
   DeepResearchTool,
+  depthIncludesContent,
   depthSearchLimit,
   extractKeyTerms,
   mergeResearchSources,
   normalizeResearchUrl,
   planDeepResearchQueries,
 } from '../../../src/tools/builtin/web/deep-research';
+import type { UrlFetcher } from '../../../src/tools/builtin/web/fetch-url';
 import { ResearchSearchEngine } from '../../../src/tools/providers/research-search';
 import { executeTool } from '../fixtures/execute-tool';
 import { toolContentString } from '../fixtures/fake-kaos';
@@ -22,6 +24,14 @@ describe('depthSearchLimit', () => {
     expect(depthSearchLimit('quick')).toBe(3);
     expect(depthSearchLimit('standard')).toBe(5);
     expect(depthSearchLimit('exhaustive')).toBe(8);
+  });
+});
+
+describe('depthIncludesContent', () => {
+  it('enables page excerpts for standard and exhaustive only', () => {
+    expect(depthIncludesContent('quick')).toBe(false);
+    expect(depthIncludesContent('standard')).toBe(true);
+    expect(depthIncludesContent('exhaustive')).toBe(true);
   });
 });
 
@@ -142,6 +152,7 @@ describe('buildDeepResearchOutput', () => {
           title: 'Tokio guide',
           url: 'https://example.com/tokio',
           snippet: 'Tokio is the async runtime for Rust.',
+          date: '2026-07-15',
           hitCount: 2,
           matchedQueries: ['Rust async', 'Rust async overview'],
         },
@@ -153,12 +164,156 @@ describe('buildDeepResearchOutput', () => {
 
     expect(output).toContain('Tokio guide');
     expect(output).toContain('https://example.com/tokio');
+    expect(output).toContain('[high]');
+    expect(output).toContain('as_of: 2026-07-15');
     expect(output).toContain('degraded: false');
+  });
+
+  it('includes truncated body excerpts in sources when content is present', () => {
+    const output = buildDeepResearchOutput({
+      question: 'Rust async',
+      queries: ['Rust async'],
+      sources: [
+        {
+          title: 'Tokio guide',
+          url: 'https://example.com/tokio',
+          snippet: 'Tokio is the async runtime for Rust.',
+          content: 'Tokio provides an event-driven platform for writing asynchronous Rust applications.',
+          hitCount: 1,
+          matchedQueries: ['Rust async'],
+        },
+      ],
+      degraded: false,
+      hops: 1,
+      channelsTried: ['ch3'],
+    });
+
+    expect(output).toContain('excerpt:');
+    expect(output).toContain('event-driven platform');
   });
 });
 
 describe('DeepResearchTool', () => {
   const signal = new AbortController().signal;
+
+  function requestUrl(input: string | URL | { readonly url: string }): string {
+    if (typeof input === 'string') return input;
+    if (input instanceof URL) return input.href;
+    return input.url;
+  }
+
+  function buildDdgHtml(title: string, url: string, snippet: string): string {
+    return [
+      '<html><body>',
+      '<div class="result">',
+      `<a class="result__a" href="${url}">${title}</a>`,
+      `<a class="result__snippet">${snippet}</a>`,
+      '</div>',
+      '</body></html>',
+    ].join('');
+  }
+
+  it('fetches page excerpts for standard depth via ResearchSearchEngine', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('duckduckgo.com/html')) {
+        return new Response(
+          buildDdgHtml(
+            'Deep crawl doc',
+            'https://example.com/deep-crawl',
+            'SERP snippet for deep crawl',
+          ),
+          { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+    const urlFetcher: UrlFetcher = {
+      fetch: vi.fn(async (url) => ({
+        content: `Fetched body for ${url}`,
+        kind: 'extracted' as const,
+      })),
+    };
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      urlFetcher,
+      search: {
+        strategy: 'fallback',
+        freeFallback: true,
+        providers: [],
+      },
+      local: {
+        searchUrl: 'https://duckduckgo.com/html/',
+        directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+      },
+    });
+
+    const tool = new DeepResearchTool(engine);
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c-deep-content',
+      args: { question: 'deep crawl topic', depth: 'standard', max_sources: 3 },
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    const content = toolContentString(result);
+    expect(content).toContain('excerpt:');
+    expect(content).toContain('Fetched body for https://example.com/deep-crawl');
+    expect(urlFetcher.fetch).toHaveBeenCalled();
+  });
+
+  it('skips page excerpts for quick depth', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('duckduckgo.com/html')) {
+        return new Response(
+          buildDdgHtml(
+            'Quick SERP doc',
+            'https://example.com/quick-only',
+            'SERP snippet only',
+          ),
+          { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+    const urlFetcher: UrlFetcher = {
+      fetch: vi.fn(async (url) => ({
+        content: `Should not fetch ${url}`,
+        kind: 'extracted' as const,
+      })),
+    };
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      urlFetcher,
+      search: {
+        strategy: 'fallback',
+        freeFallback: true,
+        providers: [],
+      },
+      local: {
+        searchUrl: 'https://duckduckgo.com/html/',
+        directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+      },
+    });
+
+    const tool = new DeepResearchTool(engine);
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c-deep-quick',
+      args: { question: 'quick depth topic', depth: 'quick', max_sources: 2 },
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    const content = toolContentString(result);
+    expect(content).not.toContain('excerpt:');
+    expect(content).not.toContain('Should not fetch');
+    expect(urlFetcher.fetch).not.toHaveBeenCalled();
+  });
 
   it('soft-degrades without throwing when all channels return empty (freeFallback off)', async () => {
     process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
