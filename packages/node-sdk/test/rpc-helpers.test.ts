@@ -9,6 +9,8 @@ const baseFacets = {
     roleModels: undefined,
     provider: undefined,
     modelCapabilities: { max_context_tokens: 1_000_000 },
+    cwd: '/tmp',
+    systemPrompt: '',
   },
   context: { tokenCount: 100, contextOS: undefined, microCompaction: undefined, autoDream: undefined },
   permission: { mode: 'manual' as const },
