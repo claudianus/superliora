@@ -8,6 +8,7 @@ import {
   assessSearchChannelHealth,
   buildSearchNeverEmptyNextStep,
   detectSearchProviderEnvKeys,
+  formatSearchNeverEmptySoftFailLines,
   ResearchSearchEngine,
   resolveResearchApiKey,
 } from '../../../src/tools/providers/research-search';
@@ -16,6 +17,10 @@ import {
 } from '../../../src/tools/providers/research-search-adapters';
 import { ALLOW_DISABLE_FREE_FALLBACK_ENV } from '../../../src/tools/providers/research-search-free-fallback';
 import { inferSearchChannelsFromStatus } from '../../../src/tools/providers/research-search-health';
+import {
+  getSearchNeverEmptyTelemetry,
+  resetSearchNeverEmptyTelemetry,
+} from '../../../src/tools/providers/search-never-empty-telemetry';
 
 
 function requestUrl(input: string | URL | { readonly url: string }): string {
@@ -954,6 +959,87 @@ describe('buildSearchNeverEmptyNextStep', () => {
     const next = buildSearchNeverEmptyNextStep({ channelsTried: ['ch4', 'ch5'] });
     expect(next).toContain('Ch4');
     expect(next).toContain('Ch5');
+    expect(next).toContain('retry browser automation');
+  });
+
+  it('prefers Ch5 when only Ch4 was tried', () => {
+    const next = buildSearchNeverEmptyNextStep({ channelsTried: ['ch4'] });
+    expect(next).toContain('Chrome extension bridge (Ch5)');
+    expect(next).toContain('retry browser automation (Ch4)');
+  });
+
+  it('mentions free fallback when paid channels are cooling', () => {
+    const next = buildSearchNeverEmptyNextStep({
+      health: {
+        degraded: true,
+        hard: false,
+        reason: 'paid_channels_cooling',
+      },
+    });
+    expect(next).toContain('free fallback');
+    expect(next).toContain('Ch4');
+    expect(next).toContain('Ch5');
+  });
+
+  it('mentions SearXNG meta when health reason is meta-only', () => {
+    const next = buildSearchNeverEmptyNextStep({
+      health: {
+        degraded: true,
+        hard: false,
+        reason: 'meta_channel_only',
+      },
+    });
+    expect(next).toContain('Ch2 SearXNG');
+    expect(next).toContain('Ch4');
+    expect(next).toContain('Ch5');
+  });
+
+  it('omits WebSearch retry when all channels are hard-failed', () => {
+    const next = buildSearchNeverEmptyNextStep({
+      health: {
+        degraded: true,
+        hard: true,
+        reason: 'all_channels_cooling',
+      },
+    });
+    expect(next).not.toContain('retry WebSearch');
+    expect(next).toContain('FetchURL');
+    expect(next).toContain('Ch4');
+    expect(next).toContain('Ch5');
+  });
+});
+
+describe('formatSearchNeverEmptySoftFailLines', () => {
+  it('records telemetry and emits hint when degraded', () => {
+    resetSearchNeverEmptyTelemetry();
+    const lines = formatSearchNeverEmptySoftFailLines({
+      degraded: true,
+      health: {
+        degraded: true,
+        hard: false,
+        hint: 'Paid slots cooling.',
+      },
+      channelsTried: ['ch1', 'ch3'],
+    });
+    expect(lines).toEqual([
+      'degraded: true',
+      'hint: Paid slots cooling.',
+      'channelsTried: ch1 | ch3',
+      expect.stringMatching(/^next: /),
+    ]);
+    expect(getSearchNeverEmptyTelemetry().softDegradeCount).toBe(1);
+  });
+
+  it('skips channelsTried when includeChannelsTried is false', () => {
+    resetSearchNeverEmptyTelemetry();
+    const lines = formatSearchNeverEmptySoftFailLines({
+      degraded: true,
+      channelsTried: ['ch3'],
+      includeChannelsTried: false,
+    });
+    expect(lines.some((line) => line.startsWith('channelsTried:'))).toBe(false);
+    expect(lines).toContain('degraded: true');
+    expect(lines.some((line) => line.startsWith('next:'))).toBe(true);
   });
 });
 

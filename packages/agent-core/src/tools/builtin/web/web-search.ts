@@ -16,11 +16,10 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { ResearchSearchStatus } from '../../providers/research-search-types';
 import {
+  appendSearchNeverEmptySoftFailFooter,
   assessSearchChannelHealth,
-  buildSearchNeverEmptyNextStep,
   inferSearchChannelsFromStatus,
 } from '../../providers/research-search-health';
-import { recordSearchNeverEmptySoftDegrade } from '../../providers/search-never-empty-telemetry';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesGlobRuleSubject } from '../../support/rule-match';
 import { ToolResultBuilder } from '../../support/result-builder';
@@ -133,7 +132,10 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
         if (result.content) builder.write(`${result.content}\n\n`);
       }
 
-      appendSearchHealthFooter(builder, healthAfter, { hadResults: true });
+      appendSearchNeverEmptySoftFailFooter(builder, {
+        degraded: healthAfter?.degraded === true,
+        health: healthAfter,
+      });
       return builder.ok();
     } catch (error) {
       const message = classifySearchError(error);
@@ -147,8 +149,9 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
   ): ExecutableToolResult {
     const builder = new ToolResultBuilder({ maxChars: 4_000, maxLineLength: null });
     builder.write(body);
-    appendSearchHealthFooter(builder, health, {
-      hadResults: false,
+    appendSearchNeverEmptySoftFailFooter(builder, {
+      degraded: true,
+      health,
       channelsTried: this.providerChannelsTried(),
     });
     return builder.ok();
@@ -180,34 +183,6 @@ function buildEmptySearchMessage(
     'No live search hits. Retry with a sharper query, browser automation (Ch4) or ' +
     'Chrome extension bridge (Ch5), FetchURL on a known URL, or local repo evidence.'
   );
-}
-
-function appendSearchHealthFooter(
-  builder: ToolResultBuilder,
-  health: ReturnType<typeof assessSearchChannelHealth> | undefined,
-  options: {
-    readonly hadResults: boolean;
-    readonly channelsTried?: readonly string[];
-  },
-): void {
-  const degraded =
-    health?.degraded === true || !options.hadResults;
-  if (degraded) {
-    recordSearchNeverEmptySoftDegrade();
-  }
-  builder.write(`\ndegraded: ${degraded ? 'true' : 'false'}`);
-  if (health?.hint !== undefined && health.hint.length > 0) {
-    builder.write(`\nhint: ${health.hint}`);
-  }
-  if (degraded) {
-    const channelsTried = options.channelsTried ?? [];
-    if (channelsTried.length > 0) {
-      builder.write(`\nchannelsTried: ${channelsTried.join(' | ')}`);
-    }
-    builder.write(
-      `\nnext: ${buildSearchNeverEmptyNextStep({ health, channelsTried })}`,
-    );
-  }
 }
 
 // ── Error classification ─────────────────────────────────────────────

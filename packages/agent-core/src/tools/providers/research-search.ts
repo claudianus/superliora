@@ -63,9 +63,13 @@ export type {
   ResearchSearchStatus,
 } from './research-search-types';
 export {
+  appendSearchNeverEmptySoftFailFooter,
   assessSearchChannelHealth,
   buildSearchNeverEmptyNextStep,
+  formatSearchNeverEmptySoftFailLines,
+  lateSearchChannelNextPhrase,
   type SearchChannelHealth,
+  type SearchNeverEmptySoftFailFooterOptions,
 } from './research-search-health';
 export {
   formatSearchNeverEmptyTelemetryLine,

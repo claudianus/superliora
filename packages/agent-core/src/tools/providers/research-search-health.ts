@@ -1,4 +1,5 @@
 import type { ResearchSearchProviderStatus, ResearchSearchStatus } from './research-search-types';
+import { recordSearchNeverEmptySoftDegrade } from './search-never-empty-telemetry';
 
 export interface SearchChannelHealth {
   readonly degraded: boolean;
@@ -166,13 +167,102 @@ export function assessSearchChannelHealth(status: ResearchSearchStatus): SearchC
   };
 }
 
+function channelSet(channels: readonly string[] | undefined): Set<string> {
+  return new Set((channels ?? []).map((channel) => channel.toLowerCase()));
+}
+
+function isMetaHealthReason(reason: string | undefined): boolean {
+  return (
+    reason === 'paid_channels_cooling_meta' ||
+    reason === 'meta_channel_only' ||
+    reason === 'search_channels_thin_meta'
+  );
+}
+
+/** Wording for Ch4/Ch5 escalation that reflects channels already attempted. */
+export function lateSearchChannelNextPhrase(channelsTried: readonly string[] | undefined): string {
+  const tried = channelSet(channelsTried);
+  const ch4 = tried.has('ch4');
+  const ch5 = tried.has('ch5');
+  if (ch4 && ch5) {
+    return 'retry browser automation (Ch4) or Chrome extension bridge (Ch5)';
+  }
+  if (ch4) {
+    return 'try Chrome extension bridge (Ch5) or retry browser automation (Ch4)';
+  }
+  if (ch5) {
+    return 'try browser automation (Ch4) or retry Chrome extension bridge (Ch5)';
+  }
+  return 'try browser automation (Ch4) or Chrome extension bridge (Ch5)';
+}
+
 /** SSOT never-empty next-step line for WebSearch / DeepResearch soft-fail output. */
-export function buildSearchNeverEmptyNextStep(_options?: {
+export function buildSearchNeverEmptyNextStep(options?: {
   readonly health?: SearchChannelHealth | undefined;
   readonly channelsTried?: readonly string[] | undefined;
 }): string {
-  return (
-    'simplify the query, retry WebSearch, try or retry browser automation (Ch4) ' +
-    'or Chrome extension bridge (Ch5), FetchURL a known URL, or continue from local repo evidence.'
-  );
+  const health = options?.health;
+  const late = lateSearchChannelNextPhrase(options?.channelsTried);
+  const tail = `${late}, FetchURL a known URL, or continue from local repo evidence.`;
+
+  if (health?.reason === 'paid_channels_cooling') {
+    return `retry WebSearch (free fallback may apply), ${tail}`;
+  }
+
+  if (health?.hard === true) {
+    return tail.charAt(0).toUpperCase() + tail.slice(1);
+  }
+
+  if (isMetaHealthReason(health?.reason)) {
+    return `simplify the query, retry WebSearch or Ch2 SearXNG meta search, ${tail}`;
+  }
+
+  return `simplify the query, retry WebSearch, ${tail}`;
+}
+
+export interface SearchNeverEmptySoftFailFooterOptions {
+  readonly degraded: boolean;
+  readonly health?: SearchChannelHealth | undefined;
+  readonly channelsTried?: readonly string[] | undefined;
+  /** When false, omit channelsTried (DeepResearch prints it in the body). Default true. */
+  readonly includeChannelsTried?: boolean | undefined;
+}
+
+/** SSOT never-empty soft-fail footer lines for WebSearch / DeepResearch. */
+export function formatSearchNeverEmptySoftFailLines(
+  options: SearchNeverEmptySoftFailFooterOptions,
+): readonly string[] {
+  if (options.degraded) {
+    recordSearchNeverEmptySoftDegrade();
+  }
+
+  const lines: string[] = [`degraded: ${options.degraded ? 'true' : 'false'}`];
+  if (options.health?.hint !== undefined && options.health.hint.length > 0) {
+    lines.push(`hint: ${options.health.hint}`);
+  }
+
+  if (options.degraded) {
+    const includeChannelsTried = options.includeChannelsTried !== false;
+    const channelsTried = options.channelsTried ?? [];
+    if (includeChannelsTried && channelsTried.length > 0) {
+      lines.push(`channelsTried: ${channelsTried.join(' | ')}`);
+    }
+    lines.push(
+      `next: ${buildSearchNeverEmptyNextStep({
+        health: options.health,
+        channelsTried: options.channelsTried,
+      })}`,
+    );
+  }
+
+  return lines;
+}
+
+export function appendSearchNeverEmptySoftFailFooter(
+  builder: { write(text: string): void },
+  options: SearchNeverEmptySoftFailFooterOptions,
+): void {
+  for (const line of formatSearchNeverEmptySoftFailLines(options)) {
+    builder.write(`\n${line}`);
+  }
 }
