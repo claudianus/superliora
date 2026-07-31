@@ -4,7 +4,21 @@
 
 import { join } from 'node:path';
 
+import { SUPERLIORA_HOME_ENV } from '#/constant/app';
+
 export const MAIN_AGENT_ID = 'main';
+
+/** Home override — entire data tree relocates before first harness init. */
+export const STORAGE_HOME_TIP =
+  `${SUPERLIORA_HOME_ENV} — override default ~/.superliora before launch. Relocates config, sessions, cache, logs, credentials, and managed tools. Status panel shows whether the override is active.`;
+
+/** Session retention — transcripts, journal, tool-results; no auto-purge yet. */
+export const STORAGE_RETENTION_TIP =
+  'Session retention: transcripts under <home>/sessions/<workdir-bucket>/<id>/ · durable journal agents/*/wire.jsonl · cleared tool receipts agents/main/tool-results/. Resume via session picker · export via `liora export`. No automatic purge in Settings — manual cleanup by deleting dirs. Goal queue: <sessionDir>/goal-queue.json when Mission active.';
+
+/** Log level — interactive TUI stderr vs server daemon flag. */
+export const STORAGE_LOGS_TIP =
+  'Logs: interactive TUI writes stderr + ~/.superliora/logs when enabled. Server daemon: `liora server run --log-level info|debug|silent`. No log-level toggle in Settings until storage slice lands.';
 
 export interface StoragePaths {
   readonly homeDir: string;
