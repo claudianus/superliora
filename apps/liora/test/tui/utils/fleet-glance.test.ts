@@ -97,7 +97,7 @@ describe('fleet parallel tools ops line', () => {
     });
     expect(
       resolveFleetParallelToolsGlanceFromStatus({ parallelToolsInFlight: 0, maxParallelTools: 0 }),
-    ).toBeUndefined();
+    ).toEqual({ parallelToolsInFlight: 0, maxParallelTools: 0 });
   });
 
   it('falls back to soft tip when status is unwired', () => {
@@ -113,10 +113,19 @@ describe('fleet parallel tools ops line', () => {
     ).toBe('Parallel tools: 2 in flight · peak 4');
   });
 
+  it('shows idle when counters are wired at zero', () => {
+    expect(
+      formatFleetParallelToolsOpsLine({ parallelToolsInFlight: 0, maxParallelTools: 0 }),
+    ).toBe('Parallel tools: idle');
+  });
+
   it('shows turn peak after batch drains', () => {
     expect(formatFleetParallelToolsOpsLine({ maxParallelTools: 3 })).toBe(
       'Parallel tools: idle · turn peak 3',
     );
+    expect(
+      formatFleetParallelToolsOpsLine({ parallelToolsInFlight: 0, maxParallelTools: 3 }),
+    ).toBe('Parallel tools: idle · turn peak 3');
   });
 });
 

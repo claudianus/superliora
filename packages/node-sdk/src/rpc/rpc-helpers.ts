@@ -113,10 +113,10 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     cacheHitRate: usage?.cacheHitRate,
     cacheWarmStreak: usage?.cacheWarmStreak,
     ...(cacheFrozen !== undefined ? { cacheFrozen } : {}),
-    ...(parallelTools !== undefined && parallelTools.parallelToolsInFlight > 0
+    ...(parallelTools !== undefined
       ? { parallelToolsInFlight: parallelTools.parallelToolsInFlight }
       : {}),
-    ...(parallelTools?.maxParallelTools !== undefined && parallelTools.maxParallelTools > 0
+    ...(parallelTools?.maxParallelTools !== undefined
       ? { maxParallelTools: parallelTools.maxParallelTools }
       : {}),
     ...(permission.pendingInterventions !== undefined
