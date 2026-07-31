@@ -1,5 +1,5 @@
 /**
- * Telemetry settings glance — read-only config opt-in + live sink (SSOT §9.2).
+ * Telemetry settings glance — config opt-in + live sink (SSOT §9.2).
  */
 
 import {
@@ -25,7 +25,18 @@ export interface TelemetryGlanceInput {
   readonly endpointEnvOverride?: string;
 }
 
+export const TELEMETRY_LOCAL_ONLY_TIP =
+  'Telemetry default OFF (ZDR-friendly). No usage events leave this machine until config opt-in. Session transcripts stay local unless you export them.';
+
+export const TELEMETRY_OPT_OUT_TIP =
+  `Opt out: omit telemetry or set telemetry = false in config.toml · ${TELEMETRY_DISABLE_ENV}=1 forces sink off · restart liora after config changes.`;
+
 export { isTelemetryDisabledByEnv };
+
+/** Patch shape for harness.setConfig — top-level telemetry boolean. */
+export function buildTelemetryConfigPatch(enabled: boolean): { readonly telemetry: boolean } {
+  return { telemetry: enabled };
+}
 
 export function loadTelemetryGlance(input: {
   readonly configEnabled: boolean;
@@ -82,7 +93,7 @@ export function buildTelemetrySettingsLines(input: TelemetryGlanceInput): readon
   }
 
   return [
-    '── Telemetry (read-only) ───────────────────',
+    '── Telemetry ───────────────────────────────',
     'Product usage analytics — opt-in only; local-first by default.',
     '',
     '── Status ───────────────────────────────────',
@@ -100,8 +111,8 @@ export function buildTelemetrySettingsLines(input: TelemetryGlanceInput): readon
     'Session transcripts stay on disk unless you export them.',
     'Device id stays in ~/.superliora for correlation only.',
     '',
-    '── Toggle (manual) ──────────────────────────',
-    'Edit config.toml: telemetry = true | false',
+    '── Toggle ───────────────────────────────────',
+    'Settings → Telemetry ON/OFF · harness.setConfig → telemetry.',
     'Restart liora after changing telemetry.',
     'Omit the key to keep the ZDR-friendly default (off).',
     '',
