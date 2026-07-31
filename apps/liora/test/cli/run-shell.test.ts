@@ -133,6 +133,7 @@ vi.mock('../../src/tui/index', () => ({
     getStartupMcpMs = mocks.tuiGetStartupMcpMs;
     getCurrentSessionId = mocks.tuiGetCurrentSessionId;
     hasSessionContent = mocks.tuiHasSessionContent;
+    setAppState = vi.fn();
   },
 }));
 
