@@ -6,7 +6,6 @@ import {
   refreshOpenCommandHub,
   showCommandHub,
   showCommandPalette,
-  showCommandPaletteOmnibox,
 } from './command-hub';
 import { showHelpPanel } from './help';
 import {
@@ -37,8 +36,8 @@ export type { DialogsHost } from './types';
 
 /**
  * Dialog-mounting shell (editor-replacement / center-modal mechanics, session
- * loading overlay, prompt stash) plus the Command Hub, command palette,
- * history search, transcript search, and help-panel entry points.
+ * loading overlay, prompt stash) plus the Command Hub (One-search), history
+ * search, transcript search, and help-panel entry points.
  * LioraTUI keeps thin public delegates so call sites stay stable.
  */
 export class DialogsController {
@@ -114,12 +113,9 @@ export class DialogsController {
     showHistorySearch(this.host, this);
   }
 
+  /** @deprecated Prefer `showCommandHub`. */
   showCommandPalette(): void {
     showCommandPalette(this);
-  }
-
-  showCommandPaletteOmnibox(): void {
-    showCommandPaletteOmnibox(this.host, this);
   }
 
   showCommandHub(options: { readonly initialQuery?: string; readonly intro?: boolean } = {}): void {

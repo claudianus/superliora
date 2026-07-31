@@ -1,7 +1,7 @@
 /**
- * Command Hub — beginner home dashboard (center modal).
+ * Command Hub — One-search Command Surface (center modal).
  *
- * Status strip + contextual Now + Spotlight search (recency-weighted).
+ * Status strip + contextual Now + fuzzy One-search (settings, slash, skills).
  * Space/Enter toggles modes in place; nested pickers stack with Esc back.
  */
 

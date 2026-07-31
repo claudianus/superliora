@@ -31,10 +31,11 @@ function makeUsageHost(options: {
   }>;
   requireSessionError?: Error;
 } = {}) {
+  const requireSessionError = options.requireSessionError;
   const requireSession =
-    options.requireSessionError !== undefined
+    requireSessionError !== undefined
       ? vi.fn(() => {
-          throw options.requireSessionError;
+          throw requireSessionError;
         })
       : vi.fn(() => ({
           getStatus:

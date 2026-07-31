@@ -73,7 +73,10 @@ function makeIndexHost(options: { repoQueryActive?: boolean; workDir?: string } 
   } as unknown as SlashCommandHost;
 }
 
-function selectIndexAction(host: SlashCommandHost, value: 'status' | 'rebuild'): void {
+function selectIndexAction(
+  host: SlashCommandHost,
+  value: 'status' | 'rebuild' | 'tip-warm' | 'tip-fts' | 'tip-engine',
+): void {
   const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
     | ChoicePickerComponent
     | undefined;

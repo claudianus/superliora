@@ -1,4 +1,7 @@
-import type { PaletteEntry } from '../../components/dialogs/command-hub/command-palette';
+/**
+ * Command Hub One-search entries that jump straight into a Settings pane.
+ */
+
 import type { CommandHubItem } from '../../components/dialogs/command-hub/command-hub-types';
 import {
   SETTINGS_OPTIONS,
@@ -7,7 +10,6 @@ import {
 
 import { SETTINGS_SEARCH_KEYWORDS } from './settings-keywords';
 
-/** Command Hub + Palette entries that jump straight into a Settings pane. */
 export function buildSettingsJumpHubItems(): CommandHubItem[] {
   const browse: CommandHubItem = {
     id: 'settings.open',
@@ -15,7 +17,9 @@ export function buildSettingsJumpHubItems(): CommandHubItem[] {
     label: 'All settings',
     description: 'Browse every settings pane · type freeze, DDG, FTS, redaction, …',
   };
-  const panes = SETTINGS_OPTIONS.map((option) => settingsJumpHubItem(option.value as SettingsSelection, option));
+  const panes = SETTINGS_OPTIONS.map((option) =>
+    settingsJumpHubItem(option.value as SettingsSelection, option),
+  );
   return [browse, ...panes];
 }
 
@@ -31,17 +35,4 @@ function settingsJumpHubItem(
     searchOnly: true,
     keywords: [...SETTINGS_SEARCH_KEYWORDS[selection]],
   };
-}
-
-export function buildSettingsJumpPaletteEntries(): PaletteEntry[] {
-  return SETTINGS_OPTIONS.map((option) => {
-    const selection = option.value as SettingsSelection;
-    return {
-      kind: 'action',
-      value: `settings:${selection}`,
-      label: `Settings → ${option.label}`,
-      description: option.description,
-      aliases: [...SETTINGS_SEARCH_KEYWORDS[selection]],
-    };
-  });
 }

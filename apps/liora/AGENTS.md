@@ -46,6 +46,15 @@ User-facing features that operators need during an interactive session must be r
 - **CLI-only exceptions** (document when adding more): non-interactive scripting (`liora provider …` batch/doctor/route dumps), install/update plumbing, headless export/CI helpers, and one-shot auth that cannot complete inside a mounted editor.
 - Shared config mutations (e.g. OAuth pool rewrite/promote/label/remove) live in pure modules (`@superliora/oauth` or `src/utils/`) — CLI and TUI both call them; do not fork private rewrite logic in either surface.
 
+## Command Surface (One-search)
+
+The **Command Hub** (`Ctrl-K` / `Ctrl-Space` / `?` / `/help`) is the single searchable command surface for the interactive TUI.
+
+- **Catalog:** curated Hub rows + Settings keyword jumps (`searchOnly`) + slash/skills (`searchOnly`). Idle list stays beginner-sized; typing fuzzy-filters everything via the same `fuzzyFilter` as Settings lists.
+- **Nested:** Settings panes and pickers stack under the Hub (Esc back). Do **not** add a parallel searchable omnibox / second palette catalog for the same actions.
+- **Register new actions in the Hub catalog** (`command-hub-items` / `settings-hub-jumps` / `slash-hub-jumps`). Keep `/` editor autocomplete; browse-only Help lists are OK.
+- Detail: `src/tui/PREMIUM.md` §8.2 and `.agents/skills/write-tui/SKILL.md`.
+
 ## Real-time and visual quality (mandatory)
 
 - All agent work (main, subagent, swarm) streams its tool calls to the TUI live. No silent processing without progress display.

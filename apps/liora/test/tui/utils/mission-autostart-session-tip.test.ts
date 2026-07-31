@@ -18,7 +18,7 @@ describe('showMissionAutoStartSessionTipIfNeeded', () => {
       showStatus,
     };
 
-    await showMissionAutoStartSessionTipIfNeeded(host, session as never);
+    await showMissionAutoStartSessionTipIfNeeded(host, session);
 
     expect(showStatus).toHaveBeenCalledWith(MISSION_AUTOSTART_SESSION_TIP, 'textMuted');
   });
@@ -37,7 +37,7 @@ describe('showMissionAutoStartSessionTipIfNeeded', () => {
         session: offSession,
         showStatus,
       },
-      offSession as never,
+      offSession,
     );
     expect(showStatus).not.toHaveBeenCalled();
     expect(offSession.getUltraworkRun).not.toHaveBeenCalled();
@@ -55,7 +55,7 @@ describe('showMissionAutoStartSessionTipIfNeeded', () => {
         session: activeSession,
         showStatus,
       },
-      activeSession as never,
+      activeSession,
     );
     expect(showStatus).not.toHaveBeenCalled();
   });
@@ -79,7 +79,7 @@ describe('showMissionAutoStartSessionTipIfNeeded', () => {
       showStatus,
     };
 
-    await showMissionAutoStartSessionTipIfNeeded(host, session as never);
+    await showMissionAutoStartSessionTipIfNeeded(host, session);
 
     expect(showStatus).not.toHaveBeenCalled();
   });

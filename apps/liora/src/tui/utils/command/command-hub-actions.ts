@@ -1,10 +1,14 @@
 import type { CommandHubActionId } from '#/tui/components/dialogs/command-hub/index';
 
+type LiteralHubActionId = Exclude<CommandHubActionId, `settings.${string}` | `slash.${string}`>;
+
 /** Map a Hub action to a slash command string, or undefined when the host handles it. */
 export function commandHubActionToSlash(id: CommandHubActionId): string | undefined {
+  if (id.startsWith('slash.')) return `/${id.slice('slash.'.length)}`;
   if (id === 'settings.open') return '/settings';
   if (id.startsWith('settings.')) return undefined;
-  switch (id) {
+
+  switch (id as LiteralHubActionId) {
     case 'start.new':
       return '/new';
     case 'start.sessions':
@@ -64,7 +68,7 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'now.stop':
       return undefined;
     default: {
-      const _exhaustive: never = id;
+      const _exhaustive: never = id as never;
       return _exhaustive;
     }
   }

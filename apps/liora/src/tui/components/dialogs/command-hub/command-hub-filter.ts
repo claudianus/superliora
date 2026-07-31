@@ -1,3 +1,4 @@
+import { fuzzyFilter } from '#/tui/renderer';
 import { hubRecencyScore, listRecentHubActionIds } from '#/tui/utils/command/hub-recents';
 
 import type { CommandHubActionId, CommandHubItem } from './command-hub-types';
@@ -13,6 +14,8 @@ const SECTION_ORDER = [
   'Appearance',
   'Account',
   'Settings',
+  'Commands',
+  'Skills',
   'Help',
 ] as const;
 
@@ -23,23 +26,23 @@ function hubItemSearchText(item: CommandHubItem): string {
     item.section,
     item.id,
     ...(item.keywords ?? []),
-  ]
-    .join(' ')
-    .toLowerCase();
+  ].join(' ');
 }
 
+/**
+ * One-search filter for the Command Hub.
+ * Uses the same `fuzzyFilter` as Settings / SearchableList; recency breaks ties.
+ */
 export function filterHubItems(items: readonly CommandHubItem[], query: string): CommandHubItem[] {
-  const needle = query.trim().toLowerCase();
+  const needle = query.trim();
   if (needle.length > 0) {
-    const matched = items.filter((item) => hubItemSearchText(item).includes(needle));
+    const matched = fuzzyFilter([...items], needle, hubItemSearchText);
+    // Stable re-sort: recency first; preserve fuzzyFilter score order otherwise.
     matched.sort((a, b) => {
       const ra = hubRecencyScore(a.id);
       const rb = hubRecencyScore(b.id);
       if (ra !== rb) return rb - ra;
-      const aStarts = a.label.toLowerCase().startsWith(needle) ? 1 : 0;
-      const bStarts = b.label.toLowerCase().startsWith(needle) ? 1 : 0;
-      if (aStarts !== bStarts) return bStarts - aStarts;
-      return a.label.localeCompare(b.label);
+      return 0;
     });
     return matched;
   }

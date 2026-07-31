@@ -18,7 +18,7 @@ export const KEYBINDINGS_HELP_TIP =
 
 /** Compact Command Hub tip — Ctrl-K menu and ? when the prompt is empty. */
 export const KEYBINDINGS_COMMAND_HUB_TIP =
-  'Ctrl-K — Command Hub menu (search slash commands + shortcuts). ? — Command Hub when the prompt is empty.';
+  'Ctrl-K — Command Hub (One-search: settings, slash, skills). ? — Hub when the prompt is empty.';
 
 /** Compact future editor tip — custom keybinding editor not yet available. */
 export const KEYBINDINGS_FUTURE_EDITOR_TIP =
@@ -72,7 +72,7 @@ export function buildKeybindingsSettingsLines(input: KeybindingsGlanceInput): re
     '',
     '── Tips ─────────────────────────────────────',
     '· /help — full keyboard shortcut reference in the TUI',
-    '· Ctrl-K — Command Hub menu (search slash commands + shortcuts)',
+    '· Ctrl-K — Command Hub (One-search: settings, slash, skills)',
     '· ? — Command Hub when the prompt is empty',
     '· Custom keybinding editor — future slice (not editable here)',
     '',

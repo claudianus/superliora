@@ -4,10 +4,7 @@ import { filterHubItems } from '#/tui/components/dialogs/command-hub/command-hub
 import { buildDefaultCommandHubItems } from '#/tui/components/dialogs/command-hub/index';
 import { commandHubNestsPicker } from '#/tui/components/dialogs/command-hub/command-hub-behavior';
 import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
-import {
-  buildSettingsJumpHubItems,
-  buildSettingsJumpPaletteEntries,
-} from '#/tui/commands/config/settings-hub-jumps';
+import { buildSettingsJumpHubItems } from '#/tui/commands/config/settings-hub-jumps';
 import { SETTINGS_SEARCH_KEYWORDS } from '#/tui/commands/config/settings-keywords';
 import { SETTINGS_OPTIONS } from '#/tui/components/dialogs/picker/settings-selector';
 
@@ -49,16 +46,5 @@ describe('buildSettingsJumpHubItems', () => {
     expect(commandHubActionToSlash('settings.open')).toBe('/settings');
     expect(commandHubActionToSlash('settings.cache')).toBeUndefined();
     expect(commandHubNestsPicker('settings.security')).toBe(true);
-  });
-});
-
-describe('buildSettingsJumpPaletteEntries', () => {
-  it('builds palette rows with keyword aliases', () => {
-    const entries = buildSettingsJumpPaletteEntries();
-    const cache = entries.find((entry) => entry.value === 'settings:cache');
-    expect(cache?.label).toContain('Cache');
-    expect(cache?.aliases).toContain('freeze');
-    const search = entries.find((entry) => entry.value === 'settings:search');
-    expect(search?.aliases).toContain('ddg');
   });
 });

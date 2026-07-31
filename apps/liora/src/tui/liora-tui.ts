@@ -181,6 +181,8 @@ export interface LioraTUIHost {
   emergencyTerminalExit(exitCode?: number): never;
   initMainTui(): Promise<boolean>;
   init(): Promise<boolean>;
+  /** Wire native input router after `init()` when tests skip `initMainTui()`. */
+  ensureNativeInputRouter(): void;
   loadBanner(): Promise<void>;
   finishStartup(shouldReplayHistory: boolean): Promise<void>;
   refreshProviderModelsInBackground(): Promise<void>;
@@ -296,7 +298,6 @@ export interface LioraTUIHost {
   stashPromptToggle(): void;
   showHistorySearch(): void;
   showCommandPalette(): void;
-  showCommandPaletteOmnibox(): void;
   showCommandHub(options?: { readonly initialQuery?: string; readonly intro?: boolean }): void;
   showTranscriptSearch(): void;
   scrollToTranscriptIndex(index: number): void;

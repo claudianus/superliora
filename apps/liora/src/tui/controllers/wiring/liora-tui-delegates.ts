@@ -82,6 +82,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.init = function () {
     return this.startupLifecycle.init();
   };
+  proto.ensureNativeInputRouter = function () {
+    this.startupLifecycle.ensureNativeInputRouter();
+  };
   proto.loadBanner = function () {
     return this.startupLifecycle.loadBanner();
   };
@@ -402,9 +405,6 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   };
   proto.showCommandPalette = function () {
     this.dialogs.showCommandPalette();
-  };
-  proto.showCommandPaletteOmnibox = function () {
-    this.dialogs.showCommandPaletteOmnibox();
   };
   proto.showCommandHub = function (
     options: { readonly initialQuery?: string; readonly intro?: boolean } = {},

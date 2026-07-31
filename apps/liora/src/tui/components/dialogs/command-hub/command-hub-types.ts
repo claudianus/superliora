@@ -33,7 +33,9 @@ export type CommandHubActionId =
   | 'help.commands'
   | 'help.palette'
   | 'settings.open'
-  | `settings.${string}`;
+  | `settings.${string}`
+  /** Slash / skill One-search rows (`searchOnly`). */
+  | `slash.${string}`;
 
 /** How activation behaves in the Hub. */
 export type CommandHubItemKind = 'toggle' | 'cycle' | 'open';

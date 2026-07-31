@@ -129,9 +129,12 @@ describe('showOpsTheatre', () => {
     host.state.livePane.pendingApproval = {
       data: {
         id: 'ap-1',
+        tool_call_id: 'tc-1',
         tool_name: 'Shell',
         action: 'run',
+        description: 'run a shell command',
         display: [],
+        choices: [],
       },
     };
     await showOpsTheatre(host);

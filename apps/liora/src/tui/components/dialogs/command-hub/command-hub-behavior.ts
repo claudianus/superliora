@@ -33,7 +33,6 @@ export function commandHubNestsPicker(id: CommandHubActionId): boolean {
     case 'appearance.appearance':
     case 'help.shortcuts':
     case 'help.commands':
-    case 'help.palette':
       return true;
     default:
       return false;
