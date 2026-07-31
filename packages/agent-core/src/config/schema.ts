@@ -2,6 +2,7 @@ import { HOOK_EVENT_TYPES } from '../session/hooks/types';
 import { parsePattern } from '#/agent/permission/matches-rule';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { z } from 'zod';
+import { MissionConfigSchema } from './schema-mission';
 import {
   ResearchConfigSchema,
   ResearchContext7ConfigSchema,
@@ -9,6 +10,8 @@ import {
   ResearchLocalSearchConfigSchema,
   ResearchSearchConfigSchema,
 } from './schema-research';
+
+export { MissionConfigSchema, type MissionConfig } from './schema-mission';
 
 export const ProviderTypeSchema = z.enum([
   'anthropic',
@@ -430,6 +433,7 @@ export const LioraConfigSchema = z.object({
   media: MediaConfigSchema.optional(),
   memory: MemoryConfigSchema.optional(),
   research: ResearchConfigSchema.optional(),
+  mission: MissionConfigSchema.optional(),
   modelCatalog: ModelCatalogConfigSchema.optional(),
   browserUse: BrowserUseConfigSchema.optional(),
   computerUse: ComputerUseConfigSchema.optional(),
@@ -460,6 +464,7 @@ const ResearchConfigPatchSchema = ResearchConfigSchema.extend({
   search: ResearchSearchConfigSchema.partial().optional(),
   context7: ResearchContext7ConfigPatchSchema.optional(),
 }).partial();
+const MissionConfigPatchSchema = MissionConfigSchema.partial();
 const ModelCatalogConfigPatchSchema = ModelCatalogConfigSchema.partial();
 const BrowserUseConfigPatchSchema = BrowserUseConfigSchema.partial();
 const ComputerUseConfigPatchSchema = ComputerUseConfigSchema.partial();
@@ -496,6 +501,7 @@ export const LioraConfigPatchSchema = z
     media: MediaConfigPatchSchema.optional(),
     memory: MemoryConfigPatchSchema.optional(),
     research: ResearchConfigPatchSchema.optional(),
+    mission: MissionConfigPatchSchema.optional(),
     modelCatalog: ModelCatalogConfigPatchSchema.optional(),
     browserUse: BrowserUseConfigPatchSchema.optional(),
     computerUse: ComputerUseConfigPatchSchema.optional(),

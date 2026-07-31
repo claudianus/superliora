@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest';
 import type { GoalSnapshot } from '@superliora/sdk';
 
 import {
+  buildMissionAutoStartConfigPatch,
+  buildMissionSettingsLines,
   formatActiveGoalLine,
   formatGoalQueueLine,
+  formatMissionAutoStartLine,
   formatMissionRunLine,
-  buildMissionSettingsLines,
+  resolveMissionAutoStart,
 } from '#/tui/utils/mission/mission-glance';
 
 const baseGoal = (over: Partial<GoalSnapshot> = {}): GoalSnapshot =>
@@ -103,6 +106,17 @@ describe('formatGoalQueueLine', () => {
   });
 });
 
+describe('mission.autoStart helpers', () => {
+  it('resolves default OFF and builds setConfig patch', () => {
+    expect(resolveMissionAutoStart(undefined)).toBe(false);
+    expect(resolveMissionAutoStart({ mission: { autoStart: true } })).toBe(true);
+    expect(buildMissionAutoStartConfigPatch(true)).toEqual({
+      mission: { autoStart: true },
+    });
+    expect(formatMissionAutoStartLine(false)).toContain('OFF');
+  });
+});
+
 describe('buildMissionSettingsLines', () => {
   it('includes live session section beyond static tips', () => {
     const text = buildMissionSettingsLines({
@@ -111,6 +125,7 @@ describe('buildMissionSettingsLines', () => {
       missionRun: { active: true, status: 'running', stage: 'swarm', objective: 'Ops wire' },
       goal: baseGoal({ turnsUsed: 1, tokensUsed: 200 }),
       goalQueueCount: 1,
+      autoStart: true,
     }).join('\n');
 
     expect(text).toContain('── Session (live) ─');
@@ -118,5 +133,8 @@ describe('buildMissionSettingsLines', () => {
     expect(text).toContain('Active goal: active · turns 1 · tokens 200');
     expect(text).toContain('Upcoming goals: 1 queued goal');
     expect(text).toContain('Mission Resume: artifacts');
+    expect(text).toContain('Auto-start opt-in: ON');
+    expect(text).toContain('mission.autoStart');
+    expect(text).not.toContain('not wired in Settings');
   });
 });
