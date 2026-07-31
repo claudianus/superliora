@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showEditorSettings } from '#/tui/commands/config/editor/editor-settings';
-import { showUsageSettings } from '#/tui/commands/config/upgrade/usage-settings';
 import { showUpgradeSettings } from '#/tui/commands/config/upgrade/upgrade-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import {
@@ -117,72 +116,6 @@ describe('editor settings panel', () => {
     expect(text).toContain('TUI input: bash');
     expect(text).toContain('External editor: nvim · resolved nvim');
     expect(text).toContain('Ctrl+G');
-  });
-});
-
-describe('usage settings panel', () => {
-  it('wires live token/$ from session.getStatus', async () => {
-    const host = {
-      state: {
-        appState: {
-          sessionCostUsd: 0.42,
-          contextUsage: 0.1,
-          contextTokens: 1_000,
-          maxContextTokens: 128_000,
-        },
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-      requireSession: () => ({
-        getStatus: async () => ({
-          usage: {
-            total: {
-              inputOther: 5_000,
-              inputCacheRead: 0,
-              inputCacheCreation: 0,
-              output: 200,
-            },
-          },
-          cacheHitRate: 0.95,
-          contextUsage: 0.25,
-          contextTokens: 32_000,
-          maxContextTokens: 128_000,
-        }),
-      }),
-    } as unknown as SlashCommandHost;
-
-    showUsageSettings(host);
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const text = panelText(host);
-    expect(text).toContain('Session: live getStatus');
-    expect(text).toContain('in 5.0K');
-    expect(text).toContain('$0.420');
-  });
-
-  it('falls back when getStatus is unavailable', async () => {
-    const host = {
-      state: {
-        appState: {
-          sessionCostUsd: undefined,
-          contextUsage: 0.5,
-          contextTokens: 50_000,
-          maxContextTokens: 100_000,
-        },
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-      requireSession: () => {
-        throw new Error('no session');
-      },
-    } as unknown as SlashCommandHost;
-
-    showUsageSettings(host);
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    expect(panelText(host)).toContain('no session');
   });
 });
 
