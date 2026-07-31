@@ -1166,6 +1166,10 @@ describe('harness panel and tools inventory', () => {
     process.env['HTTPS_PROXY'] = 'http://127.0.0.1:3128';
     const host = makeHarnessHost();
     showNetworkSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | { opts: { onSelect: (action: string) => void } }
+      | undefined;
+    picker?.opts.onSelect('status');
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('127.0.0.1:3128');
     if (prior != null) process.env['HTTPS_PROXY'] = prior;

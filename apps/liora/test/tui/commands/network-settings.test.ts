@@ -1,26 +1,93 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showNetworkSettings } from '#/tui/commands/config/network/network-settings';
+import {
+  NETWORK_NO_PROXY_TIP,
+  NETWORK_PROXY_TIP,
+  NETWORK_SOCKS_TIP,
+  showNetworkSettings,
+} from '#/tui/commands/config/network/network-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
+function makeNetworkHost() {
+  return {
+    state: {
+      transcriptContainer: { addChild: vi.fn() },
+      centerModalStack: [] as readonly unknown[],
+      renderer: { invalidateFrame: vi.fn() },
+    },
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
+  } as unknown as SlashCommandHost;
+}
+
+function selectNetworkAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
 function panelLines(host: SlashCommandHost): string {
-  const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+  const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+    .calls[0]?.[0] as UsagePanelComponent;
   return panel.snapshotBodyLines(1).join('\n');
 }
 
-describe('network settings', () => {
+describe('network settings tips', () => {
+  it('exports proxy, NO_PROXY, and SOCKS tips', () => {
+    expect(NETWORK_PROXY_TIP).toContain('HTTP_PROXY');
+    expect(NETWORK_PROXY_TIP).toContain('HTTPS_PROXY');
+    expect(NETWORK_NO_PROXY_TIP).toContain('NO_PROXY');
+    expect(NETWORK_NO_PROXY_TIP).toContain('localhost');
+    expect(NETWORK_SOCKS_TIP).toContain('SOCKS');
+    expect(NETWORK_SOCKS_TIP).toContain('MCP stdio');
+  });
+});
+
+describe('showNetworkSettings', () => {
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeNetworkHost();
+    showNetworkSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-proxy',
+      'tip-no-proxy',
+      'tip-socks',
+    ]);
+  });
+
+  it('shows proxy tip via showStatus', () => {
+    const host = makeNetworkHost();
+    showNetworkSettings(host);
+    selectNetworkAction(host, 'tip-proxy');
+    expect(host.showStatus).toHaveBeenCalledWith(NETWORK_PROXY_TIP, 'info');
+  });
+
+  it('shows NO_PROXY tip via showStatus', () => {
+    const host = makeNetworkHost();
+    showNetworkSettings(host);
+    selectNetworkAction(host, 'tip-no-proxy');
+    expect(host.showStatus).toHaveBeenCalledWith(NETWORK_NO_PROXY_TIP, 'info');
+  });
+
   it('reports HTTPS_PROXY when env is set', () => {
     const prior = process.env['HTTPS_PROXY'];
     process.env['HTTPS_PROXY'] = 'http://proxy.example.test:8080';
-    const host = {
-      state: {
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-    } as unknown as SlashCommandHost;
+    const host = makeNetworkHost();
 
     showNetworkSettings(host);
+    selectNetworkAction(host, 'status');
 
     const lines = panelLines(host);
     expect(lines).toContain('Network / Proxy (read-only)');
@@ -38,14 +105,10 @@ describe('network settings', () => {
     process.env['NO_PROXY'] = 'localhost,.internal';
     delete process.env['HTTPS_PROXY'];
 
-    const host = {
-      state: {
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-    } as unknown as SlashCommandHost;
+    const host = makeNetworkHost();
 
     showNetworkSettings(host);
+    selectNetworkAction(host, 'status');
 
     const lines = panelLines(host);
     expect(lines).toContain('Process env (live)');
@@ -63,15 +126,12 @@ describe('network settings', () => {
     const prior = process.env['HTTPS_PROXY'];
     delete process.env['HTTPS_PROXY'];
 
-    const host = {
-      state: {
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-    } as unknown as SlashCommandHost;
+    const host = makeNetworkHost();
 
     showNetworkSettings(host);
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    selectNetworkAction(host, 'status');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
 
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('not configured');
 
@@ -90,14 +150,10 @@ describe('network settings', () => {
     delete process.env['HTTPS_PROXY'];
     delete process.env['ALL_PROXY'];
 
-    const host = {
-      state: {
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-    } as unknown as SlashCommandHost;
+    const host = makeNetworkHost();
 
     showNetworkSettings(host);
+    selectNetworkAction(host, 'status');
     expect(panelLines(host)).toContain('not configured');
 
     if (priorHttp != null) process.env['HTTP_PROXY'] = priorHttp;
