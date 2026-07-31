@@ -65,7 +65,7 @@ export interface TUIEditor
   /** Opens the input-history fuzzy-search dialog (Ctrl-R). */
   onHistorySearch?: () => void;
   /** Opens the Command Hub (Ctrl-K / ? when empty). */
-  onCommandPalette?: () => void;
+  onCommandHub?: () => void;
   /** Opens the transcript search overlay (Ctrl-F). */
   onTranscriptSearch?: () => void;
   /** Stashes the current draft, or restores the latest stash when the editor is empty (Ctrl-X). */

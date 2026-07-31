@@ -297,7 +297,6 @@ export interface LioraTUIHost {
   restoreInputText(text: string): void;
   stashPromptToggle(): void;
   showHistorySearch(): void;
-  showCommandPalette(): void;
   showCommandHub(options?: { readonly initialQuery?: string; readonly intro?: boolean }): void;
   showTranscriptSearch(): void;
   scrollToTranscriptIndex(index: number): void;

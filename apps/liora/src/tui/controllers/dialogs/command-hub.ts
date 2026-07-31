@@ -48,11 +48,6 @@ export interface CommandHubDelegate extends ModalShellDelegate {
   showTranscriptSearch(): void;
 }
 
-/** @deprecated Prefer `showCommandHub` — alias kept for Ctrl-K / Ctrl-Space call sites. */
-export function showCommandPalette(delegate: CommandHubDelegate): void {
-  delegate.showCommandHub();
-}
-
 export function showCommandHub(
   host: DialogsHost,
   delegate: CommandHubDelegate,
@@ -148,7 +143,7 @@ function handleCommandHubSelect(
   noteHubActionUse(item.id);
 
   // Search tip — stay in Hub; One-search already covers slash/settings/skills.
-  if (item.id === 'help.palette') {
+  if (item.id === 'help.searchTip') {
     noteSuccessFeedback();
     host.state.toast.show('Type to search — settings, slash commands, skills', 2800);
     return;

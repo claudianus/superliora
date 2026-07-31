@@ -32,7 +32,7 @@ describe('buildDefaultCommandHubItems', () => {
       true,
     );
     expect(items.some((item) => item.section === 'Start')).toBe(true);
-    expect(items.some((item) => item.id === 'help.palette' && item.label === 'Search tip')).toBe(
+    expect(items.some((item) => item.id === 'help.searchTip' && item.label === 'Search tip')).toBe(
       true,
     );
     expect(isCommandHubToggleId('modes.plan')).toBe(true);
@@ -70,12 +70,14 @@ describe('cyclePermissionMode', () => {
   });
 });
 
-describe('help.palette Search tip', () => {
+describe('help.searchTip', () => {
   it('stays non-nested so One-search remains the only catalog', () => {
-    const item = buildDefaultCommandHubItems({}).find((candidate) => candidate.id === 'help.palette');
+    const item = buildDefaultCommandHubItems({}).find(
+      (candidate) => candidate.id === 'help.searchTip',
+    );
     expect(item?.label).toBe('Search tip');
-    expect(commandHubNestsPicker('help.palette')).toBe(false);
-    expect(commandHubActionToSlash('help.palette')).toBeUndefined();
+    expect(commandHubNestsPicker('help.searchTip')).toBe(false);
+    expect(commandHubActionToSlash('help.searchTip')).toBeUndefined();
   });
 });
 

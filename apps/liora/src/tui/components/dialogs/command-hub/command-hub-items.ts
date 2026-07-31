@@ -236,11 +236,11 @@ export function buildDefaultCommandHubItems(state: {
       description: 'Check for CLI updates',
     },
     {
-      id: 'help.palette',
+      id: 'help.searchTip',
       section: 'Help',
       label: 'Search tip',
       description: 'Type here — settings, /commands, skills (one search)',
-      keywords: ['palette', 'omnibox', 'fuzzy', 'slash', 'command palette'],
+      keywords: ['palette', 'omnibox', 'fuzzy', 'slash', 'command palette', 'hub'],
     },
     {
       id: 'help.shortcuts',
