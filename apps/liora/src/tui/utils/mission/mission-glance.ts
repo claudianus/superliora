@@ -183,7 +183,7 @@ export function buildMissionSettingsLines(
   const modeLine = `Mission mode: ${session.ultraworkMode ? 'ON' : 'OFF'}`;
 
   return [
-    '── Mission / Goals (read-only) ─────────────',
+    '── Mission / Goals ─────────────────────────',
     'Long-run objective loop — Sovereign Reform §7.3.',
     '',
     '── Session (live) ───────────────────────────',
