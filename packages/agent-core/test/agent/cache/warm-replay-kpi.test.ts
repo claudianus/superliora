@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatWarmReplayKpiReport,
+  runCacheFreezeMidTurnRatchet,
   runWarmReplayKpi,
   WARM_HIT_TARGET,
   WARM_REPLAY_TURN_COUNT,
@@ -13,6 +14,7 @@ describe('warm replay cache KPI harness (W1)', () => {
     const report = runWarmReplayKpi();
 
     expect(report.prefixStable).toBe(true);
+    expect(report.freezeFlipsAcrossTurns).toBe(true);
     expect(report.warmTurnCount).toBe(WARM_REPLAY_TURN_COUNT - 1);
     expect(report.warmTurnPassRate).toBeGreaterThanOrEqual(WARM_HIT_TARGET);
     expect(report.warmTurnsAtTarget).toBe(report.warmTurnCount);
@@ -35,5 +37,13 @@ describe('warm replay cache KPI harness (W1)', () => {
         turn.usage.inputOther + turn.usage.inputCacheRead + turn.usage.inputCacheCreation;
       expect(input).toBeGreaterThanOrEqual(WARM_STREAK_MIN_INPUT);
     }
+  });
+
+  it('rejects mid-turn prefix mutate and setActiveTools while frozen', () => {
+    const report = runCacheFreezeMidTurnRatchet();
+    expect(report.mutateRejected).toBe(true);
+    expect(report.setActiveToolsRejected).toBe(true);
+    expect(report.prefixStableAfterMutate).toBe(true);
+    expect(report.freezeFlip).toBe(true);
   });
 });

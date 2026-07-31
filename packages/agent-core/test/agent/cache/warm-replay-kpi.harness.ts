@@ -34,7 +34,16 @@ export interface WarmReplayKpiReport {
   readonly cacheWarmStreak: number | undefined;
   readonly missReasons: CacheMissReasonHistogram | undefined;
   readonly prefixStable: boolean;
+  /** True when every turn saw getCacheFrozen true after freeze and false after clear. */
+  readonly freezeFlipsAcrossTurns: boolean;
   readonly turns: readonly WarmReplayTurnMetrics[];
+}
+
+export interface CacheFreezeMidTurnRatchetReport {
+  readonly mutateRejected: boolean;
+  readonly setActiveToolsRejected: boolean;
+  readonly prefixStableAfterMutate: boolean;
+  readonly freezeFlip: boolean;
 }
 
 export interface WarmReplayKpiOptions {
@@ -80,9 +89,12 @@ export function runWarmReplayKpi(options: WarmReplayKpiOptions = {}): WarmReplay
   const model = 'mock-model';
   const turns: WarmReplayTurnMetrics[] = [];
   let prefixStable = true;
+  let freezeFlipsAcrossTurns = true;
+  const rpc = createRpcMethods(ctx.agent);
 
   for (let turn = 1; turn <= turnCount; turn++) {
     guard.freeze(prefixMaterial);
+    if (!rpc.getCacheFrozen({})) freezeFlipsAcrossTurns = false;
     ctx.agent.usage.beginTurn();
 
     const usage = turn <= bootstrapTurns ? coldBootstrapStepUsage() : warmStepUsage();
@@ -105,10 +117,11 @@ export function runWarmReplayKpi(options: WarmReplayKpiOptions = {}): WarmReplay
     });
 
     guard.clear();
+    if (rpc.getCacheFrozen({})) freezeFlipsAcrossTurns = false;
     ctx.agent.usage.endTurn();
   }
 
-  const usageStatus = createRpcMethods(ctx.agent).getUsage({});
+  const usageStatus = rpc.getUsage({});
   const warmTurns = turns.slice(bootstrapTurns);
   const warmTurnsAtTarget = warmTurns.filter((entry) => entry.meetsTarget).length;
 
@@ -122,7 +135,54 @@ export function runWarmReplayKpi(options: WarmReplayKpiOptions = {}): WarmReplay
     cacheWarmStreak: usageStatus.cacheWarmStreak,
     missReasons: usageStatus.cacheDiagnostics?.missReasons,
     prefixStable,
+    freezeFlipsAcrossTurns,
     turns,
+  };
+}
+
+/**
+ * Mid-turn CacheFreeze sensor: mutating the tool prefix or calling setActiveTools
+ * while frozen must fail; freeze must clear at the turn boundary.
+ */
+export function runCacheFreezeMidTurnRatchet(): CacheFreezeMidTurnRatchetReport {
+  const ctx = testAgent();
+  ctx.configure({ tools: [...DEFAULT_REPLAY_TOOLS] });
+  const guard = ctx.agent.cacheFreezeGuard;
+  const rpc = createRpcMethods(ctx.agent);
+  const prefixMaterial = buildTurnPrefixMaterial(ctx.agent.tools.enabledTools);
+
+  guard.freeze(prefixMaterial);
+  const frozenAtStart = rpc.getCacheFrozen({});
+
+  let mutateRejected = false;
+  try {
+    guard.assertUnchanged(`${prefixMaterial}\nWrite`, 'tool list');
+  } catch {
+    mutateRejected = true;
+  }
+
+  let setActiveToolsRejected = false;
+  try {
+    ctx.agent.tools.setActiveTools(['Read', 'Grep']);
+  } catch {
+    setActiveToolsRejected = true;
+  }
+
+  let prefixStableAfterMutate = true;
+  try {
+    guard.assertUnchanged(buildTurnPrefixMaterial(ctx.agent.tools.enabledTools), 'tool list');
+  } catch {
+    prefixStableAfterMutate = false;
+  }
+
+  guard.clear();
+  const freezeFlip = frozenAtStart === true && rpc.getCacheFrozen({}) === false;
+
+  return {
+    mutateRejected,
+    setActiveToolsRejected,
+    prefixStableAfterMutate,
+    freezeFlip,
   };
 }
 
@@ -143,6 +203,7 @@ export function formatWarmReplayKpiReport(report: WarmReplayKpiReport): string {
     `streak×${String(report.cacheWarmStreak ?? 0)} ` +
     `sessionHit=${sessionPct} ` +
     `prefixStable=${String(report.prefixStable)} ` +
+    `freezeFlip=${String(report.freezeFlipsAcrossTurns)} ` +
     `missReasons=${miss}`
   );
 }
