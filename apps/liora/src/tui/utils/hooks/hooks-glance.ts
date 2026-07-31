@@ -2,6 +2,22 @@
  * Hooks settings glance — live HookEngine registry + Pre/Post/Stop tips (SSOT §9.2).
  */
 
+/** Compact PreToolUse tip — gate destructive ops before tools run. */
+export const HOOKS_PRE_TOOL_USE_TIP =
+  'PreToolUse — gate destructive git/rm, .env writes, and secret paths before a tool runs · config.toml [[hooks]] or plugin hooks.json · audit via /ext hooks.';
+
+/** Compact PostToolUse tip — audit and project checks after tools complete. */
+export const HOOKS_POST_TOOL_USE_TIP =
+  'PostToolUse / PostToolUseFailure — audit, format, telemetry side-effects · Edit/Write triggers RunProjectChecks or scoped lint/type after file changes.';
+
+/** Compact Stop tip — session wind-down and swarm cleanup. */
+export const HOOKS_STOP_TIP =
+  'Stop / StopFailure — session wind-down, teammate idle, swarm cleanup · SessionStart / UserPromptSubmit bootstrap context and expand prompts.';
+
+/** Compact enable tip — manual hook setup paths. */
+export const HOOKS_ENABLE_TIP =
+  'Enable hooks: edit config.toml [[hooks]] (command hooks, restart after changes) · plugin hooks via Extensions → Plugins · audit live hooks: /ext hooks or Extensions → Hooks tab · Claude import via hooks-adapter.';
+
 export interface HooksGlanceInput {
   readonly registry?: {
     readonly totalCount: number;
