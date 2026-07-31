@@ -200,6 +200,6 @@ describe('protocol/question — question lifecycle', () => {
     const r = questionResponseSchema.parse({
       answers: { 'q-1': { kind: 'skipped' } },
     });
-    expect(r.answers['q-1'].kind).toBe('skipped');
+    expect(r.answers['q-1']?.kind).toBe('skipped');
   });
 });

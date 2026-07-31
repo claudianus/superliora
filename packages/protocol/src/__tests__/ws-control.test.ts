@@ -42,7 +42,7 @@ describe('protocol/ws-control — wire protocol constants and cursors', () => {
     const c = cursorsBySessionSchema.parse({
       's-1': { seq: 0, epoch: 'e-1' },
     });
-    expect(c['s-1'].epoch).toBe('e-1');
+    expect(c['s-1']?.epoch).toBe('e-1');
   });
 });
 

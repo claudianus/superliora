@@ -6,10 +6,10 @@ import { ToolInputDisplaySchema, ToolResultDisplaySchema } from '../display';
 describe('protocol/asyncapi — document builder', () => {
   it('createAsyncApiDocument returns the expected envelope', () => {
     const doc = createAsyncApiDocument();
-    expect(doc.asyncapi).toBe('3.1.0');
-    expect((doc).info).toBeDefined();
-    expect((doc).channels).toBeDefined();
-    expect((doc).operations).toBeDefined();
+    expect(doc['asyncapi']).toBe('3.1.0');
+    expect(doc['info']).toBeDefined();
+    expect(doc['channels']).toBeDefined();
+    expect(doc['operations']).toBeDefined();
   });
 
   it('createAsyncApiDocument honors custom title and version', () => {
