@@ -1,11 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CACHE_INVALIDATE_TIP,
+  buildCacheSettingsLines,
+  cacheInvalidateStatusMessage,
+  nextCacheInvalidateEpoch,
   resolveCacheHitFromAppState,
   resolveCacheHitSources,
   resolveCacheSessionGlance,
-  buildCacheSettingsLines,
 } from '#/tui/utils/cache/cache-glance';
+
+describe('cache invalidate epoch helpers', () => {
+  it('mentions Settings invalidate in the tip', () => {
+    expect(CACHE_INVALIDATE_TIP).toContain('Settings → Cache');
+  });
+
+  it('bumps epoch from zero or undefined', () => {
+    expect(nextCacheInvalidateEpoch(undefined)).toBe(1);
+    expect(nextCacheInvalidateEpoch(0)).toBe(1);
+    expect(nextCacheInvalidateEpoch(2)).toBe(3);
+  });
+
+  it('formats status message with epoch when provided', () => {
+    expect(cacheInvalidateStatusMessage(2)).toContain('epoch v2');
+    expect(cacheInvalidateStatusMessage()).toBe(CACHE_INVALIDATE_TIP);
+  });
+});
 
 describe('resolveCacheHitFromAppState', () => {
   it('returns rate and streak when cacheMeter is populated', () => {

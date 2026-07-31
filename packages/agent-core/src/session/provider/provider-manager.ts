@@ -216,6 +216,12 @@ export class ProviderManager implements ModelProvider {
     }));
   }
 
+  private resolvePromptCacheKey(): string | undefined {
+    const key = this.options.promptCacheKey;
+    if (key === undefined) return undefined;
+    return typeof key === 'function' ? key() : key;
+  }
+
   private resolveModelAlias(model: string): ResolvedRuntimeProvider {
     const rawAlias = this.config.models?.[model];
     if (rawAlias === undefined) {
@@ -256,7 +262,7 @@ export class ProviderManager implements ModelProvider {
       this.options.kimiRequestHeaders,
       alias.maxOutputSize,
       alias.reasoningKey,
-      this.options.promptCacheKey,
+      this.resolvePromptCacheKey(),
       alias.adaptiveThinking,
       alias.betaApi,
     );

@@ -151,11 +151,18 @@ export function resolveCacheSessionGlance(input: {
   };
 }
 
-/** Provider prompt_cache_key is the session id — invalidate by starting a new session or switching model. */
+/** Provider prompt_cache_key is session id (+ optional :vN epoch) — invalidate via Settings, /new, or model switch. */
 export const CACHE_INVALIDATE_TIP =
-  'Invalidate: run /new (new session id) or switch model — prompt_cache_key follows the session.';
+  'Invalidate: Settings → Cache → Invalidate prompt cache, /new, or switch model — prompt_cache_key rotates on the next turn.';
 
-export function cacheInvalidateStatusMessage(): string {
+export function nextCacheInvalidateEpoch(currentEpoch: number | undefined): number {
+  return (currentEpoch ?? 0) + 1;
+}
+
+export function cacheInvalidateStatusMessage(epoch?: number): string {
+  if (epoch !== undefined && epoch > 0) {
+    return `Prompt cache invalidated (epoch v${String(epoch)}). Next turn uses a cold prefix.`;
+  }
   return CACHE_INVALIDATE_TIP;
 }
 

@@ -13,6 +13,7 @@ import {
 import { KaosShellNotFoundError, LocalKaos, type Kaos } from '@superliora/kaos';
 
 import type { LioraConfig } from '../config';
+import { resolvePromptCacheKey } from '../config/prompt-cache-key';
 import type { PluginManager } from '../plugin';
 import type { SessionMcpConfig } from '../mcp';
 import { Session, type SessionSkillConfig } from '../session';
@@ -128,7 +129,7 @@ export function resolveProviderManager(
     config: () => context.config,
     kimiRequestHeaders: context.kimiRequestHeaders,
     resolveOAuthTokenProvider: context.resolveOAuthTokenProvider,
-    promptCacheKey: sessionId,
+    promptCacheKey: () => resolvePromptCacheKey(sessionId, context.config),
   });
 }
 

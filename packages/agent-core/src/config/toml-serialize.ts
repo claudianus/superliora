@@ -1,6 +1,7 @@
 import {
   type BackgroundConfig,
   type BrowserUseConfig,
+  type CacheConfig,
   type ComputerUseConfig,
   type ExperimentalConfig,
   type HookDefConfig,
@@ -58,6 +59,7 @@ export function configToTomlData(config: LioraConfig): Record<string, unknown> {
   setSection(out, 'loop_control', config.loopControl, loopControlToToml);
   setSection(out, 'background', config.background, backgroundToToml);
   setSection(out, 'memory', config.memory, memoryToToml);
+  setSection(out, 'cache', config.cache, cacheToToml);
   setSection(out, 'research', config.research, researchToToml);
   setSection(out, 'mission', config.mission, missionToToml);
   setSection(out, 'model_catalog', config.modelCatalog, modelCatalogToToml);
@@ -259,6 +261,14 @@ function backgroundToToml(
 function memoryToToml(memory: MemoryConfig, rawMemory: unknown): Record<string, unknown> {
   const out = cloneRecord(rawMemory);
   for (const [key, value] of Object.entries(memory)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function cacheToToml(cache: CacheConfig, rawCache: unknown): Record<string, unknown> {
+  const out = cloneRecord(rawCache);
+  for (const [key, value] of Object.entries(cache)) {
     setDefined(out, camelToSnake(key), value);
   }
   return out;

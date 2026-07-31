@@ -230,6 +230,13 @@ export const MemoryConfigSchema = z.object({
 
 export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 
+export const CacheConfigSchema = z.object({
+  /** Bumped by Settings → Cache invalidate; folded into prompt_cache_key as sessionId:vN. */
+  invalidateEpoch: z.number().int().min(0).optional(),
+});
+
+export type CacheConfig = z.infer<typeof CacheConfigSchema>;
+
 export {
   ResearchConfigSchema,
   ResearchContext7ConfigSchema,
@@ -432,6 +439,7 @@ export const LioraConfigSchema = z.object({
   background: BackgroundConfigSchema.optional(),
   media: MediaConfigSchema.optional(),
   memory: MemoryConfigSchema.optional(),
+  cache: CacheConfigSchema.optional(),
   research: ResearchConfigSchema.optional(),
   mission: MissionConfigSchema.optional(),
   modelCatalog: ModelCatalogConfigSchema.optional(),
@@ -454,6 +462,7 @@ const LoopControlPatchSchema = LoopControlSchema.partial();
 const BackgroundConfigPatchSchema = BackgroundConfigSchema.partial();
 const MediaConfigPatchSchema = MediaConfigSchema.partial();
 const MemoryConfigPatchSchema = MemoryConfigSchema.partial();
+const CacheConfigPatchSchema = CacheConfigSchema.partial();
 const ResearchLocalDirectSourcesPatchSchema = ResearchLocalDirectSourcesSchema.partial();
 const ResearchLocalSearchConfigPatchSchema = ResearchLocalSearchConfigSchema.extend({
   directSources: ResearchLocalDirectSourcesPatchSchema.optional(),
@@ -500,6 +509,7 @@ export const LioraConfigPatchSchema = z
     background: BackgroundConfigPatchSchema.optional(),
     media: MediaConfigPatchSchema.optional(),
     memory: MemoryConfigPatchSchema.optional(),
+    cache: CacheConfigPatchSchema.optional(),
     research: ResearchConfigPatchSchema.optional(),
     mission: MissionConfigPatchSchema.optional(),
     modelCatalog: ModelCatalogConfigPatchSchema.optional(),

@@ -1,5 +1,5 @@
 /**
- * Settings → Cache — hit-rate glance + invalidate tip + Cache Sacred (W1 / §9.2).
+ * Settings → Cache — hit-rate glance + invalidate action + Cache Sacred (W1 / §9.2).
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -7,10 +7,12 @@ import { UsagePanelComponent } from '../../../components/messages/usage-panel/in
 import {
   buildCacheSettingsLines,
   cacheInvalidateStatusMessage,
+  nextCacheInvalidateEpoch,
   resolveCacheSessionGlance,
   type CacheGlanceTone,
   type CacheStyledLine,
 } from '../../../utils/cache/cache-glance';
+import { formatErrorMessage } from '../../../utils/event-payload';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { currentTheme } from '../../../theme/theme';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
@@ -49,6 +51,17 @@ function renderCacheSettingsLines(
   });
 }
 
+export async function invalidatePromptCache(host: SlashCommandHost): Promise<void> {
+  try {
+    const config = await host.harness.getConfig();
+    const epoch = nextCacheInvalidateEpoch(config.cache?.invalidateEpoch);
+    await host.harness.setConfig({ cache: { invalidateEpoch: epoch } });
+    host.showStatus(cacheInvalidateStatusMessage(epoch), 'warning');
+  } catch (error) {
+    host.showError(`Failed to invalidate prompt cache: ${formatErrorMessage(error)}`);
+  }
+}
+
 export function showCacheSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
@@ -64,8 +77,8 @@ export function showCacheSettings(host: SlashCommandHost): void {
         },
         {
           value: 'invalidate',
-          label: 'Invalidate tip (/new or model switch)',
-          description: 'prompt_cache_key is the session id — how to force a cold prefix.',
+          label: 'Invalidate prompt cache',
+          description: 'Bump cache.invalidateEpoch — cold prefix on the next turn.',
         },
       ],
       onSelect: (value) => {
@@ -75,7 +88,7 @@ export function showCacheSettings(host: SlashCommandHost): void {
           return;
         }
         if (value === 'invalidate') {
-          host.showStatus(cacheInvalidateStatusMessage(), 'warning');
+          void invalidatePromptCache(host);
         }
       },
       onCancel: () => {
