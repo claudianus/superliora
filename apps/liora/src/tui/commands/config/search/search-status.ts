@@ -19,11 +19,67 @@ export interface SearchEnvStatus {
   readonly hints: readonly string[];
 }
 
+/** Routing strategies exposed in Settings → Search (mirrors ResearchSearchRoutingStrategy). */
+export type SearchRoutingStrategySetting =
+  | 'auto'
+  | 'parallel'
+  | 'fallback'
+  | 'round_robin'
+  | 'weighted_round_robin'
+  | 'least_used'
+  | 'rate_limit_aware';
+
+export const SEARCH_ROUTING_STRATEGY_OPTIONS: readonly {
+  readonly value: SearchRoutingStrategySetting;
+  readonly label: string;
+  readonly description: string;
+}[] = [
+  {
+    value: 'auto',
+    label: 'Strategy: auto (recommended)',
+    description: 'Cost-aware cascade — escalate only when results are thin.',
+  },
+  {
+    value: 'parallel',
+    label: 'Strategy: parallel',
+    description: 'Fan-out ready providers (higher recall, burns quota).',
+  },
+  {
+    value: 'fallback',
+    label: 'Strategy: fallback',
+    description: 'Try providers in order until enough hits.',
+  },
+  {
+    value: 'round_robin',
+    label: 'Strategy: round robin',
+    description: 'Rotate ready providers per call.',
+  },
+  {
+    value: 'weighted_round_robin',
+    label: 'Strategy: weighted round robin',
+    description: 'Rotate by provider weight.',
+  },
+  {
+    value: 'least_used',
+    label: 'Strategy: least used',
+    description: 'Prefer the least-called ready provider.',
+  },
+  {
+    value: 'rate_limit_aware',
+    label: 'Strategy: rate-limit aware',
+    description: 'Prefer providers not in cooldown.',
+  },
+];
+
 /** Minimal research slice readable via harness.getConfig() — no agent-core import. */
 export interface SearchConfigSlice {
   readonly research?: {
     readonly localSearch?: { readonly enabled?: boolean; readonly searxngUrl?: string };
-    readonly search?: { readonly freeFallback?: boolean };
+    readonly search?: {
+      readonly freeFallback?: boolean;
+      readonly strategy?: SearchRoutingStrategySetting;
+      readonly browserEscalate?: boolean;
+    };
   };
 }
 
@@ -98,6 +154,53 @@ export function buildSearchFreeFallbackConfigPatch(enabled: boolean): {
       },
     },
   };
+}
+
+/** Patch shape for harness.setConfig — research.search.strategy. */
+export function buildSearchStrategyConfigPatch(strategy: SearchRoutingStrategySetting): {
+  readonly research: { readonly search: { readonly strategy: SearchRoutingStrategySetting } };
+} {
+  return {
+    research: {
+      search: {
+        strategy,
+      },
+    },
+  };
+}
+
+/** Patch shape for harness.setConfig — research.search.browserEscalate (Ch4/Ch5 default). */
+export function buildSearchBrowserEscalateConfigPatch(enabled: boolean): {
+  readonly research: { readonly search: { readonly browserEscalate: boolean } };
+} {
+  return {
+    research: {
+      search: {
+        browserEscalate: enabled,
+      },
+    },
+  };
+}
+
+export function resolveSearchStrategy(
+  config: SearchConfigSlice | null | undefined,
+): SearchRoutingStrategySetting {
+  return config?.research?.search?.strategy ?? 'auto';
+}
+
+/** Default-on: omit / undefined means Ch4/Ch5 escalate allowed for WebSearch. */
+export function resolveSearchBrowserEscalate(
+  config: SearchConfigSlice | null | undefined,
+): boolean {
+  return config?.research?.search?.browserEscalate !== false;
+}
+
+export function formatSearchStrategyLine(strategy: SearchRoutingStrategySetting): string {
+  return `Strategy: ${strategy} (research.search.strategy)`;
+}
+
+export function formatSearchBrowserEscalateLine(enabled: boolean): string {
+  return `Browser escalate (Ch4/Ch5): ${enabled ? 'on' : 'off'} (research.search.browserEscalate)`;
 }
 
 export function formatLocalResearchCacheLine(status: LocalResearchCacheStatus): string {
@@ -484,6 +587,8 @@ export function buildSearchSettingsStatusLines(input: {
   readonly late: SearchLateChannelEnv;
   readonly cacheStatus: LocalResearchCacheStatus;
   readonly freeFallback: boolean;
+  readonly strategy?: SearchRoutingStrategySetting;
+  readonly browserEscalate?: boolean;
   readonly neverEmptyTelemetryLine?: string | null;
   readonly localResearchCacheHitLine?: string | null;
   readonly freeOnlyKpiLine?: string | null;
@@ -496,6 +601,8 @@ export function buildSearchSettingsStatusLines(input: {
     late,
     cacheStatus,
     freeFallback,
+    strategy = 'auto',
+    browserEscalate = true,
     neverEmptyTelemetryLine,
     localResearchCacheHitLine,
     freeOnlyKpiLine,
@@ -537,6 +644,8 @@ export function buildSearchSettingsStatusLines(input: {
             : formatResearchBridgeHandshakeLine(late.nativeHandshake, late.nativeSmokeVersion ?? undefined),
         ]
       : []),
+    formatSearchStrategyLine(strategy),
+    formatSearchBrowserEscalateLine(browserEscalate),
     `Free fallback: ${freeFallback ? 'on' : 'off'} (research.search.freeFallback)`,
     `· ${SEARCH_FREE_FALLBACK_FORCE_TIP}`,
     '',

@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showSearchSettings } from '#/tui/commands/config/search/search-settings';
+import {
+  buildSearchBrowserEscalateConfigPatch,
+  buildSearchStrategyConfigPatch,
+  formatSearchBrowserEscalateLine,
+  formatSearchStrategyLine,
+  resolveSearchBrowserEscalate,
+  resolveSearchStrategy,
+} from '#/tui/commands/config/search/search-status';
 import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { currentTheme } from '#/tui/theme';
@@ -29,12 +37,16 @@ function makeHost(options: {
       ui: { requestRender: vi.fn() },
       renderer: { invalidateFrame: vi.fn() },
       centerModalStack: [] as readonly unknown[],
+      appState: { searchCascade: undefined },
     },
     harness: {
       getConfig:
         options.getConfig ??
         vi.fn(async () => ({
-          research: { localSearch: { enabled: true }, search: { freeFallback: true } },
+          research: {
+            localSearch: { enabled: true },
+            search: { freeFallback: true, strategy: 'parallel', browserEscalate: false },
+          },
         })),
       setConfig: vi.fn(),
     },
@@ -51,6 +63,21 @@ function makeHost(options: {
     restoreEditor: vi.fn(),
   } as unknown as SlashCommandHost;
 }
+
+describe('search strategy / browser escalate helpers', () => {
+  it('builds setConfig patches and resolves defaults', () => {
+    expect(buildSearchStrategyConfigPatch('parallel')).toEqual({
+      research: { search: { strategy: 'parallel' } },
+    });
+    expect(buildSearchBrowserEscalateConfigPatch(false)).toEqual({
+      research: { search: { browserEscalate: false } },
+    });
+    expect(resolveSearchStrategy(undefined)).toBe('auto');
+    expect(resolveSearchBrowserEscalate(undefined)).toBe(true);
+    expect(formatSearchStrategyLine('auto')).toContain('auto');
+    expect(formatSearchBrowserEscalateLine(false)).toContain('off');
+  });
+});
 
 describe('showSearchSettings status panel', () => {
   it('wires live never-empty and LocalResearchCache hit from getStatus', async () => {
@@ -73,5 +100,33 @@ describe('showSearchSettings status panel', () => {
     expect(text).toContain('Never-empty: hard-fail 0 · soft-degrade 1');
     expect(text).toContain('Free-only KPI: soft 100% · hard-fail 0 · target ≥99%');
     expect(text).toContain('LocalResearchCache: hit 80% · 4/5 lookups');
+    expect(text).toContain('Strategy: parallel');
+    expect(text).toContain('Browser escalate (Ch4/Ch5): off');
+  });
+
+  it('writes strategy via setConfig from nested strategy picker', async () => {
+    const host = makeHost();
+    showSearchSettings(host);
+    const root = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    (root as unknown as { opts: { onSelect: (value: string) => void } }).opts.onSelect('strategy');
+
+    await vi.waitFor(() => {
+      expect((host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(
+        1,
+      );
+    });
+    const strategyPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    (strategyPicker as unknown as { opts: { onSelect: (value: string) => void } }).opts.onSelect(
+      'fallback',
+    );
+    await vi.waitFor(() => {
+      expect(host.harness.setConfig).toHaveBeenCalledWith({
+        research: { search: { strategy: 'fallback' } },
+      });
+    });
   });
 });
