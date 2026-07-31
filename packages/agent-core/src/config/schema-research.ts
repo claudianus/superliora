@@ -41,6 +41,7 @@ export const ResearchSearchProviderKindSchema = z.enum([
   'google_cse',
   'bing',
   'searxng',
+  'duckduckgo_ia',
   'duckduckgo',
   'moonshot',
 ]);

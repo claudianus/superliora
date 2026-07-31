@@ -8,6 +8,7 @@ import { MoonshotWebSearchProvider } from './moonshot-web-search';
 import {
   BingSearchAdapter,
   BraveSearchAdapter,
+  DuckDuckGoInstantAnswerSearchAdapter,
   ExaSearchAdapter,
   GoogleCseSearchAdapter,
   SearxngSearchAdapter,
@@ -101,6 +102,20 @@ export function buildProviderSlots(options: ResearchSearchEngineOptions): Provid
 
   // Free local fallback always available unless explicitly disabled with advanced override.
   if (resolveResearchSearchFreeFallback(options.search?.freeFallback)) {
+    slots.push({
+      id: `duckduckgo_ia:${String(index)}`,
+      kind: 'duckduckgo_ia',
+      label: 'duckduckgo_ia',
+      source: 'local',
+      weight: 1,
+      rpm: undefined,
+      provider: new DuckDuckGoInstantAnswerSearchAdapter(fetchImpl),
+      cooldownUntil: 0,
+      useCount: 0,
+      keyCursor: 0,
+    });
+    index += 1;
+
     const local = new LocalWebSearchProvider({
       ...options.local,
       fetchImpl,
@@ -180,6 +195,8 @@ function createRemoteProvider(
       if (baseUrl === undefined) return undefined;
       return new SearxngSearchAdapter(baseUrl, fetchImpl);
     }
+    case 'duckduckgo_ia':
+      return new DuckDuckGoInstantAnswerSearchAdapter(fetchImpl);
     case 'duckduckgo':
       return new LocalWebSearchProvider({
         ...options.local,

@@ -13,8 +13,13 @@ export const PROVIDER_COST_RANK: Readonly<Record<ResearchSearchProviderKind, num
   moonshot: 30,
   tavily: 40,
   exa: 50,
+  duckduckgo_ia: 95,
   duckduckgo: 100,
 };
+
+export function isFreeCascadeSlot(slot: Pick<ProviderSlot, 'kind' | 'source'>): boolean {
+  return slot.kind === 'duckduckgo' || slot.kind === 'duckduckgo_ia' || slot.source === 'local';
+}
 
 export function orderByCost(slots: readonly ProviderSlot[]): ProviderSlot[] {
   return slots.toSorted((a, b) => {

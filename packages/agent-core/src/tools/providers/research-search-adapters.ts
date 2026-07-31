@@ -278,6 +278,113 @@ export class GoogleCseSearchAdapter implements WebSearchProvider {
   }
 }
 
+/** DuckDuckGo Instant Answer API JSON shape (subset). */
+export interface DuckDuckGoInstantAnswerJson {
+  readonly AbstractText?: string | undefined;
+  readonly AbstractURL?: string | undefined;
+  readonly Heading?: string | undefined;
+  readonly RelatedTopics?: readonly unknown[] | undefined;
+  readonly Results?: readonly unknown[] | undefined;
+}
+
+function flattenDuckDuckGoRelatedTopics(
+  topics: readonly unknown[],
+): ReadonlyArray<{ readonly text: string; readonly url: string }> {
+  const items: Array<{ text: string; url: string }> = [];
+  for (const entry of topics) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    if (Array.isArray(record['Topics'])) {
+      items.push(...flattenDuckDuckGoRelatedTopics(record['Topics'] as readonly unknown[]));
+      continue;
+    }
+    const text = stringValue(record['Text']);
+    const url = stringValue(record['FirstURL']);
+    if (text !== undefined && url !== undefined) {
+      items.push({ text, url });
+    }
+  }
+  return items;
+}
+
+/** Parse DDG Instant Answer JSON into ranked web hits (exported for unit tests). */
+export function parseDuckDuckGoInstantAnswerResponse(
+  json: DuckDuckGoInstantAnswerJson,
+  limit: number,
+): WebSearchResult[] {
+  const capped = clampInt(limit, 1, 20);
+  const out: WebSearchResult[] = [];
+  const seen = new Set<string>();
+
+  const push = (title: string, url: string, snippet: string): void => {
+    if (out.length >= capped) return;
+    const candidate = buildResult({ title, url, snippet });
+    if (!hasUsableUrl(candidate)) return;
+    if (seen.has(candidate.url)) return;
+    seen.add(candidate.url);
+    out.push(candidate);
+  };
+
+  const abstractText = stringValue(json.AbstractText) ?? '';
+  const abstractUrl = stringValue(json.AbstractURL) ?? '';
+  const heading = stringValue(json.Heading) ?? '';
+  if (abstractUrl.length > 0) {
+    push(
+      heading.length > 0 ? heading : 'DuckDuckGo instant answer',
+      abstractUrl,
+      abstractText,
+    );
+  }
+
+  for (const { text, url } of flattenDuckDuckGoRelatedTopics(json.RelatedTopics ?? [])) {
+    push(text.slice(0, 120) || 'Related topic', url, text);
+    if (out.length >= capped) break;
+  }
+
+  for (const entry of json.Results ?? []) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    const text = stringValue(record['Text']);
+    const url = stringValue(record['FirstURL']);
+    if (text !== undefined && url !== undefined) {
+      push(text.slice(0, 120) || 'DuckDuckGo result', url, text);
+    }
+    if (out.length >= capped) break;
+  }
+
+  return out;
+}
+
+export class DuckDuckGoInstantAnswerSearchAdapter implements WebSearchProvider {
+  constructor(private readonly fetchImpl: typeof fetch) {}
+
+  async search(
+    query: string,
+    options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
+  ): Promise<WebSearchResult[]> {
+    const limit = clampInt(options?.limit ?? 5, 1, 20);
+    const url = new URL('https://api.duckduckgo.com/');
+    url.searchParams.set('q', query);
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('no_redirect', '1');
+    url.searchParams.set('no_html', '1');
+    url.searchParams.set('skip_disambig', '0');
+    const response = await this.fetchImpl(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': RESEARCH_SEARCH_USER_AGENT,
+      },
+    });
+    if (response.status === 429) throw rateLimitError('duckduckgo_ia', response.status);
+    if (response.status >= 400) {
+      throw new Error(`DuckDuckGo Instant Answer search failed: HTTP ${String(response.status)}`);
+    }
+    const json = (await response.json()) as DuckDuckGoInstantAnswerJson;
+    return parseDuckDuckGoInstantAnswerResponse(json, limit);
+  }
+}
+
 export class BingSearchAdapter implements WebSearchProvider {
   constructor(
     private readonly apiKey: string,

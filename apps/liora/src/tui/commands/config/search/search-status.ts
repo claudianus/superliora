@@ -471,7 +471,7 @@ export function buildSearchEscalateLadderLines(
       : 'Ch1 Paid/API: (no keys) · free fallback (DDG/local)';
   const meta = formatCh2MetaLadderLine(late);
   const fetch =
-    'Ch3 Fetch: DDG HTML/Lite + LocalResearchCache · free fallback last resort (DDG/local)';
+    'Ch3 Fetch: DDG IA JSON → DDG HTML/Lite + LocalResearchCache · Ch6 free fallback when channels thin';
   const browser = 'Ch4 Browser: gui-use when session wired · liora browser-use doctor';
   const chrome = late.chromeExtBridge
     ? `Ch5 Chrome ext: ON (${CHROME_RESEARCH_BRIDGE_ENV}=1${late.chromeExtUrl != null ? ` · ${late.chromeExtUrl}` : ` · ${DEFAULT_CHROME_EXT_BRIDGE_URL}`}) · ${formatResearchBridgeHandshakeLine(late.nativeHandshake, late.nativeSmokeVersion ?? undefined)}`
