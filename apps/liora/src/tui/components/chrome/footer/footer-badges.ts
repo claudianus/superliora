@@ -257,6 +257,8 @@ export function formatMediaFooterBadge(
   return { label: 'vid', severity: 'info' };
 }
 
+export { formatIndexFooterBadge } from '#/tui/utils/index/index-footer-badge';
+
 /** Prompt-cache warm-streak badge — SSOT: AppState.cacheMeter via resolveCacheHitFromAppState. */
 export function formatCacheHitFooterBadge(
   cacheMeter: AppState['cacheMeter'],
