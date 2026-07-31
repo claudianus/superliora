@@ -2,19 +2,78 @@
  * Settings → Media fallback — live policy + model vision glance (SSOT §9.2).
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { getDataDir } from '#/utils/paths';
 import {
   buildMediaSettingsLines,
   loadMediaSettingsGlance,
+  MEDIA_ANALYZE_TIP,
+  MEDIA_BLOCK_TIP,
+  MEDIA_PATH_TIP,
   resolveMediaConfigPath,
 } from '#/tui/utils/media/media-glance';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
+export { MEDIA_ANALYZE_TIP, MEDIA_BLOCK_TIP, MEDIA_PATH_TIP };
+
 export function showMediaSettings(host: SlashCommandHost): void {
-  void showMediaSettingsPanel(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Media fallback',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Media fallback status',
+          description:
+            'Live nonVisionFallback policy · current model image_in/video_in · effective send posture.',
+        },
+        {
+          value: 'tip-analyze',
+          label: 'Analyze policy tip',
+          description: 'Vision catalog pre-render · injected text before chat model · paste/drop parity.',
+        },
+        {
+          value: 'tip-path',
+          label: 'Path note policy tip',
+          description: 'Pointer note instead of bytes · vision tool can read attachment later.',
+        },
+        {
+          value: 'tip-block',
+          label: 'Block policy tip',
+          description: 'Refuse send when image_in/video_in missing · switch model to skip fallback.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showMediaSettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-analyze') {
+          host.showStatus(MEDIA_ANALYZE_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-path') {
+          host.showStatus(MEDIA_PATH_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-block') {
+          host.showStatus(MEDIA_BLOCK_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Media fallback' },
+  );
 }
 
 async function showMediaSettingsPanel(host: SlashCommandHost): Promise<void> {
@@ -47,7 +106,9 @@ async function showMediaSettingsPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Media fallback ',
     enterBeatSeed: 'media-settings',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
