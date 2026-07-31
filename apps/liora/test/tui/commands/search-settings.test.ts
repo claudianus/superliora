@@ -4,10 +4,12 @@ import { showSearchSettings } from '#/tui/commands/config/search/search-settings
 import {
   buildSearchBrowserEscalateConfigPatch,
   buildSearchPreferXaiConfigPatch,
+  buildSearchSearxngUrlConfigPatch,
   buildSearchStrategyConfigPatch,
   formatSearchBrowserEscalateLine,
   formatSearchPreferXaiLine,
   formatSearchStrategyLine,
+  isValidSearxngUrl,
   resolveSearchBrowserEscalate,
   resolveSearchPreferXai,
   resolveSearchStrategy,
@@ -89,6 +91,11 @@ describe('search strategy / browser escalate helpers', () => {
     expect(formatSearchStrategyLine('auto')).toContain('auto');
     expect(formatSearchBrowserEscalateLine(false)).toContain('off');
     expect(formatSearchPreferXaiLine(false)).toContain('off');
+    expect(buildSearchSearxngUrlConfigPatch('https://searx.example.com')).toEqual({
+      research: { localSearch: { searxngUrl: 'https://searx.example.com' } },
+    });
+    expect(isValidSearxngUrl('https://searx.example.com')).toBe(true);
+    expect(isValidSearxngUrl('not-a-url')).toBe(false);
   });
 });
 

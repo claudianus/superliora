@@ -42,6 +42,8 @@ export const SETTINGS_SEARCH_KEYWORDS = {
     'preferxai',
     'xai',
     'grok',
+    'searxng',
+    'ch2',
   ],
   index: ['fts', 'fts5', 'codemap', 'repoquery', 'zoekt', 'rebuild', 'symbol'],
   host: ['in-process', 'server', 'transport', 'acp', 'remote'],

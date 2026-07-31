@@ -97,7 +97,7 @@ export const SEARCH_FREE_FALLBACK_FORCE_TIP =
 export const SEARXNG_URL_ENV = 'SUPERLIORA_SEARXNG_URL';
 
 export const SEARCH_META_CH2_TIP =
-  `Ch2 Meta: set ${SEARXNG_URL_ENV} or research.localSearch.searxngUrl (self-hosted SearXNG, JSON format).`;
+  `Ch2 Meta: Settings → Search → Set SearXNG URL, or ${SEARXNG_URL_ENV} / research.localSearch.searxngUrl (JSON format).`;
 
 export const SEARCH_META_CH2_READY_TIP =
   'Ch2 Meta ready — SearXNG URL configured (soft; health probe on first search).';
@@ -226,6 +226,43 @@ export function resolveSearchPreferXai(
 
 export function formatSearchPreferXaiLine(enabled: boolean): string {
   return `PreferXai (Grok Build first): ${enabled ? 'on' : 'off'} (research.search.preferXai)`;
+}
+
+/** Patch shape for harness.setConfig — research.localSearch.searxngUrl (Ch2). */
+export function buildSearchSearxngUrlConfigPatch(url: string): {
+  readonly research: { readonly localSearch: { readonly searxngUrl: string } };
+} {
+  return {
+    research: {
+      localSearch: {
+        searxngUrl: url,
+      },
+    },
+  };
+}
+
+/** Clear config searxngUrl (env SUPERLIORA_SEARXNG_URL may still apply). */
+export function buildSearchClearSearxngUrlConfigPatch(): {
+  readonly research: { readonly localSearch: { readonly searxngUrl: string } };
+} {
+  return {
+    research: {
+      localSearch: {
+        searxngUrl: '',
+      },
+    },
+  };
+}
+
+export function isValidSearxngUrl(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export function formatLocalResearchCacheLine(status: LocalResearchCacheStatus): string {
