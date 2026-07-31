@@ -7,7 +7,7 @@ export {
   buildUltraworkRecoveryPrompt as buildMissionRecoveryPrompt,
   maybeAdvanceUltraworkStage as maybeAdvanceMissionStage,
   maybeFinishUltraworkRun as maybeFinishMissionRun,
-} from '../ultrawork/index.ts';
+} from '../ultrawork/index';
 
 export { ULTRAWORK_STAGE_ORDER as MISSION_STAGE_ORDER } from '../ultrawork/state';
 

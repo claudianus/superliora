@@ -28,8 +28,8 @@ const LIORA_EXPAND_DESCRIPTION =
   `Legacy/advanced alias of Expand. Prefer Expand for new work. ${EXPAND_DESCRIPTION}`;
 
 export class LioraExpandTool implements BuiltinTool<LioraExpandInput> {
-  readonly name = LIORA_EXPAND_TOOL_NAME;
-  readonly description = LIORA_EXPAND_DESCRIPTION;
+  readonly name: string = LIORA_EXPAND_TOOL_NAME;
+  readonly description: string = LIORA_EXPAND_DESCRIPTION;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(LioraExpandInputSchema);
 
   constructor(protected readonly store: ToolStore) {}

@@ -5,7 +5,8 @@
  * non-blocking tips when SUPERLIORA_FLEET_BUDGET_USD is set.
  */
 
-import type { TokenUsage, UsageStatus } from '#/rpc';
+import type { TokenUsage } from '@superliora/kosong';
+import type { UsageStatus } from '#/rpc/events';
 import type { Agent } from '../agent';
 
 /** W4 soft: session $ cap env (AgentSwarm/UltraSwarm — opt-in). */

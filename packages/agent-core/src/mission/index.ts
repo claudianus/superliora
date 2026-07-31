@@ -7,7 +7,7 @@
  * Optional live-only dual emit: `maybeEmitMissionUltraworkAliasLive` when
  * `SUPERLIORA_MISSION_DUAL_EMIT=1` or `SUPERLIORA_SOVEREIGN=1` — Agent wires this; journal stays canonical.
  */
-export * from '../ultrawork/index.ts';
+export * from '../ultrawork/index';
 export { formatEvidenceHardGateNextActions } from '../ultrawork/recovery-prompt';
 /** Work-graph store — light path; avoids ultrawork-graph tool + .md imports. */
 export { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';

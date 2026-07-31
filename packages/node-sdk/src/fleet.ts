@@ -46,4 +46,9 @@ export {
   loadFleetBudgetGlance,
 } from '@superliora/agent-core/fleet';
 
-export type { FleetUltraworkEventSuffix } from '@superliora/agent-core/fleet';
+export type {
+  FleetUltraworkEventSuffix,
+  MakerCheckerCollision,
+  SwarmMakerCheckerRole,
+  SwarmRoleAssignment,
+} from '@superliora/agent-core/fleet';

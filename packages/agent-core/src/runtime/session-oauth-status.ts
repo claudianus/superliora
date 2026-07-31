@@ -42,11 +42,10 @@ export async function buildSessionOAuthStatus(
     nowMs,
   });
 
-  const status: SessionOAuthStatusSnapshot = { poolSize: refs.length };
-  if (nextRefreshAtMs !== undefined) {
-    status.nextRefreshAtMs = nextRefreshAtMs;
-  }
-  return status;
+  return {
+    poolSize: refs.length,
+    ...(nextRefreshAtMs !== undefined ? { nextRefreshAtMs } : {}),
+  };
 }
 
 function resolveOAuthProviderName(

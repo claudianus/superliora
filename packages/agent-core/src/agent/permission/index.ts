@@ -175,7 +175,7 @@ export class PermissionManager {
     const queued = this.interventionQueue.enqueue({
       toolName: name,
       rule: context.execution.approvalRule ?? `${name}(*)`,
-      risk: display.kind === 'shell' ? 'high' : 'low',
+      risk: display.kind === 'command' ? 'high' : 'low',
     });
     this.inFlightInterventionIds.add(queued.id);
     this.agent.emitStatusUpdated();

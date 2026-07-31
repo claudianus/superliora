@@ -38,10 +38,12 @@ export interface ReviewComment {
   readonly message: string;
 }
 
+const LIORA_REVIEW_DESCRIPTION =
+  'Legacy/advanced alias of Review. Prefer Review for new work. Reviews a git diff for bugs, security issues, and improvements; returns structured comments with file paths and line numbers resolved from the diff (not trusted from the model).';
+
 export class CodeReviewTool implements BuiltinTool<CodeReviewInput> {
-  readonly name = 'LioraReview' as const;
-  readonly description =
-    'Legacy/advanced alias of Review. Prefer Review for new work. Reviews a git diff for bugs, security issues, and improvements; returns structured comments with file paths and line numbers resolved from the diff (not trusted from the model).';
+  readonly name: string = 'LioraReview';
+  readonly description: string = LIORA_REVIEW_DESCRIPTION;
   readonly parameters = toInputJsonSchema(inputSchema);
 
   constructor(

@@ -8,11 +8,11 @@
 import {
   isMissionUltraworkEventType,
   missionUltraworkEventAlias,
+  ULTRAWORK_EVENT_PREFIX,
   type MissionUltraworkEventSuffix,
 } from './mission-alias';
 
 export const FLEET_EVENT_PREFIX = 'fleet.' as const;
-export const ULTRAWORK_EVENT_PREFIX = 'ultrawork.' as const;
 
 /** Collaboration / swarm suffixes that may arrive as `fleet.*` during rename. */
 export const FLEET_ULTRAWORK_EVENT_SUFFIXES = [

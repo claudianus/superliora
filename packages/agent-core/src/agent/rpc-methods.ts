@@ -21,6 +21,7 @@ import {
   fallbackUltraworkObjectiveProfile,
   resolveUltraworkObjectiveProfile,
 } from '#/mission';
+import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
 import type { Agent } from './index';
 
 export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
@@ -323,6 +324,16 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
     getCircuitBreakers: () => agent.circuitBreakerStatus(),
     getCacheFrozen: () => agent.cacheFreezeGuard.isFrozen(),
     getParallelToolsStatus: () => agent.toolParallelStatus.snapshot(),
+    getOAuthStatus: async () => {
+      if (agent.kimiConfig === undefined || agent.homedir === undefined) {
+        return undefined;
+      }
+      return buildSessionOAuthStatus({
+        config: agent.kimiConfig,
+        homeDir: agent.homedir,
+        modelAlias: agent.config.data().modelAlias,
+      });
+    },
     getPlan: () => agent.planMode.data(),
     getUsage: () => agent.usage.status() ?? agent.usage.data(),
     getProviderRouteStatus: () => agent.providerRouteStatus(),

@@ -60,6 +60,7 @@ import type {
 } from '#/rpc';
 import type { PromisableMethods } from '#/utils/types';
 
+import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
 import type { Session, SessionMeta } from '.';
 import { buildSessionTrace } from './trace';
 import {
@@ -439,6 +440,20 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async getParallelToolsStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).getParallelToolsStatus(payload);
+  }
+
+  async getOAuthStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    const config = this.session.options.config;
+    const homeDir = this.session.options.kimiHomeDir;
+    if (config === undefined || homeDir === undefined) {
+      return undefined;
+    }
+    const agentConfig = await (await this.getAgent(agentId)).getConfig(payload);
+    return buildSessionOAuthStatus({
+      config,
+      homeDir,
+      modelAlias: agentConfig.modelAlias,
+    });
   }
 
   async getPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
