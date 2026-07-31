@@ -1,58 +1,22 @@
 /**
- * RepoIndex engine soft stub — SQLite FTS5 path (W3 preview).
+ * RepoIndex engine — SQLite FTS5 workspace content search (v1 micro-slice).
  *
- * Reports driver availability and serves synthetic FTS5 hits (in-memory probe
- * rows) until the full workspace indexer lands.
+ * When SUPERLIORA_REPO_INDEX_ENGINE=sqlite and a driver is available, builds
+ * and queries a real FTS5 line index via content-indexer.ts.
  */
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
 import type { RepoQueryIndexStatus } from '#/tools/builtin/file/repo-query-core';
 
+import {
+  getContentIndexForWorkspace,
+  resetContentIndexForTests,
+  setContentIndexDbPathOverrideForTests,
+} from './content-indexer';
 import type { RepoIndexEngine } from './status';
 
 export type SqliteDriver = 'node:sqlite' | 'better-sqlite3';
-
-/** Known token seeded in the synthetic FTS5 table — stable for unit tests. */
-export const REPO_INDEX_SYNTHETIC_PROBE_TOKEN = 'RepoIndex';
-
-interface SqliteStatement {
-  run(...params: readonly (string | number | null)[]): unknown;
-  all(...params: readonly (string | number | null)[]): Array<Record<string, string | number | null>>;
-}
-
-interface SqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): SqliteStatement;
-  close(): void;
-}
-
-interface SqliteModule {
-  readonly DatabaseSync: new (path: string) => SqliteDatabase;
-}
-
-const SYNTHETIC_FTS_ROWS = [
-  {
-    path: 'src/repo-index/engine.ts',
-    line: 1,
-    body: `${REPO_INDEX_SYNTHETIC_PROBE_TOKEN} synthetic FTS5 probe row for sqlite engine preview.`,
-  },
-  {
-    path: 'packages/agent-core/README.md',
-    line: 42,
-    body: 'SUPERLIORA_REPO_INDEX_PROBE secondary synthetic preview row.',
-  },
-] as const;
-
-const SYNTHETIC_FTS_SCHEMA = `
-CREATE VIRTUAL TABLE IF NOT EXISTS repo_content USING fts5(
-  path UNINDEXED,
-  line UNINDEXED,
-  body
-);
-`;
-
-let syntheticFtsDb: SqliteDatabase | null = null;
 
 export interface SqliteDriverProbe {
   readonly available: boolean;
@@ -70,6 +34,7 @@ export interface RepoIndexContentQueryInput {
   readonly query: string;
   readonly path?: string | undefined;
   readonly limit?: number | undefined;
+  readonly workspaceDir?: string | undefined;
 }
 
 export interface RepoIndexContentQueryResult {
@@ -80,10 +45,10 @@ export interface RepoIndexContentQueryResult {
 }
 
 export const REPO_INDEX_CONTENT_STUB_HINT =
-  'SQLite FTS5 synthetic preview — probe rows only; workspace indexer not shipped yet.';
+  'SQLite FTS5 workspace content index — real indexed lines (capped v1).';
 
 export const REPO_INDEX_CONTENT_STUB_NEXT_STEP =
-  'Use RepoQuery mode=content (Grep fallback) for real workspace search until FTS warm path ships.';
+  'Use RepoQuery mode=content (Grep fallback) for paths outside the index cap or uncaptured files.';
 
 export const REPO_INDEX_ZOEKT_STUB_HINT =
   'Zoekt sidecar — binary on PATH only; set SUPERLIORA_ZOEKT_URL for live HTTP search.';
@@ -158,71 +123,15 @@ export function resetZoektFetchOverride(): void {
   zoektFetchOverride = null;
 }
 
-/** @internal Close and drop the in-memory synthetic FTS database (Vitest isolation). */
+/** @internal Close and drop workspace content indexes (Vitest isolation). */
 export function resetRepoIndexSyntheticFtsForTests(): void {
-  syntheticFtsDb?.close();
-  syntheticFtsDb = null;
+  resetContentIndexForTests();
 }
 
-function loadNodeSqliteModule(): SqliteModule {
-  const require = createRequire(import.meta.url);
-  return require('node:sqlite') as SqliteModule;
-}
-
-function getSyntheticFtsDb(): SqliteDatabase {
-  if (syntheticFtsDb !== null) {
-    return syntheticFtsDb;
-  }
-  const db = new (loadNodeSqliteModule().DatabaseSync)(':memory:');
-  db.exec(SYNTHETIC_FTS_SCHEMA);
-  const insert = db.prepare('INSERT INTO repo_content (path, line, body) VALUES (?, ?, ?)');
-  for (const row of SYNTHETIC_FTS_ROWS) {
-    insert.run(row.path, row.line, row.body);
-  }
-  syntheticFtsDb = db;
-  return db;
-}
-
-/** Quote a single FTS5 token for the synthetic preview matcher. */
-function escapeFts5Token(query: string): string | null {
-  const trimmed = query.trim();
-  if (trimmed.length === 0) {
-    return null;
-  }
-  if (!/^[\w.-]+$/u.test(trimmed)) {
-    return null;
-  }
-  return `"${trimmed.replace(/"/g, '""')}"`;
-}
-
-function querySyntheticFts(
-  input: RepoIndexContentQueryInput,
-  limit: number,
-): readonly string[] {
-  const match = escapeFts5Token(input.query);
-  if (match === null) {
-    return [];
-  }
-
-  const db = getSyntheticFtsDb();
-  const scope = input.path?.trim();
-  let sql = 'SELECT path, line, body FROM repo_content WHERE repo_content MATCH ?';
-  const params: (string | number)[] = [match];
-  if (scope !== undefined && scope.length > 0) {
-    sql += ' AND path LIKE ?';
-    params.push(`%${scope.replace(/%/g, '')}%`);
-  }
-  sql += ' LIMIT ?';
-  params.push(limit);
-
-  const rows = db.prepare(sql).all(...params);
-  return rows.map((row) => {
-    const path = String(row['path'] ?? '');
-    const line = String(row['line'] ?? '');
-    const body = String(row['body'] ?? '');
-    return `${path}:L${line} ${body}`;
-  });
-}
+export {
+  resetContentIndexForTests,
+  setContentIndexDbPathOverrideForTests,
+} from './content-indexer';
 
 /** Probe node:sqlite first (bundled on Node >=22.5), then optional better-sqlite3. */
 export function probeSqliteDriver(): SqliteDriverProbe {
@@ -360,6 +269,27 @@ export function getRepoIndexEngineWireStatus(engine: RepoIndexEngine): RepoIndex
     driver: null,
     reason: 'engine=stub — set SUPERLIORA_REPO_INDEX_ENGINE=sqlite or zoekt',
   };
+}
+
+function resolveWorkspaceDir(input: RepoIndexContentQueryInput): string {
+  const fromInput = input.workspaceDir?.trim();
+  if (fromInput !== undefined && fromInput.length > 0) {
+    return fromInput;
+  }
+  return process.cwd();
+}
+
+function querySqliteContentIndex(
+  input: RepoIndexContentQueryInput,
+  limit: number,
+): readonly string[] {
+  const workspaceDir = resolveWorkspaceDir(input);
+  const index = getContentIndexForWorkspace(workspaceDir);
+  if (!index.ensureReady()) {
+    return [];
+  }
+  const scope = input.path?.trim();
+  return index.query(input.query, scope, limit);
 }
 
 interface ZoektFragmentJson {
@@ -675,7 +605,7 @@ export async function queryRepoIndexContentAsync(
 }
 
 /**
- * Content query — synthetic FTS5 preview when node:sqlite is wired; never throws.
+ * Content query — SQLite FTS5 workspace index when engine=sqlite; never throws.
  */
 export function queryRepoIndexContent(
   input: RepoIndexContentQueryInput,
@@ -708,21 +638,12 @@ export function queryRepoIndexContent(
     };
   }
 
-  if (wire.driver !== 'node:sqlite') {
-    return {
-      results: [],
-      index_status: 'cold',
-      hint: `${REPO_INDEX_CONTENT_STUB_HINT}${scopeNote} · driver=${wire.driver ?? 'unknown'} (FTS preview requires node:sqlite)`,
-      next_step: REPO_INDEX_CONTENT_STUB_NEXT_STEP,
-    };
-  }
-
-  const results = querySyntheticFts(input, limit);
+  const results = querySqliteContentIndex(input, limit);
   if (results.length > 0) {
     return {
       results,
       index_status: 'partial',
-      hint: `${REPO_INDEX_CONTENT_STUB_HINT}${scopeNote} · driver=${wire.driver}`,
+      hint: `${REPO_INDEX_CONTENT_STUB_HINT}${scopeNote} · driver=${wire.driver ?? 'unknown'} · ${String(results.length)} hit(s)`,
       next_step: REPO_INDEX_CONTENT_STUB_NEXT_STEP,
     };
   }
@@ -730,7 +651,7 @@ export function queryRepoIndexContent(
   return {
     results: [],
     index_status: 'cold',
-    hint: `${REPO_INDEX_CONTENT_STUB_HINT}${scopeNote} · driver=${wire.driver ?? 'unknown'} · no synthetic hits`,
+    hint: `${REPO_INDEX_CONTENT_STUB_HINT}${scopeNote} · driver=${wire.driver ?? 'unknown'} · no indexed hits`,
     next_step: REPO_INDEX_CONTENT_STUB_NEXT_STEP,
   };
 }

@@ -44,7 +44,7 @@ describe('getRepoIndexStatus FTS soft wire', () => {
     expect(isRepoIndexEngineWired({ [REPO_INDEX_ENGINE_ENV]: 'sqlite' })).toBe(true);
     expect(formatRepoIndexEngineLine(sqlite)).toContain('enabled');
     expect(formatRepoIndexEngineLine(sqlite)).toContain('driver=node:sqlite');
-    expect(formatRepoIndexBackendLine(sqlite)).toContain('live stub');
+    expect(formatRepoIndexBackendLine(sqlite)).toContain('live');
     expect(formatRepoIndexBackendLine(sqlite)).toContain('sqlite-fts5');
     expect(formatRepoIndexWiredLine(sqlite)).toContain('live');
     expect(formatRepoIndexWiredLine(sqlite)).toContain('engine=sqlite');
