@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showEditorSettings } from '#/tui/commands/config/editor/editor-settings';
-import { showUpgradeSettings } from '#/tui/commands/config/upgrade/upgrade-settings';
+import {
+  EDITOR_EXTERNAL_TIP,
+  showEditorSettings,
+} from '#/tui/commands/config/editor/editor-settings';
+import {
+  showUpgradeSettings,
+  UPGRADE_ENV_TIP,
+} from '#/tui/commands/config/upgrade/upgrade-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import {
   buildEditorSettingsLines,
@@ -21,6 +28,14 @@ import {
   loadUpgradeGlance,
 } from '#/tui/utils/upgrade/upgrade-glance';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+
+function selectPickerAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
 
 function panelText(host: SlashCommandHost): string {
   const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
@@ -99,7 +114,7 @@ describe('upgrade glance', () => {
 });
 
 describe('editor settings panel', () => {
-  it('mounts live inputMode and editor from appState', () => {
+  it('mounts ChoicePicker then live inputMode panel', () => {
     const host = {
       state: {
         appState: {
@@ -108,19 +123,44 @@ describe('editor settings panel', () => {
         },
         transcriptContainer: { addChild: vi.fn() },
         renderer: { invalidateFrame: vi.fn() },
+        centerModalStack: [] as readonly unknown[],
       },
+      mountCenterModal: vi.fn(),
+      closeCenterModal: vi.fn(),
+      restoreEditor: vi.fn(),
+      showStatus: vi.fn(),
     } as unknown as SlashCommandHost;
 
     showEditorSettings(host);
+    selectPickerAction(host, 'status');
     const text = panelText(host);
     expect(text).toContain('TUI input: bash');
     expect(text).toContain('External editor: nvim · resolved nvim');
     expect(text).toContain('Ctrl+G');
   });
+
+  it('shows external editor tip via showStatus', () => {
+    const host = {
+      state: {
+        appState: { inputMode: 'prompt' as const, editorCommand: null },
+        transcriptContainer: { addChild: vi.fn() },
+        renderer: { invalidateFrame: vi.fn() },
+        centerModalStack: [] as readonly unknown[],
+      },
+      mountCenterModal: vi.fn(),
+      closeCenterModal: vi.fn(),
+      restoreEditor: vi.fn(),
+      showStatus: vi.fn(),
+    } as unknown as SlashCommandHost;
+
+    showEditorSettings(host);
+    selectPickerAction(host, 'tip-external');
+    expect(host.showStatus).toHaveBeenCalledWith(EDITOR_EXTERNAL_TIP, 'info');
+  });
 });
 
 describe('upgrade settings panel', () => {
-  it('mounts live auto-update config and env status', () => {
+  it('mounts ChoicePicker then live auto-update panel', () => {
     const host = {
       state: {
         appState: {
@@ -130,13 +170,42 @@ describe('upgrade settings panel', () => {
         },
         transcriptContainer: { addChild: vi.fn() },
         renderer: { invalidateFrame: vi.fn() },
+        centerModalStack: [] as readonly unknown[],
       },
+      mountCenterModal: vi.fn(),
+      closeCenterModal: vi.fn(),
+      restoreEditor: vi.fn(),
+      showStatus: vi.fn(),
     } as unknown as SlashCommandHost;
 
     showUpgradeSettings(host);
+    selectPickerAction(host, 'status');
     const text = panelText(host);
     expect(text).toContain('Running version: 2.0.0');
     expect(text).toContain('auto_install: ON');
     expect(text).toContain('/upgrade');
+  });
+
+  it('shows env tip via showStatus', () => {
+    const host = {
+      state: {
+        appState: {
+          version: '2.0.0',
+          upgrade: { autoInstall: false },
+          updateNotice: null,
+        },
+        transcriptContainer: { addChild: vi.fn() },
+        renderer: { invalidateFrame: vi.fn() },
+        centerModalStack: [] as readonly unknown[],
+      },
+      mountCenterModal: vi.fn(),
+      closeCenterModal: vi.fn(),
+      restoreEditor: vi.fn(),
+      showStatus: vi.fn(),
+    } as unknown as SlashCommandHost;
+
+    showUpgradeSettings(host);
+    selectPickerAction(host, 'tip-env');
+    expect(host.showStatus).toHaveBeenCalledWith(UPGRADE_ENV_TIP, 'info');
   });
 });

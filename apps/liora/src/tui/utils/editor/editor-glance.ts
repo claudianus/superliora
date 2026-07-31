@@ -4,6 +4,15 @@
 
 import { resolveEditorCommand } from '#/utils/process/external-editor';
 
+export const EDITOR_EXTERNAL_TIP =
+  'External editor: /editor picker or /editor <command> · Ctrl+G opens the buffer ($VISUAL / $EDITOR).';
+
+export const EDITOR_BASH_TIP =
+  'TUI input: ! at prompt start enters bash mode · Esc returns to prompt.';
+
+export const EDITOR_PERSIST_TIP =
+  'Persisted in tui.toml [editor] command · inputMode reads appState on toggle.';
+
 export interface EditorGlanceInput {
   readonly inputMode: 'prompt' | 'bash';
   readonly editorCommand: string | null;

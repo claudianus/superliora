@@ -9,6 +9,14 @@ export const AUTO_UPDATE_DISABLE_ENV = 'SUPERLIORA_NO_AUTO_UPDATE';
 export const AUTO_UPDATE_DISABLE_ENV_LEGACY = 'KIMI_CLI_NO_AUTO_UPDATE';
 export const ROLLOUT_BYPASS_ENV = 'SUPERLIORA_EXPERIMENTAL_FLAG';
 
+export const UPGRADE_AUTO_INSTALL_TIP =
+  'tui.toml [upgrade] auto_install = true|false · /reload tui after a manual edit.';
+
+export const UPGRADE_MANUAL_TIP =
+  'Manual upgrade: /upgrade check + install dialog · header badge when preflight finds one.';
+
+export const UPGRADE_ENV_TIP = `${AUTO_UPDATE_DISABLE_ENV} wins over auto_install and experimental flags.`;
+
 export interface UpgradeNoticeLike {
   readonly currentVersion: string;
   readonly targetVersion: string;
