@@ -46,7 +46,7 @@ export interface HostGlanceInput {
   readonly sessionLiveLines?: readonly string[];
 }
 
-const HOST_FUTURE_TIP =
+export const HOST_FUTURE_TIP =
   'Future: config [host] mode (in-process | server URL) · ACP adapter · latency profile.';
 
 /** W8 soft — TTFT Done gate; live timing via SUPERLIORA_DEBUG=1 turn status. */

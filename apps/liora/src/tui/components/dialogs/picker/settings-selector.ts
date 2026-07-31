@@ -166,7 +166,7 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'host',
     label: 'Host',
-    description: 'Read-only in-process vs server URL — future transport switch (W8).',
+    description: 'Runtime status · live TTFT · sovereign umbrella and latency tips (W8).',
   },
   {
     value: 'cache',
