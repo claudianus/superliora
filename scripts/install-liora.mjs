@@ -71,7 +71,10 @@ if [ -s "$HOME/.nvm/nvm.sh" ]; then
   nvm use ${quotePosix(nodeVersion)} >/dev/null 2>&1 || true
 fi
 
-export SUPERLIORA_NO_AUTO_UPDATE="\${SUPERLIORA_NO_AUTO_UPDATE:-1}"
+# Auto-update is controlled by tui.toml [upgrade].auto_install (default on).
+# Opt out for a single process with SUPERLIORA_NO_AUTO_UPDATE=1 in the environment.
+# Do NOT default it here — that previously made managed source installs never
+# run preflight even when auto_install=true. Local dev uses apps/liora/scripts/dev.mjs.
 
 if [ -f "$main_file" ]; then
   exec node "$main_file" "$@"

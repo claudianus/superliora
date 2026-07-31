@@ -167,16 +167,14 @@ export async function runUpdatePreflight(
   const logger = options.logger ?? log;
   const platform = process.platform;
 
-  if (isAutoUpdateDisabledByEnv()) {
-    return 'continue';
-  }
-
   try {
     const isInteractive =
       options.isTTY ?? (process.stdin.isTTY && process.stdout.isTTY);
     const deviceId = resolveUpdateDeviceId();
     const bypassRollout = isRolloutBypassedByExperimentalEnv();
     let installState = await readUpdateInstallState().catch(() => emptyUpdateInstallState());
+    // Always surface a completed background install notice, even when further
+    // auto-update work is disabled by env (user still wants to know it landed).
     if (isInteractive) {
       installState = await showPendingBackgroundInstallNotice(
         installState,
@@ -185,6 +183,10 @@ export async function runUpdatePreflight(
         options.track,
         logger,
       );
+    }
+
+    if (isAutoUpdateDisabledByEnv()) {
+      return 'continue';
     }
 
     const githubCheckoutRoot =

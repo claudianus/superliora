@@ -271,14 +271,23 @@ describe('runUpdatePreflight', () => {
 
   afterEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); });
 
-  it('skips all update work when SUPERLIORA_NO_AUTO_UPDATE is set', async () => {
+  it('skips check/install when SUPERLIORA_NO_AUTO_UPDATE is set but still shows pending success notice', async () => {
     vi.stubEnv('SUPERLIORA_NO_AUTO_UPDATE', '1');
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
-    const { options } = captureOutput();
+    mocks.readUpdateInstallState.mockResolvedValue(installState({
+      lastSuccess: {
+        version: '0.5.0',
+        source: 'npm-global',
+        installedAt: '2026-01-01T00:00:00.000Z',
+        notifiedAt: null,
+      },
+    }));
+    const { stdout, options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expect(runUpdatePreflight('0.5.0', options)).resolves.toBe('continue');
 
+    expect(stdout.join('')).toMatch(/updated|0\.5\.0/i);
     expect(readUpdateCache).not.toHaveBeenCalled();
     expect(refreshUpdateCache).not.toHaveBeenCalled();
     expect(detectInstallSource).not.toHaveBeenCalled();
@@ -294,6 +303,27 @@ describe('runUpdatePreflight', () => {
 
     expect(readUpdateCache).not.toHaveBeenCalled();
     expect(detectInstallSource).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the install lock is held by a peer session', async () => {
+    mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
+    mocks.detectInstallSource.mockResolvedValue('npm-global');
+    mocks.tryAcquireUpdateInstallLock.mockResolvedValue(null);
+    const track = vi.fn();
+    const logger = captureLogger();
+    const { options } = captureOutput();
+
+    await expect(
+      runUpdatePreflight('0.4.0', { ...options, track, logger }),
+    ).resolves.toBe('continue');
+
+    // Peer holds the lock — do not spawn a second install or interrupt with a prompt.
+    expect(mocks.spawn).not.toHaveBeenCalled();
+    expect(promptForInstallChoice).not.toHaveBeenCalled();
+    expect(track).not.toHaveBeenCalledWith(
+      'update_background_install_started',
+      expect.anything(),
+    );
   });
 
   it('starts an automatic update from the first fresh check when the cache is empty', async () => {

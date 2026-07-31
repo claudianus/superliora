@@ -15,7 +15,8 @@ export const UPGRADE_AUTO_INSTALL_TIP =
 export const UPGRADE_MANUAL_TIP =
   'Manual update: /update or /upgrade opens Upgrade Studio · header badge when preflight finds one.';
 
-export const UPGRADE_ENV_TIP = `${AUTO_UPDATE_DISABLE_ENV} wins over auto_install and experimental flags.`;
+export const UPGRADE_ENV_TIP =
+  `${AUTO_UPDATE_DISABLE_ENV}=1 fully disables preflight (check + auto-install + prompt). Unset it so tui.toml [upgrade].auto_install can work.`;
 
 export interface UpgradeNoticeLike {
   readonly currentVersion: string;
@@ -135,9 +136,10 @@ export function buildUpgradeSettingsLines(glance: UpgradeGlanceInput): readonly 
     '  Header badge                   pending update when preflight finds one',
     '',
     '── Tips ─────────────────────────────────────',
-    `· ${AUTO_UPDATE_DISABLE_ENV} wins over auto_install and experimental flags`,
+    `· ${AUTO_UPDATE_DISABLE_ENV}=1 blocks all update preflight — unset for auto-install`,
+    '· Managed source installs respect tui.toml auto_install (wrapper no longer forces off)',
     '· GitHub checkout / npm / native installs differ in canAutoInstall',
     '· Background success notice may appear on next launch',
-    '· Dev builds often set NO_AUTO_UPDATE in scripts/dev.mjs',
+    '· Dev CLI (apps/liora/scripts/dev.mjs) sets NO_AUTO_UPDATE for local worktrees only',
   ];
 }

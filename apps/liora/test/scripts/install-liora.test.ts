@@ -44,6 +44,9 @@ describe('scripts/install-liora.mjs', () => {
     expect(wrapper).toContain('Managed by superliora scripts/install-liora.mjs');
     expect(wrapper).toContain('dist/main.mjs');
     expect(wrapper).toContain('pnpm -C "$app_root" run dev:cli-only');
+    // Managed installs must not force-disable auto-update; tui.toml owns that.
+    expect(wrapper).not.toMatch(/SUPERLIORA_NO_AUTO_UPDATE=.*:-1/);
+    expect(wrapper).not.toContain('SUPERLIORA_NO_AUTO_UPDATE="${SUPERLIORA_NO_AUTO_UPDATE:-1}"');
 
     for (const file of ['.zshrc', '.bashrc', '.profile']) {
       const text = await readFile(join(home, file), 'utf-8');
