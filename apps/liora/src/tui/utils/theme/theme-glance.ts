@@ -90,6 +90,18 @@ export function formatCanvasBackgroundLine(glance: ThemeSettingsGlance): string 
 /** Re-export for tests that assert palette resolution without loading the full glance. */
 export { resolveLivePaletteKind };
 
+/** ChoicePicker tip — custom JSON themes under ~/.superliora/themes. */
+export const THEME_CUSTOM_TIP =
+  'Custom themes — JSON files under ~/.superliora/themes (schema in docs). Plugin themes appear when a plugin registers a catalog entry. External terminal themes are searchable in the picker, not default-listed.';
+
+/** ChoicePicker tip — /theme import and persisted tui.toml preference. */
+export const THEME_IMPORT_TIP =
+  '/theme import <path|url|github:owner/repo/path> copies JSON into ~/.superliora/themes. tui.toml theme = "…" persists the saved preference; /theme <dark|light|auto|name> applies without Settings.';
+
+/** ChoicePicker tip — motion, density, and canvas background live under Appearance. */
+export const THEME_APPEARANCE_TIP =
+  'Motion, density, particles, and canvas background — Settings → Appearance or /appearance. savedTheme reads appState; live palette reads currentTheme at render time.';
+
 export function buildThemeSettingsLines(glance: ThemeSettingsGlance): readonly string[] {
   const { savedTheme, livePalette } = glance.appearance;
   const trackingLine =
