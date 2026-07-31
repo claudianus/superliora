@@ -18,6 +18,10 @@ export const OSS_ABSORB_LICENSE_TIP =
 export const PROVIDERS_FREE_SEARCH_TIP =
   'Free search path: Settings → Search · free fallback ON · DDG/local when no Brave/Tavily/Exa keys.';
 
+/** /login — OAuth, catalog, custom endpoint, account pool. */
+export const PROVIDERS_LOGIN_TIP =
+  '/login — connect OAuth, add catalog/custom provider, or import a custom endpoint. /login --add for fallback OAuth slots · Settings → Accounts to promote, label, or remove pool entries.';
+
 export interface ProviderApiKeyEnvSpec {
   readonly label: string;
   readonly envs: readonly string[];
@@ -32,6 +36,14 @@ export const PROVIDER_API_KEY_ENVS: readonly ProviderApiKeyEnvSpec[] = [
   { label: 'xAI Grok', envs: ['XAI_API_KEY'] },
   { label: 'ClinePass', envs: ['CLINE_API_KEY'] },
 ];
+
+/** Common provider API key env vars — presence only; never paste keys into the TUI. */
+export const PROVIDERS_API_KEY_ENVS_TIP = [
+  'Provider API keys via env (presence only — export before `liora` starts):',
+  ...PROVIDER_API_KEY_ENVS.map((spec) => `${spec.label}: ${spec.envs.join(' · ')}`),
+  'Optional: KIMI_REGISTRY_API_KEY (models.dev catalog) · KIMI_PROVIDER_API_KEY (CLI provider batch).',
+  'config.toml [providers.*] — api_key or env:VAR references.',
+].join(' ');
 
 export interface ProvidersApiSessionGlance {
   readonly modelAlias?: string;
