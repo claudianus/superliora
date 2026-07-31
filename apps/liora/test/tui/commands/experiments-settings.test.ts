@@ -1,7 +1,7 @@
 import type { ExperimentalFeatureState } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { showExperimentsSettings } from '#/tui/commands/config/experiments-settings';
+import { showExperimentsSettings } from '#/tui/commands/config/experiments/experiments-settings';
 import {
   buildExperimentsSettingsLines,
   formatExperimentsLiveLine,

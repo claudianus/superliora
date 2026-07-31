@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showHooksSettings } from '#/tui/commands/config/hooks-settings';
+import { showHooksSettings } from '#/tui/commands/config/hooks/hooks-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

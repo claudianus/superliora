@@ -167,7 +167,7 @@ describe('default agent profiles', () => {
     );
 
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toEqual(
-      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'AgentSwarm']),
+      expect.arrayContaining(['Read', 'Write', 'Edit', 'Bash', 'Grep', 'Glob', 'Fleet']),
     );
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).not.toContain('UltraSwarm');
     expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toEqual(
@@ -177,7 +177,7 @@ describe('default agent profiles', () => {
         'Edit',
         'Bash',
         'Agent',
-        'AgentSwarm',
+        'Fleet',
         'UltraSwarm',
         'Skill',
         'Memory',

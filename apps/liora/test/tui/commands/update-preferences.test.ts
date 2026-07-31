@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyUpdatePreferenceChoice } from '#/tui/commands/config/update-preference';
+import { applyUpdatePreferenceChoice } from '#/tui/commands/config/upgrade/update-preference';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { darkColors } from '#/tui/theme/colors';
 

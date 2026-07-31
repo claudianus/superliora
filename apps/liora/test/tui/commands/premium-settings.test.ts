@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { showPremiumSettings } from '#/tui/commands/config/premium-settings';
+import { showPremiumSettings } from '#/tui/commands/config/premium/premium-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {

@@ -27,7 +27,7 @@ export class AgentSwarmExclusiveDenyPermissionPolicy implements PermissionPolicy
 }
 
 function isSwarmToolName(toolName: string): boolean {
-  return toolName === 'AgentSwarm' || toolName === 'UltraSwarm';
+  return toolName === 'Fleet' || toolName === 'AgentSwarm' || toolName === 'UltraSwarm';
 }
 
 function swarmToolLabel(toolNames: readonly string[]): string {
@@ -40,7 +40,7 @@ function multipleAgentSwarmDeniedMessage(hasOtherToolCalls: boolean, label: stri
   const suffix = hasOtherToolCalls
     ? ` ${label} also must not be combined with other tools in the same response.`
     : '';
-  if (label !== 'AgentSwarm') {
+  if (label !== 'AgentSwarm' && label !== 'Fleet') {
     return (
       `${label} must be called one swarm at a time. Multiple swarm calls are not forbidden, ` +
       `but issue them sequentially: call one swarm tool, wait for its result, then call the next; ` +
@@ -55,7 +55,7 @@ function multipleAgentSwarmDeniedMessage(hasOtherToolCalls: boolean, label: stri
 }
 
 function mixedAgentSwarmDeniedMessage(label: string): string {
-  if (label !== 'AgentSwarm') {
+  if (label !== 'AgentSwarm' && label !== 'Fleet') {
     return (
       `${label} must be the only tool call in a model response. Retry with a single swarm ` +
       'call by itself, then call any other tools after it returns.'

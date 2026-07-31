@@ -47,7 +47,7 @@ tools:
   - ComputerAct
   - ComputerStatus
   - Agent
-  - AgentSwarm
+  - Fleet
   - UltraSwarm
   - FetchURL
   - Context7Resolve

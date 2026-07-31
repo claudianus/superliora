@@ -12,7 +12,7 @@ import {
   missionDualEmitStatusLine,
   missionMdArtifactTip,
   showMissionSettings,
-} from '#/tui/commands/config/mission-settings';
+} from '#/tui/commands/config/mission/mission-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { readGoalQueue } from '#/tui/goal-queue-store';
 import { MISSION_DUAL_EMIT_ENV } from '@superliora/sdk';

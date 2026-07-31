@@ -60,8 +60,9 @@ describe('tool help visibility', () => {
     expect(publicNames).toEqual(expect.arrayContaining(['WebSearch', 'DeepResearch']));
   });
 
-  it('marks the five branding-debt compat tools as advanced', () => {
+  it('marks the six branding-debt compat tools as advanced', () => {
     expect(Object.keys(COMPAT_BRANDING_TOOL_HELP).toSorted()).toEqual([
+      'AgentSwarm',
       'CreateUltraGoal',
       'LioraExpand',
       'LioraReview',
@@ -85,6 +86,7 @@ describe('tool help visibility', () => {
       tool('TodoList'),
       tool('TaskGraph'),
       tool('UltraworkGraph'),
+      tool('Fleet'),
       tool('AgentSwarm'),
       tool('UltraSwarm'),
       tool('Read'),
@@ -111,7 +113,9 @@ describe('tool help visibility', () => {
     expect(publicNames).not.toContain('LioraReview');
     expect(publicNames).not.toContain('CreateUltraGoal');
     expect(publicNames).not.toContain('UltraworkGraph');
+    expect(publicNames).not.toContain('AgentSwarm');
     expect(publicNames).not.toContain('UltraSwarm');
+    expect(publicNames).toContain('Fleet');
   });
 
   it('keeps compat tools in advanced help mode', () => {
@@ -123,6 +127,7 @@ describe('tool help visibility', () => {
     expect(formatCompatToolHelpHint('LioraExpand')).toBe('compat alias — prefer Expand');
     expect(formatCompatToolHelpHint('LioraReview')).toBe('compat alias — prefer Review');
     expect(formatCompatToolHelpHint('UltraworkGraph')).toBe('compat alias — prefer TaskGraph');
-    expect(formatCompatToolHelpHint('UltraSwarm')).toBe('compat alias — prefer AgentSwarm');
+    expect(formatCompatToolHelpHint('UltraSwarm')).toBe('compat alias — prefer Fleet');
+    expect(formatCompatToolHelpHint('AgentSwarm')).toBe('compat alias — prefer Fleet');
   });
 });

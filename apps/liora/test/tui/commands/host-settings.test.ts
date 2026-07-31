@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createLioraHarness } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { showHostSettings } from '#/tui/commands/config/host-settings';
+import { showHostSettings } from '#/tui/commands/config/host/host-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

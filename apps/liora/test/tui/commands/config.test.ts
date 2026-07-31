@@ -4,22 +4,22 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyLoopModelRoutingChoice, resetLoopModelRoutingChoice, showLoopModelRoutingPicker } from '#/tui/commands/config/model';
-import { handleAppearanceCommand } from '#/tui/commands/config/appearance';
-import { handleContextCommand } from '#/tui/commands/config/context';
-import { handlePlanCommand } from '#/tui/commands/config/plan';
-import { handleThemeCommand } from '#/tui/commands/config/editor-theme';
-import { handleThinkingCommand } from '#/tui/commands/config/thinking';
+import { applyLoopModelRoutingChoice, resetLoopModelRoutingChoice, showLoopModelRoutingPicker } from '#/tui/commands/config/model/model';
+import { handleAppearanceCommand } from '#/tui/commands/config/appearance/appearance';
+import { handleContextCommand } from '#/tui/commands/config/context/context';
+import { handlePlanCommand } from '#/tui/commands/config/plan/plan';
+import { handleThemeCommand } from '#/tui/commands/config/appearance/editor-theme';
+import { handleThinkingCommand } from '#/tui/commands/config/thinking/thinking';
 import { showHarnessPanel, showSettingsSelector } from '#/tui/commands/config/settings';
-import { showSecuritySettings } from '#/tui/commands/config/security-settings';
-import { showCompactionSettings } from '#/tui/commands/config/compaction-settings';
-import { showMissionSettings } from '#/tui/commands/config/mission-settings';
-import { showFleetSettings } from '#/tui/commands/config/fleet-settings';
-import { showHooksSettings } from '#/tui/commands/config/hooks-settings';
-import { showNetworkSettings } from '#/tui/commands/config/network-settings';
-import { showBenchDiagnosticsSettings } from '#/tui/commands/config/bench-diagnostics-settings';
-import { showHarnessEyesReadiness } from '#/tui/commands/config/eyes-settings';
-import { showToolsInventory } from '#/tui/commands/config/harness-tools';
+import { showSecuritySettings } from '#/tui/commands/config/security/security-settings';
+import { showCompactionSettings } from '#/tui/commands/config/context/compaction-settings';
+import { showMissionSettings } from '#/tui/commands/config/mission/mission-settings';
+import { showFleetSettings } from '#/tui/commands/config/fleet/fleet-settings';
+import { showHooksSettings } from '#/tui/commands/config/hooks/hooks-settings';
+import { showNetworkSettings } from '#/tui/commands/config/network/network-settings';
+import { showBenchDiagnosticsSettings } from '#/tui/commands/config/diagnostics/bench-diagnostics-settings';
+import { showHarnessEyesReadiness } from '#/tui/commands/config/eyes/eyes-settings';
+import { showToolsInventory } from '#/tui/commands/config/harness/harness-tools';
 import { SETTINGS_OPTIONS } from '#/tui/components/dialogs/picker/settings-selector';
 
 function settingsOptionIndex(value: string): number {
@@ -1074,7 +1074,9 @@ describe('harness panel and tools inventory', () => {
   it('renders fleet settings panel without session', async () => {
     const host = makeHarnessHost({ session: undefined, activeSession: undefined });
     showFleetSettings(host);
-    expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
   });
 
   it('renders compaction settings panel without session', async () => {

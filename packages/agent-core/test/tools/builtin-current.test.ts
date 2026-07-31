@@ -589,7 +589,7 @@ describe('current builtin collaboration tools', () => {
     });
     if (execution.isError === true) throw new Error('AgentSwarm resolveExecution returned an error');
 
-    expect(execution.approvalRule).toBe('AgentSwarm');
+    expect(execution.approvalRule).toBe('Fleet');
     expect(execution.matchesRule).toBeUndefined();
   });
 

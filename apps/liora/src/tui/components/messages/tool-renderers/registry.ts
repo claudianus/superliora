@@ -165,6 +165,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
       return swarmChannelSummary;
     case 'Agent':
       return agentSummary;
+    case 'Fleet':
     case 'AgentSwarm':
       return agentSwarmSummary;
     case 'UltraSwarm':

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showFleetSettings } from '#/tui/commands/config/fleet-settings';
-import { FLEET_IMPORT_PATH_TIPS, FLEET_PROTOCOL_ALIAS_TIPS } from '#/tui/commands/config/fleet-settings';
+import { showFleetSettings } from '#/tui/commands/config/fleet/fleet-settings';
+import { FLEET_IMPORT_PATH_TIPS, FLEET_PROTOCOL_ALIAS_TIPS } from '#/tui/commands/config/fleet/fleet-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import {
   buildFleetSessionLiveLines,

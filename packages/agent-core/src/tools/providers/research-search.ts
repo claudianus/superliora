@@ -39,6 +39,7 @@ import {
   truncateResultContent,
 } from './research-search-helpers';
 import { buildProviderSlots, type ProviderSlot } from './research-search-slots';
+import { resolveResearchSearchFreeFallback } from './research-search-free-fallback';
 import {
   formatSearchChannelFailureReason,
   searchChannelScopeId,
@@ -136,7 +137,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
 
   constructor(options: ResearchSearchEngineOptions = {}) {
     this.strategy = options.search?.strategy ?? 'auto';
-    this.freeFallback = options.search?.freeFallback !== false;
+    this.freeFallback = resolveResearchSearchFreeFallback(options.search?.freeFallback);
     this.cooldownMs = options.search?.cooldownMs ?? DEFAULT_COOLDOWN_MS;
     this.concurrency = clampInt(options.search?.concurrency ?? DEFAULT_CONCURRENCY, 1, 16);
     this.maxProviderCalls = clampInt(

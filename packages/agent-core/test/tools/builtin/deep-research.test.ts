@@ -161,6 +161,8 @@ describe('DeepResearchTool', () => {
   const signal = new AbortController().signal;
 
   it('soft-degrades without throwing when all channels return empty (freeFallback off)', async () => {
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
+    try {
     const browserSearch = vi.fn<() => Promise<never[]>>().mockResolvedValue([]);
     const chromeSearch = vi.fn<() => Promise<never[]>>().mockResolvedValue([]);
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
@@ -196,5 +198,8 @@ describe('DeepResearchTool', () => {
     expect(content).toContain('Ch4');
     expect(content).toContain('Ch5');
     expect(content).toContain('No live sources returned');
+    } finally {
+      delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
+    }
   });
 });

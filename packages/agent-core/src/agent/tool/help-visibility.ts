@@ -6,7 +6,8 @@ export const COMPAT_BRANDING_TOOL_HELP = {
   LioraReview: { preferred: 'Review', visibility: 'advanced' },
   CreateUltraGoal: { preferred: 'CreateGoal', visibility: 'advanced' },
   UltraworkGraph: { preferred: 'TaskGraph', visibility: 'advanced' },
-  UltraSwarm: { preferred: 'AgentSwarm', visibility: 'advanced' },
+  AgentSwarm: { preferred: 'Fleet', visibility: 'advanced' },
+  UltraSwarm: { preferred: 'Fleet', visibility: 'advanced' },
 } as const satisfies Record<
   string,
   { readonly preferred: string; readonly visibility: ToolHelpVisibility }

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showCompactionSettings } from '#/tui/commands/config/compaction-settings';
-import { showContextSettings } from '#/tui/commands/config/context-settings';
+import { showCompactionSettings } from '#/tui/commands/config/context/compaction-settings';
+import { showContextSettings } from '#/tui/commands/config/context/context-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

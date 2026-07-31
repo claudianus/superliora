@@ -302,10 +302,23 @@ function createSkillAndSubagentTools(
       shouldCreateBuiltin(host, 'SearchExpert') &&
       new b.SearchExpertTool(),
     host.agent.subagentHost &&
-      shouldCreateBuiltin(host, 'AgentSwarm') &&
-      new b.AgentSwarmTool(host.agent.subagentHost, host.agent.swarmMode, host.toolStore, host.agent),
+      shouldCreateBuiltin(host, 'Fleet') &&
+      b.createFleetTool(
+        host.agent.subagentHost,
+        host.agent.swarmMode,
+        host.toolStore,
+        host.agent,
+      ),
     host.agent.subagentHost &&
-      shouldCreateBuiltin(host, 'UltraSwarm') &&
+      shouldRegisterLegacyCompat(host, 'AgentSwarm', 'Fleet') &&
+      b.createAgentSwarmLegacyTool(
+        host.agent.subagentHost,
+        host.agent.swarmMode,
+        host.toolStore,
+        host.agent,
+      ),
+    host.agent.subagentHost &&
+      shouldRegisterLegacyCompat(host, 'UltraSwarm', 'Fleet') &&
       new b.UltraSwarmTool(
         host.agent.subagentHost,
         host.agent.swarmMode,

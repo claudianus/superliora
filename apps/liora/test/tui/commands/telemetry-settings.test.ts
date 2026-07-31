@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showTelemetrySettings } from '#/tui/commands/config/telemetry-settings';
+import { showTelemetrySettings } from '#/tui/commands/config/telemetry/telemetry-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 describe('telemetry-settings', () => {

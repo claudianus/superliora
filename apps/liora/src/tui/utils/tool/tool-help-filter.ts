@@ -6,7 +6,8 @@ const COMPAT_PREFERRED: Readonly<Record<string, string>> = {
   LioraReview: 'Review',
   CreateUltraGoal: 'CreateGoal',
   UltraworkGraph: 'TaskGraph',
-  UltraSwarm: 'AgentSwarm',
+  AgentSwarm: 'Fleet',
+  UltraSwarm: 'Fleet',
 };
 
 /** Primary /tools inventory — hide advanced compat when the public tool is registered. */

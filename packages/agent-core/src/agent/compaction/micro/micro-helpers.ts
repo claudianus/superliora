@@ -49,6 +49,7 @@ const KNOWN_MUTATING_TOOLS = new Set([
   'Edit',
   'EnterPlanMode',
   'ExitPlanMode',
+  'Fleet',
   'Memory',
   'NextPhase',
   'RecordInterviewFinding',
@@ -143,7 +144,7 @@ export function findLatestSwarmToolCallId(messages: readonly ContextMessage[]): 
     const message = messages[i];
     if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
     const toolName = toolNameForMessage(message.toolCallId, messages);
-    if (toolName === 'UltraSwarm' || toolName === 'AgentSwarm') {
+    if (toolName === 'UltraSwarm' || toolName === 'AgentSwarm' || toolName === 'Fleet') {
       return message.toolCallId;
     }
   }
@@ -168,7 +169,7 @@ export function maskSwarmToolResultIfStale(
 ): ContextMessage | null {
   if (message.toolCallId === latestSwarmToolCallId) return null;
   const toolName = toolNameForMessage(message.toolCallId ?? '', messages);
-  if (toolName !== 'UltraSwarm' && toolName !== 'AgentSwarm') return null;
+  if (toolName !== 'UltraSwarm' && toolName !== 'AgentSwarm' && toolName !== 'Fleet') return null;
   const fullText = message.content
     .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
     .map((part) => part.text)

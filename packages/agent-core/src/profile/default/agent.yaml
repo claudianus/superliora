@@ -34,7 +34,7 @@ tools:
   - SearchTools
   - Agent
   - SearchExpert
-  - AgentSwarm
+  - Fleet
   # External information and user clarification.
   - WebSearch
   # never-empty; Ch3 실패 시 Ch4/Ch5 escalate.

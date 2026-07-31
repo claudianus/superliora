@@ -2,7 +2,7 @@
  * ResearchSearchEngine ↔ Agent.circuitBreakerRegistry wiring.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CircuitBreakerRegistry } from '../../../src/runtime/circuit-breaker';
 import {
@@ -22,6 +22,13 @@ describe('searchChannelScopeId', () => {
 });
 
 describe('ResearchSearchEngine circuit breakers', () => {
+  beforeEach(() => {
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
+  });
+
+  afterEach(() => {
+    delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
+  });
   it('records paid provider hard fail (429 cooldown) on injected registry', async () => {
     let now = 1_000;
     const registry = new CircuitBreakerRegistry({

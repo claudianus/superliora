@@ -25,6 +25,7 @@ export interface ToolCallInternalsHost {
   liveOutput: string;
   subagent: ToolCallSubagentState;
   callPreview: ToolCallCallPreview;
+  callPreviewHost: ToolCallCallPreviewHost;
   outputViewport: ToolCallBodyRebuildHost['outputViewport'];
   detachHint: ToolCallBodyRebuildHost['detachHint'];
   children: ToolCallBodyRebuildHost['children'];
@@ -49,6 +50,7 @@ function bodyRebuildHost(host: ToolCallInternalsHost): ToolCallBodyRebuildHost {
     liveOutput: host.liveOutput,
     subagent: host.subagent,
     callPreview: host.callPreview,
+    callPreviewHost: host.callPreviewHost,
     outputViewport: host.outputViewport,
     detachHint: host.detachHint,
     children: host.children,
@@ -126,7 +128,6 @@ export function rebuildToolCallComponentSubagentBlock(host: ToolCallInternalsHos
 }
 
 export function rebuildToolCallCallPreviewBlock(host: ToolCallInternalsHost): void {
-  const previewHost = host.callPreview as unknown as ToolCallCallPreviewHost;
-  host.callPreview.rebuildBlock(previewHost, host.children);
+  host.callPreview.rebuildBlock(host.callPreviewHost, host.children);
 }
 

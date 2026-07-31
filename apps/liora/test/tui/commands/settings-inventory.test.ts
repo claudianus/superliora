@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { SETTINGS_OPTIONS } from '#/tui/components/dialogs/picker/settings-selector';
-import { showSettingsInventory } from '#/tui/commands/config/settings-inventory';
+import { showSettingsInventory } from '#/tui/commands/config/diagnostics/settings-inventory';
 import { vi } from 'vitest';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';

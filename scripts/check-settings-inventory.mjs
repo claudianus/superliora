@@ -7,7 +7,7 @@
  *   node scripts/check-settings-inventory.mjs          # warn, exit 0
  *   node scripts/check-settings-inventory.mjs --fail   # exit 1 when gaps found
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -103,10 +103,21 @@ function parseSwitchCases(source) {
   return cases;
 }
 
-function listConfigPanels() {
-  return readdirSync(configDir)
-    .filter((name) => name.endsWith('-settings.ts'))
-    .toSorted();
+function listConfigPanels(dir = configDir, acc = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      listConfigPanels(full, acc);
+    } else if (entry.name.endsWith('-settings.ts')) {
+      acc.push(relative(configDir, full));
+    }
+  }
+  return acc.toSorted((a, b) => a.localeCompare(b));
+}
+
+function findPanelPath(basename) {
+  const panels = listConfigPanels();
+  return panels.find((p) => p.endsWith(`/${basename}`) || p === basename);
 }
 
 const warns = [];
@@ -139,7 +150,7 @@ for (const row of requiredRows) {
       `${row.node}: label mismatch — expected "${row.node}", got "${label}" (${row.value})`,
     );
   }
-  if (row.panel !== undefined && !existsSync(join(configDir, row.panel))) {
+  if (row.panel !== undefined && findPanelPath(row.panel) === undefined) {
     missing.push({ ...row, reason: `panel file missing (${row.panel})` });
     continue;
   }
@@ -160,7 +171,8 @@ for (const row of requiredRows) {
 console.log('');
 
 const orphanedPanels = configPanels.filter((panel) => {
-  const value = PANEL_VALUE_MAP[panel];
+  const basename = panel.split('/').pop();
+  const value = PANEL_VALUE_MAP[basename];
   return value === undefined || !pickerByValue.has(value);
 });
 

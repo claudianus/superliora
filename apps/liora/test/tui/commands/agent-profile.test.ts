@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { handleProfileCommand } from '#/tui/commands/config/agent-profile';
+import { handleProfileCommand } from '#/tui/commands/config/harness/agent-profile';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function makeHost() {

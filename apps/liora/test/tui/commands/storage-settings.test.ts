@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { showStorageSettings } from '#/tui/commands/config/storage-settings';
+import { showStorageSettings } from '#/tui/commands/config/storage/storage-settings';
 import { resolveStoragePaths } from '#/tui/utils/storage/storage-glance';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';

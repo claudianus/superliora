@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showEditorSettings } from '#/tui/commands/config/editor-settings';
-import { showUsageSettings } from '#/tui/commands/config/usage-settings';
-import { showUpgradeSettings } from '#/tui/commands/config/upgrade-settings';
+import { showEditorSettings } from '#/tui/commands/config/editor/editor-settings';
+import { showUsageSettings } from '#/tui/commands/config/upgrade/usage-settings';
+import { showUpgradeSettings } from '#/tui/commands/config/upgrade/upgrade-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import {
   buildEditorSettingsLines,

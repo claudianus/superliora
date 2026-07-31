@@ -527,4 +527,4 @@ function formatDirectoryCompletionValue(argumentPrefix: string, parentInput: str
   return `${join(parentInput, entryName)}/`;
 }
 
-export { profileArgumentCompletions } from '../config/agent-profile';
+export { profileArgumentCompletions } from '../config/harness/agent-profile';

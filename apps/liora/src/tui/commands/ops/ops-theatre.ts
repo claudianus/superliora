@@ -54,9 +54,11 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { isMotionTheatreActive } from '../../utils/render/motion-beats';
 import { tickGitChurnSpark } from '../../utils/git/git-churn-spark';
 import { createGitStatusCache } from '#/utils/git/git-status';
+import { collectGitDiff } from '#/utils/git/git-diff';
+import { collectOpsGitDiffSnippetLines } from '../../features/ops-theatre/build-panes';
 
 import type { SlashCommandHost } from '../hub/dispatch';
-import { detectSearchProviderEnvKeys, detectSearchLateChannelEnv, formatSearchLateChannelOpsSuffix } from '../config/search-status';
+import { detectSearchProviderEnvKeys, detectSearchLateChannelEnv, formatSearchLateChannelOpsSuffix } from '../config/search/search-status';
 
 const OPS_REFRESH_MS = 2_000;
 const OPS_REFRESH_MAX_TICKS = 90; // ~3 minutes
@@ -295,6 +297,7 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
       : null;
 
   let gitChurnDelta: number | undefined;
+  let gitDiffSnippet: readonly string[] | undefined;
   if (gitStatus != null) {
     const spark = tickGitChurnSpark(
       session.workDir,
@@ -304,6 +307,12 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
     if (spark != null) {
       host.setAppState({ gitChurn: spark });
       gitChurnDelta = spark.count;
+    }
+    if (gitStatus.dirty) {
+      const diffReport = collectGitDiff(session.workDir);
+      if (diffReport != null && diffReport.files.length > 0) {
+        gitDiffSnippet = collectOpsGitDiffSnippetLines(diffReport.files);
+      }
     }
   }
 
@@ -324,6 +333,9 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
             ahead: gitStatus.ahead,
             behind: gitStatus.behind,
             changedFiles: gitStatus.changedFiles,
+            ...(gitDiffSnippet != null && gitDiffSnippet.length > 0
+              ? { diffSnippet: gitDiffSnippet }
+              : {}),
             ...(gitChurnDelta != null ? { churnDelta: gitChurnDelta } : {}),
           },
     cwd: session.workDir,

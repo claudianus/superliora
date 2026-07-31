@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showMediaSettings } from '#/tui/commands/config/media-settings';
+import { showMediaSettings } from '#/tui/commands/config/media/media-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import {
   buildMediaSettingsLines,
