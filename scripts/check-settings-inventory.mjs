@@ -112,7 +112,7 @@ function listConfigPanels(dir = configDir, acc = []) {
       acc.push(relative(configDir, full));
     }
   }
-  return acc.toSorted();
+  return acc.toSorted((a, b) => a.localeCompare(b));
 }
 
 function findPanelPath(basename) {
