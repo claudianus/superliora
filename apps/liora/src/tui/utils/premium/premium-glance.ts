@@ -30,6 +30,18 @@ export interface PremiumVisualGlance {
   readonly sessionPremiumQuality?: boolean;
 }
 
+/** Motion profile / ambient tick tip — Settings → Visual Quality picker. */
+export const PREMIUM_MOTION_TIP =
+  'Motion: profile auto|off|subtle|premium · particles auto|off|ambient|events|premium · animation-fps 1–60 · single shared animation clock (PREMIUM.md §7) · /appearance profile|particles|animation-fps · Settings → Appearance · forced off under SSH · NO_COLOR · CI · TERM=dumb.';
+
+/** Transcript + layout density tip — appearance prefs + live transcript projection. */
+export const PREMIUM_DENSITY_TIP =
+  'Density: appearance density auto|compact|comfortable|spacious · transcript-detail minimal|compact|standard|full · /transcript <level> · /appearance density|transcript-detail · tui.toml [appearance] · Visual Quality ON may route premium injection density visual vs code.';
+
+/** Harness Visual Quality (PQ) toggle tip — session RPC, not config.toml. */
+export const PREMIUM_PQ_TIP =
+  'Visual Quality (PQ): harness art direction + anti-slop visuals — not task/model quality · /premium on|off|status (requires session) · Ultrawork may auto-enable · Settings → Appearance for motion prefs.';
+
 export interface PremiumVisualGlanceSources {
   readonly premiumQualityMode?: boolean;
   readonly appearance?: AppearancePreferences;

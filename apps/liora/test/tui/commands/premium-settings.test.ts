@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { showPremiumSettings } from '#/tui/commands/config/premium/premium-settings';
+import {
+  PREMIUM_DENSITY_TIP,
+  PREMIUM_MOTION_TIP,
+  PREMIUM_PQ_TIP,
+  showPremiumSettings,
+} from '#/tui/commands/config/premium/premium-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
@@ -32,6 +38,7 @@ function makeHost(options: {
         appearance: options.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
       },
       transcriptContainer: { addChild: vi.fn() },
+      centerModalStack: [] as readonly unknown[],
       renderer: {
         invalidateFrame: vi.fn(),
         nativeRuntime:
@@ -46,10 +53,33 @@ function makeHost(options: {
             throw new Error('no session');
           })
         : vi.fn(() => session),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
+function selectPremiumAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
 const ENV_KEYS = ['TERM', 'CI', 'NO_COLOR', 'SSH_TTY', 'SSH_CONNECTION', 'SSH_CLIENT'] as const;
+
+describe('premium settings tips', () => {
+  it('exports motion, density, and Visual Quality tips', () => {
+    expect(PREMIUM_MOTION_TIP).toContain('profile auto|off|subtle|premium');
+    expect(PREMIUM_MOTION_TIP).toContain('/appearance');
+    expect(PREMIUM_DENSITY_TIP).toContain('transcript-detail');
+    expect(PREMIUM_DENSITY_TIP).toContain('/transcript');
+    expect(PREMIUM_PQ_TIP).toContain('/premium on|off|status');
+    expect(PREMIUM_PQ_TIP).toContain('anti-slop');
+  });
+});
 
 describe('showPremiumSettings', () => {
   const originalEnv = { ...process.env };
@@ -65,6 +95,34 @@ describe('showPremiumSettings', () => {
     process.env = { ...originalEnv };
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');
+  });
+
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeHost();
+    showPremiumSettings(host);
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+    const options = (
+      (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+        opts: { options: readonly { value: string }[] };
+      }
+    ).opts.options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-motion',
+      'tip-density',
+      'tip-pq',
+    ]);
+  });
+
+  it('shows motion, density, and PQ tips via showStatus', () => {
+    const host = makeHost();
+    showPremiumSettings(host);
+    selectPremiumAction(host, 'tip-motion');
+    expect(host.showStatus).toHaveBeenCalledWith(PREMIUM_MOTION_TIP, 'info');
+    selectPremiumAction(host, 'tip-density');
+    expect(host.showStatus).toHaveBeenCalledWith(PREMIUM_DENSITY_TIP, 'info');
+    selectPremiumAction(host, 'tip-pq');
+    expect(host.showStatus).toHaveBeenCalledWith(PREMIUM_PQ_TIP, 'info');
   });
 
   it('renders live Visual Quality + motion budget lines when session is wired', async () => {
@@ -87,6 +145,7 @@ describe('showPremiumSettings', () => {
     });
 
     showPremiumSettings(host);
+    selectPremiumAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -106,6 +165,7 @@ describe('showPremiumSettings', () => {
   it('still renders from appState when session is unavailable', async () => {
     const host = makeHost({ hasSession: false, premiumQualityMode: false });
     showPremiumSettings(host);
+    selectPremiumAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
