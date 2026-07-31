@@ -34,8 +34,8 @@ describe('agent/plan/ultra-plan-section-guidance — required sections + guidanc
   });
 
   it('exposes a guidance entry exactly for the required sections (no more, no less)', () => {
-    const guidanceKeys = Object.keys(ULTRA_PLAN_SECTION_GUIDANCE).sort();
-    const required = [...ULTRA_PLAN_REQUIRED_SECTIONS].sort();
+    const guidanceKeys = Object.keys(ULTRA_PLAN_SECTION_GUIDANCE).toSorted();
+    const required = [...ULTRA_PLAN_REQUIRED_SECTIONS].toSorted();
     expect(guidanceKeys).toEqual(required);
   });
 

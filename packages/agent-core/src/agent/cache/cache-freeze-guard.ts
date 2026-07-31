@@ -38,5 +38,5 @@ export function hashPrefixMaterial(material: string): string {
 
 /** Stable turn-start fingerprint from active builtin tool names. */
 export function buildTurnPrefixMaterial(enabledTools: Iterable<string>): string {
-  return [...enabledTools].sort().join('\n');
+  return [...enabledTools].toSorted().join('\n');
 }

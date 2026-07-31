@@ -36,6 +36,6 @@ export function sameCapability(
 ): boolean {
   if (primary === undefined || other === undefined) return true;
   // Vision parity when primary accepts images
-  if (primary.image_in === true && other.image_in !== true) return false;
+  if (primary.image_in && ! other.image_in) return false;
   return true;
 }

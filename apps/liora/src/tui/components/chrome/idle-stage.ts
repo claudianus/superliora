@@ -113,7 +113,7 @@ export function resolveIdleStageRows(width: number, preferredRows = IDLE_STAGE_D
 
 export function resolveIdleMoodKey(nowMs: number): (typeof IDLE_MOOD_KEYS)[number] {
   const index = Math.floor(nowMs / IDLE_LINE_ROTATE_MS) % IDLE_MOOD_KEYS.length;
-  return IDLE_MOOD_KEYS[index] ?? IDLE_MOOD_KEYS[0]!;
+  return IDLE_MOOD_KEYS[index] ?? IDLE_MOOD_KEYS[0];
 }
 
 export function resolveIdleTipKey(nowMs: number): string | undefined {

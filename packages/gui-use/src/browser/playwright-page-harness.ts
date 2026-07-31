@@ -404,21 +404,21 @@ async function collectPageSnapshot(page: Page, full: boolean): Promise<SnapshotD
       if (labelledBy !== null) {
         const labelled = labelledBy
           .split(/\s+/)
-          .map((id: string) => doc.getElementById(id)?.innerText ?? '')
+          .map((id: string) => doc.querySelector(`#${id}`)?.innerText ?? '')
           .join(' ')
           .trim();
         if (labelled.length > 0) return labelled;
       }
       const tag = String(element.tagName ?? '').toLowerCase();
       if (tag === 'input' || tag === 'textarea') {
-        return element.value || element.placeholder || element.name || element.type;
+        return (element.value ?? element.placeholder ?? element.name) ?? element.type;
       }
       if (tag === 'select') {
-        return element.name || selectedText(element);
+        return element.name ?? selectedText(element);
       }
       const title = element.getAttribute('title');
       if (title !== null && title.trim().length > 0) return title.trim();
-      return (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+      return ((element.innerText ?? element.textContent) ?? '').replaceAll(/\s+/g, ' ').trim().slice(0, 160);
     }
 
     function selectedText(element: any): string {
@@ -462,7 +462,7 @@ async function collectPageSnapshot(page: Page, full: boolean): Promise<SnapshotD
     function escapeCssIdent(value: string): string {
       return typeof css?.escape === 'function'
         ? css.escape(value)
-        : value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+        : value.replaceAll(/[^a-zA-Z0-9_-]/g, '\\$&');
     }
   }, { full });
 }

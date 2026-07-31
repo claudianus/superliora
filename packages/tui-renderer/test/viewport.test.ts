@@ -851,7 +851,7 @@ describe('Renderer scrollbar', () => {
       minThumbRows: 2,
     });
     expect(atTop[0]).not.toBe('▴'); // at top
-    expect(atTop[atTop.length - 1]).toBe('▾'); // more below
+    expect(atTop.at(-1)).toBe('▾'); // more below
 
     // At bottom
     const atBottom = renderRendererVerticalScrollbar({
@@ -863,7 +863,7 @@ describe('Renderer scrollbar', () => {
       minThumbRows: 2,
     });
     expect(atBottom[0]).toBe('▴');
-    expect(atBottom[atBottom.length - 1]).not.toBe('▾');
+    expect(atBottom.at(-1)).not.toBe('▾');
   });
 
   it('applies paintGlyph roles for themed scrollbars', () => {

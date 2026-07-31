@@ -75,6 +75,7 @@
         ./packages/telemetry
         ./packages/tui-renderer
         ./apps/liora
+        ./apps/research-bridge-extension
         ./apps/site
         ./apps/vis
         ./apps/vis/server
@@ -95,6 +96,7 @@
         "@superliora/telemetry"
         "@harness-kit/tui-renderer"
         "@superliora/liora"
+        "@superliora/research-bridge-extension"
         "@superliora/site"
         "@superliora/vis"
         "@superliora/vis-server"

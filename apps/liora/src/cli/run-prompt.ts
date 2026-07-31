@@ -110,7 +110,7 @@ export async function runPrompt(
   removeTerminationCleanup = installPromptTerminationCleanup(
     promptProcess,
     cleanupPromptRun,
-    () => harness.emergencyFlushSync(),
+    () =>{  harness.emergencyFlushSync(); },
   );
 
   try {

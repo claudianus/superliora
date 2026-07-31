@@ -51,7 +51,7 @@ function paintPlantKit(
     const t = rows <= 1 ? 0.5 : rowIdx / (rows - 1);
     // depth pushes the whole stalk toward the abyss a bit
     const stalk = mixHexColor(tip, base, Math.min(1, t * 0.92 + depth * 0.25));
-    const glyph = row[frameIdx] ?? row[0]!;
+    const glyph = row[frameIdx] ?? row[0];
     // Per-cell: leaf edges catch light, inner folds go darker.
     let painted = '';
     for (let i = 0; i < glyph.length; i++) {
@@ -264,8 +264,8 @@ export function paintCoral(
 ): void {
   if (width < 36 || storyRows < 7) return;
   const sandY = storyRows - 1;
-  const main = ROCK_FORMS[0]!;
-  const side = ROCK_FORMS[2]!;
+  const main = ROCK_FORMS[0];
+  const side = ROCK_FORMS[2];
   const mainX = Math.floor(width * 0.38);
   const sideX = Math.floor(width * 0.5);
   const paintRock = (form: readonly string[], x: number, topColor: string, baseColor: string) => {
@@ -349,7 +349,7 @@ export function paintJellyfish(
 
     // Pulse animation frame.
     const pulseFrame = Math.floor(elapsedMs / 1_100 + seed) % JELLYFISH_FRAMES.length;
-    const frame = JELLYFISH_FRAMES[pulseFrame] ?? JELLYFISH_FRAMES[0]!;
+    const frame = JELLYFISH_FRAMES[pulseFrame] ?? JELLYFISH_FRAMES[0];
 
     // Bioluminescent coloring: bell is bright, tentacles fade.
     const bellHex = mixHexColor(palette.fishSoft, palette.bubble, 0.35);
@@ -391,7 +391,7 @@ export function paintSeahorse(
   const bob = Math.sin(elapsedMs / 4_500 + seed) * 1.2;
   const y = Math.max(2, Math.min(sandY - 4, Math.round(baseY + bob)));
 
-  const frame = SEAHORSE_FRAMES[Math.floor(elapsedMs / 1_400) % SEAHORSE_FRAMES.length] ?? SEAHORSE_FRAMES[0]!;
+  const frame = SEAHORSE_FRAMES[Math.floor(elapsedMs / 1_400) % SEAHORSE_FRAMES.length] ?? SEAHORSE_FRAMES[0];
   const bodyHex = mixHexColor(palette.fishGold, palette.coral, 0.4);
   const hotHex = mixHexColor(bodyHex, '#FFE08A', 0.4);
 

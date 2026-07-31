@@ -131,9 +131,9 @@ describe('ops harness (unit-ops-harness)', () => {
         last = await dedup.finalizeResult(`c${String(i)}`, 'Read', { p: 1 }, { output: 'ok' });
         dedup.endStep();
       }
-      expect(last!.stopTurn).toBe(true);
-      expect(String(last!.output)).toContain('DOOM_LOOP_HARD_STOP');
-      expect(String(last!.output)).toContain('강제 종료');
+      expect(last.stopTurn).toBe(true);
+      expect(String(last.output)).toContain('DOOM_LOOP_HARD_STOP');
+      expect(String(last.output)).toContain('강제 종료');
     });
   });
 });

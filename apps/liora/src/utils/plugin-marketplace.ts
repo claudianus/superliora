@@ -162,7 +162,7 @@ function resolveMarketplaceLocation(source: string, workDir: string): Marketplac
 }
 
 async function getSourceCheckoutMarketplaceLocation(): Promise<MarketplaceLocation | undefined> {
-  const sourceDir = dirname(fileURLToPath(import.meta.url));
+  const sourceDir = import.meta.dirname;
   const candidates = [
     resolve(sourceDir, '../../../../plugins/.claude-plugin/marketplace.json'),
     resolve(sourceDir, '../../../../plugins/marketplace.json'),

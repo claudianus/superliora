@@ -6,7 +6,7 @@ import type { SkillDefinition } from './types';
 import { enrichSkillForSearch } from './skill-composition';
 import type { SessionSkillRegistry } from './registry';
 
-const SKILL_DIR = dirname(fileURLToPath(import.meta.url));
+const SKILL_DIR = dirname(import.meta.filename);
 const CATALOG_DIR = join(SKILL_DIR, 'catalog');
 const SEARCH_INDEX_PATH = join(SKILL_DIR, 'catalog-search-index.json');
 

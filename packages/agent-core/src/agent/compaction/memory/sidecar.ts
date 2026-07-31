@@ -38,7 +38,7 @@ function pruneCompactionSidecars(dir: string, kind: string): void {
         }
       })
       .filter((entry): entry is { name: string; mtimeMs: number } => entry !== undefined)
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      .toSorted((a, b) => b.mtimeMs - a.mtimeMs);
     for (const entry of entries.slice(MAX_SIDECARS_PER_KIND)) {
       try {
         rmSync(join(dir, entry.name));

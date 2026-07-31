@@ -78,7 +78,7 @@ export async function runWorkflowScript(input: {
     items: readonly T[],
     fn: (item: T, index: number) => Promise<R>,
   ): Promise<R[]> => {
-    const results: R[] = new Array(items.length);
+    const results: R[] = Array.from({ length: items.length });
     let next = 0;
     const workers = Array.from({ length: Math.min(MAX_CONCURRENT, items.length) }, async () => {
       while (next < items.length) {

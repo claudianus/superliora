@@ -68,7 +68,7 @@ export function showExtensionsHub(host: SlashCommandHost): void {
             return;
         }
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'Extensions' },
   );

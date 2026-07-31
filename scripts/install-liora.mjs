@@ -10,7 +10,7 @@ const PATH_MARKER_END = '# <<< liora PATH <<<';
 const DEFAULT_NODE_VERSION = '24';
 
 const args = parseArgs(process.argv.slice(2));
-const homeDir = process.env['HOME'] || homedir();
+const homeDir = process.env['HOME'] ?? homedir();
 const scriptDir = import.meta.dirname;
 const repoRoot = resolve(scriptDir, '..');
 const appRoot = resolve(repoRoot, 'apps/liora');
@@ -25,7 +25,7 @@ if (process.platform === 'win32') {
 await mkdir(binDir, { recursive: true });
 await installWrapper(commandPath);
 
-const shellFiles = args.shellRc === false ? [] : await installShellPath(binDir);
+const shellFiles = ! args.shellRc ? [] : await installShellPath(binDir);
 
 writeStdout(`Installed ${commandName} -> ${commandPath}\n`);
 if (shellFiles.length > 0) {

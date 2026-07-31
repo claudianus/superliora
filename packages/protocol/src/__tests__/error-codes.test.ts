@@ -19,14 +19,14 @@ describe('protocol/error-codes — ErrorCode / ErrorCodeReason', () => {
     // Today the protocol registers 4 / 5 / 6; 7 (provider passthrough) and
     // 8 (MCP passthrough) are reserved for future use. Assert the lower
     // three are populated and any present value is a multi-digit code.
-    expect([...namespaces].sort()).toEqual([4, 5, 6]);
+    expect([...namespaces].toSorted()).toEqual([4, 5, 6]);
   });
 
   it('assigns every ErrorCode entry a non-empty reason string', () => {
     for (const [key, value] of Object.entries(ErrorCode)) {
       const reason = ErrorCodeReason[value as keyof typeof ErrorCodeReason];
       expect(typeof reason, `reason missing for ${key} (${value})`).toBe('string');
-      expect((reason as string).length, `reason empty for ${key} (${value})`).toBeGreaterThan(0);
+      expect((reason).length, `reason empty for ${key} (${value})`).toBeGreaterThan(0);
     }
   });
 

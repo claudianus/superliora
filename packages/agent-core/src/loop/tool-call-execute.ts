@@ -196,8 +196,8 @@ async function raceExecuteWithGraceTimeout(
         () => {
           log?.info('tool settled after grace timeout (work continued past abort)', { toolName });
         },
-        (err) => {
-          log?.warn('tool rejected after grace timeout', { toolName, error: err });
+        (error) => {
+          log?.warn('tool rejected after grace timeout', { toolName, error: error });
         },
       );
     }

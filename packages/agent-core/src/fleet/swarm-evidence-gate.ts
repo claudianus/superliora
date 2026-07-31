@@ -249,7 +249,7 @@ export function evidenceMatchesToken(
 
 /** Lowercase + strip non-alphanumeric for loose matching. */
 export function normalizeEvidenceToken(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return value.toLowerCase().replaceAll(/[^a-z0-9]/g, '');
 }
 
 /**

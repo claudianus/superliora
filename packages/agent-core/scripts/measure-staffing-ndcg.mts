@@ -1,5 +1,5 @@
-import { STAFFING_GOLD_SEED, meanNdcgAtK, ndcgAtK } from '../src/expert-agents/staffing-gold.ts';
-import { ExpertSearchEngine } from '../src/expert-agents/search.ts';
+import { STAFFING_GOLD_SEED, meanNdcgAtK, ndcgAtK } from '../src/expert-agents/staffing-gold';
+import { ExpertSearchEngine } from '../src/expert-agents/search';
 
 const K = 10;
 const engine = new ExpertSearchEngine();

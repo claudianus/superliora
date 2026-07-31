@@ -127,7 +127,7 @@ export function buildXaiGrokRequestHeaders(input: {
 }): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(input.customHeaders ?? {}),
+    ...input.customHeaders,
   };
   if (isXaiGrokBuildBaseUrl(input.baseUrl)) {
     Object.assign(headers, xaiGrokBuildRequestHeaders(input.model));
@@ -151,7 +151,7 @@ export class XaiGrokBuildClient {
     this.baseUrl = resolveXaiGrokBuildBaseUrl(options.baseUrl);
     this.apiKey = nonEmpty(options.apiKey);
     this.tokenProvider = options.tokenProvider;
-    this.customHeaders = { ...(options.customHeaders ?? {}) };
+    this.customHeaders = { ...options.customHeaders };
     this.webSearchModel = nonEmpty(options.webSearchModel) ?? XAI_DEFAULT_WEB_SEARCH_MODEL;
     this.imageModel = nonEmpty(options.imageModel) ?? XAI_IMAGINE_IMAGE_MODEL;
     this.videoModel = nonEmpty(options.videoModel) ?? XAI_IMAGINE_VIDEO_MODEL;
@@ -195,7 +195,7 @@ export class XaiGrokBuildClient {
   ): Promise<Response> {
     const timeoutMs = init.timeoutMs ?? 60_000;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() =>{  controller.abort(); }, timeoutMs);
     try {
       const bearer = await this.resolveBearer();
       const headers = {

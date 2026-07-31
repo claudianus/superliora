@@ -345,7 +345,7 @@ function buildZoektSearchQuery(query: string, scope: string | undefined): string
   if (scope === undefined || scope.length === 0) {
     return trimmed;
   }
-  const escapedScope = scope.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedScope = scope.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return `${trimmed} file:${escapedScope}`;
 }
 
@@ -371,8 +371,8 @@ function zoektPathMatchesScope(fileName: string, scope: string | undefined): boo
   if (scope === undefined || scope.length === 0) {
     return true;
   }
-  const normalizedScope = scope.replace(/\\/g, '/').replace(/^\.\//, '').replace(/%/g, '');
-  const normalizedFile = fileName.replace(/\\/g, '/');
+  const normalizedScope = scope.replaceAll(/\\/g, '/').replace(/^\.\//, '').replaceAll(/%/g, '');
+  const normalizedFile = fileName.replaceAll(/\\/g, '/');
   return normalizedFile.includes(normalizedScope);
 }
 
@@ -479,7 +479,7 @@ async function searchZoektSidecarHttp(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ZOEKT_HTTP_PROBE_TIMEOUT_MS);
+  const timeout = setTimeout(() =>{  controller.abort(); }, ZOEKT_HTTP_PROBE_TIMEOUT_MS);
   try {
     const response = await fetchImpl(searchUrl, {
       method: 'GET',

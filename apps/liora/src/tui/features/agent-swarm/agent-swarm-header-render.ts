@@ -237,7 +237,7 @@ export function renderAgentSwarmFileMapContent(
   isWarRoomActive: boolean,
 ): string[] {
   const leases = Array.from(fileLeases.values())
-    .sort((a, b) => a.atMs - b.atMs)
+    .toSorted((a, b) => a.atMs - b.atMs)
     .slice(-WAR_ROOM_FILE_MAP_MAX);
   if (leases.length === 0) {
     // Empty state only when swarm is active (team staffed or feed/ops live).

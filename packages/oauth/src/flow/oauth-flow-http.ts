@@ -256,7 +256,7 @@ export async function startCallbackServer(
     },
     close: () =>
       new Promise<void>((resolve) => {
-        server.close(() => resolve());
+        server.close(() =>{  resolve(); });
       }),
   };
 }

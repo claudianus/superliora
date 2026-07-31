@@ -16,9 +16,9 @@ export function matchSimpleRedirectWrite(command: string): ShellDedicatedBypassH
   if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
   if (/\$\(|\$\{/.test(command)) return undefined;
   // Reject stderr redirects and multi-redirect forms (2>, &>, 2>&1).
-  if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
+  if (/\d?>&|\d?>\s*&|2\s*>/.test(command)) return undefined;
   // Exactly one > or >> to a path (not << heredoc).
-  if (/<</.test(command)) return undefined;
+  if (command.includes('<<')) return undefined;
   // Content producers + pure identity/listing dumps redirected to a file.
   // Keep process-heavy left-hand sides (e.g. `git status > log`) allowed.
   // Optional explicit stdout fd `1` before `>` / `>>` (e.g. `echo hi 1> out.txt`).
@@ -54,8 +54,8 @@ export function matchEmptyRedirectWrite(command: string): ShellDedicatedBypassHi
   if (/\b(?:&&|\|\|)\b/.test(command)) return undefined;
   if (/\$\(|\$\{/.test(command)) return undefined;
   // Reject stderr redirects and multi-redirect forms (2>, &>, 2>&1, 1>&2).
-  if (/\d?>&|\d?>\s*\&|2\s*>/.test(command)) return undefined;
-  if (/<</.test(command)) return undefined;
+  if (/\d?>&|\d?>\s*&|2\s*>/.test(command)) return undefined;
+  if (command.includes('<<')) return undefined;
   // `: > path` / `: 1> path` / `true > path` / bare `> path` / bare `1> path`
   // Optional explicit stdout fd `1` before `>` / `>>` (common shell form).
   const m = /^(?::|true|false)?\s*(?:1)?(>>?)\s*(\S+)\s*$/.exec(command);
@@ -101,7 +101,7 @@ export function matchSimpleHeredocWrite(command: string): ShellDedicatedBypassHi
     };
   }
   // Multiline: first line may be `cat > out <<EOF` already covered; also `cat <<EOF > out`
-  if (/^(?:\/usr\/bin\/)?(?:cat|tee)\b/.test(firstLine) && /<</.test(firstLine) && />>?/.test(firstLine)) {
+  if (/^(?:\/usr\/bin\/)?(?:cat|tee)\b/.test(firstLine) && firstLine.includes('<<') && />>?/.test(firstLine)) {
     return {
       prefer: 'Write',
       pattern: 'heredoc > file',
@@ -155,8 +155,8 @@ export function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassH
     // Strip known option tokens, then require exactly two path args.
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?install\b/, '')
-      .replace(/(?:^|\s)-(?:m|o|g|S|Z|C|p|v|b)(?:\s+\S+)?/g, ' ')
-      .replace(/(?:^|\s)--\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-(?:m|o|g|S|Z|C|p|v|b)(?:\s+\S+)?/g, ' ')
+      .replaceAll(/(?:^|\s)--\S+/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
@@ -176,8 +176,8 @@ export function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassH
     }
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?cp\b/, '')
-      .replace(/(?:^|\s)--\S+/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z]+/g, ' ')
+      .replaceAll(/(?:^|\s)--\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z]+/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
@@ -197,8 +197,8 @@ export function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassH
     if (/\s\|/.test(command)) return undefined;
     const withoutOpts = command
       .replace(/^(?:Copy-Item|ci|copy)\b/i, '')
-      .replace(/(?:^|\s)-(?:Path|Destination|LiteralPath)\s+/gi, ' ')
-      .replace(/(?:^|\s)-[A-Za-z]+\b/g, ' ')
+      .replaceAll(/(?:^|\s)-(?:Path|Destination|LiteralPath)\s+/gi, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z]+\b/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
@@ -220,8 +220,8 @@ export function matchSimpleFileCopyWrite(command: string): ShellDedicatedBypassH
     }
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?rsync\b/, '')
-      .replace(/(?:^|\s)--\S+/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z]+/g, ' ')
+      .replaceAll(/(?:^|\s)--\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z]+/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 2 && !args[0]!.startsWith('-') && !args[1]!.startsWith('-')) {
@@ -265,9 +265,9 @@ export function matchWriteLike(command: string): ShellDedicatedBypassHit | undef
     if (zeroSize) {
       const without = command
         .replace(/^(?:\/usr\/bin\/)?truncate\b/, '')
-        .replace(/(?:^|\s)-(?:s|--size)(?:=|\s+)\S+/g, ' ')
-        .replace(/(?:^|\s)--size=\S+/g, ' ')
-        .replace(/(?:^|\s)-[A-Za-z]+/g, ' ')
+        .replaceAll(/(?:^|\s)-(?:s|--size)(?:=|\s+)\S+/g, ' ')
+        .replaceAll(/(?:^|\s)--size=\S+/g, ' ')
+        .replaceAll(/(?:^|\s)-[A-Za-z]+/g, ' ')
         .trim();
       const args = without.split(/\s+/).filter(Boolean);
       if (args.length === 1 && !args[0]!.startsWith('-')) {

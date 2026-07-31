@@ -8,11 +8,9 @@ function makePremiumHost(options: {
   session?: Record<string, unknown> | undefined;
 } = {}) {
   const session =
-    options.session === undefined
-      ? {
+    options.session ?? {
           setPremiumQuality: vi.fn(async () => undefined),
-        }
-      : options.session;
+        };
   return {
     session: options.session === null ? undefined : session,
     state: {

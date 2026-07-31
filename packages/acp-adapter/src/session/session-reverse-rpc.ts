@@ -47,12 +47,12 @@ export async function handleSessionApproval(
       permissionResponseToApprovalResponse(req, response),
       options,
     );
-  } catch (err) {
+  } catch (error) {
     log.warn('acp: requestPermission failed; rejecting', {
       sessionId: ctx.sessionId,
       toolCallId: req.toolCallId,
       toolName: req.toolName,
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
     return { decision: 'rejected' };
   }
@@ -105,11 +105,11 @@ export async function handleSessionQuestion(
       ctx.emitTelemetry('question_answered', { answered: Object.keys(answer).length });
     }
     return answer;
-  } catch (err) {
+  } catch (error) {
     log.warn('acp: requestPermission (question) failed; dismissing', {
       sessionId: ctx.sessionId,
       toolCallId: req.toolCallId,
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
     return null;
   }
@@ -124,11 +124,11 @@ export function emitSessionTelemetry(
   if (typeof track !== 'function') return;
   try {
     track(event, properties);
-  } catch (err) {
+  } catch (error) {
     log.warn('acp: telemetry track failed', {
       sessionId,
       event,
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }

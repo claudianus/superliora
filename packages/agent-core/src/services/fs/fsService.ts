@@ -76,8 +76,8 @@ export class FsService extends Disposable implements IFsService {
     let topStat: import('node:fs').Stats;
     try {
       topStat = await fs.stat(safe.absolute);
-    } catch (err) {
-      throw mapStatError(err, req.path);
+    } catch (error) {
+      throw mapStatError(error, req.path);
     }
     if (!topStat.isDirectory()) {
 
@@ -110,10 +110,10 @@ export class FsService extends Disposable implements IFsService {
       let dirents: import('node:fs').Dirent[];
       try {
         dirents = await fs.readdir(entry.absPath, { withFileTypes: true });
-      } catch (err) {
+      } catch (error) {
 
         if (entry.absPath === safe.absolute) {
-          throw mapStatError(err, req.path);
+          throw mapStatError(error, req.path);
         }
         continue;
       }
@@ -179,8 +179,8 @@ export class FsService extends Disposable implements IFsService {
     let st: import('node:fs').Stats;
     try {
       st = await fs.stat(safe.absolute);
-    } catch (err) {
-      throw mapStatError(err, req.path);
+    } catch (error) {
+      throw mapStatError(error, req.path);
     }
     if (st.isDirectory()) {
       throw new FsIsDirectoryError(req.path);
@@ -262,11 +262,11 @@ export class FsService extends Disposable implements IFsService {
           });
           results[p] = sub.items;
           if (sub.truncated) truncatedPaths.push(p);
-        } catch (err) {
+        } catch (error) {
 
-          if (err instanceof FsPathEscapesError) throw err;
-          if (err instanceof SessionNotFoundError) throw err;
-          partialErrors[p] = mapToWireError(err);
+          if (error instanceof FsPathEscapesError) throw error;
+          if (error instanceof SessionNotFoundError) throw error;
+          partialErrors[p] = mapToWireError(error);
         }
       }),
     );
@@ -284,8 +284,8 @@ export class FsService extends Disposable implements IFsService {
     let st: import('node:fs').Stats;
     try {
       st = await fs.stat(safe.absolute);
-    } catch (err) {
-      throw mapStatError(err, req.path);
+    } catch (error) {
+      throw mapStatError(error, req.path);
     }
     const name =
       safe.relative === '.' ? path.basename(cwd) : path.basename(safe.absolute);
@@ -346,8 +346,8 @@ export class FsService extends Disposable implements IFsService {
 
     try {
       await fs.mkdir(safe.absolute, { recursive: req.recursive });
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
       if (code === 'EEXIST') {
         throw new FsAlreadyExistsError(req.path);
       }
@@ -355,7 +355,7 @@ export class FsService extends Disposable implements IFsService {
         // Non-recursive mkdir whose parent is missing / not a directory.
         throw new FsPathNotFoundError(req.path);
       }
-      throw err;
+      throw error;
     }
 
     const st = await fs.stat(safe.absolute);
@@ -373,8 +373,8 @@ export class FsService extends Disposable implements IFsService {
     let st: import('node:fs').Stats;
     try {
       st = await fs.stat(safe.absolute);
-    } catch (err) {
-      throw mapStatError(err, relPath);
+    } catch (error) {
+      throw mapStatError(error, relPath);
     }
     if (st.isDirectory()) {
       throw new FsIsDirectoryError(relPath);
@@ -407,8 +407,8 @@ export class FsService extends Disposable implements IFsService {
     let st: import('node:fs').Stats;
     try {
       st = await fs.stat(safe.absolute);
-    } catch (err) {
-      throw mapStatError(err, relPath);
+    } catch (error) {
+      throw mapStatError(error, relPath);
     }
     return {
       absolute: safe.absolute,

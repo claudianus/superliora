@@ -93,7 +93,7 @@ export class ChromeExtensionSearchChannel implements BrowserSearchChannel {
     this.escalateAttemptedFlag = true;
     const bridgeUrl = resolveResearchBridgeUrl(this.env);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = setTimeout(() =>{  controller.abort(); }, this.timeoutMs);
 
     try {
       const response = await this.fetchImpl(bridgeUrl, {

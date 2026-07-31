@@ -133,7 +133,7 @@ function collectScanPaths() {
 function lineNumberAt(text, index) {
   let line = 1;
   for (let i = 0; i < index; i++) {
-    if (text.charCodeAt(i) === 10) line++;
+    if (text.codePointAt(i) === 10) line++;
   }
   return line;
 }

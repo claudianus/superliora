@@ -10,7 +10,7 @@ export async function fetchQwenTokenPlanUsage(
 ): Promise<ProviderUsageSnapshot> {
   const base = (baseUrl ?? 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8000);
+  const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {
     const res = await fetch(`${base}/models`, {
       headers: {

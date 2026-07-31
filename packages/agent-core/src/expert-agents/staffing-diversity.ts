@@ -110,7 +110,7 @@ export function rewriteExpertSearchQuery(
     for (const pattern of HANGUL_NOISE_PATTERNS) {
       working = working.replace(pattern, ' ');
     }
-    working = working.replace(/\s+/g, ' ').trim();
+    working = working.replaceAll(/\s+/g, ' ').trim();
     if (working.length === 0) working = trimmed;
   }
 

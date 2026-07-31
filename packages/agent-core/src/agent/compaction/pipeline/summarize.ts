@@ -154,7 +154,7 @@ async function generateCompactionBlockWithRetry(
         throw error;
       }
       input.retryCountRef.value += 1;
-      await sleepForRetry(delays[attempt] ?? delays[delays.length - 1]!, input.signal);
+      await sleepForRetry(delays[attempt] ?? delays.at(-1)!, input.signal);
       attempt += 1;
     }
   }
@@ -352,7 +352,7 @@ async function parallelSummarize(
   // Order blocks by density (highest surprise first) so the merge pass
   // prioritizes detail from novel, information-dense regions over sparse
   // boilerplate when fitting the merged summary.
-  const orderedBlocks = [...blocks].sort(
+  const orderedBlocks = [...blocks].toSorted(
     (a, b) => blockDensity(b) - blockDensity(a),
   );
   const blockPrompt = renderPrompt(compactionInstructionTemplate, {

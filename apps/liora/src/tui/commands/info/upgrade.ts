@@ -66,7 +66,7 @@ export async function handleUpgradeCommand(
                 return;
               }
               if (stage === 'failed') {
-                const reason = detail?.trim() || 'install failed';
+                const reason = detail?.trim() ?? 'install failed';
                 host.showStatus(
                   `Upgrade failed: ${reason}. Run: ${plan.installCommand}`,
                   'error',

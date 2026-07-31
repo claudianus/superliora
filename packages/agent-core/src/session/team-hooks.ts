@@ -30,9 +30,9 @@ export function resolveTeamHookDecision(results: readonly HookResult[]): TeamHoo
   const halt = results.find((result) => result.halt === true);
   if (halt !== undefined) {
     const reason =
-      halt.stopReason?.trim() ||
-      halt.reason?.trim() ||
-      halt.message?.trim() ||
+      (halt.stopReason?.trim() ??
+        halt.reason?.trim() ??
+        halt.message?.trim()) ||
       'Stopped by team hook (continue: false)';
     return { kind: 'halt', reason, systemMessage };
   }
@@ -40,9 +40,9 @@ export function resolveTeamHookDecision(results: readonly HookResult[]): TeamHoo
   const block = results.find((result) => result.action === 'block');
   if (block !== undefined) {
     const feedback =
-      block.reason?.trim() ||
-      block.message?.trim() ||
-      block.stderr?.trim() ||
+      (block.reason?.trim() ??
+        block.message?.trim() ??
+        block.stderr?.trim()) ||
       'Blocked by team hook';
     return { kind: 'block', feedback, systemMessage };
   }

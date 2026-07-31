@@ -132,7 +132,7 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
 }
 
 export function durableTraceRecordType(
-  eventType: AgentStatusUpdatedEvent['type'] | string,
+  eventType: string,
 ): 'subagent.lifecycle' | 'ultrawork.event' | undefined {
   if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
   if (eventType.startsWith('ultrawork.') || eventType.startsWith('mission.')) return 'ultrawork.event';

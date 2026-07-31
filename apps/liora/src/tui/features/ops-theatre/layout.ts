@@ -73,7 +73,7 @@ function clampWidth(width: number): number {
 
 function truncatePlain(text: string, max: number): string {
   if (max <= 0) return '';
-  const normalized = text.replace(/\s+/g, ' ').trim();
+  const normalized = text.replaceAll(/\s+/g, ' ').trim();
   if (normalized.length <= max) return normalized;
   if (max === 1) return '…';
   return `${normalized.slice(0, max - 1)}…`;

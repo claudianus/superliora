@@ -16,7 +16,7 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Bench ',
     enterBeatSeed: 'bench-diagnostics',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

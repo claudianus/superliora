@@ -182,8 +182,8 @@ export function buildToolRenderContext(state: StreamingRenderContextState): Tool
     },
     getThinkingDraftLength: () => state.thinkingDraft.length,
     hasStreamingBlock: () => state.streamingBlock !== null,
-    finalizeLiveTextBuffers: (mode) => state.finalizeLiveTextBuffers(mode),
-    onToolCallStart: (toolCall) => state.onToolCallStart(toolCall),
+    finalizeLiveTextBuffers: (mode) =>{  state.finalizeLiveTextBuffers(mode); },
+    onToolCallStart: (toolCall) =>{  state.onToolCallStart(toolCall); },
   };
 }
 

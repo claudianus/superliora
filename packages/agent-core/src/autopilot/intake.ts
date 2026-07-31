@@ -11,6 +11,6 @@ export function buildCard(i: RawCardInput, now = Date.now()): AutopilotCard {
 export function dedupeCards(cards: readonly AutopilotCard[]): AutopilotCard[] {
   const m = new Map<string, AutopilotCard>(); for (const c of cards) { const e = m.get(c.fingerprint); if (!e || c.score > e.score) m.set(c.fingerprint, c); } return [...m.values()];
 }
-export function pickNextCard(cards: readonly AutopilotCard[]): AutopilotCard | undefined { const q = cards.filter((c) => c.status === 'queued'); return q.length ? q.toSorted((a, b) => b.score - a.score)[0] : undefined; }
+export function pickNextCard(cards: readonly AutopilotCard[]): AutopilotCard | undefined { const q = cards.filter((c) => c.status === 'queued'); return q.length > 0 ? q.toSorted((a, b) => b.score - a.score)[0] : undefined; }
 function fp2(i: RawCardInput): string { return createHash('sha256').update(`${i.source}\0${i.refNumber ?? ''}\0${i.title.trim().toLowerCase().replaceAll(/\s+/g, ' ')}`).digest('hex'); }
 function score(i: RawCardInput): number { const t = `${i.title} ${i.body}`.toLowerCase(); let s = BASE[i.source] ?? 30; for (const k of BUG) if (t.includes(k)) s += 10; for (const k of URGENT) if (t.includes(k)) s += 15; return Math.min(s, 100); }

@@ -113,7 +113,7 @@ function isTextCandidate(filePath: string): boolean {
 }
 
 function toRepoRelativePath(root: string, absPath: string): string {
-  return relative(root, absPath).replace(/\\/g, '/');
+  return relative(root, absPath).replaceAll(/\\/g, '/');
 }
 
 /** Quote a single FTS5 token for MATCH queries. */
@@ -125,7 +125,7 @@ export function escapeFts5Token(query: string): string | null {
   if (!/^[\w.-]+$/u.test(trimmed)) {
     return null;
   }
-  return `"${trimmed.replace(/"/g, '""')}"`;
+  return `"${trimmed.replaceAll(/"/g, '""')}"`;
 }
 
 export interface ContentIndexReport {
@@ -167,7 +167,7 @@ export class ContentIndexStore {
     const params: (string | number)[] = [match];
     if (scope !== undefined && scope.length > 0) {
       sql += ' AND path LIKE ?';
-      params.push(`%${scope.replace(/%/g, '')}%`);
+      params.push(`%${scope.replaceAll(/%/g, '')}%`);
     }
     sql += ' LIMIT ?';
     params.push(limit);

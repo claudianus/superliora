@@ -17,7 +17,7 @@ export function stripLeadingShellUtilityWrappers(command: string): string {
   for (let i = 0; i < 4; i += 1) {
     const before = next;
     // `command cat …` but not `command -v cat` / `command -p …`
-    if (/^command(?:\s+--)?\s+(?![-\/])/.test(next)) {
+    if (/^command(?:\s+--)?\s+(?![-/])/.test(next)) {
       next = next.replace(/^command(?:\s+--)?\s+/, '').trimStart();
     }
     // bare `env cmd …` without KEY=val / -options
@@ -28,7 +28,7 @@ export function stripLeadingShellUtilityWrappers(command: string): string {
     else if (/^timeout\b/.test(next)) {
       const stripped = next
         .replace(/^timeout\b/, '')
-        .replace(/^\s+(?:--foreground|--preserve-status|--verbose|-v)\b/g, '')
+        .replaceAll(/^\s+(?:--foreground|--preserve-status|--verbose|-v)\b/g, '')
         .replace(/^\s+--signal(?:=\S+|\s+\S+)/, '')
         .replace(/^\s+-s(?:\s+\S+|=?\S+)/, '')
         .replace(/^\s+--kill-after(?:=\S+|\s+\S+)/, '')
@@ -42,8 +42,8 @@ export function stripLeadingShellUtilityWrappers(command: string): string {
     else if (/^stdbuf\b/.test(next)) {
       const stripped = next
         .replace(/^stdbuf\b/, '')
-        .replace(/(?:\s+-[ioe](?:=\S+|\s+\S+))+/g, ' ')
-        .replace(/(?:\s+--(?:input|output|error)-buf(?:=\S+|\s+\S+))+/g, ' ')
+        .replaceAll(/(?:\s+-[ioe](?:=\S+|\s+\S+))+/g, ' ')
+        .replaceAll(/(?:\s+--(?:input|output|error)-buf(?:=\S+|\s+\S+))+/g, ' ')
         .trimStart();
       if (stripped.length > 0 && stripped !== next.replace(/^stdbuf\b/, '').trimStart()) {
         next = stripped;

@@ -15,8 +15,8 @@ export function stubSearchResults(query, limit = 5) {
 
   const slug = trimmed
     .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
+    .replaceAll(/[^\w\s-]/g, '')
+    .replaceAll(/\s+/g, '-')
     .slice(0, 48);
   const cap = Math.min(Math.max(Number.isFinite(limit) ? limit : 5, 1), 10);
   const count = Math.min(cap, 3);
@@ -46,7 +46,7 @@ async function readJsonBody(req) {
 /**
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ pathname?: string }} [options]
+ * @param {{ pathname?: string; searchFn?: (query: string, limit: number) => SearchHit[] | Promise<SearchHit[]> }} [options]
  */
 export async function handleLoopbackSearchRequest(req, res, options = {}) {
   const pathname = options.pathname ?? '/search';
@@ -61,7 +61,8 @@ export async function handleLoopbackSearchRequest(req, res, options = {}) {
   const body = await readJsonBody(req);
   const query = typeof body.query === 'string' ? body.query : '';
   const limit = typeof body.limit === 'number' ? body.limit : 5;
-  const results = stubSearchResults(query, limit);
+  const searchFn = options.searchFn ?? stubSearchResults;
+  const results = await searchFn(query, limit);
 
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ results }));

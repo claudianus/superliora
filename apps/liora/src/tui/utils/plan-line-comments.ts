@@ -24,9 +24,9 @@ const MAX_COMMENT_LENGTH = 400;
  * Split plan markdown into 1-based numbered lines (trailing empty lines trimmed).
  */
 export function numberPlanLines(plan: string): readonly PlanLine[] {
-  const raw = plan.replaceAll(/\r\n/g, '\n').replaceAll(/\r/g, '\n');
+  const raw = plan.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
   const lines = raw.split('\n');
-  while (lines.length > 0 && (lines[lines.length - 1] ?? '').trim().length === 0) {
+  while (lines.length > 0 && (lines.at(-1) ?? '').trim().length === 0) {
     lines.pop();
   }
   return lines.map((text, index) => ({ number: index + 1, text }));
@@ -45,7 +45,7 @@ export function formatNumberedPlanPreview(
   if (lines.length === 0) return '(빈 계획)';
 
   const visible = lines.slice(0, maxLines);
-  const width = String(visible.length === 0 ? 1 : visible[visible.length - 1]!.number).length;
+  const width = String(visible.length === 0 ? 1 : visible.at(-1)!.number).length;
   const body = visible
     .map((line) => `${String(line.number).padStart(width, ' ')}│ ${line.text}`)
     .join('\n');

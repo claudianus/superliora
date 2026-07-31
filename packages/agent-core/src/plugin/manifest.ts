@@ -475,7 +475,7 @@ async function resolveOptionalPathField(input: {
 }
 
 function sanitizeDirName(name: string): string {
-  const lower = name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  const lower = name.toLowerCase().replaceAll(/[^a-z0-9_-]+/g, '-').replaceAll(/^-+|-+$/g, '');
   if (lower.length === 0) return '';
   if (!/^[a-z0-9]/.test(lower)) return `p-${lower}`.slice(0, 64);
   return lower.slice(0, 64);

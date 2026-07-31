@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pkgRoot = path.resolve(import.meta.dirname, '..');
 const result = spawnSync(
   'pnpm',
   [

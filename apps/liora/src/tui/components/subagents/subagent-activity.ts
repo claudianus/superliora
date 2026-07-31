@@ -190,7 +190,7 @@ export class SubagentActivityComponent implements Component {
       }
       // Phase 6-A: the newest Write/Edit entry gets a syntax-colored mini
       // preview whose rows count toward the shared per-agent line budget.
-      const latest = visible[visible.length - 1];
+      const latest = visible.at(-1);
       if (latest !== undefined) {
         const budget = Math.max(0, MAX_AGENT_FEED_BODY_LINES - visible.length);
         lines.push(...this.renderCodePreviewLines(latest, budget));
@@ -315,10 +315,10 @@ export class SubagentActivityComponent implements Component {
     if (content === undefined || content.trim().length === 0) return [];
     const take = Math.min(MAX_HIGHLIGHT_PREVIEW_LINES, budget);
     const plain = content.split('\n').slice(0, take);
-    let last = plain[plain.length - 1];
+    let last = plain.at(-1);
     while (last !== undefined && last.trim().length === 0) {
       plain.pop();
-      last = plain[plain.length - 1];
+      last = plain.at(-1);
     }
     if (plain.length === 0) return [];
     const highlighted = highlightLines(plain.join('\n'), langFromPath(detail.path)).slice(0, take);

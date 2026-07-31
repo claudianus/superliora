@@ -6,4 +6,4 @@ export function parseVerificationCommand(c: VerificationCommand): { readonly tok
   const t = tok(c); return t ? { tokens: t, useShell: false } : null;
 }
 export function findUnsafeVerificationCommand(cs: readonly VerificationCommand[]): VerificationCommand | undefined { for (const c of cs) if (parseVerificationCommand(c) === null) return c; return undefined; }
-function tok(c: string): readonly string[] | null { const ts = c.trim().split(/\s+/).filter((t) => t); if (!ts.length) return null; for (const t of ts) if (META.test(t)) return null; return ts; }
+function tok(c: string): readonly string[] | null { const ts = c.trim().split(/\s+/).filter((t) => t); if (ts.length === 0) return null; for (const t of ts) if (META.test(t)) return null; return ts; }

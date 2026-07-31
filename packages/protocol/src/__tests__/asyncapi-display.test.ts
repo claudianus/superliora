@@ -7,9 +7,9 @@ describe('protocol/asyncapi — document builder', () => {
   it('createAsyncApiDocument returns the expected envelope', () => {
     const doc = createAsyncApiDocument();
     expect(doc.asyncapi).toBe('3.1.0');
-    expect((doc as Record<string, unknown>).info).toBeDefined();
-    expect((doc as Record<string, unknown>).channels).toBeDefined();
-    expect((doc as Record<string, unknown>).operations).toBeDefined();
+    expect((doc).info).toBeDefined();
+    expect((doc).channels).toBeDefined();
+    expect((doc).operations).toBeDefined();
   });
 
   it('createAsyncApiDocument honors custom title and version', () => {

@@ -15,7 +15,7 @@ describe('oauth/constants — host + flow config', () => {
   });
 
   it('keeps every URL-shaped field in the flow config as a non-empty string', () => {
-    const cfg = SUPERLIORA_FLOW_CONFIG as Record<string, unknown>;
+    const cfg = SUPERLIORA_FLOW_CONFIG as unknown as Record<string, unknown>;
     for (const [key, value] of Object.entries(cfg)) {
       if (typeof value === 'string' && /^https?:\/\//.test(value)) {
         expect(value.length, `expected non-empty URL for ${key}`).toBeGreaterThan(8);

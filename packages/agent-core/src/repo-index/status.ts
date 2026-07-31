@@ -49,7 +49,7 @@ const ENGINE_MODULE_CANDIDATES = ['engine.ts', 'content-index.ts', 'service.ts']
 
 /** True when an engine module file exists beside status.ts. */
 export function isRepoIndexEngineModulePresent(): boolean {
-  const here = dirname(fileURLToPath(import.meta.url));
+  const here = import.meta.dirname;
   return ENGINE_MODULE_CANDIDATES.some((name) => existsSync(join(here, name)));
 }
 

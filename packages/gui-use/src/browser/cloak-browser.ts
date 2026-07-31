@@ -118,14 +118,14 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
       return await this.launchWith(launch);
     } catch (firstError) {
       if (!this.shouldAutoInstall()) {
-        throw new Error(actionableLaunchError(firstError, 'cloakbrowser'));
+        throw new Error(actionableLaunchError(firstError, 'cloakbrowser'), { cause: firstError });
       }
 
       const installed = await this.installCloakBrowser(signal);
       if (!installed.ok) {
         throw new Error(
           `${actionableLaunchError(firstError, 'cloakbrowser')}\n` +
-          `CloakBrowser auto-install failed: ${setupResultDetail(installed)}`,
+          `CloakBrowser auto-install failed: ${setupResultDetail(installed)}`, { cause: firstError },
         );
       }
 
@@ -136,7 +136,7 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
         throw new Error(
           `CloakBrowser launch failed after auto-install: ${describeError(secondError)}. ` +
           `Initial launch error: ${describeError(firstError)}. ` +
-          'Use BrowserStatus or `liora browser-use doctor` for diagnostics.',
+          'Use BrowserStatus or `liora browser-use doctor` for diagnostics.', { cause: secondError },
         );
       }
     }
@@ -147,7 +147,7 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
       const browser = await launch({
         headless: this.options.headless ?? true,
         humanize: this.options.humanize ?? true,
-      } as never) as Browser;
+      } as never);
       if (browser === undefined) {
         throw new Error('CloakBrowser launch did not return a browser.');
       }

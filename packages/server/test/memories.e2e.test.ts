@@ -26,7 +26,7 @@ function envelopeOf<T>(body: unknown): {
 }
 
 async function jsonOf(response: Response): Promise<unknown> {
-  return (await response.json()) as unknown;
+  return response.json();
 }
 
 describe('Liora Recall memory REST API', () => {
@@ -50,7 +50,7 @@ describe('Liora Recall memory REST API', () => {
       }),
     });
     expect(create.status).toBe(200);
-    const createdEnvelope = envelopeOf<unknown>(await jsonOf(create));
+    const createdEnvelope = envelopeOf(await jsonOf(create));
     expect(createdEnvelope.code).toBe(0);
     const created = createMemoryResponseSchema.parse(createdEnvelope.data);
     const memoryId = created.memory.id;
@@ -61,28 +61,28 @@ describe('Liora Recall memory REST API', () => {
       body: JSON.stringify({ query: 'pnpm harness workflow', limit: 5 }),
     });
     expect(search.status).toBe(200);
-    const searchedEnvelope = envelopeOf<unknown>(await jsonOf(search));
+    const searchedEnvelope = envelopeOf(await jsonOf(search));
     expect(searchedEnvelope.code).toBe(0);
     const searched = searchMemoriesResponseSchema.parse(searchedEnvelope.data);
     expect(searched.memories.some((result) => result.memory.id === memoryId)).toBe(true);
 
     const get = await server.authedFetch(`/api/v1/memories/${memoryId}`);
     expect(get.status).toBe(200);
-    const getEnvelope = envelopeOf<unknown>(await jsonOf(get));
+    const getEnvelope = envelopeOf(await jsonOf(get));
     expect(getEnvelope.code).toBe(0);
     const fetched = getMemoryResponseSchema.parse(getEnvelope.data);
     expect(fetched.memory?.subject).toBe('preferred shell');
 
     const list = await server.authedFetch('/api/v1/memories');
     expect(list.status).toBe(200);
-    const listedEnvelope = envelopeOf<unknown>(await jsonOf(list));
+    const listedEnvelope = envelopeOf(await jsonOf(list));
     expect(listedEnvelope.code).toBe(0);
     const listed = listMemoriesResponseSchema.parse(listedEnvelope.data);
     expect(listed.memories.some((memory) => memory.id === memoryId)).toBe(true);
 
     const forget = await server.authedFetch(`/api/v1/memories/${memoryId}`, { method: 'DELETE' });
     expect(forget.status).toBe(200);
-    const forgetEnvelope = envelopeOf<unknown>(await jsonOf(forget));
+    const forgetEnvelope = envelopeOf(await jsonOf(forget));
     expect(forgetEnvelope.code).toBe(0);
     const forgotten = forgetMemoryResponseSchema.parse(forgetEnvelope.data);
     expect(forgotten.forgotten).toBe(true);

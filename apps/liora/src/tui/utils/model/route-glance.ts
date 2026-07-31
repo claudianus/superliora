@@ -62,6 +62,6 @@ function formatRouteReason(reason: string | undefined): string {
 }
 
 function truncate(text: string, max: number): string {
-  const normalized = text.replace(/\s+/g, ' ').trim();
+  const normalized = text.replaceAll(/\s+/g, ' ').trim();
   return normalized.length <= max ? normalized : `${normalized.slice(0, max - 1)}…`;
 }

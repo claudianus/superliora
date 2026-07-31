@@ -41,6 +41,6 @@ describe('subagent wave scheduler', () => {
     ]);
 
     expect(waves).toHaveLength(1);
-    expect(waves[0]?.map((item) => item.expertId).sort()).toEqual(['a', 'b']);
+    expect(waves[0]?.map((item) => item.expertId).toSorted()).toEqual(['a', 'b']);
   });
 });

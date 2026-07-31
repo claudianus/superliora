@@ -23,7 +23,7 @@ export function Terminal({ steps }: TerminalProps) {
   const timers = useRef<number[]>([]);
 
   const clearTimers = () => {
-    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current.forEach((id) =>{  window.clearTimeout(id); });
     timers.current = [];
   };
 
@@ -72,11 +72,11 @@ export function Terminal({ steps }: TerminalProps) {
         setCharIndex(charIndex + 1);
       }, CHAR_DELAY);
       timers.current.push(id);
-      return () => window.clearTimeout(id);
+      return () =>{  window.clearTimeout(id); };
     }
-    const id = window.setTimeout(() => setPhase('output'), OUTPUT_DELAY);
+    const id = window.setTimeout(() =>{  setPhase('output'); }, OUTPUT_DELAY);
     timers.current.push(id);
-    return () => window.clearTimeout(id);
+    return () =>{  window.clearTimeout(id); };
   }, [phase, lineIndex, charIndex, steps]);
 
   useEffect(() => {
@@ -90,13 +90,13 @@ export function Terminal({ steps }: TerminalProps) {
       setPhase('typing');
     }, STEP_DELAY);
     timers.current.push(id);
-    return () => window.clearTimeout(id);
+    return () =>{  window.clearTimeout(id); };
   }, [phase, lineIndex, steps]);
 
   useEffect(() => {
     if (reducedMotion.current) return;
-    const id = window.setInterval(() => setShowCursor((v) => !v), 530);
-    return () => window.clearInterval(id);
+    const id = window.setInterval(() =>{  setShowCursor((v) => !v); }, 530);
+    return () =>{  window.clearInterval(id); };
   }, []);
 
   const renderLine = (line: string, i: number) => {

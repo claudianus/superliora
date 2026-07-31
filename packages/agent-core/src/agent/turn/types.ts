@@ -17,5 +17,5 @@ export interface ActiveTurn {
   readonly turnId: number;
   readonly controller: AbortController;
   readonly promise: Promise<TurnEndResult>;
-  readonly firstRequest: ControlledPromise<void>;
+  readonly firstRequest: ControlledPromise;
 }

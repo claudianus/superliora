@@ -23,7 +23,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Editor ',
     enterBeatSeed: 'editor-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

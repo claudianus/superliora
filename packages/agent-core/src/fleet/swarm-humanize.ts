@@ -40,11 +40,11 @@ export function looksLikeProtocolMessage(text: string): boolean {
 }
 
 function collapseWhitespace(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return text.replaceAll(/\s+/g, ' ').trim();
 }
 
 function stripXmlTags(text: string): string {
-  return collapseWhitespace(text.replace(/<[^>]+>/g, ' '));
+  return collapseWhitespace(text.replaceAll(/<[^>]+>/g, ' '));
 }
 
 function extractXmlAttr(attrs: string, name: string): string | undefined {
@@ -88,7 +88,7 @@ export function humanizeCollaborationEvent(
 ): HumanizedCollaborationEvent {
   const rawBody = event.body ?? '';
   const bodyTrimmed = rawBody.trim();
-  const from = event.fromName?.trim() || event.fromExpertId?.trim() || 'team';
+  const from = (event.fromName?.trim() ?? event.fromExpertId?.trim()) ?? 'team';
   const severity = severityForChannel(event.channel, event.tag);
 
   if (bodyTrimmed.length === 0) {

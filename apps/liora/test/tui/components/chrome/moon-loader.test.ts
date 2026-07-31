@@ -108,7 +108,7 @@ describe('MoonLoader', () => {
 describe('MoonLoader brand moon spinner', () => {
   // Pictographic emoji (incl. the old 🌑–🌘 moons) and dingbats (✦✧✺)
   // are banned — only monospace-safe glyphs may reach the grid.
-  const EMOJI_OR_DINGBAT = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
+  const EMOJI_OR_DINGBAT = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]|\u{FE0F}/u;
   const ENV_KEYS = ['TERM', 'NO_COLOR', 'CI', 'SSH_CLIENT', 'SSH_CONNECTION', 'SSH_TTY'] as const;
   const savedEnv: Record<string, string | undefined> = {};
 

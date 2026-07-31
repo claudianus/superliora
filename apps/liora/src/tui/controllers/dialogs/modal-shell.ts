@@ -30,7 +30,7 @@ export function mountEditorReplacement(
   // approval/question events do not clobber it mid-flow (BUG-7). Help and
   // session-picker set their own specific dialog id after this call.
   // Keep session-loading sticky so restore paths cannot silently drop the lock.
-  if (host.state.activeDialog === null) host.state.activeDialog = 'command';
+  host.state.activeDialog ??= 'command';
   requestTUIContentRender(host.state);
 }
 

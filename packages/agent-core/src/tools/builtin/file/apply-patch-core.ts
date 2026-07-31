@@ -41,7 +41,7 @@ const FILE_HEADER =
   /^\*\*\* (Update File|Add File|Delete File): (.+)$/;
 
 export function parseOpenCodePatch(raw: string): ParsePatchResult {
-  const normalized = raw.replace(/\r\n/g, '\n').trim();
+  const normalized = raw.replaceAll(/\r\n/g, '\n').trim();
   if (!normalized.startsWith(BEGIN)) {
     return { ok: false, error: 'Patch must start with *** Begin Patch' };
   }

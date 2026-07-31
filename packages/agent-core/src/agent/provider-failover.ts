@@ -63,8 +63,8 @@ export function isRetryableProviderFailure(error: LioraErrorPayload | undefined)
   // provider mislabels the error as retryable or rate_limit.
   if (isPermanentQuotaOrBillingFailure(error)) return false;
   // Honor explicit non-retryable payloads (auth, permanent 4xx, etc.).
-  if (error.retryable === false) return false;
-  if (error.retryable === true) return true;
+  if (!error.retryable) return false;
+  if (error.retryable) return true;
   return (
     error.code === ErrorCodes.PROVIDER_RATE_LIMIT ||
     error.code === ErrorCodes.PROVIDER_CONNECTION_ERROR

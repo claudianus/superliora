@@ -14,7 +14,7 @@ export async function fetchKimiManagedUsage(
     ? `${baseUrl.replace(/\/+$/, '')}/usages`
     : kimiCodeUsageUrl();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8000);
+  const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },

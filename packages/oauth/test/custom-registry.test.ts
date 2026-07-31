@@ -25,22 +25,25 @@ describe('oauth/custom-registry — pure helpers', () => {
   describe('capabilitiesFromCustomEntry', () => {
     it('returns the default capability set for a fully empty entry', () => {
       // No rich hints → empty cap set; consumers fall back to defaults.
-      const result = capabilitiesFromCustomEntry({});
+      const result = capabilitiesFromCustomEntry({ id: 'empty' });
       expect(result).toEqual([]);
     });
 
     it('adds "tool_use" when tool_call is true', () => {
-      const result = capabilitiesFromCustomEntry({ tool_call: true });
+      const result = capabilitiesFromCustomEntry({ id: 'tool', tool_call: true });
       expect(result).toContain('tool_use');
     });
 
     it('adds "thinking" when reasoning is true or interleaved is set', () => {
-      expect(capabilitiesFromCustomEntry({ reasoning: true })).toContain('thinking');
-      expect(capabilitiesFromCustomEntry({ interleaved: 'field' })).toContain('thinking');
+      expect(capabilitiesFromCustomEntry({ id: 'reason', reasoning: true })).toContain('thinking');
+      expect(
+        capabilitiesFromCustomEntry({ id: 'interleaved', interleaved: { field: 'reasoning' } }),
+      ).toContain('thinking');
     });
 
     it('adds image_in / video_in / image_out / audio_out for matching modalities', () => {
       const entry: CustomRegistryModelEntry = {
+        id: 'modalities',
         modalities: {
           input: ['text', 'image', 'video'],
           output: ['text', 'image', 'audio'],
@@ -53,7 +56,11 @@ describe('oauth/custom-registry — pure helpers', () => {
     });
 
     it('deduplicates repeated capabilities (reasoning + interleaved both imply thinking)', () => {
-      const result = capabilitiesFromCustomEntry({ reasoning: true, interleaved: 'reasoning' });
+      const result = capabilitiesFromCustomEntry({
+        id: 'dedupe',
+        reasoning: true,
+        interleaved: { field: 'reasoning' },
+      });
       const thinkingCount = result.filter((c) => c === 'thinking').length;
       expect(thinkingCount).toBe(1);
     });

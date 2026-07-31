@@ -204,7 +204,7 @@ export function suggestNextActions(
       default:
         // plan/research are handled above; remaining stages fall through here.
         actions.push(
-          `Continue Ultrawork stage ${effectiveStage}; keep WorkGraph current and attach evidence before UpdateGoal(complete).`,
+          `Continue Ultrawork stage ${String(effectiveStage)}; keep WorkGraph current and attach evidence before UpdateGoal(complete).`,
         );
         break;
     }

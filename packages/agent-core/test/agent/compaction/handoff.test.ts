@@ -388,7 +388,7 @@ describe('resolveCompactionUserMessageBudget', () => {
   });
 });
 
-describe('isCompactionSummaryMessage', () => {
+describe('isCompactionSummaryMessage (origin variants)', () => {
   it('returns true for compaction_summary origin', () => {
     expect(
       isCompactionSummaryMessage({
@@ -426,7 +426,7 @@ describe('isCompactionSummaryMessage', () => {
   });
 });
 
-describe('compactionUserMessageDisposition', () => {
+describe('compactionUserMessageDisposition (origin matrix)', () => {
   // This is the source of truth for which origin kinds are kept in the
   // live context vs dropped after compaction. New PromptOrigin kinds MUST
   // add an entry here, otherwise the exhaustive `never` switch will catch
@@ -483,7 +483,7 @@ describe('compactionUserMessageDisposition', () => {
   });
 });
 
-describe('isRealUserInput', () => {
+describe('isRealUserInput (keep disposition)', () => {
   it('is true for role=user with keep disposition', () => {
     expect(
       isRealUserInput({
@@ -522,7 +522,7 @@ describe('isRealUserInput', () => {
   });
 });
 
-describe('collectCompactableUserMessages', () => {
+describe('collectCompactableUserMessages (summary exclusion)', () => {
   it('keeps real user input but excludes compaction summaries', () => {
     const result = collectCompactableUserMessages([
       { role: 'user', content: [], origin: { kind: 'user' } } as Message,
@@ -542,7 +542,7 @@ describe('collectCompactableUserMessages', () => {
   });
 });
 
-describe('buildCompactionElisionText', () => {
+describe('buildCompactionElisionText (token count)', () => {
   it('includes the omitted token count', () => {
     const text = buildCompactionElisionText(12_345);
     expect(text).toMatch(/12,?345/);

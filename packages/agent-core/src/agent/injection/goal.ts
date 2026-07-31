@@ -40,7 +40,7 @@ export class GoalInjector extends DynamicInjector {
         && this.agent.ultrawork?.getRun() !== undefined
         && this.agent.ultrawork?.getRun()?.status !== 'done'
         && this.agent.ultrawork?.getRun()?.status !== 'failed';
-      return buildGoalReminder(goal, { ultraworkLive: ultraworkLive === true });
+      return buildGoalReminder(goal, { ultraworkLive:  ultraworkLive });
     }
     if (goal.status === 'blocked') return buildBlockedNote(goal);
     if (goal.status === 'paused') return buildPausedNote(goal);

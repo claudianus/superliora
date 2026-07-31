@@ -56,7 +56,7 @@ describe('DisposableRegistry', () => {
     });
     registry.register(() => order.push('third'));
 
-    expect(() => registry.disposeAll()).not.toThrow();
+    expect(() =>{  registry.disposeAll(); }).not.toThrow();
     expect(order).toEqual(['third', 'first']);
   });
 });

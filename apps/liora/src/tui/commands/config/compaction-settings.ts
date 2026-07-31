@@ -107,7 +107,7 @@ async function showCompactionSettingsPanel(host: SlashCommandHost): Promise<void
     borderToken: 'primary',
     title: ' Compaction ',
     enterBeatSeed: 'compaction-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

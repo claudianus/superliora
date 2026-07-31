@@ -134,9 +134,9 @@ export function onToolCallEnd(
         const args = matchedCall?.args ?? {};
         const file =
           typeof args['file_path'] === 'string'
-            ? (args['file_path'] as string)
+            ? (args['file_path'])
             : typeof args['path'] === 'string'
-              ? (args['path'] as string)
+              ? (args['path'])
               : undefined;
         active.record({
           isError: result.is_error === true,

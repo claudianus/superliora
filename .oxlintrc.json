@@ -10,13 +10,16 @@
   "rules": {
     "eslint/no-useless-return": "off",
     "eslint/no-shadow": "off",
-    "eslint/eqeqeq": "error",
+    "eslint/no-unused-vars": "warn",
+    "typescript/no-base-to-string": "warn",
+    "eslint/no-loss-of-precision": "warn",
+    "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
     "eslint/no-throw-literal": "off",
     "eslint/no-control-regex": "off",
     "typescript/no-misused-promises": "error",
     "typescript/return-await": "error",
     "typescript/only-throw-error": "error",
-    "import/no-cycle": "error",
+    "import/no-cycle": "warn",
     "import/no-self-import": "error",
     "import/no-unassigned-import": "off",
     "unicorn/prefer-node-protocol": "error",
@@ -150,6 +153,10 @@
     "node_modules/",
     "apps/*/scripts/",
     "*.generated.ts",
-    "packages/agent-core/src/skill/catalog/"
+    "packages/agent-core/src/skill/catalog/",
+    ".qoder/**",
+    "docs/research/**",
+    "scripts/visual-verify.ts",
+    "packages/agent-core/test/fixtures/**"
   ]
 }

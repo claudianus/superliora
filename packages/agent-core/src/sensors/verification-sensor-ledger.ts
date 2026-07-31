@@ -154,7 +154,7 @@ export function buildTestFailureSoftTips(
 ): readonly string[] {
   const recent = filterRecentVerificationFailures(failures, nowMs);
   if (recent.length === 0) return [];
-  const latest = recent[recent.length - 1]!;
+  const latest = recent.at(-1)!;
   return [
     'Soft sensor: Goal marked complete while recent test/command failure evidence exists.',
     `· Latest: ${latest.toolName} — ${latest.summary}`,
@@ -178,7 +178,7 @@ export function formatGoalSoftAdvisoryOpsLine(
 ): string {
   const recent = filterRecentVerificationFailures(failures, nowMs);
   if (recent.length === 0) return VERIFICATION_SENSOR_GOAL_DONE_TIP;
-  const latest = recent[recent.length - 1]!;
+  const latest = recent.at(-1)!;
   return `Soft sensor: ${latest.toolName} failed — ${truncateOpsSummary(latest.summary)}`;
 }
 

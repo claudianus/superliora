@@ -19,9 +19,9 @@ export function expandPluginPlaceholders(
     .replaceAll('${CLAUDE_PROJECT_DIR}', vars.projectDir);
 
   if (vars.userConfig !== undefined) {
-    out = out.replace(/\$\{user_config\.([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, key: string) => {
+    out = out.replaceAll(/\$\{user_config\.([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, key: string) => {
       const resolved = vars.userConfig?.[key];
-      return resolved === undefined ? match : resolved;
+      return resolved ?? match;
     });
   }
   return out;

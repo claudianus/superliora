@@ -9,9 +9,9 @@ async function runCommand(kaos: Kaos, args: readonly string[], timeoutMs: number
     const out = collect(proc.stdout), err = collect(proc.stderr);
     const t = setTimeout(() => { void proc.kill('SIGTERM'); }, timeoutMs);
     try { const code = await proc.wait(); return { ok: code === 0, stdout: await out, stderr: await err, exitCode: code }; } finally { clearTimeout(t); }
-  } catch (e) { return { ok: false, stdout: '', stderr: e instanceof Error ? e.message : String(e), exitCode: null }; }
+  } catch (error) { return { ok: false, stdout: '', stderr: error instanceof Error ? error.message : String(error), exitCode: null }; }
 }
-function collect(s: NodeJS.ReadableStream): Promise<string> { return new Promise((r) => { let d = ''; s.setEncoding('utf8'); s.on('data', (c) => { d += c; }); s.on('end', () => r(d)); s.on('error', () => r(d)); }); }
+function collect(s: NodeJS.ReadableStream): Promise<string> { return new Promise((r) => { let d = ''; s.setEncoding('utf8'); s.on('data', (c) => { d += c; }); s.on('end', () =>{  r(d); }); s.on('error', () =>{  r(d); }); }); }
 export async function createWorktree(kaos: Kaos, root: string, target: string, branch: string, base: string): Promise<GitCommandResult> { return runGit(kaos, root, ['worktree', 'add', '-b', branch, target, base]); }
 export async function removeWorktree(kaos: Kaos, root: string, target: string): Promise<void> { await runGit(kaos, root, ['worktree', 'remove', '--force', target]); await runGit(kaos, root, ['worktree', 'prune']); }
 export async function commitAll(kaos: Kaos, cwd: string, msg: string): Promise<GitCommandResult> { const a = await runGit(kaos, cwd, ['add', '-A']); return a.ok ? runGit(kaos, cwd, ['commit', '-m', msg]) : a; }

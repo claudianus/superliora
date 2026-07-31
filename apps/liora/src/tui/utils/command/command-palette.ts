@@ -359,7 +359,7 @@ export class CommandPalette {
           score: this.getUsageScore(cmd.id),
           matchIndices: [] as number[],
         }))
-        .sort((a, b) => b.score - a.score)
+        .toSorted((a, b) => b.score - a.score)
         .slice(0, MAX_RESULTS);
     }
 
@@ -393,7 +393,7 @@ export class CommandPalette {
     }
 
     return scored
-      .sort((a, b) => b.score - a.score)
+      .toSorted((a, b) => b.score - a.score)
       .slice(0, MAX_RESULTS);
   }
 
@@ -595,5 +595,5 @@ export function createDefaultCommands(): PaletteCommand[] {
 // ---------------------------------------------------------------------------
 
 function stripAnsiLen(s: string): number {
-  return s.replace(/\u001B\[[0-9;]*m/g, '').length;
+  return s.replaceAll(/\u001B\[[0-9;]*m/g, '').length;
 }

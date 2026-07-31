@@ -46,7 +46,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Telemetry ',
     enterBeatSeed: 'telemetry',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

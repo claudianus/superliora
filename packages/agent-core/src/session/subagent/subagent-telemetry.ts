@@ -114,7 +114,7 @@ export function startProgressReporter(
   }, SUBAGENT_PROGRESS_INTERVAL_MS);
   // Progress reporting must never keep the event loop alive on its own.
   timer.unref?.();
-  return () => clearInterval(timer);
+  return () =>{  clearInterval(timer); };
 }
 
 /**

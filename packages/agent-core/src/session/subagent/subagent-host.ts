@@ -196,7 +196,7 @@ export class SessionSubagentHost {
         emitSubagentFailed(parent, id, runOptions, error);
         throw error;
       }
-      return await subagentCompletionFlow.runPromptTurnWithModelFallback(
+      return  subagentCompletionFlow.runPromptTurnWithModelFallback(
         parent,
         id,
         agent,

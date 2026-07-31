@@ -616,7 +616,7 @@ describe('built-in slash command registry', () => {
     const mission = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').find(
       (command) => command.name === 'mission',
     );
-    expect((mission as LioraSlashCommand | undefined)?.hiddenAliases).toEqual(['ultrawork', 'uw']);
+    expect((mission)?.hiddenAliases).toEqual(['ultrawork', 'uw']);
     expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight', 'renderer']));
     const help = findBuiltInSlashCommand('help') as LioraSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);

@@ -558,7 +558,7 @@ function detectResponseLanguageJson(systemPrompt: string, history: unknown): str
   if (!systemPrompt.startsWith('You detect the response language')) return undefined;
   const text = JSON.stringify(history);
   // Korean Hangul syllables (U+AC00–U+D7A3) mark the Korean detection case.
-  const isKorean = /[\uac00-\ud7a3]/u.test(text);
+  const isKorean = /[\uAC00-\uD7A3]/u.test(text);
   const result = isKorean
     ? { language_code: 'ko', language_name: 'Korean', explicit_override: false, confidence: 0.95 }
     : { language_code: 'en', language_name: 'English', explicit_override: false, confidence: 0.9 };

@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolve(import.meta.dirname, '..');
 const metaPath = resolve(root, 'packages/agent-core/src/expert-agents/catalog-meta.ts');
 const personasPath = resolve(root, 'packages/agent-core/src/expert-agents/catalog-personas.json');
 const reportPath = resolve(
@@ -902,7 +902,7 @@ function writeMetaFile(originalSrc, metaArray) {
 }
 
 function haystack(meta) {
-  return `${meta.id}\n${meta.name}\n${meta.description}\n${(meta.tags || []).join(' ')}`;
+  return `${meta.id}\n${meta.name}\n${meta.description}\n${(meta.tags ?? []).join(' ')}`;
 }
 
 const ID_OVERRIDES = {
@@ -928,14 +928,14 @@ function pickSpecialty(meta) {
   for (const s of SPECIALTIES) {
     if (s.match.test(h)) return s;
   }
-  const fb = DIVISION_FALLBACK[meta.division] || 'backend_api';
-  return SPECIALTIES.find((s) => s.id === fb) || SPECIALTIES.find((s) => s.id === 'research_general');
+  const fb = DIVISION_FALLBACK[meta.division] ?? 'backend_api';
+  return SPECIALTIES.find((s) => s.id === fb) ?? SPECIALTIES.find((s) => s.id === 'research_general');
 }
 
 function buildPersona(meta, specialty) {
   const name = meta.name;
-  const desc = String(meta.description || '').replace(/\s+/g, ' ').trim();
-  const vibe = meta.vibe || 'precise · evidence-first · elite';
+  const desc = String(meta.description ?? '').replaceAll(/\s+/g, ' ').trim();
+  const vibe = meta.vibe ?? 'precise · evidence-first · elite';
 
   return [
     `# ${name}`,
@@ -948,7 +948,7 @@ function buildPersona(meta, specialty) {
     '',
     `## Identity`,
     `- **Specialty pack:** ${specialty.id}`,
-    `- **Division:** ${meta.divisionLabel || meta.division}`,
+    `- **Division:** ${meta.divisionLabel ?? meta.division}`,
     `- **Job:** ${desc}`,
     `- **Memory:** Track constraints, decisions, file paths, open risks, and evidence for this task only.`,
     '',
@@ -988,7 +988,7 @@ function buildPersona(meta, specialty) {
 }
 
 function whenToUse(meta, specialty) {
-  const short = String(meta.description || meta.name).replace(/\s+/g, ' ').trim();
+  const short = String(meta.description ?? meta.name).replaceAll(/\s+/g, ' ').trim();
   const clipped = short.length > 140 ? `${short.slice(0, 137)}…` : short;
   return `Use for ${specialty.title.toLowerCase()} work as ${meta.name}: ${clipped}`;
 }
@@ -1002,7 +1002,7 @@ function main() {
 
   for (const entry of meta) {
     const specialty = pickSpecialty(entry);
-    specialtyCounts[specialty.id] = (specialtyCounts[specialty.id] || 0) + 1;
+    specialtyCounts[specialty.id] = (specialtyCounts[specialty.id] ?? 0) + 1;
     const persona = buildPersona(entry, specialty);
     nextPersonas[entry.id] = `${persona}\n`;
     nextMeta.push({

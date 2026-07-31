@@ -53,7 +53,7 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
 
     const selected = selectedExitPlanModeOption(display.options, result.selectedLabel);
 
-    const isUltra = this.agent.planMode.isUltraMode === true;
+    const isUltra =  this.agent.planMode.isUltraMode;
     const nextAction = isUltra ? ultraSwarmEngageNextAction(display.plan) : undefined;
     const failed = this.exitPlanMode();
     if (failed !== undefined) {

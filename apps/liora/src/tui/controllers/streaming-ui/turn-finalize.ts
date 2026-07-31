@@ -89,15 +89,15 @@ export function runStreamingCompactionAction(
     case 'begin':
       return beginCompactionHelper(host, activeCompactionBlock, action.instruction, action.options);
     case 'end':
-      return endCompactionHelper(
+      {  endCompactionHelper(
         host,
         activeCompactionBlock,
         action.tokensBefore,
         action.tokensAfter,
         action.detail,
-      );
+      );; return; }
     case 'cancel':
-      return cancelCompactionHelper(host, activeCompactionBlock);
+      {  cancelCompactionHelper(host, activeCompactionBlock);; return; }
     case 'promote':
       promoteCompactionToBlockingHelper(host, activeCompactionBlock);
       return activeCompactionBlock;

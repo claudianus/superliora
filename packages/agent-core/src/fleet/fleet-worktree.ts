@@ -90,7 +90,7 @@ export interface ApplyFleetWorktreeToSpawnTasksResult<T> {
   readonly tips: readonly string[];
 }
 
-function fleetWorkerKey(parentToolCallId: string, task: QueuedSubagentTask<unknown>): string {
+function fleetWorkerKey(parentToolCallId: string, task: QueuedSubagentTask): string {
   const index = task.swarmIndex ?? task.description;
   return `fleet-${parentToolCallId.slice(0, 8)}-${String(index)}`;
 }

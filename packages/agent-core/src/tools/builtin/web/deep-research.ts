@@ -103,7 +103,7 @@ export function depthSearchLimit(depth: DeepResearchDepth = 'standard'): number 
 export function extractKeyTerms(question: string): string[] {
   const words = question
     .toLowerCase()
-    .replace(/[^\w\s-]/g, ' ')
+    .replaceAll(/[^\w\s-]/g, ' ')
     .split(/\s+/)
     .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
   return [...new Set(words)].slice(0, 3);
@@ -118,7 +118,7 @@ export function planDeepResearchQueries(
 
   const queries = new Set<string>();
   const add = (query: string) => {
-    const normalized = query.trim().replace(/\s+/g, ' ');
+    const normalized = query.trim().replaceAll(/\s+/g, ' ');
     if (normalized.length > 0) queries.add(normalized);
   };
 
@@ -259,7 +259,7 @@ export function buildDeepResearchOutput(options: {
 }
 
 function truncateSnippet(text: string, maxLength: number): string {
-  const normalized = text.replace(/\s+/g, ' ').trim();
+  const normalized = text.replaceAll(/\s+/g, ' ').trim();
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, maxLength - 1)}…`;
 }

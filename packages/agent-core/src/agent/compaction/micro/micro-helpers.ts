@@ -198,7 +198,7 @@ export function pruneClearedReceipts(dir: string): void {
         }
       })
       .filter((entry): entry is { name: string; mtimeMs: number } => entry !== undefined)
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      .toSorted((a, b) => b.mtimeMs - a.mtimeMs);
     for (const entry of entries.slice(MAX_CLEARED_RECEIPTS)) {
       rmSync(join(dir, entry.name), { force: true });
     }

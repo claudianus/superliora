@@ -118,14 +118,14 @@ export class CamoufoxBrowserRuntime implements BrowserUseRuntime {
       return await launch();
     } catch (firstError) {
       if (!this.shouldAutoInstall()) {
-        throw new Error(actionableLaunchError(firstError, 'camoufox'));
+        throw new Error(actionableLaunchError(firstError, 'camoufox'), { cause: firstError });
       }
 
       const installed = await this.installCamoufox(signal);
       if (!installed.ok) {
         throw new Error(
           `${actionableLaunchError(firstError, 'camoufox')}\n` +
-          `Camoufox auto-install failed: ${setupResultDetail(installed)}`,
+          `Camoufox auto-install failed: ${setupResultDetail(installed)}`, { cause: firstError },
         );
       }
 
@@ -136,7 +136,7 @@ export class CamoufoxBrowserRuntime implements BrowserUseRuntime {
         throw new Error(
           `Camoufox launch failed after auto-install: ${describeError(secondError)}. ` +
           `Initial launch error: ${describeError(firstError)}. ` +
-          'Use BrowserStatus or `liora browser-use doctor` for diagnostics.',
+          'Use BrowserStatus or `liora browser-use doctor` for diagnostics.', { cause: secondError },
         );
       }
     }

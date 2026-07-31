@@ -437,8 +437,8 @@ export class PromptService
         active: this._active,
         agentState: this._agentState,
         eventService: this.eventService,
-        onDidCompleteFire: (ev) => this._onDidComplete.fire(ev),
-        onDidAbortFire: (ev) => this._onDidAbort.fire(ev),
+        onDidCompleteFire: (ev) =>{  this._onDidComplete.fire(ev); },
+        onDidAbortFire: (ev) =>{  this._onDidAbort.fire(ev); },
         startNextQueued: (sid, agentId) => {
           void this._startNextQueued(sid, agentId);
         },

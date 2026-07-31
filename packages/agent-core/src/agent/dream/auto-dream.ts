@@ -59,8 +59,8 @@ export class AutoDreamService {
     if (this.inFlight) return;
     if ((Date.now() - this.lastDreamAt) / 3_600_000 < this.minHours) return;
     // Fire-and-forget; cheap gate already passed. Failures stay local to memory.
-    void this.runDream().catch((e) => {
-      this.agent.log.warn('auto-dream failed', e);
+    void this.runDream().catch((error) => {
+      this.agent.log.warn('auto-dream failed', error);
     });
   }
   private async runDream(): Promise<DreamResult | undefined> {
@@ -88,7 +88,7 @@ export class AutoDreamService {
       this.lastMerged = merged;
       this.discardBackup(backupPath);
       return { examined: active.length, semanticMerged: merged };
-    } catch (e) { this.restoreBackup(backupPath); throw e; }
+    } catch (error) { this.restoreBackup(backupPath); throw error; }
     finally { this.inFlight = false; }
   }
   private async planConsolidation(records: readonly MemoryRecord[]): Promise<DreamPlan> {
@@ -163,7 +163,7 @@ export function parseDreamPlan(text: string, records: readonly MemoryRecord[]): 
     const k = (r as Record<string, unknown>)['keeperId']; const d = (r as Record<string, unknown>)['duplicateIds'];
     const keeperId = typeof k === 'string' ? k : undefined; const dups = Array.isArray(d) ? d.filter((x): x is string => typeof x === 'string') : [];
     if (!keeperId || !validIds.has(keeperId)) continue;
-    const valid = dups.filter((x) => validIds.has(x) && x !== keeperId); if (!valid.length) continue;
+    const valid = dups.filter((x) => validIds.has(x) && x !== keeperId); if (valid.length === 0) continue;
     merges.push({ keeperId, duplicateIds: valid, mergedSubject: typeof (r as Record<string, unknown>)['mergedSubject'] === 'string' ? (r as Record<string, unknown>)['mergedSubject'] as string : undefined, mergedContent: typeof (r as Record<string, unknown>)['mergedContent'] === 'string' ? (r as Record<string, unknown>)['mergedContent'] as string : undefined });
   }
   return { merges };

@@ -334,7 +334,7 @@ function extractRootGoalFromPlan(plan: string): string | undefined {
   const match =
     /(?:\*\*)?Verifiable UltraGoal(?:\*\*)?\s*:\s*(.+)$/im.exec(seedSection) ??
     /(?:\*\*)?Completion Criterion(?:\*\*)?\s*:\s*(.+)$/im.exec(seedSection);
-  return normalizeOptional(match?.[1]?.replaceAll(/\*\*/g, '').trim());
+  return normalizeOptional(match?.[1]?.replaceAll('**', '').trim());
 }
 
 function deriveRunId(planPath: string | undefined): string {

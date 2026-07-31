@@ -111,7 +111,7 @@ export function computeFilesChanged(options: {
   for (const file of [...options.committedChanged, ...options.dirtyNow]) {
     if (file.length > 0 && !before.has(file)) merged.add(file);
   }
-  return [...merged].sort().slice(0, MAX_FILES_CHANGED);
+  return [...merged].toSorted().slice(0, MAX_FILES_CHANGED);
 }
 
 /** Best-effort git snapshot for a child agent; never throws (T4-2/T4-6). */

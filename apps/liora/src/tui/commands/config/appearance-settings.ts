@@ -27,7 +27,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Appearance ',
     enterBeatSeed: 'appearance-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

@@ -13,7 +13,7 @@ export const REDTEAM_SOFT_SUITE_TIP =
   `W6 redteam-soft: ${REDTEAM_SOFT_SUITE_REL_PATH} — sk-/Bearer/AIza redaction + .env PATH_SENSITIVE smoke.`;
 
 function redteamSoftSuiteAbsolutePath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
+  const here = import.meta.dirname;
   return join(here, '../../test/security/redteam-soft.test.ts');
 }
 

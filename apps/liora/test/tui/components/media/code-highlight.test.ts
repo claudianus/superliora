@@ -95,7 +95,7 @@ describe('code-highlight', () => {
     const highlighted = highlightLines('const value = "kimi";', 'typescript').join('\n');
     // Truecolor foreground sequences over the untouched source text.
     expect(highlighted).toContain('\u001B[38;2;');
-    expect(highlighted.replace(/\u001B\[[0-9;]*m/g, '')).toContain('const value = "kimi";');
+    expect(highlighted.replaceAll(/\u001B\[[0-9;]*m/g, '')).toContain('const value = "kimi";');
   });
 
   it('windowed highlight only tokenizes the requested range for large files', () => {

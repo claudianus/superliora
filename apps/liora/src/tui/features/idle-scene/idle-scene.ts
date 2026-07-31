@@ -161,7 +161,7 @@ export function paintIdleStoryScene(options: {
       if (!showAmbient) {
         canvas[0] = padOrTrim(paint(colors.textMuted, renderWaterline(width, elapsedMs)), width);
         // Still seed the cell layer so later flush keeps row 0 consistent.
-        const muted = expandLineCells(canvas[0]!, width);
+        const muted = expandLineCells(canvas[0], width);
         setStoryCellRow(0, muted);
       } else {
         const band = resolveSurfaceBandCells(width, motionMs, palette);

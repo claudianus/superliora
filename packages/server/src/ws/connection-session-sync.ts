@@ -62,8 +62,8 @@ export async function syncSessions(
   for (const sid of accepted) {
     try {
       serverCursors[sid] = await host.wsBroadcast.getCursor(sid);
-    } catch (err) {
-      host.logger.warn({ sid, err: String(err) }, 'getCursor failed for ack');
+    } catch (error) {
+      host.logger.warn({ sid, err: String(error) }, 'getCursor failed for ack');
     }
   }
 
@@ -121,9 +121,9 @@ export async function handleSubscribe(
             );
           }
         })
-        .catch((err: unknown) => {
+        .catch((error: unknown) => {
           host.logger.warn(
-            { sid, err: String(err) },
+            { sid, err: String(error) },
             'subscribe.watch_fs add threw',
           );
         });
@@ -148,9 +148,9 @@ export function handleUnsubscribe(host: WsConnectionHost, msg: UnsubscribeMessag
 
     if (host.fsWatchHandler !== undefined) {
       const handler = host.fsWatchHandler;
-      void handler.remove(sid, host.id, []).catch((err: unknown) => {
+      void handler.remove(sid, host.id, []).catch((error: unknown) => {
         host.logger.warn(
-          { sid, err: String(err) },
+          { sid, err: String(error) },
           'unsubscribe watch_fs drop threw',
         );
       });

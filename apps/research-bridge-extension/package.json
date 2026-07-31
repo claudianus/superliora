@@ -1,0 +1,14 @@
+{
+  "name": "@superliora/research-bridge-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MV3 Chrome extension — history search bridge for SuperLiora Deep Research (Ch5)",
+  "license": "MIT",
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "install:native-host": "node scripts/install-native-host.mjs",
+    "install:native-host:macos": "node scripts/install-native-host.mjs --platform macos",
+    "install:native-host:linux": "node scripts/install-native-host.mjs --platform linux"
+  }
+}

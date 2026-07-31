@@ -246,7 +246,7 @@ export function resolveNativeHostScriptPath(agentCoreRoot: string): string {
 /** Best-effort agent-core package root for default smoke probing. */
 export function resolveDefaultAgentCoreRoot(): string | undefined {
   try {
-    const here = dirname(fileURLToPath(import.meta.url));
+    const here = import.meta.dirname;
     return join(here, '../../..');
   } catch {
     return undefined;

@@ -16,7 +16,7 @@ export function buildOAuthRefreshDegradedEvent(
   reason: string,
   atMs: number = Date.now(),
 ): RuntimeDegradedEvent {
-  const normalized = reason.replace(/\s+/g, ' ').trim();
+  const normalized = reason.replaceAll(/\s+/g, ' ').trim();
   return {
     type: 'runtime.degraded',
     scope: 'oauth',
@@ -39,7 +39,7 @@ export function buildOAuthRefreshDegradedEventFromError(
 ): RuntimeDegradedEvent {
   const reason =
     error instanceof Error
-      ? error.message.replace(/\s+/g, ' ').trim()
-      : String(error).replace(/\s+/g, ' ').trim();
+      ? error.message.replaceAll(/\s+/g, ' ').trim()
+      : String(error).replaceAll(/\s+/g, ' ').trim();
   return buildOAuthRefreshDegradedEvent(reason, atMs);
 }

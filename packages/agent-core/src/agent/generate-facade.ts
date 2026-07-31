@@ -146,8 +146,8 @@ export function generateWithSharedFailover(agent: Agent, params: {
     routeState: agent.providerRouteState,
     attempts,
     signal: params.signal,
-    onRouteStatusChanged: () => agent.emitStatusUpdated(),
-    circuitObserver: attachLlmProviderCircuitBreakers(agent, () => agent.emitStatusUpdated()),
+    onRouteStatusChanged: () =>{  agent.emitStatusUpdated(); },
+    circuitObserver: attachLlmProviderCircuitBreakers(agent, () =>{  agent.emitStatusUpdated(); }),
     onCandidateFailed: ({ candidate, failure, hasNext }) => {
       if (!hasNext) return;
       agent.log.warn('side generate credential failed; trying next candidate', {

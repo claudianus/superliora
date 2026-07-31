@@ -415,8 +415,8 @@ export class SessionBrowserController implements SessionPickerControllerState {
       this,
       options,
       (scope) => this.fetchSessions(scope),
-      (mountOptions) => this.mountSessionPicker(mountOptions),
-      () => this.hideSessionPicker(),
+      (mountOptions) =>{  this.mountSessionPicker(mountOptions); },
+      () =>{  this.hideSessionPicker(); },
     );
   }
 
@@ -426,8 +426,8 @@ export class SessionBrowserController implements SessionPickerControllerState {
       this,
       selectedSessionId,
       (scope) => this.fetchSessions(scope),
-      (mountOptions) => this.mountSessionPicker(mountOptions),
-      () => this.hideSessionPicker(),
+      (mountOptions) =>{  this.mountSessionPicker(mountOptions); },
+      () =>{  this.hideSessionPicker(); },
     );
   }
 
@@ -460,8 +460,8 @@ export class SessionBrowserController implements SessionPickerControllerState {
       (row) => this.showResumeOtherWorkDirHint(row),
       (targetSessionId) => this.resumeSession(targetSessionId),
       (activeSession) => this.applyStartupModesToResumedSession(activeSession),
-      () => this.applyStartupPermissionAndPlanToAppState(),
-      () => this.hideSessionPicker(),
+      () =>{  this.applyStartupPermissionAndPlanToAppState(); },
+      () =>{  this.hideSessionPicker(); },
     );
   }
 

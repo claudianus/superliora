@@ -111,7 +111,7 @@ describe('session worktree lifecycle', () => {
     await expect(access(join(b.workDir, 'only-a.txt'))).rejects.toBeTruthy();
 
     const listed = await listSessionWorktrees({ homeDir, repoRoot: repo });
-    expect(listed.map((e) => e.name).sort()).toEqual(['feature-a', 'feature-b']);
+    expect(listed.map((e) => e.name).toSorted()).toEqual(['feature-a', 'feature-b']);
 
     const removed = await removeSessionWorktree(kaos, {
       homeDir,

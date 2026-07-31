@@ -24,7 +24,7 @@ export function showSettingsInventory(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Settings ',
     enterBeatSeed: 'settings-inventory',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

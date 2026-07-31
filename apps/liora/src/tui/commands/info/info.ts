@@ -102,7 +102,7 @@ export async function showUsage(host: SlashCommandHost): Promise<void> {
     title: ' Usage ',
     enterBeatSeed: 'usage',
     phase: managedProvider ? 'loading' : 'ready',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
@@ -153,7 +153,7 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Provider Quotas ',
     enterBeatSeed: 'quota',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
@@ -231,7 +231,7 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Status ',
     enterBeatSeed: 'status',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
@@ -253,7 +253,7 @@ export async function showMcpServers(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title,
     enterBeatSeed: 'mcp',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

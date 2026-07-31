@@ -57,13 +57,14 @@ describe('agent/skill/manager — activate', () => {
       renderSkillPrompt: async () => 'rendered body',
     } as unknown as SkillRegistry;
     const manager = new SkillManager(agent, registry);
-    // Skills with metadata.type 'inline' pass the type gate; deeper side effects
-    // (emitEvent, telemetry.track, turn.prompt) require richer mocks, so we
+    await expect(
+      manager.activate({ name: 'demo', args: '' } as unknown as ActivateSkillPayload),
+    ).resolves.toBeDefined();
     // expect any of them to be a function call — either success or a specific
     // thrown error from those layers.
     await manager
       .activate({ name: 'demo', args: 'arg' } as unknown as ActivateSkillPayload)
-      .catch((err: unknown) => err);
+      .catch((error: unknown) => error);
     // No assertion on side effects here — only that the gate passed.
   });
 });

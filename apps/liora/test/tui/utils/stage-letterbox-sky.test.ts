@@ -172,7 +172,7 @@ describe('stage letterbox night sky', () => {
       cells
         .filter((c) => c.char === '◆' || c.char === '◈' || c.char === '⬤')
         .map((c) => `${c.x},${c.y}`)
-        .sort()
+        .toSorted()
         .join('|');
     if (heads(a).length > 0 || heads(b).length > 0) {
       expect(heads(a)).not.toBe(heads(b));

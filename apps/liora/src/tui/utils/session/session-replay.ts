@@ -248,7 +248,7 @@ export class SessionRecorder {
     return {
       totalEvents: this.events.length,
       durationMs: this.events.length > 0
-        ? this.events[this.events.length - 1]!.timestamp - this.startTimeMs
+        ? this.events.at(-1)!.timestamp - this.startTimeMs
         : 0,
       eventsByType,
     };

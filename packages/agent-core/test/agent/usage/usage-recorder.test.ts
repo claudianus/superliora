@@ -94,7 +94,7 @@ describe('agent/usage — UsageRecorder', () => {
 
   it('does not crash when no agent is supplied', () => {
     const rec = new UsageRecorder();
-    expect(() => rec.record('m', u({ inputOther: 1 }))).not.toThrow();
+    expect(() =>{  rec.record('m', u({ inputOther: 1 })); }).not.toThrow();
     expect(rec.status()?.total).toEqual(u({ inputOther: 1 }));
   });
 

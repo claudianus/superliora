@@ -172,9 +172,9 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?(?:less|more|most|nl)\b/, '')
       // nl value-taking short opts: -n STYLE, -b STYLE, -w N, -v N, -i N, -l N, -s STR, -d STR
-      .replace(/(?:^|\s)-[nbwvilsd]\s+\S+/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[nbwvilsd]\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
@@ -269,7 +269,7 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
   if (/^(?:\/usr\/bin\/)?paste\b/.test(command)) {
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?paste\b/, '')
-      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:\s+\S+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9]+(?:\s+\S+)?/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
@@ -287,13 +287,13 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?cut\b/, '')
       // Attached first: -d,, -f1, -c1-10, --delimiter=,
-      .replace(/(?:^|\s)-[dfcb]\S+/g, ' ')
-      .replace(/(?:^|\s)--(?:delimiter|fields|characters|bytes)=[^\s]+/g, ' ')
+      .replaceAll(/(?:^|\s)-[dfcb]\S+/g, ' ')
+      .replaceAll(/(?:^|\s)--(?:delimiter|fields|characters|bytes)=[^\s]+/g, ' ')
       // Bare letter + separate value: -d , -f 1 -c 1-10
-      .replace(/(?:^|\s)-[dfcb]\s+\S+/g, ' ')
-      .replace(/(?:^|\s)--(?:delimiter|fields|characters|bytes)\s+\S+/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[dfcb]\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)--(?:delimiter|fields|characters|bytes)\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
@@ -325,13 +325,13 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?(?:sort|uniq|shuf|gsort)\b/, '')
       // Attached first: -k2, -t,, -oout, -S50%, --key=2
-      .replace(/(?:^|\s)-[ktoS]\S+/g, ' ')
-      .replace(/(?:^|\s)--(?:key|field-separator|output|buffer-size)=[^\s]+/g, ' ')
+      .replaceAll(/(?:^|\s)-[ktoS]\S+/g, ' ')
+      .replaceAll(/(?:^|\s)--(?:key|field-separator|output|buffer-size)=[^\s]+/g, ' ')
       // Bare letter + separate value: -k 2, -t ,, -o out, -S 50%, -f 1 (uniq), -s 2 (uniq)
-      .replace(/(?:^|\s)-[ktoSfs]\s+\S+/g, ' ')
-      .replace(/(?:^|\s)--(?:key|field-separator|output|buffer-size)\s+\S+/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[ktoSfs]\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)--(?:key|field-separator|output|buffer-size)\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
@@ -348,8 +348,8 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
   if (/^(?:\/usr\/bin\/)?look\b/.test(command)) {
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?look\b/, '')
-      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 2 && args.every((a) => a !== '-' && !a.startsWith('-'))) {
@@ -372,12 +372,12 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     (() => {
       const withoutOpts = command
         .replace(/^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:g?sed)\b/, '')
-        .replace(/(?:^|\s)-[A-Za-z]*n[A-Za-z]*/g, ' ')
-        .replace(/(?:^|\s)-[ef]\s+\S+/g, ' ')
-        .replace(/(?:^|\s)--(?:expression|file)=[^\s]+/g, ' ')
-        .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
-        .replace(/(?:^|\s)'[^']*'/g, ' ')
-        .replace(/(?:^|\s)"[^"]*"/g, ' ')
+        .replaceAll(/(?:^|\s)-[A-Za-z]*n[A-Za-z]*/g, ' ')
+        .replaceAll(/(?:^|\s)-[ef]\s+\S+/g, ' ')
+        .replaceAll(/(?:^|\s)--(?:expression|file)=[^\s]+/g, ' ')
+        .replaceAll(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+        .replaceAll(/(?:^|\s)'[^']*'/g, ' ')
+        .replaceAll(/(?:^|\s)"[^"]*"/g, ' ')
         .trim();
       const args = withoutOpts.split(/\s+/).filter(Boolean);
       return args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-');
@@ -396,15 +396,15 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?(?:busybox\s+)?(?:awk|gawk|nawk)\b/, '')
       // Attached first: -F, -F',' -fprog -vvar=1 (must not swallow the program token).
-      .replace(/(?:^|\s)-[Ffv]\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-[Ffv]\S+/g, ' ')
       // Then bare letter + separate value: -F FS, -f prog, -v x=1
-      .replace(/(?:^|\s)-[Ffv]\s+\S+/g, ' ')
-      .replace(/(?:^|\s)--(?:file|source)=[^\s]+/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
-      .replace(/(?:^|\s)'[^']*'/g, ' ')
-      .replace(/(?:^|\s)"[^"]*"/g, ' ')
+      .replaceAll(/(?:^|\s)-[Ffv]\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)--(?:file|source)=[^\s]+/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replaceAll(/(?:^|\s)'[^']*'/g, ' ')
+      .replaceAll(/(?:^|\s)"[^"]*"/g, ' ')
       // bare program tokens like `1` or `{print}` without a path
-      .replace(/(?:^|\s)(?:1|\{[^}]*\})\b/g, ' ')
+      .replaceAll(/(?:^|\s)(?:1|\{[^}]*\})\b/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
@@ -437,11 +437,11 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
   if (/^(?:\/usr\/bin\/)?iconv\b/.test(command)) {
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?iconv\b/, '')
-      .replace(/(?:^|\s)-(?:f|t|c|o|l|s)\s+\S+/g, ' ')
-      .replace(/(?:^|\s)--(?:from-code|to-code)=[^\s]+/g, ' ')
-      .replace(/(?:^|\s)--(?:from-code|to-code)\s+\S+/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-(?:f|t|c|o|l|s)\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)--(?:from-code|to-code)=[^\s]+/g, ' ')
+      .replaceAll(/(?:^|\s)--(?:from-code|to-code)\s+\S+/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {
@@ -460,12 +460,12 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
       .replace(/^(?:\/usr\/bin\/)?(?:jq|yq)\b/, '')
       // yq eval verbs: e / eval / ea / eval-all
       .replace(/^(?:\s+)(?:e|eval|ea|eval-all)\b/i, ' ')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
       // filter expression: `.`, `.name`, `'.name'`, `".items[0]"`
-      .replace(/(?:^|\s)'[^']*'/g, ' ')
-      .replace(/(?:^|\s)"[^"]*"/g, ' ')
-      .replace(/(?:^|\s)\.[A-Za-z0-9_.\[\]*]*/g, ' ')
+      .replaceAll(/(?:^|\s)'[^']*'/g, ' ')
+      .replaceAll(/(?:^|\s)"[^"]*"/g, ' ')
+      .replaceAll(/(?:^|\s)\.[A-Za-z0-9_.[\]*]*/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-') && args[0] !== '.') {
@@ -482,8 +482,8 @@ export function matchReadLike(command: string): ShellDedicatedBypassHit | undefi
   if (/^(?:\/usr\/bin\/)?python(?:3(?:\.\d+)?)?\s+-m\s+json\.tool\b/.test(command)) {
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?python(?:3(?:\.\d+)?)?\s+-m\s+json\.tool\b/, '')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
-      .replace(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9=]+/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {

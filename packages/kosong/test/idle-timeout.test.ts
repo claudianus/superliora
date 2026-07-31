@@ -107,7 +107,7 @@ describe('withIdleTimeout', () => {
   it('throws APITimeoutError when the stream stalls beyond idleMs', async () => {
     const started = Date.now();
     const error = await collect(withIdleTimeout(stalledStream(), { idleMs: 30, label: 'test stream' })).catch(
-      (caught: unknown) => caught,
+      (error: unknown) => error,
     );
     expect(error).toBeInstanceOf(APITimeoutError);
     expect((error as Error).message).toContain('no data received for 30ms');
@@ -124,7 +124,7 @@ describe('withIdleTimeout', () => {
 
   it('honors the SUPERLIORA_LLM_IDLE_TIMEOUT_MS env default', async () => {
     process.env[LLM_IDLE_TIMEOUT_ENV] = '25';
-    const error = await collect(withIdleTimeout(stalledStream())).catch((caught: unknown) => caught);
+    const error = await collect(withIdleTimeout(stalledStream())).catch((error: unknown) => error);
     expect(error).toBeInstanceOf(APITimeoutError);
     expect((error as Error).message).toContain('no data received for 25ms');
   });
@@ -147,7 +147,7 @@ describe('withIdleTimeout', () => {
     pending.catch(() => {});
     await sleep(10);
     controller.abort();
-    const error = await pending.catch((caught: unknown) => caught);
+    const error = await pending.catch((error: unknown) => error);
     expect(error).toBeInstanceOf(DOMException);
     expect((error as DOMException).name).toBe('AbortError');
   });
@@ -157,7 +157,7 @@ describe('withIdleTimeout', () => {
     controller.abort();
     const error = await collect(
       withIdleTimeout(chunksWithGaps([{ value: 1, delayMs: 5 }]), { idleMs: 1000, signal: controller.signal }),
-    ).catch((caught: unknown) => caught);
+    ).catch((error: unknown) => error);
     expect((error as DOMException).name).toBe('AbortError');
   });
 
@@ -166,7 +166,7 @@ describe('withIdleTimeout', () => {
       yield 1;
       throw new Error('upstream exploded');
     }
-    const error = await collect(withIdleTimeout(failing(), { idleMs: 1000 })).catch((caught: unknown) => caught);
+    const error = await collect(withIdleTimeout(failing(), { idleMs: 1000 })).catch((error: unknown) => error);
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('upstream exploded');
   });

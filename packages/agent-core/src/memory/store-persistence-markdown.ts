@@ -104,5 +104,5 @@ function markdownRecordRegex(): RegExp {
 }
 
 function singleLine(value: string): string {
-  return value.replace(/\s+/gu, ' ').trim() || '(untitled)';
+  return value.replaceAll(/\s+/gu, ' ').trim() || '(untitled)';
 }

@@ -51,7 +51,7 @@ export async function waitForBackgroundTask(
     return host.toInfo(entry);
   }
   const timeout = timeoutOutcome(timeoutMs, undefined);
-  await Promise.race([entry.terminal, timeout]).finally(() => timeout.clear());
+  await Promise.race([entry.terminal, timeout]).finally(() =>{  timeout.clear(); });
 
   if (TERMINAL_STATUSES.has(entry.status)) {
     await entry.persistWriteQueue;

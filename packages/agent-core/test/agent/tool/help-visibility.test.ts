@@ -61,7 +61,7 @@ describe('tool help visibility', () => {
   });
 
   it('marks the five branding-debt compat tools as advanced', () => {
-    expect(Object.keys(COMPAT_BRANDING_TOOL_HELP).sort()).toEqual([
+    expect(Object.keys(COMPAT_BRANDING_TOOL_HELP).toSorted()).toEqual([
       'CreateUltraGoal',
       'LioraExpand',
       'LioraReview',

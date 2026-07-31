@@ -65,7 +65,7 @@ export async function driveGoalTurnLoop(
     let end = await deps.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
     if (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
       end = await recoverFromProviderFailure(
-        { agent: deps.agent, runOneTurn: deps.runOneTurn },
+        { agent: deps.agent, runOneTurn: (...args) => deps.runOneTurn(...args) },
         turnId,
         turnInput,
         turnOrigin,

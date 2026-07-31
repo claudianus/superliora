@@ -387,7 +387,7 @@ class SearxngAdapter implements LocalSearchAdapter {
       headers: { Accept: 'application/json' },
     }, this.timeoutMs);
     if (response.status >= 400) throw new Error(`SearXNG request failed: HTTP ${String(response.status)}`);
-    const json = await response.json() as unknown;
+    const json = await response.json();
     const results = asRecordArray(asRecord(json)?.['results']);
     return results.slice(0, limit).map((entry) => buildResult({
       title: stringValue(entry['title']) ?? 'SearXNG result',
@@ -415,7 +415,7 @@ class YaCyAdapter implements LocalSearchAdapter {
       headers: { Accept: 'application/json' },
     }, this.timeoutMs);
     if (response.status >= 400) throw new Error(`YaCy request failed: HTTP ${String(response.status)}`);
-    const json = await response.json() as unknown;
+    const json = await response.json();
     const root = asRecord(json);
     const channels = asRecordArray(root?.['channels']);
     const firstChannel = channels[0];

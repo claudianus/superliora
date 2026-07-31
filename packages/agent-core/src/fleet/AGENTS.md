@@ -5,7 +5,7 @@ Single home for swarm / subagent orchestration (hosting, DAG, bus, evidence, ult
 ## Ownership
 
 - New swarm/subagent coordination code lands here.
-- Builtin collaboration **tools** remain under `tools/builtin/collaboration/` (registration + tool schemas) but should call into this tree for heavy orchestration.
+- Builtin fleet **tools** live under `tools/builtin/fleet/` (registration + tool schemas); `tools/builtin/collaboration/` is a compatibility shim. Heavy orchestration should call into this tree.
 - Until migration finishes, `session/subagent/`, `session/ultra-swarm-*`, and `agent/swarm/` may still bridge callers into this tree.
 - `src/collaboration/index.ts` is a compatibility shim re-exporting this tree.
 

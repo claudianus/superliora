@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolve(import.meta.dirname, '..');
 const metaPath = resolve(root, 'packages/agent-core/src/expert-agents/catalog-meta.ts');
 const personasPath = resolve(
   root,
@@ -250,12 +250,12 @@ function playbookFor(division) {
 
 function scorePersona(text) {
   const t = String(text ?? '');
-  const headings = (t.match(/^##\s+/gm) || []).length;
-  const emptyHeadings = (t.match(/^##[^\n]*\n(?:\s*\n)+(?=##|$)/gm) || []).length;
+  const headings = (t.match(/^##\s+/gm) ?? []).length;
+  const emptyHeadings = (t.match(/^##[^\n]*\n(?:\s*\n)+(?=##|$)/gm) ?? []).length;
   const hasIdentity = /You are \*\*|Identity|Your Role/i.test(t);
   const hasRules = /Critical Rules|MUST NOT|Non-negotiable|Anti-pattern/i.test(t);
   const hasDone = /Success Metrics|Definition of Done|Deliverable/i.test(t);
-  const filler = (t.match(FILLER_RE) || []).length;
+  const filler = (t.match(FILLER_RE) ?? []).length;
   let score =
     (t.length >= 1500 ? 2 : t.length >= 600 ? 1 : 0) +
     (headings >= 4 ? 2 : headings >= 2 ? 1 : 0) +
@@ -310,13 +310,13 @@ function stripFiller(text) {
       };
       return map[m.toLowerCase()] ?? m;
     })
-    .replace(/\n{3,}/g, '\n\n')
+    .replaceAll(/\n{3,}/g, '\n\n')
     .trim();
 }
 
 function fillEmptyHeadings(text) {
   // Replace empty sections with a single concrete line
-  return text.replace(/^## ([^\n]+)\n(?:\s*\n)+(?=##|$)/gm, (full, title) => {
+  return text.replaceAll(/^## ([^\n]+)\n(?:\s*\n)+(?=##|$)/gm, (full, title) => {
     return `## ${title}\n\n- Apply judgment appropriate to this section; keep outputs concrete and verifiable.\n\n`;
   });
 }
@@ -324,9 +324,9 @@ function fillEmptyHeadings(text) {
 function keywordsFromDescription(description, limit = 8) {
   const words = description
     .toLowerCase()
-    .replace(/[^a-z0-9/+#.\s-]/g, ' ')
+    .replaceAll(/[^a-z0-9/+#.\s-]/g, ' ')
     .split(/[\s,/]+/)
-    .map((w) => w.replace(/^\.+|\.+$/g, ''))
+    .map((w) => w.replaceAll(/^\.+|\.+$/g, ''))
     .filter((w) => w.length >= 3 && !STOP.has(w) && !/^\d+$/.test(w));
   const out = [];
   const seen = new Set();
@@ -342,12 +342,12 @@ function keywordsFromDescription(description, limit = 8) {
 function capabilitiesFor(meta) {
   const pb = playbookFor(meta.division);
   const base = pb.methods.slice(0, 2).map((m) => m.split(/[.;]/)[0].slice(0, 80));
-  const fromDesc = keywordsFromDescription(meta.description, 4).map((k) => k.replace(/-/g, ' '));
+  const fromDesc = keywordsFromDescription(meta.description, 4).map((k) => k.replaceAll(/-/g, ' '));
   return unique([...base, ...fromDesc]).slice(0, 6);
 }
 
 function whenToUseFor(meta) {
-  const short = meta.description.replace(/\s+/g, ' ').trim();
+  const short = meta.description.replaceAll(/\s+/g, ' ').trim();
   const clipped = short.length > 160 ? `${short.slice(0, 157)}…` : short;
   return `Use when the task needs a ${meta.name}: ${clipped}`;
 }
@@ -422,7 +422,7 @@ function buildHighQualityPersona(meta) {
   const pb = playbookFor(meta.division);
   const domain = domainNotes(meta);
   const name = meta.name;
-  const desc = meta.description.replace(/\s+/g, ' ').trim();
+  const desc = meta.description.replaceAll(/\s+/g, ' ').trim();
 
   return [
     `# ${name}`,
@@ -434,7 +434,7 @@ function buildHighQualityPersona(meta) {
     `## Identity`,
     `- **Role:** ${name}`,
     `- **Division:** ${meta.divisionLabel}`,
-    `- **Vibe:** ${meta.vibe || 'precise · evidence-first · elite'}`,
+    `- **Vibe:** ${meta.vibe ?? 'precise · evidence-first · elite'}`,
     `- **Memory:** Track decisions, constraints, file paths, and open risks across the task.`,
     '',
     `## Mission`,

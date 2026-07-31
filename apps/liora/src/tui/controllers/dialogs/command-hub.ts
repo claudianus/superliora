@@ -130,7 +130,7 @@ function runPaletteEntry(host: DialogsHost, delegate: CommandHubDelegate, entry:
           host,
           delegate,
           new ShortcutsPanelComponent({
-            onClose: () => closeCenterModal(host, delegate),
+            onClose: () =>{  closeCenterModal(host, delegate); },
           }),
           { mode: 'push', label: 'Shortcuts' },
         );
@@ -315,7 +315,7 @@ function handleCommandHubAction(
       host,
       delegate,
       new ShortcutsPanelComponent({
-        onClose: () => closeCenterModal(host, delegate),
+        onClose: () =>{  closeCenterModal(host, delegate); },
       }),
       { mode: 'push', label: 'Shortcuts' },
     );

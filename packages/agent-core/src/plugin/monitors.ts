@@ -119,7 +119,7 @@ function flattenMonitors(
 async function readJsonFile(
   filePath: string,
   diagnostics: PluginDiagnostic[],
-): Promise<unknown | undefined> {
+): Promise<unknown> {
   try {
     return JSON.parse(await readFile(filePath, 'utf8')) as unknown;
   } catch (error) {

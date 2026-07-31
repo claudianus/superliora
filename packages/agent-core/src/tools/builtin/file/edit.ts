@@ -78,7 +78,7 @@ const TOKEN_PATTERN = /[\p{L}\p{N}_$]+/gu;
 function countLines(text: string): number {
   let lines = 1;
   for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) === 10) lines++;
+    if (text.codePointAt(i) === 10) lines++;
   }
   return lines;
 }
@@ -110,9 +110,9 @@ function levenshteinRatio(a: string, b: string): number {
   let curr = Array.from({ length: short.length + 1 }, () => 0);
   for (let j = 1; j <= long.length; j++) {
     curr[0] = j;
-    const code = long.charCodeAt(j - 1);
+    const code = long.codePointAt(j - 1);
     for (let i = 1; i <= short.length; i++) {
-      const cost = short.charCodeAt(i - 1) === code ? 0 : 1;
+      const cost = short.codePointAt(i - 1) === code ? 0 : 1;
       curr[i] = Math.min((prev[i] ?? 0) + 1, (curr[i - 1] ?? 0) + 1, (prev[i - 1] ?? 0) + cost);
     }
     [prev, curr] = [curr, prev];
@@ -140,7 +140,7 @@ function similarCandidateBlock(fileText: string, oldText: string): string {
   if (countLines(fileText) > CANDIDATE_MAX_FILE_LINES) return '';
   const oldLines = oldText.split('\n');
   const firstTokens = tokenize(oldLines[0] ?? '');
-  const lastTokens = tokenize(oldLines[oldLines.length - 1] ?? '');
+  const lastTokens = tokenize(oldLines.at(-1) ?? '');
   if (firstTokens.size === 0 && lastTokens.size === 0) return '';
 
   const fileLines = fileText.split('\n');

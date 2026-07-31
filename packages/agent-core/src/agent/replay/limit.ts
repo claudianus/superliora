@@ -25,7 +25,7 @@ export function limitReplayRecordsByTurn(
   // Always return a new array so callers can safely clear/replace the source
   // buffer without emptying the limited view (resume keepOnly path).
   if (turnStarts.length <= maxTurns) return records.slice();
-  return records.slice(turnStarts[turnStarts.length - maxTurns]!);
+  return records.slice(turnStarts[turnStarts.length - maxTurns]);
 }
 
 export function isReplayUserTurnRecord(record: AgentReplayRecord): boolean {

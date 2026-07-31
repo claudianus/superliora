@@ -38,7 +38,9 @@ function hashToolBlock(tools: readonly { name: string; description: string }[]):
   for (const tool of tools) {
     const key = `${tool.name}:${String(tool.description.length)}`;
     for (let i = 0; i < key.length; i++) {
-      h ^= key.charCodeAt(i);
+      const cp = key.codePointAt(i);
+      if (cp === undefined) continue;
+      h ^= cp;
       h = Math.imul(h, 0x01000193);
     }
   }

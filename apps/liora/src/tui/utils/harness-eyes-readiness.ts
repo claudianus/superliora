@@ -48,8 +48,8 @@ export function formatHarnessEyesReadiness(
 export function browserEyeFromSetupResult(result: SetupCommandResult): HarnessEyeLine {
   const detail =
     summarizeSetupStdout(result.stdout) ||
-    result.error ||
-    result.stderr.trim() ||
+    (result.error ??
+    result.stderr.trim()) ||
     (result.ok ? 'Browser-use runtimes reported ready.' : 'Browser-use runtimes not ready.');
   return {
     id: 'browser-use',
@@ -108,7 +108,7 @@ function summarizeSetupStdout(stdout: string): string {
 }
 
 function truncate(text: string, max: number): string {
-  const one = text.replace(/\s+/g, ' ').trim();
+  const one = text.replaceAll(/\s+/g, ' ').trim();
   if (one.length <= max) return one;
   return `${one.slice(0, Math.max(0, max - 1))}…`;
 }

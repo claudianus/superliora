@@ -66,7 +66,7 @@ export async function maybeTransformPromptForInterruptedWorkResume(
     if (!shouldActOnResumeIntent(intent)) return undefined;
   }
   // shouldActOnResumeIntent narrowed intent above on every exit path that continues.
-  const acted = intent!;
+  const acted = intent;
 
   const run = context.ultraworkRun;
   const hasPendingWork =

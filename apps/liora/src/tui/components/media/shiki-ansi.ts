@@ -108,8 +108,7 @@ export function __forceShikiFallbackForTest(value: boolean): void {
  * which case the cli-highlight fallback stays in charge).
  */
 export function warmShikiHighlighter(): Promise<void> {
-  if (warmPromise === undefined) {
-    warmPromise = createHighlighter({
+  warmPromise ??= createHighlighter({
       // A bundled placeholder keeps creation free of app-module state:
       // reading currentTheme at import time is unsafe in the production
       // bundle (module cycles can leave the palette uninitialized). The
@@ -130,7 +129,6 @@ export function warmShikiHighlighter(): Promise<void> {
       .catch(() => {
         // Leave highlighter undefined; callers keep the cli-highlight path.
       });
-  }
   return warmPromise;
 }
 

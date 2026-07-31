@@ -138,8 +138,8 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       } else if (
         /\bopen\b/.test(command) ||
         /read_file\s*\(/.test(command) ||
-        /File::Slurp/.test(command) ||
-        /Path::Tiny/.test(command)
+        command.includes('File::Slurp') ||
+        command.includes('Path::Tiny')
       ) {
         return {
           prefer: 'Read',
@@ -154,7 +154,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
       if (
         perlLineLoop &&
         /\s\S+\s*$/.test(command) &&
-        !/[|<>]/.test(command.replace(/-[A-Za-z]+/g, ''))
+        !/[|<>]/.test(command.replaceAll(/-[A-Za-z]+/g, ''))
       ) {
         // crude: trailing path token after -e script is hard; match `perl -ne '...' file`
         if (/\s+\S+\.[A-Za-z0-9]+\s*$/.test(command) || /\s+\.?\/?[\w./-]+\s*$/.test(command)) {
@@ -170,7 +170,7 @@ export function matchLanguageReadLike(command: string): ShellDedicatedBypassHit 
 
   // ruby -ne/-pe/-npe/-ane '…' path  (line-loop file dump, no pipe)
   // Distinct from `ruby -e File.read(...)` which is handled above.
-  if (/^(?:\/usr\/bin\/)?ruby\b/.test(command) && !/[|<>]/.test(command.replace(/-[A-Za-z]+/g, ''))) {
+  if (/^(?:\/usr\/bin\/)?ruby\b/.test(command) && !/[|<>]/.test(command.replaceAll(/-[A-Za-z]+/g, ''))) {
     // In-place (`-i`) is Edit.
     if (/(?:^|\s)-[A-Za-z]*i[A-Za-z]*(?:\S*)?(?:\s|$)/.test(command)) {
       return undefined;
@@ -221,7 +221,7 @@ export function matchLanguageWriteLike(command: string): ShellDedicatedBypassHit
   // block params (`{|f| ...}`), so only reject whitespace-bounded shell pipes
   // and shell OR/AND — not single-pipe language syntax.
   if (/[`\n]/.test(command)) return undefined;
-  if (/\s\|\s/.test(command) || /\|\|/.test(command) || /\b(?:&&)\b/.test(command)) return undefined;
+  if (/\s\|\s/.test(command) || command.includes('||') || /\b(?:&&)\b/.test(command)) return undefined;
 
   // python/python3 -c write
   if (/^(?:\/usr\/bin\/)?python3?(?:\d+(?:\.\d+)*)?\b/.test(command) && /(?:^|\s)-c(?:\s|$)/.test(command)) {

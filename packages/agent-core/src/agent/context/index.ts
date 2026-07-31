@@ -106,13 +106,13 @@ export class ContextMemory {
     appendUserMessageToContext(
       content,
       origin,
-      (message) => this.appendMessage(message),
-      (text, reminderOrigin) => this.appendSystemReminder(text, reminderOrigin),
+      (message) =>{  this.appendMessage(message); },
+      (text, reminderOrigin) =>{  this.appendSystemReminder(text, reminderOrigin); },
     );
   }
 
   appendSystemReminder(content: string, origin: PromptOrigin): void {
-    appendSystemReminderToContext(content, origin, (message) => this.appendMessage(message));
+    appendSystemReminderToContext(content, origin, (message) =>{  this.appendMessage(message); });
   }
 
   /**
@@ -131,15 +131,15 @@ export class ContextMemory {
   }
 
   appendLocalCommandStdout(content: string): void {
-    appendLocalCommandStdoutToContext(content, (message) => this.appendMessage(message));
+    appendLocalCommandStdoutToContext(content, (message) =>{  this.appendMessage(message); });
   }
 
   appendBashInput(command: string): void {
-    appendBashInputToContext(command, (message) => this.appendMessage(message));
+    appendBashInputToContext(command, (message) =>{  this.appendMessage(message); });
   }
 
   appendBashOutput(stdout: string, stderr: string, isError?: boolean): void {
-    appendBashOutputToContext(stdout, stderr, isError, (message) => this.appendMessage(message));
+    appendBashOutputToContext(stdout, stderr, isError, (message) =>{  this.appendMessage(message); });
   }
 
   popMatchedMessage(matcher: (origin: PromptOrigin | undefined) => boolean): boolean {

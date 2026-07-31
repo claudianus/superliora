@@ -387,12 +387,10 @@ export class UltraPlanModeEngine {
     );
 
     let llmResult = await calculateAmbiguityWithLlm(this.agent, evidence, signal);
-    if (llmResult === null) {
-      // Automatic one-time retry before falling back to the deterministic
+    // Automatic one-time retry before falling back to the deterministic
       // heuristic. This prevents a single transient LLM failure from blocking
       // the interview.
-      llmResult = await calculateAmbiguityWithLlm(this.agent, evidence, signal);
-    }
+      llmResult ??= await calculateAmbiguityWithLlm(this.agent, evidence, signal);
     if (llmResult === null) {
       // LLM is unavailable or returning invalid JSON. Use a deterministic
       // heuristic so the interview can continue safely without throwing.

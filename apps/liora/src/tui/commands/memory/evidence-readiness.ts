@@ -128,7 +128,7 @@ export function loadMemoryReadinessEvidence(workDir: string): MemoryReadinessEvi
 export function formatEvidenceSignal(signal: MemoryReadinessEvidenceSignal): string {
   if (!signal.ready) return `missing; ${signal.summary}`;
   const matchWord = signal.matchCount === 1 ? 'match' : 'matches';
-  const source = signal.sourcePath === undefined ? 'source not recorded' : signal.sourcePath;
+  const source = signal.sourcePath ?? 'source not recorded';
   const tierLabel = signal.tier === 'verified' ? 'verified' : signal.tier;
   return `${tierLabel}; ${signal.matchCount} ${matchWord}; ${source}`;
 }

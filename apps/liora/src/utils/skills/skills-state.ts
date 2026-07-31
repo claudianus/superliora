@@ -38,7 +38,7 @@ export async function saveSkillsState(
   path: string = getSkillsStatePath(),
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const unique = [...new Set(state.disabled.map((s) => s.trim()).filter((s) => s.length > 0))].sort();
+  const unique = [...new Set(state.disabled.map((s) => s.trim()).filter((s) => s.length > 0))].toSorted();
   await writeFile(path, `${JSON.stringify({ disabled: unique }, null, 2)}\n`, 'utf-8');
 }
 

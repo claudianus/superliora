@@ -126,7 +126,7 @@ export function measureBentoGridLayout(
   }
 
   // Sort panels: higher priority first, then larger area first
-  const sorted = [...panels].sort((a, b) => {
+  const sorted = [...panels].toSorted((a, b) => {
     if (b.priority !== a.priority) return b.priority - a.priority;
     return (b.colSpan * b.rowSpan) - (a.colSpan * a.rowSpan);
   });

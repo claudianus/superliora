@@ -54,9 +54,9 @@ export function matchX10Mouse(
   if (!input.startsWith('\u001B[M', index)) return undefined;
   const payloadStart = index + 3;
   if (input.length < payloadStart + 3) return 'incomplete';
-  const cb = input.charCodeAt(payloadStart);
-  const cx = input.charCodeAt(payloadStart + 1);
-  const cy = input.charCodeAt(payloadStart + 2);
+  const cb = input.codePointAt(payloadStart);
+  const cx = input.codePointAt(payloadStart + 1);
+  const cy = input.codePointAt(payloadStart + 2);
   if (!Number.isFinite(cb) || !Number.isFinite(cx) || !Number.isFinite(cy)) {
     return 'incomplete';
   }

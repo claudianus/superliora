@@ -115,7 +115,7 @@ export function clampEffortToModel(
     const candidate = THINKING_EFFORT_ORDER[i]!;
     if (supported.includes(candidate)) return candidate;
   }
-  return supported[supported.length - 1] ?? 'high';
+  return supported.at(-1) ?? 'high';
 }
 
 /**

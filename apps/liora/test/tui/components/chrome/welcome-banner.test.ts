@@ -88,7 +88,7 @@ describe('welcome banner gradient', () => {
     for (let seed = 0; seed < 64; seed++) {
       seen.add(selectBannerFontId(seed));
     }
-    expect([...seen].sort()).toEqual([...CLEAN_FONTS].sort());
+    expect([...seen].toSorted()).toEqual([...CLEAN_FONTS].toSorted());
     // Dense hand-built block font is gone from the pool.
     expect(CLEAN_FONTS).not.toContain('block');
   });

@@ -7,8 +7,8 @@ function slugifySkillName(title: string): string {
   const slug = title
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '');
   return slug.length > 0 ? slug : 'untitled-skill';
 }
 

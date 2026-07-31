@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const baselinePath = join(repoRoot, 'meta', 'test-baseline.yaml');
 const args = new Set(process.argv.slice(2));
 const UPDATE = args.has('--update');
@@ -44,7 +44,7 @@ function parseBaseline(text) {
       const inline = m[2].trim();
       if (inline && inline !== '[]') throw new Error(`inline lists not supported: ${line}`);
     } else if ((m = line.match(/^\s*-\s*"((?:[^"\\]|\\.)*)"\s*$/)) && pkg && listKey) {
-      pkg[listKey].push(m[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+      pkg[listKey].push(m[1].replaceAll(/\\"/g, '"').replaceAll(/\\\\/g, '\\'));
     } else if ((m = line.match(/^\s*-\s*'([^']*)'\s*$/)) && pkg && listKey) {
       pkg[listKey].push(m[1]);
     } else {
@@ -55,15 +55,15 @@ function parseBaseline(text) {
 }
 
 function emitBaseline(baseline) {
-  const esc = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  const esc = (s) => `"${s.replaceAll(/\\/g, '\\\\').replaceAll(/"/g, '\\"')}"`;
   const lines = ['# Test baseline ratchet — expected failures. Update only via:', '#   node scripts/check-test-baseline.mjs --update', 'version: 1', 'packages:'];
   for (const pkg of baseline.packages) {
     lines.push(`  - dir: ${pkg.dir}`, `    runner: ${pkg.runner}`, '    failures:');
     if (pkg.failures.length === 0) lines[lines.length - 1] = '    failures: []';
-    for (const f of [...pkg.failures].sort()) lines.push(`      - ${esc(f)}`);
+    for (const f of [...pkg.failures].toSorted((a, b) => a.localeCompare(b))) lines.push(`      - ${esc(f)}`);
     lines.push('    unstable:');
     if ((pkg.unstable ?? []).length === 0) lines[lines.length - 1] = '    unstable: []';
-    for (const u of [...(pkg.unstable ?? [])].sort()) lines.push(`      - ${esc(u)}`);
+    for (const u of [...(pkg.unstable ?? [])].toSorted((a, b) => a.localeCompare(b))) lines.push(`      - ${esc(u)}`);
   }
   return lines.join('\n') + '\n';
 }
@@ -88,14 +88,14 @@ function runVitest(dir) {
         if (ar.status === 'failed') failed.push(ar.fullName ?? ar.title ?? '<unknown>');
       }
     }
-  } catch (err) {
+  } catch (error) {
     rmSync(tmp, { recursive: true, force: true });
-    console.error(`[${dir}] could not parse vitest JSON (exit ${res.status}): ${err.message}`);
+    console.error(`[${dir}] could not parse vitest JSON (exit ${res.status}): ${error.message}`);
     console.error(res.stderr?.slice(-2000) ?? '');
     process.exit(2);
   }
   rmSync(tmp, { recursive: true, force: true });
-  failed.sort();
+  failed.sort((a, b) => a.localeCompare(b));
   return { failed, totals };
 }
 

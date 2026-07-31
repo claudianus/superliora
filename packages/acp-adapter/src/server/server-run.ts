@@ -104,9 +104,9 @@ export async function runAcpServer(
     }
     try {
       await harness.close();
-    } catch (err) {
+    } catch (error) {
       log.error('acp: harness close failed during shutdown', {
-        error: err instanceof Error ? err.message : String(err),
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   };

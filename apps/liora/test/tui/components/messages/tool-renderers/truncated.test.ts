@@ -124,6 +124,6 @@ describe('TruncatedOutputComponent', () => {
     for (const line of lines) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(37);
     }
-    expect(strip(lines[lines.length - 1] ?? '')).toContain('scroll to expand');
+    expect(strip(lines.at(-1) ?? '')).toContain('scroll to expand');
   });
 });

@@ -35,7 +35,7 @@ export class ToolCallOutputViewportMount {
     const viewport = new ToolOutputViewportComponent({
       child,
       getState: () => this.getState(),
-      setState: (state) => this.setState(state),
+      setState: (state) =>{  this.setState(state); },
       expanded: this.host.isExpanded(),
       initialFollowEnd,
     });

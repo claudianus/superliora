@@ -334,13 +334,13 @@ export class Agent {
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
     this.circuitBreakerRegistry = new CircuitBreakerRegistry({
-      onScopeOpened: (scopeId, reason) => this.emitCircuitBreakerDegraded(scopeId, reason),
+      onScopeOpened: (scopeId, reason) =>{  this.emitCircuitBreakerDegraded(scopeId, reason); },
     });
     if (this.type === 'main') {
       attachResearchSearchCircuitBreakers(
         this.toolServices?.webSearcher,
         this.circuitBreakerRegistry,
-        () => this.emitStatusUpdated(),
+        () =>{  this.emitStatusUpdated(); },
       );
     }
 
@@ -420,8 +420,8 @@ export class Agent {
       usedContextTokens: () => this.context.tokenCount,
       route: this.buildLLMRoute(loopControl?.reservedContextSize),
       routeState: this.providerRouteState,
-      onRouteStatusChanged: () => this.emitStatusUpdated(),
-      circuitObserver: attachLlmProviderCircuitBreakers(this, () => this.emitStatusUpdated()),
+      onRouteStatusChanged: () =>{  this.emitStatusUpdated(); },
+      circuitObserver: attachLlmProviderCircuitBreakers(this, () =>{  this.emitStatusUpdated(); }),
       log: this.log,
     });
   }

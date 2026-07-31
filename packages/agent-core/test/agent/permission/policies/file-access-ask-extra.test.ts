@@ -49,7 +49,7 @@ describe('agent/permission/policies/file-access-ask — fileAccesses()', () => {
     });
     const result = fileAccesses(ctxWithMixed);
     expect(result).toHaveLength(2);
-    expect(result.map((a) => a.path).sort()).toEqual(['/a.txt', '/b.txt']);
+    expect(result.map((a) => a.path).toSorted()).toEqual(['/a.txt', '/b.txt']);
   });
 });
 
@@ -64,7 +64,7 @@ describe('agent/permission/policies/file-access-ask — writeFileAccesses()', ()
     });
     const result = writeFileAccesses(ctxWithMixed);
     expect(result).toHaveLength(2);
-    expect(result.map((a) => a.path).sort()).toEqual(['/rw.txt', '/w.txt']);
+    expect(result.map((a) => a.path).toSorted()).toEqual(['/rw.txt', '/w.txt']);
   });
 
   it('returns [] when no execution.accesses', () => {

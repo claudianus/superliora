@@ -390,8 +390,8 @@ export function detectSearchProviderEnvKeys(env: NodeJS.ProcessEnv = process.env
   ];
   if (configured.includes('google_cse')) {
     const cx =
-      env['GOOGLE_CSE_ID']?.trim() ||
-      env['GOOGLE_CSE_CX']?.trim() ||
+      (env['GOOGLE_CSE_ID']?.trim() ??
+      env['GOOGLE_CSE_CX']?.trim()) ??
       env['GOOGLE_SEARCH_ENGINE_ID']?.trim();
     if (cx === undefined || cx.length === 0) {
       hints.unshift('google_cse key found but CSE id missing — set GOOGLE_CSE_ID.');

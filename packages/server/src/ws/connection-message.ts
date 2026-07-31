@@ -63,19 +63,19 @@ export function dispatchControlMessage(
     );
     return;
   }
-  const msg = result.data as ClientControlMessage;
+  const msg = result.data;
   switch (msg.type) {
     case 'client_hello':
-      void handleClientHello(host, msg).catch((err: unknown) => {
-        host.logger.warn({ err: String(err) }, 'client_hello handler failed');
+      void handleClientHello(host, msg).catch((error: unknown) => {
+        host.logger.warn({ err: String(error) }, 'client_hello handler failed');
       });
       break;
     case 'pong':
       onPong();
       break;
     case 'subscribe':
-      void handleSubscribe(host, msg).catch((err: unknown) => {
-        host.logger.warn({ err: String(err) }, 'subscribe handler failed');
+      void handleSubscribe(host, msg).catch((error: unknown) => {
+        host.logger.warn({ err: String(error) }, 'subscribe handler failed');
       });
       break;
     case 'unsubscribe':

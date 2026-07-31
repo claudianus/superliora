@@ -79,8 +79,8 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'premium': showPremiumSettings(host); return;
     case 'mcp': showMcpSettings(host); return;
     case 'extensions': showExtensionsSettings(host); return;
-    case 'hooks': void showHooksSettings(host); return;
-    case 'skills': void showSkillsSettings(host); return;
+    case 'hooks':  showHooksSettings(host); return;
+    case 'skills':  showSkillsSettings(host); return;
     case 'search': showSearchSettings(host); return;
     case 'index': showIndexSettings(host); return;
     case 'host': showHostSettings(host); return;
@@ -89,14 +89,14 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'telemetry': showTelemetrySettings(host); return;
     case 'bench-diagnostics': showBenchDiagnosticsSettings(host); return;
     case 'network': showNetworkSettings(host); return;
-    case 'storage': void showStorageSettings(host); return;
+    case 'storage':  showStorageSettings(host); return;
     case 'theme': showThemeSettings(host); return;
     case 'appearance': showAppearanceSettings(host); return;
     case 'editor': showEditorSettings(host); return;
     case 'experiments': showExperimentsSettings(host); return;
     case 'upgrade': showUpgradeSettings(host); return;
     case 'persona': showPersonaSettings(host); return;
-    case 'usage': void showUsageSettings(host); return;
+    case 'usage':  showUsageSettings(host); return;
   }
 }
 

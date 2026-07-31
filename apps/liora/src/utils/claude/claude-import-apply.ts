@@ -81,7 +81,7 @@ export function listClaudeSkillSourcesFromEntries(
       rootKind,
     });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return out.toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -281,7 +281,7 @@ function dedupeSkillsByName(
       if (!byName.has(source.name)) byName.set(source.name, source);
     }
   }
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...byName.values()].toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 async function discoverClaudeMcpSource(workDir: string): Promise<ClaudeMcpImportSource | null> {

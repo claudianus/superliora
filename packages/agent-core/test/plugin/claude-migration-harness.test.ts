@@ -15,7 +15,7 @@ import { satisfiesRange } from '../../src/plugin/dependencies';
 import { hookIfMatches } from '../../src/plugin/hook-if';
 
 const FIXTURES = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
+  import.meta.dirname,
   '../fixtures/claude-migration',
 );
 

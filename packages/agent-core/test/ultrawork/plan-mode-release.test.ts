@@ -85,7 +85,7 @@ describe('Ultrawork plan-mode release on terminal transitions', () => {
     await enterUltraPlan(agent, 'empty-graph-plan-reenter');
     expect(agent.planMode.isActive).toBe(true);
 
-    maybeFinishUltraworkRun(agent);
+    void maybeFinishUltraworkRun(agent);
 
     expect(agent.planMode.isActive).toBe(false);
   });

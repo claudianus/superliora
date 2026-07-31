@@ -33,7 +33,7 @@ export type SubagentCheckpointInput = Omit<
 
 function safeFileName(subagentId: string): string {
   // Dots are excluded so ids like "../x" cannot escape the checkpoint dir.
-  return subagentId.replace(/[^A-Za-z0-9_-]/g, '_');
+  return subagentId.replaceAll(/[^A-Za-z0-9_-]/g, '_');
 }
 
 export function subagentCheckpointPath(subagentId: string, homeDir?: string): string {

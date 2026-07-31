@@ -327,7 +327,7 @@ export class PluginManager {
     }
     const schema = current.manifest.userConfig;
     const nextValues: Record<string, string> = {
-      ...(current.capabilities?.userConfig ?? {}),
+      ...current.capabilities?.userConfig,
     };
     for (const [field, value] of Object.entries(values)) {
       if (schema[field] === undefined) {
@@ -370,7 +370,7 @@ export class PluginManager {
       }
     }
     const removed: string[] = [];
-    for (const record of [...this.records.values()]) {
+    for (const record of Array.from(this.records.values())) {
       if (record.scope !== 'user') continue;
       if (record.originalSource !== undefined && !record.originalSource.includes('marketplace')) {
         // Heuristic: only prune auto-installed marketplace deps marked via source.
@@ -722,7 +722,7 @@ async function copyPluginToCache(
   versionKey: string,
   sourceRoot: string,
 ): Promise<string> {
-  const safeVersion = versionKey.replace(/[^a-zA-Z0-9._-]+/g, '-');
+  const safeVersion = versionKey.replaceAll(/[^a-zA-Z0-9._-]+/g, '-');
   const cacheRoot = path.join(kimiHomeDir, 'plugins', 'cache', id, safeVersion);
   const cacheParent = path.dirname(cacheRoot);
   await mkdir(cacheParent, { recursive: true });

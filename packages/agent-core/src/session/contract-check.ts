@@ -95,7 +95,7 @@ async function runTypecheckCommand(
     exitCode = await Promise.race([
       proc.wait(),
       new Promise<null>((resolveRace) => {
-        const timer = setTimeout(() => resolveRace(null), CONTRACT_CHECK_TIMEOUT_MS);
+        const timer = setTimeout(() =>{  resolveRace(null); }, CONTRACT_CHECK_TIMEOUT_MS);
         timer.unref?.();
       }),
     ]);

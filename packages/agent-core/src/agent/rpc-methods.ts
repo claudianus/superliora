@@ -30,7 +30,7 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       agent.turn.prompt(payload.input);
     },
     runShellCommand: (payload) => agent.tools.runShellCommand(payload.command, payload.commandId),
-    cancelShellCommand: (payload) => agent.tools.cancelShellCommand(payload.commandId),
+    cancelShellCommand: (payload) =>{  agent.tools.cancelShellCommand(payload.commandId); },
     steer: (payload) => {
       agent.telemetry.track('input_steer', { parts: payload.input.length });
       // During UltraSwarm, route steers into the swarm checkpoint queue.

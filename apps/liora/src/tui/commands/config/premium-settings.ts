@@ -25,7 +25,7 @@ async function showPremiumSettingsPanel(host: SlashCommandHost): Promise<void> {
   try {
     const status = await host.requireSession().getStatus();
     if (status.premiumQualityMode !== undefined) {
-      sessionPremiumQuality = status.premiumQualityMode === true;
+      sessionPremiumQuality =  status.premiumQualityMode;
     }
   } catch {
     /* panel still renders from appState + renderer */
@@ -46,7 +46,7 @@ async function showPremiumSettingsPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Visual Quality ',
     enterBeatSeed: 'premium-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

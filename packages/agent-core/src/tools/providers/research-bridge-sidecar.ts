@@ -84,7 +84,7 @@ function spawnServeSidecar(
     });
     sidecarChild = child;
 
-    const timeout = setTimeout(() => resolve(false), startupMs);
+    const timeout = setTimeout(() =>{  resolve(false); }, startupMs);
 
     const finish = (ok: boolean) => {
       clearTimeout(timeout);

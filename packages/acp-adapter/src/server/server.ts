@@ -254,10 +254,10 @@ export class AcpServer implements Agent {
     }
     try {
       await acpSession.cancel();
-    } catch (err) {
+    } catch (error) {
       log.warn('acp: error while cancelling session', {
         sessionId: params.sessionId,
-        error: err instanceof Error ? err.message : String(err),
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -370,9 +370,7 @@ export class AcpServer implements Agent {
   }
 
   private async ensureInnerKaos(): Promise<Kaos> {
-    if (!this.innerKaos) {
-      this.innerKaos = await LocalKaos.create();
-    }
+    this.innerKaos ??= await LocalKaos.create();
     return this.innerKaos;
   }
 
@@ -406,10 +404,10 @@ export class AcpServer implements Agent {
       await this.conn.sessionUpdate(
         availableCommandsUpdateNotification(sessionId, commands),
       );
-    } catch (err) {
+    } catch (error) {
       log.warn('acp: failed to push available_commands_update', {
         sessionId,
-        error: err instanceof Error ? err.message : String(err),
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }

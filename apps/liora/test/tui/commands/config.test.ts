@@ -841,7 +841,7 @@ describe('harness panel and tools inventory', () => {
       { name: 'Read', description: 'Read a file', source: 'builtin', active: true },
     ]);
     const host = makeHarnessHost({ session: { getTools } });
-    await dispatchInput(host, '/tools');
+    dispatchInput(host, '/tools');
     await vi.waitFor(() => {
       expect(getTools).toHaveBeenCalledOnce();
     });
@@ -851,7 +851,7 @@ describe('harness panel and tools inventory', () => {
 
   it('routes /eyes slash command to eyes readiness panel', async () => {
     const host = makeHarnessHost();
-    await dispatchInput(host, '/eyes');
+    dispatchInput(host, '/eyes');
     await vi.waitFor(
       () => {
         expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
@@ -862,7 +862,7 @@ describe('harness panel and tools inventory', () => {
 
   it('routes /eye alias to eyes readiness panel', async () => {
     const host = makeHarnessHost();
-    await dispatchInput(host, '/eye');
+    dispatchInput(host, '/eye');
     await vi.waitFor(
       () => {
         expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
@@ -1078,7 +1078,7 @@ describe('harness panel and tools inventory', () => {
 
   it('renders fleet settings panel without session', async () => {
     const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    await showFleetSettings(host);
+    showFleetSettings(host);
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
   });
 

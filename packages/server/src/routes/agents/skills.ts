@@ -94,8 +94,8 @@ export function registerSkillsRoutes(
           a.get(ISkillService).list(session_id),
         );
         reply.send(okEnvelope({ skills }, req.id));
-      } catch (err) {
-        sendMappedError(reply, req.id, err);
+      } catch (error) {
+        sendMappedError(reply, req.id, error);
       }
     },
   );
@@ -127,8 +127,8 @@ export function registerSkillsRoutes(
           a.get(ISkillService).search(session_id, req.body.query, req.body.limit),
         );
         reply.send(okEnvelope({ skills }, req.id));
-      } catch (err) {
-        sendMappedError(reply, req.id, err);
+      } catch (error) {
+        sendMappedError(reply, req.id, error);
       }
     },
   );
@@ -185,8 +185,8 @@ export function registerSkillsRoutes(
           a.get(ISkillService).activate(session_id, parsed.id, req.body.args),
         );
         reply.send(okEnvelope({ activated: true, skill_name: parsed.id }, req.id));
-      } catch (err) {
-        sendMappedError(reply, req.id, err);
+      } catch (error) {
+        sendMappedError(reply, req.id, error);
       }
     },
   );

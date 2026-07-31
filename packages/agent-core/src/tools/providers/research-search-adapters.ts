@@ -225,7 +225,7 @@ export class ExaSearchAdapter implements WebSearchProvider {
       return buildResult({
         title: stringValue(entry['title']) ?? 'Exa result',
         url: stringValue(entry['url']) ?? stringValue(entry['id']) ?? '',
-        snippet: highlights || stringValue(entry['text'])?.slice(0, 400) || '',
+        snippet: highlights || (stringValue(entry['text'])?.slice(0, 400) ?? ''),
         date: stringValue(entry['publishedDate']),
         content: options?.includeContent === true ? stringValue(entry['text']) : undefined,
       });

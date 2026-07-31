@@ -91,7 +91,7 @@ export function clampEffortToModelSupport(
   if (support.includes(effort)) return effort;
 
   const idx = THINKING_EFFORT_ORDER.indexOf(effort);
-  if (idx < 0) return support[support.length - 1] ?? DEFAULT_THINKING_EFFORT;
+  if (idx < 0) return support.at(-1) ?? DEFAULT_THINKING_EFFORT;
   for (let i = idx; i >= 0; i--) {
     const candidate = THINKING_EFFORT_ORDER[i]!;
     if (support.includes(candidate)) return candidate;
@@ -100,7 +100,7 @@ export function clampEffortToModelSupport(
     const candidate = THINKING_EFFORT_ORDER[i]!;
     if (support.includes(candidate)) return candidate;
   }
-  return support[support.length - 1] ?? DEFAULT_THINKING_EFFORT;
+  return support.at(-1) ?? DEFAULT_THINKING_EFFORT;
 }
 
 function supportedEffortsFor(

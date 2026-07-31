@@ -28,7 +28,7 @@ describe('SessionLoadingOverlayComponent', () => {
   it('swallows keyboard input so resume cannot restart mid-load', () => {
     const overlay = new SessionLoadingOverlayComponent({ phase: 'loading' });
     // Should not throw; escape and printable keys are intentionally no-ops.
-    overlay.handleInput('\x1b');
+    overlay.handleInput('\x1B');
     overlay.handleInput('a');
     overlay.handleInput('\r');
     expect(overlay.currentPhase).toBe('loading');

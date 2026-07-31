@@ -424,7 +424,7 @@ export function batchPaintOutput(
 ): string {
   if (commands.length === 0) return '';
 
-  const sorted = [...commands].sort((a, b) => a.row - b.row);
+  const sorted = [...commands].toSorted((a, b) => a.row - b.row);
   const parts: string[] = [];
   let lastRow = -2; // Force first cursor move
 
@@ -443,7 +443,7 @@ export function batchPaintOutput(
 
 /** Encode a cursor position escape sequence (1-based for terminals). */
 function encodeCursorPosition(row: number, col: number): string {
-  return `\x1b[${String(row + 1)};${String(col + 1)}H`;
+  return `\x1B[${String(row + 1)};${String(col + 1)}H`;
 }
 
 // ---------------------------------------------------------------------------
@@ -454,7 +454,7 @@ function encodeCursorPosition(row: number, col: number): string {
 export function fnv1a(str: string): number {
   let hash = FNV_OFFSET_BASIS;
   for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
+    hash ^= str.codePointAt(i);
     hash = Math.imul(hash, FNV_PRIME);
   }
   return hash >>> 0; // Ensure unsigned

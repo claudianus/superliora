@@ -60,15 +60,15 @@ export function applyFishTail(
     const cheeks = facingRight
       ? (['>═((º═>', '>═(º═> ', '>═((º═>', '>═((º≈>'] as const)
       : (['<═º))═<', '<═º)═< ', '<═º))═<', '<≈º))═<'] as const);
-    out[bodyIdx] = cheeks[frame] ?? cheeks[0]!;
+    out[bodyIdx] = cheeks[frame] ?? cheeks[0];
     // Animate dorsal/ventral fin rows with subtle wave.
     const finFrames = ['  /~\\  ', '  /~\\  ', '  /~~\\ ', '  /~\\  '] as const;
     const finFramesB = ['  \\~/  ', '  \\~~/ ', '  \\~/  ', '  \\~/  '] as const;
     if (bodyIdx > 0 && out[bodyIdx - 1] !== undefined && /[\\/]/.test(out[bodyIdx - 1]!)) {
-      out[bodyIdx - 1] = finFrames[frame] ?? finFrames[0]!;
+      out[bodyIdx - 1] = finFrames[frame] ?? finFrames[0];
     }
     if (bodyIdx + 1 < out.length && out[bodyIdx + 1] !== undefined && /[\\/]/.test(out[bodyIdx + 1]!)) {
-      out[bodyIdx + 1] = finFramesB[frame] ?? finFramesB[0]!;
+      out[bodyIdx + 1] = finFramesB[frame] ?? finFramesB[0];
     }
     return out;
   }
@@ -78,11 +78,11 @@ export function applyFishTail(
     const fins = facingRight
       ? (['∽((º≈', '∼((º≈', '∽((º∼', '≈((º∽'] as const)
       : (['≈º))∽', '∼º))∽', '∽º))∼', '∽º))≈'] as const);
-    out[bodyIdx] = fins[frame] ?? fins[0]!;
+    out[bodyIdx] = fins[frame] ?? fins[0];
     // Dorsal crest wave.
     const crestFrames = [' .~~. ', ' .~~. ', '  .~. ', ' .~~. '] as const;
     if (bodyIdx > 0 && out[bodyIdx - 1] !== undefined && /[.~]/.test(out[bodyIdx - 1]!)) {
-      out[bodyIdx - 1] = crestFrames[frame] ?? crestFrames[0]!;
+      out[bodyIdx - 1] = crestFrames[frame] ?? crestFrames[0];
     }
     return out;
   }
@@ -243,7 +243,7 @@ function glyphForSnapshotFish(fish: IdleFish, elapsedMs: number): readonly strin
     const base = fish.goesRight ? FISH_COMPACT_RIGHT : FISH_COMPACT_LEFT;
     return applyFishTail(base, t, fish.goesRight);
   }
-  const pair = FISH_TINY[fish.seed % FISH_TINY.length] ?? FISH_TINY[0]!;
+  const pair = FISH_TINY[fish.seed % FISH_TINY.length] ?? FISH_TINY[0];
   return applyFishTail([fish.goesRight ? pair[0] : pair[1]], t, fish.goesRight);
 }
 
@@ -347,7 +347,7 @@ function glyphForActor(actor: FishActor, elapsedMs: number): readonly string[] {
     const base = actor.goesRight ? FISH_COMPACT_RIGHT : FISH_COMPACT_LEFT;
     return applyFishTail(base, t, actor.goesRight);
   }
-  const pair = FISH_TINY[actor.seed % FISH_TINY.length] ?? FISH_TINY[0]!;
+  const pair = FISH_TINY[actor.seed % FISH_TINY.length] ?? FISH_TINY[0];
   const tip = applyFishTail([actor.goesRight ? pair[0] : pair[1]], t, actor.goesRight);
   return tip;
 }

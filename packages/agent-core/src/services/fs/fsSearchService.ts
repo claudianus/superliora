@@ -288,7 +288,7 @@ export class FsSearchService
           if (buf === undefined) continue;
 
           if (buf.matches.length > 0 && buf.pending.length > 0) {
-            const last = buf.matches[buf.matches.length - 1]!;
+            const last = buf.matches.at(-1)!;
             last.after = buf.pending.slice(0, req.context_lines);
           }
           if (buf.matches.length > 0) {
@@ -306,13 +306,13 @@ export class FsSearchService
     });
 
     await new Promise<void>((resolve) => {
-      child.once('close', () => resolve());
-      child.once('error', () => resolve());
+      child.once('close', () =>{  resolve(); });
+      child.once('error', () =>{  resolve(); });
     });
 
     for (const [p, buf] of fileBuf) {
       if (buf.matches.length > 0 && buf.pending.length > 0) {
-        const last = buf.matches[buf.matches.length - 1]!;
+        const last = buf.matches.at(-1)!;
         last.after = buf.pending.slice(0, req.context_lines);
       }
       if (buf.matches.length > 0) {

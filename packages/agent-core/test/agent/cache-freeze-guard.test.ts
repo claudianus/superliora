@@ -16,13 +16,13 @@ describe('CacheFreezeGuard', () => {
     const guard = new CacheFreezeGuard();
     guard.freeze('alpha\nbeta');
     expect(guard.isFrozen()).toBe(true);
-    expect(() => guard.assertUnchanged('alpha\nbeta')).not.toThrow();
+    expect(() =>{  guard.assertUnchanged('alpha\nbeta'); }).not.toThrow();
   });
 
   it('assertUnchanged throws when material changes mid-turn', () => {
     const guard = new CacheFreezeGuard();
     guard.freeze('tools:v1');
-    expect(() => guard.assertUnchanged('tools:v2', 'tool list')).toThrow(
+    expect(() =>{  guard.assertUnchanged('tools:v2', 'tool list'); }).toThrow(
       /CacheFreezeGuard: tool list changed mid-turn/,
     );
   });
@@ -32,7 +32,7 @@ describe('CacheFreezeGuard', () => {
     guard.freeze('x');
     guard.clear();
     expect(guard.isFrozen()).toBe(false);
-    expect(() => guard.assertUnchanged('y')).not.toThrow();
+    expect(() =>{  guard.assertUnchanged('y'); }).not.toThrow();
   });
 
   it('buildTurnPrefixMaterial sorts tool names', () => {

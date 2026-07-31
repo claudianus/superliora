@@ -109,9 +109,9 @@ export class WsConnection implements WsConnectionHost {
       }),
     );
 
-    this.socket.on('message', (data) => this.onMessage(data));
-    attachSocketCloseHandler(this.socket, (code, reason) => this.onClose(code, reason));
-    this.socket.on('error', (err) => logSocketError(this.logger, err));
+    this.socket.on('message', (data) =>{  this.onMessage(data); });
+    attachSocketCloseHandler(this.socket, (code, reason) =>{  this.onClose(code, reason); });
+    this.socket.on('error', (err) =>{  logSocketError(this.logger, err); });
 
     this.pingTimer = startPingTimer(this.sendContext(), this.pingIntervalMs, () => this.closed);
   }
@@ -146,12 +146,12 @@ export class WsConnection implements WsConnectionHost {
       this,
       data,
       () => this.closed,
-      () => clearPongOnMessage(() => {
+      () =>{  clearPongOnMessage(() => {
         if (this.pongTimer) {
           clearTimeout(this.pongTimer);
           this.pongTimer = undefined;
         }
-      }),
+      }); },
     );
   }
 
@@ -179,9 +179,9 @@ export class WsConnection implements WsConnectionHost {
     if (this.fsWatchHandler !== undefined) {
       try {
         this.fsWatchHandler.cleanupConnection(this.id);
-      } catch (err) {
+      } catch (error) {
         this.logger.warn(
-          { err: String(err) },
+          { err: String(error) },
           'fsWatchHandler.cleanupConnection threw',
         );
       }
@@ -189,9 +189,9 @@ export class WsConnection implements WsConnectionHost {
     if (this.terminalHandler !== undefined) {
       try {
         this.terminalHandler.cleanupConnection(this.id);
-      } catch (err) {
+      } catch (error) {
         this.logger.warn(
-          { err: String(err) },
+          { err: String(error) },
           'terminalHandler.cleanupConnection threw',
         );
       }

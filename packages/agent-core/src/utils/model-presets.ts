@@ -116,7 +116,7 @@ async function fetchModelsDevData(): Promise<ModelsDevApiData> {
   const models = new Map<string, ModelsDevModelEntry>();
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timer = setTimeout(() =>{  controller.abort(); }, FETCH_TIMEOUT_MS);
     const res = await fetch(MODELS_DEV_API_URL, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return { models };

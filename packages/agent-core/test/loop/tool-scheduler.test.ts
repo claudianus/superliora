@@ -14,9 +14,9 @@ describe('ToolScheduler', () => {
     const second = makeControlledTask('second', readPath('/repo/b.ts'), started);
     const third = makeControlledTask('third', readPath('/repo/c.ts'), started);
 
-    scheduler.add(first.task);
-    scheduler.add(second.task);
-    scheduler.add(third.task);
+    void scheduler.add(first.task);
+    void scheduler.add(second.task);
+    void scheduler.add(third.task);
 
     expect(scheduler.parallelToolsInFlight).toBe(3);
     expect(scheduler.maxParallelTools).toBe(3);

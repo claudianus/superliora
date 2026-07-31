@@ -27,5 +27,5 @@ export function listHiddenCompatAliases(tools: readonly ToolInfo[]): string[] {
       const preferred = COMPAT_PREFERRED[tool.name];
       return preferred !== undefined ? `${tool.name}→${preferred}` : tool.name;
     })
-    .sort((a, b) => a.localeCompare(b));
+    .toSorted((a, b) => a.localeCompare(b));
 }

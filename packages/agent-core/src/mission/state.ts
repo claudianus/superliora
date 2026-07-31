@@ -167,7 +167,7 @@ export class UltraworkRunStateMachine {
     now: string,
   ): UltraworkRun {
     const existingHistory = this.run.stageHistory ?? [];
-    const lastEntry = existingHistory[existingHistory.length - 1];
+    const lastEntry = existingHistory.at(-1);
     // Only append a new history entry when the stage actually differs from the
     // last recorded entry. Blocking/failing within the same stage should not
     // inflate the history with duplicate stage records.

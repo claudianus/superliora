@@ -144,7 +144,7 @@ async function hasManifest(dir: string): Promise<boolean> {
       // continue
     }
   }
-  return isFile(path.join(dir, 'SKILL.md')) || isFile(path.join(dir, '.mcp.json'));
+  return (await isFile(path.join(dir, 'SKILL.md'))) || (await isFile(path.join(dir, '.mcp.json')));
 }
 
 async function isFile(p: string): Promise<boolean> {

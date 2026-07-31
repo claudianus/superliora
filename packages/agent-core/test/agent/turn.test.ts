@@ -107,7 +107,7 @@ describe('Agent turn flow', () => {
       turnEnded = true;
     });
 
-    for (let i = 0; i < 100 && ctx.llmCalls.length < 1; i++) await delay(5);
+    for (let i = 0; i < 100 && ctx.llmCalls.length === 0; i++) await delay(5);
     await delay(20);
     expect(turnEnded).toBe(false);
 
@@ -2090,7 +2090,7 @@ describe('abandoned tool exchange teardown', () => {
       },
       flush: () => base.flush(),
       close: () => base.close(),
-      flushSync: () => base.flushSync(),
+      flushSync: () =>{  base.flushSync(); },
       recordCount: () => base.recordCount(),
     };
     const ctx = testAgent({ kaos: createCommandKaos('ok'), persistence });

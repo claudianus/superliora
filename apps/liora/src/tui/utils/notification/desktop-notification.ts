@@ -83,7 +83,7 @@ export function notifyNeedsAttention(context: string): void {
 
 /** Escape special characters for OSC payload. */
 function escapeOsc(text: string): string {
-  return text.replace(/[\u001B\u0007]/g, '').replace(/;/g, ',');
+  return text.replaceAll(/[\u001B\u0007]/g, '').replaceAll(/;/g, ',');
 }
 
 /**
