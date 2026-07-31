@@ -35,11 +35,19 @@ export interface WebSearchResult {
   content?: string | undefined;
 }
 
+export interface WebSearchOptions {
+  readonly limit?: number;
+  readonly includeContent?: boolean;
+  readonly toolCallId?: string;
+  /**
+   * When false, skip Ch4/Ch5 browser escalate after empty SERP results.
+   * When true, allow escalate. When omitted, engine default applies.
+   */
+  readonly allowBrowser?: boolean;
+}
+
 export interface WebSearchProvider {
-  search(
-    query: string,
-    options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
-  ): Promise<WebSearchResult[]>;
+  search(query: string, options?: WebSearchOptions): Promise<WebSearchResult[]>;
   /** When implemented (e.g. ResearchSearchEngine), enables channel health hints. */
   status?(): ResearchSearchStatus;
 }
