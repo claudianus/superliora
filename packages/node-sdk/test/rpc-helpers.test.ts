@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSessionStatus } from '#/rpc/rpc-helpers';
+import { buildSessionStatus, type SessionStatusFacets } from '#/rpc/rpc-helpers';
 
 const baseFacets = {
   config: {
@@ -23,7 +23,7 @@ const baseFacets = {
   cacheFrozen: undefined,
   parallelTools: undefined,
   oauth: undefined,
-};
+} as SessionStatusFacets;
 
 describe('buildSessionStatus cacheFrozen', () => {
   it('omits cacheFrozen when the facet is undefined', () => {

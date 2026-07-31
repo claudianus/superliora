@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   REPO_INDEX_CONTENT_STUB_HINT,
   REPO_INDEX_SYNTHETIC_PROBE_TOKEN,
+  REPO_INDEX_ZOEKT_LIVE_HINT,
   REPO_INDEX_ZOEKT_STUB_HINT,
   REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
   REPO_INDEX_ZOEKT_URL_ENV,
@@ -145,7 +146,7 @@ describe('repo-index engine soft stub', () => {
     expect(zoekt.next_step).toContain('Grep fallback');
   });
 
-  it('queryRepoIndexContentAsync returns empty zoekt stub with HTTP probe when URL wired', async () => {
+  it('queryRepoIndexContentAsync returns zoekt live hits from /search?format=json', async () => {
     const sidecarUrl = 'http://127.0.0.1:6070';
     setZoektSidecarProbeOverrideForTests(() => ({
       available: true,
@@ -153,20 +154,62 @@ describe('repo-index engine soft stub', () => {
       detail: sidecarUrl,
       reason: null,
     }));
-    const fetchImpl = vi.fn(async () => ({ status: 200 })) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        result: {
+          FileMatches: [
+            {
+              FileName: 'src/repo-index/engine.ts',
+              Matches: [
+                {
+                  LineNum: 12,
+                  Fragments: [{ Pre: 'export const ', Match: 'needle', Post: ' = true;' }],
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    })) as unknown as typeof fetch;
+    setZoektFetchOverrideForTests(fetchImpl);
+
+    const result = await queryRepoIndexContentAsync(
+      { query: 'needle', path: 'src/repo-index', limit: 10 },
+      'zoekt',
+    );
+    expect(result.results).toEqual(['src/repo-index/engine.ts:L12 export const needle = true;']);
+    expect(result.index_status).toBe('partial');
+    expect(result.hint).toContain(REPO_INDEX_ZOEKT_LIVE_HINT);
+    expect(result.hint).toContain(sidecarUrl);
+    expect(result.next_step).toBe(REPO_INDEX_ZOEKT_STUB_NEXT_STEP);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${sidecarUrl}/search?q=needle+file%3Asrc%2Frepo-index&num=10&format=json`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('queryRepoIndexContentAsync zoekt live path returns cold when search has no hits', async () => {
+    const sidecarUrl = 'http://127.0.0.1:6070';
+    setZoektSidecarProbeOverrideForTests(() => ({
+      available: true,
+      source: 'url',
+      detail: sidecarUrl,
+      reason: null,
+    }));
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ result: { FileMatches: [] } }),
+    })) as unknown as typeof fetch;
     setZoektFetchOverrideForTests(fetchImpl);
 
     const result = await queryRepoIndexContentAsync({ query: 'foo', path: 'src', limit: 10 }, 'zoekt');
     expect(result.results).toEqual([]);
     expect(result.index_status).toBe('cold');
-    expect(result.hint).toContain(REPO_INDEX_ZOEKT_STUB_HINT);
-    expect(result.hint).toContain(sidecarUrl);
-    expect(result.hint).toContain('HTTP 200');
-    expect(result.next_step).toBe(REPO_INDEX_ZOEKT_STUB_NEXT_STEP);
-    expect(fetchImpl).toHaveBeenCalledWith(
-      sidecarUrl,
-      expect.objectContaining({ method: 'GET' }),
-    );
+    expect(result.hint).toContain(REPO_INDEX_ZOEKT_LIVE_HINT);
+    expect(result.hint).toContain('no hits');
   });
 
   it('queryRepoIndexContentAsync zoekt stub skips HTTP when sidecar is binary-only', async () => {
@@ -185,7 +228,7 @@ describe('repo-index engine soft stub', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('queryRepoIndexContentAsync zoekt stub keeps grep fallback when HTTP probe fails', async () => {
+  it('queryRepoIndexContentAsync zoekt live keeps grep fallback when HTTP search fails', async () => {
     setZoektSidecarProbeOverrideForTests(() => ({
       available: true,
       source: 'url',
@@ -199,7 +242,52 @@ describe('repo-index engine soft stub', () => {
 
     const result = await queryRepoIndexContentAsync({ query: 'foo' }, 'zoekt');
     expect(result.results).toEqual([]);
-    expect(result.hint).toContain('probe failed (ECONNREFUSED)');
+    expect(result.hint).toContain('search failed (ECONNREFUSED)');
     expect(result.next_step).toContain('Grep fallback');
+  });
+
+  it('queryRepoIndexContentAsync zoekt live falls back on non-OK HTTP status', async () => {
+    setZoektSidecarProbeOverrideForTests(() => ({
+      available: true,
+      source: 'url',
+      detail: 'http://127.0.0.1:6070',
+      reason: null,
+    }));
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    })) as unknown as typeof fetch;
+    setZoektFetchOverrideForTests(fetchImpl);
+
+    const result = await queryRepoIndexContentAsync({ query: 'foo' }, 'zoekt');
+    expect(result.results).toEqual([]);
+    expect(result.hint).toContain('search failed (HTTP 503)');
+  });
+
+  it('queryRepoIndexContentAsync zoekt live parses alternate FileMatches JSON shape', async () => {
+    setZoektSidecarProbeOverrideForTests(() => ({
+      available: true,
+      source: 'url',
+      detail: 'http://127.0.0.1:6070',
+      reason: null,
+    }));
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        FileMatches: [
+          {
+            fileName: 'packages/agent-core/README.md',
+            lines: [{ lineNumber: 7, line: 'Zoekt indexed preview row.' }],
+          },
+        ],
+      }),
+    })) as unknown as typeof fetch;
+    setZoektFetchOverrideForTests(fetchImpl);
+
+    const result = await queryRepoIndexContentAsync({ query: 'preview', limit: 5 }, 'zoekt');
+    expect(result.results).toEqual(['packages/agent-core/README.md:L7 Zoekt indexed preview row.']);
+    expect(result.index_status).toBe('partial');
   });
 });

@@ -86,10 +86,13 @@ export const REPO_INDEX_CONTENT_STUB_NEXT_STEP =
   'Use RepoQuery mode=content (Grep fallback) for real workspace search until FTS warm path ships.';
 
 export const REPO_INDEX_ZOEKT_STUB_HINT =
-  'Zoekt sidecar soft stub — HTTP probe only; workspace content indexer not shipped yet.';
+  'Zoekt sidecar — binary on PATH only; set SUPERLIORA_ZOEKT_URL for live HTTP search.';
+
+export const REPO_INDEX_ZOEKT_LIVE_HINT =
+  'Zoekt sidecar HTTP search — live results from indexed workspace.';
 
 export const REPO_INDEX_ZOEKT_STUB_NEXT_STEP =
-  'Use RepoQuery mode=content (Grep fallback) for real workspace search until Zoekt index ships.';
+  'Use RepoQuery mode=content (Grep fallback) for workspace paths not yet indexed.';
 
 export const REPO_INDEX_ZOEKT_URL_ENV = 'SUPERLIORA_ZOEKT_URL';
 
@@ -359,22 +362,218 @@ export function getRepoIndexEngineWireStatus(engine: RepoIndexEngine): RepoIndex
   };
 }
 
-async function probeZoektSidecarHttp(
+interface ZoektFragmentJson {
+  readonly Pre?: string | undefined;
+  readonly Match?: string | undefined;
+  readonly Post?: string | undefined;
+}
+
+interface ZoektMatchJson {
+  readonly LineNum?: number | undefined;
+  readonly lineNum?: number | undefined;
+  readonly LineNumber?: number | undefined;
+  readonly Fragments?: readonly ZoektFragmentJson[] | undefined;
+  readonly Before?: string | undefined;
+  readonly After?: string | undefined;
+  readonly Line?: string | undefined;
+  readonly line?: string | undefined;
+}
+
+interface ZoektLineJson {
+  readonly LineNumber?: number | undefined;
+  readonly lineNumber?: number | undefined;
+  readonly Line?: string | undefined;
+  readonly line?: string | undefined;
+}
+
+interface ZoektFileMatchJson {
+  readonly FileName?: string | undefined;
+  readonly fileName?: string | undefined;
+  readonly filename?: string | undefined;
+  readonly Matches?: readonly ZoektMatchJson[] | undefined;
+  readonly matches?: readonly ZoektMatchJson[] | undefined;
+  readonly Lines?: readonly ZoektLineJson[] | undefined;
+  readonly lines?: readonly ZoektLineJson[] | undefined;
+}
+
+interface ZoektSearchHttpOutcome {
+  readonly ok: boolean;
+  readonly results: readonly string[];
+  readonly detail: string;
+}
+
+function normalizeZoektSidecarBaseUrl(url: string): string {
+  return url.replace(/\/+$/, '');
+}
+
+/** Append a zoekt `file:` scope when RepoQuery path is set. */
+function buildZoektSearchQuery(query: string, scope: string | undefined): string | null {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  if (scope === undefined || scope.length === 0) {
+    return trimmed;
+  }
+  const escapedScope = scope.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return `${trimmed} file:${escapedScope}`;
+}
+
+function buildZoektSearchUrl(
   sidecarUrl: string,
+  input: RepoIndexContentQueryInput,
+  limit: number,
+): string | null {
+  const scope = input.path?.trim();
+  const query = buildZoektSearchQuery(input.query, scope);
+  if (query === null) {
+    return null;
+  }
+  const base = normalizeZoektSidecarBaseUrl(sidecarUrl);
+  const params = new URLSearchParams();
+  params.set('q', query);
+  params.set('num', String(limit));
+  params.set('format', 'json');
+  return `${base}/search?${params.toString()}`;
+}
+
+function zoektPathMatchesScope(fileName: string, scope: string | undefined): boolean {
+  if (scope === undefined || scope.length === 0) {
+    return true;
+  }
+  const normalizedScope = scope.replace(/\\/g, '/').replace(/^\.\//, '').replace(/%/g, '');
+  const normalizedFile = fileName.replace(/\\/g, '/');
+  return normalizedFile.includes(normalizedScope);
+}
+
+function zoektMatchLineNum(match: ZoektMatchJson): number {
+  return match.LineNum ?? match.lineNum ?? match.LineNumber ?? 0;
+}
+
+function zoektMatchBody(match: ZoektMatchJson): string {
+  const fragments = match.Fragments ?? [];
+  if (fragments.length > 0) {
+    return fragments.map((fragment) => `${fragment.Pre ?? ''}${fragment.Match ?? ''}${fragment.Post ?? ''}`).join('');
+  }
+  if (match.Line !== undefined) {
+    return match.Line;
+  }
+  if (match.line !== undefined) {
+    return match.line;
+  }
+  const before = match.Before ?? '';
+  const after = match.After ?? '';
+  if (before.length > 0 || after.length > 0) {
+    return `${before}${after}`.trim();
+  }
+  return '';
+}
+
+function zoektLineNum(line: ZoektLineJson): number {
+  return line.LineNumber ?? line.lineNumber ?? 0;
+}
+
+function zoektLineBody(line: ZoektLineJson): string {
+  return line.Line ?? line.line ?? '';
+}
+
+function extractZoektFileMatches(payload: unknown): readonly ZoektFileMatchJson[] {
+  if (payload === null || typeof payload !== 'object') {
+    return [];
+  }
+  const root = payload as Record<string, unknown>;
+  const result = root['result'] ?? root['Result'];
+  if (result !== null && typeof result === 'object') {
+    const nested = result as Record<string, unknown>;
+    const nestedMatches =
+      nested['FileMatches'] ?? nested['fileMatches'] ?? nested['Files'] ?? nested['files'];
+    if (Array.isArray(nestedMatches)) {
+      return nestedMatches as ZoektFileMatchJson[];
+    }
+  }
+  const topLevel = root['FileMatches'] ?? root['fileMatches'];
+  if (Array.isArray(topLevel)) {
+    return topLevel as ZoektFileMatchJson[];
+  }
+  return [];
+}
+
+function parseZoektSearchJson(
+  payload: unknown,
+  scope: string | undefined,
+  limit: number,
+): readonly string[] {
+  const hits: string[] = [];
+  for (const fileMatch of extractZoektFileMatches(payload)) {
+    const fileName = fileMatch.FileName ?? fileMatch.fileName ?? fileMatch.filename ?? '';
+    if (fileName.length === 0 || !zoektPathMatchesScope(fileName, scope)) {
+      continue;
+    }
+
+    const matches = fileMatch.Matches ?? fileMatch.matches ?? [];
+    for (const match of matches) {
+      const body = zoektMatchBody(match);
+      if (body.length === 0) {
+        continue;
+      }
+      hits.push(`${fileName}:L${String(zoektMatchLineNum(match))} ${body}`);
+      if (hits.length >= limit) {
+        return hits;
+      }
+    }
+
+    const lines = fileMatch.Lines ?? fileMatch.lines ?? [];
+    for (const line of lines) {
+      const body = zoektLineBody(line);
+      if (body.length === 0) {
+        continue;
+      }
+      hits.push(`${fileName}:L${String(zoektLineNum(line))} ${body}`);
+      if (hits.length >= limit) {
+        return hits;
+      }
+    }
+  }
+  return hits;
+}
+
+async function searchZoektSidecarHttp(
+  sidecarUrl: string,
+  input: RepoIndexContentQueryInput,
+  limit: number,
   fetchImpl: typeof fetch,
-): Promise<{ readonly reachable: boolean; readonly detail: string }> {
+): Promise<ZoektSearchHttpOutcome> {
+  const searchUrl = buildZoektSearchUrl(sidecarUrl, input, limit);
+  if (searchUrl === null) {
+    return { ok: true, results: [], detail: 'empty query' };
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ZOEKT_HTTP_PROBE_TIMEOUT_MS);
   try {
-    const response = await fetchImpl(sidecarUrl, {
+    const response = await fetchImpl(searchUrl, {
       method: 'GET',
       signal: controller.signal,
-      headers: { accept: '*/*' },
+      headers: { accept: 'application/json' },
     });
-    return { reachable: true, detail: `HTTP ${String(response.status)}` };
+    if (!response.ok) {
+      return {
+        ok: false,
+        results: [],
+        detail: `HTTP ${String(response.status)}`,
+      };
+    }
+    const payload: unknown = await response.json();
+    const scope = input.path?.trim();
+    const results = parseZoektSearchJson(payload, scope, limit);
+    return {
+      ok: true,
+      results,
+      detail: results.length > 0 ? `${String(results.length)} hit(s)` : 'no hits',
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { reachable: false, detail: message };
+    return { ok: false, results: [], detail: message };
   } finally {
     clearTimeout(timeout);
   }
@@ -426,17 +625,32 @@ async function queryZoektSidecarStubAsync(
     return sync;
   }
 
-  const http = await probeZoektSidecarHttp(probe.detail, fetchImpl);
   const scope = input.path?.trim();
   const scopeNote = scope !== undefined && scope.length > 0 ? ` scope=${scope}` : '';
-  const probeNote = http.reachable
-    ? ` · probe=${http.detail}`
-    : ` · probe failed (${http.detail})`;
+  const limit = input.limit ?? 50;
+  const search = await searchZoektSidecarHttp(probe.detail, input, limit, fetchImpl);
+
+  if (search.ok) {
+    if (search.results.length > 0) {
+      return {
+        results: search.results,
+        index_status: 'partial',
+        hint: `${REPO_INDEX_ZOEKT_LIVE_HINT}${scopeNote} · sidecar=${probe.detail} · ${search.detail}`,
+        next_step: REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
+      };
+    }
+    return {
+      results: [],
+      index_status: 'cold',
+      hint: `${REPO_INDEX_ZOEKT_LIVE_HINT}${scopeNote} · sidecar=${probe.detail} · ${search.detail}`,
+      next_step: REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
+    };
+  }
 
   return {
     results: [],
     index_status: 'cold',
-    hint: `${REPO_INDEX_ZOEKT_STUB_HINT}${scopeNote} · sidecar=${probe.detail}${probeNote}`,
+    hint: `${REPO_INDEX_ZOEKT_LIVE_HINT}${scopeNote} · sidecar=${probe.detail} · search failed (${search.detail})`,
     next_step: REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
   };
 }
