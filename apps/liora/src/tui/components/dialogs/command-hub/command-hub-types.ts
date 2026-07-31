@@ -31,7 +31,9 @@ export type CommandHubActionId =
   | 'account.upgrade'
   | 'help.shortcuts'
   | 'help.commands'
-  | 'help.palette';
+  | 'help.palette'
+  | 'settings.open'
+  | `settings.${string}`;
 
 /** How activation behaves in the Hub. */
 export type CommandHubItemKind = 'toggle' | 'cycle' | 'open';
@@ -44,6 +46,10 @@ export interface CommandHubItem {
   /** Optional live badge, e.g. "on" / model name. */
   readonly badge?: string;
   readonly kind?: CommandHubItemKind;
+  /** Hide from the idle list; shown when the filter query matches. */
+  readonly searchOnly?: boolean;
+  /** Extra filter tokens (freeze, DDG, FTS, …); never rendered. */
+  readonly keywords?: readonly string[];
 }
 
 export type CommandHubSelectMode = 'enter' | 'space';

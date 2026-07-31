@@ -24,7 +24,7 @@ export { handleModelCommand, showModelPicker } from './config/model/model';
 export { handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission/permission';
 export { handleThinkingCommand } from './config/thinking/thinking';
 export { showExperimentsPanel } from './config/experiments/experiments';
-export { showSettingsSelector, showHarnessPanel } from './config/settings';
+export { showSettingsSelector, showHarnessPanel, openSettingsPane } from './config/settings';
 export { showToolsInventory } from './config/harness/harness-tools';
 export { showHarnessEyesReadiness } from './config/eyes/eyes-settings';
 export { handleSwarmCommand } from './swarm/swarm';

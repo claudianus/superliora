@@ -47,7 +47,7 @@ export function showSettingsSelector(host: SlashCommandHost): void {
     host,
     new SettingsSelectorComponent({
       onSelect: (value) => {
-        handleSettingsSelection(host, value);
+        openSettingsPane(host, value);
       },
       onCancel: () => {
         dismissPickerDialog(host);
@@ -55,6 +55,12 @@ export function showSettingsSelector(host: SlashCommandHost): void {
     }),
     { label: 'Settings' },
   );
+}
+
+/** Open a specific Settings pane (Hub / Palette / programmatic). */
+export function openSettingsPane(host: SlashCommandHost, value: SettingsSelection): void {
+  dismissPickerDialog(host);
+  handleSettingsSelection(host, value);
 }
 
 function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelection): void {

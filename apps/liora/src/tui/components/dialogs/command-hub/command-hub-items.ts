@@ -1,3 +1,4 @@
+import { buildSettingsJumpHubItems } from '../../../commands/config/settings-hub-jumps';
 import type { CommandHubItem } from './command-hub-types';
 
 export function buildDefaultCommandHubItems(state: {
@@ -252,6 +253,7 @@ export function buildDefaultCommandHubItems(state: {
       label: 'All slash commands',
       description: 'Power-user command list',
     },
+    ...buildSettingsJumpHubItems(),
   );
   return items;
 }

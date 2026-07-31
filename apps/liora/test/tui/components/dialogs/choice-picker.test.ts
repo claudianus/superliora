@@ -120,6 +120,28 @@ describe('ChoicePickerComponent', () => {
     expect(filtered).not.toContain('Switch the active model');
   });
 
+  it('filters settings by keyword aliases (freeze, FTS, redaction, DDG)', () => {
+    const settings = new SettingsSelectorComponent({
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const cases: ReadonlyArray<{ readonly query: string; readonly label: string }> = [
+      { query: 'freeze', label: 'Cache' },
+      { query: 'fts', label: 'Index' },
+      { query: 'redaction', label: 'Security' },
+      { query: 'ddg', label: 'Search' },
+    ];
+    for (const { query, label } of cases) {
+      const picker = new SettingsSelectorComponent({
+        onSelect: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      for (const ch of query) picker.handleInput(ch);
+      const text = picker.render(120).map(strip).join('\n');
+      expect(text, query).toContain(label);
+    }
+  });
+
   it('renders domain selector wrappers with their configured options', () => {
     const onSelect = vi.fn();
     const onCancel = vi.fn();

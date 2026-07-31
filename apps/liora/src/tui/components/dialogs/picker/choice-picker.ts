@@ -31,6 +31,8 @@ export interface ChoiceOption {
   readonly descriptionTone?: ColorToken;
   /** Hide from the default list, but include in search results and when current. */
   readonly searchOnly?: boolean;
+  /** Extra fuzzy-search tokens; never rendered. */
+  readonly keywords?: readonly string[];
 }
 
 export interface ChoicePickerOptions {
@@ -91,7 +93,8 @@ export class ChoicePickerComponent extends Container implements Focusable {
       .findIndex((o) => o.value === opts.currentValue);
     this.list = new SearchableList({
       items: opts.options,
-      toSearchText: (o) => `${o.label} ${o.description ?? ''}`,
+      toSearchText: (o) =>
+        `${o.label} ${o.description ?? ''} ${(o.keywords ?? []).join(' ')}`,
       isVisible: (o, query) => choiceOptionVisible(o, query, opts.currentValue),
       pageSize: opts.pageSize,
       initialIndex: Math.max(currentIdx, 0),
