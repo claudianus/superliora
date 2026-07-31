@@ -59,6 +59,7 @@ export function configToTomlData(config: LioraConfig): Record<string, unknown> {
   setSection(out, 'background', config.background, backgroundToToml);
   setSection(out, 'memory', config.memory, memoryToToml);
   setSection(out, 'research', config.research, researchToToml);
+  setSection(out, 'mission', config.mission, missionToToml);
   setSection(out, 'model_catalog', config.modelCatalog, modelCatalogToToml);
   setSection(out, 'browser_use', config.browserUse, browserUseToToml);
   setSection(out, 'computer_use', config.computerUse, computerUseToToml);
@@ -258,6 +259,17 @@ function backgroundToToml(
 function memoryToToml(memory: MemoryConfig, rawMemory: unknown): Record<string, unknown> {
   const out = cloneRecord(rawMemory);
   for (const [key, value] of Object.entries(memory)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function missionToToml(
+  mission: import('./schema-mission').MissionConfig,
+  rawMission: unknown,
+): Record<string, unknown> {
+  const out = cloneRecord(rawMission);
+  for (const [key, value] of Object.entries(mission)) {
     setDefined(out, camelToSnake(key), value);
   }
   return out;

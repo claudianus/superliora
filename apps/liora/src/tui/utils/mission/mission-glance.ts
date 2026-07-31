@@ -71,7 +71,25 @@ export interface MissionSessionGlance {
   readonly goal?: GoalSnapshot | null;
   readonly goalQueueCount?: number;
   readonly sessionUnavailable?: boolean;
+  /** Resolved mission.autoStart from harness config (default false). */
+  readonly autoStart?: boolean;
   readonly appState?: Pick<AppState, 'goalEvidenceCount' | 'contextOS'>;
+}
+
+export function resolveMissionAutoStart(
+  config: { readonly mission?: { readonly autoStart?: boolean } } | null | undefined,
+): boolean {
+  return config?.mission?.autoStart === true;
+}
+
+export function buildMissionAutoStartConfigPatch(enabled: boolean): {
+  readonly mission: { readonly autoStart: boolean };
+} {
+  return { mission: { autoStart: enabled } };
+}
+
+export function formatMissionAutoStartLine(autoStart: boolean): string {
+  return `Auto-start opt-in: ${autoStart ? 'ON' : 'OFF'} (mission.autoStart)`;
 }
 
 const MAX_OBJECTIVE_PREVIEW = 56;
@@ -177,9 +195,10 @@ export function buildMissionSettingsLines(
     `Workspace: ${session.workDir}`,
     '',
     '── Auto-start ───────────────────────────────',
-    'Mission does not auto-start on session open (opt-in only).',
-    'Explicit `/mission <objective>` or `/goal` with Mission prompt.',
-    'Future: config mission.autoStart — not wired in Settings yet.',
+    formatMissionAutoStartLine(session.autoStart === true),
+    'Default OFF — Mission never invents an objective on session open.',
+    'ON records opt-in intent only; still start with `/mission <objective>` or `/mission resume`.',
+    'Toggle: Settings → Mission → Auto-start ON/OFF → mission.autoStart.',
     '',
     '── Commands ─────────────────────────────────',
     '  /mission <objective>   start or replace Mission run',
@@ -204,7 +223,5 @@ export function buildMissionSettingsLines(
     '── Artifact paths ───────────────────────────',
     `· ${missionMdArtifactTip(tips.workDir)}`,
     ...MISSION_ARTIFACT_STATIC_TIPS.map((tip) => `· ${tip}`),
-    '',
-    'No persist controls here until Mission config schema ships.',
   ];
 }
