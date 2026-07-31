@@ -96,7 +96,7 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'mission',
     label: 'Mission / Goals',
-    description: 'Auto-start opt-in, /mission, evidence checks, artifact paths.',
+    description: 'Mission runs, goal queue, auto-start opt-in — distinct from Hub Start Mission…',
   },
   {
     value: 'fleet',

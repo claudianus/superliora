@@ -265,6 +265,11 @@ function handleCommandHubAction(
     host.state.toast.show('Type a search pattern after /search', 2200);
     return;
   }
+  if (item.id === 'modes.ultrawork') {
+    restoreInputText(host, delegate, '/mission ');
+    host.state.toast.show('Type a Mission objective after /mission', 2800);
+    return;
+  }
   if (item.id === 'chat.btw') {
     restoreInputText(host, delegate, '/btw ');
     host.state.toast.show('Type your side question after /btw', 2200);

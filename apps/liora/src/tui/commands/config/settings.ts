@@ -58,7 +58,7 @@ export function showSettingsSelector(host: SlashCommandHost): void {
   );
 }
 
-/** Open a specific Settings pane (Hub / Palette / programmatic). */
+/** Open a specific Settings pane (Hub One-search / programmatic). */
 export function openSettingsPane(host: SlashCommandHost, value: SettingsSelection): void {
   dismissPickerDialog(host);
   handleSettingsSelection(host, value);

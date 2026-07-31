@@ -12,7 +12,7 @@ export interface LioraSlashCommand<Name extends string = string> extends SlashCo
   readonly priority?: number;
   readonly availability?: SlashCommandAvailability | ((args: string) => SlashCommandAvailability);
   readonly visibility?: SlashCommandVisibility;
-  /** When set, the command is hidden from the palette and blocked unless this flag is enabled. */
+  /** When set, the command is hidden from Hub/autocomplete and blocked unless this flag is enabled. */
   readonly experimentalFlag?: FlagId;
   /**
    * Generic argument autocompletion. `argumentPrefix` is the text typed after
