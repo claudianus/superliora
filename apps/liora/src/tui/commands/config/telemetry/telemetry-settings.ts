@@ -1,26 +1,34 @@
 /**
- * Settings → Telemetry — read-only config opt-in + live sink (SSOT §9.2).
+ * Settings → Telemetry — status glance + config toggles (SSOT §9.2).
  */
 
-import { loadRuntimeConfigSafe, resolveConfigPath, resolveLioraHome } from '@superliora/sdk';
+import { resolveConfigPath, resolveLioraHome } from '@superliora/sdk';
+import { isTelemetryDisabledByEnv, TELEMETRY_DISABLE_ENV } from '@superliora/telemetry';
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import {
+  buildTelemetryConfigPatch,
   buildTelemetrySettingsLines,
   loadTelemetryGlance,
+  TELEMETRY_LOCAL_ONLY_TIP,
+  TELEMETRY_OPT_OUT_TIP,
 } from '../../../utils/telemetry/telemetry-glance';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
-function readConfigTelemetryEnabled(host: SlashCommandHost): {
+export { TELEMETRY_LOCAL_ONLY_TIP, TELEMETRY_OPT_OUT_TIP };
+
+async function readConfigTelemetryEnabled(host: SlashCommandHost): Promise<{
   readonly enabled: boolean;
   readonly configPath: string;
-} {
+}> {
   try {
     const homeDir = host.harness.homeDir ?? resolveLioraHome();
     const configPath = host.harness.configPath ?? resolveConfigPath({ homeDir });
-    const { config } = loadRuntimeConfigSafe(configPath);
+    const config = await host.harness.getConfig({ reload: true });
     return {
       enabled: config.telemetry === true,
       configPath,
@@ -34,7 +42,94 @@ function readConfigTelemetryEnabled(host: SlashCommandHost): {
 }
 
 export function showTelemetrySettings(host: SlashCommandHost): void {
-  const config = readConfigTelemetryEnabled(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Telemetry',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Telemetry status',
+          description: 'Config opt-in · live sink · env overrides · endpoint glance.',
+        },
+        {
+          value: 'on',
+          label: 'Telemetry ON (opt-in)',
+          description: 'harness.setConfig → telemetry = true · restart to attach live sink.',
+        },
+        {
+          value: 'off',
+          label: 'Telemetry OFF (ZDR default)',
+          description: 'harness.setConfig → telemetry = false · local-only posture.',
+        },
+        {
+          value: 'tip-local',
+          label: 'Local-only posture tip',
+          description: 'Default OFF · transcripts stay on disk · device id for correlation only.',
+        },
+        {
+          value: 'tip-opt-out',
+          label: 'Opt-out tip',
+          description: `config.toml · ${TELEMETRY_DISABLE_ENV} · restart after changes.`,
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showTelemetrySettingsPanel(host);
+          return;
+        }
+        if (value === 'on') {
+          void setTelemetry(host, true);
+          return;
+        }
+        if (value === 'off') {
+          void setTelemetry(host, false);
+          return;
+        }
+        if (value === 'tip-local') {
+          host.showStatus(TELEMETRY_LOCAL_ONLY_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-opt-out') {
+          host.showStatus(TELEMETRY_OPT_OUT_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Telemetry' },
+  );
+}
+
+async function setTelemetry(host: SlashCommandHost, enabled: boolean): Promise<void> {
+  if (enabled && isTelemetryDisabledByEnv(process.env)) {
+    host.showStatus(
+      `${TELEMETRY_DISABLE_ENV} is set — sink stays off until env is cleared. Config opt-in saved.`,
+      'warning',
+    );
+  }
+  try {
+    await host.harness.setConfig(buildTelemetryConfigPatch(enabled));
+    host.showStatus(
+      enabled
+        ? 'Telemetry ON — usage analytics opt-in saved. Restart liora to attach live sink.'
+        : 'Telemetry OFF — ZDR-friendly default. Restart liora to detach live sink.',
+      enabled ? 'success' : 'warning',
+    );
+  } catch (error) {
+    host.showStatus(
+      `Failed to update telemetry: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+  }
+}
+
+async function showTelemetrySettingsPanel(host: SlashCommandHost): Promise<void> {
+  const config = await readConfigTelemetryEnabled(host);
   const glance = loadTelemetryGlance({
     configEnabled: config.enabled,
     configPath: config.configPath,
@@ -46,7 +141,9 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Telemetry ',
     enterBeatSeed: 'telemetry',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

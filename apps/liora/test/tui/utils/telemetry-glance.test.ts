@@ -8,12 +8,18 @@ import {
 } from '@superliora/telemetry';
 
 import {
+  buildTelemetryConfigPatch,
   buildTelemetrySettingsLines,
   isTelemetryDisabledByEnv,
   loadTelemetryGlance,
 } from '#/tui/utils/telemetry/telemetry-glance';
 
 describe('telemetry-glance', () => {
+  it('builds harness.setConfig patch for telemetry boolean', () => {
+    expect(buildTelemetryConfigPatch(true)).toEqual({ telemetry: true });
+    expect(buildTelemetryConfigPatch(false)).toEqual({ telemetry: false });
+  });
+
   it('shows OFF as ZDR-friendly default', () => {
     const lines = buildTelemetrySettingsLines(
       loadTelemetryGlance({
@@ -24,7 +30,7 @@ describe('telemetry-glance', () => {
     expect(lines.join('\n')).toContain('Config opt-in: OFF');
     expect(lines.join('\n')).toContain('Live sink: OFF');
     expect(lines.join('\n')).toContain('ZDR-friendly');
-    expect(lines.join('\n')).toContain('telemetry = true | false');
+    expect(lines.join('\n')).toContain('Settings → Telemetry ON/OFF');
   });
 
   it('shows config ON with live sink when runtime is attached', async () => {
