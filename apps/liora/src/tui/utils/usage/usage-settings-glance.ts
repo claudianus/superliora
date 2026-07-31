@@ -4,6 +4,18 @@
 
 import type { SessionStatus } from '@superliora/sdk';
 
+/** ChoicePicker tip — live token totals and session cost from getStatus. */
+export const USAGE_TOKEN_TIP =
+  'Token totals refresh from session.getStatus().usage — input/output/cache breakdown and cache-hit rate. Session $ is best-effort when provider pricing is wired.';
+
+/** ChoicePicker tip — managed plan quotas and the full /usage report. */
+export const USAGE_QUOTA_TIP =
+  'Managed providers show plan quota bars in /usage — composition and per-model breakdown. No quota editor in Settings; connect accounts via Settings → Accounts.';
+
+/** ChoicePicker tip — context window, footer badge, and related commands. */
+export const USAGE_CONTEXT_TIP =
+  'Footer badge mirrors contextUsage between refreshes. /usage — bars and composition · /status — model + route snapshot · Settings → Fleet — SUPERLIORA_FLEET_BUDGET_USD cap.';
+
 import { formatContextUsageLine } from '#/tui/utils/compaction/compaction-glance';
 import { loadFleetBudgetGlance } from '#/tui/utils/fleet/fleet-glance';
 import { formatOpsTokenGlance } from '#/tui/utils/usage/ops-token-glance';

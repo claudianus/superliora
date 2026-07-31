@@ -231,7 +231,7 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'usage',
     label: 'Usage',
-    description: 'Show session tokens, context window, and plan quotas.',
+    description: 'Live token/$ status · context window · quota and report tips.',
   },
 ];
 
