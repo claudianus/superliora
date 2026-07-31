@@ -51,6 +51,7 @@
         "success": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Success state color" },
         "warning": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Warning state color" },
         "error": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Error state color" },
+        "info": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Informational tips and navigation nudges" },
         "diffAdded": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff added lines" },
         "diffRemoved": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff removed lines" },
         "diffAddedStrong": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "Diff added lines (strong)" },

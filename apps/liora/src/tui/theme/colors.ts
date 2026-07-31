@@ -73,6 +73,8 @@ export interface ColorPalette {
   warning: string;
   /** Error: error messages, failed tool output. */
   error: string;
+  /** Informational tips: settings picker hints, navigation nudges. */
+  info: string;
 
   // ── Diff (all consumed by components/media/diff-preview.ts) ──
   /** Added lines. */
@@ -157,6 +159,7 @@ export const darkColors: ColorPalette = {
   success: '#4EC87E',
   warning: '#E8A838',
   error: '#E85454',
+  info: '#3D9BFF',
 
   diffAdded: '#4EC87E',
   diffRemoved: '#E85454',
@@ -208,6 +211,7 @@ export const lightColors: ColorPalette = {
   success: '#0E7A38',
   warning: '#92660A',
   error: '#B91C1C',
+  info: '#1565C0',
 
   diffAdded: '#0E7A38',
   diffRemoved: '#B91C1C',

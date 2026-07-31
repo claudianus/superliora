@@ -938,8 +938,15 @@ describe('harness panel and tools inventory', () => {
       workDir: '/tmp/no-session',
       additionalDirs: [],
     });
-    await showSecuritySettings(host);
-    expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
+    showSecuritySettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | { opts: { onSelect: (action: string) => void } }
+      | undefined;
+    expect(picker).toBeDefined();
+    picker!.opts.onSelect('status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
+    });
   });
 
   it('lists Mission, Fleet, and Compaction in the settings selector', () => {
