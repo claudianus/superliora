@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showMcpSettings } from '#/tui/commands/config/mcp/mcp-settings';
+import {
+  MCP_ALLOWLIST_TIP,
+  MCP_CONFIG_SCOPES_TIP,
+  MCP_OAUTH_TIP,
+  showMcpSettings,
+} from '#/tui/commands/config/mcp/mcp-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
@@ -29,6 +35,7 @@ function makeMcpSettingsHost(
     mountCenterModal,
     closeCenterModal: vi.fn(),
     restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
     requireSession:
       options.hasSession === false
         ? vi.fn(() => {
@@ -38,17 +45,61 @@ function makeMcpSettingsHost(
   } as unknown as SlashCommandHost;
 }
 
-describe('mcp settings', () => {
-  it('opens picker with live status and manage entries', () => {
+function selectMcpAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
+describe('mcp settings tips', () => {
+  it('exports config scopes, OAuth, and allowlist tips', () => {
+    expect(MCP_CONFIG_SCOPES_TIP).toContain('mcp.json');
+    expect(MCP_CONFIG_SCOPES_TIP).toContain('.superliora');
+    expect(MCP_OAUTH_TIP).toContain('/mcp-config login');
+    expect(MCP_ALLOWLIST_TIP).toContain('enabledTools');
+  });
+});
+
+describe('showMcpSettings', () => {
+  it('mounts ChoicePicker with status, manage, and read-only tip actions', () => {
     const host = makeMcpSettingsHost();
     showMcpSettings(host);
-    expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { render: (width: number) => string[] },
-    ];
-    const body = component.render(100).join('\n');
-    expect(body).toContain('Live status');
-    expect(body).toContain('Manage servers');
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'manage',
+      'tip-config-scopes',
+      'tip-oauth',
+      'tip-allowlist',
+    ]);
+  });
+
+  it('shows config scopes tip via showStatus', () => {
+    const host = makeMcpSettingsHost();
+    showMcpSettings(host);
+    selectMcpAction(host, 'tip-config-scopes');
+    expect(host.showStatus).toHaveBeenCalledWith(MCP_CONFIG_SCOPES_TIP, 'info');
+  });
+
+  it('shows OAuth tip via showStatus', () => {
+    const host = makeMcpSettingsHost();
+    showMcpSettings(host);
+    selectMcpAction(host, 'tip-oauth');
+    expect(host.showStatus).toHaveBeenCalledWith(MCP_OAUTH_TIP, 'info');
+  });
+
+  it('shows allowlist tip via showStatus', () => {
+    const host = makeMcpSettingsHost();
+    showMcpSettings(host);
+    selectMcpAction(host, 'tip-allowlist');
+    expect(host.showStatus).toHaveBeenCalledWith(MCP_ALLOWLIST_TIP, 'info');
   });
 
   it('mounts glance panel with live listMcpServers count', async () => {
@@ -59,15 +110,13 @@ describe('mcp settings', () => {
       ],
     });
     showMcpSettings(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    component.handleInput('\r');
+    selectMcpAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
     expect(host.requireSession().listMcpServers).toHaveBeenCalled();
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Live session: 2 server(s)');
     expect(text).toContain('1 connected');
@@ -77,14 +126,12 @@ describe('mcp settings', () => {
   it('works without session', async () => {
     const host = makeMcpSettingsHost({ hasSession: false });
     showMcpSettings(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    component.handleInput('\r');
+    selectMcpAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('open a session to inspect MCP connection status');
   });

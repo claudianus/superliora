@@ -6,6 +6,18 @@ import type { McpServerInfo } from '@superliora/sdk';
 
 import { formatMcpStartupStatusSummary } from './mcp-server-status';
 
+/** ChoicePicker tip — Claude-compatible mcp.json scope merge order. */
+export const MCP_CONFIG_SCOPES_TIP =
+  'mcp.json scopes merge: project/.superliora/mcp.json · project-root/.mcp.json · ~/.superliora/mcp.json — later scopes override name collisions · Manage → Install writes user scope · Reload session after edits.';
+
+/** ChoicePicker tip — OAuth when live status is needs-auth. */
+export const MCP_OAUTH_TIP =
+  'MCP OAuth: when live status shows needs-auth, run /mcp-config login <server> — browser opens authorizationUrl · tokens persist under ~/.superliora · Manage → Reload after login.';
+
+/** ChoicePicker tip — per-server tool allowlist in mcp.json. */
+export const MCP_ALLOWLIST_TIP =
+  'MCP tool allowlist: enabledTools / disabledTools per server in mcp.json — empty enabledTools = all tools; disabledTools wins on conflict · Security glance: Settings → Security → MCP tool allowlist.';
+
 export interface McpConfigGlance {
   readonly configured: number;
   readonly paths: readonly string[];
