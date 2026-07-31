@@ -42,7 +42,7 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   ],
   index: ['fts', 'fts5', 'codemap', 'repoquery', 'zoekt', 'rebuild', 'symbol'],
   host: ['in-process', 'server', 'transport', 'acp', 'remote'],
-  cache: ['freeze', 'sacred', 'hit-rate', 'prompt-cache', 'streak'],
+  cache: ['freeze', 'sacred', 'hit-rate', 'prompt-cache', 'streak', 'invalidate', 'cold'],
   'never-halt': ['resilience', 'circuit-breaker', 'oauth-refresh', 'degraded'],
   telemetry: ['analytics', 'local-only', 'tracking'],
   'bench-diagnostics': ['bench', 'ops', 'diagnostics', 'trace', 'branding'],
