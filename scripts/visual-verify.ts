@@ -126,22 +126,20 @@ async function main() {
     console.log(`    [${r.id}] ${r.x},${r.y} ${r.width}x${r.height} ${r.visible ? 'visible' : 'hidden'}${r.collapsed ? ' (collapsed)' : ''}`);
   }
 
-  // ─── 6. Command Palette ──────────────────────────────────────────
-  console.log('\n\x1b[1;33m── CommandPalette ──\x1b[0m');
-  const { CommandPalette, createDefaultCommands, fuzzyMatch } = await import('../apps/liora/src/tui/utils/command-palette.ts');
-  const palette = new CommandPalette();
-  palette.setCommands(createDefaultCommands());
-  palette.open();
-  // Simulate typing "git"
-  palette.typeChar('g');
-  palette.typeChar('i');
-  palette.typeChar('t');
-  const paletteLines = palette.render({ ...opts, height: 12 });
-  for (const line of paletteLines) console.log(`  ${line}`);
-
-  // Fuzzy match demo
-  const match = fuzzyMatch('gpush', 'Git Push');
-  console.log(`  fuzzyMatch("gpush", "Git Push"): score=${match?.score ?? 'null'}`);
+  // ─── 6. Command Hub One-search ───────────────────────────────────
+  console.log('\n\x1b[1;33m── Command Hub ──\x1b[0m');
+  const { buildDefaultCommandHubItems } = await import(
+    '../apps/liora/src/tui/components/dialogs/command-hub/command-hub-items.ts'
+  );
+  const { filterHubItems } = await import(
+    '../apps/liora/src/tui/components/dialogs/command-hub/command-hub-filter.ts'
+  );
+  const hubItems = buildDefaultCommandHubItems({ ultraworkMode: false });
+  const matched = filterHubItems(hubItems, 'mission');
+  console.log(`  idle curated: ${hubItems.filter((i) => i.searchOnly !== true).length} rows`);
+  console.log(`  filter "mission": ${matched.map((i) => i.label).join(' · ') || '(none)'}`);
+  const startMission = hubItems.find((i) => i.id === 'modes.ultrawork');
+  console.log(`  Start Mission row: ${startMission?.label ?? '(missing)'}`);
 
   // ─── 7. Progress Visualizer ──────────────────────────────────────
   console.log('\n\x1b[1;33m── ProgressVisualizer ──\x1b[0m');

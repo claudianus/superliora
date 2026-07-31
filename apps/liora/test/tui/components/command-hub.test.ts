@@ -57,8 +57,22 @@ describe('commandHubActionToSlash', () => {
   it('maps hub actions to slash commands', () => {
     expect(commandHubActionToSlash('chat.model')).toBe('/model');
     expect(commandHubActionToSlash('modes.swarm')).toBe('/swarm');
+    expect(commandHubActionToSlash('modes.ultrawork')).toBeUndefined();
     expect(commandHubActionToSlash('help.shortcuts')).toBeUndefined();
     expect(commandHubActionToSlash('now.compact')).toBe('/compact');
+  });
+});
+
+describe('Mission Hub row', () => {
+  it('starts /mission instead of pretending to toggle like Plan/Swarm', () => {
+    const item = buildDefaultCommandHubItems({ ultraworkMode: true }).find(
+      (candidate) => candidate.id === 'modes.ultrawork',
+    );
+    expect(item?.label).toBe('Start Mission…');
+    expect(item?.kind).not.toBe('toggle');
+    expect(item?.badge).toBe('ON');
+    expect(isCommandHubToggleId('modes.ultrawork')).toBe(false);
+    expect(commandHubActionToSlash('modes.ultrawork')).toBeUndefined();
   });
 });
 

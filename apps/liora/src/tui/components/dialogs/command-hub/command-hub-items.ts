@@ -73,10 +73,10 @@ export function buildDefaultCommandHubItems(state: {
     {
       id: 'modes.ultrawork',
       section: 'Modes',
-      label: 'Mission',
-      description: 'Space flips · Enter flips & close · full pipeline',
+      label: 'Start Mission…',
+      description: 'Type /mission <objective> · Settings → Mission / Goals for auto-start',
       badge: onOff(state.ultraworkMode),
-      kind: 'toggle',
+      keywords: ['ultrawork', 'uw', 'goal', 'pipeline'],
     },
     {
       id: 'modes.premium',

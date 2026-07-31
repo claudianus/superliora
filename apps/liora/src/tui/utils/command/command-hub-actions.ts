@@ -20,7 +20,7 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'modes.swarm':
       return '/swarm';
     case 'modes.ultrawork':
-      return '/ultrawork';
+      return undefined;
     case 'modes.premium':
       return '/premium';
     case 'modes.permission':

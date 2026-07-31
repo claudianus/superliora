@@ -21,7 +21,7 @@ export function helpModeFromArgs(args: string): SlashCommandHelpMode {
 /**
  * Host surface required by the dialog-mounting shell (editor-replacement /
  * center-modal mechanics, session-loading overlay, prompt stash) and the
- * Command Hub / palette / history / transcript search entry points.
+ * Command Hub / history / transcript search entry points.
  */
 export interface DialogsHost {
   state: TUIState;

@@ -3,7 +3,6 @@ import type { CommandHubActionId } from './command-hub-types';
 const TOGGLE_IDS = new Set<CommandHubActionId>([
   'modes.plan',
   'modes.swarm',
-  'modes.ultrawork',
   'modes.premium',
 ]);
 
