@@ -1,4 +1,5 @@
 import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
+import { SETTINGS_SEARCH_KEYWORDS } from '../../../commands/config/settings-keywords';
 
 export type SettingsSelection =
   | 'model'
@@ -40,7 +41,7 @@ export type SettingsSelection =
   | 'usage';
 
 /** Exported for Settings → Harness → Settings inventory (SSOT §9 audit). */
-export const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
+const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'model',
     label: 'Model',
@@ -227,6 +228,19 @@ export const SETTINGS_OPTIONS: readonly ChoiceOption[] = [
     description: 'Show session tokens, context window, and plan quotas.',
   },
 ];
+
+function withSettingsKeywords(
+  option: Omit<ChoiceOption, 'keywords'>,
+): ChoiceOption {
+  const selection = option.value as SettingsSelection;
+  const keywords = SETTINGS_SEARCH_KEYWORDS[selection as keyof typeof SETTINGS_SEARCH_KEYWORDS];
+  return {
+    ...option,
+    keywords: keywords !== undefined ? [...keywords] : [],
+  };
+}
+
+export const SETTINGS_OPTIONS: readonly ChoiceOption[] = SETTINGS_OPTIONS_BASE.map(withSettingsKeywords);
 
 function isSettingsSelection(value: string): value is SettingsSelection {
   return (

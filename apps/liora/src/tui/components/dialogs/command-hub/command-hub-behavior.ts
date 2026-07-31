@@ -22,6 +22,7 @@ export function commandHubKeepsOpen(id: CommandHubActionId): boolean {
 
 /** Nested center-modal pickers — Esc returns to Hub. */
 export function commandHubNestsPicker(id: CommandHubActionId): boolean {
+  if (id === 'settings.open' || id.startsWith('settings.')) return true;
   switch (id) {
     case 'start.sessions':
     case 'chat.model':

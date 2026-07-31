@@ -12,19 +12,26 @@ const SECTION_ORDER = [
   'Extend',
   'Appearance',
   'Account',
+  'Settings',
   'Help',
 ] as const;
+
+function hubItemSearchText(item: CommandHubItem): string {
+  return [
+    item.label,
+    item.description,
+    item.section,
+    item.id,
+    ...(item.keywords ?? []),
+  ]
+    .join(' ')
+    .toLowerCase();
+}
 
 export function filterHubItems(items: readonly CommandHubItem[], query: string): CommandHubItem[] {
   const needle = query.trim().toLowerCase();
   if (needle.length > 0) {
-    const matched = items.filter(
-      (item) =>
-        item.label.toLowerCase().includes(needle) ||
-        item.description.toLowerCase().includes(needle) ||
-        item.section.toLowerCase().includes(needle) ||
-        item.id.toLowerCase().includes(needle),
-    );
+    const matched = items.filter((item) => hubItemSearchText(item).includes(needle));
     matched.sort((a, b) => {
       const ra = hubRecencyScore(a.id);
       const rb = hubRecencyScore(b.id);
@@ -51,7 +58,7 @@ export function filterHubItems(items: readonly CommandHubItem[], query: string):
   }
   const recentIds = new Set(recent.map((item) => item.id));
   const rest = items
-    .filter((item) => !recentIds.has(item.id))
+    .filter((item) => !recentIds.has(item.id) && item.searchOnly !== true)
     .toSorted((a, b) => {
       const sa = SECTION_ORDER.indexOf(a.section as (typeof SECTION_ORDER)[number]);
       const sb = SECTION_ORDER.indexOf(b.section as (typeof SECTION_ORDER)[number]);

@@ -2,6 +2,8 @@ import type { CommandHubActionId } from '#/tui/components/dialogs/command-hub/in
 
 /** Map a Hub action to a slash command string, or undefined when the host handles it. */
 export function commandHubActionToSlash(id: CommandHubActionId): string | undefined {
+  if (id === 'settings.open') return '/settings';
+  if (id.startsWith('settings.')) return undefined;
   switch (id) {
     case 'start.new':
       return '/new';

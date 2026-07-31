@@ -24,6 +24,13 @@ import {
   DEFAULT_ONBOARDING_PREFERENCES,
   saveTuiConfig,
 } from '../../config';
+import { openSettingsPane, showSettingsSelector } from '../../commands/config/settings';
+import {
+  isSettingsHubActionId,
+  settingsSelectionFromHubId,
+  type SettingsKeywordSelection,
+} from '../../commands/config/settings-keywords';
+import { buildSettingsJumpPaletteEntries } from '../../commands/config/settings-hub-jumps';
 import { commandHubActionToSlash } from '../../utils/command/command-hub-actions';
 import { noteSuccessFeedback } from '../../utils/render/feedback-vfx';
 import { requestTUIContentRender } from '../../utils/render/frame-render';
@@ -113,6 +120,7 @@ function buildPaletteEntries(host: DialogsHost): PaletteEntry[] {
       label: 'Input history',
       description: 'Reuse a past prompt',
     },
+    ...buildSettingsJumpPaletteEntries(),
   ];
   return [...actions, ...commands];
 }
@@ -121,6 +129,10 @@ function runPaletteEntry(host: DialogsHost, delegate: CommandHubDelegate, entry:
   noteHubActionUse(paletteRecencyKey(entry));
   noteSuccessFeedback();
   if (entry.kind === 'action') {
+    if (entry.value.startsWith('settings:')) {
+      openSettingsPane(host, entry.value.slice('settings:'.length) as SettingsKeywordSelection);
+      return;
+    }
     switch (entry.value) {
       case 'hub':
         delegate.showCommandHub();
@@ -308,6 +320,14 @@ function handleCommandHubAction(
 ): void {
   if (item.id === 'help.palette') {
     delegate.showCommandPaletteOmnibox();
+    return;
+  }
+  if (item.id === 'settings.open') {
+    showSettingsSelector(host);
+    return;
+  }
+  if (isSettingsHubActionId(item.id)) {
+    openSettingsPane(host, settingsSelectionFromHubId(item.id));
     return;
   }
   if (item.id === 'help.shortcuts') {
