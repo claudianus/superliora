@@ -5,7 +5,7 @@ import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 import { ShellExecutionComponent } from '../shell/shell-execution';
 import { buildCompactErrorLineComponent } from './compact-error';
-import type { ToolCallCallPreview } from './call-preview';
+import type { ToolCallCallPreview, ToolCallCallPreviewHost } from './call-preview';
 import { buildToolCallResultContentComponents } from './content';
 import type { ToolCallDetachHint } from './detach-hint';
 import type { ToolCallOutputViewportMount } from './output-viewport';
@@ -36,6 +36,8 @@ export interface ToolCallBodyRebuildHost {
   addChild(child: Component): void;
   isSingleSubagentView(): boolean;
   getDerivedSubagentPhase(): SubagentPhase | undefined;
+  /** Call-preview accessors (ExitPlanMode plan body, markdown theme, …). */
+  readonly callPreviewHost: ToolCallCallPreviewHost;
 }
 
 export function rebuildToolCallContent(host: ToolCallBodyRebuildHost): void {
@@ -162,8 +164,8 @@ function buildSingleSubagentBlock(host: ToolCallBodyRebuildHost): void {
   }
 }
 
-function buildCallPreview(host: ToolCallBodyRebuildHost & { callPreview: { build(view: unknown): void } }): void {
-  host.callPreview.build(host);
+function buildCallPreview(host: ToolCallBodyRebuildHost): void {
+  host.callPreview.build(host.callPreviewHost);
 }
 
 function appendResultContent(host: ToolCallBodyRebuildHost): void {

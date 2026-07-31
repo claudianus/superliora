@@ -516,6 +516,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       liveOutput: component.liveOutput,
       subagent: component.subagent,
       callPreview: component.callPreview,
+      callPreviewHost: component,
       outputViewport: component.outputViewport,
       detachHint: component.detachHint,
       children: component.children,

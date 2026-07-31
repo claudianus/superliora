@@ -70,8 +70,12 @@ export function startHarnessOAuthProactiveRefresh(
   harness: LioraHarness,
   options: HarnessOAuthProactiveRefreshOptions = {},
 ): ProactiveRefreshTimerHandle | undefined {
-  const tokenProvider = harness.auth.resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME);
-  const ensureFresh = tokenProvider.getAccessToken.bind(tokenProvider);
+  const resolve = harness.auth?.resolveOAuthTokenProvider;
+  if (typeof resolve !== 'function') {
+    return undefined;
+  }
+  const tokenProvider = resolve.call(harness.auth, SUPERLIORA_PROVIDER_NAME);
+  const ensureFresh = tokenProvider?.getAccessToken?.bind(tokenProvider);
   if (typeof ensureFresh !== 'function') {
     return undefined;
   }
