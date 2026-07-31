@@ -403,9 +403,6 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.showCommandPalette = function () {
     this.dialogs.showCommandPalette();
   };
-  proto.showCommandPaletteOmnibox = function () {
-    this.dialogs.showCommandPaletteOmnibox();
-  };
   proto.showCommandHub = function (
     options: { readonly initialQuery?: string; readonly intro?: boolean } = {},
   ) {

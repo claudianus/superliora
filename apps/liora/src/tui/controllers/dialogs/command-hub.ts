@@ -9,11 +9,6 @@ import {
   type CommandHubSelectMode,
 } from '../../components/dialogs/command-hub/index';
 import {
-  CommandPaletteComponent,
-  rankPaletteEntries,
-  type PaletteEntry,
-} from '../../components/dialogs/command-hub/command-palette';
-import {
   advancedHelpIntro,
   advancedKeyboardShortcuts,
   HelpPanelComponent,
@@ -28,9 +23,7 @@ import { openSettingsPane, showSettingsSelector } from '../../commands/config/se
 import {
   isSettingsHubActionId,
   settingsSelectionFromHubId,
-  type SettingsKeywordSelection,
 } from '../../commands/config/settings-keywords';
-import { buildSettingsJumpPaletteEntries } from '../../commands/config/settings-hub-jumps';
 import {
   buildSlashJumpHubItems,
   isSlashHubActionId,
@@ -39,7 +32,7 @@ import {
 import { commandHubActionToSlash } from '../../utils/command/command-hub-actions';
 import { noteSuccessFeedback } from '../../utils/render/feedback-vfx';
 import { requestTUIContentRender } from '../../utils/render/frame-render';
-import { hubRecencyScore, noteHubActionUse } from '../../utils/command/hub-recents';
+import { noteHubActionUse } from '../../utils/command/hub-recents';
 import type { ModalShellDelegate } from './modal-shell';
 import {
   closeAllCenterModals,
@@ -47,126 +40,16 @@ import {
   mountCenterModal,
   restoreInputText,
 } from './modal-shell';
-import { openHistorySearch } from './search';
 import type { DialogsHost } from './types';
 
 export interface CommandHubDelegate extends ModalShellDelegate {
   showCommandHub(options?: { readonly initialQuery?: string; readonly intro?: boolean }): void;
-  showCommandPaletteOmnibox(): void;
   showTranscriptSearch(): void;
 }
 
-/** Open the beginner Command Hub (replaces the old Ctrl-Space palette). */
+/** @deprecated Prefer `showCommandHub` — alias kept for Ctrl-K / Ctrl-Space call sites. */
 export function showCommandPalette(delegate: CommandHubDelegate): void {
   delegate.showCommandHub();
-}
-
-/**
- * Legacy nested omnibox (deprecated). Prefer Command Hub One-search —
- * slash/skills are already `searchOnly` Hub rows. Kept for wiring until PR2
- * removes the nested surface.
- */
-export function showCommandPaletteOmnibox(host: DialogsHost, delegate: CommandHubDelegate): void {
-  if (
-    host.state.activeDialog !== null &&
-    host.state.activeDialog !== 'center-modal' &&
-    host.state.activeDialog !== 'help'
-  ) {
-    return;
-  }
-  const entries = rankPaletteEntries(buildPaletteEntries(host), (entry) =>
-    hubRecencyScore(paletteRecencyKey(entry)),
-  );
-  const palette = new CommandPaletteComponent({
-    entries,
-    onSelect: (entry) => {
-      closeAllCenterModals(host);
-      runPaletteEntry(host, delegate, entry);
-    },
-    onCancel: () => {
-      closeCenterModal(host, delegate);
-    },
-  });
-  mountCenterModal(host, delegate, palette, { mode: 'push', label: 'Palette' });
-}
-
-function buildPaletteEntries(host: DialogsHost): PaletteEntry[] {
-  const skillNames = new Set(host.skillCommands.map((command) => command.name));
-  const commands: PaletteEntry[] = host.getSlashCommands('advanced').map((command) => ({
-    kind: skillNames.has(command.name) ? 'skill' : 'command',
-    value: command.name,
-    label: `/${command.name}`,
-    description: command.description,
-    aliases: command.aliases,
-  }));
-  const actions: PaletteEntry[] = [
-    {
-      kind: 'action',
-      value: 'hub',
-      label: 'Command Hub',
-      description: 'Open the guided dashboard',
-    },
-    {
-      kind: 'action',
-      value: 'shortcuts',
-      label: 'Keyboard shortcuts',
-      description: 'Keybinding cheatsheet',
-    },
-    {
-      kind: 'action',
-      value: 'transcript-search',
-      label: 'Search transcript',
-      description: 'Find text in this chat',
-    },
-    {
-      kind: 'action',
-      value: 'history',
-      label: 'Input history',
-      description: 'Reuse a past prompt',
-    },
-    ...buildSettingsJumpPaletteEntries(),
-  ];
-  return [...actions, ...commands];
-}
-
-function runPaletteEntry(host: DialogsHost, delegate: CommandHubDelegate, entry: PaletteEntry): void {
-  noteHubActionUse(paletteRecencyKey(entry));
-  noteSuccessFeedback();
-  if (entry.kind === 'action') {
-    if (entry.value.startsWith('settings:')) {
-      openSettingsPane(host, entry.value.slice('settings:'.length) as SettingsKeywordSelection);
-      return;
-    }
-    switch (entry.value) {
-      case 'hub':
-        delegate.showCommandHub();
-        return;
-      case 'shortcuts':
-        mountCenterModal(
-          host,
-          delegate,
-          new ShortcutsPanelComponent({
-            onClose: () =>{  closeCenterModal(host, delegate); },
-          }),
-          { mode: 'push', label: 'Shortcuts' },
-        );
-        return;
-      case 'transcript-search':
-        delegate.showTranscriptSearch();
-        return;
-      case 'history':
-        void openHistorySearch(host, delegate);
-        return;
-      default:
-        return;
-    }
-  }
-  host.dispatchSlash(`/${entry.value}`);
-}
-
-/** Namespaced so palette runs never match Hub item ids in recency lookups. */
-function paletteRecencyKey(entry: PaletteEntry): string {
-  return `palette:${entry.kind}:${entry.value}`;
 }
 
 export function showCommandHub(
@@ -353,7 +236,9 @@ function handleCommandHubAction(
       host,
       delegate,
       new ShortcutsPanelComponent({
-        onClose: () =>{  closeCenterModal(host, delegate); },
+        onClose: () => {
+          closeCenterModal(host, delegate);
+        },
       }),
       { mode: 'push', label: 'Shortcuts' },
     );

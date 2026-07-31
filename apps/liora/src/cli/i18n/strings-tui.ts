@@ -27,13 +27,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.history.hint': '↑↓ navigate · Enter use · Esc cancel',
   'tui.history.empty': 'No history yet',
 
-  // ── Command palette (Ctrl-Space) ─────────────────────────────────────────
-  'tui.palette.title': 'Command palette',
-  'tui.palette.hint': '↑↓ navigate · Enter run · Esc cancel',
-  'tui.palette.category.commands': 'Commands',
-  'tui.palette.category.skills': 'Skills',
-  'tui.palette.category.actions': 'Actions',
-
   // ── Transcript search (Ctrl-F) ───────────────────────────────────────────
   'tui.search.title': 'Search transcript',
   'tui.search.hint': 'Enter next · Shift-Enter prev · Esc close',
@@ -416,13 +409,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.history.title': '히스토리 검색',
   'tui.history.hint': '↑↓ 이동 · Enter 사용 · Esc 취소',
   'tui.history.empty': '히스토리가 없습니다',
-
-  // ── Command palette (Ctrl-Space) ─────────────────────────────────────────
-  'tui.palette.title': '명령 팔레트',
-  'tui.palette.hint': '↑↓ 이동 · Enter 실행 · Esc 취소',
-  'tui.palette.category.commands': '명령',
-  'tui.palette.category.skills': '스킬',
-  'tui.palette.category.actions': '동작',
 
   // ── Transcript search (Ctrl-F) ───────────────────────────────────────────
   'tui.search.title': '대화 검색',

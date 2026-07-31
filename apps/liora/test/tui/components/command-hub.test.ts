@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildDefaultCommandHubItems,
   CommandHubComponent,
+  commandHubNestsPicker,
   cyclePermissionMode,
   isCommandHubToggleId,
 } from '#/tui/components/dialogs/command-hub/index';
@@ -66,6 +67,15 @@ describe('cyclePermissionMode', () => {
     expect(cyclePermissionMode('manual')).toBe('auto');
     expect(cyclePermissionMode('auto')).toBe('yolo');
     expect(cyclePermissionMode('yolo')).toBe('manual');
+  });
+});
+
+describe('help.palette Search tip', () => {
+  it('stays non-nested so One-search remains the only catalog', () => {
+    const item = buildDefaultCommandHubItems({}).find((candidate) => candidate.id === 'help.palette');
+    expect(item?.label).toBe('Search tip');
+    expect(commandHubNestsPicker('help.palette')).toBe(false);
+    expect(commandHubActionToSlash('help.palette')).toBeUndefined();
   });
 });
 
