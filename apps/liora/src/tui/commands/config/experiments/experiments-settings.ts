@@ -1,15 +1,27 @@
 /**
  * Settings → Experiments — live feature flags from config (SSOT §9.2).
+ * Read-only glance; toggles via Settings → Harness → Experiments.
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import {
   buildExperimentsSettingsLines,
+  EXPERIMENTS_CODEGRAPH_TIP,
+  EXPERIMENTS_FEATURE_FLAGS_TIP,
+  EXPERIMENTS_MICRO_COMPACTION_TIP,
   type ExperimentsGlanceInput,
 } from '#/tui/utils/experiments/experiments-glance';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+
+export {
+  EXPERIMENTS_CODEGRAPH_TIP,
+  EXPERIMENTS_FEATURE_FLAGS_TIP,
+  EXPERIMENTS_MICRO_COMPACTION_TIP,
+};
 
 async function loadExperimentsGlance(host: SlashCommandHost): Promise<ExperimentsGlanceInput> {
   try {
@@ -22,7 +34,62 @@ async function loadExperimentsGlance(host: SlashCommandHost): Promise<Experiment
 }
 
 export function showExperimentsSettings(host: SlashCommandHost): void {
-  void showExperimentsSettingsPanel(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Experiments',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Experiments status',
+          description:
+            'Live feature flags from config + env · per-flag ON/OFF · override sources (read-only).',
+        },
+        {
+          value: 'tip-feature-flags',
+          label: 'Feature flags tip',
+          description:
+            'L1–L4 resolution order · master switch · config.toml [experimental] · Harness toggles.',
+        },
+        {
+          value: 'tip-codegraph',
+          label: 'Codegraph tip',
+          description:
+            'Index/codemap flags may appear here first · live wire via Settings → Index.',
+        },
+        {
+          value: 'tip-micro-compaction',
+          label: 'Micro-compaction tip',
+          description:
+            'micro_compaction kill switch · SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION · Compaction recover.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showExperimentsSettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-feature-flags') {
+          host.showStatus(EXPERIMENTS_FEATURE_FLAGS_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-codegraph') {
+          host.showStatus(EXPERIMENTS_CODEGRAPH_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-micro-compaction') {
+          host.showStatus(EXPERIMENTS_MICRO_COMPACTION_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Experiments' },
+  );
 }
 
 async function showExperimentsSettingsPanel(host: SlashCommandHost): Promise<void> {
@@ -34,7 +101,9 @@ async function showExperimentsSettingsPanel(host: SlashCommandHost): Promise<voi
     borderToken: 'primary',
     title: ' Experiments ',
     enterBeatSeed: 'experiments-settings',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

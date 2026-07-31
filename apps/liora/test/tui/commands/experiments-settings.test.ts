@@ -1,12 +1,18 @@
 import type { ExperimentalFeatureState } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { showExperimentsSettings } from '#/tui/commands/config/experiments/experiments-settings';
+import {
+  EXPERIMENTS_CODEGRAPH_TIP,
+  EXPERIMENTS_FEATURE_FLAGS_TIP,
+  EXPERIMENTS_MICRO_COMPACTION_TIP,
+  showExperimentsSettings,
+} from '#/tui/commands/config/experiments/experiments-settings';
 import {
   buildExperimentsSettingsLines,
   formatExperimentsLiveLine,
   summarizeExperimentalFeatures,
 } from '#/tui/utils/experiments/experiments-glance';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
@@ -53,10 +59,23 @@ function makeExperimentsHost(
     },
     state: {
       transcriptContainer,
+      centerModalStack: [] as readonly unknown[],
       appState: {},
       renderer: { invalidateFrame: vi.fn() },
     },
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
+}
+
+function selectExperimentsAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
 }
 
 describe('experiments glance', () => {
@@ -99,14 +118,64 @@ describe('experiments glance', () => {
   });
 });
 
-describe('experiments settings', () => {
+describe('experiments settings tips', () => {
+  it('exports feature-flags, codegraph, and micro-compaction tips', () => {
+    expect(EXPERIMENTS_FEATURE_FLAGS_TIP).toContain('SUPERLIORA_EXPERIMENTAL_FLAG');
+    expect(EXPERIMENTS_FEATURE_FLAGS_TIP).toContain('Harness → Experiments');
+    expect(EXPERIMENTS_CODEGRAPH_TIP).toContain('Settings → Index');
+    expect(EXPERIMENTS_MICRO_COMPACTION_TIP).toContain('micro_compaction');
+    expect(EXPERIMENTS_MICRO_COMPACTION_TIP).toContain('Settings → Compaction');
+  });
+});
+
+describe('showExperimentsSettings', () => {
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeExperimentsHost();
+    showExperimentsSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-feature-flags',
+      'tip-codegraph',
+      'tip-micro-compaction',
+    ]);
+  });
+
+  it('shows feature-flags tip via showStatus', () => {
+    const host = makeExperimentsHost();
+    showExperimentsSettings(host);
+    selectExperimentsAction(host, 'tip-feature-flags');
+    expect(host.showStatus).toHaveBeenCalledWith(EXPERIMENTS_FEATURE_FLAGS_TIP, 'info');
+  });
+
+  it('shows codegraph tip via showStatus', () => {
+    const host = makeExperimentsHost();
+    showExperimentsSettings(host);
+    selectExperimentsAction(host, 'tip-codegraph');
+    expect(host.showStatus).toHaveBeenCalledWith(EXPERIMENTS_CODEGRAPH_TIP, 'info');
+  });
+
+  it('shows micro-compaction tip via showStatus', () => {
+    const host = makeExperimentsHost();
+    showExperimentsSettings(host);
+    selectExperimentsAction(host, 'tip-micro-compaction');
+    expect(host.showStatus).toHaveBeenCalledWith(EXPERIMENTS_MICRO_COMPACTION_TIP, 'info');
+  });
+
   it('mounts read-only experiments panel with live config flags', async () => {
     const host = makeExperimentsHost();
     showExperimentsSettings(host);
+    selectExperimentsAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Live flags:');
     expect(text).toContain('micro_compaction ON (config)');
@@ -117,10 +186,12 @@ describe('experiments settings', () => {
   it('renders when feature load fails', async () => {
     const host = makeExperimentsHost({ loadError: true });
     showExperimentsSettings(host);
+    selectExperimentsAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('rpc unavailable');
   });
 });
