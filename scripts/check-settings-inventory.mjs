@@ -83,7 +83,11 @@ function rel(path) {
 
 function parseSettingsOptions(source) {
   const options = [];
-  const block = source.match(/export const SETTINGS_OPTIONS[\s\S]*?\];/);
+  // Prefer the pre-keyword base array (SETTINGS_OPTIONS is `.map(withSettingsKeywords)`).
+  const block =
+    source.match(
+      /(?:export\s+)?const SETTINGS_OPTIONS_BASE[\s\S]*?\];/,
+    ) ?? source.match(/export const SETTINGS_OPTIONS[\s\S]*?\];/);
   if (!block) return options;
   const entryRe = /value:\s*'([^']+)',\s*\n\s*label:\s*'([^']+)'/g;
   let match;
