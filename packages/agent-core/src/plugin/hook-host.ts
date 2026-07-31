@@ -2,7 +2,7 @@ import { createUserMessage } from '@superliora/kosong';
 
 import type { Session } from '../session';
 import type { HookHostServices } from '../session/hooks';
-import { extractTextFromGenerateResponse } from '../ultrawork/llm-classifier-utils';
+import { extractTextFromGenerateResponse } from '../mission/llm-classifier-utils';
 import { pluginMcpRuntimeName } from './types';
 
 const PROMPT_HOOK_SYSTEM = [
