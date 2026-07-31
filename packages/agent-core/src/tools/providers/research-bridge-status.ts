@@ -14,6 +14,7 @@ export const DEFAULT_CHROME_EXT_BRIDGE_URL = 'http://127.0.0.1:32123/search';
 export const NATIVE_HOST_ID = 'com.superliora.research_bridge';
 export const NATIVE_HOST_SCRIPT_REL = 'scripts/research-bridge-native-host.mjs';
 export const NATIVE_HOST_SMOKE_TIMEOUT_MS = 1_500;
+export const NATIVE_HOST_LOOPBACK_TIMEOUT_MS = 1_500;
 export const NATIVE_HOST_SMOKE_CACHE_TTL_MS = 30_000;
 export const NATIVE_HOST_SMOKE_SKIP_ENV = 'SUPERLIORA_RESEARCH_BRIDGE_SKIP_SMOKE';
 
@@ -22,11 +23,18 @@ export type ResearchBridgeHandshake =
   | 'env-gated'
   | 'manifest-present'
   | 'host-script-ready'
-  | 'smoke-verified';
+  | 'smoke-verified'
+  | 'loopback-verified';
 
 export interface NativeHostSmokeProbe {
   readonly ok: boolean;
   readonly version?: string | undefined;
+  readonly error?: string | undefined;
+  readonly probedAt: number;
+}
+
+export interface NativeHostLoopbackProbe {
+  readonly ok: boolean;
   readonly error?: string | undefined;
   readonly probedAt: number;
 }
@@ -36,6 +44,7 @@ export interface ResearchBridgeNativeHostStatus {
   readonly manifestPath?: string | undefined;
   readonly hostScriptPath?: string | undefined;
   readonly smoke?: NativeHostSmokeProbe | undefined;
+  readonly loopback?: NativeHostLoopbackProbe | undefined;
 }
 
 export interface ResearchBridgeStatus {
@@ -53,10 +62,18 @@ export interface BuildResearchBridgeStatusOptions {
   readonly env?: NodeJS.ProcessEnv | undefined;
   /** When false, skip `--smoke` spawn and keep file-probe handshake only. */
   readonly probeSmoke?: boolean | undefined;
+  /** When false, skip `--probe-loopback` after smoke succeeds. */
+  readonly probeLoopback?: boolean | undefined;
   readonly smokeDeps?: NativeHostSmokeDeps | undefined;
+  readonly loopbackDeps?: NativeHostLoopbackDeps | undefined;
 }
 
 export interface NativeHostSmokeDeps {
+  readonly spawnSync?: typeof spawnSync | undefined;
+  readonly now?: (() => number) | undefined;
+}
+
+export interface NativeHostLoopbackDeps {
   readonly spawnSync?: typeof spawnSync | undefined;
   readonly now?: (() => number) | undefined;
 }
@@ -158,6 +175,39 @@ export function probeNativeHostSmoke(
   return probe;
 }
 
+/** Runs native-host `--probe-loopback` once (sync, short timeout). Injectable for tests. */
+export function probeNativeHostLoopback(
+  scriptPath: string,
+  env: NodeJS.ProcessEnv = process.env,
+  deps: NativeHostLoopbackDeps = {},
+): NativeHostLoopbackProbe {
+  const now = deps.now ?? Date.now;
+  const probedAt = now();
+  const spawn = deps.spawnSync ?? spawnSync;
+  const result: SpawnSyncReturns<string> = spawn(
+    process.execPath,
+    [scriptPath, '--probe-loopback'],
+    {
+      env,
+      encoding: 'utf8',
+      timeout: NATIVE_HOST_LOOPBACK_TIMEOUT_MS,
+    },
+  );
+
+  if (result.error !== undefined) {
+    return { ok: false, error: result.error.message, probedAt };
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status ?? '?'}`;
+    return { ok: false, error: detail, probedAt };
+  }
+  const stdout = result.stdout ?? '';
+  if (!stdout.includes('research-bridge loopback ok')) {
+    return { ok: false, error: stdout.trim() || 'unexpected loopback output', probedAt };
+  }
+  return { ok: true, probedAt };
+}
+
 function shouldProbeNativeHostSmoke(env: NodeJS.ProcessEnv, probeSmoke: boolean | undefined): boolean {
   if (probeSmoke === false) return false;
   if (env[NATIVE_HOST_SMOKE_SKIP_ENV] === '1') return false;
@@ -218,7 +268,10 @@ export function resolveResearchBridgeUrl(env: NodeJS.ProcessEnv = process.env): 
 function detectNativeHostHandshake(
   env: NodeJS.ProcessEnv,
   agentCoreRoot: string | undefined,
-  options: Pick<BuildResearchBridgeStatusOptions, 'probeSmoke' | 'smokeDeps'> = {},
+  options: Pick<
+    BuildResearchBridgeStatusOptions,
+    'probeSmoke' | 'probeLoopback' | 'smokeDeps' | 'loopbackDeps'
+  > = {},
 ): ResearchBridgeNativeHostStatus {
   if (!isResearchBridgeEnabled(env)) {
     return { handshake: 'off' };
@@ -236,7 +289,20 @@ function detectNativeHostHandshake(
       if (shouldProbeNativeHostSmoke(env, options.probeSmoke)) {
         const smoke = probeNativeHostSmoke(hostScriptPath, env, options.smokeDeps);
         if (smoke.ok) {
-          return { handshake: 'smoke-verified', manifestPath, hostScriptPath, smoke };
+          if (options.probeLoopback === false) {
+            return { handshake: 'smoke-verified', manifestPath, hostScriptPath, smoke };
+          }
+          const loopback = probeNativeHostLoopback(hostScriptPath, env, options.loopbackDeps);
+          if (loopback.ok) {
+            return {
+              handshake: 'loopback-verified',
+              manifestPath,
+              hostScriptPath,
+              smoke,
+              loopback,
+            };
+          }
+          return { handshake: 'smoke-verified', manifestPath, hostScriptPath, smoke, loopback };
         }
         return { handshake: 'host-script-ready', manifestPath, hostScriptPath, smoke };
       }
@@ -252,6 +318,12 @@ function handshakeHint(
   bridgeUrl: string | undefined,
 ): string {
   switch (nativeHost.handshake) {
+    case 'loopback-verified':
+      return (
+        `Ch5 bridge ON — loopback search verified` +
+        (nativeHost.smoke?.version !== undefined ? ` (${nativeHost.smoke.version})` : '') +
+        ` · ${bridgeUrl ?? DEFAULT_CHROME_EXT_BRIDGE_URL}.`
+      );
     case 'smoke-verified':
       return (
         `Ch5 bridge ON — native host smoke verified` +
@@ -303,7 +375,9 @@ export function buildResearchBridgeStatus(
   const agentCoreRoot = options.agentCoreRoot ?? resolveDefaultAgentCoreRoot();
   const nativeHost = detectNativeHostHandshake(env, agentCoreRoot, {
     probeSmoke: options.probeSmoke,
+    probeLoopback: options.probeLoopback,
     smokeDeps: options.smokeDeps,
+    loopbackDeps: options.loopbackDeps,
   });
   const ready = configured && enabled && (bridgeUrl?.trim().length ?? 0) > 0;
 
@@ -339,6 +413,10 @@ export function formatResearchBridgeHandshakeLine(
   nativeHost: ResearchBridgeNativeHostStatus,
 ): string {
   switch (nativeHost.handshake) {
+    case 'loopback-verified':
+      return nativeHost.smoke?.version !== undefined
+        ? `Native host: loopback verified (${nativeHost.smoke.version})`
+        : 'Native host: loopback verified';
     case 'smoke-verified':
       return nativeHost.smoke?.version !== undefined
         ? `Native host: smoke verified (${nativeHost.smoke.version})`
