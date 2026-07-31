@@ -7,6 +7,7 @@ import {
   repoIndexWarmEnableReason,
   repoIndexWarmStatusLine,
 } from '#/repo-index/warm';
+import { REPO_INDEX_ENGINE_ENV } from '#/repo-index/status';
 import { SOVEREIGN_UMBRELLA_ENV } from '#/profile/main-profile';
 
 vi.mock('#/codemap/code-map', () => ({
@@ -17,6 +18,12 @@ vi.mock('#/codemap/code-map', () => ({
 
 vi.mock('#/codemap/status', () => ({
   isCodemapGitWorkspace: vi.fn(() => true),
+}));
+
+vi.mock('#/repo-index/content-indexer', () => ({
+  getContentIndexForWorkspace: vi.fn(() => ({
+    ensureReady: vi.fn(() => true),
+  })),
 }));
 
 describe('repo index warm env gate', () => {
@@ -51,6 +58,36 @@ describe('repo index warm env gate', () => {
         [SOVEREIGN_UMBRELLA_ENV]: '1',
       }),
     ).toBe(`${REPO_INDEX_WARM_ENV}=1`);
+  });
+
+  it('repoIndexWarmStatusLine mentions sqlite FTS when engine=sqlite and warm is on', () => {
+    expect(
+      repoIndexWarmStatusLine({
+        [REPO_INDEX_WARM_ENV]: '1',
+        [REPO_INDEX_ENGINE_ENV]: 'sqlite',
+      }),
+    ).toContain('sqlite FTS content index warm');
+  });
+
+  it('maybeWarmCodemapAtSessionStart warms content FTS when engine=sqlite', async () => {
+    const { getContentIndexForWorkspace } = await import('#/repo-index/content-indexer');
+    maybeWarmCodemapAtSessionStart('/workspace/demo', {
+      [REPO_INDEX_WARM_ENV]: '1',
+      [REPO_INDEX_ENGINE_ENV]: 'sqlite',
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(getContentIndexForWorkspace).toHaveBeenCalledWith('/workspace/demo');
+    const contentIndex = vi.mocked(getContentIndexForWorkspace).mock.results[0]?.value as {
+      ensureReady: ReturnType<typeof vi.fn>;
+    };
+    expect(contentIndex.ensureReady).toHaveBeenCalled();
+  });
+
+  it('maybeWarmCodemapAtSessionStart skips content FTS warm when engine is not sqlite', async () => {
+    const { getContentIndexForWorkspace } = await import('#/repo-index/content-indexer');
+    maybeWarmCodemapAtSessionStart('/workspace/demo', { [REPO_INDEX_WARM_ENV]: '1' });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(getContentIndexForWorkspace).not.toHaveBeenCalled();
   });
 
   it('maybeWarmCodemapAtSessionStart no-ops when env is off', async () => {

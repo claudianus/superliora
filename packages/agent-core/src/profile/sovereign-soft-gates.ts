@@ -8,6 +8,8 @@ import {
 } from './main-profile';
 
 export const HIDE_LEGACY_TOOL_NAMES_ENV = 'SUPERLIORA_HIDE_LEGACY_TOOL_NAMES';
+/** Opt out of hide-legacy product default (legacy compat aliases register again). */
+export const SHOW_LEGACY_TOOL_NAMES_ENV = 'SUPERLIORA_SHOW_LEGACY_TOOL_NAMES';
 export const REPO_INDEX_WARM_ENV = 'SUPERLIORA_REPO_INDEX_WARM';
 export const MISSION_DUAL_EMIT_ENV = 'SUPERLIORA_MISSION_DUAL_EMIT';
 export const FLEET_DUAL_EMIT_ENV = 'SUPERLIORA_FLEET_DUAL_EMIT';
@@ -23,18 +25,19 @@ function nonEmptyEnvFrom(name: string, env: NodeJS.ProcessEnv): string | undefin
   return value !== undefined && value.length > 0 ? value : undefined;
 }
 
-/** Which env flag enabled hide-legacy tool names, if any. */
+/** Which env flag enabled hide-legacy tool names, if any (null when opted out). */
 export function hideLegacyToolNamesEnableReason(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
+  if (isTruthyEnvFlag(env[SHOW_LEGACY_TOOL_NAMES_ENV])) return null;
   if (nonEmptyEnvFrom(HIDE_LEGACY_TOOL_NAMES_ENV, env) !== undefined) {
     return HIDE_LEGACY_TOOL_NAMES_ENV;
   }
   if (isTruthyEnvFlag(env[SOVEREIGN_UMBRELLA_ENV])) return `${SOVEREIGN_UMBRELLA_ENV}=1`;
-  return null;
+  return 'default';
 }
 
-/** Hard opt-out via env, or soft default when umbrella sovereign reform is enabled. */
+/** Product default ON; opt out via {@link SHOW_LEGACY_TOOL_NAMES_ENV}=1. */
 export function isHideLegacyToolNamesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return hideLegacyToolNamesEnableReason(env) !== null;
 }

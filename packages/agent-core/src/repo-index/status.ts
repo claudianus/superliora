@@ -36,9 +36,9 @@ export const REPO_INDEX_FTS_BACKEND_TIP =
 export const REPO_INDEX_FUTURE_ENABLE_TIP =
   'Future: config [index] enable + backend (fts/ast-grep/zoekt) · warm on session start.';
 
-/** W8 soft — codemap warm ships; full FTS engine warm stays future slice. */
+/** W8 soft — codemap + sqlite FTS content warm when engine=sqlite and env opt-in. */
 export const REPO_INDEX_WARM_PARALLEL_TIP =
-  'W8 soft: codemap fire-and-forget ensureReady at session start when SUPERLIORA_REPO_INDEX_WARM=1 or SUPERLIORA_SOVEREIGN=1; full FTS engine warm stays future slice.';
+  'W8 soft: codemap fire-and-forget ensureReady at session start when SUPERLIORA_REPO_INDEX_WARM=1 or SUPERLIORA_SOVEREIGN=1; sqlite FTS content index warm when engine=sqlite.';
 
 /** Sovereign Reform §6 — 1차 bundled FTS5; zoekt sidecar stays opt-in. */
 export const REPO_INDEX_PREFERRED_ENGINE: RepoIndexEngine = 'sqlite';
@@ -130,13 +130,13 @@ export function getRepoIndexStatus(env: NodeJS.ProcessEnv = process.env): RepoIn
 }
 
 const REPO_INDEX_CONTENT_STUB_TIP =
-  'SQLite FTS5 driver ready — content indexer stub returns empty-with-status until W3 build ships.';
+  'SQLite FTS5 workspace content index — real indexed lines (capped v1).';
 
 /** Compact backend line for Settings → Index and Ops glances. */
 export function formatRepoIndexBackendLine(status: RepoIndexStatus): string {
   if (status.enabled) {
     const driver = status.driver !== null ? ` · driver=${status.driver}` : '';
-    return `FTS backend: ${status.backend} (live stub${driver})`;
+    return `FTS backend: ${status.backend} (live${driver})`;
   }
   if (status.engine === 'stub') {
     return (

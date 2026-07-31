@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Readable } from 'node:stream';
 import type { Writable } from 'node:stream';
 
@@ -6,19 +9,19 @@ import type { KaosProcess } from '@superliora/kaos';
 
 import {
   REPO_INDEX_CONTENT_STUB_HINT,
-  REPO_INDEX_SYNTHETIC_PROBE_TOKEN,
-  REPO_INDEX_ZOEKT_STUB_HINT,
-  REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
   REPO_INDEX_ZOEKT_URL_ENV,
+  resetContentIndexForTests,
   resetRepoIndexSyntheticFtsForTests,
   resetZoektFetchOverride,
   resetZoektSidecarProbeOverride,
+  setContentIndexDbPathOverrideForTests,
   setZoektFetchOverrideForTests,
   setZoektSidecarProbeOverrideForTests,
 } from '#/repo-index/engine';
 import { REPO_INDEX_ENGINE_ENV } from '#/repo-index/status';
 import { RepoQueryTool } from '#/tools/builtin/file/repo-query';
-import { createFakeKaos, PERMISSIVE_WORKSPACE } from '../../fixtures/fake-kaos';
+import type { WorkspaceConfig } from '#/tools/support/workspace';
+import { createFakeKaos } from '../../fixtures/fake-kaos';
 import { executeTool } from '../../fixtures/execute-tool';
 
 const signal = new AbortController().signal;
@@ -42,25 +45,39 @@ function processWithOutput(stdout: string, stderr = '', exitCode = 0): KaosProce
 }
 
 describe('RepoQuery content mode — sqlite FTS preview', () => {
+  let dir: string;
+  let workspace: WorkspaceConfig;
+  const probeToken = 'RepoQueryContentProbeToken';
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'repo-query-content-'));
+    writeFileSync(join(dir, 'indexed.ts'), `export const token = '${probeToken}';\n`);
+    workspace = { workspaceDir: dir, additionalDirs: [] };
+    setContentIndexDbPathOverrideForTests(() => ':memory:');
+  });
+
   afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
     vi.unstubAllEnvs();
     resetRepoIndexSyntheticFtsForTests();
     resetZoektSidecarProbeOverride();
     resetZoektFetchOverride();
+    setContentIndexDbPathOverrideForTests(null);
+    resetContentIndexForTests();
   });
 
-  it('surfaces synthetic FTS hit before Grep when engine=sqlite', async () => {
+  it('surfaces real FTS hit before Grep when engine=sqlite', async () => {
     vi.stubEnv(REPO_INDEX_ENGINE_ENV, 'sqlite');
     const exec = vi.fn();
-    const tool = new RepoQueryTool(createFakeKaos({ exec }), PERMISSIVE_WORKSPACE);
+    const tool = new RepoQueryTool(createFakeKaos({ exec }), workspace);
 
     const result = await executeTool(tool, {
       turnId: '0',
       toolCallId: 'call_repo_query',
       args: {
         mode: 'content',
-        query: REPO_INDEX_SYNTHETIC_PROBE_TOKEN,
-        path: 'src',
+        query: probeToken,
+        path: 'indexed',
       },
       signal,
     });
@@ -68,8 +85,8 @@ describe('RepoQuery content mode — sqlite FTS preview', () => {
     expect(result.isError).toBeFalsy();
     const output = typeof result.output === 'string' ? result.output : '';
     expect(output).toContain('index_status: partial');
-    expect(output).toContain(REPO_INDEX_SYNTHETIC_PROBE_TOKEN);
-    expect(output).toContain('src/repo-index/engine.ts');
+    expect(output).toContain(probeToken);
+    expect(output).toContain('indexed.ts');
     expect(output).toContain(REPO_INDEX_CONTENT_STUB_HINT);
     expect(exec).not.toHaveBeenCalled();
   });
@@ -82,7 +99,7 @@ describe('RepoQuery content mode — zoekt sidecar soft stub', () => {
     resetZoektFetchOverride();
   });
 
-  it('falls through to Grep with zoekt stub hint when engine=zoekt and URL wired', async () => {
+  it('falls through to Grep when engine=zoekt and zoekt HTTP has no hits', async () => {
     vi.stubEnv(REPO_INDEX_ENGINE_ENV, 'zoekt');
     vi.stubEnv(REPO_INDEX_ZOEKT_URL_ENV, 'http://127.0.0.1:6070');
     setZoektSidecarProbeOverrideForTests(() => ({
@@ -91,11 +108,18 @@ describe('RepoQuery content mode — zoekt sidecar soft stub', () => {
       detail: 'http://127.0.0.1:6070',
       reason: null,
     }));
-    const fetchImpl = vi.fn(async () => ({ status: 200 })) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ result: { FileMatches: [] } }),
+    })) as unknown as typeof fetch;
     setZoektFetchOverrideForTests(fetchImpl);
 
-    const execWithEnv = vi.fn().mockResolvedValue(processWithOutput(''));
-    const tool = new RepoQueryTool(createFakeKaos({ execWithEnv }), PERMISSIVE_WORKSPACE);
+    const exec = vi.fn().mockResolvedValue(processWithOutput(''));
+    const tool = new RepoQueryTool(createFakeKaos({ exec }), {
+      workspaceDir: '/',
+      additionalDirs: [],
+    });
 
     const result = await executeTool(tool, {
       turnId: '0',
@@ -111,10 +135,7 @@ describe('RepoQuery content mode — zoekt sidecar soft stub', () => {
     expect(result.isError).toBeFalsy();
     const output = typeof result.output === 'string' ? result.output : '';
     expect(output).toContain('index_status: cold');
-    expect(output).toContain(REPO_INDEX_ZOEKT_STUB_HINT);
-    expect(output).toContain('HTTP 200');
-    expect(output).toContain(REPO_INDEX_ZOEKT_STUB_NEXT_STEP);
     expect(fetchImpl).toHaveBeenCalled();
-    expect(execWithEnv).toHaveBeenCalled();
+    expect(exec).toHaveBeenCalled();
   });
 });

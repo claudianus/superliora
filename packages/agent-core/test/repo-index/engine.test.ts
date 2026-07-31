@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   REPO_INDEX_CONTENT_STUB_HINT,
-  REPO_INDEX_SYNTHETIC_PROBE_TOKEN,
   REPO_INDEX_ZOEKT_LIVE_HINT,
   REPO_INDEX_ZOEKT_STUB_HINT,
   REPO_INDEX_ZOEKT_STUB_NEXT_STEP,
@@ -12,23 +14,37 @@ import {
   probeZoektSidecar,
   queryRepoIndexContent,
   queryRepoIndexContentAsync,
+  resetContentIndexForTests,
   resetRepoIndexSyntheticFtsForTests,
   resetSqliteDriverProbeOverride,
   resetZoektFetchOverride,
   resetZoektSidecarProbeOverride,
+  setContentIndexDbPathOverrideForTests,
   setSqliteDriverProbeOverrideForTests,
   setZoektFetchOverrideForTests,
   setZoektSidecarProbeOverrideForTests,
 } from '#/repo-index/engine';
 
-describe('repo-index engine soft stub', () => {
+describe('repo-index engine sqlite FTS', () => {
+  let dir: string;
+  const probeToken = 'UniqueEngineFtsProbeToken';
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'repo-index-engine-'));
+    writeFileSync(join(dir, 'probe.ts'), `export const marker = '${probeToken}';\n`);
+    setContentIndexDbPathOverrideForTests(() => ':memory:');
+  });
+
   afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
     resetSqliteDriverProbeOverride();
     resetZoektSidecarProbeOverride();
     resetZoektFetchOverride();
     resetRepoIndexSyntheticFtsForTests();
+    setContentIndexDbPathOverrideForTests(null);
+    resetContentIndexForTests();
   });
 
   it('probeSqliteDriver prefers node:sqlite on supported Node', () => {
@@ -99,34 +115,42 @@ describe('repo-index engine soft stub', () => {
     });
   });
 
-  it('queryRepoIndexContent returns synthetic FTS hit for probe token', () => {
+  it('queryRepoIndexContent returns real FTS hit for indexed token in temp workspace', () => {
     const result = queryRepoIndexContent(
-      { query: REPO_INDEX_SYNTHETIC_PROBE_TOKEN, path: 'src', limit: 10 },
+      { query: probeToken, path: 'probe', limit: 10, workspaceDir: dir },
       'sqlite',
     );
     expect(result.results.length).toBeGreaterThanOrEqual(1);
-    expect(result.results[0]).toContain(REPO_INDEX_SYNTHETIC_PROBE_TOKEN);
+    expect(result.results[0]).toContain(probeToken);
+    expect(result.results[0]).toMatch(/^probe\.ts:L\d+ /);
     expect(result.index_status).toBe('partial');
     expect(result.hint).toContain(REPO_INDEX_CONTENT_STUB_HINT);
     expect(result.next_step.length).toBeGreaterThan(0);
   });
 
   it('queryRepoIndexContent returns empty for unknown token with Grep fallback hint', () => {
-    const result = queryRepoIndexContent({ query: 'zzzz-not-indexed-token-zzzz', limit: 10 }, 'sqlite');
+    const result = queryRepoIndexContent(
+      { query: 'zzzz-not-indexed-token-zzzz', limit: 10, workspaceDir: dir },
+      'sqlite',
+    );
     expect(result.results).toEqual([]);
     expect(result.index_status).toBe('cold');
     expect(result.next_step).toContain('Grep fallback');
   });
 
-  it('queryRepoIndexContent scopes synthetic hits by path prefix', () => {
+  it('queryRepoIndexContent scopes hits by path prefix', () => {
+    writeFileSync(join(dir, 'other.ts'), `${probeToken} elsewhere\n`);
+    resetContentIndexForTests();
+
     const hit = queryRepoIndexContent(
-      { query: REPO_INDEX_SYNTHETIC_PROBE_TOKEN, path: 'src/repo-index', limit: 10 },
+      { query: probeToken, path: 'probe', limit: 10, workspaceDir: dir },
       'sqlite',
     );
     expect(hit.results.length).toBeGreaterThanOrEqual(1);
+    expect(hit.results.every((row) => row.startsWith('probe.ts:'))).toBe(true);
 
     const miss = queryRepoIndexContent(
-      { query: REPO_INDEX_SYNTHETIC_PROBE_TOKEN, path: 'apps/liora', limit: 10 },
+      { query: probeToken, path: 'apps/liora', limit: 10, workspaceDir: dir },
       'sqlite',
     );
     expect(miss.results).toEqual([]);

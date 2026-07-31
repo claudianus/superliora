@@ -328,7 +328,10 @@ function handshakeHint(
       return (
         `Ch5 bridge ON — native host smoke verified` +
         (nativeHost.smoke?.version !== undefined ? ` (${nativeHost.smoke.version})` : '') +
-        ` · loopback ${bridgeUrl ?? DEFAULT_CHROME_EXT_BRIDGE_URL}.`
+        ` · loopback ${bridgeUrl ?? DEFAULT_CHROME_EXT_BRIDGE_URL}` +
+        (nativeHost.loopback !== undefined && !nativeHost.loopback.ok
+          ? ' · runtime auto-serves --serve when loopback probe fails'
+          : '.')
       );
     case 'host-script-ready':
       if (nativeHost.smoke !== undefined && !nativeHost.smoke.ok) {
@@ -360,6 +363,7 @@ export function researchBridgeCh5Tip(): string {
   return (
     `Ch5 bridge: ${CHROME_RESEARCH_BRIDGE_ENV}=1 (or legacy ${CHROME_EXT_BRIDGE_ENV}=1) · ` +
     `optional ${CHROME_EXT_URL_ENV} (default ${DEFAULT_CHROME_EXT_BRIDGE_URL}) · ` +
+    `runtime auto-spawns native-host --serve when loopback probe fails · ` +
     `Chrome native-messaging host ${NATIVE_HOST_ID} + SuperLiora extension (localhost POST or stdio handshake).`
   );
 }

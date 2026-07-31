@@ -30,9 +30,9 @@ export const TOOLS_WAIST_TIP =
 /** Appended when SearchTools is registered — schema discovery without full dump. */
 export const SEARCHTOOLS_SCHEMA_TIP = 'SearchTools dumps tool schemas mid-turn.';
 
-/** Appended in Tools inventory when umbrella sovereign reform is enabled. */
+/** Appended in Tools inventory when hide-legacy product default is active. */
 export const HIDE_LEGACY_SOVEREIGN_TIP =
-  'SUPERLIORA_SOVEREIGN=1 soft-hides legacy tool aliases; explicit profile selection keeps them.';
+  'Legacy compat aliases hidden by default; opt out via SUPERLIORA_SHOW_LEGACY_TOOL_NAMES=1. Explicit profile selection keeps them.';
 
 const PROFILE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   {

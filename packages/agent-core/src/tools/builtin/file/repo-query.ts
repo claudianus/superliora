@@ -151,7 +151,15 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
     const engine = parseRepoIndexEngineEnv(process.env[REPO_INDEX_ENGINE_ENV]);
     const indexQuery =
       engine === 'sqlite' || engine === 'zoekt'
-        ? await queryRepoIndexContentAsync({ query: input.query, path: input.path, limit }, engine)
+        ? await queryRepoIndexContentAsync(
+            {
+              query: input.query,
+              path: input.path,
+              limit,
+              workspaceDir: this.workspace.workspaceDir,
+            },
+            engine,
+          )
         : null;
     if (indexQuery !== null && indexQuery.results.length > 0) {
       return {
