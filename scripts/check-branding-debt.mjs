@@ -36,6 +36,8 @@ const TOOL_DEBT_NAMES = [
   'LioraReview',
   'CreateUltraGoal',
   'UltraworkGraph',
+  'UltraSwarm',
+  'AgentSwarm',
 ];
 
 /**
@@ -47,7 +49,7 @@ const TOOL_DEBT_NAMES = [
 const PROFILE_TOOL_DEBT_ALLOWLIST = new Map([
   [
     'packages/agent-core/src/profile/default/full.yaml',
-    new Set(['CreateUltraGoal', 'UltraworkGraph']),
+    new Set(['CreateUltraGoal', 'UltraworkGraph', 'UltraSwarm', 'AgentSwarm']),
   ],
 ]);
 
@@ -66,6 +68,8 @@ const REGISTRATION_ONLY_TOOL_DEBT = new Set([
   'LioraReview',
   'CreateUltraGoal',
   'UltraworkGraph',
+  'UltraSwarm',
+  'AgentSwarm',
 ]);
 
 /**

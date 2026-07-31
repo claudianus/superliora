@@ -65,6 +65,8 @@ const mocks = vi.hoisted(() => {
     harnessClose: vi.fn(),
     harnessTrack: vi.fn(),
     harnessGetCachedAccessToken: vi.fn(),
+    harnessBroadcastRuntimeDegraded: vi.fn(),
+    harnessResolveOAuthTokenProvider: vi.fn(() => ({ getAccessToken: vi.fn(async () => 'token') })),
     initializeTelemetry: vi.fn(),
     setCrashPhase: vi.fn(),
     shutdownTelemetry: vi.fn(),
@@ -92,7 +94,11 @@ vi.mock('@superliora/sdk', async (importOriginal) => {
       mocks.kimiHarnessConstructor(...args);
       return {
         homeDir,
-        auth: { getCachedAccessToken: mocks.harnessGetCachedAccessToken },
+        auth: {
+          getCachedAccessToken: mocks.harnessGetCachedAccessToken,
+          resolveOAuthTokenProvider: mocks.harnessResolveOAuthTokenProvider,
+        },
+        broadcastRuntimeDegraded: mocks.harnessBroadcastRuntimeDegraded,
         ensureConfigFile: mocks.harnessEnsureConfigFile,
         getConfig: mocks.harnessGetConfig,
         getConfigDiagnostics: mocks.harnessGetConfigDiagnostics,
@@ -1030,6 +1036,54 @@ describe('runPrompt', () => {
     }
     releasePrompt();
     await run;
+  });
+
+  it('broadcasts runtime.degraded when proactive oauth refresh fails in headless mode', async () => {
+    vi.useFakeTimers();
+    const refreshError = new Error('token refresh failed');
+    mocks.harnessResolveOAuthTokenProvider.mockReturnValueOnce({
+      getAccessToken: vi.fn(async () => {
+        throw refreshError;
+      }),
+    });
+    let releasePrompt!: () => void;
+    mocks.session.prompt.mockImplementationOnce(async () => {
+      for (const handler of mocks.eventHandlers) {
+        handler(
+          mocks.mainEvent({ type: 'turn.started', turnId: 11, origin: { kind: 'user' } }),
+        );
+      }
+      await new Promise<void>((resolve) => {
+        releasePrompt = resolve;
+      });
+      for (const handler of mocks.eventHandlers) {
+        handler(mocks.mainEvent({ type: 'assistant.delta', turnId: 11, delta: 'ok' }));
+        handler(mocks.mainEvent({ type: 'turn.ended', turnId: 11, reason: 'completed' }));
+      }
+    });
+
+    try {
+      const stdout = writer();
+      const stderr = writer();
+      const run = runPrompt(opts(), '1.2.3-test', { stdout, stderr });
+
+      await flushMicrotasks();
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+      expect(mocks.harnessBroadcastRuntimeDegraded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'runtime.degraded',
+          scope: 'oauth',
+          reason: 'token refresh failed',
+        }),
+      );
+
+      releasePrompt();
+      await vi.advanceTimersByTimeAsync(PROMPT_CLEANUP_TIMEOUT_MS + 100);
+      await run;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('uses auto permission so headless mode can bypass plan approval and questions', async () => {

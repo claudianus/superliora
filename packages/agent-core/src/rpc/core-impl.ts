@@ -1,6 +1,7 @@
 import { log } from '#/logging/logger';
 import { PluginHost, PluginManager } from '#/plugin/index';
 import type { OAuthRefreshOutcome } from '@superliora/oauth';
+import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
 import type { PromisableMethods } from '#/utils/types';
 import { getCoreVersion } from '#/version';
@@ -196,15 +197,19 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     }
   }
 
-  /** Broadcast oauth-scoped runtime.degraded to ready main agents (LLM-path refresh). */
-  broadcastOAuthRefreshDegraded(
-    outcome: Extract<OAuthRefreshOutcome, { success: false }>,
-  ): void {
-    const event = buildOAuthRefreshDegradedEventFromOutcome(outcome);
+  /** Broadcast volatile runtime.degraded to ready main agents (Never-Halt hosts). */
+  broadcastRuntimeDegraded(event: RuntimeDegradedEvent): void {
     for (const session of this.sessions.values()) {
       const main = session.getReadyAgent('main');
       main?.emitOAuthRefreshDegraded(event);
     }
+  }
+
+  /** Broadcast oauth-scoped runtime.degraded to ready main agents (LLM-path refresh). */
+  broadcastOAuthRefreshDegraded(
+    outcome: Extract<OAuthRefreshOutcome, { success: false }>,
+  ): void {
+    this.broadcastRuntimeDegraded(buildOAuthRefreshDegradedEventFromOutcome(outcome));
   }
 
   getKimiConfig = delegateContextMethod(configMethods.getKimiConfig);

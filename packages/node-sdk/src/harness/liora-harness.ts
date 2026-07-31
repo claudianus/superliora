@@ -4,6 +4,7 @@ import {
   LioraError,
   withTelemetryContext,
   type ExperimentalFeatureState,
+  type RuntimeDegradedEvent,
 } from '@superliora/agent-core';
 
 import { Session } from '#/session/session';
@@ -114,6 +115,15 @@ export class LioraHarness {
       this.rpc.emergencyFlushSync();
     } catch {
       // Best-effort — the process is dying.
+    }
+  }
+
+  /** Volatile Never-Halt signal for non-TUI hosts (headless prompt, server, SDK). */
+  broadcastRuntimeDegraded(event: RuntimeDegradedEvent): void {
+    try {
+      this.rpc.broadcastRuntimeDegraded(event);
+    } catch {
+      // Best-effort — degraded surfacing must not abort the host loop.
     }
   }
 
