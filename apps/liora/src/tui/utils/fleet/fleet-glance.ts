@@ -399,3 +399,54 @@ export function buildFleetWorktreeSettingsLines(
     'Kaos sandbox worktree profile — planned (packages/kaos); no KAOS_* env yet.',
   ];
 }
+
+/** Schema-aligned clamp for background.maxRunningTasks (int ≥ 1). */
+export const FLEET_MAX_RUNNING_TASKS_MIN = 1;
+export const FLEET_MAX_RUNNING_TASKS_MAX = 16;
+
+export const FLEET_MAX_RUNNING_TASKS_PRESETS = [1, 2, 4, 8, 16] as const;
+
+export function clampFleetMaxRunningTasks(value: number): number {
+  const rounded = Math.trunc(value);
+  return Math.min(
+    FLEET_MAX_RUNNING_TASKS_MAX,
+    Math.max(FLEET_MAX_RUNNING_TASKS_MIN, rounded),
+  );
+}
+
+export function parseFleetMaxRunningTasksInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return clampFleetMaxRunningTasks(parsed);
+}
+
+export function resolveFleetMaxRunningTasks(
+  config: { readonly background?: { readonly maxRunningTasks?: number } } | null | undefined,
+): number | undefined {
+  const value = config?.background?.maxRunningTasks;
+  if (value === undefined) return undefined;
+  return clampFleetMaxRunningTasks(value);
+}
+
+export function buildFleetMaxRunningTasksConfigPatch(maxRunningTasks: number): {
+  readonly background: { readonly maxRunningTasks: number };
+} {
+  return { background: { maxRunningTasks: clampFleetMaxRunningTasks(maxRunningTasks) } };
+}
+
+export function formatFleetMaxRunningTasksLine(maxRunningTasks: number | undefined): string {
+  if (maxRunningTasks === undefined) {
+    return 'Max workers: background.maxRunningTasks (config default)';
+  }
+  return `Max workers: background.maxRunningTasks = ${String(maxRunningTasks)}`;
+}
+
+export const FLEET_MAX_RUNNING_TASKS_PICKER_OPTIONS = FLEET_MAX_RUNNING_TASKS_PRESETS.map(
+  (count) => ({
+    value: String(count),
+    label: `${String(count)} concurrent`,
+    description: `harness.setConfig → background.maxRunningTasks = ${String(count)}`,
+  }),
+);

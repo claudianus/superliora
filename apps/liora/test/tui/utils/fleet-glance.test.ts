@@ -28,6 +28,11 @@ import {
   formatFleetWorktreeEnvStatusLine,
   resolveFleetParallelToolsGlanceFromStatus,
   OPS_FLEET_WORKTREE_TIP,
+  clampFleetMaxRunningTasks,
+  parseFleetMaxRunningTasksInput,
+  buildFleetMaxRunningTasksConfigPatch,
+  formatFleetMaxRunningTasksLine,
+  resolveFleetMaxRunningTasks,
 } from '#/tui/utils/fleet/fleet-glance';
 
 describe('fleet governance tips', () => {
@@ -197,5 +202,29 @@ describe('fleet cost guard soft glance', () => {
   it('summarizes Cost Guard in Korean brief', () => {
     expect(FLEET_COST_GUARD_TIP_KO).toContain('SUPERLIORA_FLEET_BUDGET_USD');
     expect(FLEET_COST_GUARD_TIP_KO).toContain('soft-stop');
+  });
+});
+
+describe('fleet max running tasks config', () => {
+  it('clamps maxRunningTasks to schema bounds', () => {
+    expect(clampFleetMaxRunningTasks(0)).toBe(1);
+    expect(clampFleetMaxRunningTasks(2.9)).toBe(2);
+    expect(clampFleetMaxRunningTasks(99)).toBe(16);
+  });
+
+  it('parses integer input and rejects non-digits', () => {
+    expect(parseFleetMaxRunningTasksInput('4')).toBe(4);
+    expect(parseFleetMaxRunningTasksInput('0')).toBe(1);
+    expect(parseFleetMaxRunningTasksInput('abc')).toBeNull();
+    expect(parseFleetMaxRunningTasksInput('4.5')).toBeNull();
+  });
+
+  it('builds setConfig patch and status line', () => {
+    expect(buildFleetMaxRunningTasksConfigPatch(8)).toEqual({
+      background: { maxRunningTasks: 8 },
+    });
+    expect(formatFleetMaxRunningTasksLine(undefined)).toContain('config default');
+    expect(formatFleetMaxRunningTasksLine(4)).toContain('= 4');
+    expect(resolveFleetMaxRunningTasks({ background: { maxRunningTasks: 0 } })).toBe(1);
   });
 });

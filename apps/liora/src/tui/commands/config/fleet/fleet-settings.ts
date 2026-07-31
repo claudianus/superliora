@@ -1,21 +1,26 @@
 /**
- * Settings → Fleet / Parallel — read-only glance + tips (SSOT §9.2).
- * No fake budget/worker toggles until Fleet config schema lands.
+ * Settings → Fleet / Parallel — live glance + max workers config (SSOT §9.2).
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import {
   buildFleetSessionLiveLines,
   buildFleetCostGuardSettingsLines,
   buildFleetWorktreeSettingsLines,
   FLEET_GOVERNANCE_TIPS,
+  FLEET_MAX_RUNNING_TASKS_PICKER_OPTIONS,
+  formatFleetMaxRunningTasksLine,
   loadFleetBudgetGlance,
   loadFleetWorktreeGlance,
+  resolveFleetMaxRunningTasks,
   resolveFleetParallelToolsGlanceFromStatus,
+  buildFleetMaxRunningTasksConfigPatch,
   type FleetSessionLiveGlance,
 } from '../../../utils/fleet/fleet-glance';
 import { countActiveBackgroundTasks } from '../../../utils/session/message-replay';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import {
   FLEET_DUAL_EMIT_ENV,
   fleetDualEmitStatusLine,
@@ -40,7 +45,104 @@ export const FLEET_PROTOCOL_ALIAS_TIPS = [
 export { fleetDualEmitStatusLine };
 
 export function showFleetSettings(host: SlashCommandHost): void {
-  void showFleetSettingsPanel(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Fleet / Parallel',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Fleet status',
+          description: 'Live workers · parallel tools · orchestrator · evidence / budget tips.',
+        },
+        {
+          value: 'max-workers',
+          label: 'Max workers',
+          description: 'harness.setConfig → background.maxRunningTasks (background/bash cap).',
+        },
+        {
+          value: 'tip-governance',
+          label: 'Evidence & budget tips',
+          description: 'Maker≠Checker · swarm-evidence-gate · swarm-budget · parallel fanout.',
+        },
+        {
+          value: 'tip-protocol',
+          label: 'Protocol alias tip',
+          description: 'ultrawork.* canonical · fleet.* read normalize · dual-emit env.',
+        },
+        {
+          value: 'tip-import',
+          label: 'Import path tip',
+          description: 'Soft rename pending — #/fleet facade vs collaboration/ on disk.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showFleetSettingsPanel(host);
+          return;
+        }
+        if (value === 'max-workers') {
+          showFleetMaxWorkersPicker(host);
+          return;
+        }
+        if (value === 'tip-governance') {
+          host.showStatus(FLEET_GOVERNANCE_TIPS.join(' · '), 'info');
+          return;
+        }
+        if (value === 'tip-protocol') {
+          host.showStatus(fleetDualEmitStatusLine(), 'info');
+          return;
+        }
+        if (value === 'tip-import') {
+          host.showStatus(FLEET_IMPORT_PATH_TIPS[0] ?? '', 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Fleet' },
+  );
+}
+
+function showFleetMaxWorkersPicker(host: SlashCommandHost): void {
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Max background workers',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: FLEET_MAX_RUNNING_TASKS_PICKER_OPTIONS.map((option) => ({ ...option })),
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        void setFleetMaxRunningTasks(host, Number.parseInt(value, 10));
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Fleet max workers' },
+  );
+}
+
+async function setFleetMaxRunningTasks(host: SlashCommandHost, maxRunningTasks: number): Promise<void> {
+  try {
+    const patch = buildFleetMaxRunningTasksConfigPatch(maxRunningTasks);
+    const clamped = patch.background.maxRunningTasks;
+    await host.harness.setConfig(patch);
+    host.showStatus(
+      `Max background workers → ${String(clamped)} (background.maxRunningTasks).`,
+      'success',
+    );
+  } catch (error) {
+    host.showStatus(
+      `Failed to update background.maxRunningTasks: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+  }
 }
 
 async function loadFleetSessionLiveGlance(host: SlashCommandHost): Promise<FleetSessionLiveGlance> {
@@ -83,15 +185,12 @@ async function loadFleetSessionLiveGlance(host: SlashCommandHost): Promise<Fleet
 
 async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
   const { swarmMode, orchestratorMode, permissionMode } = host.state.appState;
-  let maxWorkersLine = 'Max workers: background.maxRunningTasks (config default)';
+  let maxWorkersLine = formatFleetMaxRunningTasksLine(undefined);
   let sessionsLine = 'Sessions in workspace: (unknown)';
 
   try {
     const config = await host.harness.getConfig({ reload: true });
-    const maxTasks = config.background?.maxRunningTasks;
-    if (maxTasks !== undefined) {
-      maxWorkersLine = `Max workers: background.maxRunningTasks = ${String(maxTasks)}`;
-    }
+    maxWorkersLine = formatFleetMaxRunningTasksLine(resolveFleetMaxRunningTasks(config));
   } catch {
     /* keep default tip */
   }
@@ -111,7 +210,7 @@ async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
     swarmMode && fleetEntry !== undefined ? ` · entry: ${fleetEntry}` : '';
 
   const lines = [
-    '── Fleet / Parallel (read-only) ────────────',
+    '── Fleet / Parallel ─────────────────────────',
     'Specialist delegation + parallel workers — §7.1.',
     '',
     ...buildFleetSessionLiveLines(sessionLive),
@@ -129,6 +228,7 @@ async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
     '── Max workers ──────────────────────────────',
     'Config key: background.maxRunningTasks (liora.toml / harness.setConfig).',
     'Caps concurrent background/bash admissions — not Fleet DAG width yet.',
+    'Toggle: Settings → Fleet → Max workers → background.maxRunningTasks.',
     'Future: fleet.maxWorkers for specialist pool — not in Settings yet.',
     '',
     '── Evidence & budget (agent-core) ───────────',
@@ -155,8 +255,6 @@ async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
     '  /fleet <task>       delegate to specialists',
     '  /orchestrator       background worker pool',
     '  /ops                Fleet theatre + git diff + health',
-    '',
-    'No persist controls here until Fleet config schema ships.',
   ];
 
   const panel = new UsagePanelComponent({
@@ -164,7 +262,9 @@ async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Fleet ',
     enterBeatSeed: 'fleet-settings',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
