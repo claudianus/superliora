@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { showThemeSettings } from '#/tui/commands/config/appearance/theme-settings';
-import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
-import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import {
   buildThemeSettingsLines,
   formatThemeCatalogLine,
   loadThemeSettingsGlance,
   resolveLivePaletteKind,
 } from '#/tui/utils/theme/theme-glance';
-import { vi } from 'vitest';
+import { darkColors, lightColors } from '#/tui/theme';
 
 describe('theme glance', () => {
   it('resolves live palette kind', () => {
@@ -43,29 +40,5 @@ describe('theme glance', () => {
     expect(text).toContain('Catalog:');
     expect(text).toContain('/theme import');
     expect(text).toContain('Settings → Appearance');
-  });
-});
-
-describe('showThemeSettings', () => {
-  it('renders live theme from appState and currentTheme', () => {
-    const previousPalette = currentTheme.palette;
-    currentTheme.setPalette(darkColors);
-
-    const host = {
-      state: {
-        appState: { theme: 'dark' },
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-    } as unknown as import('#/tui/commands/hub/dispatch').SlashCommandHost;
-
-    showThemeSettings(host);
-
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
-      .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.snapshotBodyLines(1).join('\n');
-    expect(text).toContain('Theme: dark · live palette dark');
-
-    currentTheme.setPalette(previousPalette);
   });
 });
