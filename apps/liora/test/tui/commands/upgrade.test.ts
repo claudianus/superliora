@@ -50,9 +50,13 @@ async function waitForStudio(host: SlashCommandHost): Promise<UpgradeStudioCompo
 }
 
 describe('upgrade slash command', () => {
-  it('registers /upgrade with /update alias', () => {
-    expect(findBuiltInSlashCommand('upgrade')?.name).toBe('upgrade');
-    expect(findBuiltInSlashCommand('update')?.name).toBe('upgrade');
+  it('registers /upgrade with /update as the same command', () => {
+    const viaUpgrade = findBuiltInSlashCommand('upgrade');
+    const viaUpdate = findBuiltInSlashCommand('update');
+    expect(viaUpgrade?.name).toBe('upgrade');
+    expect(viaUpdate?.name).toBe('upgrade');
+    expect(viaUpdate).toBe(viaUpgrade);
+    expect(viaUpgrade?.aliases).toContain('update');
   });
 
   it('mounts Upgrade Studio and resolves into plan mode', async () => {

@@ -126,13 +126,19 @@ export function createProgram(
   registerDoctorCommand(program);
   registerVisCommand(program);
   registerWorktreeCommand(program);
+  // First-class peers: `liora update` and `liora upgrade` share one handler
+  // (Upgrade Studio / install theatre). Keep both names discoverable in help.
+  const runUpgrade = async (): Promise<void> => {
+    await onUpgrade();
+  };
   program
     .command('upgrade')
-    .alias('update')
     .description(t('cli.sub.upgrade.description'))
-    .action(async () => {
-      await onUpgrade();
-    });
+    .action(runUpgrade);
+  program
+    .command('update')
+    .description(t('cli.sub.upgrade.description'))
+    .action(runUpgrade);
 
   program
     .command('__plugin_run_node', { hidden: true })

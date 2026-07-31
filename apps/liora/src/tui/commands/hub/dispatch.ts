@@ -469,6 +469,7 @@ async function handleBuiltInSlashCommand(
       handleFeedCommand(host);
       return;
     case 'upgrade':
+      // Canonical name is `upgrade`; `/update` resolves here via aliases.
       await handleUpgradeCommand(host);
       return;
     case 'context-os':

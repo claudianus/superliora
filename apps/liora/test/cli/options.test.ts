@@ -382,7 +382,7 @@ describe('CLI options parsing', () => {
       expect(upgradeCalls).toBe(1);
     });
 
-    it('routes update alias to the upgrade handler', () => {
+    it('routes update as a first-class peer of upgrade', () => {
       let upgradeCalls = 0;
       const program = createProgram(
         '0.0.0',
@@ -401,8 +401,10 @@ describe('CLI options parsing', () => {
       });
 
       program.parse(['node', 'kimi', 'update']);
-
       expect(upgradeCalls).toBe(1);
+
+      program.parse(['node', 'kimi', 'upgrade']);
+      expect(upgradeCalls).toBe(2);
     });
 
     it('registers the visible sub-commands', () => {
@@ -426,6 +428,7 @@ describe('CLI options parsing', () => {
         'vis',
         'worktree',
         'upgrade',
+        'update',
       ]);
     });
   });

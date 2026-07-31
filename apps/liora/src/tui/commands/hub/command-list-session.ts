@@ -386,7 +386,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'upgrade',
     aliases: ['update'],
-    description: 'Check for SuperLiora updates and install',
+    description: 'Open Upgrade Studio — check and install updates (/update same)',
     priority: 90,
     availability: 'always',
   },

@@ -120,7 +120,7 @@ In `stream-json` mode, regular replies produce an Assistant message; when the mo
 
 ## Subcommands
 
-`liora` provides the following subcommands: `login` (non-interactive login), `acp` (ACP IDE mode), `server` (run and manage the local REST/WebSocket/web service), `web` (alias for `liora server run --open`), `doctor` (validate configuration files), `export` (export a session), `migrate` (migrate legacy data), `upgrade` (check for updates), and `provider` (manage providers).
+`liora` provides the following subcommands: `login` (non-interactive login), `acp` (ACP IDE mode), `server` (run and manage the local REST/WebSocket/web service), `web` (alias for `liora server run --open`), `doctor` (validate configuration files), `export` (export a session), `migrate` (migrate legacy data), `upgrade` / `update` (check and install updates), and `provider` (manage providers).
 
 ### `liora login`
 
@@ -262,15 +262,16 @@ liora export 01HZ...XYZ -o ./bug-report.zip
 liora export 01HZ...XYZ -o ./bug-report.zip --no-include-global-log
 ```
 
-### `liora upgrade`
+### `liora upgrade` / `liora update`
 
-Immediately check for the latest version and display an update prompt; exits after you make a selection. `liora update` is an alias for this command.
+`liora update` and `liora upgrade` are the same command. Both open the update flow: check for a newer version, then install with live progress when the install source supports it (Upgrade Studio in the TUI; stage theatre on an interactive CLI TTY).
 
 ```sh
+liora update
 liora upgrade
 ```
 
-For global npm, pnpm, yarn, bun, and macOS / Linux native installations, `liora upgrade` shows update options; selecting `Install update now` runs the corresponding foreground install command. When the current installation method cannot be upgraded automatically (e.g., Windows native installation), the manual update command is printed instead.
+For global npm, pnpm, yarn, bun, GitHub source installs, and macOS / Linux native installations, the command can install automatically when you confirm. When the current installation method cannot be upgraded automatically (e.g., Windows native installation), the manual update command is printed instead.
 
 ### `liora vis`
 
