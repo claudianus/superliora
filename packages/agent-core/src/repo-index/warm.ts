@@ -1,9 +1,8 @@
 /**
- * W8 soft — fire-and-forget symbol codemap + sqlite content FTS warm at session start when env opt-in.
+ * Session-start codemap + sqlite content FTS warm — ON by default; opt-out SUPERLIORA_REPO_INDEX_WARM=0.
  */
 import { getCodeMapForWorkspace } from '#/codemap/code-map';
 import { isCodemapGitWorkspace } from '#/codemap/status';
-import { SOVEREIGN_UMBRELLA_ENV } from '#/profile/main-profile';
 import {
   REPO_INDEX_WARM_ENV,
   isRepoIndexWarmEnabled,
@@ -29,7 +28,7 @@ export function repoIndexWarmStatusLine(env: NodeJS.ProcessEnv = process.env): s
       : '';
   return reason !== null
     ? `Codemap warm: ON (${reason}) — fire-and-forget ensureReady at session start${ftsNote}`
-    : `Codemap warm: OFF (default) — lazy build on first RepoQuery ensureReady · opt-in: ${REPO_INDEX_WARM_ENV}=1 or ${SOVEREIGN_UMBRELLA_ENV}=1`;
+    : `Codemap warm: OFF — lazy build on first RepoQuery ensureReady · opt-out: ${REPO_INDEX_WARM_ENV}=0`;
 }
 
 /**

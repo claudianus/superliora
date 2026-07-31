@@ -6,13 +6,18 @@ import {
 } from '#/tui/utils/host/sovereign-umbrella-glance';
 
 describe('sovereign-umbrella-glance', () => {
-  it('resolveSovereignUmbrellaSoftGates keeps hide-legacy ON by default without umbrella env', () => {
+  it('resolveSovereignUmbrellaSoftGates keeps hide-legacy ON and warm ON by default without umbrella env', () => {
     const gates = resolveSovereignUmbrellaSoftGates({});
     expect(gates.coreProfile).toBe(false);
     expect(gates.hideLegacy).toBe(true);
-    expect(gates.warm).toBe(false);
+    expect(gates.warm).toBe(true);
     expect(gates.dualEmitMission).toBe(false);
     expect(gates.dualEmitFleet).toBe(false);
+  });
+
+  it('resolveSovereignUmbrellaSoftGates allows warm opt-out via SUPERLIORA_REPO_INDEX_WARM=0', () => {
+    const gates = resolveSovereignUmbrellaSoftGates({ SUPERLIORA_REPO_INDEX_WARM: '0' });
+    expect(gates.warm).toBe(false);
   });
 
   it('resolveSovereignUmbrellaSoftGates enables all gates when SUPERLIORA_SOVEREIGN=1', () => {

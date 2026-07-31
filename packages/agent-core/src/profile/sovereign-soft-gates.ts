@@ -20,6 +20,12 @@ function isTruthyEnvFlag(value: string | undefined): boolean {
   return flag === '1' || flag.toLowerCase() === 'true';
 }
 
+function isFalsyEnvFlag(value: string | undefined): boolean {
+  const flag = value?.trim();
+  if (flag === undefined || flag.length === 0) return false;
+  return flag === '0' || flag.toLowerCase() === 'false';
+}
+
 function nonEmptyEnvFrom(name: string, env: NodeJS.ProcessEnv): string | undefined {
   const value = env[name]?.trim();
   return value !== undefined && value.length > 0 ? value : undefined;
@@ -42,14 +48,15 @@ export function isHideLegacyToolNamesEnabled(env: NodeJS.ProcessEnv = process.en
   return hideLegacyToolNamesEnableReason(env) !== null;
 }
 
-/** Which env flag enabled session-start codemap warm, if any. */
+/** Which env flag enabled session-start codemap warm, if any (null when opted out). */
 export function repoIndexWarmEnableReason(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
+  if (isFalsyEnvFlag(env[REPO_INDEX_WARM_ENV])) return null;
   if (env[REPO_INDEX_WARM_ENV]?.trim() === '1') return `${REPO_INDEX_WARM_ENV}=1`;
   if (isTruthyEnvFlag(env[SOVEREIGN_CORE_DEFAULT_ENV])) return `${SOVEREIGN_CORE_DEFAULT_ENV}=1`;
   if (isTruthyEnvFlag(env[SOVEREIGN_UMBRELLA_ENV])) return `${SOVEREIGN_UMBRELLA_ENV}=1`;
-  return null;
+  return 'default';
 }
 
 export function isRepoIndexWarmEnabled(env: NodeJS.ProcessEnv = process.env): boolean {

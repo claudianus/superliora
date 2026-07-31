@@ -267,7 +267,7 @@ export function getRepoIndexEngineWireStatus(engine: RepoIndexEngine): RepoIndex
   return {
     wired: false,
     driver: null,
-    reason: 'engine=stub — set SUPERLIORA_REPO_INDEX_ENGINE=sqlite or zoekt',
+    reason: 'engine=stub — sqlite is default; set SUPERLIORA_REPO_INDEX_ENGINE=stub|off|none to opt out',
   };
 }
 

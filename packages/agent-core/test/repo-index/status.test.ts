@@ -12,6 +12,7 @@ import {
   isRepoIndexEngineEnvUnset,
   isRepoIndexEngineModulePresent,
   isRepoIndexEngineWired,
+  parseRepoIndexEngineEnv,
   repoIndexPreferredEngineTipLine,
 } from '#/repo-index/status';
 import { resetSqliteDriverProbeOverride, resetZoektSidecarProbeOverride, setSqliteDriverProbeOverrideForTests, setZoektSidecarProbeOverrideForTests } from '#/repo-index/engine';
@@ -21,17 +22,41 @@ describe('getRepoIndexStatus FTS soft wire', () => {
     resetSqliteDriverProbeOverride();
     resetZoektSidecarProbeOverride();
   });
+
+  it('parseRepoIndexEngineEnv defaults unset to sqlite and accepts stub opt-outs', () => {
+    expect(parseRepoIndexEngineEnv(undefined)).toBe('sqlite');
+    expect(parseRepoIndexEngineEnv('')).toBe('sqlite');
+    expect(parseRepoIndexEngineEnv('  ')).toBe('sqlite');
+    expect(parseRepoIndexEngineEnv('stub')).toBe('stub');
+    expect(parseRepoIndexEngineEnv('off')).toBe('stub');
+    expect(parseRepoIndexEngineEnv('none')).toBe('stub');
+    expect(parseRepoIndexEngineEnv('zoekt')).toBe('zoekt');
+    expect(parseRepoIndexEngineEnv('sqlite')).toBe('sqlite');
+  });
+
   it('reads SUPERLIORA_REPO_INDEX_ENGINE and surfaces sqlite vs zoekt FTS tips', () => {
     expect(isRepoIndexEngineModulePresent()).toBe(true);
 
-    const stub = getRepoIndexStatus({});
+    const defaultSqlite = getRepoIndexStatus({});
+    expect(defaultSqlite.engine).toBe('sqlite');
+    expect(defaultSqlite.backend).toBe('sqlite-fts5');
+    expect(defaultSqlite.wired).toBe(true);
+    expect(defaultSqlite.enabled).toBe(true);
+    expect(defaultSqlite.driver).toBe('node:sqlite');
+    expect(defaultSqlite.ftsBackendTip).toBe(REPO_INDEX_FTS_BACKEND_TIP);
+    expect(formatRepoIndexEngineLine(defaultSqlite)).toContain('enabled');
+    expect(formatRepoIndexEngineLine(defaultSqlite)).toContain('engine=sqlite');
+    expect(formatRepoIndexBackendLine(defaultSqlite)).toContain('live');
+    expect(formatRepoIndexWiredLine(defaultSqlite)).toContain('live');
+    expect(isRepoIndexEngineWired({})).toBe(true);
+
+    const stub = getRepoIndexStatus({ [REPO_INDEX_ENGINE_ENV]: 'stub' });
     expect(stub.engine).toBe('stub');
     expect(stub.backend).toBe('none');
     expect(stub.wired).toBe(false);
     expect(stub.enabled).toBe(false);
-    expect(stub.ftsBackendTip).toBe(REPO_INDEX_FTS_BACKEND_TIP);
     expect(formatRepoIndexEngineLine(stub)).toContain('engine=stub');
-    expect(formatRepoIndexBackendLine(stub)).toContain('SQLite FTS5');
+    expect(formatRepoIndexBackendLine(stub)).toContain('stub|off|none');
     expect(formatRepoIndexWiredLine(stub)).toContain('not live');
     expect(formatRepoIndexWiredLine(stub)).toContain('engine=stub');
 
@@ -89,26 +114,24 @@ describe('getRepoIndexStatus FTS soft wire', () => {
       reason: 'no sqlite driver (test)',
     }));
 
-    const sqlite = getRepoIndexStatus({ [REPO_INDEX_ENGINE_ENV]: 'sqlite' });
+    const sqlite = getRepoIndexStatus({});
+    expect(sqlite.engine).toBe('sqlite');
     expect(sqlite.wired).toBe(false);
     expect(sqlite.enabled).toBe(false);
     expect(sqlite.wireReason).toBe('no sqlite driver (test)');
-    expect(isRepoIndexEngineWired({ [REPO_INDEX_ENGINE_ENV]: 'sqlite' })).toBe(false);
+    expect(isRepoIndexEngineWired({})).toBe(false);
     expect(formatRepoIndexBackendLine(sqlite)).toContain('no sqlite driver (test)');
     expect(formatRepoIndexWiredLine(sqlite)).toContain('not live');
     expect(formatRepoIndexWiredLine(sqlite)).toContain('no sqlite driver (test)');
   });
 
-  it('repoIndexPreferredEngineTipLine soft-suggests sqlite under SUPERLIORA_SOVEREIGN=1 when engine unset', () => {
+  it('repoIndexPreferredEngineTipLine documents sqlite default when engine unset', () => {
     expect(isRepoIndexEngineEnvUnset({})).toBe(true);
     expect(isRepoIndexEngineEnvUnset({ [REPO_INDEX_ENGINE_ENV]: 'sqlite' })).toBe(false);
     expect(isRepoIndexEngineEnvUnset({ [REPO_INDEX_ENGINE_ENV]: '  ' })).toBe(true);
 
-    expect(repoIndexPreferredEngineTipLine({})).toBeNull();
+    expect(repoIndexPreferredEngineTipLine({})).toBe(REPO_INDEX_PREFERRED_ENGINE_TIP);
     expect(repoIndexPreferredEngineTipLine({ SUPERLIORA_SOVEREIGN: '1' })).toBe(
-      REPO_INDEX_PREFERRED_ENGINE_TIP,
-    );
-    expect(repoIndexPreferredEngineTipLine({ SUPERLIORA_SOVEREIGN: 'true' })).toBe(
       REPO_INDEX_PREFERRED_ENGINE_TIP,
     );
     expect(
@@ -119,10 +142,10 @@ describe('getRepoIndexStatus FTS soft wire', () => {
     ).toBeNull();
     expect(
       repoIndexPreferredEngineTipLine({
-        SUPERLIORA_SOVEREIGN_CORE: '1',
+        [REPO_INDEX_ENGINE_ENV]: 'stub',
       }),
     ).toBeNull();
-    expect(REPO_INDEX_PREFERRED_ENGINE_TIP).toContain(`${REPO_INDEX_ENGINE_ENV}=sqlite`);
-    expect(REPO_INDEX_PREFERRED_ENGINE_TIP).toContain('not forced');
+    expect(REPO_INDEX_PREFERRED_ENGINE_TIP).toContain('stub|off|none');
+    expect(REPO_INDEX_PREFERRED_ENGINE_TIP).toContain(`${REPO_INDEX_ENGINE_ENV}=zoekt`);
   });
 });

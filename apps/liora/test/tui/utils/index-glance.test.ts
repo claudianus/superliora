@@ -30,7 +30,7 @@ describe('index glance', () => {
     vi.unstubAllEnvs();
   });
 
-  it('surfaces live engine/driver/wired lines in Status (not tips)', () => {
+  it('surfaces live engine/driver/wired lines in Status by default (sqlite)', () => {
     const repoIndex = getRepoIndexStatus({});
     const lines = buildIndexSettingsLines({
       repoQueryActive: true,
@@ -41,11 +41,26 @@ describe('index glance', () => {
     const statusBlock = text.split('── Today ────────────────────────────────────')[0] ?? text;
 
     expect(statusBlock).toContain(formatRepoIndexWiredLine(repoIndex));
+    expect(statusBlock).toContain('RepoIndex engine: enabled');
+    expect(statusBlock).toContain('engine=sqlite');
+    expect(statusBlock).toContain('FTS backend: sqlite-fts5 (live');
+    expect(statusBlock).not.toContain(REPO_INDEX_FTS_BACKEND_TIP);
+    expect(text).toContain(REPO_INDEX_FTS_BACKEND_TIP);
+  });
+
+  it('shows stub lines when engine is explicitly opted out', () => {
+    const repoIndex = getRepoIndexStatus({ [REPO_INDEX_ENGINE_ENV]: 'stub' });
+    const lines = buildIndexSettingsLines({
+      repoQueryActive: true,
+      codemap: codemapWarm,
+      repoIndex,
+    });
+    const statusBlock =
+      lines.join('\n').split('── Today ────────────────────────────────────')[0] ?? '';
+
     expect(statusBlock).toContain('RepoIndex engine: disabled (stub');
     expect(statusBlock).toContain('engine=stub');
     expect(statusBlock).toContain('FTS backend: not wired yet');
-    expect(statusBlock).not.toContain(REPO_INDEX_FTS_BACKEND_TIP);
-    expect(text).toContain(REPO_INDEX_FTS_BACKEND_TIP);
   });
 
   it('shows wired live line when sqlite engine probes', () => {
@@ -69,23 +84,32 @@ describe('index glance', () => {
       repoQueryActive: true,
       codemap: codemapWarm,
       repoIndex,
-      env: { [REPO_INDEX_WARM_ENV]: '1' },
+      env: {},
     });
     const text = lines.join('\n');
     const liveIdx = text.indexOf('── Session (live)');
     const statusIdx = text.indexOf('── Status ──');
     expect(liveIdx).toBeGreaterThan(-1);
     expect(statusIdx).toBeGreaterThan(liveIdx);
-    expect(text).toContain(repoIndexWarmStatusLine({ [REPO_INDEX_WARM_ENV]: '1' }));
+    expect(text).toContain(repoIndexWarmStatusLine({}));
+    expect(text).toContain('Codemap warm: ON (default)');
   });
 
-  it('buildIndexSessionLiveLines reflects sovereign umbrella env', () => {
-    const env = { SUPERLIORA_SOVEREIGN: '1' };
+  it('buildIndexSessionLiveLines shows default engine tip when env unset', () => {
+    const env = {};
     const lines = buildIndexSessionLiveLines({ env });
     const text = lines.join('\n');
     expect(text).toContain(repoIndexWarmStatusLine(env));
     expect(text).toContain(REPO_INDEX_PREFERRED_ENGINE_TIP);
-    expect(text).toContain('not forced');
+    expect(text).toContain('stub|off|none');
+  });
+
+  it('buildIndexSessionLiveLines reflects sovereign umbrella env for warm reason', () => {
+    const env = { SUPERLIORA_SOVEREIGN: '1' };
+    const lines = buildIndexSessionLiveLines({ env });
+    const text = lines.join('\n');
+    expect(text).toContain(repoIndexWarmStatusLine(env));
+    expect(text).toContain('SUPERLIORA_SOVEREIGN=1');
   });
 
   it('buildIndexSessionLiveLines omits preferred engine tip when engine is set', () => {
@@ -95,8 +119,9 @@ describe('index glance', () => {
     expect(repoIndexPreferredEngineTipLine(env)).toBeNull();
   });
 
-  it('buildIndexSessionLiveLines omits preferred engine tip without sovereign env', () => {
-    const text = buildIndexSessionLiveLines({ env: {} }).join('\n');
+  it('buildIndexSessionLiveLines omits preferred engine tip when stub opt-out is set', () => {
+    const env = { [REPO_INDEX_ENGINE_ENV]: 'stub' };
+    const text = buildIndexSessionLiveLines({ env }).join('\n');
     expect(text).not.toContain(REPO_INDEX_PREFERRED_ENGINE_TIP);
   });
 

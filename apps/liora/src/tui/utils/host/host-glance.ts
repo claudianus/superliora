@@ -18,7 +18,7 @@ export const SOVEREIGN_UMBRELLA_ENV = 'SUPERLIORA_SOVEREIGN';
 
 /** Host settings doc line — SSOT for all soft gates enabled by the umbrella env. */
 export const HOST_SOVEREIGN_UMBRELLA_TIP =
-  `${SOVEREIGN_UMBRELLA_ENV}=1 — umbrella sovereign reform: core profile default · codemap session-start warm · fleet+mission dual-emit (WS/RPC only — never journal). Legacy compat aliases hide by product default.`;
+  `${SOVEREIGN_UMBRELLA_ENV}=1 — umbrella sovereign reform: core profile default · codemap warm (also default ON — opt-out SUPERLIORA_REPO_INDEX_WARM=0) · fleet+mission dual-emit (WS/RPC only — never journal). Legacy compat aliases hide by product default.`;
 
 export type HostRuntimeMode = 'in-process' | 'server';
 
