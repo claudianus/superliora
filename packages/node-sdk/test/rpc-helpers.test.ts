@@ -75,13 +75,13 @@ describe('buildSessionStatus cache meter', () => {
 });
 
 describe('buildSessionStatus parallel tools', () => {
-  it('omits parallel tool fields when idle with no turn peak', () => {
+  it('emits idle parallel tool counters when the facet is wired', () => {
     const status = buildSessionStatus({
       ...baseFacets,
-      parallelTools: { parallelToolsInFlight: 0 },
+      parallelTools: { parallelToolsInFlight: 0, maxParallelTools: 0 },
     });
-    expect(status).not.toHaveProperty('parallelToolsInFlight');
-    expect(status).not.toHaveProperty('maxParallelTools');
+    expect(status.parallelToolsInFlight).toBe(0);
+    expect(status.maxParallelTools).toBe(0);
   });
 
   it('maps in-flight and turn peak when wired', () => {

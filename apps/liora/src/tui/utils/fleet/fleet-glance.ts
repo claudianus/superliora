@@ -148,8 +148,8 @@ export function resolveFleetParallelToolsGlanceFromStatus(
   const record = status as Record<string, unknown>;
   const inFlight = record['parallelToolsInFlight'];
   const maxParallel = record['maxParallelTools'];
-  const hasInFlight = typeof inFlight === 'number' && inFlight > 0;
-  const hasMax = typeof maxParallel === 'number' && maxParallel > 0;
+  const hasInFlight = typeof inFlight === 'number';
+  const hasMax = typeof maxParallel === 'number';
   if (!hasInFlight && !hasMax) return undefined;
   return {
     ...(hasInFlight ? { parallelToolsInFlight: inFlight } : {}),
@@ -170,8 +170,11 @@ export function formatFleetParallelToolsOpsLine(
         : '';
     return `Parallel tools: ${String(inFlight)} in flight${peak}`;
   }
-  if (typeof maxParallel === 'number' && maxParallel > 0) {
-    return `Parallel tools: idle · turn peak ${String(maxParallel)}`;
+  if (typeof inFlight === 'number' || typeof maxParallel === 'number') {
+    if (typeof maxParallel === 'number' && maxParallel > 0) {
+      return `Parallel tools: idle · turn peak ${String(maxParallel)}`;
+    }
+    return 'Parallel tools: idle';
   }
   return OPS_FLEET_PARALLEL_FANOUT_TIP;
 }
