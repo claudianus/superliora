@@ -18,6 +18,11 @@ import {
 } from '../../../src/tools/builtin/web/deep-research';
 import type { UrlFetcher } from '../../../src/tools/builtin/web/fetch-url';
 import { ResearchSearchEngine } from '../../../src/tools/providers/research-search';
+import {
+  getSearchNeverEmptyTelemetry,
+  resetSearchNeverEmptyTelemetry,
+} from '../../../src/tools/providers/search-never-empty-telemetry';
+import type { WebSearchProvider } from '../../../src/tools/builtin/web/web-search';
 import { executeTool } from '../fixtures/execute-tool';
 import { toolContentString } from '../fixtures/fake-kaos';
 
@@ -439,6 +444,127 @@ describe('DeepResearchTool', () => {
       const content = toolContentString(result);
       expect(content).toContain('Browser hit');
       expect(content).toContain('allow_browser: true');
+    } finally {
+      delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
+    }
+  });
+
+  it('auto-escalates browser on exhaustive depth when allow_browser omitted', async () => {
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
+    try {
+      const browserSearch = vi
+        .fn<() => Promise<Array<{ title: string; url: string; snippet: string }>>>()
+        .mockResolvedValue([
+          {
+            title: 'Exhaustive browser hit',
+            url: 'https://example.com/exhaustive',
+            snippet: 'from Ch4 exhaustive',
+          },
+        ]);
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ web: { results: [] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+      const engine = new ResearchSearchEngine({
+        fetchImpl,
+        browserChannel: { available: () => true, search: browserSearch },
+        search: {
+          strategy: 'fallback',
+          freeFallback: false,
+          providers: [{ kind: 'brave', apiKey: 'brave-test-key' }],
+        },
+      });
+
+      const tool = new DeepResearchTool(engine);
+      const result = await executeTool(tool, {
+        turnId: 't1',
+        toolCallId: 'c-deep-exhaustive',
+        args: {
+          question: 'exhaustive depth escalate',
+          depth: 'exhaustive',
+          max_sources: 3,
+        },
+        signal,
+      });
+
+      expect(result.isError).toBe(false);
+      expect(browserSearch).toHaveBeenCalled();
+      const content = toolContentString(result);
+      expect(content).toContain('Exhaustive browser hit');
+      expect(content).toContain('allow_browser: true');
+    } finally {
+      delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
+    }
+  });
+
+  it('soft-degrades when sub-queries reject without killing the turn', async () => {
+    const throwingProvider: WebSearchProvider = {
+      search: vi.fn(async () => {
+        throw new TypeError('fetch failed');
+      }),
+      status: () => ({
+        strategy: 'fallback',
+        freeFallback: false,
+        browser: { configured: false, ready: false },
+        chromeExtension: { configured: false, enabled: false, ready: false },
+        providers: [],
+      }),
+    };
+
+    const tool = new DeepResearchTool(throwingProvider);
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c-deep-throw',
+      args: { question: 'network failure topic', depth: 'standard' },
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    const content = toolContentString(result);
+    expect(content).toContain('offline_stub:');
+    expect(content).toContain('degraded: true');
+    expect(content).toContain('next:');
+    expect(content).toContain('Ch4');
+    expect(content).toContain('Ch5');
+    expect(content).toContain('do_not: halt');
+  });
+
+  it('records never-empty soft-degrade telemetry on empty cascade', async () => {
+    resetSearchNeverEmptyTelemetry();
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
+    try {
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ web: { results: [] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+      const engine = new ResearchSearchEngine({
+        fetchImpl,
+        search: {
+          strategy: 'fallback',
+          freeFallback: false,
+          providers: [{ kind: 'brave', apiKey: 'brave-test-key' }],
+        },
+      });
+
+      const tool = new DeepResearchTool(engine);
+      const result = await executeTool(tool, {
+        turnId: 't1',
+        toolCallId: 'c-deep-telemetry',
+        args: { question: 'telemetry empty cascade' },
+        signal,
+      });
+
+      expect(result.isError).toBe(false);
+      expect(getSearchNeverEmptyTelemetry()).toEqual({
+        hardFailCount: 0,
+        softDegradeCount: 1,
+      });
     } finally {
       delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
     }
