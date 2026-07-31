@@ -687,7 +687,7 @@ describe('harness panel and tools inventory', () => {
     expect(notice).toContain('── Session (live) ──');
     expect(notice).toContain('Core waist: ON (default) · Profile: core');
     expect(notice).toContain('Tools: 3 active / 5 registered');
-    expect(notice).toContain('Hide legacy: OFF');
+    expect(notice).toContain('Hide legacy: ON (default)');
     expect(notice).toContain('Read');
     expect(notice).toContain('Write');
     expect(notice).toContain('Review');

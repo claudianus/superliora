@@ -84,7 +84,7 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
     const tipParts = [TOOLS_WAIST_TIP];
     if (!isHideLegacyToolNamesEnabled()) {
       tipParts.push(
-        'Legacy compat aliases register unless SUPERLIORA_HIDE_LEGACY_TOOL_NAMES or SUPERLIORA_SOVEREIGN is set.',
+        'Legacy compat aliases register (SUPERLIORA_SHOW_LEGACY_TOOL_NAMES=1).',
       );
     }
     if (tools.some((tool) => tool.name === 'SearchTools')) {

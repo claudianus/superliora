@@ -35,9 +35,9 @@ export function shouldCreateBuiltin(host: BuiltinToolsHost, name: string): boole
 
 /**
  * Register a legacy compat alias only when the profile or bootstrap set asks for
- * it. When `SUPERLIORA_HIDE_LEGACY_TOOL_NAMES=1` or `SUPERLIORA_SOVEREIGN=1`,
- * omit the alias whenever the sovereign twin would also register — keeps journal
- * replay working when the legacy name is explicitly selected.
+ * it. Hide-legacy is the product default; omit the alias whenever the sovereign
+ * twin would also register — keeps journal replay working when the legacy name is
+ * explicitly selected. Opt out via SUPERLIORA_SHOW_LEGACY_TOOL_NAMES=1.
  */
 export function shouldRegisterLegacyCompat(
   host: BuiltinToolsHost,
@@ -140,7 +140,8 @@ function createFileAndContextTools(
     shouldCreateBuiltin(host, 'LioraTree') && new b.LioraTreeTool(kaos, workspace),
     shouldCreateBuiltin(host, 'LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
     shouldCreateBuiltin(host, 'LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
-    shouldCreateBuiltin(host, 'LioraExpand') && b.createLioraExpandTool(host.toolStore),
+    shouldRegisterLegacyCompat(host, 'LioraExpand', 'Expand') &&
+      b.createLioraExpandTool(host.toolStore),
     shouldCreateBuiltin(host, 'Expand') && b.createExpandTool(host.toolStore),
     shouldCreateBuiltin(host, 'Bash') &&
       new b.BashTool(kaos, cwd, background, {

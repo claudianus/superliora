@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Agent } from '../../src/agent';
 import type { SDKAgentRPC } from '../../src/rpc';
@@ -54,7 +54,28 @@ function makeAgent(): Agent {
 }
 
 describe('ToolManager LioraReview + Review + VisualDiff registration', () => {
-  it('creates LioraReview, Review, and VisualDiff builtins during bootstrap', () => {
+  const showLegacyEnvKey = 'SUPERLIORA_SHOW_LEGACY_TOOL_NAMES';
+
+  afterEach(() => {
+    delete process.env[showLegacyEnvKey];
+  });
+
+  it('creates Review and VisualDiff but omits LioraReview on bootstrap by default', () => {
+    const agent = makeAgent();
+    const infos = [...agent.tools.toolInfos()];
+    const names = infos.map((info) => info.name);
+    expect(names).not.toContain('LioraReview');
+    expect(names).toContain('Review');
+    expect(names).toContain('VisualDiff');
+
+    const sovereignReview = infos.find((info) => info.name === 'Review');
+    const visual = infos.find((info) => info.name === 'VisualDiff');
+    expect(sovereignReview?.source).toBe('builtin');
+    expect(visual?.source).toBe('builtin');
+  });
+
+  it('creates LioraReview, Review, and VisualDiff when SHOW_LEGACY opt-out is set', () => {
+    process.env[showLegacyEnvKey] = '1';
     const agent = makeAgent();
     const infos = [...agent.tools.toolInfos()];
     const names = infos.map((info) => info.name);
@@ -63,11 +84,7 @@ describe('ToolManager LioraReview + Review + VisualDiff registration', () => {
     expect(names).toContain('VisualDiff');
 
     const review = infos.find((info) => info.name === 'LioraReview');
-    const sovereignReview = infos.find((info) => info.name === 'Review');
-    const visual = infos.find((info) => info.name === 'VisualDiff');
     expect(review?.source).toBe('builtin');
-    expect(sovereignReview?.source).toBe('builtin');
-    expect(visual?.source).toBe('builtin');
   });
 
   it('activates Review on the loop tool list when selected', () => {
@@ -100,8 +117,27 @@ describe('ToolManager LioraReview + Review + VisualDiff registration', () => {
 });
 
 describe('ToolManager LioraExpand + Expand registration', () => {
-  it('creates LioraExpand and Expand builtins during bootstrap', () => {
+  const showLegacyEnvKey = 'SUPERLIORA_SHOW_LEGACY_TOOL_NAMES';
+
+  afterEach(() => {
+    delete process.env[showLegacyEnvKey];
+  });
+
+  it('creates Expand but omits LioraExpand on bootstrap by default', () => {
     const agent = makeAgent();
+    const infos = [...agent.tools.toolInfos()];
+    const names = infos.map((info) => info.name);
+    expect(names).toContain('Expand');
+    expect(names).not.toContain('LioraExpand');
+
+    const sovereign = infos.find((info) => info.name === 'Expand');
+    expect(sovereign?.helpVisibility).toBe('primary');
+  });
+
+  it('creates LioraExpand and Expand builtins when SHOW_LEGACY opt-out is set', () => {
+    process.env[showLegacyEnvKey] = '1';
+    const agent = makeAgent();
+    agent.tools.initializeBuiltinTools();
     const infos = [...agent.tools.toolInfos()];
     const names = infos.map((info) => info.name);
     expect(names).toContain('LioraExpand');

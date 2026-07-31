@@ -11,8 +11,12 @@ import { SOVEREIGN_UMBRELLA_ENV, isSovereignUmbrellaEnabled } from '#/tui/utils/
 export { SOVEREIGN_UMBRELLA_ENV };
 
 export const HIDE_LEGACY_TOOL_NAMES_ENV = 'SUPERLIORA_HIDE_LEGACY_TOOL_NAMES';
+export const SHOW_LEGACY_TOOL_NAMES_ENV = 'SUPERLIORA_SHOW_LEGACY_TOOL_NAMES';
 
-export type HideLegacyTrigger = typeof HIDE_LEGACY_TOOL_NAMES_ENV | typeof SOVEREIGN_UMBRELLA_ENV;
+export type HideLegacyTrigger =
+  | typeof HIDE_LEGACY_TOOL_NAMES_ENV
+  | typeof SOVEREIGN_UMBRELLA_ENV
+  | 'default';
 
 export interface HideLegacyToolsGlance {
   readonly enabled: boolean;
@@ -25,10 +29,16 @@ function nonEmptyEnv(name: string, env: NodeJS.ProcessEnv): string | undefined {
   return value !== undefined && value.length > 0 ? value : undefined;
 }
 
-/** Mirrors agent-core shouldRegisterLegacyCompat soft gate (env or sovereign umbrella). */
+function isTruthyEnvFlag(value: string | undefined): boolean {
+  const flag = value?.trim();
+  if (flag === undefined || flag.length === 0) return false;
+  return flag === '1' || flag.toLowerCase() === 'true';
+}
+
+/** Mirrors agent-core hide-legacy gate — product default ON; SHOW_LEGACY opt-out. */
 export function isHideLegacyToolNamesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (nonEmptyEnv(HIDE_LEGACY_TOOL_NAMES_ENV, env) !== undefined) return true;
-  return isSovereignUmbrellaEnabled(env);
+  if (isTruthyEnvFlag(env[SHOW_LEGACY_TOOL_NAMES_ENV])) return false;
+  return true;
 }
 
 export function resolveHideLegacyToolsGlance(input: {
@@ -40,10 +50,12 @@ export function resolveHideLegacyToolsGlance(input: {
   if (!isHideLegacyToolNamesEnabled(env)) {
     return { enabled: false, trigger: null, hiddenCompatCount };
   }
-  const trigger =
+  const trigger: HideLegacyTrigger =
     nonEmptyEnv(HIDE_LEGACY_TOOL_NAMES_ENV, env) !== undefined
       ? HIDE_LEGACY_TOOL_NAMES_ENV
-      : SOVEREIGN_UMBRELLA_ENV;
+      : isSovereignUmbrellaEnabled(env)
+        ? SOVEREIGN_UMBRELLA_ENV
+        : 'default';
   return { enabled: true, trigger, hiddenCompatCount };
 }
 
@@ -52,6 +64,9 @@ export function formatHideLegacyToolsStatusLine(glance: HideLegacyToolsGlance): 
   const countLabel = `${String(glance.hiddenCompatCount)} compat alias(es) off primary help`;
   if (!glance.enabled || glance.trigger == null) {
     return `Hide legacy: OFF · ${countLabel}`;
+  }
+  if (glance.trigger === 'default') {
+    return `Hide legacy: ON (default) · ${countLabel}`;
   }
   return `Hide legacy: ON (${glance.trigger}=1) · ${countLabel}`;
 }

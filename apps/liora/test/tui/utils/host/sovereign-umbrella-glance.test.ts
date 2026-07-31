@@ -6,10 +6,10 @@ import {
 } from '#/tui/utils/host/sovereign-umbrella-glance';
 
 describe('sovereign-umbrella-glance', () => {
-  it('resolveSovereignUmbrellaSoftGates keeps all gates OFF without umbrella env', () => {
+  it('resolveSovereignUmbrellaSoftGates keeps hide-legacy ON by default without umbrella env', () => {
     const gates = resolveSovereignUmbrellaSoftGates({});
     expect(gates.coreProfile).toBe(false);
-    expect(gates.hideLegacy).toBe(false);
+    expect(gates.hideLegacy).toBe(true);
     expect(gates.warm).toBe(false);
     expect(gates.dualEmitMission).toBe(false);
     expect(gates.dualEmitFleet).toBe(false);

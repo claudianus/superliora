@@ -21,14 +21,23 @@ function hostWithTools(tools: readonly string[]) {
 
 describe('shouldRegisterLegacyCompat', () => {
   const envKey = 'SUPERLIORA_HIDE_LEGACY_TOOL_NAMES';
+  const showLegacyEnvKey = 'SUPERLIORA_SHOW_LEGACY_TOOL_NAMES';
   const sovereignEnvKey = 'SUPERLIORA_SOVEREIGN';
 
   afterEach(() => {
     delete process.env[envKey];
+    delete process.env[showLegacyEnvKey];
     delete process.env[sovereignEnvKey];
   });
 
-  it('registers legacy alias on bootstrap when hide flag is unset', () => {
+  it('skips legacy alias on bootstrap by default (hide-legacy product default)', () => {
+    expect(
+      shouldRegisterLegacyCompat(hostWithTools([]), 'LioraReview', 'Review'),
+    ).toBe(false);
+  });
+
+  it('registers legacy alias on bootstrap when SHOW_LEGACY opt-out is set', () => {
+    process.env[showLegacyEnvKey] = '1';
     expect(
       shouldRegisterLegacyCompat(hostWithTools([]), 'LioraReview', 'Review'),
     ).toBe(true);
@@ -60,8 +69,7 @@ describe('shouldRegisterLegacyCompat', () => {
     ).toBe(false);
   });
 
-  it('keeps legacy alias when explicitly selected even with hide flag', () => {
-    process.env[envKey] = '1';
+  it('keeps legacy alias when explicitly selected even with hide default', () => {
     expect(
       shouldRegisterLegacyCompat(
         hostWithTools(['LioraReview', 'Review', 'Read']),
@@ -129,11 +137,28 @@ function makeAgent(): Agent {
 
 describe('buildBuiltinTools legacy compat env gate', () => {
   const envKey = 'SUPERLIORA_HIDE_LEGACY_TOOL_NAMES';
+  const showLegacyEnvKey = 'SUPERLIORA_SHOW_LEGACY_TOOL_NAMES';
   const sovereignEnvKey = 'SUPERLIORA_SOVEREIGN';
 
   afterEach(() => {
     delete process.env[envKey];
+    delete process.env[showLegacyEnvKey];
     delete process.env[sovereignEnvKey];
+  });
+
+  it('omits legacy review/goal/graph aliases on bootstrap by default', () => {
+    const agent = makeAgent();
+    agent.tools.initializeBuiltinTools();
+
+    const names = [...agent.tools.toolInfos()].map((info) => info.name);
+    expect(names).toContain('Review');
+    expect(names).toContain('CreateGoal');
+    expect(names).toContain('TaskGraph');
+    expect(names).toContain('Expand');
+    expect(names).not.toContain('LioraReview');
+    expect(names).not.toContain('CreateUltraGoal');
+    expect(names).not.toContain('UltraworkGraph');
+    expect(names).not.toContain('LioraExpand');
   });
 
   it('omits legacy review/goal/graph aliases on bootstrap when hide flag is set', () => {
@@ -164,7 +189,8 @@ describe('buildBuiltinTools legacy compat env gate', () => {
     expect(names).not.toContain('UltraworkGraph');
   });
 
-  it('keeps legacy aliases on bootstrap when hide flag is unset', () => {
+  it('keeps legacy aliases on bootstrap when SHOW_LEGACY opt-out is set', () => {
+    process.env[showLegacyEnvKey] = '1';
     const agent = makeAgent();
     agent.tools.initializeBuiltinTools();
 
@@ -172,5 +198,6 @@ describe('buildBuiltinTools legacy compat env gate', () => {
     expect(names).toContain('LioraReview');
     expect(names).toContain('CreateUltraGoal');
     expect(names).toContain('UltraworkGraph');
+    expect(names).toContain('LioraExpand');
   });
 });

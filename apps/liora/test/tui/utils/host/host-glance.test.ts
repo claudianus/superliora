@@ -132,7 +132,7 @@ describe('host-glance', () => {
   it('HOST_SOVEREIGN_UMBRELLA_TIP documents all umbrella soft gates', () => {
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('SUPERLIORA_SOVEREIGN=1');
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('core profile');
-    expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('hide legacy');
+    expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('Legacy compat aliases hide by product default');
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('codemap');
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('dual-emit');
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('never journal');
