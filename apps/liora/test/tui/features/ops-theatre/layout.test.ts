@@ -830,9 +830,11 @@ describe('buildOpsTheatreInterventionTray', () => {
     });
     expect(tray).toHaveLength(4);
     expect(tray[0]).toBe('▼ Intervention tray');
-    expect(tray[1]).toBe('Approval: Shell · approve/deny in panel');
+    expect(tray[1]).toBe(
+      'Approval: Shell · Enter → open approval panel · Esc close',
+    );
     expect(tray[2]).toBe('Never-Halt queue: 2 pending · oldest ?');
-    expect(tray[3]).toBe('Ctrl-S steer mid-turn · /ops auto-refreshes');
+    expect(tray[3]).toBe('Enter → open approval panel · Esc close');
   });
 
   it('shows stale×N when stale interventions are reported', () => {
@@ -858,7 +860,9 @@ describe('buildOpsTheatreInterventionTray', () => {
       oldestInterventionAgeMs: 90_000,
     });
     expect(tray).toHaveLength(4);
-    expect(tray[1]).toBe('Approval: Shell · approve/deny in panel');
+    expect(tray[1]).toBe(
+      'Approval: Shell · Enter → open approval panel · Esc close',
+    );
     expect(tray[2]).toBe('Never-Halt queue: 2 pending · oldest 1m 30s · stale×1');
     expect(tray[3]).toBe('Orphans: orphan drop in 30s');
   });
@@ -879,7 +883,9 @@ describe('buildOpsTheatreInterventionTray', () => {
       interventionCount: 0,
     });
     expect(tray).toHaveLength(3);
-    expect(tray[1]).toBe('Approval: Write · approve/deny in panel');
-    expect(tray[2]).toBe('Ctrl-S steer mid-turn · /ops auto-refreshes');
+    expect(tray[1]).toBe(
+      'Approval: Write · Enter → open approval panel · Esc close',
+    );
+    expect(tray[2]).toBe('Enter → open approval panel · Esc close');
   });
 });

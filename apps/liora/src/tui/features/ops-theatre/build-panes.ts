@@ -179,7 +179,10 @@ export function buildOpsTheatrePanes(input: OpsTheatreInput): OpsTheatreGridPane
 }
 
 /** Mid-turn steer is Ctrl-S — no `/steer` slash command. */
-const OPS_STEER_HINT = 'Ctrl-S steer mid-turn';
+const OPS_STEER_HINT = 'Ctrl-S steer mid-turn · /ops auto-refreshes';
+
+/** Actionable when livePane.pendingApproval is set — wired in ops-theatre.ts. */
+export const OPS_APPROVAL_FOCUS_HINT = 'Enter → open approval panel · Esc close';
 
 function buildFleetGovernanceLines(input: OpsTheatreInput): readonly string[] {
   return [
@@ -200,14 +203,12 @@ export function buildOpsTheatreInterventionTray(input: OpsTheatreInterventionInp
     staleCount,
     input.oldestInterventionAgeMs,
   );
-  const steerLine = `${OPS_STEER_HINT} · /ops auto-refreshes`;
-
   const lines: string[] = ['▼ Intervention tray'];
 
   if (needsAttention) {
     if (hasApproval) {
       lines.push(
-        `Approval: ${truncate(input.pendingApprovalToolName, 36)} · approve/deny in panel`,
+        `Approval: ${truncate(input.pendingApprovalToolName, 36)} · ${OPS_APPROVAL_FOCUS_HINT}`,
       );
     }
     if (hasInterventions) {
@@ -224,11 +225,11 @@ export function buildOpsTheatreInterventionTray(input: OpsTheatreInterventionInp
       lines.push(autoExpireHint);
     }
     if (lines.length < 4) {
-      lines.push(steerLine);
+      lines.push(hasApproval ? OPS_APPROVAL_FOCUS_HINT : OPS_STEER_HINT);
     }
   } else {
     lines.push('Approval: (clear) · Interventions: (none)');
-    lines.push(steerLine);
+    lines.push(OPS_STEER_HINT);
   }
 
   return lines.slice(0, 4);

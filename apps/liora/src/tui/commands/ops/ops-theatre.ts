@@ -3,12 +3,12 @@
  * Slash: /ops — refreshes live for a few minutes while the panel stays visible.
  */
 
-import { UsagePanelComponent } from '../../components/messages/usage-panel/index';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import {
   buildOpsTheatreInterventionTray,
   buildOpsTheatrePanes,
   DEFAULT_OPS_THEATRE_WIDTH,
+  OpsTheatrePanelComponent,
   renderOpsTheatreGrid,
   type OpsTheatreInput,
 } from '../../features/ops-theatre';
@@ -75,14 +75,23 @@ export async function showOpsTheatre(host: SlashCommandHost): Promise<void> {
     theatreActive: isMotionTheatreActive(host.state.appState),
   });
 
-  const panel = new UsagePanelComponent({
+  const panel = new OpsTheatrePanelComponent({
     buildLines: (_fillProgress: number) => lines,
     borderToken: 'primary',
     title: ' Ops Theatre ',
     enterBeatSeed: 'ops',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
+    hasPendingApproval: () => host.state.livePane.pendingApproval !== null,
+    onFocusApproval: () => {
+      host.focusPendingApprovalPanel();
+    },
+    onDismiss: () => {
+      host.restoreEditor();
+    },
   });
-  host.state.transcriptContainer.addChild(panel);
+  host.mountEditorReplacement(panel);
   requestTUILayoutRender(host.state);
 
   const timer = setInterval(() => {
