@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MISSION_RESUME_SMOKE_PAUSE_STAGE,
   simulateMissionResumeSmoke,
-} from '../../src/ultrawork/mission-resume-grade';
+} from '../../src/mission/mission-resume-grade';
 
 describe('mission-resume-grade', () => {
   it('passes green path against run-store checkpoint contract', () => {

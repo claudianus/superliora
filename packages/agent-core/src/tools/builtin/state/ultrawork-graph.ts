@@ -14,7 +14,7 @@ import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
 } from '#/fleet';
-import { maybeFinishUltraworkRun } from '../../../ultrawork/finish-run';
+import { maybeFinishUltraworkRun } from '../../../mission/finish-run';
 import {
   fireTaskCompleted,
   fireTaskCreated,
