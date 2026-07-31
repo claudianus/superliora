@@ -201,7 +201,8 @@ export function buildDefaultCommandHubItems(state: {
       id: 'extend.extensions',
       section: 'Extend',
       label: 'Extensions',
-      description: 'Plugins, hooks, skills, MCP',
+      description: 'Manage plugins, skills, MCP · Settings glances stay searchable',
+      keywords: ['plugins', 'mcp', 'skills', 'hooks', 'marketplace'],
     },
     {
       id: 'appearance.theme',

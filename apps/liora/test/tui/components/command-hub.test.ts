@@ -58,6 +58,7 @@ describe('commandHubActionToSlash', () => {
     expect(commandHubActionToSlash('chat.model')).toBe('/model');
     expect(commandHubActionToSlash('modes.swarm')).toBe('/swarm');
     expect(commandHubActionToSlash('modes.ultrawork')).toBeUndefined();
+    expect(commandHubActionToSlash('extend.extensions')).toBeUndefined();
     expect(commandHubActionToSlash('help.shortcuts')).toBeUndefined();
     expect(commandHubActionToSlash('now.compact')).toBe('/compact');
   });
@@ -73,6 +74,17 @@ describe('Mission Hub row', () => {
     expect(item?.badge).toBe('ON');
     expect(isCommandHubToggleId('modes.ultrawork')).toBe(false);
     expect(commandHubActionToSlash('modes.ultrawork')).toBeUndefined();
+  });
+});
+
+describe('Extend Extensions Hub row', () => {
+  it('nests into Settings Extensions instead of /extensions slash', () => {
+    const item = buildDefaultCommandHubItems({}).find(
+      (candidate) => candidate.id === 'extend.extensions',
+    );
+    expect(item?.label).toBe('Extensions');
+    expect(commandHubNestsPicker('extend.extensions')).toBe(true);
+    expect(commandHubActionToSlash('extend.extensions')).toBeUndefined();
   });
 });
 

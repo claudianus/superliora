@@ -83,7 +83,8 @@ export function showMcpSettings(host: SlashCommandHost): void {
         {
           value: 'manage',
           label: 'Manage servers',
-          description: 'Install (stdio/HTTP), toggle, remove, reload · /mcp same picker.',
+          description:
+            'Install/toggle/reload · same leaf as Extensions → Manage → MCP · /mcp.',
         },
         {
           value: 'tip-config-scopes',

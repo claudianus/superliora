@@ -19,9 +19,7 @@ import { showExperimentsPanel } from './experiments/experiments';
 import { showExperimentsSettings } from './experiments/experiments-settings';
 import { showToolsInventory } from './harness/harness-tools';
 import { showEyesSettings } from './eyes/eyes-settings';
-import { showExtensionsHub } from './extensions/extensions-hub';
 import { showExtensionsSettings } from './extensions/extensions-settings';
-import { showMcpManagePanel } from './mcp/mcp-manage';
 import { showMcpSettings } from './mcp/mcp-settings';
 import { showSearchSettings } from './search/search-settings';
 import { showIndexSettings } from './index/index-settings';
@@ -109,8 +107,8 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
 }
 
 /**
- * Settings → Harness: hub for previously buried eyes/hands controls
- * (tools inventory, premium, MCP, experiments).
+ * Settings → Harness: eyes/hands surface (tools, eyes, Visual Quality, experiments).
+ * Plugins / skills / MCP manage lives under Settings → Extensions (and Hub → Extend).
  */
 export function showHarnessPanel(host: SlashCommandHost): void {
   mountPickerDialog(host,
@@ -134,16 +132,6 @@ export function showHarnessPanel(host: SlashCommandHost): void {
           value: 'premium',
           label: 'Visual Quality',
           description: 'Toggle Visual Quality mode (motion, density, anti-slop).',
-        },
-        {
-          value: 'mcp',
-          label: 'MCP servers',
-          description: 'Install, toggle, remove, reload MCP.',
-        },
-        {
-          value: 'extensions',
-          label: 'Extensions',
-          description: 'Plugins, skills, MCP control plane.',
         },
         {
           value: 'experiments',
@@ -172,12 +160,6 @@ export function showHarnessPanel(host: SlashCommandHost): void {
             return;
           case 'premium':
             showPremiumSettings(host);
-            return;
-          case 'mcp':
-            void showMcpManagePanel(host);
-            return;
-          case 'extensions':
-            showExtensionsHub(host);
             return;
           case 'experiments':
             void showExperimentsPanel(host);

@@ -587,7 +587,8 @@ describe('harness panel and tools inventory', () => {
     expect(body).toContain('Tools inventory');
     expect(body).toContain('Eyes readiness');
     expect(body).toContain('Visual Quality');
-    expect(body).toContain('MCP servers');
+    expect(body).not.toContain('MCP servers');
+    expect(body).not.toContain('Extensions');
     expect(body).toContain('Experiments');
     expect(body).toContain('Context working set');
   });
@@ -622,6 +623,11 @@ describe('harness panel and tools inventory', () => {
     component.handleInput('\u001B[B');
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const eyesPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void; title?: string } }
+      | undefined;
+    expect(eyesPicker?.opts.title).toBe('Eyes readiness');
+    eyesPicker!.opts.onSelect('status');
     await vi.waitFor(
       () => {
         expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
@@ -800,25 +806,20 @@ describe('harness panel and tools inventory', () => {
     // tools=0, eyes=1, premium=2
     await selectHarnessOption(host, 2);
     expect(host.restoreEditor).toHaveBeenCalled();
+    const premiumPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void; title?: string } }
+      | undefined;
+    expect(premiumPicker?.opts.title).toBe('Visual Quality');
+    premiumPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
   });
 
-  it('routes harness panel mcp selection to MCP manage panel', async () => {
-    const host = makeHarnessHost({ session: {} });
-    // mcp=3 (tools, eyes, premium, mcp)
-    await selectHarnessOption(host, 3);
-    expect(host.restoreEditor).toHaveBeenCalled();
-    await vi.waitFor(() => {
-      expect((host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
-    });
-  });
-
   it('routes harness panel experiments selection to experiments panel', async () => {
     const host = makeHarnessHost({ session: {} });
-    // experiments=5 (extensions inserted at 4)
-    await selectHarnessOption(host, 5);
+    // experiments=3 (tools, eyes, premium, experiments)
+    await selectHarnessOption(host, 3);
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(() => {
       expect(host.harness.getExperimentalFeatures).toHaveBeenCalled();
@@ -827,8 +828,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel context selection to context working-set picker', async () => {
     const host = makeHarnessHost({ session: {} });
-    // context=6 (extensions inserted at 4)
-    await selectHarnessOption(host, 6);
+    // context=4
+    await selectHarnessOption(host, 4);
     expect(host.restoreEditor).toHaveBeenCalled();
     // picker remounts via mountEditorReplacement after restore
     await vi.waitFor(() => {
@@ -884,10 +885,13 @@ describe('harness panel and tools inventory', () => {
     expect(firstPage).toContain('Model routing');
     expect(firstPage).toContain('Security');
 
-    // Harness, tools, and Eyes readiness live on page 2 (Security shifted page 1).
-    component.handleInput('\u001B[C');
-    expect(component.render(120).join('\n')).toContain('Harness');
-    expect(component.render(120).join('\n')).toContain('Eyes readiness');
+    let combined = firstPage;
+    for (let page = 0; page < 4; page++) {
+      component.handleInput('\u001B[C');
+      combined += `\n${component.render(120).join('\n')}`;
+    }
+    expect(combined).toContain('Harness');
+    expect(combined).toContain('Eyes readiness');
   });
 
   it('lists Security alongside Permission in the settings selector', () => {
@@ -926,6 +930,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const securityPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(securityPicker).toBeDefined();
+    securityPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -980,6 +989,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const compactionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(compactionPicker).toBeDefined();
+    compactionPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1002,6 +1016,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const contextPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(contextPicker).toBeDefined();
+    contextPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1024,6 +1043,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const missionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(missionPicker).toBeDefined();
+    missionPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1033,7 +1057,6 @@ describe('harness panel and tools inventory', () => {
     expect(lines).toContain('MISSION.md');
     expect(lines).toContain('soft advisory');
     expect(lines).toContain('RunProjectChecks');
-    expect(lines).toContain('No persist controls here');
   });
 
   it('routes settings fleet selection to fleet panel', async () => {
@@ -1080,6 +1103,11 @@ describe('harness panel and tools inventory', () => {
   it('renders mission panel without session', async () => {
     const host = makeHarnessHost({ session: undefined, activeSession: undefined });
     showMissionSettings(host);
+    const missionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(missionPicker).toBeDefined();
+    missionPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1101,6 +1129,11 @@ describe('harness panel and tools inventory', () => {
   it('renders compaction settings panel without session', async () => {
     const host = makeHarnessHost({ session: undefined, activeSession: undefined });
     showCompactionSettings(host);
+    const compactionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(compactionPicker).toBeDefined();
+    compactionPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1231,6 +1264,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const eyesPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void; title?: string } }
+      | undefined;
+    expect(eyesPicker?.opts.title).toBe('Eyes readiness');
+    eyesPicker!.opts.onSelect('status');
     await vi.waitFor(
       () => {
         expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();

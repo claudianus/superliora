@@ -1,5 +1,5 @@
 /**
- * Settings → Skills — read-only catalog + SearchSkill tips (SSOT §9.2).
+ * Settings → Skills — catalog glance + Extensions manage entry (SSOT §9.2).
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -18,6 +18,8 @@ import { getDataDir } from '#/utils/paths';
 import { loadSkillsState } from '#/utils/skills/skills-state';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+
+import { showExtensionsHub } from '../extensions/extensions-hub';
 
 export { SKILLS_MANAGE_TIP, SKILLS_RISK_FILTER_TIP, SKILLS_SEARCH_SKILL_TIP, SKILLS_TRACE_SKILL_TIP };
 
@@ -61,6 +63,11 @@ export function showSkillsSettings(host: SlashCommandHost): void {
             'Live catalog counts · SearchSkill active/inactive · source breakdown · home skills dir.',
         },
         {
+          value: 'manage',
+          label: 'Manage skills',
+          description: 'Opens Extensions hub → Skills (canonical manage surface).',
+        },
+        {
           value: 'tip-search-skill',
           label: 'SearchSkill tip',
           description:
@@ -89,6 +96,10 @@ export function showSkillsSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showSkillsSettingsPanel(host);
+          return;
+        }
+        if (value === 'manage') {
+          showExtensionsHub(host);
           return;
         }
         if (value === 'tip-search-skill') {

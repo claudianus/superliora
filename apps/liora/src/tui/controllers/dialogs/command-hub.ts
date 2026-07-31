@@ -19,6 +19,7 @@ import {
   DEFAULT_ONBOARDING_PREFERENCES,
   saveTuiConfig,
 } from '../../config';
+import { showExtensionsSettings } from '../../commands/config/extensions/extensions-settings';
 import { openSettingsPane, showSettingsSelector } from '../../commands/config/settings';
 import {
   isSettingsHubActionId,
@@ -223,6 +224,10 @@ function handleCommandHubAction(
   const slashHost = host as unknown as SlashCommandHost;
   if (item.id === 'settings.open') {
     showSettingsSelector(slashHost);
+    return;
+  }
+  if (item.id === 'extend.extensions') {
+    showExtensionsSettings(slashHost);
     return;
   }
   if (isSettingsHubActionId(item.id)) {
