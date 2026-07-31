@@ -3,6 +3,7 @@
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
+import { PlainTextInputDialogComponent } from '../../../components/dialogs/shared/plain-text-input-dialog';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
@@ -14,12 +15,15 @@ import { formatSearchNeverEmptyTelemetryGlance } from '../../../utils/search/sea
 import {
   ALLOW_DISABLE_FREE_FALLBACK_ENV,
   buildSearchBrowserEscalateConfigPatch,
+  buildSearchClearSearxngUrlConfigPatch,
   buildSearchFreeFallbackConfigPatch,
   buildSearchPreferXaiConfigPatch,
+  buildSearchSearxngUrlConfigPatch,
   buildSearchSettingsStatusLines,
   buildSearchStrategyConfigPatch,
   detectSearchLateChannelEnv,
   detectSearchProviderEnvKeys,
+  isValidSearxngUrl,
   resolveLocalResearchCacheStatus,
   resolveSearchBrowserEscalate,
   resolveSearchFreeFallback,
@@ -72,6 +76,16 @@ export function showSearchSettings(host: SlashCommandHost): void {
           description: 'Skip PreferXai wrap — cascade / local search only (xAI alone if no cascade).',
         },
         {
+          value: 'searxng-set',
+          label: 'Set SearXNG URL (Ch2)',
+          description: 'harness.setConfig → research.localSearch.searxngUrl (http/https).',
+        },
+        {
+          value: 'searxng-clear',
+          label: 'Clear SearXNG URL',
+          description: 'Remove config URL — env SUPERLIORA_SEARXNG_URL may still apply.',
+        },
+        {
           value: 'free-on',
           label: 'Free fallback ON (Never-Empty default)',
           description:
@@ -113,6 +127,14 @@ export function showSearchSettings(host: SlashCommandHost): void {
         }
         if (value === 'prefer-xai-off') {
           void setPreferXai(host, false);
+          return;
+        }
+        if (value === 'searxng-set') {
+          promptSearxngUrl(host);
+          return;
+        }
+        if (value === 'searxng-clear') {
+          void clearSearxngUrl(host);
           return;
         }
         if (value === 'free-on') {
@@ -189,6 +211,57 @@ async function setBrowserEscalate(host: SlashCommandHost, enabled: boolean): Pro
   } catch (error) {
     host.showStatus(
       `Failed to update browser escalate: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+  }
+}
+
+function promptSearxngUrl(host: SlashCommandHost): void {
+  mountPickerDialog(
+    host,
+    new PlainTextInputDialogComponent({
+      title: 'SearXNG URL (Ch2)',
+      subtitleLines: [
+        'Self-hosted SearXNG base URL (JSON format).',
+        'Example: https://searx.example.com',
+      ],
+      onDone: (result) => {
+        dismissPickerDialog(host);
+        if (result.kind !== 'ok') return;
+        const url = result.value.trim();
+        if (!isValidSearxngUrl(url)) {
+          host.showStatus('SearXNG URL must be http:// or https://', 'error');
+          return;
+        }
+        void setSearxngUrl(host, url);
+      },
+    }),
+    { label: 'SearXNG URL' },
+  );
+}
+
+async function setSearxngUrl(host: SlashCommandHost, url: string): Promise<void> {
+  try {
+    await host.harness.setConfig(buildSearchSearxngUrlConfigPatch(url));
+    host.showStatus(`SearXNG URL saved → ${url}`, 'success');
+  } catch (error) {
+    host.showStatus(
+      `Failed to save SearXNG URL: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+  }
+}
+
+async function clearSearxngUrl(host: SlashCommandHost): Promise<void> {
+  try {
+    await host.harness.setConfig(buildSearchClearSearxngUrlConfigPatch());
+    host.showStatus(
+      'Cleared research.localSearch.searxngUrl (env SUPERLIORA_SEARXNG_URL may still apply).',
+      'success',
+    );
+  } catch (error) {
+    host.showStatus(
+      `Failed to clear SearXNG URL: ${error instanceof Error ? error.message : String(error)}`,
       'error',
     );
   }

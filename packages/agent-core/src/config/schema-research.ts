@@ -17,7 +17,8 @@ export const ResearchLocalSearchConfigSchema = z.object({
   enabled: z.boolean().optional(),
   concurrency: z.number().int().min(1).max(16).optional(),
   timeoutMs: z.number().int().min(1000).max(120000).optional(),
-  searxngUrl: z.string().url().optional(),
+  /** Empty string clears a previously saved URL (env SUPERLIORA_SEARXNG_URL may still apply). */
+  searxngUrl: z.union([z.string().url(), z.literal('')]).optional(),
   yacyUrl: z.string().url().optional(),
   directSources: ResearchLocalDirectSourcesSchema.optional(),
   renderedFetch: z.boolean().optional(),
