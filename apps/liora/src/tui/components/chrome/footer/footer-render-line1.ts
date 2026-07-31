@@ -15,6 +15,7 @@ import type { GitStatus } from '#/utils/git/git-status';
 
 import {
   formatExtensionsReloadFooterBadge,
+  formatIndexFooterBadge,
   formatMediaFooterBadge,
   formatMcpHealthFooterBadge,
   formatRuntimeDegradedFooterBadge,
@@ -193,6 +194,9 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
 
   const cacheBadge = formatCacheHitFooterBadge(state.cacheMeter);
   if (cacheBadge !== null) left.push(styleFooterBadge(cacheBadge, appearance));
+
+  const indexBadge = formatIndexFooterBadge(state.workDir);
+  if (indexBadge !== null) left.push(styleFooterBadge(indexBadge, appearance));
 
   const degradedBadge = formatRuntimeDegradedFooterBadge(state.runtimeDegraded);
   if (degradedBadge !== null) left.push(styleFooterBadge(degradedBadge, appearance));

@@ -1,5 +1,9 @@
 import type { ModelAlias } from '@superliora/sdk';
 
+import {
+  formatCacheMissReasonGlance,
+  type UsageCacheMissLike,
+} from '#/tui/utils/cache/cache-diagnostics';
 import { resolveThinkingDisplay } from '#/tui/utils/model/thinking-effort';
 import { formatGitBadgeBase, type GitStatus } from '#/utils/git/git-status';
 import { safeUsageRatio } from '#/utils/usage/usage-format';
@@ -144,6 +148,25 @@ export function microCompactionStatusRows(options: StatusReportOptions): readonl
   const severity: StatusFieldRow['severity'] =
     last === 'swarm_pressure' || last === 'usage_and_cache_miss' ? 'warning' : undefined;
   return [{ label: 'Micro clear', value, severity }];
+}
+
+const CACHE_MISS_REASON_LINE_PREFIX = 'Miss reasons: ';
+
+/** Cache miss-reason histogram when usage.cacheDiagnostics.missReasons has counts. */
+export function cacheMissReasonStatusRows(options: StatusReportOptions): readonly StatusFieldRow[] {
+  const usage = options.status?.usage as UsageCacheMissLike | undefined;
+  const glance = formatCacheMissReasonGlance(usage);
+  if (glance === null) return [];
+  const value = glance.line.startsWith(CACHE_MISS_REASON_LINE_PREFIX)
+    ? glance.line.slice(CACHE_MISS_REASON_LINE_PREFIX.length)
+    : glance.line;
+  return [
+    {
+      label: 'Miss reasons',
+      value,
+      severity: glance.warn ? 'warning' : undefined,
+    },
+  ];
 }
 
 export { humanWritingBlocked };

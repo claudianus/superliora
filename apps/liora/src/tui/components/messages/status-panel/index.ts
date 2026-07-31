@@ -25,6 +25,7 @@ import {
 } from './provider-route';
 import { readinessRows } from './readiness';
 import {
+  cacheMissReasonStatusRows,
   contextOSStatusRows,
   formatModelStatus,
   formatPremiumQualityStatus,
@@ -141,6 +142,19 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
           severity: cacheFrozen ? 'warning' : undefined,
         },
       ],
+      muted,
+      value,
+      errorStyle,
+      warningStyle,
+      options.fieldMotion,
+    );
+  }
+
+  const missReasonRows = cacheMissReasonStatusRows(options);
+  if (missReasonRows.length > 0) {
+    addStatusFieldRows(
+      lines,
+      missReasonRows,
       muted,
       value,
       errorStyle,

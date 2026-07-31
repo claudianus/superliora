@@ -906,6 +906,69 @@ describe('status panel report lines', () => {
     expect(idle).toContain('idle');
   });
 
+  it('shows cache miss reason histogram when usage.cacheDiagnostics.missReasons has counts', () => {
+    const base = {
+      version: '1.2.3',
+      model: 'k2',
+      workDir: '/tmp/project',
+      sessionId: 'ses-1',
+      sessionTitle: null as string | null,
+      thinking: false,
+      permissionMode: 'manual' as const,
+      planMode: false,
+      contextUsage: 0.1,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      availableModels: {},
+    };
+    const status = {
+      model: 'k2',
+      thinkingLevel: 'high',
+      permission: 'auto' as const,
+      planMode: false,
+      contextTokens: 100,
+      maxContextTokens: 1000,
+      contextUsage: 0.1,
+      usage: {
+        total: {
+          inputOther: 100,
+          output: 10,
+          inputCacheRead: 0,
+          inputCacheCreation: 0,
+        },
+        cacheDiagnostics: {
+          toolBlockHash: 'abc',
+          toolBlockChanged: false,
+          injectionCount: 0,
+          messageCount: 3,
+          missReasons: { schema_change: 2, prefix_drift: 1 },
+        },
+      },
+    };
+
+    const output = buildStatusReportLines({ ...base, status }).map(strip).join('\n');
+    expect(output).toContain('Miss reasons');
+    expect(output).toContain('schema_change');
+    expect(output).toContain('prefix_drift');
+
+    const withoutCounts = buildStatusReportLines({
+      ...base,
+      status: {
+        ...status,
+        usage: {
+          ...status.usage,
+          cacheDiagnostics: {
+            ...status.usage.cacheDiagnostics,
+            missReasons: {},
+          },
+        },
+      },
+    })
+      .map(strip)
+      .join('\n');
+    expect(withoutCounts).not.toContain('Miss reasons');
+  });
+
   it('shows Role models rows with auto fallback for unset roles', () => {
     const base = {
       version: '1.2.3',
