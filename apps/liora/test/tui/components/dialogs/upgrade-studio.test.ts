@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SUPERLIORA_CHANGELOG_URL, type UpgradePlan } from '#/cli/update/plan';
 import { UpgradeStudioComponent } from '#/tui/components/dialogs/upgrade/upgrade-studio';
+import { stripAnsiControls, visibleWidth } from '#/tui/renderer';
 import { currentTheme, darkColors } from '#/tui/theme';
 
 const ANSI = /\u001B\[[0-9;]*m/g;
@@ -40,6 +41,25 @@ describe('UpgradeStudioComponent', () => {
 
   afterEach(() => {
     currentTheme.setPalette(previousPalette);
+  });
+
+  it('renders every row at a uniform outer width (no right-margin skew)', () => {
+    const studio = new UpgradeStudioComponent({
+      mode: 'plan',
+      plan: plan(),
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const width = 64;
+    const rows = studio.render(width);
+    expect(rows.length).toBeGreaterThan(6);
+    const widths = rows.map((row) => visibleWidth(stripAnsiControls(row)));
+    const target = widths[0]!;
+    for (const w of widths) {
+      expect(w).toBe(target);
+    }
+    // Fills the allocated center-modal width (not shrink-to-content).
+    expect(target).toBe(width);
   });
 
   it('shows checking theatre then plan with Install action', () => {

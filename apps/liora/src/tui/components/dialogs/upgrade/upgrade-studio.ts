@@ -1,15 +1,19 @@
 /**
- * Premium Upgrade Studio — multi-mode center-modal surface for /upgrade.
+ * Premium Upgrade Studio — full-width center-modal surface for /upgrade · /update.
  *
- * Modes: checking → plan → installing → success | failed
- * Visual DNA shared with SessionLoadingOverlay (bar, spinner, premium headline).
+ * Layout contract (fixes right-margin skew):
+ * - Every returned row has the **same visible width** as `render(width)`.
+ * - Frame is `renderPremiumBoxFrame` (comet chase, breath border, jewel corners).
+ * - Body lines are padded to the inner width before framing — never shrink-to-content.
  */
 
 import {
   Container,
   Key,
   matchesKey,
+  stripAnsiControls,
   truncateToWidth,
+  visibleWidth,
   type Focusable,
 } from '#/tui/renderer';
 
@@ -20,11 +24,14 @@ import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  renderParticleDivider,
+  renderPremiumBoxFrame,
   renderPremiumHeadline,
+  renderPulseText,
   renderShimmerPrefix,
+  renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { renderUpgradeProgressBlock } from './upgrade-install-progress';
 
@@ -58,6 +65,10 @@ type StudioAction = {
 };
 
 const TITLE = `Upgrade ${PRODUCT_NAME}`;
+const LABEL_COL = 10;
+const ORBIT = ['✦', '·', '✧', '·', '⋆', '·', '✧', '·'] as const;
+const JEWEL = ['◆', '◇', '◈', '❖'] as const;
+const COMET = ['·', '˙', '˚', '•', '∙', '●', '∙', '•', '˚', '˙'] as const;
 
 export class UpgradeStudioComponent extends Container implements Focusable {
   focused = false;
@@ -69,6 +80,7 @@ export class UpgradeStudioComponent extends Container implements Focusable {
   private actions: readonly StudioAction[] = [];
   private selectedIndex = 0;
   private readonly startedAtMs = appearanceAnimationNow();
+  private readonly openedAtMs = appearanceAnimationNow();
   private readonly opts: UpgradeStudioOptions;
 
   constructor(opts: UpgradeStudioOptions) {
@@ -104,7 +116,6 @@ export class UpgradeStudioComponent extends Container implements Focusable {
 
   handleInput(data: string): void {
     if (this.mode === 'checking' || this.mode === 'installing') {
-      // Unsafe to cancel mid-check/install — swallow (session-loading DNA).
       if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl('c'))) return;
       return;
     }
@@ -131,171 +142,229 @@ export class UpgradeStudioComponent extends Container implements Focusable {
   override invalidate(): void {}
 
   override render(width: number): string[] {
-    const safeWidth = Math.max(36, Math.min(72, width));
+    // Fill the full center-modal content width — never shrink-to-content.
+    const outer = Math.max(40, Math.min(72, width));
+    const inner = Math.max(20, outer - 2);
     const appearance = getActiveAppearancePreferences();
-    const shimmer = shouldRenderAmbientEffects(appearance)
-      ? renderShimmerPrefix(appearance)
-      : '';
+    const ambient = shouldRenderAmbientEffects(appearance);
+    const now = appearanceAnimationNow();
+
+    const shimmer = ambient ? renderShimmerPrefix(appearance) : '';
     const headline = renderPremiumHeadline(
-      `${shimmer}${TITLE}`.trim(),
+      `${shimmer}${TITLE}`.trimStart(),
       'upgrade-studio:title',
       appearance,
     );
-    const content = [
-      ...this.renderBody(safeWidth - 6),
-      '',
-      ...this.renderActions(),
-      '',
-      currentTheme.fg('textMuted', this.hintLine()),
-    ];
-    return renderRoundedPanel({
+    const modeChip = modeChipLabel(this.mode);
+    const footerLeft = currentTheme.fg('textMuted', modeChip);
+    const footerRight = ambient
+      ? renderPulseText('✦ studio', 'upgrade-studio:footer', 'glow')
+      : currentTheme.fg('glow', '✦ studio');
+
+    const body = padBodyToWidth(
+      [
+        ...this.renderHero(inner, now, appearance, ambient),
+        '',
+        renderParticleDivider(inner, 'upgrade-studio:rail-top', appearance),
+        '',
+        ...this.renderBody(inner, now, ambient, appearance),
+        '',
+        ...this.renderActions(inner, ambient, appearance),
+        '',
+        padLine(currentTheme.fg('textMuted', this.hintLine()), inner),
+      ],
+      inner,
+    );
+
+    const frame = renderPremiumBoxFrame(body, {
+      width: outer,
       title: headline,
-      content,
-      width: safeWidth,
-      borderToken: this.mode === 'failed' ? 'error' : this.mode === 'success' ? 'success' : 'primary',
-      minBoxWidth: 34,
-    }).map((line) => truncateToWidth(line, width));
+      titlePlain: TITLE,
+      footerLeft,
+      footerLeftPlain: modeChip,
+      footerRight,
+      footerRightPlain: '✦ studio',
+      appearance,
+      openedAtMs: this.openedAtMs,
+    });
+
+    // Guarantee uniform outer width even if host passes a wider region.
+    return frame.map((line) => {
+      const pad = Math.max(0, outer - visibleWidth(stripAnsiControls(line)));
+      return pad === 0 ? line : line + ' '.repeat(pad);
+    });
   }
 
-  private renderBody(innerWidth: number): readonly string[] {
+  private renderHero(
+    inner: number,
+    now: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    ambient: boolean,
+  ): readonly string[] {
+    const scene = renderJewelScene(Math.min(inner, 48), now, ambient);
+    const status = heroStatus(this.mode, this.plan, ambient, appearance);
+    return [
+      padLine(centerAnsi(scene, inner), inner),
+      '',
+      padLine(centerAnsi(status, inner), inner),
+    ];
+  }
+
+  private renderBody(
+    inner: number,
+    _now: number,
+    ambient: boolean,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+  ): readonly string[] {
     switch (this.mode) {
       case 'checking':
-        return this.renderChecking(innerWidth);
+        return this.renderChecking(inner);
       case 'plan':
-        return this.renderPlan(innerWidth);
+        return this.renderPlan(inner, ambient, appearance);
       case 'installing':
-        return this.renderInstalling(innerWidth);
+        return this.renderInstalling(inner);
       case 'success':
-        return this.renderSuccess();
+        return this.renderSuccess(inner, ambient, appearance);
       case 'failed':
-        return this.renderFailed(innerWidth);
+        return this.renderFailed(inner);
     }
   }
 
-  private renderChecking(innerWidth: number): readonly string[] {
+  private renderChecking(inner: number): readonly string[] {
     const source = this.plan?.source ?? 'npm-global';
     return [
-      currentTheme.fg('textMuted', ' Checking for updates…'),
+      padLine(centerAnsi(currentTheme.fg('textMuted', 'Checking for updates…'), inner), inner),
       '',
       ...renderUpgradeProgressBlock({
-        width: innerWidth,
+        width: inner,
         source,
         stage: 'checking',
         startedAtMs: this.startedAtMs,
+        fillWidth: true,
       }),
     ];
   }
 
-  private renderPlan(innerWidth: number): readonly string[] {
+  private renderPlan(
+    inner: number,
+    ambient: boolean,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+  ): readonly string[] {
     const plan = this.plan;
     if (plan === null) {
-      return [currentTheme.fg('textMuted', ' No plan resolved.')];
+      return [padLine(currentTheme.fg('textMuted', ' No plan resolved.'), inner)];
     }
     const lines: string[] = [];
     for (const line of statusLines(plan)) {
-      lines.push(currentTheme.fg(line.tone, ` ${line.text}`));
+      const text =
+        ambient && line.tone === 'text'
+          ? renderSpectacularText(line.text, 'upgrade-studio:status', appearance, {
+              pace: 'slow',
+            })
+          : currentTheme.fg(line.tone, line.text);
+      lines.push(padLine(centerAnsi(text, inner), inner));
     }
     lines.push('');
-    lines.push(
-      currentTheme.fg('textMuted', ' Current')
-        + currentTheme.fg('text', `  ${plan.currentVersion}`),
-    );
+    lines.push(fieldRow('Current', plan.currentVersion, inner, 'text'));
     if (plan.target !== null) {
-      lines.push(
-        currentTheme.fg('textMuted', ' Target ')
-          + currentTheme.boldFg('success', `  ${plan.target.version}`),
-      );
+      lines.push(fieldRow('Target', plan.target.version, inner, 'success', true));
     }
-    lines.push(
-      currentTheme.fg('textMuted', ' Source ')
-        + currentTheme.fg('primary', `  ${plan.source}`),
-    );
+    lines.push(fieldRow('Source', plan.source, inner, 'primary'));
     if (shouldShowManualCommand(plan)) {
-      lines.push(
-        currentTheme.fg('textMuted', ' Command')
-          + currentTheme.fg('primary', `  ${truncate(plan.installCommand, Math.max(12, innerWidth - 10))}`),
-      );
+      lines.push(fieldRow('Command', plan.installCommand, inner, 'primary'));
     }
     if (plan.changelogUrl.length > 0 && plan.reason === 'update-available') {
-      lines.push(
-        currentTheme.fg('textMuted', ' Notes  ')
-          + currentTheme.fg('primary', `  ${plan.changelogUrl}`),
-      );
+      lines.push(fieldRow('Notes', plan.changelogUrl, inner, 'accent'));
     }
     if (plan.dirty && plan.reason === 'update-available') {
       lines.push('');
-      lines.push(
-        currentTheme.fg(
-          'warning',
-          plan.canAutoInstall
-            ? ' Working tree is dirty — installing will discard local changes (force checkout).'
-            : ' Working tree is dirty — commit, stash, or re-run install.sh to recover.',
-        ),
-      );
+      const warn = plan.canAutoInstall
+        ? 'Dirty tree — install force-checkouts and discards local changes.'
+        : 'Dirty tree — commit, stash, or re-run install.sh to recover.';
+      lines.push(padLine(currentTheme.fg('warning', ` ⚠ ${warn}`), inner));
     }
     if (plan.errorMessage !== undefined && plan.errorMessage.length > 0) {
       lines.push('');
-      lines.push(currentTheme.fg('error', ` ${plan.errorMessage}`));
+      lines.push(padLine(currentTheme.fg('error', ` ✗ ${plan.errorMessage}`), inner));
     }
     return lines;
   }
 
-  private renderInstalling(innerWidth: number): readonly string[] {
+  private renderInstalling(inner: number): readonly string[] {
     const source = this.plan?.source ?? 'npm-global';
     const target = this.plan?.target?.version;
-    return [
+    const head =
       target === undefined
-        ? currentTheme.fg('text', ' Installing update…')
-        : currentTheme.fg('text', ' Installing ')
+        ? currentTheme.fg('text', 'Installing update…')
+        : currentTheme.fg('text', 'Installing ')
           + currentTheme.boldFg('success', target)
-          + currentTheme.fg('text', '…'),
+          + currentTheme.fg('text', '…');
+    return [
+      padLine(centerAnsi(head, inner), inner),
       '',
       ...renderUpgradeProgressBlock({
-        width: innerWidth,
+        width: inner,
         source,
         stage: this.stage,
         detail: this.detail,
         startedAtMs: this.startedAtMs,
+        fillWidth: true,
       }),
       '',
-      currentTheme.fg('glow', ' Install in progress — leave this window open.'),
+      padLine(
+        centerAnsi(
+          currentTheme.fg('glow', 'Install in progress — leave this window open.'),
+          inner,
+        ),
+        inner,
+      ),
     ];
   }
 
-  private renderSuccess(): readonly string[] {
+  private renderSuccess(
+    inner: number,
+    ambient: boolean,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+  ): readonly string[] {
     const version = this.plan?.target?.version ?? 'latest';
+    const title = ambient
+      ? renderSpectacularText('Upgrade complete', 'upgrade-studio:success', appearance, {
+          intense: true,
+        })
+      : currentTheme.boldFg('success', 'Upgrade complete');
     return [
-      currentTheme.boldFg('success', ' Upgrade complete'),
+      padLine(centerAnsi(title, inner), inner),
       '',
-      currentTheme.fg('text', ` SuperLiora is now at ${version}.`),
-      currentTheme.fg('textMuted', ' Restart SuperLiora to load the new binary.'),
+      padLine(centerAnsi(currentTheme.fg('text', `SuperLiora is now at ${version}.`), inner), inner),
+      padLine(
+        centerAnsi(currentTheme.fg('textMuted', 'Restart SuperLiora to load the new binary.'), inner),
+        inner,
+      ),
       ...(this.plan?.changelogUrl
-        ? [currentTheme.fg('primary', ` ${this.plan.changelogUrl}`)]
+        ? [padLine(centerAnsi(currentTheme.fg('primary', this.plan.changelogUrl), inner), inner)]
         : []),
     ];
   }
 
-  private renderFailed(innerWidth: number): readonly string[] {
+  private renderFailed(inner: number): readonly string[] {
     const reason = this.detail?.trim() || 'install failed';
     const lines = [
-      currentTheme.boldFg('error', ' Upgrade failed'),
+      padLine(centerAnsi(currentTheme.boldFg('error', 'Upgrade failed'), inner), inner),
       '',
-      currentTheme.fg('error', ` ${truncate(reason, Math.max(12, innerWidth - 2))}`),
+      padLine(centerAnsi(currentTheme.fg('error', truncate(reason, Math.max(12, inner - 4))), inner), inner),
     ];
     if (this.plan !== null) {
       lines.push('');
-      lines.push(currentTheme.fg('textMuted', ' Manual recovery:'));
-      lines.push(
-        currentTheme.fg(
-          'primary',
-          ` ${truncate(this.plan.installCommand, Math.max(12, innerWidth - 2))}`,
-        ),
-      );
+      lines.push(fieldRow('Recover', this.plan.installCommand, inner, 'primary'));
     }
     return lines;
   }
 
-  private renderActions(): readonly string[] {
+  private renderActions(
+    inner: number,
+    ambient: boolean,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+  ): readonly string[] {
     if (this.actions.length === 0) return [];
     const out: string[] = [];
     for (let i = 0; i < this.actions.length; i++) {
@@ -303,9 +372,16 @@ export class UpgradeStudioComponent extends Container implements Focusable {
       const selected = i === this.selectedIndex;
       const pointer = selected ? renderSelectPointer('upgrade-studio:pointer') : ' ';
       const label = selected
-        ? currentTheme.boldFg('primary', action.label)
+        ? ambient
+          ? renderSpectacularText(action.label, `upgrade-studio:action:${action.value}`, appearance, {
+              intense: true,
+              pace: 'fast',
+            })
+          : currentTheme.boldFg('primary', action.label)
         : currentTheme.fg('text', action.label);
-      out.push(`  ${pointer} ${label}`);
+      const prefix = `  ${pointer} `;
+      const line = prefix + label;
+      out.push(padLine(line, inner));
     }
     return out;
   }
@@ -314,22 +390,136 @@ export class UpgradeStudioComponent extends Container implements Focusable {
     switch (this.mode) {
       case 'checking':
       case 'installing':
-        return ' Please wait…';
+        return 'Please wait…';
       case 'plan':
         return this.actions.length > 1
-          ? ' ↑↓ navigate · Enter select · Esc cancel'
-          : ' Enter dismiss · Esc cancel';
+          ? '↑↓ navigate · Enter select · Esc cancel'
+          : 'Enter dismiss · Esc cancel';
       case 'success':
       case 'failed':
         return this.actions.length > 1
-          ? ' ↑↓ navigate · Enter select · Esc cancel'
-          : ' Enter dismiss · Esc cancel';
+          ? '↑↓ navigate · Enter select · Esc cancel'
+          : 'Enter dismiss · Esc cancel';
     }
   }
 
   private rebuildActions(): void {
     this.actions = actionsForMode(this.mode, this.plan);
     this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.actions.length - 1));
+  }
+}
+
+// ── layout helpers ──────────────────────────────────────────────────────────
+
+function padBodyToWidth(lines: readonly string[], width: number): readonly string[] {
+  return lines.map((line) => padLine(line, width));
+}
+
+function padLine(line: string, width: number): string {
+  const plain = stripAnsiControls(line);
+  const w = visibleWidth(plain);
+  if (w === width) return line;
+  if (w > width) return truncateToWidth(line, width, '…');
+  return line + ' '.repeat(width - w);
+}
+
+function centerAnsi(line: string, width: number): string {
+  const plain = stripAnsiControls(line);
+  const w = visibleWidth(plain);
+  if (w >= width) return truncateToWidth(line, width, '…');
+  const left = Math.floor((width - w) / 2);
+  return ' '.repeat(left) + line;
+}
+
+function fieldRow(
+  label: string,
+  value: string,
+  width: number,
+  valueTone: 'text' | 'success' | 'primary' | 'accent',
+  bold = false,
+): string {
+  const labelStyled = currentTheme.fg('textMuted', label.padEnd(LABEL_COL, ' '));
+  const valueMax = Math.max(8, width - LABEL_COL - 3);
+  const valuePlain = truncate(value, valueMax);
+  const valueStyled = bold
+    ? currentTheme.boldFg(valueTone, valuePlain)
+    : currentTheme.fg(valueTone, valuePlain);
+  return padLine(` ${labelStyled} ${valueStyled}`, width);
+}
+
+function renderJewelScene(width: number, now: number, ambient: boolean): string {
+  const w = Math.max(14, width);
+  const cells: string[] = Array.from({ length: w }, () => ' ');
+  if (!ambient) {
+    const mid = Math.floor(w / 2);
+    cells[mid] = currentTheme.boldFg('primary', '◆');
+    return cells.join('');
+  }
+  for (let i = 0; i < w; i++) {
+    const tick = Math.floor(now / 120);
+    if ((tick + i * 7) % 9 === 0) cells[i] = currentTheme.dim(ORBIT[i % ORBIT.length] ?? '·');
+    else if ((tick + i * 5) % 13 === 0) cells[i] = currentTheme.fg('particle', '·');
+  }
+  const t1 = now / 380;
+  const orbitX = Math.floor((Math.sin(t1) * 0.5 + 0.5) * (w - 1));
+  const jewel = JEWEL[Math.floor(now / 240) % JEWEL.length] ?? '◆';
+  for (let d = 4; d >= 1; d--) {
+    const x = orbitX - d;
+    if (x < 0) continue;
+    cells[x] = currentTheme.fg(d <= 2 ? 'glow' : 'primary', COMET[(Math.floor(now / 70) + d) % COMET.length] ?? '·');
+  }
+  cells[orbitX] = currentTheme.boldFg('primary', jewel);
+  const t2 = now / 520 + Math.PI * 0.65;
+  const orbitY = Math.floor((Math.sin(t2) * 0.5 + 0.5) * (w - 1));
+  if (orbitY !== orbitX) cells[orbitY] = currentTheme.fg('glow', '✧');
+  return cells.join('');
+}
+
+function heroStatus(
+  mode: UpgradeStudioMode,
+  plan: UpgradePlan | null,
+  ambient: boolean,
+  appearance: ReturnType<typeof getActiveAppearancePreferences>,
+): string {
+  const raw = (() => {
+    switch (mode) {
+      case 'checking':
+        return 'Scanning releases…';
+      case 'installing':
+        return 'Installing…';
+      case 'success':
+        return 'Ready to restart';
+      case 'failed':
+        return 'Install failed';
+      case 'plan':
+        if (plan?.reason === 'update-available' && plan.target !== null) {
+          return `${plan.currentVersion}  →  ${plan.target.version}`;
+        }
+        if (plan?.reason === 'up-to-date') return 'You are up to date';
+        return 'Update status';
+    }
+  })();
+  if (ambient && (mode === 'plan' || mode === 'success')) {
+    return renderSpectacularText(raw, 'upgrade-studio:hero', appearance, {
+      intense: mode === 'success',
+      pace: mode === 'success' ? 'fast' : 'slow',
+    });
+  }
+  return currentTheme.boldFg(mode === 'failed' ? 'error' : 'primary', raw);
+}
+
+function modeChipLabel(mode: UpgradeStudioMode): string {
+  switch (mode) {
+    case 'checking':
+      return 'checking';
+    case 'plan':
+      return 'ready';
+    case 'installing':
+      return 'installing';
+    case 'success':
+      return 'done';
+    case 'failed':
+      return 'failed';
   }
 }
 
@@ -349,7 +539,6 @@ function actionsForMode(
     actions.push({ value: 'dismiss', label: 'Dismiss' });
     return actions;
   }
-  // plan
   if (plan === null) {
     return [{ value: 'dismiss', label: 'Dismiss' }];
   }
