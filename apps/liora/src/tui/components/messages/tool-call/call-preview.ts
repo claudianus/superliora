@@ -73,8 +73,9 @@ export class ToolCallCallPreview {
     );
   }
 
-  rebuildBlock(host: ToolCallCallPreviewHost, children: Component[]): void {
+  rebuildBlock(host: ToolCallCallPreviewHost): void {
     host.clearRenderCache();
+    const children = host.children as Component[];
     const tail = children.splice(this.callPreviewEndIndex);
     while (children.length > 2) {
       children.pop();

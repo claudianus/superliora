@@ -89,7 +89,9 @@ export function tickToolCallRenderClock(
       durationMs: stagedPreviewRevealDurationMs(),
     });
     if (visible !== input.builtPreviewItemCount) {
-      callbacks.rebuildCallPreviewBlock();
+      // Full body rebuild keeps preview children + callPreviewEndIndex aligned.
+      // Partial rebuildBlock can leave children stuck while counters advance.
+      callbacks.rebuildBody();
       callbacks.requestRender();
     }
   }

@@ -128,6 +128,6 @@ export function rebuildToolCallComponentSubagentBlock(host: ToolCallInternalsHos
 }
 
 export function rebuildToolCallCallPreviewBlock(host: ToolCallInternalsHost): void {
-  host.callPreview.rebuildBlock(host.callPreviewHost, host.children);
+  host.callPreview.rebuildBlock(host.callPreviewHost);
 }
 
