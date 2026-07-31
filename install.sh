@@ -47,11 +47,45 @@ Environment variables:
 EOF
 }
 
+# Shared with in-app / CLI upgrade theatre — parseable by parseUpgradeStageLine.
+# Stages: fetching | building | installing | done | failed
+STAGE_MARKER_PREFIX='__LIORA_UPGRADE_STAGE__='
+
+use_color() {
+  [ -t 1 ] || return 1
+  case "${NO_COLOR:-}" in
+    ''|0|false|FALSE|off|OFF) ;;
+    *) return 1 ;;
+  esac
+  return 0
+}
+
 log() {
   printf '%s\n' "$*"
 }
 
+# Emit a machine-readable stage marker (always) and a human step line (TTY).
+emit_stage() {
+  local stage="$1"
+  local label="${2:-$1}"
+  printf '%s%s\n' "$STAGE_MARKER_PREFIX" "$stage"
+  if use_color; then
+    printf '\033[36m●\033[0m \033[1m%s\033[0m\n' "$label"
+  else
+    log "==> $label"
+  fi
+}
+
+step_ok() {
+  if use_color; then
+    printf '  \033[32m✓\033[0m %s\n' "$1"
+  else
+    log "  [ok] $1"
+  fi
+}
+
 die() {
+  printf '%sfailed\n' "$STAGE_MARKER_PREFIX" >&2
   printf 'error: %s\n' "$*" >&2
   exit 1
 }
@@ -210,6 +244,7 @@ if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
   fi
 fi
 
+emit_stage fetching "Fetching SuperLiora source"
 if [ -d "$INSTALL_DIR/.git" ]; then
   log "Updating SuperLiora source in $INSTALL_DIR"
   git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
@@ -223,15 +258,17 @@ else
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$REF"
   git -C "$INSTALL_DIR" checkout --force FETCH_HEAD
 fi
+step_ok "Source at $INSTALL_DIR ($REF)"
 
 if [ "$NO_BUILD" -eq 0 ]; then
-  log "Installing dependencies and building CLI"
+  emit_stage building "Installing dependencies and building CLI"
   (
     cd "$INSTALL_DIR"
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --frozen-lockfile
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm run build:packages
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -C apps/liora run build
   )
+  step_ok "Packages and CLI built"
 
   if [ "$NO_BROWSER_USE" -eq 0 ] && [ "${SUPERLIORA_SKIP_BROWSER_USE:-0}" != "1" ]; then
     log "Pre-installing Lightpanda browser-use runtime (primary)"
@@ -284,14 +321,22 @@ if [ "$NO_SHELL_RC" -eq 1 ]; then
   install_args+=("--no-shell-rc")
 fi
 
+emit_stage installing "Installing $COMMAND_NAME wrapper"
 node "$INSTALL_DIR/scripts/install-liora.mjs" "${install_args[@]}"
+step_ok "Wrapper at $BIN_DIR/$COMMAND_NAME"
 
 if [ -x "$BIN_DIR/$COMMAND_NAME" ]; then
   "$BIN_DIR/$COMMAND_NAME" --version >/dev/null 2>&1 || true
 fi
 
+printf '%sdone\n' "$STAGE_MARKER_PREFIX"
 log ""
-log "SuperLiora is installed from GitHub source."
+if use_color; then
+  printf '\033[32m✓\033[0m \033[1mSuperLiora is installed from GitHub source.\033[0m\n'
+else
+  log "SuperLiora is installed from GitHub source."
+fi
 log "Command: $COMMAND_NAME"
 log "Source:  $INSTALL_DIR"
 log "Bin dir: $BIN_DIR"
+log "Next:    $COMMAND_NAME   ·  $COMMAND_NAME upgrade"

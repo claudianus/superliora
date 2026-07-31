@@ -13,7 +13,7 @@ export const UPGRADE_AUTO_INSTALL_TIP =
   'tui.toml [upgrade] auto_install = true|false · /reload tui after a manual edit.';
 
 export const UPGRADE_MANUAL_TIP =
-  'Manual upgrade: /upgrade check + install dialog · header badge when preflight finds one.';
+  'Manual upgrade: /upgrade opens Upgrade Studio · header badge when preflight finds one.';
 
 export const UPGRADE_ENV_TIP = `${AUTO_UPDATE_DISABLE_ENV} wins over auto_install and experimental flags.`;
 
@@ -129,7 +129,8 @@ export function buildUpgradeSettingsLines(glance: UpgradeGlanceInput): readonly 
     '  /reload tui                    apply after manual edit',
     '',
     '── Manual upgrade ───────────────────────────',
-    '  /upgrade                       check + install dialog',
+    '  /upgrade                       Upgrade Studio (check + live install)',
+    '  Settings → Updates             Open Upgrade Studio',
     '  Header badge                   pending update when preflight finds one',
     '',
     '── Tips ─────────────────────────────────────',

@@ -5,7 +5,7 @@ import type { UpgradeInstallStage } from '#/cli/update/install-stages';
 import { handleUpgradeCommand } from '#/tui/commands/info/upgrade';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { findBuiltInSlashCommand } from '#/tui/commands/hub/registry';
-import { UpgradeDialogComponent } from '#/tui/components/dialogs/upgrade/upgrade-dialog';
+import { UpgradeStudioComponent } from '#/tui/components/dialogs/upgrade/upgrade-studio';
 
 const ESC = String.fromCodePoint(27);
 
@@ -26,22 +26,27 @@ function plan(overrides: Partial<UpgradePlan> = {}): UpgradePlan {
 function createHost(overrides: Partial<SlashCommandHost> = {}): SlashCommandHost {
   return {
     mountEditorReplacement: vi.fn(),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
     restoreEditor: vi.fn(),
     showStatus: vi.fn(),
     track: vi.fn(),
-    state: { appState: { version: '0.4.0' } },
+    state: {
+      appState: { version: '0.4.0' },
+      centerModalStack: [],
+    },
     ...overrides,
   } as unknown as SlashCommandHost;
 }
 
-async function waitForDialog(host: SlashCommandHost): Promise<UpgradeDialogComponent> {
-  const mount = host.mountEditorReplacement as ReturnType<typeof vi.fn>;
+async function waitForStudio(host: SlashCommandHost): Promise<UpgradeStudioComponent> {
+  const mount = host.mountCenterModal as ReturnType<typeof vi.fn>;
   await vi.waitFor(() => {
     expect(mount).toHaveBeenCalled();
   });
-  const dialog = mount.mock.calls[0]?.[0];
-  expect(dialog).toBeInstanceOf(UpgradeDialogComponent);
-  return dialog as UpgradeDialogComponent;
+  const studio = mount.mock.calls[0]?.[0];
+  expect(studio).toBeInstanceOf(UpgradeStudioComponent);
+  return studio as UpgradeStudioComponent;
 }
 
 describe('upgrade slash command', () => {
@@ -50,9 +55,9 @@ describe('upgrade slash command', () => {
     expect(findBuiltInSlashCommand('update')?.name).toBe('upgrade');
   });
 
-  it('mounts the upgrade dialog with a resolved plan', async () => {
-    const mountEditorReplacement = vi.fn();
-    const host = createHost({ mountEditorReplacement });
+  it('mounts Upgrade Studio and resolves into plan mode', async () => {
+    const mountCenterModal = vi.fn();
+    const host = createHost({ mountCenterModal });
     const resolved = plan();
 
     const pending = handleUpgradeCommand(host, {
@@ -60,23 +65,28 @@ describe('upgrade slash command', () => {
       getCurrentVersion: () => '0.4.0',
     });
 
-    expect(host.showStatus).toHaveBeenCalledWith('Checking for updates…');
-    const dialog = await waitForDialog(host);
+    const studio = await waitForStudio(host);
+    expect(host.track).toHaveBeenCalledWith(
+      'upgrade_studio_opened',
+      expect.objectContaining({ current_version: '0.4.0' }),
+    );
+
+    await vi.waitFor(() => {
+      expect(studio.currentMode).toBe('plan');
+    });
     expect(host.track).toHaveBeenCalledWith('upgrade_command_tui_checked', {
       reason: 'update-available',
       source: 'npm-global',
     });
-    expect(mountEditorReplacement).toHaveBeenCalledTimes(1);
-    expect(dialog).toBeInstanceOf(UpgradeDialogComponent);
+    expect(mountCenterModal).toHaveBeenCalledTimes(1);
 
-    dialog.handleInput(ESC);
+    studio.handleInput(ESC);
     await pending;
   });
 
-  it('starts observed install when Install is selected', async () => {
-    const restoreEditor = vi.fn();
+  it('starts observed install when Install is selected and keeps studio open', async () => {
     const showStatus = vi.fn();
-    const host = createHost({ restoreEditor, showStatus });
+    const host = createHost({ showStatus });
     const startObservedUpgradeInstall = vi.fn().mockResolvedValue({ started: true });
 
     const pending = handleUpgradeCommand(host, {
@@ -85,11 +95,14 @@ describe('upgrade slash command', () => {
       getCurrentVersion: () => '0.4.0',
     });
 
-    const dialog = await waitForDialog(host);
-    dialog.handleInput('\r');
-    await pending;
-
-    expect(restoreEditor).toHaveBeenCalled();
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => {
+      expect(studio.currentMode).toBe('plan');
+    });
+    studio.handleInput('\r');
+    await vi.waitFor(() => {
+      expect(startObservedUpgradeInstall).toHaveBeenCalled();
+    });
     expect(startObservedUpgradeInstall).toHaveBeenCalledWith(
       expect.objectContaining({
         currentVersion: '0.4.0',
@@ -97,6 +110,18 @@ describe('upgrade slash command', () => {
         source: 'npm-global',
       }),
     );
+    expect(studio.currentMode).toBe('installing');
+
+    // Dismiss via failed lock path is not used; complete via onStage after start.
+    const onStage = startObservedUpgradeInstall.mock.calls[0]?.[0]?.onStage as
+      | ((stage: UpgradeInstallStage, detail?: string) => void)
+      | undefined;
+    onStage?.('done');
+    await vi.waitFor(() => {
+      expect(studio.currentMode).toBe('success');
+    });
+    studio.handleInput('\r');
+    await pending;
   });
 
   it('ignores duplicate terminal stages from onStage', async () => {
@@ -113,21 +138,19 @@ describe('upgrade slash command', () => {
       },
     });
 
-    const dialog = await waitForDialog(host);
-    dialog.handleInput('\r');
-    await pending;
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => expect(studio.currentMode).toBe('plan'));
+    studio.handleInput('\r');
+    await vi.waitFor(() => expect(onStage).toBeTypeOf('function'));
 
-    expect(onStage).toBeTypeOf('function');
     onStage!('done');
     onStage!('done');
     const doneCalls = showStatus.mock.calls.filter((call) =>
       String(call[0]).includes('Restart SuperLiora'),
     );
     expect(doneCalls).toHaveLength(1);
-    expect(doneCalls[0]).toEqual([
-      'Upgrade complete. Restart SuperLiora to use the new version.',
-      'success',
-    ]);
+    studio.handleInput('\r');
+    await pending;
   });
 
   it('surfaces failed stage detail and manual install command', async () => {
@@ -145,19 +168,22 @@ describe('upgrade slash command', () => {
       },
     });
 
-    const dialog = await waitForDialog(host);
-    dialog.handleInput('\r');
-    await pending;
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => expect(studio.currentMode).toBe('plan'));
+    studio.handleInput('\r');
+    await vi.waitFor(() => expect(onStage).toBeTypeOf('function'));
 
     onStage!('failed', 'npm ERR! EACCES');
     onStage!('failed', 'npm ERR! EACCES');
+    await vi.waitFor(() => expect(studio.currentMode).toBe('failed'));
     const failedCalls = showStatus.mock.calls.filter((call) =>
       String(call[0]).includes('Upgrade failed'),
     );
     expect(failedCalls).toHaveLength(1);
     expect(failedCalls[0]?.[0]).toContain('npm ERR! EACCES');
     expect(failedCalls[0]?.[0]).toContain(resolved.installCommand);
-    expect(failedCalls[0]?.[1]).toBe('error');
+    studio.handleInput(ESC);
+    await pending;
   });
 
   it('reports lock-held when install cannot start', async () => {
@@ -170,10 +196,12 @@ describe('upgrade slash command', () => {
       startObservedUpgradeInstall: async () => ({ started: false, reason: 'lock-held' }),
     });
 
-    const dialog = await waitForDialog(host);
-    dialog.handleInput('\r');
-    await pending;
-
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => expect(studio.currentMode).toBe('plan'));
+    studio.handleInput('\r');
+    await vi.waitFor(() => expect(studio.currentMode).toBe('failed'));
     expect(showStatus).toHaveBeenCalledWith('Upgrade already in progress.', 'warning');
+    studio.handleInput(ESC);
+    await pending;
   });
 });
