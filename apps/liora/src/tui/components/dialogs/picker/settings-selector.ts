@@ -96,7 +96,7 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'mission',
     label: 'Mission / Goals',
-    description: 'Mission runs, goal queue, auto-start opt-in — distinct from Hub Start Mission…',
+    description: '/mission goals · auto-start · distinct from Hub Start Mission…',
   },
   {
     value: 'fleet',
@@ -116,7 +116,7 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'harness',
     label: 'Harness',
-    description: 'Eyes/hands surface: tools, eyes readiness, Premium, MCP, experiments.',
+    description: 'Tools, eyes readiness, Visual Quality, experiments.',
   },
   {
     value: 'tools',
@@ -136,12 +136,12 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'mcp',
     label: 'MCP servers',
-    description: 'Live server count + manage (install, toggle, remove, reload).',
+    description: 'MCP glance + manage · also Extensions → Manage.',
   },
   {
     value: 'extensions',
     label: 'Extensions',
-    description: 'Live installed counts + manage hub (plugins, skills, MCP).',
+    description: 'Manage hub: plugins, skills, MCP, Claude import.',
   },
   {
     value: 'hooks',
@@ -151,7 +151,7 @@ const SETTINGS_OPTIONS_BASE: readonly Omit<ChoiceOption, 'keywords'>[] = [
   {
     value: 'skills',
     label: 'Skills',
-    description: 'Catalog sources, SearchSkill workflow, risk filter tips.',
+    description: 'Catalog + SearchSkill tips · manage via Extensions.',
   },
   {
     value: 'search',

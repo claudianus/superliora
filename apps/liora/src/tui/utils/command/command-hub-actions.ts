@@ -48,7 +48,7 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'workspace.status':
       return '/status';
     case 'extend.extensions':
-      return '/extensions';
+      return undefined;
     case 'appearance.theme':
       return '/theme';
     case 'appearance.appearance':

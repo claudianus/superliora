@@ -66,7 +66,7 @@ describe('skills settings tips', () => {
 });
 
 describe('showSkillsSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status, manage, and tip actions', () => {
     const host = makeSkillsHost();
     showSkillsSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -77,11 +77,25 @@ describe('showSkillsSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'manage',
       'tip-search-skill',
       'tip-risk-filter',
       'tip-trace-skill',
       'tip-manage',
     ]);
+  });
+
+  it('routes manage to Extensions hub', () => {
+    const host = makeSkillsHost();
+    showSkillsSettings(host);
+    selectSkillsAction(host, 'manage');
+    expect(host.mountCenterModal).toHaveBeenCalledTimes(2);
+    const hub = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(hub).toBeDefined();
+    const title = (hub as unknown as { opts: { title?: string } }).opts.title;
+    expect(title).toBe('Extensions');
   });
 
   it('shows SearchSkill tip via showStatus', () => {
