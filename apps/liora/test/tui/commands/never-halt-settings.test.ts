@@ -116,7 +116,19 @@ describe('showNeverHaltSettings', () => {
     const text = panel.render(100).join('\n');
     expect(text).toContain('── Session (live) ─');
     expect(text).toContain('Never-Halt queue: 2 pending');
+    expect(text).toContain('Goal/Mission/Fleet continue');
     expect(text).toContain('stale×1');
+  });
+
+  it('surfaces ask-mode Fleet continue in the permission queue section', async () => {
+    const host = makeHost();
+    await showNeverHaltSettings(host);
+
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.render(100).join('\n');
+    expect(text).toContain('Ask mode: one approval waits in Ops tray');
+    expect(text).toContain('Independent tool_calls proceed in parallel');
   });
 
   it('shows clear queue when getStatus reports zero pending interventions', async () => {

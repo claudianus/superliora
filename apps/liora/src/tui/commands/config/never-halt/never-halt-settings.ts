@@ -6,7 +6,11 @@ import { UsagePanelComponent } from '../../../components/messages/usage-panel/in
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { buildNeverHaltOAuthResilienceLines, resolveOAuthPoolGlance } from '../../../utils/never-halt/auth-glance';
 import { resolveNeverHaltBreakerLines } from '../../../utils/never-halt/breaker-glance';
-import { formatInterventionQueueSettingsLine } from '../../../utils/never-halt/intervention-glance';
+import {
+  formatInterventionQueueSettingsLine,
+  INTERVENTION_ASK_MODE_FLEET_TIP,
+  INTERVENTION_PARALLEL_TOOLS_NOTE,
+} from '../../../utils/never-halt/intervention-glance';
 import { activeRuntimeDegraded } from '../../../utils/never-halt/runtime-degraded';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -71,10 +75,11 @@ export async function showNeverHaltSettings(host: SlashCommandHost): Promise<voi
     interventionQueueLine,
     '',
     '── Permission intervention queue ───────────',
+    INTERVENTION_ASK_MODE_FLEET_TIP,
     'High-risk approvals queue non-blocking —',
     'Goal/Mission/Fleet keep running while tray waits.',
-    'Independent tool_calls fan out in parallel;',
-    'only conflicting resource accesses serialize.',
+    INTERVENTION_PARALLEL_TOOLS_NOTE,
+    'Only conflicting resource accesses serialize.',
     'yolo skips ask; auto still queues interventions.',
     'Sticky interrupts stay in the approval tray.',
     'Unattended runs prefer auto/yolo; AskUserQuestion stays sticky in Ops tray when ask mode applies.',

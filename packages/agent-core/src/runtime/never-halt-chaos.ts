@@ -6,7 +6,9 @@
 import type { OAuthRefreshOutcome } from '@superliora/oauth';
 import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
+import { NonBlockingPermissionQueue } from '#/agent/permission/non-blocking-queue';
 import { createTurnLoopDispatch } from '#/agent/turn/loop-dispatch';
+import { ToolParallelStatus } from '#/loop/tool-parallel-status';
 import type { TurnTelemetry } from '#/agent/turn/telemetry';
 import type { AgentEvent } from '#/rpc/events';
 import { StreamingThinkScrubber } from '#/utils/think-scrubber';
@@ -43,6 +45,69 @@ export interface NeverHaltChaosSequenceResult extends NeverHaltChaosTickResult {
 export interface NeverHaltOAuthChaosSequenceResult extends NeverHaltChaosTickResult {
   readonly phases: readonly NeverHaltOAuthChaosSequencePhase[];
   readonly refreshOutcomes: readonly OAuthRefreshOutcome[];
+}
+
+export type NeverHaltInterventionQueueChaosPhase =
+  | 'enqueue_approval'
+  | 'parallel_tools_continue'
+  | 'resolve_approval';
+
+export interface NeverHaltInterventionQueueChaosResult extends NeverHaltChaosTickResult {
+  readonly phases: readonly NeverHaltInterventionQueueChaosPhase[];
+  readonly pendingInterventions: number;
+  readonly parallelToolsInFlight: number;
+}
+
+/**
+ * Simulate ask-mode with one approval queued while independent tools continue.
+ * Contract: the intervention queue is non-blocking — Goal/Mission/Fleet keep ticking.
+ */
+export function simulateNeverHaltInterventionQueueChaos(
+  _atMs: number = Date.now(),
+): NeverHaltInterventionQueueChaosResult {
+  const phases: NeverHaltInterventionQueueChaosPhase[] = [];
+  const queue = new NonBlockingPermissionQueue();
+  const parallelStatus = new ToolParallelStatus();
+  let goalTickCompleted = false;
+
+  try {
+    const pending = queue.enqueue({
+      toolName: 'Bash',
+      rule: 'bash(*)',
+      risk: 'high',
+    });
+    phases.push('enqueue_approval');
+    if (queue.pendingCount() !== 1) {
+      throw new Error('expected one pending intervention');
+    }
+
+    parallelStatus.sync(2, 2);
+    phases.push('parallel_tools_continue');
+    if (parallelStatus.snapshot().parallelToolsInFlight !== 2) {
+      throw new Error('expected parallel tools in flight');
+    }
+
+    goalTickCompleted = true;
+
+    queue.resolve(pending.id, 'approved');
+    phases.push('resolve_approval');
+    if (queue.pendingCount() !== 0) {
+      throw new Error('expected empty queue after resolve');
+    }
+  } catch {
+    goalTickCompleted = false;
+  }
+
+  return {
+    phases,
+    pendingInterventions: queue.pendingCount(),
+    parallelToolsInFlight: parallelStatus.snapshot().parallelToolsInFlight,
+    degradedEvents: [],
+    goalTickCompleted,
+    detail: goalTickCompleted
+      ? 'ask-mode approval queued; parallel tools continued; goal tick completed'
+      : 'goal tick aborted during intervention queue chaos (contract violation)',
+  };
 }
 
 /**

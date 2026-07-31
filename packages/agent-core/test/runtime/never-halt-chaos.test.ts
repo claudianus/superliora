@@ -7,8 +7,25 @@ import {
   runNeverHaltDegradedLoopDispatchChaos,
   simulateNeverHaltChaosSequence,
   simulateNeverHaltDegradedChaos,
+  simulateNeverHaltInterventionQueueChaos,
   simulateNeverHaltOAuthChaosSequence,
 } from '../../src/runtime/never-halt-chaos';
+
+describe('Never-Halt chaos — intervention queue non-blocking', () => {
+  it('queues ask-mode approval while parallel tools continue without aborting the goal tick', () => {
+    const result = simulateNeverHaltInterventionQueueChaos(44_000);
+
+    expect(result.goalTickCompleted).toBe(true);
+    expect(result.detail).toContain('goal tick completed');
+    expect(result.phases).toEqual([
+      'enqueue_approval',
+      'parallel_tools_continue',
+      'resolve_approval',
+    ]);
+    expect(result.pendingInterventions).toBe(0);
+    expect(result.parallelToolsInFlight).toBe(2);
+  });
+});
 
 describe('Never-Halt chaos — runtime.degraded soft-survive', () => {
   it('fires search breaker + oauth degrade without aborting the goal tick', () => {

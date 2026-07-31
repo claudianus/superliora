@@ -6,7 +6,11 @@ import { formatDurationShort } from '#/tui/features/transcript/transcript-densit
 
 /** Soft status tip when a non-blocking approval enters the queue. */
 export const INTERVENTION_NEVER_HALT_TIP =
-  'Never-Halt: approval queued — Goal continues while you decide';
+  'Never-Halt: approval queued — Goal/Mission/Fleet continue while you decide';
+
+/** Settings/Ops — ask-mode keeps Fleet and independent tools running during one wait. */
+export const INTERVENTION_ASK_MODE_FLEET_TIP =
+  'Ask mode: one approval waits in Ops tray — Fleet workers and independent tools keep running.';
 
 /** Env var referenced from Settings → Never-Halt for orphan tray cleanup. */
 export const PERMISSION_AUTO_EXPIRE_ENV = 'SUPERLIORA_PERMISSION_AUTO_EXPIRE_MS';
@@ -89,8 +93,12 @@ export function formatInterventionQueueSettingsLine(input: {
       input.oldestInterventionAgeMs,
       input.staleInterventions ?? 0,
     ) ?? `Live queue: ${String(count)} pending`;
+  const fleetContinue = ' · Goal/Mission/Fleet continue';
   const countdown = formatInterventionAutoExpireCountdown(input.oldestInterventionAgeMs);
-  return countdown != null ? `${base} · ${countdown}` : base;
+  if (countdown != null) {
+    return `${base}${fleetContinue} · ${countdown}`;
+  }
+  return `${base}${fleetContinue}`;
 }
 
 /** Ops intervention tray hint when entries age past the stale threshold. */
