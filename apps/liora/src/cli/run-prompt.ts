@@ -74,7 +74,6 @@ export async function runPrompt(
     sessionStartedProperties: { yolo: false, plan: false, afk: true },
   });
   const oauthProactiveRefresh = startHarnessOAuthProactiveRefresh(harness, {
-    // Headless runs have no TUI footer — log only (runtime.degraded gap).
     onDegraded: (event) => {
       log.warn('oauth proactive refresh degraded', {
         scope: event.scope,

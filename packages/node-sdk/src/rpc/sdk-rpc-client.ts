@@ -10,6 +10,7 @@ import {
   type CoreAPI,
   type OAuthTokenProviderResolver,
   type RPCMethods,
+  type RuntimeDegradedEvent,
   type SDKAPI,
   type TelemetryClient,
 } from '@superliora/agent-core';
@@ -155,6 +156,10 @@ export class SDKRpcClient extends SDKRpcClientBase {
 
   override emergencyFlushSync(): void {
     this.core.emergencyFlushSync();
+  }
+
+  override broadcastRuntimeDegraded(event: RuntimeDegradedEvent): void {
+    this.core.broadcastRuntimeDegraded(event);
   }
 
   private createKimiRequestHeaders(): Record<string, string> | undefined {

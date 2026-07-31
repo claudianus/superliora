@@ -84,7 +84,9 @@ export function startHarnessOAuthProactiveRefresh(
     OAUTH_PROACTIVE_REFRESH_INTERVAL_MS,
     {
       onError: (error) => {
-        options.onDegraded?.(buildOAuthRefreshDegradedEvent(error));
+        const event = buildOAuthRefreshDegradedEvent(error);
+        options.onDegraded?.(event);
+        harness.broadcastRuntimeDegraded(event);
       },
     },
   );

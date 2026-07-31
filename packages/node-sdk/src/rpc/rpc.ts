@@ -17,6 +17,7 @@ import {
   type ToolInfo,
   type SwarmModeTrigger,
   type SessionTrace,
+  type RuntimeDegradedEvent,
 } from '@superliora/agent-core';
 
 import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/session/events';
@@ -108,6 +109,10 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
    * `uncaughtExceptionMonitor`); never throws.
    */
   emergencyFlushSync(): void {
+    // Default no-op for transports without an in-process core.
+  }
+
+  broadcastRuntimeDegraded(_event: RuntimeDegradedEvent): void {
     // Default no-op for transports without an in-process core.
   }
 

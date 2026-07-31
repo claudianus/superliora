@@ -44,9 +44,10 @@ describe('startHarnessOAuthProactiveRefresh', () => {
     expect(startHarnessOAuthProactiveRefresh(harness)).toBeUndefined();
   });
 
-  it('surfaces refresh failures via onDegraded', async () => {
+  it('surfaces refresh failures via onDegraded and runtime.degraded broadcast', async () => {
     vi.useFakeTimers();
     const onDegraded = vi.fn();
+    const broadcastRuntimeDegraded = vi.fn();
     const error = new Error('refresh failed');
     const getAccessToken = vi.fn(async () => {
       throw error;
@@ -55,6 +56,7 @@ describe('startHarnessOAuthProactiveRefresh', () => {
       auth: {
         resolveOAuthTokenProvider: () => ({ getAccessToken }),
       },
+      broadcastRuntimeDegraded,
     } as never;
 
     const handle = startHarnessOAuthProactiveRefresh(harness, { onDegraded });
@@ -62,7 +64,20 @@ describe('startHarnessOAuthProactiveRefresh', () => {
 
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     expect(getAccessToken).toHaveBeenCalledTimes(1);
-    expect(onDegraded).toHaveBeenCalledWith(buildOAuthRefreshDegradedEvent(error));
+    expect(onDegraded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'runtime.degraded',
+        scope: 'oauth',
+        reason: 'refresh failed',
+      }),
+    );
+    expect(broadcastRuntimeDegraded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'runtime.degraded',
+        scope: 'oauth',
+        reason: 'refresh failed',
+      }),
+    );
 
     handle?.stop();
     vi.useRealTimers();
