@@ -3,7 +3,7 @@ import type { ExperimentalFlagMap } from '@superliora/sdk';
 import { experimentalFeatureMap } from '#/utils/experimental-features';
 
 // Resolved experimental features, fetched once from the core over RPC at startup and then read
-// synchronously by the command palette and dispatch. App-local cache, not a source of truth.
+// synchronously by the Command Hub and dispatch. App-local cache, not a source of truth.
 let snapshot: ExperimentalFlagMap = {};
 
 /**

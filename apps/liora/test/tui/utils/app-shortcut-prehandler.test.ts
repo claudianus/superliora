@@ -59,7 +59,7 @@ describe('app shortcut pre-handler (native path)', () => {
   it('opens Command Hub on ? when the editor is empty', () => {
     const state = createState();
     const openHub = vi.fn();
-    state.editor.onCommandPalette = openHub;
+    state.editor.onCommandHub = openHub;
     const router = withPreHandler(state);
 
     const event: NativeInputEvent = {
@@ -81,7 +81,7 @@ describe('app shortcut pre-handler (native path)', () => {
     const state = createState();
     state.editor.setText('hello');
     const openHub = vi.fn();
-    state.editor.onCommandPalette = openHub;
+    state.editor.onCommandHub = openHub;
     const router = withPreHandler(state);
 
     const event: NativeInputEvent = {
@@ -102,7 +102,7 @@ describe('app shortcut pre-handler (native path)', () => {
   it('opens Command Hub on Ctrl-K via pre-handler', () => {
     const state = createState();
     const openHub = vi.fn();
-    state.editor.onCommandPalette = openHub;
+    state.editor.onCommandHub = openHub;
     const router = withPreHandler(state);
 
     const event: NativeInputEvent = {

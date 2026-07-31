@@ -97,7 +97,7 @@ export class NativeTUIEditor implements TUIEditor {
   onHistoryDraftSave?: () => unknown;
   onHistoryDraftRestore?: (state: unknown) => void;
   onHistorySearch?: () => void;
-  onCommandPalette?: () => void;
+  onCommandHub?: () => void;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
   onAcceptGhost?: () => void;

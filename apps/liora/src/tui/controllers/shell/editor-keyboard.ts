@@ -54,7 +54,7 @@ export interface EditorKeyboardHost {
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   clearQueuedMessages(): void;
   showHistorySearch(): void;
-  showCommandPalette(): void;
+  showCommandHub(): void;
   showTranscriptSearch(): void;
   stashPromptToggle(): void;
   setExternalEditorRunning(running: boolean): void;
@@ -379,12 +379,12 @@ export class EditorKeyboardController {
       }
       host.showHistorySearch();
     };
-    editor.onCommandPalette = () => {
+    editor.onCommandHub = () => {
       if (host.state.appState.streamingPhase !== 'idle') {
         host.state.toast.show('Wait for the turn to finish, or Ctrl-C to stop', 2200);
         return;
       }
-      host.showCommandPalette();
+      host.showCommandHub();
     };
     editor.onTranscriptSearch = () => {
       host.showTranscriptSearch();

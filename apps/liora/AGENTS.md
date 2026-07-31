@@ -52,6 +52,7 @@ The **Command Hub** (`Ctrl-K` / `Ctrl-Space` / `?` / `/help`) is the single sear
 
 - **Catalog:** curated Hub rows + Settings keyword jumps (`searchOnly`) + slash/skills (`searchOnly`). Idle list stays beginner-sized; typing fuzzy-filters everything via the same `fuzzyFilter` as Settings lists.
 - **Nested:** Settings panes and pickers stack under the Hub (Esc back). Do **not** add a parallel searchable omnibox / second palette catalog for the same actions.
+- **APIs:** open via `showCommandHub` / editor `onCommandHub` — do not reintroduce `showCommandPalette` / `onCommandPalette` aliases.
 - **Register new actions in the Hub catalog** (`command-hub-items` / `settings-hub-jumps` / `slash-hub-jumps`). Keep `/` editor autocomplete; browse-only Help lists are OK.
 - Detail: `src/tui/PREMIUM.md` §8.2 and `.agents/skills/write-tui/SKILL.md`.
 

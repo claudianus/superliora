@@ -20,7 +20,7 @@ interface Harness {
   readonly handleUltraworkModeToggle: ReturnType<typeof vi.fn>;
   readonly scrollTranscriptViewport: ReturnType<typeof vi.fn>;
   readonly toastShow: ReturnType<typeof vi.fn>;
-  readonly showCommandPalette: ReturnType<typeof vi.fn>;
+  readonly showCommandHub: ReturnType<typeof vi.fn>;
   readonly showHistorySearch: ReturnType<typeof vi.fn>;
 }
 
@@ -36,7 +36,7 @@ function createHarness(
 ): Harness {
   let editorText = options.editorText ?? '';
   const toastShow = vi.fn();
-  const showCommandPalette = vi.fn();
+  const showCommandHub = vi.fn();
   const showHistorySearch = vi.fn();
   const editor: Record<string, unknown> = {
     getText: () => editorText,
@@ -78,7 +78,7 @@ function createHarness(
     btwPanelController: { closeOrCancel: vi.fn(() => false), scroll: vi.fn(() => false) },
     openUndoSelector,
     cancelRunningShellCommand,
-    showCommandPalette,
+    showCommandHub,
     showHistorySearch,
     showError: vi.fn(),
     updateQueueDisplay: vi.fn(),
@@ -101,7 +101,7 @@ function createHarness(
     handleUltraworkModeToggle,
     scrollTranscriptViewport,
     toastShow,
-    showCommandPalette,
+    showCommandHub,
     showHistorySearch,
   };
 }
@@ -235,15 +235,15 @@ describe('EditorKeyboardController double-Esc undo', () => {
 
 describe('EditorKeyboardController gated shortcut toasts', () => {
   it('toasts instead of opening Hub while streaming', () => {
-    const { editor, toastShow, showCommandPalette } = createHarness({
+    const { editor, toastShow, showCommandHub } = createHarness({
       streamingPhase: 'waiting',
     });
 
-    const handler = editor['onCommandPalette'];
-    if (typeof handler !== 'function') throw new Error('onCommandPalette not installed');
+    const handler = editor['onCommandHub'];
+    if (typeof handler !== 'function') throw new Error('onCommandHub not installed');
     (handler as () => void)();
 
-    expect(showCommandPalette).not.toHaveBeenCalled();
+    expect(showCommandHub).not.toHaveBeenCalled();
     expect(toastShow).toHaveBeenCalledWith(
       'Wait for the turn to finish, or Ctrl-C to stop',
       2200,

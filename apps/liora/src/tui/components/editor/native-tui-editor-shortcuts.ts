@@ -17,7 +17,7 @@ export interface NativeTUIEditorShortcutHost {
   onToggleTodoExpand?: () => boolean;
   onShiftTab?: () => void;
   onHistorySearch?: () => void;
-  onCommandPalette?: () => void;
+  onCommandHub?: () => void;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
   onTranscriptPageUp?: () => boolean;
@@ -94,14 +94,14 @@ export function handleNativeTUIEditorAppShortcut(
     host.onHistorySearch?.();
     return true;
   }
-  // Ctrl-K / Ctrl-Space: Command Hub menu.
+  // Ctrl-K / Ctrl-Space: Command Hub (One-search).
   if (matchesKey(data, Key.ctrl('k')) || matchesKey(data, Key.ctrl(Key.space))) {
-    host.onCommandPalette?.();
+    host.onCommandHub?.();
     return true;
   }
   // "?": open Command Hub when the editor is empty (native pre-handler path).
   if (host.getText().length === 0 && printableChar(data) === '?') {
-    host.onCommandPalette?.();
+    host.onCommandHub?.();
     return true;
   }
   // Ctrl-F: transcript search.

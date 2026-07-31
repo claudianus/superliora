@@ -2,11 +2,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 
 import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
-import {
-  refreshOpenCommandHub,
-  showCommandHub,
-  showCommandPalette,
-} from './command-hub';
+import { refreshOpenCommandHub, showCommandHub } from './command-hub';
 import { showHelpPanel } from './help';
 import {
   closeAllCenterModals,
@@ -111,11 +107,6 @@ export class DialogsController {
 
   showHistorySearch(): void {
     showHistorySearch(this.host, this);
-  }
-
-  /** @deprecated Prefer `showCommandHub`. */
-  showCommandPalette(): void {
-    showCommandPalette(this);
   }
 
   showCommandHub(options: { readonly initialQuery?: string; readonly intro?: boolean } = {}): void {
