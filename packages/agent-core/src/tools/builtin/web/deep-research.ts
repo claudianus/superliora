@@ -15,10 +15,9 @@ import { literalRulePattern, matchesGlobRuleSubject } from '../../support/rule-m
 import { ToolResultBuilder } from '../../support/result-builder';
 import {
   assessSearchChannelHealth,
-  buildSearchNeverEmptyNextStep,
+  formatSearchNeverEmptySoftFailLines,
   inferSearchChannelsFromStatus,
 } from '../../providers/research-search-health';
-import { recordSearchNeverEmptySoftDegrade } from '../../providers/search-never-empty-telemetry';
 import type { WebSearchProvider, WebSearchResult } from './web-search';
 import {
   buildClaimsFromSources,
@@ -264,16 +263,14 @@ export function buildDeepResearchOutput(options: {
   lines.push(`channels_used: ${options.queries.join(' | ')}`);
   lines.push(`hops: ${String(options.hops)}`);
   lines.push(`channelsTried: ${formatDeepResearchChannelsTried(options.channelsTried)}`);
-  lines.push(`degraded: ${options.degraded ? 'true' : 'false'}`);
-
-  if (options.degraded) {
-    lines.push(
-      `next: ${buildSearchNeverEmptyNextStep({
-        health: options.health,
-        channelsTried: options.channelsTried,
-      })}`,
-    );
-  }
+  lines.push(
+    ...formatSearchNeverEmptySoftFailLines({
+      degraded: options.degraded,
+      health: options.health,
+      channelsTried: options.channelsTried,
+      includeChannelsTried: false,
+    }),
+  );
 
   return lines.join('\n');
 }
@@ -342,9 +339,6 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
       const channelsTried =
         status === undefined ? [] : inferSearchChannelsFromStatus(status);
       const degraded = sources.length === 0 || health?.degraded === true;
-      if (degraded) {
-        recordSearchNeverEmptySoftDegrade();
-      }
       const hops = batches.length > 0 ? batches.length : queries.length;
       const builder = new ToolResultBuilder({ maxChars: 12_000, maxLineLength: null });
       builder.write(
@@ -361,7 +355,6 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
       );
       return builder.ok();
     } catch (error) {
-      recordSearchNeverEmptySoftDegrade();
       const status = this.provider.status?.();
       const health = status === undefined ? undefined : assessSearchChannelHealth(status);
       const channelsTried =
@@ -372,8 +365,12 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
           classifyResearchError(error),
           'hops: 0',
           `channelsTried: ${formatDeepResearchChannelsTried(channelsTried)}`,
-          'degraded: true',
-          `next: ${buildSearchNeverEmptyNextStep({ health, channelsTried })}`,
+          ...formatSearchNeverEmptySoftFailLines({
+            degraded: true,
+            health,
+            channelsTried,
+            includeChannelsTried: false,
+          }),
         ].join('\n'),
       };
     }
