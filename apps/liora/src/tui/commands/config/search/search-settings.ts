@@ -15,6 +15,7 @@ import {
   ALLOW_DISABLE_FREE_FALLBACK_ENV,
   buildSearchBrowserEscalateConfigPatch,
   buildSearchFreeFallbackConfigPatch,
+  buildSearchPreferXaiConfigPatch,
   buildSearchSettingsStatusLines,
   buildSearchStrategyConfigPatch,
   detectSearchLateChannelEnv,
@@ -22,6 +23,7 @@ import {
   resolveLocalResearchCacheStatus,
   resolveSearchBrowserEscalate,
   resolveSearchFreeFallback,
+  resolveSearchPreferXai,
   resolveSearchStrategy,
   SEARCH_ROUTING_STRATEGY_OPTIONS,
   type SearchRoutingStrategySetting,
@@ -59,6 +61,17 @@ export function showSearchSettings(host: SlashCommandHost): void {
             'Skip Ch4/Ch5 unless DeepResearch passes allow_browser: true / depth: exhaustive.',
         },
         {
+          value: 'prefer-xai-on',
+          label: 'PreferXai ON (Grok Build first)',
+          description:
+            'research.search.preferXai = true · xAI web search before ResearchSearchEngine.',
+        },
+        {
+          value: 'prefer-xai-off',
+          label: 'PreferXai OFF',
+          description: 'Skip PreferXai wrap — cascade / local search only (xAI alone if no cascade).',
+        },
+        {
           value: 'free-on',
           label: 'Free fallback ON (Never-Empty default)',
           description:
@@ -92,6 +105,14 @@ export function showSearchSettings(host: SlashCommandHost): void {
         }
         if (value === 'browser-off') {
           void setBrowserEscalate(host, false);
+          return;
+        }
+        if (value === 'prefer-xai-on') {
+          void setPreferXai(host, true);
+          return;
+        }
+        if (value === 'prefer-xai-off') {
+          void setPreferXai(host, false);
           return;
         }
         if (value === 'free-on') {
@@ -173,6 +194,23 @@ async function setBrowserEscalate(host: SlashCommandHost, enabled: boolean): Pro
   }
 }
 
+async function setPreferXai(host: SlashCommandHost, enabled: boolean): Promise<void> {
+  try {
+    await host.harness.setConfig(buildSearchPreferXaiConfigPatch(enabled));
+    host.showStatus(
+      enabled
+        ? 'PreferXai ON — Grok Build web search before ResearchSearchEngine (when xAI is available).'
+        : 'PreferXai OFF — ResearchSearchEngine / local cascade without PreferXai wrap.',
+      enabled ? 'success' : 'warning',
+    );
+  } catch (error) {
+    host.showStatus(
+      `Failed to update PreferXai: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+  }
+}
+
 async function setFreeFallback(host: SlashCommandHost, enabled: boolean): Promise<void> {
   try {
     await host.harness.setConfig(buildSearchFreeFallbackConfigPatch(enabled));
@@ -203,6 +241,7 @@ async function showSearchStatusPanel(host: SlashCommandHost): Promise<void> {
   const freeFallback = resolveSearchFreeFallback(config);
   const strategy = resolveSearchStrategy(config);
   const browserEscalate = resolveSearchBrowserEscalate(config);
+  const preferXai = resolveSearchPreferXai(config);
   let neverEmptyTelemetryLine: string | null = null;
   let localResearchCacheHitLine: string | null = null;
   let freeOnlyKpiLine: string | null = null;
@@ -223,6 +262,7 @@ async function showSearchStatusPanel(host: SlashCommandHost): Promise<void> {
     freeFallback,
     strategy,
     browserEscalate,
+    preferXai,
     neverEmptyTelemetryLine,
     localResearchCacheHitLine,
     freeOnlyKpiLine,

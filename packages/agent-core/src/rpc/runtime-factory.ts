@@ -127,12 +127,15 @@ export async function createRuntimeConfig(input: {
   const xaiWebSearcher =
     xaiGrokBuild === undefined ? undefined : new XaiGrokWebSearchProvider(xaiGrokBuild);
   const fallbackSearcher = researchSearcher ?? localSearcher;
+  const preferXai = input.config.research?.search?.preferXai !== false;
   const webSearcher =
     xaiWebSearcher === undefined
       ? fallbackSearcher
-      : fallbackSearcher === undefined
-        ? xaiWebSearcher
-        : new PreferXaiGrokWebSearchProvider(xaiWebSearcher, fallbackSearcher);
+      : !preferXai
+        ? (fallbackSearcher ?? xaiWebSearcher)
+        : fallbackSearcher === undefined
+          ? xaiWebSearcher
+          : new PreferXaiGrokWebSearchProvider(xaiWebSearcher, fallbackSearcher);
 
   return {
     urlFetcher:
