@@ -8,6 +8,22 @@ import {
   keymapSurfaceCounts,
 } from '../../keymap';
 
+/** Compact keymap registry SSOT tip — Settings → Keyboard picker + status panel. */
+export const KEYBINDINGS_REGISTRY_TIP =
+  'keymap.ts is the shortcut SSOT — footer tips, Command Hub cheatsheet, and /help consume it. Do not fork shortcut copy elsewhere.';
+
+/** Compact /help reference tip — full keyboard shortcut panel in the TUI. */
+export const KEYBINDINGS_HELP_TIP =
+  '/help — full keyboard shortcut reference in the TUI. Mission / Ops / Fleet samples in Settings → Keyboard status mirror live registry bindings.';
+
+/** Compact Command Hub tip — Ctrl-K menu and ? when the prompt is empty. */
+export const KEYBINDINGS_COMMAND_HUB_TIP =
+  'Ctrl-K — Command Hub menu (search slash commands + shortcuts). ? — Command Hub when the prompt is empty.';
+
+/** Compact future editor tip — custom keybinding editor not yet available. */
+export const KEYBINDINGS_FUTURE_EDITOR_TIP =
+  'Custom keybinding editor — future slice (not editable here). Settings → Editor covers external editor command (Ctrl-G); Settings → Appearance covers motion / Visual Quality.';
+
 export interface KeybindingsGlanceInput {
   readonly bindingCount: number;
   readonly alwaysCount: number;
