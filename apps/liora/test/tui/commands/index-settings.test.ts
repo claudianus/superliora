@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showIndexSettings } from '#/tui/commands/config/index/index-settings';
+import {
+  INDEX_ENGINE_TIP,
+  INDEX_FTS_TIP,
+  INDEX_WARM_TIP,
+  showIndexSettings,
+} from '#/tui/commands/config/index/index-settings';
 import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
@@ -77,6 +82,39 @@ function selectIndexAction(host: SlashCommandHost, value: 'status' | 'rebuild'):
 }
 
 describe('index settings', () => {
+  it('exports warm, FTS, and sqlite engine tips', () => {
+    expect(INDEX_WARM_TIP).toContain('default ON');
+    expect(INDEX_WARM_TIP).toContain('SUPERLIORA_REPO_INDEX_WARM=0');
+    expect(INDEX_FTS_TIP).toContain('SQLite FTS5');
+    expect(INDEX_FTS_TIP).toContain('Zoekt');
+    expect(INDEX_ENGINE_TIP).toContain('sqlite (default)');
+  });
+
+  it('mounts ChoicePicker with status, rebuild, and read-only tip actions', () => {
+    const host = makeIndexHost();
+    showIndexSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'rebuild',
+      'tip-warm',
+      'tip-fts',
+      'tip-engine',
+    ]);
+  });
+
+  it('shows warm-on-default tip via showStatus', () => {
+    const host = makeIndexHost();
+    showIndexSettings(host);
+    selectIndexAction(host, 'tip-warm');
+    expect(host.showStatus).toHaveBeenCalledWith(INDEX_WARM_TIP, 'info');
+  });
+
   it('mounts read-only index panel with real codemap status when warm', async () => {
     const host = makeIndexHost({ repoQueryActive: true });
     showIndexSettings(host);
@@ -87,6 +125,7 @@ describe('index settings', () => {
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
+    expect(lines).toContain('Glance: RepoQuery on · codemap warm · engine=sqlite · FTS live');
     expect(lines).toContain('RepoQuery: registered');
     expect(lines).toContain('Symbol codemap: warm · 42 files · 128 symbols');
     expect(lines).toContain('Codemap sqlite: /tmp/codemap.sqlite');
