@@ -1,5 +1,5 @@
 /**
- * Fleet facade — swarm/collaboration implementation lives in ../collaboration until hard rename.
+ * Fleet facade — swarm/collaboration orchestration modules live in this directory.
  *
  * Canonical wire types remain `ultrawork.collaboration.*` / `ultrawork.swarm.*`.
  * Read-path soft aliases: `fleet.*` and `mission.*` normalize via
@@ -20,17 +20,17 @@ export {
   type FleetUltraworkEventSuffix,
 } from '@superliora/protocol';
 
-export * from '../collaboration/spawn-agents';
-export * from '../collaboration/swarm-budget';
-export * from '../collaboration/swarm-bus-coordination';
-export * from '../collaboration/swarm-dag-scheduler';
-export * from '../collaboration/swarm-evidence-gate';
-export * from '../collaboration/swarm-file-lease';
-export * from '../collaboration/swarm-humanize';
-export * from '../collaboration/swarm-run-ledger';
-export * from '../collaboration/fleet-worktree';
-export * from '../collaboration/swarm-maker-checker';
-export * from '../collaboration/swarm-cost-guard';
+export * from './spawn-agents';
+export * from './swarm-budget';
+export * from './swarm-bus-coordination';
+export * from './swarm-dag-scheduler';
+export * from './swarm-evidence-gate';
+export * from './swarm-file-lease';
+export * from './swarm-humanize';
+export * from './swarm-run-ledger';
+export * from './fleet-worktree';
+export * from './swarm-maker-checker';
+export * from './swarm-cost-guard';
 /** Swarm work-node store access — same light path as #/mission. */
 export { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';
 export {
