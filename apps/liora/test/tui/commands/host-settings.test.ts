@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import { createLioraHarness } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
-import { showHostSettings } from '#/tui/commands/config/host/host-settings';
+import {
+  HOST_FUTURE_TIP,
+  HOST_SOVEREIGN_UMBRELLA_TIP,
+  HOST_TTFT_TIP,
+  showHostSettings,
+} from '#/tui/commands/config/host/host-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
@@ -31,6 +37,7 @@ function makeHostHost(options: {
   return {
     state: {
       transcriptContainer,
+      centerModalStack: [] as readonly unknown[],
       appState: {
         workDir: '/tmp/superliora',
         lastStepTtft: options.lastStepTtft ?? null,
@@ -39,19 +46,66 @@ function makeHostHost(options: {
     },
     harness,
     requireSession,
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    mountEditorReplacement: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
-describe('host settings', () => {
+function selectHostAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
+describe('host settings tips', () => {
+  it('exports sovereign umbrella, TTFT, and future host tips', () => {
+    expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('SUPERLIORA_SOVEREIGN=1');
+    expect(HOST_TTFT_TIP).toContain('TTFT');
+    expect(HOST_FUTURE_TIP).toContain('config [host]');
+  });
+});
+
+describe('showHostSettings', () => {
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeHostHost();
+    showHostSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-sovereign',
+      'tip-ttft',
+      'tip-future',
+    ]);
+  });
+
+  it('shows sovereign umbrella tip via showStatus', () => {
+    const host = makeHostHost();
+    showHostSettings(host);
+    selectHostAction(host, 'tip-sovereign');
+    expect(host.showStatus).toHaveBeenCalledWith(HOST_SOVEREIGN_UMBRELLA_TIP, 'info');
+  });
+
   it('mounts read-only host panel for in-process default', async () => {
     const prior = process.env['SUPERLIORA_SERVER_URL'];
     delete process.env['SUPERLIORA_SERVER_URL'];
     const host = makeHostHost();
     showHostSettings(host);
+    selectHostAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Mode: in-process');
     expect(lines).toContain('Transport: SDK in-process RPC');
@@ -68,10 +122,12 @@ describe('host settings', () => {
       lastStepTtft: { ms: 180, turnId: 4, step: 1, atMs: Date.now() },
     });
     showHostSettings(host);
+    selectHostAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Last TTFT: 180ms (turn 4 step 1) · in-process path');
     expect(lines).not.toContain('TTFT p50 in-process vs server path');
@@ -88,10 +144,12 @@ describe('host settings', () => {
       }),
     });
     showHostSettings(host);
+    selectHostAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Mode: in-process');
     expect(lines).toContain('http://127.0.0.1:58627');
@@ -111,14 +169,16 @@ describe('host settings', () => {
     try {
       const host = makeHostHost();
       showHostSettings(host);
+      selectHostAction(host, 'status');
       await vi.waitFor(() => {
         expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
       });
-      const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+      const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+        .calls[0]?.[0] as UsagePanelComponent;
       const lines = panel.snapshotBodyLines(1).join('\n');
       expect(lines).toContain('SUPERLIORA_SOVEREIGN=1');
       expect(lines).toContain('core profile');
-      expect(lines).toContain('hide legacy');
+      expect(lines).toContain('hide-legacy');
       expect(lines).toContain('dual-emit');
       expect(lines).toContain('── Session (live) ─');
       expect(lines).toContain('Sovereign umbrella: ON');
