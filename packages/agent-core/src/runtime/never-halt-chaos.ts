@@ -6,12 +6,23 @@
 import type { OAuthRefreshOutcome } from '@superliora/oauth';
 import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
+import { createTurnLoopDispatch } from '#/agent/turn/loop-dispatch';
+import type { AgentEvent } from '#/rpc/events';
+import { StreamingThinkScrubber } from '#/utils/think-scrubber';
+
 import { buildCircuitBreakerDegradedEvent } from './circuit-breaker-degraded';
 import { CircuitBreaker, type CircuitState } from './circuit-breaker';
 import {
   buildOAuthRefreshDegradedEvent,
   buildOAuthRefreshDegradedEventFromOutcome,
 } from './oauth-refresh-degraded';
+
+/** Deterministic tool output fixture — search channel 429 soft-degrade. */
+export const NEVER_HALT_SEARCH_429_TOOL_OUTPUT =
+  'degraded: true\nreason: brave 429\nchannelsTried: ch1';
+
+/** Deterministic oauth refresh failure reason for loop-dispatch chaos. */
+export const NEVER_HALT_OAUTH_REFRESH_FAILED_REASON = 'oauth_refresh_failed';
 
 export type NeverHaltChaosSequencePhase = 'open' | 'degraded' | 'half_open' | 'recovered';
 
@@ -61,6 +72,137 @@ export function simulateNeverHaltDegradedChaos(atMs: number = Date.now()): Never
     detail: goalTickCompleted
       ? 'search+oauth degraded; goal tick completed'
       : 'goal tick aborted on degraded (contract violation)',
+  };
+}
+
+/**
+ * Exercise search 429 + oauth refresh failures through real turn loop-dispatch.
+ * Contract: volatile runtime.degraded signals never abort the goal/turn loop.
+ */
+export async function runNeverHaltDegradedLoopDispatchChaos(
+  atMs: number = Date.now(),
+): Promise<NeverHaltChaosTickResult> {
+  const degradedEvents: RuntimeDegradedEvent[] = [];
+  let goalTickCompleted = false;
+
+  try {
+    const agent = {
+      context: {
+        appendLoopEvent: async () => undefined,
+      },
+      emitEvent: (event: AgentEvent) => {
+        if (event.type === 'runtime.degraded') {
+          degradedEvents.push(event);
+        }
+      },
+      records: { flush: async () => undefined },
+      log: { warn: () => undefined },
+      telemetry: { track: () => undefined },
+    };
+
+    const dispatch = createTurnLoopDispatch(
+      {
+        agent: agent as never,
+        turnTelemetry: { trackLoopTelemetry: () => undefined },
+        assistantThinkScrubber: new StreamingThinkScrubber(),
+        getActiveTurn: () => null,
+      },
+      1,
+    );
+
+    await dispatch({
+      type: 'tool.result',
+      toolCallId: 'chaos-brave-429',
+      result: {
+        isError: false,
+        output: NEVER_HALT_SEARCH_429_TOOL_OUTPUT,
+      },
+    });
+
+    agent.emitEvent(buildOAuthRefreshDegradedEvent(NEVER_HALT_OAUTH_REFRESH_FAILED_REASON, atMs));
+
+    goalTickCompleted =
+      degradedEvents.length >= 2 &&
+      degradedEvents.some((event) => event.scope === 'search') &&
+      degradedEvents.some((event) => event.scope === 'oauth');
+  } catch {
+    goalTickCompleted = false;
+  }
+
+  return {
+    degradedEvents,
+    goalTickCompleted,
+    detail: goalTickCompleted
+      ? 'loop-dispatch search 429 + oauth refresh; goal tick completed'
+      : 'goal tick aborted during loop-dispatch chaos (contract violation)',
+  };
+}
+
+/**
+ * Map breaker open (429) to runtime.degraded, then soft-survive via loop-dispatch.
+ */
+export async function runNeverHaltBreaker429LoopDispatchChaos(
+  atMs: number = Date.now(),
+): Promise<NeverHaltChaosTickResult> {
+  const degradedEvents: RuntimeDegradedEvent[] = [];
+  let goalTickCompleted = false;
+
+  try {
+    const breaker = new CircuitBreaker({
+      failureThreshold: 1,
+      onOpened: (reason) => {
+        degradedEvents.push(buildCircuitBreakerDegradedEvent('search:brave', reason, atMs));
+      },
+    });
+    breaker.recordFailure('brave 429');
+
+    const agent = {
+      context: {
+        appendLoopEvent: async () => undefined,
+      },
+      emitEvent: (event: AgentEvent) => {
+        if (event.type === 'runtime.degraded') {
+          degradedEvents.push(event);
+        }
+      },
+      records: { flush: async () => undefined },
+      log: { warn: () => undefined },
+      telemetry: { track: () => undefined },
+    };
+
+    const dispatch = createTurnLoopDispatch(
+      {
+        agent: agent as never,
+        turnTelemetry: { trackLoopTelemetry: () => undefined },
+        assistantThinkScrubber: new StreamingThinkScrubber(),
+        getActiveTurn: () => null,
+      },
+      1,
+    );
+
+    await dispatch({
+      type: 'tool.result',
+      toolCallId: 'chaos-breaker-429',
+      result: {
+        isError: false,
+        output: NEVER_HALT_SEARCH_429_TOOL_OUTPUT,
+      },
+    });
+
+    goalTickCompleted =
+      degradedEvents.length >= 2 &&
+      degradedEvents.some((event) => event.scope === 'search' && event.reason === 'brave 429') &&
+      degradedEvents.some((event) => event.scope === 'search' && event.reason === 'tool_result_degraded');
+  } catch {
+    goalTickCompleted = false;
+  }
+
+  return {
+    degradedEvents,
+    goalTickCompleted,
+    detail: goalTickCompleted
+      ? 'breaker 429 + loop-dispatch degraded tool; goal tick completed'
+      : 'goal tick aborted during breaker loop-dispatch chaos (contract violation)',
   };
 }
 
