@@ -91,10 +91,10 @@ export function matchExplicitResumePhrase(
   const normalized = trimmed
     .toLowerCase()
     // Normalize curly/smart quotes so FR/IT resume phrases match ASCII forms.
-    .replace(/[\u2018\u2019\u201A\u2032]/gu, "'")
-    .replace(/[\u201C\u201D\u201E\u2033]/gu, '"')
+    .replaceAll(/[\u2018\u2019\u201A\u2032]/gu, "'")
+    .replaceAll(/[\u201C\u201D\u201E\u2033]/gu, '"')
     .replace(/[!?.。！？…]+$/u, '')
-    .replace(/\s+/g, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
 
   const exact = new Set([

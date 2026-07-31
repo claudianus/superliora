@@ -84,6 +84,6 @@ describe('agent/compaction/planner — splitMessagesIntoTokenBlocks', () => {
     const messages = [makeMessage('alpha'), makeMessage('beta'), makeMessage('gamma')];
     const blocks = splitMessagesIntoTokenBlocks(messages, 2);
     expect(blocks.length).toBeGreaterThanOrEqual(2);
-    expect(blocks[blocks.length - 1]?.length).toBeGreaterThan(0);
+    expect(blocks.at(-1)?.length).toBeGreaterThan(0);
   });
 });

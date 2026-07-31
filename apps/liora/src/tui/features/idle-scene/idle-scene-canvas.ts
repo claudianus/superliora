@@ -60,7 +60,7 @@ export function expandLineCells(line: string, width: number): RendererCell[] {
     if (cells.length >= width) break;
   }
   while (cells.length < width) {
-    const prev = cells[cells.length - 1];
+    const prev = cells.at(-1);
     const bg = prev?.style?.bg;
     cells.push(bg === undefined ? { char: ' ' } : { char: ' ', style: { bg } });
   }

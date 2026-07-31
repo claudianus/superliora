@@ -326,7 +326,7 @@ function asHexColor(value: unknown): string | undefined {
 function slugify(raw: string): string {
   return raw
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
     .slice(0, 48);
 }

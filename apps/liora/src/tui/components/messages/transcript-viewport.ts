@@ -85,9 +85,7 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
    * supplies Welcome + IdleStage). Restored when a real message is added.
    */
   showAquariumOverlay(mountChrome: (addChrome: (component: Component) => void) => void): void {
-    if (this.aquariumOverlaySnapshot === undefined) {
-      this.aquariumOverlaySnapshot = [...this.children];
-    }
+    this.aquariumOverlaySnapshot ??= [...this.children];
     // Snapshot the children: removeChild mutates this.children mid-iteration.
     for (const child of this.children.slice()) {
       // pi-tui Container.removeChild (not a DOM node).

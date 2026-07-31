@@ -30,7 +30,7 @@ describe('detectSearchProviderEnvKeys', () => {
       UNRELATED: 'x',
     } as NodeJS.ProcessEnv);
 
-    expect(detected.map((d) => d.kind).sort()).toEqual(['brave', 'exa', 'serper', 'tavily']);
+    expect(detected.map((d) => d.kind).toSorted()).toEqual(['brave', 'exa', 'serper', 'tavily']);
   });
 
   it('detects SearXNG from SUPERLIORA_SEARXNG_URL', () => {

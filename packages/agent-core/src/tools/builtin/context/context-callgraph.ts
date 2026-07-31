@@ -113,7 +113,7 @@ function extractCallees(line: string, file: string, lineNumber: number): Callgra
 }
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
 export function renderCallgraph(result: CallgraphResult): string {

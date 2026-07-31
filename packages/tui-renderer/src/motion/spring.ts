@@ -377,14 +377,14 @@ export class RendererSpring2D {
       ...options,
       initial: options.initialX ?? 0,
       onUpdate: () => { lastX = this.springX.value; emitUpdate(); },
-      onRest: () => emitUpdate(),
+      onRest: () =>{  emitUpdate(); },
     });
 
     this.springY = new RendererSpring({
       ...options,
       initial: options.initialY ?? 0,
       onUpdate: () => { lastY = this.springY.value; emitUpdate(); },
-      onRest: () => emitUpdate(),
+      onRest: () =>{  emitUpdate(); },
     });
   }
 

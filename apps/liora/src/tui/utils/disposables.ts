@@ -39,7 +39,7 @@ export class DisposableRegistry {
   disposeAll(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const dispose of this.items.splice(0).reverse()) {
+    for (const dispose of this.items.splice(0).toReversed()) {
       try {
         dispose();
       } catch {

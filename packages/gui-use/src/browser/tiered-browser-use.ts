@@ -33,7 +33,7 @@ export class TieredBrowserUseRuntime implements BrowserUseRuntime {
       signal,
     );
     const ready = primaryStatus.ready === true || fallbackStatus.ready === true;
-    const installed = primaryStatus.installed === true || fallbackStatus.installed === true;
+    const installed =  primaryStatus.installed ||  fallbackStatus.installed;
     const versionParts = [
       formatProviderVersion(this.primaryProvider, primaryStatus),
       formatProviderVersion(this.fallbackProvider, fallbackStatus),
@@ -102,7 +102,7 @@ export class TieredBrowserUseRuntime implements BrowserUseRuntime {
       } catch (fallbackError) {
         throw new Error(
           `${this.primaryProvider} ${operation} failed: ${describeError(primaryError)}. ` +
-          `${this.fallbackProvider ?? 'fallback'} ${operation} failed: ${describeError(fallbackError)}.`,
+          `${this.fallbackProvider ?? 'fallback'} ${operation} failed: ${describeError(fallbackError)}.`, { cause: fallbackError },
         );
       }
     }

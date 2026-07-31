@@ -188,8 +188,8 @@ export function renderParticleDivider(
   // Very slow weight cycle — almost static, avoids ─/━/═ strobing.
   const baseChar =
     premium && rendererPositiveModulo(Math.floor(now / 900) + base, 5) === 0
-      ? PREMIUM_DIVIDER_FRAMES[2]!
-      : PREMIUM_DIVIDER_FRAMES[0]!;
+      ? PREMIUM_DIVIDER_FRAMES[2]
+      : PREMIUM_DIVIDER_FRAMES[0];
   const baseToken: ColorToken = premium ? 'border' : 'primary';
   const cells = Array.from({ length: safeWidth }, () => currentTheme.dimFg(baseToken, baseChar));
   if (safeWidth < 8) return cells.join('');

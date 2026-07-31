@@ -53,7 +53,7 @@ const IGNORED_DIR_NAMES = new Set([
 ]);
 
 function isTs(name) {
-  return (name.endsWith('.ts') || name.endsWith('.tsx')) && !name.endsWith('.d.ts') && !name.includes('.generated.');
+  return (name.endsWith('.ts') ?? name.endsWith('.tsx')) && !name.endsWith('.d.ts') && !name.includes('.generated.');
 }
 
 function walkDirs(dir, out) {

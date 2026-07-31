@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolve(import.meta.dirname, '..');
 const metaPath = resolve(root, 'packages/agent-core/src/expert-agents/catalog-meta.ts');
 const personasPath = resolve(
   root,
@@ -30,12 +30,12 @@ function loadMetaArray(src) {
 
 function scorePersona(text) {
   const t = String(text ?? '');
-  const headings = (t.match(/^##\s+/gm) || []).length;
-  const emptyHeadings = (t.match(/^##[^\n]*\n(?:\s*\n)+(?=##|$)/gm) || []).length;
+  const headings = (t.match(/^##\s+/gm) ?? []).length;
+  const emptyHeadings = (t.match(/^##[^\n]*\n(?:\s*\n)+(?=##|$)/gm) ?? []).length;
   const hasIdentity = /You are \*\*|Identity|Your Role/i.test(t);
   const hasRules = /Critical Rules|MUST NOT|Non-negotiable|Anti-pattern/i.test(t);
   const hasDone = /Success Metrics|Definition of Done|Deliverable/i.test(t);
-  const filler = (t.match(FILLER_RE) || []).length;
+  const filler = (t.match(FILLER_RE) ?? []).length;
   const score =
     (t.length >= 1500 ? 2 : t.length >= 600 ? 1 : 0) +
     (headings >= 4 ? 2 : headings >= 2 ? 1 : 0) +

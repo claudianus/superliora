@@ -132,7 +132,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     tokenStore,
     passwordHash,
     logger: pinoLogger,
-    releaseLock: () => lockHandle.release(),
+    releaseLock: () =>{  lockHandle.release(); },
   });
 
   const services = createServerServiceCollection({
@@ -239,8 +239,8 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     throw error;
   }
   pinoLogger.info('core process ready');
-  modelCatalogRefreshScheduler?.start().catch((err) => {
-    pinoLogger.warn({ err }, 'failed to start provider model catalog refresh scheduler');
+  modelCatalogRefreshScheduler?.start().catch((error) => {
+    pinoLogger.warn({ error }, 'failed to start provider model catalog refresh scheduler');
   });
 
   let address: string;

@@ -24,7 +24,7 @@ export async function openHistorySearch(host: DialogsHost, shell: ModalShellDele
     entries = [];
   }
   // Most-recent-first ordering for search UX.
-  const items = [...new Set(entries.map((e) => e.content))].reverse();
+  const items = [...new Set(entries.map((e) => e.content))].toReversed();
   const dialog = new HistorySearchDialogComponent({
     items,
     onSelect: (text) => {
@@ -45,7 +45,7 @@ export function showTranscriptSearch(host: DialogsHost, shell: ModalShellDelegat
   const entries = host.state.transcriptEntries
     .map((entry, index) => {
       // Strip ANSI/control noise from searchable text.
-      const text = entry.content.replace(/\u001B\[[0-9;]*m/g, '').trim();
+      const text = entry.content.replaceAll(/\u001B\[[0-9;]*m/g, '').trim();
       return { index, text };
     })
     .filter((entry) => entry.text.length > 0);

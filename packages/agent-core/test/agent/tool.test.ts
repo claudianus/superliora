@@ -60,7 +60,7 @@ describe('Agent tools', () => {
     ctx.agent.cacheFreezeGuard.freeze(
       buildTurnPrefixMaterial(ctx.agent.tools.enabledTools),
     );
-    expect(() => ctx.agent.tools.setActiveTools(['Read'])).toThrow(
+    expect(() =>{  ctx.agent.tools.setActiveTools(['Read']); }).toThrow(
       /Cache Sacred: enabled tools cannot change mid-turn/,
     );
   });

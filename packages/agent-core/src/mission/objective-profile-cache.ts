@@ -36,5 +36,5 @@ export class UltraworkObjectiveProfileCache {
 }
 
 function normalizeObjectiveKey(objective: string): string {
-  return objective.trim().replace(/\s+/gu, ' ').toLowerCase();
+  return objective.trim().replaceAll(/\s+/gu, ' ').toLowerCase();
 }

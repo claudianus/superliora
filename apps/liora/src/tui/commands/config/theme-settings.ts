@@ -25,7 +25,7 @@ export function showThemeSettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Theme ',
     enterBeatSeed: 'theme-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

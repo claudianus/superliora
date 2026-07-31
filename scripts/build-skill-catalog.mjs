@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSkillCatalog } from './lib/skill-catalog-sources.mjs';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = join(import.meta.dirname, '..');
 const outDir = join(repoRoot, 'packages/agent-core/src/skill/catalog');
 const includeExternal = process.argv.includes('--include-external');
 

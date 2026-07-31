@@ -120,7 +120,7 @@ export async function showNeverHaltSettings(host: SlashCommandHost): Promise<voi
     borderToken: 'primary',
     title: ' Never-Halt ',
     enterBeatSeed: 'never-halt',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

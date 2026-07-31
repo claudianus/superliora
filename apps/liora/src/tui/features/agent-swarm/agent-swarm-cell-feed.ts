@@ -76,7 +76,7 @@ export function formatDebatePhaseLabel(phase: WarRoomDebatePhase): string {
 
 export function shortExpertId(expertId: string): string {
   const parts = expertId.split('-').filter((part) => part.length > 0);
-  const candidate = parts.length >= 2 ? parts[parts.length - 2]! : parts[0] ?? expertId;
+  const candidate = parts.length >= 2 ? parts.at(-2)! : parts[0] ?? expertId;
   if (visibleWidth(candidate) <= SWARM_FEED_SHORT_ID_MAX) return candidate;
   return truncateToWidth(candidate, SWARM_FEED_SHORT_ID_MAX, '…');
 }

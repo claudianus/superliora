@@ -12,7 +12,7 @@ export async function fetchXaiGrokUsage(
   // A lightweight GET /models call captures the current rate-limit state.
   const base = (baseUrl ?? 'https://cli-chat-proxy.grok.com/v1').replace(/\/+$/, '');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8000);
+  const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {
     const res = await fetch(`${base}/models`, {
       headers: {

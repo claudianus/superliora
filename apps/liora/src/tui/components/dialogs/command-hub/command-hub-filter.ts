@@ -52,7 +52,7 @@ export function filterHubItems(items: readonly CommandHubItem[], query: string):
   const recentIds = new Set(recent.map((item) => item.id));
   const rest = items
     .filter((item) => !recentIds.has(item.id))
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       const sa = SECTION_ORDER.indexOf(a.section as (typeof SECTION_ORDER)[number]);
       const sb = SECTION_ORDER.indexOf(b.section as (typeof SECTION_ORDER)[number]);
       const oa = sa === -1 ? 99 : sa;

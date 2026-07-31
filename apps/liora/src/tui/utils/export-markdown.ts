@@ -330,7 +330,7 @@ function formatTraceMd(trace: SessionTrace): string {
     lines.push('- (none recorded)');
   } else {
     for (const artifact of trace.verificationArtifacts) {
-      const status = artifact.status === undefined ? 'unknown' : artifact.status;
+      const status = artifact.status ?? 'unknown';
       const suffix = artifact.path === undefined ? '' : ` (${artifact.path})`;
       lines.push(`- ${artifact.id}: ${artifact.title} [${status}]${suffix}`);
     }

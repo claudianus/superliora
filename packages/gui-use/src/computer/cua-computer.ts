@@ -363,8 +363,8 @@ export class CuaComputerRuntime implements ComputerUseRuntime {
     if (windows.length === 0) return undefined;
     const sorted = [...windows]
       .filter((window) => window.isOnScreen || window.onCurrentSpace)
-      .sort((a, b) => b.zIndex - a.zIndex);
-    const candidates = sorted.length > 0 ? sorted : [...windows].sort((a, b) => b.zIndex - a.zIndex);
+      .toSorted((a, b) => b.zIndex - a.zIndex);
+    const candidates = sorted.length > 0 ? sorted : [...windows].toSorted((a, b) => b.zIndex - a.zIndex);
     const selected =
       app === undefined || app.trim().length === 0
         ? candidates[0]
@@ -608,7 +608,7 @@ function parseKeyCombo(keys: string): { readonly modifiers: readonly string[]; r
   const parts = keys.split('+').map((part) => normalizeKey(part.trim())).filter((part) => part.length > 0);
   if (parts.length === 0) return { modifiers: [], key: '' };
   const modifiers = parts.slice(0, -1);
-  const key = parts[parts.length - 1] ?? '';
+  const key = parts.at(-1) ?? '';
   return { modifiers, key };
 }
 

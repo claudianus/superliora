@@ -86,7 +86,7 @@ export const TaskOutputInputSchema = z
         path: ['task_id'],
       });
     }
-    if (hasMulti && (val.wait_mode === 'all' || val.wait_mode === 'any') === false) {
+    if (hasMulti && ! (val.wait_mode === 'all' || val.wait_mode === 'any')) {
       // allow default single when only one id in task_ids
       if ((val.task_ids?.length ?? 0) > 1 && (val.wait_mode === undefined || val.wait_mode === 'single')) {
         ctx.addIssue({

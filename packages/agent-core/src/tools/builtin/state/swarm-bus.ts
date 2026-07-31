@@ -235,7 +235,7 @@ export function renderSwarmBusDigest(
   const limit = options.limit ?? 12;
   const messages = listSwarmBusMessages(store, { limit: SWARM_BUS_MAX_MESSAGES });
   if (messages.length === 0) return '';
-  const prioritized = [...messages].sort((left, right) => {
+  const prioritized = [...messages].toSorted((left, right) => {
     const priorityDiff = swarmBusDigestPriority(left) - swarmBusDigestPriority(right);
     if (priorityDiff !== 0) return priorityDiff;
     return Date.parse(left.at) - Date.parse(right.at);

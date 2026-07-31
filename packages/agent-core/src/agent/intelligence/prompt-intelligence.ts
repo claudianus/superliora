@@ -51,7 +51,7 @@ async function fetchModelPricing(): Promise<Map<string, number>> {
   const pricing = new Map<string, number>();
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), PRICING_FETCH_TIMEOUT_MS);
+    const timer = setTimeout(() =>{  controller.abort(); }, PRICING_FETCH_TIMEOUT_MS);
     const res = await fetch(MODELS_DEV_API_URL, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) return pricing;
@@ -436,7 +436,7 @@ export function summarizeHistory(messages: readonly Message[], maxChars: number)
     parts.push(line);
     used += line.length + 1;
   }
-  return parts.reverse().join('\n');
+  return parts.toReversed().join('\n');
 }
 
 /**
@@ -500,7 +500,7 @@ function stripWrappingQuotes(text: string): string {
   let result = text.trim();
   while (result.length >= 2) {
     const first = result[0];
-    const last = result[result.length - 1];
+    const last = result.at(-1);
     if ((first === '"' && last === '"') || (first === "'" && last === "'") || (first === '`' && last === '`')) {
       result = result.slice(1, -1).trim();
     } else {

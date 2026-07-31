@@ -68,7 +68,7 @@ export function langForFile(fileName: string): 'ts' | 'tsx' | 'dts' | 'js' | 'js
 function buildLineStarts(source: string): number[] {
   const starts = [0];
   for (let i = 0; i < source.length; i++) {
-    if (source.charCodeAt(i) === 10) starts.push(i + 1);
+    if (source.codePointAt(i) === 10) starts.push(i + 1);
   }
   return starts;
 }
@@ -122,7 +122,7 @@ export function extractSymbols(fileName: string, source: string): ExtractResult 
     }
   };
 
-  const program = parsed.program as unknown as AstProgram;
+  const program = parsed.program as AstProgram;
   for (const node of program.body ?? []) {
     if (node.type === 'ExportNamedDeclaration') {
       collect(node.declaration, true, false);

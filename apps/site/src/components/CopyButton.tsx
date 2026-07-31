@@ -14,7 +14,7 @@ export function CopyButton({ text, copiedLabel = 'Copied', copyLabel = 'Copy com
       try {
         await navigator.clipboard.writeText(text);
         setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
+        window.setTimeout(() =>{  setCopied(false); }, 1500);
       } catch {
         // ignore
       }

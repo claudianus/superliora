@@ -335,7 +335,7 @@ export class KimiChatProvider implements ChatProvider {
           options?.signal ? { signal: options.signal } : undefined,
         ),
       );
-      const response = data as unknown as
+      const response = data as
         | OpenAI.Chat.ChatCompletion
         | AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
       return new KimiStreamedMessage(response, this._stream, responseHeaders);

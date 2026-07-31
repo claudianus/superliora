@@ -42,7 +42,7 @@ const BLACKLIST = [
 // Compile regexes for each blacklist word with word boundaries
 const regexes = BLACKLIST.map(word => {
   const pattern = word.includes("'") || word.includes("-") || word.includes(" ")
-    ? `\\b${word.replace(/[-']/g, '\\$&')}\\b`
+    ? `\\b${word.replaceAll(/[-']/g, '\\$&')}\\b`
     : `\\b${word}\\b`;
   return {
     word,
@@ -111,7 +111,7 @@ function main() {
     const relativePath = path.relative(process.cwd(), file);
     const violations = checkFile(file);
     if (violations.length > 0) {
-      console.error(`\x1b[31m[AI Slop Detected] ${relativePath}\x1b[0m`);
+      console.error(`\x1B[31m[AI Slop Detected] ${relativePath}\x1B[0m`);
       violations.forEach(({ lineNum, word, snippet }) => {
         console.error(`  Line ${lineNum}: Found "${word}" -> "${snippet}"`);
       });
@@ -120,10 +120,10 @@ function main() {
   });
 
   if (totalViolations > 0) {
-    console.error(`\n\x1b[31mError: ${totalViolations} AI slop violations found. Please rewrite using natural, human-like language.\x1b[0m`);
+    console.error(`\n\x1B[31mError: ${totalViolations} AI slop violations found. Please rewrite using natural, human-like language.\x1B[0m`);
     process.exit(1);
   } else {
-    console.log('\x1b[32mAll checked files are free of AI slop!\x1b[0m');
+    console.log('\x1B[32mAll checked files are free of AI slop!\x1B[0m');
     process.exit(0);
   }
 }

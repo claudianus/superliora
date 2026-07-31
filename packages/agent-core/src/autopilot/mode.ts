@@ -47,7 +47,7 @@ export class AutopilotMode {
         this.runs.set(runId, run); this.upd(card.id, { status: 'pr-open' }); return run;
       }
       run = { ...run, status: 'failed', lastError, updatedAt: new Date().toISOString() }; this.runs.set(runId, run); this.upd(card.id, { status: 'failed', lastError }); return run;
-    } catch (e) { lastError = e instanceof Error ? e.message : String(e); run = { ...run, status: 'failed', lastError, updatedAt: new Date().toISOString() }; this.runs.set(runId, run); this.upd(card.id, { status: 'failed', lastError }); return run; }
+    } catch (error) { lastError = error instanceof Error ? error.message : String(error); run = { ...run, status: 'failed', lastError, updatedAt: new Date().toISOString() }; this.runs.set(runId, run); this.upd(card.id, { status: 'failed', lastError }); return run; }
     finally { await removeWorktree(this.agent.kaos, root, wt).catch(() => {}); }
   }
   private async verify(_cwd: string): Promise<AutopilotVerificationResult> {
@@ -64,4 +64,4 @@ export class AutopilotMode {
   }
   private upd(id: string, patch: Partial<Pick<AutopilotCard, 'status' | 'attempts' | 'runId' | 'lastError'>>): void { const e = this.cards.get(id); if (e) this.cards.set(id, { ...e, ...patch, updatedAt: new Date().toISOString() }); }
 }
-function collect(s: NodeJS.ReadableStream): Promise<string> { return new Promise((r) => { let d = ''; s.setEncoding('utf8'); s.on('data', (c) => { d += c; }); s.on('end', () => r(d)); s.on('error', () => r(d)); }); }
+function collect(s: NodeJS.ReadableStream): Promise<string> { return new Promise((r) => { let d = ''; s.setEncoding('utf8'); s.on('data', (c) => { d += c; }); s.on('end', () =>{  r(d); }); s.on('error', () =>{  r(d); }); }); }

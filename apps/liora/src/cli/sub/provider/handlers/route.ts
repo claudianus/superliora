@@ -243,7 +243,7 @@ export async function handleProviderRouteAuto(
       strategy: 'auto',
       cooldownMs,
       weights,
-      sessionAffinity: sessionAffinity === true ? true : undefined,
+      sessionAffinity:  sessionAffinity ? true : undefined,
       preferredCredential,
     },
   };

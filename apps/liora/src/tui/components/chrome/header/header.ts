@@ -124,7 +124,7 @@ export class HeaderComponent implements Component {
 
     // Overflow: drop the density segment (middle) before dropping the model.
     const modelSeg = segments[0];
-    const clockSeg = segments[segments.length - 1];
+    const clockSeg = segments.at(-1);
     if (available < 0 && densityText && segments.length >= 3 && modelSeg && clockSeg) {
       // Remove the density segment (index 1)
       segments = [modelSeg, ...segments.slice(2)];
@@ -170,7 +170,7 @@ export class HeaderComponent implements Component {
 
     const parts: string[] = [];
     if (hasContext) {
-      const pct = Math.round((usage as number) * 100);
+      const pct = Math.round((usage) * 100);
       const token = pct > 80 ? 'error' : pct > 50 ? 'warning' : 'success';
       const detail =
         typeof tokens === 'number' && typeof max === 'number'
@@ -180,7 +180,7 @@ export class HeaderComponent implements Component {
     }
     if (hasCost) {
       parts.push(
-        `${currentTheme.dimFg('textMuted', 'COST')} ${currentTheme.fg('textDim', formatHeaderCost(cost as number))}`,
+        `${currentTheme.dimFg('textMuted', 'COST')} ${currentTheme.fg('textDim', formatHeaderCost(cost))}`,
       );
     }
     return parts.join(currentTheme.dimFg('textMuted', ' · '));

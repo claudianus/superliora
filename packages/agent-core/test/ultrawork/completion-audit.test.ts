@@ -118,7 +118,7 @@ describe('auditUltraworkCompletion', () => {
       );
       expect(
         result.nextActions.some(
-          (a) => /ac_1/.test(a) && /requiredEvidence: vitest recovery/.test(a),
+          (a) => a.includes('ac_1') && a.includes('requiredEvidence: vitest recovery'),
         ),
       ).toBe(true);
       expect(result.nextActions.some((a) => /evidence hard gate remaps/i.test(a))).toBe(true);
@@ -174,7 +174,7 @@ describe('auditUltraworkCompletion', () => {
       expect(result.nextActions.some((a) => /Close verification gaps on node\(s\)/i.test(a))).toBe(
         true,
       );
-      expect(result.nextActions.some((a) => /ac_1/.test(a) && /verify=failed/.test(a))).toBe(true);
+      expect(result.nextActions.some((a) => a.includes('ac_1') && a.includes('verify=failed'))).toBe(true);
     }
   });
 
@@ -261,13 +261,13 @@ describe('auditUltraworkCompletion', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe('node_failed');
-      expect(result.reasons.some((r) => /ac_timeout\[timeout\]/.test(r))).toBe(true);
+      expect(result.reasons.some((r) => r.includes('ac_timeout[timeout]'))).toBe(true);
       // Match recovery-prompt shared failed-node next_actions wording.
       expect(
         result.nextActions.some(
           (a) =>
-            /Repair failed WorkGraph node\(s\) first: ac_timeout/.test(a) &&
-            /ac_timeout\[timeout\]/.test(a),
+            a.includes('Repair failed WorkGraph node(s) first: ac_timeout') &&
+            a.includes('ac_timeout[timeout]'),
         ),
       ).toBe(true);
       expect(result.nextActions.some((a) => /Increase timeout|split/i.test(a))).toBe(true);
@@ -310,7 +310,7 @@ describe('auditUltraworkCompletion', () => {
     if (!result.ok) {
       expect(result.code).toBe('node_failed');
       expect(result.openNodeIds).toContain('impl_1');
-      expect(result.reasons.some((r) => /impl_1\[unknown\]/.test(r))).toBe(true);
+      expect(result.reasons.some((r) => r.includes('impl_1[unknown]'))).toBe(true);
     }
   });
 
@@ -342,7 +342,7 @@ describe('auditUltraworkCompletion', () => {
       expect(result.nextActions.some((a) => /Close verification gaps on node\(s\)/i.test(a))).toBe(
         true,
       );
-      expect(result.nextActions.some((a) => /verify_1/.test(a) && /verify=blocked/.test(a))).toBe(
+      expect(result.nextActions.some((a) => a.includes('verify_1') && a.includes('verify=blocked'))).toBe(
         true,
       );
     }
@@ -404,7 +404,7 @@ describe('auditUltraworkCompletion', () => {
         result.nextActions.some(
           (a) =>
             /Integrate specialist handoffs/i.test(a) &&
-            /integrate_1 \(Merge specialist handoff\)/.test(a),
+            a.includes('integrate_1 (Merge specialist handoff)'),
         ),
       ).toBe(true);
       expect(result.nextActions.some((a) => /integration evidence/i.test(a))).toBe(true);
@@ -438,12 +438,12 @@ describe('auditUltraworkCompletion', () => {
       expect(result.code).toBe('node_failed');
       expect(result.openNodeIds).toContain('ac_fail');
       expect(result.openNodeIds).not.toContain('ac_queued');
-      expect(result.reasons.some((r) => /ac_fail\[timeout\]/.test(r))).toBe(true);
+      expect(result.reasons.some((r) => r.includes('ac_fail[timeout]'))).toBe(true);
       expect(
         result.nextActions.some(
           (a) =>
-            /Repair failed WorkGraph node\(s\) first: ac_fail/.test(a) &&
-            /ac_fail\[timeout\]/.test(a),
+            a.includes('Repair failed WorkGraph node(s) first: ac_fail') &&
+            a.includes('ac_fail[timeout]'),
         ),
       ).toBe(true);
     }
@@ -567,7 +567,7 @@ describe('auditUltraworkCompletion', () => {
       // Reasons include the remap violation
       expect(
         result.reasons.some(
-          (r) => /ac_done_no_evidence/.test(r) && /cannot be done|requiredEvidence/.test(r),
+          (r) => r.includes('ac_done_no_evidence') && /cannot be done|requiredEvidence/.test(r),
         ),
       ).toBe(true);
       // Next actions surface the evidence-gate repair step
@@ -632,7 +632,7 @@ describe('auditUltraworkCompletion', () => {
       expect(result.nextActions.some((a) => /Queued node\(s\) waiting on dependsOn/i.test(a))).toBe(
         true,
       );
-      expect(result.nextActions.some((a) => /ac_wait/.test(a) && /dependsOn: ac_dep/.test(a))).toBe(
+      expect(result.nextActions.some((a) => a.includes('ac_wait') && a.includes('dependsOn: ac_dep'))).toBe(
         true,
       );
     }
@@ -692,9 +692,9 @@ describe('auditUltraworkCompletion', () => {
         true,
       );
       expect(
-        result.nextActions.some((a) => /ac_gap/.test(a) && /missing evidence: vitest/.test(a)),
+        result.nextActions.some((a) => a.includes('ac_gap') && a.includes('missing evidence: vitest')),
       ).toBe(true);
-      expect(result.nextActions.some((a) => /verify=pending/.test(a))).toBe(true);
+      expect(result.nextActions.some((a) => a.includes('verify=pending'))).toBe(true);
     }
   });
 
@@ -769,7 +769,7 @@ describe('auditUltraworkCompletion', () => {
       expect(result.code).toBe('node_blocked');
       expect(
         result.nextActions.some(
-          (a) => /dependsOn: dep_a, dep_b, dep_c/.test(a) && /Unblock WorkGraph/i.test(a),
+          (a) => a.includes('dependsOn: dep_a, dep_b, dep_c') && /Unblock WorkGraph/i.test(a),
         ),
       ).toBe(true);
     }

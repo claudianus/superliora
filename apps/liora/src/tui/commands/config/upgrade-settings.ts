@@ -24,7 +24,7 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Automatic updates ',
     enterBeatSeed: 'upgrade-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

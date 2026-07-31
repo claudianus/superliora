@@ -21,7 +21,7 @@ export function formatPlanForOutput(
   const savedTo = path !== undefined ? `Plan saved to: ${path}\n\n` : '';
   let output = `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${plan}`;
 
-  if (ultraDrift !== undefined && ultraDrift.ok === true) {
+  if (ultraDrift !== undefined &&  ultraDrift.ok) {
     if (ultraDrift.warning !== undefined) {
       output += `\n\n---\n## Warning\n${ultraDrift.warning}`;
     }

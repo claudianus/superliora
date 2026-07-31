@@ -21,7 +21,7 @@ export function scheduleHeadlessForceExit(
 function flushStream(stream: Writable): Promise<void> {
   return new Promise<void>((resolve) => {
     try {
-      stream.write('', () => resolve());
+      stream.write('', () =>{  resolve(); });
     } catch {
       resolve();
     }

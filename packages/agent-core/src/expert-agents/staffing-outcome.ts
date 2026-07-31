@@ -169,7 +169,7 @@ export function persistStaffingOutcomesToDisk(): boolean {
   try {
     const path = resolveStaffingOutcomesPath();
     // Cap size: keep highest-sample experts when over limit.
-    const sorted = [...outcomeStore.values()].sort((a, b) => b.samples - a.samples);
+    const sorted = [...outcomeStore.values()].toSorted((a, b) => b.samples - a.samples);
     const records = sorted.slice(0, MAX_PERSISTED_EXPERTS);
     const payload: StaffingOutcomeFileV1 = {
       schema: 1,

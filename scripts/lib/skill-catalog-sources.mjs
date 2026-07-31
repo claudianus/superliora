@@ -19,11 +19,11 @@ function gitCloneShallow(url, dest, branch = 'main') {
 }
 
 function normalizeSkillName(name, fallback) {
-  const base = (name || fallback)
+  const base = (name ?? fallback)
     .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+    .replaceAll(/[^a-z0-9-]+/g, '-')
+    .replaceAll(/-+/g, '-')
+    .replaceAll(/^-|-$/g, '')
     .slice(0, 64);
   return base.length > 0 ? base : 'skill';
 }
@@ -32,7 +32,7 @@ function parseFrontmatterName(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---/);
   if (match === null) return undefined;
   const nameMatch = match[1].match(/^name:\s*(.+)$/m);
-  return nameMatch?.[1]?.trim().replace(/^["']|["']$/g, '');
+  return nameMatch?.[1]?.trim().replaceAll(/^["']|["']$/g, '');
 }
 
 function injectCatalogMetadata(text, catalogSource, catalogId) {

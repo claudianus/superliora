@@ -31,7 +31,7 @@ export class GuiUseBrowserSearchChannel implements BrowserSearchChannel {
 
     const timeoutMs = this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const timeout = setTimeout(() =>{  controller.abort(); }, timeoutMs);
 
     try {
       const status = await this.runtime.status({ installIfMissing: false }, controller.signal);

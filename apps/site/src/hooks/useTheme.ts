@@ -19,7 +19,7 @@ export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.dataset.theme = theme;
     try {
       window.localStorage.setItem(STORAGE_KEY, theme);
     } catch {
@@ -27,6 +27,6 @@ export function useTheme() {
     }
   }, [theme]);
 
-  const toggle = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  const toggle = () =>{  setTheme((prev) => (prev === 'dark' ? 'light' : 'dark')); };
   return { theme, toggle, setTheme };
 }

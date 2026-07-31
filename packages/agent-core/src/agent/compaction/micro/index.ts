@@ -171,7 +171,7 @@ export class MicroCompaction {
     // perspective), letting the LLM see the same content twice. Clamp
     // negatives (defensive — detection logic should not pass a negative
     // value) and never let the new cutoff regress behind the previous one.
-    const safe = cutoff < 0 ? 0 : cutoff;
+    const safe = Math.max(0, cutoff);
     this.cutoff = safe > this.cutoff ? safe : this.cutoff;
   }
 
@@ -456,7 +456,7 @@ export class MicroCompaction {
         path: `tool-call/${toolCallId}`,
         text: fullText,
       });
-      const stem = toolName.replace(/[^\w-]+/gu, '_');
+      const stem = toolName.replaceAll(/[^\w-]+/gu, '_');
       const file = join(dir, `cleared-${stem}-${receipt.sha256.slice(0, 12)}.txt`);
       writeFileSync(file, fullText);
       pruneClearedReceipts(dir);

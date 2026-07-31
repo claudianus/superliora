@@ -66,7 +66,7 @@ export function showSearchSettings(host: SlashCommandHost): void {
           void setFreeFallback(host, false);
         }
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'Search' },
   );
@@ -126,7 +126,7 @@ async function showSearchStatusPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Search ',
     enterBeatSeed: 'search',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

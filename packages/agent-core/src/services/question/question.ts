@@ -53,7 +53,7 @@ import type {
   QuestionRequest as ProtocolQuestionRequest,
   QuestionResponse as ProtocolQuestionResponse,
 } from '@superliora/protocol';
-import type {} from '@superliora/protocol'; // type-only marker — keep protocol dep referenced
+ // type-only marker — keep protocol dep referenced
 
 // Re-export for service-side consumers.
 export type { QuestionRequest, QuestionResult };

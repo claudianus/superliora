@@ -29,9 +29,9 @@ export async function resolveCurrentModelId(harness: LioraHarness): Promise<stri
     if (typeof declared === 'string' && declared.length > 0) {
       return declared;
     }
-  } catch (err) {
+  } catch (error) {
     log.warn('acp: harness.getConfig threw during configOptions assembly; falling back', {
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
     return '';
   }
@@ -46,9 +46,9 @@ export async function resolveCurrentModelId(harness: LioraHarness): Promise<stri
       { fallbackModelId: models[0]!.id },
     );
     return models[0]!.id;
-  } catch (err) {
+  } catch (error) {
     log.warn('acp: listModelsFromHarness threw during configOptions assembly', {
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
   }
   return '';
@@ -78,9 +78,9 @@ export async function resolveCurrentThinkingEnabled(harness: LioraHarness): Prom
       return normalized !== 'off' && normalized.length > 0;
     }
     return false;
-  } catch (err) {
+  } catch (error) {
     log.warn('acp: harness.getConfig threw during thinking toggle resolution; defaulting to off', {
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
     return false;
   }

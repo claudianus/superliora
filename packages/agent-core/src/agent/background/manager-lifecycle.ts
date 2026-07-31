@@ -99,7 +99,7 @@ async function settlementForOutcome(
   const workerAfterAbort = await Promise.race([
     worker,
     graceTimeout,
-  ]).finally(() => graceTimeout.clear());
+  ]).finally(() =>{  graceTimeout.clear(); });
 
   if (
     outcome.kind === 'stop' &&

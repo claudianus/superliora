@@ -166,7 +166,7 @@ export class LioraTUI {
   }
 }
 
-export interface LioraTUI {
+export interface LioraTUIHost {
   getSlashCommands(mode?: SlashCommandHelpMode): readonly LioraSlashCommand[];
   dispatchSlash(command: string): void;
   runPluginsCommand(): Promise<void>;

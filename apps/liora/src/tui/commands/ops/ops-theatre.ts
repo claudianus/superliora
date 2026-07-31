@@ -78,7 +78,7 @@ export async function showOpsTheatre(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Ops Theatre ',
     enterBeatSeed: 'ops',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

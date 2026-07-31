@@ -113,7 +113,7 @@ describe('native release artifacts', () => {
     const checksumPath = `${archivePath}.sha256`;
     expect(existsSync(archivePath)).toBe(true);
     expect(existsSync(checksumPath)).toBe(true);
-    expect([...zipEntryNames(archivePath)].sort()).toEqual([executableName, 'catalog-personas.json'].sort());
+    expect([...zipEntryNames(archivePath)].toSorted()).toEqual([executableName, 'catalog-personas.json'].toSorted());
     expect(readZipEntry(archivePath, executableName).toString('utf-8')).toBe(binaryContent);
     expect(readZipEntry(archivePath, 'catalog-personas.json').toString('utf-8')).toBe(personasContent);
     expect(readFileSync(checksumPath, 'utf-8')).toBe(

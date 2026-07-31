@@ -50,7 +50,7 @@ export function classifySwarmLaneRole(
   coverageLane: string | undefined,
 ): SwarmMakerCheckerRole | undefined {
   if (coverageLane === undefined) return undefined;
-  const key = coverageLane.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+  const key = coverageLane.trim().toLowerCase().replaceAll(/[^a-z0-9_]+/g, '_');
   if (key.length === 0) return undefined;
 
   if (

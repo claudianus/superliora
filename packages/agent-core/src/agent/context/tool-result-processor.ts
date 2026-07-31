@@ -224,7 +224,7 @@ export function rankAndLimitResults<T>(
   if (scoreFn) {
     return results
       .map((item) => ({ item, score: scoreFn(item) }))
-      .sort((a, b) => b.score - a.score)
+      .toSorted((a, b) => b.score - a.score)
       .slice(0, maxResults)
       .map(({ item }) => item);
   }

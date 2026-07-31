@@ -41,11 +41,12 @@ export function inferSearchChannelsFromStatus(
   if (paidReady) channels.push('ch1');
   if (metaReady) channels.push('ch2');
   if (freeReady && status.freeFallback) channels.push('ch3');
-  if (status.browser.ready === true || status.browser.escalateAttempted === true) {
+  if (status.browser.ready || status.browser.escalateAttempted === true) {
     channels.push('ch4');
   }
   if (
-    status.chromeExtension.ready === true ||
+    
+    status.chromeExtension.ready ||
     status.chromeExtension.escalateAttempted === true
   ) {
     channels.push('ch5');
@@ -67,7 +68,8 @@ export function assessSearchChannelHealth(status: ResearchSearchStatus): SearchC
   const freeReady = free.some((provider) => provider.ready);
   const allPaidCooling = paid.length > 0 && paid.every((provider) => !provider.ready);
   const lateChannelReady =
-    status.browser.ready === true || status.chromeExtension.ready === true;
+    
+    status.browser.ready ||  status.chromeExtension.ready;
   const metaOrLateReady = metaReady || lateChannelReady;
 
   if (paidReady || metaReady || (paid.length === 0 && freeReady)) {

@@ -349,15 +349,15 @@ export class StreamingUIController {
   }
 
   discardPending(): void {
-    streamingUiDiscardPending(this._flushState, () => this.resetRevealChannelsInternal());
+    streamingUiDiscardPending(this._flushState, () =>{  this.resetRevealChannelsInternal(); });
   }
 
   scheduleFlush(): void {
-    streamingUiScheduleFlush(this._flushState, () => this.flush());
+    streamingUiScheduleFlush(this._flushState, () =>{  this.flush(); });
   }
 
   flushNow(): void {
-    streamingUiFlushNow(this._flushState, () => this.flush());
+    streamingUiFlushNow(this._flushState, () =>{  this.flush(); });
   }
 
   private flush(): void {
@@ -365,8 +365,8 @@ export class StreamingUIController {
       onThinkingFlush: () => {
         if (this._thinkingDraft.length > 0) this.onThinkingUpdate(this._thinkingDraft);
       },
-      onAssistantFlush: () => this.onStreamingTextUpdate(this._assistantDraft),
-      onToolCallFlush: (id) => this.flushToolCallPreview(id),
+      onAssistantFlush: () =>{  this.onStreamingTextUpdate(this._assistantDraft); },
+      onToolCallFlush: (id) =>{  this.flushToolCallPreview(id); },
     });
   }
 
@@ -428,8 +428,8 @@ export class StreamingUIController {
       host: this.host,
       currentTurnId: this._currentTurnId,
       getStreamingBlockComponent: () => this.getStreamingBlockComponent(),
-      finalizeLiveTextBuffers: () => this.finalizeLiveTextBuffers('idle'),
-      resetToolCallState: () => this.resetToolCallState(),
+      finalizeLiveTextBuffers: () =>{  this.finalizeLiveTextBuffers('idle'); },
+      resetToolCallState: () =>{  this.resetToolCallState(); },
       setCurrentTurnId: (turnId) => {
         this._currentTurnId = turnId;
       },
@@ -545,8 +545,8 @@ export class StreamingUIController {
       setPendingReadGroup: (group) => {
         this._pendingReadGroup = group;
       },
-      finalizeLiveTextBuffers: (mode) => this.finalizeLiveTextBuffers(mode),
-      onToolCallStart: (toolCall) => this.onToolCallStart(toolCall),
+      finalizeLiveTextBuffers: (mode) =>{  this.finalizeLiveTextBuffers(mode); },
+      onToolCallStart: (toolCall) =>{  this.onToolCallStart(toolCall); },
     });
   }
 
@@ -585,9 +585,9 @@ export class StreamingUIController {
       activeToolCalls: this._activeToolCalls,
       pendingToolComponents: this._pendingToolComponents,
       streamingToolCallArguments: this._streamingToolCallArguments,
-      finalizeLiveTextBuffers: (mode) => this.finalizeLiveTextBuffers(mode),
-      onToolCallStart: (toolCall) => this.onToolCallStart(toolCall),
-      onToolCallEnd: (toolCallId, result) => this.onToolCallEnd(toolCallId, result),
+      finalizeLiveTextBuffers: (mode) =>{  this.finalizeLiveTextBuffers(mode); },
+      onToolCallStart: (toolCall) =>{  this.onToolCallStart(toolCall); },
+      onToolCallEnd: (toolCallId, result) =>{  this.onToolCallEnd(toolCallId, result); },
     });
   }
 }

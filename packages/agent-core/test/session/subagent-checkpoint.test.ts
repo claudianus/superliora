@@ -76,7 +76,7 @@ describe('subagent checkpoint store', () => {
     clearSubagentCheckpoint('../escape', home);
     expect(readSubagentCheckpoint('../escape', home)).toBeUndefined();
     // Clearing a missing checkpoint must not throw.
-    expect(() => clearSubagentCheckpoint('never-written', home)).not.toThrow();
+    expect(() =>{  clearSubagentCheckpoint('never-written', home); }).not.toThrow();
   });
 
   it('renders a recovery reminder with progress, todos, and dirty files', () => {

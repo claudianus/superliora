@@ -100,14 +100,14 @@ export function parseFrontmatter(text) {
 }
 
 export function extractSection(body, title) {
-  const pattern = new RegExp(`^##\\s+${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'im');
+  const pattern = new RegExp(`^##\\s+${title.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'im');
   const match = pattern.exec(body);
   if (match === null) return '';
   const start = match.index + match[0].length;
   const rest = body.slice(start);
   const nextHeading = rest.search(/^##\s+/m);
   const section = nextHeading < 0 ? rest : rest.slice(0, nextHeading);
-  return section.replace(/^>\s?/gm, '').trim();
+  return section.replaceAll(/^>\s?/gm, '').trim();
 }
 
 function extractCapabilities(body) {
@@ -197,7 +197,7 @@ function yamlScalar(text, key) {
 
 function yamlBlock(text, key) {
   const match = text.match(new RegExp(`^${key}:\\s*\\|\\n([\\s\\S]*?)(?=^[a-zA-Z_][a-zA-Z0-9_-]*:|$)`, 'm'));
-  return match?.[1]?.replace(/^ {4}/gm, '').trim() ?? '';
+  return match?.[1]?.replaceAll(/^ {4}/gm, '').trim() ?? '';
 }
 
 function yamlStringList(text, section, key) {
@@ -226,7 +226,7 @@ function yamlTagList(text) {
   if (!match) return [];
   return match[1]
     .split(',')
-    .map((tag) => tag.trim().replace(/^["']|["']$/g, ''))
+    .map((tag) => tag.trim().replaceAll(/^["']|["']$/g, ''))
     .filter((tag) => tag.length > 0);
 }
 
@@ -276,16 +276,16 @@ export async function fetchAgencyAgentsExperts() {
       const text = await fetchText(file.download_url);
       const { meta, body } = parseFrontmatter(text);
       const id = file.name.replace(/\.md$/, '');
-      const name = meta.name || titleCaseFromSlug(id.split('-').slice(1).join('-'));
+      const name = meta.name ?? titleCaseFromSlug(id.split('-').slice(1).join('-'));
       experts.push(makeExpertEntry({
         id,
         name,
         division,
-        description: meta.description || '',
+        description: meta.description ?? '',
         color: meta.color,
-        emoji: meta.emoji || '',
-        vibe: meta.vibe || '',
-        tags: buildTags(division, name, meta.description || '', meta.tags?.split?.(',') ?? []),
+        emoji: meta.emoji ?? '',
+        vibe: meta.vibe ?? '',
+        tags: buildTags(division, name, meta.description ?? '', meta.tags?.split?.(',') ?? []),
         capabilities: extractCapabilities(body),
         whenToUse: extractWhenToUse(meta, body),
         personaText: body,
@@ -303,8 +303,8 @@ export async function fetchAgentCrowExperts() {
   for (const file of files.filter((entry) => entry.name.endsWith('.yaml'))) {
     const slug = file.name.replace(/\.yaml$/, '');
     const yamlText = await fetchText(file.download_url);
-    const name = yamlScalar(yamlText, 'name') || titleCaseFromSlug(slug);
-    const description = yamlScalar(yamlText, 'description') || `${name} specialist with enforced MUST/MUST NOT rules.`;
+    const name = yamlScalar(yamlText, 'name') ?? titleCaseFromSlug(slug);
+    const description = yamlScalar(yamlText, 'description') ?? `${name} specialist with enforced MUST/MUST NOT rules.`;
     const division = AGENTCROW_DIVISION[slug] ?? 'specialized';
     const must = yamlStringList(yamlText, 'critical_rules', 'must');
     const personaText = agentCrowPersonaText(yamlText, name);
@@ -344,18 +344,18 @@ export async function fetchVoltAgentExperts(agencySlugSet) {
     const text = await fetchText(`https://raw.githubusercontent.com/VoltAgent/awesome-claude-code-subagents/main/${file.path}`);
     const { meta, body } = parseFrontmatter(text);
     const division = VOLTAGENT_CATEGORY_DIVISION[category] ?? 'specialized';
-    const name = titleCaseFromSlug(meta.name || slug);
-    const description = meta.description || `${name} Claude Code subagent.`;
+    const name = titleCaseFromSlug(meta.name ?? slug);
+    const description = meta.description ?? `${name} Claude Code subagent.`;
     experts.push(makeExpertEntry({
       id: `volt-${category}-${slug}`,
       name,
       division,
       description,
       emoji: '⚡',
-      vibe: extractSection(body, 'When invoked') || description,
+      vibe: extractSection(body, 'When invoked') ?? description,
       tags: buildTags(division, name, description, [category, slug]),
       capabilities: extractCapabilities(body),
-      whenToUse: meta.description || description,
+      whenToUse: meta.description ?? description,
       personaText: body.length > 0 ? body : text.trim(),
     }));
   }
@@ -384,10 +384,10 @@ function ericGrillExpertId(filePath) {
   const relative = filePath.replace(/^personalities\//, '');
   const slug = relative
     .replace(/\.md$/, '')
-    .replace(/\//g, '-')
-    .replace(/[^a-zA-Z0-9-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+    .replaceAll(/\//g, '-')
+    .replaceAll(/[^a-zA-Z0-9-]+/g, '-')
+    .replaceAll(/-+/g, '-')
+    .replaceAll(/^-|-$/g, '')
     .toLowerCase();
   return `ericgrill-${slug}`;
 }
@@ -395,10 +395,10 @@ function ericGrillExpertId(filePath) {
 function parseEricGrillPersona(text, filename) {
   const slug = filename.replace(/\.md$/, '');
   const titleMatch = text.match(/^#\s+(.+?)\s*$/m);
-  const name = titleMatch?.[1]?.replace(/[^\w\s-]/g, '').trim() || titleCaseFromSlug(slug);
-  const description = extractSection(text, 'Description') || `${name} personality.`;
+  const name = titleMatch?.[1]?.replaceAll(/[^\w\s-]/g, '').trim() ?? titleCaseFromSlug(slug);
+  const description = extractSection(text, 'Description') ?? `${name} personality.`;
   const promptBlock = text.match(/## System Prompt\n```(?:\w*\n)?([\s\S]*?)```/);
-  const personaText = promptBlock?.[1]?.trim() || text.trim();
+  const personaText = promptBlock?.[1]?.trim() ?? text.trim();
   return { slug, name, description, personaText };
 }
 
@@ -481,7 +481,7 @@ export async function fetchAllExpertSources() {
     byId.set(expert.id, expert);
   }
 
-  const experts = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const experts = [...byId.values()].toSorted((a, b) => a.id.localeCompare(b.id));
   return {
     experts,
     counts: {

@@ -51,7 +51,7 @@ export abstract class DynamicInjector {
    */
   async collectForBatch(): Promise<string | undefined> {
     const injection = await this.getInjection();
-    return injection || undefined;
+    return injection ?? undefined;
   }
 
   /** Mark this injector as having participated in a batch append at `index`. */

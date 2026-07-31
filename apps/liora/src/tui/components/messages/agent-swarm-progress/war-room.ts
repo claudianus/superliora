@@ -173,7 +173,7 @@ export class AgentSwarmProgressWarRoom {
 
   toggleRawFeed(force?: boolean): boolean {
     if (!this.isUltraSwarmOpsFeedEnabled()) return false;
-    this.showRawFeed = force === undefined ? !this.showRawFeed : force;
+    this.showRawFeed = force ?? (!this.showRawFeed);
     this.requestRender?.();
     return this.showRawFeed;
   }

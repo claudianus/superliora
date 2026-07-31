@@ -168,7 +168,7 @@ export class CompactionComponent extends Container {
       const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
       const headed =
         (tip.length > 0 || model.length > 0) && beat.length > 0
-          ? [...beat.slice(0, -1), `${beat[beat.length - 1] ?? ''}${model}${tip}`]
+          ? [...beat.slice(0, -1), `${beat.at(-1) ?? ''}${model}${tip}`]
           : beat;
       return this.composeBeatRender(headed, width);
     }
@@ -441,7 +441,7 @@ export class CompactionComponent extends Container {
         ? Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0
         : true;
       if (blinkOn) {
-        const last = lines[lines.length - 1] ?? '';
+        const last = lines.at(-1) ?? '';
         lines[lines.length - 1] = `${last}${currentTheme.fg('accent', '▌')}`;
       }
     }

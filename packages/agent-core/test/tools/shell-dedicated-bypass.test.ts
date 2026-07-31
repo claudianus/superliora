@@ -426,7 +426,7 @@ describe('detectShellDedicatedBypass', () => {
       detectShellDedicatedBypass("python -c \"print(open('src/a.ts').read())\"")?.prefer,
     ).toBe('Read');
     expect(
-      detectShellDedicatedBypass("python3 -c \"print(open(\'src/a.ts\').read())\"")?.prefer,
+      detectShellDedicatedBypass("python3 -c \"print(open('src/a.ts').read())\"")?.prefer,
     ).toBe('Read');
     expect(
       detectShellDedicatedBypass(

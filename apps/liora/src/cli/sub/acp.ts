@@ -119,8 +119,8 @@ export function registerAcpCommand(parent: Command): void {
             : {}),
         });
         process.exit(0);
-      } catch (err) {
-        process.stderr.write(tln('cli.runtime.acp.fatalError', { message: String(err) }));
+      } catch (error) {
+        process.stderr.write(tln('cli.runtime.acp.fatalError', { message: String(error) }));
         process.exit(1);
       }
     });

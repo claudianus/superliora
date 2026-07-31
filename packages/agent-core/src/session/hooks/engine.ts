@@ -206,9 +206,9 @@ function aggregateResults(
     return {
       action: 'halt',
       reason:
-        halt.stopReason?.trim() ||
-        halt.reason?.trim() ||
-        halt.message?.trim() ||
+        (halt.stopReason?.trim() ??
+          halt.reason?.trim() ??
+          halt.message?.trim()) ||
         `Halted by ${event} hook`,
     };
   }

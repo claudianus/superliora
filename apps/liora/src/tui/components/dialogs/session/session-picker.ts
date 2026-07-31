@@ -239,7 +239,7 @@ export class SessionPickerComponent extends Container implements Focusable {
     }
     if (matchesKey(data, Key.backspace)) {
       // Operate on code points so astral characters delete in one keystroke.
-      const chars = [...renaming.draft];
+    const chars = Array.from(renaming.draft);
       chars.pop();
       renaming.draft = chars.join('');
       return;

@@ -117,8 +117,8 @@ function sanitizeOAuthAccountLabel(label: string | undefined): string | undefine
   const trimmed = label?.trim().toLowerCase();
   if (trimmed === undefined || trimmed.length === 0) return undefined;
   const slug = trimmed
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replaceAll(/[^a-z0-9._-]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
     .slice(0, 48);
   return slug.length === 0 ? undefined : slug;
 }

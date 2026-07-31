@@ -140,7 +140,7 @@ export function providerAutoRouteModels(
         cooldownMs: model.routing?.cooldownMs,
         weights: model.routing?.weights,
         sessionAffinity:
-          model.routing?.sessionAffinity === undefined ? true : model.routing.sessionAffinity,
+          model.routing?.sessionAffinity ?? true,
         preferredCredential: model.routing?.preferredCredential,
       },
     };
@@ -275,7 +275,7 @@ function formatProviderRouteCandidate(
   const cooling = candidate.cooldownUntil !== undefined && candidate.cooldownUntil > now;
   const state = cooling
     ? t('cli.runtime.provider.routeHealthCooling', {
-        duration: formatDuration(candidate.cooldownUntil! - now),
+        duration: formatDuration(candidate.cooldownUntil - now),
       })
     : t('cli.runtime.provider.routeHealthReady');
   const parts = [

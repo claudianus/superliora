@@ -350,7 +350,7 @@ export class RendererTranscriptViewportComponent extends Container {
 
     const cache = this.overflowRenderCache;
     if (cache.childRefs[childIndex] === child && cache.childRenderRefs[childIndex] !== undefined) {
-      return cache.childRenderRefs[childIndex]!;
+      return cache.childRenderRefs[childIndex];
     }
 
     const lines = child.render(inner);

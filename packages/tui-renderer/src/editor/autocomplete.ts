@@ -211,7 +211,7 @@ export class RendererEditorAutocompleteController {
     const state = this.state;
     if (state === undefined) return { handled: false };
 
-    if (event.key === 'up' && event.ctrl !== true && event.alt !== true) {
+    if (event.key === 'up' && ! event.ctrl && ! event.alt) {
       state.selectedIndex =
         state.selectedIndex === 0
           ? Math.max(0, state.items.length - 1)
@@ -220,7 +220,7 @@ export class RendererEditorAutocompleteController {
       return { handled: true };
     }
 
-    if (event.key === 'down' && event.ctrl !== true && event.alt !== true) {
+    if (event.key === 'down' && ! event.ctrl && ! event.alt) {
       state.selectedIndex =
         state.selectedIndex >= state.items.length - 1
           ? 0

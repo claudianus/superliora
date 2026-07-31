@@ -206,9 +206,7 @@ export class SplashComponent implements Component {
     if (this.disposed || this.finished) return Promise.resolve();
 
     const enabled =
-      this.forcePlay !== undefined
-        ? this.forcePlay
-        : shouldPlaySplash(this.appearance);
+      this.forcePlay ?? shouldPlaySplash(this.appearance);
 
     if (!enabled) {
       this.finished = true;

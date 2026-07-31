@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = resolve(import.meta.dirname, '..');
 const argv = process.argv.slice(2);
 const baseIdx = argv.indexOf('--base');
 const base = baseIdx >= 0 ? argv[baseIdx + 1] : 'origin/main';

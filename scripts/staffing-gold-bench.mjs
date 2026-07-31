@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = import.meta.dirname;
 const root = join(__dirname, '..');
 
 function parseArgs(argv) {
@@ -79,7 +79,7 @@ async function main() {
   console.error(`PASS: mean nDCG@${k} ${mean.toFixed(4)} >= ${minMean}`);
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((error) => {
+  console.error(error);
   process.exit(2);
 });

@@ -20,7 +20,7 @@ import {
   stubSearchResults,
 } from '../../../scripts/research-bridge-search-stub.mjs';
 
-const agentCoreRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
+const agentCoreRoot = join(import.meta.dirname, '../../..');
 const nativeHostScript = join(agentCoreRoot, 'scripts/research-bridge-native-host.mjs');
 
 function listenStubServer(): Promise<{ server: Server; url: string }> {
@@ -69,7 +69,10 @@ describe('research-bridge loopback stub', () => {
       expect(results[0]?.url).toContain('example.test');
     } finally {
       await new Promise<void>((resolve, reject) => {
-        server.close((error) => (error !== undefined ? reject(error) : resolve()));
+        server.close((error) => {
+          if (error !== undefined) reject(error);
+          else resolve();
+        });
       });
     }
   });
@@ -82,7 +85,7 @@ describe('research-bridge --serve', () => {
     if (child !== undefined && !child.killed) {
       child.kill('SIGTERM');
       await new Promise<void>((resolve) => {
-        child?.once('exit', () => resolve());
+        child?.once('exit', () =>{  resolve(); });
         setTimeout(resolve, 500);
       });
     }
@@ -102,7 +105,7 @@ describe('research-bridge --serve', () => {
     });
 
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('serve startup timeout')), 3_000);
+      const timeout = setTimeout(() =>{  reject(new Error('serve startup timeout')); }, 3_000);
       child?.stdout?.on('data', (chunk: Buffer) => {
         if (chunk.toString().includes('research-bridge serve ok')) {
           clearTimeout(timeout);

@@ -32,7 +32,7 @@ export async function loadPluginLspServers(input: {
 
   const table = isObject(raw)
     ? isObject(raw['lspServers'])
-      ? (raw['lspServers'] as Record<string, unknown>)
+      ? (raw['lspServers'])
       : raw
     : undefined;
   if (table === undefined) {
@@ -56,7 +56,7 @@ export async function loadPluginLspServers(input: {
     }
     const args =
       Array.isArray(value['args']) && value['args'].every((a) => typeof a === 'string')
-        ? (value['args'] as string[])
+        ? (value['args'])
         : undefined;
     const extensionToLanguage =
       isObject(value['extensionToLanguage'])

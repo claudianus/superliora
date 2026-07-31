@@ -145,7 +145,7 @@ describe('parallel block compaction observability', () => {
     // per-block output counters (21, 22, …) must appear exactly once each.
     const outputs = completions
       .map((tick) => tick.blockTokens?.output ?? Number.NaN)
-      .sort((a, b) => a - b);
+      .toSorted((a, b) => a - b);
     expect(outputs).toEqual(Array.from({ length: blockCalls }, (_, index) => 21 + index));
 
     // The live blocksCompleted counter reaches the total block count.

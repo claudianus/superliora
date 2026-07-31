@@ -68,14 +68,14 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
       return;
     }
 
-    if (matchesKey(data, Key.up) && data !== '\x1b[1;5A') {
+    if (matchesKey(data, Key.up) && data !== '\x1B[1;5A') {
       if (count > 0) {
         this.selectedIndex = Math.max(0, this.selectedIndex - 1);
       }
       return;
     }
 
-    if (matchesKey(data, Key.down) && data !== '\x1b[1;5B') {
+    if (matchesKey(data, Key.down) && data !== '\x1B[1;5B') {
       if (count > 0) {
         this.selectedIndex = Math.min(count - 1, this.selectedIndex + 1);
       }
@@ -102,7 +102,7 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
     }
 
     // Ctrl+Up (move up)
-    if (data === '\x1b[1;5A') {
+    if (data === '\x1B[1;5A') {
       if (this.selectedIndex > 0) {
         this.opts.onSelect({ type: 'moveUp', index: this.selectedIndex });
         this.selectedIndex = Math.max(0, this.selectedIndex - 1);
@@ -111,7 +111,7 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
     }
 
     // Ctrl+Down (move down)
-    if (data === '\x1b[1;5B') {
+    if (data === '\x1B[1;5B') {
       if (this.selectedIndex < count - 1) {
         this.opts.onSelect({ type: 'moveDown', index: this.selectedIndex });
         this.selectedIndex = Math.min(count - 1, this.selectedIndex + 1);

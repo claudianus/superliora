@@ -251,7 +251,7 @@ export class SessionReplay {
 
   /** Jump to previous marker. */
   jumpToPrevMarker(): void {
-    const prev = [...this.markers].reverse().find((m) => m.eventIndex < this.currentIndex);
+    const prev = [...this.markers].toReversed().find((m) => m.eventIndex < this.currentIndex);
     if (prev) {
       this.currentIndex = prev.eventIndex;
     }
@@ -283,7 +283,7 @@ export class SessionReplay {
 
   get totalDurationMs(): number {
     if (this.events.length === 0) return 0;
-    return this.events[this.events.length - 1]!.timestamp - this.startTimeMs;
+    return this.events.at(-1)!.timestamp - this.startTimeMs;
   }
 
   get progress(): number {
@@ -299,7 +299,7 @@ export class SessionReplay {
     fg: (t: string, s: string) => string,
     dimFg: (t: string, s: string) => string,
   ): string {
-    const chars = new Array<string>(width).fill(dimFg('textMuted', '─'));
+    const chars = Array.from({ length: width }, () => dimFg('textMuted', '─'));
 
     // Plot events
     for (const event of this.events) {

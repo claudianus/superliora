@@ -161,6 +161,6 @@ export function unslopText(text: string): string {
     }
   }
 
-  cleaned = cleaned.replace(/ {2,}/g, ' ');
+  cleaned = cleaned.replaceAll(/ {2,}/g, ' ');
   return cleaned.trim();
 }

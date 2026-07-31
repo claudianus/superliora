@@ -335,7 +335,7 @@ describe('analyzeMediaPart', () => {
       (_provider, _system, _tools, _history, _callbacks, options) =>
         new Promise((_resolve, reject) => {
           const signal = (options as { signal?: AbortSignal } | undefined)?.signal;
-          signal?.addEventListener('abort', () => reject(new Error('aborted')));
+          signal?.addEventListener('abort', () =>{  reject(new Error('aborted')); });
         }),
     ) as unknown as VisionAnalyzerDeps['generate'];
     const pending = analyzeMediaPart(

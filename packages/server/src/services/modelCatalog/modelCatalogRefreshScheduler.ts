@@ -54,7 +54,7 @@ export class ModelCatalogRefreshScheduler
         void this._refresh('interval');
       }, intervalMs);
       timer.unref?.();
-      this._register(toDisposable(() => clearInterval(timer)));
+      this._register(toDisposable(() =>{  clearInterval(timer); }));
     }
   }
 

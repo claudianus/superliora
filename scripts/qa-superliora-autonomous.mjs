@@ -2523,7 +2523,7 @@ async function runStaticPhase(context) {
     actual: {
       harnessNode: process.versions.node,
       selectedNode: context.nodeRuntime.version,
-      staticPathNode: nodeRecord.stdout.trim() || nodeRecord.stderr.trim() || nodeRecord.error,
+      staticPathNode: (nodeRecord.stdout.trim() ?? nodeRecord.stderr.trim()) ?? nodeRecord.error,
       nodePath: context.staticToolchain?.nodePath,
     },
   };
@@ -2555,7 +2555,7 @@ async function runStaticPhase(context) {
         : 'BLOCKED',
     expected: `corepack pnpm and nested bare pnpm ${REQUIRED_PNPM_VERSION}`,
     actual: {
-      corepackPnpm: pnpmRecord.stdout.trim() || pnpmRecord.stderr.trim() || pnpmRecord.error,
+      corepackPnpm: (pnpmRecord.stdout.trim() ?? pnpmRecord.stderr.trim()) ?? pnpmRecord.error,
       barePnpm: context.staticToolchain?.barePnpmVersion,
       pnpmPath: context.staticToolchain?.pnpmPath,
       toolchainStatus: context.staticToolchain?.metadata?.status,
@@ -2794,7 +2794,7 @@ async function buildStaticInstallDecision(context) {
   const nodeModulesExists = await pathExists(nodeModulesPath);
   const explicitInstall = context.options.install;
   return {
-    execute: explicitInstall || !nodeModulesExists,
+    execute: explicitInstall ?? !nodeModulesExists,
     explicitInstall,
     nodeModulesPath,
     nodeModulesExists,
@@ -6184,7 +6184,7 @@ function inspectUltraworkWorkflowSignals(output) {
   const activeQuestionPanel =
     activeQuestionPanelStart >= 0 ? output.slice(activeQuestionPanelStart) : output;
   const interviewReached =
-    questionVisible ||
+    questionVisible ??
     matchesAny(output, [
       /Ultra Plan mode/i,
       /Interview Phase/i,
@@ -6798,7 +6798,7 @@ function validateUltraworkQuestionHandled(waitResult) {
           trace.scenario.startsWith('ultrawork-question-answer-') &&
           trace.status === 'PASS' &&
           Array.isArray(trace.keys) &&
-          (trace.keys.includes('1') || trace.keys.includes('Enter')),
+          (trace.keys.includes('1') ?? trace.keys.includes('Enter')),
       )
     : [];
   const questionSubmitTraces = Array.isArray(waitResult.inputTraces)
@@ -7211,7 +7211,7 @@ function buildTuiUltraworkOperatorTrajectory(summary) {
         questionValidation?.status === 'PASS' &&
         (optionalQuestionBypassed ||
           Array.from(passedInputTraces).some((scenario) =>
-            scenario.startsWith('ultrawork-question-answer-') ||
+            scenario.startsWith('ultrawork-question-answer-') ??
             scenario.startsWith('ultrawork-question-submit-'),
           ))
           ? 'PASS'
@@ -10217,7 +10217,7 @@ async function waitForHealth(origin, timeoutMs, trackedProcess) {
 
 async function fetchEnvelope(url, timeoutMs, headers = undefined) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() =>{  controller.abort(); }, timeoutMs);
   try {
     const response = await fetch(url, { headers, signal: controller.signal });
     const text = await response.text();
@@ -10386,7 +10386,7 @@ async function runWebSocketProbe(origin, context, credential) {
 
 function waitForWebSocketOpen(socket, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('WebSocket open timed out')), timeoutMs);
+    const timer = setTimeout(() =>{  reject(new Error('WebSocket open timed out')); }, timeoutMs);
     socket.addEventListener('open', () => {
       clearTimeout(timer);
       resolve();
@@ -11025,7 +11025,7 @@ async function runAsyncRecordedCommand(context, spec) {
 async function waitForTrackedClose(tracked, timeoutMs) {
   if (tracked.closed) return { ...tracked.closeResult, timedOut: false };
   const timeout = new Promise((resolve) => {
-    setTimeout(() => resolve({ timedOut: true, exitCode: undefined, signal: undefined }), timeoutMs);
+    setTimeout(() =>{  resolve({ timedOut: true, exitCode: undefined, signal: undefined }); }, timeoutMs);
   });
   const result = await Promise.race([tracked.closePromise, timeout]);
   return { ...result, timedOut: result.timedOut === true };
@@ -11699,9 +11699,7 @@ async function main() {
     return;
   }
 
-  if (options.phase === undefined) {
-    options.phase = 'setup';
-  }
+  options.phase ??= 'setup';
 
   if (options.printPlan) {
     console.log(JSON.stringify(planPayload(), null, 2));

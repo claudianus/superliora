@@ -53,7 +53,7 @@ export async function fetchClinePassUsage(
   const base = (baseUrl ?? 'https://api.cline.bot/api/v1').replace(/\/+$/, '');
   const url = `${base}/users/me/plan/usage-limits`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8000);
+  const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {
     const res = await fetch(url, {
       headers: {

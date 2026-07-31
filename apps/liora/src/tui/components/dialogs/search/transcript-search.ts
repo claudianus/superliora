@@ -104,8 +104,8 @@ export class TranscriptSearchDialogComponent extends Container implements Focusa
       const maxTextWidth = Math.max(1, width - 5);
       const displayText =
         visibleWidth(entry.text) <= maxTextWidth
-          ? entry.text.replace(/\n/g, ' ')
-          : truncateToWidth(entry.text.replace(/\n/g, ' '), maxTextWidth, '…');
+          ? entry.text.replaceAll(/\n/g, ' ')
+          : truncateToWidth(entry.text.replaceAll(/\n/g, ' '), maxTextWidth, '…');
       lines.push(prefix + currentTheme.fg(isSelected ? 'primary' : 'text', displayText));
     }
 

@@ -49,15 +49,15 @@ describe('model-presets — autoAssignRoleModels', () => {
     const assignments = autoAssignRoleModels(availableModels);
     const compaction = assignments.compaction;
     assert.ok(compaction);
-    assert.equal(compaction!.modelId, 'claude-3-haiku');
-    assert.equal(compaction!.isFallback, false);
+    assert.equal(compaction.modelId, 'claude-3-haiku');
+    assert.equal(compaction.isFallback, false);
   });
 
   it('assigns high model to coding role', () => {
     const assignments = autoAssignRoleModels(availableModels);
     const coding = assignments.coding;
     assert.ok(coding);
-    assert.equal(coding!.modelId, 'claude-3-opus');
+    assert.equal(coding.modelId, 'claude-3-opus');
   });
 
   it('assigns ultra-high model to planning role with fallback to high', () => {
@@ -65,8 +65,8 @@ describe('model-presets — autoAssignRoleModels', () => {
     const planning = assignments.planning;
     assert.ok(planning);
     // No ultra-high model available, so should fallback to high
-    assert.equal(planning!.modelId, 'claude-3-opus');
-    assert.equal(planning!.isFallback, true);
+    assert.equal(planning.modelId, 'claude-3-opus');
+    assert.equal(planning.isFallback, true);
   });
 
   it('user override takes precedence', () => {
@@ -134,13 +134,13 @@ describe('model-presets — isAuthOrCreditFailure', () => {
 
 describe('model-presets — ROLE_PRESETS', () => {
   it('has presets for all 6 roles', () => {
-    const roles = ROLE_PRESETS.map((p) => p.role);
-    assert.ok(roles.includes('compaction'));
-    assert.ok(roles.includes('exploration'));
-    assert.ok(roles.includes('completion'));
-    assert.ok(roles.includes('coding'));
-    assert.ok(roles.includes('planning'));
-    assert.ok(roles.includes('debugging'));
+    const roles = new Set(ROLE_PRESETS.map((p) => p.role));
+    assert.ok(roles.has('compaction'));
+    assert.ok(roles.has('exploration'));
+    assert.ok(roles.has('completion'));
+    assert.ok(roles.has('coding'));
+    assert.ok(roles.has('planning'));
+    assert.ok(roles.has('debugging'));
   });
 
   it('compaction prefers ultra-cheap', () => {

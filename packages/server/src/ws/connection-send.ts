@@ -53,8 +53,8 @@ export function sendControlFrame(ctx: SendContext, message: unknown): void {
     ctx.socket.send(JSON.stringify(message), (err) => {
       if (err) ctx.logger.warn({ err: String(err) }, 'ws send failed');
     });
-  } catch (err) {
-    ctx.logger.warn({ err: String(err) }, 'ws send threw');
+  } catch (error) {
+    ctx.logger.warn({ err: String(error) }, 'ws send threw');
   }
 }
 
@@ -97,8 +97,8 @@ function notifySlowConsumerResync(ctx: SendContext): void {
       ({ seq, epoch }) => {
         sendControlFrame(ctx, buildResyncRequired(sid, 'slow_consumer', seq, epoch));
       },
-      (err: unknown) => {
-        ctx.logger.warn({ sid, err: String(err) }, 'ws slow-consumer resync cursor lookup failed');
+      (error: unknown) => {
+        ctx.logger.warn({ sid, err: String(error) }, 'ws slow-consumer resync cursor lookup failed');
       },
     );
   }

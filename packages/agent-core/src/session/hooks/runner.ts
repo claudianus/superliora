@@ -53,7 +53,7 @@ export async function runHook(
   try {
     const useExec = options.args !== undefined;
     child = useExec
-      ? spawn(command, [...options.args!], {
+      ? spawn(command, [...options.args], {
           shell: false,
           cwd: options.cwd,
           stdio: 'pipe',

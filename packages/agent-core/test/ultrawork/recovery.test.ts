@@ -1934,7 +1934,7 @@ describe('suggestNextActions fallbacks', () => {
       },
     } as UltraworkRun);
     expect(actions.some((a) => /Close evidence hard-gate on node\(s\)/i.test(a))).toBe(true);
-    expect(actions.some((a) => /ac_gate/.test(a) && /requiredEvidence: vitest recovery/.test(a))).toBe(
+    expect(actions.some((a) => a.includes('ac_gate') && a.includes('requiredEvidence: vitest recovery'))).toBe(
       true,
     );
   });

@@ -73,7 +73,7 @@ function stringifyToolPayloadPreview(value: unknown): string | undefined {
       text = '[unserializable]';
     }
   }
-  const flat = text.replace(/\s+/g, ' ').trim();
+  const flat = text.replaceAll(/\s+/g, ' ').trim();
   return flat.length > 0 ? flat : undefined;
 }
 
@@ -134,7 +134,7 @@ export function describeSubagentToolDetail(
     case 'Bash': {
       const command = toolDetailStringArg(record, 'command');
       if (command === undefined) return undefined;
-      const flat = command.replace(/\s+/g, ' ').trim();
+      const flat = command.replaceAll(/\s+/g, ' ').trim();
       if (flat.length === 0) return undefined;
       return {
         kind: 'bash',

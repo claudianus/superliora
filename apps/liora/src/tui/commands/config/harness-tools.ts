@@ -58,10 +58,10 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
       '',
       'Active:',
     ];
-    const sorted = [...publicActive].sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...publicActive].toSorted((a, b) => a.name.localeCompare(b.name));
     const cap = 48;
     for (const tool of sorted.slice(0, cap)) {
-      const desc = tool.description.replace(/\s+/g, ' ').trim();
+      const desc = tool.description.replaceAll(/\s+/g, ' ').trim();
       const short = desc.length > 72 ? `${desc.slice(0, 69)}…` : desc;
       lines.push(`  ${tool.name}  [${tool.source}]  ${short}`);
     }
@@ -71,7 +71,7 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
     if (publicInactive.length > 0) {
       lines.push(
         '',
-        `Inactive (${String(publicInactive.length)}): ${publicInactive.map((t) => t.name).sort().slice(0, 24).join(', ')}${publicInactive.length > 24 ? '…' : ''}`,
+        `Inactive (${String(publicInactive.length)}): ${publicInactive.map((t) => t.name).toSorted().slice(0, 24).join(', ')}${publicInactive.length > 24 ? '…' : ''}`,
       );
     }
     if (hiddenCompat.length > 0) {

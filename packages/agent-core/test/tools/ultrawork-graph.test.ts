@@ -177,7 +177,7 @@ describe('UltraworkGraphTool', () => {
 
     expect(result).toMatchObject({ isError: false });
     expect(result.output).toContain('TaskCompleted ac_1: tests failing');
-    expect((data[ULTRAWORK_GRAPH_STORE_KEY] as WorkGraph).nodes[0]?.status).toBe('running');
+    expect((data[ULTRAWORK_GRAPH_STORE_KEY]).nodes[0]?.status).toBe('running');
   });
 
   it('normalizes stage synonyms at the tool boundary and stores canonical stages', async () => {

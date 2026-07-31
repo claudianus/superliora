@@ -35,7 +35,7 @@ function candidatePersonaPaths(): string[] {
   }
 
   try {
-    push(join(dirname(fileURLToPath(import.meta.url)), PERSONA_FILE));
+    push(join(import.meta.dirname, PERSONA_FILE));
   } catch {
     // import.meta.url unavailable in exotic hosts
   }

@@ -79,7 +79,7 @@ function normalizeDroppedToken(raw: string): string {
   // Terminals quote paths that contain spaces when inserting them.
   if (token.length >= 2) {
     const first = token[0];
-    const last = token[token.length - 1];
+    const last = token.at(-1);
     if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
       token = token.slice(1, -1);
     }

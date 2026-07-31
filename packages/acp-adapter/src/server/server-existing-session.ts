@@ -71,15 +71,15 @@ export async function setupSessionFromExisting(
       // @ts-expect-error — mcpServers is a kernel-only field that the SDK forwards via spread.
       mcpServers,
     });
-  } catch (err) {
-    const code = (err as { code?: string } | undefined)?.code;
+  } catch (error) {
+    const code = (error as { code?: string } | undefined)?.code;
     if (code === 'session.not_found') {
       throw RequestError.invalidParams(
         { sessionId: params.sessionId },
         `Unknown sessionId: ${params.sessionId}`,
       );
     }
-    throw err;
+    throw error;
   }
   try {
     await session.tryAutoResumeUltrawork();

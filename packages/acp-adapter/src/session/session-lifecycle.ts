@@ -181,10 +181,10 @@ export async function emitConfigOptionUpdateNotification(
       deps.currentModeId,
     );
     await deps.conn.sessionUpdate(configOptionUpdateNotification(deps.sessionId, snapshot));
-  } catch (err) {
+  } catch (error) {
     log.warn('acp: failed to emit config_option_update', {
       sessionId: deps.sessionId,
-      error: err instanceof Error ? err.message : String(err),
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 }

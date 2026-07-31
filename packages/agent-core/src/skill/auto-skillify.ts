@@ -180,10 +180,10 @@ function candidateName(type: string, toolName: string | undefined, description: 
   const source = (toolName ?? 'agent').toLowerCase();
   const slug = description
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
     .slice(0, 40);
-  return `${prefix}-${source}-${slug}`.replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return `${prefix}-${source}-${slug}`.replaceAll(/-+/g, '-').replaceAll(/^-|-$/g, '');
 }
 
 function candidateWhenToUse(type: string, toolName: string | undefined): string {

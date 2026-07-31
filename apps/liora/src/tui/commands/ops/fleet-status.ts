@@ -40,7 +40,7 @@ export async function showFleetStatus(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Fleet ',
     enterBeatSeed: 'fleet',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

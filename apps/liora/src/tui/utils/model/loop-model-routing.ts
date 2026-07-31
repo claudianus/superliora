@@ -47,7 +47,7 @@ export function loopModelRoutingPatch(
 }
 
 export function loopModelRoutingDeletePath(role: LoopModelRoutingRole): DeleteConfigFieldPath {
-  return `loopControl.${role.configKey}` as DeleteConfigFieldPath;
+  return `loopControl.${role.configKey}`;
 }
 
 function configuredModel(value: unknown): string | undefined {

@@ -139,7 +139,7 @@ export async function handleNativeTUIEditorPasteMediaKey(
   const handler = host.onPasteImage;
   if (handler !== undefined) {
     try {
-      if ((await handler()) === true) return;
+      if ((await handler())) return;
     } catch {
       // Fall through to a text paste below.
     }

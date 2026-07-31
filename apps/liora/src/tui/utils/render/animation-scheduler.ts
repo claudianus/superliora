@@ -201,7 +201,7 @@ export class AnimationScheduler {
 
   /** Create a keyframe animation. */
   keyframes(keyframes: Keyframe[], duration: number, onUpdate: (value: number) => void, easing?: EasingFunction): string {
-    const sorted = [...keyframes].sort((a, b) => a.at - b.at);
+    const sorted = [...keyframes].toSorted((a, b) => a.at - b.at);
 
     return this.animate({
       duration,
@@ -230,7 +230,7 @@ export class AnimationScheduler {
         duration,
         easing,
         delay: i * staggerDelay,
-        onUpdate: (progress, eased) => onUpdate(i, progress, eased),
+        onUpdate: (progress, eased) =>{  onUpdate(i, progress, eased); },
         onComplete: () => {
           completed++;
           if (completed === count && onComplete) onComplete();
@@ -280,7 +280,7 @@ export class AnimationScheduler {
         life: lifetime * (0.7 + Math.random() * 0.3),
         maxLife: lifetime,
         char: chars[Math.floor(Math.random() * chars.length)] ?? '✦',
-        color: colors[Math.floor(Math.random() * colors.length)] ?? '\x1b[33m',
+        color: colors[Math.floor(Math.random() * colors.length)] ?? '\x1B[33m',
         size: 1,
       });
     }
@@ -296,7 +296,7 @@ export class AnimationScheduler {
       gravity: 0.15,
       lifetime: 60,
       chars: ['✦', '◆', '●', '★', '✧', '◇'],
-      colors: ['\x1b[31m', '\x1b[32m', '\x1b[33m', '\x1b[34m', '\x1b[35m', '\x1b[36m'],
+      colors: ['\x1B[31m', '\x1B[32m', '\x1B[33m', '\u001b[34m', '\u001b[35m', '\x1B[36m'],
     });
   }
 
@@ -310,7 +310,7 @@ export class AnimationScheduler {
       gravity: -0.05,
       lifetime: 20,
       chars: ['✧', '·', '˚', '°'],
-      colors: ['\x1b[33m', '\x1b[93m', '\x1b[37m'],
+      colors: ['\u001b[33m', '\x1B[93m', '\x1B[37m'],
     });
   }
 
@@ -489,7 +489,7 @@ function interpolateKeyframes(keyframes: Keyframe[], progress: number): number {
 
   // Find surrounding keyframes
   let prev = keyframes[0]!;
-  let next = keyframes[keyframes.length - 1]!;
+  let next = keyframes.at(-1)!;
 
   for (let i = 0; i < keyframes.length - 1; i++) {
     if (progress >= keyframes[i]!.at && progress <= keyframes[i + 1]!.at) {

@@ -78,7 +78,7 @@ export async function runOneTurnFlow(
                 agent: deps.agent,
                 turnTelemetry: deps.turnTelemetry,
                 assistantThinkScrubber: deps.assistantThinkScrubber,
-                getActiveTurn: deps.getActiveTurn,
+                getActiveTurn: (...args) => deps.getActiveTurn(...args),
               },
               turnId,
             ),

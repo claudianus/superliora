@@ -10,6 +10,8 @@ import {
   SUPERLIORA_PROVIDER_NAME,
 } from '../src/kimi';
 
+const profileProvider = { type: 'kimi' as const, label: 'profile-A' };
+
 describe('oauth/managed-kimi-code — pure helpers', () => {
   it('exposes the documented SuperLiora / managed-kimi constants', () => {
     expect(SUPERLIORA_PLATFORM_ID).toBe('kimi-code');
@@ -34,20 +36,24 @@ describe('oauth/managed-kimi-code — pure helpers', () => {
 
   describe('allocateManagedKimiOAuthAccountKey', () => {
     it('returns a stable object for the same inputs', () => {
-      const a = allocateManagedKimiOAuthAccountKey('profile-A', 'managed:kimi-api');
-      const b = allocateManagedKimiOAuthAccountKey('profile-A', 'managed:kimi-api');
+      const a = allocateManagedKimiOAuthAccountKey(profileProvider);
+      const b = allocateManagedKimiOAuthAccountKey(profileProvider);
       expect(a).toEqual(b);
     });
 
     it('returns a non-null object', () => {
-      const a = allocateManagedKimiOAuthAccountKey('profile-A', 'managed:kimi-api');
+      const a = allocateManagedKimiOAuthAccountKey(profileProvider);
       expect(a).not.toBeNull();
       expect(typeof a).toBe('object');
     });
   });
 
   it('ManagedKimiCodeModelsAuthError is catchable as an Error', () => {
-    const err = new ManagedKimiCodeModelsAuthError('https://example.test', new Error('caused'));
+    const err = new ManagedKimiCodeModelsAuthError({
+      status: 401,
+      baseUrl: 'https://example.test',
+      message: 'caused',
+    });
     expect(err).toBeInstanceOf(Error);
     expect(err.name).toBe('ManagedKimiCodeModelsAuthError');
   });

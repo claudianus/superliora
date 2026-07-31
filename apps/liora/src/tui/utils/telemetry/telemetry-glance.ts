@@ -43,7 +43,7 @@ export function loadTelemetryGlance(input: {
     optInEnvSet: isTelemetryOptInEnvSet(env),
     endpoint: runtime.endpoint,
     defaultEndpoint: resolveTelemetryEndpoint(env),
-    endpointEnvOverride: env[TELEMETRY_ENDPOINT_ENV]?.trim() || undefined,
+    endpointEnvOverride: env[TELEMETRY_ENDPOINT_ENV]?.trim() ?? undefined,
   };
 }
 

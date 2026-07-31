@@ -455,7 +455,7 @@ describe('FileSystemAgentRecordPersistence', () => {
       origin: { kind: 'user' as const },
     }));
     persistence.rewrite(records);
-    expect(() => persistence.flushSync()).not.toThrow();
+    expect(() =>{  persistence.flushSync(); }).not.toThrow();
     expect(sawError).toBe(true);
   });
 
@@ -539,7 +539,7 @@ describe('InMemoryAgentRecordPersistence', () => {
       origin: { kind: 'user' as const },
     }));
     const persistence = new InMemoryAgentRecordPersistence(records.slice(0, 10));
-    expect(() => persistence.rewrite(records)).not.toThrow();
+    expect(() =>{  persistence.rewrite(records); }).not.toThrow();
     expect(persistence.recordCount()).toBe(count);
     expect(persistence.records[0]).toMatchObject({
       input: [{ type: 'text', text: 'row-0' }],

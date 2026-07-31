@@ -22,16 +22,16 @@ function isSingleUnixHashFileDump(command: string): boolean {
   // Drop known option tokens so only path operands remain.
   // shasum: -a 256 / --algorithm 256; others: -b/--binary -t/--text --tag -z/--zero
   let args = rest
-    .replace(/(?:^|\s)(?:--algorithm|-a)(?:=\S+|\s+\S+)/gi, ' ')
-    .replace(
+    .replaceAll(/(?:^|\s)(?:--algorithm|-a)(?:=\S+|\s+\S+)/gi, ' ')
+    .replaceAll(
       /(?:^|\s)(?:--binary|--text|--tag|--zero|-b|-t|-z)(?:=\S+)?(?=\s|$)/gi,
       ' ',
     )
-    .replace(/\s+/g, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
   if (args.length === 0) return false;
   // Globs or multiple operands → real shell work.
-  if (/[*?\[{]/.test(args)) return false;
+  if (/[*?[{]/.test(args)) return false;
   const parts = args.split(/\s+/).filter((part) => part.length > 0);
   if (parts.length !== 1) return false;
   const path = parts[0] ?? '';
@@ -49,11 +49,11 @@ function isSingleMacMd5FileDump(command: string): boolean {
   // Reject string-hash mode (`md5 -s 'hello'`) and multi-file dumps.
   if (/(?:^|\s)-(?:s|string)(?:=\S+|\s+\S+)/i.test(rest)) return false;
   let args = rest
-    .replace(/(?:^|\s)-(?:q|r|p|x|t)(?=\s|$)/gi, ' ')
-    .replace(/\s+/g, ' ')
+    .replaceAll(/(?:^|\s)-(?:q|r|p|x|t)(?=\s|$)/gi, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
   if (args.length === 0) return false;
-  if (/[*?\[{]/.test(args)) return false;
+  if (/[*?[{]/.test(args)) return false;
   const parts = args.split(/\s+/).filter((part) => part.length > 0);
   if (parts.length !== 1) return false;
   return isPathLikeHashOperand(parts[0] ?? '');
@@ -67,7 +67,7 @@ function isSinglePlutilFileDump(command: string): boolean {
   // Pretty-print dump.
   if (/^(?:\/usr\/bin\/)?plutil\s+-p\b/.test(command)) {
     const rest = command.replace(/^(?:\/usr\/bin\/)?plutil\s+-p\b/i, '').trim();
-    if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+    if (rest.length === 0 || /[*?[{]/.test(rest)) return false;
     const parts = rest.split(/\s+/).filter((part) => part.length > 0);
     if (parts.length !== 1) return false;
     return isPathLikeHashOperand(parts[0] ?? '');
@@ -79,11 +79,11 @@ function isSinglePlutilFileDump(command: string): boolean {
   ) {
     let rest = command.replace(/^(?:\/usr\/bin\/)?plutil\s+-convert\s+\S+/i, '').trim();
     rest = rest
-      .replace(/(?:^|\s)-(?:o|output)\s+-?(?=\s|$)/gi, ' ')
-      .replace(/(?:^|\s)--\s+/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replaceAll(/(?:^|\s)-(?:o|output)\s+-?(?=\s|$)/gi, ' ')
+      .replaceAll(/(?:^|\s)--\s+/g, ' ')
+      .replaceAll(/\s+/g, ' ')
       .trim();
-    if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+    if (rest.length === 0 || /[*?[{]/.test(rest)) return false;
     const parts = rest.split(/\s+/).filter((part) => part.length > 0 && !part.startsWith('-'));
     if (parts.length !== 1) return false;
     return isPathLikeHashOperand(parts[0] ?? '');
@@ -109,11 +109,11 @@ function isSinglePlistBuddyPrintDump(command: string): boolean {
     .replace(/^(?:\/usr\/libexec\/|\/usr\/bin\/)?PlistBuddy\b/i, '')
     .trim();
   rest = rest
-    .replace(/(?:^|\s)-c\s+(?:'[^']*'|"[^"]*"|\S+)/gi, ' ')
-    .replace(/(?:^|\s)-x(?=\s|$)/gi, ' ')
-    .replace(/\s+/g, ' ')
+    .replaceAll(/(?:^|\s)-c\s+(?:'[^']*'|"[^"]*"|\S+)/gi, ' ')
+    .replaceAll(/(?:^|\s)-x(?=\s|$)/gi, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
-  if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+  if (rest.length === 0 || /[*?[{]/.test(rest)) return false;
   const parts = rest.split(/\s+/).filter((part) => part.length > 0 && !part.startsWith('-'));
   if (parts.length !== 1) return false;
   return isPathLikeHashOperand(parts[0] ?? '');
@@ -132,7 +132,7 @@ function isSingleXmllintFileDump(command: string): boolean {
   if (!hasDumpFlag) {
     // Bare `xmllint file.xml` also dumps parsed XML to stdout — catch path-only form.
     const bare = command.replace(/^(?:\/usr\/bin\/)?xmllint\b/i, '').trim();
-    if (bare.length === 0 || /[*?\[{]/.test(bare)) return false;
+    if (bare.length === 0 || /[*?[{]/.test(bare)) return false;
     if (/(?:^|\s)--\S+/.test(bare)) return false;
     const parts = bare.split(/\s+/).filter((part) => part.length > 0);
     if (parts.length !== 1) return false;
@@ -141,15 +141,15 @@ function isSingleXmllintFileDump(command: string): boolean {
   let rest = command.replace(/^(?:\/usr\/bin\/)?xmllint\b/i, '').trim();
   // Drop known dump flags (and their single values for --xpath / --encode).
   rest = rest
-    .replace(/(?:^|\s)--xpath(?:=\S+|\s+\S+)/gi, ' ')
-    .replace(/(?:^|\s)--encode(?:=\S+|\s+\S+)/gi, ' ')
-    .replace(
+    .replaceAll(/(?:^|\s)--xpath(?:=\S+|\s+\S+)/gi, ' ')
+    .replaceAll(/(?:^|\s)--encode(?:=\S+|\s+\S+)/gi, ' ')
+    .replaceAll(
       /(?:^|\s)--(?:format|c14n|noblanks|noout|nonet|nowarning|quiet)(?=\s|$)/gi,
       ' ',
     )
-    .replace(/\s+/g, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
-  if (rest.length === 0 || /[*?\[{]/.test(rest)) return false;
+  if (rest.length === 0 || /[*?[{]/.test(rest)) return false;
   const parts = rest.split(/\s+/).filter((part) => part.length > 0 && !part.startsWith('-'));
   if (parts.length !== 1) return false;
   return isPathLikeHashOperand(parts[0] ?? '');
@@ -175,11 +175,11 @@ function isSingleOpensslDgstFileDump(command: string): boolean {
     return false;
   }
   let args = rest
-    .replace(/(?:^|\s)-(?:sha\d+|md5|blake2\w*|sm3|rmd\d+|whirlpool|r|hex|binary|c)(?=\s|$)/gi, ' ')
-    .replace(/\s+/g, ' ')
+    .replaceAll(/(?:^|\s)-(?:sha\d+|md5|blake2\w*|sm3|rmd\d+|whirlpool|r|hex|binary|c)(?=\s|$)/gi, ' ')
+    .replaceAll(/\s+/g, ' ')
     .trim();
   if (args.length === 0) return false;
-  if (/[*?\[{]/.test(args)) return false;
+  if (/[*?[{]/.test(args)) return false;
   const parts = args.split(/\s+/).filter((part) => part.length > 0);
   if (parts.length !== 1) return false;
   const path = parts[0] ?? '';

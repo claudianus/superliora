@@ -233,7 +233,7 @@ export class AdaptiveFrameController {
   /** Get the 95th percentile frame time (for jank detection). */
   get p95FrameTimeMs(): number {
     if (this.frameTimes.length === 0) return 0;
-    const sorted = [...this.frameTimes].sort((a, b) => a - b);
+    const sorted = [...this.frameTimes].toSorted((a, b) => a - b);
     const idx = Math.floor(sorted.length * 0.95);
     return sorted[Math.min(idx, sorted.length - 1)]!;
   }

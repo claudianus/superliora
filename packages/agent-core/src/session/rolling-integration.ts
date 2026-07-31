@@ -112,7 +112,7 @@ export function takeRollingIntegrationWarning(runId: string): string | undefined
   if (state === undefined) return undefined;
   const outcome = state.lastOutcome;
   const failed =
-    state.lastStatus === 'failed' && outcome !== undefined && outcome.ok === false;
+    state.lastStatus === 'failed' && outcome !== undefined && ! outcome.ok;
   clearRollingIntegration(runId);
   if (!failed || outcome === undefined || outcome.ok) return undefined;
   const preview =

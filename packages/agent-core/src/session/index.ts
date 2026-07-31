@@ -194,7 +194,7 @@ export class Session {
         this.agentsMdWarning = warning;
       },
       systemContextKaos: (cwd) => this.systemContextKaos(cwd),
-      writeMetadata: () => this.writeMetadata(),
+      writeMetadata: () => { void this.writeMetadata(); },
     });
     void this.resources.loadMcpServers().catch((error: unknown) => {
       this.resources.emitInitialMcpLoadError(error);
@@ -513,7 +513,7 @@ export class Session {
     let turnId = options.turnId;
     if (turnId === undefined) {
       const turns = this.fileSnapshots.listTurns();
-      const latest = turns[turns.length - 1];
+      const latest = turns.at(-1);
       if (latest === undefined) {
         throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, 'No file snapshots available to rewind');
       }

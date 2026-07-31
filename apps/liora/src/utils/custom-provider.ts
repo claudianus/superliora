@@ -294,7 +294,7 @@ export async function probeModelsEndpoint(
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  const timer = setTimeout(() =>{  controller.abort(); }, PROBE_TIMEOUT_MS);
   try {
     const res = await fetchImpl(url, { headers, signal: controller.signal });
     if (!res.ok) return undefined;

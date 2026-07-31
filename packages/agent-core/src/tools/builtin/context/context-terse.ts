@@ -136,8 +136,7 @@ function renderFullView(
 function extractSymbolsFromContent(content: string): SymbolEntry[] {
   return content
     .split(/\r?\n/)
-    .map((line, index) => extractSymbols(line, index + 1))
-    .flat()
+    .flatMap((line, index) => extractSymbols(line, index + 1))
     .filter((symbol): symbol is SymbolEntry => symbol !== undefined);
 }
 
@@ -211,7 +210,7 @@ function mergeShellStreams(stdout: string, stderr: string): string {
 }
 
 function collapseRepeatedBlankLines(text: string): string {
-  return text.replace(/\n{4,}/g, '\n\n\n');
+  return text.replaceAll(/\n{4,}/g, '\n\n\n');
 }
 
 function collapseConsecutiveDuplicateLines(text: string): string {
@@ -467,7 +466,7 @@ function compressTestOutput(text: string): string {
     const trimmed = line.trim();
     const isPass =
       /^(?:PASS|✓|✔|\s*ok\s+\d+\s+-)/u.test(trimmed) ||
-      /^--- PASS:/u.test(trimmed) ||
+      trimmed.startsWith('--- PASS:') ||
       /^ok\s+/u.test(trimmed) ||
       // cargo / libtest: `test foo::bar ... ok`
       /^test\s+\S.+\s+\.\.\.\s+ok\b/u.test(trimmed) ||
@@ -475,7 +474,7 @@ function compressTestOutput(text: string): string {
       /\b✓\b/u.test(trimmed);
     const isFail =
       /^(?:FAIL|✗|×|\s*not ok\b)/u.test(trimmed) ||
-      /^--- FAIL:/u.test(trimmed) ||
+      trimmed.startsWith('--- FAIL:') ||
       // cargo / libtest: `test foo::bar ... FAILED`
       /^test\s+\S.+\s+\.\.\.\s+FAILED\b/u.test(trimmed) ||
       /\bfailed\b/iu.test(trimmed) ||

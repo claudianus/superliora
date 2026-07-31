@@ -148,9 +148,9 @@ export function detectTerminalIdentity(env: NodeJS.ProcessEnv): TerminalIdentity
   else if (env['ZELLIJ']) multiplexer = 'zellij';
   else if (term.startsWith('screen')) multiplexer = 'screen';
 
-  const ssh = !!(env['SSH_CONNECTION'] || env['SSH_CLIENT'] || env['SSH_TTY']);
-  const ci = !!(env['CI'] || env['GITHUB_ACTIONS'] || env['GITLAB_CI']);
-  const interactive = term !== 'dumb' && !ci && process.stdin.isTTY === true;
+  const ssh = !!((env['SSH_CONNECTION'] ?? env['SSH_CLIENT']) ?? env['SSH_TTY']);
+  const ci = !!((env['CI'] ?? env['GITHUB_ACTIONS']) ?? env['GITLAB_CI']);
+  const interactive = term !== 'dumb' && !ci &&  process.stdin.isTTY;
 
   return { term, termProgram, termProgramVersion, multiplexer, ssh, ci, interactive };
 }
@@ -213,7 +213,7 @@ export function buildCapabilityProfile(
   let tier: FeatureTier = 'basic';
 
   if (terminalKey && TERMINAL_DB[terminalKey]) {
-    const entry = TERMINAL_DB[terminalKey]!;
+    const entry = TERMINAL_DB[terminalKey];
     tier = entry.tier;
     colorDepth = entry.colorDepth;
     imageProtocol = entry.imageProtocol;
@@ -345,9 +345,7 @@ let cachedProfile: TerminalCapabilityProfile | null = null;
  * Call `invalidateProfile()` after terminal resize or env changes.
  */
 export function getTerminalProfile(): TerminalCapabilityProfile {
-  if (!cachedProfile) {
-    cachedProfile = buildCapabilityProfile();
-  }
+  cachedProfile ??= buildCapabilityProfile();
   return cachedProfile;
 }
 

@@ -52,7 +52,7 @@ function resolveOAuthProviderName(
   config: LioraConfig,
   modelAlias?: string,
 ): string | undefined {
-  const alias = modelAlias?.trim() || config.defaultModel?.trim();
+  const alias = modelAlias?.trim() ?? config.defaultModel?.trim();
   if (alias !== undefined && alias.length > 0) {
     const model = config.models?.[alias];
     const providerName = model?.provider ?? config.defaultProvider;

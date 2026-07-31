@@ -431,8 +431,8 @@ export function encodeSixelPlaceholder(
   // DCS (Device Control String) sixel introduction
   // For a real implementation, we'd encode actual pixel data here.
   // This placeholder draws a bordered rectangle using sixel bands.
-  const dcs = '\x1bP';
-  const st = '\x1b\\';
+  const dcs = '\x1BP';
+  const st = '\x1B\\';
 
   // Sixel header: aspect ratio 1:1, background color 0
   const header = `q;1;1;${String(cols * 9)};${String(rows * 18)}`;
@@ -465,7 +465,7 @@ export function encodeSixelPlaceholder(
 /** Repeat a sixel character n times. */
 function repeatSixelChar(charCode: number, count: number): string {
   if (count <= 0) return '';
-  const char = String.fromCharCode(charCode);
+  const char = String.fromCodePoint(charCode);
   if (count > 3) {
     // Use sixel repeat: !count<char>
     return `!${String(count)}${char}`;
@@ -485,5 +485,5 @@ function estimateDataSize(data: RendererInlineImageData): number {
   if (data instanceof Uint8Array) {
     return data.byteLength;
   }
-  return (data as readonly number[]).length;
+  return (data).length;
 }

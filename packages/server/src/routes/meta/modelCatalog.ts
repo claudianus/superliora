@@ -99,8 +99,8 @@ export function registerModelCatalogRoutes(
           a.get(IModelCatalogService).setDefaultModel(parsed.id),
         );
         reply.send(okEnvelope(result, req.id));
-      } catch (err) {
-        sendMappedError(reply, req.id, err);
+      } catch (error) {
+        sendMappedError(reply, req.id, error);
       }
     },
   );
@@ -173,8 +173,8 @@ export function registerModelCatalogRoutes(
           a.get(IModelCatalogService).getProvider(provider_id),
         );
         reply.send(okEnvelope(provider, req.id));
-      } catch (err) {
-        sendMappedError(reply, req.id, err);
+      } catch (error) {
+        sendMappedError(reply, req.id, error);
       }
     },
   );
@@ -191,12 +191,12 @@ function sendMappedError(
   err: unknown,
 ): void {
   if (err instanceof ProviderNotFoundError) {
-    const error = err as ProviderNotFoundError;
+    const error = err;
     reply.send(errEnvelope(ErrorCode.PROVIDER_NOT_FOUND, error.message, requestId));
     return;
   }
   if (err instanceof ModelNotFoundError) {
-    const error = err as ModelNotFoundError;
+    const error = err;
     reply.send(errEnvelope(ErrorCode.MODEL_NOT_FOUND, error.message, requestId));
     return;
   }

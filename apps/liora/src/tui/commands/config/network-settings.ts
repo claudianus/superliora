@@ -18,7 +18,7 @@ export function showNetworkSettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Network ',
     enterBeatSeed: 'network',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

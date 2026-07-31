@@ -316,7 +316,7 @@ export class MessageDispatchController {
     const wanted = video ? 'video_in' : 'image_in';
     const currentProvider = models[this.host.state.appState.model]?.provider;
     let first: string | undefined;
-    for (const alias of Object.keys(models).sort()) {
+    for (const alias of Object.keys(models).toSorted()) {
       const entry = models[alias];
       if (entry?.capabilities?.includes(wanted) !== true) continue;
       if (currentProvider !== undefined && entry.provider === currentProvider) return alias;

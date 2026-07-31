@@ -130,7 +130,7 @@ function severityLabel(severity: number): string {
 function pathToFileUri(filePath: string): string {
   const resolved = path.resolve(filePath);
   if (process.platform === 'win32') {
-    return `file:///${resolved.replace(/\\/g, '/')}`;
+    return `file:///${resolved.replaceAll(/\\/g, '/')}`;
   }
   return `file://${resolved}`;
 }
@@ -312,7 +312,7 @@ class LspStdioClient {
       return;
     }
     if (msg['method'] === 'textDocument/publishDiagnostics' && isObject(msg['params'])) {
-      const params = msg['params'] as Record<string, unknown>;
+      const params = msg['params'];
       const uri = typeof params['uri'] === 'string' ? params['uri'] : undefined;
       if (uri === undefined) return;
       const rawDiags = Array.isArray(params['diagnostics']) ? params['diagnostics'] : [];
@@ -336,9 +336,9 @@ function parseDiagnostic(value: unknown): LspDiagnostic | undefined {
   const message = typeof raw['message'] === 'string' ? raw['message'] : undefined;
   if (message === undefined) return undefined;
   const severity = typeof raw['severity'] === 'number' ? raw['severity'] : 1;
-  const range = isObject(raw['range']) ? (raw['range'] as Record<string, unknown>) : undefined;
+  const range = isObject(raw['range']) ? (raw['range']) : undefined;
   const start = range !== undefined && isObject(range['start'])
-    ? (range['start'] as Record<string, unknown>)
+    ? (range['start'])
     : undefined;
   const line = typeof start?.['line'] === 'number' ? start['line'] : 0;
   const character = typeof start?.['character'] === 'number' ? start['character'] : 0;

@@ -13,7 +13,7 @@ export async function fetchAnthropicUsage(
   // that still returns rate-limit headers without generating completions.
   const base = (baseUrl ?? 'https://api.anthropic.com').replace(/\/+$/, '');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8000);
+  const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {
     const res = await fetch(`${base}/v1/messages/count_tokens`, {
       method: 'POST',

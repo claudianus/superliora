@@ -20,7 +20,7 @@ import {
   fetchAllExpertSources,
 } from './lib/expert-catalog-sources.mjs';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = join(import.meta.dirname, '..');
 const requireFromAgentCore = createRequire(join(repoRoot, 'packages/agent-core/package.json'));
 const skipEmbeddings = process.argv.includes('--skip-embeddings');
 

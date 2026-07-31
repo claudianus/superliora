@@ -9,7 +9,7 @@ import { appearanceAnimationNow } from '../../features/appearance/appearance-eff
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { createInitialAppState } from '../../utils/initial-app-state';
 import type { LioraTUIStartupInput } from '../../types';
-import type { LioraTUI } from '../../liora-tui';
+import type { LioraTUIHost } from '../../liora-tui';
 import { AppStateController } from './app-state';
 import { AuthFlowController } from '../auth/auth-flow';
 import { AutocompleteController } from '../shell/autocomplete';
@@ -39,7 +39,7 @@ import { TranscriptRenderController } from '../transcript/transcript-render';
 import { UsageMonitorController } from '../usage/usage-monitor';
 import { WorkspaceBrowserController } from '../panes/workspace-browser';
 
-function shouldRenderAmbientAnimationFrameFor(tui: LioraTUI): boolean {
+function shouldRenderAmbientAnimationFrameFor(tui: LioraTUIHost): boolean {
   const selection = tui.state.transcriptSelection;
   return shouldRenderAmbientAnimationFrame(
     tui.state.terminal.rows,
@@ -49,7 +49,7 @@ function shouldRenderAmbientAnimationFrameFor(tui: LioraTUI): boolean {
 
 /** Instantiate controllers and reverse-RPC wiring for {@link LioraTUI}. */
 export function wireLioraTUIControllers(
-  tui: LioraTUI,
+  tui: LioraTUIHost,
   harness: LioraHarness,
   startupInput: LioraTUIStartupInput,
 ): void {
@@ -133,8 +133,8 @@ export function wireLioraTUIControllers(
   tui.tasksBrowserController = new TasksBrowserController(tui);
   tui.usageMonitor = new UsageMonitorController({
     harness: tui.harness,
-    setAppState: (patch) => tui.setAppState(patch),
-    requestRender: () => requestTUILayoutRender(tui.state),
+    setAppState: (patch) =>{  tui.setAppState(patch); },
+    requestRender: () =>{  requestTUILayoutRender(tui.state); },
   });
   tui.editorKeyboard = new EditorKeyboardController(tui, tui.imageStore);
   tui.editorKeyboard.install();
@@ -145,14 +145,14 @@ export function wireLioraTUIControllers(
 }
 
 /** Slash-command plan / ultrawork toggles routed from the coordinator surface. */
-export function handlePlanToggleFromHost(tui: LioraTUI, next: boolean, ultra = false): void {
+export function handlePlanToggleFromHost(tui: LioraTUIHost, next: boolean, ultra = false): void {
   void slashCommands.handlePlanCommand(tui, next ? (ultra ? 'ultra' : 'on') : 'off');
 }
 
-export function handleUltraworkModeToggleFromHost(tui: LioraTUI, next: boolean): void {
+export function handleUltraworkModeToggleFromHost(tui: LioraTUIHost, next: boolean): void {
   void slashCommands.handleUltraworkModeToggle(tui, next);
 }
 
-export function openUndoSelectorFromHost(tui: LioraTUI): void {
+export function openUndoSelectorFromHost(tui: LioraTUIHost): void {
   void slashCommands.handleUndoCommand(tui, '');
 }

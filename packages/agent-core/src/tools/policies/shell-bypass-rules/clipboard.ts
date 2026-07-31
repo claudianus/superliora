@@ -126,8 +126,8 @@ export function matchClipboardFileBypass(command: string): ShellDedicatedBypassH
   if (/^(?:\/usr\/bin\/)?(?:xclip|xsel)\b/.test(command)) {
     const withoutOpts = command
       .replace(/^(?:\/usr\/bin\/)?(?:xclip|xsel)\b/, '')
-      .replace(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
-      .replace(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)-[A-Za-z0-9]+(?:=[^\s]+)?/g, ' ')
+      .replaceAll(/(?:^|\s)--[A-Za-z0-9-]+(?:=[^\s]+)?/g, ' ')
       .trim();
     const args = withoutOpts.split(/\s+/).filter(Boolean);
     if (args.length === 1 && args[0] !== '-' && !args[0]!.startsWith('-')) {

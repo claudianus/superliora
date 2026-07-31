@@ -106,7 +106,7 @@ function parseSwitchCases(source) {
 function listConfigPanels() {
   return readdirSync(configDir)
     .filter((name) => name.endsWith('-settings.ts'))
-    .sort();
+    .toSorted();
 }
 
 const warns = [];

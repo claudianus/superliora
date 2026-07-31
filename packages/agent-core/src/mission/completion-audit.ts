@@ -109,7 +109,7 @@ export function auditUltraworkCompletion(
   if (run.status !== 'running' && run.status !== 'blocked') {
     return reject(
       'run_not_running',
-      [`Ultrawork run status is ${run.status}; only running/blocked runs can complete via audit.`],
+      [`Ultrawork run status is ${String(run.status)}; only running/blocked runs can complete via audit.`],
       ['Resume the run or clear it before completing the goal.'],
     );
   }

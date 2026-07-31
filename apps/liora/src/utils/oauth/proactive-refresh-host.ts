@@ -39,8 +39,8 @@ export function buildOAuthRefreshDegradedEvent(
 ): RuntimeDegradedEvent {
   const reason =
     error instanceof Error
-      ? error.message.replace(/\s+/g, ' ').trim()
-      : String(error).replace(/\s+/g, ' ').trim();
+      ? error.message.replaceAll(/\s+/g, ' ').trim()
+      : String(error).replaceAll(/\s+/g, ' ').trim();
   return {
     type: 'runtime.degraded',
     scope: 'oauth',
@@ -71,12 +71,12 @@ export function startHarnessOAuthProactiveRefresh(
   options: HarnessOAuthProactiveRefreshOptions = {},
 ): ProactiveRefreshTimerHandle | undefined {
   const tokenProvider = harness.auth.resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME);
-  const ensureFresh = tokenProvider.getAccessToken;
+  const ensureFresh = tokenProvider.getAccessToken.bind(tokenProvider);
   if (typeof ensureFresh !== 'function') {
     return undefined;
   }
   return startProactiveRefreshTimer(
-    () => ensureFresh.call(tokenProvider),
+    () => ensureFresh(),
     OAUTH_PROACTIVE_REFRESH_INTERVAL_MS,
     {
       onError: (error) => {

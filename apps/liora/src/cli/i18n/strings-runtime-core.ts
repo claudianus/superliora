@@ -214,7 +214,7 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.update.prompt.labelTarget': 'Target ',
   'cli.runtime.update.prompt.labelSource': 'Source ',
   'cli.runtime.update.prompt.labelCommand': 'Command',
-  'cli.runtime.update.prompt.hints': '\u2191\u2193 choose \u00b7 Enter confirm \u00b7 Esc continue',
+  'cli.runtime.update.prompt.hints': '\u2191\u2193 choose \u00B7 Enter confirm \u00B7 Esc continue',
   'cli.runtime.update.prompt.installHint': 'Install update now',
   'cli.runtime.update.prompt.skipHint': 'Continue with current version',
 

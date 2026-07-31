@@ -279,21 +279,21 @@ async function showWarRoomTranscript(
 
   const session = host.requireSession();
   let lines: readonly string[] = [];
-  let error: string | undefined;
+  let loadError: string | undefined;
   try {
     const trace = await host.harness.withInteractiveAgent(expert.agentId, () =>
       session.getSessionTrace(),
     );
     lines = formatSessionTraceLines(trace.context.history);
-  } catch (err) {
-    error = `Could not load transcript: ${formatErrorMessage(err)}`;
+  } catch (caught) {
+    loadError = `Could not load transcript: ${formatErrorMessage(caught)}`;
   }
 
   host.mountEditorReplacement(
     new WarRoomTranscriptPanelComponent({
       expert,
       lines,
-      error,
+      error: loadError,
       onMessage: (text) => {
         host.restoreEditor();
         void deliverWarRoomMessage(host, expert, text);

@@ -165,7 +165,7 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
   const at = input.run.updatedAt;
   const ledger = readWorkflowStagesLedger(stagesAbsolutePath);
   if (ledger === undefined) return false;
-  const lastTransition = ledger.transitions[ledger.transitions.length - 1];
+  const lastTransition = ledger.transitions.at(-1);
   const durationMs = lastTransition !== undefined
     ? Date.parse(at) - Date.parse(lastTransition.at)
     : undefined;

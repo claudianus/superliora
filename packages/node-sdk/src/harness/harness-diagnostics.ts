@@ -212,7 +212,7 @@ export class HarnessDiagnostics {
     if (this.running) return;
     this.running = true;
     this.lastTickMs = Date.now();
-    this.timer = setInterval(() => this.tick(), this.options.intervalMs);
+    this.timer = setInterval(() =>{  this.tick(); }, this.options.intervalMs);
     this.emit('info', 'recovery', 'DIAG_START', 'Diagnostics monitor started');
   }
 
@@ -268,16 +268,16 @@ export class HarnessDiagnostics {
     const contextHealth = this.assessContextHealth(now);
     const eventLoopHealth = this.assessEventLoopHealth();
 
-    const grades = [
+    const grades = new Set([
       sessionHealth.grade,
       memoryHealth.grade,
       providerHealth.grade,
       contextHealth.grade,
       eventLoopHealth.grade,
-    ];
-    const overallGrade = grades.includes('critical')
+    ]);
+    const overallGrade = grades.has('critical')
       ? 'critical'
-      : grades.includes('degraded')
+      : grades.has('degraded')
         ? 'degraded'
         : 'healthy';
 
@@ -485,7 +485,7 @@ export class HarnessDiagnostics {
 
   private assessEventLoopHealth(): EventLoopHealth {
     const samples = this.lagSamples;
-    const current = samples.length > 0 ? samples[samples.length - 1]! : 0;
+    const current = samples.length > 0 ? samples.at(-1)! : 0;
     const avg = samples.length > 0
       ? samples.reduce((a, b) => a + b, 0) / samples.length
       : 0;

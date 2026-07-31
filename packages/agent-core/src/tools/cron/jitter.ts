@@ -68,7 +68,9 @@ function fractionFromId(id: string): number {
   // good enough spread for non-hex test ids.
   let hash = 5381;
   for (let i = 0; i < id.length; i++) {
-    hash = ((hash << 5) + hash + id.charCodeAt(i)) | 0;
+    const cp = id.codePointAt(i);
+    if (cp === undefined) continue;
+    hash = ((hash << 5) + hash + cp) | 0;
   }
   // Map signed int32 to [0, 1).
   const unsigned = hash >>> 0;

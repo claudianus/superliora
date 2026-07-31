@@ -207,7 +207,7 @@ export async function ensureWorkGraphForResume(
   planFilePath?: string,
 ): Promise<WorkGraph | undefined> {
   const existing = agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
-  if (existing !== undefined) return existing as WorkGraph;
+  if (existing !== undefined) return existing;
 
   const mirror = readUltraworkMirrorFromDisk(agent.kaos.getcwd(), run.id);
   const resolvedPlanPath = await resolveApprovedUltraworkPlanPath(agent, [
@@ -222,7 +222,7 @@ export async function ensureWorkGraphForResume(
     const content = await agent.kaos.readText(resolvedPlanPath);
     const seeded = seedUltraworkGraphFromApprovedPlan(agent, content, resolvedPlanPath);
     if (!seeded.seeded) return undefined;
-    return agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY) as WorkGraph | undefined;
+    return agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
   } catch {
     return undefined;
   }

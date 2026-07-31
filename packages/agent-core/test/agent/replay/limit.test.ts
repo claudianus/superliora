@@ -119,7 +119,7 @@ describe('agent/replay/limit — limitReplayRecordsByTurn', () => {
     // turnStarts = [0, 2, 4, 6]; last 2 → slice(4) = records[4..6] (3 items).
     expect(result).toHaveLength(3);
     expect(result[0]).toBe(records[4]);
-    expect(result[result.length - 1]).toBe(records[6]);
+    expect(result.at(-1)).toBe(records[6]);
   });
 });
 

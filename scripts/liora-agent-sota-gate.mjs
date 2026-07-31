@@ -1266,7 +1266,7 @@ async function findEvidenceSummaryFiles(rootDir, options) {
 function isEvidenceSummaryCandidate(kind, relativePath) {
   const normalized = relativePath.split(path.sep).join('/');
   if (kind === 'tuiSummary') {
-    return normalized.endsWith('/tui-launch.json') || normalized.endsWith('/tui/summary.json');
+    return normalized.endsWith('/tui-launch.json') ?? normalized.endsWith('/tui/summary.json');
   }
   if (kind === 'workflowSummary') return normalized.endsWith('/tui-real-workflow.json');
   if (kind === 'ultraworkSummary') return normalized.endsWith('/tui-ultrawork-workflow.json');

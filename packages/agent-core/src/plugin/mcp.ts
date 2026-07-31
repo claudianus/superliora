@@ -73,7 +73,7 @@ export async function loadClaudeMcpServers(input: {
 
   // Inline may be `{ mcpServers: { ... } }` or bare server map.
   const table = isObject(input.raw['mcpServers'])
-    ? (input.raw['mcpServers'] as Record<string, unknown>)
+    ? (input.raw['mcpServers'])
     : input.raw;
 
   for (const [name, value] of Object.entries(table)) {
@@ -121,7 +121,7 @@ async function mergeMcpFile(
     return;
   }
   const table = isObject(raw['mcpServers'])
-    ? (raw['mcpServers'] as Record<string, unknown>)
+    ? (raw['mcpServers'])
     : raw;
   for (const [name, value] of Object.entries(table)) {
     const trimmed = name.trim();

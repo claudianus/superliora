@@ -116,13 +116,9 @@ export function matchContextWorkingSetPreset(input: {
   readonly asyncWorkingSetTokens?: number | undefined;
 }): ContextWorkingSetPresetId | undefined {
   const max =
-    input.maxWorkingSetTokens === undefined
-      ? BALANCED_MAX_WORKING_SET_TOKENS
-      : input.maxWorkingSetTokens;
+    input.maxWorkingSetTokens ?? BALANCED_MAX_WORKING_SET_TOKENS;
   const async =
-    input.asyncWorkingSetTokens === undefined
-      ? BALANCED_ASYNC_WORKING_SET_TOKENS
-      : input.asyncWorkingSetTokens;
+    input.asyncWorkingSetTokens ?? BALANCED_ASYNC_WORKING_SET_TOKENS;
 
   for (const preset of CONTEXT_WORKING_SET_PRESETS) {
     if (
@@ -218,13 +214,9 @@ export function contextWorkingSetSnapshotFromLoopControl(input: {
   readonly asyncWorkingSetTokens?: number | undefined;
 }): ContextWorkingSetSnapshot {
   const maxWorkingSetTokens =
-    input.maxWorkingSetTokens === undefined
-      ? BALANCED_MAX_WORKING_SET_TOKENS
-      : input.maxWorkingSetTokens;
+    input.maxWorkingSetTokens ?? BALANCED_MAX_WORKING_SET_TOKENS;
   const asyncWorkingSetTokens =
-    input.asyncWorkingSetTokens === undefined
-      ? BALANCED_ASYNC_WORKING_SET_TOKENS
-      : input.asyncWorkingSetTokens;
+    input.asyncWorkingSetTokens ?? BALANCED_ASYNC_WORKING_SET_TOKENS;
   const presetId = matchContextWorkingSetPreset({
     maxWorkingSetTokens,
     asyncWorkingSetTokens,

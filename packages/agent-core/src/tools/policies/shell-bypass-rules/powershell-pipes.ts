@@ -31,7 +31,7 @@ export function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedB
     'i',
   ).exec(command);
   // Non-here-string producers still reject raw newlines (statement separators).
-  if (hereStringMatch === null && /\n/.test(command)) return undefined;
+  if (hereStringMatch === null && command.includes('\n')) return undefined;
   const m =
     hereStringMatch ??
     new RegExp(
@@ -57,7 +57,7 @@ export function matchPowerShellPipeWriteBypass(command: string): ShellDedicatedB
   const isConstant =
     m.length === 4 &&
     !/^['"]/.test(m[1] ?? '') &&
-    !/^@/.test(m[1] ?? '') &&
+    !((m[1] ?? '').startsWith('@')) &&
     !/^(?:Write-|echo|printf)/i.test(m[1] ?? '');
   const isHereString = typeof m[1] === 'string' && m[1].startsWith('@');
   const sink = (isConstant ? m[2] : m[3]) ?? 'Set-Content';

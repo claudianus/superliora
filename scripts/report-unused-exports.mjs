@@ -121,7 +121,7 @@ for (const file of collectFiles(SCAN_ROOTS)) {
     if (ALLOWLIST.has(symbol)) continue;
     if (symbol.startsWith('_')) continue;
     if (!isReferenced(symbol, file)) {
-      candidates.push(`${rel}: unused export candidate \`${symbol}\``);
+      candidates.push(`${String(rel)}: unused export candidate \`${String(symbol)}\``);
     }
   }
 }

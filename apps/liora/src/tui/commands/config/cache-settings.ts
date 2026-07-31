@@ -70,7 +70,7 @@ export async function showCacheSettings(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Cache ',
     enterBeatSeed: 'cache',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

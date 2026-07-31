@@ -127,17 +127,15 @@ export function withIdleTimeout<T>(
         },
 
         async return(value?: unknown): Promise<IteratorResult<T>> {
-          const returnFn = iterator.return;
-          if (returnFn === undefined) {
+          if (iterator.return === undefined) {
             return { done: true, value: undefined } as IteratorResult<T>;
           }
-          return await returnFn.call(iterator, value);
+          return iterator.return(value);
         },
 
         async throw(error?: unknown): Promise<IteratorResult<T>> {
-          const throwFn = iterator.throw;
-          if (throwFn === undefined) throw error;
-          return await throwFn.call(iterator, error);
+          if (iterator.throw === undefined) throw error;
+          return iterator.throw(error);
         },
       };
     },

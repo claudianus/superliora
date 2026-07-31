@@ -373,7 +373,7 @@ const cronListChip: ChipProvider = (_toolCall, result) => {
 const cronCreateChip: ChipProvider = (_toolCall, result) => {
   if (result.is_error) return '';
   const id = /^id:\s*(\S+)/m.exec(result.output)?.[1];
-  return id !== undefined ? id : 'scheduled';
+  return id ?? 'scheduled';
 };
 
 const cronDeleteChip: ChipProvider = (_toolCall, result) => {

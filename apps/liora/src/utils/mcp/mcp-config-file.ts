@@ -51,7 +51,7 @@ export async function readMcpJsonFile(filePath: string): Promise<Record<string, 
   }
   if (text.trim().length === 0) return {};
   const data = JSON.parse(text) as { mcpServers?: Record<string, McpServerFileConfig> };
-  return { ...(data.mcpServers ?? {}) };
+  return { ...data.mcpServers };
 }
 
 export async function writeMcpJsonFile(

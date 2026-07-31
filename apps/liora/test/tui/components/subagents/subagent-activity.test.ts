@@ -318,7 +318,7 @@ describe('SubagentActivityComponent', () => {
     const raw = component.render(120);
     // Blank + header + agent row + one feed row, no indented code block.
     expect(raw).toHaveLength(4);
-    expect(raw.every((line) => strip(line).startsWith('      ') === false)).toBe(true);
+    expect(raw.every((line) => ! strip(line).startsWith('      '))).toBe(true);
     expect(strip(raw[3] ?? '').includes('▸ Write {"path":"src/b.ts"')).toBe(true);
   });
 
@@ -387,7 +387,7 @@ describe('SubagentActivityComponent', () => {
     const raw = component.render(120);
     // Blank + header + agent row + two feed rows, no code block.
     expect(raw).toHaveLength(5);
-    expect(raw.every((line) => strip(line).startsWith('      ') === false)).toBe(true);
+    expect(raw.every((line) => ! strip(line).startsWith('      '))).toBe(true);
   });
 
   it('keeps highlighted rows within very narrow widths', () => {

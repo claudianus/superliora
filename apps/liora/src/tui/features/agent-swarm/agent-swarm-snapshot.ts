@@ -29,7 +29,7 @@ function memberPhaseSortOrder(phase: AgentSwarmPhase): number {
 export function sortAgentSwarmMembersForGrid(
   members: readonly AgentSwarmMember[],
 ): AgentSwarmMember[] {
-  return [...members].sort(
+  return [...members].toSorted(
     (left, right) => memberPhaseSortOrder(left.phase) - memberPhaseSortOrder(right.phase),
   );
 }

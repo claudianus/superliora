@@ -54,7 +54,7 @@ async function showContextSettingsPanel(host: SlashCommandHost): Promise<void> {
 
   const workDir = host.state.appState.workDir ?? process.cwd();
   const brandHome = host.harness.homeDir ?? getDataDir();
-  const [memory] = await Promise.all([loadMemoryGlance(host)]);
+  const memory = await loadMemoryGlance(host);
   const instructionHits = discoverInstructionFiles({
     workDir,
     brandHome,
@@ -73,7 +73,7 @@ async function showContextSettingsPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Context ',
     enterBeatSeed: 'context-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

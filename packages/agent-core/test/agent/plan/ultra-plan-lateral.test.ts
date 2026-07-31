@@ -4,7 +4,7 @@ import { questionsForThinkingPersona, THINKING_PERSONA_QUESTION_BANKS, THINKING_
 
 describe('plan/ultra-plan-persona-banks.ts — persona banks', () => {
   it('covers the 5 documented personas with summaries', () => {
-    expect([...Object.keys(THINKING_PERSONA_SUMMARIES)].sort()).toEqual([
+    expect([...Object.keys(THINKING_PERSONA_SUMMARIES)].toSorted()).toEqual([
       'architect',
       'contrarian',
       'hacker',

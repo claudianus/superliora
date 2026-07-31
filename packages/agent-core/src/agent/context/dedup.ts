@@ -259,9 +259,9 @@ function extractError(text: string): string | null {
 function normalizeError(error: string): string {
   // Remove variable parts (numbers, paths, timestamps)
   return error
-    .replace(/\d+/g, 'N')
-    .replace(/\/[^\s:]+/g, '/PATH')
-    .replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z?/g, 'TIMESTAMP')
+    .replaceAll(/\d+/g, 'N')
+    .replaceAll(/\/[^\s:]+/g, '/PATH')
+    .replaceAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z?/g, 'TIMESTAMP')
     .toLowerCase()
     .trim();
 }

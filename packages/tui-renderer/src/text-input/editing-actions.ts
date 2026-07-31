@@ -95,9 +95,9 @@ function deleteActions(host: TextInputEditingHost) {
       readonly end: number;
       readonly cursorOffset: number;
       readonly bias: AtomicCursorBias;
-    }) => applyDeleteRange(host, range),
-    clearPreferredDisplayColumn: () => host.clearPreferredDisplayColumn(),
-    pushUndoSnapshot: (snapshot: RendererTextInputHistorySnapshot) => host.pushUndoSnapshot(snapshot),
+    }) =>{  applyDeleteRange(host, range); },
+    clearPreferredDisplayColumn: () =>{  host.clearPreferredDisplayColumn(); },
+    pushUndoSnapshot: (snapshot: RendererTextInputHistorySnapshot) =>{  host.pushUndoSnapshot(snapshot); },
   };
 }
 
@@ -112,8 +112,8 @@ function verticalMoveActions(host: TextInputEditingHost) {
     visualLineIndexForCursor: (visualLines: readonly VisualLine[]) =>
       computeVisualLineIndexForCursor(host.cursor, visualLines),
     textLength: () => host.getText().length,
-    applyNavigationMove: (move: NavigationMoveResult, extend: boolean) =>
-      applyNavigationMove(host, move, extend),
+    applyNavigationMove: (move: NavigationMoveResult, extend: boolean) =>{ 
+      applyNavigationMove(host, move, extend); },
   };
 }
 

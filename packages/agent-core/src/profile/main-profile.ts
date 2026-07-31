@@ -72,7 +72,7 @@ export function resolveMainAgentProfile(
   const name = resolveMainAgentProfileName(config, env);
   const profile = profiles[name];
   if (profile === undefined) {
-    const known = Object.keys(profiles).sort().join(', ');
+    const known = Object.keys(profiles).toSorted().join(', ');
     throw new Error(`Agent profile "${name}" was not found. Available bundled profiles: ${known}`);
   }
   return profile;

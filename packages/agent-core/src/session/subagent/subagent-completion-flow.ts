@@ -86,11 +86,9 @@ export async function runPromptTurnWithModelFallback(
           : undefined;
       if (nextAlias === undefined) {
         const failure = enrichPermanentProviderFailure(error, child);
-        emitSubagentFailed(parent, childId, options, failure, {
-          ...(hop > 0 && lastAttemptedAlias !== undefined
+        emitSubagentFailed(parent, childId, options, failure, (hop > 0 && lastAttemptedAlias !== undefined
             ? { fellBackToModel: lastAttemptedAlias }
-            : {}),
-        });
+            : {}));
         throw failure;
       }
       emitSubagentFailed(parent, childId, options, error, {

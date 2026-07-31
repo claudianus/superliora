@@ -126,7 +126,7 @@ export class MemoryPersistence {
         // Best effort — a corrupt handle may refuse to close cleanly.
       }
     }
-    const stamp = new Date(this.now()).toISOString().replace(/[:.]/gu, '-');
+    const stamp = new Date(this.now()).toISOString().replaceAll(/[:.]/gu, '-');
     for (const suffix of ['', '-wal', '-shm']) {
       const source = `${this.dbPath}${suffix}`;
       if (!existsSync(source)) continue;

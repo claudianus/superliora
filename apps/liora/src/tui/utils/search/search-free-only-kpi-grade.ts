@@ -65,7 +65,7 @@ function isSoftDegradeSuccess(attempt: SearchFreeOnlyAttemptStub): boolean {
   if (attempt.resultsCount > 0) {
     return true;
   }
-  if (attempt.degraded !== true) {
+  if (!attempt.degraded) {
     return false;
   }
   if (attempt.output.length === 0) {

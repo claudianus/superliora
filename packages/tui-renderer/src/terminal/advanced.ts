@@ -89,7 +89,7 @@ export function encodeOsc99Notification(options: TerminalNotificationOptions): s
 
 /** Escape ST and BEL from OSC payloads to prevent premature termination. */
 function escapeOscPayload(text: string): string {
-  return text.replace(/\u001B/g, '').replace(/\u0007/g, '');
+  return text.replaceAll(/\u001B/g, '').replaceAll(/\u0007/g, '');
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ export function parseClipboardResponse(raw: string): string | null {
   const match = raw.match(/\u001B\]52;[cpsq];([A-Za-z0-9+/=\n]+?)(?:\u001B\\|\u0007)/);
   if (!match?.[1]) return null;
   try {
-    return Buffer.from(match[1].replace(/\n/g, ''), 'base64').toString('utf-8');
+    return Buffer.from(match[1].replaceAll(/\n/g, ''), 'base64').toString('utf-8');
   } catch {
     return null;
   }

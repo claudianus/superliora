@@ -88,7 +88,7 @@ export function showMcpSettings(host: SlashCommandHost): void {
         }
         void showMcpManagePanel(host);
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'MCP' },
   );
@@ -103,7 +103,7 @@ async function showMcpStatusPanel(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' MCP ',
     enterBeatSeed: 'mcp-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

@@ -123,7 +123,7 @@ export class TurnFlow {
 
     void firstRequest.catch(() => undefined);
     void promise.then(
-      () => firstRequest.resolve(),
+      () =>{  firstRequest.resolve(); },
       firstRequest.reject,
     );
 

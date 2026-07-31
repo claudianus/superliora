@@ -81,7 +81,7 @@ export async function showMcpManagePanel(host: SlashCommandHost): Promise<void> 
       onSelect: (value) => {
         void handleManageAction(host, value as ManageAction);
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'MCP' },
   );
@@ -157,9 +157,9 @@ async function showServerPicker(host: SlashCommandHost, mode: 'toggle' | 'remove
       onSelect: (name) => {
         dismissPickerDialog(host);
         if (mode === 'toggle') void toggleServer(host, name);
-        else void confirmRemove(host, name);
+        else  confirmRemove(host, name);
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'MCP' },
   );
@@ -208,7 +208,7 @@ function confirmRemove(host: SlashCommandHost, name: string): void {
         dismissPickerDialog(host);
         if (value === 'yes') void removeServer(host, name);
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'MCP' },
   );

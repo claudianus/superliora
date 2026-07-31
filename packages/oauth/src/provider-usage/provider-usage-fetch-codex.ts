@@ -14,7 +14,7 @@ function parseCodexWindow(data: Record<string, unknown>, label: string): CodexUs
   // The backend uses varying field names across releases.
   const usedPercent = numField(data, 'used_percent') ?? numField(data, 'usedPercent');
   const percentLeft = numField(data, 'percent_left') ?? numField(data, 'remaining_percent');
-  const resolvedUsed = usedPercent !== null ? usedPercent : percentLeft !== null ? 100 - percentLeft : null;
+  const resolvedUsed = usedPercent ?? (percentLeft !== null ? 100 - percentLeft : null);
   if (resolvedUsed === null) return null;
   const resetRaw = numField(data, 'reset_at') ?? numField(data, 'reset_time_ms');
   let resetAtMs: number | null = null;
@@ -37,7 +37,7 @@ export async function fetchOpenAiCodexUsage(
   const base = (baseUrl ?? 'https://chatgpt.com/backend-api').replace(/\/+$/, '');
   const url = `${base}/wham/usage`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8000);
+  const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {
     const res = await fetch(url, {
       headers: {

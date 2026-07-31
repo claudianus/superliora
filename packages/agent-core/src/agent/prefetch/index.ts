@@ -113,7 +113,7 @@ export class ToolPatternLearner {
     // Sort by confidence and deduplicate
     const seen = new Set<string>();
     return candidates
-      .sort((a, b) => b.confidence - a.confidence)
+      .toSorted((a, b) => b.confidence - a.confidence)
       .filter((c) => {
         if (seen.has(c.tool)) return false;
         seen.add(c.tool);

@@ -82,7 +82,7 @@ export function compileGrepPattern(req: FsGrepRequest): RegExp {
 }
 
 function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function stripTrailingNewline(s: string): string {

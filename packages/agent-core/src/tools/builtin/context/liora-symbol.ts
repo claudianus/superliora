@@ -130,5 +130,5 @@ export class LioraSymbolTool implements BuiltinTool<LioraSymbolInput> {
 }
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }

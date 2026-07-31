@@ -34,7 +34,7 @@ async function showExperimentsSettingsPanel(host: SlashCommandHost): Promise<voi
     borderToken: 'primary',
     title: ' Experiments ',
     enterBeatSeed: 'experiments-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

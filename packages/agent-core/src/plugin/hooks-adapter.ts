@@ -48,7 +48,7 @@ export async function loadClaudeHooks(input: {
       typeof input.raw === 'string'
         ? [input.raw]
         : input.raw.every((e) => typeof e === 'string')
-          ? (input.raw as string[])
+          ? (input.raw)
           : undefined;
     if (entries === undefined) {
       input.diagnostics.push({
@@ -102,7 +102,7 @@ function flattenClaudeHooks(
   }
 
   // Accept either `{ hooks: { Event: [...] } }` or bare `{ Event: [...] }`.
-  const table = isObject(raw['hooks']) ? (raw['hooks'] as Record<string, unknown>) : raw;
+  const table = isObject(raw['hooks']) ? (raw['hooks']) : raw;
   const out: HookDef[] = [];
 
   for (const [event, matchers] of Object.entries(table)) {
@@ -278,7 +278,7 @@ function expandCommandHook(
 async function readJsonFile(
   filePath: string,
   diagnostics: PluginDiagnostic[],
-): Promise<unknown | undefined> {
+): Promise<unknown> {
   try {
     return JSON.parse(await readFile(filePath, 'utf8')) as unknown;
   } catch (error) {

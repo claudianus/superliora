@@ -253,13 +253,13 @@ function createPlanningGoalAndStateTools(
       b.createTaskGraphTool(host.toolStore, host.agent),
     shouldRegisterLegacyCompat(host, 'UltraworkGraph', 'TaskGraph') &&
       b.createUltraworkGraphTool(host.toolStore, host.agent),
-    hasMemoryTool && shouldCreateBuiltin(host, 'Memory') && new b.MemoryTool(host.agent.memory!),
+    hasMemoryTool && shouldCreateBuiltin(host, 'Memory') && new b.MemoryTool(host.agent.memory),
     shouldCreateBuiltin(host, 'TaskList') && new b.TaskListTool(background),
     shouldCreateBuiltin(host, 'TaskOutput') && new b.TaskOutputTool(background),
     shouldCreateBuiltin(host, 'TaskStop') && new b.TaskStopTool(background),
-    hasCron && shouldCreateBuiltin(host, 'CronCreate') && new b.CronCreateTool(host.agent.cron!),
-    hasCron && shouldCreateBuiltin(host, 'CronList') && new b.CronListTool(host.agent.cron!),
-    hasCron && shouldCreateBuiltin(host, 'CronDelete') && new b.CronDeleteTool(host.agent.cron!),
+    hasCron && shouldCreateBuiltin(host, 'CronCreate') && new b.CronCreateTool(host.agent.cron),
+    hasCron && shouldCreateBuiltin(host, 'CronList') && new b.CronListTool(host.agent.cron),
+    hasCron && shouldCreateBuiltin(host, 'CronDelete') && new b.CronDeleteTool(host.agent.cron),
   ];
 }
 
@@ -287,7 +287,7 @@ function createSkillAndSubagentTools(
         host.agent.subagentHost,
         background,
         {
-          ...(DEFAULT_AGENT_PROFILES['agent']?.subagents ?? {}),
+          ...DEFAULT_AGENT_PROFILES['agent']?.subagents,
           ...Object.fromEntries(
             host.agent.pluginAgents.map((agent) => [agent.profileName, agent.profile]),
           ),

@@ -38,7 +38,7 @@ export function modelSupportsMediaKind(
   kind: MediaKind,
 ): boolean {
   if (capabilities === undefined || isUnknownCapability(capabilities)) return true;
-  return kind === 'video' ? capabilities.video_in === true : capabilities.image_in === true;
+  return kind === 'video' ?  capabilities.video_in :  capabilities.image_in;
 }
 
 /**
@@ -70,7 +70,7 @@ export function selectVisionModel(
 
   let first: ResolvedRuntimeProvider | undefined;
   let sameProvider: ResolvedRuntimeProvider | undefined;
-  for (const alias of Object.keys(models).sort()) {
+  for (const alias of Object.keys(models).toSorted()) {
     let resolved: ResolvedRuntimeProvider;
     try {
       resolved = providerManager.resolveProviderConfig(alias);
@@ -106,8 +106,8 @@ function hasVisionCapability(
 ): boolean {
   const capabilities = resolved.modelCapabilities;
   return kind === 'video'
-    ? capabilities.video_in === true
-    : capabilities.image_in === true;
+    ?  capabilities.video_in
+    :  capabilities.image_in;
 }
 
 export interface AnalyzeMediaPartOptions {

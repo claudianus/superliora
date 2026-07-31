@@ -203,7 +203,7 @@ export function allowedStatuses(request: MemorySearchRequest): readonly MemorySt
 }
 
 export function normalizeComparable(input: string): string {
-  return input.toLocaleLowerCase().replace(/\s+/gu, ' ').trim();
+  return input.toLocaleLowerCase().replaceAll(/\s+/gu, ' ').trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -536,11 +536,11 @@ function normalizeMemorySentence(value: string): string {
 }
 
 function summarizeSubject(text: string): string {
-  return truncate(text.replace(/\s+/gu, ' ').trim(), 96);
+  return truncate(text.replaceAll(/\s+/gu, ' ').trim(), 96);
 }
 
 function excerpt(text: string): string {
-  return truncate(text.replace(/\s+/gu, ' ').trim(), 240);
+  return truncate(text.replaceAll(/\s+/gu, ' ').trim(), 240);
 }
 
 function truncate(text: string, max: number): string {

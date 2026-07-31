@@ -128,14 +128,14 @@ export class LightpandaBrowserRuntime implements BrowserUseRuntime {
       return await this.launchOverCdp();
     } catch (firstError) {
       if (!this.shouldAutoInstall()) {
-        throw new Error(actionableLaunchError(firstError, 'lightpanda'));
+        throw new Error(actionableLaunchError(firstError, 'lightpanda'), { cause: firstError });
       }
 
       const installed = await this.installLightpanda(signal);
       if (!installed.ok) {
         throw new Error(
           `${actionableLaunchError(firstError, 'lightpanda')}\n` +
-          `Lightpanda auto-install failed: ${setupResultDetail(installed)}`,
+          `Lightpanda auto-install failed: ${setupResultDetail(installed)}`, { cause: firstError },
         );
       }
 
@@ -146,7 +146,7 @@ export class LightpandaBrowserRuntime implements BrowserUseRuntime {
         throw new Error(
           `Lightpanda launch failed after auto-install: ${describeError(secondError)}. ` +
           `Initial launch error: ${describeError(firstError)}. ` +
-          'Use BrowserStatus or `liora browser-use doctor` for diagnostics.',
+          'Use BrowserStatus or `liora browser-use doctor` for diagnostics.', { cause: secondError },
         );
       }
     }

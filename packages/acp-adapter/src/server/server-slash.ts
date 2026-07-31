@@ -62,5 +62,5 @@ export function createSlashCommandsResolver(
  */
 export async function harnessIsAuthed(harness: LioraHarness): Promise<boolean> {
   const status = await harness.auth.status();
-  return status.providers.some((entry) => entry.hasToken === true);
+  return status.providers.some((entry) =>  entry.hasToken);
 }

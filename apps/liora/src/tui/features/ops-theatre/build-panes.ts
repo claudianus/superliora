@@ -167,7 +167,7 @@ export function buildOpsTheatreInterventionTray(input: OpsTheatreInterventionInp
   if (needsAttention) {
     if (hasApproval) {
       lines.push(
-        `Approval: ${truncate(input.pendingApprovalToolName!, 36)} · approve/deny in panel`,
+        `Approval: ${truncate(input.pendingApprovalToolName, 36)} · approve/deny in panel`,
       );
     }
     if (hasInterventions) {
@@ -329,6 +329,6 @@ function buildHealthPane(input: OpsTheatreInput): string[] {
 }
 
 function truncate(text: string, max: number): string {
-  const normalized = text.replace(/\s+/g, ' ').trim();
+  const normalized = text.replaceAll(/\s+/g, ' ').trim();
   return normalized.length <= max ? normalized : `${normalized.slice(0, max - 1)}…`;
 }

@@ -411,10 +411,10 @@ function formatTurnSummary(durationMs: number | undefined, usage: TokenUsage | u
   if (!hasDuration && !hasUsage) return undefined;
 
   const parts: string[] = [];
-  if (hasDuration) parts.push(`⏱ ${formatTurnDuration(durationMs!)}`);
+  if (hasDuration) parts.push(`⏱ ${formatTurnDuration(durationMs)}`);
   if (hasUsage) {
     const total =
-      usage!.inputOther + usage!.inputCacheRead + usage!.inputCacheCreation + usage!.output;
+      usage.inputOther + usage.inputCacheRead + usage.inputCacheCreation + usage.output;
     parts.push(`${formatTokenCount(total)} tokens`);
   }
   return parts.join(' · ');

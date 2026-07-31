@@ -65,7 +65,7 @@ export async function runCompletionVerification(
   if (packageDir === undefined) return VERIFICATION_NOT_RUN;
   try {
     const tool = new RunProjectChecksTool(child.kaos, child.config.cwd);
-    const execution = await tool.resolveExecution({
+    const execution = tool.resolveExecution({
       checks: ['test', 'typecheck', 'lint'],
       packageDir,
       timeoutMs: COMPLETION_CHECK_TIMEOUT_MS,

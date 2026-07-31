@@ -38,7 +38,7 @@ export function selectPagesWithMetadata(
   const scored = candidatePages
     .map((page) => {
       const pageIndex = pages.findIndex((candidate) => candidate.id === page.id);
-      return scorePage(page, query, pageIndex >= 0 ? pageIndex : 0, pages.length);
+      return scorePage(page, query, Math.max(pageIndex, 0), pages.length);
     })
     .filter((selection) => selection.score > 0);
   const fresh = suppressSupersededSelections(scored, query);

@@ -45,7 +45,7 @@ export function extractHexFromBorderColor(borderColor: (text: string) => string)
   const sample = borderColor('x');
   const hexLiteral = /#([0-9A-Fa-f]{6})/.exec(sample);
   if (hexLiteral !== null) return `#${hexLiteral[1]!}`;
-  const truecolor = /\x1b\[(?:38|48);2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(sample);
+  const truecolor = /\x1B\[(?:38|48);2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(sample);
   if (truecolor === null) return undefined;
   const toByte = (raw: string): string => {
     const n = Math.max(0, Math.min(255, Number.parseInt(raw, 10)));

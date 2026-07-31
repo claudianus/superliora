@@ -76,7 +76,7 @@ export async function showClaudeImportPanel(host: SlashCommandHost): Promise<voi
         dismissPickerDialog(host);
         void handleImportMode(host, value as ImportMode, plan);
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'Import Claude' },
   );

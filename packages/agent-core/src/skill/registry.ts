@@ -233,14 +233,12 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
    */
   async ensureCatalogLoaded(): Promise<void> {
     if (this.catalogLoaded || this.disableCatalogLoad) return;
-    if (this.catalogLoadPromise === undefined) {
-      this.catalogLoadPromise = (async () => {
+    this.catalogLoadPromise ??= (async () => {
         await registerCatalogSkills(this);
         this.catalogLoaded = true;
         // Catalog registration mutates the skill set; rebuild search index next query.
         this.searchEngine = undefined;
       })();
-    }
     await this.catalogLoadPromise;
   }
 

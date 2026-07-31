@@ -19,7 +19,8 @@ export function hashText(text: string): string {
   let h1 = 5381;
   let h2 = 0;
   for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i);
+    const c = text.codePointAt(i);
+    if (c === undefined) continue;
     h1 = ((h1 << 5) + h1 + c) | 0;
     h2 = (h2 * 33 + c) | 0;
   }

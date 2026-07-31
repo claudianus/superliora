@@ -72,7 +72,7 @@ export interface ManagedTask {
   /** User/tool stop request. */
   readonly stop: ControlledPromise<StopRequest>;
   /** Resolved once manager has finalized the task. */
-  readonly terminal: ControlledPromise<void>;
+  readonly terminal: ControlledPromise;
   /** Human-readable reason for the terminal status, when available. */
   stopReason?: string | undefined;
   /** Suppress automatic terminal notifications/reminders for this task. */
@@ -137,7 +137,7 @@ export function abortRejecter(signal: AbortSignal): Promise<never> {
   return new Promise<never>((_, reject) => {
     signal.addEventListener(
       'abort',
-      () => reject(signal.reason ?? new Error('Aborted')),
+      () =>{  reject(signal.reason ?? new Error('Aborted')); },
       { once: true },
     );
   });

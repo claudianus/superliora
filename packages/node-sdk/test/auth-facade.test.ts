@@ -96,7 +96,7 @@ describe('LioraHarness.auth', () => {
         const error = await harness.auth
           .resolveOAuthTokenProvider(SUPERLIORA_PROVIDER_NAME)
           .getAccessToken()
-          .catch((caught: unknown) => caught);
+          .catch((error: unknown) => error);
 
         expect(error).toBeInstanceOf(LioraError);
         expect(error).toMatchObject({

@@ -85,7 +85,7 @@ export async function handleProfileCommand(host: SlashCommandHost, args: string)
   try {
     const config = await host.harness.getConfig();
     await host.harness.setConfig({
-      agent: { ...(config.agent ?? {}), profile: sub },
+      agent: { ...config.agent, profile: sub },
     });
     const envHint =
       process.env[MAIN_AGENT_PROFILE_ENV] !== undefined

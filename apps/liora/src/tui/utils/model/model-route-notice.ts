@@ -26,7 +26,7 @@ export interface ProviderRouteSelectionLike {
 
 /** Collapse display/id noise: "Grok 4.5" / "grok-4.5" / "grok_4_5" → "grok45". */
 export function normalizeModelToken(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s._\-:/]+/g, '');
+  return value.trim().toLowerCase().replaceAll(/[\s._\-:/]+/g, '');
 }
 
 export function resolveModelRouteIdentity(

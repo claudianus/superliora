@@ -66,7 +66,7 @@ export function renderFooterLine2(input: RenderFooterLine2Input): string {
       resumeBeat.startedAtMs,
       appearance,
     );
-    const beatLine = beatLines[beatLines.length - 1] ?? '';
+    const beatLine = beatLines.at(-1) ?? '';
     const pad = Math.max(0, width - visibleWidth(beatLine) - contextWidth);
     return beatLine + ' '.repeat(pad) + contextText;
   }

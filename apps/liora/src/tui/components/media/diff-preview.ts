@@ -97,13 +97,13 @@ function computeWordSpans(
   newLine: string,
 ): { del: WordSpan[]; add: WordSpan[] } | undefined {
   // Word slicing assumes one column per unit; bail on wide characters.
-  if (/[^\u0000-\u00ff]/u.test(oldLine) || /[^\u0000-\u00ff]/u.test(newLine)) return undefined;
+  if (/[^\u0000-\u00FF]/u.test(oldLine) || /[^\u0000-\u00FF]/u.test(newLine)) return undefined;
   const a = tokenizeWords(oldLine);
   const b = tokenizeWords(newLine);
   if (a.length === 0 || b.length === 0) return undefined;
   if (a.length * b.length > 4096) return undefined;
   const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
-    new Array<number>(b.length + 1).fill(0),
+    Array.from({ length: b.length + 1 }, () => 0),
   );
   for (let i = a.length - 1; i >= 0; i--) {
     for (let j = b.length - 1; j >= 0; j--) {
@@ -116,7 +116,7 @@ function computeWordSpans(
   const del: WordSpan[] = [];
   const add: WordSpan[] = [];
   const push = (target: WordSpan[], text: string, changed: boolean): void => {
-    const last = target[target.length - 1];
+    const last = target.at(-1);
     if (last !== undefined && last.changed === changed) {
       target[target.length - 1] = { text: last.text + text, changed };
     } else {

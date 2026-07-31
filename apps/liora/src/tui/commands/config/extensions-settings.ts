@@ -69,7 +69,7 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
         }
         showExtensionsHub(host);
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'Extensions' },
   );
@@ -84,7 +84,7 @@ async function showExtensionsStatusPanel(host: SlashCommandHost): Promise<void> 
     borderToken: 'primary',
     title: ' Extensions ',
     enterBeatSeed: 'extensions-settings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

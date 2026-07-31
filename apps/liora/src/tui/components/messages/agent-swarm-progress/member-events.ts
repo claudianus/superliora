@@ -71,7 +71,7 @@ export class AgentSwarmProgressMemberEvents {
       () => this.runtime.members,
       input.agentId,
       input.swarmIndex,
-      (count) => this.ensureMemberCount(count),
+      (count) =>{  this.ensureMemberCount(count); },
     );
     if (member === undefined) return;
     member.agentId = input.agentId;
@@ -167,7 +167,7 @@ export class AgentSwarmProgressMemberEvents {
         () => this.runtime.members,
         input.agentId,
         input.swarmIndex,
-        (count) => this.ensureMemberCount(count),
+        (count) =>{  this.ensureMemberCount(count); },
       );
     if (member === undefined || member.phase === 'completed' || member.phase === 'cancelled') return;
     member.agentId = input.agentId;
@@ -275,13 +275,13 @@ export class AgentSwarmProgressMemberEvents {
     promoteAgentSwarmMemberToRunning(member, {
       nowMs,
       setTicks,
-      onStarted: (memberId, startedAtMs) => this.progressEstimator.markStarted(memberId, startedAtMs),
-      onSwarmStarted: (startedAtMs) => this.ensureSwarmStartedAt(startedAtMs),
+      onStarted: (memberId, startedAtMs) =>{  this.progressEstimator.markStarted(memberId, startedAtMs); },
+      onSwarmStarted: (startedAtMs) =>{  this.ensureSwarmStartedAt(startedAtMs); },
     });
   }
 
   private ensureSwarmStartedAt(nowMs: number): void {
-    if (this.runtime.swarmStartedAtMs === undefined) this.runtime.swarmStartedAtMs = nowMs;
+    this.runtime.swarmStartedAtMs ??= nowMs;
   }
 
   private completeMember(member: AgentSwarmMember, nowMs: number, completedText?: string): void {

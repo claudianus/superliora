@@ -168,7 +168,7 @@ export class CredentialHealthStore {
       return;
     }
     const prefix = `${providerId.trim()}::`;
-    for (const key of [...this.store.keys()]) {
+    for (const key of Array.from(this.store.keys())) {
       if (key.startsWith(prefix)) this.store.delete(key);
     }
   }

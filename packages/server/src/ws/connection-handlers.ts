@@ -37,8 +37,8 @@ export function handleWatchFsAdd(host: WsConnectionHost, msg: WatchFsAddMessage)
         }),
       );
     })
-    .catch((err: unknown) => {
-      host.logger.warn({ err: String(err) }, 'watch_fs_add handler threw');
+    .catch((error: unknown) => {
+      host.logger.warn({ err: String(error) }, 'watch_fs_add handler threw');
       host.send(
         buildAck(msg.id, ErrorCode.INTERNAL_ERROR, 'watch_fs_add failed', {}),
       );
@@ -68,8 +68,8 @@ export function handleWatchFsRemove(host: WsConnectionHost, msg: WatchFsRemoveMe
         }),
       );
     })
-    .catch((err: unknown) => {
-      host.logger.warn({ err: String(err) }, 'watch_fs_remove handler threw');
+    .catch((error: unknown) => {
+      host.logger.warn({ err: String(error) }, 'watch_fs_remove handler threw');
       host.send(
         buildAck(msg.id, ErrorCode.INTERNAL_ERROR, 'watch_fs_remove failed', {}),
       );
@@ -94,27 +94,27 @@ export function handleAbort(host: WsConnectionHost, msg: AbortMessage): void {
         }),
       );
     })
-    .catch((err: unknown) => {
-      if (hasErrorName(err, 'PromptAlreadyCompletedError')) {
+    .catch((error: unknown) => {
+      if (hasErrorName(error, 'PromptAlreadyCompletedError')) {
         const at_seq = host.abortHandler!.currentSeq(session_id);
         host.send(
           buildAck(msg.id, 0, 'success', { aborted: false, at_seq }),
         );
         return;
       }
-      if (hasErrorName(err, 'PromptNotFoundError')) {
+      if (hasErrorName(error, 'PromptNotFoundError')) {
         host.send(
           buildAck(msg.id, ErrorCode.PROMPT_NOT_FOUND, 'prompt not found', {}),
         );
         return;
       }
-      if (hasErrorName(err, 'SessionNotFoundError')) {
+      if (hasErrorName(error, 'SessionNotFoundError')) {
         host.send(
           buildAck(msg.id, ErrorCode.SESSION_NOT_FOUND, 'session not found', {}),
         );
         return;
       }
-      host.logger.warn({ err: String(err) }, 'ws abort handler error');
+      host.logger.warn({ err: String(error) }, 'ws abort handler error');
       host.send(
         buildAck(msg.id, ErrorCode.INTERNAL_ERROR, 'abort failed', {}),
       );
@@ -156,8 +156,8 @@ export function handleTerminalAttach(
         replayed: result.replayed,
       }));
     })
-    .catch((err: unknown) => {
-      sendTerminalErrorAck(host, msg.id, err, 'terminal_attach failed');
+    .catch((error: unknown) => {
+      sendTerminalErrorAck(host, msg.id, error, 'terminal_attach failed');
     });
 }
 
@@ -170,8 +170,8 @@ export function handleTerminalDetach(host: WsConnectionHost, msg: TerminalDetach
   try {
     host.terminalHandler.detach(session_id, terminal_id, host.id);
     host.send(buildAck(msg.id, 0, 'success', { detached: true }));
-  } catch (err) {
-    sendTerminalErrorAck(host, msg.id, err, 'terminal_detach failed');
+  } catch (error) {
+    sendTerminalErrorAck(host, msg.id, error, 'terminal_detach failed');
   }
 }
 
@@ -186,8 +186,8 @@ export function handleTerminalInput(host: WsConnectionHost, msg: TerminalInputMe
     .then(() => {
       host.send(buildAck(msg.id, 0, 'success', { accepted: true }));
     })
-    .catch((err: unknown) => {
-      sendTerminalErrorAck(host, msg.id, err, 'terminal_input failed');
+    .catch((error: unknown) => {
+      sendTerminalErrorAck(host, msg.id, error, 'terminal_input failed');
     });
 }
 
@@ -202,8 +202,8 @@ export function handleTerminalResize(host: WsConnectionHost, msg: TerminalResize
     .then(() => {
       host.send(buildAck(msg.id, 0, 'success', { resized: true }));
     })
-    .catch((err: unknown) => {
-      sendTerminalErrorAck(host, msg.id, err, 'terminal_resize failed');
+    .catch((error: unknown) => {
+      sendTerminalErrorAck(host, msg.id, error, 'terminal_resize failed');
     });
 }
 
@@ -218,7 +218,7 @@ export function handleTerminalClose(host: WsConnectionHost, msg: TerminalCloseMe
     .then((result) => {
       host.send(buildAck(msg.id, 0, 'success', result));
     })
-    .catch((err: unknown) => {
-      sendTerminalErrorAck(host, msg.id, err, 'terminal_close failed');
+    .catch((error: unknown) => {
+      sendTerminalErrorAck(host, msg.id, error, 'terminal_close failed');
     });
 }

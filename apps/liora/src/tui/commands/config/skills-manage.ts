@@ -41,7 +41,7 @@ export async function showSkillsManagePanel(host: SlashCommandHost): Promise<voi
         if (value === 'toggle') void showToggleList(host);
         else if (value === 'install') promptInstall(host);
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'Skills' },
   );
@@ -95,7 +95,7 @@ async function showToggleList(host: SlashCommandHost): Promise<void> {
           await showToggleList(host);
         })();
       },
-      onCancel: () => dismissPickerDialog(host),
+      onCancel: () =>{  dismissPickerDialog(host); },
     }),
     { label: 'Skills' },
   );

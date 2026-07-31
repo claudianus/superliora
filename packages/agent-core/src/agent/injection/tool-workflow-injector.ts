@@ -72,6 +72,6 @@ function capabilityKey(cap: ToolWorkflowCapability): string {
   )
     .filter(([, v]) => v)
     .map(([k]) => k)
-    .sort()
+    .toSorted()
     .join('|');
 }

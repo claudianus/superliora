@@ -43,5 +43,5 @@ export function attachSocketCloseHandler(
   socket: WebSocket,
   onClose: (code: number, reason: string) => void,
 ): void {
-  socket.on('close', (code, reason) => onClose(code, String(reason)));
+  socket.on('close', (code, reason) =>{  onClose(code, String(reason)); });
 }

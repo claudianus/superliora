@@ -286,7 +286,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
   async swarm(input: SessionPromptRpcInput): Promise<void> {
     await this.enterSwarmMode({ sessionId: input.sessionId, trigger: 'task' });
     try {
-      return await this.prompt(input);
+       await this.prompt(input);; return;
     } catch (error) {
       // Roll back swarm mode so a failed prompt does not leave the session
       // stuck in swarm state.

@@ -391,11 +391,11 @@ export class AcpSession {
           },
           lookupToolCallTurnId: (toolCallId) => toolCallTurnIds.get(toolCallId),
         });
-      } catch (err) {
+      } catch (error) {
         log.warn('acp: replayHistory failed to emit a message; continuing', {
           sessionId,
           role: message.role,
-          error: err instanceof Error ? err.message : String(err),
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -531,8 +531,8 @@ export class AcpSession {
       sessionId: this.id,
       conn: this.conn,
       getCurrentTurnId: () => this.currentTurnId,
-      emitTelemetry: (event: string, properties?: Record<string, unknown>) =>
-        this.emitTelemetry(event, properties),
+      emitTelemetry: (event: string, properties?: Record<string, unknown>) =>{ 
+        this.emitTelemetry(event, properties); },
     };
   }
 

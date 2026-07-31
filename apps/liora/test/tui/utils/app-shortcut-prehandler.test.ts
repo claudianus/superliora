@@ -108,7 +108,7 @@ describe('app shortcut pre-handler (native path)', () => {
     const event: NativeInputEvent = {
       type: 'key',
       key: 'character',
-      raw: '\u000b',
+      raw: '\u000B',
       text: 'k',
       ctrl: true,
       alt: false,
@@ -141,7 +141,7 @@ describe('app shortcut pre-handler (native path)', () => {
     const legacy = encodeNativeInputAsLegacySequence({
       type: 'key',
       key: 'character',
-      raw: '\u000f',
+      raw: '\u000F',
       text: 'o',
       ctrl: true,
       alt: false,

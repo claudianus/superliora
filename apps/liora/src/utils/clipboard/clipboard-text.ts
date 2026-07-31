@@ -113,5 +113,5 @@ export async function copyTextToClipboard(text: string): Promise<void> {
 function copyViaOsc52(text: string): void {
   const encoded = Buffer.from(text, 'utf-8').toString('base64');
   // OSC 52 ; c ; <base64> ST  (ST = ESC \)
-  process.stdout.write(`\x1b]52;c;${encoded}\x1b\\`);
+  process.stdout.write(`\x1B]52;c;${encoded}\x1B\\`);
 }

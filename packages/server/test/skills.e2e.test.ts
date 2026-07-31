@@ -151,7 +151,7 @@ describe('GET /api/v1/sessions/{sid}/skills', () => {
       url: `/api/v1/sessions/${sid}/skills`,
     });
     expect(res.statusCode).toBe(200);
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(0);
     const parsed = listSkillsResponseSchema.parse(env.data);
     const seeded = parsed.skills.find((s) => s.name === 'e2e-greeting');
@@ -166,7 +166,7 @@ describe('GET /api/v1/sessions/{sid}/skills', () => {
       method: 'GET',
       url: '/api/v1/sessions/does-not-exist/skills',
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(40401);
   });
 });
@@ -182,7 +182,7 @@ describe('POST /api/v1/sessions/{sid}/skills:search', () => {
       payload: { query: 'greeting', limit: 5 },
     });
     expect(res.statusCode).toBe(200);
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(0);
     const parsed = searchSkillsResponseSchema.parse(env.data);
     const seeded = parsed.skills.find((s) => s.name === 'e2e-greeting');
@@ -198,7 +198,7 @@ describe('POST /api/v1/sessions/{sid}/skills:search', () => {
       url: '/api/v1/sessions/does-not-exist/skills:search',
       payload: { query: 'greeting' },
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(40401);
   });
 });
@@ -214,7 +214,7 @@ describe('POST /api/v1/sessions/{sid}/skills/{name}:activate', () => {
       payload: { args: 'world' },
     });
     expect(res.statusCode).toBe(200);
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(0);
     const parsed = activateSkillResultSchema.parse(env.data);
     expect(parsed.skill_name).toBe('e2e-greeting');
@@ -229,7 +229,7 @@ describe('POST /api/v1/sessions/{sid}/skills/{name}:activate', () => {
       url: `/api/v1/sessions/${sid}/skills/e2e-greeting:activate`,
       payload: {},
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(0);
   });
 
@@ -241,7 +241,7 @@ describe('POST /api/v1/sessions/{sid}/skills/{name}:activate', () => {
       url: `/api/v1/sessions/${sid}/skills/no-such-skill:activate`,
       payload: {},
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(40415);
   });
 
@@ -254,7 +254,7 @@ describe('POST /api/v1/sessions/{sid}/skills/{name}:activate', () => {
       url: `/api/v1/sessions/${sid}/skills/e2e-reference:activate`,
       payload: {},
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(40912);
   });
 
@@ -265,7 +265,7 @@ describe('POST /api/v1/sessions/{sid}/skills/{name}:activate', () => {
       url: '/api/v1/sessions/does-not-exist/skills/foo:activate',
       payload: {},
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(40401);
   });
 
@@ -277,7 +277,7 @@ describe('POST /api/v1/sessions/{sid}/skills/{name}:activate', () => {
       url: `/api/v1/sessions/${sid}/skills/foo:bogus`,
       payload: {},
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(40001);
     expect(env.msg).toMatch(/unsupported action/);
   });
@@ -290,7 +290,7 @@ describe('POST /api/v1/sessions/{sid}/skills/{name}:activate', () => {
       url: `/api/v1/sessions/${sid}/skills/foo`,
       payload: {},
     });
-    const env = envelopeOf<unknown>(res.json());
+    const env = envelopeOf(res.json());
     expect(env.code).toBe(40001);
   });
 });

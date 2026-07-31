@@ -81,7 +81,7 @@ export class SessionCloseLifecycle {
           return await Promise.race([
             entry.then((r) => r.agent),
             new Promise<undefined>((resolve) => {
-              const t = setTimeout(() => resolve(undefined), 2_000);
+              const t = setTimeout(() =>{  resolve(undefined); }, 2_000);
               t.unref?.();
             }),
           ]);

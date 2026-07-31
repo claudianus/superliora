@@ -45,7 +45,7 @@ describe('CircuitBreakerRegistry', () => {
 
     const snap = registry.snapshot();
     expect(snap.counts).toEqual({ closed: 1, open: 0, halfOpen: 2, total: 3 });
-    expect(snap.scopes.map((s) => s.id).sort()).toEqual(['brave', 'exa', 'tavily']);
+    expect(snap.scopes.map((s) => s.id).toSorted()).toEqual(['brave', 'exa', 'tavily']);
     expect(snap.scopes.find((s) => s.id === 'brave')?.lastTripReason).toBe('brave 429');
   });
 });

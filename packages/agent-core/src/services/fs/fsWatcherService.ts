@@ -319,9 +319,7 @@ export class FsWatcherService extends Disposable implements IFsWatcher {
     // event so short bursts coalesce, but continuous activity must flush by
     // maxCoalesceMs so event.fs.changed is never starved indefinitely.
     const now = Date.now();
-    if (entry.windowStartedAtMs === undefined) {
-      entry.windowStartedAtMs = now;
-    }
+    entry.windowStartedAtMs ??= now;
     const elapsed = now - entry.windowStartedAtMs;
     if (elapsed >= this.maxCoalesceMs) {
       if (entry.debounceTimer !== undefined) {

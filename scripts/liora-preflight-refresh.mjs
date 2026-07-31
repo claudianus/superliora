@@ -513,7 +513,7 @@ function evaluateCapabilityChannel(channel, { evidenceRoot, wikiRoot, nowMs, max
   const files = collectEvidenceFiles(evidenceRoot, wikiRoot, MAX_DISCOVERY_SCAN_FILES)
     .map((file) => ({ file, text: readText(file) }))
     .filter(({ file, text }) =>
-      (channel.pathPattern.test(file) || channel.textPattern.test(text))
+      (channel.pathPattern.test(file) ?? channel.textPattern.test(text))
       && hasEvidenceProof(text));
   if (files.length === 0) return missingChannelEvidence(channel.label);
   const newest = files
@@ -572,7 +572,7 @@ function resolveKnowledgeMapTier(text) {
 function findLegacyEvidenceMatches(evidenceRoot, wikiRoot, pathPattern, textPattern) {
   const files = collectEvidenceFiles(evidenceRoot, wikiRoot, MAX_DISCOVERY_SCAN_FILES)
     .map((file) => ({ file, text: readText(file) }))
-    .filter(({ file, text }) => pathPattern.test(file) || textPattern.test(text));
+    .filter(({ file, text }) => pathPattern.test(file) ?? textPattern.test(text));
   if (files.length === 0) return undefined;
   const newest = files
     .map(({ file }) => ({ file, mtimeMs: statSync(file).mtimeMs }))

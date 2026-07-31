@@ -4,7 +4,7 @@ Builtin tools, policies, and search/providers.
 
 ## Ownership
 
-- Tool implementations under `builtin/` by domain (`file/`, `shell/`, `collaboration/`, `goal/`, …).
+- Tool implementations under `builtin/` by domain (`file/`, `shell/`, `fleet/`, `goal/`, …). `collaboration/` holds compatibility shims re-exporting `fleet/`.
 - Policies under `policies/` — keep matchers data-driven; split large rule tables by category (see `shell-bypass-rules/` when present).
 - Providers under `providers/` — separate request/parse/format when a file exceeds ~800 LOC.
 

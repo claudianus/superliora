@@ -128,8 +128,8 @@ export class NativeTerminalRenderer {
         recordMarker: (name, args) => {
           this.trace.recordMarker({ timestampMs: this.loop.now(), name, args });
         },
-        cancelRegionAnimationFrame: () => this.cancelRegionAnimationFrame(),
-        loopRequestRender: (cause) => this.loop.requestRender(cause),
+        cancelRegionAnimationFrame: () =>{  this.cancelRegionAnimationFrame(); },
+        loopRequestRender: (cause) =>{  this.loop.requestRender(cause); },
         loopRequestAnimationFrame: (callback) => this.loop.requestAnimationFrame(callback),
       },
     );
@@ -138,14 +138,14 @@ export class NativeTerminalRenderer {
       recordMarker: (name, args) => {
         this.trace.recordMarker({ timestampMs: this.loop.now(), name, args });
       },
-      cancelRegionAnimationFrame: () => this.cancelRegionAnimationFrame(),
-      requestRenderDirect: (cause) => this.loop.requestRender(cause),
+      cancelRegionAnimationFrame: () =>{  this.cancelRegionAnimationFrame(); },
+      requestRenderDirect: (cause) =>{  this.loop.requestRender(cause); },
       requestAnimationFrameDirect: (callback) => this.loop.requestAnimationFrame(callback),
       shouldDeferFrameForBackpressure: () => this.backpressure.shouldDefer(),
-      deferRenderCause: (cause) => this.backpressure.deferRenderCause(cause),
+      deferRenderCause: (cause) =>{  this.backpressure.deferRenderCause(cause); },
       deferAnimationFrame: (callback) => this.backpressure.deferAnimationFrame(callback),
       cancelDeferredAnimationFrame: (id) => this.backpressure.cancelDeferredAnimationFrame(id),
-      loopCancelAnimationFrame: (id) => this.loop.cancelAnimationFrame(id),
+      loopCancelAnimationFrame: (id) =>{  this.loop.cancelAnimationFrame(id); },
     });
     this.syncProbe = new NativeRendererSyncProbe(
       {
@@ -162,7 +162,7 @@ export class NativeTerminalRenderer {
           this.trace.recordMarker({ timestampMs: this.loop.now(), name, args });
         },
         getCurrentSynchronized: () => this.currentSynchronized,
-        setSynchronizedOutput: (synchronized) => this.setSynchronizedOutput(synchronized),
+        setSynchronizedOutput: (synchronized) =>{  this.setSynchronizedOutput(synchronized); },
         onSynchronizedOutputProbe: this.options.onSynchronizedOutputProbe,
       },
     );
@@ -228,7 +228,7 @@ export class NativeTerminalRenderer {
     this.ambientSchedule = new RendererAmbientSchedule({
       scheduler: this.options.scheduler,
       unrefTimers: this.options.unrefTimers,
-      requestRender: () => this.requestRender('animation'),
+      requestRender: () =>{  this.requestRender('animation'); },
       getContext: () => ({
         quality: this.quality.level,
         health: this.frameStats.snapshot().health,
@@ -426,7 +426,7 @@ export class NativeTerminalRenderer {
           });
         },
         onResize: this.options.onResize,
-        requestRender: () => this.loop.requestRender('resize'),
+        requestRender: () =>{  this.loop.requestRender('resize'); },
       },
     );
   }
@@ -463,7 +463,7 @@ export class NativeTerminalRenderer {
           this.measureFrameHeightOverride ?? this.options.measureFrameHeight,
         frameIntervalMs: this.loop.frameIntervalMs,
         now: () => this.loop.now(),
-        onBackpressure: () => this.backpressure.handleBackpressure(),
+        onBackpressure: () =>{  this.backpressure.handleBackpressure(); },
         onQualityChange: (renderFrame, previous, current, metrics) => {
           this.handleQualityChange(renderFrame, previous, current, metrics);
         },

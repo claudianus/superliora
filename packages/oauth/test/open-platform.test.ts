@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { ManagedKimiCodeModelInfo } from '../src/kimi';
 import {
   filterModelsByPrefix,
   getOpenPlatformById,
@@ -7,6 +8,16 @@ import {
   OPEN_PLATFORMS,
   OpenPlatformApiError,
 } from '../src/registry/open-platform';
+
+function sampleModel(id: string): ManagedKimiCodeModelInfo {
+  return {
+    id,
+    contextLength: 131072,
+    supportsReasoning: false,
+    supportsImageIn: false,
+    supportsVideoIn: false,
+  };
+}
 
 describe('oauth/open-platform — pure helpers', () => {
   it('exposes a non-empty OPEN_PLATFORMS list', () => {
@@ -40,12 +51,16 @@ describe('oauth/open-platform — pure helpers', () => {
 
   describe('filterModelsByPrefix', () => {
     it('returns an array of the same length as the input', () => {
-      const models = [{ name: 'a' }, { name: 'b' }, { name: 'c' }];
-      expect(filterModelsByPrefix(models, 'a').length).toBe(models.length);
+      const models = [sampleModel('a'), sampleModel('b'), sampleModel('c')];
+      const platform = OPEN_PLATFORMS[0];
+      if (platform === undefined) throw new Error('OPEN_PLATFORMS[0] is undefined');
+      expect(filterModelsByPrefix(models, platform).length).toBe(models.length);
     });
 
     it('returns an empty-array-friendly result for an empty input', () => {
-      expect(filterModelsByPrefix([], 'kimi')).toEqual([]);
+      const platform = OPEN_PLATFORMS[0];
+      if (platform === undefined) throw new Error('OPEN_PLATFORMS[0] is undefined');
+      expect(filterModelsByPrefix([], platform)).toEqual([]);
     });
   });
 });

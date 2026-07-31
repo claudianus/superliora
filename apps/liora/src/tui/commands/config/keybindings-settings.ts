@@ -20,7 +20,7 @@ export function showKeybindingsSettings(host: SlashCommandHost): void {
     borderToken: 'primary',
     title: ' Keybindings ',
     enterBeatSeed: 'keybindings',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

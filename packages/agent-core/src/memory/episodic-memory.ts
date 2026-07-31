@@ -132,7 +132,7 @@ export class FileEpisodicMemoryStore implements EpisodicMemoryStore {
 
   get episodes(): readonly Episode[] {
     const list = Array.from(this.episodeMap.values());
-    return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return list.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async add(episode: Episode): Promise<void> {

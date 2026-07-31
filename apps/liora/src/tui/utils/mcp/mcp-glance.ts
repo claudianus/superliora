@@ -34,7 +34,7 @@ export function formatMcpLiveSessionLine(servers: readonly McpServerInfo[]): str
 function formatLiveServerRows(servers: readonly McpServerInfo[]): readonly string[] {
   if (servers.length === 0) return [];
   const rows = [...servers]
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .toSorted((a, b) => a.name.localeCompare(b.name))
     .slice(0, 6)
     .map((server) => {
       const tools =

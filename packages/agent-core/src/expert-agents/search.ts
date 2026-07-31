@@ -128,7 +128,7 @@ export class ExpertSearchEngine {
         score: applyTaskProfileScore(result, taskProfile, options, normalizedDivision),
       }))
       .filter((result) => result.score >= minScore)
-      .sort((a, b) => b.score - a.score);
+      .toSorted((a, b) => b.score - a.score);
     results = results.filter(({ expert }) => matchesExplicitFilters(expert));
     if (taskProfile.excludedDivisions.length > 0) {
       results = results.filter((r) => !taskProfile.excludedDivisions.includes(r.expert.division));
@@ -169,7 +169,7 @@ export class ExpertSearchEngine {
     }
 
     const sorted = Array.from(scores.entries())
-      .sort((a, b) => b[1] - a[1])
+      .toSorted((a, b) => b[1] - a[1])
       .slice(0, topK);
 
     return sorted.map(([id, score]) => {
@@ -206,7 +206,7 @@ export class ExpertSearchEngine {
     }
 
     const sorted = Array.from(rrfScores.entries())
-      .sort((a, b) => b[1] - a[1])
+      .toSorted((a, b) => b[1] - a[1])
       .slice(0, topK);
 
     return sorted.map(([id, score]) => {

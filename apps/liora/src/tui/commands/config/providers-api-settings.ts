@@ -68,7 +68,7 @@ async function showProvidersApiSettingsPanel(host: SlashCommandHost): Promise<vo
     borderToken: 'primary',
     title: ' Providers ',
     enterBeatSeed: 'providers-api',
-    requestRender: () => requestTUILayoutRender(host.state),
+    requestRender: () =>{  requestTUILayoutRender(host.state); },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

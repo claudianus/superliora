@@ -201,7 +201,7 @@ export function applyQwenTokenPlanProvider(
   apiKey: string,
 ): ApplyQwenTokenPlanResult {
   const baseUrl =
-    process.env[QWEN_TOKEN_PLAN_BASE_URL_ENV]?.trim() || QWEN_TOKEN_PLAN_BASE_URL;
+    process.env[QWEN_TOKEN_PLAN_BASE_URL_ENV]?.trim() ?? QWEN_TOKEN_PLAN_BASE_URL;
 
   // Register provider.
   config.providers = {

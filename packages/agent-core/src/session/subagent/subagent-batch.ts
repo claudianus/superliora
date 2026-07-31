@@ -170,8 +170,8 @@ export class SubagentBatch<T> {
       pending: this.pending,
       active: this.active,
       finished: this.finished,
-      startAttempt: (state) => this.startAttempt(state),
-      schedule: () => this.schedule(),
+      startAttempt: (state) =>{  this.startAttempt(state); },
+      schedule: () =>{  this.schedule(); },
     });
   }
 
@@ -212,7 +212,7 @@ export class SubagentBatch<T> {
         this.startedSuccessCount += 1;
       },
       onReadyInRateLimitPhase: () => {
-        this.rateLimit.onAttemptReadyInRateLimitPhase(() => this.schedule());
+        this.rateLimit.onAttemptReadyInRateLimitPhase(() =>{  this.schedule(); });
       },
     });
   }
@@ -237,7 +237,7 @@ export class SubagentBatch<T> {
         outcome.agentId,
         this.launcher,
         this.pending,
-        () => this.clearNormalTimer(),
+        () =>{  this.clearNormalTimer(); },
         this.startedSuccessCount,
       );
     }
@@ -264,7 +264,7 @@ export class SubagentBatch<T> {
 
   private finishIfComplete(): boolean {
     if (this.results.every((result) => result !== undefined)) {
-      this.finish(this.results as Array<SubagentResult<T>>);
+      this.finish(this.results);
       return true;
     }
     return false;

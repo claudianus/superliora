@@ -228,11 +228,11 @@ describe('NativeTUIEditor', () => {
 
     // Start on the second visual row so ↑ has a soft-wrap target.
     editor.setCursorPosition({ line: 0, col: 20 });
-    editor.handleInput('\u001b[A'); // CSI A = up
+    editor.handleInput('\u001B[A'); // CSI A = up
     expect(editor.getCursor().col).toBeLessThan(18);
 
     const afterUp = editor.getCursor().col;
-    editor.handleInput('\u001b[B'); // CSI B = down
+    editor.handleInput('\u001B[B'); // CSI B = down
     expect(editor.getCursor().col).toBeGreaterThan(afterUp);
   });
 
@@ -504,10 +504,10 @@ describe('NativeTUIEditor ghost text', () => {
 });
 
 describe('NativeTUIEditor image paste binding', () => {
-  const ESC = String.fromCharCode(0x1b);
+  const ESC = String.fromCodePoint(0x1b);
   // Windows terminals reserve Ctrl+V for their own paste, so the binding is
   // Alt+V there and Ctrl+V everywhere else (mirrors handleAppShortcut).
-  const pasteRaw = process.platform === 'win32' ? `${ESC}v` : String.fromCharCode(0x16);
+  const pasteRaw = process.platform === 'win32' ? `${ESC}v` : String.fromCodePoint(0x16);
 
   it('invokes onPasteImage and consumes the paste key', async () => {
     const editor = makeEditor();
@@ -516,7 +516,7 @@ describe('NativeTUIEditor image paste binding', () => {
     editor.onPasteImage = onPasteImage;
 
     expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
-    await vi.waitFor(() => expect(onPasteImage).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() =>{  expect(onPasteImage).toHaveBeenCalledTimes(1); });
     // Consumed by the image handler: no text mutation.
     expect(editor.getText()).toBe('draft');
   });
@@ -527,7 +527,7 @@ describe('NativeTUIEditor image paste binding', () => {
     editor.onPasteImage = async () => false;
 
     expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
-    await vi.waitFor(() => expect(editor.getText()).toBe('from clipboard'));
+    await vi.waitFor(() =>{  expect(editor.getText()).toBe('from clipboard'); });
   });
 
   it('gives onPasteText first claim on bracketed paste (terminal file drops)', () => {

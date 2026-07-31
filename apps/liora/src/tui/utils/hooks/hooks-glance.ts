@@ -16,7 +16,7 @@ export interface HooksGlanceInput {
 export function formatHookEventSummary(events: Readonly<Record<string, number>>): string {
   const entries = Object.entries(events)
     .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    .toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   if (entries.length === 0) return '(no hooks registered)';
   return entries.map(([event, count]) => `${event}×${String(count)}`).join(' · ');
 }

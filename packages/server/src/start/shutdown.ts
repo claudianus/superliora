@@ -35,7 +35,7 @@ export function createServerCloser(opts: CreateServerCloserOptions): () => Promi
     try {
       opts.ix.invokeFunction((a) => a.get(IWSGateway));
 
-      opts.ix.invokeFunction((a) => a.get(IConnectionRegistry).closeAll('server shutting down'));
+      opts.ix.invokeFunction((a) =>{  a.get(IConnectionRegistry).closeAll('server shutting down'); });
     } catch {
       // ignore
     }

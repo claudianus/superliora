@@ -110,9 +110,9 @@ export function wireCoreProcessServices(
     wsGw.setTerminalHandler({
       attach: (sessionId, terminalId, sink, options) =>
         terminalService.attach(sessionId, terminalId, sink, options),
-      detach: (sessionId, terminalId, sinkId) =>
-        terminalService.detach(sessionId, terminalId, sinkId),
-      cleanupConnection: (sinkId) => terminalService.detachAllForSink(sinkId),
+      detach: (sessionId, terminalId, sinkId) =>{ 
+        terminalService.detach(sessionId, terminalId, sinkId); },
+      cleanupConnection: (sinkId) =>{  terminalService.detachAllForSink(sinkId); },
       write: (sessionId, terminalId, data) =>
         terminalService.write(sessionId, terminalId, data),
       resize: (sessionId, terminalId, cols, rows) =>

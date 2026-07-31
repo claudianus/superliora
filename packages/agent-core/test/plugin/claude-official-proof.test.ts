@@ -14,7 +14,7 @@ import { loadPluginChannels } from '../../src/plugin/channels';
 import type { PluginDiagnostic } from '../../src/plugin/types';
 
 const OFFICIAL = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
+  import.meta.dirname,
   '../fixtures/claude-official',
 );
 
@@ -203,7 +203,7 @@ async function runCommand(
   readonly stdout: string;
   readonly stderr: string;
 }> {
-  return await new Promise((resolve) => {
+  return  new Promise((resolve) => {
     let child;
     try {
       child = spawn(command, args, {

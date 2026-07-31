@@ -256,7 +256,7 @@ export class InputHistory {
     // Score and sort by relevance (recency + frequency)
     return results
       .map((e) => ({ entry: e, score: scoreEntry(e, queryLower) }))
-      .sort((a, b) => b.score - a.score)
+      .toSorted((a, b) => b.score - a.score)
       .slice(0, MAX_SEARCH_RESULTS)
       .map((r) => r.entry);
   }
@@ -276,7 +276,7 @@ export class InputHistory {
   /** Get the most frequently used entries. */
   getFrequent(count: number): HistoryEntry[] {
     return [...this.entries]
-      .sort((a, b) => b.count - a.count)
+      .toSorted((a, b) => b.count - a.count)
       .slice(0, count);
   }
 

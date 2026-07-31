@@ -169,10 +169,10 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         // failures rather than dropping them silently.
         conn
           .sessionUpdate(assistantDeltaToSessionUpdate(sessionId, event))
-          .catch((err) => {
+          .catch((error) => {
             log.warn('acp: failed to push agent_message_chunk', {
               sessionId,
-              error: err instanceof Error ? err.message : String(err),
+              error: error instanceof Error ? error.message : String(error),
             });
           });
         return;
@@ -181,10 +181,10 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (!isFromMainAgent(event)) return;
         conn
           .sessionUpdate(thinkingDeltaToSessionUpdate(sessionId, event))
-          .catch((err) => {
+          .catch((error) => {
             log.warn('acp: failed to push agent_thought_chunk', {
               sessionId,
-              error: err instanceof Error ? err.message : String(err),
+              error: error instanceof Error ? error.message : String(error),
             });
           });
         return;
@@ -209,22 +209,22 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (startedToolCalls.has(startedWireId)) {
           conn
             .sessionUpdate(toolCallStartedUpgradeToSessionUpdate(sessionId, event))
-            .catch((err) => {
+            .catch((error) => {
               log.warn('acp: failed to push tool_call_update (start upgrade)', {
                 sessionId,
                 toolCallId: event.toolCallId,
-                error: err instanceof Error ? err.message : String(err),
+                error: error instanceof Error ? error.message : String(error),
               });
             });
         } else {
           startedToolCalls.add(startedWireId);
           conn
             .sessionUpdate(toolCallStartToSessionUpdate(sessionId, event))
-            .catch((err) => {
+            .catch((error) => {
               log.warn('acp: failed to push tool_call', {
                 sessionId,
                 toolCallId: event.toolCallId,
-                error: err instanceof Error ? err.message : String(err),
+                error: error instanceof Error ? error.message : String(error),
               });
             });
         }
@@ -238,10 +238,10 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (event.display) {
           const planNote = planFromDisplayBlock(sessionId, event.turnId, event.display);
           if (planNote !== null) {
-            conn.sessionUpdate(planNote).catch((err) => {
+            conn.sessionUpdate(planNote).catch((error) => {
               log.warn('acp: failed to push plan', {
                 sessionId,
-                error: err instanceof Error ? err.message : String(err),
+                error: error instanceof Error ? error.message : String(error),
               });
             });
           }
@@ -264,11 +264,11 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
           startedToolCalls.add(deltaWireId);
           conn
             .sessionUpdate(toolCallLazyCreateToSessionUpdate(sessionId, event))
-            .catch((err) => {
+            .catch((error) => {
               log.warn('acp: failed to push tool_call (lazy create from delta)', {
                 sessionId,
                 toolCallId: event.toolCallId,
-                error: err instanceof Error ? err.message : String(err),
+                error: error instanceof Error ? error.message : String(error),
               });
             });
           return;
@@ -282,11 +282,11 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         }
         conn
           .sessionUpdate(toolCallDeltaToSessionUpdate(sessionId, event, acc))
-          .catch((err) => {
+          .catch((error) => {
             log.warn('acp: failed to push tool_call_update (delta)', {
               sessionId,
               toolCallId: event.toolCallId,
-              error: err instanceof Error ? err.message : String(err),
+              error: error instanceof Error ? error.message : String(error),
             });
           });
         return;
@@ -295,11 +295,11 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (!isFromMainAgent(event)) return;
         const note = toolProgressToSessionUpdate(sessionId, event);
         if (note === null) return;
-        conn.sessionUpdate(note).catch((err) => {
+        conn.sessionUpdate(note).catch((error) => {
           log.warn('acp: failed to push tool_call_update (progress)', {
             sessionId,
             toolCallId: event.toolCallId,
-            error: err instanceof Error ? err.message : String(err),
+            error: error instanceof Error ? error.message : String(error),
           });
         });
         return;
@@ -308,11 +308,11 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
         if (!isFromMainAgent(event)) return;
         conn
           .sessionUpdate(toolResultToSessionUpdate(sessionId, event))
-          .catch((err) => {
+          .catch((error) => {
             log.warn('acp: failed to push tool_call_update (result)', {
               sessionId,
               toolCallId: event.toolCallId,
-              error: err instanceof Error ? err.message : String(err),
+              error: error instanceof Error ? error.message : String(error),
             });
           });
         return;
@@ -362,11 +362,11 @@ export function runPromptTurn(deps: PromptTurnDeps): Promise<PromptResponse> {
       }
     });
 
-    kick().catch((err) => {
+    kick().catch((error) => {
       if (settled) return;
       settled = true;
       unsub();
-      reject(mapPromptError(err, sessionId));
+      reject(mapPromptError(error, sessionId));
     });
   });
 }

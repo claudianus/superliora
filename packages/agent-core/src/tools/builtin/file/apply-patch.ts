@@ -56,7 +56,8 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
   resolveExecution(args: ApplyPatchInput): ToolExecution {
     const parsed = parseOpenCodePatch(args.patch);
     const paths =
-      parsed.ok === true
+      
+      parsed.ok
         ? parsed.files.map((file) =>
             resolvePathAccessPath(file.path, {
               kaos: this.kaos,
