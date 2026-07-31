@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showNeverHaltSettings } from '#/tui/commands/config/never-halt/never-halt-settings';
-import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
+import {
+  NEVER_HALT_BREAKER_TIP,
+  NEVER_HALT_INTERVENTION_TIP,
+  NEVER_HALT_OAUTH_TIP,
+  NEVER_HALT_SEARCH_FALLBACK_TIP,
+  showNeverHaltSettings,
+} from '#/tui/commands/config/never-halt/never-halt-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeHost(options: {
   circuitBreakers?: {
@@ -41,6 +48,7 @@ function makeHost(options: {
         runtimeDegraded: null,
       },
       transcriptContainer: { addChild: vi.fn() },
+      centerModalStack: [] as readonly unknown[],
       renderer: { invalidateFrame: vi.fn() },
     },
     requireSession:
@@ -49,10 +57,81 @@ function makeHost(options: {
             throw new Error('no session');
           })
         : vi.fn(() => session),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
+function selectNeverHaltAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
+describe('never-halt settings tips', () => {
+  it('exports search fallback, oauth, intervention, and breaker tips', () => {
+    expect(NEVER_HALT_SEARCH_FALLBACK_TIP).toContain('free fallback');
+    expect(NEVER_HALT_SEARCH_FALLBACK_TIP).toContain('Settings → Search');
+    expect(NEVER_HALT_OAUTH_TIP).toContain('ensureFresh');
+    expect(NEVER_HALT_OAUTH_TIP).toContain('Settings → Accounts');
+    expect(NEVER_HALT_INTERVENTION_TIP).toContain('Fleet workers');
+    expect(NEVER_HALT_INTERVENTION_TIP).toContain('parallel');
+    expect(NEVER_HALT_BREAKER_TIP).toContain('half-open');
+    expect(NEVER_HALT_BREAKER_TIP).toContain('runtime.degraded');
+  });
+});
+
 describe('showNeverHaltSettings', () => {
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeHost();
+    showNeverHaltSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-search-fallback',
+      'tip-oauth',
+      'tip-intervention',
+      'tip-breaker',
+    ]);
+  });
+
+  it('shows search fallback tip via showStatus', () => {
+    const host = makeHost();
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'tip-search-fallback');
+    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_SEARCH_FALLBACK_TIP, 'info');
+  });
+
+  it('shows oauth tip via showStatus', () => {
+    const host = makeHost();
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'tip-oauth');
+    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_OAUTH_TIP, 'info');
+  });
+
+  it('shows intervention tip via showStatus', () => {
+    const host = makeHost();
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'tip-intervention');
+    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_INTERVENTION_TIP, 'info');
+  });
+
+  it('shows breaker tip via showStatus', () => {
+    const host = makeHost();
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'tip-breaker');
+    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_BREAKER_TIP, 'info');
+  });
+
   it('uses AppState circuitBreakers when getStatus is unavailable', async () => {
     const host = makeHost({
       hasSession: false,
@@ -64,7 +143,11 @@ describe('showNeverHaltSettings', () => {
         scopes: [{ id: 'llm:primary', state: 'open', failures: 4, lastTripReason: '429 burst' }],
       },
     });
-    await showNeverHaltSettings(host);
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
@@ -90,7 +173,11 @@ describe('showNeverHaltSettings', () => {
         },
       })),
     });
-    await showNeverHaltSettings(host);
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
@@ -109,7 +196,11 @@ describe('showNeverHaltSettings', () => {
         oldestInterventionAgeMs: 125_000,
       })),
     });
-    await showNeverHaltSettings(host);
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
@@ -122,7 +213,11 @@ describe('showNeverHaltSettings', () => {
 
   it('surfaces ask-mode Fleet continue in the permission queue section', async () => {
     const host = makeHost();
-    await showNeverHaltSettings(host);
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
@@ -138,7 +233,11 @@ describe('showNeverHaltSettings', () => {
         pendingInterventions: 0,
       })),
     });
-    await showNeverHaltSettings(host);
+    showNeverHaltSettings(host);
+    selectNeverHaltAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;

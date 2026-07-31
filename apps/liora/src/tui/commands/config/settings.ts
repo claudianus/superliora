@@ -93,7 +93,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'index': showIndexSettings(host); return;
     case 'host': showHostSettings(host); return;
     case 'cache': showCacheSettings(host); return;
-    case 'never-halt': void showNeverHaltSettings(host); return;
+    case 'never-halt': showNeverHaltSettings(host); return;
     case 'telemetry': showTelemetrySettings(host); return;
     case 'bench-diagnostics': showBenchDiagnosticsSettings(host); return;
     case 'network': showNetworkSettings(host); return;
