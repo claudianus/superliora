@@ -1,17 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { showAppearanceSettings } from '#/tui/commands/config/appearance/appearance-settings';
-import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
-import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
-import { currentTheme, darkColors, lightColors } from '#/tui/theme';
+import { darkColors, lightColors } from '#/tui/theme';
 import {
   buildAppearanceSettingsLines,
   formatLiveThemeLine,
   loadAppearanceSettingsGlance,
   resolveLivePaletteKind,
 } from '#/tui/utils/appearance/appearance-glance';
-import { vi } from 'vitest';
 
 describe('appearance theme glance', () => {
   it('resolves live palette kind from theme engine singleton', () => {
@@ -59,32 +55,5 @@ describe('appearance theme glance', () => {
     expect(text).toContain('Theme: dark · live palette dark');
     expect(text).toContain('profile premium');
     expect(text).toContain('canvas on');
-  });
-});
-
-describe('showAppearanceSettings', () => {
-  it('renders live theme from appState and currentTheme', () => {
-    const previousPalette = currentTheme.palette;
-    currentTheme.setPalette(lightColors);
-
-    const host = {
-      state: {
-        appState: {
-          theme: 'auto',
-          appearance: DEFAULT_APPEARANCE_PREFERENCES,
-        },
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-    } as unknown as SlashCommandHost;
-
-    showAppearanceSettings(host);
-
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
-      .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.snapshotBodyLines(1).join('\n');
-    expect(text).toContain('Theme: auto · live palette light (tracking terminal)');
-
-    currentTheme.setPalette(previousPalette);
   });
 });

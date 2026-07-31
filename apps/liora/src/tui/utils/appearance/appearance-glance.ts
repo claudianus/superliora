@@ -21,6 +21,22 @@ export interface AppearanceSettingsGlanceSources {
   readonly appearance?: AppearancePreferences;
 }
 
+/** ChoicePicker tip — saved theme vs live palette the renderer paints now. */
+export const APPEARANCE_THEME_TIP =
+  'Theme: saved name in appState/tui.toml · live palette from currentTheme at render (auto tracks terminal) · Settings → Theme palette picker · /theme <name|import …>.';
+
+/** ChoicePicker tip — motion profile, density, particles, and animation clock. */
+export const APPEARANCE_MOTION_TIP =
+  'Motion: profile auto|off|subtle|premium · particles auto|off|ambient|events|premium · animation-fps 1–60 · density auto|compact|comfortable|spacious · timestamps on|off · /appearance <key> <value> · tui.toml [appearance].';
+
+/** ChoicePicker tip — canvas, terminal background, palette injection, transcript detail. */
+export const APPEARANCE_BACKGROUND_TIP =
+  'Background: canvas-background on|off · terminal-background off|session · terminal-palette on|off · transcript-detail minimal|compact|standard|full · /appearance or /transcript for live projection.';
+
+/** ChoicePicker tip — persist paths; this Settings panel is read-only glance. */
+export const APPEARANCE_CHANGE_TIP =
+  'Change: /appearance <key> <value> persists tui.toml · Settings → Theme for palette · Settings → Visual Quality for harness PQ toggle · this panel is read-only status.';
+
 /** Resolve the palette currently painted by the theme engine singleton. */
 export function resolveLivePaletteKind(palette: ColorPalette): LivePaletteKind {
   if (palette === lightColors) return 'light';
