@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCompactionSettingsLines,
+  COMPACTION_KEEP_TOKENS_TIP,
+  COMPACTION_MICRO_TIP,
+  COMPACTION_THRESHOLD_TIP,
   formatContextArchiveLine,
   formatLastCompactLine,
   formatMicroCompactionLine,
@@ -9,6 +12,11 @@ import {
 } from '#/tui/utils/compaction/compaction-glance';
 
 describe('compaction-glance', () => {
+  it('exports focused tip strings for settings picker actions', () => {
+    expect(COMPACTION_THRESHOLD_TIP).toContain('compactionTriggerRatio');
+    expect(COMPACTION_KEEP_TOKENS_TIP).toContain('compactionMaxRecentMessages');
+    expect(COMPACTION_MICRO_TIP).toContain('Expand(id=');
+  });
   it('formats live archive count from session context', () => {
     expect(
       formatContextArchiveLine({ archiveEntryCount: 3, archiveMaxEntries: 512 }),
