@@ -7,6 +7,22 @@ import type {
   HarnessEyesReadinessReport,
 } from '#/tui/utils/harness-eyes-readiness';
 
+/** Compact /eyes tip — Settings → Eyes readiness picker + status panel. */
+export const EYES_SLASH_TIP =
+  '/eyes — same live browser/computer readiness report as Settings → Eyes readiness.';
+
+/** Doctor / install tip — Settings → Eyes readiness picker + status panel. */
+export const EYES_DOCTOR_TIP =
+  'liora browser-use doctor · install · computer-use doctor · install — runtime probes and OS permissions.';
+
+/** Agent tools tip — Settings → Eyes readiness picker + status panel. */
+export const EYES_TOOLS_TIP =
+  'BrowserStatus / VerifySurface · ComputerCapture / ComputerAct — session tools when eyes runtimes are wired.';
+
+/** Text-only fallback tip — Settings → Eyes readiness picker + status panel. */
+export const EYES_TEXT_ONLY_TIP =
+  'Missing browser/computer runtimes do not block text-only agent work · Settings → Harness links eyes/hands surface.';
+
 export interface EyesSettingsGlance {
   readonly report: HarnessEyesReadinessReport;
   readonly loadError?: string;

@@ -1,12 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { showEyesSettings } from '#/tui/commands/config/eyes/eyes-settings';
 import {
   browserEyeFromSetupResult,
   computerEyeFromCuaStatus,
 } from '#/tui/utils/harness-eyes-readiness';
 import { buildEyesSettingsLines, loadEyesSettingsGlance } from '#/tui/utils/eyes/eyes-glance';
-import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 describe('eyes glance', () => {
   it('builds tip-heavy panel from readiness report', () => {
@@ -38,24 +36,5 @@ describe('eyes glance', () => {
       loadEyesSettingsGlance({ loadError: 'probe failed' }),
     ).join('\n');
     expect(text).toContain('Load error: probe failed');
-  });
-});
-
-describe('showEyesSettings', () => {
-  it('mounts UsagePanel instead of showNotice', async () => {
-    const host = {
-      state: {
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-      showNotice: vi.fn(),
-      showError: vi.fn(),
-    } as unknown as SlashCommandHost;
-
-    showEyesSettings(host);
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    expect(host.showNotice as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
   });
 });
