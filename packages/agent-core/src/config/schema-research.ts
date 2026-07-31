@@ -123,6 +123,11 @@ export const ResearchSearchConfigSchema = z.object({
   contentFetchLimit: z.number().int().min(0).max(8).optional(),
   /** Keep zero-config free adapters (DuckDuckGo/direct sources) as last-resort fallback. Default true. */
   freeFallback: z.boolean().optional(),
+  /**
+   * Allow Ch4/Ch5 escalate after empty SERP when the call omits `allowBrowser`.
+   * Default true (WebSearch). DeepResearch passes an explicit per-call flag.
+   */
+  browserEscalate: z.boolean().optional(),
 });
 
 export type ResearchSearchConfig = z.infer<typeof ResearchSearchConfigSchema>;

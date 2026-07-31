@@ -128,6 +128,8 @@ const DEFAULT_CONTENT_FETCH_LIMIT = 2;
 export class ResearchSearchEngine implements WebSearchProvider {
   private readonly strategy: ResearchSearchRoutingStrategy;
   private readonly freeFallback: boolean;
+  /** Default for search() when options.allowBrowser is omitted. */
+  private readonly browserEscalate: boolean;
   private readonly cooldownMs: number;
   private readonly concurrency: number;
   private readonly maxProviderCalls: number;
@@ -147,6 +149,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
   constructor(options: ResearchSearchEngineOptions = {}) {
     this.strategy = options.search?.strategy ?? 'auto';
     this.freeFallback = resolveResearchSearchFreeFallback(options.search?.freeFallback);
+    this.browserEscalate = options.search?.browserEscalate !== false;
     this.cooldownMs = options.search?.cooldownMs ?? DEFAULT_COOLDOWN_MS;
     this.concurrency = clampInt(options.search?.concurrency ?? DEFAULT_CONCURRENCY, 1, 16);
     this.maxProviderCalls = clampInt(
@@ -265,7 +268,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
     // Never ask every remote provider for full page bodies — content is
     // attached once after ranking (local Defuddle fetch).
     const metadataOptions = { ...options, includeContent: false as const };
-    const allowBrowser = options?.allowBrowser !== false;
+    const allowBrowser = options?.allowBrowser ?? this.browserEscalate;
     const now = this.now();
 
     const ready = this.slots.filter((slot) => slot.cooldownUntil <= now);
