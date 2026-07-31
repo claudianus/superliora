@@ -93,6 +93,62 @@ describe('research-bridge-status', () => {
     expect(status.nativeHost.handshake).toBe('host-script-ready');
   });
 
+  it('promotes to loopback-verified when mocked loopback probe succeeds', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sl-bridge-'));
+    const manifestPath = join(dir, `${NATIVE_HOST_ID}.json`);
+    writeFileSync(manifestPath, '{}', 'utf8');
+
+    const agentCoreRoot = mkdtempSync(join(tmpdir(), 'sl-agent-core-'));
+    const scriptPath = join(agentCoreRoot, 'scripts/research-bridge-native-host.mjs');
+    mkdirSync(join(agentCoreRoot, 'scripts'), { recursive: true });
+    writeFileSync(scriptPath, '// stub', 'utf8');
+
+    const env = {
+      [CHROME_RESEARCH_BRIDGE_ENV]: '1',
+      SUPERLIORA_RESEARCH_BRIDGE_MANIFEST: manifestPath,
+    } as NodeJS.ProcessEnv;
+
+    let spawnArg = '';
+    const status = buildResearchBridgeStatus({
+      env,
+      agentCoreRoot,
+      smokeDeps: {
+        spawnSync: (_cmd, args) => ({
+          status: 0,
+          stdout: 'research-bridge-native-host smoke ok (0.1.0-stub)\n',
+          stderr: '',
+          pid: 1,
+          output: [null, 'research-bridge-native-host smoke ok (0.1.0-stub)\n', ''],
+          signal: null,
+          error: undefined,
+        }),
+      },
+      loopbackDeps: {
+        spawnSync: (_cmd, args) => {
+          spawnArg = args?.[1] ?? '';
+          return {
+            status: 0,
+            stdout: 'research-bridge loopback ok (http://127.0.0.1:32123/search)\n',
+            stderr: '',
+            pid: 1,
+            output: [
+              null,
+              'research-bridge loopback ok (http://127.0.0.1:32123/search)\n',
+              '',
+            ],
+            signal: null,
+            error: undefined,
+          };
+        },
+      },
+    });
+
+    expect(spawnArg).toBe('--probe-loopback');
+    expect(status.nativeHost.handshake).toBe('loopback-verified');
+    expect(status.nativeHost.loopback?.ok).toBe(true);
+    expect(formatResearchBridgeHandshakeLine(status.nativeHost)).toContain('loopback verified');
+  });
+
   it('promotes to smoke-verified when mocked smoke succeeds', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sl-bridge-'));
     const manifestPath = join(dir, `${NATIVE_HOST_ID}.json`);
