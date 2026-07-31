@@ -4,10 +4,65 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { showStorageSettings } from '#/tui/commands/config/storage/storage-settings';
+import {
+  showStorageSettings,
+  STORAGE_HOME_TIP,
+  STORAGE_LOGS_TIP,
+  STORAGE_RETENTION_TIP,
+} from '#/tui/commands/config/storage/storage-settings';
 import { resolveStoragePaths } from '#/tui/utils/storage/storage-glance';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
+
+function makeStorageHost(options: {
+  home: string;
+  configPath: string;
+  sessionDir?: string;
+  listSessions?: () => Promise<readonly unknown[]>;
+}): SlashCommandHost {
+  return {
+    harness: {
+      homeDir: options.home,
+      configPath: options.configPath,
+      listSessions: options.listSessions ?? vi.fn(async () => []),
+    },
+    state: {
+      transcriptContainer: { addChild: vi.fn() },
+      centerModalStack: [] as readonly unknown[],
+      appState: { workDir: '/tmp/ws' },
+      renderer: { invalidateFrame: vi.fn() },
+    },
+    requireSession: vi.fn(() => ({
+      workDir: '/tmp/ws',
+      summary: {
+        sessionDir: options.sessionDir,
+        workDir: '/tmp/ws',
+      },
+    })),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    mountEditorReplacement: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
+  } as unknown as SlashCommandHost;
+}
+
+function selectStorageAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
+describe('storage settings tips', () => {
+  it('exports home, retention, and logs tips', () => {
+    expect(STORAGE_HOME_TIP).toContain('SUPERLIORA_HOME');
+    expect(STORAGE_RETENTION_TIP).toContain('wire.jsonl');
+    expect(STORAGE_LOGS_TIP).toContain('log-level');
+  });
+});
 
 describe('storage settings', () => {
   it('resolveStoragePaths uses live session dir for journal + tool-results', () => {
@@ -23,6 +78,36 @@ describe('storage settings', () => {
     expect(paths.toolResultsDir).toBe(join(sessionDir, 'agents/main/tool-results'));
   });
 
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeStorageHost({
+      home: '/tmp/home',
+      configPath: '/tmp/home/config.toml',
+    });
+    showStorageSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-home',
+      'tip-retention',
+      'tip-logs',
+    ]);
+  });
+
+  it('shows SUPERLIORA_HOME tip via showStatus', () => {
+    const host = makeStorageHost({
+      home: '/tmp/home',
+      configPath: '/tmp/home/config.toml',
+    });
+    showStorageSettings(host);
+    selectStorageAction(host, 'tip-home');
+    expect(host.showStatus).toHaveBeenCalledWith(STORAGE_HOME_TIP, 'info');
+  });
+
   it('mounts read-only storage panel with live harness paths', async () => {
     const originalHome = process.env['SUPERLIORA_HOME'];
     const home = await mkdtemp(join(tmpdir(), 'liora-storage-settings-'));
@@ -30,29 +115,21 @@ describe('storage settings', () => {
     const sessionDir = join(home, 'sessions', 'bucket', 'ses_a');
     const configPath = join(home, 'config.toml');
 
-    const host = {
-      harness: {
-        homeDir: home,
-        configPath,
-        listSessions: vi.fn(async () => [{ id: 'a' }, { id: 'b' }]),
-      },
-      state: {
-        transcriptContainer: { addChild: vi.fn() },
-        appState: { workDir: '/tmp/ws' },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-      requireSession: vi.fn(() => ({
-        workDir: '/tmp/ws',
-        summary: { sessionDir, workDir: '/tmp/ws' },
-      })),
-    } as unknown as SlashCommandHost;
+    const host = makeStorageHost({
+      home,
+      configPath,
+      sessionDir,
+      listSessions: vi.fn(async () => [{ id: 'a' }, { id: 'b' }]),
+    });
 
     showStorageSettings(host);
+    selectStorageAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
 
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Storage (read-only)');
     expect(lines).toContain(`Home: ${home}`);
