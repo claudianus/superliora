@@ -13,6 +13,7 @@ import {
   formatCompatToolHelpHint,
   isCompatBrandingTool,
 } from '../../../agent/tool/help-visibility';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { escapeXml, escapeXmlAttr } from '../../../utils/xml-escape';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -54,6 +55,7 @@ export class SearchToolsTool implements BuiltinTool<SearchToolsInput> {
   resolveExecution(args: SearchToolsInput): ToolExecution {
     const q = args.query?.trim() ?? '';
     return {
+      accesses: ToolAccesses.none(),
       description: q.length > 0 ? `Search tools: ${q}` : 'List tools',
       display: { kind: 'generic', summary: q.length > 0 ? `SearchTools: ${q}` : 'SearchTools: list' },
       readOnly: true,

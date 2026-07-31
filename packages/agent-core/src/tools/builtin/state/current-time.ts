@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { formatCurrentTimeSnapshot } from '../../../utils/current-time';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -16,6 +17,7 @@ export class GetCurrentTimeTool implements BuiltinTool<GetCurrentTimeToolInput> 
 
   resolveExecution(_args: GetCurrentTimeToolInput): ToolExecution {
     return {
+      accesses: ToolAccesses.none(),
       description: 'Reading the current date and time',
       approvalRule: this.name,
       execute: async () => {

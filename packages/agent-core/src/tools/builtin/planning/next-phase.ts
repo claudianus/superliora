@@ -9,6 +9,7 @@ import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 
@@ -41,6 +42,7 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
 
   resolveExecution(args: NextPhaseInput): ToolExecution {
     return {
+      accesses: ToolAccesses.all(),
       description: `Advancing to ${args.phase} phase`,
       approvalRule: this.name,
       execute: async () => this.execution(args),

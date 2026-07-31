@@ -40,6 +40,15 @@ export function markReadFileAccesses<T extends ExecutableTool>(tool: T): T {
   return tool;
 }
 
+export function markNoneAccesses<T extends ExecutableTool>(tool: T): T {
+  const resolveExecution = tool.resolveExecution.bind(tool);
+  tool.resolveExecution = (async (input: unknown) => {
+    const execution = await resolveExecution(input);
+    return { ...execution, accesses: ToolAccesses.none() };
+  }) as T['resolveExecution'];
+  return tool;
+}
+
 export interface EchoInput {
   text: string;
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import type {
   AgentMemoryRuntime,
@@ -74,6 +75,7 @@ export class MemoryTool implements BuiltinTool<MemoryInput> {
   resolveExecution(args: MemoryInput): ToolExecution {
     const action = actionName(args);
     return {
+      accesses: memoryAccesses(args),
       description: `${action} Liora Recall`,
       approvalRule: this.name,
       execute: async () => {
@@ -109,6 +111,12 @@ function actionName(args: MemoryInput): string {
   if (args.read !== undefined) return 'Reading';
   if (args.forget !== undefined) return 'Forgetting';
   return 'Listing';
+}
+
+function memoryAccesses(args: MemoryInput) {
+  return args.write !== undefined || args.forget !== undefined
+    ? ToolAccesses.all()
+    : ToolAccesses.none();
 }
 
 function toCreateInput(input: z.infer<typeof WriteMemorySchema>): MemoryCreateInput {

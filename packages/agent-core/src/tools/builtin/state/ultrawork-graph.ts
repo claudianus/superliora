@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import type { Agent } from '../../../agent/index';
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import {
   applyEvidenceHardGate,
@@ -115,6 +116,7 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
     }
     const validArgs = parsed.data;
     return {
+      accesses: validArgs.nodes === undefined ? ToolAccesses.none() : ToolAccesses.all(),
       description:
         validArgs.nodes === undefined ? 'Reading Ultrawork graph' : 'Updating Ultrawork graph',
       approvalRule: this.name,

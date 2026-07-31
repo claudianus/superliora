@@ -19,6 +19,7 @@ import type { Agent } from '../../../agent/index';
 import type { SkillActivationOrigin } from '../../../agent/context';
 import { renderModelToolSkillPrompt } from '../../../agent/skill/prompt';
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { isInlineSkillType, type SkillDefinition } from '../../../skill';
 import { renderPrompt } from '../../../utils/render-prompt';
@@ -86,6 +87,7 @@ export class SkillTool implements BuiltinTool<SkillToolInput> {
 
   resolveExecution(args: SkillToolInput): ToolExecution {
     return {
+      accesses: ToolAccesses.none(),
       description: `Invoke skill ${args.skill}`,
       display: { kind: 'skill_call', skill_name: args.skill, args: args.args },
       readOnly: true,

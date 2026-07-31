@@ -11,6 +11,7 @@ import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import type { ToolInputDisplay } from '../../display';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -56,6 +57,7 @@ export class CreateUltraGoalTool implements BuiltinTool<CreateUltraGoalToolInput
     const mode = args.mode ?? 'closed';
 
     return {
+      accesses: ToolAccesses.all(),
       description: `Creating Goal (legacy CreateUltraGoal) (${mode} loop)`,
       display: this.resolveDisplay(args, mode),
       approvalRule: this.name,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import { resolveExpertWhenToUse } from '../../../expert-agents/expert-persona';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExpertSearchResult } from '../../../expert-agents/types';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { escapeXml, escapeXmlAttr } from '../../../utils/xml-escape';
@@ -41,6 +42,7 @@ export class SearchExpertTool implements BuiltinTool<SearchExpertInput> {
 
   resolveExecution(args: SearchExpertInput): ToolExecution {
     return {
+      accesses: ToolAccesses.none(),
       description: `Search expert agents for "${args.query}"`,
       display: { kind: 'generic', summary: `SearchExpert: ${args.query}` },
       readOnly: true,

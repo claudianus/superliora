@@ -8,6 +8,7 @@ import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import type { ToolInputDisplay } from '../../display';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -41,6 +42,7 @@ export class CreateGoalTool implements BuiltinTool<CreateGoalToolInput> {
     const goal = this.agent.goal;
 
     return {
+      accesses: ToolAccesses.all(),
       description: 'Creating a goal',
       display: this.resolveGoalStartDisplay(args),
       approvalRule: this.name,

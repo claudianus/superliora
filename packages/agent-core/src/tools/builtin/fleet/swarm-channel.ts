@@ -11,6 +11,7 @@ import { z } from 'zod';
 import type { Agent } from '../../../agent/index';
 import type { UltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
@@ -73,6 +74,7 @@ export class SwarmChannelTool implements BuiltinTool<SwarmChannelToolInput> {
 
   resolveExecution(args: SwarmChannelToolInput): ToolExecution {
     return {
+      accesses: ToolAccesses.all(),
       description: swarmChannelDescription(args),
       approvalRule: this.name,
       execute: async () => this.execution(args),

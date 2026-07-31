@@ -26,6 +26,7 @@ import {
   buildGoalCompletionSummaryPrompt,
 } from './outcome-prompts';
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './update-goal.md?raw';
@@ -51,6 +52,7 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
     const goal = this.agent.goal;
 
     return {
+      accesses: ToolAccesses.all(),
       description: `Setting goal status: ${args.status}`,
       stopBatchAfterThis: args.status !== 'active',
       approvalRule: this.name,

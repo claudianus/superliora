@@ -11,6 +11,7 @@ import type { Readable } from 'node:stream';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern } from '../../support/rule-match';
@@ -102,6 +103,7 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
     const checks = args.checks ?? [...DEFAULT_CHECKS];
     const target = args.packageDir ?? args.cwd ?? this.cwd;
     return {
+      accesses: ToolAccesses.all(),
       description: `Running project checks: ${checks.join(', ')}`,
       display: {
         kind: 'generic',

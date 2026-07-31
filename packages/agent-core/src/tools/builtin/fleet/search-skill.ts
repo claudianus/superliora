@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Agent } from '../../../agent/index';
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { SkillSearchHit } from '../../../skill';
 import { escapeXml, escapeXmlAttr } from '../../../utils/xml-escape';
@@ -34,6 +35,7 @@ export class SearchSkillTool implements BuiltinTool<SearchSkillInput> {
 
   resolveExecution(args: SearchSkillInput): ToolExecution {
     return {
+      accesses: ToolAccesses.none(),
       description: `Search skills for "${args.query}"`,
       display: { kind: 'generic', summary: `SearchSkill: ${args.query}` },
       readOnly: true,

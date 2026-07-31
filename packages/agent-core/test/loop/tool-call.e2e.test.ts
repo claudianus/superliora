@@ -28,6 +28,7 @@ import {
   EchoTool,
   FailingTool,
   GatedTool,
+  markNoneAccesses,
   markReadFileAccesses,
   ProgressTool,
   StrictArgsTool,
@@ -514,6 +515,30 @@ describe('runTurn — tool-call behaviour', () => {
         .map((e) => e.toolCallId)
         .toSorted(),
     ).toEqual(['tc-a', 'tc-b'].toSorted());
+  });
+
+  it('executes parallel none-access tool tasks concurrently in one turn', async () => {
+    const a = markNoneAccesses(new GatedTool('none-a'));
+    const b = markNoneAccesses(new GatedTool('none-b'));
+
+    const turnPromise = runTurn({
+      tools: [a, b],
+      responses: [
+        makeToolUseResponse([
+          makeToolCall('none-a', {}, 'tc-a'),
+          makeToolCall('none-b', {}, 'tc-b'),
+        ]),
+        makeEndTurnResponse('done'),
+      ],
+    });
+
+    await Promise.all([a.started, b.started]);
+
+    b.release();
+    a.release();
+
+    const { context } = await turnPromise;
+    expect(context.toolResults().map((r) => r.toolCallId)).toEqual(['tc-a', 'tc-b']);
   });
 
   it('serializes tool tasks with default accesses', async () => {

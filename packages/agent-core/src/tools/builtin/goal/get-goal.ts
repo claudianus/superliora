@@ -8,6 +8,7 @@ import type { Agent } from '#/agent/index';
 import { z } from 'zod';
 
 import type { BuiltinTool } from '../../../agent/tool';
+import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './get-goal.md?raw';
@@ -26,6 +27,7 @@ export class GetGoalTool implements BuiltinTool<GetGoalToolInput> {
   resolveExecution(_args: GetGoalToolInput): ToolExecution {
     const store = this.agent.goal;
     return {
+      accesses: ToolAccesses.none(),
       description: 'Reading the current goal',
       approvalRule: this.name,
       execute: async () => {
