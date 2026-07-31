@@ -65,14 +65,15 @@ export async function isGitCheckoutDirty(repoRoot: string): Promise<boolean> {
 }
 
 function buildGitCheckoutUpdateShellLines(repoExpr: string): readonly string[] {
+  // Match install.sh: force-checkout discards local dirt intentionally.
+  // Do not pre-fail on a dirty tree — that trapped source installs that had
+  // incidental lockfile noise and made both auto and manual upgrade impossible.
   return [
     `echo '__LIORA_UPGRADE_STAGE__=fetching'`,
     `upstream="$(git -C ${repoExpr} rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"`,
     `if [ -z "$upstream" ]; then upstream="$(git -C ${repoExpr} symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"; fi`,
     `if [ -z "$upstream" ]; then if git -C ${repoExpr} rev-parse --verify origin/main >/dev/null 2>&1; then upstream='origin/main'; else upstream='origin/master'; fi; fi`,
     'ref="${upstream#origin/}"',
-    `git -C ${repoExpr} diff --quiet`,
-    `git -C ${repoExpr} diff --cached --quiet`,
     `git -C ${repoExpr} fetch --depth 1 origin "$ref"`,
     `git -C ${repoExpr} checkout --force FETCH_HEAD`,
     `git -C ${repoExpr} reset --hard FETCH_HEAD`,
