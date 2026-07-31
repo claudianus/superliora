@@ -2,6 +2,18 @@
  * Network / Proxy settings glance — HTTPS_PROXY tips (SSOT §9.2).
  */
 
+/** Compact HTTP(S) proxy tip — Settings → Network picker + status panel. */
+export const NETWORK_PROXY_TIP =
+  'Set HTTP_PROXY / HTTPS_PROXY / ALL_PROXY before launching liora — installed at CLI startup via global dispatcher. HTTPS_PROXY covers TLS egress; HTTP_PROXY is the fallback when HTTPS_PROXY is unset. Invalid URLs are reported and ignored (startup continues).';
+
+/** Compact NO_PROXY bypass tip — host allowlist for direct connections. */
+export const NETWORK_NO_PROXY_TIP =
+  'NO_PROXY lists hosts that bypass the proxy (comma-separated). localhost/127.0.0.1/::1 are added automatically. NO_PROXY=* disables proxy for all hosts (advanced). MCP servers on localhost should bypass proxy automatically.';
+
+/** Compact SOCKS / egress complement tip — MCP stdio + sandbox profiles. */
+export const NETWORK_SOCKS_TIP =
+  'SOCKS schemes (socks4/socks5/…) in ALL_PROXY or HTTP(S)_PROXY — MCP stdio + local loopback stay direct. Security → sandbox egress complements proxy (kaos profiles).';
+
 export interface NetworkGlanceInput {
   readonly httpProxy?: string;
   readonly httpsProxy?: string;
