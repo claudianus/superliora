@@ -92,7 +92,9 @@ export class UpgradeDialogComponent extends Container implements Focusable {
       body.push(
         currentTheme.fg(
           'warning',
-          ' Working tree is dirty — install is blocked until changes are committed or stashed.',
+          plan.canAutoInstall
+            ? ' Working tree is dirty — installing will discard local changes (force checkout).'
+            : ' Working tree is dirty — commit, stash, or re-run install.sh to recover.',
         ),
       );
     }

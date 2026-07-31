@@ -23,7 +23,7 @@ describe('resolveUpgradePlan', () => {
     expect(plan.changelogUrl).toBe(SUPERLIORA_CHANGELOG_URL);
   });
 
-  it('maps github update + dirty to blocked auto-install', async () => {
+  it('maps github update + dirty to auto-install with dirty flag for warning', async () => {
     const plan = await resolveUpgradePlan('0.4.0', {
       detectInstallSource: async () => 'github-checkout',
       refreshUpdateCache: vi.fn(),
@@ -41,7 +41,8 @@ describe('resolveUpgradePlan', () => {
     });
     expect(plan.reason).toBe('update-available');
     expect(plan.dirty).toBe(true);
-    expect(plan.canAutoInstall).toBe(false);
+    // Explicit upgrade may force-reset; dirty is a warning, not a hard block.
+    expect(plan.canAutoInstall).toBe(true);
     expect(plan.target?.version).toBe('origin/main@abcdef123456');
   });
 

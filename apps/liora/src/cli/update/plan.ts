@@ -126,13 +126,16 @@ export async function resolveUpgradePlan(
           platform: deps.platform,
         });
       }
+      // Dirty still surfaces in the plan for UX warnings, but does not block
+      // explicit install — the checkout script force-resets like install.sh.
+      // Silent background installs gate on dirty separately in preflight.
       return basePlan({
         source,
         currentVersion,
         target: { version: result.target.version, upstream: result.target.upstream },
         reason: 'update-available',
         dirty: result.dirty,
-        canAutoInstall: canAutoInstall(source, deps.platform) && !result.dirty,
+        canAutoInstall: canAutoInstall(source, deps.platform),
         platform: deps.platform,
       });
     } catch (error) {

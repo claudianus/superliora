@@ -204,8 +204,12 @@ export async function runUpdatePreflight(
         rollout_bypassed: true,
       };
       const decision = decideUpdateAction(target, isInteractive, source, platform);
+      // Never silently background-install over a dirty checkout — that would
+      // discard local work without consent. Explicit upgrade/prompt still may.
+      const checkoutDirty = refreshResult?.status === 'update' && refreshResult.dirty;
       if (
-        await tryStartAutomaticBackgroundInstall(
+        !checkoutDirty
+        && await tryStartAutomaticBackgroundInstall(
           installState,
           currentVersion,
           target,

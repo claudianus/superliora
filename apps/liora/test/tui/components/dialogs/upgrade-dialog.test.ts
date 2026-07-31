@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SUPERLIORA_CHANGELOG_URL, type UpgradePlan } from '#/cli/update/plan';
 import { UpgradeDialogComponent } from '#/tui/components/dialogs/upgrade/upgrade-dialog';
+import { currentTheme, darkColors } from '#/tui/theme';
 
 const ANSI = /\u001B\[[0-9;]*m/g;
 const ESC = String.fromCodePoint(27);
@@ -32,6 +33,17 @@ function text(component: UpgradeDialogComponent, width = 100): string {
 }
 
 describe('UpgradeDialogComponent', () => {
+  let previousPalette: typeof currentTheme.palette;
+
+  beforeEach(() => {
+    previousPalette = currentTheme.palette;
+    currentTheme.setPalette(darkColors);
+  });
+
+  afterEach(() => {
+    currentTheme.setPalette(previousPalette);
+  });
+
   it('offers Install and Later when an update can auto-install', () => {
     const onSelect = vi.fn();
     const dialog = new UpgradeDialogComponent({
@@ -78,12 +90,12 @@ describe('UpgradeDialogComponent', () => {
     expect(out).toMatch(/❯ Later|❯ Dismiss/);
   });
 
-  it('warns when a dirty github checkout blocks install', () => {
+  it('warns that dirty github checkout install will discard local changes', () => {
     const dialog = new UpgradeDialogComponent({
       plan: plan({
         source: 'github-checkout',
         dirty: true,
-        canAutoInstall: false,
+        canAutoInstall: true,
         installCommand: "bash -lc 'set -e; git pull'",
       }),
       onSelect: vi.fn(),
@@ -92,8 +104,9 @@ describe('UpgradeDialogComponent', () => {
 
     const out = text(dialog);
     expect(out.toLowerCase()).toContain('dirty');
-    expect(out.toLowerCase()).toMatch(/blocked|cannot install|install is blocked/);
-    expect(out).toContain("bash -lc 'set -e; git pull'");
+    expect(out.toLowerCase()).toMatch(/discard|force checkout/);
+    expect(out).toMatch(/Install /);
+    expect(out).not.toContain("bash -lc 'set -e; git pull'");
   });
 
   it('shows the manual command for diverged checkouts', () => {
