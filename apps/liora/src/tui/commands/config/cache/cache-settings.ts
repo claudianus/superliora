@@ -1,16 +1,19 @@
 /**
- * Settings → Cache — hit-rate glance + Cache Sacred tips (W1).
+ * Settings → Cache — hit-rate glance + invalidate tip + Cache Sacred (W1 / §9.2).
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import {
   buildCacheSettingsLines,
+  cacheInvalidateStatusMessage,
   resolveCacheSessionGlance,
   type CacheGlanceTone,
   type CacheStyledLine,
 } from '../../../utils/cache/cache-glance';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { currentTheme } from '../../../theme/theme';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -46,7 +49,44 @@ function renderCacheSettingsLines(
   });
 }
 
-export async function showCacheSettings(host: SlashCommandHost): Promise<void> {
+export function showCacheSettings(host: SlashCommandHost): void {
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Cache',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Cache status',
+          description: 'Hit rate · warm streak · freeze · Cache Sacred tips.',
+        },
+        {
+          value: 'invalidate',
+          label: 'Invalidate tip (/new or model switch)',
+          description: 'prompt_cache_key is the session id — how to force a cold prefix.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showCacheSettingsPanel(host);
+          return;
+        }
+        if (value === 'invalidate') {
+          host.showStatus(cacheInvalidateStatusMessage(), 'warning');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Cache' },
+  );
+}
+
+async function showCacheSettingsPanel(host: SlashCommandHost): Promise<void> {
   let session = resolveCacheSessionGlance({
     appStateCacheMeter: host.state.appState.cacheMeter,
   });
@@ -70,7 +110,9 @@ export async function showCacheSettings(host: SlashCommandHost): Promise<void> {
     borderToken: 'primary',
     title: ' Cache ',
     enterBeatSeed: 'cache',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

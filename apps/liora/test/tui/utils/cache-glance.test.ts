@@ -75,5 +75,7 @@ describe('resolveCacheSessionGlance', () => {
     expect(liveIdx).toBeGreaterThan(-1);
     expect(tipsIdx).toBeGreaterThan(liveIdx);
     expect(lines.some((line) => line.includes('Session cache hit:'))).toBe(true);
+    expect(lines.some((line) => line.includes('Invalidate:'))).toBe(true);
+    expect(lines.some((line) => line.includes('Freeze policy:'))).toBe(true);
   });
 });

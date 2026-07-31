@@ -151,6 +151,14 @@ export function resolveCacheSessionGlance(input: {
   };
 }
 
+/** Provider prompt_cache_key is the session id — invalidate by starting a new session or switching model. */
+export const CACHE_INVALIDATE_TIP =
+  'Invalidate: run /new (new session id) or switch model — prompt_cache_key follows the session.';
+
+export function cacheInvalidateStatusMessage(): string {
+  return CACHE_INVALIDATE_TIP;
+}
+
 export function buildCacheSettingsLines(session: CacheSessionGlance): readonly string[] {
   const targetTip = `target ≥${String(Math.round(CACHE_HIT_TARGET * 100))}%`;
 
@@ -168,11 +176,15 @@ export function buildCacheSettingsLines(session: CacheSessionGlance): readonly s
     '── Cache Sacred rules ──────────────────────',
     `· Target: ${targetTip} prompt cache hit (cache✓ badge in footer + /ops)`,
     `· ${CACHE_FREEZE_MID_TURN_TIP}`,
+    `· Freeze policy: mid-turn tool-list mutate is rejected while CacheFreezeGuard is frozen.`,
     ...(session.showMissReasonStubTip ? [`· ${CACHE_MISS_REASON_STUB_TIP}`] : []),
     '· Do not mutate system / tool schemas mid-turn',
     '· Dynamic facts go at message tail only',
     '· CacheFreezeGuard freezes enabled-tool set at turn start (mid-turn setActiveTools rejected).',
     '· Prefer RepoQuery/index over re-injecting huge trees',
+    '',
+    '── Invalidate ───────────────────────────────',
+    `· ${CACHE_INVALIDATE_TIP}`,
     '',
     'Ops: /ops shows live cache hit alongside Goal/MCP.',
   ];
