@@ -7,6 +7,7 @@ import type { OAuthRefreshOutcome } from '@superliora/oauth';
 import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
 import { createTurnLoopDispatch } from '#/agent/turn/loop-dispatch';
+import type { TurnTelemetry } from '#/agent/turn/telemetry';
 import type { AgentEvent } from '#/rpc/events';
 import { StreamingThinkScrubber } from '#/utils/think-scrubber';
 
@@ -103,7 +104,7 @@ export async function runNeverHaltDegradedLoopDispatchChaos(
     const dispatch = createTurnLoopDispatch(
       {
         agent: agent as never,
-        turnTelemetry: { trackLoopTelemetry: () => undefined },
+        turnTelemetry: chaosTurnTelemetryStub(),
         assistantThinkScrubber: new StreamingThinkScrubber(),
         getActiveTurn: () => null,
       },
@@ -112,6 +113,7 @@ export async function runNeverHaltDegradedLoopDispatchChaos(
 
     await dispatch({
       type: 'tool.result',
+      parentUuid: 'chaos-brave-429',
       toolCallId: 'chaos-brave-429',
       result: {
         isError: false,
@@ -173,7 +175,7 @@ export async function runNeverHaltBreaker429LoopDispatchChaos(
     const dispatch = createTurnLoopDispatch(
       {
         agent: agent as never,
-        turnTelemetry: { trackLoopTelemetry: () => undefined },
+        turnTelemetry: chaosTurnTelemetryStub(),
         assistantThinkScrubber: new StreamingThinkScrubber(),
         getActiveTurn: () => null,
       },
@@ -182,6 +184,7 @@ export async function runNeverHaltBreaker429LoopDispatchChaos(
 
     await dispatch({
       type: 'tool.result',
+      parentUuid: 'chaos-breaker-429',
       toolCallId: 'chaos-breaker-429',
       result: {
         isError: false,
@@ -204,6 +207,11 @@ export async function runNeverHaltBreaker429LoopDispatchChaos(
       ? 'breaker 429 + loop-dispatch degraded tool; goal tick completed'
       : 'goal tick aborted during breaker loop-dispatch chaos (contract violation)',
   };
+}
+
+/** Minimal TurnTelemetry for chaos stubs — only trackLoopTelemetry is invoked. */
+function chaosTurnTelemetryStub(): TurnTelemetry {
+  return { trackLoopTelemetry: () => undefined } as unknown as TurnTelemetry;
 }
 
 const CHAOS_SEQUENCE_COOLDOWN_MS = 100;
