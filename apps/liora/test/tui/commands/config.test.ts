@@ -1132,7 +1132,10 @@ describe('harness panel and tools inventory', () => {
 
   it('routes settings hooks selection to hooks panel', async () => {
     const host = makeHarnessHost({
-      session: { listPlugins: vi.fn(async () => [{ id: 'p', enabled: true, hookCount: 1 }]) },
+      session: {
+        listPlugins: vi.fn(async () => [{ id: 'p', enabled: true, hookCount: 1 }]),
+        getHookRegistry: vi.fn(async () => ({ totalCount: 1, events: { PreToolUse: 1 } })),
+      },
     });
     showSettingsSelector(host);
     const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
@@ -1143,6 +1146,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const hooksPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(hooksPicker).toBeDefined();
+    hooksPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1202,6 +1210,11 @@ describe('harness panel and tools inventory', () => {
   it('renders hooks panel without session', async () => {
     const host = makeHarnessHost({ session: undefined, activeSession: undefined });
     showHooksSettings(host);
+    const hooksPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(hooksPicker).toBeDefined();
+    hooksPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });

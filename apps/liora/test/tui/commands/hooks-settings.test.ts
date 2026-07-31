@@ -1,15 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showHooksSettings } from '#/tui/commands/config/hooks/hooks-settings';
+import {
+  HOOKS_ENABLE_TIP,
+  HOOKS_POST_TOOL_USE_TIP,
+  HOOKS_PRE_TOOL_USE_TIP,
+  HOOKS_STOP_TIP,
+  showHooksSettings,
+} from '#/tui/commands/config/hooks/hooks-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeHooksHost(
-  options: { hasSession?: boolean; hookCount?: number; registry?: { totalCount: number; events: Record<string, number> } } = {},
+  options: {
+    hasSession?: boolean;
+    hookCount?: number;
+    registry?: { totalCount: number; events: Record<string, number> };
+  } = {},
 ) {
   const transcriptContainer = { addChild: vi.fn() };
   const getHookRegistry = vi.fn(async () =>
-    options.registry ?? { totalCount: options.hookCount ?? 2, events: { PreToolUse: options.hookCount ?? 2 } },
+    options.registry ?? {
+      totalCount: options.hookCount ?? 2,
+      events: { PreToolUse: options.hookCount ?? 2 },
+    },
   );
   const listPlugins = vi.fn(async () =>
     options.hasSession === false
@@ -23,6 +37,7 @@ function makeHooksHost(
     },
     state: {
       transcriptContainer,
+      centerModalStack: [] as readonly unknown[],
       appState: {},
       renderer: { invalidateFrame: vi.fn() },
     },
@@ -32,17 +47,68 @@ function makeHooksHost(
             throw new Error('no session');
           })
         : vi.fn(() => ({ getHookRegistry, listPlugins })),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
-describe('hooks settings', () => {
-  it('mounts read-only hooks panel with live registry and Pre/Post/Stop tips', async () => {
-    const host = makeHooksHost({ hookCount: 3, registry: { totalCount: 3, events: { PreToolUse: 2, Stop: 1 } } });
+function selectHooksAction(host: SlashCommandHost, value: string): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
+describe('hooks settings tips', () => {
+  it('exports PreToolUse, PostToolUse, Stop, and enable tips', () => {
+    expect(HOOKS_PRE_TOOL_USE_TIP).toContain('PreToolUse');
+    expect(HOOKS_POST_TOOL_USE_TIP).toContain('PostToolUse');
+    expect(HOOKS_STOP_TIP).toContain('Stop');
+    expect(HOOKS_ENABLE_TIP).toContain('config.toml [[hooks]]');
+  });
+});
+
+describe('showHooksSettings', () => {
+  it('mounts ChoicePicker with status and read-only tip actions', () => {
+    const host = makeHooksHost();
     showHooksSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'tip-pre-tool-use',
+      'tip-post-tool-use',
+      'tip-stop',
+      'tip-enable',
+    ]);
+  });
+
+  it('shows PreToolUse tip via showStatus', () => {
+    const host = makeHooksHost();
+    showHooksSettings(host);
+    selectHooksAction(host, 'tip-pre-tool-use');
+    expect(host.showStatus).toHaveBeenCalledWith(HOOKS_PRE_TOOL_USE_TIP, 'info');
+  });
+
+  it('mounts read-only hooks panel with live registry and Pre/Post/Stop tips', async () => {
+    const host = makeHooksHost({
+      hookCount: 3,
+      registry: { totalCount: 3, events: { PreToolUse: 2, Stop: 1 } },
+    });
+    showHooksSettings(host);
+    selectHooksAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Hooks (read-only)');
     expect(lines).toContain('Live registry (HookEngine)');
@@ -56,10 +122,12 @@ describe('hooks settings', () => {
   it('works without session', async () => {
     const host = makeHooksHost({ hasSession: false });
     showHooksSettings(host);
+    selectHooksAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('/ext hooks');
     expect(text).not.toContain('Live registry (HookEngine)');
